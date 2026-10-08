@@ -1,0 +1,43 @@
+<section id="bch-s-kv">
+<h2>KV cache memory against context</h2>
+<p>For every token in every sequence, each layer keeps that token's key and value vectors (the <b>KV cache</b>) so later tokens can attend to it without recomputing it. Its size per token is fixed by the model's shape: <span class="mono">2 (K and V) &#215; layers &#215; KV heads &#215; head size &#215; bytes per number</span>. For Qwen3-0.6B (28 layers, 8 KV heads of 128 numbers, from its config.json) at 16 bits that is <b data-f="kvTok"></b> bytes, which llama.cpp's allocation matches exactly. The {{Memory technology|n:3f05c17b0d0d818ab063e327e3d7009f}} page covers where these bytes live physically.</p>
+<div class="bch-plot" id="bch-kv-plot"></div>
+<div class="bch-leg" id="bch-kv-leg"></div>
+<div class="ctl"><label>Memory left for KV after weights: <b id="bch-kv-gbv">4</b> GB<input type="range" id="bch-kv-gb" min="0.5" max="64" step="0.5" value="4"></label>
+<label>Context per sequence: <b id="bch-kv-ctxv">4096</b> tokens<input type="range" id="bch-kv-ctx" min="512" max="40960" step="512" value="4096"></label></div>
+<div class="out" id="bch-kv-out"></div>
+<p class="bch-cap">Dots: the KV buffer llama-server allocated at start-up (Qwen3-0.6B, one sequence, context 4,096, 16,384 and 40,960, KV types f16, q8_0, q4_0). Lines: the formula. q8_0 stores 8.5 bits per number and q4_0 4.5 (a 16-bit scale per block of 32), hence 0.53x and 0.28x of f16. The sliders turn bytes into the number of sequences that fit, which is what limits a server's batch size: memory, not compute, usually caps concurrency.</p>
+</section>
+
+<section id="bch-s-quant">
+<h2>Quantization: speed and quality</h2>
+<p><b>Quantization</b> stores weights in fewer bits (8, or about 5 on average for Q4_K_M, instead of 16). Decode reads every weight once per token, so fewer bytes means faster decode; prefill is limited by arithmetic, so it gains little or even loses to the unpacking work. Quality falls as bits fall, and falls faster on small models. The {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}} page owns the formats and the maths; here are the measured trade-offs.</p>
+<div class="bch-row"><span>Bars</span><div class="seg" id="bch-q-seg"><button data-m="tg" class="on" aria-pressed="true">decode tokens/s</button><button data-m="pp" aria-pressed="false">prefill tokens/s</button><button data-m="gb" aria-pressed="false">effective GB/s in decode</button><button data-m="size" aria-pressed="false">file size (GB)</button></div></div>
+<div class="bars" id="bch-q-bars"></div>
+<p class="bch-cap">llama.cpp: llama-bench pp512 and tg128, 5 repetitions (bar shows the mean, the dark mark the run-to-run range). MLX: mlx_lm benchmark, 512-token prompt and 128 generated tokens, 5 trials, median. Effective GB/s = decode tokens/s &#215; file size: a model that reaches the measured bandwidth (about 140 to 160 GB/s) is purely bandwidth-bound; small quantized models fall short because fixed per-step costs dominate.</p>
+<h3>What the bits cost in quality</h3>
+<div class="tw"><table id="bch-q-tbl"></table></div>
+<p class="bch-cap">Perplexity on WikiText-2 raw test, 512-token windows, the second half of each window scored, first 60 windows (about 15,000 tokens scored): a small check, not a benchmark. KL divergence and "same top token" compare every predicted distribution with the F16 model's on the first 20 windows (llama-perplexity --kl-divergence). The 0.6B files were quantized here from one BF16 file with no calibration data; the 1.7B files are unsloth's. Read the 0.6B rows as the trend: 8-bit is nearly lossless (the top token changes about 1 time in <span data-f="q8Change"></span>), 4-bit is not on a model this small (about 1 time in <span data-f="q4Change"></span>). Larger models lose much less at 4 bits.</p>
+</section>
+
+<section id="bch-s-spec">
+<h2>Speculative decoding: a draft model guesses, the big model checks</h2>
+<p>Decode wastes most of the hardware on one token per step. <b>Speculative decoding</b> lets a small <b>draft</b> model guess the next k tokens cheaply, then the big <b>target</b> model checks all k in one batched step and keeps the longest correct prefix plus one token of its own. The output is exactly what the target alone would produce (at temperature 0, the same text); only the speed changes. It pays when checking k tokens costs about the same as producing one, and when the draft guesses well.</p>
+<div class="bch-row"><span>Prompt</span><div class="seg" id="bch-sp-seg"></div></div>
+<div class="bars" id="bch-sp-bars"></div>
+<p class="bch-cap" id="bch-sp-cap"></p>
+<h3>Why it rarely pays on this GPU: checking k tokens is not free here</h3>
+<div class="bch-plot" id="bch-sv-plot"></div>
+<div class="bch-leg" id="bch-sv-leg"></div>
+<div class="ctl"><label>Draft acceptance per token: <b id="bch-sv-av">0.70</b><input type="range" id="bch-sv-a" min="0.3" max="0.98" step="0.01" value="0.70"></label>
+<label>Draft length k: <b id="bch-sv-kv">3</b><input type="range" id="bch-sv-k" min="1" max="16" step="1" value="3"></label></div>
+<div class="out" id="bch-sv-out"></div>
+<p class="bch-cap">Measured cost of one target step with 1, 2, 4, 9 and 17 tokens (llama-bench, Qwen3-4B Q4_K_M, 5 repetitions) against a step whose cost does not grow with k (the ideal of a large memory-bound model on a datacenter GPU at small batch, labelled illustrative). Expected tokens per step with acceptance a and draft length k: (1 &#8722; a<sup>k+1</sup>) / (1 &#8722; a) (Leviathan et al., 2023); time per step: k draft steps plus one target step of k+1 tokens. Interpolated between measured points.</p>
+</section>
+
+<section id="bch-s-prefix">
+<h2>Prefix caching: a shared system prompt is read once</h2>
+<p>Chat assistants send the same long system prompt with every request, and multi-turn conversations resend the whole history. If the server keeps the KV cache of a prompt it has already read, a new request that starts with the same tokens skips straight to the part that differs. llama-server keeps each slot's last prompt (and, by default, up to 8 GiB of older prompts in host memory); vLLM and SGLang keep cached blocks in a hash table or a radix tree (see the {{Reading|#t-read}} tab).</p>
+<div class="bars" id="bch-px-bars"></div>
+<p class="bch-cap" id="bch-px-cap"></p>
+</section>

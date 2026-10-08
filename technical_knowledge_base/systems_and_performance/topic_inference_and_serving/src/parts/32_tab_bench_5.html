@@ -1,0 +1,47 @@
+<section id="bch-s-eng">
+<h2>Engines side by side, same workload</h2>
+<p>The same closed-loop workload (410-token prompts, 128 output tokens) against three engines. llama.cpp and MLX run Qwen3-0.6B on the GPU at about 4.5 to 5 bits per weight; vLLM runs it on 4 CPU cores in 32-bit floats, so compare its <i>shape</i> with the others, not its speed.</p>
+<div class="tw"><table id="bch-eng-tbl"></table></div>
+<p class="bch-cap">Median over seeds; each cell's range in brackets. Throughput is output tokens per second over the whole run.</p>
+<h3>What each engine did that a benchmark sheet would not tell you</h3>
+<ul class="tight">
+<li><b>llama.cpp (llama-server)</b>: continuous batching across slots, and a new prompt is processed in the same step as other users' decode tokens, which is why their token gaps spike when someone joins (the animation above). Prompt caching is on by default and keeps up to 8 GiB of old prompts in host memory. Speculative decoding needs <code>--spec-type draft-simple</code> as well as <code>-md</code>: with only <code>-md</code> the draft model was loaded and never used (default spec type <code>none</code> in 0.5.0).</li>
+<li><b>MLX (mlx_lm.server)</b>: batches continuously (up to 32 decoding and 8 prefilling requests by default), but it is a Python HTTP server that says it is not meant for production. Under overload (Poisson arrivals at 3 requests/s and above, past its capacity of about 1.5 to 2) its memory footprint grew to 12 GB within minutes, the machine began swapping, and its generation thread died with a Metal out-of-memory error, in both attempts. With 16 simultaneous connections a few were reset (the listen queue holds 5); the load generator retried them and counted the wait.</li>
+<li><b>vLLM on CPU</b>: the official arm64 CPU image (v0.31.0) started and served correctly, but bfloat16 matrix multiplies fell back to a slow path on this CPU (no BF16 instructions on the M1), so it ran in float32. With 2 GiB reserved for KV (<code>VLLM_CPU_KVCACHE_SPACE=2</code>) it reported room for <span data-f="vllmKvTok"></span> tokens (4-byte KV: <span data-f="vllmKvTokB"></span> bytes per token). With 16 users of about 540 tokens each that pool ran out: the engine's log showed KV usage up to <span data-f="vllmKvPeak"></span>% with requests waiting, its metrics counted <span data-f="vllmPreempt"></span> preemptions (a running request evicted and later recomputed), and throughput fell from <span data-f="vllmTok8"></span> tokens/s at 8 users to <span data-f="vllmTok16"></span> at 16. That is the KV cache acting as the scarce resource, measured. Its scheduler, block manager and prefix cache are the same code as on a GPU; only the kernels differ.</li>
+<li><b>SGLang: not run here.</b> Its CPU backend is "enabled and optimized on the CPUs equipped with Intel AMX instructions" (SGLang docs, CPU servers, v0.5.21) and its prebuilt CPU images (tags ending in <code>-xeon</code>) are x86-64 only (Docker Hub, checked <span data-f="date"></span>); an arm64 Dockerfile exists that builds from source, which was not attempted on this shared laptop. TensorRT-LLM needs an NVIDIA GPU.</li>
+</ul>
+</section>
+
+<section id="bch-s-xfer">
+<h2>What transfers to a datacenter GPU, and what does not</h2>
+<div class="tw"><table class="bch-xfer">
+<thead><tr><th>Finding here</th><th>On an H100-class GPU</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Prefill is many times faster per token than decode</td><td>Transfers, and the gap is larger</td><td>The gap is set by FLOP per byte: the M1 Pro GPU does about 5 TFLOP/s on 0.15 TB/s (ridge about 32 FLOP per byte, measured on Topic: hardware); an H100 SXM does 989 dense BF16 TFLOP/s on 3.35 TB/s (about 295 FLOP per byte, NVIDIA). Decode at batch 1 uses about 2 FLOP per weight byte at 8 bits, far below either ridge.</td></tr>
+<tr><td>Decode slows linearly with context (KV reads)</td><td>Transfers</td><td>Bytes per token are a property of the model; the slope is KV bytes divided by bandwidth on any hardware.</td></tr>
+<tr><td>Small models are overhead-bound at batch 1</td><td>Transfers, and engines fight it</td><td>Kernel launches and Python scheduling cost microseconds per step on any GPU; vLLM and SGLang capture whole decode steps as CUDA graphs to remove them (see {{Streams, CUDA graphs and multi-GPU|n:3f05c17b0d0d81b19a6acab65c370b75}}).</td></tr>
+<tr><td>Batching multiplies decode throughput</td><td>Transfers, and goes much further</td><td>With a ridge near 295 FLOP per byte, an H100 stays memory-bound up to batches of a few hundred tokens per step, so total throughput keeps climbing long after this GPU flattens.</td></tr>
+<tr><td>KV bytes per token, sequences that fit</td><td>Transfers exactly</td><td>Same formula, bigger memory (80 to 192 GB); KV memory, not compute, still caps concurrency.</td></tr>
+<tr><td>The throughput-latency curve bends</td><td>Shape transfers, position does not</td><td>Every queue bends near capacity; where depends on the hardware and the scheduler (chunked prefill moves the TTFT and TPOT trade-off).</td></tr>
+<tr><td>Speculative decoding did not pay</td><td>Does not transfer: it usually pays at small batch</td><td>Here, checking 4 tokens cost <span data-f="verify4"></span>x one token. On large memory-bound models on GPUs the check is close to free: Leviathan et al. (2023) report 2x to 3x on T5-XXL, and EAGLE's authors report 2.7x to 3.5x latency speed-up on LLaMA2-Chat 70B (paper, authors' measurements). Gains shrink as batch size grows.</td></tr>
+<tr><td>4-bit costs quality on a 0.6B model</td><td>Partly: depends on model size and method</td><td>Larger models lose much less; calibrated methods (AWQ, GPTQ, imatrix) and FP8 on Hopper and Blackwell tensor cores change the trade-off (see Quantization and Precision).</td></tr>
+<tr><td>Prefix caching cuts TTFT by the cached fraction</td><td>Transfers</td><td>Skipped prefill is skipped compute on any hardware.</td></tr>
+<tr><td>Absolute tokens/s, ms, requests/s</td><td>Do not transfer</td><td>Use the {{Capacity planner|#t-plan}} and published GPU results for those.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="bch-s-runs">
+<h2>Every run, with its exact command</h2>
+<p>Model paths are written as <code>&lt;models&gt;/</code>. Load is the one-minute load average of the 10-core machine at the start (and end) of the run. Raw results, the load generator and the scripts are in <code>src/bench/</code>.</p>
+<div class="bch-row"><label>Kind <select id="bch-runs-kind"><option value="">all</option></select></label><label>Engine <select id="bch-runs-eng"><option value="">all</option></select></label><span class="mute" id="bch-runs-n"></span></div>
+<div class="bch-tblwrap"><table class="bch-tbl" id="bch-runs-tbl"></table></div>
+<details class="bch-more"><summary>How the measurements were made, and their limits</summary>
+<ul class="tight">
+<li><b>Repeats and spread.</b> llama-bench repeats each test 5 times (3 for sweeps) and reports mean and standard deviation; MLX trials are 3 to 5; load tests use 2 to 3 seeds. Charts show the spread as a bar from minimum to maximum.</li>
+<li><b>Machine load.</b> The laptop ran other jobs at the same time (other agents, a browser, an IDE). The one-minute load average at the start of runs ranged from <span data-f="loadMin"></span> to <span data-f="loadMax"></span>; the GPU had no other measured user while a run held the bench lock, but GPU use by other processes cannot be ruled out.</li>
+<li><b>Load generator.</b> Python standard library, one thread per in-flight request, streaming SSE; TTFT is measured from sending the request to the first text chunk; TPOT is (last token time minus first token time) divided by (tokens minus 1). Prompts are random common English words plus a unique tag; every request asks for 128 tokens at temperature 0 (llama.cpp and vLLM with ignore_eos; MLX has no such option but produced all 128 tokens in every run).</li>
+<li><b>Small quality checks.</b> Perplexity on about 15,000 tokens and KL divergence on about 5,000 are enough to rank quantizations of one model, not to compare models.</li>
+<li><b>Not a GPU benchmark.</b> Absolute numbers describe one laptop. MLPerf Inference and the engines' own published numbers, labelled vendor or independent, are on the {{Capacity planner|#t-plan}} tab.</li>
+</ul></details>
+</section>
+</div>

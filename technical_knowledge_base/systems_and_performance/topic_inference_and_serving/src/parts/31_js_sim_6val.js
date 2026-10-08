@@ -1,0 +1,42 @@
+// ---- Serving simulator (t-sim): section 5, the three checks (vLLM's scheduler, NVIDIA's H100 table, llama.cpp on this M1 Pro) ----
+(function(){
+  const U=window.SIMU,D=window.SIMD,$=U.$;
+  if(!$('sim-v-vllm'))return;
+  // check 1
+  const V=D.vllm.cases;let st=0,ok=0,pre=0;for(const c of V){st+=c.steps;if(c.identical)ok++;pre+=c.pre}
+  $('sim-v-sum').innerHTML='Result: <b>'+ok+' of '+V.length+' traces identical at every step</b> ('+U.n0(st)+' steps, '+pre+' preemptions).';
+  let h='<thead><tr><th>Trace</th><th class="num">Steps</th><th class="num">Tokens computed</th><th class="num">Preemptions (vLLM / here)</th><th>Same every step</th></tr></thead><tbody>';
+  for(const c of V)h+='<tr><td>'+U.esc(c.name)+'</td><td class="num">'+U.n0(c.steps)+'</td><td class="num">'+U.n0(c.tokens)+'</td><td class="num">'+c.pre+' / '+c.pre_sim+'</td><td>'+(c.identical?'yes':'<b>no</b>')+'</td></tr>';
+  $('sim-v-vllm').innerHTML=h+'</tbody>';
+  // check 2
+  const H=D.h100,hw=D.hw.h100_fp8,rows=H.rows;
+  const fitTxt='Fitted: memory efficiency e<sub>m</sub> = '+U.n2(hw.em)+' and fixed step cost t<sub>0</sub> = '+U.n2(hw.ovh*1e3)+' ms from the five single-client inter-token latencies (a straight line in context length); compute efficiency e<sub>c</sub> = '+U.n2(hw.ec)+' and a client-side latency of '+U.n2(H.api*1e3)+' ms from the five single-client TTFTs; a per-sequence cost s = '+U.n0(hw.ovs*1e6)+' &micro;s from the 200-in, 200-out rows; and the usable KV cache, '+U.n0(H.kv_tokens_fit)+' tokens ('+U.n1(H.kv_tokens_fit*D.models.l8_fp8.kvtok/1e9)+' GB in FP8), from the 20,000-in rows where TTFT explodes. The other '+rows.filter(r=>!r.fit).length+' rows are predictions. Engine settings assumed: vLLM-style continuous batching, '+U.n0(H.eng.budget)+' tokens and '+H.eng.maxseq+' sequences per step (NIM\'s own settings are not on the page). Source: %SRC%, fetched '+H.fetched+'.';
+  $('sim-v-fit').innerHTML=fitTxt.replace('%SRC%','<a href="'+H.source+'" target="_blank" rel="noopener noreferrer">NVIDIA NIM benchmarking, Llama-3.1-8b-instruct</a>');
+  let met=1;const NM=['TTFT','inter-token latency','throughput'];
+  function err(i){const e=rows.filter(r=>!r.fit).map(r=>Math.abs(r.sim[i]/r.pub[i]-1)).sort((a,b)=>a-b);return {med:e[Math.floor(e.length/2)],max:e[e.length-1],n:e.length,w25:e.filter(x=>x<=0.25).length}}
+  function plot(){const el=$('sim-v-plot'),w=Math.min(U.width(el),560),h=w,pl=50,pb=34,pt=8,pr=10;
+    let lo=Infinity,hi=0;for(const r of rows){for(const v of [r.pub[met],r.sim[met]]){if(v<lo)lo=v;if(v>hi)hi=v}}lo*=0.7;hi*=1.4;
+    const X=v=>pl+(w-pl-pr)*(Math.log10(v)-Math.log10(lo))/(Math.log10(hi)-Math.log10(lo)),Y=v=>h-pb-(h-pt-pb)*(Math.log10(v)-Math.log10(lo))/(Math.log10(hi)-Math.log10(lo));
+    let b='';for(const tv of U.logTicks(lo,hi)){b+='<line x1="'+X(tv).toFixed(1)+'" x2="'+X(tv).toFixed(1)+'" y1="'+pt+'" y2="'+(h-pb)+'" class="sim-ax"/><line x1="'+pl+'" x2="'+(w-pr)+'" y1="'+Y(tv).toFixed(1)+'" y2="'+Y(tv).toFixed(1)+'" class="sim-ax"/>';
+      b+=U.t(X(tv),h-pb+12,U.sig(tv,2),{a:U.anc(X(tv),w),fs:10})+U.t(pl-4,Y(tv)+3,U.sig(tv,2),{a:'end',fs:10})}
+    b+='<line x1="'+X(lo)+'" y1="'+Y(lo)+'" x2="'+X(hi)+'" y2="'+Y(hi)+'" stroke="var(--mute)"/>';
+    for(const f of [1.25,0.8])b+='<line x1="'+X(lo)+'" y1="'+Y(lo*f)+'" x2="'+X(hi/f>hi?hi:hi)+'" y2="'+Y(hi*f)+'" stroke="var(--mute)" stroke-dasharray="3 3"/>';
+    for(const r of rows){const x=X(r.pub[met]),y=Y(r.sim[met]);b+=r.fit?'<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="none" stroke="var(--mute)"/>':'<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="var(--c1)"><title>'+r.isl+' in, '+r.osl+' out, '+r.C+' clients</title></circle>'}
+    const unit=met===2?'output tokens/s':'ms';
+    b+=U.t(pl+(w-pl-pr)/2,h-4,'NVIDIA measured, '+unit+' (log)',{a:'middle'})+U.t(pl+4,pt+10,'simulated',{});
+    el.innerHTML=U.svg(w,h,b,'Simulated against published '+NM[met]);
+    const e=err(met);$('sim-v-read').innerHTML='Held-out rows, '+NM[met]+': median error '+Math.round(100*e.med)+'%, worst '+Math.round(100*e.max)+'%, '+e.w25+' of '+e.n+' within 25%. '+(met===0?'TTFT is the weak spot. The published TTFT grows with concurrency well before the cache is full (for example 268 ms at 25 clients and 1,000-token prompts), while this scheduler admits a new prompt at the next step; how NIM batches new prompts is not published, so the gap is left visible rather than fitted away.':(met===1?'Inter-token latency follows from bytes per step and the per-sequence cost; it is the number this model gets best.':'Throughput is predicted within about the same error as inter-token latency, since in a closed loop it is mostly clients over latency.'))}
+  U.seg($('sim-v-met'),v=>{met=+v;plot()});
+  let t='<thead><tr><th class="num">In</th><th class="num">Out</th><th class="num">Clients</th><th class="num">TTFT ms (NVIDIA / sim)</th><th class="num">ITL ms</th><th class="num">Tokens/s</th><th>Used in fit</th></tr></thead><tbody>';
+  for(const r of rows)t+='<tr><td class="num">'+U.n0(r.isl)+'</td><td class="num">'+U.n0(r.osl)+'</td><td class="num">'+r.C+'</td><td class="num">'+U.sig(r.pub[0],4)+' / '+U.sig(r.sim[0],4)+'</td><td class="num">'+U.sig(r.pub[1],3)+' / '+U.sig(r.sim[1],3)+'</td><td class="num">'+U.n0(r.pub[2])+' / '+U.n0(r.sim[2])+'</td><td>'+(r.fit?'yes':'')+'</td></tr>';
+  $('sim-v-rows').innerHTML=t+'</tbody>';
+  const MP=D.mlperf;if(MP&&$('sim-v-mlp'))$('sim-v-mlp').innerHTML='MLPerf v5.1 includes Llama 3.1 8B on one H100 SXM served by vLLM 0.10.0 in FP8, with Poisson arrivals at '+U.n1(MP.pub.rate)+' requests/s, prompts averaging 778 tokens and 128 output tokens (<a href="https://github.com/mlcommons/inference_results_v5.1/tree/main/closed/RedHat/results" target="_blank" rel="noopener noreferrer">results logs</a>). Feeding that load to the NIM-fitted model gives TPOT '+U.ms(MP.sim.tpot_mean)+' against the published '+U.ms(MP.pub.tpot_mean)+', and median TTFT '+U.ms(MP.sim.ttft_p50)+' against '+U.ms(MP.pub.ttft_p50)+'; throughput is set by the arrival rate in both ('+U.n0(MP.sim.tps)+' against '+U.n0(MP.pub.tps)+' tokens/s). A step model fitted to one engine does not transfer to another engine (or another year of the same one): that vLLM version took about twice as long per step as the NIM build on the same chip. Use the presets for shapes and ratios; fit your own engine before trusting milliseconds.';
+  // check 3
+  const M1=D.m1,m1=D.hw.m1;let u='<thead><tr><th>Run</th><th class="num">Clients</th><th class="num">TTFT ms (measured / sim)</th><th class="num">TPOT ms</th><th class="num">Tokens/s</th><th class="num">Load average</th></tr></thead><tbody>';
+  const srv=M1.server.slice().sort((a,b)=>a.C-b.C||(a.label<b.label?-1:1));
+  for(const r of srv)u+='<tr><td>'+U.esc(r.label)+'</td><td class="num">'+r.C+'</td><td class="num">'+U.n0(r.meas[0]*1e3)+' / '+U.n0(r.sim[0]*1e3)+'</td><td class="num">'+U.n1(r.meas[1]*1e3)+' / '+U.n1(r.sim[1]*1e3)+'</td><td class="num">'+U.n0(r.meas[2])+' / '+U.n0(r.sim[2])+'</td><td class="num">'+(r.load?U.n1(r.load[0]):'')+'</td></tr>';
+  $('sim-v-m1').innerHTML=u+'</tbody>';
+  const pp=M1.pp,tg=M1.tg,p16=pp.find(x=>x.n===16),p4k=pp.find(x=>x.n===4096);
+  $('sim-v-m1read').innerHTML='Fitted on this machine: e<sub>m</sub> = '+U.n2(m1.em)+' from decode speed against context depth (flash attention on; '+U.n0(tg[0].meas)+' tokens/s at depth 0, '+U.n1(tg[tg.length-1].meas)+' at 16,384), so the KV cache is read at about '+U.n0(m1.em*200)+' GB/s; t<sub>0</sub> = '+U.n2(m1.ovh*1e3)+' ms; e<sub>c</sub> = '+U.n2(m1.ec)+' from 512-token prefill ('+U.n0(pp.find(x=>x.n===512).meas)+' tokens/s); s = '+U.n1(m1.ovs*1e3)+' ms per extra sequence from the server runs. The model misses two things it was not built for: very short prompts (16 tokens: '+U.n0(p16.meas)+' tokens/s measured against '+U.n0(p16.sim)+' simulated, fixed per-pass costs dominate) and long ones ('+U.n0(p4k.meas)+' against '+U.n0(p4k.sim)+' at 4,096: attention costs more than the FLOP count says). In the server runs, llama.cpp\'s decode slows almost in proportion to the number of active sequences up to 8, then barely changes at 16; one straight per-sequence term cannot follow that step, so TPOT is too high at 16 clients and too low at 8. TTFT doubles from 1 to 2 clients in both measurement and simulation: in a closed loop the clients start together, so their prompts share steps.';
+  U.onRender(plot);U.onResize(()=>{if(U.shown())plot()});
+})();
