@@ -59,7 +59,7 @@
     return s}
   function m1(){
     const el=$('pln-m1'),m=D.m1;
-    let h='<p>The M1 Pro in the planner uses the hardware root\'s measured figures (5.0 TFLOP/s FP16 and 165 GB/s, MLX, 2026-10-05) and Metal\'s recommended working set ('+sig(D.chips.m1pro.mem*D.chips.m1pro.util,3)+' GB of the 16 GB) as usable memory.</p>';
+    let h='<p>The M1 Pro in the planner uses the hardware root\'s measured figures (5.0 TFLOP/s FP16 and 165 GB/s stream copy, MLX, 2026-10-05) and Metal\'s recommended working set ('+sig(D.chips.m1pro.mem*D.chips.m1pro.util,3)+' GB of the 16 GB) as usable memory.</p>';
     if(m&&m.html)h+=m.html;
     else h+='<p>Measurements from the Engine bench tab will set the M1 constants here.</p>';
     h+='<p><b>What transfers</b> to a datacenter GPU: the shapes (a step is the larger of bytes over bandwidth and FLOPs over peak; throughput rises almost linearly with the batch while decode stays memory-bound, then bends when compute or the cache runs out; TTFT grows with prompt length and with queueing near the knee), and ratios such as FP8 against BF16 weights moving the memory-bound time by the bytes saved. <b>What does not</b>: absolute speeds (an H100 has 20 times the bandwidth and about 200 times the FP16 compute), the engine constants (llama.cpp and MLX are not vLLM; their per-step overheads and kernel efficiencies differ), and anything about several GPUs (no NVLink, no tensor parallelism on one laptop chip).</p>';

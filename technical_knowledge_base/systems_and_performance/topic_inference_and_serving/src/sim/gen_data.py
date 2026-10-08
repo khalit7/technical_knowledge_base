@@ -21,7 +21,7 @@ data = {
          'm1': hwd(m1['hw'], m1['hw']['peak'], 16, 'Apple M1 Pro GPU (fitted on llama.cpp runs on this machine)')},
   'h100': {'api': r6(h['api']), 'kv_tokens_fit': h.get('kv_tokens_fit'), 'kv_gb_mem': r6(h.get('kv_gb_mem', 0) or 0), 'eng': h['eng'], 'admit': h.get('admit'),
            'skip': h.get('skip_first_wave'), 'source': h['source'], 'fetched': h['fetched'], 'label': h['label'], 'rows': h['rows']},
-  'm1': {'eng': m1['eng'], 'pp': m1['pp'], 'tg': m1['tg'], 'server': m1['server']},
+  'm1': {'eng': m1['eng'], 'pp': m1['pp'], 'tg': m1['tg'], 'server': m1['server'], 'line': {'t0': r6(m1['tgline']['t0']), 'bw': r6(m1['tgline']['bw'])}},
   'mlperf': mp,
   'vllm': {'version': 'v0.31.0', 'commit': 'db9527a46873454610df6dbedf79a36d6bf1a7f6',
            'cases': [{'name': c['name'], 'steps': c['steps_vllm'], 'steps_sim': c['steps_sim'], 'identical': c['identical'],

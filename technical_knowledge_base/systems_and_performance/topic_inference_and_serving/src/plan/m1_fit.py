@@ -6,7 +6,7 @@ Fit (Qwen3-0.6B Q4_K_M, llama.cpp Metal, flash attention on):
   bandwidth share and per-step overhead from single-stream generation at depths 0 and 16,384 (llama-bench tg32):
   t(d) = (weights + d * KV bytes per token) / (165 GB/s * eff_m) + tovh, two points, two unknowns;
   compute share from prompt processing of 512 tokens (llama-bench pp512): tokens/s * FLOPs per token / 5.0 TFLOP/s.
-Check (not fitted): llama-server, 16 slots, Poisson arrivals at 0.5 to 4 requests/s, ~413-token prompts,
+Check (not fitted): llama-server, 16 slots, Poisson arrivals at 0.5 to 6 requests/s, ~413-token prompts,
 128 output tokens: mean TPOT, TTFT p50 and p99 against the planner's simulation."""
 import glob, json, os, sys
 from plan import *
@@ -65,6 +65,11 @@ if __name__ == "__main__":
     print("batched", [(r["B"], round(r["meas"] * 1e3, 2), round(r["model"] * 1e3, 2)) for r in bbrows])
     fl = 2 * m["Pact"] + m["nh"] * (m["dqk"] + m["dv"]) * att_ctx(m, 512)  # per prompt token, causal half (the parent's prefill count)
     eff_c = pp["ts"] * fl / (ch["peak"]["bf16"] * 1e12)
+    # the Engine bench tab's own line (least squares through all five flash-attention depths, bench/recompute.py fit_bandwidth)
+    lx = [W + d * kvt for d in sorted(tg)]; ly = [1 / tg[d]["ts"] for d in sorted(tg)]
+    mx, my = sum(lx) / len(lx), sum(ly) / len(ly)
+    lb_ = sum((x - mx) * (y - my) for x, y in zip(lx, ly)) / sum((x - mx) ** 2 for x in lx)
+    bench_t0, bench_bw = my - lb_ * mx, 1 / lb_
     fit = dict(name="llama.cpp on the M1 Pro, fitted to this laptop", eff_c=round(eff_c, 3), tovh=round(tovh * 1e3, 2), eff_m=round(eff_m, 3), tseq=round(tseq * 1e3, 3))
     print("fit", fit)
     P = round(sum(r["in_per_req"] for r in B["lsv"]) / len(B["lsv"]))
@@ -87,22 +92,22 @@ if __name__ == "__main__":
     lam_off = max_fluid(o, s)
     lam_slo = max_rate(o, s, lam_off)
     tgq = {r["type"]: r["ts"] for r in B["lb"] if r["file"] == "lb_0.6b_quants.json" and r["n"] == 128}
-    out = dict(fit=fit, P=P, rows=rows, bb=bbrows, lam_off=lam_off, lam_slo=lam_slo, tg=dict(d0=tg[0]["ts"], d16k=tg[16384]["ts"], size=W),
+    out = dict(fit=fit, bench_line=dict(t0=bench_t0, bw=bench_bw), P=P, rows=rows, bb=bbrows, lam_off=lam_off, lam_slo=lam_slo, tg=dict(d0=tg[0]["ts"], d16k=tg[16384]["ts"], size=W),
                pp512=pp["ts"], quants=tgq, source=B["source"])
     f = lambda v: ("%.0f" % (v[0] * 1e3)) if abs(v[1] - v[0]) < 5e-4 else ("%.0f to %.0f" % (v[0] * 1e3, v[1] * 1e3))
     g = lambda x, k: ("%.0f" % (x["model"][k] * 1e3)) if x["model"] else "unstable"
     tbl = "".join("<tr><td class=\"num\">%s</td><td class=\"num\">%d</td><td class=\"num\">%s / %s</td><td class=\"num\">%s / %s</td><td class=\"num\">%s / %s</td></tr>" % (
         x["rate"], x["runs"], f(x["meas"]["tpot"]), g(x, "tpot"), f(x["meas"]["ttft_p50"]), g(x, "ttft_p50"), f(x["meas"]["ttft_p99"]), g(x, "ttft_p99")) for x in rows)
     out["html"] = ("<p><b>Calibration on this laptop</b> <span class=\"pln-tag pln-msr\">measured on Apple M1 Pro</span>: Qwen3-0.6B Q4_K_M (%s MB) in llama.cpp with Metal and flash attention. "
-                   "One stream generates %.0f tokens/s at an empty cache and %.1f at 16,384 tokens of context (llama-bench, 3 repetitions): the slope gives %.0f%% of the measured 165 GB/s. "
-                   "Decoding several sequences together (llama-batched-bench, 1 to 64 sequences) costs far more than the bytes say: keeping the single stream's %.1f ms of fixed cost per step, a line through those steps adds %.2f ms per sequence, where the vLLM fits on GPUs need no per-sequence term. "
-                   "Prompt processing at 512 tokens runs %.0f tokens/s, %.0f%% of the 5.0 TFLOP/s measured peak. "
+                   "One stream generates %.0f tokens/s at an empty cache and %.1f at 16,384 tokens of context (llama-bench, 3 repetitions): the slope gives %.0f%% of the 165 GB/s stream copy measured on Topic: hardware, so from these two points the KV cache is read at about %.0f GB/s (the Engine bench tab's least-squares line through all five depths gives %.2f ms + bytes / %.0f GB/s). "
+                   "Decoding several sequences together (llama-batched-bench, 1 to 64 sequences) costs far more than the bytes say: keeping the single stream's %.2f ms of fixed cost per step (the planner anchors it at the empty-cache point, so it sits a little above the bench tab's line), a line through those steps adds %.2f ms per sequence, where the vLLM fits on GPUs need no per-sequence term. "
+                   "Prompt processing at 512 tokens runs %s tokens/s, %.0f%% of the 5.0 TFLOP/s measured peak. "
                    "Then the planner simulates the bench tab's Poisson runs (llama-server, 16 slots, %d-token prompts, 128 output tokens; 30 requests each, so the p99 is the slowest one or two):</p>"
                    "<div class=\"tw\"><table class=\"pln-t pln-wrap\"><tr><th class=\"num\">Requests/s</th><th class=\"num\">Runs</th><th class=\"num\">TPOT ms, measured / planner</th><th class=\"num\">TTFT p50 ms</th><th class=\"num\">TTFT p99 ms</th></tr>%s</table></div>"
                    "<p>Measured ranges span the repeated runs (the laptop was shared with other work; load averages %.0f to %.0f). The planner follows the measurements up to about 1.5 requests per second and then saturates sooner and harder than the 30-request runs show: a short run never reaches the backlog a steady stream builds once the 16 slots are full, which the planner reports as unstable. The straight per-sequence line fits llama.cpp's batched steps from 1 to 16 sequences within about 15%% but overestimates 32 and 64, beyond this server's 16 slots.</p>"
-                   ) % (f"{W / 1e6:.0f}", tg[0]["ts"], tg[16384]["ts"], eff_m * 100, tovh * 1e3, tseq * 1e3, pp["ts"], eff_c * 100, P, tbl,
+                   ) % (f"{W / 1e6:.0f}", tg[0]["ts"], tg[16384]["ts"], eff_m * 100, eff_m * ch["bw"], bench_t0 * 1e3, bench_bw / 1e9, tovh * 1e3, tseq * 1e3, f"{pp['ts']:,.0f}", eff_c * 100, P, tbl,
                         min(x["meas"]["load"][0] for x in rows), max(x["meas"]["load"][1] for x in rows))
     out["preset"] = dict(name="Qwen3 0.6B on this M1 Pro, llama.cpp", o=dict(o, eng="m1", lam=2.0),
                          note="The laptop this page was built on: Qwen3-0.6B in llama.cpp's Q4_K_M with 16 server slots, constants fitted to the Engine bench tab's measurements (see the last section). Notice that memory is no constraint here (a 391 MB model beside 11.9 GB of cache room): llama.cpp's cost per decoding sequence and the TPOT target limit the traffic.")
-    out["check"] = "planner against the bench tab's Poisson runs at 0.5 to 4 requests/s: see the table in the M1 section below (measured on Apple M1 Pro)."
+    out["check"] = "planner against the bench tab's Poisson runs at 0.5 to 6 requests/s: see the table in the M1 section below (measured on Apple M1 Pro)."
     json.dump(out, open(os.path.join(H, "inputs", "m1_bench.json"), "w"), indent=1)
