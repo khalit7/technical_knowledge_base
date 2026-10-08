@@ -1,0 +1,34 @@
+<section id="bch-s-batch">
+<h2>Batching: one read of the weights, many users served</h2>
+<p>Because decode is limited by reading the weights, decoding several sequences in the same step costs little more than decoding one: the weights are read once and applied to every sequence in the <b>batch</b>. Total throughput rises with batch size; each user's own speed falls a little. This is why serving engines batch, and why a server that is idle most of the time wastes most of what the hardware can do.</p>
+<div class="bch-pr" id="bch-pr2" data-ans="1"><div class="q">Predict: one sequence decodes at about 190 tokens/s. With 8 sequences in the same batch, what is the total?</div>
+<div class="opts"><button>About 190 (no gain)</button><button>About 400 (2x)</button><button>About 1,500 (8x)</button></div>
+<div class="ans" hidden>Measured <b data-f="bb8"></b> tokens/s with 8 sequences: about 2x, not 8x. On this small model and this GPU every extra sequence makes the step noticeably slower (a step with 2 tokens already costs <span data-f="step2_06"></span>x a step with 1, measured in the speculative decoding section), so the gain is far from linear; it keeps growing to <b data-f="bbRatio"></b>x at 64 sequences. On a large model on a datacenter GPU the first steps are closer to free (see <a href="#bch-s-xfer">What transfers</a>).</div></div>
+<div class="bch-row"><span>Show</span><div class="seg" id="bch-bt-seg"><button data-m="tot" class="on" aria-pressed="true">total tokens/s</button><button data-m="per" aria-pressed="false">tokens/s per sequence</button></div></div>
+<div class="bch-plot" id="bch-bt-plot"></div>
+<div class="bch-leg" id="bch-bt-leg"></div>
+<p class="bch-cap">llama.cpp: llama-batched-bench, Qwen3-0.6B Q4_K_M, 128 prompt tokens and 128 generated tokens per sequence, 3 repetitions. MLX: mlx_lm benchmark (batch_generate), Qwen3-0.6B 4-bit, 128 and 128, 3 trials. Pure decode, no new prompts arriving: the best case a real server approaches but never reaches.</p>
+</section>
+
+<section id="bch-s-curve">
+<h2>The throughput-latency curve, and where it bends</h2>
+<p>A real server has requests arriving at random times. This tab's load generator (<code>src/bench/scripts/loadgen.py</code>, standard library only) sends streamed completion requests in two ways. <b>Closed loop</b>: a fixed number of users, each sending a new request as soon as the last one finishes. <b>Open loop</b>: requests arrive as a <b>Poisson process</b> (independent random arrivals at a set average rate, fixed seed), which is how MLPerf's Server scenario and most production traffic behave. Every request has a 400-word prompt (about 410 tokens, with a unique tag so no prompt is cached) and asks for exactly 128 tokens.</p>
+<div class="ctl">
+<label>Engine <select id="bch-cv-eng"><option value="llama.cpp">llama.cpp (Metal GPU)</option><option value="MLX">MLX (Metal GPU)</option><option value="vLLM (CPU)">vLLM (CPU, Docker)</option><option value="all">all three</option></select></label>
+<label>Load <select id="bch-cv-mode"><option value="poisson">open loop (Poisson arrivals)</option><option value="closed">closed loop (fixed users)</option></select></label>
+<label>Latency <select id="bch-cv-met"><option value="ttft_p99">TTFT p99</option><option value="ttft_p50">TTFT p50</option><option value="tpot_p99">TPOT p99</option><option value="tpot_p50">TPOT p50</option><option value="e2e_p50">end-to-end p50</option></select></label>
+</div>
+<div class="bch-plot" id="bch-cv-plot"></div>
+<div class="bch-leg" id="bch-cv-leg"></div>
+<p class="bch-cap" id="bch-cv-cap"></p>
+<h3>Goodput under an SLO</h3>
+<p>A <b>service level objective</b> (SLO) sets the latency each request must meet, for example "first token within 1 s and at most 50 ms between tokens". <b>Goodput</b> counts only the requests that met it. Move the limits and watch which load level gives the most useful work: past the bend, raw throughput stays flat but goodput collapses.</p>
+<div class="ctl">
+<label>TTFT limit: <b id="bch-slo-tv">1000</b> ms<input type="range" id="bch-slo-t" min="100" max="5000" step="50" value="1000"></label>
+<label>TPOT limit: <b id="bch-slo-pv">50</b> ms<input type="range" id="bch-slo-p" min="5" max="200" step="1" value="50"></label>
+<label>Engine <select id="bch-slo-eng"><option value="llama.cpp">llama.cpp</option><option value="MLX">MLX</option><option value="vLLM (CPU)">vLLM (CPU)</option></select></label>
+</div>
+<div class="bch-plot" id="bch-slo-plot"></div>
+<div class="bch-leg" id="bch-slo-leg"></div>
+<p class="bch-cap" id="bch-slo-cap"></p>
+</section>

@@ -1,0 +1,36 @@
+<section id="bch-s-stream">
+<h2>One request alone, and the same request under load</h2>
+<p>Two numbers describe how a streamed answer feels. <b>TTFT</b> (time to first token) is how long you stare at an empty box: the server has to queue the request, read the whole prompt (<b>prefill</b>) and produce the first token. <b>TPOT</b> (time per output token, also called inter-token latency) is the gap between the tokens that follow, one per <b>decode</b> step. Below are two real requests recorded by the load generator against the same llama.cpp server and model (Qwen3-0.6B, Q4_K_M, a <span data-f="strPrompt"></span>-token prompt, 128 output tokens): one sent when nobody else was using the server, one sent while 15 other users were sending identical-sized requests in a loop. Each block is one token, drawn the moment it arrived.</p>
+<div class="card" id="bch-str-card">
+<div class="bch-lanehd"><span><b>Alone</b> (1 user)</span><span>t = <b id="bch-str-t">0.00</b> s, tokens <b id="bch-str-n1">0</b>/128, TTFT <b id="bch-str-ttft1">waiting</b></span></div>
+<div class="bch-chips" id="bch-str-l1"></div>
+<div class="bch-lanehd"><span><b>Under load</b> (16 users)</span><span>tokens <b id="bch-str-n2">0</b>/128, TTFT <b id="bch-str-ttft2">waiting</b></span></div>
+<div class="bch-chips" id="bch-str-l2"></div>
+<div class="bch-plot" id="bch-str-plot"></div>
+<div class="bch-leg"><span><i style="background:var(--c1)"></i>alone</span><span><i style="background:var(--c2)"></i>under load</span><span>each mark is one token arriving; the vertical line is the clock</span></div>
+<div class="bch-anctl" id="bch-str-ctl"></div>
+<div class="bch-stepcap" id="bch-str-cap"></div>
+</div>
+<p class="bch-cap">Playback runs at the real speed at 1x. The request under load is the median-TTFT request of its run, so it is typical, not the worst. What changes under load: the first token waits behind other prompts being read (TTFT <span data-f="strTtft1"></span> s against <span data-f="strTtft2"></span> s), and each later token waits for a decode step that now carries 16 sequences and, every few steps, someone else's prompt (median gap <span data-f="strGap1"></span> ms against <span data-f="strGap2"></span> ms, with spikes up to <span data-f="strGapMax"></span> ms when a new prompt joins the batch).</p>
+</section>
+
+<section id="bch-s-pd">
+<h2>Prefill and decode are two different workloads</h2>
+<p>Prefill pushes the whole prompt through the model in one pass: hundreds of tokens share each read of the weights, so the GPU's arithmetic units are the limit (<b>compute-bound</b>). Decode produces one token per pass: every weight is read from memory to do a little arithmetic for a single token, so memory bandwidth is the limit (<b>memory-bound</b>). The {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} page derives this from FLOP and byte counts; here is what llama-bench measures.</p>
+<div class="bch-pr" id="bch-pr1" data-ans="2"><div class="q">Predict: on this laptop, Qwen3-0.6B at Q4_K_M generates about 200 tokens/s. How fast does it read a 512-token prompt?</div>
+<div class="opts"><button>About 200 tokens/s, the same</button><button>About 600 tokens/s</button><button>Over 3,000 tokens/s</button></div>
+<div class="ans" hidden>Prompt processing measured <b data-f="pp512_06q4"></b> tokens/s, <b data-f="ppTgRatio"></b>x the decode speed. The prompt's tokens are processed together, so one read of the weights serves all of them.</div></div>
+<h3>Prompt processing speed against prompt length</h3>
+<div class="bch-plot" id="bch-pp-plot"></div>
+<div class="bch-leg" id="bch-pp-leg"></div>
+<p class="bch-cap">llama-bench, Qwen3-0.6B, F16 and Q4_K_M, 3 repetitions per point (bars show min to max). Short prompts are too small to keep the GPU busy; past about 256 tokens the speed falls again because attention over the prompt grows with the square of its length. F16 prefills faster than Q4_K_M: 4-bit weights must be unpacked before the matrix multiply, and prefill is limited by arithmetic, not by bytes.</p>
+<h3>Decode speed against context length</h3>
+<div class="bch-row"><span>Bandwidth model:</span><label><input type="checkbox" id="bch-tg-model" checked> show fitted line</label></div>
+<div class="bch-plot" id="bch-tg-plot"></div>
+<div class="bch-leg" id="bch-tg-leg"></div>
+<div class="fm"><div class="eq">time per token = t<sub>0</sub> + (weight bytes + context &#215; KV bytes per token) / bandwidth</div>
+<dl><dt>t<sub>0</sub></dt><dd>fixed cost per step (kernel launches, sampling, synchronisation): fitted <b data-f="fitT0"></b> ms</dd>
+<dt>bandwidth</dt><dd>fitted <b data-f="fitBW"></b> GB/s, against <span data-f="bwHw"></span> GB/s measured for plain memory reads on the same GPU (Topic: hardware)</dd>
+<dt>KV bytes</dt><dd><span data-f="kvTok"></span> bytes per token for Qwen3-0.6B at 16-bit (measured below)</dd></dl></div>
+<p class="bch-cap">llama-bench, Qwen3-0.6B Q4_K_M, 32 generated tokens after a context of the given depth, flash attention off and on, 3 repetitions. The two-parameter line is fitted to the flash-attention points by least squares (src/bench/recompute.py). At short context the fixed cost dominates: a 0.6B model is too small to saturate memory bandwidth one token at a time. At 16K context the KV cache read dominates and the bandwidth model explains the slowdown. Flash attention matters most at long context, where it avoids writing and re-reading the attention scores.</p>
+</section>
