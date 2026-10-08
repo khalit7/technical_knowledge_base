@@ -4,7 +4,7 @@ window.SIMLAB=(function(){
   if(!$('sim-labbox'))return null;
   const HWP={
     h100_bf16:{label:'H100 SXM 80 GB, Llama 3.1 8B in BF16',hw:'h100_bf16',m:'l8_bf16',api:0,
-      note:'Peak 989.5 TFLOP/s BF16 dense and 3.35 TB/s (NVIDIA). Efficiencies fitted on the FP8 NIM table and assumed to hold at BF16. KV cache default: 0.9 of 80 GB, minus 16.1 GB of weights, minus an assumed 2 GB for activations.'},
+      note:'Peak 989.5 TFLOP/s BF16 dense and 3.35 TB/s (NVIDIA). Efficiencies fitted on the FP8 NIM table and assumed to hold at BF16. KV cache default: 0.9 of 80 GB (TensorRT-LLM\'s default free_gpu_memory_fraction; vLLM v0.31.0 defaults to gpu_memory_utilization 0.92, 1.6 GB more), minus 16.1 GB of weights, minus an assumed 2 GB for activations.'},
     h100_fp8:{label:'H100 SXM 80 GB, Llama 3.1 8B in FP8 (as calibrated)',hw:'h100_fp8',m:'l8_fp8',api:0,
       note:'Peak 1,979 TFLOP/s FP8 dense and 3.35 TB/s (NVIDIA); weights and KV in FP8. Efficiencies and KV size as fitted on NVIDIA\'s NIM measurements (section 4).'},
     m1:{label:'Apple M1 Pro, Qwen3-0.6B Q4_K_M (llama.cpp, measured here)',hw:'m1',m:'q06_q4',api:0,

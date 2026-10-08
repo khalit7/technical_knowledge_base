@@ -31,6 +31,9 @@ xs = [M['kvtok'] * (r['n_depth'] + 16) for r in tg]
 ys = [1.0 / r['avg_ts'] for r in tg]
 a, b = lsq(xs, ys)
 em = 1.0 / (b * BW)
+# the Engine bench tab's own line (bench/recompute.py fit_bandwidth): t = t0 + (weights + depth x KV bytes) / bandwidth
+la, lb_ = lsq([M['wbytes'] + M['kvtok'] * r['n_depth'] for r in tg], ys)
+tgline = {'t0': la, 'bw': 1.0 / lb_}
 d0 = [r for r in tg if r['n_depth'] == 0][0]
 ovh = 1.0 / d0['avg_ts'] - (M['wbytes'] + M['kvtok'] * 16) / (BW * em)
 hw = {'peak': PEAK, 'bw': BW, 'em': em, 'ovh': ovh, 'ovs': 0.0, 'ec': 1.0}
@@ -86,4 +89,4 @@ for run in D['llama_server_closed']['runs']:
     srv.append({'label': run['label'], 'C': C, 'meas': [run['ttft_mean'], run['tpot_mean'], run['out_tok_per_s']],
                 'sim': [mt['ttft'][3], mt['tpot'][3], mt['tps']], 'load': (run.get('load_before') or {}).get('loadavg')})
     print('%s C=%2d TTFT %.0f/%.0f ms TPOT %.2f/%.2f ms tps %.0f/%.0f' % (run['label'], C, mt['ttft'][3] * 1e3, run['ttft_mean'] * 1e3, mt['tpot'][3] * 1e3, run['tpot_mean'] * 1e3, mt['tps'], run['out_tok_per_s']))
-json.dump({'hw': hw, 'model': M, 'eng': ENG, 'pp': pp, 'tg': tgr, 'server': srv}, open(os.path.join(HERE, 'out', 'calib_m1.json'), 'w'), indent=1)
+json.dump({'hw': hw, 'tgline': tgline, 'model': M, 'eng': ENG, 'pp': pp, 'tg': tgr, 'server': srv}, open(os.path.join(HERE, 'out', 'calib_m1.json'), 'w'), indent=1)
