@@ -8,13 +8,13 @@
 <div class="bars" id="rd-bt-m1"></div>
 <p class="small mute"><span class="meas">measured here</span>: llama-batched-bench, Qwen3-0.6B Q4_K_M on the M1 Pro GPU ({{Engine bench|#t-bench}}, section "Batching"). Here each extra sequence costs about 1.2 ms per step on top of the weight read, so 64 sequences give 7 times the throughput of one, not 64; on the H200 model, 64 users give 42 times.</p>
 </div>
-<p>Throughput climbs almost linearly while the step is dominated by the weight read, then bends as each user's cache read and arithmetic add up; each user's own speed falls as the step lengthens. That trade, more throughput for the owner against slower tokens for each user, is the central dial of serving.</p>
+<p>Throughput climbs almost linearly while the step is dominated by the weight read, then bends as each user's cache read and arithmetic add up; each user's own speed falls as the step lengthens. That trade, more throughput for the owner against slower tokens for each user, is the central dial of serving. Baseten's framing is the test for any change: batch size, quantization level or speculation settings move a deployment <i>along</i> the latency-throughput frontier, while better kernels, cache management or architecture push the frontier <i>outward</i> ({{Baseten, 2026-09-02|https://www.baseten.co/blog/the-efficient-frontier-of-llm-inference/}}). Only the second is a free win.</p>
 
 <h3>Static, dynamic and continuous batching</h3>
 <div class="mech">
-<div><b>Static</b>Collect a batch, run it until its longest answer finishes, then start the next. Users whose answers end early leave empty seats; new arrivals wait for the whole batch.</div>
-<div><b>Dynamic</b>Wait up to a time limit to fill a batch, then run it as a unit. Right for models that answer in one pass (classifiers, embeddings; NVIDIA Triton's dynamic batcher); for generation it keeps the static problem.</div>
-<div><b>Continuous</b>Decide the batch again at every step. A finished request leaves immediately and a waiting one joins at the next step. Also called iteration-level scheduling or in-flight batching.</div>
+<div><b>Static</b>Run a batch until its longest answer ends; early finishers leave empty seats, new arrivals wait.</div>
+<div><b>Dynamic</b>Wait up to a time limit to fill a batch, then run it as a unit: right for one-pass models (classifiers, embeddings), not for generation.</div>
+<div><b>Continuous</b>Re-form the batch every step: finished requests leave, waiting ones join at once. Also called iteration-level scheduling or in-flight batching.</div>
 </div>
 <p><dfn>Continuous batching</dfn> was introduced by Orca ({{Yu et al., OSDI 2022|https://www.usenix.org/conference/osdi22/presentation/yu}}): the scheduler runs the model for one iteration at a time, and "selective batching" batches the matrix multiplications over all tokens of all requests while attention runs per request, since each request has its own cache. The authors reported 36.9 times the throughput of NVIDIA FasterTransformer at the same latency on GPT-3 175B (their measurement). It is why serving got so much cheaper in 2022 to 2023, and every engine on this page now does it by default (llama-server's "continuous batching on", TensorRT-LLM's "in-flight batching", vLLM's and SGLang's schedulers). The {{Serving simulator|#t-sim}} animates the same 20 requests under static and continuous batching in its section 1.</p>
 
