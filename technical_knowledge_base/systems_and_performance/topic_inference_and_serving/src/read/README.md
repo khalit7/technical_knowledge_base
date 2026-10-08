@@ -18,7 +18,8 @@ Spine: follow one chat request through a serving engine, then a thousand. Runnin
 | `check_data.py` | The page embeds exactly `out/rd_data.json`; the measured facts equal the Engine bench's; 30 numbers written in the prose and 9 hand-derived ratios agree with the data. |
 | `check_ui.mjs` | Puppeteer (headless shell): every animation in every mode stepped forward and back, every range value, every predict button, details opened, at 390 px dark and 920 px light; fails on page errors, NaN/undefined/Infinity/null, sideways scroll or wide elements; screenshots each card to the folder given. |
 | `inputs/arxiv_abstracts.txt` | Abstracts of the 20 arXiv papers cited (export.arxiv.org API, 2026-10-08), the source of each paper number quoted. |
-| `coverage.md`, `old/` | The old Notion page was not saved: the connector was signed out (see `old/README.md`). |
+| `old/` | The old root and its six children, saved verbatim from Notion (read-only fetch, 2026-10-08): `root.md`, `vllm.md`, `sglang.md`, `local_serving.md`, `nvidia_triton_trtllm_dynamo.md`, `inference_techniques.md`, `model_formats.md`. |
+| `coverage.md` | Every claim of the old root: verified, corrected or unconfirmed, with source, date and where the Reading carries it. |
 | `viz_ideas.md` | Visuals built and rejected. |
 
 Rebuild: `python3 -I recompute.py`, `sh ../build.sh`, `python3 -I check_data.py`, `node check_ui.mjs <shots dir>`, and from the
@@ -34,8 +35,8 @@ repo root `sh html_utils/checkpage.sh technical_knowledge_base/systems_and_perfo
 - Papers: Orca (USENIX page), PagedAttention (PDF, Fig. 2 text), and the abstracts in `inputs/`.
 
 ## Departures from the method
-The root's Reading runs about 30 minutes visible (about 40 with every answer expanded), above the 15 to 20 minutes of the
+The root's Reading runs about 30 minutes visible (7,435 words; unchanged after the old-page merge, which added verified items and trimmed elsewhere) (about 40 with every answer expanded), above the 15 to 20 minutes of the
 RL lesson: the reader asked to be taught from zero toward four goals (running a server, engine internals, cost, interviews),
 so each section keeps the problem, mechanism, cost, when it matters and how to check it. Candidates to move to children
 if Khalid wants it shorter: the engine table's detail (to "Serving engine internals"), section 8 and the benchmarking list
-of section 9 (to "LLM serving in production"). Section 11 proposes eight children with ids to confirm against the old page.
+of section 9 (to "LLM serving in production"). Section 11 maps eight children: the six old ones reused (four retitled or widened), two new. The six old child ids are not in pages.json yet.
