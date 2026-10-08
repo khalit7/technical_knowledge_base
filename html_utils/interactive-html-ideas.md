@@ -3216,3 +3216,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_agentic_frameworks/agent_memory_layers/src/viz_ideas.md`.
 
+### Topic: inference-and-serving (2026-10-08)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_inference_and_serving/src/viz_ideas.md`.
+
