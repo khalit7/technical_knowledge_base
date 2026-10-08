@@ -1,0 +1,38 @@
+<section id="rd-s1">
+<h2>1. One request, from zero</h2>
+<p><b>What the model computes.</b> A language model is a function: give it a sequence of tokens and it returns a probability for every token in its vocabulary (128,256 of them for Llama 3.1) being the next one. To write an answer, the server calls it, picks one token from those probabilities (greedy, temperature, top-p: {{Sampling and Decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}), appends it, and calls it again. Generating one token at a time, each depending on the last, is called <dfn>autoregressive</dfn> decoding, and it is the root of every problem on this page.</p>
+<p><b>The steps a server runs</b>, in the order the animation above showed them:</p>
+<ol>
+<li><b>Tokenize.</b> The chat messages are wrapped in the model's chat template (special tokens marking system, user and assistant turns) and split into token ids. This runs on the CPU and takes microseconds to milliseconds.</li>
+<li><b>Queue.</b> The request waits until the engine has room for it: a place in the next batch and memory for its cache (sections 3 and 4).</li>
+<li><b><dfn>Prefill</dfn></b> (also called prompt processing). All 2,000 prompt tokens go through all 80 layers in one pass. Inside each layer's attention, every token produces a <dfn>key</dfn> and a <dfn>value</dfn> vector (what later tokens look up, and what they read when they find it). These are kept: that store is the <dfn>KV cache</dfn>. Prefill ends with the probabilities for the first answer token.</li>
+<li><b><dfn>Decode</dfn></b>, once per answer token. Only the newest token goes through the model. Its query is compared with every cached key, it reads the cached values, adds its own key and value to the cache, and produces the next probabilities. Without the cache, every step would recompute all earlier tokens; with it, each step does the work of one token, but must read the whole cache.</li>
+<li><b>Detokenize and stream.</b> Each token is turned back into text (carefully: one character can span two tokens) and sent as soon as it exists, usually as server-sent events ({{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}). The request ends at an end-of-sequence token or the max_tokens limit, and its cache is freed.</li>
+</ol>
+
+<h3>Why decode is slow: the weights are read for one token</h3>
+<p>A GPU has two budgets: how many arithmetic operations it can do per second (FLOP/s) and how many bytes it can read from its memory per second. One H200 does 1,979 trillion FP8 operations per second but reads only 4.8 TB/s, so it can do <b>412 operations in the time it reads one byte</b> <span class="der">1,979 / 4.8</span>. A piece of work is <dfn>memory-bound</dfn> when it does fewer operations per byte read than that (its <dfn>arithmetic intensity</dfn> is below the chip's ridge point) and <dfn>compute-bound</dfn> when it does more (the roofline model: {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}}; the counting: {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}).</p>
+<p>Each weight is used for one multiply and one add per token. In a decode step there is one token, so the chip reads all 72.66 GB of weights to do <b>2 operations per byte</b>: the arithmetic units are idle more than 99% of the time and the step lasts as long as the read, 21.6 ms. In prefill, 2,000 tokens share one read of the weights, which gives 3,956 operations per byte: compute-bound, 423.5 ms for all 2,000 tokens, about 0.2 ms per token, a hundred times cheaper per token than decoding. Watch the same weights serve both phases:</p>
+
+<div class="rd-card" id="rd-pd-card">
+<h4>Prefill against decode: the same weights, the same request</h4>
+<div class="seg" id="rd-pd-mode"><button class="on" data-m="pre">Prefill: 2,000 prompt tokens, one pass</button><button data-m="dec">Decode: 1 new token per pass</button></div>
+<div class="rd-svg" id="rd-pd-svg"></div>
+<div class="an-cap" id="rd-pd-cap"></div>
+<div class="an-cnt" id="rd-pd-cnt"></div>
+<div class="an-ctl" id="rd-pd-ctl"></div>
+<p class="small mute">One pass through the 80 layers, drawn in 8 groups of 10 layers. Bytes, operations and time are <span class="der">derived</span> from the Capacity planner's step model (weights 72.66 GB in FP8; KV cache read at the token's position; efficiencies 0.8 of bandwidth and 0.345 of FP8 peak, plus 2.5 ms per step). The busy bar is the share of the step the arithmetic units are working: operations / (peak &times; 0.345) over the step time.</p>
+</div>
+
+<p>The same split shows up on any hardware. On the laptop measured here, Qwen3-0.6B reads a 512-token prompt at 3,240 tokens per second and generates at 196, 17 times slower, with the same weights on the same chip <span class="meas">measured here</span> ({{Engine bench|#t-bench}}). The ratio is larger on a datacenter GPU because its arithmetic has grown faster than its bandwidth: the M1 Pro does about 30 operations per byte read (5.0 TFLOP/s over 165 GB/s, measured on Topic: hardware), the H200 412.</p>
+<div class="pr" id="rd-pr1" data-ok="2"><div class="q">Predict: a new GPU has twice the H200's arithmetic speed and the same memory bandwidth. How much faster does one user's answer stream on it (the running example)?</div>
+<div class="opts"><button data-a="0">Twice as fast</button><button data-a="1">About 40% faster</button><button data-a="2">Hardly at all</button><button data-a="3">Slower</button></div>
+<div class="ans" hidden><b>Hardly at all.</b> The 21.6 ms decode step is 19.1 ms of reading weights and cache (73.4 GB at 0.8 of 4.8 TB/s) plus 2.5 ms of fixed overhead; the arithmetic takes about 0.2 ms of it and was already hidden behind the read. The prefill, which is compute-bound, would get almost twice as fast, so time to first token improves while streaming speed does not. This is why inference chips are judged on bandwidth and memory size at least as much as on FLOP/s.</div></div>
+
+<div class="ff"><div class="t">What it costs, when it matters, how to check</div><ul>
+<li><b>Cost:</b> a decode step costs a full read of the weights plus the cache, whatever the batch; prefill costs arithmetic in proportion to prompt length (plus attention, which grows with the square of it).</li>
+<li><b>When it matters:</b> long prompts and short answers (retrieval, classification, summarization) are prefill-heavy and compute-bound; chat and reasoning with long answers are decode-heavy and memory-bound. The two phases want different hardware and different tuning (section 7 splits them onto different GPUs).</li>
+<li><b>How to check:</b> measure prompt-processing and generation speed separately (llama-bench reports pp and tg; vLLM's benchmark reports TTFT and TPOT). If single-stream tokens per second times bytes read per token is close to the memory bandwidth, decode is at its roofline and only fewer bytes (quantization, section 6) or more users per read (batching, section 3) will help.</li>
+</ul></div>
+<div class="deepnote"><b>Go deeper (optional):</b> the FLOP and byte counts and the serving frontier on {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}; the measured curves of prompt speed against length and decode speed against context in the {{Engine bench|#t-bench}} tab, section "Prefill and decode are two different workloads".</div>
+</section>
