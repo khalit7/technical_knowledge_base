@@ -1,0 +1,68 @@
+diff --git a/python/sglang/srt/hardware_backend/mlx/model_runner.py b/python/sglang/srt/hardware_backend/mlx/model_runner.py
+index 6ab8992f2df5..e46e29300520 100644
+--- a/python/sglang/srt/hardware_backend/mlx/model_runner.py
++++ b/python/sglang/srt/hardware_backend/mlx/model_runner.py
+@@ -839,7 +839,7 @@ def _sync_new_kv_to_pool(
+         )
+         self._attention_kv_pool.set_kv_all_layers(slot_ids_mx, k_all, v_all)
+ 
+-    def _sync_decode_kv_to_pool(self, req_id: str) -> None:
++    def _sync_decode_kv_to_pool(self, req_id: str, limit: int | None = None) -> None:
+         """Sync un-flushed decode KV for *req_id* to the shared pool."""
+         if self._attention_kv_pool is None or self._req_to_token_pool is None:
+             return
+@@ -847,6 +847,8 @@ def _sync_decode_kv_to_pool(self, req_id: str) -> None:
+         if cache is None:
+             return
+         current_offset = self._first_attention_cache(cache).offset
++        if limit is not None:
++            current_offset = min(current_offset, limit)
+         synced_offset = self._req_synced_offset.get(req_id, 0)
+         if current_offset <= synced_offset:
+             return
+@@ -871,6 +873,29 @@ def flush_all_decode_kv(self) -> None:
+         for req_id in list(self._req_caches.keys()):
+             self._sync_decode_kv_to_pool(req_id)
+ 
++    def flush_decode_kv_for_request(
++        self, req_id: str, owned_len: int | None = None
++    ) -> None:
++        """Sync one request's un-flushed decode KV to the shared pool.
++
++        ``owned_len`` caps the flush to the scheduler-owned prefix. Chained
++        decode steps never allocate pool slots, so req_to_token entries past
++        that prefix were never written for this request; syncing them would
++        read stale or recycled row content and scatter KV into slots owned
++        by the tree or by the next request on this row. Once the owned
++        prefix is synced the request is sealed as fully flushed, since the
++        tail is never pool-addressable.
++        """
++        if self.disable_radix_cache:
++            return
++        self._sync_decode_kv_to_pool(req_id, limit=owned_len)
++        if owned_len is not None:
++            cache = self._req_caches.get(req_id)
++            if cache is not None:
++                self._req_synced_offset[req_id] = self._first_attention_cache(
++                    cache
++                ).offset
++
+     def decode_batch(self, req_ids: list[str]) -> list[int]:
+         """Decode one token per request.
+ 
+diff --git a/python/sglang/srt/hardware_backend/mlx/tp_worker.py b/python/sglang/srt/hardware_backend/mlx/tp_worker.py
+index dd16541d25f8..91f29c6a5bd4 100644
+--- a/python/sglang/srt/hardware_backend/mlx/tp_worker.py
++++ b/python/sglang/srt/hardware_backend/mlx/tp_worker.py
+@@ -168,6 +168,11 @@ def _cleanup_stale_rids(self, forward_mode, current_rids: set[str]) -> None:
+     def prepare_for_kv_cache_release(self, req) -> None:
+         """Snapshot MLX auxiliary state at the scheduler's radix insert point."""
+         if self._mlx_runner.has_request(req.rid):
++            # Flush while req still owns its req_to_token row, capped at the
++            # owned prefix: chained decode allocates no pool slots past the
++            # first step, so the row past owned_kv_len holds stale or recycled
++            # content that must never be read as slot ids.
++            self._mlx_runner.flush_decode_kv_for_request(req.rid, req.owned_kv_len())
+             self._mlx_runner.store_auxiliary_state_for_request(req.rid)
+             # Prefer the just-snapshotted live auxiliary state for the final
+             # insert. Any older tracked slot is released during component cleanup.
