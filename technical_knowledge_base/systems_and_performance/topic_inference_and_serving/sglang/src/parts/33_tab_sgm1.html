@@ -1,0 +1,45 @@
+<div class="tab" id="t-sgm1" role="tabpanel" hidden>
+<style>#t-sgm1 code{overflow-wrap:anywhere;font-size:12.5px}#t-sgm1 .co{overflow-wrap:anywhere}
+#t-sgm1 .chart{width:100%;overflow:hidden;margin:6px 0}#t-sgm1 .chart svg text{font-size:11px}
+#t-sgm1 .src{font-size:12px;color:var(--mute)}#t-sgm1 .meas{font-size:11.5px;color:var(--good);font-weight:600}
+#t-sgm1 pre{font:12px/1.45 ui-monospace,Menlo,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;white-space:pre}
+#t-sgm1 td.num{font-variant-numeric:tabular-nums}#t-sgm1 .bad{color:var(--bad);font-weight:600}#t-sgm1 .good{color:var(--good);font-weight:600}
+#t-sgm1 .leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-sgm1 .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+</style>
+<section>
+<p class="lead">The real SGLang engine, release v0.5.21, running on an Apple M1 Pro laptop through its MLX backend: the same scheduler, radix cache, overlap loop and grammar backend that run on GPUs, with Apple's MLX doing the forward pass. Every number on this tab was measured here on 2026-10-08 and 2026-10-09 <span class="meas">measured on Apple M1 Pro</span>; what transfers to datacenter GPUs is said at the end.</p>
+<h3>Set-up</h3>
+<ul class="tight">
+<li><b>Machine:</b> Apple M1 Pro, 16 GB unified memory, shared with other jobs (load average <span id="sgm-load"></span> at the start of the runs; every configuration repeated, spread shown).</li>
+<li><b>SGLang</b> v0.5.21 (tag commit <code>e00930c5</code>, 2026-09-29), installed from source with the <code>srt_mps</code> extra and Rust extensions off (<code>SGLANG_BUILD_RUST_EXTS=none</code>): PyTorch 2.13.0, MLX 0.32.3, MLX-LM 0.32.0, XGrammar 0.2.7, Transformers 5.12.1. There is no macOS wheel on PyPI.</li>
+<li><b>Two patches</b> from upstream, both in src/m1/: the start-up fix of {{PR #41314|https://github.com/sgl-project/sglang/pull/41314}} (merged after the tag) and the cache fix of {{PR #42542|https://github.com/sgl-project/sglang/pull/42542}} (open). Without the first the server does not start; without the second, cache hits can return the wrong text (below).</li>
+<li><b>Model:</b> Qwen3-0.6B (Qwen/Qwen3-0.6B at commit c1899de2) quantized here to 4 bits, group size 64, with MLX-LM 0.32.0, the root's model store. KV pool: 114,688 bytes per token at 16 bits.</li>
+<li><b>Server:</b> <code>SGLANG_USE_MLX=1 python -m sglang.launch_server --model-path &lt;model&gt; --disable-cuda-graph --port 8120 --enable-metrics</code> plus <code>--chunked-prefill-size 4096 --max-running-requests 8</code> and the flags of each experiment; a fresh server per run. Both settings work around the Apple backend: each running request gets its own contiguous KV buffer of 4,096 tokens per layer (448 MiB for this model, {{model_runner.py L258|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/hardware_backend/mlx/model_runner.py#L258}}); and with 512-token prefill chunks, any burst of 840-token prompts crashed the server with <code>[METAL] Command buffer execution failed: Insufficient Memory</code> inside <code>_async_extend_batch</code>, every time and with 6 GB free, while the same bursts of 8 to 32 requests ran cleanly with chunks of 4,096 (a third bug, not reported upstream as of this writing). Client: src/m1/exp.py over the native <code>/generate</code> endpoint with token ids cut from WikiText-2, greedy, streaming; time to first token (TTFT) is the arrival of the first streamed chunk.</li>
+</ul>
+<h3>1. The wrong-answer bug, reproduced</h3>
+<p>Fresh server, cache on, greedy: request A (a bank question), an unrelated B, then A again, B again, A again.</p>
+<div class="tw" id="sgm-repro"></div>
+<p id="sgm-split"></p>
+<h3>2. Queue policies on a burst of shared-document questions</h3>
+<div id="sgm-sched"></div>
+<h3>3. Radix cache on and off: a multi-turn chat</h3>
+<p class="small">Eight conversations at once, four turns each, all under one 600-token system prompt; each turn adds 60 to 120 tokens of user text and 64 tokens of answer, and resends the whole history (up to about 1,300 tokens). KV pool 24,000 tokens.</p>
+<div class="leg"><span style="--sw:var(--good)">radix cache on (default)</span><span style="--sw:var(--bad)">--disable-radix-cache</span></div>
+<div class="chart" id="sgm-mt"></div>
+<div id="sgm-mt-t"></div>
+<h3>4. The overlap scheduler on and off</h3>
+<p class="small">32 requests of 128 prompt tokens and 128 output tokens at concurrency 1, 4 and 8; output tokens per second over the whole batch.</p>
+<div class="tw" id="sgm-ovl"></div>
+<h3>5. Structured output: a JSON schema</h3>
+<p class="small">Twelve chat requests asking for an invented person, with and without a JSON schema (name, city, age, up to four skills) through the default XGrammar backend; two passes each.</p>
+<div class="tw" id="sgm-json"></div>
+<div id="sgm-json-ex"></div>
+<h3>What transfers to a datacenter GPU</h3>
+<ul class="tight">
+<li><b>Transfers:</b> which tokens are cached and reused (the scheduler and tree are the same code), the ordering effects of the queue policies, the correctness test, the fact that a grammar adds per-step CPU work.</li>
+<li><b>Does not transfer:</b> the absolute times. A 0.6B model on a laptop GPU makes the forward pass short and the Python scheduler's share large, so CPU-side effects (overlap, grammar masks) look bigger here than on an H100 serving a 70B model; prefill costs far more per token here than on a GPU, so cache hits save more seconds here. The MLX backend also lacks paged attention: it copies a cached prefix out of the pool into a per-request cache ({{model_runner.py|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/hardware_backend/mlx/model_runner.py}}).</li>
+</ul>
+<p class="src">Scripts: src/m1/run_m1.sh (one server per configuration), exp.py, sgclient.py, summarise.py; raw results in src/m1/results/.</p>
+</section>
+</div>
