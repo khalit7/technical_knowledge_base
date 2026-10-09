@@ -1,0 +1,39 @@
+<div class="tab" id="t-kvc" role="tabpanel" hidden>
+<style>
+#t-kvc .kc-ctl{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;margin:6px 0}
+#t-kvc .kc-ctl label{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:100%}
+#t-kvc .kc-ctl select{max-width:100%;min-width:0}
+#t-kvc .kc-plot{width:100%;overflow:hidden;margin:6px 0}
+#t-kvc .kc-plot svg text{font-size:11px}
+#t-kvc .kc-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-kvc .kc-leg span:before{content:"";display:inline-block;width:14px;height:3px;margin-right:5px;vertical-align:3px;background:var(--sw)}
+#t-kvc .kc-tbl td,#t-kvc .kc-tbl th{font-size:12.5px}
+#t-kvc h3{margin-top:22px}
+#t-kvc .kc-meas{color:var(--good);font-weight:600;font-size:11.5px}
+#t-kvc .kc-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:12px}
+#t-kvc .kc-two>div{min-width:0}
+</style>
+<p class="lead">KV compression papers drop most of a prompt's cache entries and report that quality survives. Two questions decide whether that helps a server: does a clever importance score beat dropping entries at random, and can a paged engine actually reclaim the memory? This tab answers both on a real model, run here.</p>
+<div class="co"><div class="t">The experiment</div><span class="kc-meas">measured here</span>: Qwen/Qwen3-0.6B (safetensors @ c1899de2, BF16 weights run in float32), PyTorch 2.14.1 and transformers 5.19.0 on the M1 Pro's CPU with 2 threads, eager attention so the attention weights can be read, greedy decoding; script <code>src/kvc/kvc.py</code>. Protocol, identical for every policy: prefill the prompt except its last token with the full cache, keep a share of the "compressible" positions (Task A: the 60 lines of context, about 800 tokens; Task B: the first 992 of 1,024 context tokens), always keep the rest (the question; the last 32 tokens), then continue. <b>Task A</b>: 60 lists of "The secret code of the &lt;noun&gt; is &lt;4 digits&gt;." and a question about one line; correct if the first four digits generated match. <b>Task B</b>: 24 windows of WikiText-2 test; perplexity of the next 128 tokens. Random policies were run with three seeds (mean shown, range in brackets). Policies: random over all positions; the first 4 tokens plus random (shared, or per layer and head); the first 4 plus the most recent (StreamingLLM); accumulated attention per head (H2O); attention from the observation window per head, max-pooled over 7 positions (SnapKV); the same score summed over all heads and layers, one shared selection. Wall time 27 min for Task A, 6 min for Task B.</div>
+<h3>1. Quality against how much of the cache is kept</h3>
+<div class="kc-two">
+<div><b class="small">Task A: find one line among 60 (accuracy)</b><div class="kc-plot" id="kc-pa"></div></div>
+<div><b class="small">Task B: predict the next 128 tokens of Wikipedia text (perplexity, log scale; random without sinks, in the hundreds, is drawn at the top edge)</b><div class="kc-plot" id="kc-pb"></div></div>
+</div>
+<div class="kc-leg" id="kc-leg"></div>
+<p class="small mute" id="kc-pnote"></p>
+<h3>2. What a paged engine could free</h3>
+<div class="kc-ctl"><label>Keep ratio <select id="kc-r"></select></label></div>
+<div class="tw"><table class="kc-tbl" id="kc-tbl"></table></div>
+<p class="small mute">"Selection" says whether every layer and head keeps the same positions. A paged engine stores all heads of all layers of 16 tokens in one block (vLLM), so a block is free only when no layer and no head keeps any of its 16 tokens: the "freeable in place" column. A uniform selection can also be compacted (the kept tokens rewritten into fewer blocks; their positions are already baked into the keys by RoPE), which realises the full saving; a per-head or per-layer selection cannot without a per-head cache layout. Eviction after a full prefill never lowers the peak: the whole prompt's cache existed first.</p>
+<h3>3. Which positions each policy keeps (one example, 25% kept)</h3>
+<div class="kc-plot" id="kc-cov"></div>
+<p class="small mute" id="kc-covnote"></p>
+<h3>4. Reading the result, and what does not transfer</h3>
+<div id="kc-read"><ul class="tight">
+<li><b>Sinks first.</b> Dropping the first tokens wrecks the model (perplexity in the hundreds), which is why every sensible policy keeps them and why a fair random control must too.</li>
+<li><b>The task decides the winner.</b> On continuation, heavy hitters (H2O) lose least; on retrieval, a question-aware score (SnapKV) is the only thing that works, and the shared version beats the per-head one here. Random with sinks is a fair floor on continuation and useless on retrieval.</li>
+<li><b>Realisable is a separate axis.</b> The per-head methods that score well on continuation free nothing in a paged engine; the shared selection frees memory but scores worse on continuation. A paper's memory figure must say which kind it is.</li>
+<li><b>Not transferable:</b> absolute numbers (tiny model, short contexts, CPU), anything about speed (not measured: eager attention on a CPU), and long-context behaviour, where eviction matters most. For long-context benchmarks see {{Long-context and multimodal benchmarks|n:3ef5c17b0d0d810bb4dfc98919c9be8a}}.</li>
+</ul></div>
+</div>
