@@ -1,0 +1,36 @@
+<section id="bk-s2">
+<h2>2. Paging: where the memory went, and how blocks got it back</h2>
+<p><b>The problem.</b> Kwon et al. measured systems that store each request's cache in one contiguous region, sized when the request is admitted, and found that only 20.4% to 38.2% of the cache memory held actual tokens ({{PagedAttention, SOSP 2023, Fig. 2|https://arxiv.org/abs/2309.06180}}). They named three kinds of waste ({{same paper, Fig. 3|https://arxiv.org/abs/2309.06180}}):</p>
+<ul>
+<li><dfn>Reservation</dfn>: slots kept for tokens the request will generate later. They will be used, but nobody else can use them meanwhile.</li>
+<li><dfn>Internal fragmentation</dfn>: slots reserved that will never be used, because the answer ends before the reservation does.</li>
+<li><dfn>External fragmentation</dfn>: gaps between reservations, too small for the next request (the memory allocator's leftovers).</li>
+</ul>
+<div class="bk-card" id="bk-f2-card">
+<h4>Share of KV memory holding tokens, by system (PagedAttention Fig. 2)</h4>
+<div class="bk-svg" id="bk-f2-svg"></div>
+<div class="leg"><span style="--sw:var(--good)">token states</span><span style="--sw:var(--c5)">reservation</span><span style="--sw:var(--c2)">internal fragmentation</span><span style="--sw:var(--c4)">external fragmentation and other</span></div>
+<p class="small mute"><span class="vend">authors' measurement</span>, averaged "during the experiment in section 6.2" (basic sampling, one sample per request; the caption does not say which of that section's models and traces the bars cover). Values transcribed from the labels printed on the figure; each segment's meaning follows the figure's stacking order. "Orca" here is the authors' own reimplementation (Orca was not publicly available), in three variants: Max reserves the model's 2,048-token maximum, Pow2 the next power of two above the true output length, Oracle exactly the true length (impossible in practice: nobody knows the answer's length in advance).</p>
+</div>
+<p><b>How paging works.</b> PagedAttention borrows virtual memory from operating systems. The cache is a pool of fixed-size <dfn>blocks</dfn> (16 tokens in vLLM by default, {{vllm/config/cache.py L71|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/cache.py#L71}}); each request has a <dfn>block table</dfn> mapping its token positions to blocks anywhere in the pool; a new block is taken only when the last one fills. Reservation and external fragmentation disappear (all blocks are the same size and none is held in advance) and internal fragmentation shrinks to the unfilled tail of each request's last block: on average half a block, 8 tokens. The cost is an indirection inside the attention kernel, which reads keys and values through the table instead of from one contiguous array. Kwon et al. report 2 to 4 times the throughput of FasterTransformer and their Orca at the same latency (their measurement, 2023), and their vLLM held 96.3% token states in the same experiment.</p>
+
+<p>How much contiguous allocation wastes depends on the traffic, so here it is on real traffic: the prompt and answer lengths of Kimi's production traces (section 3 introduces them), time-averaged over each request's answer.</p>
+<div class="bk-card" id="bk-fr-card">
+<h4>Share of KV memory holding tokens, on real request lengths</h4>
+<div class="bk-ctl">
+<label>Trace <select id="bk-fr-tr"><option value="conversation">Conversation (12,031 requests)</option><option value="toolagent">Tool and agent (23,608 requests)</option></select></label>
+<label>max_tokens reserved by "Max" <select id="bk-fr-m"><option value="1024">1,024</option><option value="4096" selected>4,096</option><option value="16384">16,384</option></select></label>
+</div>
+<div class="bars" id="bk-fr-bars"></div>
+<p class="small mute"><span class="indep">trace</span> lengths from the Mooncake traces (kvcache-ai/Mooncake, FAST25-release); <span class="der">derived</span>: at decode step t a request holds P + t tokens; a contiguous scheme holds its whole reservation from the start; a paged one holds ceil((P + t) / b) blocks of b tokens. External fragmentation is not counted (it depends on the allocator), so contiguous schemes look better here than in the figure above. Script: <code>src/evict/gen_frag.py</code>.</p>
+</div>
+<p>Two lessons from the two charts. First, the waste is mostly <b>reservation for answers that never come</b>: these traces have long prompts (12,035 tokens on average in the conversation trace) and short answers (343), so even an oracle wastes little, while reserving 16,384 output tokens leaves under half the memory holding tokens. Short prompts with a large <code>max_tokens</code>, as in PagedAttention's experiment, are the worst case. Second, block size barely matters for waste until blocks get large: at 16 tokens the last-block waste is 0.06% here; at 2,048 tokens it is 7%.</p>
+
+<h3>Choosing a block size</h3>
+<p>Smaller blocks waste less but make the block table longer and each memory read smaller; larger blocks read more efficiently but waste more and share less, since a prefix can only be shared in whole blocks. Kwon et al. found 16 to 128 tokens best on ShareGPT and 16 or 32 on Alpaca's short sequences, and chose 16 as vLLM's default ({{PagedAttention section 7.2|https://arxiv.org/abs/2309.06180}}). Small blocks also made their swap path slow, because each block became a separate small PCIe copy (section 6). llama.cpp keeps per-token cells in one buffer shared by all slots, and Mooncake hashes its prefixes in 512-token blocks, which is why the traces below come in 512-token units.</p>
+
+<h3>Sharing inside one request</h3>
+<p>Blocks also make sharing cheap. When one request asks for several samples (parallel sampling, <code>n &gt; 1</code>) or runs beam search, the sequences share their prompt's blocks; a block is copied only when a sequence writes into a shared one (<dfn>copy-on-write</dfn>, counted with a reference count per block). The authors measured memory savings of 6.1% to 9.8% for parallel sampling and 37.6% to 55.2% for beam search on Alpaca, and 16.2% to 30.5% and 44.3% to 66.3% on ShareGPT ({{PagedAttention section 6.3|https://arxiv.org/abs/2309.06180}}, their measurement). The same reference counts are what makes sharing across requests possible: prefix caching, next.</p>
+<div class="cost"><div class="t">Cost, when it matters, how to check</div>
+<p><b>Cost:</b> the block-table indirection in the attention kernel, and kernels that must handle scattered blocks (the {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}} page covers paged attention kernels). <b>When it matters:</b> always on a shared server; it decides how many requests fit. <b>How to check:</b> vLLM exports <code>vllm:kv_cache_usage_perc</code> ({{vllm/v1/metrics/loggers.py L577|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/metrics/loggers.py#L577}}); compare it with the tokens your running requests actually hold. The physical side (HBM, bytes per token) is on {{Memory technology|n:3f05c17b0d0d818ab063e327e3d7009f}}.</p></div>
+</section>

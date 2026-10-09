@@ -1,0 +1,51 @@
+<div class="tab" id="t-sch" role="tabpanel" hidden>
+<style>
+#t-sch .sc-ctl{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;margin:6px 0}
+#t-sch .sc-ctl label{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:100%}
+#t-sch .sc-ctl select{max-width:100%;min-width:0}
+#t-sch .sc-plot{width:100%;overflow:hidden;margin:6px 0}
+#t-sch .sc-plot svg text{font-size:11px}
+#t-sch .sc-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-sch .sc-leg span:before{content:"";display:inline-block;width:14px;height:3px;margin-right:5px;vertical-align:3px;background:var(--sw)}
+#t-sch .sc-tbl td,#t-sch .sc-tbl th{font-size:12.5px}
+#t-sch .sc-tbl td.hl{font-weight:600}
+#t-sch h3{margin-top:22px}
+#t-sch .sc-der{color:var(--c5);font-weight:600;font-size:11.5px}#t-sch .sc-meas{color:var(--good);font-weight:600;font-size:11.5px}
+</style>
+<p class="lead">The parent page's {{Serving simulator|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} reproduces vLLM v0.31.0's scheduler step for step. This tab copies it (<code>src/sched/bksched.py</code>) and adds what it did not have: vLLM's priority policy, the Virtual Token Counter for fairness between clients, shortest-job-first with perfect knowledge, and multi-client traffic. Then it sweeps the chunk budget, the queue policy and the preemption mode. Every result is computed in Python from the checked simulator and embedded; nothing here is a GPU measurement except where marked.</p>
+<div class="co"><div class="t">Presets</div><span class="sc-der">derived</span>: the step time is the parent simulator's roofline (the larger of FLOPs over peak and bytes over bandwidth, plus fixed costs per step and per sequence), with efficiencies fitted to NVIDIA's published NIM measurements of Llama 3.1 8B on one H100 (vendor data; the fit predicts held-out rows within 7% median for inter-token latency) or to llama.cpp runs on the M1 Pro made here. Model shapes come from each model's config.json.</div>
+
+<h3>1. The chunk budget</h3>
+<p class="small">One long prompt arriving while others decode. Each row is one budget (the most new tokens one step may compute).</p>
+<div class="sc-ctl"><label>Case <select id="sc1-case"><option value="chunk_h100">Llama 3.1 8B BF16 on H100: 8 users decoding, a 12,000-token prompt arrives</option><option value="chunk_m1">Qwen3-1.7B on the M1 Pro preset: the measured experiment</option></select></label></div>
+<div class="tw"><table class="sc-tbl" id="sc1-tbl"></table></div>
+<p class="small mute" id="sc1-note"></p>
+<p class="small">Steady traffic: 20 chat requests per second (100 to 800-token prompts) and 2 document requests per second (6,000 to 16,000 tokens) for 30 s, Llama 3.1 8B FP8 on the calibrated H100 preset. The budget moves inter-token latency a lot and TTFT a little; throughput not at all.</p>
+<div class="sc-plot" id="sc1-plot"></div>
+<div class="sc-leg"><span style="--sw:var(--c2)">inter-token latency p99</span><span style="--sw:var(--c1)">TTFT p99</span><span style="--sw:var(--c3)">TTFT p50</span></div>
+
+<h3>2. Two clients: FCFS, VTC, priority</h3>
+<div class="sc-ctl"><label>Scenario <select id="sc2-sc"><option value="0">A floods (60 req/s), B sends 4 req/s</option><option value="1">Both heavy: A 60 req/s, B 30 req/s</option></select></label></div>
+<div class="tw"><table class="sc-tbl" id="sc2-tbl"></table></div>
+<p class="small mute">Llama 3.1 8B FP8, calibrated H100 preset, capacity about 39 of these requests per second; prompts 300 to 1,500 tokens, answers 50 to 400; 30 s of arrivals, run until every request finishes. "Service while backlogged" is the mean of w<sub>p</sub> &times; prompt tokens + w<sub>q</sub> &times; output tokens per second (w<sub>p</sub> = 1, w<sub>q</sub> = 2, VTC's weights) from 5 s to 30 s. Priority gives B the better class. The Reading tab's section 7 animates these runs.</p>
+
+<h3>3. Shortest job first, with perfect knowledge</h3>
+<div class="sc-plot" id="sc3-plot"></div>
+<div class="sc-leg"><span style="--sw:var(--c1)">FCFS, mean TTFT</span><span style="--sw:var(--c2)">SJF, mean TTFT</span><span style="--sw:var(--c4)">FCFS, p99 TTFT</span><span style="--sw:var(--c5)">SJF, p99 TTFT</span></div>
+<div class="tw"><table class="sc-tbl" id="sc3-tbl"></table></div>
+<p class="small mute">Llama 3.1 8B FP8, calibrated H100 preset; Poisson arrivals for 40 s, prompts 200 to 1,000 tokens, answers 10 to 600 (uniform). SJF orders the waiting queue by each request's true remaining output (an oracle); running requests are never preempted for a shorter one, as in vLLM.</p>
+
+<h3>4. Preemption: recompute, swap, or reserve</h3>
+<div class="tw"><table class="sc-tbl" id="sc4-tbl"></table></div>
+<p class="small mute">Llama 3.1 8B BF16 on the H100 preset with a deliberately small KV cache, 6 requests per second for 40 s (prompts 200 to 1,200 tokens, answers 100 to 1,000). Swap costs the victim's bytes over the link when it is evicted and again when it resumes; recompute recomputes its tokens as a prompt; "reserve" admits a request only if its prompt plus max_tokens fits (TensorRT-LLM's default rule), so nothing is ever preempted.</p>
+
+<h3>5. Checks</h3>
+<div id="sc5"></div>
+<div class="tw"><table class="sc-tbl" id="sc5-tbl"></table></div>
+<h3>6. What the simulator leaves out</h3>
+<ul class="tight">
+<li>Everything the parent's simulator leaves out: CUDA graph padding, the CPU running ahead of the GPU (vLLM's asynchronous scheduling), tokenization and network time, tensor parallelism, speculative decoding.</li>
+<li>VTC and SJF are the papers' algorithms on vLLM's step structure, not code from a released engine; the priority policy is vLLM's and is checked against it.</li>
+<li>Swap is modelled as a blocking copy at the link's full bandwidth, with no per-block overhead: the PagedAttention authors measured small blocks transferring far below that (section 6 of the Reading tab).</li>
+</ul>
+</div>
