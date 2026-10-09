@@ -1,0 +1,59 @@
+<div class="tab" id="t-ev" role="tabpanel" hidden>
+<style>
+#t-ev .ev-ctl{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;margin:6px 0}
+#t-ev .ev-ctl label{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:100%}
+#t-ev .ev-ctl select{max-width:100%;min-width:0}
+#t-ev .ev-ctl input[type=range]{width:220px;max-width:100%}
+#t-ev .ev-plot{width:100%;overflow:hidden;margin:6px 0}
+#t-ev .ev-plot svg text{font-size:11px}
+#t-ev .ev-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-ev .ev-leg span:before{content:"";display:inline-block;width:14px;height:3px;margin-right:5px;vertical-align:3px;background:var(--sw)}
+#t-ev .ev-tbl td,#t-ev .ev-tbl th{font-size:12.5px}
+#t-ev .ev-tbl tr.ev-best td{font-weight:600}
+#t-ev .ev-tag{font-size:11.5px;font-weight:600}
+#t-ev h3{margin-top:22px}
+#t-ev .bars .row{grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 7em;margin:5px 0}#t-ev .bars .row .nm{white-space:normal;line-height:1.2}#t-ev .bars .ml{display:block;font-size:11px;color:var(--mute)}#t-ev .bars .val{line-height:1.2}
+#t-ev .ev-tr{color:var(--c6);font-weight:600;font-size:11.5px}
+</style>
+<p class="lead">Which blocks should a prefix cache keep? This tab replays three hours of real requests from Kimi, Moonshot AI's chat service, through six eviction policies at fifteen cache sizes, then through a GPU tier with a host-memory tier behind it. Every number here is computed by <code>src/evict/evict.py</code>; the replay rules match vLLM's own block pool exactly (section 4).</p>
+<div class="co"><div class="t">The data</div>Moonshot AI released the request traces behind the Mooncake paper ({{kvcache-ai/Mooncake, FAST25-release|https://github.com/kvcache-ai/Mooncake/tree/main/FAST25-release}}, files fetched 2026-10-08): for every request its arrival time, input and output lengths, and the hash of each 512-token block of its prompt, remapped so that equal hashes mean equal prefixes. No text is included. Conversation and tool-and-agent are each "sampled from one hour of online request data"; synthetic is built from public datasets with Poisson arrivals. <span class="ev-tr">trace</span> marks numbers computed here from these files.</div>
+
+<h3>1. Hit rate against cache size</h3>
+<div class="ev-ctl">
+<label>Trace <select id="ev-tr"><option value="conversation">Conversation</option><option value="toolagent">Tool and agent</option><option value="synthetic">Synthetic</option></select></label>
+<label>Count <select id="ev-w"><option value="0">blocks</option><option value="1">prompt tokens</option></select></label>
+<label>Size axis in <select id="ev-u"><option value="b">blocks of 512 tokens</option><option value="t">tokens</option><option value="l70">GB, Llama 3.1 70B (320 KiB/token)</option><option value="l8">GB, Llama 3.1 8B (128 KiB/token)</option><option value="q06">GB, Qwen3-0.6B (112 KiB/token)</option></select></label>
+</div>
+<div class="ev-plot" id="ev-plot"></div>
+<div class="ev-leg" id="ev-leg"></div>
+<div class="ev-ctl"><label>Cache size <input type="range" id="ev-cap" min="0" max="14" value="9"> <b id="ev-capv"></b></label></div>
+<div class="tw"><table class="ev-tbl" id="ev-tbl"></table></div>
+<p class="small mute" id="ev-note"></p>
+
+<h3>2. A host-memory tier behind the GPU</h3>
+<p class="small">A GPU tier (LRU, tail first) in front of a host tier (LRU): blocks evicted from the GPU move to host memory, a host hit is copied back. Pick the GPU tier's size; the bars show where hits come from as the host tier grows. The time saved per request uses the chosen model's prefill and reload costs from the Reading tab's section 4 (<span class="ev-tag" style="color:var(--c5)">derived</span>).</p>
+<div class="ev-ctl">
+<label>Trace <select id="ev2-tr"><option value="conversation">Conversation</option><option value="toolagent">Tool and agent</option><option value="synthetic">Synthetic</option></select></label>
+<label>GPU tier <select id="ev2-g"><option value="256">256 blocks</option><option value="1024">1,024 blocks</option><option value="4096">4,096 blocks</option></select></label>
+<label>Model and link <select id="ev2-m"><option value="l70">Llama 3.1 70B on H200, PCIe Gen5</option><option value="l8">Llama 3.1 8B on H100, PCIe Gen5</option></select></label>
+</div>
+<div class="bars" id="ev2-bars"></div>
+<p class="small mute" id="ev2-note"></p>
+
+<h3>3. The traces, and the published numbers they should reproduce</h3>
+<div class="tw"><table class="ev-tbl" id="ev3-tbl"></table></div>
+<div class="tw"><table class="ev-tbl" id="ev3-t1"></table></div>
+<p class="small mute" id="ev3-note"></p>
+
+<h3>4. Is the replay right? vLLM's own block pool on the same requests</h3>
+<p class="small">vLLM v0.31.0's real KVCacheManager (commit db9527a, Python only, no model) was fed the first 3,000 requests of two traces, with prompt token ids synthesised from the block hashes (equal hashes, equal tokens) and a block size of 512: prefix lookup, allocation, free, at three cache sizes. A re-implementation of vLLM's rules (only full blocks cached, the lookup stops one token short of the prompt, tail-first free order) gave the same hit count every time; the lab's LRU, which also caches each prompt's partial last block, lands within 1.7%.</p>
+<div class="tw"><table class="ev-tbl" id="ev4-tbl"></table></div>
+
+<h3>5. What the replay leaves out</h3>
+<ul class="tight">
+<li><b>Time and concurrency.</b> Requests are replayed one after another, as Mooncake's own analysis does ("we consider only the sequence of requests"): blocks of running requests are not pinned, prefill time is not modelled, and nothing is evicted mid-request by other requests.</li>
+<li><b>Generated tokens.</b> The traces hash prompts only, so blocks written during decoding are never cached here; a real engine caches them too, which helps multi-turn chat (the next turn's prompt contains the last answer).</li>
+<li><b>One cache.</b> One pool, as if every request reached the same replica. Several replicas each with their own cache need routing that sends a conversation back to its cache ({{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}).</li>
+<li><b>Block size.</b> 512-token blocks, as hashed in the traces, against vLLM's 16: finer blocks can match partial prefixes the traces cannot show.</li>
+</ul>
+</div>

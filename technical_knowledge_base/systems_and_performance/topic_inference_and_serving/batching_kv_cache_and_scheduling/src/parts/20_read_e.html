@@ -1,0 +1,46 @@
+<section id="bk-s4">
+<h2>4. Offload tiers: a bigger, slower cache behind the GPU</h2>
+<p><b>The problem.</b> The GPU holds very few reusable prefixes. In the running example one H200 has about 54 GB for its cache, 164,800 tokens at 320 KiB each: about 320 of Mooncake's 512-token blocks. On the conversation trace, an LRU cache of 256 blocks hits 4.2% of blocks; an unlimited one would hit 36.6%. The data that could be reused does not fit, and the cheapest place to put it is the server's own DRAM (often 1 to 2 TB per 8-GPU server), then local SSDs, then other servers' memory over the network.</p>
+<h3>Reload or recompute?</h3>
+<p>A tier is worth having when reading a block back is faster than recomputing it. Recomputing costs a prefill; reloading costs the block's bytes divided by the link's bandwidth. Per token:</p>
+<div class="fm"><div class="eq">reload / recompute = (KV bytes per token / link bandwidth) &divide; (prefill time per token)</div>
+<dl><dt>KV bytes</dt><dd>320 KiB for Llama 3.1 70B in BF16 cache (section 0)</dd><dt>link</dt><dd>host memory over PCIe Gen5 x16: 64 GB/s each way (PCIe 5.0 x16 is 128 GB/s counting both directions, as AMD's MI300X data sheet does; {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}}); GH200's NVLink-C2C: 900 GB/s ({{NVIDIA|https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/}}); one 400 Gb/s network card: 50 GB/s</dd><dt>prefill</dt><dd>0.21 ms per token for the running example alone on an H200 (2,000 tokens in 423.5 ms, the parent's planner)</dd></dl></div>
+<div class="bk-card" id="bk-rl-card">
+<h4>Reload a cached prefix, or compute it again?</h4>
+<div class="bk-ctl">
+<label>Model and GPU <select id="bk-rl-m"></select></label>
+<label>Prefix length <select id="bk-rl-n"><option value="1000">1,000 tokens</option><option value="10000" selected>10,000 tokens</option><option value="100000">100,000 tokens</option></select></label>
+</div>
+<div class="bars" id="bk-rl-bars"></div>
+<p class="small mute" id="bk-rl-note"></p>
+</div>
+<p>For every model here the link wins by a wide margin over PCIe and the network, and even an SSD read beats recomputing on a datacenter GPU. Recompute only competes where prefill is very fast relative to the cache's size: small models, or links shared by many GPUs at once. Two things the formula leaves out push the same way: prefill attention grows with the square of the prefix, so long prefixes favour reloading more, and engines overlap loading with other requests' compute (CachedAttention loads layer by layer while earlier layers run; its authors report up to 87% lower TTFT for multi-turn conversations, {{Gao et al., USENIX ATC 2024|https://arxiv.org/abs/2403.19708}}, their measurement).</p>
+
+<h3>How much a host-memory tier adds, on real traffic</h3>
+<p>The {{Eviction lab|#t-ev}} replays the Mooncake traces through a GPU tier with LRU in front of a host tier with LRU: a block evicted from the GPU moves to host memory; a host hit is copied back. For the running example's sizes (256 blocks on the GPU, 43 GB; 4,096 in host memory, 687 GB at 160 MiB per block): <span class="indep">trace</span></p>
+<ul>
+<li><b>Conversation:</b> 4.2% of blocks hit on the GPU, plus 5.1% from host memory. A pooled tier of 65,536 blocks (about 11 TB, many servers' DRAM, as Mooncake's store pools it) adds 31.8%, reaching 36.0% of the 36.6% possible.</li>
+<li><b>Tool and agent:</b> 33.2% on the GPU (a few tool prompts are reused all the time), plus 4.5% from host memory.</li>
+<li><b>Synthetic</b> (public datasets, long documents): 2.4% on the GPU, plus 22.8% from host memory.</li>
+</ul>
+<p>Mooncake's authors reached the same conclusion from the same traces: a local cache of 3 million tokens per node gets under half of the possible hit rate on most workloads, while 50 million tokens, pooled from at least 20 nodes' DRAM, gets nearly all of it ({{Mooncake, FAST 2025, section 5.3.1|https://github.com/kvcache-ai/Mooncake/blob/main/FAST25-release/Mooncake-FAST25.pdf}}).</p>
+
+<h3>The systems (read from source and docs; only llama.cpp run here)</h3>
+<div class="tw"><table class="bk-tbl tbl-sm">
+<thead><tr><th>System</th><th>Tiers</th><th>How it is switched on and what it does</th></tr></thead>
+<tbody>
+<tr><td>vLLM v0.31.0, native</td><td>GPU, host memory</td><td><code>--kv-offloading-size &lt;GiB&gt;</code> (off by default) turns on the OffloadingConnector ({{config/cache.py L256 and config/vllm.py L1130|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/vllm.py#L1130}}). It writes each full block to host memory as it is computed ({{offloading/scheduler.py _build_store_jobs L1501|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/distributed/kv_transfer/kv_connector/v1/offloading/scheduler.py#L1501}}), and on a GPU miss looks the prefix up in host memory and loads it (get_num_new_matched_tokens, L1036). Host eviction is LRU by default, or ARC ({{kv_offload/cpu/spec.py L135|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/kv_offload/cpu/spec.py#L135}}). Disk tiers exist under <code>vllm/v1/kv_offload/tiering</code>.</td></tr>
+<tr><td>LMCache</td><td>GPU, CPU, disk, remote stores</td><td>A KV layer outside the engine, plugged into vLLM (<code>--kv-offloading-backend lmcache</code>) and SGLang; shares caches across engines and serves prefill/decode disaggregation. Its authors report up to 15 times the throughput of vLLM alone on multi-round question answering and document workloads ({{LMCache, arXiv 2510.09665|https://arxiv.org/abs/2510.09665}}, authors' measurement). Latest release v0.5.5 (2026-09-12).</td></tr>
+<tr><td>SGLang v0.5.21, HiCache</td><td>GPU, host memory, storage backends</td><td><code>--enable-hierarchical-cache</code> (off by default) with host size, write policy and storage backend options ({{arg_groups/fields/memory.py L99 onwards|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/arg_groups/fields/memory.py#L99}}); extends the radix tree across tiers. LMCache and FlexKV are also pluggable.</td></tr>
+<tr><td>Mooncake Store</td><td>a cluster-wide pool of DRAM and SSD</td><td>Kimi's production design: prefill and decode on separate GPU pools, with the KV cache as the central, transferable resource over RDMA ({{Mooncake|https://arxiv.org/abs/2407.00079}}). The {{distributed and disaggregated serving|n:3c65c17b0d0d8170bd7cdf47af0ec07b}} page covers the transfer side (Dynamo's KV block manager, llm-d, NIXL).</td></tr>
+<tr><td>llama-server (build 11146)</td><td>slot, host memory, file</td><td>Keeps each slot's last prompt; when a slot switches conversation the old prompt's KV is saved to a host-memory prompt cache (<code>--cache-ram</code>, 8,192 MiB by default) and loaded back when it returns ({{server-context.cpp prompt_save/prompt_load|https://github.com/ggml-org/llama.cpp/blob/7fe450e19305b828c199d602c23a8337aaa1f03b/tools/server/server-context.cpp#L299}}); <code>/slots/0?action=save|restore</code> writes and reads a slot's KV to a file. <span class="meas">Measured below.</span></td></tr>
+</tbody></table></div>
+<div class="bk-card" id="bk-tm-card">
+<h4>Where one conversation's cache comes back from, measured on llama-server</h4>
+<div class="bars" id="bk-tm-bars"></div>
+<p class="small mute" id="bk-tm-note"></p>
+</div>
+<p><span class="meas">Measured here</span> with one slot (Qwen3-1.7B, a 5,010-token conversation whose cache is 575 MB): computing it from scratch took 5.63 s to the first token; while the slot still held it, 23 ms. After another conversation had taken the slot, bringing it back from the host prompt cache took 113 to 421 ms over three runs, a time that includes saving the other conversation's 575 MB and loading this one's; with the prompt cache turned off (<code>--cache-ram 0</code>) it was recomputed in 5.64 s. Saving the slot to a file took 0.54 to 0.67 s and restoring it 75 to 79 ms, after which the first token came in 27 to 35 ms; that read was probably served from the operating system's file cache, since the file had just been written. The M1's memory is shared by CPU and GPU, so "host" here is another region of the same DRAM and the copy costs memory bandwidth, not PCIe. Reloading was 13 to 50 times faster than recomputing, as the calculator above predicts for a small model on a slow GPU.</p>
+<div class="cost"><div class="t">Cost, when it matters, how to check</div>
+<p><b>Cost:</b> host memory, PCIe or network bandwidth that other traffic also wants, a second eviction policy, and the write traffic of storing blocks that may never be read. <b>When it matters:</b> multi-turn and agent traffic whose reuse distance exceeds GPU capacity: the trace replays above show it is most of the reuse on conversations. <b>How to check:</b> vLLM counts connector hits as <code>vllm:external_prefix_cache_hits</code> and <code>vllm:external_prefix_cache_queries</code> ({{loggers.py L636|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/metrics/loggers.py#L636}}); compare TTFT on host hits with TTFT on misses.</p></div>
+</section>
