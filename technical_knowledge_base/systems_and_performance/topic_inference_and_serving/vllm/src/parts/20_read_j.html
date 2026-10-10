@@ -1,0 +1,15 @@
+<section id="vl-mis">
+<h2>Common mistakes</h2>
+<div class="tw"><table class="symp">
+<tr><th>Mistake</th><th>What is actually true, and where</th></tr>
+<tr><td>"vLLM has a prefill phase and a decode phase."</td><td>The scheduler has neither; it closes the gap between computed and existing tokens for each request under one budget (scheduler.py L564). Mixed steps are the normal case.</td></tr>
+<tr><td>"Preempted requests are swapped to CPU memory."</td><td>In this engine preemption is recompute: blocks freed, computed count reset to 0, request to the front of the waiting queue (L1538 to L1580). Its cached full blocks may still be hit when it returns. CPU offload exists, but as a KV connector tier, not as the preemption path.</td></tr>
+<tr><td>"KV cache usage 30% means 70% of the cache is empty."</td><td>Cached blocks that no running request holds count as free (block_pool.py L880). Usage is the share referenced by running requests; the warm cache is invisible in this metric.</td></tr>
+<tr><td>"Chunked prefill means a long prompt is admitted chunk by chunk as memory frees up."</td><td>Admission needs the whole prompt to fit (<span class="mono">scheduler_reserve_full_isl</span>); chunking only spreads its compute over steps.</td></tr>
+<tr><td>"A full prefix-cache hit costs no prefill."</td><td>The last block is always recomputed to get the first token's logits (kv_cache_manager.py L289), and only full blocks are ever cached.</td></tr>
+<tr><td>"<span class="mono">max_num_batched_tokens</span> is 16,384 since v0.28."</td><td>Only for the API server on GPUs with at least 160 GiB; H100 and H200 servers default to 8,192, other GPUs 2,048, the CPU backend 2,048 per worker (arg_utils.py L2858 to L2917).</td></tr>
+<tr><td>"V2 benchmarks describe my deployment."</td><td>Unsupported features silently fall back to Model Runner V1 with one warning line (vllm.py L752).</td></tr>
+<tr><td>"<span class="mono">gpu_memory_utilization</span> is how much of the cache to use."</td><td>It is the fraction of the whole GPU memory vLLM may take for weights, activations, CUDA graphs and the cache together; the cache gets what is left after profiling (default 0.92, cache.py L103). Two vLLM servers on one GPU need fractions that sum below 1.</td></tr>
+<tr><td>Reading one throughput number after an upgrade.</td><td>Defaults move between releases; compare the resolved config and the latency percentiles at the same arrival rate (section 7).</td></tr>
+</table></div>
+</section>
