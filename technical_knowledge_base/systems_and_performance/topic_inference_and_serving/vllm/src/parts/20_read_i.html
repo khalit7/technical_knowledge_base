@@ -1,0 +1,31 @@
+<section id="vl-s8">
+<h2>8. Contributing: a first patch, with its tests</h2>
+<p>The fastest way to own an engine is to change it. Section 6 found a gap: the server says how often the prefix cache <i>hits</i>, but not how often it has to <i>throw cached blocks away</i> to make room, which is the number that says "this cache is too small for this traffic". Here is the patch that adds it, the test that proves it, and the metric live in a server.</p>
+<div class="stepbox">
+<div style="--sc:var(--c1)"><div class="k">1. Count it where it happens</div><p>In <span class="mono">BlockPool.get_new_blocks</span>, the only place a cached block is evicted, increment a counter when <span class="mono">_maybe_evict_cached_block</span> returns True; add <span class="mono">take_num_evicted_cached_blocks()</span> to read and reset it.</p></div>
+<div style="--sc:var(--c2)"><div class="k">2. Carry it with the step's stats</div><p>A new field <span class="mono">evicted_blocks</span> on <span class="mono">PrefixCacheStats</span>, filled in <span class="mono">KVCacheManager.make_prefix_cache_stats()</span>, so it travels to the API server inside each step's <span class="mono">SchedulerStats</span> like the hit counts.</p></div>
+<div style="--sc:var(--c3)"><div class="k">3. Export it</div><p>A Prometheus counter <span class="mono">vllm:prefix_cache_evicted_blocks</span> registered next to <span class="mono">prefix_cache_hits</span> in <span class="mono">PrometheusStatLogger</span> and incremented in <span class="mono">record()</span>.</p></div>
+<div style="--sc:var(--c4)"><div class="k">4. Test it</div><p>A unit test built on the same fixture as <span class="mono">test_evict</span>: free a request with five cached blocks, allocate eight new ones, expect exactly three evictions (the five never-hashed free blocks go first), then zero after the reset.</p></div>
+</div>
+<div class="vl-code" id="vl-diff"></div>
+<p><b>The tests, run in vLLM's own CPU image</b> <span class="meas">measured here</span>, 2026-10-08: the image's installed package with the four patched files mounted over it, and the clone's <span class="mono">tests/</span> directory (which contains the new test) in both runs: test_prefix_caching.py, test_scheduler.py and metrics/test_stats.py.</p>
+<div class="tw"><table class="tbl-sm">
+<tr><th>Run</th><th>Result</th><th>The new test</th></tr>
+<tr><td>Unpatched v0.31.0</td><td>373 passed, 1 failed</td><td>fails: <span class="mono">AttributeError: 'PrefixCacheStats' object has no attribute 'evicted_blocks'</span>, as a test written first should</td></tr>
+<tr><td>Patched</td><td>374 passed</td><td>passes, and the existing <span class="mono">test_evict</span> still passes</td></tr>
+</table></div>
+<p data-vlk="patchlive">The metric in a live server under prefix-heavy traffic is in the {{Knob lab|#t-knob}}, section 6.</p>
+<p class="small mute">Files: <span class="mono">src/patch/apply_patch.py</span> (applies it to a v0.31.0 checkout), <span class="mono">src/patch/eviction_metric.diff</span> (57 lines added, 1 removed, in 5 files), <span class="mono">src/patch/tests_docker.sh</span> and the two test logs. Not submitted upstream; a real PR would also need a line in the metrics design doc.</p>
+
+<h3>How to get a change merged</h3>
+<p>From the {{contributing guide|https://github.com/vllm-project/vllm/blob/v0.31.0/docs/contributing/README.md}} at v0.31.0, checked against the old page's notes:</p>
+<ul>
+<li><b>Set-up for Python-only work:</b> <span class="mono">VLLM_USE_PRECOMPILED=1 uv pip install -e .</span> reuses the released compiled kernels, so editing the scheduler needs no CUDA build; kernel work needs PyTorch first and <span class="mono">--no-build-isolation</span>. Tests are plain <span class="mono">pytest</span>; lint with <span class="mono">pre-commit</span>.</li>
+<li><b>Every commit needs a DCO <span class="mono">Signed-off-by:</span> line;</b> PR titles start with tags such as <span class="mono">[Bugfix][Scheduler]</span>.</li>
+<li><b>AI-assisted contributions</b> must be disclosed in the PR and marked with commit trailers (for example <span class="mono">Co-authored-by: Claude</span>); "pure agent" PRs and one-line busywork PRs are not accepted; the human submitter must have reviewed every line and run the tests.</li>
+<li><b>Large changes</b> (over 500 lines, excluding kernels, data, config and tests) need an RFC issue first, or the PR gets <span class="mono">rfc-required</span>.</li>
+<li><b>Review:</b> a reviewer is assigned and gives status updates every 2 to 3 days; ping after 7 days without review.</li>
+<li><b>Where to start:</b> issues labelled "good first issue"; the scheduler and KV cache code in <span class="mono">vllm/v1/core/</span> is readable and well tested, as this section shows; new model support follows the existing files under <span class="mono">vllm/model_executor/models/</span>.</li>
+</ul>
+<p class="small mute">Correction to the old page: it gave the source install as plain <span class="mono">uv pip install -e .</span>, which compiles every kernel; the guide's Python-only path is the precompiled one above. Its "PRs need tests" is the practice the guide's testing section describes rather than a stated rule.</p>
+</section>
