@@ -1,0 +1,42 @@
+<section id="vl-s1">
+<h2>1. One request, through vLLM's code</h2>
+<p><b>The problem.</b> A GPU must never wait for Python. Tokenizing a prompt, turning token ids back into text, parsing JSON and writing HTTP responses are CPU work; if the loop that feeds the GPU also did them, the GPU would sit idle between steps. vLLM's answer since its V1 rewrite ({{V1 announcement, 2025-01-27|https://blog.vllm.ai/2025/01/27/v1-alpha-release.html}}) is to split the work across <b>processes</b>:</p>
+<div class="mech">
+<div><b>API server process</b>HTTP (FastAPI), chat template, tokenizer, detokenizer, stop strings, streaming. One by default; <span class="mono">--api-server-count</span> adds more.</div>
+<div><b>Engine core process</b>The busy loop: scheduler, KV cache manager, and the executor that drives the GPU workers. One per data-parallel rank.</div>
+<div><b>GPU worker</b>Loads weights, prepares inputs, runs the forward pass and the sampler. With one GPU it lives inside the engine core process (executor "uni", {{parallel.py L1033|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/parallel.py#L1033}}); with tensor parallelism, one process per GPU.</div>
+<div><b>Between them</b>ZeroMQ sockets carrying msgpack-encoded requests one way and outputs the other; inside the engine core, two I/O threads and two Python queues.</div>
+</div>
+<p>Follow one streamed completion through the code. Every box is a function you can open at the tag; the step list is the order the code runs.</p>
+
+<div class="rd-card" id="vl-path-card">
+<h4>One request through the processes, function by function</h4>
+<div class="vl-lanes" id="vl-path-lanes"></div>
+<div class="an-cap" id="vl-path-cap"></div>
+<div class="an-cnt" id="vl-path-cnt"></div>
+<div class="an-ctl" id="vl-path-ctl"></div>
+<p class="small mute"><span class="vend">source</span>: vLLM v0.31.0, every line number linked in the caption. The token chip shows what travels at each step: text, token ids, a scheduler decision, a sampled token id, text again.</p>
+</div>
+
+<p>Three consequences follow, and each is a classic production surprise.</p>
+<ul>
+<li><b>Tokenizing and detokenizing happen in the API server, not on the GPU's critical path,</b> so at high request rates the API server's single Python process can saturate before the GPU does; the {{architecture overview|https://github.com/vllm-project/vllm/blob/v0.31.0/docs/design/arch_overview.md}} sizes CPU cores for this, and <span class="mono">--api-server-count</span> scales it out.</li>
+<li><b>The scheduler sees token ids, never text.</b> Stop strings are checked in the API server after detokenizing ({{output_processor.py L720|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/output_processor.py#L720}}), which then aborts the request in the engine; stop token ids and <span class="mono">max_tokens</span> are checked in the engine itself.</li>
+<li><b>Each step returns outputs for every running request at once,</b> and the API server fans them out to one queue per request (<span class="mono">RequestOutputCollector</span>). One slow client does not slow the loop.</li>
+</ul>
+
+<div class="pr" id="vl-pr-proc"><div class="q">Predict: <span class="mono">vllm serve &lt;model&gt; -tp 4</span> on one server with four GPUs. How many vLLM processes run?</div>
+<div class="opts"><button data-a="0">2</button><button data-a="0">4</button><button data-a="0">5</button><button data-a="1">6</button><button data-a="0">8</button></div>
+<div class="ans" hidden><b>Six.</b> One API server, one engine core, and one worker process per GPU, because with more than one GPU the executor becomes "mp" (multiprocessing). The {{architecture overview|https://github.com/vllm-project/vllm/blob/v0.31.0/docs/design/arch_overview.md}} gives the general count: A API servers + DP engine cores + N workers (+1 coordinator when DP &gt; 1); <span class="mono">-tp 2 -dp 4</span> on eight GPUs makes 17. With one GPU it is two processes, the worker living inside the engine core. The CPU backend is the exception: it always uses the multiprocessing executor because OpenMP threads must be set up in their own process ({{cpu.py L317 to L324|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/platforms/cpu.py#L317}}), so the CPU container here showed three vLLM processes <span class="meas">measured here</span>: <span id="vl-ps-line"></span></div></div>
+
+<div class="rd-card" id="vl-async-card">
+<h4>The same three steps without and with asynchronous scheduling</h4>
+<div class="seg" id="vl-async-seg"><button data-m="sync" class="on">Synchronous (CPU backend, and GPU before async)</button><button data-m="async">Async scheduling (GPU default)</button></div>
+<div class="rd-svg" id="vl-async-svg"></div>
+<div class="an-cap" id="vl-async-cap"></div>
+<div class="an-cnt" id="vl-async-cnt"></div>
+<div class="an-ctl" id="vl-async-ctl"></div>
+<p class="small mute"><span class="der">illustrative</span> durations (CPU work 3 ms, GPU work 10 ms per step) to show the mechanism; the mechanism itself is the source's: with async scheduling the engine core keeps a batch queue of 2 ({{vllm.py L592|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/vllm.py#L592}}) and <span class="mono">step_with_batch_queue</span> schedules step N+1 before step N's result is back ({{core.py L670|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/core.py#L670}}). The CPU platform turns it off ({{cpu.py L314|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/platforms/cpu.py#L314}}), so the stepper's trace is synchronous.</p>
+</div>
+<p><b>What async scheduling costs.</b> The scheduler decides step N+1 before it knows step N's token, so a request that will finish at step N is scheduled once more; the running loop skips a request whose in-flight tokens already reach <span class="mono">max_tokens</span> ({{scheduler.py L635|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/core/sched/scheduler.py#L635}}), and outputs that arrive for a request preempted in between are marked stale ({{scheduler.py L1563|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/core/sched/scheduler.py#L1563}}). <b>When it matters:</b> small models and small batches, where the GPU step is a few milliseconds and the CPU work is the same order. <b>How to check:</b> a profile with gaps between GPU kernels at batch 1 means the CPU is the bottleneck.</p>
+</section>
