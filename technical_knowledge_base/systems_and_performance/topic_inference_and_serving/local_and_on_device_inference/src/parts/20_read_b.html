@@ -1,0 +1,37 @@
+
+<section id="lo-s0">
+<p class="lead"><dfn>Local inference</dfn> means running a language model on a machine you own (a laptop, a desktop with one or two gaming GPUs, a phone) for yourself or a handful of people. The datacenter pages ask how to serve thousands of users per GPU at the lowest cost. Here the questions flip: <b>does the model fit in my memory, how fast does it stream for me, how much quality did shrinking it cost, and which program should run it?</b></p>
+<p>The parent page, {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}, explains prefill, decode and the KV cache from zero; this page uses those words. In one line each: <dfn>prefill</dfn> reads the whole prompt in one pass; <dfn>decode</dfn> then produces one token per pass; the <dfn>KV cache</dfn> holds the keys and values every earlier token produced, so decode does not recompute them; <dfn>TTFT</dfn> (time to first token) is how long you wait before text appears, and <dfn>tokens per second</dfn> (or its inverse, TPOT, time per output token) is how fast it streams after that.</p>
+
+<div class="stepbox">
+<div style="--sc:var(--c1)"><div class="k">1. How fast it streams</div><div class="v">bytes per token / bandwidth</div><p>With one user, every token reads all the weights once. Speed is set by memory bandwidth, not by arithmetic (section 1).</p></div>
+<div style="--sc:var(--c3)"><div class="k">2. Whether it fits</div><div class="v">weights + KV cache + buffers</div><p>The weights must sit in memory the GPU can read fast: VRAM on a graphics card, unified memory on a Mac (section 2).</p></div>
+<div style="--sc:var(--c2)"><div class="k">3. What shrinking costs</div><div class="v">quantization</div><p>Storing weights in 4 bits instead of 16 makes the model 3 to 4 times smaller, faster (by less than that on a small GPU, section 1), and a little worse. How much worse is measurable (sections 3 and 4).</p></div>
+<div style="--sc:var(--c4)"><div class="k">4. Which program</div><div class="v">llama.cpp, MLX, Ollama, LM Studio</div><p>All four sit on two engines: ggml (llama.cpp) and MLX. The wrappers add model management and hide knobs (sections 5 to 7).</p></div>
+</div>
+
+<h3>Local against datacenter, in one table</h3>
+<div class="tw"><table class="lo-tbl tbl-sm">
+<thead><tr><th></th><th>Datacenter serving (the parent and its siblings)</th><th>Local inference (this page)</th></tr></thead>
+<tbody>
+<tr><td>Users at once</td><td>Hundreds to thousands per replica</td><td>One, sometimes a few (an agent running tools in parallel, a small team)</td></tr>
+<tr><td>What sets speed</td><td>Batch size: many users share one read of the weights</td><td>Bandwidth: one user pays for the whole read of the weights on every token</td></tr>
+<tr><td>Typical weights</td><td>BF16, FP8, NVFP4 checkpoints in safetensors</td><td>2 to 8-bit GGUF files (llama.cpp) or MLX safetensors; the format is chosen to fit the memory</td></tr>
+<tr><td>Engines</td><td>vLLM, SGLang, TensorRT-LLM</td><td>llama.cpp (and Ollama, LM Studio on top of it), MLX and mlx-lm on Apple silicon</td></tr>
+<tr><td>Hardware</td><td>H100, H200, B200 with HBM at 3 to 8 TB/s</td><td>A Mac's unified memory at 0.12 to 1.2 TB/s, a gaming GPU's GDDR at 0.9 to 1.8 TB/s (section 8), a phone's less</td></tr>
+<tr><td>What you tune</td><td>Batch size, KV cache size, parallelism, scheduling</td><td>Quant type, context length, how many layers go on the GPU, KV cache type, slots</td></tr>
+</tbody></table></div>
+
+<h3>The stack</h3>
+<p>Every local program sits on one of two numerical engines. Knowing which one tells you which file format it reads and which knobs exist underneath its interface.</p>
+<div class="lo-stack">
+<div class="lo-st-row"><div class="lo-st-lab">Apps and wrappers</div><div class="lo-st-c lo-gg"><b>Ollama</b> (Go server, model registry, runs its own runner processes) &middot; <b>LM Studio</b> (desktop app, closed source)</div><div class="lo-st-c lo-mx"><b>LM Studio</b> (its MLX engine) &middot; <b>Ollama</b> on Macs (MLX path: section 7)</div></div>
+<div class="lo-st-row"><div class="lo-st-lab">Server (HTTP, OpenAI-compatible)</div><div class="lo-st-c lo-gg"><b>llama-server</b>: slots, continuous batching, prompt cache, metrics</div><div class="lo-st-c lo-mx"><b>mlx_lm.server</b>: batched decode, prompt cache</div></div>
+<div class="lo-st-row"><div class="lo-st-lab">Engine</div><div class="lo-st-c lo-gg"><b>libllama</b> (C/C++): model graphs, KV cache, sampling</div><div class="lo-st-c lo-mx"><b>mlx-lm</b> (Python): models, generation, quantization</div></div>
+<div class="lo-st-row"><div class="lo-st-lab">Kernels</div><div class="lo-st-c lo-gg"><b>ggml</b>: CPU (NEON, AVX), Metal, CUDA, Vulkan, ROCm/HIP, SYCL</div><div class="lo-st-c lo-mx"><b>MLX</b> (Apple's array framework): Metal, CPU</div></div>
+<div class="lo-st-row"><div class="lo-st-lab">File format</div><div class="lo-st-c lo-gg"><b>GGUF</b>: one file, weights in block-quantized types plus tokenizer and chat template</div><div class="lo-st-c lo-mx"><b>safetensors</b> with MLX's group-wise scales and biases</div></div>
+</div>
+<p class="small mute">Versions on this machine: llama.cpp build 11146 (Homebrew 0.5.0, commit 7fe450e19, 23 September 2026), MLX 0.32.3 with mlx-lm 0.32.0, Ollama 0.40.1. Read at those versions; quoted with file and line.</p>
+
+<p><b>The running examples.</b> Two small open models, Qwen3-1.7B and Qwen3-4B (Alibaba, Apache 2.0), measured on the Apple M1 Pro laptop this page was built on (10-core CPU, 16-core GPU, 16 GB unified memory, 200 GB/s by Apple's specification), the same machine and models as the parent's {{Engine bench|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} tab. Every measured number is labelled <span class="meas">measured here</span>, with the machine's load average recorded, because other jobs shared the laptop. For NVIDIA, the example is a desktop with two GeForce RTX 5090 cards (32 GB each): nothing was run on one here, so its numbers are published ones, labelled by who measured them.</p>
+</section>
