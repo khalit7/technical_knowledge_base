@@ -1,0 +1,34 @@
+<section id="mf-s1">
+<h2>1. What a model file has to hold</h2>
+<p><b>The problem.</b> Training leaves the model in GPU memory as Python objects. To ship it, every one of its arrays has to become bytes on disk, and someone else's program has to turn those bytes back into exactly the same arrays, and know what to do with them. Writing objects to bytes is <dfn>serialization</dfn>; reading them back is <dfn>deserialization</dfn>.</p>
+<p><b>What has to travel.</b> Five kinds of thing, and a format either carries each one or leaves it to a sibling file:</p>
+<div class="mech">
+<div><b>Tensors</b>Every weight array. For each: a <dfn>name</dfn> (<code>model.layers.0.self_attn.k_proj.weight</code>), a <dfn>dtype</dfn> (how one number is stored, such as BF16, two bytes), a <dfn>shape</dfn> (<code>[1024, 1024]</code>), and the raw bytes.</div>
+<div><b>Config</b>The architecture numbers that turn arrays into a network: layers, heads, hidden size, RoPE base, norm epsilon. Qwen3-1.7B's is a 726-byte JSON file.</div>
+<div><b>Tokenizer</b>The vocabulary (151,936 tokens for Qwen3), the merge rules, special-token ids. Without it the model's input and output ids mean nothing.</div>
+<div><b>Chat template</b>The Jinja program that turns a list of messages into the exact token sequence the model was trained on (<code>&lt;|im_start|&gt;user</code> ...).</div>
+<div><b>Generation defaults</b>Sampling settings the authors recommend (Qwen3: temperature 0.6, top-k 20, top-p 0.95) and which ids end a turn.</div>
+</div>
+<p>Here is a real Hugging Face model folder, Qwen3-1.7B, drawn to scale by bytes. The weights are almost everything; the small files decide whether those bytes mean anything. Tap a segment.</p>
+<div class="card" id="mf-repo-card"><div id="mf-repo"></div><div class="small mute" id="mf-repo-cap"></div></div>
+<h3>A tensor on disk is just numbers in a row</h3>
+<p>A file never stores a "matrix". It stores the numbers one after another and remembers the shape. The order is <dfn>row-major</dfn> (the last index changes fastest, as in C and PyTorch) and every multi-byte number is <dfn>little-endian</dfn> (lowest byte first), the byte order of every x86 and Arm chip you will meet. So a tensor's size is simply: number of elements times bytes per element.</p>
+<div class="fm"><div class="eq">bytes = (product of the shape) &times; (bytes per element)</div>
+<dl><dt>example</dt><dd><code>k_proj.weight</code>, BF16, shape [1024, 1024]: 1,048,576 &times; 2 = 2,097,152 bytes, exactly the gap between its two offsets in the real file (section 3).</dd></dl></div>
+<h3>dtypes from zero: what one number costs</h3>
+<p>A floating-point number is a sign bit, an <dfn>exponent</dfn> (how big: the range) and a <dfn>mantissa</dfn> (how precise: the significant digits). Formats differ only in how many bits each part gets. <b>BF16</b> (brain float) keeps F32's 8 exponent bits and cuts the mantissa to 7, so it covers the same range with less precision; <b>F16</b> (half) has more precision (10 bits) but only 5 exponent bits, so very small and very large numbers do not fit. The quantization types and the maths behind them are owned by {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}; here we only need what they cost on disk.</p>
+<div class="card" id="mf-bits-card">
+<div id="mf-bits"></div>
+<div class="lo-ctl" style="display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:13px;margin:8px 0"><label>Try a value <input id="mf-bits-in" type="text" value="0.0000000412" inputmode="decimal" style="width:11em"></label><span class="small mute">or pick:</span><span class="chips" id="mf-bits-pick" style="margin:0"></span></div>
+<div id="mf-bits-out" class="small"></div>
+</div>
+<p><b>Why this matters for formats: BF16 to F16 is not a free repack.</b> Qwen3 ships in BF16. Every BF16 value is exactly representable in F32 (BF16 is the top half of an F32), but not always in F16. We converted Qwen3-0.6B to GGUF both ways with llama.cpp's converter and compared every value against the original <span class="meas">measured here</span>:</p>
+<div class="out">
+<div class="stat"><div class="k">BF16 GGUF vs original</div><div class="v">0 values changed</div><div class="d">all 311 tensors bit-identical after decoding</div></div>
+<div class="stat"><div class="k">F16 GGUF vs original</div><div class="v"><span data-mf="f16Inexact"></span> changed</div><div class="d">of <span data-mf="f16Total"></span> (<span data-mf="f16Pct"></span>); <span data-mf="f16Zero"></span> became zero; largest change <span data-mf="f16MaxAbs"></span></div></div>
+</div>
+<p>Every changed value is a tiny weight below F16's normal range (about 6.1 &times; 10<sup>-5</sup>), where F16 runs out of exponent and keeps fewer bits; no weight was too large. The model will not notice a change of 3 &times; 10<sup>-8</sup>, but the common rule "safetensors to GGUF at F16 or BF16 preserves the numbers exactly" is only true for BF16. <b>Convert BF16 checkpoints to BF16 (or F32) GGUF</b> when you want a lossless master copy. Script: <code>src/scripts/cmp_gguf_st.py</code>.</p>
+<div class="pr"><div class="q">Predict: the converter stores Qwen3's RMSNorm weights (1-D vectors) as F32 even when you ask for BF16. Does that lose anything?</div>
+<div class="opts"><button data-ok="1">No: BF16 to F32 is exact</button><button>Yes: a little precision</button><button>Yes: range</button></div>
+<div class="ans" hidden>No. F32 has the same 8 exponent bits and a longer mantissa, so every BF16 value widens exactly; the comparison above found all 113 F32 tensors identical to the BF16 originals. The converter keeps 1-D tensors and norms in F32 because, in its own words, "most of the codebase that takes in 1D tensors or norms only handles F32 tensors" (<code>conversion/base.py</code> L1047, b11146); they hold 65,536 of the 751.6 million values (under 0.01%).</div></div>
+</section>

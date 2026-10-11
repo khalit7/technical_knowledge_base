@@ -1,0 +1,25 @@
+<section id="mf-s9">
+<h2>9. Conversions: which ones keep every number</h2>
+<p>Every arrow between formats is either a <dfn>repack</dfn> (same numbers, new layout) or a <dfn>requantization</dfn> (new numbers). The {{Conversion map|#t-conv}} tab draws them all, with the runs made here. The rules that matter more than the arrows:</p>
+<ul>
+<li><b>Lossless:</b> pickle to safetensors; safetensors BF16 to GGUF BF16 (we checked all 751.6 million values: identical) or F32; safetensors to ONNX in F32. <b>Not lossless:</b> BF16 to F16, by a little (section 1).</li>
+<li><b>Lossy by design:</b> any quantization (<code>llama-quantize</code>, <code>mlx_lm convert -q</code>, llm-compressor, a TensorRT build with FP8 or INT4). Always quantize from the full-precision original, never from an already quantized file: errors compound.</li>
+<li><b>One-way in practice:</b> dequantizing a GGUF gives a rounded shadow of the model, not the model. If you need a GGUF and an FP8 checkpoint, make both from the safetensors original.</li>
+<li><b>Lossy in a second sense:</b> exports drop things that are not numbers. Our ONNX export carries no tokenizer, template or sampling defaults; a third-party GGUF may carry a different template (section 4).</li>
+<li><b>Reproducible:</b> the GGUF converter, <code>llama-quantize</code> and <code>mlx_lm convert</code> all gave byte-identical files on re-runs here, so a SHA-256 is a fair way to check that a file is what you think it is.</li>
+</ul>
+<div class="mf-hex"># safetensors to GGUF to a quant type (llama.cpp b11146), as run here
+python convert_hf_to_gguf.py Qwen3-0.6B/ --outtype bf16 --outfile q06-bf16.gguf     # 11 to 17 s, 1,509,347,136 bytes
+llama-quantize q06-bf16.gguf q06-Q4_K_M.gguf Q4_K_M                                 # 4.7 to 6.1 s
+# safetensors to MLX 4-bit
+python -m mlx_lm convert --hf-path Qwen3-0.6B --mlx-path q06-mlx4 -q --q-bits 4 --q-group-size 64   # about 2 s</div>
+</section>
+<section id="mf-s10">
+<h2>10. Loading: what the format buys at start-up</h2>
+<p>For a server, the format matters most at <dfn>cold start</dfn>: the seconds between "launch" and "ready" that decide how fast you can scale out (autoscaling is on {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}). Mapping instead of copying is the main lever. llama.cpp maps GGUF files by default (<code>--load-mode auto</code>: "mmap, unless a device does not support it"; the loader refuses to map a file whose data section is not aligned). We started llama-server on Qwen3-4B Q4_K_M (2.5 GB) four times each way <span class="meas">measured on Apple M1 Pro, warm page cache</span>:</p>
+<div class="out">
+<div class="stat"><div class="k">Mapped (<code>--load-mode mmap</code>)</div><div class="v"><span data-mf="mmapS"></span> to ready</div><div class="d">range <span data-mf="mmapRange"></span>; <span data-mf="mmapGiB"></span> resident</div></div>
+<div class="stat"><div class="k">Read into memory (<code>none</code>)</div><div class="v"><span data-mf="noneS"></span> to ready</div><div class="d">range <span data-mf="noneRange"></span>; <span data-mf="noneGiB"></span> resident</div></div>
+</div>
+<p>Medians shown. Mapping saved about a third of a second and 0.6 GiB here; the bigger wins come when the file is not yet in RAM, when several processes share one mapped file, or when only part of the model is needed (a pipeline stage, a tensor-parallel rank, a draft model). On a datacenter GPU the weights must still be copied from host memory into HBM, which is what fastsafetensors and GPUDirect Storage attack (section 3).</p>
+</section>
