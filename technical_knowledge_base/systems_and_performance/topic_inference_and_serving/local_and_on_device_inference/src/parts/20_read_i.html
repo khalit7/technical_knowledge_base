@@ -1,0 +1,41 @@
+
+<section id="lo-s7">
+<h2>7. Ollama and LM Studio: what the wrappers add</h2>
+<p><b>The problem they solve.</b> llama-server is one process for one model, started with flags you have to know. Most people want to type a model name and chat, have several models available, and not think about which GGUF file, context length or GPU layers. Ollama and LM Studio do that: they manage downloads, start and stop engines on demand, and pick defaults. The cost is that the defaults are theirs.</p>
+
+<h3>Ollama: a Go server that launches engines</h3>
+<p>Ollama (MIT licence) is a Go program: <code>ollama serve</code> listens on <code>127.0.0.1:11434</code>, keeps a model store of layers addressed by hash (like a container registry; a <dfn>Modelfile</dfn> names a base model plus a template and parameters), and runs each loaded model in a <b>separate runner process</b>. Read at v0.40.1 (commit cf2a313a, 7 October 2026; the latest release is v0.40.2 of 8 October), the scheduler has two runner paths (<code>server/sched.go</code> L535 to L598):</p>
+<ul class="tight">
+<li><b>GGUF models: upstream llama.cpp's own <code>llama-server</code></b>, built from a pinned version (<code>LLAMA_CPP_VERSION</code> = b11351) with Ollama's compatibility patches applied (<code>llama/README.md</code>), started as a subprocess: "llama_server.go wraps the llama-server binary as a subprocess", and llama-server "auto-detects GPU layers (-ngl), thread count (-t), and flash attention" (<code>llm/llama_server.go</code> L1 to L14).</li>
+<li><b>MLX models on Apple silicon: Ollama's <code>mlxrunner</code></b>, on a pinned MLX commit. Since v0.40.0 (25 September 2026) "Models run on MLX on Apple Silicon by default" when the architecture is supported ({{release notes|https://github.com/ollama/ollama/releases}}).</li>
+</ul>
+<div class="co"><div class="t">Correction to the old page</div><p>The old page said Ollama "runs its own ggml-based engine for new models while still using llama.cpp kernels underneath". That was true from v0.7.0 (May 2025, {{"Ollama's new engine for multimodal models"|https://ollama.com/blog/multimodal-models}}) and is no longer how v0.40 is built: GGUF goes to upstream llama-server, and Apple silicon prefers MLX. The history: v0.19.0 (March 2026) put MLX in preview ({{Ollama blog, 30 March 2026|https://ollama.com/blog/mlx}}); v0.30.0 (May 2026) moved more of the work back onto llama.cpp ("improved compatibility and performance using llama.cpp").</p></div>
+<p><b>What Ollama adds:</b> the registry (<code>ollama pull qwen3:4b</code>), model lifecycle (load on first request, unload after a keep-alive of 5 minutes by default, up to 3 models per GPU loaded at once), its own API plus OpenAI- and Anthropic-compatible endpoints, and cloud models: a <code>:cloud</code> tag routes the same local API to Ollama's hosted GPUs (since v0.12.0, September 2025; {{Ollama blog|https://ollama.com/blog/cloud-models}}). <b>What it decides for you</b> (defaults from <code>envconfig/config.go</code> at v0.40.1 and the {{FAQ|https://github.com/ollama/ollama/blob/v0.40.2/docs/faq.mdx}}):</p>
+<div class="tw"><table class="lo-tbl tbl-sm">
+<thead><tr><th>Setting</th><th>Ollama default</th><th>Why it matters</th></tr></thead>
+<tbody>
+<tr><td>Context length (<code>num_ctx</code>, <code>OLLAMA_CONTEXT_LENGTH</code>)</td><td>4,096 tokens under 24 GiB of VRAM, 32,768 for 24 to 48 GiB, 262,144 at 48 GiB and above (L338; since v0.15.5)</td><td>On a 16 GB Mac a long document or agent history does not fit in 4,096 tokens unless you raise it. (The FAQ page at the same tag still says 4,096 for everyone: stale.)</td></tr>
+<tr><td>Parallel requests (<code>OLLAMA_NUM_PARALLEL</code>)</td><td>1 (L277)</td><td>Requests to one model wait in a queue; llama-server's default is 4 slots (section 5).</td></tr>
+<tr><td>Keep-alive (<code>OLLAMA_KEEP_ALIVE</code>)</td><td>5 minutes (L325)</td><td>The first request after a pause pays the load time again.</td></tr>
+<tr><td>KV cache type (<code>OLLAMA_KV_CACHE_TYPE</code>)</td><td>f16; q8_0 or q4_0 need flash attention</td><td>q8_0 halves the cache at no measured perplexity cost on Qwen3-1.7B ({{batching sibling|n:3c65c17b0d0d819db53bd2c48909e5b2}}).</td></tr>
+<tr><td>Quantization</td><td>Whatever the registry tag ships</td><td>Section 4: Q4_K_M without an importance matrix is not the best 4-bit file.</td></tr>
+</tbody></table></div>
+
+<h3>Measured: Ollama against llama-server on the same file</h3>
+<p>To see what the wrapper costs, Ollama 0.40.1 was run as its own server on a separate port with a scratch model store (never touching the installed app's own server or models), the Qwen3-1.7B Q4_K_M GGUF was imported with a one-line Modelfile (<code>FROM ./Qwen3-1.7B-Q4_K_M.gguf</code>), and the same 2,000-character prompt was sent raw (no chat template) for 128 tokens at temperature 0, four times, then to llama-server on the same file. <span class="meas">Measured here</span>:</p>
+<div id="lo-ol-res"></div>
+<p class="small mute" id="lo-ol-note"></p>
+
+<h3>LM Studio</h3>
+<p>LM Studio is a closed-source desktop app (free for work use since 8 July 2025, {{LM Studio blog|https://lmstudio.ai/blog/free-for-work}}) with two engines: llama.cpp for GGUF ("llama.cpp runtime 2.50.0 (upstream b11337)" in 0.4.26) and its open-source mlx-engine on Apple silicon. Version 0.4.0 (28 January 2026) split out <code>llmster</code>, the app's core as a headless daemon (<code>lms daemon up</code>, <code>lms server start</code>), and added parallel requests with continuous batching through llama.cpp; 0.4.2 brought batching to MLX; 0.4.1 added an Anthropic-compatible <code>/v1/messages</code> endpoint ({{0.4.0 blog|https://lmstudio.ai/blog/0.4.0}}, {{changelog|https://lmstudio.ai/changelog/lmstudio}}). Models load just in time on the first request and unload after 60 idle minutes by default ({{TTL docs|https://lmstudio.ai/docs/developer/core/ttl-and-auto-evict}}). Latest: 0.4.26 (8 October 2026). Not run here: it is a GUI install. <span class="vend">vendor docs</span></p>
+
+<h3>Choosing</h3>
+<div class="tw"><table class="lo-tbl tbl-sm">
+<thead><tr><th>You want</th><th>Use</th></tr></thead>
+<tbody>
+<tr><td>To chat with a model in two minutes</td><td>Ollama or LM Studio</td></tr>
+<tr><td>Every knob, the newest llama.cpp features, metrics, exact control of the file and context</td><td>llama-server (section 5)</td></tr>
+<tr><td>The fastest path on a Mac for a supported model; to fine-tune or modify a model in Python</td><td>MLX and mlx-lm (section 6)</td></tr>
+<tr><td>Several people or agents at once on a GPU box</td><td>vLLM (section 8 and the {{vLLM sibling|n:3c65c17b0d0d8113b976d8bcaf2c0722}})</td></tr>
+</tbody></table></div>
+</section>

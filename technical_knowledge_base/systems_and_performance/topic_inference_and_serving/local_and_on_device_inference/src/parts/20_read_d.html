@@ -1,0 +1,20 @@
+
+<section id="lo-s2">
+<h2>2. Will it fit? Weights, cache and buffers</h2>
+<p><b>The problem.</b> The model must sit in memory the GPU reads fast. On a graphics card that is its own VRAM (32 GB on an RTX 5090); on a Mac it is the unified memory the CPU and GPU share, but macOS lets the GPU use only part of it. Three things need room:</p>
+<div class="fm"><div class="eq">memory &asymp; weights + KV cache + buffers</div>
+<dl><dt>weights</dt><dd>parameters &times; bits per weight / 8 (Qwen3-4B at Q4_K_M: 4.02 billion parameters &times; <span data-lo="bpwQ4km4"></span> bits measured, about 2.5 GB)</dd>
+<dt>KV cache</dt><dd>bytes per token &times; context &times; slots: 2 &times; layers &times; KV heads &times; head size &times; bytes per value</dd>
+<dt>buffers</dt><dd>scratch memory for one step's activations, a few hundred MB for small models (llama.cpp prints its compute buffer at start)</dd></dl></div>
+<p><b>The cache can outweigh the model.</b> Qwen3-4B keeps 2 &times; 36 layers &times; 8 KV heads &times; 128 &times; 2 bytes = 147,456 bytes per token in F16. Its trained context is 40,960 tokens: a full context costs 6.0 GB of cache, more than twice the 2.5 GB of Q4_K_M weights. Long contexts are paid in memory first and speed second (section 1). Two remedies: a quantized cache (<code>-ctk q8_0 -ctv q8_0</code> halves it; the {{batching sibling|n:3c65c17b0d0d819db53bd2c48909e5b2}} measured no perplexity change at q8_0 on Qwen3-1.7B), and a context no longer than you need.</p>
+<p><b>How much a Mac lets the GPU use.</b> Metal reports a "recommended maximum working set" for the GPU, and llama.cpp sizes its plans to it (<code>ggml-metal-device.m</code> L1276, L1350). <span class="meas">Measured here</span>: <span data-lo="wsGB"></span> of this laptop's 16 GB (<span data-lo="wsPct"></span>). The rest stays with macOS and other programs.</p>
+<p><b>What llama-server does by default.</b> At b11146, <code>-c 0</code> asks for the model's trained context and <code>--fit</code> (on by default) then shrinks unset settings until the plan fits the device with a 1,024 MiB margin (<code>common/fit.h</code>). <span class="meas">Measured here</span>, Qwen3-1.7B Q4_K_M started with no options: <span data-lo="defSummary"></span></p>
+
+<h3>When it does not fit</h3>
+<ul class="tight">
+<li><b>Partial offload.</b> <code>-ngl N</code> puts only N layers on the GPU; the rest run on the CPU from system RAM. It runs, at the speed of the slowest part: on a PC the CPU's RAM bandwidth (tens of GB/s on a desktop) is many times below a GPU's, so each CPU layer costs far more than a GPU layer. On a Mac the CPU shares the same memory, but its cores pull less of it (section 1 measured the CPU at <span data-lo="cpuTg"></span> tokens per second against the GPU's <span data-lo="gpuTg"></span>).</li>
+<li><b>Mixture-of-experts models</b> read only a few experts per token, so keeping the experts in system RAM (<code>--n-cpu-moe N</code> or <code>--cpu-moe</code>) and the attention and shared layers on the GPU costs less than offloading a dense model of the same size.</li>
+<li><b>Memory-mapped files.</b> llama.cpp maps the GGUF file into memory (mmap) instead of reading it, so a model that does not fit in RAM still loads, and its pages are read from disk as needed: a loading trick, not a way to run fast. A second start of the same model is quicker because the file is still in the operating system's page cache (the router run in section 5 shows the effect).</li>
+</ul>
+<div class="cost"><div class="t">How to check</div><p>Start the server and read its first lines: llama.cpp prints the model buffer, KV buffer and compute buffer sizes per device and the context it chose. On a Mac, Activity Monitor's memory pressure shows when the system starts swapping. The {{Fit and speed|#t-fit}} tab does this arithmetic for any model and machine before you download anything.</p></div>
+</section>
