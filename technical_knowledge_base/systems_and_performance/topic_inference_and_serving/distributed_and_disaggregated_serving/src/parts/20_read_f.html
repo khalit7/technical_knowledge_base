@@ -1,0 +1,33 @@
+<section id="dd-s7">
+<h2>7. When disaggregation pays</h2>
+<p><b>Measure goodput, not throughput.</b> DistServe's measure: the highest request rate at which a target share of requests (90% here) meets both the time-to-first-token and the time-per-output-token targets, per GPU ({{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}, section 7, owns the definition and its scheduling side). Throughput that breaks the targets is not useful. The DistServe paper's own worked example shows why splitting can win on this measure ({{Zhong et al. 2024, section 1|https://arxiv.org/html/2401.09670v3}}, a 13B model on A100s, the authors' figures):</p>
+<div class="stepbox">
+<div style="--sc:var(--c2)"><div class="k">Colocated</div><div class="v">1.6 req/s per GPU</div><p>the most one GPU serves while meeting both targets</p></div>
+<div style="--sc:var(--c4)"><div class="k">Each phase alone</div><div class="v">5.6 and 10 req/s</div><p>one GPU doing only prefill, one doing only decode, each within its own target</p></div>
+<div style="--sc:var(--c1)"><div class="k">2 prefill + 1 decode</div><div class="v">3.3 req/s per GPU</div><p>10 req/s on 3 GPUs: 2.1 times the colocated goodput</p></div>
+</div>
+<p>The win comes from removing interference, so it is largest exactly when interference hurts most: strict per-token targets and long prompts. With loose targets, colocated engines with chunked prefill use every GPU for prompts and every GPU for decoding, and nothing is stranded in an idle pool.</p>
+<h3>The running example, simulated</h3>
+<p>The {{Disaggregation lab|#t-pd}} runs the parent's validated simulator on eight H200s, each its own engine, for every split from 1 prefill + 7 decode to 7 + 1. For chat traffic with a 2 s time-to-first-token target <span class="der">simulated</span>:</p>
+<div class="tw"><table class="dd-tbl" id="dd-s7-tbl"></table></div>
+<p>Four lessons from the grid, all visible in the lab:</p>
+<ul>
+<li><b>The tighter the per-token target, the bigger the win</b>: <span id="dd-s7-l1"></span></li>
+<li><b>A tight first-token target favours colocated engines</b>: <span id="dd-s7-l2"></span> All eight GPUs share the prompts, so queues for prefill are shorter. This is the pattern TaiChi reports: "aggregation is optimal for tight time-to-first-token (TTFT) and relaxed time-per-output-token (TPOT), while disaggregation excels for strict TPOT and relaxed TTFT" ({{arXiv 2508.01989|https://arxiv.org/abs/2508.01989}}, the authors').</li>
+<li><b>The ratio matters as much as the decision</b>: the best split here gives prefill most of the GPUs (4 to 7 of the 8), because a 2,000-token prompt costs about 424 ms of one H200 while the 300 decode steps are shared by a whole batch. A wrong ratio loses to colocated even where the right one wins.</li>
+<li><b>Long prompts need a fast link and parallel prefill</b>: <span id="dd-s7-l4"></span></li>
+</ul>
+<p class="small">Read these as directions, not forecasts: the simulator moves each cache as one transfer, does not route by load and has not been checked against a real disaggregated engine (the lab says what is and is not modelled).</p>
+<h3>What has been published</h3>
+<div class="tw"><table class="dd-tbl">
+<tr><th>Source</th><th>Setting</th><th>Claim</th><th>Who measured</th></tr>
+<tr><td>{{DistServe|https://arxiv.org/abs/2401.09670}} (OSDI 2024)</td><td>A100s, several applications</td><td>"7.4x more requests or 12.6x tighter SLO" within latency targets for over 90% of requests</td><td><span class="vend">authors</span></td></tr>
+<tr><td>{{Splitwise|https://arxiv.org/abs/2311.18677}} (ISCA 2024)</td><td>phases on different GPU types</td><td>"1.4x higher throughput at 20% lower cost", or "2.35x more throughput with the same cost and power budgets"</td><td><span class="vend">authors (Microsoft)</span></td></tr>
+<tr><td>{{Mooncake|https://arxiv.org/abs/2407.00079}} (FAST 2025)</td><td>Kimi in production</td><td>"75% more requests" on real workloads; "up to a 525% increase in throughput in certain simulated scenarios"</td><td><span class="vend">authors (Moonshot AI)</span></td></tr>
+<tr><td>{{TensorRT-LLM blog|https://nvidia.github.io/TensorRT-LLM/blogs/tech_blog/blog5_Disaggregated_Serving_in_TensorRT-LLM.html}}</td><td>GB200, DeepSeek R1 and Qwen 3</td><td>1.4 to 1.8 times (2.5 with MTP) for R1; 1.7 to 6.11 times for Qwen 3, "especially at lower concurrency levels"</td><td><span class="vend">vendor</span></td></tr>
+<tr><td>{{llm-d README|https://github.com/llm-d/llm-d}}</td><td>gpt-oss on B200; gpt-oss-120B and Llama 3.3 70B on MI300X</td><td>"up to 70% higher tokens/sec" (AWS); "10-30% throughput improvement ... on identical infrastructure" (Oracle)</td><td><span class="vend">partners</span></td></tr>
+<tr><td>{{vLLM docs|https://github.com/vllm-project/vllm/blob/v0.31.0/docs/features/disagg_prefill.md}} (v0.31.0)</td><td>its own feature</td><td>"Disaggregated prefill DOES NOT improve throughput"; it tunes TTFT and inter-token latency separately and controls tail latency</td><td><span class="vend">engine maintainers</span></td></tr>
+<tr><td>{{TaiChi|https://arxiv.org/abs/2508.01989}} (2025)</td><td>balanced targets</td><td>neither pure design is best; mixing both gives "up to 77%" more goodput</td><td><span class="vend">authors</span></td></tr>
+</table></div>
+<p>Notice the pattern: every big number comes with long prompts, strict per-token targets, a large MoE model or a rack-scale system, and is measured by the people who built the system. The modest numbers (Oracle's 10 to 30%, vLLM's warning) come from ordinary dense models on ordinary servers. For a small fleet, chunked prefill with a tuned token budget gets much of the benefit ({{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}, section 5).</p>
+</section>

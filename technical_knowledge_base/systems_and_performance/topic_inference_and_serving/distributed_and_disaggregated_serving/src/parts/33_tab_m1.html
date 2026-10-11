@@ -1,0 +1,47 @@
+<div class="tab" id="t-m1" role="tabpanel" hidden>
+<style>
+#t-m1 .m1-plot{width:100%;overflow:hidden;margin:6px 0}
+#t-m1 .m1-plot svg text{font-size:11px}
+#t-m1 .m1-tbl td,#t-m1 .m1-tbl th{font-size:12.5px}
+#t-m1 h3{margin-top:22px}
+#t-m1 .m1-ctl{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;margin:6px 0}
+#t-m1 .m1-ctl label{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:100%}
+#t-m1 .m1-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-m1 .m1-leg span:before{content:"";display:inline-block;width:14px;height:3px;margin-right:5px;vertical-align:3px;background:var(--sw)}
+</style>
+<p class="lead">No NVIDIA GPU here, so the splits of the Reading tab were run at laptop scale: one Apple M1 Pro (16 GB unified memory, one GPU) and the 5 CPUs Docker Desktop gives vLLM's CPU image. Two processes on one machine share one GPU and talk over loopback TCP or shared memory, which is slower in latency than NVLink and in a different league for bandwidth, so the numbers show <em>how each mechanism behaves</em>, not how fast a datacenter runs it. Every run was repeated; the spread is shown; the machine was shared with other agents, so load averages are recorded.</p>
+<div class="co" id="m1-env"></div>
+
+<h3>1. One model, two processes: split by layers or by tensors (llama.cpp RPC)</h3>
+<p class="small">llama.cpp build 11146 (commit 7fe450e19) compiled here with its RPC back end. A second process, <code>ggml-rpc-server</code>, exposes the same Metal GPU over TCP on localhost; <code>llama-bench</code> then splits the model half and half between its own Metal device and the remote one: <code>-sm layer</code> (pipeline: each device holds half the layers, one hidden state crosses per token) or <code>-sm tensor</code> (each device holds half of every weight matrix; experimental). Prompt processing of 512 tokens (pp512) and generation of 64 (tg64), tokens per second.</p>
+<div class="tw"><table class="m1-tbl" id="m1-rpc"></table></div>
+<p class="small" id="m1-rpc-say"></p>
+
+<h3>2. vLLM's CPU engine with tensor and pipeline parallelism</h3>
+<p class="small">vLLM v0.31.0 CPU image (arm64), Qwen3-0.6B in float32, cores 0 to 3 of the Docker VM for the container (one worker bound to all four, or two workers bound to two each with <code>VLLM_CPU_OMP_THREADS_BIND</code>: vLLM’s automatic binding wants one NUMA node per worker and refused to start two workers on this one-node VM), the parent's bench load generator (closed loop, 300-word prompts, 64 output tokens): 1 user, then 8 users. TP 2 runs two worker processes, each with half of every layer, joined by vLLM's CPU communicator; PP 2 gives each worker half the layers.</p>
+<div class="tw"><table class="m1-tbl" id="m1-vtp"></table></div>
+<p class="small" id="m1-vtp-say"></p>
+
+<h3>3. Handing a KV cache from a prefill server to a decode server</h3>
+<p class="small">Two llama-server processes (Homebrew build 11146, Metal), Qwen3-1.7B Q8_0 with an F16 cache, prompt cache off. Server P computes a prompt and saves slot 0's cache to a file (<code>POST /slots/0?action=save</code>); server D loads the file into its slot 0 (<code>action=restore</code>) and answers 64 tokens reusing it; then D forgets the cache and computes the same prompt itself, for comparison. This is disaggregation through shared storage, the same idea as vLLM's ExampleConnector, with a disk instead of a network.</p>
+<div class="tw"><table class="m1-tbl" id="m1-lpd"></table></div>
+<p class="small" id="m1-lpd-say"></p>
+
+<h3>4. Does a separate prefill process protect a decode stream on the same GPU?</h3>
+<p class="small">A stream of 300 tokens runs on server D. After 60 tokens, a 3,000-word prompt arrives, either at D itself (colocated, its second slot) or at server P (another process on the same GPU). Every token's arrival time is recorded; the chart shows the gaps between consecutive tokens (the final end-of-stream message left out).</p>
+<div class="m1-ctl"><label>Run <select id="m1-gr"></select></label></div>
+<div class="m1-plot" id="m1-gap"></div>
+<div class="m1-leg"><span style="--sw:var(--c2)">prompt sent to the same server (colocated)</span><span style="--sw:var(--c1)">prompt sent to the other process</span></div>
+<div class="tw"><table class="m1-tbl" id="m1-int"></table></div>
+<p class="small" id="m1-int-say"></p>
+
+<h3>5. vLLM's KV connector on CPU</h3>
+<p class="small" id="m1-vpd-say"></p>
+<div class="tw"><table class="m1-tbl" id="m1-vpd"></table></div>
+
+<h3>What transfers to datacenter GPUs, and what does not</h3>
+<div id="m1-xfer"><ul>
+<li><b>Transfers:</b> the shape of each cost. A layer split pays per crossing, so it hurts generation (a crossing per token) far more than prompts (a crossing per batch); a tensor split pays inside every layer, so a slow link ruins it; the cache file is exactly tokens &times; KV bytes per token; a decode server that receives a cache recomputes nothing; two processes on one GPU still compete for it.</li>
+<li><b>Does not transfer:</b> the magnitudes. Loopback TCP between two Metal processes has far more per-message overhead than NVLink (a few microseconds per small all-reduce) and far less bandwidth than RDMA between servers; here both "devices" are the same GPU, so no split can be faster than one process; vLLM's CPU back end shares 4 cores among its workers. The datacenter numbers on the Reading tab come from the planner and published measurements, not from these runs.</li>
+</ul></div>
+</div>

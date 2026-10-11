@@ -1,0 +1,35 @@
+<section id="dd-s9">
+<h2>9. Choosing a layout, and checking it</h2>
+<p>A procedure that works for most deployments, in order:</p>
+<ol>
+<li><b>Fit.</b> Weights plus a useful cache on one GPU? If not, tensor parallelism inside the server up to the number of KV heads (and the NVLink domain); past one server, add pipeline stages (dense models) or expert parallelism (MoE models).</li>
+<li><b>Latency floor.</b> The fastest one token can be is weight bytes per GPU divided by its memory bandwidth, plus fixed per-step work. If the per-token target is below that, raise tensor parallelism; replicas cannot help.</li>
+<li><b>Cache.</b> Count the conversations that fit (the parent's {{Capacity planner|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} does it). If too few, a higher TP degree often beats more replicas because the weights are paid once (section 1).</li>
+<li><b>Traffic.</b> Replicate the unit until the traffic fits, with a prefix-aware router if prompts repeat.</li>
+<li><b>Interference.</b> Only now consider disaggregation: long prompts, a strict time-per-token target, and enough traffic to keep a separate prefill pool busy. Simulate or measure before committing (section 7).</li>
+</ol>
+<div class="tw"><table class="dd-tbl">
+<tr><th>Knob (vLLM v0.31.0)</th><th>What it sets</th><th>What to watch</th></tr>
+<tr><td><code>--tensor-parallel-size</code></td><td>GPUs per layer slice</td><td>time per output token at batch 1; all-reduce time in a profile; KV cache size in the start-up log</td></tr>
+<tr><td><code>--pipeline-parallel-size</code></td><td>number of stages</td><td>per-stage GPU utilisation; requests in flight at least the number of stages</td></tr>
+<tr><td><code>--data-parallel-size</code></td><td>attention replicas (with MoE) or engine copies</td><td>even <code>vllm:kv_cache_usage_perc</code> and waiting requests across ranks</td></tr>
+<tr><td><code>--enable-expert-parallel</code>, <code>--all2all-backend</code></td><td>experts spread over GPUs instead of sliced; the all-to-all kernels</td><td>all-to-all time per layer; per-GPU expert load</td></tr>
+<tr><td><code>--enable-eplb</code>, <code>--eplb-config</code></td><td>redundant experts rebalanced from recent load</td><td>max over mean GPU load before and after</td></tr>
+<tr><td><code>--kv-transfer-config</code></td><td>the KV connector and the engine's role (producer, consumer, both)</td><td>TTFT split into prefill, transfer and the first decode step; transfer failures</td></tr>
+</table></div>
+<p class="small">Flags from {{engine/arg_utils.py L1183-L1290|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/engine/arg_utils.py}} and {{config/parallel.py|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/parallel.py}} at v0.31.0; the single-engine knobs (memory share, token budget, batch size, prefix caching) and the metrics are read from source on {{vLLM: inside the default engine|n:3c65c17b0d0d8113b976d8bcaf2c0722}}. SGLang's equivalents: <code>--tp-size</code>, <code>--pp-size</code>, <code>--dp-size</code> with <code>--enable-dp-attention</code>, <code>--ep-size</code>, <code>--disaggregation-mode prefill|decode</code> with <code>--disaggregation-transfer-backend</code> (default mooncake).</p>
+<p><b>Checks that catch most problems.</b> The start-up log's KV cache size against the planner's; time per token at batch 1 against weights over bandwidth; <code>nvidia-smi topo -m</code> and NCCL's logs for the link actually used ({{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}, section 10); per-replica load; for disaggregation, the share of TTFT spent in transfer and the idle time of each pool.</p>
+</section>
+
+<section id="dd-mis">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Expecting N GPUs of tensor parallelism to make a token N times faster</summary><div class="b">Fixed per-step work and the all-reduces do not shrink: the running example goes 3.6 times faster on 8 GPUs (section 1). Measure at batch 1 before promising a latency.</div></details>
+<details class="mist"><summary>Using pipeline parallelism to cut latency</summary><div class="b">A request still visits every stage in turn. Pipeline stages add capacity across slow links, never speed for one user.</div></details>
+<details class="mist"><summary>Running tensor parallelism across servers over the network</summary><div class="b">The all-reduces cannot overlap with compute and the link is nine or more times slower than NVLink each way: keep TP inside the NVLink domain and put PP or EP across it.</div></details>
+<details class="mist"><summary>Replicas behind round robin for a chat product</summary><div class="b">Each replica has its own cache, so round robin scatters every conversation and pays its prefix again. Route by prefix (or by session) and watch the hit rate.</div></details>
+<details class="mist"><summary>Calling an MoE deployment balanced because the average load is even</summary><div class="b">The step waits for the busiest GPU in each batch, and small batches are far less even than the day's totals ({{Expert balancer|#t-ep}}). Judge balance per batch, on traffic the balancer did not see.</div></details>
+<details class="mist"><summary>Disaggregating because the papers report big gains</summary><div class="b">The gains are for strict per-token targets, long prompts and well-matched pools. With loose targets colocated engines with chunked prefill often serve more (section 7; vLLM's own docs: "Disaggregated prefill DOES NOT improve throughput").</div></details>
+<details class="mist"><summary>Fixing the prefill-to-decode ratio once</summary><div class="b">The right ratio moves with prompt and answer lengths. A ratio sized for chat strands GPUs when traffic turns to long documents; that is what Dynamo's planner and llm-d's autoscaling are for.</div></details>
+<details class="mist"><summary>Treating Triton's dynamic batching as continuous batching</summary><div class="b">The dynamic batcher groups whole requests and runs each batch to completion. For LLMs the TensorRT-LLM or vLLM back end does the in-flight batching.</div></details>
+<details class="mist"><summary>Reading a vendor's "30x" as a software speed-up</summary><div class="b">Dynamo's launch figure compared different parallel layouts on a GB200 NVL72 rack and was labelled projected; the README's "7x" compares GB200 NVL72 with Dynamo against B200 without. Ask what changed besides the software.</div></details>
+</section>
