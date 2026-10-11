@@ -76,3 +76,5 @@ the page as fact), **moved** (belongs to another page, linked). Checks 2026-10-0
 DCO and the AI-assisted contribution rule; the CPU backend's forced multiprocessing executor, async scheduling off, V1 model runner;
 the eviction-counter patch with tests (baseline 373 passed + new test failing, patched 374 passed); the recorded scheduler traces;
 the knob sweeps and live metrics; kv_cache_usage_perc excluding cached free blocks; the Qwen3 chat-template prefix-cache miss.
+
+2026-10-11 fix pass: the CPU image's four traps (section 0), taken from the sibling pages' runs: --shm-size and a --gpu-memory-utilization below free memory in Docker (LLM serving in production, run_vllm.sh); VLLM_CPU_OMP_THREADS_BIND for TP or PP above 1 and VLLM_ENABLE_V1_MULTIPROCESSING=0 leaving PyTorch one thread (Distributed and disaggregated serving, Runs on this laptop). Further reading times aligned with each sibling's own Reading time.

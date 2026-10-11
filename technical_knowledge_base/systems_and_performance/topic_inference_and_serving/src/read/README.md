@@ -39,4 +39,4 @@ The root's Reading runs about 30 minutes visible (7,435 words; unchanged after t
 RL lesson: the reader asked to be taught from zero toward four goals (running a server, engine internals, cost, interviews),
 so each section keeps the problem, mechanism, cost, when it matters and how to check it. Candidates to move to children
 if Khalid wants it shorter: the engine table's detail (to "Serving engine internals"), section 8 and the benchmarking list
-of section 9 (to "LLM serving in production"). Section 11 maps eight children: the six old ones reused (four retitled or widened), two new. The six old child ids are not in pages.json yet.
+of section 9 (to "LLM serving in production"). Section 11 and Further reading link all eight children (built 2026-10-08 to 2026-10-11) with their titles and Reading times; each "Go deeper" note links the child that owns its subject, naming the tab where one exists.

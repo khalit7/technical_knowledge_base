@@ -73,3 +73,9 @@ Old page: "Ollama, llama.cpp, and local serving" (Notion 3c65c17b0d0d81f7a144fe2
 |---|---|---|
 | dlab (Dettmers, 2026-09-21): 450 tok/s Qwen 3.6 35B-A3B at 1.5 bits; 125B on 24 GB; DeepSeek V4.1 550B on a 128 GB MacBook | verified as the author's words; one post, no method, code unreleased | R s9 (labelled author claim) |
 | BITCOS (arXiv 2609.16338) | verified | R s9 |
+
+## Added in the 2026-10-11 fix pass
+| Claim | Status | Source | Where |
+|---|---|---|---|
+| Qwen3-0.6B's checkpoint also ships a duplicate `lm_head.weight` (311 MB, 20.7% of its Hugging Face file), not only 1.7B | measured (sibling) | Model formats page, src/results (byte-identical to embed_tokens, 311,164,928 of 1,503,300,328 bytes) | R s3 |
+| llama-server batches slots only when their LoRA adapter sets are identical; a request naming no adapter gets every loaded adapter at load scale; 8 users: same adapter 352 tok/s, 2 different 109-127, 4-8 different 83-90 | measured (sibling) | LLM serving in production page, src/exp (server-context.cpp L449-L455, L1708-L1723 at b11146) | R s5 options table |
