@@ -1,0 +1,48 @@
+<section id="sd-s2">
+<h2>2. Draft, then verify</h2>
+<p><b>How it works.</b> Each <dfn>speculative step</dfn> has two halves.</p>
+<ol>
+<li><b>Draft.</b> A cheap drafter proposes the next k tokens (k is the <dfn>draft length</dfn>, typically 2 to 8). Here the drafter is Qwen3-0.6B, run k times in a row, each run a fast small forward pass.</li>
+<li><b>Verify.</b> The target runs once over the last accepted token plus the k guesses. Because a transformer computes a next-token distribution at every position of its input, this one pass gives the target's distribution after each prefix: after the context, after guess 1, after guesses 1 and 2, and so on, k + 1 distributions in all.</li>
+<li><b>Accept.</b> Walk the guesses left to right and keep each one the target agrees with (section 3 says exactly what "agrees" means). At the first disagreement, replace that guess with a token drawn from the target and throw away the rest. If every guess survives, take one more <dfn>bonus token</dfn> from the target's last distribution.</li>
+</ol>
+<p>So one target pass yields between 1 token (the first guess was wrong: no worse than plain decoding, apart from the time spent drafting) and k + 1 tokens. The draft's and the target's KV caches (the stored attention keys and values of earlier tokens) are rolled back past any rejected guesses. The parent page animates one 12-token answer with and without a draft ({{Topic: inference-and-serving, section 6|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}); here is a real one.</p>
+<div class="card" id="sd-steps-card">
+<h4 style="margin:0 0 4px">A real answer, step by step (draft Qwen3-0.6B, target Qwen3-1.7B, k = 4, greedy)</h4>
+<div class="seg" id="sd-steps-p"></div>
+<div class="sd-leg"><span><i style="background:var(--open2);outline:1px solid var(--good)"></i>guess accepted</span><span><i style="background:var(--acc2);outline:1px solid var(--acc)"></i>token from the target (correction or bonus)</span><span>| step boundary</span></div>
+<div class="sd-strip" id="sd-steps-txt"></div>
+<div class="an-cnt" id="sd-steps-cnt"></div>
+<p class="small mute"><span class="meas">measured here</span> Written from scratch on MLX with KV caches (the same cache handling as mlx-lm); both models 4-bit. A step that ends in a blue token had a rejection or used its bonus.</p>
+</div>
+<p>The pattern is the point: lists and code that copy structure run in long green stretches; free prose breaks every few tokens. Acceptance is a property of the text as much as of the drafter.</p>
+</section>
+
+<section id="sd-s3">
+<h2>3. The acceptance rule, and why it is exact</h2>
+<p><b>The problem.</b> If the target samples with temperature (not always the most likely token), "agree" cannot mean "the guess equals the target's top token". We want the accepted text to be distributed exactly as if the target had sampled it alone. Write p for the target's next-token distribution and q for the draft's, at the same position.</p>
+<div class="fm"><div class="eq">accept x ~ q with probability min(1, p(x) / q(x)); otherwise draw from (p &minus; q)<sup>+</sup> / &Sigma;(p &minus; q)<sup>+</sup></div>
+<dl><dt>p, q</dt><dd>target and draft probabilities after the same prefix (after temperature, top-k and so on, the same settings on both)</dd><dt>(p &minus; q)<sup>+</sup></dt><dd>max(0, p(x) &minus; q(x)): the <dfn>residual</dfn>, the probability the draft under-proposed</dd></dl></div>
+<p><b>Why it is exact</b> ({{Leviathan et al. 2023|https://arxiv.org/abs/2211.17192}}, {{Chen et al. 2023|https://arxiv.org/abs/2302.01318}}, found independently). The chance of outputting x through acceptance is q(x) &middot; min(1, p(x)/q(x)) = min(p(x), q(x)). The chance of a rejection is &beta; = 1 &minus; &Sigma; min(p, q), and the residual's total mass is &Sigma;(p &minus; q)<sup>+</sup> = &Sigma;(p &minus; min(p, q)) = &beta; too. So the chance of outputting x through rejection is &beta; &middot; (p &minus; q)<sup>+</sup>(x)/&beta; = (p(x) &minus; q(x))<sup>+</sup>. Add them: min(p, q)(x) + (p &minus; q)<sup>+</sup>(x) = p(x). The draft only changes how often we get the token cheaply, never which token we get. The probability that a guess is accepted is</p>
+<div class="fm"><div class="eq">&alpha; = &Sigma;<sub>x</sub> min(p(x), q(x)) = 1 &minus; TV(p, q)</div><dl><dt>TV</dt><dd>total variation distance, half the summed absolute difference between p and q</dd></dl></div>
+<p>The picture: overlay the two distributions. The overlap is what is accepted; the part of p sticking out above q is the residual. Here is a real position from a story the target wrote (Qwen3-1.7B target, Qwen3-0.6B draft, temperature 1), and the same 16 draft guesses judged by two exact rules.</p>
+<div class="rd-card card" id="sd-rule-card">
+<h4 style="margin:0 0 4px">The same 16 guesses, two exact rules (real distributions)</h4>
+<div class="seg" id="sd-rule-mode"><button class="on" data-m="lev">min(1, p/q) with residual (the paper, vLLM)</button><button data-m="sac">Sample the target, accept if equal (llama.cpp, mlx-lm)</button></div>
+<div class="seg" id="sd-rule-pos"></div>
+<div class="rd-svg" id="sd-rule-svg"></div>
+<div class="an-cap" id="sd-rule-cap"></div>
+<div class="an-cnt" id="sd-rule-cnt"></div>
+<div class="an-ctl" id="sd-rule-ctl"></div>
+<p class="small mute"><span class="meas">measured here</span> p and q are the real distributions at that position (top 50 tokens kept on both; the 8 tokens with the largest p + q shown, guesses can fall outside them). The 16 guesses and coin flips are drawn with a fixed seed and reused by both rules, so the only difference is the rule.</p>
+</div>
+<p><b>The second rule is also exact, and slower.</b> llama.cpp and mlx-lm verify by sampling the target's own token at each position and keeping the guess only if the two are equal (llama.cpp {{common/sampling.cpp L678 to 705|https://github.com/ggml-org/llama.cpp/blob/b11146/common/sampling.cpp#L678}}). Every output token is then a genuine sample from p, so the distribution is exact, but a guess survives with probability &Sigma; p(x) q(x), which is lower than &Sigma; min(p, q) whenever the target is uncertain. With a <i>greedy</i> draft (q puts all its mass on the draft's top token, which is what llama.cpp and vLLM's default do), both rules accept with probability p(draft token). Over the target's own story text, the mean per-guess acceptance was <span data-f="dAlpha"></span> under min(1, p/q) with a sampled draft, <span data-f="dPg"></span> with a greedy draft and <span data-f="dSpq"></span> under sample-and-compare with a sampled draft <span class="meas">measured here</span>.</p>
+
+<h3>Testing exactness on real models</h3>
+<p>A proof is a proof, but implementations have bugs. The {{Acceptance rule lab|#t-sdrule}} runs the test properly; the result in brief. For the story prompt, 20,000 four-token openings were drawn with each rule (k = 3, temperature 1, top-k 50, so steps include rejections, residual draws and bonus tokens), and each set was compared against the target's exact probabilities for all <span data-f="exCats"></span> openings with an expected count of at least 5, plus one "other" bin (a chi-square goodness-of-fit test).</p>
+<div class="tw"><table class="tbl-sm" id="sd-ex-tbl"></table></div>
+<p>The three exact rules are indistinguishable from sampling the target directly; the "bug" (on rejection, draw from p instead of the residual) over-produces the tokens both models like, and the test catches it at once. With 20,000 samples a rule that shifted the opening distribution by more than a few percent of total variation would fail.</p>
+
+<h3>Temperature 0 and floating point</h3>
+<p>At temperature 0 the rule reduces to "keep the guess while it equals the target's top token", and the output should be identical to plain greedy decoding. In exact arithmetic it is. In floating point, the target's logits for a position depend slightly on how the computation was batched. Computing a sequence's logits in blocks of 7 tokens (as a k = 6 verifier does) instead of one token at a time moved individual logits by up to <span data-f="fcMaxDiff"></span> on the 4-bit Qwen3-1.7B in MLX (which computes in bfloat16, about 3 significant digits), and changed the top token at <span data-f="fcFlips"></span> of <span data-f="fcN"></span> positions across four prompts, each one a near-tie where the top two logits were at most <span data-f="fcFlipMax"></span> apart <span class="meas">measured here</span>. That is why the parent's {{Engine bench|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} saw mlx-lm's k = 6 output differ from its own plain output on two prompts. <span data-f="fcStory"></span> Neither output is wrong; greedy decoding is only as deterministic as the arithmetic underneath it (the same holds for any change of batch size, with or without speculation).</p>
+</section>

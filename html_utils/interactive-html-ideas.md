@@ -3279,3 +3279,42 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | VL11 | In-browser re-implementation of the scheduler | rejected: the root's Serving simulator already is one, checked against this code on 10 traces; this page records the real thing instead |
 | VL12 | MRV2 persistent batch animation (row reordering V1 against fixed rows V2) | rejected for now: not runnable here (CPU uses V1) and the design doc's own figures cover it; a table instead |
 | VL13 | GPU throughput charts of V1 against V2 | rejected: no independent measurement found; vendor figures only in release notes |
+
+### Speculative decoding: draft models, EAGLE, MTP, n-gram, the batch-size crossover (2026-10-11)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_inference_and_serving/speculative_decoding/src/viz_ideas.md`.
+
+| # | Idea | Placement | Data | Score | Status |
+|---|---|---|---|---|---|
+| 1 | Pass time against tokens in the pass (M1 measured with llama-bench; H100 derived from the parent's planner constants), predict-then-reveal | Reading 1 | llama-bench pp at depth 512, 21 sizes x 5 reps; planner constants | 13 | built |
+| 2 | A real answer step by step: accepted guesses green, target tokens blue, step boundaries | Reading 2 | from-scratch MLX speculative runs, k = 4, greedy | 10 | built |
+| 3 | The same 16 guesses judged by min(1, p/q) and by sample-and-compare, on real p and q (before/after animation: two exact rules on one input) | Reading 3 | real top-50 distributions at chosen positions (dists.py) | 14 | built |
+| 4 | Exactness test table (5 rules, 20,000 samples each, chi-square) and observed-against-expected bars | Reading 3, Rule lab | exact.py, stats.py | 14 | built |
+| 5 | Hand-made p and q: exact output distribution per rule, plus a seeded simulation with an in-browser chi-square | Rule lab | none (reader's input) | 11 | built |
+| 6 | Text coloured by &alpha; at every position, click for the two distributions | Rule lab | dists.py | 11 | built |
+| 7 | Tokens per step against k: formula with measured &alpha; against 72 real runs, predict-then-reveal | Reading 4 | accept.py | 13 | built |
+| 8 | Measured server throughput ratio against users (real draft k = 3 and 6, synthetic acceptance lengths) | Reading 5, Crossover lab | llama-server, 70 sessions | 15 | built |
+| 9 | Crossover cost model with &alpha;, k, draft cost, context length; M1 measured curve and H100 derived; measured dots overlaid. Does not reproduce the laptop server runs (model 0.84x at 1 user against 0.70x measured with the real draft): the residual is shown, not fitted away | Crossover lab | 1 and 8 | 14 | built |
+| 10 | Chain against tree at an equal budget of 8 checked tokens, animated on real positions (before/after) | Reading 7 | tree.py | 12 | built |
+| 11 | Drafters on one target: 0.6B draft, EAGLE-3, DFlash, DSpark, five n-gram modes, six prompt kinds | Drafters tab | llama-server runs | 13 | built |
+| 12 | Engine support matrix read from source | Reading 8 | source files at pinned tags | 9 | built (table) |
+| R1 | Re-animating the parent's 12-token illustrative answer | | | | rejected: exists on the parent; replaced by the real step strip (2) |
+| R2 | Leviathan Table 4 calculator | | | | rejected: exists on the Gemini and Gemma page; linked |
+| R3 | Plot of published speed-ups of every drafter on one axis | | | | rejected: different models, tasks, hardware and baselines; a chart would imply a comparison the sources do not support (kept as a table with who measured) |
+| R4 | MTP heads measured here | | | | rejected: no Qwen3 checkpoint ships MTP heads; the DeepSeek-V3 paper page already has the MTP calculator |
+| R5 | Medusa heads trained here | | | | rejected: no engine on this laptop runs Medusa (vLLM only); training heads is a training-page subject |
+
+### Local and on-device inference: llama.cpp, Ollama, MLX (2026-10-11)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_inference_and_serving/local_and_on_device_inference/src/viz_ideas.md`.
+
+| Visual | Where | Score | Data | Why it earns its place |
+|---|---|---|---|---|
+| One block of 32 real weights through Q8_0, Q4_0, Q4_K, IQ4_XS, Q2_K (before/after, step animation: weights, scale, snap to levels, stored bytes, read back with error) | Reading s3 | 5/5/5 | the real block from the F16 GGUF and the stored scales and codes decoded from the quantized GGUFs made here (`scripts/blocks.py`, gguf-py dequantizer) | Quantization from zero needs a picture of "scale + codes"; the same input under five formats is the before/after the method asks for; the levels drawn per format make K-quant sub-scales and the non-uniform IQ4 table visible |
+| Cache reuse off against on, same edited prompt (step animation, bars to scale in tokens) | Reading s5 | 5/5/5 | measured token counts and prompt times from `srvlab.py reuse` | The difference between prefix caching and KV shifting is a mechanism in steps; the measured counts make it concrete |
+| Quality against size scatter (KLD log, PPL, same-top, p99; filled = imatrix) | Quant ladder tab | 5/5/4 | 2 models x ~18 files + MLX (llama-perplexity, mlxq.py) | The core trade of local inference; extends the parent's 3-point KLD bench to a full ladder |
+| Speed against size with the bandwidth ceiling | Quant ladder tab | 5/5/4 | llama-bench tg/pp of every file | Shows the ceiling and where files fall below it (dequant arithmetic) |
+| Sortable table of every file | Quant ladder tab | 3/5/5 | same | Lookup |
+| Fit and speed calculator (memory bar, decode estimate, prefill where calibrated, check against measured) | Fit and speed tab | 5/4/4 | parent planner model shapes from config.json; vendor bandwidths; measured bits per weight and efficiency | Answers "will it fit, how fast" for a dual 5090 box and Macs; shows its residual against this laptop |
+| Slots sweep chart | Reading s5 | 4/5/5 | srvlab slots | Concurrency against per-user speed on llama-server |
+| Stack diagram (two engines, four products) | Reading s0 | 4/3/5 | source reading | Orients the page |
