@@ -1,0 +1,33 @@
+<div class="tab" id="t-scale" role="tabpanel" hidden>
+<style>
+#t-scale .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-scale .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-scale .an-play{min-width:6.4em}
+#t-scale .an-cap{min-height:3.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
+#t-scale .an-cap .t{font-weight:600;font-size:14px}
+#t-scale .runs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px;margin:8px 0}
+#t-scale .run{border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-width:0}
+#t-scale .run h4{margin:0 0 4px;font-size:14px}#t-scale .run.a{border-top:4px solid var(--c1)}#t-scale .run.b{border-top:4px solid var(--c2)}
+#t-scale .run label{display:block;font-size:13px;margin:4px 0}#t-scale .run select{max-width:100%}
+#t-scale .presets{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}#t-scale .presets button{font-size:12.5px}
+#t-scale .sc-chart{width:100%;overflow:hidden;margin:6px 0}
+#t-scale .der{font-size:11.5px;color:var(--c5);font-weight:600}#t-scale .vend{font-size:11.5px;color:var(--c4);font-weight:600}#t-scale .meas{font-size:11.5px;color:var(--good);font-weight:600}#t-scale .ann{font-size:11.5px;color:var(--bad);font-weight:600}
+#t-scale .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-scale .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+</style>
+<h2 style="margin-top:14px">Autoscaling lab: one traffic spike, two autoscalers</h2>
+<p>A replica pool serves the parent page's running example (Llama 3.1 70B FP8 on one H200 per replica, 2,000-token prompts, 300-token answers). Traffic steps up for ten minutes. An autoscaler that follows the Kubernetes Horizontal Pod Autoscaler's rules reads one metric every 15 seconds and adds or removes replicas; a new replica serves only after its cold start. Pick what each autoscaler watches and how long a replica takes to start, then play the half hour and watch the queue form while new replicas boot.</p>
+<div class="presets" id="sc-pre"><span class="small mute" style="align-self:center">Comparisons:</span>
+<button data-p="util-queue" class="on">GPU utilization against queue depth</button><button data-p="cold">Slow start against fast start</button><button data-p="kv-ttft">KV usage against TTFT</button><button data-p="window">Scale-down window 300 s against 30 s</button></div>
+<div class="runs">
+<div class="run a"><h4>Autoscaler A</h4><div id="sc-a"></div></div>
+<div class="run b"><h4>Autoscaler B</h4><div id="sc-b"></div></div>
+</div>
+<div class="ctl" id="sc-traffic"></div>
+<div class="leg"><span style="--sw:var(--c1)">replicas serving (A)</span><span style="--sw:var(--c2)">replicas serving (B)</span><span style="--sw:var(--dim)">replicas needed for the arrival rate</span><span style="--sw:var(--bad)">TTFT SLO 1.05 s</span></div>
+<div class="sc-chart" id="sc-chart"></div>
+<div class="an-cap" id="sc-cap"></div>
+<div class="an-ctl" id="sc-ctl"></div>
+<div class="tw"><table id="sc-tab"></table></div>
+<div class="co"><div class="t">What the model is, and what it leaves out</div>
+<p class="small">Inputs, all from the parent page's {{Capacity planner|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} for the running example <span class="der">derived</span>: a request holds one of 32 sequence slots for its prefill (0.42 s) plus 300 tokens at 46.8 ms each (14.5 s), so one replica completes about 2.2 requests a second; the TTFT SLO is the planner's 1.05 s. Arrivals are Poisson (seeded). One shared queue feeds every serving replica, which is what a good router approximates. The autoscaler applies {{HPA's rule|https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/#algorithm-details}}: desired = ceil(current &times; metric / target), skipped when the ratio is within 10% of 1, scale-up by at most 100% or 4 replicas per 15 s period, scale-down to the highest recommendation of the last 300 s; replicas still starting count as zero usage. Left out: the per-replica queues a real router creates, prefix caching, the time a removed replica spends draining, GPU node provisioning (folded into the cold start), and quota limits. The page's JavaScript is a port of <code>src/sim/autoscale.py</code> and gives the same 26,088 numbers on 24 reference runs.</p></div>
+</div>

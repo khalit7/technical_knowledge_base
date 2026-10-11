@@ -3341,3 +3341,22 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | Dynamo router cost-function toy | Would invent load numbers; the formula is quoted instead and the root's routing animation and the production child own routing |
 | Expert-parallel all-to-all timeline at DeepSeek scale | Inputs (per-kernel times at EP 144) only exist as vendor tables from an older README; quoted in text instead |
 | Vendor claim chart (30x, 7x, 6.11x side by side) | Different hardware, models and baselines: a chart would invite comparison the numbers do not support; a table with conditions instead |
+
+### LLM serving in production: routing, autoscaling, cold starts, multi-LoRA, load testing (2026-10-11)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_inference_and_serving/llm_serving_in_production/src/viz_ideas.md`.
+
+| # | Visual | Placement | Score | Data and checks |
+|---|---|---|---|---|
+| 1 | **The parent's eight requests replayed on three real llama-server replicas** (before/after animation: round robin against least loaded, SGLang cache-aware, weighted, hash; three scenarios: one at a time with a small and a large host cache, two bursts) | Reading, s1 | 13 | `exp/route_client.py` on `root8*.json`; confirms the parent's 13,000 for round robin and corrects its 7,800 for prefix-aware routing (see coverage.md) |
+| 2 | Mooncake-trace routing table, all repeats (hit rate, tokens computed, TTFT p50/p99, busiest replica's share) | Reading, s1 | 11 | `exp/out/measured.json`; per-replica computed tokens equal llama-server's `llamacpp:prompt_tokens_total` |
+| 3 | Router lab: every request as a dot by send time and replica, coloured by cache hit; TTFT CDF of every policy | Own tab | 10 | per-request data, repeat 1 |
+| 4 | Router lab: hit rate against replica count 1 to 16 at five cache sizes (simulated) with the measured squares | Own tab | 10 | `exp/route_sim.py`; 2,048-token LRU per replica lands within about 2 points of the measured hit rates |
+| 5 | **Autoscaling lab**: two HPA-style autoscalers on one spike, animated over 30 minutes (replicas serving/starting, p90 TTFT), presets for metric, cold start and scale-down window | Own tab | 13 | `sim/autoscale.py`; JS port identical on 26,088 numbers (`sim/check_sim.mjs`); inputs from the parent's Capacity planner; HPA rules from kubernetes.io |
+| 6 | Predict: GPU utilization at 10% load (96%) | Reading, s2 | 9 | Poisson in-flight count, derived |
+| 7 | Cold start: measured start-up per model size, cold (APFS clone, uncached) and warm, plus vLLM CPU start phases from its log | Reading, s3 | 10 | `exp/cold_start.py`, `exp/run_vllm.sh` |
+| 8 | Multi-LoRA: aggregate tokens/s with 0, 1, 2, 4, 8 different adapters in a batch on llama-server, and on vLLM CPU | Reading, s4 | 11 | `exp/run_lora_so.sh`, `exp/run_vllm.sh`; llama-server's `can_batch_with` read from source |
+| 9 | Structured output: time per token with and without a JSON schema, at 1 and 4 concurrent requests, validity counted | Reading, s5 | 8 | same runs |
+| 10 | **Coordinated omission, animated**: the same 5-second SIGSTOP stall under closed and open loop, dots appearing as answers return | Reading, s7 | 12 | `exp/run_co.sh` with the parent's `loadgen.py` |
+| 11 | Load-test lab: every request of the stall runs, percentiles of all runs with the HdrHistogram-style correction | Own tab | 9 | `exp/summarize.py` |
+| 12 | The production path diagram (client, gateway, router, replicas, metrics, autoscaler), sections marked | Reading, s0 | 6 | static |
