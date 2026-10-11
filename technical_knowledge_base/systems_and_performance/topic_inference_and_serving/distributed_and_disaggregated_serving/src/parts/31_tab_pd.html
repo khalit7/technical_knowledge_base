@@ -1,0 +1,56 @@
+<div class="tab" id="t-pd" role="tabpanel" hidden>
+<style>
+#t-pd .pd-ctl{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;margin:6px 0}
+#t-pd .pd-ctl label{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:100%}
+#t-pd .pd-ctl select{max-width:100%;min-width:0}
+#t-pd .pd-ctl input[type=range]{width:220px;max-width:100%}
+#t-pd .pd-plot{width:100%;overflow:hidden;margin:6px 0}
+#t-pd .pd-plot svg text{font-size:11px}
+#t-pd .pd-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-pd .pd-leg span:before{content:"";display:inline-block;width:14px;height:3px;margin-right:5px;vertical-align:3px;background:var(--sw)}
+#t-pd .pd-tbl td,#t-pd .pd-tbl th{font-size:12.5px}
+#t-pd .pd-tbl tr.on td{font-weight:600;background:var(--soft)}
+#t-pd h3{margin-top:22px}
+#t-pd .pd-res{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:8px;margin:8px 0}
+#t-pd .pd-res .stat .v{font-size:17px;font-weight:600}
+#t-pd .pr{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:12px 0;background:var(--soft)}
+#t-pd .pr .q{font-weight:600;font-size:14px}
+#t-pd .pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#t-pd .pr .opts button.right{background:var(--open2);border-color:var(--good)}
+#t-pd .pr .opts button.wrong{border-color:var(--bad);color:var(--bad)}
+#t-pd .pr .ans{font-size:13.5px;border-left:3px solid var(--good);padding:2px 0 2px 10px}
+</style>
+<p class="lead">Eight GPUs, one model, one stream of requests. Should all eight run prefill and decode together (colocated, each a full engine with chunked prefill), or should some only prefill and hand the cache to the others, which only decode? This tab answers with the root page's {{Serving simulator|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} on the running example, for every split from 1 prefill + 7 decode to 7 + 1, three workloads, twelve pairs of latency targets and two link speeds.</p>
+<div class="co"><div class="t">What is simulated, and what is not</div>
+<p>The model is Llama 3.1 70B with FP8 weights and a BF16 KV cache on H200s, one engine per GPU (no tensor parallelism): the root's running example. Weights and the KV pool per GPU come from the {{Capacity planner|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}'s memory model (<span id="pd-pool"></span>); every step's duration is the simulator's roofline, with compute and memory efficiencies and per-step overheads fitted on NVIDIA's published NIM measurements of Llama 3.1 8B on an H100 (vendor figures) and applied to the H200's peak and bandwidth. Scheduling (continuous batching, paged blocks, chunked prefill with an 8,192-token budget, recompute preemption) is the simulator's, which matched vLLM v0.31.0's own scheduler step for step on the traces the root compared. Requests arrive as a Poisson process; <span id="pd-n"></span> requests per run, the first 10% left out as warm-up.</p>
+<p>Disaggregated mode: a request goes round robin to a prefill engine, which computes its prompt; the whole cache then travels to a decode engine (round robin) as one transfer of (prompt tokens &times; 320 KiB) at the link's full speed, and the decode engine produces every output token after the first. Not modelled: sending the cache layer by layer while prefill runs (real systems hide most of the transfer this way), link contention, routing by load, and the decode engine's prefix cache. This mode has not been checked against a real disaggregated engine. <span class="der">simulated</span></p></div>
+
+<div class="pr" id="pd-pr"><div class="q">Predict first. Chat traffic, p90 time to first token within 2 s, time per output token within 50 ms. Which serves more requests per second within the targets on eight GPUs?</div>
+<div class="opts"><button data-a="co">Eight colocated engines</button><button data-a="pd">The best prefill/decode split</button><button data-a="eq">About the same</button></div><div class="ans" hidden></div></div>
+
+<h3>1. SLO attainment as the load grows</h3>
+<div class="pd-ctl">
+<label>Workload <select id="pd-w"></select></label>
+<label>Time to first token within <select id="pd-a"></select></label>
+<label>Time per output token within <select id="pd-t"></select></label>
+<label>KV link <select id="pd-x"><option value="nic400">400 Gb/s (50 GB/s)</option><option value="nic50">50 Gb/s (6.25 GB/s)</option></select></label>
+<label>Split <select id="pd-l"></select></label>
+</div>
+<div class="pd-plot" id="pd-plot"></div>
+<div class="pd-leg" id="pd-leg"></div>
+<div class="pd-res" id="pd-res"></div>
+<p class="small" id="pd-say"></p>
+
+<h3>2. Goodput of every layout</h3>
+<p class="small">Goodput, DistServe's measure: the highest request rate at which at least 90% of requests meet both targets, here per GPU (the rate divided by 8); rates were tried in steps, so each value is the last step that passed. The definition and the scheduling side of it are on {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}} (section 7).</p>
+<div class="bars" id="pd-bars"></div>
+
+<h3>3. Inside one run</h3>
+<div class="pd-ctl"><label>Request rate <input type="range" id="pd-r" min="0" max="15" value="6"> <b id="pd-rv"></b></label></div>
+<div class="tw"><table class="pd-tbl" id="pd-tbl"></table></div>
+<p class="small mute">p50 and p90 over the measured requests; a TTFT in the tens of seconds means the queue grew for the whole run (the layout is overloaded at that rate).</p>
+
+<h3>4. All three workloads at these targets</h3>
+<div class="tw"><table class="pd-tbl" id="pd-find"></table></div>
+<p class="small">Goodput in requests per second on all 8 GPUs, with the KV link chosen above. Section 7 of the {{Reading|#t-read}} tab draws the lessons.</p>
+</div>
