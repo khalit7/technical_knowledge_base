@@ -1,0 +1,18 @@
+# Coverage: LLM serving in production
+
+A new page (no old Notion text). The parent root's claims that this page owns were checked; results:
+
+| Parent claim (root Reading s9) | Verdict here | Evidence |
+|---|---|---|
+| Round robin over three replicas computes 13,000 prompt tokens for the eight-request scenario | **confirmed** by real replicas: exactly 13,000 in every repeat | `exp/out/measured.json` route.root8.rr |
+| Prefix-aware routing computes 7,800 and replica 1 ends with four requests | **corrected**: the toy's 7,800 comes from its own load penalty (minus 1,000 per request already sent). Real routers that see only in-flight requests send all eight to one replica when requests come one at a time (SGLang's imbalance rule needs a gap of more than 64 requests); measured: 9,701 tokens with a 256 MiB host prompt cache and 5,804 with 1.5 GiB (all eight on one replica, requests one at a time); with two bursts of four, hash and SGLang rules 6,804 on one replica (mean TTFT 3.2 to 3.5 s), the weighted cache-plus-queue scorer 10,103 spread 3/2/3 (lowest TTFT), round robin and least loaded 14,000 | route.root8, root8big, root8burst |
+| vLLM v0.30.0: CUDA graph capture 12 s to 2 s, engine start 28.9 s to 8.2 s on H200 | verified (release notes, #54646; model not stated) | https://github.com/vllm-project/vllm/releases/tag/v0.30.0 |
+| vLLM keeps quantized weights resident in a per-GPU daemon (`vllm preload` in v0.31.0) | verified ("the new `vllm preload` CLI launches the weight-cache daemon"; the daemon itself came in v0.30.0, #54921) | v0.31.0 and v0.30.0 release notes |
+| SGLang v0.5.18 overlaps loading with graph capture, 35.6 s against 84.8 s, Qwen3-32B on H100 | verified, with a nuance added on the page: opt-in (`--startup-weight-load-mode overlap`, #32017); against serial loading with prefetch the gain is 8.6 to 11.7%; 2.38 times only against the plain default | https://github.com/sgl-project/sglang/releases/tag/v0.5.18 |
+| GPU utilization is the wrong autoscaling signal | verified and quantified: NVML defines it as the share of time a kernel ran; derived 96% at 10% load for the running example; the Autoscaling lab shows the consequence | NVML docs; `sim/autoscale.py` |
+
+Facts first stated here (all sourced inline on the page): Kubernetes HPA defaults (15 s, tolerance 0.1, 300 s scale-down window, scale-up max(100%, 4 pods) per 15 s); SRE workbook burn-rate table; wrk2 on coordinated omission; vllm bench serve defaults (request rate inf, burstiness 1, warmups 0) checked in source; GuideLLM profiles; GenAI-Perf in maintenance mode (AIPerf); Punica 12x and 2 ms; S-LoRA up to 4x and thousands of adapters; llm-d scorers and max-score picker; Red Hat's example weights 3 and 2; vLLM and llama-server metric names with file and line; vLLM TTFT histogram buckets; llama-server batches only slots with equal LoRA sets (`can_batch_with`, server-context.cpp L449-L455).
+
+Also new here: llama-server applies every loaded LoRA adapter to a request that names none (server-context.cpp L1708-L1723); vLLM's structured-output backend default is `auto` (config/structured_outputs.py L21), not a fixed library.
+
+Nothing marked unconfirmed is stated as fact.
