@@ -1,0 +1,11 @@
+import { createRequire } from 'module';
+const require = createRequire(new URL('../../../../../html_utils/package.json', import.meta.url));
+const puppeteer = require('puppeteer');
+const fs = require('fs');
+const b = await puppeteer.launch({ headless: 'shell' }); const p = await b.newPage();
+await p.setViewport({ width: 920, height: 900 });
+await p.goto('file://' + process.argv[2]); await p.click('#tabs button[data-t="t-comp"]');
+await p.evaluate(() => document.querySelectorAll('#t-comp details').forEach(d => d.open = true));
+for (const q of ['#cmp-pq1-c button[data-a="1"]', '#cmp-pq2-c button[data-a="1"]']) await p.click(q);
+fs.writeFileSync(process.argv[3], await p.evaluate(() => document.getElementById('t-comp').innerText));
+await b.close();
