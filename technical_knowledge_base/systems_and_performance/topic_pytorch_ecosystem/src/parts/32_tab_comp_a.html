@@ -1,0 +1,66 @@
+<div class="tab" id="t-comp" role="tabpanel" hidden>
+<style>
+#t-comp .cmp-pills{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 4px}
+#t-comp .cmp-pills a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+#t-comp .cmp-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+#t-comp .cmp-ctl input[type=range]{flex:1 1 160px;min-width:120px;width:auto}
+#t-comp .cmp-ctl label{font-size:12.5px}
+#t-comp .cmp-cap{font-size:13.5px;margin:6px 0;min-height:3em}
+#t-comp .cmp-plot{width:100%;overflow:hidden}
+#t-comp pre.cmp-code{font:11.5px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow:auto;max-height:340px;margin:6px 0;white-space:pre}
+#t-comp .cmp-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+@media (max-width:700px){#t-comp .cmp-row{grid-template-columns:minmax(0,1fr)}}
+#t-comp .cmp-list{font:11.5px/1.5 ui-monospace,Menlo,Consolas,monospace;max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--bg)}
+#t-comp .cmp-list div{overflow-wrap:anywhere;border-left:4px solid transparent;padding-left:5px;margin:1px 0}
+#t-comp .cmp-list .f{border-left-color:var(--c3)}#t-comp .cmp-list .e{border-left-color:var(--c1)}#t-comp .cmp-list .b{border-left-color:var(--c2)}#t-comp .cmp-list .a{border-left-color:var(--dim)}
+#t-comp .cmp-list button{font:inherit;padding:0 4px;border-radius:4px;max-width:100%;overflow-wrap:anywhere;word-break:break-all;text-align:left}
+#t-comp .cmp-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-comp .cmp-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#t-comp .cmp-reveal[hidden]{display:none}
+#t-comp .cmp-tbl td,#t-comp .cmp-tbl th{font-size:12.5px;padding:4px 5px}
+#t-comp .cmp-tbl td.r{color:var(--bad);font-weight:600}
+#t-comp .cmp-flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:8px;margin:10px 0}
+#t-comp .cmp-flow button{text-align:left;border-radius:10px;padding:8px 10px;background:var(--bg);line-height:1.35;min-width:0}
+#t-comp .cmp-flow button b{display:block;font-size:14px}#t-comp .cmp-flow button span{display:block;font-size:12px;color:var(--mute)}
+#t-comp .cmp-flow button em{display:block;font-style:normal;font-size:12.5px;margin-top:4px}
+#t-comp .cmp-strip{display:flex;flex-wrap:wrap;gap:3px;margin:6px 0}
+#t-comp .cmp-strip span{font-size:11px;border-radius:4px;padding:2px 6px;max-width:100%;overflow-wrap:anywhere}
+#t-comp .cmp-strip .c{background:var(--open2);border:1px solid var(--open)}#t-comp .cmp-strip .p{background:var(--soft);border:1px dashed var(--bad)}
+#t-comp .cmp-src{font-size:12px;color:var(--mute)}
+</style>
+<h2 style="margin-top:16px">Compile lab</h2>
+<p class="lead">The running example, a tiny GPT, put through <code>torch.compile</code> on an Apple M1 Pro: the graph Dynamo captures and the guards it writes, deliberate graph breaks and what each costs, recompiles when shapes change, what AOTAutograd saves for backward, the kernels Inductor writes (C++ with OpenMP on the CPU, Metal shaders on MPS) next to the eager ops they replace, the speed and the compile time, and <code>torch.export</code> plus AOTInductor. Every number below was measured or recorded here; the published GPU results are kept apart at the end.</p>
+<div class="cmp-pills"><a href="#cmp-s1">The pipeline</a><a href="#cmp-s2">Fusion, animated</a><a href="#cmp-s3">Graph and guards</a><a href="#cmp-s4">Graph breaks</a><a href="#cmp-s5">Recompiles</a><a href="#cmp-s6">What backward keeps</a><a href="#cmp-s7">Inductor's kernels</a><a href="#cmp-s8">Speed and compile time</a><a href="#cmp-s9">Export, AOTInductor</a><a href="#cmp-s10">On NVIDIA GPUs</a><a href="#cmp-s11">Mistakes and questions</a></div>
+<div id="cmp-head" class="out"></div>
+<details class="mist"><summary>The running example, and how this was recorded</summary><div class="b">
+<p><b>The model</b> is the topic's shared one (described in {{Inside one step|#t-step}}): a GPT-2-shaped decoder, 4 blocks, d<sub>model</sub> 256, 3,186,944 parameters, batch 8 windows of 64 characters, AdamW. It is imported from <code>src/model/</code>, never copied; graph-break variants replace <code>Block.forward</code> at run time in the script, not in the file.</p>
+<p><b>Recorded</b> (deterministic: the same on every run): Dynamo's graph via <code>torch._dynamo.explain</code>; guards via <code>TORCH_LOGS=guards</code>; the forward and backward graphs after AOTAutograd's partitioner, captured by wrapping Inductor's per-graph compiler (<code>compile_fx(..., inner_compile=...)</code>, with the FX-graph and AOTAutograd caches switched off so the graphs are really built); Inductor's generated code via <code>torch._inductor.utils.run_and_get_code</code>, its kernel launches parsed from the generated wrapper; eager ops with a <code>TorchDispatchMode</code>. <b>Timed</b> (under a lock shared with the other agents on this machine, 5 trials of 20 steps after 5 warm-up steps, medians with the range of trials): CPU with 4 threads, MPS with <code>torch.mps.synchronize()</code>. Other work was running on the machine: load averages from 2.7 to about 30 are stored with each file, so read differences under about 5% as noise. torch 2.14.1, 2026-10-12. Scripts: <code>src/comp/</code> (README there). <b>Measured on Apple M1 Pro.</b></p>
+</div></details>
+
+<section id="cmp-s1">
+<h2>1. What <code>torch.compile</code> does, on this model</h2>
+<p><b>Eager mode</b> is PyTorch's normal way of running: each Python line calls one operator, which runs one kernel right away and writes its result to memory (the {{Inside one step|#t-step}} tab follows all 142 forward calls of this model that way). <code>torch.compile(model)</code> instead watches the Python code run once, turns it into a <b>graph</b> (a list of operations with their data dependencies), optimises the whole graph, and from then on runs generated code instead. Four pieces do it. Click one to jump to its section.</p>
+<div class="cmp-flow" id="cmp-flow"></div>
+<p>Two words appear everywhere below. A <b>guard</b> is a check Dynamo writes next to each compiled graph ("the input is int64 of shape (8, 64)", "grad mode is on"); on every call the guards run first, and if one fails the code is <b>recompiled</b> for the new situation. A <b>graph break</b> is a point where Dynamo cannot follow the Python (a <code>print</code>, a tensor turned into a Python number): it ends the graph there, runs that bit as ordinary Python, and starts a new graph after it. The mechanics of each piece, on small programs and with every log, are on {{The compiler stack: PTX, SASS, NVRTC, torch.compile and Inductor|n:3f05c17b0d0d81ddbc00fac9e8a2ff89}} (sections 8 and 9 and its Inside torch.compile tab); this tab measures them on a whole training step.</p>
+</section>
+
+<section id="cmp-s2">
+<h2>2. Fusion: the same function, op by op and as one loop</h2>
+<p>Most operations in a model, other than matrix multiplies and attention, are <b>pointwise</b> (each output element depends on one input element: add, multiply, GELU) or small <b>reductions</b> (a row's mean, as in LayerNorm). In eager mode each one is its own kernel: it reads its inputs from memory and writes a full-size result back, and the next op reads that result again. <b>Fusion</b> merges a chain of them into one kernel that reads each input once, keeps the intermediate values in registers, and writes only the final result. The work done is the same; the memory traffic is not.</p>
+<p>Below: GPT-2's GELU written out with <code>tanh</code> (the form in the original GPT-2 code), on a tensor the size of this model's MLP activation, (8, 64, 1024) float32 = 2 MiB; or the residual add plus LayerNorm that opens every block's second half. Eager first, then switch to <b>Fused</b>: the bytes are counted from the recorded ops, and the times are measured.</p>
+<div class="card" id="cmp-fu">
+<div class="seg" id="cmp-fu-fn"><button data-m="new_gelu" class="on">tanh GELU, 8 ops</button><button data-m="add_ln">add + LayerNorm, 2 ops</button></div>
+<div class="seg" id="cmp-fu-md"><button data-m="eager" class="on">Eager (op by op)</button><button data-m="fused">Fused (Inductor)</button></div>
+<div class="cmp-plot" id="cmp-fu-svg"></div>
+<div class="cmp-cap" id="cmp-fu-cap"></div>
+<div class="cmp-ctl" id="cmp-fu-ctl"></div>
+<div class="out" id="cmp-fu-st"></div>
+</div>
+<div class="card" id="cmp-pq1">
+<p><b>Predict.</b> Fused, the tanh GELU moves <span data-cmp="gel_ratio"></span> times fewer bytes. How much faster is it on this CPU (4 threads)? And on the M1 Pro's GPU (MPS)?</p>
+<div class="chips" id="cmp-pq1-c"><button data-a="0">About as many times faster as the bytes saved, on both</button><button data-a="1">Much less on the CPU; more on the GPU</button><button data-a="2">Slower on both: one kernel cannot use all the cores</button></div>
+<div class="cmp-reveal" id="cmp-pq1-r" hidden></div>
+</div>
+<details class="mist"><summary>The kernel Inductor wrote for the tanh GELU, verbatim (C++, CPU)</summary><div class="b"><p>One OpenMP loop over the 524,288 elements, 4 at a time (<code>Vectorized&lt;float&gt;</code> on this machine is a 128-bit NEON register of 4 floats; Inductor picked the <code>VecNEON</code> ISA). Each <code>tmp</code> is a register, not a tensor: the 8 eager ops are the arithmetic between one <code>loadu</code> and one <code>store</code>.</p><pre class="cmp-code" id="cmp-fu-k1"></pre></div></details>
+<details class="mist"><summary>The kernel for add + LayerNorm, and why it lost</summary><div class="b"><p>ATen's own <code>native_layer_norm</code> is already a single hand-written kernel, so fusion only saves the add's round trip. Inductor's version makes several passes per row (a sum for the mean, a pass for the variance, the normalisation) and, in this build, divides the 512 row sums inside an <code>omp single</code> block, which one thread runs. Reading code like this is how you find out why a compiled region is slower than you expected.</p><pre class="cmp-code" id="cmp-fu-k2"></pre></div></details>
+</section>
