@@ -1,0 +1,78 @@
+<section id="cmp-s7">
+<h2>7. Inductor: the kernels that replace the eager ops</h2>
+<p><b>Inductor</b> is the default back end. It lowers each graph to a loop-level form, groups the operations that can share one pass over memory, writes one kernel per group (C++ with OpenMP for CPUs, Triton for NVIDIA and AMD GPUs, Metal shaders for Apple GPUs), and sends matrix multiplies to a library (<code>extern_kernels.addmm</code> and <code>mm</code>: the BLAS ATen uses) unless autotuning picks a generated template. Ops it has no lowering for run as <b>fallbacks</b>: the original ATen kernel, called from the generated code. Left: the eager calls for one training step's forward or backward. Right: what the compiled step launches instead. Click a green kernel to read it.</p>
+<div class="card" id="cmp-ind">
+<div class="seg" id="cmp-ind-dev"><button data-m="cpu" class="on">CPU (C++/OpenMP)</button><button data-m="mps">MPS (Metal)</button></div>
+<div class="seg" id="cmp-ind-ph"><button data-m="0" class="on">Forward</button><button data-m="1">Backward</button></div>
+<div class="out" id="cmp-ind-st"></div>
+<div class="cmp-leg"><span><i style="background:var(--c3)"></i>generated kernel (fused)</span><span><i style="background:var(--c1)"></i>library matmul (extern)</span><span><i style="background:var(--c2)"></i>ATen fallback</span><span><i style="background:var(--dim)"></i>eager dispatcher call</span></div>
+<div class="cmp-row"><div><div class="small"><b>Eager</b>: calls into the dispatcher</div><div class="cmp-list" id="cmp-ind-l"></div></div><div><div class="small"><b>Compiled</b>: launches in the generated wrapper</div><div class="cmp-list" id="cmp-ind-r"></div></div></div>
+<div id="cmp-ind-k"></div>
+</div>
+<p id="cmp-ind-p"></p>
+</section>
+
+<section id="cmp-s8">
+<h2>8. Speed, memory and compile time</h2>
+<p>The honest headline first: <b>on this CPU, compiling the model did not make the training step faster</b>; on the M1 Pro's GPU it did. The per-step bars are medians of 5 trials of 20 steps; whiskers span the trials.</p>
+<div class="card" id="cmp-sp">
+<div class="seg" id="cmp-sp-dev"><button data-m="cpu" class="on">CPU, 4 threads</button><button data-m="mps">MPS</button></div>
+<div class="cmp-plot" id="cmp-sp-svg"></div>
+<p class="small mute" id="cmp-sp-note"></p>
+</div>
+<p><b>Why no gain on the CPU.</b> The profiler splits the CPU time of the forward and backward (optimizer excluded). Eager: <span data-cmp="pr_mm"></span> in matrix multiplies and attention, and <span data-cmp="pr_rest"></span> in everything else, which is the part Inductor can fuse. Compiled: the matmuls and attention are the same library kernels (<span data-cmp="pr_mmc"></span>), the two generated graphs that replace everything fusible took <span data-cmp="pr_cg"></span>, and <span data-cmp="pr_oth"></span> went to what is left outside them (copies, fills, entering the compiled region). The fusible part got <span data-cmp="pr_pct"></span> cheaper, but it was under half of the time to begin with, and Inductor's C++ on this ARM CPU (128-bit NEON vectors of 4 floats) gains little over ATen's hand-written kernels for these ops. The phase timings below agree, and show how much two runs of the same script vary.</p>
+<div class="card" id="cmp-ph">
+<div class="seg" id="cmp-ph-dev"><button data-m="cpu" class="on">CPU</button><button data-m="mps">MPS</button></div>
+<div class="tw"><table class="cmp-tbl" id="cmp-ph-tbl"></table></div>
+<p class="small mute" id="cmp-ph-note"></p>
+</div>
+<p><b>Memory.</b> Compiling did not change what the forward keeps for backward on this model: AOTAutograd saved <span data-cmp="aot_mb"></span> against eager's 34.76 MB (section 6), and the MPS allocator held <span data-cmp="mps_mem"></span> after the forward. To cut activation memory you still need {{activation checkpointing|#t-step}} or a smaller batch.</p>
+<p><b>Compile time.</b> The first call of the compiled training step, in a fresh process: <span data-cmp="cold"></span> with an empty cache directory, <span data-cmp="warm"></span> when the cache from an earlier run was there (Inductor's FX-graph cache and AOTAutograd's cache are on by default and live in <code>TORCHINDUCTOR_CACHE_DIR</code>). Modes add more: max-autotune's first call took <span data-cmp="ma_first"></span>. Whether compiling pays is arithmetic:</p>
+<div class="card" id="cmp-be">
+<div class="ctl"><label>Compile time (first call minus a normal step): <b id="cmp-be-cv"></b><input type="range" id="cmp-be-c" min="0" max="100" step="1"></label><label>Time saved per step: <b id="cmp-be-sv"></b><input type="range" id="cmp-be-s" min="0" max="100" step="1"></label><label>Steps in the run: <b id="cmp-be-nv"></b><input type="range" id="cmp-be-n" min="0" max="100" step="1"></label></div>
+<div class="out" id="cmp-be-st"></div>
+<p class="small mute" id="cmp-be-note"></p>
+</div>
+<p><b>The optimizer.</b> <code>torch.compile(model)</code> compiles the forward and backward only; <code>opt.step()</code> stays eager. Compiling it too (<code>torch.compile(opt.step)</code>) brought the CPU step to <span data-cmp="copt"></span>; simply passing <code>fused=True</code> to AdamW, with no compile at all, did better, <span data-cmp="fused"></span> (the {{Inside one step|#t-step}} tab shows why: the default on CPU and MPS is a for-loop over 52 parameters). On MPS, the compiled model with fused AdamW was the fastest combination measured, <span data-cmp="mps_best"></span> against <span data-cmp="mps_eager"></span> eager.</p>
+</section>
+
+<section id="cmp-s9">
+<h2>9. <code>torch.export</code> and AOTInductor: compile once, run without Python</h2>
+<p><code>torch.compile</code> is just-in-time: it compiles inside your Python process and falls back to Python wherever it must. <b><code>torch.export</code></b> is the ahead-of-time path: it traces the whole model into one graph or fails (no graph breaks allowed), records the allowed range of every dynamic dimension, and returns an <b>ExportedProgram</b>, a file-able graph plus its weights. <b>AOTInductor</b> then runs Inductor on that graph and writes a shared library, packaged as a <code>.pt2</code> file that a C++ or Python program loads with no model code at all. Here the inference path (tokens in, logits out) with a dynamic batch dimension:</p>
+<div class="out" id="cmp-ex-st"></div>
+<div id="cmp-ex-p"></div>
+<p>Use export when the model must run where your training code cannot: a C++ server, a different machine, a mobile device (ExecuTorch also starts from an ExportedProgram; formats are compared on {{Model formats: GGUF, safetensors, ONNX, and the rest|n:3cd5c17b0d0d81ea815aedfa052e4919}}). For training, <code>torch.compile</code> is the tool; export's job is deployment. <code>torch.onnx.export</code> uses this same exporter by default since 2.9.</p>
+</section>
+
+<section id="cmp-s10">
+<h2>10. What carries over to NVIDIA GPUs, and what does not</h2>
+<ul class="tight">
+<li><b>Carries over as is:</b> Dynamo's graph, its guards, the graph breaks and their reasons, the recompile rules and automatic dynamic shapes, AOTAutograd's joint graph and partitioning, and export: all of it happens before any device code exists. On a CUDA tensor you would see the same single graph and the same breaks.</li>
+<li><b>Changes:</b> Inductor writes <b>Triton</b> kernels instead of C++ (same fusion groups in spirit, different code), matmuls go to cuBLAS, and SDPA picks a FlashAttention or memory-efficient kernel. How Triton becomes PTX and SASS is on {{The compiler stack|n:3f05c17b0d0d81ddbc00fac9e8a2ff89}} and {{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}}.</li>
+<li><b>Only on CUDA:</b> <code>mode="reduce-overhead"</code> records the compiled step as a <b>CUDA graph</b> and replays it with one launch; the 2.14.1 docstring says "we only reduce overhead for CUDA only graphs which do not mutate inputs". On this CPU it changed nothing (<span data-cmp="ro"></span> against <span data-cmp="def"></span>). CUDA graphs are explained on {{Streams, CUDA graphs and multi-GPU|n:3f05c17b0d0d81b19a6acab65c370b75}}. <code>max-autotune</code> on a GPU benchmarks Triton matmul templates; here on the CPU it benchmarked and kept ATen's BLAS for every matmul (<span data-cmp="at"></span>).</li>
+<li><b>Does not carry over:</b> any speed-up or slow-down above. GPU memory bandwidth, launch overhead and kernel quality differ completely. Published figures, all on NVIDIA A100 and all from the PyTorch team (vendor, not independent): across 163 open-source models, "torch.compile works 93% of time, and the model runs 43% faster in training", 21% at float32 and 51% with AMP ({{PyTorch 2.x page|https://pytorch.org/get-started/pytorch-2-x/}}, read 2026-10-12); the PyTorch 2 paper reports geometric-mean speed-ups of 1.41x for training and 2.27x for inference over 180+ models ({{Ansel et al., ASPLOS 2024|https://docs.pytorch.org/assets/pytorch2-2.pdf}}). Measure your own model; the {{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}} page covers honest timing.</li>
+</ul>
+</section>
+
+<section id="cmp-s11">
+<h2>11. Common mistakes, and interview questions</h2>
+<details class="mist"><summary>"Compile is slow, it made my model slower"</summary><div class="b">Check what you timed. The first call includes compiling (<span data-cmp="cold2"></span> here); warm up with every shape you will use, then time. Then check whether the model has anything to fuse: a model dominated by matmuls and attention, like this one on a CPU, gains little. Profile both and compare the non-matmul time.</div></details>
+<details class="mist"><summary>Recompiling every few steps without noticing</summary><div class="b">A shorter last batch, a varying sequence length, <code>model.eval()</code> with <code>no_grad</code>, a string flag that changes. Each costs a full compile (<span data-cmp="rc_cold2"></span> here). Run with <code>TORCH_LOGS=recompiles</code> once; it prints the failing guard, as in the table in section 5.</div></details>
+<details class="mist"><summary>Marking only one input dynamic</summary><div class="b">Every tensor that shares the dimension is guarded. In section 5, marking only <code>idx</code> still recompiled on <code>targets</code>.</div></details>
+<details class="mist"><summary>A <code>print</code>, <code>.item()</code> or logging call left inside <code>forward</code></summary><div class="b">Each is a graph break, and inside a loop it can leave the whole outer function uncompiled (section 4). Log outside the compiled module, or after the step; use <code>fullgraph=True</code> to be told.</div></details>
+<details class="mist"><summary>Expecting <code>torch.compile(model)</code> to speed up the optimizer</summary><div class="b">It compiles the module's forward and backward. The optimizer step is separate: use <code>fused=True</code> (or <code>foreach</code>) or compile the step function.</div></details>
+<details class="mist"><summary>Comparing compiled and eager outputs bit for bit</summary><div class="b">Fusion reorders floating-point arithmetic. Here the losses of three training steps differed by up to <span data-cmp="ldiff"></span> (section 12) and the add + LayerNorm output by up to <span data-cmp="lndiff"></span>; compare with a tolerance.</div></details>
+<h3>Interview questions</h3>
+<details class="mist"><summary>What are the stages of <code>torch.compile</code>, and what does each produce?</summary><div class="b">Dynamo: an FX graph of the forward plus guards, from the bytecode. AOTAutograd: a joint forward and backward graph traced on fake tensors, partitioned into a forward graph and a backward graph with a list of saved tensors. Inductor: fused kernels (Triton or C++) plus a Python or C++ wrapper that calls them and the library matmuls. At run time: check guards, run the wrapper.</div></details>
+<details class="mist"><summary>What is a guard, and what happens when one fails?</summary><div class="b">A condition the compiled code assumes (dtype, shape, parameter identity, grad mode, ...), checked before each call. On failure Dynamo compiles again and caches both; a failed shape guard makes that dimension symbolic (automatic dynamic) so later sizes reuse it. Past <code>recompile_limit</code> (8) the function runs eagerly.</div></details>
+<details class="mist"><summary>Name three causes of graph breaks and how to fix each.</summary><div class="b"><code>print</code> or logging (move it out, or register it as reorderable logging); <code>.item()</code> or data-dependent <code>if</code> (keep the value as a tensor, use <code>torch.where</code>, or <code>torch.cond</code>; <code>capture_scalar_outputs</code> for <code>.item()</code>); calls into non-PyTorch libraries on real data (do them outside, or wrap as a custom op).</div></details>
+<details class="mist"><summary>Why does fusion help, and when does it not?</summary><div class="b">Pointwise and reduction chains are limited by memory traffic; fusing them reads and writes each tensor once instead of once per op (9x fewer bytes for the tanh GELU here). It does not help work that is already one kernel (matmuls, attention, ATen's LayerNorm), and the generated kernel can be slower than a hand-tuned one.</div></details>
+<details class="mist"><summary>torch.compile versus torch.export: when do you use which?</summary><div class="b">compile for training and Python serving: just in time, tolerant of breaks, recompiles as needed. export for deployment: one whole graph or an error, explicit dynamic ranges, a serializable program for AOTInductor, ExecuTorch or ONNX.</div></details>
+<details class="mist"><summary>What do <code>reduce-overhead</code> and <code>max-autotune</code> do?</summary><div class="b">reduce-overhead: CUDA graphs, removing per-kernel launch cost; needs static shapes and keeps a memory pool; CUDA only. max-autotune: benchmarks generated matmul templates against the library and keeps the fastest (plus CUDA graphs on a GPU); much longer compile.</div></details>
+</section>
+
+<section id="cmp-s12">
+<h2>12. Checks</h2>
+<ul class="tight" id="cmp-chk"></ul>
+</section>
+</div>

@@ -1,0 +1,44 @@
+<section id="cmp-s3">
+<h2>3. Dynamo: one graph, and the guards that protect it</h2>
+<p><b>Dynamo</b> is the front end. It hooks into CPython's frame evaluation (PEP 523), reads the bytecode of <code>GPT.forward</code> as it runs, follows every call into <code>Block.forward</code>, <code>nn.Linear</code> and so on, and records each tensor operation into an <b>FX graph</b> (PyTorch's Python-level graph format). Python control flow that does not depend on tensor values, such as the <code>for blk in self.blocks</code> loop, is simply unrolled: the graph has 4 copies of the block.</p>
+<div class="out" id="cmp-dyn-st"></div>
+<details class="mist"><summary>The <span data-cmp="dyn_ops"></span> operations of the captured graph, in order</summary><div class="b"><div class="cmp-strip" id="cmp-dyn-ops"></div><p class="small mute">Still high-level: <code>linear</code>, <code>layer_norm</code>, <code>scaled_dot_product_attention</code>, views. Decomposition into ATen ops (<code>addmm</code>, <code>native_layer_norm</code>) happens in the next stage.</p></div></details>
+<p><b>Guards.</b> The graph is only valid for what Dynamo saw: these input dtypes and shapes, these parameter objects, grad mode on, 4 threads, no autocast. Dynamo wrote <b data-cmp="g_total"></b> guards for this model; most check that a parameter is still a tensor of the same shape and has not been marked dynamic. They run in C++ before every call, which Dynamo timed at <span data-cmp="g_lat"></span> microseconds when it built them (once on CPU, once on MPS): small next to a 20 ms step, but this is the per-call price of a compiled region.</p>
+<div class="bars" id="cmp-g-bars"></div>
+<details class="mist"><summary>The first guards, as <code>TORCH_LOGS=guards</code> prints them</summary><div class="b"><pre class="cmp-code" id="cmp-g-ex"></pre><p class="small mute">Paths shortened. <code>GLOBAL_STATE</code> is why switching to <code>no_grad</code> for evaluation triggers a recompile (section 5); <code>TENSOR_MATCH</code> with <code>size=[8, 64]</code> is why a new batch size does.</p></div></details>
+</section>
+
+<section id="cmp-s4">
+<h2>4. Graph breaks, put in on purpose</h2>
+<p>Four common lines, each added to <code>Block.forward</code> between attention and the MLP. For each: Dynamo's own reason, what was compiled, and the training step's time. The strip shows one forward pass: green pieces ran as compiled code, dashed ones ran as ordinary Python, op by op.</p>
+<div class="card" id="cmp-bk">
+<div class="seg" id="cmp-bk-seg"><button data-m="none" class="on">no break</button><button data-m="print">print()</button><button data-m="item">.item()</button><button data-m="if">if on a tensor</button><button data-m="numpy">NumPy call</button></div>
+<div id="cmp-bk-out"></div>
+</div>
+<div class="card" id="cmp-pq2">
+<p><b>Predict.</b> With the <code>print</code> inside each block, which parts of the forward still run compiled?</p>
+<div class="chips" id="cmp-pq2-c"><button data-a="0">Everything except the print</button><button data-a="1">Each block's two halves; the embedding, final LayerNorm, head and loss run in plain Python</button><button data-a="2">Nothing: one break disables the compile</button></div>
+<div class="cmp-reveal" id="cmp-pq2-r" hidden></div>
+</div>
+<p>What the five runs show: a break does not stop compilation, it fragments it. The model goes from one compiled piece per forward to <span data-cmp="bk_pf"></span>, with the Python in between run eagerly, and fusion cannot cross a break. Here the cost was <span data-cmp="bk_cost"></span> per step; on a GPU, where each piece also launches its own kernels and a CUDA graph cannot span a break, it is usually larger. Find breaks with <code>torch._dynamo.explain(model)(x, y)</code> (used here) or <code>TORCH_LOGS=graph_breaks</code>; make them errors with <code>fullgraph=True</code>, which is what you want in a training loop you control.</p>
+</section>
+
+<section id="cmp-s5">
+<h2>5. Recompiles and dynamic shapes</h2>
+<p>When a guard fails, Dynamo compiles again for the new situation and keeps both versions (up to <code>torch._dynamo.config.recompile_limit</code>, <span data-cmp="rlim"></span> at 2.14.1, after which that function runs eagerly). On a <b>shape</b> guard failure it does something smarter, <b>automatic dynamic shapes</b> (on by default): the second compile treats the dimension that changed as a symbol (<code>s0</code>) so any later size reuses it. <code>torch._dynamo.mark_dynamic(t, dim)</code> asks for the symbol from the first compile. The same seven calls on one compiled model, three ways:</p>
+<div class="card" id="cmp-rc">
+<div class="seg" id="cmp-rc-seg"><button data-m="automatic" class="on">default (automatic dynamic)</button><button data-m="mark_dynamic">mark_dynamic on idx only</button><button data-m="mark_dynamic_both">mark_dynamic on idx and targets</button></div>
+<div class="tw"><table class="cmp-tbl" id="cmp-rc-tbl"></table></div>
+<p class="small mute" id="cmp-rc-note"></p>
+</div>
+<p>Three lessons from the table. Marking only the input tokens did not help, because the targets carry the same batch and length dimensions and were guarded too: mark every tensor that shares the dimension. A shape that changes once (the short last batch of an epoch) costs one recompile and then nothing; the recompile cost <span data-cmp="rc_cold"></span> with an empty cache. And switching to <code>model.eval()</code> under <code>torch.no_grad()</code> recompiles once, because grad mode is part of the global-state guard: budget for it in your evaluation loop. Python numbers behave like shapes: a small compiled update <code>p - lr * g</code> called with five different float learning rates compiled at these calls: <span data-cmp="sc_f"></span>. The first value was guarded, the second failed the guard, and from then on the float was a symbol. Five different ints: <span data-cmp="sc_i"></span>. Five 0-d tensors: <span data-cmp="sc_t"></span>. Values that are not numbers or shapes (a string flag, a module attribute, a dtype) are guarded by value, like the <code>EQUALS_MATCH</code> and <code>ID_MATCH</code> guards in section 3, so each new value is a new compile, up to the limit (not run here).</p>
+</section>
+
+<section id="cmp-s6">
+<h2>6. AOTAutograd: the backward graph, decided ahead of time</h2>
+<p>Dynamo captures only the forward. <b>AOTAutograd</b> runs PyTorch's autograd once on <b>fake tensors</b> (shapes and dtypes, no data) to trace the backward too, producing one <b>joint graph</b>, then a <b>partitioner</b> cuts it into a forward graph and a backward graph. The cut decides what the forward must <b>save for backward</b>: by default a min-cut algorithm that may recompute cheap values in backward instead of storing them (<code>min_cut_rematerialization_partition</code>, torch/_functorch/partitioners.py). Here the graphs were decomposed into ATen ops first, which is why they are longer than Dynamo's.</p>
+<div class="out" id="cmp-aot-st"></div>
+<div class="bars" id="cmp-aot-bars"></div>
+<p id="cmp-aot-p"></p>
+<details class="mist"><summary>Every activation the compiled forward saved, with its shape</summary><div class="b"><div class="tw"><table class="cmp-tbl" id="cmp-aot-tbl"></table></div></div></details>
+</section>
