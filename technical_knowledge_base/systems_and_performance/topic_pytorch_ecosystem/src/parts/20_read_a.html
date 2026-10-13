@@ -1,0 +1,40 @@
+<section id="rd-s0">
+<p class="lead"><dfn>PyTorch</dfn> is a Python library for computing with arrays of numbers on CPUs and GPUs, which also works out the gradients you need to train a model. This page teaches it from zero by following <b>one training step of a tiny GPT down through PyTorch, then making it fast, then spreading it over several processes</b>. Every number on it was either measured here or comes from a linked, dated source, and the two are labelled apart.</p>
+
+<p><b>The running example.</b> A character-level GPT written in plain PyTorch: 43 distinct characters as its vocabulary, 4 transformer blocks of width 256 with 4 attention heads, a context of 64 characters, <b>3,186,944 parameters</b>, trained with AdamW on batches of 8 windows cut from the first three paragraphs of <i>Alice's Adventures in Wonderland</i>. Its first loss is 3.8014, just above ln 43 = 3.761, the loss of a uniform guess, and after 300 steps it reaches 0.546 <span class="meas">measured on Apple M1 Pro</span>. The same model, the same batches and the same seed are used by every tab of this page and by every child page. Machine: an Apple M1 Pro laptop, its CPU (4 threads) and its GPU through Apple's <dfn>MPS</dfn> backend (Metal Performance Shaders), PyTorch 2.14.1 (released 2026-09-30, {{PyPI|https://pypi.org/project/torch/#history}}). There is no NVIDIA GPU here, so each section says what carries over to one and what does not, and published GPU numbers are quoted separately with who measured them.</p>
+
+<div class="rd-card" id="rd-stk-card">
+<h4>One forward pass of the tiny GPT, down through the stack: eager, then compiled</h4>
+<div class="seg" id="rd-stk-mode"><button class="on" data-m="eager">Eager (op by op)</button><button data-m="comp">torch.compile</button></div>
+<div class="stk" id="rd-stk"></div>
+<div class="an-cap" id="rd-stk-cap"></div>
+<div class="an-cnt" id="rd-stk-cnt"></div>
+<div class="an-ctl" id="rd-stk-ctl"></div>
+<p class="small mute">Counts <span class="meas">measured on Apple M1 Pro, CPU, torch 2.14.1</span>: 142 ATen operator calls seen by a dispatch-level recorder in one eager forward ({{Inside one step|#t-step}}); 1 captured graph of 59 operations, 549 guards, and 35 launches per compiled forward, of which 14 are generated C++ kernels, 17 matrix multiplies in the BLAS library and 4 attention calls ({{Compile lab|#t-comp}}). Compile time 9.0 to 10.0 s with an empty cache.</p>
+</div>
+
+<p>The figure is the whole page in miniature. Your code calls <code>model(x)</code>. Python runs the module's <code>forward</code>, which calls PyTorch functions such as <code>torch.matmul</code>. Each call is an <dfn>operator</dfn> (a named operation such as <code>aten::addmm</code>; <dfn>ATen</dfn> is PyTorch's C++ tensor library, where every operator is defined). The <dfn>dispatcher</dfn> decides which implementation of that operator runs, by reading labels on the inputs: is a gradient needed, is mixed precision on, which device holds the data. At the bottom a <dfn>kernel</dfn> (one compiled function that does the arithmetic on one device) runs. <code>torch.compile</code> replaces most of that walk with generated code; <code>torch.distributed</code> runs the same program in several processes that exchange data.</p>
+
+<p><b>Five ideas carry everything that follows.</b></p>
+<div class="rd-five">
+<div style="--sc:var(--c1)"><div class="k">1. Views</div><div class="v">shape + strides</div><p>A tensor is a window onto a flat block of memory. Transposes and slices are free; they only change how the window steps. Section 1.</p></div>
+<div style="--sc:var(--c2)"><div class="k">2. Dispatch</div><div class="v">one table per operator</div><p>Every call looks up a kernel by keys. Autograd, mixed precision, subclasses and devices are all entries in that table. Section 2.</p></div>
+<div style="--sc:var(--c3)"><div class="k">3. Saved tensors</div><div class="v">34.76 MB</div><p>Forward records a graph and keeps tensors for backward. They, not the weights, fill memory in training. Section 3.</p></div>
+<div style="--sc:var(--c4)"><div class="k">4. Fusion</div><div class="v">142 &rarr; 35</div><p>Compiling turns many small memory round trips into a few loops. It pays when memory traffic or launch overhead dominates. Section 5.</p></div>
+<div style="--sc:var(--c5)"><div class="k">5. Placements</div><div class="v">Shard, Replicate, Partial</div><p>Distributed PyTorch describes how each tensor is split over processes; FSDP2 and tensor parallelism are placements. Section 7.</p></div>
+</div>
+<p class="small mute">34.76 MB is the bytes autograd kept after one forward of the running example (34,761,220 B), 142 and 35 the eager calls and compiled launches above, all <span class="meas">measured on Apple M1 Pro</span>.</p>
+
+<div class="prob">
+<a href="#rd-s1" style="--sc:var(--c1)"><b>Tensors</b><span>Storage, strides, views, dtype, device</span></a>
+<a href="#rd-s2" style="--sc:var(--c1)"><b>The dispatcher</b><span>How one call finds its kernel</span></a>
+<a href="#rd-s3" style="--sc:var(--c1)"><b>Autograd</b><span>The graph, saved tensors, checkpointing</span></a>
+<a href="#rd-s4" style="--sc:var(--c2)"><b>A training loop done right</b><span>nn.Module, state_dict, optimizers, AMP</span></a>
+<a href="#rd-s5" style="--sc:var(--c3)"><b>torch.compile</b><span>Dynamo, guards, breaks, Inductor, export</span></a>
+<a href="#rd-s6" style="--sc:var(--c3)"><b>Performance</b><span>Find the bottleneck, then fix that one</span></a>
+<a href="#rd-s7" style="--sc:var(--c4)"><b>Distributed</b><span>DDP, FSDP2, DTensor, TP, PP, hangs</span></a>
+<a href="#rd-s8" style="--sc:var(--c5)"><b>Extending PyTorch</b><span>Custom ops, subclasses, Triton kernels</span></a>
+<a href="#rd-s9" style="--sc:var(--c6)"><b>The ecosystem</b><span>What to use, what is dead</span></a>
+</div>
+<p class="small mute">The four lab tabs carry the evidence: {{Inside one step|#t-step}} records all 923 operator calls of one training step, {{Compile lab|#t-comp}} compiles the model, {{Distributed lab|#t-dist}} runs it on several processes, and {{Ecosystem map|#t-map}} is the dated atlas of libraries. This tab gives the intuition and links to them.</p>
+</section>
