@@ -1,0 +1,28 @@
+<section id="dpt-s5">
+<h2>5. DTensor: how an operation decides where its output lives</h2>
+<p>A <dfn>DTensor</dfn> (<code>torch.distributed.tensor</code>) is one logical tensor spread over a DeviceMesh, with one <dfn>placement</dfn> per mesh dimension: <code>Shard(d)</code> (split along tensor dimension d), <code>Replicate()</code> (every rank has all of it) or <code>Partial()</code> (every rank has a full-shape tensor and the true value is their sum). The lab tab (section 7) has an explorer of every <code>redistribute</code> between placements and the collective each costs. This section is the other half: what happens when you call an ordinary operation on DTensors.</p>
+<p><b>How it works.</b> DTensor is a tensor subclass (built as the {{Extending PyTorch|n:3f85c17b0d0d8158a7addcd3d601d72a}} child describes, with a C++ fast path). For every ATen operation it asks the <dfn>sharding propagator</dfn>: given the inputs' placements, which output placement can be computed locally, and if none, which inputs must be redistributed first? Each operation registers a <dfn>strategy</dfn>, a list of (output placements, required input placements) pairs; DTensor picks the cheapest, runs any redistribution (a collective), then runs the plain operation on the local pieces. Run on 2 processes, <code>A</code> 4 &times; 6, <code>B</code> 6 &times; 8, every result checked against the plain-tensor result:</p>
+<div class="tw"><table class="rd-tbl" id="dpt-prop"></table></div>
+<p class="small mute"><span class="meas">Measured, 2 CPU processes; collectives as <code>CommDebugMode</code> counted them.</span> S(d) = Shard(d), R = Replicate, P = Partial(sum).</p>
+<p>Four rules fall out, and they are most of tensor parallelism:</p>
+<ul>
+<li><b>Linear operations commute with the sum</b>, so a Partial passes through them free: <code>A @ B</code> with A split by columns and B by rows gives each rank a full-shape partial product (<code>S(1) x S(0) &rarr; P</code>, no communication); Partial + Partial and 2 &times; Partial stay Partial.</li>
+<li><b>Nonlinear ones do not.</b> <code>relu(Partial)</code> forced an all-reduce first: relu of a sum is not the sum of relus. This is why Megatron's MLP puts the GeLU between a column split and a row split.</li>
+<li><b>Operations that need a whole row need it gathered.</b> Softmax and LayerNorm along a sharded dimension all-gathered it (output Replicate); along an unsharded dimension they ran locally. Sequence parallelism (section 6) uses exactly this: LayerNorm is per token, so splitting the sequence is free.</li>
+<li><b>A row-sharded embedding table gives a new kind of placement</b>, <code>MaskPartial</code>: each rank looks up the ids it owns, writes zeros elsewhere, and the sum is pending. That is vocabulary-parallel embedding.</li>
+</ul>
+<h3>Wrapping and unwrapping: from_local and to_local</h3>
+<p><code>DTensor.from_local(t, mesh, [Shard(0)])</code> declares that the local tensors of all ranks together form one DTensor; it moves no data. Recorded: <span id="dpt-fl"></span> <code>to_local()</code> returns the local piece without copying. Two traps: with uneven pieces, the global shape must be given (<code>shape=</code> and <code>stride=</code>), and the pieces must follow <code>torch.chunk</code>'s split (3 rows over 2 ranks is 2 and 1, recorded <span id="dpt-fl-uneven"></span>). A first attempt here declared pieces of 3 and 1 rows with <code>shape=(4, 2)</code>; <code>full_tensor()</code> then all-gathered pieces of the wrong size and gloo aborted both processes.</p>
+<h3>A custom operator needs a strategy</h3>
+<p>An operator DTensor does not know raises at once. Recorded for a small <code>torch.library</code> op <code>dpt::rowscale(x, s) = x * s[:, None]</code>: <span id="dpt-cop0"></span> Registering a strategy fixes it:</p>
+<pre class="dpt-code">from torch.distributed.tensor.experimental import register_sharding
+
+@register_sharding(torch.ops.dpt.rowscale.default)
+def rowscale_strategy(x, s):
+    # (output placements, input placements) pairs DTensor may choose from
+    return [([Shard(0)], [Shard(0), Shard(0)]),       # rows split: each rank scales its own rows
+            ([Replicate()], [Replicate(), Replicate()]),
+            ([Shard(1)], [Shard(1), Replicate()])]     # columns split: needs all of s</pre>
+<div class="dpt-out" id="dpt-cop"></div>
+<p class="small mute">The fourth line asked for x by columns and s by rows; no strategy matches, so DTensor redistributed s to Replicate with one all-gather and picked the third strategy. <span class="meas">Measured, 2 CPU processes.</span></p>
+</section>
