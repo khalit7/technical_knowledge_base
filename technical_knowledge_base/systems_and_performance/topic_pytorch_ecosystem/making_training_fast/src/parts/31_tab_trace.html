@@ -1,0 +1,47 @@
+<div class="tab" id="t-trace" role="tabpanel" hidden>
+<style>
+#t-trace .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-trace .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-trace .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-trace .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-trace .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-trace .tr-wrap{border:1px solid var(--line);border-radius:8px;padding:6px;margin:8px 0;overflow:hidden}
+#t-trace .tr-svg svg text{font-size:10.5px}
+#t-trace .tr-info{min-height:3.4em;font-size:13px;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:6px 0;overflow-wrap:anywhere}
+#t-trace .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-trace .an-cap .t{font-weight:600;font-size:14px}#t-trace .an-cap p{margin:2px 0;font-size:13.5px}
+#t-trace .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
+#t-trace .an-cnt .stat .v{font-size:15px;overflow-wrap:anywhere}
+#t-trace .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-trace .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-trace .meas{font-size:11.5px;color:var(--good);font-weight:600}
+#t-trace .tw table{min-width:0}#t-trace .tw td,#t-trace .tw th{font-size:12px}
+#t-trace td code{overflow-wrap:anywhere}
+#t-trace .zoomrow{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:13px}
+#t-trace .zoomrow input[type=range]{flex:1 1 140px;width:auto;min-width:0}
+</style>
+<p class="lead">Two real profiler traces of the same training step of the running example's larger variant (8 blocks, d 512, context 256, batch 8): as first written, and after the bottleneck hunt of the Reading tab's section 3 kept the fixes that helped. Lanes are threads; bars are what each thread was doing; nesting goes down.</p>
+<div class="try"><b>Try:</b> press Play to sweep both steps at the same clock and watch where the "before" step loses time; then click any bar for its name and duration, and switch between MPS and CPU.</div>
+<div class="seg" id="tr-dev"></div>
+<div class="card" id="tr-anim-card">
+<div class="tr-wrap"><div class="tr-svg" id="tr-svg"></div></div>
+<div class="leg" id="tr-leg"></div>
+<div class="zoomrow"><label>Zoom <select id="tr-zoom"><option value="1">whole step</option><option value="4">4&times;</option><option value="16">16&times;</option><option value="64">64&times;</option></select></label><label style="flex:1 1 200px;display:flex;gap:6px;align-items:center">Pan <input type="range" id="tr-pan" min="0" max="1000" value="0" aria-label="Pan"></label></div>
+<div class="tr-info" id="tr-info">Click a bar.</div>
+<div class="an-cap" id="tr-cap"></div>
+<div class="an-cnt" id="tr-cnt"></div>
+<div class="an-ctl" id="tr-ctl"></div>
+</div>
+<h3>Where the time went: ATen ops by self time</h3>
+<div class="seg" id="tr-which"></div>
+<div class="tw" id="tr-top"></div>
+<p class="small mute" id="tr-note"></p>
+<h3>How to read a trace like this</h3>
+<ul class="tight">
+<li><b>Top lane, labelled ranges.</b> The step was wrapped in <code>torch.profiler.record_function("data")</code>, <code>"forward"</code>, <code>"backward"</code>, <code>"optimizer"</code> and <code>"log loss (.item)"</code>. Your own labels are the fastest way to map a trace onto your code.</li>
+<li><b>Bars below a label</b> are the ATen operators the Python code called, nested: <code>aten::linear</code> contains <code>aten::addmm</code>, and so on. A bar's <i>self</i> time is its length minus its children.</li>
+<li><b>On MPS (and CUDA) the CPU only enqueues work.</b> The forward bars are short because the CPU hands kernels to the GPU and moves on; the GPU's own timeline is not in this trace (on CUDA, <code>ProfilerActivity.CUDA</code> adds it as a separate lane; on MPS the GPU side goes to Instruments through <code>torch.mps.profiler.profile()</code>). The long bar under <code>.item()</code> is not the cost of <code>.item()</code>: it is the CPU waiting for all the queued GPU work to finish.</li>
+<li><b>On the CPU the bars are the work itself</b>, so their lengths add up to the step.</li>
+<li id="tr-moved"></li>
+<li>A second lane appears when autograd's engine runs backward on its own thread for a device (MPS here; CUDA likewise).</li>
+</ul>
+</div>

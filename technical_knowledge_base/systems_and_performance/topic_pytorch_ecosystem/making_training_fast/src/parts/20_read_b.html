@@ -1,0 +1,48 @@
+<section id="fst-s1">
+<h2>1. Measuring honestly: what a timing can and cannot tell you</h2>
+<p><b>The problem.</b> Every fix on this page is judged by a number, and a careless number points at the wrong fix. Three things make naive timings lie.</p>
+<div class="mech">
+<div><b>Asynchronous devices</b>On a GPU (CUDA or Apple's MPS), a PyTorch call only <i>queues</i> a kernel and returns. Timing the call times the queuing. You must wait for the device to finish (<code>torch.cuda.synchronize()</code>, <code>torch.mps.synchronize()</code>) before reading the clock.</div>
+<div><b>Warm-up</b>The first calls pay one-off costs: memory allocation into the caching allocator, kernel selection, compilation for <code>torch.compile</code>, lazy initialisation. Run a few untimed steps first.</div>
+<div><b>Noise</b>Other processes, thermal limits and frequency scaling move every number. Repeat, report the median and the spread, and record the machine's load.</div>
+</div>
+<div class="rd-card">
+<h4>The same matrix multiply, timed three ways on MPS</h4>
+<div class="bars" id="fst-timer-bars"></div>
+<p class="small mute" id="fst-timer-note"></p>
+</div>
+<p><code>torch.utils.benchmark.Timer</code> does the bookkeeping: it warms up, chooses how many runs fit in a time budget, sets the thread count, and reports the median and interquartile range (IQR, the spread of the middle half of the runs). At 2.14.1 its default clock calls <code>torch.accelerator.synchronize()</code> before every reading whenever an accelerator is present, CUDA or MPS alike (<code>torch/utils/benchmark/utils/timer.py</code> L15 to 18). This page's scripts also synchronised inside the timed statement, which is redundant but harmless:</p>
+<div class="code">import torch.utils.benchmark as tb
+def call():
+    a @ b; torch.mps.synchronize()            <span class="c"># redundant at 2.14.1: Timer's clock synchronises the accelerator</span>
+m = tb.Timer(stmt="call()", globals={"call": call}).blocked_autorange(min_run_time=1.0)
+print(m.median, m.iqr, len(m.times))</div>
+<p><b>Whole training steps</b> are timed the simple way: warm up, synchronise, start the clock, run N steps, synchronise, stop, divide; repeat the whole thing three times and take the median. Every timed result on this page was taken that way or with <code>Timer</code>, while holding a lock so that no other job of this knowledge base ran at the same time, with the load average recorded next to it.</p>
+<div class="co"><div class="t">What carries over to NVIDIA GPUs, and what does not</div>The <i>method</i> carries over exactly, and so do byte counts, op counts, which ops exist and which fixes apply. The <i>times</i> do not: an M1 Pro's CPU and GPU have their own balance of compute, memory bandwidth and launch cost, so a fix that wins 20% here can win 2% or 2 times on an H100. This page says, for each result, which way it is likely to move on a data-centre GPU and why; the honest-timing details for CUDA (CUDA events, <code>cudaDeviceSynchronize</code>, Nsight) are on {{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}}.</div>
+</section>
+<section id="fst-s2">
+<h2>2. torch.profiler from zero</h2>
+<p><b>The problem.</b> A step time says how slow; it does not say where. <dfn>torch.profiler</dfn> records every operator PyTorch runs (with start and end time, thread, input shapes if asked, the Python stack if asked, memory allocated if asked) and, on CUDA, every GPU kernel and memory copy. Its output is a <dfn>trace</dfn>: a timeline you can open in a viewer.</p>
+<div class="code">from torch.profiler import profile, schedule, record_function, ProfilerActivity
+
+with profile(activities=[ProfilerActivity.CPU],          <span class="c"># add ProfilerActivity.CUDA on NVIDIA GPUs</span>
+             schedule=schedule(wait=4, warmup=2, active=2), <span class="c"># skip 4 steps, warm the profiler 2, record 2</span>
+             record_shapes=True,                          <span class="c"># input shapes per op (for "which matmul?")</span>
+             on_trace_ready=lambda p: p.export_chrome_trace("trace.json")) as prof:
+    for step in range(8):
+        with record_function("data"):      x, y = next(it)
+        with record_function("forward"):   _, loss = model(x, y)
+        with record_function("backward"):  loss.backward()
+        with record_function("optimizer"): opt.step(); opt.zero_grad(set_to_none=True)
+        prof.step()                                       <span class="c"># tells the schedule a step ended</span>
+print(prof.key_averages().table(sort_by="self_cpu_time_total", row_limit=10))</div>
+<ul class="tight">
+<li><b><code>schedule(wait, warmup, active, repeat)</code></b>: profiling every step of a long run would be slow and huge. The schedule skips <i>wait</i> steps, runs the profiler without keeping results for <i>warmup</i> steps (its own start-up cost lands there), then records <i>active</i> steps; <i>repeat</i> cycles it. <code>prof.step()</code> at the end of each step drives it. Signature at 2.14.1: <code>schedule(*, wait, warmup, active, repeat=0, skip_first=0, skip_first_wait=0)</code> <span class="meas">read from the installed wheel</span>.</li>
+<li><b><code>record_function("name")</code></b>: a labelled range in the trace. Cheap; leave a few in your training loop for good.</li>
+<li><b><code>key_averages()</code></b>: the same events summed by name. <i>Total</i> time includes children (<code>aten::linear</code> includes its <code>aten::addmm</code>); <i>self</i> time excludes them. Sort by self time to find the ops doing the work.</li>
+<li><b><code>with_stack=True</code></b> links each op to the Python line that called it (larger traces); <code>profile_memory=True</code> records allocations (section 7). On CUDA with compiled code, <code>TORCHINDUCTOR_UNIQUE_KERNEL_NAMES=1</code> gives generated kernels readable names.</li>
+<li><b>Viewers</b>: {{Perfetto|https://ui.perfetto.dev/}} or <code>chrome://tracing</code> open the exported JSON; <code>tensorboard_trace_handler(dir)</code> writes files for TensorBoard; for many ranks at once, {{Holistic Trace Analysis|https://github.com/facebookresearch/HolisticTraceAnalysis}} summarises idle time, communication overlap and stragglers across ranks.</li>
+</ul>
+<p><b>What to look for in a trace.</b> On a GPU, the device lane should be busy end to end. Gaps on it mean the GPU waited for something: the data loader (gaps before forward), the CPU launching many tiny kernels (launch-bound: fix with fusion, <code>torch.compile</code>, CUDA graphs, fused optimizers), or a synchronisation such as <code>.item()</code>, <code>.cpu()</code> or <code>print(loss)</code> (a device-to-host copy). In multi-GPU traces, communication kernels that do not overlap compute. On a CPU, the bars <i>are</i> the work, so look for the widest ones.</p>
+<p>The {{Profiler trace|#t-trace}} tab shows two traces recorded this way, before and after the hunt in section 3.</p>
+</section>

@@ -1,0 +1,17 @@
+<section id="fst-s12">
+<h2>12. What carries over to NVIDIA GPUs</h2>
+<p>Every number above was measured on a laptop. This table says, technique by technique, what transfers to a data-centre NVIDIA GPU and which way the result is likely to move. "Likely" means reasoning from how the hardware differs, not a measurement; published GPU figures are quoted where they exist.</p>
+<div class="tw"><table class="rd-tbl"><thead><tr><th>Technique</th><th>Transfers exactly</th><th>Likely different on an H100-class GPU</th></tr></thead><tbody>
+<tr><td>Honest timing, profiler, traces</td><td>The method; <code>record_function</code> ranges; key_averages</td><td>Add <code>ProfilerActivity.CUDA</code> for the GPU lane; Nsight Systems for kernel-level detail ({{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}})</td></tr>
+<tr><td>DataLoader workers</td><td>The overlap mechanism</td><td>Matters more: a faster GPU leaves less time per step to hide loading; add <code>pin_memory=True</code> with <code>non_blocking=True</code> copies</td></tr>
+<tr><td>Fused optimizer</td><td>Ops per step (one fused kernel against several per tensor)</td><td>foreach is already the CUDA default; fused gains less over foreach than over the for-loop</td></tr>
+<tr><td>bfloat16 autocast</td><td>Which ops autocast casts; memory of 16-bit activations</td><td>Opposite sign: bfloat16 tensor cores make matmuls several times faster than float32</td></tr>
+<tr><td>torch.compile</td><td>Graphs, fusion decisions, recompiles (the root's {{Compile lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}})</td><td>Triton kernels and CUDA graphs; the PyTorch team measured 43% faster training on average over 163 models on A100 <span class="vend">vendor</span> ({{PyTorch 2.x|https://pytorch.org/get-started/pytorch-2-x/}})</td></tr>
+<tr><td>Memory categories and peaks</td><td>Bytes per category for the same dtype and kernels; the formulas of the {{Memory budget|#t-mem}} tab</td><td>The caching allocator adds reserved-but-free memory; flash attention saves no T &times; T matrix (as the CPU kernel here)</td></tr>
+<tr><td>Checkpointing, SAC</td><td>Memory saved, ops recomputed</td><td>Relative time cost similar (one extra forward of the checkpointed part); SAC policies must name the CUDA attention ops</td></tr>
+<tr><td>Fused linear cross-entropy</td><td>Peak memory saved</td><td>The same trade; the time cost was not measured on a GPU here</td></tr>
+<tr><td>SDPA</td><td>The API and <code>sdpa_kernel</code></td><td>Real backend choice: flash, efficient, cuDNN (first on Hopper and Blackwell with recent cuDNN), FA3/FA4 plug-ins</td></tr>
+<tr><td>FlexAttention</td><td>score_mod, mask_mod, BlockMask counts, numerics</td><td>Compiled Triton kernels with backward: trainable, near FlashAttention-2 speed <span class="vend">vendor</span></td></tr>
+<tr><td>torchao</td><td>Bytes per format, which configs exist, numerics (emulated float8)</td><td>float8 training needs compute capability 8.9 or newer; MX and NVFP4 need Blackwell; <code>Int4WeightOnlyConfig</code> needs its kernel package (<code>mslk</code> at 0.18.0), not installed here</td></tr>
+</tbody></table></div>
+</section>
