@@ -1,0 +1,83 @@
+<nav class="nav" id="rd-nav">
+<a href="#rd-s0">0 One screen</a><a href="#rd-s1">1 Tensors</a><a href="#rd-s2">2 Dispatcher</a><a href="#rd-s3">3 Autograd</a><a href="#rd-s4">4 Modules and the loop</a><a href="#rd-s5">5 On NVIDIA GPUs</a><a href="#rd-mis">Mistakes</a><a href="#rd-iq">Interview</a>
+</nav>
+
+<section id="rd-s0">
+<h2>0. In one screen: what happens when you write <code>torch.mm(x, w)</code></h2>
+<p class="lead">PyTorch looks like a NumPy that can also compute gradients. Underneath, every line goes through three machines that this page takes apart one at a time. A <dfn>tensor</dfn> is a small description (shape, strides, offset, dtype, device) laid over a flat block of memory. The <dfn>dispatcher</dfn> is a table lookup that decides, for each call, which pieces of PyTorch get to act on it: mixed precision, gradient recording, view tracking, Python hooks, and finally the kernel that does the arithmetic. <dfn>Autograd</dfn> is the part that, while the forward runs, builds a graph of what happened, and then runs that graph backwards to produce gradients.</p>
+<div class="stepbox">
+<div style="--sc:var(--c1)"><div class="k">1. The tensor</div><div class="v">header + storage</div><p>x is 8 &times; 256 float32: 8,192 bytes of storage, strides (256, 1). A transpose writes a new header, never moves a byte.</p></div>
+<div style="--sc:var(--c2)"><div class="k">2. The key set</div><div class="v">keys of x and w, plus thread state</div><p>Every CPU tensor carries <code>CPU, ADInplaceOrView, AutogradCPU, AutocastCPU</code>; the thread switches some on or off.</p></div>
+<div style="--sc:var(--c4)"><div class="k">3. Walk down the keys</div><div class="v">Autocast, Autograd, ADInplaceOrView, CPU</div><p>Each kernel does its one job and calls the operator again below itself. Autograd records <code>MmBackward0</code> and keeps x and w for later.</p></div>
+<div style="--sc:var(--c3)"><div class="k">4. Backward</div><div class="v">the engine runs the graph</div><p><code>loss.backward()</code> runs each node once its inputs are ready; <code>AccumulateGrad</code> writes <code>w.grad</code>.</p></div>
+</div>
+<div class="tw"><table class="rd-tbl">
+<thead><tr><th>Layer</th><th>What it is</th><th>What it keeps on the tensor or thread</th><th>How you look at it</th></tr></thead>
+<tbody>
+<tr><td>Tensor</td><td>A view (shape, strides, offset) on a storage (bytes, device)</td><td>dtype, device, <code>requires_grad</code>, <code>grad_fn</code>, a version counter, its dispatch keys</td><td><code>x.stride()</code>, <code>x.storage_offset()</code>, <code>x.untyped_storage().data_ptr()</code>, <code>x._version</code></td></tr>
+<tr><td>Dispatcher</td><td>Per operator, a table of kernels indexed by dispatch key</td><td>Thread-local included and excluded key sets (grad mode, inference mode, autocast, dispatch modes)</td><td><code>torch._C._dispatch_keys(x)</code>, <code>torch._C._dispatch_dump_table("aten::mm")</code>, a <code>TorchDispatchMode</code></td></tr>
+<tr><td>Autograd</td><td>A graph of <code>Node</code>s built during forward; an engine that runs it during backward</td><td>Saved tensors per node, hooks, grad mode</td><td><code>y.grad_fn.next_functions</code>, <code>_saved_*</code> attributes, node hooks, <code>torch.autograd.graph.saved_tensors_hooks</code></td></tr>
+<tr><td>nn.Module and the loop</td><td>A tree that registers parameters, buffers and sub-modules; your loop calls forward, backward, step</td><td><code>state_dict</code>, <code>.grad</code>, optimizer state</td><td><code>named_parameters()</code>, <code>state_dict().keys()</code>, hooks</td></tr>
+</tbody></table></div>
+<p>The running example is the topic's tiny GPT: 4 blocks, d_model 256, 43-character vocabulary, 3,186,944 parameters, batch 8 &times; 64, the output layer tied to the input embedding (see the root's {{Inside one step|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab, which records one full training step op by op). This page goes one level deeper than the root's sections 1 to 4 and that tab: it asks <i>why</i> each call took the route it did, reads the C++ that decides it, and reproduces the errors you will meet.</p>
+<div class="deepnote"><b>How to use this page.</b> Each section starts with the problem, then how it works, what it costs, when it matters and how to check it. The four lab tabs are where you play: the {{Stride explorer|#t-tda-str}} (real tensors, every storage address), the {{Dispatcher walker|#t-tda-dsp}} (real calls walked key by key in eight situations), the {{Autograd engine|#t-tda-eng}} (one block's backward, node by node, plain against checkpointed against offloaded) and the {{Version-counter lab|#t-tda-ver}} (fourteen in-place snippets, predict then run). Labels: <span class="meas">measured on Apple M1 Pro</span> for numbers recorded here, <span class="der">derived</span> for arithmetic on them, <span class="vend">vendor</span> for figures from PyTorch's own docs.</div>
+</section>
+
+<section id="rd-s1">
+<h2>1. Tensors: a header over a block of bytes</h2>
+<h3>1.1 Storage, sizes, strides, offset</h3>
+<p><b>The problem.</b> Deep learning code reshapes, slices, transposes and splits arrays constantly: attention alone turns one (8, 64, 768) block into q, k and v, each split into 4 heads. If each of those operations copied the data, a forward pass would spend most of its time and memory moving bytes.</p>
+<p><b>How it works.</b> A <dfn>storage</dfn> is one flat, untyped block of bytes on one device. A tensor is a header that says how to read it: <dfn>sizes</dfn> (the shape), <dfn>strides</dfn> (how many elements to skip in storage to move one step along each dimension), a <dfn>storage offset</dfn> (where element [0, 0, ...] sits) and a <dfn>dtype</dfn> (how many bytes per element and how to read them). The address of any element is a dot product:</p>
+<div class="fm"><div class="eq">address(i, j, &hellip;) = offset + i&middot;stride<sub>0</sub> + j&middot;stride<sub>1</sub> + &hellip;</div>
+<dl><dt>address</dt><dd>position in the storage, in elements (multiply by the element size for bytes)</dd><dt>stride<sub>d</sub></dt><dd>elements skipped per step along dimension d; 0 means "repeat the same element"</dd></dl></div>
+<p>A <dfn>view</dfn> is a new header on the same storage. Measured on <code>x = torch.arange(12.).view(3, 4)</code>, where every value equals its storage index, so the values printed prove the addresses:</p>
+<div id="tda-viewtbl" class="tw"></div>
+<p class="small mute">Shape, strides, offset, "contiguous" and "same storage" are what torch 2.14.1 reported for each expression (<code>src/exp/tensors.py</code>); "same storage" compares <code>untyped_storage().data_ptr()</code>. Every expression, and three more bases (3-D, 4-D, channels_last), is in the {{Stride explorer|#t-tda-str}} tab.</p>
+<p>Three rows deserve a second look. <code>x[0:1].expand(3, 4)</code> has stride 0 along rows: three rows, one row of memory (this is how broadcasting avoids copies). <code>x.unfold(1, 2, 1)</code> makes overlapping windows, so some cells are read twice. <code>x.detach()</code> shares the storage but is not a "view" in autograd's sense (<code>_base</code> is None), which matters in section 3.</p>
+
+<h3>1.2 Contiguous, view against reshape, and when a copy happens</h3>
+<p>A tensor is <dfn>contiguous</dfn> when reading it in order walks the storage in order with no gaps: strides equal the row-major ones for its shape ((4, 1) for (3, 4)). Most kernels are fastest on contiguous input and some require it. The rules you need:</p>
+<ul class="tight">
+<li><code>view</code> never copies; it fails if no strides can describe the new shape over the old layout: <code>x.t().view(12)</code> raised <span id="tda-err-view" class="tda-err"></span></li>
+<li><code>reshape</code> returns a view when it can and copies when it cannot: <code>x.reshape(12)</code> shared storage, <code>x.t().reshape(12)</code> did not.</li>
+<li><code>.contiguous()</code> copies only when needed. <code>flip</code>, advanced indexing (<code>x[[0, 2]]</code>) and boolean masks always copy (there are no negative strides: <span id="tda-err-neg" class="tda-err"></span>).</li>
+</ul>
+<div class="rd-card" id="tda-ctg-card">
+<h4>Before and after on the same tensor: <code>x.t()</code> (header only) against <code>x.t().contiguous()</code> (a copy)</h4>
+<div class="seg" id="tda-ctg-seg"><button data-m="view" class="on">x.t(): a view</button><button data-m="copy">x.t().contiguous(): a copy</button></div>
+<div class="tda-lbl">The tensor as you index it (row by row)</div><div id="tda-ctg-log" class="tda-cells"></div>
+<div class="tda-lbl">x's storage (12 floats)</div><div id="tda-ctg-st" class="tda-cells"></div>
+<div class="tda-lbl" id="tda-ctg-nl">New storage</div><div id="tda-ctg-new" class="tda-cells"></div>
+<div class="an-ctl" id="tda-ctg-ctl"></div>
+<div class="an-cap" id="tda-ctg-cap"></div>
+<div class="an-cnt" id="tda-ctg-cnt"></div>
+</div>
+<p><b>The cost, on the running example.</b> Attention's q, k and v are three views of one (8, 64, 768) <code>qkv</code> output at storage offsets 0, 256 and 512, all with strides (49152, 768, 1); splitting heads with <code>view</code> and <code>transpose</code> gives strides (49152, 64, 768, 1): zero bytes copied. On the CPU the attention kernel then writes its (8, 4, 64, 64) output with strides (16384, 64, 256, 1), already in (batch, position, head, dim) order, so the model's <code>.transpose(1, 2).contiguous()</code> finds a contiguous tensor and copies nothing <span class="meas">measured on Apple M1 Pro, CPU</span>. On MPS the same line copies 524,288 bytes per layer (the root's {{Inside one step|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab, section 1).</p>
+
+<h3>1.3 Memory formats: channels_last</h3>
+<p>For images, a (N, C, H, W) tensor stored row-major keeps each channel's whole image together (NCHW). Convolution kernels on GPUs with tensor cores, and oneDNN on CPUs, prefer the channels of one pixel together (NHWC). PyTorch keeps the logical shape (N, C, H, W) and changes only the strides: that is <dfn>channels_last</dfn>, a <dfn>memory format</dfn>.</p>
+<div id="tda-cl" class="tw"></div>
+<p>So <code>is_contiguous()</code> answers "row-major?" and says no, while <code>is_contiguous(memory_format=torch.channels_last)</code> says yes. Element-wise ops and convolutions keep the format (measured above); <code>view</code> on it fails like on any non-contiguous tensor. A tensor with C = 1 or H = W = 1 is both at once, which is why format checks are ambiguous on such shapes. <span id="tda-cl-time"></span></p>
+
+<h3>1.4 dtypes and type promotion</h3>
+<p>A <dfn>dtype</dfn> fixes the bytes per element and how to read them: float32 (4 bytes), bfloat16 and float16 (2), int64 (8), bool (1). When an operation mixes dtypes, PyTorch picks the result dtype with <dfn>type promotion</dfn>: within the same category (bool &lt; integer &lt; floating &lt; complex) the wider type wins, and when neither type can hold the other, a third one is chosen. The grid is <code>torch.promote_types(row, column)</code> read from the installed wheel:</p>
+<div class="tw" id="tda-pgrid"></div>
+<p>Two exceptions catch everyone, both measured below: a <b>Python scalar or a 0-dim tensor does not raise precision within its category</b> (float16 tensor + float64 0-dim tensor stays float16), but it does move you to a higher category (an int64 tensor + 2.5 becomes float32, the default dtype). And an <b>in-place op cannot change the dtype</b> of its destination.</p>
+<div id="tda-promo" class="tw"></div>
+<div class="pr" data-pr><div class="q">Predict: <code>torch.tensor([1, 2], dtype=torch.uint8) + 300</code>. What comes out?</div>
+<div class="opts"><button>int64 [301, 302]</button><button>An overflow error</button><button data-ok>uint8 [45, 46]</button></div>
+<div class="ans" hidden>uint8 [45, 46] (measured): the Python int does not widen a uint8 tensor (same category), and 301 and 302 wrap modulo 256. Integer overflow in PyTorch is silent. Cast first if the range matters.</div></div>
+<div id="tda-finfo" class="tw"></div>
+<p class="small mute">Range limits from <code>torch.finfo</code> in the wheel; smallest subnormals are 2<sup>&minus;24</sup>, 2<sup>&minus;133</sup>, 2<sup>&minus;149</sup> and 2<sup>&minus;1074</sup>. bfloat16 keeps float32's range with 8 bits of precision (eps 0.0078125); float16 has more precision but overflows above 65,504, which is why only float16 training needs a gradient scaler (section 4). Formats themselves live on {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}.</p>
+
+<h3>1.5 Devices, copies between them, and pinned memory</h3>
+<p>A storage lives on one <dfn>device</dfn> (<code>cpu</code>, <code>mps</code>, <code>cuda:0</code>), and an operation needs all its tensors on the same device. <code>.to(device)</code> is a copy (an <code>aten::_to_copy</code> call; a no-op if already there). On a GPU that copy crosses a bus, and copying from ordinary ("pageable") host memory makes the driver stage it through a pinned buffer first. <dfn>Pinned</dfn> (page-locked) host memory can be read by the GPU's copy engine directly, which is what lets <code>.to("cuda", non_blocking=True)</code> overlap the copy with compute. On this Mac, <code>torch.randn(1024).pin_memory()</code> worked and reported <code>is_pinned() == True</code>, but a <code>DataLoader(pin_memory=True)</code> warned <span id="tda-pinwarn" class="mute"></span> and returned unpinned batches <span class="meas">measured on Apple M1 Pro</span>. The overlap itself is a CUDA matter: not run here (no NVIDIA GPU); see {{Streams, CUDA graphs and multi-GPU|n:3f05c17b0d0d81b19a6acab65c370b75}}.</p>
+
+<h3>1.6 The rest of the header: requires_grad, grad_fn, the version counter</h3>
+<p>Beyond layout, a tensor carries autograd metadata: <code>requires_grad</code> (should gradients flow to it), <code>is_leaf</code> (made by you, not by a recorded op), <code>grad_fn</code> (the graph node that made it), <code>_base</code> (the tensor it views, if it is a view) and a <dfn>version counter</dfn>: an integer bumped by every in-place write. Views share the counter with their base, because they share the memory:</p>
+<div id="tda-vers" class="tw"></div>
+<p>Look at the last two rows. <code>no_grad</code> stops recording, not counting: the write under it still bumped the counter. And a write through <code>.data</code> did not bump it at all: <code>.data</code> hands you a tensor with a fresh counter, which is exactly how it fools autograd (section 3.4). Inference tensors (made under <code>inference_mode</code>) have no counter: reading <code>_version</code> raised <span id="tda-infver" class="tda-err"></span></p>
+<div class="pr" data-pr><div class="q">Predict: how many bytes does the running example's <code>state_dict</code> hold, counting each entry's tensor?</div>
+<div class="opts"><button>12,747,776 (3,186,944 &times; 4)</button><button data-ok>12,791,808</button><button>25,495,552</button></div>
+<div class="ans" hidden>12,791,808 <span class="der">derived</span>: the state_dict has 53 entries totalling 3,197,952 elements, because the tied <code>tok.weight</code> and <code>head.weight</code> (43 &times; 256 = 11,008 elements) appear under both names. They are one storage, so the real memory is 12,747,776 bytes; code that sums a state_dict overcounts (section 4).</div></div>
+</section>

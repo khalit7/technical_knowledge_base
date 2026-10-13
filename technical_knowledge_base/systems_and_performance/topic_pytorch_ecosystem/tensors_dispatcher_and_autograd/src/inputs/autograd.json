@@ -1,0 +1,795 @@
+{
+ "torch": "2.14.1",
+ "data_case_correct_grad": [
+  0.235004,
+  0.196612,
+  0.104994
+ ],
+ "version_lab": [
+  {
+   "id": "sigmoid",
+   "title": "Overwrite an output that its own backward needs",
+   "why": "SigmoidBackward0 saves its output y (d sigmoid = y(1 - y)). mul_ bumped y's version to 1; at backward the saved y says it was saved at version 0.",
+   "status": "error",
+   "error": {
+    "type": "RuntimeError",
+    "text": "one of the variables needed for gradient computation has been modified by an inplace operation: [torch.FloatTensor [3]], which is output 0 of Sigmoid, is at version 1; expected version 0 instead. Hint: enable anomaly detection to find the operation that failed to compute its gradient, with torch.autograd.set_detect_anomaly(True, check_nan=False).",
+    "hint": ""
+   },
+   "steps": [
+    {
+     "line": "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+     "versions": {},
+     "grad_fn": null
+    },
+    {
+     "line": "y = x.sigmoid()",
+     "versions": {
+      "y": 0
+     },
+     "grad_fn": "SigmoidBackward0"
+    },
+    {
+     "line": "y.mul_(2)",
+     "versions": {
+      "y": 1
+     },
+     "grad_fn": "MulBackward0"
+    },
+    {
+     "line": "y.sum().backward()",
+     "versions": null,
+     "error": true
+    }
+   ],
+   "lines": [
+    "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+    "y = x.sigmoid()",
+    "y.mul_(2)",
+    "y.sum().backward()"
+   ]
+  },
+  {
+   "id": "relu",
+   "title": "nn.ReLU(inplace=True) after a sigmoid",
+   "why": "The same error through a module: the in-place ReLU writes into the sigmoid's saved output.",
+   "status": "error",
+   "error": {
+    "type": "RuntimeError",
+    "text": "one of the variables needed for gradient computation has been modified by an inplace operation: [torch.FloatTensor [3]], which is output 0 of Sigmoid, is at version 1; expected version 0 instead. Hint: enable anomaly detection to find the operation that failed to compute its gradient, with torch.autograd.set_detect_anomaly(True, check_nan=False).",
+    "hint": ""
+   },
+   "steps": [
+    {
+     "line": "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+     "versions": {},
+     "grad_fn": null
+    },
+    {
+     "line": "y = torch.sigmoid(x)",
+     "versions": {
+      "y": 0
+     },
+     "grad_fn": "SigmoidBackward0"
+    },
+    {
+     "line": "z = torch.nn.ReLU(inplace=True)(y)",
+     "versions": {
+      "y": 1
+     },
+     "grad_fn": "ReluBackward0"
+    },
+    {
+     "line": "z.sum().backward()",
+     "versions": null,
+     "error": true
+    }
+   ],
+   "lines": [
+    "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+    "y = torch.sigmoid(x)",
+    "z = torch.nn.ReLU(inplace=True)(y)",
+    "z.sum().backward()"
+   ]
+  },
+  {
+   "id": "mulscalar",
+   "title": "In-place on an output nobody saved",
+   "why": "x * 2 saves only the scalar 2 (the gradient is grad * 2), so changing y in place is safe: the version check only runs on saved tensors.",
+   "status": "ok",
+   "error": null,
+   "steps": [
+    {
+     "line": "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+     "versions": {},
+     "grad_fn": null
+    },
+    {
+     "line": "y = x * 2",
+     "versions": {
+      "y": 0
+     },
+     "grad_fn": "MulBackward0"
+    },
+    {
+     "line": "y.add_(1)",
+     "versions": {
+      "y": 1
+     },
+     "grad_fn": "AddBackward0"
+    },
+    {
+     "line": "y.sum().backward()",
+     "versions": {
+      "y": 1
+     },
+     "grad_fn": "AddBackward0"
+    }
+   ],
+   "lines": [
+    "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+    "y = x * 2",
+    "y.add_(1)",
+    "y.sum().backward()"
+   ],
+   "grad_x": [
+    2.0,
+    2.0,
+    2.0
+   ]
+  },
+  {
+   "id": "optstep",
+   "title": "Update a weight between forward and backward",
+   "why": "PowBackward0 saved w itself. no_grad stops recording, not version counting: w is at version 1. This is the optimizer.step() before backward() bug, or an EMA update written in place.",
+   "status": "error",
+   "error": {
+    "type": "RuntimeError",
+    "text": "one of the variables needed for gradient computation has been modified by an inplace operation: [torch.FloatTensor [3]] is at version 1; expected version 0 instead. Hint: enable anomaly detection to find the operation that failed to compute its gradient, with torch.autograd.set_detect_anomaly(True, check_nan=False).",
+    "hint": ""
+   },
+   "steps": [
+    {
+     "line": "w = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)",
+     "versions": {
+      "w": 0
+     },
+     "grad_fn": null
+    },
+    {
+     "line": "loss = (w ** 2).sum()",
+     "versions": {
+      "w": 0
+     },
+     "grad_fn": null
+    },
+    {
+     "line": "with torch.no_grad(): w.add_(0.1)",
+     "versions": {
+      "w": 1
+     },
+     "grad_fn": null
+    },
+    {
+     "line": "loss.backward()",
+     "versions": null,
+     "error": true
+    }
+   ],
+   "lines": [
+    "w = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)",
+    "loss = (w ** 2).sum()",
+    "with torch.no_grad(): w.add_(0.1)",
+    "loss.backward()"
+   ]
+  },
+  {
+   "id": "leaf",
+   "title": "In-place on a leaf that requires grad",
+   "why": "A leaf's .grad must be the gradient of the value it had; autograd refuses outright. Do parameter updates under torch.no_grad().",
+   "status": "error",
+   "error": {
+    "type": "RuntimeError",
+    "text": "a leaf Variable that requires grad is being used in an in-place operation.",
+    "hint": ""
+   },
+   "steps": [
+    {
+     "line": "w = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)",
+     "versions": {
+      "w": 0
+     },
+     "grad_fn": null
+    },
+    {
+     "line": "w.add_(1)",
+     "versions": null,
+     "error": true
+    }
+   ],
+   "lines": [
+    "w = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)",
+    "w.add_(1)"
+   ]
+  },
+  {
+   "id": "leafview",
+   "title": "In-place on a view of such a leaf",
+   "why": "w[0] is a view; writing through it writes into the leaf.",
+   "status": "error",
+   "error": {
+    "type": "RuntimeError",
+    "text": "a view of a leaf Variable that requires grad is being used in an in-place operation.",
+    "hint": ""
+   },
+   "steps": [
+    {
+     "line": "w = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)",
+     "versions": {
+      "w": 0
+     },
+     "grad_fn": null
+    },
+    {
+     "line": "w[0].mul_(2)",
+     "versions": null,
+     "error": true
+    }
+   ],
+   "lines": [
+    "w = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)",
+    "w[0].mul_(2)"
+   ]
+  },
+  {
+   "id": "copyslices",
+   "title": "In-place on a view of a non-leaf: allowed, rebased",
+   "why": "Writing into a view of a non-leaf is legal. Autograd rewrites h's history with a CopySlices node, so the gradient of x[0] becomes 0.",
+   "status": "ok",
+   "error": null,
+   "steps": [
+    {
+     "line": "x = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)",
+     "versions": {},
+     "grad_fn": null
+    },
+    {
+     "line": "h = x * 1",
+     "versions": {
+      "h": 0
+     },
+     "grad_fn": "MulBackward0"
+    },
+    {
+     "line": "h[0] = 0",
+     "versions": {
+      "h": 1
+     },
+     "grad_fn": "CopySlices"
+    },
+    {
+     "line": "h.sum().backward()",
+     "versions": {
+      "h": 1
+     },
+     "grad_fn": "CopySlices"
+    }
+   ],
+   "lines": [
+    "x = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)",
+    "h = x * 1",
+    "h[0] = 0",
+    "h.sum().backward()"
+   ],
+   "grad_x": [
+    0.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "id": "data",
+   "title": "The .data trap: no error, wrong gradient",
+   "why": ".data gives a tensor with a fresh version counter, so the check cannot see the write. Backward uses the doubled y in y(1 - y) and returns a wrong gradient silently.",
+   "status": "ok",
+   "error": null,
+   "steps": [
+    {
+     "line": "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+     "versions": {},
+     "grad_fn": null
+    },
+    {
+     "line": "y = x.sigmoid()",
+     "versions": {
+      "y": 0
+     },
+     "grad_fn": "SigmoidBackward0"
+    },
+    {
+     "line": "y.data.mul_(2)",
+     "versions": {
+      "y": 0
+     },
+     "grad_fn": "SigmoidBackward0"
+    },
+    {
+     "line": "y.sum().backward()",
+     "versions": {
+      "y": 0
+     },
+     "grad_fn": "SigmoidBackward0"
+    }
+   ],
+   "lines": [
+    "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+    "y = x.sigmoid()",
+    "y.data.mul_(2)",
+    "y.sum().backward()"
+   ],
+   "grad_x": [
+    -0.304904,
+    0.248565,
+    -1.34162
+   ]
+  },
+  {
+   "id": "detach",
+   "title": "The same write through .detach(): caught",
+   "why": ".detach() shares the version counter with y, so the write is seen and backward refuses. Prefer .detach() to .data.",
+   "status": "error",
+   "error": {
+    "type": "RuntimeError",
+    "text": "one of the variables needed for gradient computation has been modified by an inplace operation: [torch.FloatTensor [3]], which is output 0 of Sigmoid, is at version 1; expected version 0 instead. Hint: enable anomaly detection to find the operation that failed to compute its gradient, with torch.autograd.set_detect_anomaly(True, check_nan=False).",
+    "hint": ""
+   },
+   "steps": [
+    {
+     "line": "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+     "versions": {},
+     "grad_fn": null
+    },
+    {
+     "line": "y = x.sigmoid()",
+     "versions": {
+      "y": 0
+     },
+     "grad_fn": "SigmoidBackward0"
+    },
+    {
+     "line": "y.detach().mul_(2)",
+     "versions": {
+      "y": 1
+     },
+     "grad_fn": "SigmoidBackward0"
+    },
+    {
+     "line": "y.sum().backward()",
+     "versions": null,
+     "error": true
+    }
+   ],
+   "lines": [
+    "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+    "y = x.sigmoid()",
+    "y.detach().mul_(2)",
+    "y.sum().backward()"
+   ]
+  },
+  {
+   "id": "clone",
+   "title": "Fix: write into a clone",
+   "why": "The clone has its own storage and version counter; the saved y is untouched.",
+   "status": "ok",
+   "error": null,
+   "steps": [
+    {
+     "line": "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+     "versions": {},
+     "grad_fn": null
+    },
+    {
+     "line": "y = x.sigmoid()",
+     "versions": {
+      "y": 0
+     },
+     "grad_fn": "SigmoidBackward0"
+    },
+    {
+     "line": "y2 = y.clone()",
+     "versions": {
+      "y": 0,
+      "y2": 0
+     },
+     "grad_fn": "CloneBackward0"
+    },
+    {
+     "line": "y2.mul_(2)",
+     "versions": {
+      "y": 0,
+      "y2": 1
+     },
+     "grad_fn": "MulBackward0"
+    },
+    {
+     "line": "y2.sum().backward()",
+     "versions": {
+      "y": 0,
+      "y2": 1
+     },
+     "grad_fn": "MulBackward0"
+    }
+   ],
+   "lines": [
+    "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+    "y = x.sigmoid()",
+    "y2 = y.clone()",
+    "y2.mul_(2)",
+    "y2.sum().backward()"
+   ],
+   "grad_x": [
+    0.470007,
+    0.393224,
+    0.209987
+   ]
+  },
+  {
+   "id": "hooks",
+   "title": "Saved-tensor hooks switch the check off",
+   "why": "With pack/unpack hooks installed, SavedVariable skips the version check (saved_variable.cpp L165-166 at v2.14.1). An identity pack keeps a reference to y, so backward reads the doubled y: no error, wrong gradient, exactly like .data.",
+   "status": "ok",
+   "error": null,
+   "steps": [
+    {
+     "line": "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+     "versions": {},
+     "grad_fn": null
+    },
+    {
+     "line": "with torch.autograd.graph.saved_tensors_hooks(lambda t: t, lambda t: t): y = x.sigmoid()",
+     "versions": {
+      "y": 0
+     },
+     "grad_fn": "SigmoidBackward0"
+    },
+    {
+     "line": "y.mul_(2)",
+     "versions": {
+      "y": 1
+     },
+     "grad_fn": "MulBackward0"
+    },
+    {
+     "line": "y.sum().backward()",
+     "versions": {
+      "y": 1
+     },
+     "grad_fn": "MulBackward0"
+    }
+   ],
+   "lines": [
+    "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+    "with torch.autograd.graph.saved_tensors_hooks(lambda t: t, lambda t: t): y = x.sigmoid()",
+    "y.mul_(2)",
+    "y.sum().backward()"
+   ],
+   "grad_x": [
+    -0.609808,
+    0.49713,
+    -2.683239
+   ]
+  },
+  {
+   "id": "hookscopy",
+   "title": "A pack hook that copies is immune",
+   "why": "Packing a copy (what save_on_cpu does, to the CPU) freezes the value at save time, so the later write cannot reach it and the gradient is right.",
+   "status": "ok",
+   "error": null,
+   "steps": [
+    {
+     "line": "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+     "versions": {},
+     "grad_fn": null
+    },
+    {
+     "line": "with torch.autograd.graph.saved_tensors_hooks(lambda t: t.clone(), lambda t: t): y = x.sigmoid()",
+     "versions": {
+      "y": 0
+     },
+     "grad_fn": "SigmoidBackward0"
+    },
+    {
+     "line": "y.mul_(2)",
+     "versions": {
+      "y": 1
+     },
+     "grad_fn": "MulBackward0"
+    },
+    {
+     "line": "y.sum().backward()",
+     "versions": {
+      "y": 1
+     },
+     "grad_fn": "MulBackward0"
+    }
+   ],
+   "lines": [
+    "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+    "with torch.autograd.graph.saved_tensors_hooks(lambda t: t.clone(), lambda t: t): y = x.sigmoid()",
+    "y.mul_(2)",
+    "y.sum().backward()"
+   ],
+   "grad_x": [
+    0.470007,
+    0.393224,
+    0.209987
+   ]
+  },
+  {
+   "id": "infsave",
+   "title": "An inference tensor used in training",
+   "why": "MulBackward0 must save c to compute x's gradient, and inference tensors have no version counter, so they cannot be saved. Clone it outside inference mode first.",
+   "status": "error",
+   "error": {
+    "type": "RuntimeError",
+    "text": "Inference tensors cannot be saved for backward. Please do not use Tensors created in inference mode in computation tracked by autograd. To work around this, you can make a clone to get a normal tensor and use it in autograd, or use `torch.no_grad()` instead of `torch.inference_mode()`.",
+    "hint": ""
+   },
+   "steps": [
+    {
+     "line": "with torch.inference_mode(): c = torch.ones(3)",
+     "versions": {},
+     "grad_fn": null
+    },
+    {
+     "line": "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+     "versions": {},
+     "grad_fn": null
+    },
+    {
+     "line": "y = x * c",
+     "versions": null,
+     "error": true
+    }
+   ],
+   "lines": [
+    "with torch.inference_mode(): c = torch.ones(3)",
+    "x = torch.tensor([0.5, -1.0, 2.0], requires_grad=True)",
+    "y = x * c",
+    "y.sum().backward()"
+   ]
+  },
+  {
+   "id": "infinplace",
+   "title": "Writing into an inference tensor outside inference mode",
+   "why": "Outside inference_mode, PyTorch cannot track the write (no version counter), so it refuses.",
+   "status": "error",
+   "error": {
+    "type": "RuntimeError",
+    "text": "Inplace update to inference tensor outside InferenceMode is not allowed.You can make a clone to get a normal tensor before doing inplace update.See https://github.com/pytorch/rfcs/pull/17 for more details.",
+    "hint": ""
+   },
+   "steps": [
+    {
+     "line": "with torch.inference_mode(): c = torch.ones(3)",
+     "versions": {},
+     "grad_fn": null
+    },
+    {
+     "line": "c.add_(1)",
+     "versions": null,
+     "error": true
+    }
+   ],
+   "lines": [
+    "with torch.inference_mode(): c = torch.ones(3)",
+    "c.add_(1)"
+   ]
+  }
+ ],
+ "hooks_order": [
+  "tensor hook: block output y",
+  "node pre-hook: AddBackward0 (y's grad_fn)",
+  "node hook: AddBackward0 (y's grad_fn)",
+  "module pre-hook: mlp (grad of its output arrives)",
+  "tensor hook: mlp.fc.weight (gradient before accumulation)",
+  "post-accumulate-grad hook: mlp.fc.weight (.grad is set)",
+  "module hook: mlp (grad of its input computed)",
+  "post-accumulate-grad hook: attn.qkv.weight",
+  "tensor hook: input x"
+ ],
+ "hook_modifies": {
+  "code": "w.register_hook(lambda g: g.clamp(-1, 1)); (w ** 3).sum().backward()",
+  "grad": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "unhooked": [
+   3.0,
+   12.0,
+   27.0
+  ]
+ },
+ "retain_create": {
+  "second_backward": "RuntimeError: Trying to backward through the graph a second time (or directly access saved tensors after they have already been freed). Saved intermediate values of the graph are freed when you call .backward() or autograd.grad(). Specify retain_graph=True if you need to backward through the graph a second time or if you need to access saved tensors after calling backward.",
+  "retain": {
+   "after_first": [
+    2.0,
+    4.0,
+    6.0
+   ],
+   "after_second": [
+    4.0,
+    8.0,
+    12.0
+   ]
+  },
+  "create_graph": {
+   "g": [
+    3.0,
+    12.0,
+    27.0
+   ],
+   "g_grad_fn": "MulBackward0",
+   "g_requires_grad": true,
+   "gg": [
+    6.0,
+    12.0,
+    18.0
+   ]
+  },
+  "without_create_graph": {
+   "g_requires_grad": false,
+   "second": "RuntimeError: element 0 of tensors does not require grad and does not have a grad_fn"
+  },
+  "penalty_ops": {
+   "forward_plus_grad": 15,
+   "forward_grad_create_graph_and_penalty_backward": 50
+  }
+ },
+ "custom_function": {
+  "gradcheck_good": true,
+  "gradgradcheck_good": true,
+  "gradcheck_bad": "GradcheckError: Jacobian mismatch for output 0 with respect to input 0,",
+  "gradcheck_bad_detail": [
+   "numerical:tensor([[ 1.1262,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000],",
+   "        [ 0.0000,  0.2725,  0.0000,  0.0000,  0.0000,  0.0000],",
+   "        [ 0.0000,  0.0000, -0.0671,  0.0000,  0.0000,  0.0000],",
+   "        [ 0.0000,  0.0000,  0.0000,  0.9079,  0.0000,  0.0000],",
+   "        [ 0.0000,  0.0000,  0.0000,  0.0000, -0.1009,  0.0000],"
+  ],
+  "grad_fn": "MyGeluBackward",
+  "matches_builtin": 1.091571277811454e-12,
+  "once_double": "RuntimeError: element 0 of tensors does not require grad and does not have a grad_fn"
+ },
+ "anomaly": {
+  "without": [
+   "nan",
+   "0.5"
+  ],
+  "with": "RuntimeError: Function 'SqrtBackward0' returned nan values in its 0th output.",
+  "warnings": [
+   "Anomaly Detection has been enabled. This mode will increase the runtime and should only be enabled for debugging.",
+   "Error detected in SqrtBackward0. Traceback of forward call that caused the error:"
+  ],
+  "forward_trace_last_lines": [
+   "(x.sqrt() * torch.tensor([0.0, 1.0])).sum().backward()",
+   "(Triggered internally at python_anomaly_mode.cpp:135.)"
+  ]
+ },
+ "grad_modes": [
+  {
+   "ctx": "grad mode on (default)",
+   "code": "y = w * 2",
+   "requires_grad": true,
+   "grad_fn": "MulBackward0",
+   "is_inference": false,
+   "later_backward": "ok"
+  },
+  {
+   "ctx": "torch.no_grad()",
+   "code": "with torch.no_grad(): y = w * 2",
+   "requires_grad": false,
+   "grad_fn": null,
+   "is_inference": false,
+   "later_backward": "ok"
+  },
+  {
+   "ctx": "torch.set_grad_enabled(False)",
+   "code": "with torch.set_grad_enabled(False): y = w * 2",
+   "requires_grad": false,
+   "grad_fn": null,
+   "is_inference": false,
+   "later_backward": "ok"
+  },
+  {
+   "ctx": "enable_grad inside no_grad",
+   "code": "with torch.no_grad():\n    with torch.enable_grad(): y = w * 2",
+   "requires_grad": true,
+   "grad_fn": "MulBackward0",
+   "is_inference": false,
+   "later_backward": "ok"
+  },
+  {
+   "ctx": "torch.inference_mode()",
+   "code": "with torch.inference_mode(): y = w * 2",
+   "requires_grad": false,
+   "grad_fn": null,
+   "is_inference": true,
+   "later_backward": "RuntimeError: Inference tensors cannot be saved for backward. Please do not use Tensors created in inference mode in computation tracked by autograd. To work around this, you can make a clone to get a normal tensor and use it in autograd, or use `torch.no_grad()` instead of `torch.inference_mode()`."
+  },
+  {
+   "ctx": "inference_mode(False) inside inference_mode",
+   "code": "with torch.inference_mode():\n    with torch.inference_mode(False): y = w * 2",
+   "requires_grad": true,
+   "grad_fn": "MulBackward0",
+   "is_inference": false,
+   "later_backward": "ok"
+  }
+ ],
+ "checkpoint_variants": {
+  "plain": {
+   "kind": "plain",
+   "live_after_forward": 34849288,
+   "forward_calls": 142,
+   "backward_calls": 295,
+   "addmm_in_backward": 0,
+   "loss": 3.801370859146118,
+   "warnings": [],
+   "max_grad_diff": 0.0
+  },
+  "non-reentrant": {
+   "kind": "non-reentrant",
+   "live_after_forward": 3326472,
+   "forward_calls": 138,
+   "backward_calls": 555,
+   "addmm_in_backward": 12,
+   "loss": 3.801370859146118,
+   "warnings": [],
+   "max_grad_diff": 0.0
+  },
+  "reentrant": {
+   "kind": "reentrant",
+   "live_after_forward": 3326472,
+   "forward_calls": 138,
+   "backward_calls": 431,
+   "addmm_in_backward": 16,
+   "loss": 3.801370859146118,
+   "warnings": [],
+   "max_grad_diff": 0.0
+  },
+  "unspecified": {
+   "kind": "unspecified",
+   "live_after_forward": 3326472,
+   "forward_calls": 138,
+   "backward_calls": 431,
+   "addmm_in_backward": 16,
+   "loss": 3.801370859146118,
+   "warnings": [
+    "torch.utils.checkpoint: the use_reentrant parameter should be passed explicitly. Starting in PyTorch 2.9, calling checkpoint without use_reentrant will raise an exception. use_reentrant=False is recom"
+   ],
+   "max_grad_diff": 0.0
+  }
+ },
+ "reentrant_gotchas": {
+  "reentrant_output_requires_grad": false,
+  "reentrant_backward": "RuntimeError: element 0 of tensors does not require grad and does not have a grad_fn",
+  "reentrant_weight_grad_is_none": true,
+  "reentrant_warning": [
+   "None of the inputs have requires_grad=True. Gradients will be None"
+  ],
+  "nonreentrant_output_requires_grad": true,
+  "nonreentrant_weight_grad_is_none": false,
+  "reentrant_autograd_grad": "RuntimeError: When use_reentrant=True, torch.utils.checkpoint is incompatible with .grad() or passing an `inputs` parameter to .backward(). To resolve this error, you can either set use_reentrant=False, or call .backward() without passing the `inputs` argument.",
+  "nonreentrant_autograd_grad": "ok"
+ },
+ "engine_threads": {
+  "cpu": {
+   "hook_thread_is_caller": true
+  },
+  "mps": {
+   "hook_thread_is_caller": false
+  }
+ }
+}
