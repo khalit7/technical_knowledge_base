@@ -1,0 +1,49 @@
+<div class="tab" id="t-calls" role="tabpanel" hidden>
+<style>
+#t-calls .rd-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;min-width:0}
+#t-calls .rd-card h4{margin:0 0 4px;font-size:14.5px}
+#t-calls .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-calls .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-calls .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px;overflow-wrap:anywhere}
+#t-calls .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:6px;margin:6px 0}
+#t-calls .an-cnt .stat .v{font-size:15px}
+#t-calls .meas{font-size:11.5px;color:var(--good);font-weight:600}
+#t-calls .cw-sel{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;margin:6px 0}
+#t-calls .cw-sel select{max-width:100%}
+#t-calls .cw-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:10px}
+#t-calls .cw-two>div{min-width:0}
+#t-calls .cw-col h5{margin:4px 0;font-size:13px}
+#t-calls .cw-list{display:flex;flex-direction:column;gap:3px;max-height:420px;overflow-y:auto}
+#t-calls .cw-it{border:1px solid var(--line);border-left:4px solid var(--sc);border-radius:6px;padding:3px 8px;font-size:12px;background:var(--bg);min-width:0;transition:background .2s}
+#t-calls .cw-it b{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;font-weight:600;overflow-wrap:anywhere}
+#t-calls .cw-it span{display:block;color:var(--mute);font-size:11px;overflow-wrap:anywhere}
+#t-calls .cw-it.on{background:var(--acc2);border-color:var(--acc)}
+#t-calls .cw-it.fut{opacity:.35}
+#t-calls .cw-ph{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:4px 0 0}
+#t-calls .tw table{min-width:640px}
+#t-calls .rd-tbl td,#t-calls .rd-tbl th{font-size:12.5px}
+#t-calls .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-calls .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-calls .rd-svg{width:100%;overflow:hidden}
+</style>
+<p class="lead">Each run below trained the running example for 3 steps (torchtitan: its own debug model for 10) while a profiler hook recorded every call that crossed from library code, or from the script itself, into PyTorch's Python API: who called (file, function, line), what was called, how often, and when it was first seen. A recorded run, not a reconstruction <span class="meas">measured on Apple M1 Pro, CPU, torch 2.14.1</span>; <code>src/exp/apitrace.py</code>, <code>calls_trace.py</code>.</p>
+<div class="rd-card" id="cw-card">
+<h4>One run's key calls in order, against the plain loop</h4>
+<div class="cw-sel"><label>Run <select id="cw-run"></select></label></div>
+<div class="an-cap" id="cw-cap"></div>
+<div class="an-cnt" id="cw-cnt"></div>
+<div class="an-ctl" id="cw-ctl"></div>
+<div class="cw-two"><div class="cw-col"><h5>Plain loop (you call PyTorch)</h5><div class="cw-list" id="cw-left"></div></div><div class="cw-col"><h5 id="cw-rt"></h5><div class="cw-list" id="cw-right"></div></div></div>
+<p class="small mute">Key calls only: process groups, meshes, DDP and <code>fully_shard</code>, collectives, <code>backward</code>, clipping, optimizer and scheduler steps, <code>zero_grad</code>, dataloaders, autocast, activation checkpointing, seeds, <code>.item()</code>. Order = first time each (caller, callee) pair was seen; counts are over the whole run. The first forward's own call is counted in setup.</p>
+</div>
+<h3>Every call into PyTorch, by kind, per training step</h3>
+<div class="leg" id="cw-leg"></div>
+<div class="tw"><table class="rd-tbl"><thead><tr><th>Run</th><th>Losses (first 3)</th><th>Setup calls</th><th>Calls per step</th><th>Per step, by kind</th></tr></thead><tbody id="cw-tbl"></tbody></table></div>
+<p class="small mute">"Maths" counts tensor operations called from library code: none for the Trainer, Accelerate and Lightning, whose model is yours; tens of thousands for torchtitan and DeepSpeed ZeRO-3, which own model code (torchtitan's Llama) or wrap every layer's forward and backward (ZeRO-3's parameter fetching). "Module" is <code>nn.Module</code> plumbing (attribute access, <code>parameters()</code>, hooks).</p>
+<div class="co key"><div class="t">What the trace sees, and what it cannot</div><ul class="tight">
+<li>It sees the boundary: a library calling <code>DistributedDataParallel(...)</code>, <code>fully_shard</code>, <code>clip_grad_norm_</code>, <code>dist.all_gather_into_tensor</code>. That is where a library's choices live.</li>
+<li>It does not see what PyTorch then does inside: DDP's bucketed all-reduces come from its C++ reducer and FSDP2's all-gathers from its own hooks, so they never cross a library boundary. The root's {{Distributed lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} counts those collectives; the {{Inside one step|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab follows a step down to ATen calls.</li>
+<li>DeepSpeed shows many collectives here because it issues them itself in Python (its <code>deepspeed.comm</code> layer calling <code>torch.distributed</code>).</li>
+</ul></div>
+<p>The root's {{Ecosystem map|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} shows the complementary view: the full Python call stack at the moment the forward and the optimizer step begin, for five entry points, and which core APIs each library's released source uses.</p>
+</div>

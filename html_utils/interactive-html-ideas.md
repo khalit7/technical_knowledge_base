@@ -3458,3 +3458,19 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | Compile time and caches tab: first step played back to scale with phases; every run with cache hits and load | Tab | The brief's timed lab | time_compile.jsonl |
 | torch.export outcomes table (dynamic specs, wrong specs, control flow) | Reading 11 | Each error message is the lesson | export.py |
 | tlparse compile-id table; minifier session stats and final repro | Reading 12 | Shows what the tools give you on a real run | trace_run.py + tlparse, minify.py |
+
+### Libraries on top of PyTorch: HF stack, torchtitan, Lightning, Axolotl, DeepSpeed (2026-10-13)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_pytorch_ecosystem/libraries_on_top_of_pytorch/src/viz_ideas.md`.
+
+| # | Idea | Placement | Score (0-2 each: parameter to move, reproduces a fact, computable, beyond a sentence, corrects a misconception, central question, absent elsewhere, animation; build cost subtracted) | Data |
+|---|---|---|---|---|
+| L1 | **Defaults lab, before/after**: the plain loop against any of 10 library settings over the same 150 steps, drawn step by step, with probe loss, training loss, learning rate or gradient norm; caption per step (lr, norm, clipped or not, both losses), counters; chips to add any other run | Own tab | 2+2+2+2+2+2+2+2-1 = 15 | `defaults_lab.json` (11 real runs) |
+| L2 | **Accumulation before/after animation**: the same 8 rows as 4 micro-batches, each row's share of the gradient under the mean of means against token weighting, drawn against the full batch's share, micro-batch by micro-batch, ending on the measured 59% gradient error | Reading, section 3 | 1+2+2+2+2+2+2+2-1 = 14 | `accum_lab.json` |
+| L3 | **What calls what, before/after**: the recorded key calls of one run in first-seen order, stepped against the plain loop's own calls (matching calls highlighted on both sides; calls the plain loop never makes called out), with per-step call counts by kind for 15 runs | Own tab | 1+2+2+2+1+2+2+2-1 = 13 | `calls_*.json` (sys.setprofile traces) |
+| L4 | Gradient norm per step against the clip line | Reading, section 2 | 0+2+2+2+2+1+2+0 = 11 | `defaults_lab.json` |
+| L5 | Predict-then-reveal x 3 (same losses through the Trainer?; how often does clip 1.0 bite?; does the mean of means diverge?) | Reading, sections 1 to 3 | 0+2+2+1+2+2+1+0 = 10 | recorded runs |
+| L6 | Final probe-loss bars for the 11 runs | Reading, section 2 | 0+2+2+1+1+2+1+0 = 9 | `defaults_lab.json` |
+| L7 | Chooser with reasons tied to recorded facts, and a porting checklist that highlights every default that differs between two ways of training | Own tab | 2+1+2+1+2+2+2+0-1 = 11 | source-read defaults |
+| L8 | torchtitan "what broke on CPU" as four stacked cards with the exact error and the smallest patch | Reading, section 6 | 0+2+2+1+2+1+2+0 = 10 | run logs |
+| L9 | Tables filled from data: who divides by what (measured error), torchtitan runs, DeepSpeed stages (losses, state bytes, collectives) | Reading | 0+2+2+1+1+2+1+0 = 9 | inputs |
