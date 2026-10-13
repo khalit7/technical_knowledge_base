@@ -35,7 +35,10 @@ HF = ["Qwen/Qwen3-Embedding-0.6B", "Qwen/Qwen3-Embedding-4B", "Qwen/Qwen3-Embedd
       "mixedbread-ai/mxbai-embed-large-v1", "mixedbread-ai/mxbai-rerank-base-v2", "mixedbread-ai/mxbai-rerank-large-v2",
       "cross-encoder/ms-marco-MiniLM-L6-v2", "colbert-ir/colbertv2.0", "answerdotai/answerai-colbert-small-v1",
       "vidore/colpali-v1.3", "vidore/colqwen2.5-v0.2", "google/embeddinggemma-300m", "Snowflake/snowflake-arctic-embed-l-v2.0",
-      "lightonai/GTE-ModernColBERT-v1", "nvidia/llama-embed-nemotron-8b", "intfloat/e5-mistral-7b-instruct"]
+      "lightonai/GTE-ModernColBERT-v1", "nvidia/llama-embed-nemotron-8b", "intfloat/e5-mistral-7b-instruct",
+      "Qwen/Qwen3-VL-Embedding-2B", "Qwen/Qwen3-VL-Reranker-2B", "jinaai/jina-embeddings-v5-text-small", "jinaai/jina-embeddings-v5-text-nano",
+      "jinaai/jina-reranker-v3.5", "jinaai/jina-reranker-v3", "voyageai/voyage-4-nano", "google/embeddinggemma-2", "perplexity-ai/pplx-embed-v1-0.6b",
+      "BAAI/bge-reranker-v2.5-gemma2-lightweight", "nomic-ai/colnomic-embed-multimodal-3b", "mixedbread-ai/mxbai-edge-colbert-v0-32m"]
 
 
 def get(url, binary=False):
@@ -123,6 +126,8 @@ def rel():
 def hf():
     out = load("hf_models.json")
     for m in HF:
+        if m in out and "error" not in out[m]:
+            continue
         try:
             d = json.loads(get(f"https://huggingface.co/api/models/{m}?expand[]=safetensors&expand[]=cardData&expand[]=lastModified&expand[]=createdAt&expand[]=sha&expand[]=downloads&expand[]=gated&expand[]=library_name&expand[]=pipeline_tag&expand[]=tags"))
         except Exception as e:
