@@ -1,0 +1,40 @@
+<section id="fst-s3">
+<h2>3. The worked hunt: one slow step, fixed one bottleneck at a time</h2>
+<p><b>The job.</b> The running example's larger variant (8 blocks, d 512, 8 heads, context 256, batch 8: 25.4M parameters) trained through a <code>DataLoader</code>, written the way a first version usually is:</p>
+<div class="code">loader = DataLoader(dataset, batch_size=8)          <span class="c"># num_workers=0: batches built in the main process</span>
+model = make_model(GPTConfig(..., attn="manual"))  <span class="c"># attention written out: softmax(QK^T / sqrt(d)) V</span>
+opt = torch.optim.AdamW(params, lr=6e-4)           <span class="c"># default implementation: for-loop on CPU and MPS</span>
+for x, y in loader:
+    _, loss = model(x.to(dev), y.to(dev))          <span class="c"># float32 everywhere</span>
+    loss.backward(); opt.step(); opt.zero_grad(set_to_none=True)
+    print(loss.item())                             <span class="c"># waits for the device every step</span></div>
+<p>The dataset spends 2 ms of Python work per sample before returning a window of text <span class="ann">illustrative cost</span>: a stand-in for decoding and tokenising raw data, set by hand so that data loading is visible. Everything else is the real model.</p>
+<div class="rd-card">
+<h4>Step one: where does the baseline step go? (per-phase time, synchronised after each phase)</h4>
+<div class="seg" id="fst-ph-seg"></div>
+<div class="bars" id="fst-ph-bars"></div>
+<p class="small mute" id="fst-ph-note"></p>
+</div>
+<div class="pr" id="fst-pr-hunt">
+<div class="q">Predict before reading on: on the Apple GPU (MPS), which change will speed this step up the most?</div>
+<div class="opts"><button data-a="0">DataLoader workers</button><button data-a="1">Fused AdamW</button><button data-a="2">bfloat16 autocast</button><button data-a="3">torch.compile</button></div>
+<div class="ans" hidden></div>
+</div>
+<div class="rd-card" id="fst-huntcard">
+<h4>Step two: apply one fix at a time, keep it only if it helps (median step time)</h4>
+<div class="seg" id="fst-hunt-seg"></div>
+<div class="bars" id="fst-hunt-bars"></div>
+<div class="an-cap" id="fst-hunt-cap"></div>
+<div class="an-ctl" id="fst-hunt-ctl"></div>
+<p class="small mute" id="fst-hunt-note"></p>
+</div>
+<p id="fst-hunt-read"></p>
+<div class="co key"><div class="t">The method, which is the point</div><ol class="tight">
+<li>Time the whole step honestly (section 1), then split it: per-phase timings with a synchronize, and a trace (section 2).</li>
+<li>Fix the biggest piece with the cheapest change that targets it.</li>
+<li>Measure again, with the spread. Keep the change only if the gain is larger than the noise; revert it otherwise, even if "everyone uses it".</li>
+<li>Check the loss is unchanged on the same batches (it was, to the printed digits, for every float32 stage here).</li>
+<li>Repeat until the remaining time is the work itself: matmuls on a busy device.</li>
+</ol></div>
+<p>The {{Profiler trace|#t-trace}} tab shows the first and last stage of this hunt as real traces on one clock.</p>
+</section>

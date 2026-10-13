@@ -1,0 +1,18 @@
+<section id="fst-s9">
+<h2>9. The logits problem and fused linear cross-entropy</h2>
+<p><b>The problem.</b> A language model's last layer turns each position's hidden vector (d numbers) into one score per vocabulary entry (V numbers): the <dfn>logits</dfn>, a tensor of batch &times; sequence &times; V. The running example's vocabulary is 43 characters, so its logits are tiny. Real tokenisers have tens of thousands of entries (GPT-2's has 50,257), and then the logits, their softmax and their gradient become the largest tensors of the whole step.</p>
+<p>To see it, the larger variant was given GPT-2's vocabulary size (V = 50,257; the batches still use only our 43 characters, which changes no shapes and therefore no bytes). One logits tensor is then 8 &times; 256 &times; 50,257 &times; 4 bytes = <span class="der">411.7 MB</span>.</p>
+<p><b>How fusing fixes it.</b> Instead of computing all logits and then the loss, a fused <dfn>linear cross-entropy</dfn> processes the positions in chunks: for each chunk it computes that chunk's logits, the loss and the gradient pieces, then frees them. The full logits tensor never exists. The same idea is behind {{Liger Kernel|https://github.com/linkedin/Liger-Kernel}}'s fused linear cross-entropy and Apple's {{Cut Cross-Entropy|https://arxiv.org/abs/2411.09009}} (2024); PyTorch 2.13 added it to core as <code>nn.LinearCrossEntropyLoss</code> and <code>F.linear_cross_entropy</code> ({{2.13 release notes|https://github.com/pytorch/pytorch/releases/tag/v2.13.0}}, "up to 4x lower peak memory", release-note figure).</p>
+<div class="co warn"><div class="t">The default does not chunk</div>At 2.14.1, <code>F.linear_cross_entropy(x, W, y)</code> with the default <code>options=None</code> runs the <i>reference</i> path, which materialises all logits like the unfused code. The chunked path needs <code>options=LinearCrossEntropyOptions()</code> (from <code>torch.nn.modules.linear_cross_entropy_options</code>; its docstring: "Pass <code>options=None</code> to use the reference path; pass an instance of this class to opt in"). Measured below: the default saves exactly nothing.</div>
+<div class="code">from torch.nn.modules.linear_cross_entropy_options import LinearCrossEntropyOptions
+h = model.ln_f(hidden)                                   <span class="c"># (B*T, d): stop before the head</span>
+loss = F.linear_cross_entropy(h.view(-1, d), model.head.weight, y.view(-1),
+                              options=LinearCrossEntropyOptions())   <span class="c"># without options: no chunking</span></div>
+<div class="rd-card" id="fst-lcecard">
+<h4>Peak memory of one step with a 50,257-entry vocabulary</h4>
+<div class="bars" id="fst-lce-bars"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, CPU, float32, PyTorch 2.14.1, deterministic (CPU memory profiler, src/exp/mem_step.py); the same loss in every run (<span id="fst-lce-loss"></span>). <span id="fst-lce-time"></span></p>
+</div>
+<p id="fst-lce-read"></p>
+<p><b>When it matters.</b> Large vocabularies with long sequences: the logits scale with tokens per step &times; V, independent of model width, so a small model with a big tokenizer is hit hardest. The options docstring adds its own rule: chunking "is a win when <code>num_batches &gt;= in_features</code> and <code>num_classes &gt; in_features</code>; below that, the reference path is cheaper". With 43 classes the running example is far below that. <b>How to check it:</b> the peak (section 7) with and without; the loss must match to rounding.</p>
+</section>
