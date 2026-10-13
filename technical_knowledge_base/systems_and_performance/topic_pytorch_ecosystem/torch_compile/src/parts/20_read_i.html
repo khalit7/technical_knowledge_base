@@ -1,0 +1,57 @@
+<section id="tcp-s12">
+<h2>12. Debugging: a workflow and its tools</h2>
+<p>When compile misbehaves, the symptom is one of four: it is slow to compile, it is not faster, it gives different numbers, or it crashes. The workflow, each step with the tool used on this page:</p>
+<ol>
+<li><b>Count graphs and breaks first.</b> <code>torch._dynamo.explain(model)(x, y)</code> (sections 3 and 4). Then <code>TORCH_LOGS="graph_breaks,recompiles"</code> on a real run.</li>
+<li><b>Bisect the stack.</b> <code>backend="eager"</code> runs Dynamo only, <code>"aot_eager"</code> adds AOTAutograd, the default adds Inductor. Whichever first changes the numbers or crashes is the culprit.</li>
+<li><b>Read one compile end to end.</b> Set <code>TORCH_TRACE=&lt;dir&gt;</code> and run <code>tlparse</code> on the log: one HTML report with every frame compiled, every graph (Dynamo, joint, forward, backward, post-grad), the generated code, guards, breaks and recompile reasons per compile id.</li>
+<li><b>Shrink a crash.</b> <code>torch._dynamo.config.repro_after = "aot"</code> (or <code>"dynamo"</code>) makes a failing compile write a launcher script; running it minifies the graph.</li>
+<li><b>Find where compile time goes.</b> <code>torch._dynamo.utils.calculate_time_spent()</code> (section 10), or the <code>compilation_metrics</code> pages tlparse writes.</li>
+</ol>
+<p><b>tlparse on a real run.</b> The running example with a <code>print</code> in <code>Block.forward</code>, run for two steps with batch 8 then 4 (one recompile), traced and parsed with tlparse 0.4.3 (installed here). The compile ids it lists, <code>[frame/attempt]</code>:</p>
+<div class="tw"><table class="rd-tbl tcp-tbl" id="tcp-tl-tbl"></table></div>
+<p>Frame 0 is <code>GPT.forward</code>: its only artifact is the break ("Failed to handle graph break gracefully. Skipping the function and falling back to eager"), confirming section 3's surprise. Frame 1 is <code>Block.forward</code> before the print, frame 2 the resume function after it ("torch_dynamo_resume_in_blk_print_at_10"); each compiled twice, the second time because "tensor 'x' size mismatch at index 0. expected 8, actual 4". Each compiled frame lists about 30 artifacts, from the Dynamo graph to the cache misses.</p>
+<p><b>The minifier on purpose.</b> Inductor has a test-only switch that makes every <code>relu</code> fail to compile (<code>torch._inductor.config.cpp.inject_relu_bug_TESTING_ONLY = "compile_error"</code>). With <code>repro_after = "aot"</code>, a five-line function (matmul, scale, add, relu, matmul, LayerNorm, sum) crashed with a C++ compile error and left a launcher script; running it, recorded:</p>
+<div class="tcp-kv" id="tcp-mini"></div>
+<pre class="code" id="tcp-mini-code"></pre>
+<p>That is the deliverable you attach to a bug report: a self-contained script whose graph is just the failing op. The minifier's strategies (dead-code elimination, removing inputs and outputs, truncating the graph, delta debugging) ran 25 times; on a large model this takes hours rather than the 65 seconds here, so run it on a small reproduction when you can.</p>
+</section>
+<section id="tcp-s13">
+<h2>13. What carries over to NVIDIA GPUs, and what does not</h2>
+<div class="tw"><table class="rd-tbl tcp-tbl">
+<thead><tr><th>Measured here</th><th>On an NVIDIA GPU</th></tr></thead>
+<tbody>
+<tr><td>Bytecode walk, VariableTrackers, guards, guard tree</td><td>Identical: Dynamo is device-independent; only TENSOR_MATCH's device and dispatch keys change.</td></tr>
+<tr><td>Graph breaks, nested breaks, recompiles, dynamic shapes, unbacked symbols, recompile limit</td><td>Identical behaviour; the cost of each break is usually larger (more launches, CUDA graphs cannot span it).</td></tr>
+<tr><td>Partitioner decisions and saved bytes</td><td>Same algorithm; Inductor's GPU path can also recompute through fusible chains, and the budget's runtime estimate uses FLOPs either way. The time a recompute costs differs.</td></tr>
+<tr><td>Fusion groups, 4 kernels per block forward</td><td>The same groups (the Triton code above came from the same decisions); matmuls go to cuBLAS or, with <code>max_autotune</code>, Triton templates; attention to a flash or cuDNN kernel.</td></tr>
+<tr><td>Step time: no gain on CPU, 1.18x on MPS (Compile lab)</td><td>Does not transfer. Vendor figure: 43% faster training on average on an A100 over 163 models (PyTorch team, 2023, {{PyTorch 2.x|https://pytorch.org/get-started/pytorch-2-x/}}).</td></tr>
+<tr><td>Compile times (9.2 s cold, 0.85 s warm, 5.7 s regional)</td><td>The shape transfers (regional flat in depth, warm far below cold); absolute values do not. On GPU the mega-cache also carries Triton binaries and autotuning (not measured here).</td></tr>
+<tr><td>reduce-overhead, max-autotune, CUDA graphs</td><td>Not run here: CUDA only. See {{Streams, CUDA graphs and multi-GPU|n:3f05c17b0d0d81b19a6acab65c370b75}}.</td></tr>
+</tbody></table></div>
+</section>
+<section id="tcp-mis">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Logging inside the model with <code>print</code> or <code>.item()</code></summary><div class="b">Each is a graph break; inside the block loop it costs the whole <code>forward</code> (section 3). Log outside the compiled function, or keep values as tensors and read them every N steps.</div></details>
+<details class="mist"><summary>Calling <code>mark_dynamic</code> on one tensor of several that share a dimension</summary><div class="b">The targets carry the same length as the inputs and are guarded too (Compile lab); mark every tensor with the dimension, or give the bound with <code>min</code> and <code>max</code> so violations are errors you see.</div></details>
+<details class="mist"><summary>Assuming <code>nested_graph_breaks</code> keeps a model compiled</summary><div class="b">It did nothing for a break inside a <code>for</code> loop over blocks, measured (section 3).</div></details>
+<details class="mist"><summary>Passing a different Python string, dtype or config value each call</summary><div class="b">Guarded by value with no symbolic fallback: after 8 versions, eager mode with only a warning (section 4).</div></details>
+<details class="mist"><summary>Timing the first call</summary><div class="b">It includes 9 seconds of compiling here; warm up, then time, and synchronise on a GPU ({{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}} section 1).</div></details>
+<details class="mist"><summary>Compiling the whole model when compile time hurts</summary><div class="b">Compile the block (section 9): 5.7 s instead of 9.2 s here, and it does not grow with depth.</div></details>
+<details class="mist"><summary>Measuring a "cold" compile with a warm cache</summary><div class="b">The caches are on by default and survive processes: 0.85 s looks like a fast compiler. Use an empty <code>TORCHINDUCTOR_CACHE_DIR</code>.</div></details>
+<details class="mist"><summary>Feeding a sliced tensor to an AOTInductor package</summary><div class="b">Wrong answers with no warning, measured (section 11). Make inputs contiguous.</div></details>
+<details class="mist"><summary>Reading <code>activation_memory_budget</code> from <code>torch._dynamo.config</code></summary><div class="b">It lives in <code>torch._functorch.config</code> at 2.14.1 (the sibling page found the blog's spelling does not exist).</div></details>
+</section>
+<section id="tcp-iq">
+<h2>Interview questions, with short answers</h2>
+<details class="qa"><summary>How does Dynamo capture a graph without running the model on real data?</summary><div>It installs a PEP 523 frame evaluator and symbolically executes each frame's bytecode with VariableTrackers; tensors are fake tensors carrying shapes, so ops add FX nodes and Python values are computed at trace time and protected by guards.</div></details>
+<details class="qa"><summary>What is a guard, and what happens when one fails?</summary><div>A condition the compiled code assumed (shape, dtype, object identity, global state), checked in C++ before each call. On failure Dynamo recompiles and caches another version, up to <code>recompile_limit</code> (8), then runs eagerly.</div></details>
+<details class="qa"><summary>Why might one graph break cost the whole model?</summary><div>A break inside a loop cannot be resumed, so Dynamo skips the enclosing frame: everything outside the blocks runs eagerly and the blocks compile in pieces.</div></details>
+<details class="qa"><summary>Backed versus unbacked symbolic sizes?</summary><div>Backed come from input sizes and have an example value to answer branches; unbacked come from data (<code>.item()</code>, <code>nonzero</code>) and do not, so branches on them need <code>torch._check</code> or <code>torch.cond</code>.</div></details>
+<details class="qa"><summary>What does the min-cut partitioner optimise?</summary><div>Which joint-graph values the forward saves for backward: it minimises saved bytes, recomputing cheap ops; <code>activation_memory_budget</code> lets it recompute expensive ones too.</div></details>
+<details class="qa"><summary>Where does Inductor fuse?</summary><div>Mostly at lowering (pointwise ops are inlined into consumers), then in the scheduler (vertical and horizontal fusion of loops); matmuls and attention stay library calls unless autotuning picks a template.</div></details>
+<details class="qa"><summary>What do the modes change?</summary><div>Only Inductor config: reduce-overhead turns on CUDA graphs; max-autotune adds matmul autotuning, coordinate-descent tuning and CUDA graphs; -no-cudagraphs drops the graphs.</div></details>
+<details class="qa"><summary>Compiled autograd: what and why?</summary><div>Tracing the autograd engine's graph at backward time, including hooks and accumulation, so the backward compiles as one graph and distributed communication can be traced and overlapped.</div></details>
+<details class="qa"><summary>How do you cut compile time for a 70B model?</summary><div>Regional compilation of the repeated block, warm caches shared across ranks (mega-cache), avoiding recompiles (mark dynamic dims, stable Python args), and profiling compile time by phase.</div></details>
+<details class="qa"><summary>torch.compile versus torch.export?</summary><div>compile is a JIT inside Python that tolerates breaks and recompiles; export captures one full graph with explicit dynamic-shape constraints for deployment (ExecuTorch, AOTInductor, ONNX).</div></details>
+</section>
