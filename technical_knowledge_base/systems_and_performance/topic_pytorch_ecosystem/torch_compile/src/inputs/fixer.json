@@ -1,0 +1,659 @@
+{
+ "torch": "2.14.1",
+ "kinds": [
+  {
+   "key": "print",
+   "label": "print()",
+   "how": "config.reorderable_logging_functions = {print}: Dynamo moves the print after the graph",
+   "conf": {
+    "reorderable_logging_functions": [
+     "print"
+    ]
+   },
+   "src_break": "def print_break(self, x):\n    x = x + self.attn(self.ln1(x))\n    print(\"block done\")\n    return x + self.mlp(self.ln2(x))\n",
+   "src_fix": "def print_fix(self, x):            # same code; config.reorderable_logging_functions = {print} set by the runner\n    x = x + self.attn(self.ln1(x))\n    print(\"block done\")\n    return x + self.mlp(self.ln2(x))\n",
+   "broken": {
+    "graphs": 2,
+    "breaks": 1,
+    "ops_per_graph": [
+     8,
+     5
+    ],
+    "reasons": [
+     {
+      "reason": "Failed to trace builtin operator",
+      "where": [
+       "fixer.py:16 in print_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "Unsupported: Failed to trace builtin operator",
+    "pieces_compiled": 2,
+    "piece_ops": [
+     18,
+     5
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   },
+   "fixed": {
+    "graphs": 1,
+    "breaks": 0,
+    "ops_per_graph": [
+     59
+    ],
+    "reasons": [],
+    "fullgraph_error": "",
+    "pieces_compiled": 1,
+    "piece_ops": [
+     101
+    ],
+    "pieces_per_forward": 1,
+    "max_diff_vs_original": 0.0
+   }
+  },
+  {
+   "key": "item",
+   "label": ".item()",
+   "how": "keep the value a 0-d tensor",
+   "conf": {},
+   "src_break": "def item_break(self, x):\n    x = x + self.attn(self.ln1(x))\n    s = x.abs().max().item()\n    return x + self.mlp(self.ln2(x)) * (1.0 if s < 1e9 else 0.0)\n",
+   "src_fix": "def item_fix(self, x):             # keep the scalar a tensor\n    x = x + self.attn(self.ln1(x))\n    s = x.abs().max()\n    return x + self.mlp(self.ln2(x)) * (s < 1e9).to(x.dtype)\n",
+   "broken": {
+    "graphs": 3,
+    "breaks": 2,
+    "ops_per_graph": [
+     8,
+     6,
+     6
+    ],
+    "reasons": [
+     {
+      "reason": "Unsupported Tensor.item() call with capture_scalar_outputs=False",
+      "where": [
+       "fixer.py:24 in item_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "UserError: Consider annotating your code using torch._check*(). Could not guard on data-dependent expression zuf0 < 1000000000.0 (unhinted: zuf0 < 1000000000.0).  (Size-like symbols: none)",
+    "pieces_compiled": 3,
+    "piece_ops": [
+     20,
+     6,
+     6
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   },
+   "fixed": {
+    "graphs": 1,
+    "breaks": 0,
+    "ops_per_graph": [
+     67
+    ],
+    "reasons": [],
+    "fullgraph_error": "",
+    "pieces_compiled": 1,
+    "piece_ops": [
+     121
+    ],
+    "pieces_per_forward": 1,
+    "max_diff_vs_original": 0.0
+   }
+  },
+  {
+   "key": "item_cfg",
+   "label": ".item() with capture_scalar_outputs",
+   "how": "config.capture_scalar_outputs = True: the scalar becomes an unbacked symbol in the graph",
+   "conf": {
+    "capture_scalar_outputs": true
+   },
+   "src_break": "def item_break(self, x):\n    x = x + self.attn(self.ln1(x))\n    s = x.abs().max().item()\n    return x + self.mlp(self.ln2(x)) * (1.0 if s < 1e9 else 0.0)\n",
+   "src_fix": "def item_break(self, x):\n    x = x + self.attn(self.ln1(x))\n    s = x.abs().max().item()\n    return x + self.mlp(self.ln2(x)) * (1.0 if s < 1e9 else 0.0)\n",
+   "broken": {
+    "graphs": 3,
+    "breaks": 2,
+    "ops_per_graph": [
+     8,
+     6,
+     6
+    ],
+    "reasons": [
+     {
+      "reason": "Unsupported Tensor.item() call with capture_scalar_outputs=False",
+      "where": [
+       "fixer.py:24 in item_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "UserError: Consider annotating your code using torch._check*(). Could not guard on data-dependent expression zuf0 < 1000000000.0 (unhinted: zuf0 < 1000000000.0).  (Size-like symbols: none)",
+    "pieces_compiled": 3,
+    "piece_ops": [
+     20,
+     6,
+     6
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   },
+   "fixed": {
+    "graphs": 2,
+    "breaks": 1,
+    "ops_per_graph": [
+     13,
+     2
+    ],
+    "reasons": [
+     {
+      "reason": "generic_jump SymNodeVariable()",
+      "where": [
+       "fixer.py:25 in item_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "UserError: Consider annotating your code using torch._check*(). Could not guard on data-dependent expression zuf0 < 1000000000.0 (unhinted: zuf0 < 1000000000.0).  (Size-like symbols: none)",
+    "pieces_compiled": 2,
+    "piece_ops": [
+     26,
+     2
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   }
+  },
+  {
+   "key": "if",
+   "label": "if on a tensor value",
+   "how": "torch.where computes both branches",
+   "conf": {},
+   "src_break": "def if_break(self, x):\n    x = x + self.attn(self.ln1(x))\n    if x.abs().max() > 100:\n        x = x / 100\n    return x + self.mlp(self.ln2(x))\n",
+   "src_fix": "def if_fix(self, x):               # both branches as tensors: torch.where\n    x = x + self.attn(self.ln1(x))\n    m = x.abs().max()\n    x = torch.where(m > 100, x / 100, x)\n    return x + self.mlp(self.ln2(x))\n",
+   "broken": {
+    "graphs": 2,
+    "breaks": 1,
+    "ops_per_graph": [
+     9,
+     5
+    ],
+    "reasons": [
+     {
+      "reason": "generic_jump TensorVariable()",
+      "where": [
+       "fixer.py:32 in if_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "Unsupported: Data-dependent branching",
+    "pieces_compiled": 2,
+    "piece_ops": [
+     21,
+     5
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   },
+   "fixed": {
+    "graphs": 1,
+    "breaks": 0,
+    "ops_per_graph": [
+     71
+    ],
+    "reasons": [],
+    "fullgraph_error": "",
+    "pieces_compiled": 1,
+    "piece_ops": [
+     121
+    ],
+    "pieces_per_forward": 1,
+    "max_diff_vs_original": 0.0
+   }
+  },
+  {
+   "key": "cond",
+   "label": "if on a tensor value, torch.cond",
+   "how": "torch.cond keeps both branches inside one graph",
+   "conf": {},
+   "src_break": "def if_break(self, x):\n    x = x + self.attn(self.ln1(x))\n    if x.abs().max() > 100:\n        x = x / 100\n    return x + self.mlp(self.ln2(x))\n",
+   "src_fix": "def if_fix_cond(self, x):          # or torch.cond: one graph holding both branches\n    x = x + self.attn(self.ln1(x))\n    x = torch.cond(x.abs().max() > 100, lambda t: t / 100, lambda t: t.clone(), (x,))\n    return x + self.mlp(self.ln2(x))\n",
+   "broken": {
+    "graphs": 2,
+    "breaks": 1,
+    "ops_per_graph": [
+     9,
+     5
+    ],
+    "reasons": [
+     {
+      "reason": "generic_jump TensorVariable()",
+      "where": [
+       "fixer.py:32 in if_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "Unsupported: Data-dependent branching",
+    "pieces_compiled": 2,
+    "piece_ops": [
+     21,
+     5
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   },
+   "fixed": {
+    "graphs": 1,
+    "breaks": 0,
+    "ops_per_graph": [
+     71
+    ],
+    "reasons": [],
+    "fullgraph_error": "",
+    "pieces_compiled": 1,
+    "piece_ops": [
+     121
+    ],
+    "pieces_per_forward": 1,
+    "max_diff_vs_original": 0.0
+   }
+  },
+  {
+   "key": "numpy",
+   "label": "NumPy on .numpy()",
+   "how": "the same reduction in torch",
+   "conf": {},
+   "src_break": "def numpy_break(self, x):\n    x = x + self.attn(self.ln1(x))\n    import numpy as np\n    s = float(np.linalg.norm(x.detach().cpu().numpy()))\n    return x + self.mlp(self.ln2(x)) * (1.0 if s > 0 else 0.0)\n",
+   "src_fix": "def numpy_fix(self, x):            # the same reduction in torch\n    x = x + self.attn(self.ln1(x))\n    s = torch.linalg.vector_norm(x.detach())\n    return x + self.mlp(self.ln2(x)) * (s > 0).to(x.dtype)\n",
+   "broken": {
+    "graphs": 3,
+    "breaks": 2,
+    "ops_per_graph": [
+     9,
+     6,
+     6
+    ],
+    "reasons": [
+     {
+      "reason": "Data dependent operator",
+      "where": [
+       "fixer.py:47 in numpy_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "UserError: Consider annotating your code using torch._check*(). Could not guard on data-dependent expression zuf0 > 0.0 (unhinted: zuf0 > 0.0).  (Size-like symbols: none)",
+    "pieces_compiled": 3,
+    "piece_ops": [
+     22,
+     6,
+     6
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   },
+   "fixed": {
+    "graphs": 1,
+    "breaks": 0,
+    "ops_per_graph": [
+     71
+    ],
+    "reasons": [],
+    "fullgraph_error": "",
+    "pieces_compiled": 1,
+    "piece_ops": [
+     121
+    ],
+    "pieces_per_forward": 1,
+    "max_diff_vs_original": 0.0
+   }
+  },
+  {
+   "key": "mask",
+   "label": "boolean-mask indexing",
+   "how": "torch.where keeps the shape static",
+   "conf": {},
+   "src_break": "def mask_break(self, x):           # boolean-mask indexing: output size depends on the data\n    x = x + self.attn(self.ln1(x))\n    h = self.mlp(self.ln2(x))\n    big = h[h.abs() > 1e9]\n    return x + h + big.sum()\n",
+   "src_fix": "def mask_fix(self, x):             # keep the shape static: zero out instead of selecting\n    x = x + self.attn(self.ln1(x))\n    h = self.mlp(self.ln2(x))\n    big = torch.where(h.abs() > 1e9, h, torch.zeros_like(h))\n    return x + h + big.sum()\n",
+   "broken": {
+    "graphs": 2,
+    "breaks": 1,
+    "ops_per_graph": [
+     13,
+     2
+    ],
+    "reasons": [
+     {
+      "reason": "Dynamic shape operator",
+      "where": [
+       "fixer.py:56 in mask_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "",
+    "pieces_compiled": 2,
+    "piece_ops": [
+     24,
+     3
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   },
+   "fixed": {
+    "graphs": 1,
+    "breaks": 0,
+    "ops_per_graph": [
+     75
+    ],
+    "reasons": [],
+    "fullgraph_error": "",
+    "pieces_compiled": 1,
+    "piece_ops": [
+     125
+    ],
+    "pieces_per_forward": 1,
+    "max_diff_vs_original": 0.0
+   }
+  },
+  {
+   "key": "mask_cfg",
+   "label": "boolean-mask indexing with capture_dynamic_output_shape_ops",
+   "how": "config.capture_dynamic_output_shape_ops = True: the selected size becomes an unbacked symbol",
+   "conf": {
+    "capture_dynamic_output_shape_ops": true
+   },
+   "src_break": "def mask_break(self, x):           # boolean-mask indexing: output size depends on the data\n    x = x + self.attn(self.ln1(x))\n    h = self.mlp(self.ln2(x))\n    big = h[h.abs() > 1e9]\n    return x + h + big.sum()\n",
+   "src_fix": "def mask_break(self, x):           # boolean-mask indexing: output size depends on the data\n    x = x + self.attn(self.ln1(x))\n    h = self.mlp(self.ln2(x))\n    big = h[h.abs() > 1e9]\n    return x + h + big.sum()\n",
+   "broken": {
+    "graphs": 2,
+    "breaks": 1,
+    "ops_per_graph": [
+     13,
+     2
+    ],
+    "reasons": [
+     {
+      "reason": "Dynamic shape operator",
+      "where": [
+       "fixer.py:56 in mask_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "",
+    "pieces_compiled": 2,
+    "piece_ops": [
+     24,
+     3
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   },
+   "fixed": {
+    "graphs": 1,
+    "breaks": 0,
+    "ops_per_graph": [
+     91
+    ],
+    "reasons": [],
+    "fullgraph_error": "",
+    "pieces_compiled": 1,
+    "piece_ops": [
+     141
+    ],
+    "pieces_per_forward": 1,
+    "max_diff_vs_original": 0.0
+   }
+  },
+  {
+   "key": "disable",
+   "label": "a @torch.compiler.disable helper",
+   "how": "call it outside the compiled function",
+   "conf": {},
+   "src_break": "def disable_break(self, x):\n    x = x + self.attn(self.ln1(x))\n    log_stats(x)\n    return x + self.mlp(self.ln2(x))\n",
+   "src_fix": "def disable_fix(self, x):          # call the helper outside the compiled region (here: dropped from forward)\n    x = x + self.attn(self.ln1(x))\n    return x + self.mlp(self.ln2(x))\n",
+   "broken": {
+    "graphs": 2,
+    "breaks": 1,
+    "ops_per_graph": [
+     8,
+     5
+    ],
+    "reasons": [
+     {
+      "reason": "Skip calling `torch.compiler.disable()`d function",
+      "where": [
+       "fixer.py:68 in disable_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "Unsupported: Skip calling `torch.compiler.disable()`d function",
+    "pieces_compiled": 2,
+    "piece_ops": [
+     18,
+     5
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   },
+   "fixed": {
+    "graphs": 1,
+    "breaks": 0,
+    "ops_per_graph": [
+     59
+    ],
+    "reasons": [],
+    "fullgraph_error": "",
+    "pieces_compiled": 1,
+    "piece_ops": [
+     101
+    ],
+    "pieces_per_forward": 1,
+    "max_diff_vs_original": 0.0
+   }
+  },
+  {
+   "key": "explicit",
+   "label": "torch._dynamo.graph_break()",
+   "how": "remove it",
+   "conf": {},
+   "src_break": "def explicit_break(self, x):\n    x = x + self.attn(self.ln1(x))\n    torch._dynamo.graph_break()\n    return x + self.mlp(self.ln2(x))\n",
+   "src_fix": "    def forward(self, x):\n        x = x + self.attn(self.ln1(x))\n        x = x + self.mlp(self.ln2(x))\n        return x\n",
+   "broken": {
+    "graphs": 2,
+    "breaks": 1,
+    "ops_per_graph": [
+     8,
+     5
+    ],
+    "reasons": [
+     {
+      "reason": "Call to `torch._dynamo.graph_break()`",
+      "where": [
+       "fixer.py:75 in explicit_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "Unsupported: Call to `torch._dynamo.graph_break()`",
+    "pieces_compiled": 2,
+    "piece_ops": [
+     18,
+     5
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   },
+   "fixed": {
+    "graphs": 1,
+    "breaks": 0,
+    "ops_per_graph": [
+     59
+    ],
+    "reasons": [],
+    "fullgraph_error": "",
+    "pieces_compiled": 1,
+    "piece_ops": [
+     101
+    ],
+    "pieces_per_forward": 1,
+    "max_diff_vs_original": 0.0
+   }
+  },
+  {
+   "key": "random",
+   "label": "Python random.random()",
+   "how": "torch.rand (traced, seeded by torch)",
+   "conf": {},
+   "src_break": "def random_break(self, x):         # Python's random module inside the model\n    x = x + self.attn(self.ln1(x))\n    keep = 1.0 if random.random() < 2.0 else 0.0\n    return x + self.mlp(self.ln2(x)) * keep\n",
+   "src_fix": "def random_fix(self, x):\n    x = x + self.attn(self.ln1(x))\n    keep = (torch.rand(()) < 2.0).to(x.dtype)\n    return x + self.mlp(self.ln2(x)) * keep\n",
+   "broken": {
+    "graphs": 2,
+    "breaks": 1,
+    "ops_per_graph": [
+     9,
+     6
+    ],
+    "reasons": [
+     {
+      "reason": "generic_jump UnspecializedPythonVariable()",
+      "where": [
+       "fixer.py:79 in random_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "Unsupported: Data-dependent branching",
+    "pieces_compiled": 2,
+    "piece_ops": [
+     19,
+     6
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   },
+   "fixed": {
+    "graphs": 1,
+    "breaks": 0,
+    "ops_per_graph": [
+     71
+    ],
+    "reasons": [],
+    "fullgraph_error": "",
+    "pieces_compiled": 1,
+    "piece_ops": [
+     117
+    ],
+    "pieces_per_forward": 1,
+    "max_diff_vs_original": 0.0
+   }
+  },
+  {
+   "key": "tolist",
+   "label": ".tolist()",
+   "how": "index the tensor instead",
+   "conf": {},
+   "src_break": "def tolist_break(self, x):\n    x = x + self.attn(self.ln1(x))\n    sc = x.abs().amax(dim=(0, 1))[:2].tolist()\n    return x + self.mlp(self.ln2(x)) * (1.0 if sc[0] < 1e9 else 0.0)\n",
+   "src_fix": "def tolist_fix(self, x):\n    x = x + self.attn(self.ln1(x))\n    sc = x.abs().amax(dim=(0, 1))[:2]\n    return x + self.mlp(self.ln2(x)) * (sc[0] < 1e9).to(x.dtype)\n",
+   "broken": {
+    "graphs": 3,
+    "breaks": 2,
+    "ops_per_graph": [
+     9,
+     6,
+     6
+    ],
+    "reasons": [
+     {
+      "reason": "Tensor.tolist() with non-integer tensor",
+      "where": [
+       "fixer.py:87 in tolist_break"
+      ]
+     }
+    ],
+    "fullgraph_error": "Unsupported: Tensor.tolist() with non-integer tensor",
+    "pieces_compiled": 3,
+    "piece_ops": [
+     21,
+     6,
+     6
+    ],
+    "pieces_per_forward": 8,
+    "max_diff_vs_original": 0.0
+   },
+   "fixed": {
+    "graphs": 1,
+    "breaks": 0,
+    "ops_per_graph": [
+     75
+    ],
+    "reasons": [],
+    "fullgraph_error": "",
+    "pieces_compiled": 1,
+    "piece_ops": [
+     129
+    ],
+    "pieces_per_forward": 1,
+    "max_diff_vs_original": 0.0
+   }
+  }
+ ],
+ "baseline": {
+  "graphs": 1,
+  "breaks": 0,
+  "ops_per_graph": [
+   59
+  ],
+  "reasons": [],
+  "fullgraph_error": "",
+  "pieces_compiled": 1,
+  "piece_ops": [
+   101
+  ],
+  "pieces_per_forward": 1,
+  "max_diff_vs_original": 0.0
+ },
+ "nested": {
+  "print": {
+   "graphs": 2,
+   "breaks": 1,
+   "ops_per_graph": [
+    8,
+    5
+   ],
+   "reasons": [
+    {
+     "reason": "Failed to trace builtin operator",
+     "where": [
+      "fixer.py:16 in print_break"
+     ]
+    }
+   ],
+   "fullgraph_error": "Unsupported: Failed to trace builtin operator",
+   "pieces_compiled": 2,
+   "piece_ops": [
+    18,
+    5
+   ],
+   "pieces_per_forward": 8,
+   "max_diff_vs_original": 0.0
+  },
+  "explicit": {
+   "graphs": 2,
+   "breaks": 1,
+   "ops_per_graph": [
+    8,
+    5
+   ],
+   "reasons": [
+    {
+     "reason": "Call to `torch._dynamo.graph_break()`",
+     "where": [
+      "fixer.py:75 in explicit_break"
+     ]
+    }
+   ],
+   "fullgraph_error": "Unsupported: Call to `torch._dynamo.graph_break()`",
+   "pieces_compiled": 2,
+   "piece_ops": [
+    18,
+    5
+   ],
+   "pieces_per_forward": 8,
+   "max_diff_vs_original": 0.0
+  }
+ }
+}
