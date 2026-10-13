@@ -3380,3 +3380,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | 11 | Animated SVG graph of conversions | 2/3/2 | | rejected: labels unreadable at 390 px; the node grid plus route cards teaches the same |
 | 12 | Quant-type quality ladder | | | rejected here: owned by Local and on-device inference (Quant ladder tab), linked |
 | 13 | Cold-cache load comparison | | | not run: macOS cannot drop the page cache without root; cold numbers linked from LLM serving in production |
+
+### Topic: pytorch-ecosystem (2026-10-13)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_pytorch_ecosystem/src/viz_ideas.md`.
+
