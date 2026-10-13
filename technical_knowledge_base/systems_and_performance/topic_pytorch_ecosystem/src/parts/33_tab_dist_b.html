@@ -1,0 +1,79 @@
+
+<section id="dst-s3">
+<h2>3. DDP: one all-reduce per bucket, during backward</h2>
+<p><b>DistributedDataParallel</b> (DDP) keeps a full copy of the model on every rank and makes their gradients identical before each optimizer step, so the copies never drift apart. It does three things, all visible in the recording:</p>
+<ol>
+<li><b>At construction</b>, it checks every rank has the same parameters and copies rank 0's weights to everyone. Recorded: an all-gather of 8 bytes (the parameter count), a broadcast of 1,120 bytes (the 52 parameters' sizes and strides, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/reducer.cpp#L2422" target="_blank" rel="noopener noreferrer">reducer.cpp L2422</a>), then a broadcast of all 12,747,776 bytes of weights.</li>
+<li><b>In backward</b>, it groups the gradients into <b>buckets</b>. A hook on each parameter fires when its gradient is final; when every gradient in a bucket is final, DDP launches that bucket's all-reduce <i>asynchronously</i> and backward keeps computing the earlier layers. That is the <b>overlap</b>: communication of the last layers hides behind computation of the first.</li>
+<li><b>Before the optimizer step</b>, it waits for the last bucket and divides by the world size, so every rank holds the average gradient. Each rank then runs the same AdamW update on the same numbers.</li>
+</ol>
+<p>Why buckets? One all-reduce per parameter would mean 52 small messages, each paying a fixed latency; one for the whole model could start only when backward ends, so nothing overlaps. The default cap is 25 MiB, with a smaller first bucket of 1 MiB so the first all-reduce can start early (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/nn/parallel/distributed.py#L31-L33" target="_blank" rel="noopener noreferrer">distributed.py L31</a>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/nn/parallel/distributed.py#L86-L110" target="_blank" rel="noopener noreferrer">L86</a>). Buckets fill in <i>reverse</i> parameter order, because backward produces the last layer's gradients first.</p>
+<div class="card" id="dst-pq1">
+<p><b>Predict.</b> The model is 12.75 MB of float32 gradients, under one 25 MiB bucket but over the 1 MiB first bucket. How many all-reduces does DDP issue in the <i>first</i> backward?</p>
+<div class="chips" id="dst-pq1-c"><button data-a="0">1</button><button data-a="1">2 (1 MiB, then the rest)</button><button data-a="2">52, one per parameter</button></div>
+<div class="dst-reveal" id="dst-pq1-r" hidden><p><b>One.</b> Recorded on both ranks: a single all-reduce of 12,747,776 bytes, issued only once every gradient was final, so nothing overlapped in step 0. Unless <code>find_unused_parameters=True</code> or an explicit bucket list is given, the first iteration puts everything in one bucket (a size limit of <code>sys.maxsize</code>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/nn/parallel/distributed.py#L151-L154" target="_blank" rel="noopener noreferrer">L151</a>); during that iteration DDP records the order in which gradients actually arrived, and at the start of step 1 rank 0 broadcasts a new bucket layout in that order (the two small broadcasts of 212 and 8 bytes in step 1). From then on: two buckets, 1,051,648 and 11,696,128 bytes.</p></div>
+</div>
+<div class="card" id="dst-bk">
+<div class="seg" id="dst-bk-seg"></div>
+<div class="small mute" id="dst-bk-note"></div>
+<div class="dst-plot" id="dst-bk-strip"></div>
+<div class="dst-leg" id="dst-bk-leg"></div>
+<div class="dst-plot" id="dst-bk-tl"></div>
+<div class="dst-cap" id="dst-bk-cap"></div>
+<div class="dst-src">Strip: the 52 parameters in the order their gradients became final in backward (rank 0), width to scale with bytes, coloured by bucket. Timeline: one recorded step on rank 0 (CPU, 2 processes, one thread each, load average about 3 to 5; times are indicative, order is exact). Ticks are gradients becoming final; diamonds are bucket all-reduces being issued.</div>
+</div>
+<p>Two details the strip shows. The <b>tied weight</b> <code>tok.weight</code> is the output layer too, so its gradient has two contributions: the output layer's arrives first, the embedding's arrives last, and the parameter is final only then. It is always in the last bucket. And with <code>bucket_cap_mb=1</code> the same step issues 13 all-reduces of about 1 MB, each one launched while backward is still running: more overlap, more per-message overhead. Which wins depends on the network; on GPUs the default is usually right, which is why it is the default.</p>
+<div class="co key"><div class="t">Checked: the average gradient is the full-batch gradient</div>After one DDP step on 2 ranks, rank 0's averaged gradient was compared with one process running both ranks' batches as one batch of 16: largest difference <span id="dst-ddp-chk"></span> (float rounding). The losses on rank 0 are the same as the single-process run of {{Inside one step|#t-step}} at step 0 (3.80137) and the same as FSDP2's below at every step.</div>
+<p><b>Memory cost of DDP's buckets.</b> DDP keeps its buckets as separate flat buffers, so by default every gradient exists twice: in <code>param.grad</code> and in its bucket. Here that is 12.75 MB per rank on top of the 12.75 MB of weights and 25.5 MB of AdamW state. <code>gradient_as_bucket_view=True</code> makes each <code>.grad</code> a view into its bucket and removes the copy; on this model the step's peak did not move (<span id="dst-view-peak"></span>), because the peak comes at the very start of backward, when every activation is still held and only the first gradients exist. On a model whose peak falls later in backward, it does.</p>
+</section>
+
+<section id="dst-s4">
+<h2>4. FSDP2: every parameter split, gathered only when needed</h2>
+<p>DDP's memory per rank never shrinks: 16 bytes per parameter of weights, gradients and Adam state on every rank (more with its buckets). <b>FSDP</b> (fully sharded data parallel) is PyTorch's version of ZeRO stage 3 (the theory is on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}, and the {{ZeRO paper page|n:3c65c17b0d0d81879a7ed90bca007699}} steps through DDP against ZeRO-3 on GPUs): each rank permanently keeps only 1/n of every parameter, its gradient and its optimizer state, and rebuilds a whole layer just before using it.</p>
+<p><b>FSDP2</b> is the current API, <code>torch.distributed.fsdp.fully_shard</code> (in PyTorch since 2.4; FSDP1, the <code>FullyShardedDataParallel</code> wrapper with flattened parameters, is still shipped at 2.14 without a formal deprecation notice: see {{Ecosystem map|#t-map}}). <code>fully_shard(module)</code> turns each of the module's parameters into a <b>DTensor</b> (section 7) with placement <code>Shard(0)</code>: rank r owns rows r&middot;k to (r+1)&middot;k of every weight. The model is wrapped the way torchtitan does it: <code>fully_shard</code> on each of the 4 blocks, then on the whole model, which picks up what is left (embeddings, final LayerNorm, tied output layer). Each call makes one <b>unit</b>: one all-gather brings its weights in, one reduce-scatter sends its gradients out.</p>
+<div class="card" id="dst-sh">
+<div class="seg" id="dst-sh-seg"></div>
+<div class="tw"><table class="dst-tbl" id="dst-sh-t"></table></div>
+<div class="small mute" id="dst-sh-note"></div>
+</div>
+<p>What happens in one step, per unit, in order:</p>
+<ol>
+<li><b>Forward:</b> just before a block runs, <b>all-gather</b> its shards into full weights (here each rank sends 1.58 MB and receives the other rank's 1.58 MB); run it; then, by default, free the full weights again (<b>reshard after forward</b>), keeping only the activations.</li>
+<li><b>Backward:</b> all-gather the block's weights a second time (they were freed), compute its gradients, then <b>reduce-scatter</b> them: sum across ranks and leave each rank only its own 1/n slice. Free the full weights and full gradient.</li>
+<li><b>Optimizer:</b> AdamW runs on each rank's shards only, with no communication at all, because each rank owns the whole update of its rows.</li>
+</ol>
+<p><code>reshard_after_forward</code> defaults to <code>None</code>: True for the blocks, False for the root unit, "because the root module is typically required immediately when the backward pass begins" (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/fsdp/_fully_shard/_fully_shard.py#L180-L190" target="_blank" rel="noopener noreferrer">_fully_shard.py L180</a>). FSDP2 also <b>prefetches</b>: it issues the next unit's all-gather before the current unit finishes, which you can see below as all-gathers launched early. Setting it False everywhere skips all four backward all-gathers and keeps every block's full weights alive from forward to backward.</p>
+<div class="co"><div class="t">Read the recording</div>With the default, the last block is resharded at the end of forward and gathered again at once, because backward starts there (the "AG block 3" right after forward in the timeline below). torchtitan avoids exactly this: it does not reshard the final norm and output layer after forward "since FSDP would prefetch them immediately", and puts the tied embedding and output layer in one unit (<a href="https://github.com/pytorch/torchtitan/blob/v0.3.0/torchtitan/distributed/fsdp.py#L180-L207" target="_blank" rel="noopener noreferrer">torchtitan 0.3.0, distributed/fsdp.py L180</a>), as the root unit does here.</div>
+</section>
+
+<section id="dst-s5">
+<h2>5. DDP against FSDP2, the same step</h2>
+<p>The same step (step 2, batch 4 on rank 0 and batch 5 on rank 1), recorded under each strategy on 2 ranks. Lanes are ranks; the bar is the step's compute (forward, backward, optimizer); each mark above it is a collective at the moment it was issued, its height to scale with the bytes it carries. The memory line is rank 0's live bytes over the same step.</p>
+<div class="card" id="dst-an">
+<div class="seg" id="dst-an-seg"></div>
+<div class="dst-ctl"><button id="dst-an-play">Play</button><button id="dst-an-back" aria-label="Previous event">&#9664;</button><button id="dst-an-next" aria-label="Next event">&#9654;</button><input type="range" id="dst-an-scrub" min="0" max="1000" value="0" aria-label="Time in the step"><label>Speed <select id="dst-an-speed"><option value="0.5">0.5&times;</option><option value="1" selected>1&times;</option><option value="2">2&times;</option></select></label></div>
+<div class="dst-plot" id="dst-an-svg"></div>
+<div class="dst-cap" id="dst-an-cap"></div>
+<div class="dst-st" id="dst-an-st"></div>
+<div class="dst-leg"><span><i style="background:var(--c4)"></i>all-reduce</span><span><i style="background:var(--c1)"></i>all-gather</span><span><i style="background:var(--c2)"></i>reduce-scatter (run as all-reduce on gloo)</span><span><i style="background:var(--acc2)"></i>forward</span><span><i style="background:var(--closed2)"></i>backward</span><span><i style="background:var(--open2)"></i>optimizer</span></div>
+<div class="dst-src">Order and sizes from the flight recorder; issue times measured in one run (CPU, 1 thread per rank, other agents running: indicative only). The memory line comes from a profiled run of the same step and is aligned to this run at the end of forward and of backward.</div>
+</div>
+<div class="tw"><table class="dst-tbl" id="dst-bytes"></table></div>
+<p class="small mute" id="dst-bytes-note"></p>
+</section>
+
+<section id="dst-s6">
+<h2>6. Memory per rank</h2>
+<p>What each rank holds at its peak during one step: persistent state (weights, AdamW's two moments, DDP's bucket buffers) plus the step's own peak (activations saved for backward, gathered weights, full-size gradients before they are reduced, collective temporaries). Bars to scale within a model size.</p>
+<div class="card" id="dst-mem">
+<div class="seg" id="dst-mem-seg"></div>
+<div class="bars" id="dst-mem-bars"></div>
+<div class="dst-leg"><span><i style="background:var(--c1)"></i>weights</span><span><i style="background:var(--c5)"></i>AdamW state</span><span><i style="background:var(--c6)"></i>DDP buckets</span><span><i style="background:var(--c2)"></i>step peak above that</span></div>
+<div class="dst-cap" id="dst-mem-cap"></div>
+</div>
+<div class="card" id="dst-pq2">
+<p><b>Predict.</b> On the tiny model, going from 2 to 4 FSDP2 ranks cuts the persistent state in half. What happens to the step's own peak (activations and everything gathered)?</p>
+<div class="chips" id="dst-pq2-c"><button data-a="0">Halves too</button><button data-a="1">Stays the same</button><button data-a="2">Grows (more communication)</button></div>
+<div class="dst-reveal" id="dst-pq2-r" hidden><p><b>It stays the same: <span id="dst-pq2-v"></span>.</b> Each rank still processes a full batch of 8 sequences, so its activations do not shrink, and the gathered weights of one block are full-size whatever n is. FSDP shards model state, not activations: that is what activation checkpointing ({{Inside one step|#t-step}}), tensor parallel and context parallel are for. On the tiny model activations dominate, so the total falls only from <span id="dst-pq2-a"></span>; on the 8-block variant, where weights and Adam state are 303 MB, from <span id="dst-pq2-b"></span>.</p></div>
+</div>
+</section>
