@@ -1,0 +1,58 @@
+<section id="rd-s4">
+<h2>4. Kernels that plug in: Metal, Triton, Helion</h2>
+<p>A GPU kernel is written in a kernel language (CUDA C++, Metal, Triton, Helion), compiled for the device, and launched over a grid of threads. PyTorch does not need to understand the kernel; it needs the same three facts as for any operator. The pattern is always the same: <b>write the kernel, wrap it in an operator, register a fake and a gradient.</b> What differs is whether the compiler can look inside. Writing fast kernels is its own subject ({{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}}, {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}); this section is about plugging them in.</p>
+
+<h3>4.1 A Metal kernel on the Apple GPU, run here</h3>
+<p><code>torch.mps.compile_shader(source)</code> compiles Metal Shading Language at run time and returns an object whose kernels you call with tensors; each thread computes one element:</p>
+<div class="code" id="ext-shader"></div>
+<div class="code"><span class="k">lib</span> = torch.mps.compile_shader(SHADER)
+
+@gelu2.register_kernel(<span class="k">"mps"</span>)           <span class="c"># gelu2: the custom op of section 1.6, CPU kernel in C++</span>
+<span class="k">def</span> _(x):
+    xc = x.contiguous()
+    y = torch.empty_like(xc)
+    lib.gelu_fwd(y, xc)                <span class="c"># one thread per element</span>
+    <span class="k">return</span> y</div>
+<p>On an (8, 64, 1024) activation it took <span data-v="timing/calls_mps/Metal shader via compile_shader/median_us|0"></span> &micro;s against <span data-v="timing/calls_mps/F.gelu (tanh)/median_us|0"></span> &micro;s for <code>F.gelu(approximate="tanh")</code> <span class="meas">measured on Apple M1 Pro, MPS, median of 3, including a synchronize</span>: an element-wise kernel is limited by memory traffic, and both read and write the same 2 MiB.</p>
+
+<h3>4.2 Triton: triton_op and wrap_triton (read, not run)</h3>
+<p><dfn>Triton</dfn> is a Python-embedded language for GPU kernels that work on blocks of data; it is what Inductor generates for NVIDIA and AMD GPUs. Triton 3.8.0 on PyPI ships Linux wheels only (checked 2026-10-13), so nothing in this section ran here. What the source at 2.14.1 says:</p>
+<div class="ext-qh" data-q="triton_op_doc"></div><div class="ext-q" data-q="triton_op_doc"></div>
+<p>Inside, <code>triton_op</code> is a <code>custom_op</code> whose fake is your own Python function (it only allocates outputs and launches kernels, so it can run on fake tensors), plus one more trick: under AOTAutograd it is decomposed into its kernel launches, so Inductor sees the Triton kernels themselves:</p>
+<div class="ext-qh" data-q="triton_op_impl"></div><div class="ext-q" data-q="triton_op_impl"></div>
+<p><code>wrap_triton(kernel)[grid](...)</code> is how a launch is written inside such an op so that dispatcher-level tracing (<code>make_fx</code>, non-strict export) can record it:</p>
+<div class="ext-qh" data-q="wrap_triton_doc"></div><div class="ext-q" data-q="wrap_triton_doc"></div>
+<div class="code"><span class="c"># a triton_op, condensed from the 2.14.1 docstring in torch/_library/triton.py (not run here)</span>
+@triton.jit
+<span class="k">def</span> add_kernel(x_ptr, y_ptr, out_ptr, n, BLOCK: tl.constexpr):
+    offs = tl.program_id(0) * BLOCK + tl.arange(0, BLOCK)
+    mask = offs &lt; n
+    tl.store(out_ptr + offs, tl.load(x_ptr + offs, mask=mask) + tl.load(y_ptr + offs, mask=mask), mask=mask)
+
+@torch.library.triton_op(<span class="k">"mylib::add"</span>, mutates_args={})
+<span class="k">def</span> add(x: Tensor, y: Tensor) -> Tensor:
+    out = torch.empty_like(x)
+    n = out.numel()
+    wrap_triton(add_kernel)[(triton.cdiv(n, 16),)](x, y, out, n, 16)
+    <span class="k">return</span> out</div>
+<p>Two consequences worth remembering. Under <code>torch.export</code> a <code>triton_op</code> stays one custom-op node rather than being decomposed (the source explains: an exported program should not carry GPU-specific Triton source). And the same docstring recommends calling <code>@triton.jit</code> kernels directly when you need no operator at all: Dynamo can trace a raw Triton launch; you need the <code>torch.library</code> wrapper only for operator behaviour (subclasses, dispatch modes, export).</p>
+
+<h3>4.3 Helion: kernels from tiled PyTorch, run here on the Apple GPU</h3>
+<p><dfn>Helion</dfn> (PyTorch Foundation; 1.0 released 2026-04-03, 1.4.0 used here) lets you write a kernel as a loop over <i>tiles</i> with ordinary PyTorch operations inside; its compiler chooses block sizes, memory access and launch shape, and its autotuner can search them. Its settings name four code generators:</p>
+<div class="ext-qh" data-q="helion_backends"></div><div class="ext-q" data-q="helion_backends"></div>
+<p>The Metal one ("experimental", it warns) meant Helion could run on this Mac without Triton. The GELU kernel and what it compiled to:</p>
+<div class="code"><span class="k">import</span> helion, helion.language <span class="k">as</span> hl      <span class="c"># HELION_BACKEND=metal</span>
+
+@helion.kernel(autotune_effort=<span class="k">"none"</span>, static_shapes=<span class="k">True</span>)
+<span class="k">def</span> gelu(x: torch.Tensor) -> torch.Tensor:
+    out = torch.empty_like(x)
+    <span class="k">for</span> tile <span class="k">in</span> hl.tile(x.size()):         <span class="c"># Helion splits the 3-D index space into tiles</span>
+        v = x[tile]
+        out[tile] = 0.5 * v * (1.0 + torch.tanh(0.7978845608028654 * (v + 0.044715 * v * v * v)))
+    <span class="k">return</span> out</div>
+<details class="qa"><summary>The generated kernel (Helion's Triton-like intermediate, before Metal translation), <span data-v="helion/kernels/gelu/code_lines"></span> lines</summary><div><div class="code" id="ext-helion-code"></div></div></details>
+<div id="ext-helion-tbl"></div>
+<p>Read the table as a status report of an experimental backend, <span class="meas">measured on Apple M1 Pro</span>. The element-wise kernel compiled with the default configuration <code><span data-v="helion/kernels/gelu/config|raw"></span></code> and matched <code>F.gelu(approximate="tanh")</code>. Exact GELU did not lower (Metal has no <code>erf</code>, the same wall as section 1.6), and a row softmax stopped at the reduction. Without autotuning the kernel took <span data-v="timing/calls_mps/Helion kernel (metal backend)/median_us|0"></span> &micro;s against <span data-v="timing/calls_mps/F.gelu (tanh)/median_us|0"></span> &micro;s for PyTorch's own: on its main backend (Triton on NVIDIA) the autotuner's search is the point, and none was run here. Two things worked fully: <b>ref mode</b> (<code>HELION_INTERPRET=1</code>) ran both kernels, erf and softmax included, as plain PyTorch on the CPU with errors <span data-v="helion/ref/gelu_erf|e"></span> and <span data-v="helion/ref/softmax_rows|e"></span>, which is how you debug a kernel's logic without a GPU; and <b>composition</b>: called inside <code>torch.compile</code> the Helion kernel gave <span data-v="helion/op/direct_explain/graphs"></span> graph and <span data-v="helion/op/direct_explain/breaks"></span> breaks, because Helion registers its kernels with Dynamo as a higher-order operator (<span class="ext-qh" data-q="helion_hop" style="display:inline"></span>); registered as the MPS kernel of a custom op it passed <code>opcheck</code>'s schema and fake tests.</p>
+<p class="small mute">The old root page said prebuilt Helion kernels ship on the Hugging Face Kernels Hub. Checked: the <code>kernels</code> library 0.17.2 lists <code>helion</code> among the Python dependencies a Hub kernel may declare (<code>kernels/python_depends.json</code>); whether Helion kernels are published there is <span class="ann">unconfirmed</span>.</p>
+<div class="deepnote"><b>Go deeper:</b> {{helionlang.com|https://helionlang.com/}}; the {{triton_op tutorial|https://docs.pytorch.org/tutorials/recipes/torch_compile_user_defined_triton_kernel_tutorial.html}}; {{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}} for the language.</div>
+</section>

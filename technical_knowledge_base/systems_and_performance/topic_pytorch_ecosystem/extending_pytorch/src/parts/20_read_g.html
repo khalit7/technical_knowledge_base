@@ -1,0 +1,87 @@
+<section id="rd-s5">
+<h2>5. Tensor subclasses: changing what a tensor is</h2>
+<p><b>The problem.</b> Some extensions are not a new computation but a new <i>kind of tensor</i>: weights stored as int8 with a scale, a tensor split across eight GPUs, a float8 tensor that remembers its scaling factor. You want the model code unchanged (<code>F.linear(x, w)</code> stays <code>F.linear(x, w)</code>) while every operation on <code>w</code> does the right thing for its representation. A <dfn>tensor subclass</dfn> is a Python subclass of <code>torch.Tensor</code> that gets a say in every operation on its instances.</p>
+
+<h3>5.1 Two places to intercept: __torch_function__ and __torch_dispatch__</h3>
+<p>A call such as <code>F.linear(x, w)</code> passes two points where a subclass can step in. <code>__torch_function__</code> is called first, at the Python API, with the function you called (<code>linear</code>, <code>Tensor.add</code>, <code>Tensor.backward</code>), before autograd or the dispatcher. <code>__torch_dispatch__</code> is called much later: the dispatcher reaches the <code>Python</code> key after autocast, autograd and view tracking have run, and hands over the <dfn>ATen</dfn> operator (PyTorch's C++ operator library) that is about to execute: <code>aten::t</code> and <code>aten::addmm</code> rather than <code>linear</code>, because <code>linear</code> decomposed on the way (sibling page 2.4).</p>
+<div class="keys">
+<div><b>Python call</b><span>F.linear(x, w)</span></div>
+<div class="on"><b>__torch_function__</b><span>sees "linear" with Python arguments; above autograd; never sees backward (autograd's engine calls C++)</span></div>
+<div><b>Autocast, Autograd</b><span>casts; records the backward node</span></div>
+<div><b>ADInplaceOrView</b><span>view and version bookkeeping</span></div>
+<div class="on"><b>Python key: __torch_dispatch__</b><span>sees aten::t, aten::addmm; below autograd; sees backward's ATen calls too</span></div>
+<div><b>CPU / MPS / CUDA kernel</b><span>the arithmetic</span></div>
+</div>
+<p>Measured on one training step of the running example, with block 0's <code>fc.weight</code> replaced by a logging subclass of each kind <span class="meas">recorded here, CPU</span>:</p>
+<div class="tw"><table class="rd-tbl"><thead><tr><th>Subclass</th><th>Calls seen in forward</th><th>in backward</th><th>Loss type</th><th>Gradient type</th></tr></thead><tbody id="ext-lv-rows"></tbody></table></div>
+<p>The <code>__torch_function__</code> subclass saw the Python-level calls from the weight's first use onward, because its results are of its own type and so spread through the forward, and in backward only <code>Tensor.backward</code> itself. The <code>__torch_dispatch__</code> subclass that rewraps its outputs saw every ATen call downstream of the weight in both directions; the one that returns plain tensors saw only the operations that touch the weight itself. The {{Subclass tracer|#t-ext-sub}} tab replays all three call by call.</p>
+
+<h3>5.2 Wrapper subclasses: a tensor with no storage of its own</h3>
+<p>A <dfn>wrapper subclass</dfn> is created with <code>torch.Tensor._make_wrapper_subclass(cls, shape, dtype=..., device=...)</code>: the outer object has a shape, a dtype and a device, so the rest of PyTorch treats it as a tensor of that shape, but it has no data. The real data lives in ordinary tensors stored as attributes (<code>self.qdata</code>, <code>self.scale</code>), and <code>__torch_dispatch__</code> decides, per ATen operator, what to compute from them. Its key set gains <code>Python</code> and <code>PythonTLSSnapshot</code> (<span data-v="real/1/keyset|raw"></span> for the DTensor below), which is what routes every call to your Python code.</p>
+<p>Two decisions shape every such subclass. <b>Contagious or not</b>: does an operation on the subclass return the subclass (DTensor: a sharded result) or a plain tensor (an int8 weight: the matmul's output is ordinary float32)? And <b>which operators to implement</b>: the rest fall back to "dequantize and run the normal kernel" or to an error. One rule is not optional: <code>nn.Parameter</code> refuses a subclass whose <code>detach()</code> does not return the subclass:</p>
+<p class="ext-err" data-v="param_detach_error|raw"></p>
+
+<h3>5.3 Build one: int8 weights for the running example</h3>
+<p>The subclass below stores each block weight as int8 <code>qdata</code> (same shape) and one float32 <code>scale</code> per output row (symmetric, per-channel: <code>scale = max|w_row| / 127</code>). It implements four ATen operators: the transpose and detach that <code>nn.Linear</code> and <code>nn.Parameter</code> need, <code>addmm</code> for the forward and <code>mm</code> for the backward's input gradient. The scale factors out of the matrix multiply, so the int8 values are multiplied first and the scale applied per output column afterwards. Full file: <code>src/exp/subclasses_int8.py</code>.</p>
+<div class="code"><span class="k">class</span> Int8Weight(torch.Tensor):
+    @staticmethod
+    <span class="k">def</span> __new__(cls, qdata, scale, transposed=<span class="k">False</span>):
+        shape = qdata.shape[::-1] <span class="k">if</span> transposed <span class="k">else</span> qdata.shape
+        <span class="k">return</span> torch.Tensor._make_wrapper_subclass(cls, shape, dtype=scale.dtype,
+                                                   device=qdata.device, requires_grad=<span class="k">False</span>)
+    <span class="k">def</span> __init__(self, qdata, scale, transposed=<span class="k">False</span>):
+        self.qdata, self.scale, self.transposed = qdata, scale, transposed
+
+    <span class="h">def __tensor_flatten__(self):</span>                 <span class="c"># for torch.compile (5.4)</span>
+        <span class="k">return</span> [<span class="k">"qdata"</span>, <span class="k">"scale"</span>], (self.transposed,)
+    @staticmethod
+    <span class="h">def __tensor_unflatten__(inner, meta, outer_size, outer_stride):</span>
+        <span class="k">return</span> Int8Weight(inner[<span class="k">"qdata"</span>], inner[<span class="k">"scale"</span>], meta[0])
+
+    __torch_function__ = torch._C._disabled_torch_function_impl
+    @classmethod
+    <span class="k">def</span> __torch_dispatch__(cls, func, types, args=(), kwargs=<span class="k">None</span>):
+        <span class="k">if</span> func <span class="k">is</span> aten.t.default:                   <span class="c"># W.t(): flip a flag, move no data</span>
+            <span class="k">return</span> Int8Weight(args[0].qdata, args[0].scale, <span class="k">not</span> args[0].transposed)
+        <span class="k">if</span> func <span class="k">is</span> aten.addmm.default <span class="k">and</span> isinstance(args[2], Int8Weight):
+            bias, x, w = args[:3]                      <span class="c"># x @ W^T + b, W = q * s[:, None]</span>
+            <span class="k">return</span> torch.mm(x, w.qdata.to(x.dtype).t()) * w.scale + bias
+        <span class="c"># ... aten.detach, aten.mm (backward), and a dequantizing fallback ...</span></div>
+<div id="ext-int8-stats" class="out"></div>
+<p>The loss moved from <span data-v="sub_ref_loss"></span> to <span data-v="int8/eager_loss"></span> and the logits by at most <span data-v="int8/max_logit_diff_vs_float|3"></span>: int8 per-channel rounding of a freshly initialised model. The quantized weights are frozen (<code>requires_grad=False</code>); the other <span data-v="int8/trainable"></span> parameters (embeddings, norms, biases) all received gradients, the setup that weight-quantized fine-tuning methods such as QLoRA start from ({{PEFT|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}). The ATen operators that reached the subclass, recorded: forward <span id="ext-int8-fw"></span>; backward <span id="ext-int8-bw"></span>. No call took the fallback.</p>
+<div class="rd-card" id="ext-q8-card">
+<h4>One weight, one matrix multiply: float32 against int8 (block 0's fc, 1024 &times; 256)</h4>
+<div class="seg" id="ext-q8-seg"><button class="on" data-m="f32">Before: float32 weight</button><button data-m="i8">After: Int8Weight</button></div>
+<div class="an-ctl" id="ext-q8-ctl"></div>
+<div class="an-cap" id="ext-q8-cap"></div>
+<div id="ext-q8-view"></div>
+<div class="an-cnt" id="ext-q8-cnt"></div>
+<p class="small mute">Bytes are <span class="der">derived</span> from the shapes (1024 &times; 256 elements; 4 bytes in float32, 1 in int8, 1,024 float32 scales); the operator sequence is the one recorded in AOTAutograd's forward graph (5.4). Activations: 512 tokens &times; 256 in, &times; 1024 out, float32.</p>
+</div>
+
+<h3>5.4 Under torch.compile: flatten, trace, desugar</h3>
+<p>The compiler cannot keep a Python object inside a graph. It needs to know which tensors the subclass is made of, so that it can pass them in as ordinary graph inputs and rebuild the subclass while tracing. That is the <dfn>traceable-subclass protocol</dfn>: <code>__tensor_flatten__</code> returns the names of the inner tensors plus any non-tensor metadata, and <code>__tensor_unflatten__</code> rebuilds the object from them. With it, Dynamo traced the int8 model into <span data-v="int8/explain/graphs"></span> graph with <span data-v="int8/explain/breaks"></span> breaks, and AOTAutograd ran <code>__torch_dispatch__</code> on fake tensors and recorded what it did in plain ATen: the subclass disappears from the compiled graph (<dfn>desugaring</dfn>). Dynamo's graph took <span data-v="int8/dynamo_graph_inputs"></span> inputs; AOTAutograd's forward graph <span data-v="int8/aot_fw_inputs"></span>, because each of the 16 int8 weights became two (<code>qdata</code> and <code>scale</code>). The first block's attention projection in that graph:</p>
+<div class="code" id="ext-aot"></div>
+<p>The int8 weight is converted to float32 (<code>_to_copy</code>) right before the multiply. That is the honest cost of weight-only int8 on this CPU path: memory is saved at rest (a quarter of the bytes), not during the computation. torchao's own <code>Int8WeightOnlyConfig</code> weight, recorded on a <code>nn.Linear</code> of the same shape, issued the same kind of sequence: <span id="ext-ao-calls"></span>. A GPU kernel that reads int8 directly and dequantizes in registers is what turns the saving into speed ({{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}).</p>
+<div class="cost"><div class="t">Forward of the running example, CPU, 4 threads <span class="meas">measured on Apple M1 Pro, bench lock, median of 3</span></div><div class="bars" id="ext-int8-bars"></div>Eager, the subclass costs the Python round trip on 32 calls per forward plus the conversion; compiled, the Python is gone and int8 and float32 take about the same time.</div>
+
+<h3>5.5 How the real ones are built</h3>
+<p>The same protocol underlies the subclasses you will meet in practice. Each was built here on block 0's <code>fc.weight</code> (1024 &times; 256 float32, 1,048,576 bytes) and taken apart with <code>__tensor_flatten__</code>:</p>
+<div id="ext-real"></div>
+<ul>
+<li><b>DTensor</b> (PyTorch's distributed tensor, the base of FSDP2 and tensor parallelism) keeps the local shard and the device mesh as its inner parts and the placements as metadata. At 2.14.1 it is built in C++, sharing the wrapper-subclass helper, and its operators take a C++ fast path that only falls back to Python for sharding rules it has not cached; the Python <code>__torch_dispatch__</code> only serves subclasses of DTensor:
+<div class="ext-qh" data-q="dtensor_new"></div><div class="ext-q" data-q="dtensor_new"></div>
+<div class="ext-qh" data-q="cpp_subclass_helper"></div><div class="ext-q" data-q="cpp_subclass_helper"></div>
+<div class="ext-qh" data-q="dtensor_dispatch"></div><div class="ext-q" data-q="dtensor_dispatch"></div>
+It refuses to mix with plain tensors rather than guess a placement: <span class="ext-err" data-v="real/1/mixed_error|raw"></span> The {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}} sibling owns how its placements propagate.</li>
+<li><b>NF4Tensor</b> (torchao; the 4-bit format of QLoRA) packs two 4-bit codes per byte plus double-quantized scales: 135,300 bytes for the 1 MiB weight. Its <code>__torch_dispatch__</code> handles a table of ATen operators, and its docstring says the linear itself goes through an <code>autograd.Function</code> instead; its <code>__torch_function__</code> looks <code>F.linear</code> up in a second table:
+<div class="ext-qh" data-q="nf4_dispatch"></div><div class="ext-q" data-q="nf4_dispatch"></div>
+<div class="ext-qh" data-q="nf4_linear"></div><div class="ext-q" data-q="nf4_linear"></div></li>
+<li><b>Float8TrainingTensor</b> (torchao float8 training) holds float8 e4m3 data and one float32 scale; its operators come from a table (<code>FLOAT8_OPS_TABLE</code>). A matrix multiply of two of them ran on this CPU (<span data-v="real/4/mm_on_cpu|raw"></span>); the speed-up is a GPU matter (H100-class float8 tensor cores), not measured here.</li>
+<li><b>Int8Tensor</b> (torchao 0.18.0) declares its inner tensors as class attributes and inherits flatten, unflatten and much of the boilerplate from <code>TorchAOBaseTensor</code>:
+<div class="ext-qh" data-q="int8_names"></div><div class="ext-q" data-q="int8_names"></div></li>
+</ul>
+<p><b>Subclasses and FSDP2.</b> A subclass can also tell FSDP2 what to send over the network. When FSDP2 shards a parameter whose inner tensor defines <code>fsdp_pre_all_gather</code> and <code>fsdp_post_all_gather</code>, it all-gathers whatever the first returns (the compact data) and rebuilds the full weight with the second. NF4 defines both, and so do torchao's float8 training tensor and its prototype int8 training tensors, so a sharded QLoRA or float8 run moves 4-bit or 8-bit bytes rather than float32:</p>
+<div class="ext-qh" data-q="fsdp_hooks"></div><div class="ext-q" data-q="fsdp_hooks"></div>
+<div class="deepnote"><b>Go deeper:</b> the {{Extending PyTorch notes|https://docs.pytorch.org/docs/2.14/notes/extending.html}} (subclasses and modes); {{What (and why) is __torch_dispatch__|https://dev-discuss.pytorch.org/t/what-and-why-is-torch-dispatch/557}}; the {{subclass zoo|https://github.com/albanD/subclass_zoo}}; the {{Libraries on top of PyTorch|n:3c65c17b0d0d81019d98f99978dc26f6}} sibling for where these appear in training stacks.</div>
+</section>

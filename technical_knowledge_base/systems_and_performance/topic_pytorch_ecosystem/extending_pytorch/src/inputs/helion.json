@@ -1,0 +1,44 @@
+{
+ "torch": "2.14.1",
+ "helion": "1.4.0",
+ "backend": "metal",
+ "kernels": {
+  "gelu_erf": {
+   "error": "InductorLoweringError: lid/technical_knowledge_base/technical_knowledge_base/systems_and_performance/topic_pytorch_ecosystem/extending_pytorch/src/exp/helion_k.py\", line 27, in gelu_erf\n    out[tile] = 0.5 * v * (1.0 + torch.erf(v * 0.7071067811865476))\n                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+   "error_node": "%erf : [num_users=1] = call_function[target=torch.ops.aten.erf.default](args = (%mul_1,), kwargs = {})"
+  },
+  "gelu": {
+   "max_abs_err": 4.76837158203125e-07,
+   "config": "Config(block_sizes=[8, 16, 16], num_warps=4)",
+   "default_config": "Config(block_sizes=[8, 16, 16], num_warps=4)",
+   "code": "from __future__ import annotations\n\nimport torch\nfrom helion.runtime import default_metal_launcher as _default_metal_launcher\nfrom helion._compiler.metal.metal_jit import metal_jit\n\n_BLOCK_SIZE_0 = 8\n_BLOCK_SIZE_1 = 16\n_BLOCK_SIZE_2 = 16\n\n@metal_jit\ndef _helion_gelu(x, out):\n    # src[helion_k.py:34]: for tile in hl.tile(x.size()):\n    num_blocks_0 = (8 + _BLOCK_SIZE_0 - 1) // _BLOCK_SIZE_0\n    num_blocks_1 = (64 + _BLOCK_SIZE_1 - 1) // _BLOCK_SIZE_1\n    pid_0 = tgid[0] % num_blocks_0\n    pid_1 = tgid[0] // num_blocks_0 % num_blocks_1\n    pid_2 = tgid[0] // (num_blocks_0 * num_blocks_1)\n    offset_0 = pid_0 * _BLOCK_SIZE_0\n    offset_1 = pid_1 * _BLOCK_SIZE_1\n    offset_2 = pid_2 * _BLOCK_SIZE_2\n    indices_0 = offset_0 + tid[0] * 1\n    mask_0 = indices_0 < 8\n    indices_2 = offset_2 + tid[2] * 1\n    mask_2 = indices_2 < 1024\n    # src[helion_k.py:34]: for tile in hl.tile(x.size()):\n    # src[helion_k.py:35]:     v = x[tile]\n    # src[helion_k.py:36]:     out[tile] = 0.5 * v * (1.0 + torch.tanh(0.7978845608028654 * (v + 0.044715 * v * v * v)))\n    for lane_1 in range(2):\n        # src[helion_k.py:34]: for tile in hl.tile(x.size()):\n        indices_1 = offset_1 + tid[1] * 2 + lane_1\n        mask_1 = indices_1 < 64\n        # src[helion_k.py:35]: v = x[tile]\n        v = tl.load(x + (indices_0 * 65536 + indices_1 * 1024 + indices_2 * 1), mask_0 & mask_1 & mask_2, other=0)\n        # src[helion_k.py:36]: out[tile] = 0.5 * v * (1.0 + torch.tanh(0.7978845608028654 * (v + 0.044715 * v * v * v)))\n        v_0 = 0.5\n        v_1 = v * v_0\n        v_2 = 0.044715\n        v_3 = v * v_2\n        v_4 = v_3 * v\n        v_5 = v_4 * v\n        v_6 = v + v_5\n        v_7 = 0.7978845608028654\n        v_8 = v_6 * v_7\n        v_9 = metal.precise.tanh(v_8)\n        v_10 = 1.0\n        v_11 = v_9 + v_10\n        v_12 = v_1 * v_11\n        tl.store(out + (indices_0 * 65536 + indices_1 * 1024 + indices_2 * 1), v_12, mask_0 & mask_1 & mask_2)\n\ndef gelu(x: torch.Tensor, *, _launcher=_default_metal_launcher):\n    # src[helion_k.py:33]: out = torch.empty_like(x)\n    out = torch.empty_like(x)\n    # src[helion_k.py:34]: for tile in hl.tile(x.size()):\n    _BLOCK_SIZE_0 = 8\n    _BLOCK_SIZE_1 = 16\n    _BLOCK_SIZE_2 = 16\n    # src[helion_k.py:34]: for tile in hl.tile(x.size()):\n    # src[helion_k.py:35]:     v = x[tile]\n    # src[helion_k.py:36]:     out[tile] = 0.5 * v * (1.0 + torch.tanh(0.7978845608028654 * (v + 0.044715 * v * v * v)))\n    _launcher(_helion_gelu, ((8 + _BLOCK_SIZE_0 - 1) // _BLOCK_SIZE_0 * ((64 + _BLOCK_SIZE_1 - 1) // _BLOCK_SIZE_1) * ((1024 + _BLOCK_SIZE_2 - 1) // _BLOCK_SIZE_2),), x, out, _block_dims=(8, 8, 16))\n    # src[helion_k.py:37]: return out\n    return out",
+   "code_lines": 63,
+   "stderr": "Using implicit config: @helion.kernel(config=helion.Config(block_sizes=[8, 16, 16], num_warps=4), static_shapes=True)"
+  },
+  "softmax_rows": {
+   "error": "BackendUnsupported: Backend 'metal' does not support: reduction index\nWhile processing:\n  File \"<path>\", line 44, in softmax_rows\n    for tile_n in hl.tile(n):\n                  ^^^^^^^^^^",
+   "error_node": null
+  }
+ },
+ "as_custom_op": {
+  "cpu_vs_mps": 4.76837158203125e-07,
+  "opcheck_mps": {
+   "test_schema": "SUCCESS",
+   "test_faketensor": "SUCCESS"
+  },
+  "explain": {
+   "graphs": 1,
+   "breaks": 0
+  },
+  "compiled_vs_eager_rel": 8.379329568165385e-08,
+  "direct_explain": {
+   "graphs": 1,
+   "breaks": 0,
+   "reasons": []
+  }
+ },
+ "ref_mode_cpu": {
+  "gelu_erf": 0.0,
+  "softmax_rows": 5.960464477539063e-08
+ }
+}

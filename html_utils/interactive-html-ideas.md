@@ -3419,3 +3419,20 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | 7 | Bars: timing three ways, data loader sweep, optimizer impls, bf16 matmul GFLOP/s, checkpointing peaks and times, fused-loss peaks, attention saved bytes vs T, torchao latency at M = 1 and 2,048 | Reading s1, s4, s5, s6, s8, s9, s10, s11 | Each one number with something to move (device, size) and a sourced measurement | time_misc.py, mem_step.py, attn_backends.py | 8 to 10 |
 | 8 | Tables: SDPA kernel that ran per input and what forcing does; torchao configs with bytes, loss, errors | Reading s10, s11 | Categorical facts per item, read verbatim from runs | attn_backends.py, torchao_lab.py | 9 |
 | 9 | Float8 emulated vs float32 loss curves | Reading s11 | Shows numerics only, and the one spike | torchao_lab.py | 8 |
+
+### Extending PyTorch: custom ops, tensor subclasses, kernels (2026-10-13)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_pytorch_ecosystem/extending_pytorch/src/viz_ideas.md`.
+
+| Idea | Placement | Score (0-2: parameter, reproduces, computable, beyond prose, corrects misconception, central, new, animation) | Data |
+|---|---|---|---|
+| Dynamo tracing one forward: direct pybind call vs custom op, animated (before/after, same input), counters for graphs compiled and eager stretches | Reading 2.1 | 1+2+2+2+2+2+2+2 | graphs.json (dynamo.explain op lists) |
+| One weight through one matmul, float32 vs Int8Weight, bytes to scale, recorded AOT op sequence | Reading 5.3 | 1+1+2+2+2+1+2+2 | derived bytes, subclasses.json |
+| opcheck grid: 10 variants x 4 tests + graphs + compiled grads | Reading 1.7 | 0+2+2+2+2+2+2+0 | custom_ops*.json |
+| Cache-trap table (4 processes) | Reading 2.3 | 0+2+2+2+2+2+2+0 | cache_trap.json |
+| Per-call cost bars, overhead vs kernel toggle | Reading 3.2 | 1+2+2+1+2+1+1+0 | timing.json |
+| Inductor wrapper code side by side | Reading 2.2 | 0+2+2+2+1+2+2+0 | op_extras.json |
+| Custom-op lab: any two of ten variants side by side | own tab | 1+2+2+2+2+2+2+0 | custom_ops*.json |
+| Subclass tracer: recorded calls replayed at __torch_function__ vs __torch_dispatch__ level, with phase counters and op histograms | own tab | 1+2+2+2+2+2+2+2 | subclasses.json |
+| Which extension point? decision tree ending in skeleton, checks and measured evidence | own tab | 1+0+2+1+1+2+2+0 | all |
+| Real subclasses taken apart (inner tensors, bytes) | Reading 5.5 | 0+2+2+1+1+1+2+0 | real_subclasses.json |
