@@ -1,0 +1,122 @@
+{
+ "keyset": {
+  "file": "aten/src/ATen/core/dispatch/DispatchKeyExtractor.h",
+  "start": 39,
+  "end": 47,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/aten/src/ATen/core/dispatch/DispatchKeyExtractor.h#L39-L47",
+  "caption": "How the dispatcher computes a call's key set: the union of the inputs' keys, plus the thread's included keys, minus its excluded keys, minus fallthroughs.",
+  "text": "  c10::impl::LocalDispatchKeySet local =\n      c10::impl::tls_local_dispatch_key_set();\n  // TODO: It's a bit irritating that we have to do logical ORs here, it would\n  // be nice to only do one.  Can always_included be folded into the TLS?  Well,\n  // it's a bit troublesome, because fastpath TLS access requires the type of\n  // the TLS in question to be zero-initialized, so you don't actually win\n  // anything in that case.\n  return (((ks | local.included_) - local.excluded_) & key_mask);\n}"
+ },
+ "tls_default": {
+  "file": "c10/core/DispatchKeySet.h",
+  "start": 670,
+  "end": 686,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/c10/core/DispatchKeySet.h#L670-L686",
+  "caption": "The thread-local defaults: ADInplaceOrView is switched on for every call, the Autocast keys are switched off until autocast is entered.",
+  "text": "constexpr DispatchKeySet default_included_set = DispatchKeySet({\n    DispatchKey::BackendSelect,\n    DispatchKey::ADInplaceOrView,\n});\n\nconstexpr DispatchKeySet default_excluded_set = DispatchKeySet({\n    DispatchKey::AutocastCPU,\n    DispatchKey::AutocastMPS,\n    DispatchKey::AutocastCUDA,\n    DispatchKey::AutocastXPU,\n    DispatchKey::AutocastIPU,\n    DispatchKey::AutocastHPU,\n    DispatchKey::AutocastXLA,\n    DispatchKey::AutocastPrivateUse1,\n    DispatchKey::AutocastMTIA,\n    DispatchKey::AutocastMAIA,\n});"
+ },
+ "table": {
+  "file": "aten/src/ATen/core/dispatch/OperatorEntry.cpp",
+  "start": 352,
+  "end": 380,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/aten/src/ATen/core/dispatch/OperatorEntry.cpp#L352-L380",
+  "caption": "How one entry of an operator's dispatch table is chosen (the rule continues below these lines).",
+  "text": "std::pair<const AnnotatedKernel&, const char*> OperatorEntry::computeDispatchTableEntryWithDebug(const c10::Dispatcher& dispatcher, DispatchKey dispatch_key) const {\n  // [Note] DispatchTable computation\n  // dispatchTable contains entries for runtime dispatch keys.\n  // For any dispatch key, it'll pick a kernel using the following order:\n  //  (1) Use kernel if it's directly registered to this key\n  //  (2) Handle runtime keys that have kernels available from alias keys\n  //    (2.1) Use kernel from DispatchKey::CompositeExplicitAutogradNonFunctional if available.\n  //          This is used to register a kernel that works for all backends in inference, except \"functional\" backends\n  //          like LazyTensor/XLA. But it requires separate registration for Autograd keys to support training.\n  //    (2.2) Use kernel from DispatchKey::CompositeExplicitAutograd if available.\n  //          This is used to register a kernel that works for all backend in inference. But it requires\n  //          separate registration for Autograd keys to support training.\n  //    (2.3) Use kernel from DispatchKey::CompositeImplicitAutograd if available.\n  //          For autograd keys, we only use kernel from CompositeImplicitAutograd when there's no direct registration\n  //          to its corresponding backend key or CompositeExplicitAutograd. See Note [CompositeExplicitAutograd and CompositeImplicitAutograd].\n  //          For AutogradOther, we eagerly return ambiguousAutogradOtherKernel() if there's registration to any of\n  //          its backends and ask backend extender to request a dedicated Autograd key for the backend.\n  //          See Note [Ambiguity in AutogradOther kernel] for more details.\n  //          A CompositeExplicitAutograd kernel prevents CompositeImplicitAutograd kernel being used for Autograd keys, but it doesn't\n  //          cause confusion for AutogradOther. It's pretty straightforward to use Autograd (if available)\n  //          in this case.\n  //    (2.4) Use kernel from DispatchKey::Autograd if available\n  //    (2.5) Use kernel from DispatchKey::FuncTorchBatchedDecomposition if available\n  //    The implementation of (2.2) relies on the invariant that for a given backend,\n  //    `computeDispatchTableEntryWithDebug()` will be called for that backend's autograd key after the\n  //    backend key. See Note [Refresh Runtime Autograd entries in dispatchTable_]\n  //  (3) Use fallthrough kernel that are registered as fallback.\n  // Alias Key Precedence:\n  //   CompositExplicitAutogradNonFunctional > CompositeExplicitAutograd > CompositeImplicitAutograd > Autograd"
+ },
+ "fallback": {
+  "file": "aten/src/ATen/core/VariableFallbackKernel.cpp",
+  "start": 62,
+  "end": 105,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/aten/src/ATen/core/VariableFallbackKernel.cpp#L62-L105",
+  "caption": "Boxed fallbacks: one function for every operator at the autograd keys; a fallthrough for ADInplaceOrView.",
+  "text": "TORCH_LIBRARY_IMPL(_, AutogradOther, m) {\n  m.fallback(AUTOGRAD_FALLBACK);\n}\n\nTORCH_LIBRARY_IMPL(_, AutogradCPU, m) {\n  m.fallback(AUTOGRAD_FALLBACK);\n}\n\nTORCH_LIBRARY_IMPL(_, AutogradXPU, m) {\n  m.fallback(AUTOGRAD_FALLBACK);\n}\n\nTORCH_LIBRARY_IMPL(_, AutogradCUDA, m) {\n  m.fallback(AUTOGRAD_FALLBACK);\n}\n\nTORCH_LIBRARY_IMPL(_, AutogradMTIA, m) {\n  m.fallback(AUTOGRAD_FALLBACK);\n}\n\nTORCH_LIBRARY_IMPL(_, AutogradMAIA, m) {\n  m.fallback(AUTOGRAD_FALLBACK);\n}\n\nTORCH_LIBRARY_IMPL(_, AutogradXLA, m) {\n  m.fallback(AUTOGRAD_FALLBACK);\n}\n\nTORCH_LIBRARY_IMPL(_, AutogradLazy, m) {\n  m.fallback(AUTOGRAD_FALLBACK);\n}\n\nTORCH_LIBRARY_IMPL(_, AutogradMPS, m) {\n  m.fallback(AUTOGRAD_FALLBACK);\n}\n\nTORCH_LIBRARY_IMPL(_, AutogradMeta, m) {\n  m.fallback(AUTOGRAD_FALLBACK);\n}\n\n// see Note [ADInplaceOrView key]\nTORCH_LIBRARY_IMPL(_, ADInplaceOrView, m) {\n  m.fallback(torch::CppFunction::makeFallthrough());\n}"
+ },
+ "autocast": {
+  "file": "aten/src/ATen/autocast_mode.cpp",
+  "start": 333,
+  "end": 353,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/aten/src/ATen/autocast_mode.cpp#L333-L353",
+  "caption": "Autocast on the CPU: a fallthrough for every operator, then a kernel for each operator that should run in lower precision.",
+  "text": "TORCH_LIBRARY_IMPL(_, AutocastCPU, m) {\n  m.fallback(torch::CppFunction::makeFallthrough());\n}\n\n\nTORCH_LIBRARY_IMPL(aten, AutocastCPU, m) {\n  // lower_precision_fp cast policy\n  KERNEL_CPU(conv1d, lower_precision_fp)\n  KERNEL_CPU(conv1d, padding, lower_precision_fp)\n  KERNEL_CPU(conv2d, lower_precision_fp)\n  KERNEL_CPU(conv2d, padding, lower_precision_fp)\n  KERNEL_CPU(conv3d, lower_precision_fp)\n  KERNEL_CPU(conv3d, padding, lower_precision_fp)\n  KERNEL_CPU(bmm, lower_precision_fp)\n  KERNEL_CPU(mm, lower_precision_fp)\n  KERNEL_CPU(linalg_vecdot, lower_precision_fp)\n  KERNEL_CPU(baddbmm, lower_precision_fp)\n  KERNEL_CPU(addmm, lower_precision_fp)\n  KERNEL_CPU(_addmm_activation, lower_precision_fp)\n  KERNEL_CPU(addbmm, lower_precision_fp)\n  KERNEL_CPU(linear, lower_precision_fp)"
+ },
+ "inference": {
+  "file": "c10/core/InferenceMode.h",
+  "start": 54,
+  "end": 74,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/c10/core/InferenceMode.h#L54-L74",
+  "caption": "What entering inference_mode changes: grad mode off, ADInplaceOrView no longer included, every autograd key excluded.",
+  "text": "  InferenceMode(bool enabled = true)\n      : prev_mode(AutogradState::get_tls_state()),\n        prev_keyset(c10::impl::tls_local_dispatch_key_set()) {\n    // Enabling inference mode means disabling grad modes\n    // And disabling inference mode means enabling grad modes\n    AutogradState::set_tls_state(AutogradState(\n        /* grad_mode */ !enabled,\n        /* inference_mode */ enabled,\n        /* fw_grad_mode */ !enabled,\n        /* multithreading_enabled*/ !enabled));\n    DispatchKeySet included = enabled\n        ? prev_keyset.included_.remove(c10::DispatchKey::ADInplaceOrView)\n        : prev_keyset.included_.add(c10::DispatchKey::ADInplaceOrView);\n    DispatchKeySet excluded = enabled\n        ? (prev_keyset.excluded_ | c10::autograd_dispatch_keyset)\n        : (prev_keyset.excluded_ - c10::autograd_dispatch_keyset);\n    c10::impl::PODLocalDispatchKeySet cur_keyset{};\n    cur_keyset.set_included(included);\n    cur_keyset.set_excluded(excluded);\n    c10::impl::_force_tls_local_dispatch_key_set(cur_keyset);\n  }"
+ },
+ "inplace_view": {
+  "file": "torch/csrc/autograd/VariableTypeManual.cpp",
+  "start": 391,
+  "end": 403,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/autograd/VariableTypeManual.cpp#L391-L403",
+  "caption": "The ADInplaceOrView kernel of copy_: run the copy below this key, then bump the version counter.",
+  "text": "static Tensor& copy_(\n    c10::DispatchKeySet ks,\n    Tensor& self,\n    const Tensor& src,\n    bool non_blocking) {\n  {\n    at::AutoDispatchBelowADInplaceOrView guard;\n    at::redispatch::copy_(\n        ks & c10::after_ADInplaceOrView_keyset, self, src, non_blocking);\n  }\n  torch::autograd::increment_version(self);\n  return self;\n}"
+ },
+ "readyqueue": {
+  "file": "torch/csrc/autograd/engine.h",
+  "start": 87,
+  "end": 114,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/autograd/engine.h#L87-L114",
+  "caption": "The engine's ready queue: a priority queue on sequence number (later-created nodes first).",
+  "text": "struct ReadyQueue {\n private:\n  // Returns true when t2 should be (weakly) BEFORE t1 in the queue.\n  // Shutdown tasks are first and then empty NodeTask are next.\n  struct CompareNodeTaskTime {\n    bool operator()(NodeTask const& t1, NodeTask const& t2) {\n      // NOLINTNEXTLINE(bugprone-branch-clone)\n      if (t2.isShutdownTask_) {\n        return true;\n      } else if (!t1.fn_ || t1.isShutdownTask_) {\n        return false;\n      } else if (!t2.fn_) {\n        return true;\n      } else if (t1.getReentrantDepth() == t2.getReentrantDepth()) {\n        return t1.fn_->sequence_nr() < t2.fn_->sequence_nr();\n      } else {\n        return t1.getReentrantDepth() < t2.getReentrantDepth();\n      }\n    }\n  };\n\n  // To notify threads waiting on the ReadyQueue of available tasks on the heap_\n  std::condition_variable not_empty_;\n  // To protect read and writes to heap_\n  mutable std::mutex mutex_;\n\n  std::priority_queue<NodeTask, std::vector<NodeTask>, CompareNodeTaskTime>\n      heap_;"
+ },
+ "accumulate": {
+  "file": "torch/csrc/autograd/functions/accumulate_grad.cpp",
+  "start": 88,
+  "end": 93,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/autograd/functions/accumulate_grad.cpp#L88-L93",
+  "caption": "AccumulateGrad takes the largest sequence number, so it runs as soon as it is ready.",
+  "text": "// AccumulateGrad sets sequence_nr to the max value so it's always called\n// ASAP during backwards.\nAccumulateGrad::AccumulateGrad(Variable variable_)\n    : Node(/*sequence_nr=*/UINT64_MAX), variable(std::move(variable_)) {\n  add_input_metadata(variable);\n}"
+ },
+ "cpuqueue": {
+  "file": "torch/csrc/autograd/engine.cpp",
+  "start": 68,
+  "end": 74,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/autograd/engine.cpp#L68-L74",
+  "caption": "Which devices share the calling thread's ready queue.",
+  "text": "inline bool should_run_in_cpu_ready_queue(c10::DeviceType device) {\n  if (device == c10::kCPU || device == c10::kMeta || device == c10::kLazy) {\n    return true;\n  } else {\n    return false;\n  }\n}"
+ },
+ "devthreads": {
+  "file": "torch/csrc/autograd/engine.cpp",
+  "start": 1666,
+  "end": 1697,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/autograd/engine.cpp#L1666-L1697",
+  "caption": "One worker thread per non-CPU device, started once.",
+  "text": "  // Second, create special threads for each non-CPU device\n  // See Note [Allocating GPUs to autograd threads]\n  c10::DeviceIndex num_devices = 0;\n  for (const auto& impl_atomic : c10::impl::device_guard_impl_registry) {\n    auto* impl = impl_atomic.load();\n    // Only record the number of devices for device that don't run on the\n    // cpu ready queue.\n    if (impl && !should_run_in_cpu_ready_queue(impl->type())) {\n      num_devices = std::max(num_devices, impl->deviceCount());\n    }\n  }\n\n  // If there are no device except cpu, no need to create worker threads\n  if (num_devices == 0) {\n    return;\n  }\n\n  // Since we're about to create threads, forking is not possible anymore\n  track_bad_autograd_forks();\n\n  // allocate one thread for every GPU device (but colocate GPUs of different\n  // types), and pre-allocate the device_ready_queues_ to ensure safe reading on\n  // it.\n  device_ready_queues_ = std::vector<std::shared_ptr<ReadyQueue>>(num_devices);\n  for (auto& queue : device_ready_queues_) {\n    queue = std::make_shared<ReadyQueue>();\n  }\n\n  for (const auto i : c10::irange(num_devices)) {\n    std::thread t(&Engine::thread_init, this, i, device_ready_queues_[i], true);\n    t.detach();\n  }"
+ },
+ "version": {
+  "file": "torch/csrc/autograd/saved_variable.cpp",
+  "start": 165,
+  "end": 192,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/autograd/saved_variable.cpp#L165-L192",
+  "caption": "The version check when a saved tensor is unpacked (skipped when saved-tensor hooks are installed).",
+  "text": "  // Only check version counter in the case without hooks\n  // If user provides hooks, we can't track versions through the hooks\n  if (!hooks_) {\n    auto current_version = impl::version_counter(data_).current_version();\n\n    if (saved_version_ != current_version) {\n      std::stringstream message;\n      message\n          << \"one of the variables needed for gradient computation has been \"\n             \"modified by an inplace operation: [\"\n          << data_.toString() << ' ';\n      if (data_.is_nested()) {\n        message << data_._nested_tensor_size() << ']';\n      } else {\n        message << data_.sizes() << ']';\n      }\n      if (grad_fn) {\n        message << \", which is output \" << output_nr_ << \" of \"\n                << grad_fn->forward_op_name() << ',';\n      }\n      message << \" is at version \" << current_version << \"; expected version \"\n              << saved_version_ << \" instead.\";\n      if (!AnomalyMode::is_enabled()) {\n        message << \" Hint: enable anomaly detection to find the operation \"\n                   \"that failed to compute its gradient, with torch.autograd.\"\n                   \"set_detect_anomaly(True, check_nan=False).\";\n      } else {\n        message"
+ },
+ "ckpt_default": {
+  "file": "torch/utils/checkpoint.py",
+  "start": 635,
+  "end": 647,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/checkpoint.py#L635-L647",
+  "caption": "checkpoint() without use_reentrant: still a warning and still the reentrant variant at 2.14.1, although the warning names 2.9 for the change.",
+  "text": "    if use_reentrant is None:\n        warnings.warn(\n            \"torch.utils.checkpoint: the use_reentrant parameter should be \"\n            \"passed explicitly. Starting in PyTorch 2.9, calling checkpoint \"\n            \"without use_reentrant will raise an exception. use_reentrant=False is \"\n            \"recommended, but if you need to preserve the current default \"\n            \"behavior, you can pass use_reentrant=True. Refer to docs for more \"\n            \"details on the differences between the two variants.\",\n            stacklevel=3,\n        )\n        use_reentrant = True\n\n    if kwargs and use_reentrant:"
+ },
+ "worker_seed": {
+  "file": "torch/utils/data/_utils/worker.py",
+  "start": 275,
+  "end": 282,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/data/_utils/worker.py#L275-L282",
+  "caption": "How each DataLoader worker seeds random, torch and numpy.",
+  "text": "        seed = base_seed + worker_id\n        random.seed(seed)\n        torch.manual_seed(seed)\n        if HAS_NUMPY:\n            np_seed = _generate_state(base_seed, worker_id)\n            import numpy as np\n\n            np.random.seed(np_seed)"
+ },
+ "scaler": {
+  "file": "torch/amp/grad_scaler.py",
+  "start": 126,
+  "end": 129,
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/amp/grad_scaler.py#L126-L129",
+  "caption": "GradScaler defaults.",
+  "text": "        init_scale: float = 2.0**16,\n        growth_factor: float = 2.0,\n        backoff_factor: float = 0.5,\n        growth_interval: int = 2000,"
+ }
+}
