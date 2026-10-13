@@ -1,0 +1,233 @@
+{
+ "co_register": {
+  "path": "torch/_library/custom_ops.py",
+  "first": 741,
+  "last": 753,
+  "text": "    def _register_to_dispatcher(self, tags: Sequence[_C.Tag]) -> None:\n        schema_str = self._name + self._schema\n        cpp_schema = _C.parse_schema(schema_str)\n        self._validate_schema(cpp_schema, schema_str)\n        self._define_dispatcher_op(schema_str, tags)\n        self._is_inplace = utils.is_inplace(self._opoverload)\n        self._is_out = utils.is_out(self._opoverload)\n        if self._is_out:\n            _, out_kwarg_names = utils.mutated_args_kwargs(self._opoverload._schema)\n            self._out_kwarg_names = tuple(out_kwarg_names)\n        self._register_fake_dispatcher_impl()\n        self._register_autograd_dispatcher_impl()\n        self._register_adinplaceorview_dispatcher_impl()",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_library/custom_ops.py#L741-L753"
+ },
+ "co_fake_missing": {
+  "path": "torch/_library/custom_ops.py",
+  "first": 772,
+  "last": 787,
+  "text": "    def _register_fake_dispatcher_impl(self) -> None:\n        def fake_impl(*args, **kwargs):\n            if self._abstract_fn is None:\n                if utils.can_generate_trivial_fake_impl(self._opoverload):\n                    return utils.generate_trivial_fake_impl(\n                        self._opoverload, *args, **kwargs\n                    )\n                raise RuntimeError(\n                    f\"There was no fake impl registered for {self}. \"\n                    f\"This is necessary for torch.compile/export/fx tracing to work. \"\n                    f\"Please use `{self._init_fn.__name__}.register_fake` to add an \"\n                    f\"fake impl.\"\n                )\n            return self._abstract_fn(*args, **kwargs)\n\n        self._lib._register_fake(self._name, fake_impl, _stacklevel=5)",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_library/custom_ops.py#L772-L787"
+ },
+ "co_kernel_key": {
+  "path": "torch/_library/custom_ops.py",
+  "first": 434,
+  "last": 437,
+  "text": "            if device_types is None or isinstance(device_types, str):\n                dtypes: list[str | None] = [device_types]\n            else:\n                dtypes = list(device_types)",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_library/custom_ops.py#L434-L437"
+ },
+ "co_cea": {
+  "path": "torch/_library/custom_ops.py",
+  "first": 487,
+  "last": 487,
+  "text": "                            self._name, backend_impl, \"CompositeExplicitAutograd\"",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_library/custom_ops.py#L487"
+ },
+ "ag_no_formula": {
+  "path": "torch/_library/autograd.py",
+  "first": 113,
+  "last": 115,
+  "text": "            f\"Trying to backward through {op} but no autograd \"\n            f\"formula was registered. \"\n            f\"Please use register_autograd to add one.\"",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_library/autograd.py#L113-L115"
+ },
+ "lib_reg_autograd": {
+  "path": "torch/library.py",
+  "first": 1439,
+  "last": 1443,
+  "text": "    info = _library.autograd.Info(backward, setup_context)\n    autograd_kernel = _library.autograd.make_autograd_impl(op, info)\n    namespace, opname = torch._library.utils.parse_namespace(qualname)\n    use_lib = _library_for_registration(namespace, lib)\n    use_lib.impl(opname, autograd_kernel, \"Autograd\", with_keyset=True)",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/library.py#L1439-L1443"
+ },
+ "opcheck_tests": {
+  "path": "torch/testing/_internal/optests/generate_tests.py",
+  "first": 167,
+  "last": 172,
+  "text": "DEFAULT_TEST_UTILS = [\n    \"test_schema\",\n    \"test_autograd_registration\",\n    \"test_faketensor\",\n    \"test_aot_dispatch_dynamic\",\n]",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/testing/_internal/optests/generate_tests.py#L167-L172"
+ },
+ "triton_op_doc": {
+  "path": "torch/_library/triton.py",
+  "first": 317,
+  "last": 323,
+  "text": "    Use :func:`torch.library.triton_op` instead of :func:`torch.library.custom_op`\n    when the implementation\n    consists of 1+ triton kernels. :func:`torch.library.custom_op` treats\n    custom operators as opaque (:func:`torch.compile` and\n    :func:`torch.export.export` will never trace into them), but ``triton_op``\n    makes the implementation visible to these subsystems, allowing them\n    to optimize the triton kernel(s).",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_library/triton.py#L317-L323"
+ },
+ "triton_op_impl": {
+  "path": "torch/_library/triton.py",
+  "first": 394,
+  "last": 413,
+  "text": "    def dec(fn: Callable[..., object]) -> CustomOpDef:\n        def backend_fn(*args, **kwargs):  # type: ignore[no-untyped-def]\n            # Optimization: we're passing regular Tensors into the triton kernel, so\n            # no need to go through HOP dispatch\n            with set_wrap_triton_enabled(False):\n                return fn(*args, **kwargs)\n\n        result = custom_op(\n            name,\n            backend_fn,\n            mutates_args=mutates_args,\n            schema=(\n                schema\n                if schema is not None\n                else infer_schema(fn, mutates_args=mutates_args)\n            ),\n        )\n        from .._subclasses.functional_tensor import FunctionalTensorMode\n\n        # We require that the user pass us a function that is make_fx traceable,",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_library/triton.py#L394-L413"
+ },
+ "wrap_triton_doc": {
+  "path": "torch/_library/triton.py",
+  "first": 535,
+  "last": 542,
+  "text": "def wrap_triton(triton_kernel: Callable, /) -> Any:\n    \"\"\"Allows capture of a triton kernel into a graph via make_fx or\n    non-strict ``torch.export``.\n\n    These technologies perform Dispatcher-based tracing (via\n    ``__torch_dispatch__``) and cannot see calls to raw triton kernels.\n    The ``wrap_triton`` API wraps a triton kernel into a callable that\n    can actually be traced into a graph.",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_library/triton.py#L535-L542"
+ },
+ "ops_cache_init": {
+  "path": "torch/_ops.py",
+  "first": 84,
+  "last": 84,
+  "text": "        self._dispatch_cache: dict[DispatchKey, DispatchKey | Callable[..., Any]] = {}",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_ops.py#L84"
+ },
+ "ops_cache_store": {
+  "path": "torch/_ops.py",
+  "first": 1098,
+  "last": 1102,
+  "text": "        r = self.py_kernels.get(final_key, final_key)\n        if cache_result:\n            self._dispatch_cache[key] = r\n            add_cached_op(self)\n        return r",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_ops.py#L1098-L1102"
+ },
+ "aot_cache_flag": {
+  "path": "torch/_functorch/config.py",
+  "first": 71,
+  "last": 75,
+  "text": "enable_autograd_cache: bool = Config(\n    justknob=\"pytorch/remote_cache:enable_local_autograd_cache\",\n    env_name_force=\"TORCHINDUCTOR_AUTOGRAD_CACHE\",\n    default=True,\n)",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/config.py#L71-L75"
+ },
+ "dtensor_new": {
+  "path": "torch/distributed/tensor/_api.py",
+  "first": 394,
+  "last": 400,
+  "text": "        r = torch.Tensor._dtensor__new__(\n            cls, local_tensor, spec, requires_grad=requires_grad\n        )\n        r._spec = spec\n        r._local_tensor = local_tensor\n        return r\n",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/tensor/_api.py#L394-L400"
+ },
+ "dtensor_dispatch": {
+  "path": "torch/distributed/tensor/_api.py",
+  "first": 496,
+  "last": 501,
+  "text": "    def __torch_dispatch__(cls, func, types, args=(), kwargs=None):  # type: ignore[override]\n        # Base DTensor is normally dispatched via a C++ fast path (see #167051)\n        # and never reaches here. This implementation exists so that DTensor\n        # subclasses can delegate back via super().__torch_dispatch__().\n        # It unwraps subclass instances to base DTensor and re-calls the op,\n        # which re-enters dispatch and hits the C++ fast path.",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/tensor/_api.py#L496-L501"
+ },
+ "dtensor_flatten": {
+  "path": "torch/distributed/tensor/_api.py",
+  "first": 424,
+  "last": 431,
+  "text": "    def __tensor_flatten__(self):\n        \"\"\"\n        protocol to inform how to flatten a DTensor to local tensor\n        for PT2 tracing\n        \"\"\"\n        return [\"_local_tensor\", \"device_mesh\"], (\n            self._spec.placements,\n            self._spec.tensor_meta,",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/tensor/_api.py#L424-L431"
+ },
+ "flop_sdpa": {
+  "path": "torch/utils/flop_counter.py",
+  "first": 397,
+  "last": 399,
+  "text": "@register_flop_formula([aten._scaled_dot_product_efficient_attention,\n                        aten._scaled_dot_product_flash_attention,\n                        aten._scaled_dot_product_cudnn_attention])",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/flop_counter.py#L397-L399"
+ },
+ "pu1_rename": {
+  "path": "torch/utils/backend_registration.py",
+  "first": 76,
+  "last": 76,
+  "text": "def rename_privateuse1_backend(backend_name: str) -> None:",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/backend_registration.py#L76"
+ },
+ "nf4_new": {
+  "path": "torchao/quantization/quantize_/workflows/nf4/nf4_tensor.py",
+  "first": 622,
+  "last": 622,
+  "text": "        nf4tensor = torch.Tensor._make_wrapper_subclass(",
+  "url": "https://github.com/pytorch/ao/blob/v0.18.0/torchao/quantization/quantize_/workflows/nf4/nf4_tensor.py#L622"
+ },
+ "nf4_flatten": {
+  "path": "torchao/quantization/quantize_/workflows/nf4/nf4_tensor.py",
+  "first": 904,
+  "last": 915,
+  "text": "    def __tensor_flatten__(self):\n        tensor_meta = SubclassTensorArgs(\n            self.shape,\n            self.stride(),\n            self.storage_offset(),\n            self.dtype,\n            self.device,\n            self.requires_grad,\n        )\n        ctx = {\n            \"block_size\": self.block_size,\n            \"n_blocks\": self.n_blocks,",
+  "url": "https://github.com/pytorch/ao/blob/v0.18.0/torchao/quantization/quantize_/workflows/nf4/nf4_tensor.py#L904-L915"
+ },
+ "nf4_dispatch": {
+  "path": "torchao/quantization/quantize_/workflows/nf4/nf4_tensor.py",
+  "first": 944,
+  "last": 955,
+  "text": "    def __torch_dispatch__(cls, func, types, args, kwargs=None):\n        \"\"\"TODO we are not supporting torch dispatch at the moment\n        instead we have created a Autograd.Function to handle the linear\n        \"\"\"\n        # All ops in the  NF4_OPS_TABLE expect NF4 Tensors as inputs\n        # And don't support mixed tensor subclasses. This will trigger the handler for\n        # the next type in the dispatch list\n\n        def allowed_subclasses(type):\n            return (\n                issubclass(cls, type)\n                or issubclass(torch._subclasses.fake_tensor.FakeTensor, type)",
+  "url": "https://github.com/pytorch/ao/blob/v0.18.0/torchao/quantization/quantize_/workflows/nf4/nf4_tensor.py#L944-L955"
+ },
+ "nf4_linear": {
+  "path": "torchao/quantization/quantize_/workflows/nf4/nf4_tensor.py",
+  "first": 1147,
+  "last": 1148,
+  "text": "@implements_torch_function(F.linear)\ndef _(*args, **kwargs):",
+  "url": "https://github.com/pytorch/ao/blob/v0.18.0/torchao/quantization/quantize_/workflows/nf4/nf4_tensor.py#L1147-L1148"
+ },
+ "fsdp_hooks": {
+  "path": "torch/distributed/fsdp/_fully_shard/_fsdp_param.py",
+  "first": 820,
+  "last": 824,
+  "text": "        has_fsdp_pre_all_gather = hasattr(inner_tensor, \"fsdp_pre_all_gather\")\n        has_fsdp_post_all_gather = hasattr(inner_tensor, \"fsdp_post_all_gather\")\n        if has_fsdp_pre_all_gather != has_fsdp_post_all_gather:\n            raise AssertionError(\n                \"Both fsdp_pre_all_gather and fsdp_post_all_gather should be defined \"",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/fsdp/_fully_shard/_fsdp_param.py#L820-L824"
+ },
+ "f8_new": {
+  "path": "torchao/float8/float8_training_tensor.py",
+  "first": 299,
+  "last": 299,
+  "text": "        self = torch.Tensor._make_wrapper_subclass(",
+  "url": "https://github.com/pytorch/ao/blob/v0.18.0/torchao/float8/float8_training_tensor.py#L299"
+ },
+ "f8_dispatch": {
+  "path": "torchao/float8/float8_training_tensor.py",
+  "first": 349,
+  "last": 360,
+  "text": "    def __torch_dispatch__(cls, func, types, args, kwargs=None):\n        # 1. tracing through __torch_function__ logic is not supported yet in\n        # PT2.0, so we explicitly disallow it here for callsites from user code.\n        # 2. We do need to handle a couple of ops in order for\n        # TorchDynamo tracing to succeed.\n\n        # Lazy import to avoid circular dependency\n        from torchao.float8.float8_ops import FLOAT8_OPS_TABLE\n\n        # All ops in the FLOAT8_OPS_TABLE expect Float8TrainingTensor as inputs\n        # And don't support mixed tensor subclasses. This will trigger the handler for\n        # the next type in the dispatch list",
+  "url": "https://github.com/pytorch/ao/blob/v0.18.0/torchao/float8/float8_training_tensor.py#L349-L360"
+ },
+ "int8_names": {
+  "path": "torchao/quantization/quantize_/workflows/int8/int8_tensor.py",
+  "first": 74,
+  "last": 81,
+  "text": "    tensor_data_names = [\"qdata\", \"scale\"]\n    optional_tensor_data_names = [\n        \"zero_point\",\n        \"act_quant_scale\",\n        \"act_quant_zero_point\",\n        \"act_pre_scale\",\n    ]\n    tensor_attribute_names = [\"block_size\", \"dtype\"]",
+  "url": "https://github.com/pytorch/ao/blob/v0.18.0/torchao/quantization/quantize_/workflows/int8/int8_tensor.py#L74-L81"
+ },
+ "helion_backends": {
+  "path": "helion/runtime/settings.py",
+  "first": 610,
+  "last": 614,
+  "text": "        \"backend\": (\n            \"Code generation backend. One of 'triton' (default), 'pallas' (JAX/Pallas), \"\n            \"'cute' (CUTLASS CuTe DSL), or 'metal' (Apple Metal MSL). \"\n            \"Set HELION_BACKEND=<backend> to override.\"\n        ),",
+  "url": "https://github.com/pytorch/helion/blob/v1.4.0/helion/runtime/settings.py#L610-L614"
+ },
+ "helion_metal": {
+  "path": "helion/_compiler/metal/backend.py",
+  "first": 30,
+  "last": 31,
+  "text": "class MetalBackend(Backend):\n    \"\"\"Metal Shading Language (MSL) code generation backend for macOS.\"\"\"",
+  "url": "https://github.com/pytorch/helion/blob/v1.4.0/helion/_compiler/metal/backend.py#L30-L31"
+ },
+ "helion_hop": {
+  "path": "helion/_compiler/_dynamo/higher_order_ops.py",
+  "first": 59,
+  "last": 59,
+  "text": "class HelionKernelWrapperMutation(HigherOrderOperator):",
+  "url": "https://github.com/pytorch/helion/blob/v1.4.0/helion/_compiler/_dynamo/higher_order_ops.py#L59"
+ },
+ "helion_ref": {
+  "path": "helion/runtime/settings.py",
+  "first": 319,
+  "last": 320,
+  "text": "def _get_ref_mode() -> RefMode:\n    interpret = _env_get_bool(\"HELION_INTERPRET\", False)",
+  "url": "https://github.com/pytorch/helion/blob/v1.4.0/helion/runtime/settings.py#L319-L320"
+ },
+ "cpp_subclass_helper": {
+  "path": "torch/csrc/autograd/python_variable.cpp",
+  "first": 687,
+  "last": 688,
+  "text": "// Shared code factored out of THPVariable_make_wrapper_subclass and\n// THPVariable_dtensor__new__.",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/autograd/python_variable.cpp#L687-L688"
+ },
+ "cpp_fast_path": {
+  "path": "torch/csrc/autograd/python_variable.cpp",
+  "first": 1536,
+  "last": 1536,
+  "text": "  // First, we will try to short-circuit Python entirely using the fast path.",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/autograd/python_variable.cpp#L1536"
+ },
+ "torch_library_macro": {
+  "path": "torch/library.h",
+  "first": 974,
+  "last": 974,
+  "text": "#define TORCH_LIBRARY(ns, m)                                                   \\",
+  "url": "https://github.com/pytorch/pytorch/blob/v2.14.1/torch/library.h#L974"
+ }
+}
