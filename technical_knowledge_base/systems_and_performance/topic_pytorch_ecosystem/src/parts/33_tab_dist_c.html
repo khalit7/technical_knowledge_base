@@ -1,0 +1,46 @@
+
+<section id="dst-s7">
+<h2>7. DTensor and DeviceMesh: placements, and what changing them costs</h2>
+<p>FSDP2, tensor parallel and distributed checkpoints are all built on one abstraction. A <b>DeviceMesh</b> arranges the ranks in a grid: 4 ranks as a line of 4, or as 2 &times; 2 (say, data parallel along one axis and tensor parallel along the other). A <b>DTensor</b> is one logical tensor spread over a mesh, described by one <b>placement</b> per mesh dimension:</p>
+<ul class="tight">
+<li><b><code>Shard(d)</code></b>: split along tensor dimension d; each rank holds one piece (like <code>torch.chunk</code>, so 6 rows over 4 ranks gives <span id="dst-uneven"></span> rows: the last rank can be empty).</li>
+<li><b><code>Replicate()</code></b>: every rank holds the whole tensor.</li>
+<li><b><code>Partial()</code></b>: every rank holds a full-shape tensor, and the real value is their <i>sum</i> (a pending reduction). This is what a row-split matrix multiply produces before its all-reduce.</li>
+</ul>
+<p>Every operation on DTensors either works locally or needs a <b>redistribute</b>, which is a collective. Knowing which placement change needs which collective is most of what tensor parallelism is. Pick a mesh and two placements: the 4 &times; 4 tensor <code>arange(16)</code>, which rank holds which elements before and after, and the collectives the real run issued.</p>
+<div class="card" id="dst-dt">
+<div class="dst-sel" id="dst-dt-sel"></div>
+<div class="grid" id="dst-dt-out"></div>
+<div class="dst-cap" id="dst-dt-cap"></div>
+<div class="dst-src">Every combination was run (16 pairs on each 1-D mesh, 256 on the 2 &times; 2 mesh; CPU, gloo, torch 2.14.1): the collectives are the recorded ones, both as DTensor asked for them (<code>CommDebugMode</code>) and as gloo ran them (flight recorder). The local values are computed in the page from the placements and were checked against the recorded local tensors of every rank in every pair. A Partial source is built with integer pieces that sum to the tensor (element k on mesh coordinate k mod n).</div>
+</div>
+<div class="tw"><table class="dst-tbl" id="dst-dt-sum"></table></div>
+<p class="small mute">Summary of the 1-D mesh of 4. Read across: Shard to Replicate is an all-gather, Partial to Replicate an all-reduce, Partial to Shard a reduce-scatter, Replicate to Shard is free (each rank keeps its piece), and Shard to Partial is free too (fill the rest with zeros). Two things the recording added: at 2.14.1 Shard(0) to Shard(1) is an all-gather followed by a local slice, not an all-to-all; and Replicate to Partial raises "only Shard to Partial(sum) redistribution is supported".</p>
+</section>
+
+<section id="dst-s8">
+<h2>8. Tensor parallel: split the matrices, not the batch</h2>
+<p><b>Tensor parallelism</b> (TP) splits each weight matrix across ranks that all see the <i>same</i> batch. The Megatron-LM recipe for an MLP, which PyTorch exposes as <code>ColwiseParallel</code> and <code>RowwiseParallel</code> in <code>torch.distributed.tensor.parallel</code>: split the first Linear by output columns (each rank computes half of the 1,024 hidden units, and GELU works on its half alone), split the second by input rows (each rank multiplies its half and gets a <code>Partial</code> sum), then one all-reduce adds the halves. Backward mirrors it: one all-reduce of the input gradient. The maths and its cost model are on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} and the {{Megatron-LM paper page|n:3c65c17b0d0d8133ae92fbe90a1f308e}}.</p>
+<div class="card" id="dst-tp">
+<div id="dst-tp-svg" class="dst-plot"></div>
+<div class="dst-st" id="dst-tp-st"></div>
+<div class="dst-cap" id="dst-tp-cap"></div>
+</div>
+<div class="co warn"><div class="t">The same plan on the fused attention projection fails</div>The model computes q, k and v with one Linear of 768 outputs laid out as [all of q | all of k | all of v]. <code>ColwiseParallel</code> on it gives rank 0 rows <span id="dst-qkv0"></span> (all of q and half of k) and rank 1 the rest, and the forward fails at once: <code>ValueError: not enough values to unpack (expected 3, got 2)</code>, because a 384-wide local output cannot be split into three 256-wide pieces. Column-splitting needs whole heads on each rank. torchtitan's fused projection is laid out head-group by head-group for exactly this reason ("Compatible with ColwiseParallel on the wqkv linear layer", <a href="https://github.com/pytorch/torchtitan/blob/v0.3.0/torchtitan/models/common/attention.py#L785-L797" target="_blank" rel="noopener noreferrer">torchtitan 0.3.0 attention.py L785</a>), and its unfused version shards <code>wq</code>, <code>wk</code>, <code>wv</code> separately. The parallel plan is a property of the model's layout, not only of the module types.</div>
+<p><b>Two dimensions at once.</b> On 4 ranks as a 2 &times; 2 mesh, the MLPs were tensor-parallel over one axis and the whole model was <code>fully_shard</code>-ed over the other, the layout torchtitan calls 2-D parallelism. The first MLP weight's placements came out as <code id="dst-2d-pl"></code>: sharded on dimension 0 by both axes, the FSDP part as a "strided" shard so that each rank's rows are the right ones. Collectives now come in two groups: <span id="dst-2d-coll"></span>. Losses matched the 1-D runs (<span id="dst-2d-loss"></span>).</p>
+</section>
+
+<section id="dst-s9">
+<h2>9. Pipelining: split the layers, stream micro-batches</h2>
+<p><b>Pipeline parallelism</b> puts consecutive layers on different ranks: here rank 0 runs the embeddings and blocks 0 and 1, rank 1 runs blocks 2 and 3 and the output layer. The batch of 8 is cut into 4 <b>micro-batches</b> of 2 so both ranks can work at once; activations flow forward by send/recv, their gradients flow back the same way. A <b>schedule</b> decides the order. <code>torch.distributed.pipelining</code> (PyTorch 2.4 onward) ships several; two are run here, on the same input:</p>
+<div class="card" id="dst-pp">
+<div class="seg" id="dst-pp-seg"></div>
+<div class="dst-ctl" id="dst-pp-ctl"></div>
+<div id="dst-pp-svg" class="dst-plot"></div>
+<div class="dst-cap" id="dst-pp-cap"></div>
+<div class="dst-st" id="dst-pp-st"></div>
+<div class="dst-src">The order of forward (F) and backward (B) per micro-batch on each rank, as recorded by module hooks and the stage's send/recv calls; drawn on a unit clock (a forward takes 1 slot, a backward 2: illustrative durations; the order and the dependencies are the recorded ones). In-flight count = micro-batches whose activations rank 0 is holding. Peak memory per rank from the profiler, same step.</div>
+</div>
+<p><b>GPipe</b> runs all forwards, then all backwards: simple, but stage 0 holds the activations of all 4 micro-batches at once. <b>1F1B</b> starts each backward as soon as it can and then alternates one forward with one backward, so stage 0 never holds more than 2. Same gradients, same communication (4 activations of 131,072 bytes sent forward and 4 gradients of 131,072 bytes sent back per step), lower peak. The idle gaps at the start and end are the <b>pipeline bubble</b>; the schedules that shrink it (interleaved 1F1B, zero-bubble, DualPipe) are in <code>torch.distributed.pipelining</code> too and their maths is on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}.</p>
+<div class="co warn"><div class="t">A tied weight across stages</div>The token embedding is on stage 0 and the output layer, which shares its weight, on stage 1. Each stage now holds its own copy and computes only its half of the gradient: rank 0's gradient differed from the single-process one by <span id="dst-pp-tb"></span> (max abs). Summing the two with one extra all-reduce brought it to <span id="dst-pp-ta"></span>. Nothing in the pipeline API does this for you: without it the two copies drift apart from the first optimizer step. Megatron keeps a dedicated "embedding group" for this all-reduce.</div>
+</section>
