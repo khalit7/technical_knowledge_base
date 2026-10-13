@@ -3385,3 +3385,21 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_pytorch_ecosystem/src/viz_ideas.md`.
 
+### Tensors, the dispatcher and autograd (2026-10-13)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_pytorch_ecosystem/tensors_dispatcher_and_autograd/src/viz_ideas.md`.
+
+| # | Visual | Where | Data | Why it earns its place | Score |
+|---|---|---|---|---|---|
+| 1 | Before/after animation: x.t() (header only) against x.t().contiguous() (a copy), same 12 cells, address formula per step, bytes-copied counter | Reading 1.2 | tensors.json | Shows a view and a copy as two animations of one input; the "jumps" counter is why view(12) fails | 11 |
+| 2 | Type-promotion grid, 11 x 11, from torch.promote_types, cells that are neither input outlined | Reading 1.4 | tensors.json | Whole rule in one picture; corrects "the wider type wins" (bf16 + f16 = f32, u8 + i8 = i16) | 10 |
+| 3 | Dispatch key ladder with the wheel's enum numbers | Reading 2.2 | dispatch.json | Priority made concrete | 7 |
+| 4 | Slot statistics over all 3,113 aten ops, per key | Reading 2.4 | dispatch.json | Shows fallthrough and math kernels are the norm, not the exception | 9 |
+| 5 | Before/after walk: one custom op instrumented at every key, plain vs inference_mode vs autocast vs no_grad | Reading 2.5 | dispatch.json walk | Ground truth of kernels run, not a diagram; no_grad and plain identical, inference_mode skips autograd | 13 |
+| 6 | Functionalization: make_fx graph before and after | Reading 2.7 | dispatch.json | Real traced code; mutation becomes data flow | 8 |
+| 7 | Per-call overhead bars in 6 dispatcher situations | Reading 2.9 | timing.json (bench lock) | The cost of dispatch as a number | 8 |
+| 8 | Stride explorer: 36 recorded tensors plus running-example q/k/v, logical grid against storage strip, play through index order, read counts (stride 0, overlap), free strides mode computed in the browser | Tab | tensors.json | Every address checked by arange values; channels_last on real strides | 12 |
+| 9 | Dispatcher walker: two situations side by side, stepped kernel by kernel; aten calls in 4 contexts with the reconstructed route and what the top and the Python key saw | Tab | dispatch.json | Before/after on the same op; shows that a dispatch mode's view depends on grad mode | 12 |
+| 10 | Autograd engine stepper: one block's 46-node graph (54 on MPS), ready queue and counts re-run from engine.h's rule, saved bytes held, aten calls per node incl. checkpoint recompute; plain / checkpointed / offloaded | Tab | engine.json | Reproduces the recorded order exactly (by construction of the rule, checked independently against pre-hook records); before/after on one input | 13 |
+| 11 | Version-counter lab: 14 snippets, versions per line, predict then reveal | Tab | autograd.json | Errors reproduced; two silent-wrong-gradient cases | 11 |
+| 12 | Predict-then-reveal drills (8) | Reading | various | Belief elicitation | n/a |

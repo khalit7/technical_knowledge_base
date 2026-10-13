@@ -1,0 +1,50 @@
+<section id="rd-s2">
+<h2>2. The dispatcher: one table lookup per call</h2>
+<p><b>The problem.</b> One operator, say matrix multiply, has to do different things depending on context: cast to bfloat16 under mixed precision, record a graph node when gradients are needed, run on a CPU, an Apple GPU or a CUDA GPU, call back into Python when a tensor subclass or a tracing tool wants to see it, or only compute output shapes when the compiler is tracing. Writing all of that into every one of thousands of kernels is impossible to maintain. PyTorch separates the concerns and lets a table decide which ones apply to each call.</p>
+
+<h3>2.1 Operators and their schemas</h3>
+<p>An <dfn>operator</dfn> is a named function in the <code>aten</code> namespace (ATen is PyTorch's C++ tensor library) with a <dfn>schema</dfn>: its signature, including which arguments it writes to and which outputs alias an input. The schemas are declared in <code>native_functions.yaml</code>, which at v2.14.1 has <span id="tda-nfcount"></span> <code>- func:</code> entries; the installed wheel registers <span id="tda-opcount"></span> operators in the <code>aten</code> namespace (more than the YAML entries, because out-variants and functional variants are generated). Four real entries:</p>
+<div id="tda-nf"></div>
+<p>Read the annotations: <code>Tensor(a!) self ... -&gt; Tensor(a!)</code> on <code>add_</code> means "writes into self and returns it" (the <code>!</code> is the mutation); <code>Tensor(a) self -&gt; Tensor(a)</code> on <code>view</code> means "the output aliases self". These annotations are how autograd, functionalization and the compiler know what an op mutates and aliases without reading its code. The <code>dispatch:</code> block names the kernel per key: <code>linear</code> is <code>CompositeImplicitAutograd</code> (written in terms of other ops) except on MPS, which has its own; <code>mm</code> and <code>addmm</code> are <dfn>structured</dfn> (one shape-checking function shared by every backend, kernels per device). Their gradient formulas live in a second file, <code>tools/autograd/derivatives.yaml</code> (<span id="tda-dvcount"></span> entries):</p>
+<div id="tda-dv"></div>
+
+<h3>2.2 Dispatch keys and their order</h3>
+<p>A <dfn>dispatch key</dfn> names one concern. Keys come in two parts: a <dfn>functionality</dfn> (Dense, Autograd, Autocast, Python, ...) and, for some functionalities, a <dfn>backend</dfn> bit (CPU, MPS, CUDA, ...). <code>AutogradCPU</code> is the Autograd functionality with the CPU bit. The functionality order is the priority: when several keys apply, the one with the highest number runs first. Read from the wheel's <code>torch._C.DispatchKey</code>:</p>
+<div id="tda-ladder" class="rd-svg"></div>
+<p class="small mute">Numbers are the enum values in the installed 2.14.1 wheel (the enum order in <code>c10/core/DispatchKey.h</code> at v2.14.1, where <code>Python</code> is declared on line 229, <code>ADInplaceOrView</code> on line 289 and <code>AutocastCPU</code> on line 334). The keys on the right are the ones this page meets; others (functorch's vmap and grad layers, Sparse, Quantized) slot in at the numbers shown.</p>
+
+<h3>2.3 The key set of one call: tensors, plus the thread, minus the thread</h3>
+<p>Every tensor carries a <dfn>key set</dfn>. The keys depend on what the tensor is, measured on real tensors:</p>
+<div id="tda-tkeys" class="tw"></div>
+<p>The thread carries two more sets, an <dfn>included</dfn> set and an <dfn>excluded</dfn> set, changed by context managers. For each call the dispatcher computes</p>
+<div class="fm"><div class="eq">keys = (&#8746; keys of the tensor arguments &#8746; included) &minus; excluded &minus; fallthroughs</div></div>
+<div class="tda-q" data-q="keyset" data-hl="46"></div>
+<p>and runs the kernel of the highest-priority key left. Two defaults explain a lot (quoted below): <code>ADInplaceOrView</code> is in the included set of every thread, and every <code>Autocast</code> key is in the excluded set until you enter <code>torch.autocast</code>. So a plain tensor carries <code>AutocastCPU</code>, but it is excluded until autocast removes the exclusion. Measured: the effective set for a plain CPU tensor in each context.</p>
+<div class="tda-q" data-q="tls_default"></div>
+<div id="tda-ctx" class="tw"></div>
+<p>The table says what the root's section 2 asserted, now from the source: <code>no_grad</code> changes no key at all (the autograd kernel still runs and decides not to record, from the grad-mode flag), while <code>inference_mode</code> removes <code>ADInplaceOrView</code> from the included set and excludes every autograd key:</p>
+<div class="tda-q" data-q="inference" data-hl="64,65,67,68"></div>
+
+<h3>2.4 The dispatch table, and what "math kernel" and "fallthrough" mean</h3>
+<p>Each operator keeps a <dfn>dispatch table</dfn>: one slot per runtime key. A slot is filled by, in order: a kernel registered for exactly that key; else a kernel registered for an <dfn>alias key</dfn> that covers it (<code>CompositeExplicitAutograd</code>, one implementation for all backends; <code>CompositeImplicitAutograd</code>, a decomposition into other operators that also serves as its own autograd, shown as "math kernel"); else a <dfn>backend fallback</dfn> registered for every operator at that key; and a <dfn>fallthrough</dfn> means "skip this key". The rule, in the source:</p>
+<div class="tda-q" data-q="table"></div>
+<div class="seg" id="tda-tblseg"></div>
+<div id="tda-tbl" class="tw"></div>
+<p>Counted over all <span class="tda-opn"></span> aten operators in the wheel, which slot each key gets:</p>
+<div id="tda-opstat" class="bars"></div>
+<p class="small mute">From <code>torch._C._dispatch_dump_table</code> for every <code>aten::</code> operator, torch 2.14.1 macOS arm64 wheel (no CUDA kernels in this build). "default backend kernel" = <code>CompositeExplicitAutograd</code>; "math kernel" = <code>CompositeImplicitAutograd</code>.</p>
+<p>So: about a quarter of all operators decompose (739 math kernels at the CPU key, <code>linear</code> into <code>t</code> and <code>addmm</code> among them); <code>ADInplaceOrView</code> has a real kernel only for views and in-place ops and is a fallthrough for the rest; autocast touches only the operators on its list; and the <code>Python</code> key is a single boxed fallback that serves every operator. <dfn>Boxed</dfn> means the arguments arrive as a generic stack of values, which is what lets one function handle every operator. At the autograd keys, the boxed fallback handles operators that have no derivative registered:</p>
+<div class="tda-q" data-q="fallback" data-hl="66,67,103,104"></div>
+<p>What that fallback does to your own operator: a custom op <code>tda2::noautograd</code> with only a CPU kernel, called on a tensor that requires grad, returned a tensor with <code>grad_fn</code> <span id="tda-fb-gf"></span> and backward ran, with the warning <span id="tda-fb-w" class="tda-err"></span> (the fallback mode is <code>"<span id="tda-fb-m"></span>"</code>). The gradient is silently not what the op computes. Register a backward ({{Extending PyTorch|n:3f85c17b0d0d8158a7addcd3d601d72a}} shows <code>register_autograd</code>).</p>
+
+<h3>2.5 Watch it: one call, key by key</h3>
+<p>To see which kernels actually run, the walk below uses a custom operator <code>tda::scale</code> with a logging Python kernel registered at <code>AutocastCPU</code>, <code>AutogradCPU</code>, <code>ADInplaceOrView</code>, <code>CPU</code> and <code>Meta</code>. Each kernel records the key set it received and redispatches below itself, the way the real C++ kernels do. Nothing is simulated: the dispatcher chose which of them ran and in what order. Same input, before and after:</p>
+<div class="rd-card" id="tda-w-card">
+<div class="seg" id="tda-w-seg"><button data-m="0" class="on">plain tensor</button><button data-m="3">inference_mode</button><button data-m="4">autocast bf16</button><button data-m="2">no_grad</button></div>
+<div id="tda-w-code" class="code"></div>
+<div id="tda-w-hops" class="tda-hops"></div>
+<div class="an-ctl" id="tda-w-ctl"></div>
+<div class="an-cap" id="tda-w-cap"></div>
+</div>
+<p>Four lessons in it. Under <code>no_grad</code> the autograd kernel still runs (grad mode is just a flag it reads). Under <code>inference_mode</code> it is gone, and so would <code>ADInplaceOrView</code> be for a plain call, but this custom op still visits it: an inference-mode call on a tensor from outside keeps the tensor's own keys. Under autocast the input arrives as float32 at <code>AutocastCPU</code> and as bfloat16 everywhere below. The {{Dispatcher walker|#t-tda-dsp}} tab has all eight situations (a dispatch mode, a meta tensor, an inference tensor outside inference mode) and real aten calls.</p>
+</section>
