@@ -1,0 +1,54 @@
+<section id="rd-s3">
+<h2>3. C++ extensions: TORCH_LIBRARY</h2>
+<p><b>The problem.</b> Some kernels have to be compiled code: a hand-written loop, a call into a C++ library, a CUDA kernel. <code>torch.utils.cpp_extension</code> compiles C++ against PyTorch's headers and loads the result into the running process. It offers three ways: <code>load_inline</code> (C++ in a Python string, built on first use), <code>load</code> (the same from files) and <code>setup.py</code> with <code>CppExtension</code> or <code>CUDAExtension</code> (a wheel built ahead of time, what libraries ship). The first two need the <code>ninja</code> build tool; it was not in the shared environment and had to be installed.</p>
+<h3>3.1 The tiny operator, built here</h3>
+<p>The running example's C++ GELU, whole file in <code>src/exp/gelu_ext.cpp</code>. The kernel is a plain loop over the tensor's memory; then two macros register it with the dispatcher:</p>
+<div class="code"><span class="k">static</span> at::Tensor gelu_fwd(<span class="k">const</span> at::Tensor& x) {
+  TORCH_CHECK(x.device().is_cpu() && x.scalar_type() == at::kFloat, <span class="k">"extc::gelu: CPU float32 only"</span>);
+  <span class="k">auto</span> xc = x.contiguous();
+  <span class="k">auto</span> y = at::empty_like(xc);
+  <span class="k">const float</span>* in = xc.data_ptr&lt;<span class="k">float</span>&gt;();
+  <span class="k">float</span>* out = y.data_ptr&lt;<span class="k">float</span>&gt;();
+  at::parallel_for(0, xc.numel(), 4096, [&](int64_t b, int64_t e) {
+    <span class="k">for</span> (int64_t i = b; i &lt; e; ++i)
+      out[i] = 0.5f * in[i] * (1.0f + std::erf(in[i] * 0.70710678f));
+  });
+  <span class="k">return</span> y;
+}
+<span class="c">// ... gelu_bwd the same way ...</span>
+
+<span class="h">TORCH_LIBRARY(extc, m)</span> {                 <span class="c">// define: namespace extc, two schemas</span>
+  m.def(<span class="k">"gelu(Tensor x) -&gt; Tensor"</span>);
+  m.def(<span class="k">"gelu_backward(Tensor grad, Tensor x) -&gt; Tensor"</span>);
+}
+<span class="h">TORCH_LIBRARY_IMPL(extc, CPU, m)</span> {        <span class="c">// kernels at the CPU key</span>
+  m.impl(<span class="k">"gelu"</span>, &gelu_fwd);
+  m.impl(<span class="k">"gelu_backward"</span>, &gelu_bwd);
+}</div>
+<div class="code"><span class="c"># Python: build, load, then add what C++ did not say</span>
+<span class="k">from</span> torch.utils.cpp_extension <span class="k">import</span> load_inline
+mod = load_inline(name=<span class="k">"ext_gelu"</span>, cpp_sources=[src], functions=[<span class="k">"raw_gelu"</span>, <span class="k">"raw_gelu_backward"</span>],
+                  extra_cflags=[<span class="k">"-O3"</span>])            <span class="c"># loading runs TORCH_LIBRARY: torch.ops.extc.gelu exists</span>
+torch.library.register_fake(<span class="k">"extc::gelu"</span>)(<span class="k">lambda</span> x: torch.empty_like(x))
+torch.library.register_fake(<span class="k">"extc::gelu_backward"</span>)(<span class="k">lambda</span> g, x: torch.empty_like(x))
+torch.library.register_autograd(<span class="k">"extc::gelu"</span>, backward, setup_context=setup_context)
+y = torch.ops.extc.gelu(x)</div>
+<p><code>TORCH_LIBRARY</code> is a macro that creates a static registrar, so the definitions run when the shared library is loaded (<span class="ext-qh" data-q="torch_library_macro" style="display:inline"></span>). The dispatcher's table afterwards shows where each kernel came from, the CPU kernel from the C++ file and the fake (at <code>Meta</code>) and the autograd kernel from Python:</p>
+<div class="code" id="ext-cppdump"></div>
+<p>The same <code>.so</code> also exposed the two functions through pybind11 (<code>functions=[...]</code>), which is how the "before" side of section 2 called them without the dispatcher.</p>
+<h3>3.2 What it costs</h3>
+<div class="rd-card"><h4>One call, four ways to reach the same kind of work <span class="meas">measured on Apple M1 Pro, CPU, 4 threads, bench lock, median of 3</span></h4>
+<div class="seg" id="ext-call-seg"><button class="on" data-m="small (64)">64 floats: overhead</button><button data-m="mlp (8,64,1024)">8 &times; 64 &times; 1024: the kernel</button></div>
+<div class="bars" id="ext-call-bars"></div>
+<p class="small mute" id="ext-call-note"></p></div>
+<p>Two different lessons. <b>Overhead:</b> on 64 numbers the call itself dominates. Through pybind11 the C++ function costs what <code>F.gelu</code> costs; as a dispatcher operator with a Python autograd kernel it costs about five times as much, because every call enters Python at the <code>Autograd</code> key even when nothing needs a gradient (a C++ autograd registration would avoid that; not measured here). <b>Kernel:</b> on a real activation our loop is about 11 times slower than ATen's GELU. ATen's kernel is vectorised (4 floats per NEON instruction) and multi-threaded; ours computes one <code>erf</code> at a time, and <code>at::parallel_for</code> runs serially here because the extension was compiled without OpenMP flags. A custom kernel has to beat what it replaces before it earns its place; measure it on the shapes you run.</p>
+<p><b>Build.</b> A cold <code>load_inline</code> of this 50-line file took <span data-v="timing/build_cold_s/2"></span> to <span data-v="timing/build_cold_s/0"></span> s (three builds, each in a fresh directory and process); afterwards the build directory acts as a cache.</p>
+<div class="co warn"><div class="t">One namespace, one TORCH_LIBRARY, per process</div>Loading a second build of the same file under another module name (to time a cold build) killed the Python process with SIGABRT (return code <span data-v="dup/returncode"></span>) and no Python traceback: a namespace may be defined by one <code>TORCH_LIBRARY</code> block only. Use <code>TORCH_LIBRARY_FRAGMENT</code> to add definitions from several files, and never import two copies of an extension.</div>
+<h3>3.3 Beyond this example</h3>
+<ul>
+<li><b>Autograd in C++</b>: subclass <code>torch::autograd::Function</code> and register it at the <code>Autograd</code> key with <code>TORCH_LIBRARY_IMPL(extc, Autograd, m)</code>. Use it when you need C++-speed calls; the Python route above is simpler and enough for big kernels.</li>
+<li><b>CUDA</b>: <code>CUDAExtension</code> or <code>load_inline(cuda_sources=...)</code> compile <code>.cu</code> files with nvcc; register the kernel at the <code>CUDA</code> key exactly as above. Not run here (no NVIDIA GPU).</li>
+<li><b>One wheel for several PyTorch versions</b>: the C++ ABI changes between releases, so an extension built against 2.14 may not load into 2.15. PyTorch ships a smaller stable ABI for extensions, with its own registration macro (<code>STABLE_TORCH_LIBRARY</code> in <code>torch/csrc/stable/library.h</code>, line 355 of the 2.14.1 wheel's headers); not used here.</li>
+</ul>
+<div class="deepnote"><b>Go deeper:</b> the {{custom C++ and CUDA operators tutorial|https://docs.pytorch.org/tutorials/advanced/cpp_custom_ops.html}}; {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}} for writing the CUDA kernel itself.</div>
+</section>

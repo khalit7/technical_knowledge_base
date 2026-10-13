@@ -1,0 +1,39 @@
+<nav class="nav" id="rd-nav">
+<a href="#rd-s0">0 One screen</a><a href="#rd-s1">1 Custom ops</a><a href="#rd-s2">2 Under compile</a><a href="#rd-s3">3 C++</a><a href="#rd-s4">4 Kernels</a><a href="#rd-s5">5 Subclasses</a><a href="#rd-s6">6 Modes</a><a href="#rd-s7">7 New devices</a><a href="#rd-s8">8 Choosing</a><a href="#rd-s9">9 On NVIDIA GPUs</a><a href="#rd-mis">Mistakes</a><a href="#rd-iq">Interview</a>
+</nav>
+
+<section id="rd-s0">
+<h2>0. In one screen: adding what PyTorch does not ship</h2>
+<p class="lead">Sooner or later a training job needs something PyTorch does not have: a kernel you wrote (in C++, CUDA, Metal, Triton or Helion), a call into a library that is not PyTorch, a new number format for weights (int8, NF4, float8), a tensor that lives on several devices at once, or a tool that watches every operation. PyTorch has a hook for each. They differ in three ways that this page measures: <b>what they can change</b>, <b>whether autograd, <code>torch.compile</code> and <code>torch.export</code> keep working</b>, and <b>what they cost</b>.</p>
+<p>The page follows the parent topic's running example, a 3,186,944-parameter character-level GPT ({{Topic: pytorch-ecosystem|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}, defined once in the root's <code>src/model/</code>), and changes two things in it. First, the GELU inside every block's MLP is replaced by <b>your own kernel</b>: a 50-line C++ GELU, then a Metal one, then a Helion one, each plugged in a different way. Second, the block weights are replaced by an <b>int8 tensor subclass</b>. Every result below comes from running those changes: graph counts, test results, errors, timings.</p>
+<p>Three terms first. An <dfn>operator</dfn> is a named function the dispatcher knows (<code>aten::addmm</code>, or yours, <code>ext::gelu</code>), with a <dfn>schema</dfn>: a one-line type signature such as <code>ext::gelu(Tensor x) -&gt; Tensor</code>. The <dfn>dispatcher</dfn> keeps, for each operator, a table of <dfn>kernels</dfn> (implementations) indexed by <dfn>dispatch key</dfn> (CPU, MPS, Autograd, Python, Meta and others) and, on every call, walks the keys that apply. The sibling page {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}} takes that machine apart; here we only plug things into it.</p>
+<div class="stepbox">
+<div style="--sc:var(--c1)"><div class="k">New computation</div><div class="v">a custom operator</div><p>A kernel per device, plus three facts the compiler cannot guess: the output's shape (a <i>fake</i>), the gradient, and what is mutated.</p></div>
+<div style="--sc:var(--c2)"><div class="k">New kernel language</div><div class="v">C++, Metal, Triton, Helion</div><p>The kernel is written elsewhere; it plugs in as an operator's kernel at one device key.</p></div>
+<div style="--sc:var(--c4)"><div class="k">New representation</div><div class="v">a tensor subclass</div><p>Every operator on the tensor reaches your Python code: int8 weights, sharded tensors, float8.</p></div>
+<div style="--sc:var(--c3)"><div class="k">Watch or transform everything</div><div class="v">a dispatch mode</div><p>Active for a region of code; sees every ATen call: fake tensors, FLOP counting, logging.</p></div>
+</div>
+<div class="tw"><table class="rd-tbl">
+<thead><tr><th>Hook</th><th>What it changes</th><th>Autograd</th><th>torch.compile</th><th>Measured here</th></tr></thead>
+<tbody>
+<tr><td>Plain PyTorch code</td><td>Nothing new: composes existing operators</td><td>Free</td><td>Traced and fused</td><td><code>F.gelu</code>: 1 graph; <span data-v="timing/calls_cpu/small (64)/F.gelu/median_us|2"></span> &micro;s per call</td></tr>
+<tr><td><code>torch.autograd.Function</code></td><td>The backward of a piece of Python</td><td>Yours</td><td>Traced if forward and backward are traceable</td><td>Owned by the sibling page (3.6)</td></tr>
+<tr><td><code>torch.library.custom_op</code></td><td>Adds an operator whose kernel is opaque</td><td><code>register_autograd</code></td><td>One node, no break, once it has a fake</td><td>1 graph against <span data-v="variants/pybind/graphs"></span> graphs and <span data-v="variants/pybind/breaks"></span> breaks unregistered; <span data-v="timing/calls_cpu/small (64)/custom_op (Python) around C++/median_us|2"></span> &micro;s per call</td></tr>
+<tr><td>C++ op with <code>TORCH_LIBRARY</code></td><td>The same, defined in C++</td><td>In C++ or from Python</td><td>Same as custom_op</td><td>Cold build <span data-v="timing/build_cold_s/2"></span> to <span data-v="timing/build_cold_s/0"></span> s; <span data-v="timing/calls_cpu/small (64)/TORCH_LIBRARY C++/median_us|2"></span> &micro;s per call</td></tr>
+<tr><td><code>triton_op</code> + <code>wrap_triton</code></td><td>An operator built from Triton kernels</td><td><code>register_autograd</code></td><td>Visible: Inductor optimises around the kernel</td><td>Not run: Triton has no macOS build</td></tr>
+<tr><td>Helion kernel</td><td>A tiled kernel that compiles to Triton (or Metal, Pallas, CuTe)</td><td>Wrap it in an op</td><td>Traced as a kernel call, no break</td><td>Ran on MPS: 1 graph, 0 breaks</td></tr>
+<tr><td>Tensor subclass (<code>__torch_dispatch__</code>)</td><td>What a tensor <i>is</i></td><td>Above it: autograd works unchanged</td><td>With <code>__tensor_flatten__</code>: compiled through</td><td>int8 weights: <span data-v="int8/bytes_float|mb"></span> MB to <span data-v="int8/bytes_int8|mb"></span> MB, 1 graph</td></tr>
+<tr><td><code>__torch_function__</code></td><td>Python-level calls on a tensor type</td><td>Not seen in backward</td><td>Partly traced</td><td><span data-v="levels/function/nf"></span> calls in forward, <span data-v="levels/function/nb"></span> in backward</td></tr>
+<tr><td><code>TorchDispatchMode</code></td><td>Sees every ATen call in a region</td><td>Sees backward too</td><td>Eager tool</td><td>FLOP count of one step: <span data-v="modes/flops_total|i"></span></td></tr>
+<tr><td><code>PrivateUse1</code> backend</td><td>A whole device</td><td>Through the usual keys</td><td>Through the vendor's backend</td><td>Not run (needs a C++ device runtime)</td></tr>
+</tbody></table></div>
+<p>The rows are ordered from lightest to heaviest. The rule of thumb that the rest of the page earns: <b>use the lightest hook that does the job</b>, and when you reach for an operator, give the compiler its three facts (shape, gradient, mutation) and test them with <code>torch.library.opcheck</code>.</p>
+<div class="prob">
+<a href="#rd-s1" style="--sc:var(--c1)"><b>Write a custom operator</b><span>custom_op, schemas, fake, autograd, kernels per device, opcheck</span></a>
+<a href="#rd-s2" style="--sc:var(--c2)"><b>Keep torch.compile whole</b><span>3 graph breaks against 0; what Inductor sees; two traps that drop gradients</span></a>
+<a href="#rd-s3" style="--sc:var(--c3)"><b>Bring C++ in</b><span>load_inline, TORCH_LIBRARY, what a naive kernel costs</span></a>
+<a href="#rd-s4" style="--sc:var(--c4)"><b>Plug in a GPU kernel</b><span>Metal shaders, triton_op, Helion running on this Mac</span></a>
+<a href="#rd-s5" style="--sc:var(--c5)"><b>Change what a tensor is</b><span>__torch_function__ against __torch_dispatch__; an int8 subclass; DTensor, NF4, float8</span></a>
+<a href="#rd-s6" style="--sc:var(--c6)"><b>Watch every op</b><span>FakeTensorMode, FlopCounterMode, logging modes</span></a>
+</div>
+</section>
