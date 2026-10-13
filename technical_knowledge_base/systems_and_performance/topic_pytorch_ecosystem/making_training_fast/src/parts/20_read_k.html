@@ -1,0 +1,48 @@
+<section id="fst-s10">
+<h2>10. Attention: SDPA backends, FlexAttention, variable length</h2>
+<p><b>The problem.</b> Attention compares every position with every earlier one. Written out (the running example's <code>attn="manual"</code>), it builds a sequence &times; sequence matrix of scores per head, softmaxes it, and keeps it for backward. That matrix grows with the <i>square</i> of the sequence length: double the context, four times the memory. The fix, from {{FlashAttention|n:3c65c17b0d0d81e4a3e8e7a2c4771381}}, is to compute attention in tiles and keep only the output plus one number per row (the log of the softmax's sum, <dfn>logsumexp</dfn>), recomputing the tiles in backward. Memory becomes linear in sequence length; {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}} owns how the kernel does it.</p>
+<div class="rd-card" id="fst-attmemcard">
+<h4>Bytes kept for backward by one attention call (1 sequence, 8 heads of 64), by sequence length</h4>
+<div class="seg" id="fst-attmem-seg"></div>
+<div class="bars" id="fst-attmem-bars"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, float32, PyTorch 2.14.1, deterministic: unique storages passed to autograd's saved-tensor hooks, q, k and v excluded (src/exp/attn_backends.py).</p>
+</div>
+<p id="fst-attmem-read"></p>
+<h3>SDPA: one function, several kernels</h3>
+<p><code>F.scaled_dot_product_attention</code> (<dfn>SDPA</dfn>) checks the inputs against each backend's constraints in a fixed priority order and runs the first that qualifies. What decides it, read from the C++ at v2.14.1:</p>
+<div class="tw"><table class="rd-tbl"><thead><tr><th>Device</th><th>Order tried</th><th>What disqualifies the fused kernel</th></tr></thead><tbody>
+<tr><td>CUDA</td><td>flash, efficient, math, cuDNN by default (<code>aten/src/ATen/Context.h</code> L483 to 488); cuDNN first on compute capability 9.x or 10.x with cuDNN newer than 9.15 (<code>aten/src/ATen/native/transformers/cuda/sdp_utils.cpp</code> L94 to 136; with CUDA 12 wheels only minor version 0 or 3; <code>TORCH_CUDNN_SDPA_DEPRIORITIZED=1</code> turns it off)</td><td>dtype (flash needs float16 or bfloat16), head size, an arbitrary <code>attn_mask</code> (flash takes only <code>is_causal</code>), dropout for some kernels. <i>Not run here.</i></td></tr>
+<tr><td>CPU</td><td>flash (a CPU kernel), then math (<code>sdp_utils_cpp.cpp</code> L61 to 104)</td><td>dropout, nested tensors, unsupported shapes or strides (L36 to 57); dtypes float32, float64, bfloat16, float16 all qualify</td></tr>
+<tr><td>MPS</td><td>none: MPS registers no fused-choice function, so the backend is always math (<code>attention.cpp</code> L814); without gradients it runs a fused MPS math kernel, with gradients the generic math path (L862 to 866)</td><td>everything; and <code>sdpa_kernel([...])</code> does not change it (below)</td></tr>
+</tbody></table></div>
+<div class="rd-card" id="fst-sdpacard">
+<h4>What actually ran here: the kernel SDPA chose, and what forcing each backend does</h4>
+<div class="seg" id="fst-sdpa-seg"></div>
+<div class="tw" id="fst-sdpa-tbl"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, PyTorch 2.14.1: the ATen ops recorded by the profiler for one call; error against a float64 reference computed on the CPU (src/exp/attn_backends.py).</p>
+</div>
+<p id="fst-sdpa-read"></p>
+<p><b>How to check which backend ran</b> on your machine: profile one call and read the op names (<code>aten::_scaled_dot_product_flash_attention</code>, <code>..._efficient_attention</code>, <code>..._cudnn_attention</code>, <code>..._attention_math</code>), or force one with <code>with torch.nn.attention.sdpa_kernel([SDPBackend.FLASH_ATTENTION]):</code>, which raises instead of falling back silently. On CUDA a warning names the failed constraint. Newer FlashAttention versions plug in from outside: <code>torch.nn.attention.list_flash_attention_impls()</code> returns <code>['FA3', 'FA4']</code> at 2.14.1 <span class="meas">measured</span>; <code>activate_flash_attention_impl("FA4")</code> imports <code>flash_attn.cute.interface</code> from the separately installed flash-attn package and needs compute capability 9.0 or 10.0 (<code>torch/nn/attention/_fa4.py</code> L45, L110); FA3 needs exactly 9.0 (<code>_fa3.py</code> L154). <i>Not run here.</i></p>
+<h3>FlexAttention: attention variants as two small functions</h3>
+<p>Fixed backends cover causal and full attention. Everything else (sliding windows, several documents packed into one sequence, a prefix that sees itself both ways, relative position biases, soft-capping) used to mean a custom kernel or the slow math path. <dfn>FlexAttention</dfn> (<code>torch.nn.attention.flex_attention</code>, prototype in 2.5) takes two Python functions instead:</p>
+<ul>
+<li><code>score_mod(score, b, h, q_idx, kv_idx)</code> changes one score: add a bias, cap it.</li>
+<li><code>mask_mod(b, h, q_idx, kv_idx)</code> says whether query <code>q_idx</code> may see key <code>kv_idx</code>. <code>create_block_mask</code> evaluates it once per tile of 128 &times; 128 (the default block size, <code>flex_attention.py</code> L444) and stores, per row of tiles, which tiles are fully allowed, partly allowed (the kernel applies the mask inside) or empty (the kernel skips them). That <dfn>BlockMask</dfn> is where the speed comes from: empty tiles cost nothing.</li>
+</ul>
+<div class="code">from torch.nn.attention.flex_attention import flex_attention, create_block_mask
+doc = document_id_per_position                           <span class="c"># (T,) int tensor, 0,0,0,1,1,2,...</span>
+def doc_causal(b, h, q, k):
+    return (doc[q] == doc[k]) &amp; (q &gt;= k)
+bm = create_block_mask(doc_causal, None, None, T, T)     <span class="c"># once per shape; reuse it</span>
+flex = torch.compile(flex_attention)                     <span class="c"># eager mode materialises the full score matrix</span>
+out = flex(q, k, v, block_mask=bm)</div>
+<p id="fst-flex-read"></p>
+<div class="co warn"><div class="t">What FlexAttention does not do on this Mac at 2.14.1</div><ul class="tight">
+<li><b>No backward on CPU or MPS.</b> <code>_validate_device</code> raises "FlexAttention does not support backward on CPU" (and on MPS) when an input requires grad (<code>flex_attention.py</code> L2204 to 2219) <span class="meas">reproduced</span>. So it cannot train the running example here; on CUDA it can.</li>
+<li><b>No compiled kernel on a Mac CPU.</b> Inductor's CPU FlexAttention template requires AVX2 and refuses <code>sys.platform == "darwin"</code> (<code>torch/_inductor/kernel/flex/flex_cpu.py</code> L31 to 40); compiling fails with "torch.compile on current platform is not supported for CPU" <span class="meas">reproduced</span>. Eager mode works and is exact, but materialises the scores.</li>
+<li><b>MPS compiles it</b> (Inductor generates a Metal kernel; supported since 2.13 per the {{2.13 release notes|https://github.com/pytorch/pytorch/releases/tag/v2.13.0}}), inference only.</li>
+</ul></div>
+<p>Published speed on GPUs: 90% of FlashAttention-2 in forward and 85% in backward on the authors' benchmarks <span class="vend">vendor, PyTorch team, 2024</span> ({{FlexAttention blog|https://pytorch.org/blog/flexattention/}}). The {{Attention lab|#t-attn}} tab draws each mask tile by tile and puts the measured times and errors side by side.</p>
+<h3>Variable-length attention</h3>
+<p>Packing several sequences into one row avoids padding; the mask then has to stop sequences seeing each other. Two ways: a document mask in FlexAttention (above), or <code>torch.nn.attention.varlen.varlen_attn(q, k, v, cu_seq_q, cu_seq_k, max_q, max_k)</code> (added in 2.10), which takes all sequences concatenated as (total tokens, heads, head size) plus cumulative lengths, like <code>flash_attn_varlen_func</code>. At 2.14.1 it calls <code>aten._flash_attention_forward</code> or cuDNN, both CUDA kernels (<code>torch/nn/attention/varlen.py</code> L54, L139). <span id="fst-varlen-read"></span></p>
+</section>

@@ -1,0 +1,45 @@
+<section id="fst-s4">
+<h2>4. Data loading: keep the next batch ready</h2>
+<p><b>The problem.</b> If the training loop asks for a batch and the batch is not ready, everything waits. With <code>DataLoader(num_workers=0)</code> (the default) the main process reads, decodes and collates every sample itself, between steps, so loading time adds straight onto step time.</p>
+<p><b>How it works.</b> <code>num_workers=n</code> starts n worker processes that each build whole batches in the background; <code>prefetch_factor</code> (default 2 when workers are used) is how many batches each worker keeps ready ahead; <code>persistent_workers=True</code> keeps them alive between epochs instead of paying their start-up each epoch. <code>pin_memory=True</code> puts batches in page-locked host memory so a CUDA copy can run asynchronously with <code>x.to("cuda", non_blocking=True)</code>; it is a CUDA mechanism (signature at 2.14.1 includes <code>pin_memory_device</code> and <code>in_order</code>, <span class="meas">read from the installed wheel</span>), and on an Apple chip the CPU and GPU share one memory, so it was not measured here.</p>
+<div class="rd-card">
+<h4>A loop that needs 20 ms per step, fed by a loader whose batches cost 16 ms to build</h4>
+<div class="bars" id="fst-data-bars"></div>
+<p class="small mute" id="fst-data-note"></p>
+</div>
+<p id="fst-data-read"></p>
+<p><b>When it matters.</b> Whenever building a batch takes a noticeable share of the step: decoding images or audio, tokenising on the fly, reading from network storage, heavy augmentation. Pre-tokenised data in memory-mapped arrays (as LLM pre-training usually uses) barely needs workers. <b>How to check it:</b> in a trace, the <code>data</code> range (or gaps on the GPU before forward); or time <code>next(iter(loader))</code> on its own. Workers are separate processes: each holds its own copy of the Dataset object, so keep it small, and on macOS and Windows they start with <code>spawn</code>, so the Dataset must be importable and picklable.</p>
+</section>
+<section id="fst-s5">
+<h2>5. The optimizer step: one kernel or hundreds</h2>
+<p><b>The problem.</b> AdamW's update is a handful of element-wise operations per parameter tensor. Written as a Python loop over tensors (the <dfn>for-loop</dfn> implementation), that is several separate operator calls for each of the model's tensors (100 tensors in the larger variant, 52 in the small one), each with Python and dispatcher overhead and, on a GPU, a separate kernel launch.</p>
+<p><b>How it works.</b> Two faster implementations exist. <dfn>foreach</dfn> uses <code>torch._foreach_*</code> operators that take a whole list of tensors per call (a few launches per step instead of several per tensor). <dfn>fused</dfn> does the whole update for all parameters in one kernel per device and dtype group. Select with <code>torch.optim.AdamW(..., foreach=True)</code> or <code>fused=True</code>. At 2.14.1 the default is foreach on CUDA-like devices and the for-loop on CPU and MPS; fused is never the default though it runs on CPU, MPS and CUDA (<code>torch/utils/_foreach_utils.py</code> L8 to 23, per the root's {{Inside one step|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} measurements).</p>
+<div class="rd-card">
+<h4>One AdamW step, three implementations</h4>
+<div class="seg" id="fst-opt-seg"></div>
+<div class="bars" id="fst-opt-bars"></div>
+<p class="small mute" id="fst-opt-note"></p>
+</div>
+<p id="fst-opt-read"></p>
+<p><b>When it matters.</b> Many parameter tensors, small model, or a fast device where the arithmetic is cheap and launches dominate. <b>Cost:</b> foreach and fused keep temporary lists or buffers; fused needs every parameter on a supported device and dtype. <b>Check:</b> the <code>optimizer</code> range in a trace, or time <code>opt.step()</code> on its own as above.</p>
+</section>
+<section id="fst-s6">
+<h2>6. Mixed precision: fewer bits per number</h2>
+<p><b>The problem.</b> float32 uses 4 bytes per number; bfloat16 and float16 use 2. Half the bytes means half the memory traffic, and on GPUs with tensor cores the 16-bit matmuls also run several times faster. <dfn>Automatic mixed precision</dfn> (AMP) gets most of that without rewriting the model: inside <code>torch.autocast(device_type, dtype=torch.bfloat16)</code>, ops on autocast's lists (matmuls, linear layers, attention) run in 16 bits, precision-sensitive ops (softmax, normalisation, losses) stay in float32, and the parameters themselves stay float32.</p>
+<ul class="tight">
+<li><b>bfloat16</b> keeps float32's exponent range (8 exponent bits) with fewer mantissa bits: no overflow, so no loss scaling needed. The usual choice on recent GPUs.</li>
+<li><b>float16</b> has more mantissa but a narrow range: small gradients underflow to zero, so it needs <code>torch.amp.GradScaler</code>, which multiplies the loss by a large factor before backward, divides gradients before the step, and skips steps whose gradients overflowed.</li>
+</ul>
+<div class="code">scaler = torch.amp.GradScaler("cuda")          <span class="c"># only for float16</span>
+with torch.autocast("cuda", dtype=torch.float16):
+    _, loss = model(x, y)
+scaler.scale(loss).backward(); scaler.step(opt); scaler.update(); opt.zero_grad(set_to_none=True)</div>
+<div class="rd-card">
+<h4>What bfloat16 did on this machine</h4>
+<div class="seg" id="fst-amp-seg"></div>
+<div class="bars" id="fst-amp-bars"></div>
+<p class="small mute" id="fst-amp-note"></p>
+</div>
+<p id="fst-amp-read"></p>
+<div class="co warn"><div class="t">This is the result that does not transfer</div>Data-centre NVIDIA GPUs since the A100 have bfloat16 tensor cores; there, bfloat16 matmuls run many times faster than float32 ones and AMP is close to free speed. This M1 Pro's CPU reports no bfloat16 instructions (<code>sysctl hw.optional.arm.FEAT_BF16</code> = 0, while <code>FEAT_FP16</code> = 1) <span class="meas">read on this machine</span>, so bfloat16 math on it is converted and pays for the conversion; the measured MPS slowdown points the same way for its GPU (not checked against Apple documentation). The lesson that does transfer: check that the hardware has native support for the dtype before expecting a speedup, and measure.</div>
+</section>

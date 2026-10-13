@@ -1,0 +1,38 @@
+<section id="fst-s7">
+<h2>7. Memory: what fills it during one step</h2>
+<p><b>The problem.</b> A job that runs out of memory stops; a job that barely fits runs with a small batch and wastes the hardware. Before cutting memory you need to know <i>what</i> holds it and <i>when</i>, because the peak is a moment, not a total.</p>
+<p><b>Five things live in memory during training</b> (sizes for float32 and AdamW, with <i>P</i> parameters):</p>
+<div class="mech">
+<div><b>Parameters</b>4 bytes &times; <i>P</i>. Alive the whole time.</div>
+<div><b>Gradients</b>4 bytes &times; <i>P</i>. Created during backward, layer by layer; freed by <code>zero_grad(set_to_none=True)</code>.</div>
+<div><b>Optimizer state</b>AdamW keeps two running averages per parameter: 8 bytes &times; <i>P</i>. Created at the first <code>step()</code>, alive from then on.</div>
+<div><b>Activations</b>Tensors the forward pass saves for backward (section 3 of the root). They grow through forward and shrink through backward. They scale with batch &times; sequence length.</div>
+<div><b>Temporaries</b>Short-lived: a matmul's output before the next op consumes it, gradients of activations flowing back through backward.</div>
+</div>
+<p>So the fixed cost is 16 bytes per parameter (4 + 4 + 8). Mixed-precision training with float32 master weights also comes to 16 bytes, split differently (2 + 2 + 12 in the ZeRO paper's accounting; {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} owns that arithmetic and how sharding divides it). The variable cost is the activations, and the peak usually lands at the start of backward, when every activation is still saved and the first gradients start to appear.</p>
+<div class="rd-card" id="fst-memcard">
+<h4>One training step of the larger variant, memory by category over time: plain against checkpointed, same scale</h4>
+<div class="seg" id="fst-mem-seg"></div>
+<div class="rd-svg" id="fst-mem-svg"></div>
+<div class="leg" id="fst-mem-leg"></div>
+<div class="an-cap" id="fst-mem-cap"></div>
+<div class="an-cnt" id="fst-mem-cnt"></div>
+<div class="an-ctl" id="fst-mem-ctl"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, CPU, float32, PyTorch 2.14.1, deterministic (bytes, not time): PyTorch's memory profiler (<code>torch.profiler</code> with <code>profile_memory=True, record_shapes=True, with_stack=True</code>, then <code>prof._memory_profile()</code>, the engine behind <code>export_memory_timeline</code>) follows every tensor from allocation to free and puts it in a category. The second training step (optimizer state exists). Time on the x axis is the profiled run's own clock, so its length depends on load; only the heights are exact. src/exp/mem_step.py.</p>
+</div>
+<p><b>Reading the plain run.</b> <span id="fst-mem-read"></span></p>
+<div class="pr" id="fst-pr-mem">
+<div class="q">Predict: in the running example's larger variant (8 blocks, d 512, context 256, batch 8, 25.4M parameters), which is bigger at the peak: parameters plus gradients plus AdamW state, or the saved activations?</div>
+<div class="opts"><button data-a="0">Weights, gradients and optimizer state</button><button data-a="1">Activations</button><button data-a="2">About equal</button></div>
+<div class="ans" hidden></div>
+</div>
+<h3>How to see this on your own job</h3>
+<div class="tw"><table class="rd-tbl"><thead><tr><th>Device</th><th>Tool</th><th>What it gives you</th></tr></thead><tbody>
+<tr><td>Any (CPU here)</td><td><code>torch.profiler.profile(profile_memory=True, record_shapes=True, with_stack=True)</code>, then <code>prof.export_memory_timeline("m.html")</code></td><td>The chart above: live bytes by category (parameter, optimizer state, gradient, activation, autograd detail, temporary, input). It works on CPU, which is how this page measured it.</td></tr>
+<tr><td>CUDA</td><td><code>torch.cuda.memory._record_memory_history(max_entries=100000)</code>, run a few steps, <code>torch.cuda.memory._dump_snapshot("s.pickle")</code>, drop the file on {{pytorch.org/memory_viz|https://pytorch.org/memory_viz}}</td><td>Every allocation and free with the Python stack that made it, plus the caching allocator's segments: you see fragmentation and reserved-but-unused memory, which the CPU profiler cannot show. Signature at 2.14.1: <code>_record_memory_history(enabled='all', context='all', stacks='all', max_entries=..., device=None, clear_history=False, compile_context=False, global_record_annotations=False, skip_actions=None, record_pinned_host_memory=False, record_cuda=True)</code> <span class="meas">read from the installed wheel</span>. Walkthrough: {{Understanding GPU memory, part 1|https://pytorch.org/blog/understanding-gpu-memory-1/}}. <i>Not run here</i>: no CUDA device.</td></tr>
+<tr><td>CUDA, quick numbers</td><td><code>torch.cuda.max_memory_allocated()</code>, <code>memory_reserved()</code>, <code>memory_summary()</code>; device-agnostic <code>torch.accelerator.max_memory_allocated()</code></td><td>Allocated is what tensors use; reserved is what the caching allocator holds from the driver. The gap is the allocator's cache and fragmentation; {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}} owns how it works and what <code>PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True</code> changes.</td></tr>
+<tr><td>MPS</td><td><code>torch.mps.current_allocated_memory()</code>, <code>driver_allocated_memory()</code>, <code>recommended_max_memory()</code></td><td>Totals only; no per-allocation history at 2.14.1 <span class="meas">checked on the installed wheel</span>.</td></tr>
+</tbody></table></div>
+<p><b>What carries over to NVIDIA GPUs.</b> The categories and their sizes are the same bytes on any device for the same dtype and the same kernels. Two things differ: the attention kernel decides whether a sequence-by-sequence matrix is saved (section 10), and the CUDA caching allocator adds its own overhead on top of the live bytes shown here (cached free blocks, rounding of allocation sizes; {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}} has the details), which is why <code>memory_reserved</code> exceeds the profiler's peak.</p>
+<p>The {{Memory budget|#t-mem}} tab turns these categories into a calculator, checked against these measured peaks.</p>
+</section>
