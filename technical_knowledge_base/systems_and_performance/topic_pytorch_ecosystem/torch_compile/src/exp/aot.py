@@ -30,7 +30,7 @@ def run(mod, inputs, strategy, budget=None):
     call is wrapped to record the joint graph it receives and to swap in default_partition when asked."""
     rec = {}
     def part(joint, joint_inputs, compiler="inductor", **kw):
-        rec["joint"] = joint
+        rec["joint"] = joint; rec["nfo"] = kw["num_fwd_outputs"]
         if strategy == "default":
             fw, bw = default_partition(joint, joint_inputs, num_fwd_outputs=kw["num_fwd_outputs"], static_lifetime_input_indices=kw.get("static_lifetime_input_indices"))
         else:
@@ -52,7 +52,11 @@ def run(mod, inputs, strategy, budget=None):
     fwn = {n.name for n in fw.graph.nodes if n.op == "call_function"}
     bwn = [n for n in bw.graph.nodes if n.op == "call_function"]
     recomputed = sorted({n.name for n in bwn if n.name in fwn})
-    outs = list(fw.graph.nodes)[-1].args[0]
+    # the forward graph returns the user outputs first, then the values saved for backward: count only the latter, once each
+    outs, seen = [], set()
+    for o in list(fw.graph.nodes)[-1].args[0][rec["nfo"]:]:
+        if hasattr(o, "name") and o.name not in seen:
+            seen.add(o.name); outs.append(o)
     bw_inputs = {n.name for n in bw.graph.nodes if n.op == "placeholder"}
     VIEWS = {"view", "permute", "t", "transpose", "expand", "alias", "slice", "select", "unsqueeze", "squeeze", "split", "getitem", "_unsafe_view", "as_strided"}
     def input_view(o):
