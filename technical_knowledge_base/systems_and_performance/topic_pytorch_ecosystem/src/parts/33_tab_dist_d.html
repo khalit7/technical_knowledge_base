@@ -1,0 +1,58 @@
+
+<section id="dst-s10">
+<h2>10. Distributed checkpoints: save on 4 ranks, load on 2, or on 1</h2>
+<p>With FSDP2 no rank holds the whole model, so <code>torch.save(model.state_dict())</code> on rank 0 is not an option. <b>Distributed checkpointing</b> (<code>torch.distributed.checkpoint</code>, DCP) lets every rank write its own shards in parallel and records, in a small <code>.metadata</code> file, where every piece of every tensor lives. <code>get_state_dict(model, optimizer)</code> returns the state as DTensors; <code>dcp.save</code> plans, writes and commits; <code>dcp.load</code> reads into whatever sharding the loading job has, so a checkpoint from 4 ranks loads onto 2, or onto one process. The {{Model formats|n:3cd5c17b0d0d81ea815aedfa052e4919}} page covers the file formats themselves (pickle, safetensors).</p>
+<div class="card" id="dst-dcp">
+<div class="dst-sel"><label>Tensor <select id="dst-dcp-k"></select></label></div>
+<div id="dst-dcp-svg" class="dst-plot"></div>
+<div class="dst-cap" id="dst-dcp-cap"></div>
+<div class="tw"><table class="dst-tbl" id="dst-dcp-files"></table></div>
+</div>
+<p>Recorded (the running example after two FSDP2 steps on 4 ranks, weights and AdamW state): <span id="dst-dcp-sum"></span></p>
+</section>
+
+<section id="dst-s11">
+<h2>11. What a hang looks like</h2>
+<p>A collective only completes when every rank in the group calls it, with matching sizes. If one rank skips it, calls a different one, or is stuck elsewhere, the others wait. On GPUs that wait is a <b>hang</b>: no error, no progress, GPUs at full utilisation spinning, until a timeout fires (by default 10 minutes for NCCL, 30 for other backends, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/ProcessGroupNCCL.hpp#L159-L160" target="_blank" rel="noopener noreferrer">ProcessGroupNCCL.hpp L159</a>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/Backend.hpp#L37-L38" target="_blank" rel="noopener noreferrer">Backend.hpp L37</a>). The usual causes: a rank-dependent branch around a collective (logging, evaluation, an early <code>break</code>), a data loader giving ranks different numbers of batches, a parameter unused on one rank, or a crash on one rank that the others never hear about. Three were caused on purpose here, with a 10-second timeout:</p>
+<div class="card" id="dst-hang">
+<div class="seg" id="dst-hang-seg"></div>
+<div id="dst-hang-out"></div>
+</div>
+<p><b>How to read one.</b> The flight recorder is the first thing to look at: every rank's last collectives with their sequence numbers. Find the first sequence number at which the ranks disagree (different operation, different sizes, or one rank missing it); the code that issued it on the odd rank is the bug. On NCCL, <code>TORCH_NCCL_DUMP_ON_TIMEOUT=1</code> makes the watchdog write each rank's record when the timeout fires, and <code>torchfrtrace</code> (the analyser shipped with PyTorch, <code>torch.distributed.flight_recorder.fr_trace</code>) lines them up across ranks; NCCL also tracks each entry's state (scheduled, started, completed), which gloo does not (every entry here stays "scheduled"). <code>TORCH_DISTRIBUTED_DEBUG=DETAIL</code> catches mismatches before they hang, at a price measured above: two extra all-gathers per collective, so use it to find a bug, not in production. <code>monitored_barrier</code> (gloo only) names the rank that did not arrive.</p>
+</section>
+
+<section id="dst-s12">
+<h2>12. Step time on CPU (and why it says little about GPUs)</h2>
+<div id="dst-time"></div>
+</section>
+
+<section id="dst-s13">
+<h2>13. What carries over to NVIDIA GPUs, and what does not</h2>
+<div class="grid">
+<div class="sp"><div class="n">Carries over</div><p><b>Which collectives, in which order, of which sizes.</b> DDP's bucket layout and rebuild, FSDP2's all-gather and reduce-scatter per unit with prefetch, TP's two all-reduces per MLP, the pipeline schedules' send/recv order and DCP's planning are backend-independent Python and C++ above the backend.</p></div>
+<div class="sp"><div class="n">Carries over</div><p><b>Memory per rank, in kind.</b> What is sharded and what is not: FSDP shards weights, gradients and optimizer state, never activations; 1F1B holds fewer micro-batches than GPipe. Absolute numbers change with bf16 (half the bytes), the CUDA caching allocator ({{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}}) and NCCL's own buffers.</p></div>
+<div class="sp"><div class="n">Changes</div><p><b>Reduce-scatter.</b> NCCL has a real one, moving half the bytes of gloo's all-reduce substitute and needing no full-size temporary, so FSDP's gradient step is cheaper on GPUs than here. FSDP's total traffic is about 1.5 times DDP's on NCCL (the {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} formula) and 2 times here.</p></div>
+<div class="sp"><div class="n">Changes</div><p><b>Overlap.</b> On GPUs, collectives run on their own CUDA stream next to compute, so DDP's buckets and FSDP's prefetched all-gathers really overlap; on CPU with one thread per rank, gloo's work competes for the same cores. Streams, CUDA graphs and NCCL are on {{Streams, CUDA graphs and multi-GPU|n:3f05c17b0d0d81b19a6acab65c370b75}}; link speeds on {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}.</p></div>
+<div class="sp"><div class="n">Does not carry over</div><p><b>Times and speedups.</b> Loopback TCP between processes on one laptop is nothing like NVLink or InfiniBand; neither is a CPU matmul like a GPU one. Published GPU scaling comes from the torchtitan paper and PyTorch's own posts, quoted on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}.</p></div>
+<div class="sp"><div class="n">Does not carry over</div><p><b>How hangs look.</b> On gloo a mismatched size crashed one rank at once; on NCCL the same bug usually hangs silently until the watchdog's timeout, which is why the flight recorder and <code>TORCH_NCCL_DUMP_ON_TIMEOUT</code> exist.</p></div>
+</div>
+</section>
+
+<section id="dst-s14">
+<h2>14. Common mistakes, and interview questions</h2>
+<details class="mist"><summary>Calling a collective inside <code>if rank == 0:</code></summary><div class="b">Logging a metric with an all-reduce, saving a checkpoint, or running evaluation on rank 0 only: every rank must reach every collective in the same order. It is the "skip" case above. Do the collective on all ranks and print on one.</div></details>
+<details class="mist"><summary>Expecting DDP to overlap from the first step</summary><div class="b">Step 0 uses one bucket for everything (recorded above) and the layout is rebuilt in arrival order during step 1. Benchmark from step 2 or later.</div></details>
+<details class="mist"><summary>Using a fused projection with a column-parallel plan</summary><div class="b">The plan has to match the weight's memory layout: a [q | k | v] layout split down the middle gives one rank all of q. It failed loudly here; with other shapes it can run and silently compute the wrong thing.</div></details>
+<details class="mist"><summary>Thinking FSDP shrinks activations</summary><div class="b">It shards model state only. Going from 2 to 4 FSDP2 ranks left the step's own peak unchanged (section 6). Use activation checkpointing, or split the sequence or the matrices.</div></details>
+<details class="mist"><summary>Saving an FSDP model with <code>torch.save(model.state_dict())</code></summary><div class="b">Each rank's state dict holds DTensor shards. Use DCP (section 10), or gather to a full state dict on purpose with <code>get_model_state_dict(..., options=StateDictOptions(full_state_dict=True, cpu_offload=True))</code> for small models.</div></details>
+<details class="mist"><summary>Tied weights across pipeline stages, or a different initialisation per rank</summary><div class="b">Copies of one parameter on different ranks need their gradients summed (section 9). And every rank must start from the same weights: DDP broadcasts rank 0's at construction, FSDP2 does not (it shards whatever each rank has), so seed the initialisation identically or load from a checkpoint.</div></details>
+<h3>Interview questions</h3>
+<details class="mist"><summary>How does DDP overlap communication with backward?</summary><div class="b">Gradients are grouped into buckets in reverse parameter order; a hook fires as each gradient becomes final, and when a bucket is complete its all-reduce is launched asynchronously while backward continues on earlier layers. The optimizer waits for the last bucket. Default cap 25 MiB, first bucket 1 MiB, layout rebuilt after the first iteration in the order gradients actually arrived.</div></details>
+<details class="mist"><summary>What does FSDP2 communicate in one step, and how does that compare with DDP?</summary><div class="b">Per unit: an all-gather of the weights before forward, another before backward (unless <code>reshard_after_forward=False</code>), and a reduce-scatter of the gradients. In ring terms that is about 3 &times; (n &minus; 1)/n of the model per rank against DDP's 2 &times; (n &minus; 1)/n, so 1.5 times the traffic, for model-state memory divided by n.</div></details>
+<details class="mist"><summary>What is a DTensor placement, and what does Partial mean?</summary><div class="b">One placement per mesh dimension: Shard(d) splits along tensor dim d, Replicate copies, Partial means each rank holds a summand of the real value. Partial to Replicate is an all-reduce, Partial to Shard a reduce-scatter, Shard to Replicate an all-gather.</div></details>
+<details class="mist"><summary>Why is tensor parallelism kept inside one server?</summary><div class="b">It needs an all-reduce of activations in every layer, forward and backward, on the critical path (8 per step on this 4-block model), so it wants NVLink-class bandwidth; data parallel communicates once per step and can overlap, so it tolerates slower links.</div></details>
+<details class="mist"><summary>1F1B against GPipe?</summary><div class="b">Same bubble for the same number of micro-batches and stages, same gradients, same communication; 1F1B starts backwards early, so the first stage holds at most (number of stages) micro-batches of activations instead of all of them. Measured here: rank 0's peak <span class="dst-ppq">21.1</span> MB with GPipe, <span class="dst-ppq">16.8</span> MB with 1F1B.</div></details>
+<details class="mist"><summary>A job hangs at step 3,000 on 512 GPUs. What do you do?</summary><div class="b">Get every rank's flight-recorder dump (<code>TORCH_NCCL_DUMP_ON_TIMEOUT=1</code>, then <code>torchfrtrace</code>), find the first sequence number where ranks disagree or a rank is missing, then look at that rank's Python stack (py-spy dump) to see what it was doing instead. Check data loader lengths and rank-dependent branches; reproduce small with <code>TORCH_DISTRIBUTED_DEBUG=DETAIL</code>.</div></details>
+<details class="mist"><summary>How do you resume a 64-GPU FSDP run on 32 GPUs?</summary><div class="b">Save with DCP; load with DCP into the new 32-rank sharding. The metadata maps every saved chunk to its offsets, and each new rank reads the chunks that overlap its new shard (done here: 4 ranks to 2 and to 1, identical weights).</div></details>
+</section>
+</div>

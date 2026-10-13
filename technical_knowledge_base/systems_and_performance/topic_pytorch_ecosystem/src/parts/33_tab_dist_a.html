@@ -1,0 +1,63 @@
+<div class="tab" id="t-dist" role="tabpanel" hidden>
+<style>
+#t-dist code{overflow-wrap:anywhere;word-break:break-word}
+#t-dist .dst-pills{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 4px}
+#t-dist .dst-pills a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+#t-dist .dst-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+#t-dist .dst-ctl input[type=range]{flex:1 1 160px;min-width:120px;width:auto}
+#t-dist .dst-ctl label{font-size:12.5px}
+#t-dist .dst-cap{font-size:13.5px;margin:6px 0;min-height:2.6em}
+#t-dist .dst-plot{width:100%;overflow:hidden}
+#t-dist .dst-src{font-size:12px;color:var(--mute)}
+#t-dist .dst-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-dist .dst-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#t-dist .dst-reveal[hidden]{display:none}
+#t-dist .dst-st{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:6px;margin:6px 0}
+#t-dist .dst-st .stat .v{font-size:16px}
+#t-dist .dst-ranks{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px;margin:8px 0}
+#t-dist .dst-rank{border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0;background:var(--bg)}
+#t-dist .dst-rank .h{font-size:12px;color:var(--mute);margin-bottom:3px}
+#t-dist .dst-vec{display:flex;gap:3px;flex-wrap:wrap}
+#t-dist .dst-cell{min-width:30px;height:26px;padding:0 3px;border:1px solid var(--line);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font:12px ui-monospace,Menlo,monospace;background:var(--soft)}
+#t-dist .dst-cell.e{opacity:.35;border-style:dashed}
+#t-dist .dst-mat{display:inline-grid;gap:2px;margin:2px 0}
+#t-dist .dst-mat .dst-cell{min-width:26px;height:22px;font-size:11px}
+#t-dist .dst-tbl td,#t-dist .dst-tbl th{font-size:12px;padding:4px 5px}
+#t-dist .dst-tbl td code{overflow-wrap:anywhere}
+#t-dist .dst-sel{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:6px 0;font-size:13px}
+#t-dist .dst-sel select{font-size:13px;padding:3px 6px}
+#t-dist .dst-ok{color:var(--good);font-weight:600}#t-dist .dst-bad{color:var(--bad);font-weight:600}
+#t-dist .dst-chip{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:1px 3px 1px 0;border:1px solid var(--line);background:var(--bg);white-space:nowrap}
+#t-dist .dst-chip.ag{border-color:var(--c1);color:var(--c1)}#t-dist .dst-chip.rs{border-color:var(--c2);color:var(--c2)}#t-dist .dst-chip.ar{border-color:var(--c4);color:var(--c4)}#t-dist .dst-chip.p2p{border-color:var(--c3);color:var(--c3)}
+#t-dist .dst-pre{font:11.5px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}
+</style>
+<h2 style="margin-top:16px">Distributed lab</h2>
+<p class="lead">The running example spread over several processes on one Mac: 2 and 4 CPU processes talking through PyTorch's <b>gloo</b> backend, launched with <code>torchrun</code>. The same training step under DDP, FSDP2, tensor parallelism and a two-stage pipeline, recorded collective by collective with PyTorch's own flight recorder; every placement change DTensor can make, with the collective it triggers; a sharded checkpoint saved on 4 ranks and loaded on 2 and on 1; and three deliberate hangs, with the evidence each leaves.</p>
+<div class="dst-pills"><a href="#dst-s1">Several processes</a><a href="#dst-s2">Collectives</a><a href="#dst-s3">DDP</a><a href="#dst-s4">FSDP2</a><a href="#dst-s5">DDP against FSDP2</a><a href="#dst-s6">Memory per rank</a><a href="#dst-s7">DTensor explorer</a><a href="#dst-s8">Tensor parallel</a><a href="#dst-s9">Pipelining</a><a href="#dst-s10">Checkpoints</a><a href="#dst-s11">Hangs</a><a href="#dst-s12">Step time</a><a href="#dst-s13">On NVIDIA GPUs</a><a href="#dst-s14">Mistakes and questions</a></div>
+<div id="dst-head" class="out"></div>
+<details class="mist"><summary>How this was recorded, and what it can and cannot tell you</summary><div class="b">
+<p><b>The model</b> is the topic's running example (a 3,186,944-parameter character-level GPT; see {{Inside one step|#t-step}}), imported from the root's <code>src/model/</code>, plus one bigger variant (8 blocks, d<sub>model</sub> 512: 25,274,880 parameters) where memory needs a larger model to show its shape. Rank <i>r</i> trains on batch <i>s</i> &times; world + <i>r</i> at step <i>s</i>, so every strategy sees the same data.</p>
+<p><b>Collectives</b> come from PyTorch's <b>flight recorder</b> (a ring buffer of every collective a process group issues: name, sizes, dtypes, sequence number; switched on with <code>TORCH_FR_BUFFER_SIZE</code> and read with <code>torch._C._distributed_c10d._dump_fr_trace_json</code>), which works with gloo at 2.14.1. DTensor's own view of what it asked for comes from <code>CommDebugMode</code>. <b>Memory</b> is PyTorch's memory profiler (the engine behind <code>torch.profiler</code>'s <code>export_memory_timeline</code>), which follows every tensor's storage from allocation to free, on CPU too. A first attempt summed each op's own allocations instead; it put AdamW's frees at the wrong moment and never saw FSDP2 free its gathered weights (it does that with <code>storage.resize_(0)</code>), so its curve drifted by exactly the gathered bytes each step. The memory profiler's start-of-step total equals the persistent state counted tensor by tensor.</p>
+<p><b>Scripts:</b> <code>src/dist/</code> (<code>ddp.py</code>, <code>fsdp.py</code>, <code>dtensor.py</code>, <code>tp.py</code>, <code>pp.py</code>, <code>dcp.py</code>, <code>hang.py</code>, <code>time_dist.py</code>), each launched by <code>run.sh</code>; torch 2.14.1, one thread per process. <b>CPU, 2 or 4 processes, gloo, measured on Apple M1 Pro, 2026-10-12.</b> Collective order, sizes, shard shapes, memory and losses are deterministic and carry over to GPUs in kind; times do not (gloo over loopback is not NCCL over NVLink). What carries over is <a href="#dst-s13">at the end</a>. The theory (ZeRO stages, the parallelism maths, which split to use at which scale) belongs to {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}; this tab is PyTorch's APIs and what they actually do.</p>
+</div></details>
+
+<section id="dst-s1">
+<h2>1. From one process to several</h2>
+<p>Everything so far ran in one <b>process</b>: one Python interpreter with its own memory. Data-parallel training runs the same script in N processes at once, usually one per GPU, each holding its own copy (or slice) of the model. This is <b>SPMD</b>, single program, multiple data: the code is identical, the data and the <b>rank</b> differ. The rank is the process's number, 0 to N &minus; 1; N is the <b>world size</b>.</p>
+<p><b><code>torchrun</code></b> starts the N processes and gives each its identity through environment variables (<code>RANK</code>, <code>LOCAL_RANK</code>, <code>WORLD_SIZE</code>, <code>MASTER_ADDR</code>, <code>MASTER_PORT</code>). Each process then calls <code>torch.distributed.init_process_group(backend)</code>: they meet at a small key-value store on the master address (the <b>rendezvous</b>) and build a <b>process group</b>, the set of ranks that can talk. <b>c10d</b> is the PyTorch library that does this; its <b>backends</b> move the bytes: <b>NCCL</b> for NVIDIA GPUs, <b>gloo</b> for CPUs (and as a fallback), plus MPI and vendor libraries.</p>
+<div class="co warn"><div class="t">Found on this Mac</div>Two things broke before a single byte moved. <code>torchrun</code> waited forever at the rendezvous until <code>MASTER_ADDR=127.0.0.1</code> was set (the hostname did not resolve to a usable address). And <code>fully_shard</code> with no mesh tried to build one on the "current accelerator", which on a Mac is MPS, and failed with <code>AttributeError: module 'torch.mps' has no attribute 'is_initialized'</code> (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/fsdp/_fully_shard/_fsdp_init.py#L198-L208" target="_blank" rel="noopener noreferrer">_fsdp_init.py L198</a>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/device_mesh.py#L496" target="_blank" rel="noopener noreferrer">device_mesh.py L496</a>). Passing <code>mesh=init_device_mesh("cpu", (world,))</code> fixed it. Related: Accelerate on CPU silently ignores an FSDP plugin and hands back DDP ({{Ecosystem map|#t-map}}).</div>
+</section>
+
+<section id="dst-s2">
+<h2>2. Collectives: the five verbs</h2>
+<p>A <b>collective</b> is an operation every rank in a group calls together, each with its own tensor. Distributed training is built from five of them, plus point-to-point <b>send</b> and <b>recv</b> between two ranks. Pick one: the tensors before and after, on 4 ranks.</p>
+<div class="card" id="dst-prim">
+<div class="seg" id="dst-prim-seg"></div>
+<div class="dst-ctl"><button id="dst-prim-go">Run it</button><button id="dst-prim-reset">Reset</button><span class="small mute" id="dst-prim-st"></span></div>
+<div class="dst-ranks" id="dst-prim-r"></div>
+<div class="dst-cap" id="dst-prim-cap"></div>
+<div class="small mute">Toy values to show the semantics. Bytes per rank are the volumes a ring algorithm sends for an input of <i>S</i> bytes on <i>n</i> ranks, the cost model the {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} page uses; gloo and NCCL choose their own algorithms.</div>
+</div>
+<p>The identity worth remembering: <b>all-reduce = reduce-scatter + all-gather</b>. Each half moves (n &minus; 1)/n of the data per rank, so an all-reduce costs about twice either half. FSDP's whole design rests on doing the two halves at different times.</p>
+<div class="co warn"><div class="t">gloo has no real reduce-scatter</div>On gloo at 2.14.1, <code>reduce_scatter_single</code> clones the whole input, all-reduces it, and copies out this rank's chunk (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/ProcessGroupGloo.cpp#L1557-L1604" target="_blank" rel="noopener noreferrer">ProcessGroupGloo.cpp L1557</a>). The flight recorder shows it plainly: every reduce-scatter below appears as <code>gloo:all_reduce</code> of the full tensor. So on this machine FSDP2's gradient step moves twice the bytes and holds a full-size temporary that NCCL's real reduce-scatter would not. The page labels these "reduce-scatter (run as all-reduce)".</div>
+</section>
