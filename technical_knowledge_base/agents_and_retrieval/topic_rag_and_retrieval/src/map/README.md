@@ -1,0 +1,14 @@
+# Tool map tab (t-map): source
+
+Parts: `../parts/34_tab_map_a.html` (styles, intro, the stack, atlas), `_b` (same query, the defaults you get), `_c` (which store), `_d` (timeline, MTEB and BEIR, checks, interview questions; closes the tab div). JS: `34_js_map_0data.js` (generated, do not edit), `1core` (helpers, animation controller), `3atlas`, `4def` (before/after animation), `5time`, `6choose`, `7lb`. Ids, classes and data attributes carry the `map-` prefix; CSS is scoped under `#t-map`.
+
+## Data flow
+1. `fetch_meta.py pypi|gh|rel|hf` writes `inputs/pypi.json`, `github_repos.json`, `github_releases.json` (Atom feeds; not used for dates), `hf_models.json`. GitHub release dates come from the REST API (`inputs/github_release_api.json`, fetched inline in the session; the API allows 60 calls an hour without a token). `inputs/hf_st_configs.json` holds the sentence-transformers configs; `inputs/arxiv_meta.json` comes from the arXiv API.
+2. Checks, run with a separate env (Python 3.12, outside the repo): `checks_stores.py <workdir>` (synthetic vectors), `checks_milvus_lite.py <db>` (result recorded by hand in `checks_stores.json` as `milvus_lite_hard`), `checks_frameworks.py inputs/checks_frameworks.json` (defaults read from installed source; mteb zero-shot metadata), `defaults_real.py <RAG_SCRATCH> <workdir>` (the running example's SciFact bge-small vectors, made by the setup agent) then `defaults_compact.py <RAG_SCRATCH> <workdir>/defaults_real_full.json` -> `inputs/defaults_real.json`.
+3. `python3 src/map/gen_data.py` merges `atlas_a.py` (stores, ANN libraries, lexical), `atlas_b.py` (embedding models, rerankers, late interaction), `atlas_c.py` (frameworks, GraphRAG, evaluation), `timeline.py` and the inputs into `../parts/34_js_map_0data.js`, and fails if any timeline date disagrees with arXiv, PyPI or the GitHub API records.
+4. `sh src/build.sh`, then `python3 src/map/validate.py` (page embeds the data verbatim; numbers in prose match the data; no private paths, no em dashes).
+
+Environment used: mapenv with qdrant-client 1.19.1, chromadb 1.5.9, lancedb 0.40.0, pymilvus 3.0.2 + milvus-lite 3.2.2, faiss-cpu 1.15.1, hnswlib 0.8.0, usearch 2.26.4, bm25s 0.3.13, rank-bm25 0.2.2, ranx 0.3.21, llama-index-core 0.14.25, langchain-core 1.6.10, haystack-ai 3.3.0, dspy 3.4.1, txtai 9.14.0, graphrag 3.3.0, lightrag-hku 1.5.7, nano-graphrag 0.0.8.2, ragas 0.4.3, deepeval 4.2.8, trulens 2.15.0, mteb 2.24.13. No model weights downloaded; no timing.
+
+## Departures
+The pytorch-ecosystem map tab was the reference shape (atlas, chooser, timeline). Here the measured centrepiece is a before/after on the same input (ten tools' defaults against one knob turned, on the running example's real vectors) rather than call stacks, because for retrieval tools the defaults are what differ.
