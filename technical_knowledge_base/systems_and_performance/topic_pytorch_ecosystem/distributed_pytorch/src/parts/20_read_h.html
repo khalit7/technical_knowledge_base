@@ -1,0 +1,52 @@
+<section id="dpt-s10">
+<h2>10. Composing PP, FSDP and TP the torchtitan way</h2>
+<p>Real jobs combine several of these on one mesh. torchtitan (PyTorch's reference trainer; release 0.3.0 read here) does it in a fixed order, and the order is the lesson:</p>
+<ol>
+<li><b>Mesh</b>, with tensor parallel innermost: dimensions <code>["pp", "dp_replicate", "fsdp", "tp"]</code> unflattened from one world mesh (<code>distributed/parallel_dims.py</code>, <code>build_mesh</code>). Ranks next to each other share a server, so the chattiest axis (TP: collectives in every layer) gets the fastest links and the quietest (PP: point-to-point once per micro-batch) spans servers.</li>
+<li><b>Pipeline split first</b>: the model (built on the meta device, no memory) is cut into stage modules, and everything below is applied to each stage (<code>distributed/pipeline_parallel.py</code> <code>pipeline_llm</code>, L65-125).</li>
+<li><b>Per stage: context parallel, then TP, then activation checkpointing, then <code>torch.compile</code> per block, then FSDP2 last</b> (<code>models/llama3/parallelize.py</code> L42-94). FSDP2 goes last because it shards whatever DTensors TP produced along one more mesh dimension; compile goes before it so each block compiles once.</li>
+<li>Then weights are materialised and initialised on each rank (<code>to_empty</code>, <code>init_weights</code>), and the schedule (1F1B by default, <code>config/configs.py</code> L210) drives training.</li>
+</ol>
+<p><b>Run here on 8 processes</b> (pp 2 &times; dp 2 &times; tp 2) with the running example, in that order: split into two stages of 2 blocks, TP on each block (the 16-all-reduce plan of section 6), <code>fully_shard</code> over the dp axis, <code>Schedule1F1B</code> with 4 micro-batches, and one all-reduce over the pp axis for the tied embedding and head, which now live on different stages:</p>
+<div class="tw"><table class="rd-tbl" id="dpt-c3"></table></div>
+<p class="small mute"><span class="meas">Measured, 8 CPU processes, gloo, one step.</span> The reference is one process on the same 16 sequences (dp rank d trains on batch d; the two tp ranks of a replica share it). Each rank's collectives by mesh axis: <span id="dpt-c3c"></span> A block weight's placements on the 2-D (dp, tp) mesh were <span id="dpt-c3p"></span>: sharded on dimension 0 by TP and again, "strided", by FSDP, so that each rank's rows are the right ones of TP's shard.</p>
+<p class="small">torchtitan's own trainer, run on this CPU with four patches (it imports Triton unconditionally, picks a CUDA-like device, uses FlexAttention, and sets FSDP2's gradient divide factor to 1 which needs a reduce op gloo lacks), and its defaults that change results, are on the {{Libraries on top of PyTorch|n:3c65c17b0d0d81019d98f99978dc26f6}} child; so is DeepSpeed ZeRO against FSDP2, run there on CPU.</p>
+</section>
+
+<section id="dpt-s11">
+<h2>11. Debugging: hangs, mismatches and the flight recorder</h2>
+<p><b>The rule behind every hang:</b> all ranks of a group must call the same collectives, in the same order, with matching sizes. A collective only completes when every member calls it, so one rank that skips one, calls a different one, or dies leaves the rest waiting until the timeout (10 minutes for NCCL, 30 for other backends by default at 2.14.1). The lab tab (section 11) caused three hangs on purpose and shows the evidence each leaves; this page met the same rule three more times without trying: PowerSGD's callbacks (section 3), <code>async_save</code> on the default group (section 9) and a <code>from_local</code> with wrongly sized pieces (section 5).</p>
+<h3>The flight recorder and its analyser</h3>
+<p>Every process group keeps a ring buffer of its recent collectives (<code>TORCH_FR_BUFFER_SIZE</code> entries; name, sizes, dtypes, sequence number, stack). On NCCL, <code>TORCH_NCCL_DUMP_ON_TIMEOUT=1</code> makes the watchdog write one file per rank when a collective times out, and <code>torchfrtrace &lt;dir&gt;</code> (shipped with PyTorch as <code>torch.distributed.flight_recorder.fr_trace</code>) lines the ranks up and names the first mismatch. Here the lab's "skipped all-reduce" was dumped by hand on gloo (<code>torch._C._distributed_c10d._dump_fr_trace</code>) and fed to the analyser:</p>
+<ul>
+<li><b>As dumped, the analyser crashed</b> (<span id="dpt-fr0"></span>): gloo leaves the dump's process-group table empty; NCCL fills it when it creates a communicator, and the analyser looks every entry's group up there.</li>
+<li><b>With the default group written into the table</b>, as NCCL would have, it found the bug at once:</li></ul>
+<div class="dpt-out" id="dpt-fr1"></div>
+<p class="small mute"><span class="meas">Measured, 2 CPU processes, gloo, torch 2.14.1.</span> Paths in the stack are shortened. Rank 1 called <code>barrier</code> as its fourth collective while rank 0 called <code>all_reduce</code>; the stack names the line.</p>
+<h3>The other tools, in the order to reach for them</h3>
+<div class="tw"><table class="rd-tbl">
+<thead><tr><th>Tool</th><th>What it catches</th><th>Cost</th><th>Where measured</th></tr></thead>
+<tbody>
+<tr><td>Flight recorder dump + <code>torchfrtrace</code></td><td>which rank is at which collective; type and size mismatches</td><td>a ring buffer per group</td><td>here, and the lab tab section 11</td></tr>
+<tr><td><code>TORCH_DISTRIBUTED_DEBUG=DETAIL</code></td><td>shape and type mismatches before they hang, with both shapes in the error</td><td>2 extra all-gathers per collective</td><td>lab tab section 11</td></tr>
+<tr><td><code>monitored_barrier()</code> (gloo)</td><td>which rank did not arrive</td><td>one barrier</td><td>lab tab section 11</td></tr>
+<tr><td><code>py-spy dump --pid</code> on the odd rank</td><td>what its Python is doing instead</td><td>none</td><td>not run here</td></tr>
+<tr><td><code>NCCL_DEBUG=INFO</code>, <code>NCCL_DEBUG_SUBSYS</code></td><td>NCCL's choice of rings, trees, transports and network cards</td><td>log volume</td><td>not run here (no NCCL); see {{Streams, CUDA graphs and multi-GPU|n:3f05c17b0d0d81b19a6acab65c370b75}} and <a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html" target="_blank" rel="noopener noreferrer">NCCL environment variables</a></td></tr>
+</tbody></table></div>
+<p><code>torchrun</code> sets <code>TORCH_NCCL_ASYNC_ERROR_HANDLING=1</code> for its workers (recorded in section 1), which makes the NCCL watchdog abort the process on a timeout instead of leaving it hung. Desynchronisation (ranks drifting to different collectives) is what the flight recorder's sequence numbers expose; the first sequence number where ranks disagree is the bug.</p>
+</section>
+
+<section id="dpt-s12">
+<h2>12. What carries over to NVIDIA GPUs, and what does not</h2>
+<div class="tw"><table class="rd-tbl">
+<thead><tr><th></th><th>On this page</th><th>On NCCL and GPUs</th></tr></thead>
+<tbody>
+<tr><td>Carries over</td><td>which collectives, in which order, with which sizes; bucket layouts; placements and shard shapes; propagation rules; schedules' action orders; losses and gradients</td><td>the same: all of it is Python and C++ above the backend</td></tr>
+<tr><td>Carries over in kind</td><td>memory per rank (float32, CPU allocator)</td><td>halved by bf16, plus the caching allocator and NCCL buffers ({{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}})</td></tr>
+<tr><td>Changes</td><td>reduce-scatter runs as an all-reduce (gloo has none)</td><td>a real reduce-scatter: half the bytes, no full-size temporary</td></tr>
+<tr><td>Changes</td><td>bf16 compression hook refused; context parallel's public API refused</td><td>both supported</td></tr>
+<tr><td>Changes</td><td>collectives and compute share one CPU thread</td><td>collectives run on their own CUDA streams and overlap with compute</td></tr>
+<tr><td>Does not carry</td><td>every time: collective latency (0.09 to 1.1 ms for small messages), bubbles, async save</td><td>NVLink and InfiniBand are orders of magnitude faster; GPU compute is too, so bubbles and overlap must be measured there</td></tr>
+<tr><td>May not carry</td><td>gloo aborts from out-of-order collectives (PowerSGD, async_save)</td><td>the ordering rule is the same; whether timing exposes it differs. Not checked</td></tr>
+</tbody></table></div>
+</section>

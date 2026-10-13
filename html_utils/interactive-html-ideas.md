@@ -3474,3 +3474,19 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | L7 | Chooser with reasons tied to recorded facts, and a porting checklist that highlights every default that differs between two ways of training | Own tab | 2+1+2+1+2+2+2+0-1 = 11 | source-read defaults |
 | L8 | torchtitan "what broke on CPU" as four stacked cards with the exact error and the smallest patch | Reading, section 6 | 0+2+2+1+2+1+2+0 = 10 | run logs |
 | L9 | Tables filled from data: who divides by what (measured error), torchtitan runs, DeepSpeed stages (losses, state bytes, collectives) | Reading | 0+2+2+1+1+2+1+0 = 9 | inputs |
+
+### Distributed PyTorch: c10d, DDP, FSDP2, DTensor, TP, PP, DCP (2026-10-13)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_pytorch_ecosystem/distributed_pytorch/src/viz_ideas.md`.
+
+| # | Idea | Placement | Score | Data |
+|---|---|---|---|---|
+| 1 | **TP against TP + sequence parallel, one block, animated** (same input, 2 ranks; lanes = each rank's tokens as 8 tiles; gold = Partial; chips for each module and collective; counters: collectives so far, tokens held, recorded per-step totals, saved activations) | Reading, section 6 | 2+1+2+2+2+1 = 10 | tp_tp1.json, tp_tpsp.json (recorded placements and local shapes at module boundaries) |
+| 2 | **Pipeline schedule explorer**: all 7 schedules at m = 4 and 8 (2 ranks) and GPipe/1F1B on 4 ranks; measured timeline per rank from wrapped stage methods; ideal-clock replay of the recorded order (F 1, B 2, I 1, W 1) with dependencies; compare two schedules stacked; playhead with play/scrub and in-flight counter; table with spread of 5 repeats | Own tab | 2+2+2+1+2+1 = 10 | pps_*.json (bench lock); ideal clock reproduces (p-1)/(m+p-1) for GPipe/1F1B by construction |
+| 3 | **Comm-hook bytes lab**: bytes, relative gradient error and loss per step for every DDP hook over 30 steps, 2 and 4 ranks; PowerSGD byte calculator (rank slider, min_compression_rate) | Own tab | 2+2+2+2+2 = 10 | hooks_w2/w4.json; calculator reproduces recorded bytes for rank 1, 4, 16 and fp16 independently from shapes and the source's rule |
+| 4 | **Mesh explorer**: six real layouts (DDP 4, FSDP2 4, HSDP 2x2, reshard-to-2, FSDP x TP 2x2, PP x FSDP x TP 2x2x2); click a rank: its groups, its shards of 8 parameters, every collective by mesh dimension, memory, losses | Own tab | 2+1+2+1+2 = 8 | fsdpm_*.json, compose3d.json |
+| 5 | Collective time against size, log-log, alpha + S/B fit per op, 2 and 4 ranks | Reading, section 2 | 2+0+2+1+1 = 6 | coll_time_w2/w4.json (bench lock) |
+| 6 | FSDP2 prefetch timeline (implicit against explicit 2-ahead), issue times vs block forward/backward | Reading, section 4 | 2+0+2+1+1 = 6 | fsdpm_prefetch.json |
+| 7 | Elastic restart timeline (two ranks, crash, restart gap, resumed steps) | Reading, section 1 | 2+0+1+1+1 = 5 | elastic.json, elastic_repeats.json |
+| 8 | Tables generated from data: collective payloads, unused-parameter options, hooks, MixedPrecisionPolicy, FSDP1 vs FSDP2, DTensor propagation (28 cases), pipeline summary, 3-D composition per rank | Reading | n/a | inputs |
+| 9 | Predict-then-reveal: fastest collective at 64 MiB; no_sync collective count; LayerNorm gradient under SP | Reading | n/a | inputs |
