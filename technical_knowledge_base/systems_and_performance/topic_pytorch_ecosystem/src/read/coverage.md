@@ -107,3 +107,35 @@ The old root and its four children were fetched from Notion (read only) and save
 | "When to use which" table | kept as R9's table and the map's chooser | R9 |
 | NVIDIA buying Hugging Face for $12.93B, confirmed 3 September; "now sits inside" NVIDIA | **corrected**: definitive agreement 2026-09-02 (NVIDIA Form 8-K), about $11.9B plus up to about $1.0B retention equity, expected to close in the first half of 2027; until then Hugging Face is independent | R9 |
 | FSDP2 is the shared substrate for accelerate, Axolotl, Lightning, TRL, torchtitan | partly verified by the map's source scan; stays on the map | map |
+
+## Cross-link pass, 2026-10-13
+
+The six children exist now (five live, Distributed PyTorch being built). This pass links them from the root and carries the corrections they found, consistent with FACTS.md (keys tda, fst, ext, tcp, lib). Nothing from the distributed child is quoted.
+
+| Change | Source | Where |
+|---|---|---|
+| Section 10 rewritten: the six children by their exact titles, linked by Notion id, one line each with what they own and the overlap notes; the "proposed" and "what happens to the old children" wording removed | pages.json titles and ids | R10 |
+| "Go deeper" in sections 1 to 9 now links the child that owns the section, naming the child's section where it helps (tda 1, 2, 3, 4 and 2.6; tcp 11; fst 6, 9, 10; ext 2, 4, 5; lib 3) | children's Reading headings | R1 to R9 |
+| Inside one step, Compile lab, Distributed lab and Ecosystem map each gain one "Go deeper" link in their lead paragraph | | tabs |
+| Further reading: the six children at the top (old-title entries for the four reused pages removed), with their own reading times; the two without one estimated from word count (about 35 and 40 min) | children's Further reading | F |
+| Autocast: tensors always carry the Autocast key; the thread excludes it by default and entering autocast removes the exclusion (DispatchKeySet.h L670-686) | tda | R2 |
+| checkpoint() without use_reentrant still runs the reentrant variant at 2.14.1 and only warns (checkpoint.py L635-647); that variant recomputed 16 matmuls against 12 | tda | R3, Inside one step section 5 |
+| Autocast lists are per device (MPS ran log_softmax in bf16); bf16 autocast was slower on this laptop (MPS 208.0 vs 143.0 ms; CPU 43.7 s vs 0.37 s, no bf16 hardware), larger variant | tda, fst | R4 |
+| Dividing the loss by the number of micro-batches is exact only with equal token counts (59.1% gradient error in the measured case; only the HF Trainer with a `**kwargs` forward corrects it) | lib | R4 predict, Mistakes |
+| export counts labelled: the root's and Compile lab's 95 ops / 329 core ATen are with a dynamic batch (one sym_size read); static shapes give 94 / 326 as on the compile child | src/comp/inputs/export.json (by_op has 1 sym_size.int, range VR[1, 64]) against torch_compile/src/inputs/export.json | R5, Compile lab section 9 |
+| torch.export described as the whole-graph sibling (not "strict": non-strict tracing is the default) | tcp coverage | R5 |
+| Saved-for-backward total: the Compile lab's 34,814,468 B is right and already includes the one logits tensor (view_49, 8x64x43, 88,064 B). The compile child's min-cut figure 34,902,532 B counts it twice: its script walks the forward graph's outputs, where view_49 appears both as the user output and as a saved value (re-checked 2026-10-13 with a deterministic rerun: num_fwd_outputs 2, user outputs [view_49, div], view_49 twice among 92 forward outputs, once among the backward's placeholders). Note added to the Compile lab; reported for the child and FACTS | src/comp/inputs/model_cpu.json, rerun | Compile lab section 6 |
+| sdpa_kernel has no effect on MPS (always math); MPS never takes a fused SDPA path at 2.14.1 | fst | R6 |
+| FlexAttention: inference only on CPU and MPS (no backward at 2.14.1), compiled CPU flex refuses macOS; on MPS slower than SDPA except a sliding window, causal 148 vs 7.7 ms; the 2.13 "~12x" did not reproduce | fst | R6, Ecosystem map releases |
+| nn.LinearCrossEntropyLoss / F.linear_cross_entropy chunk only with LinearCrossEntropyOptions(); default = unchunked (2394.2 vs 1278.8 MB peak, larger variant, V 50,257) | fst | R6, Ecosystem map releases |
+| Two traps: late autograd registration of a traced C++ op drops 16 of 52 gradients under compile; the wrong artefact persists in the AOTAutograd cache across processes | ext | R8 |
+| "DTensor works the same way" softened: a subclass, but its constructor and common op path are C++ at 2.14.1; Python __torch_dispatch__ only for DTensor subclasses | ext | R8 |
+| Helion: Triton by default, also Pallas, CuTe and Metal backends (Metal ran on MPS) | ext | R8 |
+| DeepSpeed clips at 1.0 by default since 0.19.3 (0 before) | lib | R9, Mistakes, Ecosystem map atlas |
+| Axolotl 0.20.0 pins transformers==5.17.0 and torch<=2.14.0 | lib | R9, Ecosystem map atlas |
+| Lightning FSDPStrategy is FSDP1; FSDP2 + TP is ModelParallelStrategy | lib (the map already said so) | R9 |
+| torchtitan 0.3.0: per-block compile with fullgraph=True, no compiled autograd; runs on a Mac CPU with four patches. The map's "torchtitan was read, not run" replaced by what the children ran (DeepSpeed and torchtitan on CPU by the libraries child, Helion on Metal by the extending child) | lib, tcp, ext | R9, Ecosystem map (atlas, Checks and limits) |
+| NeMo repository speech only | already correct on the root | R9, map |
+| Section 5 claims on regional compilation, mega-cache and unique kernel names: the root makes none beyond release-history items (2.5 regional compilation, 2.7 Mega Cache), which stay | tcp coverage | none |
+
+Checks after the pass: build.sh; checkpage.sh fail=0, emdash 0, errbox 1, clipped 0; read/check_data.py 17 checks 0 fails; map/validate.py 37 ok; comp/check_page.py ok; step/check_page.py 21 claims fail=0; dist check_page.mjs and check_data.py pass; read/check_page.mjs and a tab sweep at 390 dark and 920 light: no errors, NaN, undefined or sideways scroll.
