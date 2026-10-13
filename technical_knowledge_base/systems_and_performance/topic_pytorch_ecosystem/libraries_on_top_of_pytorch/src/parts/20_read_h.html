@@ -1,0 +1,38 @@
+<section id="lib-s7">
+<h2>7. DeepSpeed ZeRO against FSDP2</h2>
+<p class="lead">Both shard the training state across data-parallel ranks so each holds a slice; the theory (ZeRO stages 1, 2, 3 = optimizer state, plus gradients, plus parameters, and the bytes per parameter) is on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}, and PyTorch's FSDP2 internals on {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}}. Here: the two APIs, and what each did with the running example on 2 CPU processes.</p>
+<div class="rd-two"><div><b>DeepSpeed: an engine owns the step</b><div class="code">import deepspeed
+deepspeed.init_distributed(dist_backend="gloo")
+conf = {"train_micro_batch_size_per_gpu": 8,
+        "zero_optimization": {"stage": 3},
+        "gradient_clipping": 0.0}   <span class="c"># else 1.0</span>
+eng, opt, _, _ = deepspeed.initialize(
+    model=model, optimizer=make_optimizer(model),
+    config=conf)
+for x, y in batches:
+    _, loss = eng(x, y)
+    eng.backward(loss)              <span class="c"># not loss.backward()</span>
+    eng.step()                      <span class="c"># clip, step, zero_grad</span></div></div>
+<div><b>FSDP2: a function marks modules, your loop stays</b><div class="code">from torch.distributed.fsdp import fully_shard
+from torch.distributed.device_mesh import init_device_mesh
+mesh = init_device_mesh("cpu", (2,))
+for block in model.blocks:
+    fully_shard(block, mesh=mesh)
+fully_shard(model, mesh=mesh)
+opt = make_optimizer(model)         <span class="c"># on DTensor shards</span>
+for x, y in batches:
+    _, loss = model(x, y)
+    loss.backward()
+    opt.step(); opt.zero_grad()</div></div></div>
+<p class="small mute">DeepSpeed 0.19.7 ran from its released source with <code>DS_ACCELERATOR=cpu</code>, which selects its CPU accelerator and the gloo backend when oneCCL is absent ({{cpu_accelerator.py L31 to L34|https://github.com/deepspeedai/DeepSpeed/blob/v0.19.7/accelerator/cpu_accelerator.py#L31-L34}}); PyTorch's own AdamW was passed in, so no DeepSpeed C++ operator was built. The FSDP2 code is the root's {{Distributed lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} recipe (its <code>mesh=</code> is needed on macOS).</p>
+<div class="tw"><table class="rd-tbl"><thead><tr><th>Run, 2 processes</th><th>Losses, rank 0</th><th>Optimizer state per rank</th><th>Collectives the library called in 3 steps</th></tr></thead><tbody id="lib-ds-tbl"></tbody></table></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro, CPU, 2 processes, gloo</span> (<code>src/exp/calls_trace.py ds_z0 ... ds_z3_noclip</code>). The reference is PyTorch DDP's 3.80137, 3.09551, 3.16247 (root's Distributed lab). Collectives are the calls DeepSpeed made into <code>torch.distributed</code>; DDP's and FSDP2's collectives are issued inside PyTorch (the reducer and FSDP2's hooks) and are counted on the root's Distributed lab (FSDP2: 14 per step at world 2).</p>
+<ul>
+<li><b>Same maths.</b> With clipping off, every stage reproduces DDP's losses to five decimals: ZeRO is a memory layout, not a different optimizer.</li>
+<li><b>The default clip shows up at step 2.</b> Without a <code>gradient_clipping</code> key, 0.19.7 clips at 1.0 and the third loss becomes <span id="lib-ds-l3"></span> instead of 3.16247 while the second moves only in the fifth decimal. Adam's first update is almost independent of the gradient's scale (with fresh moments, <code>m/&radic;v</code> is the sign of each gradient entry, up to <code>eps</code>), so clipping step 0 barely matters; from the second update on, the moments mix two gradients scaled by different factors, and the path changes. The same config gave the unclipped result on 0.19.2 and earlier.</li>
+<li><b>Optimizer state halves from stage 1 on</b>: AdamW's two moment tensors, <span id="lib-ds-st0"></span> per rank at stage 0, <span id="lib-ds-st1"></span> at stages 1 to 3 on 2 ranks.</li>
+<li><b>ZeRO-3 does not shard small tensors.</b> Parameters under <code>stage3_param_persistence_threshold</code> (default 100,000 elements, {{zero/config.py L229|https://github.com/deepspeedai/DeepSpeed/blob/v0.19.7/deepspeed/runtime/zero/config.py#L229}}) stay whole on every rank: <span id="lib-ds-pers"></span> of the running example's 52 tensors (norms, biases, both embeddings, and the 65,536-element attention output matrices); only the 12 larger block matrices are partitioned. It saves gathering many tiny tensors at the cost of a little memory.</li>
+<li><b>ZeRO-3 talks a lot from Python.</b> In 3 steps DeepSpeed called <code>all_gather_into_tensor</code> <span id="lib-ds-ag"></span> times (parameters fetched before each module's forward and again for backward) and <code>Tensor.item()</code> <span id="lib-ds-item"></span> times, mostly in a helper that checks lists agree across ranks (<code>get_lst_from_rank0</code>, {{zero/utils.py|https://github.com/deepspeedai/DeepSpeed/blob/v0.19.7/deepspeed/runtime/zero/utils.py}}). On a GPU every <code>.item()</code> waits for the device.</li>
+</ul>
+<p><b>When each.</b> FSDP2 is in PyTorch: it composes with DTensor, tensor and pipeline parallelism, <code>torch.compile</code> and DCP, and is what Accelerate, Lightning, TRL and torchtitan call (root's Ecosystem map). DeepSpeed (a PyTorch Foundation project since May 2025) brings its own engine with offload of parameters and optimizer state to CPU memory and NVMe drives, its own optimizers and kernels, and long-standing integrations (HF Trainer via Accelerate, Megatron-DeepSpeed); pick it when you need those, or inherit it from a recipe. Mixing them means mixing two engines' assumptions about who calls backward, who clips, and who scales the loss (the Trainer turns its own accumulation scaling off under DeepSpeed, {{trainer.py L2096 to L2099|https://github.com/huggingface/transformers/blob/v5.19.0/src/transformers/trainer.py#L2096-L2099}}).</p>
+</section>
