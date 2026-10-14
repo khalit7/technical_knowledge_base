@@ -1,0 +1,38 @@
+<section id="pip-s-filter">
+<h2>Filters: inside the search or after it</h2>
+<p><b>The problem.</b> Real queries come with conditions: only this customer's documents, only what this user may read, only papers after 2020. A <b>metadata filter</b> can run <b>inside</b> the search (only allowed documents compete: a pre-filter) or <b>after</b> it (fetch the top N from everything, then drop what is not allowed: a post-filter). The post-filter is easy to bolt on and silently returns fewer results, sometimes none, when the filter is selective.</p>
+<p><b>The setup.</b> SciFact has no access metadata, so an attribute is <span class="pip-lbl c">constructed</span>: each abstract gets an access group, crc32(document id) mod G, so a user sees 1/G of the corpus; each claim is asked by a user of its evidence abstract's group (the answer is always allowed). Exact search with Qwen3-Embedding, so the only difference is where the filter runs; how filters interact with approximate indexes such as HNSW is in the {{Vector search lab|#t-vec}}.</p>
+<div class="pip-box">
+<label class="small" style="display:block">The user may see <b id="pip-fi-gv"></b><input type="range" id="pip-fi-g" min="0" max="6" value="3" step="1" aria-label="Share of the corpus the user may see"></label>
+<div class="tw"><table id="pip-fi-tab"></table></div>
+<div class="small" style="margin-top:8px"><b>Results returned, of 10 asked</b>, by filter selectivity</div>
+<div class="plot" id="pip-fi-chart"></div>
+<p class="pip-small">300 SciFact test claims, Qwen3-Embedding-0.6B, exact inner-product search. <span class="pip-lbl m">measured</span></p>
+</div>
+<div class="co key"><div class="t">What the numbers say</div>
+<ul class="tight"><li>When a user may see 10% of the corpus, fetching 10 and filtering returns <b>1.73</b> results on average, and nothing at all for <b>14</b> of 300 claims. The evidence reaches the results for 255 claims, against 284 when the filter runs inside the search.</li>
+<li>Over-fetching repairs it only partly: with the top 100 fetched, the evidence is found as often as with the pre-filter (284), but 96 claims still get fewer than 10 results. At 1% visibility even 1,000 fetched leaves 112 claims short.</li>
+<li>The pre-filter always returns 10. Its evidence count even rises as the filter narrows (284 at 10%, 299 at 1%, against 256 unfiltered), but that is the construction: the evidence is always allowed and fewer abstracts compete with it.</li></ul></div>
+<details class="mist"><summary>Why vector stores make this hard, briefly</summary><div class="b">With an exact scan the pre-filter is free: skip disallowed rows. With an approximate index (HNSW, IVF) the graph or clusters were built over every document, so a restrictive filter can cut the paths the search walks, and engines add workarounds: iterative index scans that keep fetching until enough rows pass (pgvector since 0.8.0), filter-aware graph traversal (ACORN, Weaviate's default since v1.34), or a brute-force scan when few rows pass. The {{Tool map|#t-map}} lists which engine does what; the {{Vector search lab|#t-vec}} measures filtered HNSW.</div></details>
+</section>
+<section id="pip-s-query">
+<h2>Rewriting the query</h2>
+<p><b>The problem.</b> The words a user types are not always the words of the documents. Three fixes, each run here with the local generator (Qwen3-1.7B, greedy):</p>
+<ul class="tight"><li><b>HyDE</b> (Gao et al. 2022, "Precise Zero-Shot Dense Retrieval without Relevance Labels"): ask the model to write a fake answer passage, embed that instead of the question, since a passage looks more like the documents than a question does. The prompt is the authors' SciFact prompt from their code (texttron/hyde, promptor.py): "Please write a scientific paper passage to support/refute the claim."</li>
+<li><b>Multi-query</b>: ask for three rewordings, retrieve with each and the original, fuse the four lists with RRF.</li>
+<li><b>Conversational rewrite</b>: in a chat, "does it help?" means nothing without the earlier turns; the model rewrites the last message into a standalone query.</li></ul>
+<div class="pip-box">
+<div class="small"><b>HyDE and multi-query on the 300 SciFact test claims</b> <span class="pip-lbl m">measured</span></div>
+<div class="tw"><table id="pip-qt-tab"></table></div>
+<div id="pip-qt-ex"></div>
+<div class="co key"><div class="t">What the numbers say</div><ul class="tight">
+<li><b>HyDE helps a little, and how to use it depends on the retriever.</b> For Qwen3-Embedding the fake passage alone lifts nDCG@10 from 0.700 to 0.718; for bge-small the passage alone hurts (0.692) and only the passage averaged with the claim helps (0.733, from 0.713). For BM25, appending the passage to the claim adds words the abstracts use: recall@100 rises from 0.913 to 0.943.</li>
+<li><b>Multi-query buys almost nothing here</b> (Qwen3: 0.699 against 0.700, better on 36 claims and worse on 36): SciFact claims are already specific, and the rewordings mostly repeat them.</li>
+<li><b>Both cost a generator call before retrieval can start:</b> about 2.2 s per claim for HyDE and 0.8 s for the three rewordings with the 1.7 B model on this laptop, under heavy load from other jobs. That is more than the whole retrieval stage.</li></ul></div>
+</div>
+<div class="pip-box">
+<div class="small"><b>Eight follow-up questions</b> <span class="pip-lbl c">constructed</span>: two-turn chats written for this page from SciFact test claims, so that the second turn leans on the first. The cells give the rank of the claim's evidence abstract when retrieving with the follow-up alone, the whole chat pasted together, the generator's rewrite, and (for reference) the original claim.</div>
+<div class="tw"><table id="pip-qt-conv"></table></div>
+<p class="small">With the follow-up alone, the evidence lands in the top 3 for 3 (bge-small) to 5 (Qwen3-Embedding) of the 8 chats; with the generator's rewrite, for 6 to 7 of 8, as often as when the whole two-turn chat is pasted in. One rewrite (the mitochondria chat) turned the question into a general one and did worse than the follow-up alone. Longer chats, where pasting everything dilutes the query, were not tested.</p>
+</div>
+</section>

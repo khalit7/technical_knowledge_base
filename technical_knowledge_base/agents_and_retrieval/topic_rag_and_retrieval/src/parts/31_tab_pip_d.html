@@ -1,0 +1,34 @@
+<section id="pip-s-hybrid">
+<h2>BM25, dense, and hybrid</h2>
+<p><b>The problem.</b> BM25 matches words: it finds "PPM1D" when the claim says "PPM1D", and misses an abstract that says the same thing in other words. A dense retriever matches meaning: it finds the paraphrase, and can rank a topically similar abstract above the one with the exact gene name. Their mistakes are different, so running both and merging the two lists (<b>hybrid search</b>) often beats either. How BM25's inverted index and a vector index sit inside a database is on {{Search and vector databases|n:3ef5c17b0d0d815eb4caef9b4cd4d732}}; the defaults each framework ships with are in the <a href="#" data-pip-go="t-map|map-s-def">Tool map's defaults section</a> (LlamaIndex returns only 2 chunks unless told otherwise).</p>
+<p><b>How the lists are merged.</b> The two scores live on different scales (a BM25 score of 4.45 against a cosine of 0.71), so they cannot simply be added. Two families:</p>
+<ul class="tight"><li><b>Reciprocal rank fusion (RRF)</b> ignores scores and uses ranks: <span class="pip-fx">score(d) = &Sigma;<sub>lists</sub> 1 / (k + rank(d))</span>, with k = 60 in the paper that proposed it (Cormack, Clarke and B&uuml;ttcher, SIGIR 2009) and in most libraries. No tuning, no calibration.</li>
+<li><b>Score fusion</b> normalises each list's scores (min-max to [0, 1], or z-score: subtract the mean, divide by the standard deviation) and takes a weighted sum, <span class="pip-fx">&alpha; &middot; dense + (1 &minus; &alpha;) &middot; BM25</span>. It keeps how much better the first hit is than the second, but &alpha; must be chosen, and choosing it on the test set is a leak.</li></ul>
+<div class="pip-box">
+<div class="pip-anctl"><div class="seg" id="pip-hy-ds" role="group" aria-label="Dataset"><button data-v="scifact" class="on" aria-pressed="true">SciFact</button><button data-v="nfcorpus" aria-pressed="false">NFCorpus</button></div>
+<div class="seg" id="pip-hy-met" role="group" aria-label="Metric"><button data-v="ndcg10" class="on" aria-pressed="true">nDCG@10</button><button data-v="r10" aria-pressed="false">recall@10</button><button data-v="r100" aria-pressed="false">recall@100</button></div></div>
+<div class="seg" id="pip-hy-model" role="group" aria-label="Dense model"></div>
+<div class="bars" id="pip-hy-bars"></div>
+<p class="small" id="pip-hy-wins"></p>
+<div class="pip-two"><div><div class="small"><b>RRF: does k matter?</b></div><div class="plot" id="pip-hy-k"></div></div><div><div class="small"><b>Score fusion: the weight &alpha;, swept on the test set</b></div><div class="plot" id="pip-hy-a"></div></div></div>
+<p class="pip-small">Each first stage contributes its recorded top 100; a document missing from one list adds 0 to RRF and that list's lowest normalised score to score fusion; the fused list is cut to 100. <span class="pip-lbl m">measured</span></p>
+</div>
+<div class="co key"><div class="t">What the numbers say</div>
+<ul class="tight"><li><b>Hybrid helps a dense model that is about as good as BM25 and disagrees with it.</b> On SciFact, RRF lifts MiniLM-L6 from 0.645 to 0.713 nDCG@10 and Qwen3-Embedding-0.6B from 0.700 to 0.724 (better on 69 claims, worse on 50).</li>
+<li><b>It can hurt a dense model that is clearly better.</b> gte-modernbert (0.767) drops to 0.763 with RRF k 60, ColBERT-small (0.743) to 0.731: equal-weight fusion gives BM25's weaker list the same say.</li>
+<li><b>k barely matters</b> (0.724 to 0.732 for Qwen3 across k from 1 to 1,000), which is why 60 is a safe default.</li>
+<li><b>Weighted score fusion beats RRF when its weight is learned on other queries.</b> With &alpha; chosen on SciFact's 809 training claims (0.6), z-score fusion scores 0.739 for Qwen3 on the test claims; the best &alpha; picked on the test set itself would claim 0.744, a 0.005 leak. On NFCorpus, RRF adds nothing to Qwen3 (0.363 to 0.361) while z-score with &alpha; tuned on the dev split gives 0.375.</li></ul></div>
+<details class="mist"><summary>Tuned on a held-out split, scored on test (nDCG@10)</summary><div class="b"><div class="tw"><table id="pip-hy-tuned"></table></div><p class="pip-small">The knob (RRF k, or &alpha;) is the value with the best nDCG@10 on SciFact train (809 claims) or NFCorpus dev; ties go to the value nearest the default. BM25 and dense runs for those splits are computed here with the same settings as the recorded test runs (BM25 reproduces the recorded test top 10 for every query).</p></div></details>
+</section>
+<section id="pip-s-rrf">
+<h3>RRF calculator, on real lists</h3>
+<p>Pick a claim and move k. The table is the fused top 10 of the real BM25 and Qwen3-Embedding top 30 lists (fused here over the top 30 of each, so ranks past 30 count as absent). The first three claims are rescued by fusion; the last two are hurt by it.</p>
+<div class="pip-box">
+<label class="small" style="display:block">Claim <select id="pip-rrf-q" style="max-width:100%"></select></label>
+<label class="small" style="display:block;margin-top:6px">k = <b id="pip-rrf-kv">60</b><input type="range" id="pip-rrf-k" min="0" max="10" value="6" step="1" aria-label="RRF constant k"></label>
+<p class="small" id="pip-rrf-sum"></p>
+<p class="small" id="pip-rrf-fx"></p>
+<div class="tw"><table class="pip-calc" id="pip-rrf-tab"></table></div>
+<p class="pip-small">Small k makes the very top of each list dominate (rank 1 scores 1/2 at k = 1, rank 10 scores 1/11); large k flattens the curve, so being in both lists matters more than being first in one.</p>
+</div>
+</section>
