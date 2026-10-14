@@ -1,0 +1,46 @@
+<section id="vec-s-ann">
+<h2>Exact search, and why indexes approximate</h2>
+<p><b>Exact (flat) search</b> compares the query with every stored vector and keeps the best k. It is always right and needs no index; its cost grows with the number of vectors times their size. Measured on this laptop on one core, it streams about 37 GB of vectors per second: SciFact's 21 MB takes about half a millisecond per claim, the 522,931 Quora questions (384 dims) 22 ms per query, and 1 million 1,024-dim vectors would take about 112 ms (child page, sections 2 and 12). Below roughly a million vectors, exact search is often fast enough and is the honest baseline.</p>
+<p><b>Approximate nearest neighbour (ANN) indexes</b> look at a small part of the data and accept that they will sometimes miss a true neighbour. Three ideas cover almost every index in use:</p>
+<div class="grid">
+<div class="sp"><div class="n">IVF: cluster, then search a few clusters</div><p>k-means splits the vectors into nlist cells; a query scans only the nprobe cells whose centres are nearest. Misses a neighbour that sits in a cell it did not open. Knob: nprobe.</p></div>
+<div class="sp"><div class="n">PQ: compress, then compare codes</div><p>Each vector is cut into m chunks and each chunk replaced by the id of its nearest learned centroid, so 4,096 bytes become m bytes. Distances are estimated from the codes; the estimate reorders neighbours. Knobs: m, rescoring.</p></div>
+<div class="sp"><div class="n">HNSW: walk a graph</div><p>Each vector is linked to a few near neighbours; a query starts somewhere and greedily walks toward closer vectors, keeping a frontier of efSearch candidates. Misses a neighbour the walk never reaches. Knobs: M, efSearch.</p></div>
+</div>
+<p>IVF-PQ combines the first two (the classic billion-scale design); DiskANN keeps a graph on SSD; filtered search, deletes and updates change all of them. Each is built, animated and measured on {{Vector indexes from the inside|n:3f85c17b0d0d81f29707c130b2ebcfb1}}.</p>
+<div class="vec-box" id="vec-ba-card">
+<div class="small"><b>Before/after on one claim:</b> the same query vector (Qwen3-Embedding, 1,024 dims) through exact search, HNSW and IVF-PQ, all built with FAISS on the 5,183 SciFact abstracts. Rows move to their new rank; a dashed row is a true top-10 abstract the index did not return; an orange border marks an abstract that was not in the exact top 10. <span class="vec-lbl m">measured</span></div>
+<div class="seg" id="vec-ba-seg" role="group" aria-label="Index"><button data-v="0" class="on" aria-pressed="true">Exact</button><button data-v="1" aria-pressed="false">HNSW, efSearch 16</button><button data-v="2" aria-pressed="false">IVF-PQ, nprobe 4</button></div>
+<div class="vec-anctl" id="vec-ba-ctl"></div>
+<div class="vec-cap" id="vec-ba-cap"></div>
+<div class="vec-list" id="vec-ba-list"></div>
+</div>
+</section>
+
+<section id="vec-s-two">
+<h2>The two recalls</h2>
+<p><b>Two different questions share one word.</b> <b>ANN recall@10</b> asks: of the 10 vectors exact search would return, how many did the index return? It needs no labels, measures only the index, and is what vector database benchmarks report. <b>Retrieval recall@10</b> asks: of the documents a human marked relevant, how many are in the top 10? It needs labels and measures the whole system: the embedding model first, the index second. An index with ANN recall 1.0 cannot fix a model that puts the answer at rank 40.</p>
+<div class="vec-box" id="vec-two-card">
+<div class="small"><b>Every index setting, the same 300 claims.</b> x: ANN recall@10 against exact search; y: retrieval recall@10 against the labels. The dashed line is what you would get if the index lost relevant abstracts exactly as often as any other neighbour (ceiling &times; ANN recall). <span class="vec-lbl m">measured</span></div>
+<div class="vec-plot" id="vec-two-plot"></div>
+<div class="small" style="margin-top:8px"><b>Claim by claim.</b> Each square is one claim. Pick a setting:</div>
+<div class="seg" id="vec-two-seg" role="group" aria-label="Index setting"></div>
+<div class="vec-grid" id="vec-two-grid" aria-label="300 claims"></div>
+<div class="vec-leg" id="vec-two-leg"></div>
+<p class="small" id="vec-two-note"></p>
+</div>
+<div class="vec-pr" data-ans="1" id="vec-two-pr"><div class="vec-q">Predict: IVF at nprobe 8 returns 90% of the exact top 10. What share of the labelled abstracts does it find, if exact search finds 84.5%?</div>
+<div class="vec-opts"><button class="vec-opt">84.5%: the misses are irrelevant neighbours</button><button class="vec-opt">about 78%: it loses relevant ones about as often as others</button><button class="vec-opt">about 60%: relevant ones are lost first</button></div>
+<div class="vec-ans" hidden id="vec-two-pr-ans"></div></div>
+</section>
+
+<section id="vec-s-front">
+<h2>Speed, memory, recall: the short version</h2>
+<p>Every index trades three things: how many true neighbours it returns, how many queries per second it serves, and how many bytes it holds per vector (plus build time). The child page measured seven families on SciFact, on four corpora stacked and on BEIR Quora; the Quora sweep is summarised here because only at half a million vectors does exact search become slow. <span class="vec-lbl m">measured</span> by the Vector indexes child, FAISS 1.15.1, one thread, one query at a time, bench lock held.</p>
+<div class="vec-box">
+<div class="vec-plot" id="vec-fr-plot"></div>
+<div class="tw"><table id="vec-fr-tbl"></table></div>
+<p class="vec-small" id="vec-fr-note"></p>
+</div>
+<div class="deepnote"><b>Go deeper:</b> the full recall, speed and memory frontier with build times, the HNSW build-and-search lab, the IVF-PQ lab with its lookup tables, filtered search (pre-filter, post-filter, in-graph, ACORN), deletes, Vamana and ScaNN, and the FAISS and hnswlib search loops read line by line: {{Vector indexes from the inside|n:3f85c17b0d0d81f29707c130b2ebcfb1}}. The engine view (pgvector, Lucene) is on {{Search and vector databases|n:3ef5c17b0d0d815eb4caef9b4cd4d732}}.</div>
+</section>
