@@ -1,0 +1,40 @@
+<section id="sl-s5">
+<h2>5. Token files: what a pretraining run actually reads</h2>
+<p><b>The problem.</b> A training step needs, for each sequence in the batch, a run of token ids of exactly the context length. Parsing JSON and running a tokenizer for every step would burn CPU on every node and make every run depend on tokenizer code. So the corpus is tokenized once and stored as the thing the GPU wants: integers.</p>
+<p><b>How it works.</b> Every document's ids are written one after another into one binary file, each id as a fixed-width integer, usually with an <dfn>end-of-document token</dfn> (EOD, for example <code>&lt;|endoftext|&gt;</code>) after each document so the model learns where texts stop. Beside it, an <dfn>index</dfn> records where each document ends. The file is then <dfn>memory-mapped</dfn> (section 3): <code>tokens[i : i + 2049]</code> costs one page-cache lookup, no parsing and no copy of the rest of the file. Three real layouts:</p>
+<div class="tw"><table>
+<tr><th>Who</th><th>Files</th><th>Id width</th><th>Source</th></tr>
+<tr><td><b>nanoGPT</b></td><td><code>train.bin</code> only: all ids, no index</td><td>uint16, "can do since enc.max_token_value == 50256 is &lt; 2**16"</td><td><code>data/openwebtext/prepare.py</code> line 62 (karpathy/nanoGPT at 3adf61e)</td></tr>
+<tr><td><b>datatrove</b></td><td><code>*.ds</code> ids, <code>*.ds.index</code> document ends as uint64, optional <code>*.ds.loss</code> mask</td><td><code>token_size=2</code> by default; set 4 for large vocabularies</td><td><code>pipeline/tokens/tokenizer.py</code> lines 49, 58, 84 (v0.10.1)</td></tr>
+<tr><td><b>Megatron-LM</b></td><td><code>.bin</code> ids; <code>.idx</code>: header <code>MMIDIDX\x00\x00</code>, version, dtype code, sequence and document counts, int32 lengths, int64 byte offsets, int64 document boundaries</td><td>uint16 when the vocabulary is under 65,500, else int32</td><td><code>megatron/core/datasets/indexed_dataset.py</code> lines 114-127 and 150-210 (NVIDIA/Megatron-LM at 80781ab)</td></tr>
+</table></div>
+<p>On our 2,000 documents the Megatron pair is 5,730,606 bytes with Qwen3 ids (int32) and 2,969,916 bytes with GPT-2 ids (uint16); the index is 40,042 bytes, 20 bytes per document <span class="sl-lbl meas">measured</span>, written byte for byte to the layout above by <code>src/scripts/formats.py</code>. Compressing a token file with zstd saves less than you might hope (uint32 Qwen3 ids: 5.69 MB to 2.38 MB; uint16 GPT-2 ids: 2.93 MB to 2.10 MB) and kills random access, so token files are normally stored raw.</p>
+<div class="sl-pred" id="sl-pq2"></div>
+<div class="co warn"><div class="t">The 16-bit trap, measured</div>Qwen3's vocabulary has 151,669 entries, so its ids need 18 bits. In our 2,000 documents, 34,587 of 1,422,641 tokens (2.4%) have ids of 65,536 or more, and 1,942 documents (97%) contain at least one. Written as uint16, each such id silently becomes <code>id mod 65,536</code>, another real token. Nothing crashes; the model trains on corrupted text. datatrove's default <code>token_size=2</code> and nanoGPT's hard-coded uint16 both do this if you change the tokenizer and forget the width. Check: after writing, read back a shard and compare <code>max(ids)</code> with the vocabulary size, and decode one document.</div>
+<div class="card"><div id="sl-wrap"></div></div>
+
+<h3>From one token file to training samples: Megatron's three indices</h3>
+<p>A token file is one long stream. Something must decide which slices become samples, in which order, for how many epochs, and how to resume. nanoGPT's answer is the simplest possible one: at every step, draw random start positions (<code>torch.randint(len(data) - block_size, ...)</code>, <code>train.py</code> lines 116-131). There is no notion of an epoch, and random draws with replacement both repeat and miss text: after as many windows as would cover the file once, a share of about e<sup>−1</sup> ≈ 36.8% of tokens has never been seen (simulated on a 50-million-token array: 36.8% <span class="sl-lbl der">derived</span>) while others were seen twice or more.</p>
+<p>Megatron-LM's <code>GPTDataset</code> instead builds three small arrays once, saves them as <code>.npy</code> files beside the data, and memory-maps them in every rank (<code>gpt_dataset.py</code> lines 475-660):</p>
+<ol>
+<li><b>document_index</b>: every document id once per epoch, all epochs shuffled together with <code>numpy.random.RandomState(seed)</code> (<code>_build_document_index</code>, lines 734-765).</li>
+<li><b>sample_index</b>: walks that shuffled document order as one concatenated stream and records, for every sample, the document position and token offset where it starts; each sample is <code>sequence_length + 1</code> tokens, the extra one being the last target (<code>helpers.cpp</code> <code>build_sample_idx</code>, lines 144-249).</li>
+<li><b>shuffle_index</b>: a permutation of the sample numbers, from the same random state (<code>_build_shuffle_index</code>).</li>
+</ol>
+<p>Sample <i>k</i> of the run is then <code>shuffle_index[k]</code> → two rows of <code>sample_index</code> → a few slices of the token file. Everything is a pure function of the seed, so a restart only needs the number of samples consumed so far (section 12). Step through it on twelve real documents:</p>
+<div class="card" id="sl-meg">
+<div class="seg" id="sl-meg-seg"><button data-m="meg" class="on">Megatron: indexed epochs</button><button data-m="nano">nanoGPT: random offsets</button></div>
+<div class="sl-cap" id="sl-meg-cap"></div>
+<div class="sl-plot" id="sl-meg-plot"></div>
+<div class="out" id="sl-meg-out"></div>
+<div id="sl-meg-ctl" class="chips"></div>
+<p class="small mute">Document lengths are the first twelve of the running example (Qwen3 tokens plus one EOD); the window is 1,024 tokens rather than a real 4,096 or 8,192 so the samples are visible, and there are 2 epochs <span class="sl-lbl ill">illustrative settings</span>. The indices were computed by <code>src/scripts/megatron_demo.py</code>, a line-for-line port of the three functions above with <code>RandomState(1234)</code>; the random offsets by <code>torch.randint</code> with seed 1234, as nanoGPT draws them.</p>
+</div>
+</section>
+
+<section id="sl-s6">
+<h2>6. Tokenizing at scale</h2>
+<p><b>How it is done.</b> Tokenizing is embarrassingly parallel: each document is independent. Pipelines run it as many CPU tasks, one per input file, each writing its own token shard: datatrove's <code>DocumentTokenizer</code> (which also shuffles documents inside each output file, and whose <code>DocumentTokenizerMerger</code> shuffles across files, so the training reader can then read sequentially: "heavily optimized for sequential reads, and we actually pre-shuffled the data", <code>utils/dataset.py</code> line 39), or Megatron's <code>tools/preprocess_data.py</code> with many worker processes.</p>
+<p><b>The cost.</b> On this machine the Hugging Face <code>tokenizers</code> library (Rust) encoded 50,000 FineWeb documents (37.6M Qwen3 tokens) at about 1.4M tokens per second with 4 threads and about 0.49M tokens per second on one thread <span class="sl-lbl rough">rough</span>. At 0.49M tokens per core-second, 15 trillion tokens need about 3.1 × 10<sup>7</sup> core-seconds, about 8,500 core-hours <span class="sl-lbl der">derived</span>: an afternoon on a 2,000-core cluster, and a once-only cost. Doing it inside the training loop instead would cost every training node's CPUs for the whole run, and couple the run to the tokenizer version.</p>
+<p><b>What to record.</b> The tokenizer's name and revision (the same text is a different number of tokens per tokenizer: 4.77 characters per Qwen3 token on these 50,000 documents; the {{Pretraining corpora|n:3c65c17b0d0d81f382b6e75707d00663}} page measures GPT-2 against Qwen3), the id width, whether an EOD token was appended, and the document count, so a later reader can verify a shard before training on it.</p>
+</section>
