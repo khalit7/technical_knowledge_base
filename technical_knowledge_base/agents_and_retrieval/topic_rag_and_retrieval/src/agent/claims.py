@@ -1,0 +1,67 @@
+"""Numbers quoted in the Agentic lab's prose, with the data they come from (check_numbers.py)."""
+f3 = ".3f"
+S4, S17 = "strategies.4b.", "strategies.1.7b."
+CLAIMS = [
+    # hops
+    ("both are in the top 3 for {} questions with bge-small", "hops.systems.bge-small.both.3", ""),
+    ("and {} with BM25, and in the top 10", "hops.systems.bm25.both.3", ""),
+    ("for 164 and {}.", "hops.systems.bm25.both.10", ""),
+    ("only {} of 200 share none", "hops.overlap.second_zero", ""),
+    # five strategies (4B)
+    ("F1 {} against 0.490", S4 + "react.f1", f3),
+    ("against {} for the single-shot", S4 + "single_k5.f1", f3),
+    ("a paired gain of +{}", S4 + "react.vs_single.diff", f3),
+    ("(95% interval +{}", S4 + "react.vs_single.ci.0", f3),
+    ("{} questions better, 24 worse", S4 + "react.vs_single.wins", ""),
+    ("51 questions better, {} worse", S4 + "react.vs_single.losses", ""),
+    ("2,456 tokens per question against {}", lambda D: round(D["strategies"]["4b"]["single_k5"]["tok_in"] + D["strategies"]["4b"]["single_k5"]["tok_out"]), ""),
+    ("{} tokens per question against 754", lambda D: "{:,}".format(round(D["strategies"]["4b"]["react"]["tok_in"] + D["strategies"]["4b"]["react"]["tok_out"])), ""),
+    ("{} s against 1.98 s", S4 + "react.wall_mean", ".2f"),
+    ("lands at the pipeline's accuracy ({})", S4 + "decomp.f1", f3),
+    ("the 4B model scores {}, so", S4 + "closed.f1", f3),
+    ("(81% against {}%)", lambda D: round(100 * D["strategies"]["4b"]["single_k5"]["gold_recall"]), ""),
+    ("({} of its 200 single-shot answers", S17 + "single_k5.yesno_wrong", ""),
+    ("pipeline (F1 {})", "tune.heldout_1.7b_single_k5_prompts3.f1", f3),
+    ("agent loop ({})", "tune.heldout_1.7b_react_promptr2.f1", f3),
+    ("and decomposition ({}) were level", "tune.heldout_1.7b_decomp.f1", f3),
+    ("({} against 0.249)", S17 + "react.f1", f3),
+    ("(0.411 against {})", S17 + "single_k5.f1", f3),
+    # tokens
+    ("grows from {} tokens", lambda D: round(D["steps"]["4b"]["prompt_at_step"][0]), ""),
+    ("to 613, 1,077, 1,565 and {} at the fifth", lambda D: "{:,}".format(round(D["steps"]["4b"]["prompt_at_step"][4])), ""),
+    ("bills {} input tokens; one that uses all five", lambda D: round(D["steps"]["4b"]["by_n_calls"]["2"]["tok_in"]), ""),
+    ("all five bills {}", lambda D: "{:,}".format(round(D["steps"]["4b"]["by_n_calls"]["5"]["tok_in"])), ""),
+    ("the {} questions that used all four searches", "steps.4b.by_n_calls.5.n", ""),
+    ("score F1 {}, against", lambda D: round(D["steps"]["4b"]["by_n_calls"]["5"]["f1"], 2), ""),
+    ("against {} for the 112", "steps.4b.by_n_calls.3.f1", f3),
+    ("Repeating a query ({} questions)", "steps.4b.kinds.repeat_query", ""),
+    ("(3 questions; {} for the 1.7B)", "steps.1.7b.kinds.no_action", ""),
+    # long context
+    ("scores F1 {}, level with the agent loop", S4 + "longctx.f1", f3),
+    ("F1 falls to {}, below", S4 + "longctx_tokens8000.f1", f3),
+    ("{} s per question: more", S4 + "longctx_tokens8000.wall_mean", ".1f"),
+    ("same fall (0.273 to {})", S17 + "longctx_tokens8000.f1", f3),
+    # position
+    ("F1 {} with the gold paragraphs first", "position.4b.f1.0", f3),
+    ("{} at positions 5 to 6", "position.4b.f1.1", f3),
+    ("{} at 10 to 11", "position.4b.f1.2", f3),
+    ("{} at 15 to 16", "position.4b.f1.3", f3),
+    ("and {} last", "position.4b.f1.4", f3),
+    ("(200 questions: 0.293, 0.260, 0.238, 0.294, {})", "position.1.7b.f1.4", f3),
+    # router
+    ("loop {}% of the time", lambda D: round(100 * D["router"]["router: embed-LR"]["accuracy"], 1), ""),
+    ("(F1 {} against 0.451", "router.router: embed-LR.f1", f3),
+    ("against {} for always using the agent", "router.always agent.f1", f3),
+    ("({} against 2,652 per question)", lambda D: "{:,}".format(round(D["router"]["router: embed-LR"]["tok"])), ""),
+    ("would do slightly better ({} for", "router.oracle router.f1", f3),
+    ("({} of 199 sent to the loop", "router.router: llm.to_agent", ""),
+    # graph
+    ("Indexing {} paragraphs", "graphrag.index.paragraphs", ""),
+    ("hold {} tokens of text", lambda D: "{:,}".format(D["graphrag"]["index"]["corpus_tokens"]), ""),
+    ("cost {} generator tokens", lambda D: "{:,}".format(D["graphrag"]["index"]["tok_in"] + D["graphrag"]["index"]["tok_out"]), ""),
+    ("summarise {} of the 131 communities", "graphrag.communities.meta.summarised", ""),
+    ("The graph has {} entities", lambda D: "{:,}".format(D["graphrag"]["local"]["entities"]), ""),
+    ("only {} of which appear", "graphrag.local.multi_par_entities", ""),
+    ("top 3 for {} of the 40 questions", "graphrag.local.graph.3", ""),
+    ("against {} for dense search alone", "graphrag.local.dense.3", ""),
+]
