@@ -1,0 +1,19 @@
+<section id="ing-s2">
+<h2>2. Rule-based text extraction: geometry and heuristics</h2>
+<p><b>How it works.</b> A rule-based extractor reads the text layer and rebuilds words, lines and blocks from coordinates, with no learned model. The steps are the same everywhere, only the rules differ:</p>
+<ol>
+<li><b>Characters to lines:</b> glyphs whose boxes overlap vertically and sit close horizontally join a line; a gap wider than some fraction of a character's width becomes a space.</li>
+<li><b>Lines to blocks:</b> lines close together vertically, and aligned, join a block (a paragraph, a caption, a column fragment).</li>
+<li><b>Blocks to an order:</b> some rule sorts the blocks. This is where multi-column pages fail.</li>
+</ol>
+<p>pdfminer.six makes all three explicit as parameters (<code>pdfminer/layout.py</code>, pdfminer.six 20260107, lines 48 to 90, defaults shown):</p>
+<pre class="fm" style="font-size:12px;white-space:pre;text-align:left">class LAParams:
+    line_overlap = 0.5  # overlap, relative to the smaller char height, to share a line
+    char_margin  = 2.0  # chars closer than 2 char widths join the same line
+    line_margin  = 0.5  # lines closer than 0.5 line heights join the same box
+    word_margin  = 0.1  # a gap over 0.1 char widths inserts a space
+    boxes_flow   = 0.5  # -1: order boxes by x only ... +1: by y only; None: no grouping</pre>
+<p class="small mute">Comments condensed from the docstring at lines 50 to 74. With <code>boxes_flow</code> set, <code>LTLayoutContainer.analyze</code> (lines 907 to 937) merges the closest pair of boxes again and again into a tree (<code>group_textboxes</code>, line 814) and reads the tree in order; with <code>None</code> it sorts boxes top to bottom, left to right.</p>
+<p>The other tools make different choices: <b>pypdf</b> (6.20.1) emits text in content-stream order with line breaks where the text matrix jumps; <b>PyMuPDF</b> (1.28.2) <code>get_text()</code> also keeps stream order unless you pass <code>sort=True</code>, which sorts blocks by their top then left coordinate (<a href="https://pymupdf.readthedocs.io/en/latest/recipes-text.html" target="_blank" rel="noopener noreferrer">PyMuPDF text recipes</a>); <b>pdfplumber</b> (0.11.10) clusters pdfminer's characters into lines with its own tolerances (<code>x_tolerance</code> 3 points by default) and reads them top to bottom across the whole page width; <b>poppler's pdftotext</b> (26.02) runs its own column detection; <b>pymupdf4llm</b> (1.28.2) adds heuristics on top of PyMuPDF for headings (font size), tables (ruling lines) and Markdown output, and on this machine also called RapidOCR on pages it judged to be images.</p>
+<p><b>Cost.</b> Milliseconds per page and no model download, so the right first stage for clean born-digital files. <b>When it matters.</b> Single-column, text-only PDFs with good fonts come out nearly perfect. Two columns, running headers, footnotes, tables and scans are where the rules break, and the next part measures how often.</p>
+</section>

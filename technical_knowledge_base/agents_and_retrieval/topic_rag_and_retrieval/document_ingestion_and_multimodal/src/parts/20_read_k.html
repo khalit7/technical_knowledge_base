@@ -1,0 +1,23 @@
+<section id="ing-s10">
+<h2>10. Measured here: page images against OCR text</h2>
+<p>The ColPali comparison rerun on this machine with open models small enough for a laptop: Tesseract OCR of every page then BM25, the same OCR text embedded by bge-small-en-v1.5 (the root's small embedder), and the page image embedded by <b>colSmol-256M</b> (<a href="https://huggingface.co/vidore/colSmol-256M" target="_blank" rel="noopener noreferrer">vidore/colSmol-256M</a>: the ColPali recipe on SmolVLM-256M, MIT licence, 128 dimensions per vector), on 100-query, 200-page subsets of three ViDoRe v1 sets: InfoVQA (infographics), ArxivQA (figures from papers) and Energy (text-heavy reports). colSmol ran on the CPU in float32 because the MPS runs failed on the shared machine (details under the table).</p>
+<div class="prd" data-right="b"><div class="q">Predict: on the Energy set (text-heavy industrial reports), does the 256M page-image model beat plain BM25 over Tesseract OCR?</div>
+<div class="opts"><button data-k="a">Yes, by a wide margin</button><button data-k="b">No, BM25 on OCR text wins or ties</button></div>
+<div class="ans" hidden><span class="verdict"></span>No clear winner: colSmol 97.7 against 95.0 for BM25, with intervals of about &plusmn;2.5 and &plusmn;3.8, so the two tie on text-heavy pages. The image model's lead appears where the text is not the content: ArxivQA (figures) 74.2 against 37.9, InfoVQA (infographics) 87.6 against 72.6.</div></div>
+<div class="card"><div id="ing-mm-sum"></div><div class="small mute" id="ing-mm-sumnote"></div></div>
+<p><b>What it shows.</b> On figures, OCR text barely helps: the words inside a plot (axis labels, a legend) are not what the question asks about, and BM25 and the dense embedder over OCR both land near 38. The 256M page-image model doubles that. On infographics the image model leads by 15 points, beyond both intervals. On text-heavy reports the methods tie, and plain BM25 over OCR beats the dense text embedder (95.0 against 88.2): long pages of domain text with rare terms favour exact matching. The shape matches the ColPali paper's (dashed bars), at a smaller scale and on subsets.</p>
+<p><b>What it costs here.</b> colSmol produced 699 to 1,103 vectors of 128 numbers per page (mean per set), against one vector per page for bge-small: in float16 that is about 175 to 280 KB per page. Encoding took 4.3 to 5.9 s per page on this CPU in float32, against 0.3 to 1.6 s for Tesseract; on a GPU the paper's 3B ColPali took 0.39 s. <b>What transfers:</b> the ranking of approaches by document type, and the storage arithmetic. <b>What does not:</b> the absolute times (CPU, swapped memory) and the absolute nDCG on 200-page subsets, which are easier than the full sets (BM25 on the full InfoVQA set: 67.5 against 72.6 on the subset).</p>
+<p>The {{Page-image retrieval|#t-ingmm}} tab shows the top pages each retriever returned for sample queries.</p>
+</section>
+<section id="ing-s11">
+<h2>11. Choosing an ingestion pipeline</h2>
+<div class="tw"><table>
+<thead><tr><th>Your documents</th><th>Start with</th><th>Why (evidence on this page)</th></tr></thead>
+<tbody>
+<tr><td>Born-digital, single column, mostly prose (reports, contracts, docs exported from an editor)</td><td>A fast text-layer extractor (PyMuPDF, pdftotext), with de-hyphenation and ligature normalisation</td><td>Milliseconds per page; on LaTeX papers the stream order was already close to reading order (section 3b); hyphens and ligatures were the main damage</td></tr>
+<tr><td>Born-digital with columns, tables, captions, running headers (papers, financial filings, manuals)</td><td>A layout-aware parser (Docling, Marker, MinerU), tables kept as HTML or Markdown with headers</td><td>Highest evidence survival and the only correct table grid here; about a second per page on CPU</td></tr>
+<tr><td>Scans and photos</td><td>OCR routed per page (Tesseract or a parser's OCR), or a VLM OCR model on a GPU for hard layouts</td><td>Text-layer tools return nothing on scans (old-scans column, section 3b); published VLM OCR scores lead the full benchmark</td></tr>
+<tr><td>Charts, infographics, slides, figure-heavy pages</td><td>Page-image retrieval (ColPali family), alone or fused with text retrieval</td><td>Section 10 and the ColPali paper's Table 2</td></tr>
+<tr><td>A corpus that changes</td><td>Structure-aware or content-defined chunk boundaries, chunk hashes, vectors keyed by model version</td><td>Section 8: 49% or 44% of words re-embedded against 76% for fixed windows, with a 15% floor</td></tr>
+</tbody></table></div>
+</section>
