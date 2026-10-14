@@ -1,0 +1,42 @@
+<section id="rd-s1">
+<h2>1. Why retrieve at all</h2>
+<p><b>What a model knows against what it can read.</b> A language model's weights hold a compressed, lossy memory of its training text (its <dfn>parametric memory</dfn>): frozen at a cutoff date, with no record of where any fact came from, and silent about what it never saw. Its <dfn>context window</dfn> is different: whatever text is placed in the prompt is read now, exactly, and can be quoted. Retrieval moves knowledge from the first place to the second. That buys four things, each measured on this page:</p>
+<ul>
+<li><b>Grounding.</b> Closed book, Qwen3-1.7B gets the SciFact label right on 45 of 188 claims and has nothing to cite; with the gold abstracts in the prompt it gets 112 right and cites them <span class="meas">measured</span>.</li>
+<li><b>Freshness.</b> Updating knowledge means re-indexing documents, not retraining weights. It is not free: the index must be refreshed (Elasticsearch makes new documents searchable after its default refresh interval of 1 s, per its index-module docs as read by the production child), deleted text can survive in index files (the {{RAG in production|n:3f85c17b0d0d81aa9ba9c0ceac9e28c1}} child found a deleted row's text still in pgvector's table and HNSW files until VACUUM FULL <span class="meas">measured</span>), and a new embedding model means re-embedding everything (section 8).</li>
+<li><b>Citations.</b> The system knows which passages it put in the prompt, so it can show them, and a checker can verify that the answer cites one of them, as the SciFact check above does.</li>
+<li><b>Access control.</b> Only retrieval can give each user a different view of the same corpus. It has to happen at retrieval, not in the prompt (predict below).</li>
+</ul>
+
+<div class="pr" data-right="2"><div class="q">Predict: a restricted document is retrieved into the prompt, and the system prompt says "never reveal restricted documents to this user". The user asks about it. Of 18 such questions, how many answers leak the restricted fact (Qwen3-1.7B and 4B, a constructed company corpus)?</div>
+<div class="opts"><button>0 to 2: the instruction works</button><button>about half</button><button>nearly all</button></div>
+<div class="ans" hidden>17 of 18 for both models. With the document filtered out at retrieval instead, 0 of 18. The {{RAG in production|n:3f85c17b0d0d81aa9ba9c0ceac9e28c1}} child also planted an instruction inside a public document: the 1.7 B model followed it in 6 of 6 cases with a plain prompt <span class="meas">measured on Apple M1 Pro</span>. Text in the context window is read as text; a rule in the prompt is not a security boundary.</div></div>
+
+<p><b>The corpus can matter more than the model.</b> The old version of this page quoted OpenAI's Astra for Law (September 2026): GPT-6 Astra plus a legal index of more than 230 million URLs built on CourtListener, 54% against 38.7% for the same model with ordinary web search on the Vals AI Legal Research Bench <span class="vend">vendor</span>. The lesson stands, with two corrections from the {{Topic: benchmarks|n:3c65c17b0d0d811fb43fece56e40041a}} page's check (read 2026-10-04): the product also adds legal instructions and was scored on OpenAI's private validation set, so the index's own effect is not isolated; and Vals AI's public leaderboard lists GPT-6 Astra at 39.42% with no Astra for Law entry. So: a retrieval-sensitive score quoted without its index carries little information, and a vendor's own split of the gain is a claim, not a measurement.</p>
+</section>
+
+<section id="rd-s2">
+<h2>2. Words: tokens, the inverted index, BM25</h2>
+<p><b>The problem.</b> Given a query and millions of documents, return the few that contain its answer, in milliseconds, without reading every document.</p>
+<p><b>Tokens.</b> First, text becomes a list of <dfn>terms</dfn>: split into words, lowercase, drop very common <dfn>stopwords</dfn> ("the", "of", and in Lucene's English list also "no" and "not"), and cut each word to a stem so that "decreases" and "decreased" match ("decreas"). The claim "Statins decrease blood cholesterol." becomes <code>statin decreas blood cholesterol</code>. These are search terms, not the subword tokens a language model uses ({{Tokenizers|n:3c65c17b0d0d817187bcd94a1b0f15ea}}).</p>
+<p><b>The inverted index.</b> Like the index at the back of a book: for each term, the list of documents containing it and how often (its <dfn>postings list</dfn>). A query reads only its terms' lists. <dfn>Document frequency</dfn> (df) is the length of a term's list: in SciFact, "statin" appears in 23 of 5,183 abstracts, "decreas" in 573.</p>
+<p><b>Scoring: TF-IDF, then BM25.</b> Two intuitions. A rare term is strong evidence (matching "statin" says more than matching "decreas"): weight each term by its <dfn>inverse document frequency</dfn>, IDF, large when df is small. A term repeated in a document is evidence it is about that term, but with diminishing returns, and a long document repeats everything more. <dfn>TF-IDF</dfn> multiplies term frequency by IDF; <dfn>BM25</dfn> (Best Match 25, Robertson and colleagues, 1990s) adds the saturation and the length correction, and is still the standard keyword scorer:</p>
+<div class="fm"><div class="eq">score(D, Q) = &Sigma;<sub>t &isin; Q</sub> IDF(t) &middot; tf &middot; (k<sub>1</sub> + 1) / (tf + k<sub>1</sub>(1 &minus; b + b &middot; |D| / avgdl))</div>
+<dl><dt>tf</dt><dd>how often term t occurs in document D</dd>
+<dt>IDF(t)</dt><dd>ln(1 + (N &minus; df + 0.5) / (df + 0.5)), with N documents in the corpus (Lucene's form)</dd>
+<dt>k<sub>1</sub></dt><dd>saturation: how fast repeats stop adding (1.2 here)</dd>
+<dt>b</dt><dd>length normalisation: 0 ignores length, 1 fully divides by it (0.75 here)</dd>
+<dt>|D|, avgdl</dt><dd>the document's length in terms, and the corpus average (156.7 terms in SciFact)</dd></dl></div>
+<p class="small mute">bm25s, used here, and Lucene since version 8 drop the constant factor (k<sub>1</sub> + 1); it multiplies every score by the same number and does not change the order. The scores below are bm25s's, so they match the recorded run. How engines store and compress postings, and BM25 inside PostgreSQL, are on {{Search and vector databases|n:3ef5c17b0d0d815eb4caef9b4cd4d732}}.</p>
+
+<div class="rd-card" id="rd-bm-card">
+<h4>BM25 on a real claim: why the relevant abstract comes third</h4>
+<div class="rd-post" id="rd-bm-post"></div>
+<div class="rd-ctl"><label>k<sub>1</sub> <input type="range" id="rd-bm-k1" min="0" max="3" step="0.1" value="1.2"><b id="rd-bm-k1v">1.2</b></label><label>b <input type="range" id="rd-bm-b" min="0" max="1" step="0.05" value="0.75"><b id="rd-bm-bv">0.75</b></label><button id="rd-bm-reset">Defaults</button></div>
+<div class="tw"><table class="rd-bm" id="rd-bm-tbl"></table></div>
+<p class="small" id="rd-bm-note"></p>
+<p class="small mute">Claim 1099 of the SciFact test set; the two abstracts are BM25's first and third results (the second is not shown). Term counts and lengths from the bm25s index of the running example, as extracted by the {{retrieval pipeline|n:3c65c17b0d0d819899fde889e1e8b782}} child; at the defaults the page recomputes the recorded scores 8.963 and 7.366 exactly <span class="meas">measured</span>, <span class="der">derived</span> when you move a slider.</p>
+</div>
+
+<p><b>What it costs, and when it matters.</b> BM25 needs no model and no GPU: 0.25 ms per SciFact query here, against 49 ms just to embed the query with Qwen3-Embedding <span class="meas">measured, M1 Pro</span>. It is strong whenever queries share exact words with the answer: identifiers, gene names, error codes, product numbers. On SciFact it scores nDCG@10 0.679, better than the small MiniLM embedding model (0.645). It fails on paraphrase: an abstract that says "lowers LDL" never matches "decrease cholesterol". <b>How to check it:</b> the tokeniser matters more than the BM25 variant (rank_bm25's Okapi BM25 on the same tokens scores 0.684; the {{BEIR paper|https://arxiv.org/abs/2104.08663}}'s Elasticsearch BM25, with another analyser, 0.665 <span class="indep">published</span>); and tuning k<sub>1</sub> and b on SciFact's training claims changes the test score by 0.001 (the {{retrieval pipeline|n:3c65c17b0d0d819899fde889e1e8b782}} child's grid). Leave the defaults; fix the tokeniser first.</p>
+</section>

@@ -1,0 +1,35 @@
+<section id="rd-s0">
+<p class="lead"><dfn>Retrieval-augmented generation</dfn> (RAG) means: before a language model answers, a search system finds the few passages of a document collection that bear on the question and pastes them into the model's prompt, so the model answers from text it can read and cite rather than from memory. This page teaches it from zero by following <b>one question from words to vectors to the prompt, finding where its answer gets lost, and then letting the model drive the search itself</b>.</p>
+
+<p><b>The running example.</b> Every tab of this page measures on the same public data, models and machine, so numbers can be compared across tabs. The main set is <dfn>SciFact</dfn>: 5,183 scientific abstracts and 300 test <i>claims</i> (short statements such as "Activation of PPM1D suppresses p53 function"), each with the abstracts human annotators marked as evidence. Three more sets cover what SciFact cannot: NFCorpus (3,633 medical documents, many relevant per query), QASPER (281 long NLP papers, for cutting documents into pieces) and HotpotQA (200 questions that need two Wikipedia paragraphs each, for multi-step search). Everything runs locally on an Apple M1 Pro laptop with open models (four embedding models, three rerankers, Qwen3 1.7B and 4B as the answering model), with no paid APIs. Numbers are labelled: <span class="meas">measured</span> means produced here in October 2026 (by this page's tabs or its child pages), <span class="vend">vendor</span> a figure a company publishes about its own product, <span class="indep">published</span> a paper or independent benchmark, <span class="der">derived</span> computed from other numbers with the formula shown, and <span class="ill">illustrative</span> an input chosen for teaching. The definition of the running example, with every model revision and its baseline scores against BEIR and MTEB, is in the page's <code>src/data/README.md</code>.</p>
+
+<div class="rd-card" id="rd-fun-card">
+<h4>Where 188 answers go: one pipeline, every claim, stage by stage</h4>
+<div class="seg" id="rd-fun-mode"><button class="on" data-m="on">With a reranker</button><button data-m="off">Without (first stage straight to the prompt)</button></div>
+<div class="rd-funnel" id="rd-fun-bars"></div>
+<div class="rd-fates" id="rd-fun-grid" role="img" aria-label="One square per SciFact claim, coloured by where its answer was lost"></div>
+<div class="leg"><span style="--sw:var(--dim)">not yet decided</span><span style="--sw:var(--c2)">lost at retrieval</span><span style="--sw:var(--c5)">lost at ranking</span><span style="--sw:var(--c4)">lost at generation</span><span style="--sw:var(--c3)">correct, citing evidence</span><span style="--sw:var(--ink)">dotted square: a CONTRADICT claim</span></div>
+<div class="an-cap" id="rd-fun-cap"></div>
+<div class="an-cnt" id="rd-fun-cnt"></div>
+<div class="an-ctl" id="rd-fun-ctl"></div>
+<p class="small mute">The 188 SciFact test claims that have annotated evidence (124 SUPPORT, 64 CONTRADICT). First stage: BM25 and Qwen3-Embedding-0.6B, fused with reciprocal rank fusion; reranker: Qwen3-Reranker-0.6B on the top 30; the top 3 abstracts go to Qwen3-1.7B, which must give the right label (SUPPORT, CONTRADICT) and cite an evidence abstract. A deterministic check, no judge. <span class="meas">measured on Apple M1 Pro</span>, recorded by the {{Pipeline lab|#t-pipe}} (src/pipe/out/e2e.json).</p>
+</div>
+
+<p>Read the picture as the whole page in miniature. A <dfn>first stage</dfn> looks at all 5,183 abstracts and keeps a shortlist; a <dfn>reranker</dfn> reads the shortlist carefully and reorders it; only the top few reach the <dfn>generator</dfn> (the language model that writes the answer). An abstract that falls out at any stage is gone for good. Here the first two stages almost never fail (186 of 188 claims have their evidence in the top 30, and 178 keep it in the top 3); the answering model fails on 82 of the 178 claims whose evidence it was given. Every one of the 59 CONTRADICT claims that reached the prompt was answered wrongly: the 1.7 B model never said CONTRADICT with abstracts in front of it. One accuracy number (96 of 188) would hide all of that.</p>
+
+<p><b>Five ideas carry everything that follows.</b></p>
+<div class="rd-five">
+<div style="--sc:var(--c1)"><div class="k">1. Words and vectors</div><div class="v">miss different things</div><p>Keyword search (BM25) finds exact names; embeddings find paraphrases. SciFact nDCG@10 (a 0 to 1 score of how high the right abstracts sit in the top 10, defined in section 6): BM25 0.679, Qwen3-Embedding 0.700, the two fused 0.724. Sections 2, 3, 5.</p></div>
+<div style="--sc:var(--c2)"><div class="k">2. Recall first</div><div class="v">lost early, lost for good</div><p>Nothing downstream can use a passage the first stage never returned, so the first stage is tuned to keep the right passage somewhere in a long list. Sections 4, 5.</p></div>
+<div style="--sc:var(--c5)"><div class="k">3. Read the shortlist twice</div><div class="v">0.724 to 0.778</div><p>A reranker that reads query and passage together lifts the fused list on SciFact, but only if it is stronger than the first stage. Section 5.</p></div>
+<div style="--sc:var(--c4)"><div class="k">4. Measure the factors</div><div class="v">A = r &times; p &times; g</div><p>Accuracy is found, kept, then used. Measured apart, each points at its own fix. Section 6.</p></div>
+<div style="--sc:var(--c3)"><div class="k">5. Who drives</div><div class="v">pipeline or loop</div><p>A fixed pipeline searches once; an agent searches as often as it judges it needs, at a cost that grows faster than the number of searches. Section 7.</p></div>
+</div>
+
+<div class="fm"><div class="eq">A = r<sub>K</sub> &times; p<sub>k|K</sub> &times; g</div>
+<dl><dt>A</dt><dd>end-to-end accuracy: share of questions answered correctly for the right reason (citing evidence)</dd>
+<dt>r<sub>K</sub></dt><dd>share whose evidence is in the first stage's top K (here K = 30): <b>186 / 188 = 0.989</b></dd>
+<dt>p<sub>k|K</sub></dt><dd>of those, share whose evidence the reranker keeps in the top k that reach the prompt (k = 3): <b>178 / 186 = 0.957</b></dd>
+<dt>g</dt><dd>of those, share the generator answers correctly: <b>96 / 178 = 0.539</b>; so A = 0.989 &times; 0.957 &times; 0.539 = 0.511 = 96 / 188</dd></dl></div>
+<p class="small mute">Two reference points <span class="meas">measured</span>: given only the gold abstracts (an "oracle" prompt), the same model and prompt get 112 of 188, the ceiling of g; with no abstracts at all ("closed book") it gets the label right on 45 of 188 and can cite nothing. Section 6 turns this into a method.</p>
+</section>
