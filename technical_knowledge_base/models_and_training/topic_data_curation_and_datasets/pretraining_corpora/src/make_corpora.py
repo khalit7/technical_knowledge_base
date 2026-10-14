@@ -1,0 +1,341 @@
+"""The corpus table behind the Reading cards, the Lineage tab and the chooser: one entry per corpus, every field
+sourced (srcs), checked 2026-10-14 unless a field says otherwise. Writes data/corpora.json.
+
+Fields: id, name, org, date (first public release, YYYY-MM), kind, parents {id: relation}, source, tokens_b (the
+headline size in billions of tokens, as published), tok (the tokenizer those tokens are counted with, or 'not stated'),
+size (the full size statement with its caveats), recipe, lic (card licence field verbatim), lic_cls (open: the
+compilation may be redistributed with attribution; mid: per-component or research-use wording; res: training only,
+no redistribution, or no licence), terms (what sits under or on top of the field), gated, users, evidence (the
+published ablation, labelled vendor or independent, table-checked), status (October 2026), hf, srcs.
+Relations: 'filtered from' (a subset of the parent), 'recipe of' (re-implements or extends the parent's recipe on
+new data), 'union of' (contains the parent), 'source' (parent is a raw input).
+"""
+import json, os
+
+H = os.path.dirname(os.path.abspath(__file__))
+C = []
+
+
+def add(**k):
+    C.append(k)
+
+
+add(id='cc', idea='The shared raw material: a free monthly capture of a few billion pages, as raw WARC, metadata WAT and extracted-text WET.', name='Common Crawl', org='Common Crawl Foundation', date='2008-05', kind='raw',
+    parents={}, source='Monthly-ish crawls of the public web since 2008; 128 index collections to CC-MAIN-2026-39',
+    tokens_b=None, tok='not counted', size='About 340 billion page captures in all (cumulative.csv); 2.0 to 2.3 billion pages and about 83 TiB of compressed WARC per crawl in 2026',
+    recipe='Raw capture: WARC (HTTP responses), WAT (metadata), WET (text from Common Crawl\'s own extractor); obeys robots.txt',
+    lic='terms of use (no content licence)', lic_cls='mid',
+    terms='Terms of use 2024-03-07: access licence to the service only; the crawled content keeps its owners\' rights',
+    gated='no (HTTPS or S3)', users='The raw input of every web corpus on this page',
+    evidence='Section 1 of this page', status='Live: a new crawl about monthly', hf='',
+    srcs=[['commoncrawl.org/get-started', 'https://commoncrawl.org/get-started'], ['terms of use', 'https://commoncrawl.org/terms-of-use'], ['crawl statistics', 'https://commoncrawl.github.io/cc-crawl-statistics/']])
+
+add(id='c4', idea='The first widely used cleaned crawl: a handful of line and page rules on one month of WET text.', name='C4 (Colossal Clean Crawled Corpus)', org='Google (T5); hosted copy by AI2', date='2019-10', kind='web',
+    parents={'cc': 'source'}, source='One crawl, April 2019, WET text',
+    tokens_b=156, tok='spaCy word tokens (Dodge et al.); about 175B in the LLaMA tokenizer (RedPajama)',
+    size='c4.en: 364,868,892 documents, 156B spaCy tokens, 305 GB gzipped JSON (Dodge et al. Table 1); T5 Table 8: 745 GB of text',
+    recipe='Lines ending in terminal punctuation; lines of 5+ words; pages of 3+ sentences; drop pages with a bad-words list word, "lorem ipsum" or "{"; drop lines with "javascript" or cookie notices; dedup of repeated 3-sentence spans; langdetect English >= 0.99',
+    lic='odc-by', lic_cls='open', terms='ODC-By 1.0 for the compilation, plus Common Crawl terms for the content',
+    gated='no', users='T5, Switch Transformer; 15% of LLaMA 1\'s mix; a standard validation set',
+    evidence='T5 Table 8 (vendor, 2019, T5-Base, 34B tokens): C4 beat unfiltered C4 on all 7 columns (GLUE 83.28 against 81.46, SuperGLUE 71.36 against 68.04); the paper\'s "worst in every task" is true on 6 of 7 (Wikipedia-only scored 68.01 on SuperGLUE). Dodge et al. (independent, 2021): the bad-words filter removed AAE and Hispanic-aligned English at 42% and 32% against 6.2% for white-aligned English',
+    status='Frozen; a historical baseline', hf='allenai/c4',
+    srcs=[['T5 paper', 'https://arxiv.org/abs/1910.10683'], ['Dodge et al. 2021', 'https://arxiv.org/abs/2104.08758'], ['TFDS c4_utils.py', 'https://github.com/tensorflow/datasets/blob/master/tensorflow_datasets/text/c4_utils.py'], ['allenai/c4 card', 'https://huggingface.co/datasets/allenai/c4']])
+
+add(id='mc4', idea="C4's recipe across 101 languages and all crawls to 2020.", name='mC4', org='Google (mT5)', date='2020-10', kind='multi',
+    parents={'c4': 'recipe of', 'cc': 'source'}, source='All 71 crawls released by then',
+    tokens_b=6300, tok='not stated (caption of mT5 Table 6)', size='6.6B pages and 6.3T tokens, 101 languages (107 cld3 labels)',
+    recipe='C4 recipe with cld3 language ID (confidence >= 70%), a 3-lines-of-200-characters rule instead of terminal punctuation, line dedup',
+    lic='odc-by (allenai/c4 multilingual config)', lic_cls='open', terms='ODC-By plus Common Crawl terms', gated='no',
+    users='mT5, many multilingual models', evidence='No corpus ablation published', status='Frozen; superseded by MADLAD-400, CulturaX, FineWeb2', hf='allenai/c4 (multilingual)',
+    srcs=[['mT5 paper', 'https://arxiv.org/abs/2010.11934']])
+
+add(id='pile', idea='Diversity by hand: 22 curated sources with hand-set weights; the first big open training mix.', name='The Pile', org='EleutherAI', date='2020-12', kind='mix',
+    parents={'cc': 'source'}, source='22 components: Pile-CC (from WARC, 2013 to 2020), PubMed Central, Books3, OpenWebText2, arXiv, GitHub, FreeLaw, Stack Exchange, USPTO, Gutenberg, Wikipedia and others',
+    tokens_b=334, tok='GPT-NeoX (Pythia paper: "334B tokens"); about 260B GPT-2 tokens by the paper\'s own 0.29335 tokens per byte',
+    size='825.18 GiB raw (title says 800GB); 1,254.20 GiB with up-sampling epochs; deduplicated about 207B GPT-NeoX tokens (Pythia). "300B tokens" is Pythia\'s training budget, not the Pile\'s size',
+    recipe='Pile-CC: jusText extraction, pycld2 English, fastText classifier with OpenWebText2 as positives (Pareto threshold, kept 23.9%), MinHash dedup at Jaccard 0.5 within Pile-CC and OWT2 only; components hand-weighted (Wikipedia 3 epochs, PubMed 2)',
+    lic='other', lic_cls='mid', terms='No single licence: each component keeps its source terms; Books3 removed after a 2023 Danish Rights Alliance notice; monology/pile-uncopyrighted drops Books3, BookCorpus2, OpenSubtitles, YouTubeSubtitles and OWT2',
+    gated='no (original host gone; copies remain)', users='GPT-Neo, GPT-J, GPT-NeoX-20B, Pythia; part of OPT\'s and Megatron-Turing\'s data',
+    evidence='Pile Table 3 (vendor, 2020, 1.3B on about 40GB of each): Pile 5.59 WikiText perplexity against 8.27 (CC-100) and 11.75 (raw CC); LAMBADA accuracy 50.1 against 49.7, but LAMBADA perplexity worse (12.78 against 11.78), which the prose skips. RefinedWeb Table 4 (independent, 2023): Pile 53.4% against C4 55.7% at 1B/27B tokens',
+    status='Frozen; used for replicating Pythia', hf='EleutherAI/the_pile_deduplicated; monology/pile-uncopyrighted',
+    srcs=[['Pile paper', 'https://arxiv.org/abs/2101.00027'], ['Pythia paper', 'https://arxiv.org/abs/2304.01373'], ['takedown notice', 'https://huggingface.co/datasets/huggingface-legal/takedown-notices/blob/main/2023/2023-08-25-rettighedsalliancen-dk.md']])
+
+add(id='roots', idea='Community governance: per-source data cards and native-speaker thresholds across 46 languages.', name='ROOTS', org='BigScience (coordinated by Hugging Face)', date='2022-07', kind='multi',
+    parents={'cc': 'source'}, source='62% from 498 community-chosen sources (catalogue, pseudo-crawled sites, GitHub); 38% from OSCAR 21.09 (one crawl, February 2021)',
+    tokens_b=350, tok='BLOOM tokenizer (250,680 entries), "350B unique tokens" (BLOOM card)', size='1.6 TB, 46 natural and 13 programming languages; English 30%, Simplified Chinese 16%, French 13%, Spanish 11%',
+    recipe='Per-language filters with thresholds set by native speakers (repetition, special characters, closed-class words, flagged words, KenLM perplexity, fastText language score); SimHash and suffix-array dedup; regex PII redaction; a data card per source',
+    lic='per subset (gated)', lic_cls='mid', terms='Released in part, gated behind the BigScience ethical charter; each subset keeps its source licence',
+    gated='yes (click-through, 224 subsets)', users='BLOOM (176B) and its family',
+    evidence='No corpus ablation in the ROOTS paper', status='Frozen, partly released', hf='bigscience-data/*',
+    srcs=[['ROOTS paper', 'https://arxiv.org/abs/2303.03915'], ['BLOOM card', 'https://huggingface.co/bigscience/bloom']])
+
+add(id='rpv1', idea="An open reproduction of LLaMA 1's undisclosed data recipe.", name='RedPajama v1 (RedPajama-Data-1T)', org='Together AI and partners', date='2023-04', kind='mix',
+    parents={'cc': 'source', 'c4': 'union of'}, source='Reproduction of the LLaMA 1 mix: five CC crawls (2019 to 2023) through CCNet, C4, GitHub, Books (PG-19 and Books3), arXiv, Wikipedia, Stack Exchange',
+    tokens_b=1200, tok='not stated (presumably LLaMA\'s)', size='CommonCrawl 878B, C4 175B, GitHub 59B, Books 26B, arXiv 28B, Wikipedia 24B, StackExchange 20B (paper Table 2); the Books slice is now defunct',
+    recipe='CCNet (WET, fastText language ID, paragraph dedup within shards, Wikipedia-perplexity buckets head and middle), then a fastText classifier against Wikipedia-referenced pages (drop score < 0.25)',
+    lic='none set', lic_cls='mid', terms='"Refer to the licenses of the data subsets": Common Crawl terms, ODC-By (C4), MIT/BSD/Apache code, CC BY-SA (Wikipedia, Stack Exchange)',
+    gated='no', users='RedPajama-INCITE 3B and 7B, OpenELM, early OLMo mixes, Snowflake Arctic, XGen; SlimPajama (627B) is its deduplicated version',
+    evidence='RedPajama paper Table 5 (vendor, 2024, 468M on 100B tokens): RPv1-CC 35.6 average against C4 35.8 and RefinedWeb 37.9',
+    status='Frozen', hf='togethercomputer/RedPajama-Data-1T',
+    srcs=[['RedPajama paper', 'https://arxiv.org/abs/2411.12372'], ['card', 'https://huggingface.co/datasets/togethercomputer/RedPajama-Data-1T']])
+
+add(id='rpv2', idea='A pool with precomputed quality signals, so users choose their own filters.', name='RedPajama v2', org='Together AI', date='2023-10', kind='pool',
+    parents={'cc': 'source', 'rpv1': 'recipe of'}, source='84 crawls 2014-15 to 2023-14, WET, through CCNet; English, German, French, Spanish, Italian',
+    tokens_b=30400, tok='Mistral BPE, estimated on 100M documents', size='113.3B documents and 123.7T tokens in all; head and middle buckets 50.7T; deduplicated head and middle 30.4T (the "30T"), English 20.5T (paper Table 3)',
+    recipe='A pool, not a recipe: CCNet buckets kept, plus 46 precomputed quality signals per document (CCNet, Gopher-style, fastText and DSIR scores, toxicity) and MinHash signatures; the user picks the filters',
+    lic='none set', lic_cls='mid', terms='Common Crawl terms for the data; code Apache 2.0', gated='no',
+    users='Source for later corpora and research on filters', evidence='RedPajama paper Table 5 (vendor, 468M/100B): unfiltered 36.4; best filtered variant (fuzzy dedup + Gopher) 37.6 against RefinedWeb 37.9; at 1.6B/350B (Table 6) RefinedWeb 52.0 beats every RPv2 variant (best 50.0), which the abstract does not mention',
+    status='Frozen (last change 2024-11)', hf='togethercomputer/RedPajama-Data-V2',
+    srcs=[['RedPajama paper', 'https://arxiv.org/abs/2411.12372'], ['card', 'https://huggingface.co/datasets/togethercomputer/RedPajama-Data-V2']])
+
+add(id='refinedweb', idea='Web only, filtered and deduplicated hard, with no curated sources and no learned quality filter.', name='RefinedWeb', org='TII (Falcon)', date='2023-06', kind='web',
+    parents={'cc': 'source'}, source='All CC crawls to 2023-06, from WARC',
+    tokens_b=600, tok='not stated ("500 to 650GT depending on the tokenizer", card)', size='About 5T tokens built, a 600B-token random extract released (968M pages, 2.8 TB of text)',
+    recipe='Macrodata Refinement: URL blocklist (4.6M URLs) and no Wikipedia; trafilatura on WARC; fastText English >= 0.65; Gopher quality and repetition rules; line-wise corrections; MinHash (9,000 hashes, 20 buckets) then exact substring dedup over 50 tokens with suffix arrays; URL dedup across crawls; no model-based quality filter',
+    lic='odc-by', lic_cls='open', terms='ODC-By 1.0 plus Common Crawl terms', gated='no',
+    users='Falcon-RW 1B and 7B (350B tokens), Falcon-7B and 40B (75% of 1T tokens), Falcon-180B',
+    evidence='RefinedWeb Table 4 (vendor, 2023): 56.2% at 1B/27B tokens against C4 55.7% and the Pile 53.4%; 59.8% at 3B/60B against C4 59.6%. "Web alone beats curated" is clear against the Pile, within half a point of C4. MDR applied to C4 gave 56.4%, above RefinedWeb itself (Table 5)',
+    status='Frozen; superseded by FineWeb (same lead author)', hf='tiiuae/falcon-refinedweb',
+    srcs=[['RefinedWeb paper', 'https://arxiv.org/abs/2306.01116'], ['card', 'https://huggingface.co/datasets/tiiuae/falcon-refinedweb']])
+
+add(id='slimpajama', idea='RedPajama v1 deduplicated globally: half the tokens, same recipe.', name='SlimPajama', org='Cerebras', date='2023-06', kind='mix',
+    parents={'rpv1': 'filtered from'}, source='RedPajama v1, all slices',
+    tokens_b=627, tok='LLaMA tokenizer (Cerebras)', size='627B tokens after global MinHash dedup of RedPajama v1\'s 1.2T',
+    recipe='Global MinHash LSH dedup across all RedPajama v1 sources (Jaccard 0.8), short-document removal',
+    lic='per component (Apache 2.0 code)', lic_cls='mid', terms='Inherits RedPajama v1\'s per-source terms', gated='no',
+    users='Cerebras models; a component of Zyda', evidence='FineWeb eval_results.csv (independent, 1.8B/350B): 47.69 agg against FineWeb 49.00', status='Frozen', hf='cerebras/SlimPajama-627B',
+    srcs=[['card', 'https://huggingface.co/datasets/cerebras/SlimPajama-627B']])
+
+add(id='dolma', idea='A documented multi-source open corpus (web, code, papers, books, social) built with an open toolkit.', name='Dolma (v1 to v1.7)', org='Allen Institute for AI (Ai2)', date='2023-08', kind='mix',
+    parents={'cc': 'source', 'c4': 'union of', 'refinedweb': 'union of'}, source='v1.5/1.6: 25 CC crawls 2020-05 to 2023-06 (WET, CCNet), The Stack, C4, Reddit, peS2o, Gutenberg, Wikipedia; v1.7 adds RefinedWeb, CC News, StarCoder, arXiv, StackExchange, Flan, OpenWebMath, Algebraic Stack, MegaWika',
+    tokens_b=3059, tok='Llama tokens for v1.6 (3,059B); v1.7 2,308.5B "OLMo tokens"', size='v1.6: 3,059B tokens, 4.37B documents (CC 2,281B); v1.7: 2,308.5B tokens in the release, 1,715.1B in OLMo 1.7\'s sampled mix',
+    recipe='CCNet on WET (fastText English >= 0.5); Gopher rules plus C4 terminal-punctuation rule, no model-based quality filter; fastText hate and NSFW classifiers; PII regexes; Bloom-filter exact dedup by URL, document and paragraph; Bloom-filter decontamination against Paloma',
+    lic='odc-by', lic_cls='open', terms='ODC-By since 2024-04-15 (earlier versions under Ai2\'s ImpACT licence), plus the sources\' terms', gated='no',
+    users='OLMo 1 and OLMo 1.7', evidence='Dolma paper ablations are plotted only (1.2B, 150B tokens). FineWeb csv (independent): Dolma v1.6 CC part 48.16 against FineWeb 49.00; RedPajama Table 5 (independent, 468M): Dolma v1.7 CC 36.0 against C4 35.8', status='Frozen; continued as olmo-mix-1124 and Dolma 3', hf='allenai/dolma',
+    srcs=[['Dolma paper', 'https://arxiv.org/abs/2402.00159'], ['card', 'https://huggingface.co/datasets/allenai/dolma']])
+
+add(id='fineweb', idea='RefinedWeb\'s recipe made fully open and ablated step by step, on every crawl.', name='FineWeb', org='Hugging Face', date='2024-04', kind='web',
+    parents={'cc': 'source', 'refinedweb': 'recipe of'}, source='110 crawls, CC-MAIN-2013-20 to 2025-26 (v1.4.0, 2025-07-11), WARC',
+    tokens_b=18306, tok='GPT-2', size='18,306.0B GPT-2 tokens summed over the card\'s per-crawl table (its printed total, 18,527.0B, lists CC-MAIN-2021-43 twice); "more than 18.5T" in the card\'s text; 25.9B documents, 53.4 TB parquet (v1.4.0; the card\'s description still says 96 crawls and 15T, true of v1.0)',
+    recipe='URL blocklist; trafilatura on WARC; fastText English >= 0.65; Gopher repetition and quality rules; C4 rules except terminal punctuation; three custom rules (list-like documents, repeated lines, line formatting); MinHash dedup within each crawl (5-grams, 14 buckets of 8 hashes); email and IP anonymisation; no model-based quality filter',
+    lic='odc-by', lic_cls='open', terms='ODC-By 1.0 plus Common Crawl terms; v1.3.0 removed domains after a takedown notice', gated='no',
+    users='Hugging Face ablation models; the parent of FineWeb-Edu and Ultra-FineWeb; mixed into many open runs',
+    evidence='FineWeb eval_results.csv (vendor, 1.8B on 350B tokens, final checkpoint): FineWeb 49.00 agg, RefinedWeb 48.61, C4 48.40, Dolma v1.6 CC 48.16, SlimPajama 47.69, RedPajama2 47.10, the Pile 46.45: a 0.39-point lead over RefinedWeb. The paper only plots these; the numbers are in the repo\'s csv',
+    status='Maintained but not updated since July 2025 (no crawl after 2025-26)', hf='HuggingFaceFW/fineweb',
+    srcs=[['FineWeb paper', 'https://arxiv.org/abs/2406.17557'], ['blog', 'https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1'], ['card', 'https://huggingface.co/datasets/HuggingFaceFW/fineweb'], ['eval_results.csv', 'https://huggingface.co/datasets/HuggingFaceFW/fineweb/blob/main/eval_results.csv']])
+
+add(id='fineweb_edu', idea='An LLM grades 460k pages for educational value; a small classifier distilled from it filters all of FineWeb.', name='FineWeb-Edu', org='Hugging Face', date='2024-06', kind='web',
+    parents={'fineweb': 'filtered from'}, source='FineWeb (same crawls and versions)',
+    tokens_b=1300, tok='GPT-2', size='1.3T GPT-2 tokens at threshold 3 (headline unchanged since v1.0; the default config now holds 1.525B documents, so probably more); FineWeb-Edu-score-2: 5.4T',
+    recipe='Llama-3-70B-Instruct scored 460k FineWeb pages 0 to 5 on an additive educational prompt; a linear regression head on Snowflake-arctic-embed-m learned the scores (F1 82% at 3); keep pages scoring 3 or more (removes 92% of FineWeb); scoring 15T tokens took 6,000 H100 hours',
+    lic='odc-by', lic_cls='open', terms='ODC-By 1.0 plus Common Crawl terms; the classifier was trained on Llama 3 annotations (why NVIDIA did not use it)', gated='no',
+    users='SmolLM, SmolLM2 (core web source), nanochat until it moved to ClimbMix-400B; the most downloaded pretraining corpus on the Hub (9.2M downloads all time)',
+    evidence='FineWeb paper (vendor, 1.71B on 350B): MMLU 33 to 37 and ARC 46 to 57 over FineWeb, both check against the plotted and csv values. Higher thresholds help MMLU and ARC and hurt HellaSwag and PIQA. Against DCLM it depends on the harness: HF\'s lighteval favours FineWeb-Edu on MMLU, ARC and OBQA; DCLM\'s and NVIDIA\'s 5-shot harnesses favour DCLM (section 5)',
+    status='Maintained, not updated since July 2025', hf='HuggingFaceFW/fineweb-edu',
+    srcs=[['FineWeb paper', 'https://arxiv.org/abs/2406.17557'], ['card', 'https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu'], ['classifier', 'https://huggingface.co/HuggingFaceFW/fineweb-edu-classifier']])
+
+add(id='dclm', idea='A benchmark for data: fixed models and evals, and the winning filter is a cheap fastText classifier trained on instruction-like text.', name='DCLM-Baseline', org='DataComp-LM consortium (UW, Apple, TRI and others)', date='2024-06', kind='web',
+    parents={'cc': 'source', 'refinedweb': 'recipe of'}, source='DCLM-Pool: all CC WARC to the end of 2022 (240T GPT-NeoX tokens, 200B documents, re-extracted with resiliparse)',
+    tokens_b=3800, tok='GPT-NeoX', size='3.8T tokens in the paper, "4T / 3B documents" on the card, 3,854.9B GPT-NeoX tokens recounted by Zyphra; about 750B after global dedup ("about 80% duplicates")',
+    recipe='resiliparse on WARC; RefinedWeb heuristics reproduced; Bloom-filter dedup (BFF) at document and paragraph level; fastText bigram classifier, positives OpenHermes 2.5 plus top r/ExplainLikeImFive answers, negatives RefinedWeb-reproduction pages, keep the top 10%; no decontamination or PII step in the release',
+    lic='cc-by-4.0', lic_cls='open', terms='CC BY 4.0 plus Common Crawl terms; the card adds "intended for research use only", a usage statement rather than a licence term', gated='no',
+    users='DCLM-7B (with StarCoder and ProofPile2, 2.6T tokens), OLMo 2 (3.70T of its 3.90T stage-1 mix), Zyda-2, SmolLM2 (40% of its web mix)',
+    evidence='DCLM Table 5 (vendor, 7B on 138B): OH-2.5+ELI5 classifier 41.0 Core against 37.5 for a GPT-3-style classifier (the "+3.5" checks). Table 8: DCLM-7B MMLU 63.7 at 2.6T (the abstract\'s "64%"), +6.6 over MAP-Neo. Table 2: RefinedWeb 36.9 > RedPajama 35.3 > Dolma 35.0 > C4 34.2 (Core, independent of those corpora)',
+    status='Frozen since July 2024; crawls only to 2022', hf='mlfoundations/dclm-baseline-1.0',
+    srcs=[['DCLM paper', 'https://arxiv.org/abs/2406.11794'], ['card', 'https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0'], ['Zyphra dclm-dedup', 'https://huggingface.co/datasets/Zyphra/dclm-dedup']])
+
+add(id='zyda', idea='No new crawl: a cross-deduplicated, re-filtered union of seven open datasets.', name='Zyda', org='Zyphra', date='2024-06', kind='mix',
+    parents={'refinedweb': 'union of', 'slimpajama': 'union of', 'c4': 'union of', 'pile': 'union of'}, source='RefinedWeb, SlimPajama, C4, Pile-uncopyrighted, peS2o, arXiv, StarCoder',
+    tokens_b=1297, tok='GPT-NeoX', size='1,296.7B tokens, 1.59B documents (from 1,955B raw)',
+    recipe='Syntactic filters, then MinHash LSH on 13-grams at Jaccard 0.4 across all components', lic='odc-by', lic_cls='open', terms='ODC-By plus the components\' terms', gated='no',
+    users='Zamba-7B (phase 1)', evidence='Ablations plotted only (1.4B, 50B tokens)', status='Superseded by Zyda-2', hf='Zyphra/Zyda',
+    srcs=[['Zyda paper', 'https://arxiv.org/abs/2406.01981']])
+
+add(id='nemotron_cc', idea='Keep more of the web for long runs: an ensemble of classifiers sorts pages into quality buckets, and low-quality pages are rephrased by an LLM rather than discarded.', name='Nemotron-CC (v1)', org='NVIDIA', date='2024-12', kind='web',
+    parents={'cc': 'source'}, source='99 crawls, CC-MAIN-2013-20 to 2024-30',
+    tokens_b=6300, tok='not stated', size='6.3T: 4.4T real tokens (globally deduplicated) in five quality labels (high 553B, medium-high 504B, medium 2,023B, medium-low 894B, low 402B) plus 1.9T synthetic; the 1.1T "HQ" subset is 0.6T real plus 0.5T synthetic',
+    recipe='jusText on WARC (keeps 57% more high-quality tokens than trafilatura); pycld2 and fastText language ID; global fuzzy dedup and exact substring dedup; heuristic filters only on non-high-quality data; quality = max of three classifiers (two Snowflake-embed regressors on Mixtral and Nemotron-340B annotations, and the DCLM fastText classifier) in 20 buckets; Mistral NeMo 12B rewrites low-quality pages and turns high-quality pages into QA pairs, distillations, knowledge lists',
+    lic='Common Crawl terms (hosted by Common Crawl)', lic_cls='mid', terms='v1 is on Common Crawl\'s bucket with only Common Crawl\'s terms on its page; no separate NVIDIA licence found', gated='no',
+    users='NVIDIA\'s 8B 15T-token model in the paper; the base of Nemotron-CC v2',
+    evidence='Nemotron-CC Table 5 (vendor, 8B on 1T tokens, CC = 73% of the blend): HQ subset MMLU 59.0 against DCLM 53.4 (+5.6, exact) and 10-task average 60.1 against 57.0; full Nemotron-CC 53.0 MMLU, 0.4 below DCLM. 15T run (Table 6): MMLU 70.3 against Llama 3.1 8B 65.3 re-evaluated by NVIDIA. The one third-party run (open-sci-ref, 1.7B, 1T) also ranks HQ first (0.66 against DCLM 0.57), mostly on MMLU and CommonsenseQA',
+    status='Frozen on Common Crawl\'s bucket', hf='(data.commoncrawl.org/contrib/Nemotron/Nemotron-CC)',
+    srcs=[['Nemotron-CC paper', 'https://arxiv.org/abs/2412.02595'], ['hosting page', 'https://data.commoncrawl.org/contrib/Nemotron/Nemotron-CC/index.html'], ['open-sci-ref', 'https://arxiv.org/abs/2509.09009']])
+
+add(id='zyda2', idea='Cross-deduplicate the best open web sets against each other and re-weight them.', name='Zyda-2', org='Zyphra', date='2024-10', kind='mix',
+    parents={'dclm': 'union of', 'fineweb_edu': 'union of', 'zyda': 'union of', 'dolma': 'union of'}, source='DCLM-Baseline, FineWeb-Edu (score 3+ from score-2), Zyda-1, Dolma v1.7 CC',
+    tokens_b=5070, tok='GPT-NeoX', size='5,070.2B tokens: DCLM 3,348.9B, FineWeb-Edu 1,319.2B, Dolma-CC 238.4B, Zyda 163.6B',
+    recipe='Cross-dataset MinHash (character 25-grams, about 85% Jaccard) removing about 32% of tokens, priority FineWeb-Edu > DCLM > Zyda > Dolma-CC; NVIDIA\'s DeBERTa quality classifier on the Zyda and Dolma-CC parts; built with NeMo Curator',
+    lic='odc-by', lic_cls='open', terms='ODC-By plus the sources\' terms (the DCLM part is CC BY 4.0 in origin)', gated='no',
+    users='Zamba2 1.2B, 2.7B, 7B', evidence='Ablations as images only (Zamba2-2.7B anneal, 40B tokens)', status='Frozen since 2025-08', hf='Zyphra/Zyda-2',
+    srcs=[['Zyda-2 blog', 'https://www.zyphra.com/post/building-zyda-2'], ['card', 'https://huggingface.co/datasets/Zyphra/Zyda-2']])
+
+add(id='txt360', idea='Global dedup over 99 crawls, keeping the duplicate counts so users can up-weight popular pages themselves.', name='TxT360', org='LLM360 (MBZUAI IFM)', date='2024-10', kind='mix',
+    parents={'cc': 'source'}, source='99 CC crawls (to 2024-30) plus 14 curated sources (papers, Wikipedia, FreeLaw, Europarl, StackExchange and others)',
+    tokens_b=5000, tok='not stated', size='About 5T tokens (CC 4.83T); "15T+" after duplicate-count weighting',
+    recipe='Global dedup of web and curated sources with per-document duplicate counts kept as metadata', lic='odc-by', lic_cls='open', terms='ODC-By plus sources\' terms', gated='no',
+    users='LLM360 K2 models (which exactly: unconfirmed)', evidence='Plot only (8x8B MoE, 1.5T tokens against FineWeb)', status='Succeeded by TxT360-v2 (2026-08, CC BY 4.0)', hf='IFM/TxT360',
+    srcs=[['card', 'https://huggingface.co/datasets/IFM/TxT360']])
+
+add(id='olmo2mix', idea='Ai2\'s own web extraction gives way to DCLM-Baseline, plus a separate high-quality anneal mix (Dolmino).', name='OLMo 2 mix (olmo-mix-1124, dolmino-mix-1124)', org='Ai2', date='2024-11', kind='mix',
+    parents={'dclm': 'union of', 'dolma': 'recipe of'}, source='DCLM-Baseline plus StarCoder, peS2o, arXiv, OpenWebMath, Algebraic Stack, Wikipedia; Dolmino adds Flan, synthetic math, StackExchange',
+    tokens_b=3900, tok='OLMo 2 tokenizer (cl100k-based)', size='3.90T (DCLM 3.70T of it); Dolmino 843B pool for 50 to 300B anneals',
+    recipe='Stage 1: DCLM-Baseline "with no additional filtering" plus code, papers and math; stage 2: a mid-training mix of about half high-quality web and half curated math, instruction and reference data',
+    lic='odc-by', lic_cls='open', terms='ODC-By plus Common Crawl terms; DCLM part CC BY 4.0', gated='no',
+    users='OLMo 2 7B, 13B, 32B', evidence='OLMo 2 paper (2 OLMo 2 Furious, arXiv 2501.00656; a paper page exists in this knowledge base)', status='Frozen; succeeded by Dolma 3', hf='allenai/olmo-mix-1124',
+    srcs=[['olmo-mix-1124 card', 'https://huggingface.co/datasets/allenai/olmo-mix-1124'], ['dolmino card', 'https://huggingface.co/datasets/allenai/dolmino-mix-1124']])
+
+add(id='ultrafineweb', idea='A cheap fastText filter whose seed data is chosen by short annealing runs.', name='Ultra-FineWeb', org='OpenBMB (Tsinghua)', date='2025-05', kind='web',
+    parents={'fineweb': 'filtered from'}, source='FineWeb (English) and Chinese FineWeb-edu-v2 sources',
+    tokens_b=1000, tok='not stated', size='About 1T English and 120B Chinese tokens',
+    recipe='fastText classifier on seeds picked by a verification strategy (10B-token anneals of a 1B model)', lic='apache-2.0', lic_cls='mid',
+    terms='The Apache 2.0 tag conflicts with the ODC-By licence of FineWeb, its source; treat the tag as unreliable', gated='no',
+    users='MiniCPM4, MiniCPM5-1B', evidence='Ultra-FineWeb Table 4 (vendor, MiniCPM-1.2B on 100B): average 45.891 against FineWeb-Edu 44.560 and FineWeb 42.278 (the prose\'s "42.287" is a typo). Darwin-CC (independent, 3B/500B): 36.29 against FineWeb-Edu 36.52 and DCLM 42.42', status='Maintained (L1 and L3 layers added 2026)', hf='openbmb/Ultra-FineWeb',
+    srcs=[['paper', 'https://arxiv.org/abs/2505.05427'], ['card', 'https://huggingface.co/datasets/openbmb/Ultra-FineWeb']])
+
+add(id='essentialweb', idea='Label everything instead of filtering: 24T tokens, each document tagged on 12 taxonomy axes, so a subset is a query.', name='Essential-Web v1.0', org='Essential AI', date='2025-06', kind='pool',
+    parents={'dclm': 'recipe of', 'cc': 'source'}, source='101 crawls (89 from DCLM-Pool\'s resiliparse extraction, 12 newer to 2024-38)',
+    tokens_b=24000, tok='not stated', size='24T tokens, 23.6B documents',
+    recipe='Global exact dedup; MinHash within each crawl; RedPajama-v2-style quality signals; every document labelled by a 0.5B classifier distilled from Qwen2.5-32B on 12 dimensions (subject, document type, reasoning depth, extraction artefacts...)',
+    lic='odc-by', lic_cls='open', terms='ODC-By plus Common Crawl terms', gated='no', users='Taxonomy-filtered subsets in the paper',
+    evidence='Essential-Web Table 9 (independent for DCLM against FineWeb-Edu, 2.3B anneal): MMLU-STEM DCLM 27.7, FineWeb-Edu 26.7, taxonomy STEM + DCLM 34.5 (the card\'s "+24.5%" is 6.8/27.7, checks). Table 3: FineMath 3+ GSM8K 26.4 against OpenWebMath 14.6 and MegaMath-Web top 10% 9.8',
+    status='Frozen', hf='EssentialAI/essential-web-v1.0', srcs=[['paper', 'https://arxiv.org/abs/2506.14111']])
+
+add(id='nemotron_cc2', idea='Fresh 2024 to 2025 crawls and much more synthetic text, now gated under a training-only agreement.', name='Nemotron-CC v2 and v2.1', org='NVIDIA', date='2025-08', kind='web',
+    parents={'nemotron_cc': 'recipe of'}, source='v2: Nemotron-CC plus 8 crawls CC-MAIN-2024-33 to 2025-13; v2.1 (2025-12) adds 2025-18 to 2025-26 and translated pages',
+    tokens_b=5868, tok='not stated', size='v2: 5,868.0B (3,359.8B organic, 2,508.2B LLM-written). The "6.6T" quoted for v2 is the whole NVIDIA pretraining collection with math, code and SFT data. v2.1 adds 2,544.8B, of which about 96B is new organic web text',
+    recipe='Nemotron-CC\'s pipeline; rephrasing moved to Qwen3-30B-A3B; Diverse QA translated into 15 languages', lic='other (NVIDIA Data Agreement for Model Training)', lic_cls='res',
+    terms='Training of your own models only; no redistribution, resale or open-source relicensing; models may carry Qwen and DeepSeek licence terms for the generated parts', gated='yes (manual approval)',
+    users='Nemotron Nano 2 (9B, 12B), Nemotron 3 Nano', evidence='No new corpus-level ablation table published for v2 itself', status='Maintained (v2 last changed 2026-07)', hf='nvidia/Nemotron-CC-v2, nvidia/Nemotron-CC-v2.1',
+    srcs=[['v2 card', 'https://huggingface.co/datasets/nvidia/Nemotron-CC-v2'], ['v2.1 card', 'https://huggingface.co/datasets/nvidia/Nemotron-CC-v2.1'], ['Nemotron Nano 2 report', 'https://arxiv.org/abs/2508.14444']])
+
+add(id='dolma3', idea='A 9T pool with topic and quality buckets, PDFs read by an OCR model, and a quality-aware 6T mix.', name='Dolma 3 (and the Dolma 3.5 pool)', org='Ai2', date='2025-10', kind='mix',
+    parents={'dolma': 'recipe of', 'dclm': 'recipe of', 'cc': 'source'}, source='104 crawls to 2024-51 (resiliparse, mostly reusing DCLM-Pool\'s extraction), olmOCR science PDFs, Stack-Edu, FineMath, arXiv, Wikipedia',
+    tokens_b=9310, tok='not stated (OLMo tokenizer presumed)', size='Pool 9.31T (CC 8.14T, PDFs 972B); Olmo 3 mix 5.93T (CC 4.51T, PDFs 805B, Stack-Edu 409B, FineMath 151B); Dolmino 2.19T pool, Longmino 639B; Dolma 3.5 pool (2026-03) nearly 10T',
+    recipe='URL blocklists, heuristics, Gopher repetition, fastText English >= 0.65; exact dedup (removes 67%), MinHash at 0.8 in shards, suffix-array dedup of spans of 500+ bytes; WebOrganizer topic classifier plus a DCLM-like quality classifier into (topic, quality) buckets; quality-aware up-sampling',
+    lic='odc-by', lic_cls='open', terms='ODC-By; "intended for research and educational use" plus Ai2 guidelines; the 7B mix card says use dolma3_mix-6T for anything but reproducing Olmo 3 7B (some PDFs were later redacted)', gated='no',
+    users='Olmo 3 7B and 32B', evidence='See the Olmo 3 report (arXiv 2512.13961)', status='Maintained (Dolma 3.5 pool updated 2026-07)', hf='allenai/dolma3_pool, allenai/dolma3_mix-6T',
+    srcs=[['dolma3 README', 'https://github.com/allenai/dolma3'], ['Olmo 3 paper', 'https://arxiv.org/abs/2512.13961']])
+
+add(id='commonpile', idea='Only public-domain or openly licensed text: the licence-clean corpus, small on web text.', name='Common Pile v0.1', org='EleutherAI, Toronto/Vector, HF, Ai2 and others', date='2025-06', kind='open',
+    parents={'pile': 'recipe of', 'cc': 'source'}, source='30 sources: peS2o, PubMed, arXiv, StackExchange, GitHub (open licences), USPTO, case law, UK Hansard, US government, pre-1929 books, Gutenberg, Wikimedia, CC-licensed web pages (CCCC) and more',
+    tokens_b=None, tok='', size='8 TB; the Comma v0.1 training mix is about 1T tokens, of which licence-verified web pages are only 15.2B',
+    recipe='Keep only public domain and Open Definition licences (CC BY, CC BY-SA, CC0, permissive software), no NC or ND; manual checks against licence laundering; per-source licence metadata; web part: regex for CC licence notices, top 1,000 domains verified by hand (537 kept)',
+    lic='per document (no single field)', lic_cls='open', terms='Public domain or open licences; CC BY-SA parts carry share-alike obligations', gated='no',
+    users='Comma v0.1-1T and 2T (7B)', evidence='Common Pile paper (vendor, 1.7B on 28B tokens): Comma data beats other openly licensed sets and the Pile on most tasks; FineWeb stays best on most; numbers in a figure', status='v0.1 (2025)', hf='common-pile/comma_v0.1_training_dataset',
+    srcs=[['Common Pile paper', 'https://arxiv.org/abs/2506.05209']])
+
+add(id='darwincc', idea='LLM-cleaned (not rephrased) academic web pages selected from Nemotron-CC by taxonomy labels.', name='Darwin-CC', org='GAIR, SII, SJTU', date='2026-03', kind='web',
+    parents={'nemotron_cc': 'filtered from'}, source='672B tokens of Nemotron-CC real data in maths, CS, medicine and other STEM',
+    tokens_b=504, tok='not stated', size='504B tokens', recipe='Essential-Web taxonomy selection, then per-category LLM cleaning prompts evolved over 30 iterations',
+    lic='cc-by-4.0', lic_cls='mid', terms='If its source is Nemotron-CC v2 or later, a CC BY relicence would conflict with NVIDIA\'s no-redistribution agreement; which version it used is unconfirmed', gated='yes (click-through)',
+    users='The paper\'s 3B models', evidence='Darwin-CC Table 3 (vendor, 3B on 500B): average 44.13 against DCLM 42.42, FineWeb-Edu 36.52, Ultra-FineWeb 36.29', status='New (2026)', hf='GAIR/Darwin-CC',
+    srcs=[['paper', 'https://arxiv.org/abs/2603.14420']])
+
+add(id='stack1', idea='Source code with licences checked: permissive files only, near-deduplicated, with an opt-out for authors.', name='The Stack v1', org='BigCode (Hugging Face, ServiceNow)', date='2022-11', kind='code',
+    parents={}, source='GitHub repositories (GHArchive), 30 languages in v1.0, 358 from v1.1',
+    tokens_b=200, tok='about 200B as quoted by later papers (the training subset)', size='3 TB near-deduplicated in v1.0, 6 TB from v1.1 (the same name covers different objects: StarCoder2 lists the deduplicated subset as 875.85 GB)',
+    recipe='Licence per repository from GHArchive or go-license-detector; repositories with no detectable licence (about 81%) excluded; a file kept if any repository holding it is permissive; exact and MinHash near-dedup at Jaccard 0.85 (about 40% of files were duplicates); opt-out ("Am I in The Stack?")',
+    lic='other (per-file original licences, terms of use)', lic_cls='mid', terms='Use must follow each file\'s original licence; users must update to the latest version so opt-outs are honoured; v1.3 (2026) removed repositories opted out before 2026-07-29', gated='yes (click-through)',
+    users='SantaCoder, StarCoder and StarCoderBase (StarCoderData, about 250B tokens)', evidence='Stack paper (vendor, 350M models on Python): near-dedup improves results in all experiments', status='Superseded by v2; still refreshed for opt-outs', hf='bigcode/the-stack',
+    srcs=[['The Stack paper', 'https://arxiv.org/abs/2211.15533'], ['card', 'https://huggingface.co/datasets/bigcode/the-stack']])
+
+add(id='stack2', idea='Code from the Software Heritage archive: ten times larger, and files with no licence at all now included.', name='The Stack v2', org='BigCode and Software Heritage', date='2024-02', kind='code',
+    parents={'stack1': 'recipe of'}, source='Software Heritage archive graph of 2023-09-06; 600+ programming and markup languages',
+    tokens_b=913, tok='StarCoder2 training set, unique tokens (tokenizer of the counts unconfirmed)', size='Full 67.5 TB, deduplicated 32.1 TB; the "900B+" is StarCoder2-15B\'s training set (775.5B of source code plus 137.7B of extras such as PRs, notebooks, docs, arXiv, OpenWebMath); smol set 525.5B',
+    recipe='Licence from GHArchive, else ScanCode on licence files; keep permissive (Blue Oak list) AND unlicensed files, drop copyleft and commercial; near-dedup; StarPII redaction; benchmark decontamination (HumanEval, MBPP, APPS, GSM8K, DS-1000); malware scan; opt-out',
+    lic='other (per-file original licences)', lic_cls='mid', terms='Only file ids on Hugging Face; content from Software Heritage\'s S3 under an agreement with Software Heritage and Inria; users must follow each file\'s licence', gated='yes (click-through, then S3 agreement)',
+    users='StarCoder2 3B, 7B, 15B; the source of Stack-Edu (SmolLM2, SmolLM3, Olmo 3)', evidence='StarCoder2 paper (vendor)', status='Maintained (v2.2.0, 2026 opt-out refresh)', hf='bigcode/the-stack-v2',
+    srcs=[['StarCoder2 paper', 'https://arxiv.org/abs/2402.19173'], ['card', 'https://huggingface.co/datasets/bigcode/the-stack-v2']])
+
+add(id='stackedu', idea='The FineWeb-Edu idea applied to code: per-language classifiers keep "educational" files.', name='Stack-Edu', org='Hugging Face (SmolLM2)', date='2025-02', kind='code',
+    parents={'stack2': 'filtered from'}, source='StarCoder2Data (the curated training set of StarCoder2), 15 largest languages',
+    tokens_b=125, tok='SmolLM2 tokenizer (49,152 entries)', size='"125B" in the card and paper, but its own per-language table sums to 156.8B (Python 21.8B, Java 42.1B, C++ 16.0B, Markdown 14.0B...)',
+    recipe='Llama-3-70B scores 500k files per language 0 to 5; 15 StarEncoder classifiers; keep 3+ (Java 2+); HTML dropped',
+    lic='none set (refers to The Stack v2)', lic_cls='mid', terms='Inherits The Stack v2 terms; content fetched from Software Heritage', gated='no (ids only)',
+    users='SmolLM2, SmolLM3, Olmo 3 (409B tokens of its mix after up-sampling)', evidence='SmolLM2 Table 2 (vendor, 1.7B anneal, 200B tokens): Python HumanEval 20.7 to 25.6, C++ 16.7 to 24.8, JavaScript 18.2 to 22.4, Java 17.6 to 22.7 against unfiltered', status='Maintained', hf='HuggingFaceTB/stack-edu',
+    srcs=[['SmolLM2 paper', 'https://arxiv.org/abs/2502.02737'], ['card', 'https://huggingface.co/datasets/HuggingFaceTB/stack-edu']])
+
+add(id='owm', idea='Maths pages kept with their LaTeX: a math-aware extractor and filters over all of Common Crawl.', name='OpenWebMath', org='Toronto and Cambridge', date='2023-10', kind='math',
+    parents={'cc': 'source'}, source='CC 2013 to 2023, over 200B HTML documents', tokens_b=14.7, tok='LLaMA (13.6B by DeepSeek\'s tokenizer, 14.42B by StarCoder2\'s)',
+    size='6.3M documents, 14.7B tokens, 130k+ domains (StackExchange 9.6% of characters)',
+    recipe='Maths keyword prefilter on HTML; resiliparse-based extraction keeping LaTeX and MathJax; fastText English; KenLM perplexity trained on ProofPile; MathScore classifier; SimHash dedup',
+    lic='odc-by (card text; the YAML field is empty)', lic_cls='open', terms='ODC-By 1.0 plus Common Crawl terms', gated='no',
+    users='Llemma (via Proof-Pile-2), StarCoder2, SmolLM2, OLMo 2; the seed of DeepSeekMath\'s classifier', evidence='OWM Table 2 (vendor, 1.4B on 14.7B tokens): MATH Algebra-Easy 5.62% against the Pile\'s 2.81%. The claim of beating Pythia-1.4B trained on 300B Pile tokens holds on MATH, not on LILA multiarith (16.67% against 21.80%)',
+    status='Frozen since 2023', hf='open-web-math/open-web-math', srcs=[['paper', 'https://arxiv.org/abs/2310.06786']])
+
+add(id='dsmath', idea='Iterative recall: a fastText classifier seeded with OpenWebMath finds maths pages, the new domains extend the seed, four rounds.', name='DeepSeekMath Corpus (not released)', org='DeepSeek', date='2024-02', kind='math',
+    parents={'owm': 'recipe of', 'cc': 'source'}, source='Common Crawl', tokens_b=120, tok='DeepSeek tokenizer', size='35.5M pages, 120B tokens; not public',
+    recipe='fastText (OpenWebMath positives against random CC), rank 40B URL-deduplicated pages, add domains with over 10% maths pages, 4 iterations; 10-gram decontamination against GSM8K, MATH and others',
+    lic='not released', lic_cls='res', terms='Closed', gated='not available', users='DeepSeekMath 7B (56% of its 500B tokens)',
+    evidence='DeepSeekMath Table 1 (vendor, 1.3B on 150B tokens): GSM8K 23.8 against Proof-Pile-2 14.3 and OpenWebMath 11.5. Confound: 150B tokens is about 11 epochs of OpenWebMath and 1.25 of this corpus', status='Closed; the method was reproduced by InfiMM-WebMath, MegaMath and Nemotron-CC-Math', hf='',
+    srcs=[['DeepSeekMath paper', 'https://arxiv.org/abs/2402.03300']])
+
+add(id='finemath', idea='Re-extract FineWeb\'s maths pages from WARC, grade them with an LLM, recall whole domains.', name='FineMath', org='Hugging Face', date='2024-12', kind='math',
+    parents={'fineweb': 'filtered from', 'owm': 'union of'}, source='FineWeb URLs plus OpenWebMath and InfiMM-WebMath URLs, re-extracted from WARC',
+    tokens_b=34, tok='Llama tokens (token_count field)', size='FineMath-3+ 34B tokens (21.4M documents); FineMath-4+ 9.6B (card) or "10B" (paper); plus InfiWebMath-3+ 20.5B',
+    recipe='Llama-3.1-70B grades, multilingual-e5-small classifier, domain recall, re-extraction with OpenWebMath\'s pipeline, 5-point classifier, keep 3+ or 4+; MinHash; 13-gram decontamination against GSM8K, MATH, MMLU',
+    lic='odc-by', lic_cls='open', terms='ODC-By plus Common Crawl terms', gated='no', users='SmolLM2 (stage 4), SmolLM3, Olmo 3 (151B tokens after up-sampling), Marin',
+    evidence='SmolLM2 paper (vendor): plotted only. Essential-Web Table 3 (independent, 2.3B anneal): GSM8K 26.4 against OpenWebMath 14.6 and MegaMath-Web top 10% 9.8. Nemotron-CC-Math Table 2 (independent of FineMath): at 100B tokens FineMath-4+ beats OpenWebMath and MegaMath-Pro on MATH (35.8 against 29.2 and 34.0)',
+    status='Frozen since 2025-02', hf='HuggingFaceTB/finemath', srcs=[['card', 'https://huggingface.co/datasets/HuggingFaceTB/finemath'], ['SmolLM2 paper', 'https://arxiv.org/abs/2502.02737']])
+
+add(id='megamath', idea='The largest open maths corpus: web, maths code and synthetic data, extraction tuned for maths HTML.', name='MegaMath', org='LLM360 (now IFM)', date='2025-04', kind='math',
+    parents={'owm': 'recipe of', 'cc': 'source'}, source='99 CC crawls 2014 to 2024 plus maths code from The Stack v2', tokens_b=371.6, tok='Llama-2',
+    size='371.6B tokens: web 279.0B (Web-Pro 15.1B), code 28.1B, synthetic 64.5B', recipe='resiliparse then trafilatura on WARC with maths-HTML handling; fastText seeded with OpenWebMath; MinHash; LLM refinement for Web-Pro',
+    lic='odc-by', lic_cls='open', terms='ODC-By plus Common Crawl terms', gated='no', users='MegaMath-Llama-3.2 1B and 3B; LLM360 mixes',
+    evidence='MegaMath paper (vendor): plots and small tables at 1.1B. Essential-Web Table 3 (independent): MegaMath-Web top 10% GSM8K 9.8, below FineMath 3+ 26.4', status='Frozen', hf='IFM/MegaMath (was LLM360/MegaMath)', srcs=[['paper', 'https://arxiv.org/abs/2504.02807']])
+
+add(id='nccmath', idea='Re-render maths pages with a text browser and let an LLM clean them into LaTeX.', name='Nemotron-CC-Math', org='NVIDIA', date='2025-08', kind='math',
+    parents={'finemath': 'recipe of', 'megamath': 'recipe of', 'cc': 'source'}, source='Maths URLs from OpenWebMath, FineMath, MegaMath and others; 229.5M pages re-fetched from 98 crawls',
+    tokens_b=133, tok='not stated', size='3+ 133B tokens; 4+ 52B (the paper also says 53B); 4+ MIND rewrites 73B',
+    recipe='Lynx text-browser rendering (keeps MathJax, KaTeX, MathML and code layout); Phi-4 cleanup to LaTeX; FineMath classifier; dedup; embedding-based decontamination',
+    lic='other (NVIDIA Data Agreement for Model Training)', lic_cls='res', terms='Training only, no redistribution; models may be subject to the Phi-4 licence', gated='yes (click-through)',
+    users='Nemotron Nano 2, Nemotron 3 Nano', evidence='Nemotron-CC-Math Table 2 (vendor, 8B mid-training, 100B tokens): MATH 40.6 against FineMath-4+ 35.8 and OpenWebMath 29.2. The conclusion\'s "+12.6 MATH" is against the weakest baseline (MegaMath-Web at 300B); against FineMath-3+ it is +9.6', status='Maintained', hf='nvidia/Nemotron-CC-Math-v1',
+    srcs=[['paper', 'https://arxiv.org/abs/2508.15096'], ['card', 'https://huggingface.co/datasets/nvidia/Nemotron-CC-Math-v1']])
+
+add(id='pes2o', idea='Open-access scientific papers cleaned for pretraining.', name='peS2o', org='Ai2', date='2023-05', kind='papers',
+    parents={}, source='Semantic Scholar S2ORC full texts and S2AG abstracts, cutoff 2023-01-03', tokens_b=42, tok='whitespace words, not model tokens',
+    size='v2: 38.97M documents, 42.01B whitespace words (8.2M full papers with 36.1B words; 30.6M abstracts with 5.9B)', recipe='Grobid sections; English; 500+ words; 5+ paragraphs; unigram-probability filter for OCR noise',
+    lic='odc-by', lic_cls='mid', terms='ODC-By for the compilation; the papers are open access under mixed licences (Common Pile kept only the openly licensed ones)', gated='no',
+    users='OLMo 1 and 2, Comma v0.1 (open subset)', evidence='None published as a corpus comparison', status='Superseded in Ai2\'s stack by olmOCR science PDFs', hf='allenai/peS2o', srcs=[['card', 'https://huggingface.co/datasets/allenai/peS2o']])
+
+add(id='finepdfs', idea='PDFs as a corpus: text layer where it exists, a vision-language OCR model where it does not.', name='FinePDFs (and FinePDFs-Edu)', org='Hugging Face', date='2025-09', kind='papers',
+    parents={'cc': 'source'}, source='PDFs in CC-MAIN-2013-20 to 2025-08 (105 or 106 crawls; the card says both), truncated PDFs re-fetched', tokens_b=2919, tok='Llama-3.2 or GPT-2 (the card\'s schema says both)',
+    size='2,918.79B tokens, 475M documents, 1,733 language-script pairs; English 1,190.65B',
+    recipe='XGBoost router between Docling (text layer) and RolmOCR (OCR model) for scanned pages; GlotLID per page; exact and MinHash dedup per language; no heuristic filters; English spam filter; email and IP anonymisation. Edu version: Qwen3-235B grades, top 10% per language (350B+ tokens)',
+    lic='odc-by', lic_cls='open', terms='ODC-By plus Common Crawl terms; opt-out form; the PDFs\' own copyright is not cleared by the compilation licence', gated='no',
+    users='Hugging Face models; Dolma 3.5 includes 138M FinePDFs English documents', evidence='Vendor plots only (1.67B, 36B tokens): "nearly on par" with SmolLM3\'s web mix; recommends PDFs below 25% of a mix', status='Maintained (v1.5.0, 2025-11)', hf='HuggingFaceFW/finepdfs',
+    srcs=[['card', 'https://huggingface.co/datasets/HuggingFaceFW/finepdfs']])
+
+add(id='instbooks', idea='Nearly a million public-domain library books, but the release terms forbid commercial training without an agreement.', name='Institutional Books 1.0', org='Harvard Law School Library (Institutional Data Initiative)', date='2025-06', kind='books',
+    parents={}, source='983,004 public-domain volumes scanned by Google Books from Harvard Library', tokens_b=242, tok='OpenAI o200k_base',
+    size='242B tokens, 386M pages, 254 languages', recipe='Original and post-processed OCR; public-domain status from HathiTrust rights data',
+    lic='none set (early-access terms)', lic_cls='res', terms='Non-commercial use only; commercial use including AI training requires contacting the Initiative; no redistribution. Public-domain text, restrictive release terms', gated='yes (terms)',
+    users='Research', evidence='None', status='Repository renamed to institutional/institutional-books-hl (2026)', hf='institutional/institutional-books-hl', srcs=[['paper', 'https://arxiv.org/abs/2506.08300']])
+
+add(id='fineweb2', idea='FineWeb for every other language: per-language thresholds, GlotLID, global dedup, and up-sampling by duplicate count.', name='FineWeb2', org='Hugging Face', date='2024-12', kind='multi',
+    parents={'fineweb': 'recipe of', 'cc': 'source'}, source='FineWeb\'s non-English pages from 96 crawls (2013 to April 2024)', tokens_b=None, tok='words (per-language word tokenizers), deliberately not model tokens',
+    size='Over 3 trillion words, about 5 billion documents, 1,868 language-script pairs (203 with over 10k documents); Russian 588.6B words, Mandarin 543.5B, Japanese 331.1B, German 262.3B, Spanish 261.5B, French 220.7B',
+    recipe='GlotLID with per-language confidence thresholds; MinHash dedup over all crawls per language, keeping the cluster size; FineWeb filters with per-language thresholds (C4 filters dropped); "rehydration": up-sample documents by duplicate-cluster size with per-language weights',
+    lic='odc-by', lic_cls='open', terms='ODC-By plus Common Crawl terms', gated='no', users='SmolLM3 (multilingual web), Apertus',
+    evidence='FineWeb2 paper (vendor, 1.45B on 29B tokens): French aggregate 18.3 (language ID only), 18.0 (+dedup), 21.9 (+filters), 23.6 (+rehydration): dedup alone did not help; better than prior multilingual sets on 11 of 14 languages. 70% of language-script pairs have over half their documents from Bible- or Wikipedia-related domains',
+    status='Maintained (v2.1.1, 2025-10)', hf='HuggingFaceFW/fineweb-2', srcs=[['paper', 'https://arxiv.org/abs/2506.20920'], ['card', 'https://huggingface.co/datasets/HuggingFaceFW/fineweb-2']])
+
+add(id='culturax', idea='mC4 and four OSCAR releases merged, cleaned and deduplicated in 167 languages.', name='CulturaX', org='University of Oregon and Adobe', date='2023-09', kind='multi',
+    parents={'mc4': 'union of'}, source='mC4 v3.1.0 and OSCAR 20.19 to 23.01', tokens_b=6300, tok='not stated on the card', size='6.3T tokens, 167 languages, English 45.13% of tokens',
+    recipe='Language ID, URL filtering, KenLM perplexity cleaning, MinHash dedup', lic='none set (follows mC4 and OSCAR)', lic_cls='mid', terms='Inherits mC4 and OSCAR terms; OSCAR access is suspended, so the inheritance is uncertain', gated='yes (click-through)',
+    users='StableLM-2-1.6B and others', evidence='FineWeb2 paper (independent): below FineWeb2 on most of its test languages', status='Frozen', hf='uonlp/CulturaX', srcs=[['paper', 'https://arxiv.org/abs/2309.09400']])
+
+add(id='hplt', idea='Internet Archive crawls as well as Common Crawl, with the packaging released as CC0.', name='HPLT (v2, v3)', org='HPLT project (EU)', date='2025-03', kind='multi',
+    parents={'cc': 'source'}, source='Internet Archive and Common Crawl, 2012 to 2024', tokens_b=30000, tok='Gemma 3 vocabulary for v3',
+    size='v2: 8T tokens, 193 languages; v3 (2025): about 30T tokens, 198 languages, over half English', recipe='Trafilatura, OpenLID, global dedup for most languages, a web-document quality scorer, register labels, robots.txt opt-out filtering, PII annotation',
+    lic='cc0-1.0 (packaging)', lic_cls='open', terms='CC0 for the packaging only; takedown procedure; the text keeps its owners\' rights', gated='no (v3 from the project site)',
+    users='European multilingual models', evidence='HPLT v2 paper (vendor, 1.7B): English 100B tokens about level with FineWeb', status='Maintained (v3)', hf='HPLT/HPLT2.0_cleaned', srcs=[['HPLT v2 paper', 'https://arxiv.org/abs/2503.10267'], ['HPLT v3 paper', 'https://arxiv.org/abs/2511.01066']])
+
+add(id='wikipedia', idea='The small, clean, everywhere-used reference text, under a share-alike licence.', name='Wikipedia', org='Wikimedia', date='2001-01', kind='papers',
+    parents={}, source='Wikipedia dumps; Hugging Face\'s wikimedia/wikipedia stops at the 2023-11-01 dump; FineWiki (2025) parses August 2025 HTML dumps in 325 languages', tokens_b=None, tok='',
+    size='English: 6.6M pages, 35.1 GB in FineWiki; a few billion tokens (Olmo 3\'s mix uses 2.51B of English Wikipedia)', recipe='Dumps; wikimedia/wikipedia drops tables and maths; FineWiki renders templates and keeps tables and maths',
+    lic='cc-by-sa-3.0, gfdl (FineWiki: cc-by-sa-4.0)', lic_cls='mid', terms='Share-alike: a redistributed processed copy must stay CC BY-SA; whether a trained model is an adaptation is unsettled', gated='no',
+    users='Almost every model (LLaMA 1: 4.5% of its mix)', evidence='T5 Table 8: Wikipedia alone (16 GB) underperforms C4 on GLUE and SuperGLUE but wins SQuAD', status='Live', hf='wikimedia/wikipedia; HuggingFaceFW/finewiki', srcs=[['wikimedia/wikipedia', 'https://huggingface.co/datasets/wikimedia/wikipedia'], ['FineWiki', 'https://huggingface.co/datasets/HuggingFaceFW/finewiki']])
+
+json.dump(C, open(os.path.join(H, 'data', 'corpora.json'), 'w'), indent=1, ensure_ascii=False)
+print(len(C), 'corpora')

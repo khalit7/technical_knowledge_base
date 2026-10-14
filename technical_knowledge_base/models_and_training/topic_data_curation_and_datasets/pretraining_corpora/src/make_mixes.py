@@ -1,0 +1,34 @@
+"""Published pretraining data mixes of open models (what they actually trained on), checked 2026-10-14.
+Writes data/mixes.json. Shares are of training tokens; stage boundaries as published.
+"""
+import json, os
+
+H = os.path.dirname(os.path.abspath(__file__))
+M = [
+    {'model': 'Pythia (70M to 12B)', 'org': 'EleutherAI', 'year': 2023, 'params_b': 1.0, 'tokens_t': 0.3, 'open_data': True,
+     'mix': [['The Pile (or its deduplicated version, about 1.5 epochs)', 100]], 'note': '300B tokens for every size; GPT-NeoX tokenizer', 'src': 'https://arxiv.org/abs/2304.01373'},
+    {'model': 'OLMo 2 7B (stage 1)', 'org': 'Ai2', 'year': 2024, 'params_b': 7, 'tokens_t': 4.0, 'open_data': True,
+     'mix': [['DCLM-Baseline', 94.9], ['StarCoder code', 2.1], ['peS2o papers', 1.5], ['arXiv', 0.5], ['OpenWebMath + Algebraic Stack', 0.6], ['Wikipedia', 0.1]],
+     'note': 'olmo-mix-1124 shares (3.90T pool), then a 50B-token Dolmino anneal of about 50% high-quality DCLM, 17% FLAN, 21% maths', 'src': 'https://huggingface.co/datasets/allenai/olmo-mix-1124'},
+    {'model': 'SmolLM2 1.7B', 'org': 'Hugging Face', 'year': 2025, 'params_b': 1.7, 'tokens_t': 11,
+     'open_data': True, 'mix': [['Web: FineWeb-Edu 60% / DCLM 40% (stage 1)', 90], ['Code: StarCoderData', 10]],
+     'note': 'Four stages; the last (10T to 11T): web 58%, Stack-Edu 24%, maths 14% (FineMath 4+, InfiWebMath 3+), Cosmopedia 4%', 'src': 'https://arxiv.org/abs/2502.02737'},
+    {'model': 'SmolLM3 3B', 'org': 'Hugging Face', 'year': 2025, 'params_b': 3, 'tokens_t': 11.2, 'open_data': True,
+     'mix': [['Web (FineWeb-Edu, DCLM, FineWeb2, FineWeb2-HQ; 12% of it multilingual)', 85], ['Code (Stack v2, then Stack-Edu)', 12], ['Maths (FineMath 3+, InfiWebMath 3+)', 3]],
+     'note': 'Stage 1 (0 to 8T); stage 3 decay: web 63%, code 24%, maths 13%', 'src': 'https://huggingface.co/blog/smollm3'},
+    {'model': 'Olmo 3 7B', 'org': 'Ai2', 'year': 2025, 'params_b': 7, 'tokens_t': 5.93, 'open_data': True,
+     'mix': [['Common Crawl (Dolma 3, quality-bucketed)', 76.07], ['olmOCR science PDFs', 13.57], ['Stack-Edu', 6.89], ['FineMath 3+', 2.56], ['arXiv', 0.86], ['Wikipedia', 0.04]],
+     'note': 'Dolma 3 Mix; then 100B Dolmino and 50B Longmino stages', 'src': 'https://huggingface.co/datasets/allenai/dolma3_mix-6T-1025-7B'},
+    {'model': 'Marin 8B', 'org': 'Stanford CRFM and community', 'year': 2025, 'params_b': 8, 'tokens_t': 12.75, 'open_data': True,
+     'mix': [['DCLM-Baseline (first 2.7T)', 92.6], ['StarCoder data', 6.1], ['Proof-Pile 2', 1.3]],
+     'note': 'Later phases switch to Nemotron-CC buckets (about 70% of the final cooldown, synthetic included)', 'src': 'https://marin.readthedocs.io/en/latest/reports/marin-8b-retro/'},
+    {'model': 'Apertus 8B and 70B', 'org': 'Swiss AI (EPFL, ETH, CSCS)', 'year': 2025, 'params_b': 8, 'tokens_t': 15, 'open_data': True,
+     'mix': [['FineWeb-Edu (score 2+) pool 4,815B', 55], ['FineWeb-2-HQ and FineWeb-2, 1,811 languages, pool 3,557B', 41], ['StarCoder, FineMath, Gutenberg', 4]],
+     'note': 'Stage 1 pools in billions (shares here are of the pools, not exact training shares); robots.txt opt-outs of January 2025 applied retroactively to older crawls', 'src': 'https://arxiv.org/abs/2509.14233'},
+    {'model': 'Comma v0.1 7B', 'org': 'EleutherAI and partners', 'year': 2025, 'params_b': 7, 'tokens_t': 1.0, 'open_data': True,
+     'mix': [['Common Pile v0.1 (openly licensed only; 30 sources)', 100]], 'note': 'Some sources repeated up to 6 times (CC-licensed web 15.2B tokens, 6 repeats); a 2T version repeats more', 'src': 'https://arxiv.org/abs/2506.05209'},
+    {'model': 'Llama 3 (8B to 405B)', 'org': 'Meta', 'year': 2024, 'params_b': 70, 'tokens_t': 15.6, 'open_data': False,
+     'mix': [['General knowledge', 50], ['Maths and reasoning', 25], ['Code', 17], ['Multilingual', 8]], 'note': 'Categories only; sources not disclosed', 'src': 'https://arxiv.org/abs/2407.21783'},
+]
+json.dump(M, open(os.path.join(H, 'data', 'mixes.json'), 'w'), indent=1, ensure_ascii=False)
+print(len(M), 'mixes')

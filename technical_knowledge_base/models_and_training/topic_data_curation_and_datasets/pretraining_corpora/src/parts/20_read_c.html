@@ -1,0 +1,66 @@
+
+<section id="pc-s1">
+<h2>1. Common Crawl from zero</h2>
+<p>Almost every open pretraining corpus on this page starts from the same raw material, so it is worth knowing it well. <dfn>Common Crawl</dfn> is a non-profit (a California 501(c)(3) founded in 2007) that has crawled the public web since 2008 and gives every crawl away: "more than 10 petabytes", each crawl "typically containing more than two billion web pages" ({{Common Crawl, About|https://blog.commoncrawl.org/about}}, checked 2026-10-14). It is hosted free by AWS's Open Data programme, at <code>s3://commoncrawl/</code> and over plain HTTPS at <code>https://data.commoncrawl.org/</code>, with no account needed for HTTPS ({{Get started|https://commoncrawl.org/get-started}}).</p>
+
+<h3>What a crawl is</h3>
+<p>A <dfn>web crawler</dfn> is a program that keeps a list of URLs to visit (the <dfn>frontier</dfn>), downloads each page, stores what came back, pulls the links out of it and adds the new ones to the frontier. Before fetching anything from a site it reads that site's <code>/robots.txt</code>, a plain-text file in which the site says which crawlers may fetch which paths. Common Crawl's crawler is called <dfn>CCBot</dfn>; its FAQ describes it as "a Nutch-based web crawler that makes use of the Apache Hadoop project", it obeys <code>Crawl-delay</code> and honours <code>nofollow</code> ({{CC FAQ|https://commoncrawl.org/faq}}), and it crawls from published IP ranges so a site can tell the real CCBot from impostors ({{CCBot page|https://commoncrawl.org/ccbot}}). Each crawl is a time slice of a few weeks; it is named <code>CC-MAIN-YYYY-WW</code> (year and ISO week), and in 2026 there was roughly one a month (weeks 04, 08, 12, 17, 21, 25, 30, 34 and 39). A crawl is <em>not</em> the whole web, and two crawls overlap heavily: the same popular URL is fetched again in most of them, which is why corpora that use many crawls must deduplicate across them ({{Deduplication|n:3f95c17b0d0d8171ac17e43ab5ea276f}} owns how).</p>
+
+<h3>The files of one crawl, to scale</h3>
+<p>Every crawl publishes the same set of files, split into 100 <dfn>segments</dfn> of 1,000 files each in 2026. Three formats matter:</p>
+<ul>
+<li><b>WARC</b> (Web ARChive, an ISO standard): the raw capture. For each URL, a request record, a <em>response</em> record (the HTTP headers and the raw HTML, byte for byte) and a metadata record. About 0.9 GB per gzip file, 100,000 files per crawl.</li>
+<li><b>WAT</b> (Web Archive Transformation): JSON metadata computed from each WARC record: HTTP headers, the HTML <code>&lt;head&gt;</code> fields, and every link on the page.</li>
+<li><b>WET</b> (WARC Encapsulated Text): the visible text Common Crawl's own converter pulled out of each HTML page, nothing else. C4 was built from WET text; FineWeb, RefinedWeb and DCLM threw it away and re-extracted text from the WARC HTML themselves, because extraction quality turned out to matter (section 3, and {{Extraction and filtering|n:3c65c17b0d0d81579b32c07c92b7472b}} for why).</li>
+</ul>
+<p>Alongside them: the robots.txt files CCBot fetched, the responses that were not a 200 (redirects, 404s), and two indexes. The bars below are the compressed sizes printed on the crawl's own page for the latest crawl.</p>
+<div class="card" id="pc-files-card"><div id="pc-files"></div>
+<p class="q">Source: {{CC-MAIN-2026-39 file listing|https://data.commoncrawl.org/crawl-data/CC-MAIN-2026-39/index.html}} (compressed TiB as printed there, checked 2026-10-14). WET is about 7% of the WARC bytes: most of a raw page is markup, scripts and boilerplate, not text.</p></div>
+
+<h3>Finding one page without downloading a terabyte</h3>
+<p>Each WARC record is stored as its own gzip <em>member</em>, so any record can be cut out of a 0.9 GB file with an HTTP range request if you know its byte offset. The <dfn>URL index</dfn> (a CDX index, one line per capture, sorted by a reversed-host key such as <code>org,python)/</code>) gives exactly that: file name, offset and length. There is also a <dfn>columnar index</dfn>, the same table as Parquet files that Spark, Athena or DuckDB can query with SQL ("all captures from <code>*.gov.uk</code> with MIME text/html", for example) ({{cc-index-table|https://github.com/commoncrawl/cc-index-table}}). This is the code; copy it and it runs with <code>curl</code>, <code>gunzip</code> and Python 3. Its two requests were run here on 2026-10-14 (the retry loop was added after the index server started failing later that day):</p>
+<div class="pc-srch">src/scripts/cc_one_record.sh</div>
+<pre class="pc-src">#!/bin/sh
+# Find one page in a Common Crawl crawl and fetch only its record (no account, no key), as shown on the page.
+# 1. ask the URL index where the capture lives (file, byte offset, length)
+CRAWL=CC-MAIN-2026-39
+# the index server is busy at times (502/504, or an empty reply): retry a few times
+for i in 1 2 3 4 5; do
+  curl -s &quot;https://index.commoncrawl.org/$CRAWL-index?url=www.python.org/&amp;output=json&amp;limit=1&quot; &gt; cdx.json
+  grep -q &#x27;&quot;offset&quot;&#x27; cdx.json &amp;&amp; break; sleep 5
+done
+cat cdx.json
+# 2. fetch only those bytes from the 1 GB WARC file and decompress the one gzip member
+python3 - &lt;&lt;&#x27;PY&#x27;
+import json, subprocess
+c = json.loads(open(&#x27;cdx.json&#x27;).readline())
+off, ln = int(c[&#x27;offset&#x27;]), int(c[&#x27;length&#x27;])
+url = &#x27;https://data.commoncrawl.org/&#x27; + c[&#x27;filename&#x27;]
+subprocess.run([&#x27;curl&#x27;, &#x27;-s&#x27;, &#x27;-r&#x27;, f&#x27;{off}-{off + ln - 1}&#x27;, url, &#x27;-o&#x27;, &#x27;record.warc.gz&#x27;], check=True)
+PY
+gunzip -c record.warc.gz &gt; record.warc
+wc -c record.warc.gz record.warc
+head -c 600 record.warc</pre>
+<div class="pc-srch">Its output (recorded 2026-10-14; long lines cut)</div>
+<pre class="pc-src" id="pc-rec-out"></pre>
+<p>The record is 10,644 bytes out of a file of 921,782,734 bytes: you read 0.001% of the file. The WARC header says when and from where the page was fetched and carries a SHA-1 <dfn>payload digest</dfn> (the same digest appears in the index, so identical pages across crawls can be spotted without reading them); then come the HTTP headers exactly as the server sent them, then 52,590 bytes of HTML for a page whose visible text is a few kilobytes. Two lessons from running it: the index server is often busy (it returned 502 and 504 errors and empty replies to some queries here, so the full script retries), and some URLs simply are not in a given crawl ("No Captures found" for two Wikipedia pages tried in CC-MAIN-2026-39), because a crawl is a sample of the web, not a mirror.</p>
+<div class="deepnote"><b>Go deeper.</b> How text is pulled out of that HTML (trafilatura, resiliparse, jusText, WET) and which extractor each corpus used is the subject of {{Extraction and filtering|n:3c65c17b0d0d81579b32c07c92b7472b}}; the topic's {{Pipeline lab|n:3c65c17b0d0d811fa5ecda8d365ab00f}} tab runs the whole funnel on a real WARC file.</div>
+
+<h3>How big a crawl is, 2008 to 2026</h3>
+<p>The chart is Common Crawl's own statistics: page captures per crawl, from the index (<code>monthly.csv</code> in {{cc-crawl-statistics|https://github.com/commoncrawl/cc-crawl-statistics}}, commit 9ff265d, read 2026-10-14). Hover or tap a bar for the crawl.</p>
+<div class="card" id="pc-crawl-card">
+<div class="seg" id="pc-crawl-seg"><button data-m="page" class="on">Page captures</button><button data-m="url">Unique URLs</button></div>
+<div id="pc-crawl"></div><div class="small" id="pc-crawl-cap"></div>
+</div>
+<p>Three things to read off it. Crawls were mostly 2.6 to 3.5 billion page captures from 2017 to early 2025 (blue) and from CC-MAIN-2025-21 on (orange) have been 2.0 to 2.6 billion; every 2026 crawl is between 1.97 and 2.33 billion. The compressed WARC per crawl did not shrink with them (99.25 TiB for 3.35 billion pages in CC-MAIN-2023-50, 82.79 TiB for 2.17 billion in CC-MAIN-2026-39, so about 33 KB per capture then and 42 KB now, by division of the published figures). Summed over all @@cc_n_crawls@@ index collections, Common Crawl holds @@cc_total_pages@@ page captures but an estimated @@cc_total_urls@@ distinct URLs ({{cumulative.csv|https://github.com/commoncrawl/cc-crawl-statistics/blob/master/plots/crawlsize/cumulative.csv}}, HyperLogLog estimate with about 1% error): on average each URL was captured about @@cc_caps_per_url@@ times, which is the duplication every multi-crawl corpus has to remove. And the counts disagree with the crawl pages for some early crawls (CC-MAIN-2013-20: 1.80 billion in the statistics, "2.00 billion" on its page), because the page repeats the original announcement while the statistics are recomputed from the index; quote the source with the number.</p>
+
+<h3>robots.txt and opt-outs</h3>
+<p>A robots.txt file is a list of groups, each naming crawlers (<code>User-agent: GPTBot</code>) followed by path rules (<code>Disallow: /</code>). It is a request, not an access control: a crawler that ignores it can still fetch the page. Common Crawl obeys it, and a site that blocks CCBot is left out of future crawls; nothing Common Crawl has published says old crawls are altered, and they stay downloadable (an inference, not a stated policy). Since September 2025 Common Crawl also publishes an Opt-Out Ledger of the legal removal requests it has received ({{announcement|https://commoncrawl.org/blog/common-crawl-foundation-opt-out-registry}}).</p>
+<p>The independent reference measurement is {{Longpre et al. 2024, Consent in Crisis|https://arxiv.org/abs/2407.14933}} (Data Provenance Initiative, July 2024): across the domains behind C4, RefinedWeb and Dolma, about 1% of tokens were fully restricted by robots.txt in mid-2023 and 5 to 7% in April 2024; among the most-used domains ("Head", the top 2,000 per corpus) 20 to 33% of tokens, against under 3% a year earlier, with the jump "directly after the introduction of GPTBot and Google-Extended" (August and September 2023). By crawler, OpenAI's agents were blocked on 25.9% of Head C4 tokens, Anthropic's and Common Crawl's on 13.3%, Google-Extended on 9.8% (their Figure 1). Note that their abstract says "28%+" and their introduction "~25%+" for the most critical domains: different populations, so quote the population with the number.</p>
+<p>The same question, measured here on Common Crawl's own robots.txt captures: @@rb_files@@ robots.txt files per crawl, evenly spaced through each crawl's file list, every distinct host's file parsed with Python's standard <code>urllib.robotparser</code>, counting a crawler as blocked when it may fetch neither <code>/</code> nor a typical page path. Pick a crawler:</p>
+<div class="card" id="pc-rb-card"><div class="chips" id="pc-rb-chips"></div><div id="pc-rb"></div><div class="small" id="pc-rb-cap"></div></div>
+<p class="small mute">Measured on Apple M1 Pro (CPU) from @@rb_hosts_total@@ hosts' robots.txt files; script <code>src/scripts/robots_optout.py</code>. What transfers: the shares and the trend. What does not: these are shares of <em>sites</em>, not of tokens; one robots.txt file per host counts a one-page blog and a news site equally, which is why the numbers sit below Longpre et al.'s token-weighted Head figures and closer to their whole-corpus ones. Hosts in each crawl's sample differ, so the sample error (about @@rb_se@@ points at these sizes) bounds what a difference between crawls can show.</p>
+
+<h3>Terms of use: Common Crawl does not licence the content</h3>
+<p>Common Crawl's {{terms of use|https://commoncrawl.org/terms-of-use}} (last updated 2024-03-07) give a licence to access <em>the service</em>; the crawled pages "may be subject to separate terms" of their owners, and "by using the Crawled Content, you agree to respect the copyrights and other applicable rights of third parties". Every corpus built from it inherits this: a card that says ODC-By or CC-BY 4.0 licences the <em>compilation</em> (the selection, the cleaning, the metadata), not the copyright in each web page. Section 6 takes licences apart layer by layer.</p>
+</section>
