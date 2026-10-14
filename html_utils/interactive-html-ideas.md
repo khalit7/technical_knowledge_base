@@ -3532,3 +3532,27 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | 11 | Throughput bar chart of parsers from vendor tables | 5 | none | rejected as a chart: vendor throughputs are on different hardware (B200 concurrent vs L4 vs CPU); the vendor's numbers are quoted in prose with their hardware |
 | 12 | Predict-then-reveal blocks (evidence loss, re-indexing, page images) | 9 | Reading s3b, s8, s10 | built |
 | 13 | Evidence survival bars with recall@3 beside them | 12 | Reading s3b | built (the finding that recall barely moves is the point) |
+
+### RAG in production: freshness, access control, latency and cost (2026-10-14)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_rag_and_retrieval/rag_in_production/src/viz_ideas.md`.
+
+| # | Idea | Score | Placement | Status | Notes |
+|---|---|---|---|---|---|
+| 1 | Backfill trap: the same 300 claims through an in-place backfill (MiniLM to bge-small, 10% steps) against a dual index with an atomic switch | 13 | Reading, section 3 | built | Before/after animation on the same input; real nDCGs at every step; the misconception is "same dimensions, so it works". |
+| 2 | Access lab: one question through rule-in-prompt, rule + claimed authority, and filter-at-retrieval, with the real model answer and the leaked fact highlighted | 12 | own tab | built | Step animation (question, retrieval, prompt, answer, verdict); constructed corpus, labelled. |
+| 3 | pgvector RLS matrix: 5 users x 8 modes (rows returned, recall, empty results, forbidden rows) plus the two query plans | 11 | Access lab | built | Shows "secure but incomplete" (reused plan) and owner bypass; data from a real database. |
+| 4 | Semantic-cache replay with threshold and model knobs, stacked hit kinds, result-cache nDCG, worst examples | 11 | own tab | built | Differs from the Caching page's Quora/PAWS lab: RAG claims with opposite verdicts; result cache vs answer cache. |
+| 5 | Similarity histogram of opposite-verdict vs same-verdict claim pairs | 9 | Reading, section 8 | built | One picture of "no threshold separates them". |
+| 6 | Latency waterfall from measured stages with knobs (embedder, device, search, reranker and K, generator and k, output tokens, cache hit) and a check line against the end-to-end run | 12 | own tab | built | Defaults reproduce the measured end-to-end configuration (sum of stages vs measured, residual shown). |
+| 7 | TTFT against prompt length for two generators | 8 | Latency tab | built | Measured sweep 256 to 8,192 tokens. |
+| 8 | Cost calculator from dated published prices, with self-host break-even | 10 | own tab | built | Defaults reproduce the Reading's worked example by construction; JS formulas mirrored in cost_model.py and recomputed in check_data.py. |
+| 9 | Freshness lag calculator (poll interval, queue, embedder throughput, store visibility) | 7 | Reading, section 2 | built | Throughputs measured by the setup; visibility defaults from docs. |
+| 10 | Purge table: text and vector bytes in table, index and WAL files after DELETE, VACUUM, VACUUM FULL | 9 | Reading, section 4 | built | Real file inspection; corrects "DELETE erases". |
+| 11 | Golden-set power curves by size for five changes | 9 | Reading, section 10 | built | Paired t-test over 2,000 draws per size. |
+| 12 | Best-match similarity drift chart for three query sets | 6 | Reading, section 10 | built | Label-free monitor. |
+| R1 | Animated request timeline with concurrent users and queueing | 5 | | rejected | Would need a load test on a shared laptop; numbers would describe the laptop, not the design. Capacity belongs to Capacity planning and LLM serving in production. |
+| R2 | Qdrant payload-filter run beside pgvector RLS | 5 | | rejected | The Vector indexes page already measured Qdrant's filtered path (recall 0.998 with the graph forced); repeating it adds nothing. |
+| R3 | Sharding simulator (fan-out, tail latency) | 6 | | rejected | Would rest on assumed latency distributions; the Tail at Scale arithmetic is stated in prose instead. |
+| R4 | Content-hash change detection animation | 6 | | rejected | Owned by the ingestion page's Re-indexing lab; linked. |
+| R5 | Freshness lag measured in Qdrant with wait=false | 4 | | rejected | A small-collection timing on Docker for Mac would mostly measure the VM; docs quoted instead. |
