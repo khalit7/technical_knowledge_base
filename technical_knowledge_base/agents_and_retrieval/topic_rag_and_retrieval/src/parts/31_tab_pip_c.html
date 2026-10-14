@@ -1,0 +1,35 @@
+<section id="pip-s-chunk">
+<h2>Chunking: where the evidence lands</h2>
+<p><b>The problem.</b> A paper is thousands of tokens; an embedding model reads a few hundred at a time, and the prompt can hold only a few passages. So documents are cut into <b>chunks</b>, each indexed on its own. If a cut falls through the middle of the paragraph that answers the question, no chunk holds the whole answer, and the half that does match may rank low.</p>
+<p><b>How it is measured here.</b> QASPER's 892 questions come with the paragraphs annotators used as evidence, located as character spans in the paper. For each strategy: how many chunks it makes, how big; for how many questions an evidence paragraph sits <b>wholly inside one chunk</b> ("intact"); and whether retrieval inside the question's own paper hands the generator text covering at least 90% of an evidence paragraph. Two fair ways to hand text over: the top <i>k</i> chunks, or a <b>token budget</b> filled in rank order. Sizes are in Qwen3 tokens.</p>
+<div class="pip-box">
+<div class="small"><b>Explorer:</b> Zampieri et al. 2019, <i>Predicting the Type and Target of Offensive Posts in Social Media</i> (arXiv 1902.09666, QASPER text). Shaded bands are chunks (alternating colours, purple where two chunks overlap); badges mark where each chunk starts (<span class="mono">#1 c7</span> = BM25's first pick); the green underline is the annotated evidence for the selected question.</div>
+<div class="seg" id="pip-ck-strat" role="group" aria-label="Chunking strategy"></div>
+<div class="pip-anctl"><label class="small" style="flex:1 1 260px;min-width:0">Question <select id="pip-ck-q" style="max-width:100%"></select></label><button id="pip-ck-go">Jump to the evidence</button></div>
+<div class="pip-cnt" id="pip-ck-stats"></div>
+<div class="small" id="pip-ck-ans"></div>
+<div class="pip-doc" id="pip-ck-doc" tabindex="0" aria-label="Paper text with chunk boundaries"></div>
+<p class="pip-small" id="pip-ck-sum"></p>
+</div>
+<div class="pip-pr" data-ans="2" id="pip-ck-pr"><div class="pip-q">Predict: retrieving the top 3 chunks, which wins, 512-token fixed chunks or paragraph-aware chunks of at most 256 tokens? And with a fixed budget of 1,024 tokens?</div>
+<div class="pip-opts"><button class="pip-opt">512-token chunks win both</button><button class="pip-opt">paragraph-aware wins both</button><button class="pip-opt">512 wins at top 3, paragraph-aware wins at equal tokens</button></div>
+<div class="pip-ans" hidden>At the top 3, 512-token chunks win with BM25 (61.4% of questions against 45.3%): three chunks of 512 tokens are about three times the text. At an equal budget of 1,024 tokens the order flips: 45.9% for 512-token chunks against 64.5% for paragraph-aware chunks. Comparing chunkers at a fixed <i>k</i> rewards whoever sends more text.</div></div>
+<div class="pip-box">
+<div class="small"><b>All 892 questions:</b> share of questions whose evidence the retrieved chunks cover. <span class="pip-lbl m">measured</span></div>
+<div class="seg" id="pip-ck-met" role="group" aria-label="Metric"></div>
+<div class="bars" id="pip-ck-bars"></div>
+<p class="pip-small" id="pip-ck-miss"></p>
+<div class="pip-leg"><span><i style="background:var(--c1)"></i>fixed token windows</span><span><i style="background:var(--c5)"></i>sentence and semantic</span><span><i style="background:var(--c3)"></i>follows the document's paragraphs</span><span><i style="background:var(--c4)"></i>with a prefix</span></div>
+</div>
+<details class="mist"><summary>The full table</summary><div class="b"><div class="tw"><table id="pip-ck-tab"></table></div></div></details>
+<div class="co"><div class="t">Context written by the generator ("contextual retrieval")</div>
+<p class="small">Anthropic's recipe (September 2024): before indexing, a model reads the whole document and writes one or two sentences situating each chunk, which are prepended to the chunk. Their reported result, with Claude 3 Haiku writing the context and their own datasets: the top-20 retrieval failure rate fell from 5.7% to 3.7% with contextual embeddings, 2.9% adding contextual BM25, 1.9% adding a reranker <span class="pip-lbl p">published, vendor</span>.</p>
+<p class="small">Run here with Qwen3-1.7B writing the context, Anthropic's prompt verbatim, on 71 papers (every fourth; 1,664 default chunks, 239 questions): 2,560 s of generation, 0.87 M new prompt tokens because llama.cpp kept each paper in its cache (11.1 M without that cache). Result, same papers and questions without and with the context: bge-small top 3 46.9% to 49.4%, but at a 1,024-token budget 57.7% to 55.2%; BM25 top 3 38.5% to 40.2%, budget 49.0% to 48.1% <span class="pip-lbl m">measured</span>. With 239 questions a difference of 2 to 3 points is within noise: a 1.7 B writer gives no clear gain on this task, and some of its "contexts" just repeat the chunk's first lines. Note the setting differs from Anthropic's: here retrieval runs inside one paper, where every chunk shares the same document context.</p></div>
+<div class="co key" id="pip-ck-text"><div class="t">What the numbers say</div>
+<ul class="tight"><li><b>Cut where the author did.</b> Fixed 256-token windows keep an evidence paragraph whole for 607 of 892 questions (68.0%); splitting on blank lines first (the recursive rule) keeps 838 (93.9%), packing paragraphs within sections 832 (93.3%). At a 1,024-token budget with bge-small, that is 56.8% of questions found for fixed windows against 67.9% (recursive) and 70.0% (paragraphs within sections). The 0.6 B Qwen3-Embedding shows the same gap (59.4% against 70.3%): a bigger embedder does not repair a bad cut.</li>
+<li><b>Overlap is a patch, not a fix:</b> 32 tokens of overlap move fixed windows from 546 to 607 intact questions and cost 14% more tokens to index.</li>
+<li><b>Compare at equal tokens.</b> Big chunks win at a fixed k because they send more text: semantic chunking at LangChain's default (cut at the 95th percentile of sentence-to-sentence distance) makes chunks of median 342 and up to 4,967 tokens, tops the top-3 chart with BM25 (71.6%), and comes last at a 1,024-token budget (38.6%). Cutting at the 80th percentile gives small chunks that split the evidence (547 intact).</li>
+<li><b>Sentence packing ignores paragraphs</b> and does no better than fixed windows (593 intact).</li>
+<li><b>A title and section prefix</b> (no model) helps paragraph-aware chunks (bge-small at 1,024 tokens: 70.0% to 72.0%) and not fixed windows (56.8% to 54.9%), whose section label can be wrong for half the window.</li>
+<li><b>One caution:</b> QASPER's evidence unit is the paragraph, so "one paragraph per chunk" (median 89 tokens, 888 of 892 intact, 77.5% at 1,024 tokens with bge-small) is favoured by construction. On documents whose answers span paragraphs, packing paragraphs up to a size is the safer default.</li></ul></div>
+</section>
