@@ -1,0 +1,30 @@
+
+<section id="dd-s7">
+<h2>Across files and across crawls: what per-crawl dedup leaves</h2>
+<p>FineWeb deduplicated each crawl on its own and found that deduplicating all 96 crawls against each other made the model worse (the Reading tab's {{section 4|#t-read}} has the numbers and what they do and do not show). Two measurements on our file make the two scopes concrete.</p>
+<h3>1. Inside one crawl: what FineWeb's crawl-wide MinHash removed from our file</h3>
+<div class="bars" id="dd-fw-bars"></div>
+<p class="small mute"><span class="lbl me">measured</span> Joined on WARC-Record-ID with the 2,425 documents FineWeb kept from the same WARC file. Of our 2,692 filtered documents, the <span id="dd-fw-n"></span> that we kept and FineWeb did not are where FineWeb's MinHash over all 90,000 files of CC-MAIN-2024-30 is the main suspect (other causes: FineWeb ran MinHash before its C4 and FineWeb rules, on a larger set, and its extraction differed on a few pages). Looking for their partners directly is a needle hunt: MinHash signatures of 50,000 random FineWeb rows from the rest of the crawl (0.02% of it) gave <span id="dd-fw-cross"></span> candidate pairs with our documents and <span id="dd-fw-in"></span> inside the sample, as expected when each partner sits in one of 89,999 other files.</p>
+<div class="dd-pend" id="dd-fwshard"><b>Being widened</b> (disk budget raised on 2026-10-14): the same check against all 971,981 rows of FineWeb's parquet file <span class="mono">000_00000.parquet</span> for this crawl (about 400 other WARC files), see <span class="mono">src/dedup/dd_fwshard.py</span>. Running at low priority on the shared machine (about 8 hours at the current load); this box fills in when it finishes.</div>
+<h3>2. Across crawls: the same URLs in older crawls</h3>
+<p>For every one of the 2,692 documents we looked its URL up in the URL index of four earlier crawls, fetched the capture, extracted it the same way and measured the true Jaccard similarity with our version. A pair at 0.8 or more would be removed by a global MinHash; per-crawl dedup keeps both.</p>
+<div class="dd-svg" id="dd-cdx-chart"></div>
+<div class="tw"><table id="dd-cdx-tab"></table></div>
+<p class="small mute" id="dd-cdx-note"><span class="lbl me">measured</span> URL index read from data.commoncrawl.org (cluster.idx, then one block of the sorted CDX index per lookup, the same lookup the index server performs), URLs in Common Crawl's SURT form; newest HTML capture with status 200; Trafilatura with run0's settings (5 s timeout); 5-word shingles as in datatrove.</p>
+<div class="co"><div class="t">What this shows, and what it does not</div><span id="dd-cdx-read"></span> It does not show that removing those copies would hurt or help a model: FineWeb's ablation is the evidence for that, at its scale. It also counts only same-URL recaptures; the same text under a new URL (a syndicated article, a moved page) is extra duplication that a URL lookup cannot see.</div>
+</section>
+
+<section id="dd-s8">
+<h2>What each method costs, scaled up</h2>
+<p>Set the corpus and the calculator estimates the memory or disk each method needs. Every formula is shown; defaults are one crawl's worth of documents reaching dedup in a FineWeb-style pipeline.</p>
+<div class="card">
+<div class="ctl">
+<label>documents reaching dedup <b id="dd-co-nv"></b><input type="range" id="dd-co-n" min="6" max="10.5" step="0.1" value="9.0"></label>
+<label>average document size, bytes <b id="dd-co-sv"></b><input type="range" id="dd-co-s" min="1000" max="10000" step="100" value="3200"></label>
+<label>MinHash hashes per document <b id="dd-co-hv"></b><input type="range" id="dd-co-h" min="56" max="9000" step="1" value="112"></label>
+<label>Bloom target false-positive rate <b id="dd-co-pv"></b><input type="range" id="dd-co-p" min="-6" max="-1" step="0.5" value="-3"></label>
+</div>
+<div class="out" id="dd-co-out"></div>
+<p class="small mute"><span class="lbl der">derived</span> MinHash signatures: documents &times; hashes &times; 8 bytes (datatrove stores 64-bit values, plus a 4-byte document id per band, sorted per band on disk). Bloom filter: <i>m</i>/<i>n</i> = &minus;ln <i>p</i> / (ln 2)<sup>2</sup> bits per distinct item, one item per document here (paragraph dedup multiplies the item count by paragraphs per document: 39 per document in our extracted stage). Suffix array: text plus <i>w</i> bytes per text byte, <i>w</i> = &lceil;log<sub>2</sub>(text bytes)/8&rceil; (the tool's pointer width; 3 on our 8 MB final stage). Defaults: 10<sup>9</sup> documents and 3,200 bytes each (the mean of run0's 2,692 filtered documents is <span id="dd-co-mean"></span> characters). Not shown: compute, which for MinHash is documents &times; shingles &times; hashes multiply-adds (<span id="dd-co-ops"></span> for our median document) and is embarrassingly parallel, and the shuffle that groups band values across machines.</p>
+</div>
+</section>
