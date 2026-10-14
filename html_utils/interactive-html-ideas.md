@@ -3653,3 +3653,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | SL11 | Rebuilt pad vs pack animation | | | | | rejected: the root's Tool map has it; SL2 extends it instead |
 | SL12 | Megatron blending animation | | | | | rejected: owned and built by Data mixing |
 | SL13 | Loader trace (GPU idle while waiting for data) | | | | | rejected: owned by Making training fast (PyTorch topic) |
+
+### Topic: rag-and-retrieval (2026-10-15)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_rag_and_retrieval/src/viz_ideas.md`.
+

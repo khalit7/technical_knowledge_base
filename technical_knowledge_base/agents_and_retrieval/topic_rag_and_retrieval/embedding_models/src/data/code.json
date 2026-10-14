@@ -1,0 +1,36 @@
+{
+ "version": "6.1.0",
+ "pooling_file": "sentence_transformers/sentence_transformer/modules/pooling.py",
+ "normalize_file": "sentence_transformers/base/modules/normalize.py",
+ "cls": {
+  "start": 185,
+  "end": 195,
+  "text": "            if mode == \"cls\":\n                if \"cls_token_embeddings\" in features:\n                    output_vectors.append(features[\"cls_token_embeddings\"])\n                else:\n                    # argmax on a 0/1 mask returns the first real token per row: index 0\n                    # for right-padding, first non-pad index for left-padding.\n                    hidden_dim = token_embeddings.shape[-1]\n                    first_indices = attention_mask.to(torch.int).argmax(dim=1)\n                    gather_indices = first_indices.unsqueeze(-1).unsqueeze(1).expand(-1, 1, hidden_dim)\n                    output_vectors.append(torch.gather(token_embeddings, 1, gather_indices).squeeze(1))\n"
+ },
+ "mean": {
+  "start": 200,
+  "end": 214,
+  "text": "            elif mode in (\"mean\", \"mean_sqrt_len_tokens\"):\n                if mean_sum is None:\n                    mask = attention_mask.unsqueeze(-1).expand_as(token_embeddings).to(token_embeddings.dtype)\n                    mean_sum = (token_embeddings * mask).sum(dim=1)\n                    if \"token_weights_sum\" in features:\n                        mean_mask = features[\"token_weights_sum\"].unsqueeze(-1).expand_as(mean_sum)\n                    else:\n                        mean_mask = mask.sum(dim=1)\n                    mean_mask = torch.clamp(mean_mask, min=1e-9)\n\n                if mode == \"mean\":\n                    output_vectors.append(mean_sum / mean_mask)\n                else:\n                    output_vectors.append(mean_sum / torch.sqrt(mean_mask))\n"
+ },
+ "last": {
+  "start": 232,
+  "end": 242,
+  "text": "            elif mode == \"lasttoken\":\n                bs, seq_len, hidden_dim = token_embeddings.shape\n                if torch.jit.is_tracing():\n                    # Avoid tracing argmax with int64: https://github.com/microsoft/onnxruntime/issues/10068\n                    attention_mask = attention_mask.to(torch.int32)\n                values, indices = attention_mask.flip(1).max(1)\n                indices = torch.where(values == 0, seq_len - 1, indices)\n                gather_indices = (seq_len - indices - 1).unsqueeze(-1).unsqueeze(1).expand(-1, 1, hidden_dim)\n                mask = attention_mask.unsqueeze(-1).expand_as(token_embeddings).to(token_embeddings.dtype)\n                output_vectors.append(torch.gather(token_embeddings * mask, 1, gather_indices).squeeze(dim=1))\n"
+ },
+ "normalize": {
+  "start": 39,
+  "end": 43,
+  "text": "    def forward(self, features: dict[str, Tensor]) -> dict[str, Tensor]:\n        x = features.get(self.module_input_name)\n        if x is not None:\n            features[self.module_output_name] = F.normalize(x, p=2, dim=-1)\n        return features"
+ },
+ "mnrl_scale": {
+  "start": 21,
+  "end": 22,
+  "text": "        scale: float = 20.0,\n        similarity_fct: Callable[[Tensor, Tensor], Tensor] = cos_sim,"
+ },
+ "mnrl_loss": {
+  "start": 322,
+  "end": 338,
+  "text": "        # Positive scores (always from query_to_doc)\n        positive_scores = sim_matrices[\"query_to_doc\"][row_indices, local_indices]\n\n        if self.partition_mode == \"joint\":\n            # Single softmax over all selected directions\n            scores = torch.cat(list(sim_matrices.values()), dim=1)\n            log_z = torch.logsumexp(scores, dim=1)\n\n        else:\n            # Separate softmax for each direction, averaged\n            log_z = 0.0\n            for sim_matrix in sim_matrices.values():\n                log_z += torch.logsumexp(sim_matrix, dim=1)\n            log_z /= len(sim_matrices)\n\n        loss = -(positive_scores - log_z).mean()\n        return loss"
+ },
+ "mnrl_file": "sentence_transformers/sentence_transformer/losses/multiple_negatives_ranking.py"
+}
