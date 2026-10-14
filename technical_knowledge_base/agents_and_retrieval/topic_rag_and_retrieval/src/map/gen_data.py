@@ -124,15 +124,18 @@ for k, v in mt.items():
                                "beir": v.get("beir_in_training", []), "rel": v["release_date"][:10], "n": v["n_parameters"]})
 
 RR = "https://github.com/embeddings-benchmark/results/tree/main/results"
-SF = [  # SciFact test nDCG@10; published values as recorded by the setup agent in FACTS.md (2026-10-13)
- ["Alibaba-NLP/gte-modernbert-base", 0.7641, "MTEB results repo", RR],
- ["answerdotai/answerai-colbert-small-v1 (late interaction)", 0.7477, "vendor (model card)", "https://huggingface.co/answerdotai/answerai-colbert-small-v1"],
- ["BAAI/bge-small-en-v1.5", 0.7127, "MTEB results repo", RR],
- ["BAAI/bge-small-en-v1.5, exact search", dr["exact_ndcg10"], "measured here (running example vectors)", ""],
- ["Qwen/Qwen3-Embedding-0.6B", 0.6972, "MTEB results repo", RR],
- ["BM25 plus ms-marco-MiniLM-L6 cross-encoder", 0.688, "BEIR paper, Table 2 (independent, 2021)", "https://arxiv.org/abs/2104.08663"],
- ["BM25 (Elasticsearch)", 0.665, "BEIR paper, Table 2 (independent, 2021)", "https://arxiv.org/abs/2104.08663"],
- ["sentence-transformers/all-MiniLM-L6-v2", 0.6451, "MTEB results repo", RR]]
+BEIR = "https://arxiv.org/abs/2104.08663"
+# nDCG@10 on the test splits: [system, SciFact published, SciFact here, NFCorpus published, NFCorpus here, published by, url].
+# "here" = the setup agent's shared baseline (src/data/README.md, pytrec_eval, 2026-10-13); published values as recorded there.
+SF = [
+ ["gte-modernbert-base", 0.764, 0.767, 0.343, 0.343, "MTEB results repo", RR],
+ ["answerai-colbert-small-v1 (late interaction)", 0.748, 0.743, 0.373, 0.369, "vendor (model card)", "https://huggingface.co/answerdotai/answerai-colbert-small-v1"],
+ ["bge-small-en-v1.5", 0.713, 0.713, 0.343, 0.343, "MTEB results repo", RR],
+ ["Qwen3-Embedding-0.6B", 0.697, 0.700, 0.367, 0.363, "MTEB results repo", RR],
+ ["BM25 plus ms-marco-MiniLM-L6 cross-encoder", 0.688, 0.688, 0.350, 0.349, "BEIR paper, Table 2 (independent, 2021)", BEIR],
+ ["BM25", 0.665, 0.679, 0.325, 0.318, "BEIR paper, Table 2 (Elasticsearch BM25; here bm25s)", BEIR],
+ ["all-MiniLM-L6-v2", 0.645, 0.645, 0.316, 0.316, "MTEB results repo", RR]]
+assert abs(dr["exact_ndcg10"] - 0.713) < 0.0005, "map exact run disagrees with the shared baseline"
 out = {"asof": ASOF, "sf": SF, "atlas": atlas, "timeline": tl, "checks": chk, "fw": {k: cf[k] for k in ("llamaindex", "langchain", "haystack", "dspy", "txtai", "graphrag")},
        "mteb": mteb, "defaults": dr, "arxiv": arx}
 def clean(o):

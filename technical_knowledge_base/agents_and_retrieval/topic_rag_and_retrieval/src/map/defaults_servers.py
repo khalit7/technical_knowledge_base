@@ -62,10 +62,13 @@ cn.close()
 from qdrant_client import QdrantClient, models
 qc = QdrantClient(url="http://localhost:8231", timeout=120)
 info0 = qc.info() if hasattr(qc, "info") else None
-for name, cfg in [("sfdef", None), ("sfidx", models.OptimizersConfigDiff(indexing_threshold=1))]:
+# sfdef: all defaults. sfidx: HNSW built (indexing_threshold 1) but the planner still scans small segments (full_scan_threshold
+# default 10000 KB). sffst: HNSW built and full_scan_threshold at its minimum (10 KB), so queries walk the graph.
+for name, cfg, hc in [("sfdef", None, None), ("sfidx", models.OptimizersConfigDiff(indexing_threshold=1), None),
+                      ("sffst", models.OptimizersConfigDiff(indexing_threshold=1), models.HnswConfigDiff(full_scan_threshold=10))]:
     if qc.collection_exists(name):
         qc.delete_collection(name)
-    qc.create_collection(name, vectors_config=models.VectorParams(size=D, distance=models.Distance.DOT), optimizers_config=cfg)
+    qc.create_collection(name, vectors_config=models.VectorParams(size=D, distance=models.Distance.DOT), optimizers_config=cfg, hnsw_config=hc)
     for s in range(0, N, 1000):
         qc.upsert(name, points=models.Batch(ids=list(range(s, min(N, s + 1000))), vectors=X[s:s + 1000].tolist()), wait=True)
     for _ in range(120):
@@ -73,13 +76,17 @@ for name, cfg in [("sfdef", None), ("sfidx", models.OptimizersConfigDiff(indexin
         if str(ci.status).lower().endswith("green"):
             break
         time.sleep(1)
-ci_def, ci_idx = qc.get_collection("sfdef"), qc.get_collection("sfidx")
+ci_def, ci_idx, ci_fst = qc.get_collection("sfdef"), qc.get_collection("sfidx"), qc.get_collection("sffst")
 qf = lambda name, q, p=None: [pt.id for pt in qc.query_points(name, query=q.tolist(), limit=K, search_params=p).points]
 add("qd_server_def", "qdrant", "Qdrant server, defaults", [qf("sfdef", q) for q in Q],
-    {"indexed_vectors": ci_def.indexed_vectors_count, "indexing_threshold_kb": ci_def.config.optimizer_config.indexing_threshold, "m": ci_def.config.hnsw_config.m, "ef_construct": ci_def.config.hnsw_config.ef_construct}, "")
-add("qd_server_hnsw", "qdrant", "Qdrant server, HNSW forced (indexing_threshold 1)", [qf("sfidx", q) for q in Q],
-    {"indexed_vectors": ci_idx.indexed_vectors_count, "hnsw_ef": "default"}, "")
-add("qd_server_hnsw_ef16", "qdrant", "Qdrant server, HNSW, hnsw_ef 16", [qf("sfidx", q, models.SearchParams(hnsw_ef=16)) for q in Q], {"hnsw_ef": 16}, "")
+    {"indexed_vectors": ci_def.indexed_vectors_count, "indexing_threshold_kb": ci_def.config.optimizer_config.indexing_threshold, "m": ci_def.config.hnsw_config.m,
+     "ef_construct": ci_def.config.hnsw_config.ef_construct, "full_scan_threshold_kb": ci_def.config.hnsw_config.full_scan_threshold}, "")
+add("qd_server_idx_scan", "qdrant", "Qdrant server, HNSW built, default full_scan_threshold", [qf("sfidx", q, models.SearchParams(hnsw_ef=16)) for q in Q],
+    {"indexed_vectors": ci_idx.indexed_vectors_count, "full_scan_threshold_kb": ci_idx.config.hnsw_config.full_scan_threshold, "hnsw_ef": 16}, "")
+add("qd_server_hnsw", "qdrant", "Qdrant server, HNSW used (full_scan_threshold 10)", [qf("sffst", q) for q in Q],
+    {"indexed_vectors": ci_fst.indexed_vectors_count, "full_scan_threshold_kb": 10, "hnsw_ef": "default"}, "")
+add("qd_server_hnsw_ef16", "qdrant", "Qdrant server, HNSW used, hnsw_ef 16", [qf("sffst", q, models.SearchParams(hnsw_ef=16)) for q in Q],
+    {"full_scan_threshold_kb": 10, "hnsw_ef": 16}, "")
 d["versions"]["qdrant-server"] = "1.19.2"
 d["versions"]["pgvector-ext"] = ver
 json.dump(d, open(FULL, "w"))
