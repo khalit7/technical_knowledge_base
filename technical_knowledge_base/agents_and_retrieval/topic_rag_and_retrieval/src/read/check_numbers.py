@@ -51,6 +51,25 @@ key = [
     (f"for the 160 bridge questions, {rec['hops']['bge-small']['bridge']['10']}; for the 40 comparison questions, all {rec['hops']['bge-small']['comparison']['10']}", True),
     (f"BM25: {rec['hops']['bm25']['both']['10']} of 200 with both", True),
 ]
+# section 7: the Agentic lab's 4B rows, position curve and small GraphRAG, against src/agent/out
+S = json.load(open(os.path.join(SRC, "agent/out/strategies.json")))["4b"]
+P4 = json.load(open(os.path.join(SRC, "agent/out/position.json")))["4b"]
+G = json.load(open(os.path.join(SRC, "agent/out/graphrag.json")))
+ST = json.load(open(os.path.join(SRC, "agent/out/steps.json")))["4b"]["by_n_calls"]
+row = lambda k, name: f"{name} {S[k]['f1']:.3f}"
+for k, nm in [("closed", "No retrieval (closed book)"), ("single_k5", "Single search, top 5 into the prompt"), ("react", "Agent loop (ReAct, search as a tool)"),
+              ("decomp", "Fixed decomposition into sub-questions"), ("longctx", "Long context: the question's own 10 paragraphs"),
+              ("longctx_tokens8000", "Long context: an 8,000-token window")]:
+    key.append((row(k, nm), True)); key.append((f"{S[k]['wall_mean']:.2f}", True))
+vs = S["react"]["vs_single"]
+key += [(f"by {vs['diff']:.3f} F1 (paired over the same questions, 95% interval {vs['ci'][0]:.3f} to {vs['ci'][1]:.3f}; better on {vs['wins']}, worse on {vs['losses']})", True),
+        (f"{round(S['react']['tok_in']):,} {round(S['react']['tok_in_new']):,} newly computed", True), (f"{S['react']['searches']:.2f}", True),
+        (f"bills {round(ST['2']['tok_in']):,} input tokens, one that uses all five {round(ST['5']['tok_in']):,}", True),
+        (f"{ST['5']['n']} questions used all four searches and score F1 {ST['5']['f1']:.2f}, against {ST['3']['f1']:.3f} for the {ST['3']['n']}", True),
+        ("F1 " + f"{P4['f1'][0]:.3f} with them first, {P4['f1'][1]:.3f} at positions 5 and 6, {P4['f1'][2]:.3f} at 10 and 11, then {P4['f1'][3]:.3f} and {P4['f1'][4]:.3f}", True),
+        (f"from {G['index']['paragraphs']} HotpotQA paragraphs ({G['index']['corpus_tokens']:,} tokens of text): {G['index']['tok_in'] + G['index']['tok_out']:,} generator tokens", True),
+        (f"top 3 for {G['local']['graph']['3']} of the first {G['local']['n_q']} test questions against {G['local']['dense']['3']}", G['local']['graph']['2'] == G['local']['dense']['2'] and G['local']['graph']['5'] == G['local']['dense']['5']),
+        (f"cost {G['global'][0]['graph']['calls']} model calls", True)]
 for s, ok in key:
     if s not in read_txt or not ok: bad.append("prose/data mismatch: " + s)
 # latency numbers appear in the note strings built by JS; check the inputs instead
