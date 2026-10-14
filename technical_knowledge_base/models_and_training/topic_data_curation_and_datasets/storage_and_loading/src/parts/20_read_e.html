@@ -1,0 +1,39 @@
+<section id="sl-s11">
+<h2>11. Data loaders: keeping the next batch ready</h2>
+<p>The <dfn>data loader</dfn> is the code in each training process that produces the next batch while the GPU computes on the current one. In PyTorch it is <code>torch.utils.data.DataLoader</code>: a <dfn>dataset</dfn> object says how to get samples, either by index (<i>map-style</i>, <code>__getitem__(i)</code>, used with a sampler that decides the order) or as a stream (<i>iterable-style</i>, <code>__iter__</code>); <code>num_workers</code> separate processes fetch samples in parallel; each keeps <code>prefetch_factor</code> batches ready (2 by default); <code>pin_memory</code> puts them in page-locked memory so the copy to the GPU can overlap compute. How workers, prefetching, pinning and the GPU copy interact, with traces, is the {{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}} page's section 4 ("Data loading: keep the next batch ready") on the PyTorch topic; here are the two things that matter most for pretraining data.</p>
+<p><b>The iterable-dataset worker trap.</b> With an iterable dataset, every worker process runs <code>__iter__</code> from the start. Unless the dataset asks which worker it is and takes only its share, each sample comes out once per worker. Run here, with real output:</p>
+<pre class="sl-code">class Naive(IterableDataset):
+    def __iter__(self): return iter(range(1000))
+class Sharded(IterableDataset):
+    def __iter__(self):
+        w = get_worker_info(); k, n = (w.id, w.num_workers) if w else (0, 1)
+        return iter(range(k, 1000, n))           # worker k takes every n-th sample
+for D in (Naive, Sharded):
+    got = [int(x) for b in DataLoader(D(), batch_size=50, num_workers=4) for x in b]
+    print(D.__name__, len(got), len(set(got)))</pre>
+<pre class="sl-code sl-out" id="sl-trap-out"></pre>
+<p class="small mute"><code>src/scripts/resume.py</code>, torch 2.14.1, CPU <span class="sl-lbl meas">measured</span>. Libraries that stream shards (Hugging Face <code>datasets</code>, WebDataset, MosaicML Streaming) do this split for you, by shard; your own iterable dataset must.</p>
+<p><b>How fast does a loader need to be?</b> Much less than people expect for text. Reading 8 × 2,048-token windows from a memory-mapped token file, the nanoGPT way, ran at about 48M tokens per second on one process here; a map-style dataset through a <code>DataLoader</code> at about 5M tokens per second with no workers and about 49M with 4 <span class="sl-lbl rough">rough</span>, file in the page cache. One H100 training a 1B-parameter model at 40% utilisation consumes about 66,000 tokens per second (section 13). The loader becomes the bottleneck only when it does real work per sample (tokenizing online, decoding images or video, heavy augmentation), when the file is not local and nothing prefetches it, or at start-up, when every rank opens files and builds indices before the first step.</p>
+
+<h3>Mixing at load time</h3>
+<p>When the corpus is several token files (web, code, maths) mixed with weights, the loader also decides which file each sample comes from. Megatron's <code>BlendedDataset</code> precomputes two more arrays, which dataset and which sample within it, with a deterministic error-driven rule, and caches them like the other indices, so resuming still only needs the samples consumed; Hugging Face's <code>interleave_datasets(..., probabilities, stopping_strategy)</code> samples at random, and its <code>stopping_strategy</code> ("first_exhausted" or "all_exhausted") silently changes how often small sources repeat. Both are taught, with the blending rule animated, on {{Data mixing|n:3c65c17b0d0d819ea5d6c59471e66875}} (section "Online and loaders").</p>
+</section>
+
+<section id="sl-s12">
+<h2>12. Checkpointing the data state and resuming mid-epoch</h2>
+<p><b>The problem.</b> Large runs stop all the time. Llama 3 405B's pretraining saw 466 job interruptions in a 54-day snapshot, 419 of them unexpected, about 78% from confirmed or suspected hardware ({{Llama 3, section 3.3.4|https://arxiv.org/abs/2407.21783}} <span class="sl-lbl pub">published</span>): more than 8 a day. Each restart reloads a checkpoint of the model and optimizer. If the data loader cannot also return to the exact next sample, the run silently trains on some data twice and some not at all, and two runs from the same checkpoint differ.</p>
+<p><b>What the data state is.</b> For an index-based loader, one integer: the number of samples consumed (plus the seed and the configuration that built the indices, which do not change). Megatron's sampler literally starts at it: <code>for idx in range(self.consumed_samples, self.total_samples)</code> (<code>data_samplers.py</code> lines 190-198 at 80781ab). For a streaming loader with a shuffle buffer, the state includes the buffer's contents, which are rarely saved. For a mixture with adaptive weights, also the weights and the sampler's random state.</p>
+<p><b>Measured.</b> Each loader read one epoch of the same 2,200 samples uninterrupted; then again, stopping after 20 batches (640 samples), saving the state the library offers, and resuming in a fresh loader <span class="sl-lbl meas">measured</span>:</p>
+<div class="tw"><table id="sl-restbl"></table></div>
+<p class="small mute"><code>src/scripts/resume.py</code>; torch 2.14.1, torchdata 0.11.0, datasets 5.0.1, mosaicml-streaming 0.13.0. The Hugging Face documentation states the loss: "examples from shuffle buffers are lost when resuming and the buffers are refilled with new data" (<code>iterable_dataset.py</code> line 2566). Losing 1,000 of 2,200 is dramatic here because the epoch is tiny; on a real run it is one buffer per worker per restart, small but not zero, and the order after the restart differs from an uninterrupted run.</p>
+<p><b>How to check yours.</b> The test above takes a minute to write for any loader: run N batches straight, run k then save and restore and run N − k, and compare the two lists of sample ids. Put it in CI.</p>
+</section>
+
+<section id="sl-s13">
+<h2>13. The cost model: bytes per token, terabytes per trillion, megabytes per second</h2>
+<p>Three formulas cover the storage and bandwidth side of planning a run <span class="sl-lbl der">derived</span>:</p>
+<div class="fm"><div class="eq">tokens/s per GPU ≈ MFU × peak FLOP/s ÷ (6 × N)</div><dl><dt>N</dt><dd>model parameters (6N FLOPs per token for forward and backward, ignoring attention)</dd><dt>MFU</dt><dd>model FLOPs utilisation, the share of peak the run achieves (Llama 3 405B: 38-43%, Table 4)</dd></dl></div>
+<div class="fm"><div class="eq">loader bytes/s = tokens/s × bytes per token</div><dl><dt>bytes per token</dt><dd>2 (uint16) or 4 (uint32) for token files; about 1.9 for zstd JSONL plus tokenizer CPU</dd></dl></div>
+<div class="fm"><div class="eq">storage = training tokens × bytes per token</div><dl><dt>e.g.</dt><dd>15T tokens of uint32 ids = 60 TB; the same as uint16 = 30 TB</dd></dl></div>
+<p><b>Llama 3 405B as a check:</b> 16,384 GPUs at 400 TFLOP/s each (Table 4, 41% BF16 MFU) and N = 405B give 16,384 × 400 × 10<sup>12</sup> ÷ (6 × 405 × 10<sup>9</sup>) ≈ 2.7 million tokens per second for the whole job, about 165 per GPU. With 16M tokens per batch (Table 4) that is a step every 6.2 s. In bytes: about 11 MB/s of uint32 ids for 16,384 GPUs, against a storage fabric sustaining 2 TB/s. Data bandwidth for text pretraining is negligible; what costs is everything around it. The {{Throughput calculator|#t-calc}} lets you change the model, the GPUs and the format.</p>
+</section>
