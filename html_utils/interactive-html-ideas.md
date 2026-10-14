@@ -3584,3 +3584,24 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | Training-loss curves of the tiny run | One epoch, a few hundred steps: the table of results says more than a noisy curve |
 | Big rerankers at K = 100 on BM25 and dense lists | About 36,000 more pairs (2 to 3 hours on MPS) to repeat what the hybrid list already shows |
 | PLAID timing on 5,183 abstracts | Exhaustive MaxSim already takes milliseconds at this size; a timing would measure overhead, not PLAID's benefit, which needs millions of passages |
+
+### The retrieval pipeline: chunking, query rewriting, hybrid search, filtering (2026-10-14)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_rag_and_retrieval/retrieval_pipeline/src/viz_ideas.md`.
+
+| # | idea | placement | score | data | notes |
+|---|---|---|---|---|---|
+| 1 | Chunking workbench: two real QASPER papers cut live by five strategies (JS port of the root's chunkers.py, 18/18 configurations identical to Python), size/overlap/budget sliders, separator toggles, evidence intact, BM25-lite budget fill, all-strategy table | own tab | 13 | 22_rp_data.js wb (text, Qwen3 token offsets, paragraphs, questions) | Recursive separators toggle makes the LangChain default (no sentence separator) visible. BM25-lite has no stemmer: labelled. |
+| 2 | Fixed windows vs recursive splitter, animated chunk by chunk on the same section (before/after), cuts drawn, counters for chunks ending mid-paragraph and evidence intact | Reading 1.2 | 12 | same, computed live | Khalid's before/after pattern on one input. |
+| 3 | Fusion lab: real BM25 and Qwen3 top-20 lists, two methods A and B with knobs, rows animate from A's order to B's; plus every method's sweep with the held-out choice ringed | own tab | 12 | fusion_deep.py | The root has an RRF-only calculator; this adds the whole family and the honest-vs-leaked tuning view. |
+| 4 | Query-rewrite lab: original list against each rewrite's list (HyDE, HyDE + claim, multi-query, step-back), animated, with the generated text; decomposition examples | own tab | 11 | root qtrans_gen.json + qgen.py | Claims chosen where a rewrite moved the relevant abstract most: stated on the tab. |
+| 5 | BM25 term-by-term table on a real claim (relevant at rank 3 behind a review that repeats "statin") | Reading 2.1 | 10 | bm25_example.py; scores equal the recorded run | Shows saturation and the vocabulary gap in one table. |
+| 6 | Saturation and length-normalisation explorer (k1, b sliders) | Reading 2.1 | 8 | formula | |
+| 7 | k1 x b grid, test vs tuning split, default outlined and tuned ringed | Reading 2.2 | 11 | bm25_sweep.py | Shows the leak: best-on-test 0.688 vs tuned 0.678 vs default 0.679. |
+| 8 | Margin quintile bars (what RRF discards) | Reading 4.2 | 9 | fusion_deep.py | |
+| 9 | Fusion family table, tuned on held-out splits, both datasets | Reading 4.4 | 10 | fusion_deep.py | Reproduces the root's RRF/min-max/z-score numbers exactly. |
+| 10 | Fuse-then-rerank table | Reading 4.5 | 10 | recorded Qwen3-Reranker scores | Tests the old page's claim. |
+| 11 | Post-filter survivors vs K x s (formula lines, root's measured dots) | Reading 6.2 | 9 | root filter.json | Shows where the formula fails (correlated access). |
+| 12 | MMR lambda sweep (HotpotQA both-gold, NFCorpus, SciFact) | Reading 7.2 | 9 | mmr.py | Negative result, shown. |
+| 13 | Small-to-big bars at 1,024 tokens with two metrics (evidence covered, answer string) | Reading 1.5 | 9 | parent_child.py | The second metric keeps sentence windows from looking unfairly bad. |
+| 14 | Tables: tokenizers, truncation, mixed index, tokenisation variants, self-query, step-back, decomposition, prompt budget, citation formats, evidence position bars | Reading | | out/*.json | |
