@@ -1,0 +1,40 @@
+
+<section id="tm-s-toy">
+<h2>Same input, two toolkits: datatrove and the Dolma toolkit</h2>
+<p>The atlas says datatrove filters inline and the Dolma toolkit <b>tags, then mixes</b>. To see what that means, the same twelve small documents go through both. They are <span class="ill">illustrative</span>: written for this test (no real pages), each built to trip one rule: an exact copy, a near copy, a banner, a repeated line, German text, hashtag spam, a menu, lorem ipsum, an email address, a code fragment, and two clean articles. The runs are <span class="tm-lbl m">measured</span>: both libraries' real code, at the versions shown.</p>
+<div class="tm-box" id="tm-tcard">
+<div class="tm-seg" id="tm-tmode" role="group" aria-label="Toolkit"><button data-m="dt" class="on">datatrove</button><button data-m="dm">Dolma toolkit</button></div>
+<div class="tm-ctl" id="tm-tctl"></div>
+<div class="tm-cap" id="tm-tcap"></div>
+<div class="tm-cnt" id="tm-tcnt"></div>
+<div class="tm-docs" id="tm-tdocs"></div>
+</div>
+<div id="tm-tdiff"></div>
+</section>
+
+<section id="tm-s-store">
+<h2>Storage and loading: from documents to what the trainer reads</h2>
+<p>A finished corpus is stored twice. First as <b>documents</b> (text plus metadata) in Parquet or compressed JSONL, so it can be inspected, filtered again and published. Then, after tokenization, as <b>token shards</b>: one flat array of token ids per file plus an index of where each document ends, which the training loader memory-maps and cuts into fixed-length windows. The second form is what a pretraining run actually reads.</p>
+<div id="tm-sizes"></div>
+<div class="tm-box" id="tm-pcard">
+<h3 style="margin-top:0">Packing: the same documents, padded or packed</h3>
+<p class="small">A <dfn>context window</dfn> is the fixed number of tokens per training sample. Give each document its own window and the short ones are mostly padding (wasted compute); <dfn>pack</dfn> them end to end with an end-of-document token and almost every position is real text, at the cost of windows that span document boundaries. Step through both on the same documents.</p>
+<div class="tm-seg" id="tm-pmode" role="group" aria-label="Layout"><button data-m="pad" class="on">One document per window</button><button data-m="pack">Packed</button></div>
+<div class="tm-ctl" id="tm-pctl"></div>
+<div class="tm-cap" id="tm-pcap"></div>
+<div class="tm-cnt" id="tm-pcnt"></div>
+<div class="tm-plot" id="tm-pplot"></div>
+</div>
+<div id="tm-loader"></div>
+</section>
+
+<section id="tm-s-iq">
+<h2>Interview questions</h2>
+<details class="tm-iq"><summary>You must build a 10T-token English web corpus in two months with 2,000 CPU cores and 64 GPUs. Which tools, and where do the GPUs go?</summary><div>CPU stages run on everything, cheapest first: WARC reading, extraction (resiliparse rather than trafilatura at this scale: DCLM measured about 8 times the speed with similar downstream scores), lid.176, heuristic rules, and MinHash within each crawl, all as datatrove tasks on the CPU cluster. GPUs only score what survives: a FineWeb-Edu-style classifier or an ensemble, and optionally rephrasing. Then tokenize to .bin shards. Say what you would measure first: drop counts per stage on one crawl before running all of them.</div></details>
+<details class="tm-iq"><summary>Why would a team keep the Dolma toolkit's tag-then-mix design rather than inline filters?</summary><div>Tagging writes every score once; changing a threshold then only reruns the cheap mixer, not the expensive taggers. Inline filters (datatrove's default) are simpler and stream, but a new threshold means a new pass (unless the filters write their scores to metadata). At web scale the ability to re-mix without re-tagging is worth the extra storage for attribute files.</div></details>
+<details class="tm-iq"><summary>Exact Bloom-filter dedup and MinHash disagree on the toy near copy. Which is right?</summary><div>Neither is wrong; they answer different questions. Paragraph-level Bloom dedup removes the repeated paragraphs and keeps the one new sentence; document-level MinHash removes the whole near copy. For training, a page that differs only in a footer adds almost nothing, so MinHash's choice is usually what you want; paragraph dedup also strips repeated boilerplate inside otherwise unique pages. Many pipelines do both.</div></details>
+<details class="tm-iq"><summary>Your vocabulary has 151,000 tokens. What changes in storage?</summary><div>Token ids no longer fit in 16 bits (65,536 values), so shards need uint32: twice the bytes per token. datatrove's DocumentTokenizer has token_size 2 by default; set it to 4. A silent uint16 write would wrap ids and corrupt training data without an error.</div></details>
+<details class="tm-iq"><summary>Name a tool on this map that is archived but still everywhere, and say why that is fine or not.</summary><div>fastText: the repository is read-only since 2024, yet lid.176 still runs language ID for most English corpora. Fine for inference of a frozen model with a pinned wheel; not fine if you need fixes or new platforms (the community forks such as fasttext-numpy2 exist for exactly that). Same pattern for the suffix-array code: the method lives on in datatrove and Dolma 3's tools.</div></details>
+<p class="small mute foot">Sources: PyPI JSON API, GitHub REST API and Atom feeds, Hugging Face API and dataset cards, arXiv API, all read on <span class="tm-asof2"></span>; papers and READMEs linked in each card. Scripts: <code>src/map/fetch_meta.py</code>, <code>gen_data.py</code>, <code>toy/</code>, <code>storage/</code>.</p>
+</section>
+</div>
