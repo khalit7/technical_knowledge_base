@@ -1,0 +1,21 @@
+<section id="rp-s8">
+<h2>8. Assembling the prompt</h2>
+<p><b>The problem.</b> Retrieval ends with a ranked list; the generator needs one prompt. Between the two sit decisions that change the answer: how many chunks (the <dfn>context budget</dfn>), in what order, with what labels so the answer can cite them, and how to check that a cited chunk says what the answer claims. Measured with the root lab's end-to-end task, unchanged: Qwen3-1.7B (llama.cpp, greedy, thinking off) reads a SciFact claim and k abstracts and answers SUPPORT, CONTRADICT or NOT ENOUGH INFO with the number of the abstract it relied on; an answer is <dfn>strictly right</dfn> when the label matches the annotators' and the cited abstract is annotated evidence. The 188 test claims with evidence; candidates from the root's pipeline (hybrid RRF, then Qwen3-Reranker-0.6B on the top 30); the root's answer prompt. Answers identical to the root's runs were reused from its cache (same model, same prompt), so the shared cells agree by construction.</p>
+<h3 id="rp-s8-1">8.1 How many chunks</h3>
+<div class="tw" id="rp-pa-budget"></div>
+<p>@@pa_budget_reading@@ More context is not free even when the window allows it: prefill time grows with the prompt (about 1,040 prompt tokens per second for this model here, root's latency table), and a small model is distracted by more near-miss abstracts.</p>
+<h3 id="rp-s8-2">8.2 Order, and where the evidence sits</h3>
+<p><b>Published:</b> {{Liu et al., "Lost in the Middle" (arXiv 2307.03172, 2023)|https://arxiv.org/abs/2307.03172}} moved the one relevant document through 10, 20 and 30 retrieved documents and found a U shape for several models: accuracy highest with the document first or last, lowest in the middle <span class="pub">published, authors' runs</span>. <b>Measured here</b> with the claim's gold abstract placed first, in the middle or last among the reranker's highest-ranked non-evidence abstracts (hard distractors, which is what a real pipeline puts next to the evidence):</p>
+<div class="rp-chart" id="rp-pa-pos"></div>
+<p>@@pa_pos_reading@@ Reversing the real reranked top 5 (best abstract last, nearest the question) gives @@pa_order_last@@ strictly right against @@pa_order_first@@ best-first. Longer contexts and more positions are measured on {{Agentic retrieval, long context and memory|n:3c65c17b0d0d8105a68cfb504ed4b0e8}}.</p>
+<h3 id="rp-s8-3">8.3 Citation formats, and checking a citation</h3>
+<p>A <dfn>citation</dfn> is a pointer from the answer to a chunk; it is only useful if it can be resolved and checked. Three formats on the same top 5:</p>
+<div class="tw" id="rp-pa-cite"></div>
+<p>@@pa_cite_reading@@ A quote is the cheapest citation to check: a string match against the cited chunk, no model needed. Whether the cited chunk actually <i>supports</i> the claim needs a judgement (a natural-language-inference model or an LLM judge); those metrics (faithfulness, groundedness, citation precision) and their tools are on {{RAG and retrieval evaluation|n:3ef5c17b0d0d8194a914d1843ee26f13}}.</p>
+<h3 id="rp-s8-4">8.4 A template that holds up</h3>
+<ul class="tight"><li>Label each chunk with a short id the model can repeat exactly ([1], [2]...) and keep the mapping to document, section and span outside the prompt; here numbers and corpus ids both resolved for every answer.</li>
+<li>Put each chunk's title and date in its header line: the model cannot weigh a 2019 document against a 2025 one if it never sees the dates.</li>
+<li>Merge chunks that overlap or touch into one span (&#167;7.3); drop exact duplicates; never truncate a chunk mid-sentence to fit the budget, drop the lowest-ranked chunk instead.</li>
+<li>Keep instructions and the question outside the retrieved text, and treat retrieved text as data: a document that says "ignore previous instructions" is an injection (prompt injection through retrieved documents is covered on {{RAG in production|n:3f85c17b0d0d81aa9ba9c0ceac9e28c1}}).</li>
+<li>Ask for the label or answer first and the citation in a fixed format, then parse it; count unparseable answers as wrong. If you ask for quotes, verify them: here most were not verbatim (&#167;8.3).</li></ul>
+</section>
