@@ -1,0 +1,74 @@
+<section id="vix-s6">
+<h2>6. HNSW: a graph you walk, read in the code</h2>
+<p>The second idea: <b>connect each vector to a few of its neighbours, and find the query's neighbours by walking</b>. In a <dfn>proximity graph</dfn> every stored vector is a node with links to some nearby nodes. A <dfn>greedy search</dfn> starts at some node, looks at its neighbours, moves to the one closest to the query, and repeats until no neighbour is closer. If the graph has the right mix of short links (for precision) and long links (to cross the collection quickly), the walk reaches the query's region in few steps. A <dfn>navigable small world</dfn> (NSW) graph is one built so that this works; <dfn>HNSW</dfn> (hierarchical NSW; Malkov and Yashunin, <a href="https://arxiv.org/abs/1603.09320" target="_blank" rel="noopener noreferrer">arXiv 1603.09320</a>, IEEE TPAMI) adds two things: <b>layers</b> and a <b>neighbour-selection heuristic</b>. Watch both in the {{HNSW lab|#t-vixhnsw}}.</p>
+<h3>Layers from a coin that keeps landing tails</h3>
+<p>Every node is on layer 0. A node also appears on layers 1, 2, ... up to its <dfn>level</dfn>, drawn at insertion as floor(&minus;ln U &middot; m<sub>L</sub>) with U uniform in (0, 1). The paper recommends m<sub>L</sub> = 1/ln M, which makes each layer about M times smaller than the one below ("this corresponds to the skip list parameter p=1/M", Section 4.1). The code is exactly that:</p>
+<div class="srch">hnswlib/hnswalg.h at v0.8.0, line 142 and lines 207 to 211</div>
+<div class="src">        mult_ = 1 / log(1.0 * M_);
+<span class="c">...</span>
+    int getRandomLevel(double reverse_size) {
+        std::uniform_real_distribution&lt;double&gt; distribution(0.0, 1.0);
+        double r = -log(distribution(level_generator_)) * reverse_size;
+        return (int) r;
+    }</div>
+<p>So a node reaches level l or higher with probability M<sup>&minus;l</sup>. FAISS computes the same distribution as a table (impl/HNSW.cpp lines 80 to 93, <code>exp(-level / levelMult) * (1 - exp(-1 / levelMult))</code> with levelMult = 1/ln M, line 63). Measured on SciFact <span class="meas">measured here</span>:</p>
+<div class="card" id="vix-r6l-card"><div id="vix-r6l"></div></div>
+<h3>Search: greedy on top, best-first at the bottom</h3>
+<p>A query enters at the single <dfn>entry point</dfn> (the node with the highest level), walks greedily on each upper layer until no neighbour is closer, drops a layer, and repeats. On layer 0 it switches to a <dfn>best-first search</dfn> that keeps the <dfn>ef</dfn> best nodes seen (ef = "exploration factor"; efSearch in FAISS, hnsw.ef_search in pgvector): repeatedly expand the closest unexpanded candidate, compute distances to its unvisited neighbours, keep those that beat the worst of the ef results. It stops when the closest open candidate is worse than the worst result:</p>
+<div class="srch">hnswlib/hnswalg.h at v0.8.0, searchBaseLayerST, lines 342 to 348 and 395 (comments added)</div>
+<div class="src">        while (!candidate_set.empty()) {
+            std::pair&lt;dist_t, tableint&gt; current_node_pair = candidate_set.top();   <span class="c">// closest open candidate</span>
+            dist_t candidate_dist = -current_node_pair.first;
+            bool flag_stop_search;
+            if (bare_bone_search) {
+<span class="h">                flag_stop_search = candidate_dist &gt; lowerBound;</span>    <span class="c">// lowerBound = worst of the ef kept</span>
+<span class="c">...                                        // then, for each unvisited neighbour of that candidate:</span>
+<span class="h">                        flag_consider_candidate = top_candidates.size() &lt; ef || lowerBound &gt; dist;</span></div>
+<p>FAISS's version stops differently: after more than efSearch expansions, or when efSearch closer candidates are already queued (impl/HNSW.cpp lines 1164 and 1224). Same idea, different counters, which is one reason "ef 64" does not mean the same recall in two libraries. In both, <b>ef is the runtime dial</b>: recall up, latency up, no rebuild.</p>
+<h3>Build: every insert is a search, then a careful choice of links</h3>
+<p>Inserting a node runs the same search with a wider list, <dfn>efConstruction</dfn> (ef_construction), on every layer from its level down, then picks which candidates to link to. The <dfn>heuristic</dfn> (the paper's Algorithm 4) takes candidates nearest first and keeps one only if it is closer to the new node than to every neighbour already kept:</p>
+<div class="srch">hnswlib/hnswalg.h at v0.8.0, getNeighborsByHeuristic2, lines 457 to 478 (abridged)</div>
+<div class="src">        while (queue_closest.size()) {
+            if (return_list.size() &gt;= M) break;
+            std::pair&lt;dist_t, tableint&gt; curent_pair = queue_closest.top();
+            dist_t dist_to_query = -curent_pair.first;                    <span class="c">// candidate to new node</span>
+            queue_closest.pop();
+            bool good = true;
+            for (std::pair&lt;dist_t, tableint&gt; second_pair : return_list) {
+                dist_t curdist = fstdistfunc_(getDataByInternalId(second_pair.second),
+                                              getDataByInternalId(curent_pair.second), ...);   <span class="c">// candidate to a kept neighbour</span>
+<span class="h">                if (curdist &lt; dist_to_query) { good = false; break; }</span>
+            }
+            if (good) return_list.push_back(curent_pair);
+        }</div>
+<p>A rejected candidate is reachable through the neighbour that blocked it, so the link budget goes to other directions; in clustered data this is what keeps a link to the next cluster (the paper's Fig. 2). Three details that the paper's prose does not make obvious and the code does:</p>
+<ul class="tight">
+<li><b>The new node keeps at most M links, even on layer 0</b> (line 513: <code>getNeighborsByHeuristic2(top_candidates, M_)</code>); layer 0 lists can hold 2M (line 113: <code>maxM0_ = M_ * 2</code>, the paper's recommendation "2*M is a good choice for Mmax0") and fill up through <i>reverse</i> links from later nodes.</li>
+<li><b>Reverse links are pruned again:</b> when a neighbour's list is already full, adding the new node re-runs the heuristic over the old list plus the new node, and something is dropped (lines 586 to 610). Links are not symmetric.</li>
+<li><b>The next layer down starts from the closest node found</b> (line 524).</li>
+</ul>
+<p>To check that this reading is right, this page ships a line-by-line Python port of hnswlib's insert and search (src/scripts/pyhnsw.py) and compares it with hnswlib on all 5,183 SciFact vectors, M 16, efConstruction 200, with hnswlib's own levels: @@port_same@@ of @@port_lists@@ neighbour lists come out identical in content and order (the rest differ by floating-point ties), and all 300 test claims get the same top 10 at ef 10, 40 and 100 <span class="meas">measured here</span>. The port is what draws the HNSW lab, and what counts distance computations where hnswlib's Python API does not.</p>
+<h3>The knobs, measured</h3>
+<p>FAISS IndexHNSWFlat on SciFact (Qwen3-Embedding), built on one thread; recall@10 against exact search and distance computations per query <span class="meas">measured here</span>:</p>
+<div class="card" id="vix-r6-card"><div class="ctl"><label>ef (search) <select id="vix-r6-ef"></select></label><label>Show <select id="vix-r6-m"><option value="recall10">recall@10</option><option value="ndis">distances per query</option><option value="ndcg">nDCG@10 (labels)</option></select></label></div><div class="tw" id="vix-r6"></div><div id="vix-r6c"></div><p class="small mute" id="vix-r6-cap"></p></div>
+<ul class="tight">
+<li><b>M (links per node)</b> sets the graph's quality and size. Too small and the graph falls apart: at M = 4 and efConstruction 16, @@m4_unreach@@ of 5,183 nodes cannot be reached on layer 0 from the entry point, so no query can ever return them; at M = 8 it was @@m8_unreach@@, from M = 16 none. The paper puts typical M between 6 and 48.</li>
+<li><b>efConstruction</b> buys graph quality with build time; past a point it buys nothing: at M = 16, ef 40, recall @@m16_efc40@@ (efC 40), @@m16_efc100@@ (100), @@m16_efc200@@ (200). The paper: large enough for construction-time recall "close to unity ... (0.95 is enough for the most usecases)".</li>
+<li><b>ef</b> is the cheap dial: at M = 16, efC 200, ef 10 gives @@m16_ef10@@ with @@m16_ef10_nd@@ distances; ef 100 gives @@m16_ef100@@ with @@m16_ef100_nd@@ (exact search: 5,183).</li>
+</ul>
+<div class="tw"><table><tr><th>Library (version)</th><th class="num">M</th><th class="num">efConstruction</th><th class="num">ef at query time</th><th>Source</th></tr>
+<tr><td>hnswlib 0.8.0</td><td class="num">16</td><td class="num">200</td><td class="num">10</td><td>Python binding defaults; hnswalg.h line 115 (<code>ef_ = 10</code>)</td></tr>
+<tr><td>FAISS 1.15.1 IndexHNSWFlat</td><td class="num">(you pass it; 32 is common)</td><td class="num">40</td><td class="num">16</td><td>impl/HNSW.h lines 141 and 144</td></tr>
+<tr><td>pgvector 0.8.7</td><td class="num">16</td><td class="num">64</td><td class="num">40</td><td>README (Search and vector databases page)</td></tr>
+<tr><td>Lucene (main)</td><td class="num">16</td><td class="num">100 ("beam width")</td><td class="num">set per query</td><td>HnswGraphBuilder.java</td></tr>
+<tr><td>Elasticsearch 9.x</td><td class="num">16</td><td class="num">100</td><td class="num">num_candidates</td><td>dense_vector docs (vendor docs, read 2026-10-14)</td></tr>
+<tr><td>Qdrant 1.19</td><td class="num">16</td><td class="num">100</td><td class="num">hnsw_ef</td><td>indexing docs (vendor docs)</td></tr>
+<tr><td>Weaviate 1.40</td><td class="num">32 (64 on layer 0)</td><td class="num">128</td><td class="num">dynamic (100 to 500)</td><td>vector index docs (vendor docs)</td></tr>
+<tr><td>Milvus 3.0</td><td class="num">30</td><td class="num">360</td><td class="num">ef</td><td>HNSW docs (vendor docs)</td></tr></table></div>
+<p>The parent's Tool map measured what these defaults give on SciFact with bge-small: hnswlib at its default ef 10 found 0.876 of the true top 10 (0.998 at ef 100), FAISS at efSearch 16 0.964, Qdrant's server 0.996, pgvector 0.985. This page reproduces the hnswlib and FAISS numbers exactly (0.876, 0.964, 0.998) and adds hnswlib at pgvector's settings (M 16, efC 64, ef 40): @@hnswlib_pg@@ <span class="meas">measured here</span>, a little under pgvector's 0.985 because two implementations draw different levels and stop differently. On the same 522,931 Quora vectors and 1,000 queries that page used, hnswlib at M 16, efConstruction 200, ef 40 found @@hnswlib_quora_40@@ of the true top 10 against pgvector's 0.989 at m 16, ef_construction 64, ef_search 40 <span class="meas">measured here</span>; the larger efConstruction is the likely reason (not isolated here).</p>
+<h3>What each half of HNSW buys</h3>
+<p>Remove one idea at a time, with the port, on the same vectors, order and levels <span class="meas">measured here</span>:</p>
+<div class="card" id="vix-r6v-card"><div class="seg" id="vix-r6v-set"><button data-m="all4" class="on">Four corpora (25,039, clustered by source)</button><button data-m="scifact">SciFact (5,183)</button></div><div id="vix-r6v"></div><p class="small mute" id="vix-r6v-cap"></p></div>
+<p>On the four corpora stacked, plain "keep the M closest" links cost recall at every ef (@@var_simple_40@@ against @@var_hnsw_40@@ at ef 40): the data is clustered by source, which is exactly the case the heuristic was designed for. A single layer with the heuristic matched full HNSW (@@var_flat_40@@). On SciFact alone, one topic, neither change mattered much. This agrees with Munyampirwa, Lakshman and Coleman ("Down with the Hierarchy: The 'H' in HNSW Stands for 'Hubs'", <a href="https://arxiv.org/abs/2412.01940" target="_blank" rel="noopener noreferrer">arXiv 2412.01940</a> v3, ICML 2025 workshop, <span class="pub">published, authors' runs</span>): a flat graph had "latency and recall performance essentially identical to the original algorithm but with less memory overhead" on data from 96 to 960 dimensions at up to 100M vectors, the hierarchy helping only below about 32 dimensions; they explain it with "hubs", a few well-connected nodes that every search passes through early. The hierarchy costs little memory (about 1/(M&minus;1) extra lists), so libraries keep it.</p>
+<div class="co"><div class="t">HNSW in one line</div><b>Solves</b> high recall at low latency with no training step; inserts work any time. <b>Costs</b> memory (the full vectors plus 2M links per node, in RAM), slow builds (each insert is a search), and deletes that leave tombstones (section 10). <b>Tune</b> M once (16 to 32), efConstruction once (100 to 200), and ef per query on your own data.</div>
+</section>
