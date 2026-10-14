@@ -67,7 +67,7 @@ def replay(models, picks):
 
 def main():
     D = {}
-    for name in ("hops", "strategies", "steps", "position", "tune", "router", "graphrag"):
+    for name in ("hops", "strategies", "steps", "position", "tune", "router", "graphrag", "strategies_s2prompt"):
         p = os.path.join(OUT, name + ".json")
         if os.path.exists(p):
             D[name] = json.load(open(p))

@@ -25,7 +25,7 @@ page = open(PAGE).read()
 if part.split("\n", 1)[1].strip() not in page:
     fail("index.html does not embed parts/33_js_agt_0data.js (rebuild)")
 D = json.loads(part.split("window.AGTD=", 1)[1].rstrip().rstrip(";"))
-for name in ("hops", "strategies", "steps", "position", "tune", "router", "graphrag"):
+for name in ("hops", "strategies", "steps", "position", "tune", "router", "graphrag", "strategies_s2prompt"):
     p = os.path.join(HERE, "out", name + ".json")
     if os.path.exists(p) and json.load(open(p)) != D.get(name):
         fail("embedded %s differs from out/%s.json" % (name, name))
