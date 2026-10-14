@@ -3633,3 +3633,23 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | A map of crawl languages | Common Crawl publishes the table; one sentence carries it |
 | Re-plotting FineWeb's smoothed curves | Read from plots; the csv's final values are used instead |
 | Price or cost tab | Not the page's subject (such tabs were removed from other pages at review) |
+
+### Storage and loading at scale: formats, shards, streaming (2026-10-14)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/storage_and_loading/src/viz_ideas.md`.
+
+| # | Idea | What it shows | Data | Placement | Score | Status |
+|---|---|---|---|---|---|---|
+| SL1 | Megatron's three indices, step by step, against nanoGPT random offsets | 12 real documents: document_index shuffle over 2 epochs, sample_index cuts, shuffle_index reads one sample per step, resume by consumed_samples; toggle: random windows with a coverage strip (never, once, twice) | megatron_demo.py, line-for-line port at 80781ab | Reading, section 5 | 14 | built |
+| SL2 | Packing lab | Pad, truncate, concatenate, best-fit decreasing on 12 real documents, animated placement, attention picture per window with and without a document mask; live table on 2,000 documents checked against packing.py; 50,000-document table; length histogram with L | packing.py | Own tab | 15 | built |
+| SL3 | Shuffle visualiser | 2,200 documents from 11 sorted shards, read under 13 recorded schemes from the real libraries (datasets 5.0.1, DataLoader 4 workers, MosaicML shuffle functions, global permutation) and a live buffer shuffle; per-batch distance from the true mix, animated batch by batch | shuffle.py | Own tab | 14 | built |
+| SL4 | Resume panel | Uninterrupted vs stopped-and-resumed order for index, restart and buffer loaders, k and B sliders; mirror reproduces the measured "B never read" | resume.py (measured), JS mirror (illustrative) | Shuffle tab | 11 | built |
+| SL5 | Format comparer | 30 variants: bytes, bytes per token, rough read MB/s, random-access docs/s, 2k and 50k samples; feature matrix; scale-up to T tokens | formats.py | Own tab | 12 | built |
+| SL6 | Throughput calculator | 6N tokens/s, bytes/s, step time, days, storage, online-tokenizing CPUs; log bars against a measured loader and Llama 3's storage fabric; Llama preset reproduces 3.8e25 FLOPs independently | Llama 3 Table 4, measured rough rates | Own tab | 12 | built |
+| SL7 | FineWeb Parquet anatomy | A real 2.15 GB FineWeb shard: column bytes, 972 row groups and the 3.8 MB footer to scale | footer by HTTP range | Reading, section 3 | 9 | built |
+| SL8 | uint16 wrap, predict then reveal | 1,942 of 2,000 documents corrupted; top wrapped ids and a sentence before/after | formats.py, megatron_demo.py | Reading, section 5 | 10 | built |
+| SL9 | Compression levels bars + predict | gzip 1/6/9 against zstd 1/3/9/19 | formats.py | Reading, section 2 | 7 | built |
+| SL10 | Live S3 streaming benchmark | | | | | rejected: a laptop on home broadband measures nothing that transfers |
+| SL11 | Rebuilt pad vs pack animation | | | | | rejected: the root's Tool map has it; SL2 extends it instead |
+| SL12 | Megatron blending animation | | | | | rejected: owned and built by Data mixing |
+| SL13 | Loader trace (GPU idle while waiting for data) | | | | | rejected: owned by Making training fast (PyTorch topic) |
