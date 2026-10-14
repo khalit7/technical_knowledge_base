@@ -2,4 +2,4 @@
 
 Notion: https://app.notion.com/p/3f85c17b0d0d81279079f614f382f2e7 (child of Topic: rag-and-retrieval)
 
-Not migrated yet: a new page.
+HTML-only page: `index.html` is built from `src/` (`python3 src/build_data.py && sh src/build.sh`). Tabs: Reading, Parser viewer, Table lab, Re-indexing lab, Page-image retrieval, Further reading. Everything measured on an Apple M1 Pro in October 2026; scripts in `src/scripts/`, results in `src/data/`; see `src/README.md`.
