@@ -1,0 +1,57 @@
+<section id="vix-s2">
+<h2>2. Exact search, and why it stops scaling</h2>
+<p><dfn>Exact search</dfn> (also <dfn>flat</dfn> or <dfn>brute-force</dfn> search) computes the similarity of the query with every stored vector and keeps the k best in a small heap. Its cost is easy to write down:</p>
+<div class="fm"><div class="eq">work = N &middot; d multiply-adds &nbsp;&nbsp; bytes read = N &middot; d &middot; b</div>
+<dl><dt>N</dt><dd>stored vectors</dd><dt>d</dt><dd>dimensions (1,024 for Qwen3-Embedding, 384 for MiniLM)</dd><dt>b</dt><dd>bytes per number: 4 for float32, 2 for float16, 1 for int8</dd></dl></div>
+<p>One query against the 5,183 SciFact vectors is 5.3 million multiply-adds over 21 MB. A CPU core can do the multiplications far faster than memory can deliver the numbers, so for one query at a time exact search is <dfn>memory-bound</dfn>: its speed is the speed of reading the vectors. Measured here with FAISS's IndexFlatIP on one thread, the scan ran at <b>@@exact_gbps@@ GB/s</b> once the collection no longer fitted in the chip's caches <span class="meas">measured here, timed</span>.</p>
+<div class="prd" data-ans="c"><div class="q">Predict: one query, one CPU core, 1 million vectors of 1,024 float32 numbers (4.1 GB). How long does exact search take on this laptop?</div>
+<div class="opts"><button data-k="a">about 1 ms</button><button data-k="b">about 10 ms</button><button data-k="c">about 100 ms</button><button data-k="d">about 1 s</button></div>
+<div class="ans" hidden>About @@exact_1m1024_ms@@ ms: 4.1 GB at the measured @@exact_gbps@@ GB/s. The 522,931 Quora vectors (384 numbers, 803 MB) took @@exact_quora_ms@@ ms per query measured. Fine for a nightly job or a few queries a second; too slow for a search box at hundreds of queries per second. Apple quotes up to 200 GB/s of memory bandwidth for the whole M1 Pro (<a href="https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max-the-most-powerful-chips-apple-has-ever-built/" target="_blank" rel="noopener noreferrer">vendor claim, 2021</a>); one core reaches a fraction of it, and all cores together share it.</div></div>
+<div class="card" id="vix-r2-card"><div class="ctl"><label>Vectors N: <b id="vix-r2-nv"></b><input type="range" id="vix-r2-n" min="3" max="9" step="0.25" value="6"></label><label>Dimensions <select id="vix-r2-d"><option>384</option><option>768</option><option selected>1024</option><option>1536</option><option>3072</option></select></label><label>Stored as <select id="vix-r2-b"><option value="4">float32 (4 bytes)</option><option value="2">float16 (2)</option><option value="1">int8 (1)</option><option value="0.125">binary (1 bit)</option></select></label></div>
+<div class="out" id="vix-r2-out"></div><div id="vix-r2-plot"></div><p class="small mute" id="vix-r2-cap"></p></div>
+<p><b>Batching changes the bottleneck.</b> With many queries at once, each vector read from memory is reused for every query in the batch, which turns the scan into a matrix multiplication (GEMM) that keeps the arithmetic units busy. FAISS switches to BLAS when the batch is large enough:</p>
+<div class="srch">faiss/utils/distances.cpp at v1.15.1, lines 572 to 577 and 607</div>
+<div class="src">        if (res.sel || ny == 0 ||
+            nx * d &lt; static_cast&lt;size_t&gt;(distance_compute_blas_threshold)) {
+            exhaustive_inner_product_seq(x, y, d, nx, ny, res);   <span class="c">// one query at a time</span>
+        } else {
+            exhaustive_inner_product_blas(x, y, d, nx, ny, res);  <span class="c">// a matrix multiplication</span>
+        }
+<span class="c">...</span>
+<span class="h">int distance_compute_blas_threshold = 128000;</span>   <span class="c">// nx * d: for d = 1,024, batches of 125+ queries</span></div>
+<p>Measured on the four corpora stacked (25,039 &times; 1,024): one query at a time @@exact_all4_ms@@ ms each; a batch of 200, @@exact_all4_batch_ms@@ ms per query, about @@exact_batch_x@@ times less <span class="meas">measured here, timed</span>. The threshold matters: on Quora (384 dimensions) a batch of 200 is 200 &times; 384 = 76,800, under 128,000, so FAISS stayed on the one-at-a-time path and the batch saved nothing (@@exact_quora_batch_ms@@ ms per query against @@exact_quora_ms@@ ms). That is why offline jobs (evaluating a golden set, deduplicating a corpus, building a kNN graph) often need no index at all, and why GPUs, which are built for matrix multiplication, do exact search well (Johnson, Douze and J&eacute;gou built a k-NN graph over 1 billion vectors in under 12 hours on 4 GPUs, <a href="https://arxiv.org/abs/1702.08734" target="_blank" rel="noopener noreferrer">arXiv 1702.08734</a>, <span class="pub">published, authors' runs, 2017</span>).</p>
+<h3>When exact search is the right answer</h3>
+<ul class="tight">
+<li><b>Small collections.</b> FAISS's own decision tree says Flat below 10,000 vectors (<a href="https://arxiv.org/abs/2401.08281" target="_blank" rel="noopener noreferrer">The Faiss library, Fig. 10</a>), and ScaNN's documentation "fewer than 20k points, use brute-force" (<a href="https://github.com/google-research/google-research/blob/master/scann/docs/algorithms.md" target="_blank" rel="noopener noreferrer">algorithms.md</a>), both <span class="pub">vendor docs</span>. At 25,039 vectors of 1,024 dimensions it costs @@exact_all4_ms@@ ms here: often still fine.</li>
+<li><b>After a selective filter.</b> If a condition leaves 300 rows, scanning them exactly is cheaper than any index walk (section 9).</li>
+<li><b>Ground truth.</b> Every recall on this page is measured against it.</li>
+<li><b>"Local" or "lite" modes of databases often are exact search.</b> The parent's Tool map found that Qdrant's Python client in local mode and Milvus Lite both scan every vector (Milvus Lite even after reporting an HNSW index), so their recall is 1.0 and their speed is not that of the server.</li>
+</ul>
+</section>
+
+<section id="vix-s3">
+<h2>3. IVF: k-means cells, nlist and nprobe</h2>
+<p>The first idea for doing less work: <b>group similar vectors, and look only in the groups nearest the query</b>. An <dfn>inverted file index</dfn> (IVF; the name comes from text search's inverted index, a list of documents per word, here a list of vectors per cell) runs <dfn>k-means</dfn> clustering once: it picks <dfn>nlist</dfn> centroids so that each vector is close to its centroid, then files every vector in the list of its nearest centroid. Each list is a <dfn>cell</dfn> of the space (a Voronoi cell: the region nearer to that centroid than to any other). A query is compared with the nlist centroids, and only the <dfn>nprobe</dfn> nearest cells are scanned.</p>
+<div class="fm"><div class="eq">distances per query &asymp; nlist + nprobe &middot; N / nlist</div>
+<dl><dt>nlist</dt><dd>number of cells (FAISS: nlist; pgvector: lists; Milvus: nlist)</dd><dt>nprobe</dt><dd>cells scanned per query (pgvector: ivfflat.probes)</dd></dl></div>
+<p>For a fixed share of cells probed, this is smallest when nlist is about &radic;N, the usual rule (The Faiss library, Eq. 18: the number of distances "K + P &times; N/K" is minimised at K = &radic;(P N), <span class="pub">published</span>); the parent's Tool map used nlist = 72 &asymp; &radic;5,183 for SciFact. Here is FAISS's search at the top level, two steps exactly as described:</p>
+<div class="srch">faiss/IndexIVF.cpp at v1.15.1, lines 351 to 365 (inside IndexIVF::search; arguments abridged)</div>
+<div class="src">        quantizer-&gt;search(             <span class="c">// step 1: the nprobe nearest centroids</span>
+                sub_n, sub_x, cur_nprobe,
+                coarse_dis.get(), idx.get(), ...);
+        invlists-&gt;prefetch_lists(idx.get(), ...);
+        search_preassigned(sub_n, sub_x, k, idx.get(), ...);   <span class="c">// step 2: scan those lists</span></div>
+<p>And its default, the reason an untuned IVF index disappoints:</p>
+<div class="srch">faiss/IndexIVF.h at v1.15.1, line 69</div>
+<div class="src">    size_t nprobe = 1;    <span class="c">///&lt; number of probes at query time</span></div>
+<h3>The boundary problem, measured</h3>
+<p>A true neighbour can sit just across a cell wall. Where do SciFact's true top-10 neighbours live, counted by the rank of their cell among the query's nearest cells (nlist 72)? <span class="meas">measured here</span></p>
+<div class="card" id="vix-r3a-card"><div id="vix-r3a"></div><p class="small mute">300 test claims &times; 10 true neighbours = 3,000. Rank 1 = the cell whose centroid is nearest the claim.</p></div>
+<p>Only @@ivf_rank1_pct@@% sit in the nearest cell, so nprobe 1 finds @@ivf72_np1@@ of the true top 10; nprobe 8 (11% of the cells) reaches @@ivf72_np8@@ and nprobe 32 @@ivf72_np32@@. In 1,024 dimensions, "near the query" spreads over many cells. More cells (larger nlist) make each cell smaller, so more probes are needed for the same recall, but each probe is cheaper:</p>
+<div class="card" id="vix-r3-card"><div class="seg" id="vix-r3-x"><button data-m="nprobe" class="on">x: nprobe</button><button data-m="ndis">x: distances per query</button></div><div id="vix-r3"></div><p class="small mute" id="vix-r3-cap"></p></div>
+<h3>Training: how many points, and which</h3>
+<p>k-means is <dfn>trained</dfn> on a sample. FAISS subsamples to 256 points per centroid and warns below 39 (faiss/Clustering.h lines 44 and 46: <code>min_points_per_centroid = 39</code>, <code>max_points_per_centroid = 256</code>; the warning is printed at Clustering.cpp lines 113 to 120). On SciFact with nlist 72, training on 5% of the corpus (259 points, 3.6 per centroid) instead of all of it changed recall at nprobe 8 from @@ivf_tr100@@ to @@ivf_tr5@@, but made the lists much more uneven (coefficient of variation of list sizes @@ivf_tr5_cv@@ against @@ivf_tr100_cv@@): uneven lists mean some probes scan many more vectors than others, so latency varies by query. Two k-means runs on the same vectors fed in a different order (so k-means starts from different points) gave nprobe-1 recall of @@ivf_seed_a@@ and @@ivf_seed_b@@: report IVF numbers with the seed. <span class="meas">measured here</span></p>
+<h3>Drift: when the collection changes after training</h3>
+<p>The centroids describe the data they were trained on. Train them on SciFact only, then add NFCorpus, HotpotQA and QASPER (the collection grows into new topics, 25,039 vectors, nlist @@drift_nlist@@): the biggest list grows to @@drift_old_max@@ vectors against @@drift_new_max@@ after retraining, and at nprobe 16 recall is @@drift_old_16@@ against @@drift_new_16@@ while scanning far more vectors per query (@@drift_old_ndis16@@ against @@drift_new_ndis16@@ distances) <span class="meas">measured here</span>. pgvector's IVFFlat has the same property; the Search and vector databases page covers rebuilding it in PostgreSQL.</p>
+<div class="co"><div class="t">IVF in one line</div><b>Solves</b> exact search's linear cost with a cheap build and little extra memory (the centroids: nlist &times; d floats). <b>Costs</b> the boundary problem, a training step, and drift. <b>Tune</b> nprobe on your own queries; start with nlist &asymp; &radic;N (FAISS's decision tree goes further at scale: 16k cells below 1M vectors, 64k below 10M, 1M cells below 1B, with an HNSW index over the centroids) and expect to probe 5 to 15% of the cells for recall near 0.9 on embedding data like this.</div>
+</section>

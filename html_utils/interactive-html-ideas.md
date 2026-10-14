@@ -3490,3 +3490,25 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | 7 | Elastic restart timeline (two ranks, crash, restart gap, resumed steps) | Reading, section 1 | 2+0+1+1+1 = 5 | elastic.json, elastic_repeats.json |
 | 8 | Tables generated from data: collective payloads, unused-parameter options, hooks, MixedPrecisionPolicy, FSDP1 vs FSDP2, DTensor propagation (28 cases), pipeline summary, 3-D composition per rank | Reading | n/a | inputs |
 | 9 | Predict-then-reveal: fastest collective at 64 MiB; no_sync collective count; LayerNorm gradient under SP | Reading | n/a | inputs |
+
+### Vector indexes from the inside: flat, IVF, PQ, HNSW, DiskANN, filtered search (2026-10-14)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_rag_and_retrieval/vector_indexes/src/viz_ideas.md`.
+
+| # | Idea | Score | Data | Placement |
+|---|---|---|---|---|
+| V1 | **HNSW built and searched step by step** on 240 real Qwen3 vectors (60 per corpus) by a line-by-line port of hnswlib (checked link for link against hnswlib on 5,183 vectors); before/after: HNSW vs closest-M links vs one layer, same points, order and levels; per insert the descent, kept links, heuristic rejections with the blocking neighbour, re-pruned lists; search with distance counter against exact | 14 | `make_hnsw_anim.py`, `pyhnsw.py`, `check_port.py` | HNSW lab tab |
+| V2 | **IVF-PQ on one claim**: centroid bars, probed cells, the 16 x 256 lookup table as a heat map, one candidate's 16 code bytes outlined in it, PQ score vs exact scatter, results; before/after IVF-Flat vs IVF-PQ vs rescoring on the same claim, cells and candidates; JS recomputes FAISS's scores (max error 1.2e-7) | 14 | `make_ivfpq_anim.py` (real FAISS index) | IVF-PQ lab tab |
+| V3 | **Frontier**: recall against QPS (one thread, one query at a time, timed under the bench lock) for 7 families on three collections, memory budget slider, Pareto line, 1 - recall log axis | 12 | `e_bench.py` | Frontier tab |
+| V4 | **Filter lab** with a selectivity sweep animation (0.1% to 100%) and correlated / uncorrelated / anti-correlated filters; five strategies on one recall-vs-work chart; Qdrant server results beside | 13 | `e_filter.py`, `e_acorn.py`, `e_qdrant.py`, `e_qdrant_paths.py` | Filter lab tab |
+| V5 | nDCG@10 against ANN recall@10 for every HNSW and IVF setting, with a predict-then-reveal | 11 | `e_hnsw.py`, `e_ivf.py` | Reading 1 |
+| V6 | Exact-search calculator (N, d, bytes) on the measured GB/s, with measured points from 5k to 523k vectors | 10 | `e_bench.py exact_scaling` | Reading 2 |
+| V7 | Cell rank of each true neighbour (the boundary problem) and recall-vs-nprobe curves per nlist | 10 | `e_ivf.py` | Reading 3 |
+| V8 | Recall per byte budget for SQ, binary, RaBitQ, PQ, OPQ, alone and rescored | 10 | `e_quant.py` | Reading 4 |
+| V9 | Levels measured vs N M^-l (1 - 1/M); M x efConstruction grid with recall, distances, nDCG; curves | 10 | `e_hnsw.py` | Reading 6 |
+| V10 | What each half of HNSW buys (heuristic, hierarchy) at 5k and 25k, measured with the port | 11 | `e_variants.py` | Reading 6 |
+| V11 | Vamana (from the paper) vs HNSW: hops and distances; alpha's effect on degree and edge ranks | 9 | `vamana.py`, `e_vamana.py` | Reading 7 |
+| V12 | ScaNN anisotropic vs isotropic table | 7 | `e_scann.py` (container) | Reading 8 |
+| V13 | Tombstone cost vs rebuilt graph | 8 | `e_updates.py` | Reading 10 |
+| V14 | Memory calculator from formulas, with formula-vs-file checks | 9 | code reading + serialized sizes | Reading 11 |
+| V15 | Work per query against N at fixed recall (exact, IVF, HNSW) on Quora prefixes | 10 | `e_scale.py` | Reading 12 |
