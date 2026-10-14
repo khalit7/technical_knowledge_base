@@ -5,6 +5,11 @@ Stages: (language ID if a lid.176 model is given) -> GopherRepetitionFilter -> G
 -> PIIFormatter -> MinHash dedup (signatures, buckets, clusters, filter) with datatrove's default MinhashConfig."""
 import json, os, sys, shutil, time, glob, gzip
 os.environ.setdefault("OMP_NUM_THREADS", "2")
+# macOS workarounds (as in the setup agent's run0.py): fork start method, and a stub for python-magic (WarcReader's
+# fallback import; no WARC files are read here)
+import types, importlib.machinery, multiprocessing
+multiprocessing.set_start_method("fork", force=True)
+_m = types.ModuleType("magic"); _m.__spec__ = importlib.machinery.ModuleSpec("magic", None); _m.from_buffer = lambda b, mime=True: "application/octet-stream"; sys.modules["magic"] = _m
 import datatrove
 from datatrove.executor import LocalPipelineExecutor
 from datatrove.pipeline.readers import JsonlReader
@@ -39,11 +44,11 @@ t0 = time.time()
 LocalPipelineExecutor(pipeline=steps, tasks=1, workers=1, logging_dir=os.path.join(work, "log1")).run()
 cfg = MinhashConfig()
 mh = os.path.join(work, "mh")
-LocalPipelineExecutor(pipeline=[JsonlReader(os.path.join(work, "filtered")), MinhashDedupSignature(output_folder=mh + "/sigs", config=cfg)], tasks=1, logging_dir=os.path.join(work, "log2")).run()
-LocalPipelineExecutor(pipeline=[MinhashDedupBuckets(input_folder=mh + "/sigs", output_folder=mh + "/buckets", config=cfg)], tasks=cfg.num_buckets, logging_dir=os.path.join(work, "log3")).run()
-LocalPipelineExecutor(pipeline=[MinhashDedupCluster(input_folder=mh + "/buckets", output_folder=mh + "/remove_ids", config=cfg)], tasks=1, logging_dir=os.path.join(work, "log4")).run()
+LocalPipelineExecutor(pipeline=[JsonlReader(os.path.join(work, "filtered")), MinhashDedupSignature(output_folder=mh + "/sigs", config=cfg)], tasks=1, workers=1, logging_dir=os.path.join(work, "log2")).run()
+LocalPipelineExecutor(pipeline=[MinhashDedupBuckets(input_folder=mh + "/sigs", output_folder=mh + "/buckets", config=cfg)], tasks=cfg.num_buckets, workers=1, logging_dir=os.path.join(work, "log3")).run()
+LocalPipelineExecutor(pipeline=[MinhashDedupCluster(input_folder=mh + "/buckets", output_folder=mh + "/remove_ids", config=cfg)], tasks=1, workers=1, logging_dir=os.path.join(work, "log4")).run()
 LocalPipelineExecutor(pipeline=[JsonlReader(os.path.join(work, "filtered")), MinhashDedupFilter(input_folder=mh + "/remove_ids", exclusion_writer=JsonlWriter(os.path.join(work, "x_minhash"), compression=None)),
-                                JsonlWriter(os.path.join(work, "final"), compression=None)], tasks=1, logging_dir=os.path.join(work, "log5")).run()
+                                JsonlWriter(os.path.join(work, "final"), compression=None)], tasks=1, workers=1, logging_dir=os.path.join(work, "log5")).run()
 stages.append(("minhash", "MinHash dedup (%d-grams, %d buckets of %d hashes)" % (cfg.n_grams, cfg.num_buckets, cfg.hashes_per_bucket)))
 
 
@@ -67,7 +72,7 @@ for i in ids:
         res[i] = {"dropped_at": None, "changed": final[i]["text"] != orig[i], "text_after": final[i]["text"] if final[i]["text"] != orig[i] else None}
     elif i not in res:
         res[i] = {"dropped_at": "unknown"}
-json.dump({"tool": "datatrove", "version": datatrove.__version__ if hasattr(datatrove, "__version__") else None,
+json.dump({"tool": "datatrove", "version": __import__("importlib.metadata").metadata.version("datatrove"),
            "stages": stages, "minhash": {"n_grams": cfg.n_grams, "num_buckets": cfg.num_buckets, "hashes_per_bucket": cfg.hashes_per_bucket},
            "docs": res, "seconds": round(time.time() - t0, 1)}, open(out, "w"), indent=1)
 print(json.dumps({k: v.get("dropped_at") for k, v in res.items()}))
