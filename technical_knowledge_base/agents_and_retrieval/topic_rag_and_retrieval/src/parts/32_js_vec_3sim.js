@@ -20,11 +20,11 @@
     const n=M.norms,el=$('vec-sim-hist'),W=V.width(el),H=150,L=40,R=10,T=8,B=30;
     const mx=Math.max(...n.hist_counts),bw=(W-L-R)/n.hist_counts.length;
     let s='';n.hist_counts.forEach((c,i)=>{const h=(H-T-B)*c/mx;s+='<rect x="'+(L+i*bw+1).toFixed(1)+'" y="'+(H-B-h).toFixed(1)+'" width="'+Math.max(1,bw-2).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="var(--c2)"><title>'+n.hist_edges[i]+' to '+n.hist_edges[i+1]+': '+c+' abstracts</title></rect>'});
-    [0,Math.floor(n.hist_counts.length/2),n.hist_counts.length].forEach(i=>{s+=V.T(L+i*bw,H-B+14,n.hist_edges[i].toFixed(2),{a:'middle',fs:10,fill:'var(--mute)'})});
+    [[0,'start'],[Math.floor(n.hist_counts.length/2),'middle'],[n.hist_counts.length,'end']].forEach(([i,a])=>{s+=V.T(L+i*bw,H-B+14,n.hist_edges[i].toFixed(2),{a,fs:10,fill:'var(--mute)'})});
     s+=V.T(L+(W-L-R)/2,H-4,'length |d| of each raw document vector (5,183 abstracts)',{a:'middle',fs:10.5,fill:'var(--mute)'});
     s+=V.T(L-5,T+8,String(mx),{a:'end',fs:10,fill:'var(--mute)'});
     el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Histogram of raw vector lengths">'+s+'</svg>';
-    $('vec-sim-note').innerHTML='Raw lengths: documents '+n.doc_min.toFixed(2)+' to '+n.doc_max.toFixed(2)+' (median '+n.doc_median.toFixed(2)+'), claims '+n.query_min.toFixed(2)+' to '+n.query_max.toFixed(2)+'; correlation of a document\'s length with its token count '+n.corr_norm_tokens.toFixed(2)+'. Check: the raw vectors divided by their length match the stored normalised ones (minimum cosine '+M.stored_vs_raw_min_cos.toFixed(5)+'). <span class="vec-lbl m">measured</span> gte-modernbert-base, float32 on MPS, 1,024 tokens, SciFact test.';
+    $('vec-sim-note').innerHTML='The lengths differ by only '+V.pc((n.doc_max-n.doc_min)/n.doc_median,0)+' from shortest to longest, and still the dot product costs '+(m.cosine['ndcg@10']-m.dot['ndcg@10']).toFixed(3)+' nDCG@10 and changes '+V.pc(1-M.overlap10.cos_dot,0)+' of the top 10; L2 stays close to cosine here ('+f3(m.l2['ndcg@10'])+') because the lengths are so similar. Raw lengths: documents '+n.doc_min.toFixed(2)+' to '+n.doc_max.toFixed(2)+' (median '+n.doc_median.toFixed(2)+'), claims '+n.query_min.toFixed(2)+' to '+n.query_max.toFixed(2)+'; correlation of a document\'s length with its token count '+(Math.abs(n.corr_norm_tokens)<0.005?0:n.corr_norm_tokens).toFixed(2)+'. Check: the raw vectors divided by their length match the stored normalised ones (minimum cosine '+M.stored_vs_raw_min_cos.toFixed(5)+'). <span class="vec-lbl m">measured</span> gte-modernbert-base, float32 on MPS, 1,024 tokens, SciFact test.';
   }
   V.seg($('vec-sim-norm'),v=>{mode=v;simDraw()});
   const C=V.D.con.models;
