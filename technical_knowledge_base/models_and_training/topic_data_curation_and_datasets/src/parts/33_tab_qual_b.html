@@ -1,0 +1,73 @@
+<section id="q-s1">
+<h3>In one screen</h3>
+<div class="q-stats" id="q-one"></div>
+<ul>
+<li><b>The two classifiers that define today's open corpora mostly disagree.</b> On our 2,617 documents the FineWeb-Edu classifier keeps <span data-q="keep_edu"></span> and the DCLM classifier keeps <span data-q="keep_dclm"></span> at their published cut-offs; only <span data-q="keep_both"></span> are kept by both, an overlap of <span data-q="jacc_published"></span> of the union. Nemotron-CC measured 10.1% on a whole crawl (<span class="vend">published</span>, Table 8). Their scores rank documents with a Spearman correlation of <span data-q="spearman_edu_dclm"></span>.</li>
+<li><b>About a third of what both drop is fine text.</b> Reading a stratified sample of 100 documents, about <span data-q="lab_both_yes"></span> of the documents both classifiers drop would be worth training a general model on, and half of those were <b>news</b>. Neither reference set (school-level teaching material for one, instruction and Q&amp;A data for the other) looks like news.</li>
+<li><b>The cut-offs are not what they sound like.</b> DCLM's "top 10%" is P(hq) ≥ <span data-q="dclm_cut"></span> (the lowest score in DCLM-baseline itself), so the classifier keeps documents it thinks are 98% likely <i>not</i> high quality; on already-filtered FineWeb that cut keeps <span data-q="fw50_dclm"></span> of documents, not 10%.</li>
+<li><b>One default changes the scores.</b> datatrove's fastText filter joins lines with no space by default; the DCLM classifier then changes its keep decision on <span data-q="dt_flip"></span> of our 2,617 documents.</li>
+<li><b>A fastText classifier trained here in about two minutes</b> on the FineWeb-Edu annotations reaches a binary F1 of <span data-q="own_f1"></span> against the LLM labels, where the published 110M-parameter encoder classifier reaches <span data-q="edu_f1"></span> on the same rows.</li>
+</ul>
+</section>
+
+<section id="q-s2">
+<h3>What "quality" means here: three recipes</h3>
+<p>A <dfn>quality filter</dfn> is a model that gives each document a number, plus a rule that keeps documents above a cut-off. There is no definition of quality behind it other than <b>what the model was trained to prefer</b>, so the first question about any filter is: preferred over what, by whom?</p>
+<div class="q-tw"><table>
+<thead><tr><th>Recipe</th><th>What the model learns</th><th>Model and cost</th><th>Cut-off</th><th>Used by</th></tr></thead>
+<tbody>
+<tr><td><b>LLM grades, small model imitates</b></td><td>Llama-3-70B-Instruct's 0 to 5 "educational value" score for 460,000 FineWeb pages (the prompt is below)</td><td>Linear regression head on the frozen Snowflake arctic-embed-m encoder (110M parameters); 6,000 H100 GPU hours to score FineWeb's 15T tokens (<span class="vend">published</span>); here 0.14 s per document on 4 CPU threads (<span class="meas">measured, rough</span>)</td><td>Rounded score ≥ 3</td><td>FineWeb-Edu (1.3T tokens), SmolLM2; Nemotron-CC trained two more like it on other LLMs' grades</td></tr>
+<tr><td><b>Reference against crawl</b></td><td>Tell 200,000 positives (OpenHermes 2.5 instructions and top-voted r/ExplainLikeImFive answers) from 200,000 random pages of a RefinedWeb reproduction</td><td>fastText with word bigrams (2.39 GB file); here about 2 ms per document on one CPU thread (<span class="meas">measured, rough</span>)</td><td>Top 10% of the pool, which is P(hq) ≥ <span data-q="dclm_cut"></span></td><td>DCLM-baseline (about 4T tokens), OLMo 2's pretraining mix, Nemotron-CC's ensemble</td></tr>
+<tr><td><b>Perplexity under a reference LM</b></td><td>How surprising a page is to a 5-gram model trained on Wikipedia</td><td>KenLM n-gram model (4.4 GB) and a SentencePiece tokenizer; CPU only</td><td>Below the 30th percentile of a language's perplexity: "head"; 30th to 60th: "middle"; above: "tail"</td><td>CCNet (2019); in DCLM's comparison of filters, perplexity filtering scored 29.0 Core against 30.2 for the fastText filter (Table 4, <span class="vend">published</span>)</td></tr>
+</tbody></table></div>
+<p class="q-src">Sources: {{FineWeb paper, Section 4|https://arxiv.org/abs/2406.17557}}; the {{classifier's model card|https://huggingface.co/HuggingFaceFW/fineweb-edu-classifier}}; {{DCLM paper, Section 4.4 and Appendix J.1|https://arxiv.org/abs/2406.11794}}; {{CCNet paper, Section 3.3|https://arxiv.org/abs/1911.00359}} and cc_net's code (section 10 below).</p>
+<details class="mist"><summary>The exact prompt Llama 3 graded with (FineWeb-Edu)</summary><div class="b">
+<p class="small mute">Verbatim from <code>utils/prompt.txt</code> in the classifier's repository (rev 284663cb), lines 1 to 14. Note the additive design: each point has its own criterion, and the fifth asks for "outstanding" material for primary or grade school. The FineWeb paper says this focus was chosen "to avoid having the LLM favor highly technical pages like arXiv abstracts".</p>
+<div class="q-pre">Below is an extract from a web page. Evaluate whether the page has a high educational value and could be useful in an educational setting for teaching from primary school to grade school levels using the additive 5-point scoring system described below. Points are accumulated based on the satisfaction of each criterion:
+
+- Add 1 point if the extract provides some basic information relevant to educational topics, even if it includes some irrelevant or non-academic content like advertisements and promotional material.
+- Add another point if the extract addresses certain elements pertinent to education but does not align closely with educational standards. [...]
+- Award a third point if the extract is appropriate for educational use and introduces key concepts relevant to school curricula. [...] It may resemble an introductory section of a textbook or a basic tutorial [...]
+- Grant a fourth point if the extract highly relevant and beneficial for educational purposes for a level not higher than grade school [...]
+- Bestow a fifth point if the extract is outstanding in its educational value, perfectly suited for teaching either at primary school or grade school. [...]
+
+The extract:
+&lt;EXAMPLE&gt;.
+
+After examining the extract: 
+- Briefly justify your total score, up to 100 words.
+- Conclude with the score using the format: "Educational score:  &lt;total points&gt;"</div></div></details>
+<div class="q-pr" data-qpr><div class="qq">Predict: DCLM-baseline "keeps the top 10%" of its pool by the classifier's probability that a page is high quality. What is the lowest probability among the documents it kept?</div>
+<div class="opts"><button data-r="0">About 0.9</button><button data-r="0">About 0.5</button><button data-r="0">About 0.2</button><button data-r="1">About 0.02</button></div>
+<div class="ans" hidden><b>0.0181.</b> The smallest <code>fasttext_score</code> among the first 50,000 rows of DCLM-baseline 1.0 is <span data-q="dclm_cut"></span>, and 10% of them score below <span data-q="dclm_q10"></span> (<span class="meas">measured</span>). The classifier was trained on balanced classes but the crawl is overwhelmingly unlike the positives, so almost every page gets a tiny probability and only the ranking matters. Read a fastText probability as a rank, never as a calibrated chance.</div></div>
+</section>
+
+<section id="q-s3">
+<h3>The same shard, before and after each filter</h3>
+<div class="q-card" id="q-shard-card">
+<div class="q-ctl"><label class="small">Filter <select id="q-shard-f" aria-label="Filter to apply"></select></label><label class="small">compare with <select id="q-shard-g" aria-label="Comparison filter"></select></label><label class="small"><input type="checkbox" id="q-shard-lab"> show the 100 hand labels (green keep, orange drop, text colour unsure)</label></div>
+<div class="q-ctl" id="q-shard-ctl"></div>
+<div class="q-cap" id="q-shard-cap" aria-live="polite"></div>
+<canvas id="q-shard" aria-label="Every document of the shard as a square, before and after the filter"></canvas>
+<div class="q-stats" id="q-shard-stats"></div>
+<p class="small mute">Click any square to open it in the inspector (section 5). The "either keeps" filter is a stand-in for Nemotron-CC's ensemble, which takes the maximum of its classifiers' bucket ranks; it is not their exact recipe (their classifiers and thresholds differ). Words are counted by splitting on whitespace.</p>
+</div>
+<p>Watch the pile, not the survivors. Run FineWeb-Edu, then switch to DCLM: different squares fall, and step 6 outlines how many of each filter's survivors the other would have thrown away. Switch to "both must keep" and the shard shrinks to <span data-q="keep_both"></span> documents; "either keeps" keeps <span data-q="keep_either"></span>. That gap is the whole argument of Nemotron-CC: classifiers with different targets find different good documents, so an ensemble keeps more good text at a given quality.</p>
+</section>
+
+<section id="q-s4">
+<h3>Do the two classifiers agree?</h3>
+<p>Two ways to ask it. <b>Rank correlation</b> (Spearman) asks whether they order all documents the same way. <b>Top-slice overlap</b> asks what a filter actually does: if each keeps its top k%, how much of what one keeps does the other keep? The overlap is shown as intersection over union, the measure Nemotron-CC's Table 8 reports.</p>
+<div class="q-card">
+<div class="q-ctl"><span class="q-seg" id="q-ag-set"><button data-m="run0" class="on" aria-pressed="true">Our WARC (run0)</button><button data-m="fw" aria-pressed="false">FineWeb sample</button><button data-m="nemo" aria-pressed="false">Nemotron-CC buckets</button></span></div>
+<div class="q-ctl"><label class="small" for="q-ag-sl">each keeps its top</label><input type="range" id="q-ag-sl" min="1" max="60" value="10" aria-label="Share kept by each classifier"><b id="q-ag-k">10% each</b><label class="small"><input type="checkbox" id="q-ag-pub"> use the published cut-offs instead</label></div>
+<div id="q-ag"></div>
+<div class="q-stats" id="q-ag-stats"></div>
+</div>
+<p><b>Reading it.</b> On our WARC, when each keeps its top 10% the overlap is <span data-q="top10_jacc"></span> of the union (<span data-q="top10_overlap"></span> of either slice), against about 5% for two unrelated random filters; on 2,000 random FineWeb rows of the same crawl it is <span data-q="fw_top10_jacc"></span>. At the published cut-offs the two keep very different amounts (FineWeb-Edu <span data-q="keep_edu_frac"></span>, DCLM <span data-q="keep_dclm_frac"></span> of our documents), and the overlap is <span data-q="jacc_published"></span>. Nemotron-CC's figure, 10.1% on CC-MAIN-2021-21, sits in the same range, measured on a whole crawl rather than one file. On the Nemotron-CC sample the correlation is higher (<span data-q="nemo_sp"></span> against <span data-q="spearman_edu_dclm"></span>) because those buckets span the whole quality range, including the very low end that both models agree on: <b>agreement depends on the population</b>, and the hard, disputed documents are the ones in the middle of an already filtered crawl.</p>
+<div class="mist"><details><summary>Agreement at scale without the encoder: DCLM against the LLM grades themselves</summary><div class="b">
+<p>Scoring 50,000 documents with the FineWeb-Edu encoder is a GPU job (pending, see section 8), but the DCLM classifier is cheap, so it was run on all 232,000 Llama 3 annotations the FineWeb-Edu classifier was trained from. The share passing DCLM's cut rises steadily with the LLM's educational score: the two notions of quality point the same way, weakly (Spearman <span data-q="annot_sp"></span>).</p>
+<div class="q-bars" id="q-annot-bars"></div>
+<p class="small mute">The first 4 of the 8 annotation files (232,000 pages from CC-MAIN-2024-10), DCLM P(hq) ≥ <span data-q="dclm_cut"></span>. Score 5 has only 6 pages here. On the 50,000-row FineWeb-Edu sample, <span data-q="fwe50_dclm"></span> of documents pass DCLM's cut (<span data-q="fw50_dclm"></span> on the 50,000-row FineWeb sample).</p>
+</div></details></div>
+</section>
