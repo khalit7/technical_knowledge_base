@@ -121,6 +121,13 @@ def position():
                       "f1": [r3(np.mean([r["f1"] for r in rows if r["slot"] == s])) for s in slots],
                       "f1_ci": [ci([r["f1"] for r in rows if r["slot"] == s]) for s in slots],
                       "n_in": r3(np.mean([r["n_in"] for r in rows]))}
+        by = {}
+        for r in rows:
+            by.setdefault(r["qid"], {})[r["slot"]] = r["f1"]
+        mid = slots[len(slots) // 2]
+        for name, a in (("first_vs_middle", slots[0]), ("last_vs_middle", slots[-1])):
+            x = [v[a] - v[mid] for v in by.values()]
+            out[model][name] = {"diff": r3(np.mean(x)), "ci": ci(x)}
     save("position.json", out)
 
 
@@ -144,6 +151,19 @@ def choose():
             ch[strat] = max(cands)[2]
     save("tune_choice.json", ch)
     print("chosen", ch)
+
+
+def s2prompt():
+    """The first 1.7B test runs, made with answer prompt s2 because the prompt-choice step failed (kept for the record:
+    the yes/no latching finding). out/strategies_s2prompt.json"""
+    res = {}
+    for f in sorted(glob.glob(os.path.join(RUNS, "s2prompt_*.jsonl"))):
+        res[os.path.basename(f)[len("s2prompt_"):-6]] = summ(jl_read(f)) if "position" not in f else None
+    pos = jl_read(os.path.join(RUNS, "s2prompt_position_1.7b.jsonl"))
+    if pos:
+        slots = sorted({r["slot"] for r in pos})
+        res["position_1.7b"] = {"slots": [s + 1 for s in slots], "f1": [r3(np.mean([r["f1"] for r in pos if r["slot"] == s])) for s in slots]}
+    save("strategies_s2prompt.json", res)
 
 
 if __name__ == "__main__":
