@@ -1,0 +1,34 @@
+
+<section id="rd-s3">
+<h2>3. The pipeline: from a raw page to a training document</h2>
+<p>A raw crawl is mostly not text you want: navigation menus, cookie banners, spam, machine-generated pages, adult content, pages in other languages, and the same page many times over. The pipeline removes it in stages ordered by cost, so that the expensive stages only see what the cheap ones let through. Five of the stages are simple enough to define in one breath each; deduplication, quality models and decontamination get their own sections.</p>
+<ul>
+<li><b>URL filtering.</b> Drop pages whose domain is on a blocklist (adult and spam sites) before reading them. Costs a lookup per URL.</li>
+<li><b>Text extraction.</b> Turn the HTML into the page's main content: keep the article, drop the menus, footers and ads. Common Crawl's own WET text keeps everything; dedicated extractors (<dfn>trafilatura</dfn>, <dfn>resiliparse</dfn>, jusText) guess which blocks are the content. This is the most expensive cheap stage, because it parses every page.</li>
+<li><b>Language identification.</b> A small classifier (usually fastText's <code>lid.176</code>, a bag-of-character-n-grams model) gives a probability per language; FineWeb keeps pages whose English probability is at least 0.65.</li>
+<li><b>Heuristic filters.</b> Hand-written rules on simple statistics: too few or too many words, mean word length outside 3 to 10 characters, too many symbols, too few common words such as "the" and "and" (Gopher's rules); lines must end in punctuation (C4); too many short lines or duplicated lines (FineWeb's own three rules, found by comparing statistics of good and bad data).</li>
+<li><b>PII scrubbing.</b> Replace personal data with placeholders. FineWeb anonymises email addresses and public IP addresses with regular expressions and stops there; names, phone numbers and addresses need heavier tools (NER models such as Presidio) and are rarely removed from web corpora.</li>
+</ul>
+
+<div class="rd-card" id="rd-page-card">
+<h4>One page through the pipeline: the same page with Common Crawl's text and with a main-content extractor</h4>
+<div class="seg" id="rd-page-mode"><button class="on" data-m="ext">Main-content extractor</button><button data-m="wet">Common Crawl WET text</button></div>
+<div class="an-cnt" id="rd-page-cnt"></div>
+<div class="an-cap" id="rd-page-cap"></div>
+<div id="rd-page-view"></div>
+<div class="an-ctl" id="rd-page-ctl"></div>
+<p class="small mute"><span class="ill">illustrative</span> page (a made-up library's help page, written for this demo) so that every line can be shown; the rule values, the n-gram overlap and the MinHash estimate are computed live in your browser with the published thresholds (Gopher and FineWeb rules as in datatrove v0.10.1 and the FineWeb paper; MinHash with FineWeb's 112 hashes in 14 bands of 8). <span class="rd-todo">TODO(pipe): swap in the real Common Crawl page the Pipeline lab shows before and after trafilatura and resiliparse, with its measured rule values and its real lid.176 score.</span></p>
+</div>
+
+<p><b>What the evidence says about each stage.</b> Extraction is the stage with the largest single published effect. On DCLM's 1.4B-parameter benchmark, models trained on WET text scored 20.7 Core against 24.1 for resiliparse and 24.5 for trafilatura; WET documents are about twice as long on average (6,580 characters against 3,227 and 2,901), the difference being menus and boilerplate ({{DCLM, Tables 3 and 16|https://arxiv.org/abs/2406.11794}}, <span class="vend">self-reported</span> ablation). FineWeb found the same with its own models. The cost differs a lot: resiliparse processed 4.55 MB of WARC per second per CPU core against trafilatura's 0.56, about 8 times faster for nearly the same score (same table). Heuristic filters are worth less but are cheap: C4's terminal-punctuation rule gave the largest HellaSwag boost of C4's rules in FineWeb's tests but removed about 30% of tokens; FineWeb's own three rules removed about 22% and added about 1% to the aggregate score ({{FineWeb paper, Sections 3.5 and 3.6|https://arxiv.org/abs/2406.17557}}, <span class="vend">self-reported</span>).</p>
+
+<div class="rd-card">
+<h4>FineWeb's published funnel, in tokens</h4>
+<div class="rd-bars" id="rd-fw-funnel"></div>
+<p class="small mute">GPT-2 tokens over 96 crawls, from the FineWeb paper (Sections 3.3 to 4): base filtering is URL blocklist, English at 0.65 or more and the Gopher rules; then MinHash dedup inside each crawl; then C4 and FineWeb rules; FineWeb-Edu is the educational-classifier slice (section 5). Raw extracted text before base filtering is not reported in tokens. <span class="rd-todo">TODO(pipe): add the running example's measured funnel as a second series (fraction kept after each stage), from the Pipeline lab's datatrove stats.</span></p>
+</div>
+
+<div class="mist"><details><summary>A detail that matters when you reproduce FineWeb</summary><div class="b">The FineWeb paper drops documents whose fraction of characters in duplicated lines is at least 0.1, but the <code>FineWebQualityFilter</code> in datatrove v0.10.1 defaults to 0.01, ten times stricter, and adds a fourth check (newline-to-word ratio above 0.3) the paper does not describe; the library's FineWeb example script uses those defaults. Checked in the source on 2026-10-14 (<code>src/datatrove/pipeline/filters/fineweb_quality_filter.py</code>, lines 14 to 20). A paper and its released code can disagree; when they do, your reproduction follows the code unless you change it. <span class="rd-todo">TODO(pipe): measured effect of 0.01 against 0.1 on the running example.</span></div></details></div>
+
+<div class="deepnote"><b>Go deeper.</b> The {{Pipeline lab|#t-pipe}} runs every stage on the running example with datatrove, shows the same raw page through each extractor, and lets you move each rule's threshold to see what it keeps and drops, with hand-labelled wrong drops.</div>
+</section>

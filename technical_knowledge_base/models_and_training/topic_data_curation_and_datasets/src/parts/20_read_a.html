@@ -1,0 +1,39 @@
+
+<section id="rd-s1">
+<h2>1. Why the data decides so much</h2>
+<p>A <dfn>token</dfn> is the unit a model reads (a word piece, about four characters of English). A <dfn>corpus</dfn> is the set of documents it is trained on, and its size is counted in tokens. The question this section answers: <b>at a fixed training budget, how much does it matter which tokens you use?</b> Three pieces of evidence, from the broadest to the most controlled.</p>
+
+<p><b>Across seven years of open recipes.</b> Dwarkesh Patel and Jerry Han crossed each year's representative open training recipe (GPT-2 in 2019 to OLMo 2 in 2025) with each year's public corpus (OpenWebText in 2019 to Ultra-FineWeb in 2025), trained every pair at budgets up to 10<sup>19</sup> FLOPs and read off how much compute each improvement saves. Better data saved <b>12.0x</b> compute, better models <b>3.7x</b>: data contributed 3.24 times more. A simple additive model of "data effect plus model effect" explains 88% of the score differences, so the two barely interact. <span class="indep">third-party</span> ({{Patel and Han, 2026-09-08|https://www.dwarkesh.com/p/pretraining-progress-is-mostly-data}}). The caveats are the authors' own: small models, little tuning, one benchmark suite (OLMES), one seed per cell. Their remark that small models gain most from data quality is an argument, not a measurement: they trained only small models.</p>
+
+<div class="rd-card" id="rd-filt-card">
+<h4>Same model, same compute, different filter: DCLM's comparison of quality filters</h4>
+<div class="rd-bars" id="rd-filt-bars"></div>
+<p class="small mute">"Core" is DCLM's average over 22 tasks (centred so that chance is 0). Every row trains the same 1.4B-parameter model on 28.8B tokens drawn from the same pool, changing only how documents were selected. {{DCLM, Table 4 (arXiv 2406.11794)|https://arxiv.org/abs/2406.11794}}, <span class="vend">self-reported</span> for the winning fastText row (the authors' own method), but the other rows are other groups' methods run under the same budget. At 7B scale the filter alone moved MMLU from 35% to 44% (same paper).</p>
+</div>
+
+<p><b>Within one controlled study.</b> The chart above is the cleanest kind of evidence in this field, a <dfn>data ablation</dfn>: train identical small models (the <dfn>proxy</dfn> or ablation models) on versions of the data that differ in one decision, then compare benchmark scores. Choosing which documents to keep moves the score by 4 Core points at fixed compute; for scale, the whole gap between Common Crawl's own extracted text and a good extractor is about 3.5 points on the same scale (section 3). <b>Five years earlier,</b> the T5 paper had already shown the direction: an unfiltered crawl 8 times larger than C4 (6.1 TB against 745 GB) scored lower on 6 of 7 task groups at the same training budget ({{T5, Table 8|https://arxiv.org/abs/1910.10683}}; the paper's text says "every task", but on SuperGLUE its Wikipedia-only model is 0.03 lower than the unfiltered one).</p>
+
+<div class="pr" id="rd-pr1"><div class="q">Predict: FineWeb's team deduplicated all 96 Common Crawl snapshots against each other, the most thorough dedup possible, and trained on the result. Did it beat deduplicating each snapshot on its own?</div>
+<div class="opts"><button data-r="0">Yes, clearly: fewer repeats, better model</button><button data-r="1">No: it was no better than not deduplicating at all</button><button data-r="0">Same score, but cheaper to train</button></div>
+<div class="ans" hidden>No. Global dedup left 4 trillion tokens and a model trained on 350 billion of them barely beat one trained on non-deduplicated data; deduplicating each snapshot separately won. What survived global dedup of the oldest snapshot was disproportionately ads and keyword lists (section 4). Data decisions are empirical: even "obviously good" steps have to be ablated.</div></div>
+
+<div class="deepnote"><b>Go deeper.</b> The {{Quality lab|#t-qual}} measures how differently real filters judge the same documents; the {{Pipeline lab|#t-pipe}} runs the funnel on the running example. How to read an ablation table critically is in "Common mistakes" below.</div>
+</section>
+
+<section id="rd-s2">
+<h2>2. Where the tokens come from</h2>
+<p>Almost every open pretraining corpus starts from <dfn>Common Crawl</dfn> (CC), a non-profit that has crawled the web since 2008 and publishes a new <dfn>crawl</dfn> (also called a snapshot or dump) every month or two. One crawl comes in three file types. <dfn>WARC</dfn> files hold the raw HTTP responses (the HTML exactly as served); <dfn>WAT</dfn> files hold metadata (headers, links); <dfn>WET</dfn> files hold plain text that Common Crawl extracted itself, menus and footers included. The June 2025 crawl, for scale: 2.38 billion pages, 82.73 TiB of compressed WARC, 15.62 TiB of WAT and 6.24 TiB of WET ({{Common Crawl, 2025-06-27|https://commoncrawl.org/blog/june-2025-crawl-archive-now-available}}). After FineWeb's whole pipeline, that crawl yields 152.4 billion tokens ({{FineWeb dataset card|https://huggingface.co/datasets/HuggingFaceFW/fineweb}}).</p>
+<p>The rest comes from sources with more structure and more legal care: <b>code</b> (The Stack v2 from Software Heritage; Stack-Edu, its educational slice), <b>scientific papers and PDFs</b> (arXiv, peS2o, PDFs turned into text with OCR models such as olmOCR; FinePDFs holds about 3 trillion tokens from 475 million PDFs), <b>encyclopedias</b> and <b>books</b> (the Books3 collection inside The Pile was taken down over copyright, and books are now the most contested source). A <dfn>licence</dfn> on a dataset (ODC-By for FineWeb and Dolma, CC-BY-4.0 for DCLM-baseline, an NVIDIA data agreement for Nemotron-CC v2) covers the compilation; it does not license each web page inside it. The Common Pile v0.1 is the attempt at 8 TB of text whose every piece is openly licensed or public domain ({{arXiv 2506.05209|https://arxiv.org/abs/2506.05209}}).</p>
+
+<div class="rd-card" id="rd-lin-card">
+<h4>Seven years of open corpora: size against year</h4>
+<div class="seg" id="rd-lin-mode"><button class="on" data-m="all">All</button><button data-m="web">Web-only corpora</button><button data-m="sel">Heavily selected (quality model)</button></div>
+<div class="rd-svg" id="rd-lin-svg"></div>
+<div class="leg"><span style="--sw:var(--c1)">web only</span><span style="--sw:var(--c2)">mixed sources</span><span style="--sw:var(--c4)">PDFs</span><span style="--sw:var(--c3)">green ring: kept only a top slice by a quality model</span></div>
+<div class="an-cap" id="rd-lin-cap"><div class="t">Click a dot</div><p>Each dot is a released corpus at its published size in tokens (log scale). Click one for what it changed.</p></div>
+<p class="small mute">Token counts depend on the tokenizer; each figure is the one its source states (C4 and Pile counts from the Dolma paper's list). Sizes are of the released data, not of what a model was trained on. Every corpus's licence, maintenance status and lineage (who filtered whom) is in the {{Tool map|#t-map}}.</p>
+</div>
+
+<p>Read the chart for its two lessons. Sizes grew a hundredfold, from C4's 175 billion tokens to FineWeb's 18.5 trillion, mostly by processing every crawl rather than one. And the newest generation splits in two directions: corpora that keep only the top few percent by a quality model (FineWeb-Edu at 1.3 trillion, DCLM-baseline at 3.8 trillion out of a 240-trillion-token pool) and corpora that keep more and fix it (Nemotron-CC's 6.3 trillion, of which 1.9 trillion are model rewrites). Section 5 explains the split; section 11 says which to pick.</p>
+<div class="deepnote"><b>Go deeper.</b> The {{Tool map|#t-map}} has the full corpus table with licences and a lineage diagram. The running example's raw slice and what each curated corpus kept of it are in the {{Pipeline lab|#t-pipe}}.</div>
+</section>

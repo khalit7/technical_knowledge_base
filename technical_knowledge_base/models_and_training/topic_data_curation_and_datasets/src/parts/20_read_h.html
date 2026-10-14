@@ -1,0 +1,22 @@
+
+<section id="rd-s10">
+<h2>10. Storage, loading and the tools that run it</h2>
+<p><b>How the data is stored.</b> The pipeline and the training run want different formats.</p>
+<ul>
+<li><b>While curating:</b> one document per record with its metadata (URL, crawl, language score, quality score, duplicate-cluster id), in compressed <dfn>JSONL</dfn> (one JSON object per line, gzip or zstd) or <dfn>Parquet</dfn> (a columnar format: a reader can load only the columns it needs, and per-column compression is good). FineWeb and FineWeb-Edu ship as Parquet and DCLM-baseline as zstd-compressed JSONL; datatrove and the Dolma toolkit read and write both.</li>
+<li><b>For training:</b> documents are <dfn>tokenized</dfn> once and stored as flat arrays of token ids (2 bytes per token when the vocabulary has fewer than 65,536 entries, 4 bytes otherwise), <dfn>memory-mapped</dfn> so a data-loader worker reads any slice without loading the file, or packed into streaming shards (MosaicML Streaming's MDS, WebDataset's tar files) that workers fetch from object storage and can resume deterministically after a crash.</li>
+<li><b>The loader</b> samples from per-domain shards with the mixture weights of section 7, concatenates documents separated by an end-of-text token, and cuts the stream into fixed-length sequences (<dfn>packing</dfn>). Shuffling is approximate at this scale: shuffle the order of shards, then shuffle inside a buffer.</li>
+</ul>
+<p>Two consequences matter in practice. When the mixing weights are applied at load time rather than baked into the files (both are common), changing the mix needs no reprocessing. And the token count you plan with depends on the tokenizer: the same text is a different number of tokens for GPT-2, Llama or Qwen tokenizers, which is why every corpus size in this page says whose count it is (tokenizers: {{Tokenizers|n:3c65c17b0d0d817187bcd94a1b0f15ea}}).</p>
+
+<p><b>The tools.</b> Three open frameworks run whole pipelines; teams with existing big-data infrastructure also write their own stages on Spark or Ray.</p>
+<div class="tw"><table>
+<tr><th>Tool</th><th>What it is</th><th>Reach for it when</th></tr>
+<tr><td><b>datatrove</b> (Hugging Face)</td><td>Python pipeline blocks (readers, extractors, filters, MinHash and exact dedup, tokenizers, writers) with local, Slurm and Ray executors; FineWeb's pipeline is its example script. v0.10.1 read for this page</td><td>you want a FineWeb-style pipeline you can read and change; CPU clusters</td></tr>
+<tr><td><b>Dolma toolkit</b> (AI2)</td><td>Rust-backed: <i>taggers</i> attach scores to every document (Gopher, C4 and quality-model taggers), then a <i>mixer</i> filters and samples by those scores; a Rust Bloom filter for dedup and decontamination</td><td>you want "tag once, filter many ways" and very fast tagging</td></tr>
+<tr><td><b>NeMo Curator</b> (NVIDIA)</td><td>GPU-accelerated curation for text, image, video and audio; since release 26.02 every pipeline runs on Ray; fuzzy and semantic dedup, classifiers, PII and synthetic-data stages</td><td>you have GPUs to spare and the dedup or classifier stage dominates your cost</td></tr>
+<tr><td><b>Spark or Ray, custom</b></td><td>Your own stages on a general distributed engine</td><td>you already run that infrastructure or need logic no framework has</td></tr>
+</table></div>
+<p class="small mute">Versions, release and commit dates, licences and a "which tool for which job" picker are in the {{Tool map|#t-map}}; it also lists the extractors, language-ID models, dedup libraries and every corpus with its status.</p>
+<div class="deepnote"><b>Go deeper.</b> The {{Tool map|#t-map}} for tools and formats; the {{Pipeline lab|#t-pipe}} and {{Dedup lab|#t-dedup}} quote datatrove's and Dolma's source with file and line. Columnar formats and storage engines: {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}.</div>
+</section>
