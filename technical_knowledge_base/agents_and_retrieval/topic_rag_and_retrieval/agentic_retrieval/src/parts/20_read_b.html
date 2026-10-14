@@ -1,0 +1,77 @@
+<section id="ar-s1"><h2>1. Retrieval as a tool</h2>
+<p><b>The problem.</b> A pipeline decides everything before it has seen a single result: one query, the user's words, a fixed k. If that search misses, nothing notices. Handing the search to the model lets it read a result and react to it.</p>
+<p><b>How it works, from zero.</b> A <b>tool</b> is an ordinary function (here: search a paragraph collection) that the <b>harness</b> (the program running the model) executes on the model's behalf. The model is shown a <b>tool description</b> (a name, a sentence saying what it does and returns, and its parameters, usually as a JSON schema). Instead of answering, the model may emit a <b>tool call</b>: structured text naming the tool and its arguments. The harness parses it, runs the search, and appends the result to the conversation as an <b>observation</b>. The model is called again with everything so far, and decides again: another call, or a final answer. The loop ends when the model answers or when the harness's <b>step budget</b> (a maximum number of calls) runs out. This is the reason-then-act loop of {{ReAct|n:3c65c17b0d0d816b9a24c28de8f08ea8}}; {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}} covers harnesses in general, and {{Context engineering|n:3f15c17b0d0d811292cee46514370431}} what to keep in the window.</p>
+<p>The tool every agent on this page calls, runnable on its own (the page's <code>src/scripts/demo_tool.py</code>; real output, paragraphs cut to 160 characters for display):</p>
+<pre class="ar-code">def search(query, k=3, exclude=()):
+    """bge-small exact search over the 9,760 paragraphs; already-seen paragraphs are skipped"""
+    return A.ranking(query, exclude)[:k]
+
+first = search(q["question"])
+second = search("Russian Civil War end date", exclude=first)
+
+Question: Alexander Kerensky was defeated and destroyed by the Bolsheviks in the course of a civil war that ended when ?
+Observation:
+[1] Russian Civil War: The Russian Civil War (Russian: ... November 1917 - October 1922) was a multi-party war in the for...
+[2] Alexander Kerensky: Alexander Fyodorovich Kerensky (Russian: ... 4 May 1881 - 11 June 1970) was a Russian lawyer and ...
+[3] Kerensky-Krasnov uprising: Kerensky-Krasnov uprising was an attempt by Alexander Kerensky to regain power after the ...
+Observation:
+[1] Battle of Romanovka: The Battle of Romanovka was fought in June 1919 during the Russian Civil War. ...
+[2] Communism in Russia: Communism in Russia began after Tsar Nicholas II lost his power during the February Revolution. ...
+[3] Left-wing uprisings against the Bolsheviks: The left-wing uprisings against the Bolsheviks were a series of ...
+gold: ['Socialist Revolutionary Party', 'Russian Civil War']</pre>
+<p class="small mute">The answer (October 1922) is already in the first result; the second gold paragraph (the Socialist Revolutionary Party, which links Kerensky to the war) is never found, and a second search for the war's end date only returns more war. Excluding already-seen paragraphs is a design choice of the root's tool: it forces every search to show something new.</p>
+
+<h3>The tool description is part of the prompt, and costs tokens on every call</h3>
+<p>The same search tool described two ways to Qwen3, counted with Qwen3's own chat template (measured, tokenizer only):</p>
+<div class="tw"><table><thead><tr><th>What the model is given</th><th class="num">Prompt tokens</th></tr></thead><tbody>
+<tr><td>the question alone</td><td class="num">@@sch_bare@@</td></tr>
+<tr><td>a text protocol (the root's ReAct system prompt: <code>Thought:</code>, <code>Action: search[...]</code>, <code>finish[...]</code>, budget rule)</td><td class="num">@@sch_text@@</td></tr>
+<tr><td>an OpenAI-style JSON function schema passed as <code>tools=[...]</code></td><td class="num">@@sch_json@@</td></tr>
+<tr><td>the JSON schema plus a two-line system prompt with the budget</td><td class="num">@@sch_json_plus_rules@@</td></tr>
+</tbody></table></div>
+<p>What the model actually reads when a JSON tool is passed (Qwen3's chat template, start of the rendered text):</p>
+<pre class="ar-code">&lt;|im_start|&gt;system
+# Tools
+
+You may call one or more functions to assist with the user query.
+
+You are provided with function signatures within &lt;tools&gt;&lt;/tools&gt; XML tags:
+&lt;tools&gt;
+{"type": "function", "function": {"name": "search", "description": "Search a collection of Wikipedia paragraphs. Returns the 3 best matching paragraphs, each with its title. Use a short query naming one entity or fact.", "parameters": {...}}}
+&lt;/tools&gt;
+
+For each function call, return a json object with function name and arguments within &lt;tool_call&gt;&lt;/tool_call&gt; XML tags:
+&lt;tool_call&gt;
+{"name": &lt;function-name&gt;, "arguments": &lt;args-json-object&gt;}
+&lt;/tool_call&gt;&lt;|im_end|&gt;</pre>
+<p>So "native tool calling" is a prompt convention the model was trained on, rendered by the template: the schema is text in the system turn, and the call is text the harness parses. Two consequences: the description is the main lever on query quality (say what the tool returns and how a good query looks: "a short query naming one entity or fact"), and every tool added to an agent is paid on every call.</p>
+
+<h3>What each result costs: formatting</h3>
+<p>One search returns 3 paragraphs. The same results formatted four ways, averaged over the @@n_searches@@ searches the root's 1.7B agent made (measured, Qwen3 tokens):</p>
+<div class="bars" id="ar-fmt"></div>
+<p>Titles alone cost a fifteenth of full paragraphs, and the first sentence carries more than people expect: in HotpotQA's labels, @@first_sent@@ of the @@n_sf@@ supporting sentences of these 200 questions (@@first_sent_pct@@) are a paragraph's first sentence. That is the case for the two-tool design many agents use: <code>search</code> returns titles and a snippet, <code>read</code> returns one document in full, so the model pays for full text only when it chooses to. JSON wrapping costs about 12% more than the same text in a plain list, for no gain to the model. Whether fewer or more results per search help the 1.7B agent: <span class="ar-pv">pending: run_pending.sh budgets (k = 1 and 5)</span>.</p>
+
+<h3>Why loops get expensive: the formula, checked against the recordings</h3>
+<p>Each call re-reads everything before it. With <i>s</i> the tokens of the first call (instructions, tool description, question) and <i>r</i> the tokens each step adds (the model's own thought and action plus the observation), the prompt tokens over <i>n</i> searches and a final answer are</p>
+<div class="fm"><div class="eq">T<sub>in</sub> = (n + 1) s + r &middot; n(n + 1) / 2</div>
+<dl><dt>n</dt><dd>searches before the answer (n + 1 model calls)</dd><dt>s</dt><dd>first-call prompt: measured mean @@s_mean@@ tokens for the root's agent</dd><dt>r</dt><dd>tokens added per step: measured mean @@r_mean@@</dd></dl></div>
+<p>With <i>s</i> and <i>r</i> measured per question, the formula predicts the prompt tokens llama-server counted for each of the 200 trajectories within @@form_mape@@ on average (worst @@form_max@@; the error is the variation of <i>r</i> between steps) measured:</p>
+<div class="tw"><table><thead><tr><th class="num">Searches n</th><th class="num">Questions</th><th class="num">Formula</th><th class="num">Billed (recorded)</th><th class="num">Actually prefilled (prompt cache on)</th></tr></thead><tbody>
+<tr><td class="num">1</td><td class="num">@@bn1_q@@</td><td class="num">@@bn1_p@@</td><td class="num">@@bn1_b@@</td><td class="num">@@bn1_f@@</td></tr>
+<tr><td class="num">2</td><td class="num">@@bn2_q@@</td><td class="num">@@bn2_p@@</td><td class="num">@@bn2_b@@</td><td class="num">@@bn2_f@@</td></tr>
+<tr><td class="num">3</td><td class="num">@@bn3_q@@</td><td class="num">@@bn3_p@@</td><td class="num">@@bn3_b@@</td><td class="num">@@bn3_f@@</td></tr>
+<tr><td class="num">4</td><td class="num">@@bn4_q@@</td><td class="num">@@bn4_p@@</td><td class="num">@@bn4_b@@</td><td class="num">@@bn4_f@@</td></tr>
+</tbody></table></div>
+<p>With one search the formula is exact by construction (two calls, <i>r</i> is their difference). The last column is the point of prompt caching: llama-server keeps the previous call's attention state (the KV cache) and only computes the new tokens, so on average @@prefilled_mean@@ of the @@billed_mean@@ billed tokens were computed. An API with prompt caching bills the cached part at a discount (the {{Long-context calculator|#t-arlong}} has the prices); it does not make each step's generation faster.</p>
+
+<h3>Budgets and stopping</h3>
+<p>The root's agent may search at most 4 times. What it did with that freedom, over the 200 questions (measured, from the recorded trajectories):</p>
+<ul>
+<li>It saw both gold paragraphs in @@b_until_both_n@@ trajectories: after the first search in @@b_found1@@, the second in @@b_found2@@, the third or fourth in @@b_found34@@. It searched again after already having both @@b_wasted_after_both@@ times.</li>
+<li>It <b>stopped too early</b> (answered without ever seeing the second gold paragraph) in @@b_stopped_missing@@ trajectories, @@b_stopped_missing_wrong@@ of them wrong. Stopping is a judgment the model makes from its own reading, and a small model is overconfident.</li>
+<li>It <b>repeated a query</b> in @@b_repeat@@ trajectories and used the whole budget in @@b_budget_hit@@ (the same trajectories, mostly: stuck loops that only the budget ended); @@b_noaction@@ times it wrote no parseable action at all.</li>
+</ul>
+<p>The root's table of F1 by number of calls makes the same point from the other side: questions the agent needed 4 or 5 calls for scored far worse than those it finished in 2 or 3. Long trajectories are mostly failing trajectories, so a tighter budget may cost little accuracy. Measured with budgets of 1, 2, 3 and 6: <span class="ar-pv">pending: run_pending.sh budgets</span>.</p>
+<div class="ar-pend" id="ar-pend-budget"></div>
+<p><b>How to check it on your system:</b> log every call's prompt tokens and every search's query and results; plot calls per question, and count repeated queries, unparseable steps and budget hits. They are cheap to compute and they find most loop bugs.</p>
+</section>
