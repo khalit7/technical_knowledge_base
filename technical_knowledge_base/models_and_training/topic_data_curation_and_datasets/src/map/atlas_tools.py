@@ -35,7 +35,7 @@ T = [
       src=[["README", GH + "allenai/datamap-rs"], ["Dolma 3 pool README", GH + "allenai/dolma3/blob/main/datasets/dolma3_mix/pools/9T/README.md"]]),
  dict(id="duplodocus", name="Duplodocus", layer="dedup", owner="Ai2", repo="allenai/duplodocus", lc="permissive", status="active",
       one="Ai2's Rust command-line tool for exact and MinHash deduplication of JSONL, used for Dolma 3.",
-      what="Exact hashing and MinHash with LSH, in memory or sharded (minhash-memory and mh- commands, README). Dolma 3 used FineWeb's MinHash parameters (5-grams of p50k tokens, 14 bands of 5) on its PDF data and a Jaccard check at 0.8 on web clusters.",
+      what="Exact hashing and MinHash with LSH, in memory or sharded (minhash-memory and mh- commands, README). For Dolma 3's web text: 5-grams, 26 bands of 11 hashes (286 in all) on 32 shards, then a true-Jaccard check at 0.8 inside each candidate cluster, keeping the most recent document (Dolma 3 pool README at commit 1a9daced). The same README's PDF section says it used 'the same parameters as FineWeb' with 14 bands of 5, which contradicts FineWeb's own 14 bands of 8.",
       used=["dolma3"], when="MinHash dedup of JSONL on one big machine or a few, without a Spark or Ray cluster.",
       avoid="Semantic (embedding) dedup: it does exact and MinHash only.", verdict="A fast, focused dedup tool; new (created November 2025).",
       src=[["README", GH + "allenai/duplodocus"], ["Dolma 3 pool README", GH + "allenai/dolma3/blob/main/datasets/dolma3_mix/pools/9T/README.md"]]),
