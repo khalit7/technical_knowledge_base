@@ -53,7 +53,7 @@ Verdicts: **verified** (re-read in a primary source, or reproduced by a measurem
 | 33 | Long context: every query pays for every token, prefill takes seconds, lost in the middle, no per-tenant filtering | verified | rd-s7 with measured prefill (9.3 s for 7,611 tokens, 1.7 B) and Liu et al. Table 6 values |
 | 34 | Proactive Memory Agent: Meta AI, Terminal-Bench 2.0 37.6% -> 45.9% for Sonnet 4.5, no retraining of the worker, selective reminding beats every-step | verified, with **corrections** carried from the paper page | rd-s7: arXiv 2607.08716 (July 2026, the paper itself, not The Batch's coverage); the 45.9% has Opus 4.6 as the memory agent |
 | 35 | JitMem: read-time curation; even an untrained curator beats the write-time methods | **corrected** | rd-s7: +16.2 ALFWorld over RL-trained SkillOS verified, but most of the headline gain comes from RL training of the curator; "untrained beats write-time" holds untrained-vs-untrained (15 of 17 cells), not for the headline (paper page) |
-| 36 | Cost table: agentic loop 3.3x input, 1.9x output, 1.5x latency, up to 3.6x cost (Ferrazzi et al. arXiv 2601.07711) | verified | rd-s7 (arXiv HTML v2 re-read 2026-10-14). Note: the paper's text says FEVER gap 28.8 points, its Table 3 gives 87.9 vs 64.6 = 23.3; its Table 9 averages give about 3.2x / 1.8x |
+| 36 | Cost table: agentic loop 3.3x input, 1.9x output, 1.5x latency, up to 3.6x cost (Ferrazzi et al. arXiv 2601.07711) | **corrected** (quoted from the table) | rd-s7 (arXiv HTML v2 re-read 2026-10-14): Table 9 ratios are 2.7 and 3.6x input (about 3.15x), 1.7 and 1.8x output (about 1.75x), about 1.5x time; the text's 3.3x / 1.9x do not match. The FEVER 64.6 vs 87.9 is user-intent (whether to retrieve) F1 in Table 3, not fact-verification accuracy; the old agentic page called it fact verification |
 | 37 | Input tokens grow quadratically with searches | verified (formula) | rd-s7 animation; reproduces the old agentic page's 18,000 and 52,500 |
 | 38 | Full GraphRAG: 500-page corpus, under $5 to embed, 45 min and $50 to $200 at GPT-4 pricing (Paperclipped) | unconfirmed, dropped | Paperclipped (2026-03-22) gives no corpus, method or pricing date; rd-s7 says so. Published instead: Edge et al., 281 min to index about 1 M tokens with gpt-4-turbo |
 | 39 | Long context illustrative: $3.009 uncached, $0.309 cached, vs $0.021 RAG (143x, 15x) | verified (arithmetic) | rd-s7 |
@@ -101,7 +101,7 @@ Verdicts: **verified** (re-read in a primary source, or reproduced by a measurem
 | Ladder naive / advanced / agentic; loop step by step | verified | rd-s7 |
 | Self-RAG reflection tokens; Adaptive-RAG classifier routes to none / single / multi-step | Adaptive-RAG verified (T5-Large, 54.52% classifier accuracy, 46.94 vs 48.85 F1, about 2.4x less time); Self-RAG unconfirmed here | rd-s7 |
 | Coding agents: grep plus file reading often beats embeddings | unconfirmed | not carried |
-| Ferrazzi et al. numbers | verified (row 36) | rd-s7 |
+| Ferrazzi et al. numbers; FEVER 64.6 vs 87.9 as "fact verification" | **corrected** (row 36): Table 9 ratios, and the FEVER figure is user-intent F1 | rd-s7 |
 | Token maths and worked example 18,000 / 52,500 | verified | rd-s7 animation |
 | GraphRAG steps; map-reduce with 0 to 100 helpfulness scores | steps verified; the 0 to 100 score unconfirmed here | rd-s7 |
 | Paperclipped GraphRAG and LightRAG costs | unconfirmed (row 38) | dropped |
@@ -117,4 +117,4 @@ Verdicts: **verified** (re-read in a primary source, or reproduced by a measurem
 
 ## 3. Further reading links
 
-All 57 links of the Further reading tab were opened on 2026-10-14: every external URL returned HTTP 200 with a browser user agent (the ACM DOI for the RRF paper returns 403 to scripts, so the authors' PDF at plg.uwaterloo.ca is linked instead; the LazyGraphRAG blog returns 403 to curl's default agent and 200 to a browser agent). Knowledge base links use ids from `pages.json`. Reading times for knowledge base pages are their Reading tab's words / 200; the three children not yet built (Embedding models, Agentic retrieval, GraphRAG) have no time yet.
+All 57 links of the Further reading tab were opened on 2026-10-14: every external URL returned HTTP 200 with a browser user agent (the ACM DOI for the RRF paper returns 403 to scripts, so the authors' PDF at plg.uwaterloo.ca is linked instead; the LazyGraphRAG blog returns 403 to curl's default agent and 200 to a browser agent). Knowledge base links use ids from `pages.json`. Reading times for knowledge base pages are their Reading tab's words / 200.
