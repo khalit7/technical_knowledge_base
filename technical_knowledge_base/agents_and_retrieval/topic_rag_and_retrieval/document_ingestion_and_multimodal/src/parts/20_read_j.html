@@ -1,0 +1,18 @@
+<section id="ing-s9">
+<h2>9. Skip the parser: retrieve the page image</h2>
+<p><b>The problem.</b> Everything so far converts a page to text and loses what text cannot hold: a chart's shape, an infographic's layout, a diagram's arrows. A <dfn>vision-language model</dfn> (VLM: a language model that also reads images, by turning the image into a grid of <dfn>patches</dfn>, small squares each encoded as a vector) can read the page as a picture. The idea of <dfn>page-image retrieval</dfn> is to embed the screenshot of each page and search those embeddings with the text query, with no parsing at all.</p>
+<h3>ColPali: late interaction over patches</h3>
+<p><a href="https://arxiv.org/abs/2407.01449" target="_blank" rel="noopener noreferrer">ColPali (Faysse et al., 2024)</a> takes PaliGemma-3B, a VLM, and keeps <b>one 128-dimension vector per image patch</b> instead of one vector per page: 1,024 patch vectors plus 6 for the text prompt, 1,030 per page (paper section 4.1 and footnote 10). A query is also kept as one vector per token. The score is <dfn>late interaction</dfn>, as in ColBERT: for each query token, take its best dot product with any patch, then sum over query tokens (MaxSim). A query token for "revenue" can match the patches of a bar label, and "2019" the patches of an axis tick, each on its own. The {{rerankers and late interaction page|n:3f85c17b0d0d813fba53fc883f8a2c8f}} owns MaxSim and ColBERT; this section is what changes when the "document tokens" are image patches.</p>
+<div class="fm"><div class="eq">score(q, page) = &sum;<sub>i &isin; query tokens</sub> max<sub>j &isin; patches</sub> q<sub>i</sub> &middot; p<sub>j</sub></div></div>
+<h3>What it costs</h3>
+<div class="tw"><table>
+<thead><tr><th>Per page</th><th class="num">Text chunk (BGE-M3, 1 vector)</th><th class="num">ColPali (1,030 vectors)</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>Storage</td><td class="num">8.6 KB</td><td class="num">257.5 KB</td><td>paper Table 4; 1,030 &times; 128 &times; 2 bytes = 263,680 B = 257.5 KiB</td></tr>
+<tr><td>Offline indexing, NVIDIA L4</td><td class="num">7.22 s (layout 0.81, OCR 2.67, captioning 3.71, encode 0.03)</td><td class="num">0.39 s</td><td>paper Table 5, the authors' runs</td></tr>
+<tr><td>Scoring</td><td class="num">1 dot product</td><td class="num">query tokens &times; 1,030 dot products</td><td>from the formula</td></tr>
+</tbody></table></div>
+<p>So the trade is about 18 times less indexing time per page (7.22 s against 0.39 s) for 30 times the vector storage (257.5 against 8.6 KB) and a heavier score. The paper's <dfn>token pooling</dfn> (mean-pooling similar patch vectors, pool factor 3) cuts the vectors by 66.7% and keeps 97.8% of the retrieval quality (paper section 5.2, the authors' runs). How to index many vectors per document (PLAID-style compression and candidate generation) belongs to the rerankers page.</p>
+<h3>Published results on ViDoRe</h3>
+<p><dfn>ViDoRe</dfn> (Visual Document Retrieval benchmark, from the same paper) pairs text queries with page images; the score is nDCG@5 (normalised discounted cumulative gain over the top five pages). In the paper's Table 2, ColPali averages 81.3 against 65.5 for <b>Unstructured + OCR + BM25</b> and 67.0 for the best text pipeline (<b>Unstructured + captions written by Claude 3 Sonnet + BGE-M3</b>). The gap is largest on figures (ArxivQA 79.1 against 31.6) and smallest on text-heavy reports (Energy 91.0 against 85.9). These are the ColPali authors' runs, not independent; section 10 reruns the comparison here with a small open model on three of those sets.</p>
+</section>
