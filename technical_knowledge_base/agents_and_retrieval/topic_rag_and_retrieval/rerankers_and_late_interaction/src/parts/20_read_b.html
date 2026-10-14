@@ -1,0 +1,58 @@
+
+<section id="rr-s2">
+<h2>2. Cross-encoders, read in the code</h2>
+<p><b>The architecture.</b> A BERT-style cross-encoder takes one sequence, <code>[CLS] query [SEP] document [SEP]</code>, with a <dfn>segment id</dfn> of 0 on the query part and 1 on the document part, runs it through the encoder (6 layers for MiniLM-L6, 24 for bge-reranker-v2-m3), takes the final vector of the <code>[CLS]</code> token, and maps it to one number with a small head. That number is the relevance <dfn>logit</dfn> (an unbounded score; higher means more relevant). This is exactly the 2019 recipe of <a href="https://arxiv.org/abs/1901.04085" target="_blank" rel="noopener noreferrer">Nogueira and Cho</a>: "we feed the query as sentence A and the passage text as sentence B", the query cut to 64 tokens and the pair to 512, and "the [CLS] vector as input to a single layer neural network". They reranked BM25's top 1,000 on MS MARCO and moved MRR@10 on the dev set from 16.7 (BM25) to 36.5 (BERT Large) (Table 1; <span class="pub">published, independent academic</span>, 2019).</p>
+<p class="small">What MiniLM sees for the pair above (the first 60 of @@be_ntok@@ tokens; segment 0 in blue). SciFact pairs average @@tok_ce@@ tokens, and @@trunc_ce@@% of them hit the 512 cap, losing the end of the abstract; Qwen3-Reranker's 1,024 cap cuts @@trunc_qw@@%.</p>
+<div class="card" id="rr-tokview"></div>
+<p class="rr-srch">transformers 5.19.0, <code>models/bert/modeling_bert.py</code>, lines 457-463 (BertPooler) and 1104-1107 (BertForSequenceClassification.forward)</p>
+<div class="rr-src">    def forward(self, hidden_states):
+        first_token_tensor = hidden_states[:, 0]            <span class="c"># the [CLS] position</span>
+        pooled_output = self.dense(first_token_tensor)       <span class="c"># 384 x 384 for MiniLM</span>
+        pooled_output = self.activation(pooled_output)       <span class="c"># tanh</span>
+        return pooled_output
+<span class="c">...</span>
+        pooled_output = outputs[1]
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)              <span class="c"># nn.Linear(hidden, num_labels=1)</span></div>
+<p>XLM-RoBERTa (inside bge-reranker-v2-m3) does the same with its own head (<code>modeling_xlm_roberta.py</code> lines 895-902: first token, dense, tanh, out_proj). The library around it is sentence-transformers' <code>CrossEncoder</code>. Three things in its code decide what the number you get back means.</p>
+<p class="rr-srch">sentence-transformers 6.1.0, <code>cross_encoder/model.py</code>, lines 245-274 (abridged)</p>
+<div class="rr-src">        if (... config.architectures[0].endswith("ForCausalLM")):      <span class="c"># a decoder LLM, e.g. Qwen3-Reranker</span>
+            transformer_model = Transformer(..., transformer_task="text-generation", ...)
+            true_token_id = transformer_model.tokenizer.convert_tokens_to_ids("yes")
+            false_token_id = transformer_model.tokenizer.convert_tokens_to_ids("no")
+            post_processing = LogitScore(true_token_id=true_token_id, false_token_id=false_token_id)
+            return [transformer_model, post_processing], {}
+        <span class="c"># Otherwise, assume sequence-classification</span>
+        transformer_model = Transformer(..., transformer_task="sequence-classification", ...)</div>
+<p class="rr-srch">same file, lines 704-736 (predict, abridged) and 425-426 (default activation)</p>
+<div class="rr-src">        activation_fn = activation_fn or self.activation_fn
+        length_sorted_idx = np.argsort([-self._input_length(pair) for pair in inputs])  <span class="c"># longest first: little padding</span>
+        ...
+                scores = activation_fn(scores)
+        pred_scores = [pred_scores[idx] for idx in np.argsort(length_sorted_idx)]       <span class="c"># back to input order</span>
+<span class="c">...</span>
+        if self.num_labels == 1:
+            return nn.Sigmoid()          <span class="c"># used only when the model's config names no activation</span></div>
+<ul>
+<li><b>Length sorting.</b> <code>predict</code> sorts pairs by length before batching, so a batch of 16 pads to similar lengths; the measured pairs/s depend on it.</li>
+<li><b>The activation.</b> ms-marco-MiniLM-L6-v2's config sets <code>Identity</code>, so it returns raw logits (here from @@raw_ce_lo@@ to @@raw_ce_hi@@). bge-reranker-v2-m3's config names none and has one label, so the library applies <code>Sigmoid</code> and returns a probability-shaped number in 0 to 1. Same function, same call, two different scales.</li>
+<li><b>Decoder rerankers.</b> A causal language model is turned into a reranker by reading the next-token logits at the last position and returning <code>logit("yes") - logit("no")</code> (section 6).</li>
+</ul>
+<p><b>How to check it.</b> The script <code>e_ce_manual.py</code> scores ten real pairs four ways on CPU: <code>CrossEncoder.predict</code>, the transformers model, the three lines above written out by hand, and the score the setup recorded on the GPU. All four agree to within @@ce_check_diff@@ on every pair (scores from @@ce_check_lo@@ to @@ce_check_hi@@). <span class="meas">measured here</span></p>
+</section>
+
+<section id="rr-s3">
+<h2>3. How cross-encoders are trained</h2>
+<p><b>The data.</b> Almost every open English reranker starts from <dfn>MS MARCO</dfn> passage ranking: 8,841,823 passages from Bing results and 1,010,916 anonymised questions (<a href="https://arxiv.org/abs/1611.09268" target="_blank" rel="noopener noreferrer">Bajaj et al., v3</a>), with 532,761 training relevance labels and official training triples (query, positive, negative): 39,780,811 in the small file (<a href="https://microsoft.github.io/msmarco/Datasets.html" target="_blank" rel="noopener noreferrer">dataset page</a>, read 2026-10-14). Labels are sparse: usually one marked passage per question, so many "negatives" are relevant passages nobody marked (<dfn>false negatives</dfn>).</p>
+<p><b>Three losses, in the order they appeared.</b></p>
+<ol>
+<li><b>Pointwise</b>: binary cross-entropy on each (query, passage, label), as Nogueira and Cho did: the model learns "is this passage relevant", one pair at a time.</li>
+<li><b>Hard negatives</b>: negatives taken from a retriever's top results (BM25's top 1,000 in 2019, a dense retriever's later) rather than at random. A random abstract about cardiology is trivially irrelevant to a claim about MDA5; the abstract about RIG-I signalling that mentions MDA5 but does not support the claim is what the model must learn to rank second.</li>
+<li><b>Distillation</b> (section 7): the student learns a stronger teacher's scores instead of 0/1 labels. The sentence-transformers MS MARCO cross-encoders were trained this way: "we use knowledge distillation with a small & fast model and learn the logits scores from the teacher ensemble" (BERT-base, BERT-large, ALBERT-large, from <a href="https://arxiv.org/abs/2010.02666" target="_blank" rel="noopener noreferrer">Hofst&auml;tter et al., 2020</a>); the training script's loss is a pointwise mean squared error on the ensemble's logits (<code>examples/training/ms_marco/train_cross-encoder_kd.py</code> in sentence-transformers v2.2.2). The model card itself only says it "was trained on the MS Marco Passage Ranking task", so which script produced the released checkpoint is not stated: unconfirmed.</li>
+</ol>
+<p>The model card's own table (<span class="pub">published, vendor</span>, read 2026-10-14) shows the size trade: MiniLM-L6-v2 74.30 nDCG@10 on TREC DL 2019 and 39.01 MRR@10 on MS MARCO dev at 1,800 documents/s on a V100, against 74.31 and 39.02 at 960 documents/s for the 12-layer version: half the layers cost nothing measurable there.</p>
+<h3>A tiny real run: does in-domain training help, and do hard negatives matter?</h3>
+<p>Fine-tuning that same MS MARCO cross-encoder on SciFact's @@tr_claims@@ <i>training</i> claims, one epoch, binary cross-entropy, 1 relevant : 7 negatives per claim, then reranking the 300 <i>test</i> claims' top 30. <span class="meas">measured here</span> on MPS, bench lock, 2 seeds each (<code>e_train.py</code>); labelled tiny: one learning rate, one epoch.</p>
+<div class="card" id="rr-train"></div>
+<p class="small mute" id="rr-train-note">@@tr_note@@</p>
+</section>

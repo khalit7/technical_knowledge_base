@@ -3556,3 +3556,31 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | R3 | Sharding simulator (fan-out, tail latency) | 6 | | rejected | Would rest on assumed latency distributions; the Tail at Scale arithmetic is stated in prose instead. |
 | R4 | Content-hash change detection animation | 6 | | rejected | Owned by the ingestion page's Re-indexing lab; linked. |
 | R5 | Freshness lag measured in Qdrant with wait=false | 4 | | rejected | A small-collection timing on Docker for Mac would mostly measure the VM; docs quoted instead. |
+
+### Rerankers and late interaction: cross-encoders, ColBERT, LLM rerankers (2026-10-14)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_rag_and_retrieval/rerankers_and_late_interaction/src/viz_ideas.md`.
+
+| # | Idea | Placement | Score (quantity moves / reproduces a figure / computable / beyond a sentence / corrects a misconception / animation) | Data |
+|---|---|---|---|---|
+| 1 | **Bi-encoder vs cross-encoder on the same real pair, animated** (claim 1180): separate encodings and one dot product, against one concatenated input with the cross-encoder's real last-layer attention lines and its [CLS] head; counters for model passes and tokens; the candidate list rescored both ways (rank 7 becomes rank 1) | Reading 1 | 2/1/2/2/1/2 = 10 | e_ce_manual.py (real attention, scores recomputed by hand equal to the recorded ones) |
+| 2 | **Rerank before/after lab**: a real top-30 list per claim, first stage x reranker x K, rows slide to their new places, the K cut-line, per-claim nDCG before and after | Own tab | 2/0/2/2/2/2 = 10 | e_examples.py; claims chosen by written rules (rescued, hurt, disagreement, ceiling, multi-relevant) |
+| 3 | **MaxSim lab**: every claim token scans the abstract's token vectors (shading = real dot products), its maximum outlined, running sum; toggle against the single-vector cosine; toggle the [MASK] expansion tokens | Own tab | 2/0/2/2/1/2 = 9 | e_maxsim_pair.py (stored vectors, re-encoding check 0.9999) |
+| 4 | **Depth chart** nDCG@10 against K with first-stage recall@K as the ceiling, three cross-encoders plus ColBERT, per first stage | Reading 4 | 2/2 (60 cells equal the root's sweep, BEIR BM25+CE 0.688)/2/2/2/0 = 10 | e_depth.py, e_rerank_deep.py |
+| 5 | **Depth chooser**: quality against measured per-claim time, with a hardware slider that rescales by FLOPs per pair | Own tab | 2/0/2/2/1/0 = 7 | e_time.py, e_tokens.py |
+| 6 | **Score distributions and reliability bins**, one model at a time on the logit scale | Reading 5 | 1/0/2/2/2/0 = 7 | e_scores.py |
+| 7 | **Abstention**: AUROC bars for five signals and a threshold slider (answered vs abstained) on a constructed "nothing relevant" set | Reading 5 | 2/0/2/2/2/0 = 8 | e_scores.py |
+| 8 | **Listwise sliding window, animated** on one real claim with the model's real outputs | Reading 6 | 1/0/2/2/1/2 = 8 | e_llm.py, e_llm_eval.py |
+| 9 | LLM reranker table (pointwise, pairwise, listwise with Qwen3-4B against trained rerankers: quality, calls, tokens, seconds) | Reading 6 | 1/0/2/1/2/0 = 6 | e_llm_eval.py |
+| 10 | ColBERT as first stage or reranker (K sweep per first stage, exhaustive line) | Reading 8 | 1/1 (model card 0.748 vs 0.743)/2/1/1/0 = 6 | e_colbert.py |
+| 11 | PLAID grid: probes x candidates fully scored, nDCG and top-10 overlap, 2 vs 4 bits | Reading 9 | 2/0/2/1/1/0 = 6 | e_plaid.py |
+| 12 | Tiny training run table (zero-shot vs random vs hard negatives, 2 seeds) | Reading 3 | 1/0/2/1/1/0 = 5 | e_train.py |
+| Idea | Why not |
+|---|---|
+| A funnel animation of one claim through retrieval, fusion and reranking | The root's Pipeline lab owns it (claim 70); this page links it |
+| ColPali patch-level MaxSim | The ingestion page owns page-image retrieval; linked |
+| Attention heat map of all 6 layers x 12 heads | Diffuse and hard to read; the mean of the last layer with the two strongest targets per token tells the same story in the animation |
+| A cost-per-query calculator with hosted reranker prices | Cohere's price page could not be read from here; the RAG in production page owns cost per query |
+| Training-loss curves of the tiny run | One epoch, a few hundred steps: the table of results says more than a noisy curve |
+| Big rerankers at K = 100 on BM25 and dense lists | About 36,000 more pairs (2 to 3 hours on MPS) to repeat what the hybrid list already shows |
+| PLAID timing on 5,183 abstracts | Exhaustive MaxSim already takes milliseconds at this size; a timing would measure overhead, not PLAID's benefit, which needs millions of passages |
