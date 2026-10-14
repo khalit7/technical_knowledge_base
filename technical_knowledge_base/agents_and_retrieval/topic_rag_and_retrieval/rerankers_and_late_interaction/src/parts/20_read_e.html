@@ -1,0 +1,48 @@
+
+<section id="rr-s8">
+<h2>8. Late interaction: ColBERT and MaxSim</h2>
+<p><b>The idea.</b> A bi-encoder squeezes a document into one vector; a cross-encoder reads query and document together and precomputes nothing. <dfn>Late interaction</dfn> keeps the document side precomputable but much richer: the encoder outputs <b>one small vector per token</b>, stored offline, and the query and document only "interact" at the end, through a cheap score. <a href="https://arxiv.org/abs/2004.12832" target="_blank" rel="noopener noreferrer">ColBERT (Khattab and Zaharia, 2020)</a> defines that score as <dfn>MaxSim</dfn>: for each query token, take its highest dot product with any document token, then add those maxima up.</p>
+<div class="fm"><div class="eq">score(q, d) = &sum;<sub>i &isin; query tokens</sub> max<sub>j &isin; document tokens</sub> q<sub>i</sub> &middot; d<sub>j</sub></div></div>
+<p>Each query token looks for its own best match: "md ##a ##5" in claim 1180 finds the same three word pieces in the abstract (similarities @@ms_md@@), "sensor" finds "sensing" (@@ms_sensor@@), "rna", "virus" and "infection" find themselves. Watch it token by token, against the single-vector cosine on the same pair, in the {{MaxSim lab|#t-rrmax}} tab.</p>
+<p class="rr-srch">pylate 1.6.0, <code>scores/colbert.py</code>, lines 189-200 (the plain torch path)</p>
+<div class="rr-src">    scores = torch.einsum("ash,bth->abst", queries_embeddings, documents_embeddings)   <span class="c"># every query token x every doc token</span>
+    if queries_mask is not None:
+        scores = scores * queries_mask.unsqueeze(1).unsqueeze(3)
+    if documents_mask is not None:
+        scores = scores * documents_mask.unsqueeze(0).unsqueeze(2)
+    scores = scores.max(axis=-1).values.sum(axis=-1)                                    <span class="c"># max over doc tokens, sum over query tokens</span></div>
+<p><b>Three details that matter</b>, all from the paper and visible in pylate's <code>models/colbert.py</code>:</p>
+<ul>
+<li><b>Markers.</b> A query starts <code>[CLS] [Q]</code>, a document <code>[CLS] [D]</code> (here the unused vocabulary slots <code>[unused0]</code> and <code>[unused1]</code>), so one encoder can embed both differently.</li>
+<li><b>Query augmentation.</b> Queries are padded with <code>[MASK]</code> tokens to a fixed 32 (pylate sets the pad token to the mask token, lines 411-412, and pads queries to <code>max_length</code>, lines 1173-1178). The [MASK] vectors are kept and scored like real tokens: a learned soft query expansion. SciFact claims have @@q_real@@ real tokens on average, so about @@q_mask_pct@@% of each query is [MASK]. Measured here: dropping them at search time moves nDCG@10 from @@cb_all@@ to @@cb_real@@, and they contribute @@mask_share@@% of the top abstract's score. Most of that share is nearly the same for every abstract (they all match the document's [CLS] at about 0.97), which is why MaxSim totals sit close together (30.25 to 30.91 for claim 1180's top 10) and the ranking is decided by the real tokens.</li>
+<li><b>Punctuation.</b> Document vectors for punctuation are dropped (the skiplist mask, lines 750-757), so an abstract stores fewer vectors than it has tokens.</li>
+</ul>
+<h3>What it costs: storage and compute</h3>
+<div class="tw"><table>
+<thead><tr><th>SciFact, 5,183 abstracts</th><th class="num">Vectors</th><th class="num">Bytes per abstract</th><th class="num">Corpus</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>bge-small, one 384-d float32 vector</td><td class="num">5,183</td><td class="num">1,536</td><td class="num">@@sz_bge_mb@@ MB</td><td>384 &times; 4</td></tr>
+<tr><td>Qwen3-Embedding, one 1,024-d float32 vector</td><td class="num">5,183</td><td class="num">4,096</td><td class="num">@@sz_qw_mb@@ MB</td><td>1,024 &times; 4</td></tr>
+<tr><td>ColBERT-small, 96-d float16 per token</td><td class="num">@@cb_ntok@@</td><td class="num">@@cb_bytes_doc@@</td><td class="num">@@sz_cb_mb@@ MB</td><td><span class="meas">measured here</span>: @@cb_tok_mean@@ vectors per abstract &times; 192 bytes</td></tr>
+<tr><td>ColBERT-small in a PLAID index, 2 bits per dimension</td><td class="num">@@cb_ntok@@</td><td class="num">@@pl2_doc@@</td><td class="num">@@pl2_mb@@ MB</td><td><span class="meas">measured here</span> (section 9)</td></tr>
+</tbody></table></div>
+<p>Compute is the other way round. MaxSim for one abstract is 32 &times; @@cb_tok_mean_r@@ &times; 96 multiply-adds, about @@ms_mflop@@ MFLOP; the MiniLM cross-encoder spends @@gf_ce@@ GFLOP on the same pair, @@ce_vs_ms@@ times more. The ColBERT paper reports the same shape on MS MARCO: reranking BERT-base's 1,000 candidates took 10,700 ms and 97 TFLOP per query, ColBERT 61 ms and 7 GFLOP (Table 1, a 13,900-fold FLOP reduction; <span class="pub">published, academic, 2020</span>). Measured here on one CPU thread, MaxSim over the hybrid top 100 takes @@t_ms100@@ ms per claim, and over all 5,183 abstracts the setup measured 62 ms per claim on the GPU.</p>
+<h3>ColBERT as a first stage or as a reranker</h3>
+<p>Because document vectors are precomputed, ColBERT can do both. Measured on SciFact (<code>e_colbert.py</code>, stored vectors):</p>
+<div class="card" id="rr-cb-card"><div class="rr-chart" id="rr-cb-svg"></div>
+<p class="small mute">nDCG@10, 300 test claims. Exhaustive = MaxSim against every abstract (no index; recomputed in float32 from the stored float16 vectors: @@cb_all@@, the setup's GPU run @@cb_ndcg@@). Rerank = MaxSim over a first stage's top K. <span class="meas">measured here</span></p></div>
+<p>Reranking BM25's top 100 with MaxSim (@@cb_rr_bm100@@) matches exhaustive late interaction (@@cb_all@@), because BM25's top 100 already holds @@bm25_rec100@@ of the relevant abstracts; reranking the hybrid top 20 is the best ColBERT setting here (@@cb_rr_hy20@@), and the cross-encoder Qwen3-Reranker still beats it (@@hy_qw_k20@@). As a first stage ColBERT-small (@@cb_ndcg@@, 33 M parameters) beats Qwen3-Embedding-0.6B (@@de_ndcg@@) on this set; the price is the @@cb_x_bge@@-fold storage above, and an index built for many vectors per document: section 9.</p>
+</section>
+
+<section id="rr-s9">
+<h2>9. PLAID: compressing and searching token vectors</h2>
+<p><b>The problem.</b> One vector per token multiplies storage by the number of tokens (@@cb_tok_mean_r@@ here), and exhaustive MaxSim reads all of them. <a href="https://arxiv.org/abs/2112.01488" target="_blank" rel="noopener noreferrer">ColBERTv2</a> compresses each token vector as <b>the id of its nearest k-means centroid plus the residual</b> (vector minus centroid) quantised to 1 or 2 bits per dimension: "this total of 20 or 36 bytes per vector" at 128 dimensions against 256 bytes in float16, a 6 to 10 times smaller index. <a href="https://arxiv.org/abs/2205.09707" target="_blank" rel="noopener noreferrer">PLAID</a> then searches without decompressing everything: (1) each query token picks its nearest centroids and the documents with tokens in them become candidates; (2) and (3) candidates are scored with <dfn>centroid interaction</dfn>, MaxSim with every token replaced by its centroid, pruning centroids that score low for every query token; (4) only the survivors are decompressed and scored exactly. PLAID's Table 3 reports 39.8 MRR@10 on MS MARCO at k = 100 in 222 ms on one CPU core and 20 ms on a GPU, against 4,569 ms on 8 cores for vanilla ColBERTv2 (<span class="pub">published, academic, 2022</span>).</p>
+<p>Measured here with fast-plaid 1.4.6 (the PLAID engine pylate uses) on the stored SciFact vectors, CPU, seed 42 (<code>e_plaid.py</code>):</p>
+<div class="card" id="rr-pl-card">
+<div class="seg" id="rr-pl-nb"><button data-m="2" class="on">2 bits per dimension</button><button data-m="4">4 bits</button></div>
+<div class="rr-chart" id="rr-pl-svg"></div>
+<div class="small" id="rr-pl-txt"></div>
+<p class="small mute">Rows: centroids probed per query token (n_ivf_probe); columns: candidates decompressed and fully scored (n_full_scores). Cell: nDCG@10 and the share of the exhaustive top 10 recovered. Index: @@pl_cent@@ centroids of 96 dimensions (fast-plaid picks 2<sup>floor(log2(16 &radic;tokens))</sup>). <span class="meas">measured here</span></p>
+</div>
+<p><b>What it shows.</b> The quality cost of compression is small: nDCG@10 @@pl2_best@@ at 2 bits and @@pl4_best@@ at 4 bits against @@cb_all@@ exhaustive, though only @@pl2_ov@@% (2 bits) and @@pl4_ov@@% (4 bits) of the exact top 10 are reproduced exactly. Of the two search knobs, the number of candidates fully scored is the one that matters here: with @@pl_full_lo@@, nDCG@10 drops to @@pl2_lo@@ and only @@pl2_lo_ov@@% of the exact top 10 survive; from @@pl_full_hi@@ on it is back. The number of centroids probed barely matters on 5,183 abstracts, because even one centroid per query token, times 32 query tokens, already reaches most of the relevant candidates; on millions of passages it does. Storage per token falls from 192 bytes to @@pl2_tok@@ bytes of residual codes plus a centroid id (fast-plaid stores the id as an 8-byte integer; ColBERTv2's paper counts 4 bytes): @@pl2_mb@@ MB for the corpus with centroids and inverted lists, @@pl2_x@@ times less than float16. fast-plaid also keeps a merged second copy of codes and residuals for search, so its folder is @@pl2_disk_mb@@ MB. On 5,183 abstracts none of this is needed (exhaustive MaxSim is already fast); PLAID is for millions of passages. ColPali applies the same machinery to page-image patches: see the {{ingestion page's ColPali section|n:3f85c17b0d0d81279079f614f382f2e7}}.</p>
+</section>
