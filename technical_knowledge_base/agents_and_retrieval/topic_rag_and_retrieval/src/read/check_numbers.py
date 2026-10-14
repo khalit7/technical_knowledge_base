@@ -66,10 +66,29 @@ key += [(f"by {vs['diff']:.3f} F1 (paired over the same questions, 95% interval 
         (f"{round(S['react']['tok_in']):,} {round(S['react']['tok_in_new']):,} newly computed", True), (f"{S['react']['searches']:.2f}", True),
         (f"bills {round(ST['2']['tok_in']):,} input tokens, one that uses all five {round(ST['5']['tok_in']):,}", True),
         (f"{ST['5']['n']} questions used all four searches and score F1 {ST['5']['f1']:.2f}, against {ST['3']['f1']:.3f} for the {ST['3']['n']}", True),
-        ("F1 " + f"{P4['f1'][0]:.3f} with them first, {P4['f1'][1]:.3f} at positions 5 and 6, {P4['f1'][2]:.3f} at 10 and 11, then {P4['f1'][3]:.3f} and {P4['f1'][4]:.3f}", True),
+        ("Qwen3-4B " + ", ".join(f"{x:.3f}" for x in P4['f1']), True),
         (f"from {G['index']['paragraphs']} HotpotQA paragraphs ({G['index']['corpus_tokens']:,} tokens of text): {G['index']['tok_in'] + G['index']['tok_out']:,} generator tokens", True),
         (f"top 3 for {G['local']['graph']['3']} of the first {G['local']['n_q']} test questions against {G['local']['dense']['3']}", G['local']['graph']['2'] == G['local']['dense']['2'] and G['local']['graph']['5'] == G['local']['dense']['5']),
         (f"cost {G['global'][0]['graph']['calls']} model calls", True)]
+S1 = json.load(open(os.path.join(SRC, "agent/out/strategies.json")))["1.7b"]
+P1 = json.load(open(os.path.join(SRC, "agent/out/position.json")))["1.7b"]
+RT = json.load(open(os.path.join(SRC, "agent/out/router.json")))
+OLD = json.load(open(os.path.join(SRC, "agent/out/strategies_s2prompt.json")))["test_1.7b_single_k5"]
+v1 = S1["react"]["vs_single"]; lc = S1["longctx"]["vs_single"]
+key += [(f"The loop ({S1['react']['f1']:.3f}) is level with the single search ({S1['single_k5']['f1']:.3f}; paired +{v1['diff']:.3f}, 95% interval -{abs(v1['ci'][0]):.3f} to +{v1['ci'][1]:.3f}, better on {v1['wins']}, worse on {v1['losses']})".replace("-", "\u2212"), True),
+        (f"top 10 scores {S1['single_k10']['f1']:.3f} and the question's own 10 paragraphs {S1['longctx']['f1']:.3f} (+{lc['diff']:.3f} over top 5, interval {lc['ci'][0]:.3f} to {lc['ci'][1]:.3f})", True),
+        (f"window hurts ({S1['longctx_tokens8000']['f1']:.3f}), and decomposition hurts too ({S1['decomp']['f1']:.3f})", True),
+        (f"0.193 {S1['closed']['f1']:.3f}", S["closed"]["f1"] == 0.193),
+        (f"Qwen3-1.7B scores F1 {P1['f1'][0]:.3f} with them first, {P1['f1'][1]:.3f} at positions 5 and 6, {P1['f1'][2]:.3f} at 10 and 11 and at 15 and 16, and {P1['f1'][4]:.3f} at the end", P1['f1'][2] == P1['f1'][3]),
+        (f"first against middle +{P1['first_vs_middle']['diff']:.3f}, interval {P1['first_vs_middle']['ci'][0]:.3f} to {P1['first_vs_middle']['ci'][1]:.3f}", True),
+        (f"first against middle +{P4['first_vs_middle']['diff']:.3f})", True),
+        (f"always the pipeline scores F1 {RT['always pipeline']['f1']:.3f}, always the agent {RT['always agent']['f1']:.3f}", True),
+        (f"({round(RT['router: embed-LR']['accuracy']*100)}% routing accuracy) {RT['router: embed-LR']['f1']:.3f}", True),
+        (f"multi-hop questions to the agent {RT['oracle router']['f1']:.3f}", True),
+        (f"({RT['oracle router']['f1_multi']:.3f} against {RT['always pipeline']['f1_multi']:.3f})", True),
+        (f"sent only {RT['router: llm']['to_agent']} questions to the agent and scored {RT['router: llm']['f1']:.3f}", True),
+        (f"to {OLD['yesno_wrong']} of 200", True), (f"F1 {OLD['f1']:.3f}", True),
+        ("3.5 times the tokens", round(RT['always agent']['tok'] / RT['always pipeline']['tok'], 1) == 3.5)]
 for s, ok in key:
     if s not in read_txt or not ok: bad.append("prose/data mismatch: " + s)
 # latency numbers appear in the note strings built by JS; check the inputs instead
