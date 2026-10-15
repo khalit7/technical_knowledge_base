@@ -54,7 +54,14 @@ for s in ("single_k2", "single_k5", "single_k10", "longctx", "longctx_tokens8000
     R = O["res"][s]
     acc[s] = {"f1": A.r3(np.mean(R["f1"])), "tok": round(float(np.mean(R["tok"])), 1), "sec": A.r3(np.mean(R["sec"])),
               "both": int(sum(1 for x in R["seen"] if x == 2))}
-res = {"n_calls": len(recs), "n_train": int(train.sum()), "n_test": int(test.sum()), "coef": [round(float(x), 5) for x in coef],
+# out-of-range check: this page's lost-in-the-middle calls with more than 8,500 new tokens (beyond the fit's range)
+ext = [r for r in A.jl(A.L.path("ar", "gen", "1.7b_lim.jsonl")) if (r.get("n_in_new") or 0) > 8500 and r.get("prompt_ms")]
+ex_err = [abs((coef[0] + coef[1] * r["n_in_new"] + coef[2] * r["n_in_new"] * (r["n_in"] - r["n_in_new"] / 2) / 1000) - r["prompt_ms"]) / r["prompt_ms"] for r in ext]
+ext_pts = [[r["n_in_new"], r["n_in"], round(r["prompt_ms"], 1)] for r in sorted(ext, key=lambda r: r["key"])[:40]]
+res = {"ext_n": len(ext), "ext_mape": A.r3(np.mean(ex_err)) if ext else None, "ext_max_ctx": max((r["n_in"] for r in ext), default=None),
+       "ext_mean_ms": round(float(np.mean([r["prompt_ms"] for r in ext])), 0) if ext else None,
+       "ext_mean_new": round(float(np.mean([r["n_in_new"] for r in ext])), 0) if ext else None, "ext_pts": ext_pts,
+       "n_calls": len(recs), "n_train": int(train.sum()), "n_test": int(test.sum()), "coef": [round(float(x), 5) for x in coef],
        "mape_test": A.r3(mape), "mape_test_big": A.r3(mape_big) if mape_big is not None else None, "n_big": int(big.sum()),
        "max_ctx": int(n_ctx.max()), "max_new": int(n_new.max()),
        "decode_coef": [round(float(x), 4) for x in dcoef], "n_decode": len(D), "pts": pts, "cfg": cfg, "acc": acc}
