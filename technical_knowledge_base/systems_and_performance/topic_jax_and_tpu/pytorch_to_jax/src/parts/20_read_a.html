@@ -1,0 +1,54 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" id="rd-nav"><a href="#s-one">In one screen</a><a href="#s-tr">1 Translation</a><a href="#s-def">2 Defaults</a><a href="#s-conv">3 Weights</a><a href="#s-eq">4 Equivalence test</a><a href="#s-drift">5 Drift</a><a href="#s-hf">6 Hugging Face</a><a href="#s-io">7 Interop</a><a href="#s-when">8 When not to port</a><a href="#s-mist">Mistakes</a><a href="#s-iq">Interview</a></nav>
+
+<section id="s-one">
+<p class="lead">You know PyTorch; you need a model in JAX. This page ports one, the running example of {{Topic: jax-and-tpu|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} (a 4-layer character transformer, <span data-k="root.n_params" data-f="int"></span> parameters), and treats the port as an engineering problem with a test, not a translation exercise. The root's <b>Training lab</b> showed the port's panes and seven pitfalls; this page goes further: every default that differs, measured alone; weights converted both ways through a file; a test that tells a rounding difference from a bug; a real Hugging Face model (GPT-2) ported by hand; and the ways to avoid porting at all.</p>
+
+<div class="co key"><div class="t">The whole method in five lines</div>
+<b>1. Translate</b> the code (modules become pure functions or NNX modules, the optimiser becomes an optax chain, the loop becomes one jitted step). <b>2. Set every default explicitly</b> on both sides, because a dozen of them differ silently. <b>3. Copy the weights</b> by a rule (rename, transpose <code>[out, in]</code> to <code>[in, out]</code>), never by hand. <b>4. Climb the ladder</b> on one fixed batch: logits, loss, gradients, one optimiser step, then curves; stop at the first rung that fails. <b>5. Judge the drift</b>: in float32 two correct ports separate slowly anyway; in float64 they should not.</div>
+
+<svg id="pj-map" role="img" aria-label="The port as five stages: translate, set defaults, convert weights, ladder test, train and judge drift; each stage names the page section and tab that covers it."></svg>
+<div class="pj-cap">The page in one picture. Click a stage to jump to its section.</div>
+
+<h3>What the case study measured</h3>
+<div class="pj-cnt" id="pj-one-stats"></div>
+<div class="pj-cap">All measured on Apple M1 Pro (CPU) with the scripts in this page's <code>src/runs/</code>; the 4,000-step figures are the root Training lab's run (<code>src/train/out/twin_long.json</code>), cited, not rerun.</div>
+
+<h3>The words this page uses</h3>
+<div class="tw"><table class="pj-t">
+<thead><tr><th>Term</th><th>Meaning here</th><th>PyTorch counterpart</th></tr></thead>
+<tbody>
+<tr><td>twin</td><td>the same model written in both frameworks, started from identical weights and fed identical batches</td><td>(none: a testing set-up)</td></tr>
+<tr><td>pytree</td><td>a nested container (dicts, lists, tuples, dataclasses) whose leaves are arrays; JAX's parameters live in one</td><td><code>state_dict()</code>, flattened</td></tr>
+<tr><td>Flax NNX module</td><td>a Python object holding <code>nnx.Param</code> variables, written like an <code>nn.Module</code>; <code>nnx.split</code> turns it into a pytree for jit</td><td><code>nn.Module</code></td></tr>
+<tr><td>optax chain</td><td>an optimiser built from pure gradient transformations (<code>clip</code>, <code>adamw</code>, ...), applied in order</td><td><code>torch.optim.AdamW</code> plus <code>clip_grad_norm_</code></td></tr>
+<tr><td>rung</td><td>one comparison in the equivalence test: logits, loss, gradients, one step, curves</td><td>(none)</td></tr>
+<tr><td>ulp</td><td>unit in the last place: the gap between a float and the next one; float32 has about 7 decimal digits, so 1 ulp at 4.2 is <span data-k="ladder.correct_float32.loss0" data-f="s2"></span></td><td>same</td></tr>
+<tr><td>safetensors</td><td>a flat file of named tensors with a JSON header; readable from torch, numpy and JAX without pickle</td><td><code>torch.save</code> (pickle)</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="s-tr">
+<h2>1. The translation, line by line</h2>
+<p><b>The problem.</b> A PyTorch training script mixes four things that JAX keeps apart: the model's arithmetic, its state (weights), the optimiser's state, and the random generator. JAX wants the arithmetic as a <b>pure function</b> (output depends only on inputs; no hidden state changes), so that <code>jax.jit</code> can trace it once into a program and <code>jax.grad</code> can differentiate it. Every row below is that one idea applied to one part of the script.</p>
+<p><b>How it works.</b> The table walks the ten parts of a training script. The middle column is Flax NNX (closest to PyTorch: objects with state), the right one plain JAX plus optax (state passed explicitly). Both are the root's real files, <code>src/data/model_nnx.py</code> and <code>model_jax.py</code>; the root's <b>Training lab</b>, section 3, shows them as linked panes ({{Topic: jax-and-tpu|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}}, tab Training lab).</p>
+<div class="tw"><table class="pj-t" id="pj-trtab">
+<thead><tr><th>Part</th><th>PyTorch</th><th>Flax NNX</th><th>plain JAX + optax</th><th>What changes</th></tr></thead>
+<tbody>
+<tr><td>Module</td><td class="mono">class Block(nn.Module)</td><td class="mono">class Block(nnx.Module)</td><td class="mono">def block(p, x, cfg)</td><td>NNX keeps the object; plain JAX makes parameters an argument (a pytree)</td></tr>
+<tr><td>Layers</td><td class="mono">nn.Linear(d, f)</td><td class="mono">nnx.Linear(d, f, rngs=rngs)</td><td class="mono">x @ p["w"] + p["b"]</td><td>weight stored <code>[in, out]</code>, not <code>[out, in]</code>; a random-key stream is passed in at construction</td></tr>
+<tr><td>Init</td><td class="mono">nn.init.normal_(p, 0, .02)</td><td class="mono">kernel_init=normal(.02)</td><td class="mono">.02 * jax.random.normal(key, shape)</td><td>every default initialiser differs (section 2); explicit keys instead of a global seed</td></tr>
+<tr><td>Forward</td><td class="mono">def forward(self, x)</td><td class="mono">def __call__(self, x)</td><td class="mono">apply(params, idx, cfg)</td><td>no in-place ops (<code>x.at[i].set(v)</code>); <code>.transpose</code> takes a full permutation; masks as <code>jnp.where</code></td></tr>
+<tr><td>Loss</td><td class="mono">F.cross_entropy(lg, y)</td><td colspan="2" class="mono">optax.softmax_cross_entropy_with_integer_labels(lg, y).mean()</td><td>per-example losses, you reduce; no <code>ignore_index</code></td></tr>
+<tr><td>Gradients</td><td class="mono">loss.backward()</td><td class="mono">nnx.value_and_grad(loss_fn)(model, x, y)</td><td class="mono">jax.value_and_grad(loss_fn)(params, x, y)</td><td>gradients are returned, not accumulated in <code>.grad</code>: nothing to zero</td></tr>
+<tr><td>Optimiser</td><td class="mono">AdamW(groups, ...); clip_grad_norm_</td><td class="mono">nnx.Optimizer(model, tx, wrt=nnx.Param)</td><td class="mono">tx = optax.chain(clip, adamw(mask=...))</td><td>weight-decay groups become a <b>mask</b> pytree; clipping is a link in the chain, and order matters</td></tr>
+<tr><td>Schedule</td><td class="mono">LambdaLR(opt, f)</td><td colspan="2" class="mono">adamw(learning_rate=lambda count: ...)</td><td>a function of the update count, starting at 0; no <code>sched.step()</code></td></tr>
+<tr><td>Data</td><td class="mono">DataLoader(ds, shuffle=True)</td><td colspan="2" class="mono">numpy batches (here), or grain</td><td>host-side numpy arrays; the root's twins share one framework-free batch function</td></tr>
+<tr><td>Train step</td><td class="mono">zero_grad, backward, step</td><td class="mono">@nnx.jit train_step(model, opt, x, y)</td><td class="mono">jax.jit(train_step, donate_argnums=(0, 1))</td><td>one compiled function; donation lets XLA reuse the old parameter buffers</td></tr>
+<tr><td>Randomness</td><td class="mono">torch.manual_seed(0)</td><td class="mono">nnx.Rngs(0, dropout=1)</td><td class="mono">key = jax.random.key(0); split</td><td>explicit keys; a key reused gives the same numbers (section 2)</td></tr>
+<tr><td>Checkpoint</td><td class="mono">torch.save(sd); load_state_dict</td><td colspan="2" class="mono">orbax CheckpointManager (save, restore)</td><td>sharded, async; see {{The JAX training stack|n:3c65c17b0d0d817ea0ace9a2ca8677ec}}. Interchange with PyTorch: safetensors (section 3)</td></tr>
+<tr><td>Logging</td><td class="mono">loss.item()</td><td colspan="2" class="mono">float(loss) (after the step)</td><td><code>float()</code> blocks until the device finishes: log every N steps, or keep the step asynchronous</td></tr>
+</tbody></table></div>
+<p><b>What it costs.</b> The model itself translated almost mechanically (the three files are 116 to 148 lines each). The cost is not typing; it is that the result looks right and is subtly different. Section 2 is that list.</p>
+<p><b>How to check.</b> Run both twins on one batch from the same weights and compare logits before anything else; the root's twins agree to <span data-k="hunt.variants.correct.rungs.logits" data-f="s2"></span> (largest logit <span data-k="hunt.ref.max_abs_logit" data-f="f2"></span>). Section 4 builds the whole test.</p>
+</section>

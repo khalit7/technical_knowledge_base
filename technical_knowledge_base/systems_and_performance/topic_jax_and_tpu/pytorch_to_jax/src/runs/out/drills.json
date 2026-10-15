@@ -1,0 +1,343 @@
+{
+ "drills": [
+  {
+   "id": "var",
+   "title": "Variance over the last axis",
+   "torch": "out = torch.from_numpy(h).var(dim=-1)",
+   "torch_out": "float32[2, 8] [0.00066604, 0.00084158, 0.00076275, 0.00069517, ...]",
+   "cands": [
+    {
+     "id": "a",
+     "code": "out = jnp.var(h, axis=-1)",
+     "right": false,
+     "why": "jnp.var uses ddof=0 (population variance); torch.var defaults to the unbiased estimator (correction=1)",
+     "ok": true,
+     "out": "float32[2, 8] [0.00066084, 0.00083501, 0.00075679, 0.00068974, ...]",
+     "maxdiff_vs_torch": 7.70611222833395e-06
+    },
+    {
+     "id": "b",
+     "code": "out = jnp.asarray(h).var(axis=-1)",
+     "right": false,
+     "why": "the array method has the same default as jnp.var",
+     "ok": true,
+     "out": "float32[2, 8] [0.00066084, 0.00083501, 0.00075679, 0.00068974, ...]",
+     "maxdiff_vs_torch": 7.70611222833395e-06
+    },
+    {
+     "id": "c",
+     "code": "out = jnp.var(h, axis=-1, ddof=1)",
+     "right": true,
+     "why": "ddof=1 matches torch's unbiased default",
+     "ok": true,
+     "out": "float32[2, 8] [0.00066604, 0.00084158, 0.00076275, 0.00069517, ...]",
+     "maxdiff_vs_torch": 5.820766091346741e-11
+    }
+   ]
+  },
+  {
+   "id": "gelu",
+   "title": "GELU",
+   "torch": "out = F.gelu(torch.from_numpy(g_np))",
+   "torch_out": "float32[9] [-0.00012672, -0.0040499, -0.0455, -0.15866, ...]",
+   "cands": [
+    {
+     "id": "a",
+     "code": "out = jax.nn.gelu(g_np)",
+     "right": false,
+     "why": "tanh approximation by default (approximate=True)",
+     "ok": true,
+     "out": "float32[9] [-7.0095e-05, -0.0036373, -0.045402, -0.15881, ...]",
+     "maxdiff_vs_torch": 0.0004125237464904785
+    },
+    {
+     "id": "b",
+     "code": "out = nnx.gelu(g_np)",
+     "right": false,
+     "why": "nnx.gelu is jax.nn.gelu: same tanh default",
+     "ok": true,
+     "out": "float32[9] [-7.0095e-05, -0.0036373, -0.045402, -0.15881, ...]",
+     "maxdiff_vs_torch": 0.0004125237464904785
+    },
+    {
+     "id": "c",
+     "code": "out = jax.nn.gelu(g_np, approximate=False)",
+     "right": true,
+     "why": "exact erf GELU, as torch's default",
+     "ok": true,
+     "out": "float32[9] [-0.00012669, -0.0040497, -0.0455, -0.15866, ...]",
+     "maxdiff_vs_torch": 2.384185791015625e-07
+    }
+   ]
+  },
+  {
+   "id": "ln",
+   "title": "LayerNorm(128) on the real block-0 input",
+   "torch": "out = nn.LayerNorm(128)(torch.from_numpy(h))",
+   "torch_out": "float32[2, 8, 128] [-0.59946, -1.8351, -0.28515, 0.40373, ...]",
+   "cands": [
+    {
+     "id": "a",
+     "code": "out = nnx.LayerNorm(128, rngs=nnx.Rngs(0))(h)",
+     "right": false,
+     "why": "epsilon 1e-6: at init the input variance is about 8e-4, so the epsilon is visible",
+     "ok": true,
+     "out": "float32[2, 8, 128] [-0.60352, -1.8475, -0.28708, 0.40646, ...]",
+     "maxdiff_vs_torch": 0.021924257278442383
+    },
+    {
+     "id": "b",
+     "code": "out = nnx.LayerNorm(128, epsilon=1e-5, rngs=nnx.Rngs(0))(h)",
+     "right": true,
+     "why": "right epsilon; Flax still computes the variance as E[x^2] - E[x]^2, harmless here",
+     "ok": true,
+     "out": "float32[2, 8, 128] [-0.59946, -1.8351, -0.28515, 0.40373, ...]",
+     "maxdiff_vs_torch": 7.152557373046875e-07
+    },
+    {
+     "id": "c",
+     "code": "out = nnx.LayerNorm(128, epsilon=1e-5, use_fast_variance=False, rngs=nnx.Rngs(0))(h)",
+     "right": true,
+     "why": "right epsilon and the two-pass variance PyTorch uses",
+     "ok": true,
+     "out": "float32[2, 8, 128] [-0.59946, -1.8351, -0.28515, 0.40373, ...]",
+     "maxdiff_vs_torch": 4.76837158203125e-07
+    }
+   ]
+  },
+  {
+   "id": "inplace",
+   "title": "Zero the first position in place",
+   "torch": "t = torch.from_numpy(h.copy()); t[:, 0] = 0.0; out = t",
+   "torch_out": "float32[2, 8, 128] [0, 0, 0, 0, ...]",
+   "cands": [
+    {
+     "id": "a",
+     "code": "x = jnp.asarray(h); x[:, 0] = 0.0; out = x",
+     "right": false,
+     "why": "JAX arrays are immutable",
+     "ok": false,
+     "out": "TypeError: JAX arrays are immutable and do not support in-place item assignment. Instead of x[idx] = y, use x = x.at[idx].set(y) or another .at[] method: https://docs.jax.dev/en/latest/_autosummary/jax.numpy.ndarray.at.html",
+     "maxdiff_vs_torch": null
+    },
+    {
+     "id": "b",
+     "code": "x = jnp.asarray(h); out = x.at[:, 0].set(0.0)",
+     "right": true,
+     "why": "functional update: returns a new array (in place under jit when the old one is dead)",
+     "ok": true,
+     "out": "float32[2, 8, 128] [0, 0, 0, 0, ...]",
+     "maxdiff_vs_torch": 0.0
+    }
+   ]
+  },
+  {
+   "id": "ce",
+   "title": "Cross-entropy with padding labels (-100)",
+   "torch": "out = F.cross_entropy(torch.from_numpy(logits_np), torch.from_numpy(labels_np))",
+   "torch_out": "float32 4.30909",
+   "cands": [
+    {
+     "id": "a",
+     "code": "out = optax.softmax_cross_entropy_with_integer_labels(logits_np, labels_np).mean()",
+     "right": false,
+     "why": "no ignore_index: the -100 row gathers out of range and the mean becomes NaN",
+     "ok": true,
+     "out": "float32 nan",
+     "maxdiff_vs_torch": NaN
+    },
+    {
+     "id": "b",
+     "code": "m = labels_np != -100\nl = optax.softmax_cross_entropy_with_integer_labels(logits_np, jnp.where(m, labels_np, 0))\nout = (l * m).sum() / m.sum()",
+     "right": true,
+     "why": "mask the ignored rows and average over the rest, as torch does",
+     "ok": true,
+     "out": "float32 4.30909",
+     "maxdiff_vs_torch": 0.0
+    }
+   ]
+  },
+  {
+   "id": "maxdim",
+   "title": "Max over the last axis, with indices",
+   "torch": "v, i = torch.max(torch.from_numpy(x2_np), dim=-1); out = (v, i)",
+   "torch_out": "(float32[2] [2, 3], int64[2] [1, 3])",
+   "cands": [
+    {
+     "id": "a",
+     "code": "v, i = jnp.max(x2_np, axis=-1); out = (v, i)",
+     "right": false,
+     "why": "jnp.max returns only values; with a batch of 2 the unpacking silently splits the batch",
+     "ok": true,
+     "out": "(float32 2, float32 3)",
+     "maxdiff_vs_torch": Infinity
+    },
+    {
+     "id": "b",
+     "code": "out = (jnp.max(x2_np, axis=-1), jnp.argmax(x2_np, axis=-1))",
+     "right": true,
+     "why": "values and indices are two calls",
+     "ok": true,
+     "out": "(float32[2] [2, 3], int32[2] [1, 3])",
+     "maxdiff_vs_torch": 0.0
+    }
+   ]
+  },
+  {
+   "id": "transpose",
+   "title": "Split heads: view then transpose(1, 2)",
+   "torch": "t = torch.from_numpy(h).view(2, 8, 4, 32).transpose(1, 2); out = t",
+   "torch_out": "float32[2, 4, 8, 32] [-0.013251, -0.045254, -0.0051105, 0.012732, ...]",
+   "cands": [
+    {
+     "id": "a",
+     "code": "out = jnp.asarray(h).reshape(2, 8, 4, 32).transpose(1, 2)",
+     "right": false,
+     "why": "jnp's transpose takes a full permutation of the axes, not two axes to swap",
+     "ok": false,
+     "out": "TypeError: transpose permutation isn't a permutation of operand dimensions, got permutation (1, 2) for operand shape (2, 8, 4, 32).",
+     "maxdiff_vs_torch": null
+    },
+    {
+     "id": "b",
+     "code": "out = jnp.swapaxes(jnp.asarray(h).reshape(2, 8, 4, 32), 1, 2)",
+     "right": true,
+     "why": "swapaxes is torch.transpose",
+     "ok": true,
+     "out": "float32[2, 4, 8, 32] [-0.013251, -0.045254, -0.0051105, 0.012732, ...]",
+     "maxdiff_vs_torch": 0.0
+    },
+    {
+     "id": "c",
+     "code": "out = jnp.asarray(h).reshape(2, 8, 4, 32).transpose(0, 2, 1, 3)",
+     "right": true,
+     "why": "or the whole permutation",
+     "ok": true,
+     "out": "float32[2, 4, 8, 32] [-0.013251, -0.045254, -0.0051105, 0.012732, ...]",
+     "maxdiff_vs_torch": 0.0
+    }
+   ]
+  },
+  {
+   "id": "rng",
+   "title": "Two random draws",
+   "torch": "torch.manual_seed(0); a = torch.randn(3); b = torch.randn(3); out = (a, b)",
+   "torch_out": "(float32[3] [1.541, -0.29343, -2.1788], float32[3] [0.56843, -1.0845, -1.3986])",
+   "cands": [
+    {
+     "id": "a",
+     "code": "key = jax.random.key(0)\na = jax.random.normal(key, (3,)); b = jax.random.normal(key, (3,))\nout = (a, b)",
+     "right": false,
+     "why": "the same key gives the same numbers: a == b",
+     "ok": true,
+     "out": "(float32[3] [1.6226, 2.0253, -0.43359], float32[3] [1.6226, 2.0253, -0.43359])",
+     "maxdiff_vs_torch": null
+    },
+    {
+     "id": "b",
+     "code": "k1, k2 = jax.random.split(jax.random.key(0))\nout = (jax.random.normal(k1, (3,)), jax.random.normal(k2, (3,)))",
+     "right": true,
+     "why": "split the key: two independent draws (different numbers from torch's, by design)",
+     "ok": true,
+     "out": "(float32[3] [1.004, -0.90634, -0.74817], float32[3] [-2.4425, -2.0357, 0.20554])",
+     "maxdiff_vs_torch": null
+    }
+   ]
+  },
+  {
+   "id": "mask",
+   "title": "Causal mask from nn.MultiheadAttention code",
+   "torch": "T = 4; q = torch.randn(1, 1, T, 8, generator=torch.Generator().manual_seed(0))\nmask_mha = torch.triu(torch.ones(T, T, dtype=torch.bool), 1)  # True = blocked (MHA convention)\nout = F.scaled_dot_product_attention(q, q, q, attn_mask=~mask_mha)",
+   "torch_out": "float32[1, 1, 4, 8] [-1.1258, -1.1524, -0.25058, -0.43388, ...]",
+   "cands": [
+    {
+     "id": "a",
+     "code": "T = 4; q = torch.randn(1, 1, T, 8, generator=torch.Generator().manual_seed(0)).numpy().transpose(0, 2, 1, 3)\nmask_mha = np.triu(np.ones((T, T), bool), 1)\nout = jax.nn.dot_product_attention(q, q, q, mask=mask_mha[None, None]).transpose(0, 2, 1, 3)",
+     "right": false,
+     "why": "passes the 'blocked' mask where JAX expects 'allowed': each position attends only to the future, and the last row to nothing",
+     "ok": true,
+     "out": "float32[1, 1, 4, 8] [0.40016, -0.91919, 0.072593, 0.28519, ...]",
+     "maxdiff_vs_torch": 3.089321255683899
+    },
+    {
+     "id": "b",
+     "code": "T = 4; q = torch.randn(1, 1, T, 8, generator=torch.Generator().manual_seed(0)).numpy().transpose(0, 2, 1, 3)\nout = jax.nn.dot_product_attention(q, q, q, is_causal=True).transpose(0, 2, 1, 3)",
+     "right": true,
+     "why": "is_causal, or mask=~mask_mha; note jax.nn.dot_product_attention takes [B, T, H, D]",
+     "ok": true,
+     "out": "float32[1, 1, 4, 8] [-1.1258, -1.1524, -0.25058, -0.43388, ...]",
+     "maxdiff_vs_torch": 1.1920928955078125e-07
+    }
+   ]
+  },
+  {
+   "id": "weights",
+   "title": "Copy an nn.Linear(128, 512) weight into nnx.Linear",
+   "torch": "out = torch.from_numpy(wfc_np).shape  # [out, in]",
+   "torch_out": "(512, 128)",
+   "cands": [
+    {
+     "id": "a",
+     "code": "m = nnx.Linear(128, 512, rngs=nnx.Rngs(0))\nm.kernel[...] = wfc_np\nout = m.kernel[...].shape",
+     "right": false,
+     "why": "PyTorch stores [out, in], Flax [in, out]",
+     "ok": false,
+     "out": "ValueError: Incompatible types for broadcasting: input type=float32[512,128] and requested type=float32[128,512]",
+     "maxdiff_vs_torch": null
+    },
+    {
+     "id": "b",
+     "code": "m = nnx.Linear(128, 128, rngs=nnx.Rngs(0))\nm.kernel[...] = w_np\nout = m.kernel[...].shape",
+     "right": false,
+     "why": "a square matrix loads without error, transposed: the worst case",
+     "ok": true,
+     "out": "(128, 128)",
+     "maxdiff_vs_torch": null
+    },
+    {
+     "id": "c",
+     "code": "m = nnx.Linear(128, 512, rngs=nnx.Rngs(0))\nm.kernel[...] = wfc_np.T\nout = m.kernel[...].shape",
+     "right": true,
+     "why": "transpose on the way in",
+     "ok": true,
+     "out": "(128, 512)",
+     "maxdiff_vs_torch": null
+    }
+   ]
+  },
+  {
+   "id": "clip",
+   "title": "Clip the gradients, then AdamW (three steps; gradient norms 50, 0.5, 0.5)",
+   "torch": "p = torch.zeros(2, requires_grad=True); opt = torch.optim.AdamW([p], lr=1e-3)\nfor g in ([30.0, 40.0], [0.3, 0.4], [0.3, 0.4]):\n    p.grad = torch.tensor(g)\n    nn.utils.clip_grad_norm_([p], 1.0); opt.step()\nout = p",
+   "torch_out": "float32[2] [-0.0028508, -0.0028508]",
+   "cands": [
+    {
+     "id": "a",
+     "code": "tx = optax.chain(optax.adamw(1e-3), optax.clip_by_global_norm(1.0))\np = jnp.zeros(2); s = tx.init(p)\nfor g in ([30.0, 40.0], [0.3, 0.4], [0.3, 0.4]):\n    u, s = tx.update(jnp.array(g), s, p); p = optax.apply_updates(p, u)\nout = p",
+     "right": false,
+     "why": "clips Adam's updates instead of the gradients: Adam's second moment remembers the norm-50 gradient and shrinks the next steps",
+     "ok": true,
+     "out": "float32[2] [-0.0022075, -0.0022075]",
+     "maxdiff_vs_torch": 0.0006433289963752031
+    },
+    {
+     "id": "b",
+     "code": "tx = optax.chain(optax.clip_by_global_norm(1.0), optax.adamw(1e-3, weight_decay=0.01))\np = jnp.zeros(2); s = tx.init(p)\nfor g in ([30.0, 40.0], [0.3, 0.4], [0.3, 0.4]):\n    u, s = tx.update(jnp.array(g), s, p); p = optax.apply_updates(p, u)\nout = p",
+     "right": true,
+     "why": "clip first, and torch's weight_decay default (0.01; optax's is 1e-4)",
+     "ok": true,
+     "out": "float32[2] [-0.0028508, -0.0028508]",
+     "maxdiff_vs_torch": 1.932494342327118e-08
+    }
+   ]
+  }
+ ],
+ "versions": {
+  "jax": "0.11.2",
+  "jaxlib": "0.11.2",
+  "python": "3.12.11",
+  "torch": "2.14.1",
+  "flax": "0.12.10",
+  "optax": "0.2.8"
+ }
+}

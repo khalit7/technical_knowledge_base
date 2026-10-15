@@ -3935,3 +3935,21 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | 8 | **Slice planner**: every Cloud slice shape, multislice, state fit, tokens per chip vs ridge, step time, cost, DCN time, JAX placement table | tab | 10 | scaling book LLaMA 3-70B 44 days reproduces (preset); placement measured on mock devices |
 | 9 | **MFU calculator**: published rows with FLOP breakdown; your run (tokens/s or step time) on TPU or GPU | tab | 10 | Llama 2 70B v6e default lands on 43.6% non-causal vs 43.8% published |
 | 10 | Generation table (sortable), critical-batch table, state-per-chip table, cost table | Reading | 7 | published + calculated |
+
+### PyTorch to JAX: porting a small LM (2026-10-15)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_jax_and_tpu/pytorch_to_jax/src/viz_ideas.md`.
+
+| # | Visual | Score | Data | Placement |
+|---|---|---|---|---|
+| 1 | Evidence ladder, animated: the correct port and a chosen port climb logits, loss, gradients, one step, curves side by side (before/after on the same batch), cells turn green or red at stated thresholds, caption names the first failing rung | 16 | `pj_hunt.py` rungs for all 18 variants | Reading, section 4 |
+| 2 | Divergence hunter: 17 porting differences (7 reused from the root, 10 trained here), |loss - PyTorch| on a log scale or raw loss, play through 300 steps, ladder table per selected run | 16 | `pj_hunt.py`, root `pitfalls.json` | own tab |
+| 3 | Float32 vs float64 bars per rung, correct port vs tanh-GELU bug, plus PyTorch's clip formula in float64 | 15 | `pj_ladder.py` | Reading, section 4 |
+| 4 | Weight transpose animation on a real 6 x 8 tile (row becomes column), with a GPT-2 Conv1D toggle where nothing moves (before/after) | 13 | `pj_convert.py`, `pj_gpt2.py` | Weight conversion tab |
+| 5 | Name map of all 69 tensors (filter transposed, GPT-2), click for rule | 11 | `pj_convert.py` | Weight conversion tab |
+| 6 | Port drills: 11 PyTorch snippets, 2 or 3 real JAX candidates each, real outputs and errors revealed | 13 | `pj_drills.py` | own tab |
+| 7 | One boolean mask, three meanings (SDPA, JAX/Flax, nn.MultiheadAttention) as 4 x 4 cards | 12 | `pj_defaults.py` | Reading, section 2 |
+| 8 | Fast-variance error by mean offset, log bars | 11 | `pj_defaults.py` | Reading, section 2 |
+| 9 | Dropout curves: PyTorch, JAX fresh keys (two seeds), JAX reused key, no dropout | 10 | `pj_dropout.py` | Reading, section 2 |
+| 10 | Drift by 500-step window from the root's 4,000-step twins | 9 | root `twin_long.json` | Reading, section 5 |
+| 11 | Page map (five stages, clickable) | 7 | none | Reading, top |
