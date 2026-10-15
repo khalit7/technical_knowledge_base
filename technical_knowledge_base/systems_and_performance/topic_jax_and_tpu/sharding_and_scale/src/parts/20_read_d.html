@@ -1,0 +1,31 @@
+<section id="s-cp">
+<h2>Context parallelism: ring attention against all-gather</h2>
+<p><b>The problem.</b> At long context the activations of one sequence no longer fit on one device, and splitting the batch does not help when the batch is one sequence. <dfn>Context parallelism</dfn> splits the sequence itself: device <i>d</i> holds tokens <i>d</i>T/N to (<i>d</i>+1)T/N &minus; 1 of every sequence. Everything except attention is per-token and needs no communication. Attention needs every query to meet every earlier key.</p>
+<p><b>Three ways, run here.</b> The running example's block-0 attention (q, k and v [32, 4 heads, 128 tokens, 32], real weights, causal) with the 128 tokens split 16 per device over 8 devices (<code>src/runs/ss_cp.py</code>):</p>
+<ul class="tight">
+<li><b>Let propagation do it</b>: annotate q, k, v as sequence-split and jit ordinary attention. The compiler all-gathers K and V.</li>
+<li><b>All-gather by hand</b> in <code>shard_map</code>: gather K and V, attend your own queries with the causal mask shifted by your offset. This is the variant Llama 3 used ({{Llama 3 paper, arXiv 2407.21783, section 3.3.2|https://arxiv.org/abs/2407.21783}}) and MaxText's default (<code>context_parallel_strategy: "all_gather"</code>, <span id="ss-ref-cps"></span>).</li>
+<li><b>Ring attention</b> ({{Liu, Zaharia and Abbeel 2023, arXiv 2310.01889|https://arxiv.org/abs/2310.01889}}): pass K/V blocks round the ring with <code>ppermute</code>, N steps, accumulating an online softmax (running max, denominator and numerator), so no device ever holds all keys or a full score matrix.</li>
+</ul>
+<details class="qa"><summary>The ring attention code that ran (per device, inside <code>jax.shard_map</code> over the <code>seq</code> axis)</summary><div><pre id="ss-cp-code"></pre></div></details>
+<div class="ss-card" id="ss-cp-card">
+<h4>The same attention, two schedules</h4>
+<div class="seg" id="ss-cp-mode"><span class="lbl">Method</span><button data-m="ring" class="on">Ring (ppermute)</button><button data-m="ag">All-gather K, V</button></div>
+<div class="ss-svg" id="ss-cp-svg"></div>
+<div class="an-ctl" id="ss-cp-ctl"></div>
+<div class="ss-cap" id="ss-cp-cap"></div>
+<div class="ss-cnt" id="ss-cp-cnt"></div>
+</div>
+<div id="ss-cp-meas"></div>
+<p><b>What the numbers say.</b> All three give the one-device result (largest difference 7.5e-8 for the ring; gradients within 2.9e-6 for all three). Per device the ring sends exactly what a ring all-gather of K and V would (7 blocks of each: 3,670,016 bytes, against the all-gather's 4,194,304-byte output of which 7/8 arrives from other devices). The gain is memory: at 8,192 tokens the compiled temp memory is 123 MB per device for the ring against 273 MB for the all-gather version, because nobody holds all keys and values. The cost is N sequential steps, each needing its transfer to overlap with compute. The schedule also shows the known flaw of a plain causal ring: device 0 has work in 1 of 8 steps and device 7 in all 8. Load-balanced orderings (each device holds a chunk from the start and one from the end of the sequence) fix that; MaxText's <code>context_parallel_load_balance: true</code> is the default (<span id="ss-ref-cpb"></span>). Not run here: the load-balanced ordering, and DeepSpeed-Ulysses, which uses all-to-all to swap the sequence split for a head split ({{arXiv 2309.14509|https://arxiv.org/abs/2309.14509}}; MaxText's <code>"ulysses"</code> option).</p>
+<p class="ss-src">Megatron's <dfn>sequence parallelism</dfn> ({{Korthikanti et al. 2022, arXiv 2205.05198|https://arxiv.org/abs/2205.05198}}) is a different thing despite the name: inside a tensor-parallel group it splits the LayerNorm and dropout activations along the sequence, turning each all-reduce into a reduce-scatter plus an all-gather of the same total size. On CPU the reduce-scatter cannot be formed (no <code>ReduceScatterCreator</code> in the pipeline), so it is not shown separately here.</p>
+</section>
+
+<section id="s-ppep">
+<h2>Pipeline and expert parallelism: written by hand</h2>
+<p>Propagation never invents these two, because neither is a layout of one operation: a pipeline is a schedule over time, and expert routing is data-dependent. Both are written with <code>shard_map</code>, and both have their own tab.</p>
+<div class="ss-two">
+<div class="ss-card"><h4>{{Pipeline|#t-pipe}}</h4><p class="small">The running example's 4 blocks split over 4 or 2 stages, microbatches passed stage to stage with <code>ppermute</code>, <code>jax.grad</code> through the whole loop (so the backward is the forward schedule reversed, GPipe style). <span class="meas">measured</span> loss within 4.8e-7 and every gradient within 1.2e-7 of one device; the bubble is exactly (S&minus;1)/(MR+S&minus;1), 3/7 for 4 stages and 4 microbatches, 1/9 for MaxText's circular schedule with 2 stages, 2 repeats and 4 microbatches. One microbatching mistake cost an all-to-all and an all-gather; the tab shows why.</p></div>
+<div class="ss-card"><h4>{{Experts (MoE)|#t-moe}}</h4><p class="small">A tiny mixture-of-experts layer, 8 experts on 8 devices, on the running example's tokens. Written with two <code>all_to_all</code> calls it compiles to exactly 2 all-to-alls forward and 3 in the backward pass. Written as GShard-style einsums with a sharding constraint and left to propagation, it used all-to-all in only 1 of 6 configurations; in the other 5 the compiler chose all-gathers and an all-reduce instead. Same numbers, different traffic.</p></div>
+</div>
+</section>

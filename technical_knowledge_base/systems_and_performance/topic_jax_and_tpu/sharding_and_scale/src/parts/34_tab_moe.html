@@ -1,0 +1,30 @@
+<div class="tab" id="t-moe" role="tabpanel" hidden>
+<style>#t-moe .tw table{min-width:640px}</style>
+<p class="lead">In a mixture-of-experts layer each token goes to a few of many expert MLPs. Put one expert per device and tokens must travel to their experts and back: two all-to-alls per layer. Here it is written in JAX, run on the running example's tokens, and compared with what propagation emits for the same maths.</p>
+<p><b>The setup</b> (<code>src/runs/ss_moe.py</code>): the 4,096 tokens of the running example's batch 0, taken after block 0 and the next LayerNorm ([4,096, 128]), 512 on each of 8 devices; a router [128, 8] and 8 expert MLPs (128 &rarr; 256 &rarr; 128, exact GELU), one per device. The router and experts are new seeded weights, <span class="ill">illustrative, not trained</span>: the routing is lopsided (expert 6 is wanted by 120 to 150 of each device's 512 tokens, expert 1 by 21 to 35), which makes capacity visible. Each device routes its own tokens (Switch Transformer's groups); <dfn>capacity</dfn> C = &lceil;capacity factor &times; 512 &times; k / 8&rceil; tokens per expert per device; tokens over capacity are dropped (the layer outputs 0 for them, the residual stream carries them). Top-1 is Switch's routing ({{Switch Transformers paper page|n:3c65c17b0d0d81a8b541c9babbf40c94}}), top-2 GShard's and Mixtral's ({{Mixtral paper page|n:3c65c17b0d0d81eba72af0ac91ddc6b3}}).</p>
+<div class="ss-card" id="mo-card">
+<h4>One MoE layer, step by step</h4>
+<div class="seg" id="mo-k"><span class="lbl">Routing</span><button data-m="1" class="on">Top-1</button><button data-m="2">Top-2</button></div>
+<div class="seg" id="mo-cf"><span class="lbl">Capacity factor</span><button data-m="1">1.0</button><button data-m="1.25" class="on">1.25</button><button data-m="2">2.0</button></div>
+<div class="ss-svg" id="mo-svg"></div>
+<div class="an-ctl" id="mo-ctl"></div>
+<div class="ss-cap" id="mo-cap"></div>
+<div class="ss-cnt" id="mo-cnt"></div>
+<p class="ss-src">Cell (device g, expert e): tokens on device g that chose expert e (the real router output); filled part: tokens that fit in the capacity C and are sent; hatched: dropped. Rows of the matrix are what each device sends; columns are what each expert's device receives.</p>
+</div>
+<div class="ss-card">
+<h4>Hand-written against propagation, all six configurations</h4>
+<div class="tw"><table id="mo-t"><thead><tr><th>Routing</th><th class="num">Capacity factor</th><th class="num">C</th><th class="num">Dropped</th><th>shard_map: forward / backward</th><th>Propagation: forward / backward</th><th class="num">Error vs one device</th></tr></thead><tbody></tbody></table></div>
+<p class="ss-src"><span class="meas">measured</span> jax 0.11.2, 8 simulated CPU devices. "Propagation" is the same einsum dispatch written for one device (GShard's formulation), with the groups and the experts annotated <code>P('expert')</code> and a <code>with_sharding_constraint</code> on the dispatched tensor and on the expert outputs. Error: output / gradients against a one-device reference with the same routing and drops.</p>
+</div>
+<h3>The code that ran</h3>
+<pre id="mo-code"></pre>
+<p><code>all_to_all(x, axis, split_axis=0, concat_axis=0, tiled=True)</code> cuts this device's [8, C, 128] block along the expert dimension, sends slice e to device e, and stacks what arrives along the same dimension: afterwards dimension 0 means "which device it came from". The second all-to-all is the exact inverse. The backward pass transposes each all-to-all into another all-to-all (3 in the compiled gradient program, plus a small all-reduce for the router's replicated weights).</p>
+<h3>What production code does differently</h3>
+<ul class="tight">
+<li><b>No fixed capacity.</b> Padding every expert to C wastes compute and drops tokens. MaxText's default is <code>capacity_factor: -1.0 # ... no dropping by default</code> (<span id="mo-ref-cap"></span>) and it sends exactly the tokens each expert needs with <code>jax.lax.ragged_all_to_all</code> (<span id="mo-ref-rag"></span>; the primitive at <span id="mo-ref-prim"></span>), then runs the experts as one grouped matmul (megablox).</li>
+<li><b>Load balancing.</b> A router trained with an auxiliary balance loss (or DeepSeek's bias term) evens out the columns above; untrained, it does not.</li>
+<li><b>Experts per device.</b> With more experts than devices each device holds several; with fewer, an expert is sharded over several devices (tensor parallelism inside the expert).</li>
+</ul>
+<p class="ss-src">Memory and traffic of MoE training at scale are on the {{MoE memory bottlenecks paper page|n:3e95c17b0d0d8148a1f3d412918234fc}}; the MoE concept on the {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} page.</p>
+</div>

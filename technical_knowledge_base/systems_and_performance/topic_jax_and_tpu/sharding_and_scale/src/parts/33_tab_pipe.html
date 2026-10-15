@@ -1,0 +1,29 @@
+<div class="tab" id="t-pipe" role="tabpanel" hidden>
+<style>#t-pipe .tw table{min-width:640px}</style>
+<p class="lead">A pipeline gives each group of devices a run of consecutive layers and streams microbatches through them. Here it is written in JAX by hand, run on the running example, and checked against one device.</p>
+<p><b>The problem.</b> When a model's layers do not fit, or the links between groups of devices are slow, you can cut the model by depth: <dfn>stages</dfn> of consecutive layers, each on its own devices, passing activations forward and gradients back. To keep stages busy the batch is cut into <dfn>microbatches</dfn>. Stages still idle at the start and the end: the <dfn>bubble</dfn>. The general theory and the GPU schedules (1F1B, interleaved, zero bubble, DualPipe) are on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} and the {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}} page's "Pipeline schedules" tab; this tab is about how JAX does it.</p>
+<p><b>How JAX does it.</b> No propagator invents a pipeline: it is a loop over time. The GSPMD paper reduced it to sharding ({{section 3.3|https://arxiv.org/abs/2105.04663}}): keep a buffer with one slot per stage, run every stage's layer at once with <code>vmap</code>, and shift the buffer by one each iteration; shard the stage dimension and "GSPMD will turn the buffer shifting into cross-device communication via CollectivePermute". MaxText's pipeline is this design: a <code>jax.vmap</code> over stages (<span id="pp-ref-vmap"></span>) and <code>shard_map</code> rotations with <code>ppermute</code> over the <code>stage</code> axis (<span id="pp-ref-rot"></span>). The version below writes the per-device loop directly in <code>shard_map</code>, which is easier to read, and lets <code>jax.grad</code> differentiate the whole loop: the backward pass is the forward schedule run in reverse (GPipe's order: all forwards, then all backwards).</p>
+<div class="ss-card" id="pi-card">
+<h4>The real schedule, tick by tick</h4>
+<div class="seg" id="pi-run"><span class="lbl">Run</span></div>
+<p class="small" id="pi-desc"></p>
+<div class="ss-svg" id="pi-svg"></div>
+<div class="an-ctl" id="pi-ctl"></div>
+<div class="ss-cap" id="pi-cap"></div>
+<div class="ss-cnt" id="pi-cnt"></div>
+<p class="ss-src">Each column is one loop iteration of <code>stage_fn</code> below; a cell is what that stage computes (microbatch m, repeat r for circular runs); grey cells are bubble ticks, which compute on zeros and are discarded. Arrows are the <code>ppermute</code> at the end of the tick. Backward: the same grid right to left.</p>
+</div>
+<div class="ss-card">
+<h4>Measured on the running example</h4>
+<div class="tw"><table id="pi-t"><thead><tr><th>Schedule</th><th class="num">Stages S</th><th class="num">Micro-batches M</th><th class="num">Repeats R</th><th>Layers per stage</th><th class="num">Ticks</th><th class="num">Bubble</th><th>Collectives (forward + backward)</th><th class="num">Loss / gradient vs one device</th><th class="num">Temp per device</th></tr></thead><tbody></tbody></table></div>
+<p class="ss-src"><span class="meas">measured</span> <code>src/runs/ss_pipe.py</code>, batch 0 of the running example (32 sequences, so a microbatch is 32/M sequences), mesh (stage S, data 8/S), Auto axes, jax 0.11.2. Bubble = idle stage-ticks / all stage-ticks in the forward schedule, which equals the formula (S&minus;1)/(MR+S&minus;1) exactly in every run, the same formula MaxText's config states: <code id="pi-mt"></code> (<span id="pp-ref-bub"></span>). Collective-permutes: one forward per tick except the last, and the same number backward.</p>
+</div>
+<h3>The code that ran</h3>
+<p>Per device (inside <code>jax.shard_map</code> over the mesh axes <code>stage</code> and <code>data</code>); <code>layers</code> holds only this stage's blocks, stacked, and <code>x</code> all microbatches of this device's data shard:</p>
+<pre id="pi-code"></pre>
+<p>Three details carry the design. The stage index comes from <code>jax.lax.axis_index("stage")</code>, so one program serves every stage: whether a device reads a new microbatch or the buffer is a <code>jnp.where</code>, not Python control flow. <code>rot</code> sends stage j's output to j+1 and the last stage's back to stage 0: for circular schedules that is the path to the next repeat (stage 0 keeps it in <code>circ</code> until its turn). And the result is handed to every stage with a <code>psum</code> over <code>stage</code> of the last stage's outputs, an all-reduce you could avoid by computing the loss on the last stage only.</p>
+<div class="co warn"><div class="t">The microbatching mistake, measured</div><p class="small" id="pi-mist"></p></div>
+<h3>Circular schedules: why repeats shrink the bubble</h3>
+<p>With R repeats each stage holds R non-consecutive blocks of layers (stage 0 of 2: layers 0 and 2; stage 1: layers 1 and 3) and every microbatch goes round the ring R times. A tick now costs 1/R of a GPipe tick, and the S&minus;1 bubble ticks are 1/R as long: on the running example, 2 stages with 4 microbatches, the bubble falls from 1/5 (GPipe, ticks of 2 layers) to 1/9 (circular, ticks of 1 layer). The price is R times as many transfers (16 collective-permutes against 8) and a ring back from the last stage to the first. MaxText's config notes the trade-off: more layers per stage "the easier it is to hide the pipeline communication behind the compute", more repeats a smaller bubble. With M = S (the 2-microbatch run) the circular schedule needs no storage at stage 0: the last stage's output arrives exactly when stage 0 needs it.</p>
+<p class="ss-src">Not run here: 1F1B or zero-bubble orderings, which need the backward of each microbatch scheduled by hand (for example with <code>jax.vjp</code> per stage) instead of differentiating the whole loop; and timing, which on simulated CPU devices would mean nothing.</p>
+</div>
