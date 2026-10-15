@@ -1,0 +1,24 @@
+    def update_domain_weights(self, scores, scores_mask, domain_ids):
+        wandb_log_dict = {}
+        train_domain_weights = self.read_weights()
+
+        scores = scores.detach()
+        domain_ids = domain_ids.detach()
+
+        if self.args.doremi_optimizer == 'doremiv1':
+            perdomain_scores = []
+            for domain_id in range(len(train_domain_weights)):
+                domain_mask = (domain_ids == domain_id)
+                perdomain_scores_mask = scores_mask[domain_mask]
+                if domain_mask.sum() > 0:
+                    curr_domain_scores = torch.clip(scores[domain_mask][perdomain_scores_mask], min=0).mean()
+                else:
+                    curr_domain_scores = self.model.perdomain_scores[domain_id]
+                perdomain_scores.append(curr_domain_scores)
+            self.model.perdomain_scores[:] = torch.tensor(perdomain_scores).float()
+            log_new_train_domain_weights = torch.log(train_domain_weights) + self.args.reweight_eta * self.model.perdomain_scores
+            log_new_train_domain_weights = log_new_train_domain_weights - torch.logsumexp(log_new_train_domain_weights, dim=0)
+            train_domain_weights = (1-self.args.reweight_eps) * torch.exp(log_new_train_domain_weights) + self.args.reweight_eps / len(log_new_train_domain_weights)
+            self.write_weights(train_domain_weights)
+        else:
+            raise ValueError(f"DoReMi optimizer {self.args.doremi_optimizer} not supported")
