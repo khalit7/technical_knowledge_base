@@ -1,0 +1,43 @@
+<style>
+.mx2-pred{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:12px 0;background:var(--soft)}
+.mx2-pred .q{color:var(--ink);font-size:14px;font-weight:600;margin-bottom:6px}
+.mx2-pred .opts{display:flex;flex-wrap:wrap;gap:6px}.mx2-pred .opts button{font-size:13px;text-align:left}
+.mx2-pred .opts button.right{border-color:var(--good);background:var(--open2)}.mx2-pred .opts button.wrong{border-color:var(--bad)}
+.mx2-pred .ans{margin-top:8px;font-size:13.5px}
+.mx2-code{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0;overflow-x:auto;font:12.5px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre}
+.mx2-out{border-left:3px solid var(--good)}
+.mx2-pend{border:2px dashed var(--bad);border-radius:10px;padding:10px 14px;margin:12px 0}
+.mx2-pend .t{font-weight:600;color:var(--bad);font-size:13px}
+.mx2-lbl{font-size:11px;font-weight:600;border-radius:99px;padding:0 7px;border:1px solid var(--line);white-space:nowrap}
+.mx2-lbl.pub{color:var(--acc);border-color:var(--acc)}.mx2-lbl.der{color:var(--good);border-color:var(--good)}.mx2-lbl.ill{color:var(--bad);border-color:var(--bad)}.mx2-lbl.meas{color:var(--c4);border-color:var(--c4)}
+.mx2-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}.mx2-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.mx2-tbl td,.mx2-tbl th{font-size:12.5px}
+</style>
+<div class="tab" id="t-read">
+<nav class="nav" id="rd-nav"><a href="#mx2-s0">In one screen</a><a href="#mx2-s1">Weights</a><a href="#mx2-s2">Repetition</a><a href="#mx2-s3">Proxy methods</a><a href="#mx2-s4">Online and loaders</a><a href="#mx2-s5">Stages</a><a href="#mx2-s6">Continued pretraining</a><a href="#mx2-s7">Local experiment</a><a href="#mx2-s8">Mistakes</a><a href="#mx2-s9">Interview</a></nav>
+<p class="mute small">Labels: <span class="mx2-lbl pub">published</span> a paper's or a config's own number, with its table; <span class="mx2-lbl der">derived</span> computed here from published inputs, formula shown (all in <code>src/recompute.py</code>); <span class="mx2-lbl meas">measured</span> run on this page's machine (Apple M1 Pro, CPU); <span class="mx2-lbl ill">illustrative</span> made-up inputs that teach a mechanism. Reading time about 35 minutes (about 5,500 words of prose at 200 a minute, plus about 5 for the folded answers), more with the widgets.</p>
+
+<section id="mx2-s0">
+<h2>In one screen</h2>
+<p class="lead">A pretraining corpus is several piles of different text: web pages, code, maths, scientific papers, encyclopedias, books, other languages. <b>Data mixing</b> decides three things about them, and each decision moves what the model can do at a fixed compute budget:</p>
+<ol>
+<li><b>How much of each</b> (the <b>mixture weights</b>, also called domain weights or proportions): the fraction of training tokens each pile supplies.</li>
+<li><b>How many times</b> a pile may be read (its <b>epochs</b>): a small, valuable pile given a large weight is repeated, and repeated tokens are worth less than fresh ones.</li>
+<li><b>In what order</b> (the <b>curriculum</b> or stages): most modern runs change the mix during training, ending on the best data while the learning rate decays (mid-training, also called the anneal). Continued pretraining on a new domain is the same decision taken later by someone else: how much new-domain data against how much general data replayed.</li>
+</ol>
+<p>The parent page gives the overview in its section 7 and the {{Mixing lab|n:3c65c17b0d0d811fa5ecda8d365ab00f}} tab; this page owns the depth. The methods, side by side:</p>
+<div class="tw"><table class="mx2-tbl">
+<thead><tr><th>Method</th><th>What it does</th><th>Cost to choose the weights</th><th>Evidence (who measured)</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Natural shares</td><td>Each pile in proportion to its size</td><td>none</td><td>baseline everywhere</td><td>Small, valuable piles drown</td></tr>
+<tr><td>Hand weights</td><td>Upweight piles believed to be good, cap epochs (The Pile, GPT-3)</td><td>none</td><td>baseline in DoReMi and RegMix</td><td>Hard to beat by much; often what labs still do, with ablations</td></tr>
+<tr><td>Temperature, UniMax</td><td>Flatten the natural shares (multilingual); UniMax caps epochs</td><td>none</td><td>UniMax beat temperature at every size tested (Chung et al. 2023)</td><td>Use UniMax-style caps for many small piles</td></tr>
+<tr><td>DoReMi</td><td>A small proxy trained with Group DRO upweights domains where it lags a reference model</td><td>2 small runs (8% of the big run in the paper)</td><td>+6.5 points on 5 one-shot tasks at 8B (authors); worse than plain stratified sampling in 3 of 6 settings at 160M (Aioli, third party)</td><td>Useful, sensitive; check against simple baselines</td></tr>
+<tr><td>Data Mixing Laws</td><td>Fit loss as an exponential of the weights on small runs, extrapolate with scaling laws</td><td>tens of small runs</td><td>1B on 100B tokens matched the default mix trained 48% longer (authors)</td><td>Interpretable; the functional form fits RegMix's data well (refit here)</td></tr>
+<tr><td>RegMix</td><td>Train hundreds of tiny models on random mixtures, regress loss on weights, pick the best predicted mix</td><td>512 runs of 1M parameters (2% of one 1B run, authors)</td><td>Rank of mixtures transfers 1M to 1B at ρ 0.97 (authors; reproduced here from their released runs)</td><td>The current default for offline search</td></tr>
+<tr><td>Online methods (ODM, Skill-It, Aioli)</td><td>Change the weights during the real run from training signals</td><td>little extra compute</td><td>Aioli beat stratified sampling on 6 of 6 settings at 160M (authors)</td><td>Promising; small-scale evidence only</td></tr>
+<tr><td>Stages and the anneal</td><td>Broad data first, best data at the end while the learning rate decays</td><td>a few anneal ablations</td><td>OLMo 2 7B GSM8K 24.1 to 67.5 after 50B tokens (authors); SmolLM2 maths 3.2 to 22.1 in stage 4</td><td>Standard in every 2025 to 2026 open recipe</td></tr>
+<tr><td>CMR law (continued pretraining)</td><td>Fit general and domain loss against the domain share on short runs, take the largest share that keeps general loss within a tolerance</td><td>a few short runs</td><td>Domain shares 29.8% to 47.8% from 460M to 3.1B on finance (authors)</td><td>The principled way to set the replay ratio</td></tr>
+</tbody></table></div>
+<p><b>Running example.</b> Two, used throughout. (1) <b>The Pile's 22 domains</b>, because the main methods (DoReMi, RegMix, and the papers that check them) were all run on it, so one set of real sizes, weights and published results connects every section. (2) A <b>five-domain proxy experiment</b> built from the topic's running example samples (web from DCLM-baseline, Wikipedia, code from Stack-Edu, maths from FineMath, papers from peS2o): the scripts, the CPU smoke test and the GPU runs that will fill it are in section 7.</p>
+</section>

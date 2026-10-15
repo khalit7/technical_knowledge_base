@@ -1,0 +1,46 @@
+<section id="rd-scale">
+<h2>10. Dedup at scale: memory, shuffles and published costs</h2>
+<p>At 10<sup>9</sup> to 10<sup>10</sup> documents every method is a distributed job, and its design is decided by what has to fit in one machine's memory. Set the corpus and read off each method's state:</p>
+<div class="card">
+<div class="ctl" style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;font-size:13px">
+<label>documents <select id="rd-sc-n"><option value="1e8">10<sup>8</sup></option><option value="1e9" selected>10<sup>9</sup> (one crawl, filtered)</option><option value="1e10">10<sup>10</sup> (many crawls)</option><option value="5e10">5&times;10<sup>10</sup> (TxT360's 48.8B)</option></select></label>
+<label>mean bytes per document <select id="rd-sc-b"><option value="3200" selected>3,200 (run0 filtered)</option><option value="5000">5,000</option></select></label>
+<label>MinHash hashes <select id="rd-sc-k"><option>112</option><option>128</option><option>286</option><option>9000</option></select></label>
+<label>share of documents in a duplicate pair <select id="rd-sc-d"><option value="0.03">3% (one WARC)</option><option value="0.3" selected>30%</option><option value="0.8">80% (DCLM, globally)</option></select></label></div>
+<div class="tw"><table id="rd-sc-tab"></table></div>
+<p class="small mute"><span class="lbl der">derived</span> from the formulas in each row; per-item sizes <span class="lbl me">measured</span> here where marked. Compute is not shown: MinHash signatures are documents &times; shingles &times; hashes multiply-adds and parallelise perfectly; an encoder pass is the dominant cost of semantic dedup.</p></div>
+<h3>The shape of a distributed MinHash job</h3>
+<ol>
+<li><b>Signatures</b>, embarrassingly parallel: each worker reads a shard and writes, for every band, (band hash, document id). datatrove writes one file per band per worker.</li>
+<li><b>Group by band value</b>: a shuffle (all records with the same band hash go to the same worker), or, as datatrove does, each band's files sorted on disk and merged with a heap; workers split each band's hash range (<code>minhash.py:391-399</code>).</li>
+<li><b>Connected components</b> over the candidate edges: single-machine union-find (datatrove), label propagation in Spark or Dask (text-dedup, TxT360), or cuGraph on GPUs (NeMo Curator).</li>
+<li><b>Filter</b>: every worker drops the ids on its remove list as it rewrites its shard.</li>
+</ol>
+<h3>Published costs (dated; vendor claims marked)</h3>
+<div class="tw"><table>
+<thead><tr><th>Job</th><th>Hardware and time</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>Suffix array of C4 (350 GB)</td><td>1 VM, 96 cores, 768 GB RAM: under 12 h (about 1,000 CPU-hours); dedup under 1 h more</td><td>Lee et al. 2021, App. B <span class="lbl pub">published</span></td></tr>
+<tr><td>NearDup MinHash on C4</td><td>Google's production system, about 41.5 kWh</td><td>Lee et al. 2021, App. A <span class="lbl pub">published</span></td></tr>
+<tr><td>CCNet paragraph dedup (one crawl)</td><td>hashes of 50 shards (3% of a crawl): 1.5B hashes in 40 GB RAM; the whole CCNet pipeline 8.5 h per crawl on 5,000 cores</td><td>Wenzek et al. 2019 <span class="lbl pub">published</span></td></tr>
+<tr><td>SlimPajama: global MinHash over RedPajama (1.2T tokens)</td><td>64 CPU cores, 1.4 TB peak memory; 49.6% of bytes removed</td><td>Shen et al. 2023 <span class="lbl pub">published</span></td></tr>
+<tr><td>text-dedup Spark MinHash, 42M rows</td><td>160 cores, 640 GB: under 40 min (the Python version: about 10 h on 80 cores, 1.8 TB)</td><td>README, tag 2023.09.20 <span class="lbl pub">published</span></td></tr>
+<tr><td>TxT360: 48.83B documents, 99 crawls</td><td>exact (Bloom, capacity 10<sup>9</sup>, 0.1%) removed 17%; MinHash 9 &times; 13 on 13-grams: 20 TB of hashes, 9.2 TB of pairs, pair dedup about 5 days in parallel (25 days serial)</td><td>TxT360 blog (Oct 2024) <span class="lbl pub">published</span></td></tr>
+<tr><td>DCLM-baseline BFF (about 70 TB)</td><td>100 shards of about 700 GB, single-node Rust tool; AWS i4i instances recommended</td><td>DCLM App. L; dclm dedup README <span class="lbl pub">published</span></td></tr>
+<tr><td>NeMo Curator fuzzy dedup, RedPajama v2 subset</td><td>3 H100 nodes 0.65 h vs a CPU alternative 10.7 h (about 16x); 1, 2, 4 H100 nodes: 2.05, 1.01, 0.50 h on "8 TB (1.78 trillion tokens)"; another page: "1.96 trillion tokens in 0.5 hours using 32 NVIDIA H100 GPUs"</td><td>NeMo Curator 1.4.0 README and docs <span class="lbl ven">vendor</span>, figures disagree with each other</td></tr>
+<tr><td>NeMo Curator, RedPajama (4.5 TB), 2023</td><td>37 h on 20 CPU nodes (48 cores) vs 3 h on 4 DGX A100</td><td>NVIDIA blog, Aug 2023 <span class="lbl ven">vendor</span></td></tr>
+<tr><td>Zyda-2 (12B documents, 11.5T tokens; filtering and dedup together)</td><td>about 2 days on 8 GPU nodes vs about 3 weeks on 8 CPU nodes</td><td>Zyphra blog, Oct 2024 <span class="lbl ven">vendor-adjacent</span> (co-published with NVIDIA)</td></tr>
+</tbody></table></div>
+<p class="small">No FineWeb, RefinedWeb or DCLM paper gives a CPU-hour figure for its MinHash step. The rough numbers measured here (seconds on a laptop core for megabytes) do not extrapolate linearly: at scale the cost is dominated by I/O and the shuffle, which a single machine never shows.</p>
+</section>
+
+<section id="rd-cont">
+<h2>11. Dedup and benchmark contamination</h2>
+<p><b>Contamination</b> means test items (benchmark questions and answers) in the training data; a model that has seen them scores higher without being more capable. The {{decontamination page|n:3f95c17b0d0d8100b7e4e0f96074c309}} owns detection and removal; here is what dedup has to do with it.</p>
+<ul>
+<li><b>The overlap is real between standard splits.</b> Lee et al. found near-duplicates in the training set for 4.6% of C4's validation examples, 14.35% of RealNews', 4.92% of LM1B's and 0.72% of Wiki-40B's (Table 2). A published Transformer-XL trained on LM1B has perplexity 10.11 on LM1B validation examples that have training copies against 23.58 on the rest; GROVER-XL on RealNews, 7.68 against 9.45 (Table 5). Their policy: keep the test copy, drop the training copy.</li>
+<li><b>Within-corpus dedup reduces, but never removes, a copied test item</b>: it keeps one copy by design. Removing benchmark text needs a dedup <i>across</i> two sets: the training corpus against the evaluation sets. The same machinery does it: datatrove's MinHash can deduplicate against a prebuilt index (<code>index_folder</code>), Google's tool has <code>across-similar</code>, and Dolma seeds its Bloom filter with test items.</li>
+<li><b>Fewer copies, less memorisation of whatever leaked</b> (Kandpal et al.: generation rate grows super-linearly with the number of copies), so dedup lowers how much a leaked item inflates a score even when it cannot remove it.</li>
+<li>No source measures a percentage reduction in benchmark contamination from dedup alone (searched; not confirmed). The decontamination page measured the running example and whole FineWeb shards directly against seven benchmarks.</li>
+</ul>
+</section>

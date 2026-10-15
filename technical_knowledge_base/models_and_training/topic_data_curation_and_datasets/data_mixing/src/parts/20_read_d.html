@@ -1,0 +1,58 @@
+<section id="mx2-s4">
+<h2>4. Offline or online, and how a loader hits the weights</h2>
+<p><b>Offline mixing</b> fixes the weights before training and writes (or indexes) one shuffled stream. The Pile did it literally: it drew documents at random, "weighted by the number of documents in each dataset times the number of epochs desired", and interleaved the output into 30 files (appendix on construction). Reproducible and simple; the weights cannot change.</p>
+<p><b>Online mixing</b> keeps one stream per domain and lets the training loop choose the domain of every sample from the current weights. Stages need it (the weights change at a step boundary), and so do the methods that adapt during the run: DoReMi's proxy, ODM, Aioli. The cost is engineering: per-domain shards, a sampler whose state is saved with each checkpoint so a restart resumes the same sequence, and a log of the weights actually used. The {{Storage and loading|n:3f95c17b0d0d81398782efcb29d950d4}} page covers shards, shuffling and resumption.</p>
+<p><b>Hitting the weights exactly.</b> Sampling a domain at random for each sample matches the weights only on average; over a short window the achieved shares wander. Megatron-LM's blended dataset does it deterministically: for sample n it computes, for every dataset, the error w<sub>i</sub>·n − (samples taken from i so far), and takes the next sample from the dataset with the largest error (NVIDIA/Megatron-LM at 80781ab, <code>megatron/core/datasets/helpers.cpp</code>, <code>build_blending_indices</code>, lines 104 to 128):</p>
+<div class="mx2-code">for (int64_t sample_idx = 0; sample_idx &lt; size; ++sample_idx) {                       // 104
+  auto sample_idx_double = std::max(static_cast&lt;double&gt;(sample_idx), 1.0);           // 108
+  int64_t max_error_index = 0;
+  double max_error = weights_ptr[0] * sample_idx_double - static_cast&lt;double&gt;(current_samples[0]);
+  for (int64_t dataset_idx = 1; dataset_idx &lt; num_datasets; ++dataset_idx) {        // 112
+    double error = weights_ptr[dataset_idx] * sample_idx_double - static_cast&lt;double&gt;(current_samples[dataset_idx]);
+    if (error &gt; max_error) { max_error = error; max_error_index = dataset_idx; }
+  }
+  dataset_index_ptr[sample_idx] = static_cast&lt;int16_t&gt;(max_error_index);           // 124
+  dataset_sample_index_ptr[sample_idx] = current_samples[max_error_index];
+  current_samples[max_error_index] += 1;                                              // 128
+}</div>
+<div class="card" id="mx2-bl">
+<div class="seg" id="mx2-bl-seg"><button data-m="rand" class="on">Random sampling per sample</button><button data-m="meg">Megatron error-driven blend</button></div>
+<div id="mx2-bl-plot"></div>
+<div class="out" id="mx2-bl-out"></div>
+<div id="mx2-bl-cap" class="small"></div>
+<div id="mx2-bl-ctl" class="chips"></div>
+<p class="small mute">Same three weights (web 0.6, code 0.3, maths 0.1) and the same 60 samples in both modes; random mode uses a fixed seed <span class="mx2-lbl ill">illustrative</span>. The blend rule is the code above, ported line for line.</p>
+</div>
+<div class="try"><b>Try:</b> play the random mode and watch the maths count drift; switch to the blend and replay: no domain is ever more than one sample from its target.</div>
+<p>Hugging Face <code>datasets</code> offers the random version as <code>interleave_datasets(..., probabilities=[...], seed=..., stopping_strategy=...)</code>: <code>"first_exhausted"</code> stops when the smallest stream ends (undersampling), <code>"all_exhausted"</code> restarts finished streams until every one has been seen once (oversampling, so small domains repeat). Which one you pick silently changes the epochs of the small domains.</p>
+</section>
+
+<section id="mx2-s5">
+<h2>5. Curricula, stages and mid-training</h2>
+<p>A <b>curriculum</b> is an order over the data. In current pretraining it is coarse: a few <b>stages</b>, each a block of steps with its own mixture, ending in a <b>decay stage</b> (also called mid-training or the anneal) where the learning rate falls to zero while the mix shifts to the best data: maths, code, instruction-like and question-answer text, often synthetic. "Annealing" has three meanings in this literature (the learning-rate decay, this final data stage, and a cheap experiment that anneals a checkpoint on a candidate dataset); the {{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}} page separates them. The {{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}} page owns the training side: its stage animation (GPT-3, OLMo 2, SmolLM3 on their own token axes) and OLMo 2's Table 11 split of the anneal's gain into learning-rate decay and data. This section is the data side: what goes into each stage, from the configs and tables.</p>
+<h3>SmolLM3, from its released configs</h3>
+<div class="card" id="mx2-sm3">
+<div id="mx2-sm3-plot"></div>
+<p class="small mute">huggingface/smollm at 438be18, <code>text/pretraining/smollm3/stage1_8T.yaml</code>, <code>stage2_8T_9T.yaml</code>, <code>stage3_9T_11T.yaml</code>: 41, 46 and 56 sources with their <code>dataset_weights</code>, grouped by this page into English web (FineWeb-Edu, DCLM), multilingual (FineWeb-2 languages), code (Stack-Edu, pull requests, notebooks, issues, Kaggle), maths (FineMath, InfiWebMath, MegaMath, OpenMath data) and other (papers, Wikipedia, StackExchange, Cosmopedia, reasoning sets) <span class="mx2-lbl der">derived</span>. Token boundaries from steps × 2,359,296 tokens per step (data parallel 192 × micro-batch 3 × 4,096) <span class="mx2-lbl der">derived</span>: the decay stage starts at step 4,198,001, the same step as <code>lr_decay_starting_step</code>. The decay stage's raw weights sum to 1.0056; loaders normalise.</p>
+</div>
+<p>English web falls from 70% to 50% while code goes from 12.5% to 23% and maths from 2.7% to 12.5%, and the decay stage adds instruction-style maths (OpenMathInstruct-2, OpenMathReasoning) and code reasoning sets. The same shape, with scores, in SmolLM2 (Allal et al. 2025, {{§4 and Table 3|https://arxiv.org/abs/2502.02737}}) <span class="mx2-lbl pub">published</span>:</p>
+<div class="tw"><table class="mx2-tbl" id="mx2-sm2"></table></div>
+<p class="small mute">SmolLM2 1.7B on 11T tokens, warmup-stable-decay schedule with the decay over the last 10%. Stage mixes from the text of §4.2 to §4.5; stage 3's exact shares are given only in a figure, so they are not transcribed. Stage-4 maths 14% is derived from the stated 58% web, 24% code and 4% Cosmopedia.</p>
+<div class="mx2-pred" data-ans="c"><div class="q">Predict: in SmolLM2's Table 3, which category gains most in the decay stage (stage 3 to stage 4)?</div>
+<div class="opts"><button data-o="a">Knowledge and reasoning</button><button data-o="b">Generative tasks</button><button data-o="c">Maths</button></div>
+<div class="ans" hidden>Maths, 7.27 to 22.07, three times its stage-3 score, after the highest-quality maths sets (FineMath 4+, InfiWebMath 3+) entered only in stage 4. Code goes 16.75 to 23.21; knowledge and reasoning 57.47 to 60.24. Part of any decay-stage gain is the learning-rate decay itself, which no SmolLM2 ablation separates; OLMo 2's did (on the Pretraining page): on maths all of it was the data.</div></div>
+<h3>OLMo 2: how the anneal mixes repeat small sources</h3>
+<p>OLMo 2's pretraining mix is 3.90T tokens, 95% DCLM-Baseline web text (Table 4). Its mid-training "Dolmino" mixes come in 50B, 100B and 300B sizes; Table 13 gives each source's share and how much of the source pool it uses, where "400 indicates a 4x repeat" <span class="mx2-lbl pub">published</span>:</p>
+<div class="tw"><table class="mx2-tbl" id="mx2-dolmino"></table></div>
+<p class="small mute">{{OLMo 2, Tables 4 and 13|https://arxiv.org/abs/2501.00656}}, as transcribed on the {{OLMo 2 paper page|n:3c65c17b0d0d81fb9857fb956165ae1c}}. "Implied" = mix % × budget / pool, which reproduces the source % to within rounding <span class="mx2-lbl der">derived</span>. The 7B shipped with three 50B anneals averaged; the 13B and 32B with three 100B and one 300B (paper §4).</p>
+<p>The pattern: the anneal is half filtered web (DCLM's fastText top 7% that FineWeb-Edu scores at least 2), and the small, high-value sources (FLAN instructions, StackExchange Q&A, maths) are pushed to 2 to 4 epochs as the anneal grows: within the 4-epoch range section 2 found nearly free.</p>
+<h3>Other published stage recipes</h3>
+<ul class="tight">
+<li><b>Llama 3</b> ({{arXiv 2407.21783, §3.1.3 and §3.4.3|https://arxiv.org/abs/2407.21783}}): final mix roughly 50% general knowledge, 25% maths and reasoning, 17% code, 8% multilingual; annealing over the last 40M tokens to zero learning rate at 128K context while upsampling very high quality sources; annealing on GSM8K and MATH training data lifted the 8B's validation scores by 24.0% and 6.4% with "negligible" gains at 405B. A dataset's value is judged by annealing a half-trained 8B for 40B tokens with 30% of the candidate data. The {{Llama 3 paper page|n:3c65c17b0d0d81aca58ccb9d720b474e}} has the details.</li>
+<li><b>MiniCPM</b> ({{arXiv 2404.06395, §4 and §6|https://arxiv.org/abs/2404.06395}}): introduced the warmup-stable-decay schedule and mixed high-quality and SFT data into the decay phase only; the 2.4B annealed with SFT data mixed in beat the same model with SFT alone after the same SFT.</li>
+<li><b>DeepSeekMath</b>: at 1.3B, 400B tokens of code then 150B of maths beat 400B general then 150B maths on GSM8K and MATH, one run per setting; the {{paper page|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}} has the numbers and the caveats. It is one of the few published curriculum ablations at the stage level.</li>
+<li><b>Olmo 3</b> (Ai2, 2025): a 100B-token "Dolmino Mix" stage 2 of mostly synthetic maths, code, question-answer and thinking data after the 5.93T-token Dolma 3 Mix (dataset cards; the {{Ai2 OLMo|n:3c65c17b0d0d81e08697df661f83c3ac}} page).</li>
+</ul>
+<p><b>Why it works</b> is a hypothesis, not a proven mechanism: scarce high-quality tokens are not diluted across trillions of others, and what the model sees while the learning rate is small is what it keeps. Two measured facts bound it: OLMo 2's ablation (on the Pretraining page) shows most of the anneal's knowledge gain is the learning-rate decay while all of its maths gain is the data, and Llama 3's shows the data effect shrinking at 405B.</p>
+<div class="deepnote"><b>Plan one:</b> the {{Token-budget planner|#t-plan}} tab takes domain pools, a budget and stages, computes tokens and epochs per domain and the effective data of section 2, and animates the same budget with and without a decay stage.</div>
+</section>

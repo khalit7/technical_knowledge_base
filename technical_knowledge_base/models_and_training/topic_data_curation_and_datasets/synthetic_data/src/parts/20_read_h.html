@@ -1,0 +1,38 @@
+<section id="sy-s8">
+<h2>8. Terms of use: can you train on this model's output?</h2>
+<p>Synthetic data carries two sets of rights: those of the <b>seed documents</b> (rephrasing a copyrighted page does not obviously remove the original's rights) and the <b>generator's terms</b>, which may restrict what its output can train. The generator's terms, as published (quoted from the documents fetched 2026-10-14; <b>not legal advice</b>, and terms change):</p>
+<div class="tw"><table class="rd-narrow"><thead><tr><th>Generator</th><th>What the terms say about training on outputs</th></tr></thead><tbody>
+<tr><td>Mixtral-8x7B-Instruct, Mistral-7B-Instruct, Mistral NeMo Instruct (Cosmopedia, WRAP, Nemotron-CC v1)</td><td>Apache-2.0: no clause restricting outputs. Cosmopedia is Apache-2.0 as a result.</td></tr>
+<tr><td>Qwen3 open-weight models (Nemotron-CC v2)</td><td>Apache-2.0. Older Qwen2.5 72B used the "Qwen License Agreement"; Nemotron-CC v2's card warns that models trained on it "may be subject to redistribution and use requirements in the Qwen License Agreement and the DeepSeek License Agreement".</td></tr>
+<tr><td>Llama 3.1 and 3.3 Community License (2024)</td><td>Allowed, with conditions: if you use "any outputs or results of the Llama Materials to create, train, fine tune, or otherwise improve an AI model, which is distributed or made available, you shall also include "Llama" at the beginning of any such AI model name", plus "Built with Llama". Llama 2's licence had forbidden improving other models. This is why Olmo 3 regenerated two math sets with Qwen3 instead of keeping Llama-made versions ({{Olmo 3, arXiv 2512.13961|https://arxiv.org/abs/2512.13961}}).</td></tr>
+<tr><td>Gemma Terms of Use (last modified 2026-04-01)</td><td>A model trained on Gemma's synthetic outputs "in order to cause that model to perform similarly to Gemma" is a "Model Derivative", so the terms flow down to it; Gemma 4 is Apache-2.0 instead ({{terms|https://ai.google.dev/gemma/terms}}).</td></tr>
+<tr><td>OpenAI Services Agreement (business, v.010126)</td><td>Customers may not "use Output to develop artificial intelligence models that compete with OpenAI's products and services", except internal classifiers or embeddings not distributed ({{agreement|https://cdn.openai.com/osa/openai-services-agreement.pdf}}).</td></tr>
+<tr><td>Anthropic Commercial Terms (effective 2025-06-17)</td><td>Customers may not use the services "to build a competing product or service, including to train competing AI models" ({{terms|https://www.anthropic.com/legal/commercial-terms}}).</td></tr>
+<tr><td>NVIDIA Open Model License (2025-10-24)</td><td>"NVIDIA does not claim ownership to any outputs"; "An output is not a Derivative Model."</td></tr>
+</tbody></table></div>
+<p>Two habits follow. Record the generator, its version and its licence <b>in every synthetic row's metadata</b> (Cosmopedia keeps the prompt and seed source per row; Nemotron-CC keeps the source URL and WARC record id), so a licence question can be answered later by filtering. And prefer permissively licensed generators for anything you will release; TinyStories (written by OpenAI models) is released under CDLA-Sharing-1.0 and Persona Hub's sample (GPT-4, Llama-3 and Qwen) under CC-BY-NC-SA 4.0, research use. Copyright in seeds and the state of court cases are covered on the {{Decontamination, PII and data governance|n:3f95c17b0d0d8100b7e4e0f96074c309}} page.</p>
+</section>
+
+<section id="sy-s9">
+<h2>9. Building it: a synthetic data pipeline at scale</h2>
+<p>Put together, a production pipeline for synthetic pretraining text has these stages, each with what it costs and how to check it:</p>
+<ol>
+<li><b>Choose seeds.</b> From the quality buckets of your web pipeline: low-quality pages to rescue by rewriting (Nemotron-CC, REWIRE), high-quality pages to transform into more forms, or a topic list (Cosmopedia v2's 34,000 BISAC topics) with retrieved seed pages. Deduplicate seeds first: duplicated seeds become duplicated outputs that MinHash will not catch once reworded. Check: topic histogram of seeds.</li>
+<li><b>Design prompts.</b> Styles and formats (WRAP's four, Nemotron-CC's five, FinePhrase's tables and FAQs), audiences, personas, and explicit bans on stock openings. Check: generate 1,000 outputs per prompt and run the measures of section 6 before scaling; this is where Cosmopedia "spent most of the time".</li>
+<li><b>Chunk.</b> Rewrite segments, not whole documents (WRAP: 300 tokens; Nemotron-CC: 512 to 2,000 depending on the prompt; Kimi K2: chunk by chunk with the previous chunk as context). Long inputs get summarised instead of rewritten.</li>
+<li><b>Generate.</b> An inference server with large batches (vLLM, SGLang, TensorRT-LLM; Nemotron-CC used TensorRT-LLM in FP8), a 1B to 8B generator for rephrasing (section 3), moderate temperature (Nemotron-CC: 0.5, top-p 0.9). Make it resumable and store the prompt id, seed id, generator and sampling settings per row.</li>
+<li><b>Post-process.</b> Strip preambles ("Here is a paraphrased version:") and Markdown, drop refusals, truncated and very short outputs (Nemotron-CC: under 50 tokens).</li>
+<li><b>Verify.</b> Execute code, check math answers, check fidelity to the source (Kimi K2's semantic comparison; a cheap proxy is the share of numbers and names kept, which the {{Rephrasing lab|#t-syre}} measures), optionally score with a classifier (knowing it favours the style, section 6).</li>
+<li><b>Deduplicate and decontaminate.</b> MinHash within the synthetic set and against the real corpus; n-gram matching against every evaluation set (Cosmopedia: 10-grams then a similarity check), because generators reproduce benchmark items.</li>
+<li><b>Mix and test.</b> Sweep the synthetic share on small proxy models (section 5; the {{Data mixing|n:3c65c17b0d0d819ea5d6c59471e66875}} page), keep all real data in the pool, decide how many times synthetic tokens may repeat.</li>
+</ol>
+<div class="rd-card" id="sy-cost-card"><h4>What will the generation cost?</h4>
+<div class="rd-calc">
+<label>Synthetic tokens to generate (billions)<input type="number" id="sy-cost-t" min="0.1" max="100000" step="any" value="100"></label>
+<label>Generator and throughput<select id="sy-cost-g"></select></label>
+<label>GPUs<input type="number" id="sy-cost-n" min="1" max="100000" step="1" value="64"></label>
+<label>Price per GPU-hour, dollars <span class="ill">illustrative</span><input type="number" id="sy-cost-p" min="0" max="100" step="any" value="2.5"></label>
+</div>
+<div class="out" id="sy-cost-out"></div>
+<p class="small mute" id="sy-cost-src"></p></div>
+</section>
