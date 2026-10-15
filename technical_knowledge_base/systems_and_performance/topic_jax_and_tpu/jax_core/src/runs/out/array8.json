@@ -1,0 +1,88 @@
+{
+ "versions": {
+  "jax": "0.11.2",
+  "jaxlib": "0.11.2",
+  "python": "3.12.11"
+ },
+ "n_devices": 8,
+ "devices": [
+  "cpu:0",
+  "cpu:1",
+  "cpu:2",
+  "..."
+ ],
+ "placement": {
+  "a0": {
+   "devices": "{CpuDevice(id=0)}",
+   "committed": true
+  },
+  "a3": {
+   "devices": "{CpuDevice(id=3)}",
+   "committed": true
+  },
+  "u": {
+   "devices": "{CpuDevice(id=0)}",
+   "committed": false
+  }
+ },
+ "uncommitted_follows": {
+  "expr": "u + a3",
+  "devices": "{CpuDevice(id=3)}",
+  "committed": true
+ },
+ "two_committed_error": "ValueError: Received incompatible devices for jitted computation. Got argument x of add with shape float32[4] and with device ids [0] on platform CPU and argument y of add with shape float32[4] and with device ids [3] on platform CPU",
+ "two_committed_jit_error": "ValueError: Received incompatible devices for jitted computation. Got argument p of <lambda>.<locals>.<lambda> with shape float32[4] and with device ids [0] on platform CPU and argument q of <lambda>.<locals>.<lambda> with shape float32[4] and with device ids [3] on platform CPU",
+ "fix": {
+  "expr": "jax.device_put(a0, devs[3]) + a3",
+  "devices": "{CpuDevice(id=3)}"
+ },
+ "per_model_src": "def per_model(w, x):          # w [128,128], x [16,128]\n    h = jnp.tanh(x @ w)\n    h = jax.lax.with_sharding_constraint(h, NamedSharding(mesh, P(None, None)))\n    return (h @ w).sum()\nf = jax.jit(jax.vmap(per_model))                          # or jax.vmap(per_model, spmd_axis_name=\"data\")\ny = f(ws, xs)    # ws [8,128,128], xs [8,16,128], both sharded P(\"data\") on an 8-device mesh",
+ "spmd_axis_name": {
+  "plain vmap": {
+   "out_sharding": "P('data',)",
+   "out_shards": [
+    [
+     1
+    ],
+    [
+     1
+    ]
+   ],
+   "all_gather": 0,
+   "all_reduce": 0,
+   "all_to_all": 0,
+   "collective_permute": 0,
+   "dynamic_slice": 0,
+   "hlo_lines": 81,
+   "constraint_in_jaxpr": [
+    "sharding=NamedSharding(mesh=Mesh('data': 8, axis_types=(Auto,)), spec=P(UNCONSTRAINED, None, None), memory_kind=device)",
+    "unconstrained_dims=frozenset({0})",
+    "g:f32[8] = reduce_sum[axes=(np.int64(1), np.int64(2)) out_sharding=None] f"
+   ],
+   "max_diff_vs_unsharded": 2.384185791015625e-06
+  },
+  "vmap spmd_axis_name='data'": {
+   "out_sharding": "P('data',)",
+   "out_shards": [
+    [
+     1
+    ],
+    [
+     1
+    ]
+   ],
+   "all_gather": 0,
+   "all_reduce": 0,
+   "all_to_all": 0,
+   "collective_permute": 0,
+   "dynamic_slice": 0,
+   "hlo_lines": 81,
+   "constraint_in_jaxpr": [
+    "sharding=NamedSharding(mesh=Mesh('data': 8, axis_types=(Auto,)), spec=P('data',), memory_kind=device)",
+    "unconstrained_dims=frozenset({})",
+    "g:f32[8] = reduce_sum[axes=(np.int64(1), np.int64(2)) out_sharding=None] f"
+   ],
+   "max_diff_vs_unsharded": 2.384185791015625e-06
+  }
+ }
+}
