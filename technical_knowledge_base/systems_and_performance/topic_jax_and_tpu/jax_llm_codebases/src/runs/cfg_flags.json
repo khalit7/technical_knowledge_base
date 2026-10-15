@@ -1,0 +1,407 @@
+[
+ {
+  "key": "model_name",
+  "group": "model",
+  "what": "Loads configs/models/<name>.yml on top of base.yml. Any key that file sets cannot also be set on the command line with a different value unless override_model_config=true (measured error on the Reading tab)."
+ },
+ {
+  "key": "decoder_block",
+  "group": "model",
+  "what": "Which decoder layer class the decoder stacks: one of 25 DecoderBlockType values (llama2, gemma3, deepseek, qwen3, gpt3, ...). The running example is the gpt3 block: LayerNorm with bias, biased projections, learned positions."
+ },
+ {
+  "key": "base_emb_dim",
+  "group": "model",
+  "what": "Residual width d_model (multiplied by global_parameter_scale, 1 by default, to give emb_dim)."
+ },
+ {
+  "key": "base_num_query_heads",
+  "group": "model",
+  "what": "Number of query heads."
+ },
+ {
+  "key": "base_num_kv_heads",
+  "group": "model",
+  "what": "Number of key/value heads; fewer than query heads gives grouped-query attention. The gpt3 block asserts they are equal."
+ },
+ {
+  "key": "base_mlp_dim",
+  "group": "model",
+  "what": "Hidden width of the MLP (per expert for MoE models use base_moe_mlp_dim)."
+ },
+ {
+  "key": "base_num_decoder_layers",
+  "group": "model",
+  "what": "Number of decoder layers; with scan_layers they are stacked into one array per weight."
+ },
+ {
+  "key": "head_dim",
+  "group": "model",
+  "what": "Width of each attention head; MaxText sets it explicitly rather than deriving emb_dim / heads."
+ },
+ {
+  "key": "mlp_activations",
+  "group": "model",
+  "what": "Activation per MLP input projection: ['silu','linear'] is SwiGLU (two input matrices, one gated); ['gelu'] is one matrix with jax.nn.gelu, which defaults to the tanh approximation."
+ },
+ {
+  "key": "vocab_size",
+  "group": "model",
+  "what": "Vocabulary size. It must divide by the mesh axes that shard it (the vocab rule maps to tensor axes): the running example's 65 cannot be split 4 ways."
+ },
+ {
+  "key": "normalization_layer_epsilon",
+  "group": "model",
+  "what": "Epsilon of RMSNorm or LayerNorm; 1e-5 here, PyTorch's LayerNorm default too."
+ },
+ {
+  "key": "logits_via_embedding",
+  "group": "model",
+  "what": "Tie the output head to the token embedding (true) or keep a separate logits_dense kernel (false)."
+ },
+ {
+  "key": "trainable_position_size",
+  "group": "model",
+  "what": "A positive value adds learned absolute position embeddings of that length (GPT-3 style); -1 means none (RoPE models)."
+ },
+ {
+  "key": "fused_qkv",
+  "group": "model",
+  "what": "One projection producing q, k and v together (a [embed, 3, heads, head_dim] kernel) instead of three."
+ },
+ {
+  "key": "num_experts",
+  "group": "moe",
+  "what": "Experts per MoE layer; 1 means a dense model."
+ },
+ {
+  "key": "num_experts_per_tok",
+  "group": "moe",
+  "what": "Top-k routing: experts each token is sent to."
+ },
+ {
+  "key": "capacity_factor",
+  "group": "moe",
+  "what": "Expert capacity for token dropping; -1 (default) means dropless, with ragged all-to-all and grouped matmul instead of padding."
+ },
+ {
+  "key": "dtype",
+  "group": "numerics",
+  "what": "Activation and matmul dtype: bfloat16 by default."
+ },
+ {
+  "key": "weight_dtype",
+  "group": "numerics",
+  "what": "Dtype of the stored parameters (and so of the optimizer's master copy): float32 by default."
+ },
+ {
+  "key": "grad_dtype",
+  "group": "numerics",
+  "what": "Dtype gradients are cast to after value_and_grad, before clipping and the update."
+ },
+ {
+  "key": "matmul_precision",
+  "group": "numerics",
+  "what": "Passed to the dots: default, high or highest. On TPU 'default' runs float32 matmuls in bfloat16 passes; on CPU it changes nothing (the runs here set highest for exact comparisons)."
+ },
+ {
+  "key": "cast_logits_to_fp32",
+  "group": "numerics",
+  "what": "Cast the logits to float32 before the loss."
+ },
+ {
+  "key": "quantization",
+  "group": "numerics",
+  "what": "'' for none, or int8, fp8 variants and others through AQT or Qwix."
+ },
+ {
+  "key": "scan_layers",
+  "group": "memory",
+  "what": "Run the decoder layers with jax.lax.scan over weights stacked on a 'layers' axis: compile time and HLO size stop growing with depth (measured on the Reading tab)."
+ },
+ {
+  "key": "param_scan_axis",
+  "group": "memory",
+  "what": "Which axis of each stacked weight is the layer axis: 1, so a [embed, mlp] kernel becomes [embed, layers, mlp]. The scan moves it to axis 0 at run time."
+ },
+ {
+  "key": "remat_policy",
+  "group": "memory",
+  "what": "What the backward pass may keep from the forward pass of each layer (jax.checkpoint policy): 'full' keeps only the layer input and recomputes everything else; 'minimal' keeps the projections' outputs."
+ },
+ {
+  "key": "optimizer_memory_host_offload",
+  "group": "memory",
+  "what": "Keep optimizer state in host memory and move it to the device for the update."
+ },
+ {
+  "key": "gradient_accumulation_steps",
+  "group": "memory",
+  "what": "Accumulate gradients over this many microbatches before one optimizer update."
+ },
+ {
+  "key": "num_vocab_tiling",
+  "group": "memory",
+  "what": "Compute logits and loss in this many tiles to bound peak memory for large vocabularies."
+ },
+ {
+  "key": "attention",
+  "group": "attention",
+  "what": "Kernel: autoselected, dot_product, flash (splash attention in Pallas on TPU), cudnn_flash_te on GPU. 'autoselected' falls back to dot_product on CPU, for short sequences (under 128) and in decode."
+ },
+ {
+  "key": "attention_type",
+  "group": "attention",
+  "what": "Variant: global (causal), local_sliding, chunk, mla, full, compressed, block_diffusion."
+ },
+ {
+  "key": "sliding_window_size",
+  "group": "attention",
+  "what": "Window for local_sliding attention."
+ },
+ {
+  "key": "sa_block_q",
+  "group": "attention",
+  "what": "Splash attention query block size (TPU kernel tiling); 512 by default."
+ },
+ {
+  "key": "shard_mode",
+  "group": "parallel",
+  "what": "auto: annotations plus GSPMD/Shardy propagation; explicit: sharding in the types (see Sharding and scale)."
+ },
+ {
+  "key": "logical_axis_rules",
+  "group": "parallel",
+  "what": "Ordered (logical name, mesh axes) pairs; each array dimension takes the first rule whose mesh axes are still free. A model file's rule replaces every base rule with the same name (llama2-7b.yml sets ['norm', 'fsdp'], so its norm scales are FSDP-sharded instead of split over 'tensor')."
+ },
+ {
+  "key": "ici_fsdp_parallelism",
+  "group": "parallel",
+  "what": "FSDP degree inside a slice (over ICI). -1 absorbs every device not used by other axes: on 8 devices with nothing else set, fsdp = 8."
+ },
+ {
+  "key": "ici_data_parallelism",
+  "group": "parallel",
+  "what": "Pure data parallelism inside a slice (replicated parameters)."
+ },
+ {
+  "key": "ici_tensor_parallelism",
+  "group": "parallel",
+  "what": "Tensor parallelism inside a slice: heads, mlp and vocab dimensions split over 'tensor'."
+ },
+ {
+  "key": "ici_expert_parallelism",
+  "group": "parallel",
+  "what": "Expert parallelism inside a slice."
+ },
+ {
+  "key": "ici_pipeline_parallelism",
+  "group": "parallel",
+  "what": "Pipeline stages inside a slice (the 'stage' mesh axis)."
+ },
+ {
+  "key": "ici_context_parallelism",
+  "group": "parallel",
+  "what": "Context (sequence) parallelism inside a slice."
+ },
+ {
+  "key": "dcn_data_parallelism",
+  "group": "parallel",
+  "what": "Data parallelism across slices over the data-centre network; -1 absorbs the slices."
+ },
+ {
+  "key": "num_slices",
+  "group": "parallel",
+  "what": "Number of TPU slices; -1 lets MaxText count them."
+ },
+ {
+  "key": "context_parallel_strategy",
+  "group": "parallel",
+  "what": "all_gather (default), ring, ulysses or usp."
+ },
+ {
+  "key": "num_pipeline_microbatches",
+  "group": "parallel",
+  "what": "Microbatches per pipeline step; the bubble is (stages - 1) / (repeats x microbatches + stages - 1) (base.yml:450)."
+ },
+ {
+  "key": "sharding_tolerance",
+  "group": "parallel",
+  "what": "Largest fraction of parameter bytes allowed to stay unsharded before MaxText raises."
+ },
+ {
+  "key": "per_device_batch_size",
+  "group": "train",
+  "what": "Sequences per device per step; global batch = this x number of devices (12 x 8 = 96 on the 8 simulated devices here). Fractions below 1 are allowed."
+ },
+ {
+  "key": "max_target_length",
+  "group": "train",
+  "what": "Sequence length."
+ },
+ {
+  "key": "steps",
+  "group": "train",
+  "what": "Training steps; also the default length of the learning-rate schedule."
+ },
+ {
+  "key": "learning_rate",
+  "group": "train",
+  "what": "Peak learning rate (3e-5 by default, a fine-tuning value)."
+ },
+ {
+  "key": "lr_schedule_type",
+  "group": "train",
+  "what": "cosine or wsd (warmup, stable, decay)."
+ },
+ {
+  "key": "warmup_steps_fraction",
+  "group": "train",
+  "what": "Fraction of the schedule spent in linear warmup, which starts at learning rate 0 at step 0."
+ },
+ {
+  "key": "learning_rate_final_fraction",
+  "group": "train",
+  "what": "Final learning rate as a fraction of the peak (1.0 makes the cosine flat, used here to match the running example)."
+ },
+ {
+  "key": "opt_type",
+  "group": "train",
+  "what": "adamw, adam_pax, sgd or muon."
+ },
+ {
+  "key": "adam_b1",
+  "group": "train",
+  "what": "Adam first-moment decay."
+ },
+ {
+  "key": "adam_b2",
+  "group": "train",
+  "what": "Adam second-moment decay: 0.95, the Llama 2 value (optax and PyTorch default to 0.999)."
+ },
+ {
+  "key": "adam_eps",
+  "group": "train",
+  "what": "Adam epsilon, added outside the square root."
+ },
+ {
+  "key": "adam_weight_decay",
+  "group": "train",
+  "what": "Decoupled weight decay coefficient."
+ },
+ {
+  "key": "adamw_mask",
+  "group": "train",
+  "what": "Regexes of parameter paths NOT to decay. Empty by default, so biases, norm scales and embeddings are decayed too; the run here passed ['bias', 'scale', 'embedding']."
+ },
+ {
+  "key": "gradient_clipping_threshold",
+  "group": "train",
+  "what": "Global-norm clipping threshold; 0 disables it."
+ },
+ {
+  "key": "enable_dropout",
+  "group": "train",
+  "what": "Dropout switch; with it off the run is a deterministic function of the seeds."
+ },
+ {
+  "key": "dropout_rate",
+  "group": "train",
+  "what": "Dropout probability (0.0 by default, so dropout does nothing even when enabled)."
+ },
+ {
+  "key": "z_loss_multiplier",
+  "group": "train",
+  "what": "Weight of the z-loss on the log-partition function (0 by default)."
+ },
+ {
+  "key": "dataset_type",
+  "group": "data",
+  "what": "synthetic (default), hf, grain or tfds."
+ },
+ {
+  "key": "packing",
+  "group": "data",
+  "what": "Pack several documents per sequence with segment ids so attention does not cross them."
+ },
+ {
+  "key": "tokenizer_type",
+  "group": "data",
+  "what": "sentencepiece, tiktoken or huggingface."
+ },
+ {
+  "key": "enable_data_shuffling",
+  "group": "data",
+  "what": "Shuffle the data source."
+ },
+ {
+  "key": "init_weights_seed",
+  "group": "data",
+  "what": "Seed for parameter initialisation."
+ },
+ {
+  "key": "enable_checkpointing",
+  "group": "ckpt",
+  "what": "Create the Orbax checkpointer. If the run directory already holds a checkpoint, training resumes from it."
+ },
+ {
+  "key": "async_checkpointing",
+  "group": "ckpt",
+  "what": "Write checkpoints in the background while training continues."
+ },
+ {
+  "key": "checkpoint_period",
+  "group": "ckpt",
+  "what": "Save every this many steps (10,000 by default)."
+ },
+ {
+  "key": "load_parameters_path",
+  "group": "ckpt",
+  "what": "Start from parameters only (no optimizer state), for fine-tuning."
+ },
+ {
+  "key": "load_full_state_path",
+  "group": "ckpt",
+  "what": "Start from a full state: parameters, optimizer state and step."
+ },
+ {
+  "key": "max_num_checkpoints_to_keep",
+  "group": "ckpt",
+  "what": "How many checkpoints Orbax keeps, through its keep-latest-N preservation policy (common/checkpoint_context.py). The default None was not tested here."
+ },
+ {
+  "key": "hardware",
+  "group": "runtime",
+  "what": "tpu, gpu, gpu_multiprocess or cpu. MaxText's own CPU tests pass cpu, as the runs here do."
+ },
+ {
+  "key": "run_name",
+  "group": "runtime",
+  "what": "Names the output directory; reusing a name resumes that run."
+ },
+ {
+  "key": "base_output_directory",
+  "group": "runtime",
+  "what": "Where checkpoints, metrics and logs go (a gs:// bucket in production; a local path here)."
+ },
+ {
+  "key": "profiler",
+  "group": "runtime",
+  "what": "'' , xplane (the JAX profiler) or nsys."
+ },
+ {
+  "key": "compile_topology",
+  "group": "runtime",
+  "what": "Compile ahead of time for a named TPU topology (for example v5e-256) with train_compile.py; needs libtpu, so not run here."
+ },
+ {
+  "key": "jax_cache_dir",
+  "group": "runtime",
+  "what": "Persistent compilation cache directory."
+ },
+ {
+  "key": "log_period",
+  "group": "runtime",
+  "what": "How often metrics are flushed."
+ }
+]
