@@ -1,0 +1,51 @@
+<section id="xf-s9">
+<h2>9. vmap: write it for one example, run it on a batch</h2>
+<p><b>The problem.</b> Many computations are easiest to write for one example: one sequence's loss, one query against one key, one sample's gradient. Batching them by hand means adding a leading dimension everywhere and getting every transpose right; a Python loop over examples is slow. <code>jax.vmap(f, in_axes=...)</code> does the rewrite for you: it traces <code>f</code> with <dfn>batch tracers</dfn> that remember which dimension is the batch, and replaces each primitive with its batched form through that primitive's <dfn>batching rule</dfn>. No loop survives into the program. <code>in_axes</code> gives the batched dimension of each argument (<code>None</code> for an argument shared by the whole batch); <code>out_axes</code> places it in the output.</p>
+<div class="xf-box" id="xf-vm-card"><h4>The MLP on one token, then vmapped over the 4,096 tokens of a batch</h4>
+<pre class="xf-code">jax.make_jaxpr(mlp)(p, x_one)                           # x_one: f32[128], one token
+jax.make_jaxpr(jax.vmap(mlp, in_axes=(None, 0)))(p, x)  # x: f32[4096,128], 32 x 128 tokens; p shared</pre>
+<div class="xf-two"><div class="xf-pane"><div class="h">mlp on one token</div><div class="xf-lines" id="xf-vm-one"></div></div>
+<div class="xf-pane"><div class="h">vmap(mlp): the batch</div><div class="xf-lines" id="xf-vm-bat"></div></div></div>
+<div class="xf-cap" id="xf-vm-cap"></div>
+<div class="xf-anctl" id="xf-vm-ctl"></div>
+<p class="small mute" id="xf-vm-note"></p></div>
+<p><b>One rule, different programs.</b> The batching rule of <code>dot_general</code> looks at which inputs carry a batch dimension. The same one-line function <code>dot(q, k) = q @ k</code> on two vectors of 32 (one query, one key) becomes three different programs (real jaxprs):</p>
+<div class="seg" id="xf-bt-mode"><button data-v="one" class="on">no vmap</button><button data-v="keys">over keys: in_axes=(None, 0)</button><button data-v="both">over pairs: (0, 0)</button><button data-v="grid">nested: all pairs</button></div>
+<pre class="xf-code" id="xf-bt-jx"></pre>
+<p class="small mute" id="xf-bt-cap"></p>
+<h3>Per-example gradients of the running example</h3>
+<p>Ordinary training needs the batch-mean gradient, but some methods need one gradient per example: differentially private SGD clips each example's gradient norm before averaging, and data-attribution methods score examples by their gradients. In PyTorch the plain way is a loop of <code>backward()</code> calls; <code>torch.func.vmap</code> with <code>torch.func.grad</code> ports JAX's approach. Here all four ways computed the 32 per-example gradients of the running example's loss (32 sequences of 128 characters, 826,368 parameters each, so <span data-xf="vm.bytes"></span> of gradients):</p>
+<pre class="xf-code">def per_ex_loss(params, xi, yi):                 # one sequence: int32[128]
+    return loss_fn(params, xi[None], yi[None])
+per_ex_grads = jax.jit(jax.vmap(jax.grad(per_ex_loss), in_axes=(None, 0, 0)))(params, x, y)</pre>
+<div class="xf-box"><h4>Time for all 32 per-example gradients</h4>
+<div class="xf-chart" id="xf-vm-bars"></div>
+<p class="small mute" id="xf-vm-tnote"></p>
+<div class="tw"><table class="xf-t" id="xf-vm-agree"></table></div>
+<div class="xf-chart" id="xf-vm-norms"></div>
+<p class="small mute">Each dot is one sequence's gradient norm (the quantity DP-SGD clips). Their mean gradient equals the batch gradient (row above), because the loss is a mean over equally long sequences.</p></div>
+<p><b>Why vmap wins here.</b> The loop runs 32 small programs, each with matrix products of one sequence; the vmapped program runs one program whose matrix products carry the batch, which keeps the hardware busy and pays dispatch overhead once. The traced per-example gradient program has <span data-xf="vm.eq1"></span> equations for one example and <span data-xf="vm.eq2"></span> after vmap: the same program with batched shapes, not 32 copies.</p>
+</section>
+
+<section id="xf-s10">
+<h2>10. Inside: every transformation is an interpreter</h2>
+<p>JAX's core is small. Each transformation is a <dfn>trace</dfn> object (an interpreter) with one method that matters, <code>process_primitive</code>. Every <code>jnp</code> or <code>lax</code> call ends in <code>Primitive.bind</code>, which hands the operation to whichever trace is current. Transformations nest by stacking traces: under <code>jit(vmap(grad(f)))</code>, grad's trace handles an operation first and calls the operation again on its parent (vmap's), which calls it on jit's, which records it. Section 1's tracer table showed exactly that nesting.</p>
+<div class="xf-flow" id="xf-flow"></div>
+<p>Read at the pinned version (tag jax-v0.11.2, commit <code>32544801</code>), verbatim with real line numbers; open each:</p>
+<div id="xf-src"></div>
+<h3>A toy JAX in <span data-xf="toy.n"></span> lines</h3>
+<p>The same design at toy scale: a tracer that records operations into a program, and one interpreter loop given three different rule tables (evaluate, forward-mode derivative, batch). Scalars only, three primitives; checked against JAX on the same function.</p>
+<pre class="xf-code" id="xf-toy-code"></pre>
+<pre class="xf-code" id="xf-toy-f"></pre>
+<div class="xf-two"><div><div class="small mute">toy output</div><pre class="xf-code xf-out" id="xf-toy-out"></pre></div><div><div class="small mute">JAX on the same function</div><pre class="xf-code xf-out" id="xf-toy-jax"></pre></div></div>
+<p class="small mute">Script <code>src/xf/toy_tracer.py</code>. What the toy leaves out: abstract values and shapes (JAX checks every equation's output type), many arrays and dtypes, reverse mode (JAX linearizes, then transposes the linear part), nested transformations, and compilation. Child page {{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}} goes further into these files.</p>
+</section>
+
+<section id="xf-s11">
+<h2>11. Footguns, with the real messages</h2>
+<p>Each one ran in this lab's scripts; open for the message and the fix.</p>
+<div id="xf-foot"></div>
+<div class="deepnote"><b>Where next.</b> The {{Compiler lab|#t-xla}} follows the jaxpr into StableHLO and optimised HLO (fusion, donation, remat); the {{Training lab|#t-train}} builds the full train step with Flax NNX and optax; the {{Sharding lab|#t-shard}} runs the model on 8 devices.</div>
+</section>
+<p class="foot">Transforms lab: built 2026-10-15 with jax 0.11.2, jaxlib 0.11.2, flax 0.12.10, torch 2.14.1, Python 3.12.11 on an Apple M1 Pro (CPU only). Scripts and their outputs in <code>src/xf/</code> of this page's repository folder; source excerpts from <a href="https://github.com/jax-ml/jax/tree/32544801e26115ac1794926d027148abf3baf009" target="_blank" rel="noopener noreferrer">jax-ml/jax at jax-v0.11.2</a>.</p>
+</div>

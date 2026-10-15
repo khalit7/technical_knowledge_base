@@ -1,0 +1,639 @@
+{
+ "versions": {
+  "jax": "0.11.2",
+  "jaxlib": "0.11.2",
+  "python": "3.12.11"
+ },
+ "shapes": {
+  "x": [
+   32,
+   128,
+   128
+  ]
+ },
+ "attention": {
+  "fn": "attention",
+  "src": [
+   "def attention(p, x, n_heads):                                # x [B, T, D]",
+   "    B, T, D = x.shape",
+   "    dh = D // n_heads",
+   "    split = lambda t: t.reshape(B, T, n_heads, dh).transpose(0, 2, 1, 3)   # [B, H, T, dh]",
+   "    q, k, v = (split(linear(p[n], x)) for n in (\"wq\", \"wk\", \"wv\"))",
+   "    s = q @ k.transpose(0, 1, 3, 2) / math.sqrt(dh)          # [B, H, T, T]",
+   "    mask = jnp.tril(jnp.ones((T, T), bool))",
+   "    s = jnp.where(mask, s, -jnp.inf)",
+   "    a = jax.nn.softmax(s, axis=-1) @ v",
+   "    return linear(p[\"wo\"], a.transpose(0, 2, 1, 3).reshape(B, T, D))"
+  ],
+  "src_start": 54,
+  "head": "{ lambda ; a:f32[128] b:f32[128,128] c:f32[128] d:f32[128,128] e:f32[128] f:f32[128,128]\n    g:f32[128] h:f32[128,128] i:f32[32,128,128]. let",
+  "eqns": [
+   "    j:f32[32,128,128] = dot_general[\n      dimension_numbers=(([2], [0]), ([], []))\n      preferred_element_type=float32\n    ] i f",
+   "    k:f32[1,1,128] = broadcast_in_dim[broadcast_dimensions=(2,)] e",
+   "    l:f32[32,128,128] = add j k",
+   "    m:f32[32,128,4,32] = reshape[\n      dimensions=None\n      new_sizes=(32, 128, 4, 32)\n      sharding=None\n    ] l",
+   "    n:f32[32,4,128,32] = transpose[permutation=(0, 2, 1, 3)] m",
+   "    o:f32[32,128,128] = dot_general[\n      dimension_numbers=(([2], [0]), ([], []))\n      preferred_element_type=float32\n    ] i b",
+   "    p:f32[1,1,128] = broadcast_in_dim[broadcast_dimensions=(2,)] a",
+   "    q:f32[32,128,128] = add o p",
+   "    r:f32[32,128,4,32] = reshape[\n      dimensions=None\n      new_sizes=(32, 128, 4, 32)\n      sharding=None\n    ] q",
+   "    s:f32[32,4,128,32] = transpose[permutation=(0, 2, 1, 3)] r",
+   "    t:f32[32,128,128] = dot_general[\n      dimension_numbers=(([2], [0]), ([], []))\n      preferred_element_type=float32\n    ] i h",
+   "    u:f32[1,1,128] = broadcast_in_dim[broadcast_dimensions=(2,)] g",
+   "    v:f32[32,128,128] = add t u",
+   "    w:f32[32,128,4,32] = reshape[\n      dimensions=None\n      new_sizes=(32, 128, 4, 32)\n      sharding=None\n    ] v",
+   "    x:f32[32,4,128,32] = transpose[permutation=(0, 2, 1, 3)] w",
+   "    y:f32[32,4,32,128] = transpose[permutation=(0, 1, 3, 2)] s",
+   "    z:f32[32,4,128,128] = dot_general[\n      dimension_numbers=(([3], [2]), ([0, 1], [0, 1]))\n      preferred_element_type=float32\n    ] n y",
+   "    ba:f32[32,4,128,128] = div z 5.656854152679443:f32[]",
+   "    bb:bool[128,128] = broadcast_in_dim True:bool[]",
+   "    bc:bool[128,128] = jit[\n      name=tril\n      jaxpr={ lambda ; bb:bool[128,128]. let\n          bd:i32[128,128] = iota[\n            dimension=0\n            dtype=int32\n            shape=(128, 128)\n            sharding=None\n          ] \n          be:i32[128,128] = add bd 0:i32[]\n          bf:i32[128,128] = iota[\n            dimension=1\n            dtype=int32\n            shape=(128, 128)\n            sharding=None\n          ] \n          bg:bool[128,128] = ge be bf\n          bh:bool[128,128] = broadcast_in_dim False:bool[]\n          bc:bool[128,128] = select_n bg bh bb\n        in (bc,) }\n    ] bb",
+   "    bi:f32[32,4,128,128] = jit[\n      name=_where\n      jaxpr={ lambda ; bc:bool[128,128] ba:f32[32,4,128,128] bj:f32[]. let\n          bk:f32[] = convert_element_type[new_dtype=float32 weak_type=False] bj\n          bl:bool[32,4,128,128] = broadcast_in_dim[broadcast_dimensions=(2, 3)] bc\n          bm:f32[32,4,128,128] = broadcast_in_dim bk\n          bi:f32[32,4,128,128] = select_n bl bm ba\n        in (bi,) }\n    ] bc ba -inf:f32[]",
+   "    bn:f32[32,4,128] = reduce_max[axes=(3,) out_sharding=None] bi",
+   "    bo:f32[32,4,128] = max -inf:f32[] bn",
+   "    bp:f32[32,4,128,1] = broadcast_in_dim[broadcast_dimensions=(0, 1, 2)] bo",
+   "    bq:f32[32,4,128,1] = stop_gradient bp",
+   "    br:f32[32,4,128,128] = sub bi bq",
+   "    bs:f32[32,4,128,128] = exp br",
+   "    bt:f32[32,4,128] = reduce_sum[axes=(3,) out_sharding=None] bs",
+   "    bu:f32[32,4,128,1] = broadcast_in_dim[broadcast_dimensions=(0, 1, 2)] bt",
+   "    bv:f32[32,4,128,128] = div bs bu",
+   "    bw:f32[32,4,128,32] = dot_general[\n      dimension_numbers=(([3], [2]), ([0, 1], [0, 1]))\n      preferred_element_type=float32\n    ] bv x",
+   "    bx:f32[32,128,4,32] = transpose[permutation=(0, 2, 1, 3)] bw",
+   "    by:f32[32,128,128] = reshape[\n      dimensions=None\n      new_sizes=(32, 128, 128)\n      sharding=None\n    ] bx",
+   "    bz:f32[32,128,128] = dot_general[\n      dimension_numbers=(([2], [0]), ([], []))\n      preferred_element_type=float32\n    ] by d",
+   "    ca:f32[1,1,128] = broadcast_in_dim[broadcast_dimensions=(2,)] c",
+   "    cb:f32[32,128,128] = add bz ca"
+  ],
+  "prims": [
+   "dot_general",
+   "broadcast_in_dim",
+   "add",
+   "reshape",
+   "transpose",
+   "dot_general",
+   "broadcast_in_dim",
+   "add",
+   "reshape",
+   "transpose",
+   "dot_general",
+   "broadcast_in_dim",
+   "add",
+   "reshape",
+   "transpose",
+   "transpose",
+   "dot_general",
+   "div",
+   "broadcast_in_dim",
+   "jit",
+   "jit",
+   "reduce_max",
+   "max",
+   "broadcast_in_dim",
+   "stop_gradient",
+   "sub",
+   "exp",
+   "reduce_sum",
+   "broadcast_in_dim",
+   "div",
+   "dot_general",
+   "transpose",
+   "reshape",
+   "dot_general",
+   "broadcast_in_dim",
+   "add"
+  ],
+  "line": [
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   4,
+   5,
+   5,
+   5,
+   6,
+   6,
+   7,
+   8,
+   8,
+   8,
+   8,
+   8,
+   8,
+   8,
+   8,
+   8,
+   8,
+   9,
+   9,
+   9,
+   9,
+   9
+  ],
+  "inner": [
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "attention.<locals>.<lambda>: split = lambda t: t.reshape(B, T, n_heads, dh).transpose(0, 2, 1, 3) ",
+   "attention.<locals>.<lambda>: split = lambda t: t.reshape(B, T, n_heads, dh).transpose(0, 2, 1, 3) ",
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "attention.<locals>.<lambda>: split = lambda t: t.reshape(B, T, n_heads, dh).transpose(0, 2, 1, 3) ",
+   "attention.<locals>.<lambda>: split = lambda t: t.reshape(B, T, n_heads, dh).transpose(0, 2, 1, 3) ",
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "attention.<locals>.<lambda>: split = lambda t: t.reshape(B, T, n_heads, dh).transpose(0, 2, 1, 3) ",
+   "attention.<locals>.<lambda>: split = lambda t: t.reshape(B, T, n_heads, dh).transpose(0, 2, 1, 3) ",
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "linear: return x @ p[\"w\"] + p[\"b\"]"
+  ],
+  "foot": "  in (cb,) }",
+  "n_eqns": 36
+ },
+ "mlp": {
+  "fn": "mlp",
+  "src": [
+   "def mlp(p, x):",
+   "    # approximate=False: exact erf GELU like PyTorch. jax.nn.gelu defaults to the tanh approximation.",
+   "    return linear(p[\"fc2\"], jax.nn.gelu(linear(p[\"fc1\"], x), approximate=False))"
+  ],
+  "src_start": 66,
+  "head": "{ lambda ; a:f32[512] b:f32[128,512] c:f32[128] d:f32[512,128] e:f32[32,128,128]. let",
+  "eqns": [
+   "    f:f32[32,128,512] = dot_general[\n      dimension_numbers=(([2], [0]), ([], []))\n      preferred_element_type=float32\n    ] e b",
+   "    g:f32[1,1,512] = broadcast_in_dim[broadcast_dimensions=(2,)] a",
+   "    h:f32[32,128,512] = add f g",
+   "    i:f32[32,128,512] = mul 0.5:f32[] h",
+   "    j:f32[32,128,512] = neg h",
+   "    k:f32[32,128,512] = mul j 0.7071067690849304:f32[]",
+   "    l:f32[32,128,512] = erfc k",
+   "    m:f32[32,128,512] = mul i l",
+   "    n:f32[32,128,512] = copy m",
+   "    o:f32[32,128,128] = dot_general[\n      dimension_numbers=(([2], [0]), ([], []))\n      preferred_element_type=float32\n    ] n d",
+   "    p:f32[1,1,128] = broadcast_in_dim[broadcast_dimensions=(2,)] c",
+   "    q:f32[32,128,128] = add o p"
+  ],
+  "prims": [
+   "dot_general",
+   "broadcast_in_dim",
+   "add",
+   "mul",
+   "neg",
+   "mul",
+   "erfc",
+   "mul",
+   "copy",
+   "dot_general",
+   "broadcast_in_dim",
+   "add"
+  ],
+  "line": [
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2,
+   2
+  ],
+  "inner": [
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "linear: return x @ p[\"w\"] + p[\"b\"]",
+   "linear: return x @ p[\"w\"] + p[\"b\"]"
+  ],
+  "foot": "  in (q,) }",
+  "n_eqns": 12
+ },
+ "linear_src": [
+  "def linear(p, x):",
+  "    return x @ p[\"w\"] + p[\"b\"]"
+ ],
+ "layer_norm_src": [
+  "def layer_norm(p, x, eps):",
+  "    mu = x.mean(-1, keepdims=True)",
+  "    var = ((x - mu) ** 2).mean(-1, keepdims=True)            # biased variance, as PyTorch and Flax",
+  "    return (x - mu) / jnp.sqrt(var + eps) * p[\"scale\"] + p[\"bias\"]"
+ ],
+ "tracers": {
+  "jit": "DynamicJaxprTracer: JitTracer(float32[3])",
+  "grad": "LinearizeTracer: GradTracer(primal=[1. 1. 1.], typeof(tangent)=f32[3])",
+  "vmap": "BatchTracer: VmapTracer(aval=float32[3], batched=float32[5,3])",
+  "make_jaxpr": "DynamicJaxprTracer: JitTracer(float32[3])",
+  "jit(vmap(grad))": "LinearizeTracer: GradTracer(primal=VmapTracer(aval=float32[3], batched=float32[5,3]), typeof(tangent)=f32[3])",
+  "no transformation": "ArrayImpl: [1. 1. 1.]"
+ },
+ "typeof": {
+  "array": "float32[32,128]",
+  "array_bf16": "bfloat16[2,3]",
+  "py_float": "~float32[]",
+  "py_int": "~int32[]"
+ },
+ "loop_vs_scan": [
+  {
+   "layers": 1,
+   "unrolled_top": 106,
+   "unrolled_total": 116,
+   "scan_top": 25,
+   "scan_total": 117,
+   "trace_s_unrolled": 0.0813,
+   "trace_s_scan": 0.0053
+  },
+  {
+   "layers": 2,
+   "unrolled_top": 188,
+   "unrolled_total": 208,
+   "scan_top": 25,
+   "scan_total": 117,
+   "trace_s_unrolled": 0.0086,
+   "trace_s_scan": 0.1628
+  },
+  {
+   "layers": 4,
+   "unrolled_top": 352,
+   "unrolled_total": 392,
+   "scan_top": 25,
+   "scan_total": 117,
+   "trace_s_unrolled": 0.0147,
+   "trace_s_scan": 0.0047
+  },
+  {
+   "layers": 8,
+   "unrolled_top": 680,
+   "unrolled_total": 760,
+   "scan_top": 25,
+   "scan_total": 117,
+   "trace_s_unrolled": 0.035,
+   "trace_s_scan": 0.0442
+  },
+  {
+   "layers": 16,
+   "unrolled_top": 1336,
+   "unrolled_total": 1496,
+   "scan_top": 25,
+   "scan_total": 117,
+   "trace_s_unrolled": 0.0788,
+   "trace_s_scan": 0.0106
+  },
+  {
+   "layers": 32,
+   "unrolled_top": 2648,
+   "unrolled_total": 2968,
+   "scan_top": 25,
+   "scan_total": 117,
+   "trace_s_unrolled": 0.3768,
+   "trace_s_scan": 0.0163
+  }
+ ],
+ "forward_eqns": 352,
+ "value_and_grad_eqns": 1077,
+ "forward_prims": [
+  [
+   "broadcast_in_dim",
+   74
+  ],
+  [
+   "add",
+   52
+  ],
+  [
+   "div",
+   35
+  ],
+  [
+   "dot_general",
+   33
+  ],
+  [
+   "reduce_sum",
+   22
+  ],
+  [
+   "sub",
+   22
+  ],
+  [
+   "mul",
+   21
+  ],
+  [
+   "transpose",
+   20
+  ],
+  [
+   "reshape",
+   16
+  ],
+  [
+   "integer_pow",
+   9
+  ],
+  [
+   "sqrt",
+   9
+  ],
+  [
+   "jit",
+   8
+  ],
+  [
+   "reduce_max",
+   4
+  ],
+  [
+   "max",
+   4
+  ],
+  [
+   "stop_gradient",
+   4
+  ],
+  [
+   "exp",
+   4
+  ],
+  [
+   "neg",
+   4
+  ],
+  [
+   "erfc",
+   4
+  ],
+  [
+   "copy",
+   4
+  ],
+  [
+   "lt",
+   1
+  ],
+  [
+   "select_n",
+   1
+  ],
+  [
+   "gather",
+   1
+  ]
+ ],
+ "vg_prims": [
+  [
+   "reduce_sum",
+   168
+  ],
+  [
+   "mul",
+   121
+  ],
+  [
+   "broadcast_in_dim",
+   119
+  ],
+  [
+   "reshape",
+   111
+  ],
+  [
+   "dot_general",
+   99
+  ],
+  [
+   "div",
+   82
+  ],
+  [
+   "transpose",
+   73
+  ],
+  [
+   "add",
+   53
+  ],
+  [
+   "add_any",
+   53
+  ],
+  [
+   "neg",
+   45
+  ],
+  [
+   "sub",
+   24
+  ],
+  [
+   "integer_pow",
+   22
+  ],
+  [
+   "jit",
+   16
+  ],
+  [
+   "select_n",
+   14
+  ],
+  [
+   "eq",
+   10
+  ],
+  [
+   "sqrt",
+   9
+  ],
+  [
+   "exp",
+   9
+  ],
+  [
+   "copy",
+   8
+  ],
+  [
+   "reduce_max",
+   5
+  ],
+  [
+   "convert_element_type",
+   5
+  ],
+  [
+   "max",
+   5
+  ],
+  [
+   "gt",
+   5
+  ],
+  [
+   "stop_gradient",
+   5
+  ],
+  [
+   "erfc",
+   4
+  ],
+  [
+   "square",
+   4
+  ],
+  [
+   "lt",
+   1
+  ],
+  [
+   "gather",
+   1
+  ],
+  [
+   "is_finite",
+   1
+  ],
+  [
+   "sign",
+   1
+  ],
+  [
+   "abs",
+   1
+  ],
+  [
+   "ge",
+   1
+  ],
+  [
+   "log",
+   1
+  ],
+  [
+   "scatter-add",
+   1
+  ]
+ ],
+ "cf_errors": {
+  "if_under_jit": "TracerBoolConversionError: Attempted boolean conversion of traced array with shape bool[].\nThe error occurred while tracing the function f_if at <root>/src/xf/run_trace.py:130 for jit. This concrete value was not available in Python because it depends on the value of the argument x.\nSee https://docs.jax.dev/en/latest/errors.html#jax.errors.TracerBoolConversionError",
+  "int_under_jit": "ConcretizationTypeError: Abstract tracer value encountered where concrete value is expected: traced array with shape float32[]\nThe problem arose with the `int` function. If trying to convert the data type of a value, try using `x.astype(int)` or `jnp.array(x, int)` instead.\nThe error occurred while tracing the function f_int at <root>/src/xf/run_trace.py:144 for jit. This concrete value was not available in Python because it depends on the value of the argument x.\n\nSee https://docs.jax.dev/en/latest/errors.html#jax.errors.ConcretizationTypeError",
+  "if_under_grad": null
+ },
+ "cf_jaxprs": {
+  "where": "{ lambda ; a:f32[3]. let\n    b:f32[] = reduce_sum[axes=(0,) out_sharding=None] a\n    c:bool[] = gt b 0.0:f32[]\n    d:f32[3] = neg a\n    e:f32[3] = jit[\n      name=_where\n      jaxpr={ lambda ; c:bool[] a:f32[3] d:f32[3]. let\n          e:f32[3] = select_n c d a\n        in (e,) }\n    ] c a d\n  in (e,) }",
+  "cond": "{ lambda ; a:f32[3]. let\n    b:f32[] = reduce_sum[axes=(0,) out_sharding=None] a\n    c:bool[] = gt b 0.0:f32[]\n    d:i32[] = convert_element_type[new_dtype=int32 weak_type=False] c\n    e:f32[3] = cond[\n      branches=(\n        { lambda ; f:f32[3]. let g:f32[3] = neg f in (g,) }\n        { lambda ; h:f32[3]. let  in (h,) }\n      )\n    ] d a\n  in (e,) }"
+ },
+ "cf_values": {
+  "if_no_jit": [
+   1.0,
+   2.0,
+   -0.5
+  ],
+  "cond_jit": [
+   1.0,
+   2.0,
+   -0.5
+  ]
+ },
+ "loops": {
+  "python for": {
+   "top": 20,
+   "total": 20,
+   "value": 16.0068359375,
+   "prims": [
+    "mul",
+    "add",
+    "mul",
+    "add",
+    "mul",
+    "add",
+    "mul",
+    "add",
+    "mul",
+    "add",
+    "mul",
+    "add",
+    "mul",
+    "add",
+    "mul",
+    "add",
+    "mul",
+    "add",
+    "mul",
+    "add"
+   ],
+   "grad": 0.0009765625
+  },
+  "lax.fori_loop": {
+   "top": 1,
+   "total": 5,
+   "value": 16.0068359375,
+   "prims": [
+    "scan"
+   ],
+   "grad": 0.0009765625
+  },
+  "lax.scan": {
+   "top": 2,
+   "total": 5,
+   "value": 16.0068359375,
+   "prims": [
+    "iota",
+    "scan"
+   ],
+   "grad": 0.0009765625
+  },
+  "lax.while_loop": {
+   "top": 1,
+   "total": 6,
+   "value": 16.0068359375,
+   "prims": [
+    "while"
+   ],
+   "grad": "ValueError: Reverse-mode differentiation does not work for lax.while_loop or lax.fori_loop with dynamic start/stop values. Try using lax.scan, or using fori_loop with static start/stop."
+  }
+ },
+ "fori_jaxpr": "{ lambda ; a:f32[]. let\n    _:i32[] b:f32[] = scan[\n      ft_in=((), (None, None), ())\n      ft_out=((None, None), ())\n      jaxpr={ lambda ; c:i32[] d:f32[]. let\n          e:i32[] = add c 1:i32[]\n          f:f32[] = mul d 0.5:f32[]\n          g:f32[] = convert_element_type[new_dtype=float32 weak_type=False] c\n          h:f32[] = add f g\n        in (e, h) }\n      length=10\n      reverse=False\n      unroll=1\n    ] 0:i32[] a\n  in (b,) }"
+}
