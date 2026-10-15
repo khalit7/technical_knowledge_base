@@ -1,0 +1,42 @@
+
+<section id="mx-s0">
+<h2>From zero: domains, weights, budgets, epochs</h2>
+<dl class="mx-def">
+<dt>Domain</dt><dd>A source of text with its own character: filtered web pages, source code, math pages, scientific papers, an encyclopedia. Each comes as a pool of <b>unique tokens</b> (after filtering and dedup).</dd>
+<dt>Token budget</dt><dd>How many tokens the run trains on in total, fixed in advance by the compute you have (the training topic's scaling section explains how).</dd>
+<dt>Mixture weight</dt><dd>The share of the budget drawn from a domain. Weights sum to 1. At a fixed budget a point of code is a point not spent on web text, so the weights move abilities directly.</dd>
+<dt>Natural share</dt><dd>A domain's size divided by the total: what you get by concatenating everything and shuffling. Small, valuable domains get almost nothing.</dd>
+<dt>Epoch</dt><dd>One pass over a domain's unique tokens. Weight times budget divided by pool size = epochs of that domain. More than 1 means repetition (<b>upsampling</b>); less than 1 means part of the pool is never seen.</dd>
+<dt>Temperature sampling</dt><dd>Weight each domain by its size raised to the power 1/<i>T</i>, then normalise. <i>T</i> = 1 is the natural share, larger <i>T</i> flattens toward uniform. Multilingual models use it to give small languages more: mBERT used 1.43, XLM 2, XLM-R and mT5 3.33 (as tabulated in {{UniMax, Table 1|https://arxiv.org/abs/2304.09151}}).</dd>
+</dl>
+<h3>The running example's five domains, at their real sizes</h3>
+<p>The proxy experiment below (shared with the child page) trains on five domains, each a public dataset the topic's samples come from. Their full sizes are published in five different units, because each card counts with its own tokenizer, or in words or bytes. Converting them to one unit is the first step of any mixing plan; here each is converted to GPT-2 tokens with a ratio measured on the topic's sample of that dataset.</p>
+<div class="mx-tw"><table class="mx-t" id="mx-dom-t"></table></div>
+<div class="mx-svg" id="mx-dom"></div>
+<p class="small mute" id="mx-dom-cap"></p>
+</section>
+
+<section id="mx-s1">
+<h2>Mixture calculator: temperature, epochs and what repetition is worth</h2>
+<p>Pick a token budget and a way to set the weights. The calculator shows each domain's weight, the tokens it supplies, its epochs, and its <b>fresh-token equivalent</b>: Muennighoff et al. fit how much repeated data is worth, <i>D</i>&prime; = <i>U</i> + <i>U</i>&middot;<i>R</i>*&middot;(1 &minus; e<sup>&minus;<i>R</i>/<i>R</i>*</sup>), with <i>U</i> unique tokens, <i>R</i> repetitions beyond the first pass and <i>R</i>* = 15.39 fitted ({{arXiv 2305.16264, App. A|https://arxiv.org/abs/2305.16264}}, <span class="lbl pub">published</span>). Four epochs are worth 3.73 fresh passes (93%), sixteen are worth 10.58 (66%), and no amount of repetition is worth more than about 16.4 passes. The law was fitted on one corpus at a time; applying it per domain is this calculator's approximation (<span class="lbl der">derived</span>).</p>
+<div class="card" id="mx-calc-card">
+<div class="mx-ctl">
+<label>Budget <input type="range" id="mx-b" min="0" max="100" step="1" value="60" aria-label="Token budget"> <output id="mx-b-o"></output></label>
+<span class="mx-seg" id="mx-bp"><button data-m="1">1T</button><button data-m="4">4T (OLMo 2 7B)</button><button data-m="15">15T (Llama 3)</button></span>
+</div>
+<div class="mx-seg" id="mx-mode"><button class="on" data-m="temp">Temperature</button><button data-m="unimax">UniMax (cap epochs)</button><button data-m="manual">Manual weights</button></div>
+<div class="mx-ctl" id="mx-ctl-temp"><label>Temperature <i>T</i> <input type="range" id="mx-t" min="0" max="6" step="1" value="0" aria-label="Temperature"> <output id="mx-t-o"></output></label></div>
+<div class="mx-ctl" id="mx-ctl-unimax" hidden><label>Max epochs <i>N</i> <input type="range" id="mx-n" min="1" max="16" step="1" value="4" aria-label="Maximum epochs per domain"> <output id="mx-n-o"></output></label><span class="small mute">UniMax ({{arXiv 2304.09151, Algorithm 1|https://arxiv.org/abs/2304.09151}}): smallest domain first, each gets an equal share of what is left, but never more than <i>N</i> epochs; the rest flows to the larger domains.</span></div>
+<div class="mx-ctl" id="mx-ctl-manual" hidden></div>
+<div class="mx-svg" id="mx-calc-bars"></div>
+<div class="mx-legend" id="mx-calc-leg"></div>
+<div class="mx-tw"><table class="mx-t" id="mx-calc-t"></table></div>
+<div class="mx-stats" id="mx-calc-stats"></div>
+<div class="mx-svg" id="mx-curve"></div>
+<p class="small mute">Bars: top, natural shares (<i>T</i> = 1); bottom, your setting, sliding from the natural shares when you change it. Epochs in orange pass 4 (the point after which Muennighoff et al. see measurable loss), underlined past 16 (repetition is then worth little). The curve is the value of a repeated token (<i>D</i>&prime; divided by tokens drawn) against epochs; the dots are your domains. Sizes are GPT-2 tokens, converted as in the table above.</p>
+</div>
+<div class="pr" id="mx-pr1"><div class="q">Predict: at a 4T budget, how many epochs of English Wikipedia does temperature <i>T</i> = 3.33 (the mT5 setting) ask for?</div>
+<div class="opts"><button data-r="0">Less than one: Wikipedia is tiny</button><button data-r="0">About 4</button><button data-r="1">Dozens</button></div>
+<div class="ans" hidden id="mx-pr1-a"></div></div>
+<div class="co"><div class="t">What the calculator teaches</div>Natural shares starve every small domain; temperature fixes that but knows nothing about repetition, so at a large budget it repeats a small domain dozens of times, where each extra pass is worth little. UniMax was designed for exactly this: it caps epochs and spends the rest on the large pools. Which domain <i>deserves</i> more is a separate question that sizes cannot answer; that is what the proxy methods below measure.</div>
+</section>

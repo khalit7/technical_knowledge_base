@@ -1,0 +1,35 @@
+
+<section id="mx-s2">
+<h2>Choosing weights without paying for the big run</h2>
+<p>Sizes say how much of each domain exists, not how much it helps. Every published method answers the second question the same way: train <b>proxy models</b> (small models, cheap runs) on different mixtures, measure, and transfer the answer to the big run. They differ in what they train and how they read the answer.</p>
+<div class="mx-tw"><table class="mx-t">
+<tr><th>Method</th><th>What it trains</th><th>How it picks the weights</th><th>Reported result (<span class="lbl pub">published</span>)</th></tr>
+<tr><td><b>Heuristics</b></td><td>nothing</td><td>natural, temperature, UniMax, or a mix that worked before</td><td>Still the baseline every method is compared with; a published mix was tuned for someone else's model size and budget.</td></tr>
+<tr><td><b>DoReMi</b></td><td>a 280M reference model, then a 280M proxy</td><td>Group DRO: during proxy training, upweight the domains whose loss is furthest above the reference's (the <i>excess loss</i>); average the weights over training</td><td>An 8B model on the weights gained 6.5 points average one-shot accuracy and reached the baseline's accuracy 2.6 times faster; the search cost 8% of the 8B run's compute ({{DoReMi|https://arxiv.org/abs/2305.10429}}).</td></tr>
+<tr><td><b>Data Mixing Laws</b></td><td>many small runs at different mixtures</td><td>fit loss as <i>c</i> + <i>k</i>&middot;exp(&Sigma; <i>t</i><sub><i>j</i></sub><i>r</i><sub><i>j</i></sub>) of the proportions <i>r</i>, nest it with scaling laws, minimise</td><td>A 1B model on 100B RedPajama tokens matched the default mix trained 48% longer ({{arXiv 2403.16952|https://arxiv.org/abs/2403.16952}}).</td></tr>
+<tr><td><b>RegMix</b></td><td>512 models of 1M parameters, 1B tokens each, random mixtures</td><td>regress loss on the mixture (linear or LightGBM), score many candidate mixtures, average the best</td><td>Beat DoReMi on the 1B check below at about a tenth of its search compute ({{RegMix|https://arxiv.org/abs/2407.01492}}).</td></tr>
+<tr><td><b>The check: Aioli</b></td><td>re-runs of the methods on the same data</td><td>(a new method, plus a test of the others)</td><td>No existing method beat simple stratified sampling (equal weight per domain) on average test perplexity in every setting ({{Aioli, Table 2|https://arxiv.org/abs/2411.05735}}, third-party for the methods it tests).</td></tr>
+</table></div>
+<h3>One table, six mixtures: RegMix's 1B-parameter check</h3>
+<p>RegMix trained a 1B model on 25B tokens of The Pile with each mixture and averaged 14 downstream tasks. The differences are a point or two of average accuracy, and the simplest alternative, web text only, ties DoReMi.</p>
+<div class="mx-svg" id="mx-rm"></div>
+<p class="small mute">{{RegMix, Table 4|https://arxiv.org/abs/2407.01492}}, <span class="lbl pub">published</span>; values as transcribed on the child page. "Best on" counts the 14 tasks where a mixture scored highest. The axis starts at 44, not 0. Search compute in FLOPs: DoReMi 3.7e19, RegMix 3.5e18 (<span id="mx-rm-ratio"></span>); Human, ODM and Pile-CC need no search.</p>
+<div class="mx-fix"><div class="t">Correction kept from the child page</div>DoReMi's "baseline" and RegMix's "Human" are not The Pile's own Table 1 weights: they are a document-count weighting from DoReMi's repository (Wikipedia 9.19% against 1.53% in The Pile's Table 1). So "+6.5 points over The Pile's default weights" really means over that weighting. The child page compares the two weightings domain by domain.</div>
+</section>
+
+<section id="mx-s3">
+<h2>The running example's own proxy experiment (pending GPU run)</h2>
+<p>The child page designed one small experiment on the five domains above, so the page can show a mixture regression fitted on its own data rather than only quoting papers. This tab reuses it unchanged (no second experiment): the same script, the same pools, the same outputs.</p>
+<div class="mx-tw"><table class="mx-t" id="mx-px-t">
+<tr><th>Part</th><th>Design</th></tr>
+<tr><td>Data</td><td>About 25M GPT-2 tokens per domain streamed from the five datasets above (same files and revisions as the topic's samples), 5% of documents held out per domain. The pools are about equal, so the experiment's "natural" shares are about 20% each, not the real-world shares of the table above (web <span id="mx-webnat"></span>).</td></tr>
+<tr><td>Proxy model</td><td>A tiny GPT: 793,344 parameters outside the embedding (7,259,008 with the tied 50,257-token embedding), context 256.</td></tr>
+<tr><td>Sweep</td><td>48 mixtures drawn as in RegMix (a Dirichlet whose parameters are the pool shares times a scale drawn between 0.1 and 5, so some mixtures are near-uniform and some almost one domain), 2,000 steps of 32 &times; 256 tokens (16.4M tokens) each; plus three anchors: natural, uniform, temperature 2.</td></tr>
+<tr><td>Target and fit</td><td>Mean held-out loss over the five domains (one choice among several: RegMix targeted Pile-CC validation loss); the Data Mixing Laws form fitted to the sweep; then RegMix's selection: score 100,000 sampled mixtures, average the best 128.</td></tr>
+<tr><td>DoReMi</td><td>A reference proxy on natural shares, then Group DRO, 2,000 steps each.</td></tr>
+<tr><td>Rank check</td><td>Two larger models (10.6M non-embedding) on about 98M tokens each: natural shares against the predicted best. If the best still wins at this scale, the regression transferred.</td></tr>
+</table></div>
+<div class="mx-stats" id="mx-smoke"></div>
+<div class="mx-pend" id="mx-pend"></div>
+<div id="mx-fit"></div>
+</section>
