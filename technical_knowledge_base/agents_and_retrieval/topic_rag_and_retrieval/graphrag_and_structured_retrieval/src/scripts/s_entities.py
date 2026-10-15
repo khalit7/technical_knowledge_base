@@ -140,7 +140,10 @@ def main():
         M = llm_mentions(MODE)
         pids = [p for p in SUB if p in M]
         qset = [q for q in SUBQ if all(p in M for p in q["gold_pids"])]
-        save("entities_%s.json" % MODE, {"subset": run(MODE, pids, qset)})
+        out = {"subset": run(MODE, pids, qset), "nlp_same": run("nlp", pids, qset)}  # the noun phrases on the same paragraphs
+        if MODE != "agt":
+            out["agt_same"] = run("agt", pids, qset)
+        save("entities_%s.json" % MODE, out)
         return
     out = {"subset": run("nlp", SUB, SUBQ), "full": run("nlp", [p["pid"] for p in corpus], qs)}
     save("entities.json", out)

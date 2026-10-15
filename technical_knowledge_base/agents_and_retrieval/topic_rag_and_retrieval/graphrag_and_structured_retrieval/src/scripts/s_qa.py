@@ -70,7 +70,18 @@ def summary():
         agg = {k: {"em": r3(sum(x["em"] for x in v) / len(v)), "f1": r3(sum(x["f1"] for x in v) / len(v)),
                    "both_gold": sum(x["gold"] == 2 for x in v), "tok_in": round(sum(x["tok"] for x in v) / len(v)),
                    "gen_s": r3(sum(x["s"] for x in v) / len(v))} for k, v in res.items()}
-        out[model] = {"agg": agg, "examples": {k: {x["qid"]: [x["ans"], round(x["f1"], 2)] for x in v} for k, v in res.items()}}
+        diffs = {}
+        if "dense" in res:  # paired bootstrap of the F1 difference against dense single-shot, 10,000 resamples, seed 0
+            import random
+            dn = {x["qid"]: x["f1"] for x in res["dense"]}
+            rnd = random.Random(0)
+            for k, v in res.items():
+                if k == "dense":
+                    continue
+                d = [x["f1"] - dn[x["qid"]] for x in v]
+                bs = sorted(sum(rnd.choice(d) for _ in d) / len(d) for _ in range(10000))
+                diffs[k] = [r3(sum(d) / len(d)), r3(bs[250]), r3(bs[9749])]
+        out[model] = {"agg": agg, "diff_vs_dense": diffs, "examples": {k: {x["qid"]: [x["ans"], round(x["f1"], 2)] for x in v} for k, v in res.items()}}
         print(model, json.dumps(agg))
     save("qa.json", out)
 

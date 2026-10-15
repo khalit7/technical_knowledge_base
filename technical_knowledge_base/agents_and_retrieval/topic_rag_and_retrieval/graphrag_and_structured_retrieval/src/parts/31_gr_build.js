@@ -7,6 +7,7 @@
   $('gb-q').innerHTML=B.questions.map((q,i)=>'<option value="'+i+'">'+(i+1)+'. ['+q.type+'] '+E(q.q.length>90?q.q.slice(0,88)+'...':q.q)+'</option>').join('');
   const llmBtn=$('gb-src').querySelector('[data-m="llm"]');
   if(!B.llm){llmBtn.disabled=true;llmBtn.title='pending: no LLM extraction of the subset yet';llmBtn.textContent='LLM (pending)'}
+  else llmBtn.textContent=B.llm.source==='agt'?'LLM (Qwen3-1.7B, Agentic lab prompt)':'LLM (Qwen3-1.7B, graphrag prompt)';
   const CAP=[
     'The ten paragraphs graphrag sees as ten text units: the question\'s two gold paragraphs (orange edge) and eight distractors that share its words (HotpotQA picked them by bigram TF-IDF).',
     'Extract: every text unit becomes a list of names. With the noun-phrase extractor this costs no model call; with an LLM it is one extraction call plus one gleaning call per unit.',
@@ -51,13 +52,13 @@
     $('gb-lvl').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m==='1'));comm()});
   RD.seg($('gb-lvl'),m=>{lvl=m;comm()});comm();
   // global search stepper
-  (function(){const el=$('gb-glob'),g=D.global_4b;
+  (function(){const el=$('gb-glob'),g=D.global_4b||D.global_1_7b,gm=D.global_4b?'Qwen3-4B':'Qwen3-1.7B';
     if(!g){el.innerHTML='<div class="gr-pbox" id="gb-glob-p"></div><p class="small">Until it runs: these '+(B.hierarchy['0']||[]).length+' level-0 communities are what the reports would summarise; a global question is mapped over each report (a list of points scored 0 to 100), the points with a score above 0 are sorted and packed into one reduce call, and the answer is set beside a plain top-10 retrieval.</p>';
       GRL.pend('gb-glob-p','Community reports and global map-reduce with Qwen3-4B on this subset (graphrag 3.3.0 prompts).','s_global.py run 4b','25 min');return}
     el.innerHTML='<div class="card" id="gg-card"><label class="small">Question <select id="gg-q">'+g.answers.map((a,i)=>'<option value="'+i+'">'+E(a.q)+'</option>').join('')+'</select></label><div class="gr-cap" id="gg-cap"></div><div class="gr-ctr" id="gg-ctr"></div><div class="an-ctl" id="gg-ctl"></div><div id="gg-body"></div></div>';
     let gi=0;const n=()=>g.reports.length+2;
     function gd(i){const a=g.answers[gi],R=g.reports;let calls=0,tin=0;
-      if(i===0){$('gg-cap').textContent='The question goes to every community report, one map call each (graphrag batches several reports per call; here one report per call).';$('gg-body').innerHTML='<p class="small">'+R.length+' reports, Qwen3-4B.</p>'}
+      if(i===0){$('gg-cap').textContent='The question goes to every community report, one map call each (graphrag batches several reports per call; here one report per call).';$('gg-body').innerHTML='<p class="small">'+R.length+' reports, '+gm+'.</p>'}
       else if(i<=R.length){const m=a.map[i-1]||[i-1,0,0,''];const r=R[m[0]];$('gg-cap').textContent='Map, report '+i+' of '+R.length+': "'+(r.title||'community '+r.cid)+'". Best point score '+m[1]+(m[1]?'; '+m[2]+' point(s) kept.':'; nothing kept (score 0).');
         $('gg-body').innerHTML='<div class="small mute">report summary</div><p class="small">'+E(r.summary).slice(0,600)+'</p>'+(m[3]?'<div class="small mute">a kept point</div><p class="small">'+E(m[3])+'</p>':'')}
       else{$('gg-cap').textContent='Reduce: the kept points, highest score first, go into one call that writes the answer. Beside it, one call over the dense top 10 paragraphs.';

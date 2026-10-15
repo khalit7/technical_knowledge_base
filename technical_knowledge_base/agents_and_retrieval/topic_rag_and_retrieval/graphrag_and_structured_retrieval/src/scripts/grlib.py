@@ -67,7 +67,7 @@ def normalize_answer(s):
     return " ".join(s.split())
 
 
-GEN_PORTS = {"1.7b": 8366, "4b": 8367}  # this page's ports (the root's Agentic lab uses 8220/8221)
+GEN_PORTS = {"1.7b": 8370, "4b": 8371}  # this page's ports (the root's Agentic lab uses 8220/8221)
 
 
 def generator():
