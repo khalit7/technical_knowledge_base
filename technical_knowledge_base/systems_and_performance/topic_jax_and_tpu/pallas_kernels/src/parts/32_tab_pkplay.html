@@ -1,0 +1,33 @@
+<div class="tab" id="t-pkplay" role="tabpanel" hidden>
+<style>
+#t-pkplay .kp-meas{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:6px;margin:8px 0}
+#t-pkplay .kp-ops{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+#t-pkplay .kp-ops span{font:11px ui-monospace,Menlo,monospace;border:1px solid var(--line);border-radius:4px;padding:1px 6px;background:var(--soft)}
+#t-pkplay .kp-ops span b{color:var(--acc)}
+#t-pkplay .kp-calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:6px 14px;margin:8px 0;font-size:13px}
+#t-pkplay .kp-calc label{display:flex;flex-direction:column;gap:2px;min-width:0}
+#t-pkplay .kp-gen .row{display:grid;grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 6.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+#t-pkplay .kp-gen .tr{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+#t-pkplay .kp-gen .tr span{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+#t-pkplay .kp-gen .v{text-align:right}
+#t-pkplay table td,#t-pkplay table th{font-size:12.5px}#t-pkplay td{overflow-wrap:anywhere}
+</style>
+<h2>Kernel playground</h2>
+<p class="lead">Every kernel on this page, with its code as it ran, what was measured about it here, what the TPU lowering produced, and a calculator for the one decision you would tune on a chip: the block size, and whether its buffers fit in VMEM.</p>
+<div class="try"><b>Try:</b> Flash attention forward at 128 &#215; 128 blocks on v4: the logical bytes fit easily, but the head dimension of 32 is padded to 128 lanes and every one-number-per-row statistic to 128 more, so the padded footprint is about seven times the logical one. Then cross-entropy: the labels block, one int32 per row, takes as much VMEM as the 65-wide logits. Then the root's matmul at 1,024 &#215; 128 &#215; 512 blocks.</div>
+<div class="pk-seg" id="kp-kern"></div>
+<div class="card">
+<div id="kp-head"></div>
+<div class="kp-meas" id="kp-meas"></div>
+<div class="kp-ops" id="kp-ops"></div>
+<details class="mist"><summary><b>The code, as it ran</b></summary><div class="b" style="padding-left:12px"><pre class="pk-code" id="kp-code"></pre></div></details>
+</div>
+<div class="card" id="kp-calc-card">
+<h3 style="margin-top:0">Block size, VMEM and the (8, 128) rule</h3>
+<div class="kp-calc" id="kp-calc"></div>
+<div class="pk-cnt" id="kp-out"></div>
+<div class="kp-gen" id="kp-gen"></div>
+<div class="pk-note" id="kp-note"></div>
+</div>
+<p class="pk-note">Measured values: <code>src/runs/out/kernels.json</code> (interpret mode on Apple M1 Pro CPU, jax 0.11.2). Lowering: <code>jax.export(..., platforms=["tpu"])</code> for a TPU v5e on this CPU, op counts read from the printed Mosaic module (not compiled). The calculator is arithmetic, not a measurement: buffers &#215; block bytes, two buffers per pipelined operand, one for a block that never moves (the lowering's single-buffering rule), plus scratch; "padded" rounds every block's last two dimensions up to (8, 128) as VMEM tiles do. VMEM per TensorCore by generation is read from <code>jax/_src/tpu_info.py</code> at jax-v0.11.2 (as the root's TPU lab reads it). The compiler also applies a lower default limit per kernel, raised with <code>vmem_limit_bytes</code> and the <code>--xla_tpu_scoped_vmem_limit_kib</code> flag; its default value is not stated in the source read here, so it is not drawn.</p>
+</div>
