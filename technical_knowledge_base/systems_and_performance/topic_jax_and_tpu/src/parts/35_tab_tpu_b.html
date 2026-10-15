@@ -1,0 +1,47 @@
+<section id="tp-s3">
+<h2>3. The roofline, with the running example on it</h2>
+<p>The {{Reading tab|#t-read}} gave the rule in one line: an operation whose <dfn>arithmetic intensity</dfn> (FLOPs per byte it moves to or from HBM) is below the chip's ridge point waits on memory. Below, every distinct matmul of the running example's training step sits on the roof of the generation you pick, beside the weight matmuls of a 7B-class model (Llama 2 7B as configured in MaxText's pinned <code>configs/models/llama2-7b.yml</code>: <i>D</i> 4,096, MLP 11,008, 32 layers, 6.74 billion parameters) at the number of tokens you choose. The derivation (FLOPs, bytes, the time bound) is on the Hardware topic's {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} page; this is the calculator.</p>
+<div class="tp-box" id="tp-rf-card">
+<h4>Roofline calculator <span class="tp-der">calculated</span></h4>
+<div class="seg" id="tp-rf-gen"><span class="lbl">Generation</span></div>
+<div class="seg" id="tp-rf-dt"><span class="lbl">Running example in</span></div>
+<div class="tp-ctl"><label for="tp-rf-tok">7B-class model, tokens in the batch: <b id="tp-rf-tokv"></b></label><input type="range" id="tp-rf-tok" min="0" max="8" step="1" value="1" aria-label="Tokens per batch for the 7B-class model"></div>
+<div class="tp-svgw" id="tp-rf-svg"></div>
+<div class="tp-leg" id="tp-rf-leg"></div>
+<div class="tp-cnt" id="tp-rf-cnt"></div>
+<div class="tw"><table class="tp-t" id="tp-rf-t"><thead><tr><th>Matmul (running example)</th><th class="num">count</th><th class="num">FLOP/byte</th><th class="num">bound</th><th class="num">best time each</th></tr></thead><tbody></tbody></table></div>
+<p class="tp-src">Bytes = inputs read once plus output written once, at 2 bytes per number (bf16) or 4 (float32); time = max(FLOPs &divide; bf16 peak, bytes &divide; HBM bandwidth). The 7B point is one forward pass of its weight matmuls (attention scores and the KV cache left out), so at 1 token it is a decode step with a batch of 1, at 4,096 a training micro-batch's forward. Real kernels reach 50 to 80% of these bounds at best.</p>
+</div>
+<div class="tp-pr" id="tp-pr3"><div class="q">Predict: on a v6e, how many of the running example's 12 matmul shapes are limited by memory rather than by the MXUs?</div>
+<div class="tp-opts"><button data-r="0">None: it is a training step, batches are big</button><button data-r="0">Only the attention ones</button><button data-r="1">All 12</button></div>
+<div class="tp-ans" hidden>All 12, on every generation. The highest intensity in the step is 99.9 FLOPs per byte (the MLP matmuls, in bf16), below even v5p's ridge of 166. The reason is the model, not the batch: with <i>D</i> = 128, each weight matrix is tiny, so the activations (4,096 rows of them) dominate the bytes, and in bf16 the intensity of an <i>m</i> &times; <i>k</i> by <i>k</i> &times; <i>n</i> matmul is 1 &divide; (1/<i>m</i> + 1/<i>k</i> + 1/<i>n</i>), always below the smallest of the three; here that is 128 or 512. Width, not batch, is what a small model lacks.</div></div>
+<p><b>What the running example would cost on a TPU</b> <span class="tp-der">calculated</span>. Its 99 matmuls do 22.75 GFLOP per step (XLA's <code>cost_analysis()</code> on the CPU compile counts 23.69 GFLOP for the whole forward and backward, the rest being elementwise work). At bf16 peak a v6e would do them in 25 &micro;s, but because every one is memory-bound the bound is 236 &micro;s; v5e 473 &micro;s, v5p 140 &micro;s, TPU7x 52 &micro;s. The whole step measured 0.102 s here (the shared setup's 500-step run, measured on Apple M1 Pro (CPU), shared machine, 4 threads, low priority). In practice a step this small on a TPU is dominated by fixed costs the roofline ignores (launching the program, the host loop, the optimizer's many small elementwise ops), which is why nobody trains 826,368 parameters on a TPU.</p>
+<p><b>The 7B-class model</b> <span class="tp-der">calculated</span>. Its bf16 weights are 13.5 GB, so a v5e's 16 GB holds them with little room for anything else, and one decode step for one user must read all of them: about 16 ms on v5e (62 tokens per second at best), 8.1 ms on v6e (124), 1.8 ms on TPU7x (558), whatever the MXUs could do. At 256 tokens per step v5e reaches 97% of its bf16 peak and v6e only 42%: the faster the MXUs relative to HBM, the larger the batch needed to use them. That is the ridge point turned into a batching rule.</p>
+</section>
+
+<section id="tp-s4">
+<h2>4. The mesh meets the torus</h2>
+<p>The {{Sharding lab|#t-shard}} built meshes on 8 simulated devices, where every device is as close as every other. On a real slice the chips sit on a torus (section 1's table), and two neighbours along one ICI link are much cheaper to talk to than two chips five hops apart. So the question a JAX programmer faces is: when I write <code>jax.make_mesh((16, 16), ("data", "model"))</code>, which physical chips form each "model" group? JAX answers it in <code>mesh_utils.create_device_mesh</code>, which <code>jax.make_mesh</code> calls. That function only reads each device's coordinates, so it runs on this CPU against <b>mock TPU devices</b> built the way JAX's own tests build them.</p>
+<div class="tp-box" id="tp-to-card">
+<h4>jax's own device placement, run on mock slices <span class="tp-meas">measured</span></h4>
+<div class="tp-ctl"><label>Slice <select id="tp-to-slice"></select></label><label>Logical mesh (data, ..., model) <select id="tp-to-mesh"></select></label></div>
+<div class="tp-svgw" id="tp-to-svg"></div>
+<div class="tp-cap" id="tp-to-cap"></div>
+<p class="tp-src">Run with <code>jax._src.mesh_utils.create_device_mesh</code> at jax-v0.11.2 (src/tpu/tp_torus.py). "Hops" is the largest ICI distance between neighbours along a logical axis, counting the wraparound link where the slice has one. The picture shows the chips of the bottom layer (z = 0), coloured by their index along the <i>last</i> logical axis, the one JAX treats as most communication-heavy.</p>
+</div>
+<p>What the runs show:</p>
+<ul class="tight">
+<li><b>The last axis wins.</b> The docstring says the mesh shape is "ordered by increasing network-intensity", and the loop at <code>mesh_utils.py:321</code> assigns axes from last to first, giving each the largest set of whole physical axes still free. So list your axes least to most chatty, <code>("data", "fsdp", "model")</code>. MaxText does exactly this: <code>mesh_axes</code> in its <code>configs/base.yml:684</code> runs from <code>data</code> through <code>fsdp</code> to <code>tensor</code> and <code>expert</code>, and it builds the mesh with this same <code>mesh_utils.create_device_mesh</code> (<code>maxtext_utils.py:2086</code>, main @ 1a95d1e5).</li>
+<li><b>Logical sizes must be products of physical ones.</b> On a 4 &times; 4 &times; 4 v5p cube, (16, 4) and (4, 16) work; (8, 8) raises <code>NotImplementedError</code> because 8 is not a product of whole 4-chip axes. <code>jax.make_mesh</code> lets v5e (and only v5e: <code>sharding_impls.py:962</code>) split a physical axis instead, at the price shown in the "split" result: neighbours up to 9 hops apart.</li>
+<li><b>TPU7x adds a fourth axis</b>, the two TensorCores of a chip, which the source treats as the fastest link (<code>priority_map</code>, <code>mesh_utils.py:316</code>), so a "model" axis of 2 lands on the two cores of one chip, 0 hops apart.</li>
+</ul>
+<div class="tp-box" id="tp-ici-card">
+<h4>How long a collective takes on ICI <span class="tp-der">calculated</span></h4>
+<p class="small">The scaling book's model for a ring over one torus axis of <i>X</i> chips: an all-gather or reduce-scatter of <i>V</i> bytes takes <i>V</i> &divide; W<sub>bidi</sub> with a wraparound link (independent of <i>X</i>) or <i>V</i>(<i>X</i> &minus; 1)/<i>X</i> &divide; W<sub>one-way</sub> without one; an all-reduce costs twice that; spanning <i>n</i> physical axes divides the time by <i>n</i>; and nothing goes faster than about 1 &micro;s per hop (T<sub>min</sub> &times; <i>X</i> &divide; 2). What each collective moves is on the {{Sharding lab|#t-shard}}.</p>
+<div class="tp-ctl"><label>Array <select id="tp-ici-v"></select></label><label>Collective <select id="tp-ici-k"><option value="ag">all-gather</option><option value="rs">reduce-scatter</option><option value="ar" selected>all-reduce</option></select></label><label>Generation <select id="tp-ici-g"></select></label></div>
+<div class="tp-ctl"><label>Chips on the axis <select id="tp-ici-x"><option>4</option><option selected>16</option><option>64</option></select></label><label>Physical axes spanned <select id="tp-ici-n"><option>1</option><option>2</option><option>3</option></select></label></div>
+<div class="seg" id="tp-ici-w"><span class="lbl">Wraparound</span></div>
+<div class="tp-cnt" id="tp-ici-out"></div>
+<p class="tp-src">Per-link bandwidths from the scaling book (2025-02-04): one-way 4.5e10 B/s on v4 and v5e, 9.0e10 on v5p, v6e and TPU7x; bidirectional twice that. Its own worked example: an all-gather of 34 MB over a 4-chip v5e axis, 377 &micro;s with wraparound, about 560 without (measured in its profile: about 680).</p>
+</div>
+</section>
