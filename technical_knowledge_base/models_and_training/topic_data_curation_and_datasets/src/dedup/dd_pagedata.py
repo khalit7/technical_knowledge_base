@@ -95,6 +95,11 @@ if cdx:
     DD["cdx"] = {"n": cdx["n"], "crawls": {c: {k: v for k, v in x.items() if k != "pairs"} for c, x in cdx["crawls"].items()},
                  "anyCapture": len({p[0] for x in cdx["crawls"].values() for p in x["pairs"]}),
                  "anyGe08": len({p[0] for x in cdx["crawls"].values() for p in x["pairs"] if p[1] >= 0.8})}
+sfw = os.path.join(O, "dd_semantic_fw50k.json")
+DD["semFw"] = json.load(open(sfw)) if os.path.exists(sfw) else None
+# the deduplication child page's run on 50,000 FineWeb-Edu rows (same encoder and rule), shown side by side
+chd = os.path.join(C.HERE, "..", "..", "deduplication", "src", "data", "out", "dp_d4_fw50k.json")
+DD["semFwEdu"] = json.load(open(chd))["sweep"] if os.path.exists(chd) else None
 fws = os.path.join(O, "dd_fwshard.json")
 DD["fwshard"] = json.load(open(fws)) if os.path.exists(fws) else None  # filled when dd_fwshard.py has finished
 if DD["fwshard"]:
