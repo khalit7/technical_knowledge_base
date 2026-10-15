@@ -1,0 +1,45 @@
+<section id="sh-s2">
+<h2>2. Propagation: annotate a few arrays, the compiler does the rest</h2>
+<p><b>How it works.</b> You write the single-device program and annotate some arrays: the inputs (by passing sharded arrays, or <code>in_shardings</code> to <code>jax.jit</code>), the outputs (<code>out_shardings</code>), and if you need to, a few intermediates with <code>jax.lax.with_sharding_constraint(x, sharding)</code>. The compiler then does two jobs. <dfn>Sharding propagation</dfn> gives every other array a sharding, by pushing the known ones through each operation (a matmul whose input rows are split on <code>data</code> produces output rows split on <code>data</code>). The <dfn>SPMD partitioner</dfn> then rewrites the program into the one program every device runs on its own shard (SPMD: single program, multiple data), and wherever an operation needs data laid out differently from how it is, inserts a <dfn>collective</dfn>: an operation in which a group of devices exchange data. The design is <dfn>GSPMD</dfn> ({{Xu et al. 2021|https://arxiv.org/abs/2105.04663}}); since JAX 0.7.0 the propagation step is done by default by its successor <dfn>Shardy</dfn>, and both hand over to the same partitioner (XLA's source shows the switch, section 7). PyTorch has no counterpart for whole programs: DTensor decides operator by operator at run time, and torch.compile does not re-plan the communication.</p>
+<p><b>The cost.</b> You do not see the communication in your code. It appears only in the compiled program, so checking it is part of the job: <code>jax.jit(f).lower(*args).compile().as_text()</code> and search for <code>all-reduce</code>, <code>all-gather</code>, <code>reduce-scatter</code>, <code>all-to-all</code>, <code>collective-permute</code>. That is exactly how every number on this tab was obtained.</p>
+
+<div class="sh-box" id="sh-pg-card">
+<h4>PartitionSpec playground: y = x @ W on a 2 &times; 4 mesh</h4>
+<p class="small mute">x is the embedded batch 0 of the running example ([4096 tokens, 128]), W is <code>blocks.0.mlp.fc1.w</code> ([128, 512]). Choose a spec for each and what you ask for the output. All 108 combinations were compiled for real (Auto axes, Shardy, jax 0.11.2); what you see is read from each compiled program, and every result was checked against numpy (largest error shown).</p>
+<div class="seg" id="sh-pg-x"><span class="lbl">x</span></div>
+<div class="seg" id="sh-pg-w"><span class="lbl">W</span></div>
+<div class="seg" id="sh-pg-o"><span class="lbl">output</span></div>
+<div class="sh-svgw" id="sh-pg-svg"></div>
+<div class="sh-cap" id="sh-pg-cap"></div>
+<div class="sh-cnt" id="sh-pg-cnt"></div>
+<p class="small mute">"Bytes" is the size of the whole array a collective works on (an all-gather's result, a reduce-scatter's input, an all-reduce's operand); "sent per device" is what each device sends on a ring of that group size (section 3). <span class="sh-der">derived</span> from the HLO shapes.</p>
+</div>
+<div class="sh-pr" id="sh-drill">
+<div class="q" id="sh-dr-q"></div>
+<div class="sh-opts" id="sh-dr-opts"></div>
+<div class="sh-ans" id="sh-dr-ans"></div>
+<div class="sh-ctl"><button id="sh-dr-next">Next case</button><span class="small mute" id="sh-dr-score"></span></div>
+</div>
+<p><b>Read the playground like this.</b> Three rules explain almost every row. (1) If both operands are split along the dimension that is summed over (x columns and W rows on the same axis: <code>P(None,'model')</code> @ <code>P('model',None)</code>), each device computes a partial sum and the compiler adds them with an <b>all-reduce</b>: this is Megatron's row-parallel layer. (2) If one operand is split along the summed dimension and the other is not, the compiler <b>all-gathers</b> the split one first. (3) If you ask for an output layout the matmul does not produce, it adds an all-gather (to replicate), an <b>all-to-all</b> (to move a split from one dimension to another) or a <b>collective-permute</b> (to swap which device holds which block). Left to itself ("compiler's choice"), it picks an output layout that needs no communication whenever one exists.</p>
+<p><b>The same matmul with Explicit axes.</b> On an Explicit mesh the shardings are in the types and the rules are checked while tracing (run here, the result types and messages pasted from the run):</p>
+<div class="tw"><table class="sh-t" id="sh-ex-t"><thead><tr><th>x</th><th>W</th><th>result of <code>x @ W</code></th></tr></thead><tbody></tbody></table></div>
+<p>The Megatron row-parallel case, which Auto mode quietly turns into an all-reduce, is a <b>type error</b> in Explicit mode until you say what the output should be (<code>jnp.matmul(x, w, out_sharding=P('data', None))</code>); <code>jax.reshard(x, spec)</code> changes an array's sharding on purpose (<span id="sh-reshard"></span>). Explicit mode trades convenience for no surprises. MaxText offers both and defaults to Auto (<code>shard_mode: "auto" # can be either auto or explicit</code>, <code>configs/base.yml</code> line 682 at main 1a95d1e5, 2026-10-15).</p>
+</section>
+
+<section id="sh-s3">
+<h2>3. The collectives: what each one moves</h2>
+<p>Five collectives cover everything. Each was run here inside <code>jax.shard_map</code> (section 5) on 8 devices, device <i>d</i> starting with the row [10<i>d</i>, 10<i>d</i>+1, ..., 10<i>d</i>+7]; the HLO op each compiled to is from the compiled program.</p>
+<div class="tw"><table class="sh-t" id="sh-co-t"><thead><tr><th>JAX call (in shard_map)</th><th>HLO op</th><th>what device 0 ends with</th><th>sent per device on a ring of n</th><th>PyTorch (torch.distributed)</th></tr></thead><tbody></tbody></table></div>
+<p class="small mute">Ring costs <span class="sh-der">derived</span> for an array of N bytes: in a ring all-gather each device forwards n &minus; 1 blocks of N/n; a ring all-reduce is a reduce-scatter followed by an all-gather, so twice that. The scaling book states the same costs as time: an AllGather or ReduceScatter takes "Data volume / bandwidth &middot; (Axis &minus; 1)/Axis" and an AllReduce twice that ({{How to Scale Your Model, part 3, 2025-02-04|https://jax-ml.github.io/scaling-book/sharding/}}).</p>
+<div class="sh-box" id="sh-ring-card">
+<h4>Collectives animator: bytes moving round a ring</h4>
+<p class="small mute">One array of N bytes per device, cut into n chunks. Each step, every device sends one chunk to its right-hand neighbour. Toggle "naive" to see the same all-reduce done the obvious way (everyone sends everything to device 0, which adds and sends the sum back): same answer, but device 0 carries all the traffic.</p>
+<div class="seg" id="sh-ring-k"></div>
+<div class="sh-ctl"><label>Devices <b id="sh-ring-nv">8</b> <input type="range" id="sh-ring-n" min="2" max="8" value="8" step="1" style="width:120px" aria-label="Number of devices"></label><label><input type="checkbox" id="sh-ring-naive"> naive all-reduce (gather to device 0, then broadcast)</label></div>
+<div class="sh-anctl" id="sh-ring-ctl"></div>
+<div class="sh-svgw" id="sh-ring-svg"></div>
+<div class="sh-cap" id="sh-ring-cap"></div>
+<div class="sh-cnt" id="sh-ring-cnt"></div>
+</div>
+<p><b>Checked by hand.</b> The ring all-reduce written with <code>jax.lax.ppermute</code> (code in section 5) compiled to <span id="sh-ring-chk"></span></p>
+</section>
