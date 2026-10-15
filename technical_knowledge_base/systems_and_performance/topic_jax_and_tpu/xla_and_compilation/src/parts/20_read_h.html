@@ -1,0 +1,38 @@
+<section id="rd-s11">
+<h2>11. Profiling: which view answers which question</h2>
+<p><b>Taking a profile.</b> Wrap a few steps after warm-up:</p>
+<pre class="xp-code">with jax.profiler.trace("/tmp/prof"):
+    for i in range(5):
+        with jax.profiler.StepTraceAnnotation("train", step_num=i):
+            state = step(*state)
+            jax.block_until_ready(state)   # without it the trace shows dispatch, not work</pre>
+<p>and open the folder in <dfn>XProf</dfn> (<code>pip install xprof</code>; the tool behind TensorBoard's Profile tab), which the JAX docs describe as "a great way to acquire and visualize performance traces and profiles of your program, including activity on GPU and TPU" (<code>docs/profiling.md</code>) <span class="xp-tag g">Google docs</span>, or in Perfetto. The files carry the machine's host name: scrub before sharing.</p>
+<div class="tw"><table class="xp-t xp-cards" id="xp-prof-tools"></table></div>
+<p class="xp-note">"On this CPU" is what xprof 2.23.2's own converter returned for the running example's trace <span class="xp-tag m">measured here</span>. The device-side tables are empty on a CPU: their columns (the header of <code>hlo_stats</code> includes "HBM BW (GiB/s)", "Bound by" and "TPU core type") are filled from device events that a CPU run does not record. <span class="xp-tag n">not run here</span>: their TPU and GPU content.</p>
+<p><b>What the trace says about the running example.</b> One step is about <span data-xp="prof_step_ms"></span> ms of wall time on this loaded machine; of the kernels' thread time, the backward pass takes about <span data-xp="prof_backward_pct"></span>%, the forward <span data-xp="prof_forward_pct"></span>% and the optimiser and gradient norms <span data-xp="prof_optimiser_pct"></span>% <span class="xp-tag m">measured here</span>. Matmuls and the projections around them (the <code>linear</code> function) dominate. On a TPU the same table would be read against the roofline: is each fusion limited by FLOPs or by HBM bandwidth, which {{TPU programming and performance|n:3c65c17b0d0d8129b0a5fd82e44ecf6e}} teaches. Every kernel of one step, joined to its phase and model function, is in the {{Profile reader|#t-xpprof}}.</p>
+<p><b>How to read a trace you did not expect.</b> Gaps on the device row with a busy Python row mean the host cannot feed the device (dispatch, data loading, a host sync such as <code>float(loss)</code> every step). One kernel far longer than its neighbours: find it by name in the optimised HLO (fusion names are stable within one compile) and look at what was fused into it. Many tiny kernels: fusion broke (section 4). Time inside <code>jit</code> calls that should be cached: a recompile (section 10). The PyTorch profiler and Nsight equivalents are on {{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}}.</p>
+</section>
+
+<section id="rd-s12">
+<h2>12. XLA flags that matter, and their risks</h2>
+<p>XLA reads <code>XLA_FLAGS</code> once, when the backend starts: "Set <code>XLA_FLAGS</code> before importing Jax or other relevant libraries. Changing <code>XLA_FLAGS</code> after backend initialization will have no effect" (<code>docs/xla_flags.md</code>) <span class="xp-tag g">Google docs</span>. Every flag is a field of <code>DebugOptions</code>, defined with its default and help text in <code>xla/debug_options_flags.cc</code> <span class="xp-tag s">read in source</span>:</p>
+<div class="tw"><table class="xp-t xp-cards" id="xp-flag-doc"></table></div>
+<p><b>Five CPU settings on the train step</b> <span class="xp-tag m">measured here</span>, each in a fresh process; losses are the first five steps from the same initial state:</p>
+<div class="tw"><table class="xp-t xp-cards" id="xp-flag-run"></table></div>
+<p class="xp-note">CPU seconds on a shared machine (1-minute load printed per row): read ratios, not values. <code>--xla_backend_optimization_level=0</code> roughly halves compile time and more than doubles step time; numbers stay identical, and the optimised HLO is the same (<span data-xp="step_kernels"></span> kernels, <span data-xp="step_fusions"></span> fusions, checked with the flag on): the level steers the backend's code generation, not the HLO passes. Fast math changed nothing measurable on this program.</p>
+<p><b>On TPU</b>, flags go in <code>LIBTPU_INIT_ARGS</code> and are read by the closed compiler. MaxText keeps a library of them: a scoped VMEM limit of <code>98304</code> KiB for dense models, flags that fuse and overlap collectives with compute, and data-parallel overlap (<code>benchmarks/xla_flags_library.py</code> at the pinned commit) <span class="xp-tag s">read in source</span> <span class="xp-tag n">not run here</span>.</p>
+<div class="co warn"><div class="t">Risks</div>Flags are debug options, not an API: names change between releases and help text goes stale (the YNNPACK flag's help contradicts its default, section 4). Some change numbers (fast math, disabling passes). Disabling a pass can make compilation fail or the program slow in ways that only show at scale. Every flag that is not on JAX's exclusion list is part of the persistent cache key (section 8), so a new flag recompiles everything. Keep production flags in one place, record them with each run, and re-measure after every JAX upgrade.</div>
+</section>
+
+<section id="rd-s13">
+<h2>13. Against torch.compile, Inductor and Triton</h2>
+<p>The concepts line up (section 0's table); the behaviour differs in five places.</p>
+<ul class="tight">
+<li><b>Failure mode.</b> Dynamo splits the graph at what it cannot trace and runs that part in Python; JAX raises. One program or an error, never a silent fallback (the root's lab shows both on the same branch).</li>
+<li><b>Dynamic shapes.</b> torch.compile marks a dimension dynamic after it changes and compiles one program for a range of sizes; JAX keeps every shape static under <code>jit</code> and offers symbolic shapes only through <code>jax.export</code> (section 9). In JAX, padding to buckets is your job.</li>
+<li><b>Where the decisions live.</b> Inductor is Python and emits Triton or C++ you can read; XLA's passes are C++, readable for CPU and GPU, closed for TPU. XLA:GPU itself generates Triton for some fusions (<code>GemmFusion</code>, <code>SoftmaxRewriterTriton</code>), so Triton is an implementation detail of both stacks; a hand-written {{Triton|n:3c65c17b0d0d81729d15ed4d1a4461b3}} kernel's JAX counterpart is a {{Pallas|n:3fa5c17b0d0d817699fcf65d085402e7}} kernel.</li>
+<li><b>Memory.</b> XLA plans every byte before running and reports it (<code>memory_analysis</code>, section 6); PyTorch allocates at run time and reports afterwards.</li>
+<li><b>Scope.</b> <code>jit</code> compiles the whole train step, optimiser included, as one program; torch.compile is often applied to the model only, with the optimiser step outside or compiled separately.</li>
+</ul>
+<p>How Dynamo, AOTAutograd and Inductor work inside: {{The compiler stack|n:3f05c17b0d0d81ddbc00fac9e8a2ff89}}; from the user's side: {{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}}.</p>
+</section>
