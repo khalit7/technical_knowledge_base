@@ -1,0 +1,64 @@
+<section id="rd-s2">
+<h2>2. The functional model and the transformations</h2>
+<p><b>Arrays.</b> <code>jax.numpy</code> (imported as <code>jnp</code>) mirrors NumPy, and a JAX array lives on a device like a CUDA tensor. One difference shows up on day one: arrays are <dfn>immutable</dfn>. <code>x[0] = 1.0</code> raises an error; you write <code>x = x.at[0].set(1.0)</code>, which returns a new array (inside <code>jit</code> the compiler turns it back into an in-place write when the old array is not needed).</p>
+<p><b>Tracing.</b> When a transformation meets your function, JAX calls it once with <dfn>tracers</dfn>: stand-ins that carry an <dfn>abstract value</dfn> (a shape and a dtype such as <code>f32[8,128]</code>, no numbers) and record every operation applied to them. The record is a <dfn>jaxpr</dfn> (JAX expression): a small, typed, side-effect-free program of <dfn>primitives</dfn> (the elementary operations, such as <code>dot_general</code>, <code>add</code>, <code>tanh</code>). Here is a real one, for a two-line function of the running example's size:</p>
+<!--CODE:jaxpr--><pre class="rd-code">import jax, jax.numpy as jnp
+
+def mlp(w1, w2, x):          # x: [tokens, d_model]
+    h = jax.nn.gelu(x @ w1)  # [tokens, 4 * d_model]
+    return h @ w2
+
+w1, w2 = jnp.ones((128, 512)), jnp.ones((512, 128))
+x = jnp.ones((8, 128))
+print(jax.make_jaxpr(mlp)(w1, w2, x))</pre><pre class="rd-code rd-out">{ lambda ; a:f32[128,512] b:f32[512,128] c:f32[8,128]. let
+    d:f32[8,512] = dot_general[
+      dimension_numbers=(([1], [0]), ([], []))
+      preferred_element_type=float32
+    ] c a
+    e:f32[8,512] = integer_pow[y=3] d
+    f:f32[8,512] = mul 0.044714998453855515:f32[] e
+    g:f32[8,512] = add d f
+    h:f32[8,512] = mul 0.7978845834732056:f32[] g
+    i:f32[8,512] = tanh h
+    j:f32[8,512] = add 1.0:f32[] i
+    k:f32[8,512] = mul 0.5:f32[] j
+    l:f32[8,512] = mul d k
+    m:f32[8,128] = dot_general[
+      dimension_numbers=(([1], [0]), ([], []))
+      preferred_element_type=float32
+    ] l b
+  in (m,) }</pre><p class="rd-codecap">Ran with jax 0.11.2 on Apple M1 Pro (CPU), Python 3.12.11; output as printed.</p><!--/CODE:jaxpr--><p>Read it as a program: <code>a</code>, <code>b</code>, <code>c</code> are the inputs with their abstract values, each line is one primitive with its output type, and nothing in it is Python any more. It also shows a porting trap: the GELU became <code>tanh</code> and a cube, because <code>jax.nn.gelu</code> defaults to the tanh approximation (<code>approximate=True</code>), while PyTorch's <code>nn.GELU</code> defaults to the exact form (<code>approximate='none'</code>), both checked in the installed versions.</p>
+<p>Every transformation is an interpreter over such programs. That one idea explains the rest:</p>
+<ul class="tight">
+<li><b><code>jax.jit(f)</code></b> compiles the jaxpr with XLA and caches the executable under the call's <dfn>signature</dfn>: argument shapes and dtypes, plus any argument marked <dfn>static</dfn> (<code>static_argnums</code>), whose Python value is baked into the program. A new signature means a new trace and a new compile. Shapes are always static: no array may have a shape that depends on data, so variable lengths are padded and masked. PyTorch counterpart: <code>torch.compile</code>, but all or nothing.</li>
+<li><b><code>jax.grad(f)</code></b> and <b><code>jax.value_and_grad(f)</code></b> return a new function that computes the gradient of a scalar <code>f</code> with respect to its first argument (<code>argnums</code> picks others; <code>has_aux=True</code> lets <code>f</code> also return metrics). The gradient has exactly the structure of the parameters. No <code>.grad</code> attributes, no <code>zero_grad()</code>: a gradient is a fresh value each call. Counterpart: <code>loss.backward()</code>, but as a function. <code>jax.lax.stop_gradient</code> is <code>detach()</code>.</li>
+<li><b><code>jax.vmap(f)</code></b> turns a function written for one example into one for a batch, by rewriting each primitive into its batched form; <code>in_axes</code> says which arguments carry the batch. Per-example gradients are <code>vmap(grad(loss), in_axes=(None, 0))</code>. Counterpart: <code>torch.func.vmap</code>, which ports the idea.</li>
+</ul>
+<p><b>Control flow.</b> A Python <code>if</code> on a traced value cannot be decided while tracing (the tracer has no value), so JAX raises an error; a Python loop is unrolled into the trace, one copy per iteration. Inside compiled code you use structured control flow: <code>jax.lax.cond</code> (both branches compiled), <code>jnp.where</code> (both computed, then selected), <code>jax.lax.scan</code> (a compiled loop with a carried state: how layers, RNNs and decode loops are written, and much faster to compile than an unrolled loop), <code>jax.lax.fori_loop</code> and <code>jax.lax.while_loop</code> (dynamic trip count; not reverse-differentiable).</p>
+<p><b>Randomness is a value.</b> PyTorch's <code>torch.manual_seed(0)</code> seeds a hidden global generator that changes on every call. In JAX a <dfn>key</dfn> is an array: <code>key = jax.random.key(0)</code>; <code>key, sub = jax.random.split(key)</code>; <code>jax.random.normal(sub, shape)</code>. The same key always gives the same numbers, so you split a fresh subkey for every use and pass keys through your step like any other state. Flax's <code>nnx.Rngs</code> does the splitting inside models.</p>
+<p><b>Pytrees.</b> A <dfn>pytree</dfn> is any nesting of lists, tuples, dicts (and registered classes such as Flax modules) with arrays at the leaves. Parameters, gradients and optimiser states are all pytrees of the same shape, and <code>jax.tree.map(lambda p, g: p - lr * g, params, grads)</code> is a complete SGD step. One concept replaces <code>model.parameters()</code>, <code>state_dict()</code> and parameter groups.</p>
+
+<div class="rd-card" id="rd-tr-card">
+<h4>The same train step called four times: PyTorch eager against JAX jit</h4>
+<div class="seg" id="rd-tr-mode"><button data-m="both" class="on">Both</button><button data-m="pt">PyTorch eager</button><button data-m="jx">JAX jit</button></div>
+<div class="rd-lanes" id="rd-tr-lanes"></div>
+<div class="an-cnt" id="rd-tr-cnt"></div>
+<div class="an-cap" id="rd-tr-cap"></div>
+<div class="an-ctl" id="rd-tr-ctl"></div>
+<div class="leg"><span style="--sw:var(--c2)">op dispatched from Python</span><span style="--sw:var(--c5)">op recorded while tracing</span><span style="--sw:var(--c4)">compiling</span><span style="--sw:var(--c1)">compiled (fused) kernel</span></div>
+<p class="small mute" id="rd-tr-note"></p>
+</div>
+
+<div class="pr" id="rd-pr2"><div class="q">Predict: a jitted function contains <code>print("step", x)</code>. You call it three times with arrays of the same shape. What appears?</div>
+<div class="opts"><button data-r="0">Three lines, with the values</button><button data-r="1">One line, showing a tracer, not a value</button><button data-r="0">Nothing: print is removed by jit</button></div>
+<div class="ans" hidden><!--CODE:print--><p><b>One line, showing a tracer.</b> The body runs only while tracing; the second and third calls hit the cache and Python never runs. Use <code>jax.debug.print</code> for values at run time.</p><pre class="rd-code">import jax, jax.numpy as jnp
+
+@jax.jit
+def f(x):
+    print(&quot;step&quot;, x)
+    return x * 2
+
+for _ in range(3):
+    f(jnp.ones(4))</pre><pre class="rd-code rd-out">step JitTracer(float32[4])</pre><p class="rd-codecap">Ran with jax 0.11.2 on Apple M1 Pro (CPU), Python 3.12.11; output as printed.</p><!--/CODE:print--></div></div>
+<div class="deepnote"><b>Go deeper.</b> The {{Transforms lab|#t-xf}} animates a function becoming a jaxpr line by line, counts real recompiles in a predict-then-reveal drill, explores the model's parameter pytree and times vmap against a loop; child page {{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}} reads how the interpreters are written in JAX's source.</div>
+</section>

@@ -1,0 +1,86 @@
+<section id="rd-mis">
+<h2>Common mistakes</h2>
+<p>Each is something a PyTorch habit does in JAX. The error messages are the real ones, from running each snippet with JAX on this machine (<code>src/read/run_examples.py</code>).</p>
+<details class="mist"><summary><b>Python <code>if</code> on a traced value</b></summary><div class="b"><!--CODE:err_if--><p>The tracer has no value, so Python cannot decide the branch. Use <code>jax.lax.cond</code> or <code>jnp.where</code>, or mark the argument static if it really is a configuration value.</p><pre class="rd-code">import jax, jax.numpy as jnp
+
+@jax.jit
+def relu_or_not(x):
+    if x.sum() &gt; 0:          # a Python bool of a traced value
+        return x
+    return -x
+
+relu_or_not(jnp.ones(3))</pre><pre class="rd-code rd-out">jax.errors.TracerBoolConversionError: Attempted boolean conversion of traced array with shape bool[].
+The error occurred while tracing the function relu_or_not at &lt;snippet&gt;:3 for jit. This concrete value was not available in Python because it depends on the value of the argument x.
+See https://docs.jax.dev/en/latest/errors.html#jax.errors.TracerBoolConversionError</pre><p class="rd-codecap">Ran with jax 0.11.2 on Apple M1 Pro (CPU), Python 3.12.11; output as printed (raised while tracing, before anything runs; shown up to its documentation link).</p><!--/CODE:err_if--></div></details>
+<details class="mist"><summary><b>A shape that depends on the data</b></summary><div class="b"><!--CODE:err_shape--><p>Every array shape must be known while tracing. Keep the shape fixed and mask: <code>jnp.where(x &gt; 0, x, 0)</code>, or <code>jnp.nonzero(x, size=k)</code> with a fixed maximum.</p><pre class="rd-code">import jax, jax.numpy as jnp
+
+@jax.jit
+def positives(x):
+    return x[x &gt; 0]          # how many? depends on the data
+
+positives(jnp.array([1.0, -2.0, 3.0]))</pre><pre class="rd-code rd-out">jax.errors.NonConcreteBooleanIndexError: Array boolean indices must be concrete; got bool[3]
+
+See https://docs.jax.dev/en/latest/errors.html#jax.errors.NonConcreteBooleanIndexError</pre><p class="rd-codecap">Ran with jax 0.11.2 on Apple M1 Pro (CPU), Python 3.12.11; output as printed (shown up to its documentation link).</p><!--/CODE:err_shape--></div></details>
+<details class="mist"><summary><b>Assigning into an array</b></summary><div class="b"><!--CODE:err_set--><p>JAX arrays are immutable. <code>.at[i].set(v)</code> (also <code>.add</code>, <code>.multiply</code>, <code>.min</code>, <code>.max</code>) returns a new array; under <code>jit</code> it becomes an in-place write when the old array is dead.</p><pre class="rd-code">import jax.numpy as jnp
+x = jnp.zeros(3)
+try:
+    x[0] = 1.0
+except TypeError as e:
+    print(&quot;TypeError:&quot;, e)
+x = x.at[0].set(1.0)         # a new array
+print(x)</pre><pre class="rd-code rd-out">TypeError: JAX arrays are immutable and do not support in-place item assignment. Instead of x[idx] = y, use x = x.at[idx].set(y) or another .at[] method: https://docs.jax.dev/en/latest/_autosummary/jax.numpy.ndarray.at.html
+[1. 0. 0.]</pre><p class="rd-codecap">Ran with jax 0.11.2 on Apple M1 Pro (CPU), Python 3.12.11; output as printed.</p><!--/CODE:err_set--></div></details>
+<details class="mist"><summary><b>Side effects that run once</b> (print, appending to a list, a global counter)</summary><div class="b"><!--CODE:err_side--><p>The list grew once, during tracing, and holds a tracer. Return values instead of appending; for logging at run time use <code>jax.debug.print</code> or <code>jax.debug.callback</code>.</p><pre class="rd-code">import jax, jax.numpy as jnp
+seen = []
+
+@jax.jit
+def f(x):
+    seen.append(x)           # runs while tracing only
+    return x + 1
+
+for _ in range(3):
+    f(jnp.ones(2))
+print(len(seen), seen[0])</pre><pre class="rd-code rd-out">1 JitTracer(float32[2])</pre><p class="rd-codecap">Ran with jax 0.11.2 on Apple M1 Pro (CPU), Python 3.12.11; output as printed.</p><!--/CODE:err_side--></div></details>
+<details class="mist"><summary><b>A global read inside jit is frozen</b></summary><div class="b"><!--CODE:err_global--><p>The global was read while tracing and baked into the compiled program as a constant. Pass anything that changes as an argument.</p><pre class="rd-code">import jax, jax.numpy as jnp
+scale = 2.0
+
+@jax.jit
+def f(x):
+    return x * scale         # read once, while tracing
+
+print(f(jnp.ones(2)))
+scale = 10.0
+print(f(jnp.ones(2)))        # same shape: cached, still 2.0</pre><pre class="rd-code rd-out">[2. 2.]
+[2. 2.]</pre><p class="rd-codecap">Ran with jax 0.11.2 on Apple M1 Pro (CPU), Python 3.12.11; output as printed.</p><!--/CODE:err_global--></div></details>
+<details class="mist"><summary><b>Reusing a random key</b></summary><div class="b"><!--CODE:err_key--><p>Same key, same numbers: a reused key silently correlates your dropout masks or initialisations. Split a fresh subkey for every use.</p><pre class="rd-code">import jax
+key = jax.random.key(0)
+a = jax.random.normal(key, (3,))
+b = jax.random.normal(key, (3,))      # same key: same numbers
+key, sub = jax.random.split(key)
+c = jax.random.normal(sub, (3,))      # fresh subkey: new numbers
+print(a); print(b); print(c)</pre><pre class="rd-code rd-out">[ 1.6226422   2.0252647  -0.43359444]
+[ 1.6226422   2.0252647  -0.43359444]
+[-2.4424558  -2.0356805   0.20554423]</pre><p class="rd-codecap">Ran with jax 0.11.2 on Apple M1 Pro (CPU), Python 3.12.11; output as printed.</p><!--/CODE:err_key--></div></details>
+<details class="mist"><summary><b>Shapes that change every step</b></summary><div class="b"><!--CODE:err_recompile--><p>Each new length is a new signature: trace and compile again. Pad batches to a few fixed lengths (buckets) and log compiles while developing.</p><pre class="rd-code">import jax, jax.numpy as jnp
+
+@jax.jit
+def f(x):
+    return jnp.tanh(x).sum()
+
+batches = [jnp.ones(n) for n in [100, 100, 101, 102]]
+jax.config.update(&quot;jax_log_compiles&quot;, True)
+for x in batches:                     # a new length is a new signature
+    f(x)
+print(&quot;cache size:&quot;, f._cache_size())</pre><pre class="rd-code rd-out">Compiling jit(f) with global shapes and types (ShapedArray(float32[100]),). Argument mapping: (UnspecifiedValue,).
+Compiling jit(f) with global shapes and types (ShapedArray(float32[101]),). Argument mapping: (UnspecifiedValue,).
+Compiling jit(f) with global shapes and types (ShapedArray(float32[102]),). Argument mapping: (UnspecifiedValue,).
+cache size: 3</pre><p class="rd-codecap">Ran with jax 0.11.2 on Apple M1 Pro (CPU), Python 3.12.11; output as printed (JAX's compile log, its per-phase timing lines left out).</p><!--/CODE:err_recompile--></div></details>
+<details class="mist"><summary><b>Out-of-bounds indexing does not raise</b></summary><div class="b"><!--CODE:err_oob--><p>Under JAX, out-of-bounds reads are clamped and out-of-bounds writes are dropped, with no error, because accelerators cannot raise mid-kernel. Check indices yourself, or use <code>jax.experimental.checkify</code>.</p><pre class="rd-code">import jax, jax.numpy as jnp
+x = jnp.arange(5.0)
+print(x[10])                          # no error: clamped to the last element
+print(x.at[10].set(99.0))             # no error: the write is dropped</pre><pre class="rd-code rd-out">4.0
+[0. 1. 2. 3. 4.]</pre><p class="rd-codecap">Ran with jax 0.11.2 on Apple M1 Pro (CPU), Python 3.12.11; output as printed.</p><!--/CODE:err_oob--></div></details>
+<details class="mist"><summary><b>Timing dispatch instead of compute, or including the compile</b></summary><div class="b">JAX returns from a call as soon as the work is queued (<dfn>asynchronous dispatch</dfn>, like CUDA). Time with <code>out.block_until_ready()</code> and leave out the first call, which includes tracing and compiling. The reverse mistake is a <dfn>host sync</dfn> every step: <code>float(loss)</code>, <code>loss.item()</code>, printing or converting to NumPy forces Python to wait for the device and stalls the queue; log every N steps.</div></details>
+<details class="mist"><summary><b>Not donating the training state</b></summary><div class="b">Without <code>donate_argnums</code> (or <code>nnx.jit</code>, which handles it for modules), the step's outputs need fresh buffers while the inputs are still alive: briefly two copies of parameters and optimiser state, which runs out of memory at exactly the scale you care about. <span class="rd-todo" id="rd-todo-donate">TODO (Compiler lab): the running example's memory_analysis with and without donation.</span></div></details>
+<details class="mist"><summary><b>Expecting float32 matmuls on a TPU</b></summary><div class="b">On TPU the default precision of a float32 matmul uses bfloat16 passes on the MXU, so results differ from a float32 GPU or CPU run in the third or fourth digit. Ask for more with <code>precision=jax.lax.Precision.HIGHEST</code> or <code>jax.default_matmul_precision("float32")</code> when comparing against PyTorch ({{JAX docs, default_matmul_precision|https://docs.jax.dev/en/latest/_autosummary/jax.default_matmul_precision.html}}).</div></details>
+</section>

@@ -1,0 +1,25 @@
+<section id="rd-s3">
+<h2>3. What the compiler does</h2>
+<p>After tracing, a jitted function passes through four forms before it runs, and you can print each one:</p>
+<ol class="tight">
+<li><b>jaxpr</b>: JAX's own program (<code>jax.make_jaxpr(f)(x)</code>).</li>
+<li><b>StableHLO</b>: the jaxpr lowered into a versioned, portable operation set written in MLIR, Google's compiler-infrastructure format; this is the hand-off point between frameworks and compilers (PyTorch/XLA emits it too). <code>jax.jit(f).lower(x).as_text()</code>.</li>
+<li><b>Optimised HLO</b>: XLA's internal form (HLO, high-level operations) after its passes run. <code>jax.jit(f).lower(x).compile().as_text()</code>.</li>
+<li><b>Machine code</b> for the backend: LLVM for CPUs, GPU kernels (some generated through Triton), or the TPU backend.</li>
+</ol>
+<p>The passes that matter to you:</p>
+<ul class="tight">
+<li><dfn>Fusion</dfn>: a chain of elementwise operations (and often the reduction after it) becomes one kernel, so intermediates stay in registers or on-chip memory instead of making a round trip to HBM each. This is why a JAX train step is usually fast without hand-written kernels: the whole step, backward pass and optimiser included, is one program the compiler can fuse across.</li>
+<li><dfn>Layout assignment</dfn> (which dimension is stored contiguously, and padding to the hardware's tile sizes), <dfn>algebraic simplification</dfn>, and <dfn>buffer assignment</dfn>, which decides which arrays can share memory. Its results are reported by <code>compiled.memory_analysis()</code>; <code>compiled.cost_analysis()</code> estimates FLOPs and bytes.</li>
+<li><dfn>Donation</dfn>: <code>jax.jit(step, donate_argnums=0)</code> promises that the old parameters and optimiser state will not be used again, so the new ones can be written into the same buffers. Without it the step briefly holds two copies of everything it returns.</li>
+<li><dfn>Rematerialisation</dfn>: <code>jax.checkpoint</code> (alias <code>jax.remat</code>) marks a function whose activations are recomputed in the backward pass instead of stored, trading compute for memory; policies choose what to keep. PyTorch counterpart: activation checkpointing.</li>
+</ul>
+<div class="rd-card">
+<h4>The running example's train step through the pipeline</h4>
+<div id="rd-xla-strip"></div>
+<p class="small mute" id="rd-xla-note"></p>
+</div>
+<p><b>Compile time is real time.</b> The first call of a large step can take seconds to minutes; the compiled program is cached in memory for the process, and a <dfn>persistent compilation cache</dfn> (<code>jax.config.update("jax_compilation_cache_dir", ...)</code>) keeps it across runs. Long Python loops inside a jitted function multiply compile time, which is the main reason layers are stacked and run with <code>lax.scan</code>.</p>
+<p><b>Against <code>torch.compile</code>.</b> TorchDynamo reads Python bytecode as it runs, captures what it can into graphs, and at anything it cannot handle inserts a <dfn>graph break</dfn>: that part runs eagerly and the program still works. TorchInductor then generates kernels (Triton on GPU) for each graph. JAX never reads your Python: tracing only sees operations on tracers, so Python control flow is either resolved during tracing or is an error. The result is one graph or none, with no silent fallback. Graph breaks, guards and recompiles on the PyTorch side are taught on {{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}}.</p>
+<div class="deepnote"><b>Go deeper.</b> The {{Compiler lab|#t-xla}} animates the running example's jaxpr merging into fusions, slides between rematerialisation policies on real memory figures and times a cold and a cached compile; child page {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}} follows the lowering path in JAX's source.</div>
+</section>
