@@ -8,9 +8,9 @@ Central question: at a fixed budget, which tokens, and how many unique ones do y
 | Clickable pipeline map (section 0) | HTML | The whole subject on one screen, each stage linked to its section and lab | none |
 | DCLM filter comparison bars (1) | published bars | Same model and compute, only selection changes: the cleanest evidence that data decides | DCLM Table 4 |
 | Corpus size against year (2), filter by web-only / top-slice | chart, click for notes | Two trends (100x growth; the split between strict top-slice and keep-and-fix corpora) | cards and papers, see facts.md |
-| One page through the pipeline, extractor vs WET toggle (3) | step animation, before/after on the same input | Shows the same article lost at the heuristic filter only because of extraction; rule values, 5-gram Jaccard, 112-hash MinHash and bands computed live | illustrative page; thresholds from FineWeb paper and datatrove v0.10.1 |
-| FineWeb funnel (3) | published bars | Scale of each stage | FineWeb paper |
-| LSH S-curve with FineWeb and RefinedWeb presets (4) | derived chart | Formula reproduces both papers' published probabilities independently; exposes RefinedWeb's prose/formula swap of bands and rows | FineWeb, RefinedWeb appendices |
+| One real page through the pipeline, trafilatura / resiliparse / WET toggle (3) | step animation, before/after on the same input | The same article (protectnmwater.org) is lost at Gopher's alpha rule only because WET keeps a calendar widget; the two published quality models then disagree on it (FineWeb-Edu keeps, DCLM drops); rules, Jaccard and MinHash between the extractions computed live, verdicts and scores measured by the labs | Pipeline lab page_data.json, Quality lab scorers |
+| Funnel, running example vs FineWeb (3) | measured and published bars, toggle | Where documents go in one WARC file, against FineWeb's token totals | Pipeline lab for_reading.json; FineWeb paper |
+| LSH S-curve with FineWeb, RefinedWeb (both readings) and Dolma 3 presets (4) | derived chart | Formula reproduces both papers' published probabilities independently; exposes RefinedWeb's prose/formula swap of bands and rows | FineWeb, RefinedWeb appendices |
 | Global dedup bars (4) | published bars | FineWeb's counter-intuitive result | FineWeb 3.4 |
 | FineWeb-Edu vs DCLM paired bars (5) | published bars | Each quality model encodes a target | SmolLM2 Table 1 |
 | n-gram decontamination demo (6), n and page toggles | live computation | Shows why paraphrases escape and short n-grams false-positive (35% and 19%, computed) | illustrative item |
