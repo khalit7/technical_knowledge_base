@@ -86,15 +86,16 @@ def from_torch(model, sd):
     a = lambda k: jnp.asarray(sd[k])
 
     def lin(m, p, bias=True):
-        m.kernel.value = a(p + ".weight").T                  # [out, in] -> [in, out]
+        m.kernel[...] = a(p + ".weight").T                  # [out, in] -> [in, out]
         if bias:
-            m.bias.value = a(p + ".bias")
+            m.bias[...] = a(p + ".bias")
 
     def ln(m, p):
-        m.scale.value, m.bias.value = a(p + ".weight"), a(p + ".bias")
+        m.scale[...] = a(p + ".weight")
+        m.bias[...] = a(p + ".bias")
 
-    model.tok_emb.embedding.value = a("tok_emb.weight")
-    model.pos_emb.embedding.value = a("pos_emb.weight")
+    model.tok_emb.embedding[...] = a("tok_emb.weight")
+    model.pos_emb.embedding[...] = a("pos_emb.weight")
     for i, b in enumerate(model.blocks):
         ln(b.ln1, f"blocks.{i}.ln1"); ln(b.ln2, f"blocks.{i}.ln2")
         for n in ("wq", "wk", "wv", "wo"):
@@ -134,7 +135,7 @@ def train_step(model, optimizer, x, y):
 def to_torch_names(model):
     """NNX model -> {pytorch name: numpy array in PyTorch layout} (inverse of from_torch)."""
     import numpy as np
-    g = lambda v: np.asarray(v.value)
+    g = lambda v: np.asarray(v[...])
     out = {"tok_emb.weight": g(model.tok_emb.embedding), "pos_emb.weight": g(model.pos_emb.embedding),
            "ln_f.weight": g(model.ln_f.scale), "ln_f.bias": g(model.ln_f.bias), "head.weight": g(model.head.kernel).T}
     for i, b in enumerate(model.blocks):

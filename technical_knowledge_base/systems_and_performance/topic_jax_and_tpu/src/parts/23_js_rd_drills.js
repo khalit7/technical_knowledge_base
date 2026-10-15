@@ -18,5 +18,8 @@
   if(!X){el.innerHTML='<span class="rd-todo">TODO (Compiler lab): the running example\'s train step at each stage: primitives in the jaxpr, operations in StableHLO, operations and fusions in the optimised HLO, compile time (cold and cached), and memory_analysis with and without donation.</span>';return}
   const mx=Math.max(...X.stages.map(s=>s.v));
   el.innerHTML='<div class="rd-bars">'+X.stages.map(s=>'<div><span class="nm">'+RD.esc(s.n)+'</span><span class="tr"><span style="width:'+(100*s.v/mx).toFixed(1)+'%;background:'+(s.c||'var(--acc)')+'"></span></span><span class="v">'+s.v.toLocaleString('en-US')+'</span></div>').join('')+'</div>';
-  note.innerHTML=X.note||'';
+  const mb=b=>(b/1e6).toFixed(1)+' MB';
+  note.innerHTML='<span class="meas">measured</span> by the Compiler lab on the running example\'s train step (forward, backward, clipping and AdamW, four layers unrolled): counts are deterministic. '+
+    'Compiling took '+X.compile_s.toFixed(1)+' s of wall time ('+X.compile_cpu_s.toFixed(1)+' s of CPU) cold, and '+X.compile_cached_s.toFixed(2)+' s ('+X.compile_cached_cpu_s.toFixed(2)+' s CPU) when loaded from the persistent cache; '+
+    'wall times are rough (Apple M1 Pro CPU, shared machine under heavy load, 4 threads, low priority). memory_analysis: '+mb(X.mem_no.total_allocation_bytes)+' without donation, '+mb(X.mem_don.total_allocation_bytes)+' with it.';
 })();
