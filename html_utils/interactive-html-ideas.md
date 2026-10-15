@@ -3918,3 +3918,20 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | DP12 | Suffix-array construction animation (SA-IS) | | | | rejected for now: the root lab's toy covers the sorted-suffix idea; SA-IS's induced sort is better read than watched at this depth |
 | DP13 | Redrawing the root lab's S-curve sliders and 14-document before/after | | | | rejected: exists on the root; DP3 and DP5 go further |
 | DP14 | Global vs per-crawl dedup on our data | | | | not possible here: needs many crawls; the root lab's CDX same-URL measurement and the pending whole-shard join cover what one machine can |
+
+### TPU programming and performance (2026-10-15)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_jax_and_tpu/tpu_programming_and_performance/src/viz_ideas.md`.
+
+| # | Idea | Where | Score | Reproduces / data |
+|---|---|---|---|---|
+| 1 | **Roofline walk, animated**: Llama 2 7B's MLP up-projection on all five generations' roofs as the batch grows 1 to 4,096 (decode to training: the same matmul before and after), counters per chosen generation | Reading s3 | 12 | B_crit 240 on v5e and 120 with int8 weights (scaling book) by construction from published specs; JS checked against recompute.py |
+| 2 | **bf16 passes, animated**: one float32 product built from 1, 3 and 6 bf16 partial products (3x3 grid of pieces), live error; reader can type the numbers | Reading s5 | 10 | bf16 rounding equals ml_dtypes on 8 values; errors 1.6e-3, 2.8e-6, 5.4e-8 for 1/3 x pi |
+| 3 | Precision measured: the trained running example with every matmul emulated at 1/3/6 passes vs float64 | Reading s5 (table) | 10 | measured (tq_precision.py); the CPU ignores precision (measured) |
+| 4 | Remat menu: residual bytes against FLOPs for five policies | Reading s6 (scatter + table) | 9 | measured; agrees with JAX core child's 357.6 MB / 115.4 MB |
+| 5 | MFU recomputed: published vs non-causal vs causal bars for MaxText's 8 runs | Reading s9, MFU tab | 12 | 6 of 8 reproduce only non-causally (finding) |
+| 6 | **Roofline lab**: 7B layer (fused/unfused attention, int8 weights), decode step model with presets, running example, own matmul | tab | 11 | the scaling book's pop quiz (2.5 ms, 21 ms) reproduces; root's 16.1 ms 7B decode reproduces |
+| 7 | **Tiling animation**: the same array before and after XLA TPU tiling, padding, tile order, bf16/int8 packing; MXU padding pictures | tab | 9 | XLA tiled_layout.md rules; checked against recompute.py |
+| 8 | **Slice planner**: every Cloud slice shape, multislice, state fit, tokens per chip vs ridge, step time, cost, DCN time, JAX placement table | tab | 10 | scaling book LLaMA 3-70B 44 days reproduces (preset); placement measured on mock devices |
+| 9 | **MFU calculator**: published rows with FLOP breakdown; your run (tokens/s or step time) on TPU or GPU | tab | 10 | Llama 2 70B v6e default lands on 43.6% non-causal vs 43.8% published |
+| 10 | Generation table (sortable), critical-batch table, state-per-chip table, cost table | Reading | 7 | published + calculated |
