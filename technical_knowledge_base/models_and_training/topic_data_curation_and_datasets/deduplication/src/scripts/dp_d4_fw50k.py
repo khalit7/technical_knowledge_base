@@ -30,16 +30,28 @@ else:
     E = np.zeros((len(texts), model.config.hidden_size), dtype=np.float32)
     order = np.argsort([len(x) for x in texts])
     with torch.inference_mode():
-        for k in range(0, len(texts), 64):
-            idx = order[k:k + 64]
+        for k in range(0, len(texts), 32):  # modest batches: 16 GB machine shared with other jobs
+            idx = order[k:k + 32]
             b = tok([texts[i] for i in idx], truncation=True, max_length=512, padding=True, return_tensors="pt").to(dev)
             v = model(**b).last_hidden_state[:, 0]
             E[idx] = torch.nn.functional.normalize(v, dim=-1).float().cpu().numpy()
+            if k % 3200 == 0:
+                print("embedded", k, "of", len(texts), round(time.time() - t0), "s", flush=True)
     np.save(E_PATH, E)
 secs = time.time() - t0
+print("embedding done", round(secs), "s on", dev, flush=True)
+del model
+if dev == "mps":
+    torch.mps.empty_cache()  # GPU work ends here; the rest is CPU (k-means, numpy)
+open(P.work("d4_gpu_done"), "w").write("1")
+
+LAB = {}
+
 
 def semdedup(X, eps, k=100):
-    lab = KMeans(k, n_init=3, random_state=0).fit_predict(X)
+    if id(X) not in LAB:  # one k-means per matrix, reused across eps
+        LAB[id(X)] = KMeans(k, n_init=3, random_state=0).fit_predict(X)
+    lab = LAB[id(X)]
     rem = set()
     for c in range(k):
         m = np.nonzero(lab == c)[0]
@@ -53,9 +65,10 @@ def semdedup(X, eps, k=100):
                 rem.add(int(m[r]))
     return rem
 
-res = {"n": len(texts), "device": dev, "embed_seconds": round(secs), "sweep": []}
+res = {"n": len(texts), "device": dev, "dtype": "float32", "embed_seconds": round(secs), "sweep": []}
 for eps in (0.01, 0.02, 0.05, 0.1, 0.15):
     res["sweep"].append({"eps": eps, "removed": len(semdedup(E, eps))})
+    print("semdedup eps", eps, res["sweep"][-1]["removed"], flush=True)
 sd = semdedup(E, 0.05)
 keep0 = np.array([i for i in range(len(texts)) if i not in sd])
 km = KMeans(100, n_init=3, random_state=0).fit(E[keep0])

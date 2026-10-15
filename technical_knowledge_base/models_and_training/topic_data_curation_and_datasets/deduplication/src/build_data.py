@@ -57,6 +57,7 @@ D["sim"] = {k: sim[k] for k in ("n_docs", "n_pairs", "pairs_ge08", "rows", "by_c
 D["sa"] = sa
 D["sem"] = sem
 D["ufscale"] = j("dp_ufscale.json")
+D["d4fw"] = j("dp_d4_fw50k.json")  # pending GPU run until present
 if cmp_:
     D["cmp"] = {"n": cmp_["n"], "bytes": cmp_["bytes"],
                 "combos": {k: {s: v[s] for s in ("exact", "fuzzy", "semantic", "sa_all", "sa_keep")} for k, v in cmp_["combos"].items()}}
