@@ -579,6 +579,73 @@ def emb(items, lab):
     return {"stats": stats, "top": hi_new + [r for r in rows if r not in hi_new][:40]}
 
 
+def gpu_results(items, lab):
+    out = {}
+    md = os.path.join(L.scratch(), "data", "dg", "mink")
+    for m in ("Qwen3-0.6B", "Qwen3-1.7B"):
+        p = os.path.join(md, m + ".float16.json")
+        if os.path.exists(p):
+            out.setdefault("mink", {})[m] = json.load(open(p))["summary"]
+    p32 = os.path.join(md, "Qwen3-0.6B.float32.json")
+    if os.path.exists(p32):
+        out["mink32"] = json.load(open(p32))["summary"]
+    jp = os.path.join(L.scratch(), "data", "dg", "embed", "judge_Qwen3-1.7B.json")
+    if os.path.exists(jp):
+        J = json.load(open(jp))
+        man = {k: v["cat"] for k, v in json.load(open(os.path.join(HERE, "scripts", "labels", "embed_labels.json"))).items()}
+        ngl = {}
+        for r in lab:
+            ngl.setdefault(f'{r["bench"]}|{r["bidx"]}|{r["doc"]}', r["cat"])
+        tab = Counter()
+        for o in J:
+            g = man.get(f'{o["bench"]}|{o["bidx"]}') or ngl.get(f'{o["bench"]}|{o["bidx"]}|{o["doc"]}')
+            tab[(g or "unlabelled", o["judge"])] += 1
+        out["judge"] = {"n": len(J), "same": sum(o["judge"] == "SAME" for o in J),
+                        "table": {f"{a}|{b}": v for (a, b), v in tab.items()},
+                        "min_score": round(min(o["score"] for o in J), 3)}
+    MK = out.get("mink", {})
+    if MK:
+        def a(m, b, k):
+            return f"{MK[m]['auc'][b][k]:.2f}"
+        ms = sorted(MK)
+        F = FACTS
+        parts = []
+        for m in ms:
+            parts.append(f"{m}: GSM8K {a(m, 'gsm8k_test', 'loss')} by loss and {a(m, 'gsm8k_test', 'minkpp')} by Min-K%++, "
+                         f"MATH-500 {a(m, 'math500_test', 'loss')} and {a(m, 'math500_test', 'minkpp')}, MMLU high-school "
+                         f"maths {a(m, 'mmlu_test', 'loss')} and {a(m, 'mmlu_test', 'minkpp')}")
+        same = ""
+        if "mink32" in out and "Qwen3-0.6B" in MK:
+            d = max(abs(out["mink32"]["auc"][b][k] - MK["Qwen3-0.6B"]["auc"][b][k]) for b in MK["Qwen3-0.6B"]["auc"]
+                    for k in ("loss", "mink", "minkpp", "zlib"))
+            same = ((" A first 0.6B run with float32 weights gives the same AUCs to three decimals" if d < 0.0005 else
+                     f" A first 0.6B run with float32 weights agrees with the float16 run within {d:.3f} AUC") + "; the 1.7B "
+                    "run in float32 did not fit in memory on the shared machine, so both models are reported in float16.")
+        F["mink_line"] = ("AUC (original vs number-shifted) for " + "; ".join(parts) + ". The worked solutions of GSM8K "
+                          "and MATH-500 are part of each item, and shifting numbers breaks their arithmetic, so the control "
+                          "is less natural text: some of the signal there is the perturbation, not memory. MMLU's maths "
+                          "items carry no worked solution, and there the scores stay near 0.5 to 0.6, the regime Duan et al. "
+                          "describe." + same)
+    J = out.get("judge")
+    if J:
+        t = J["table"]
+        cs = sum(v for k, v in t.items() if k.startswith("copy|"))
+        cs_same = t.get("copy|SAME", 0)
+        oth = sum(v for k, v in t.items() if not k.startswith("copy|") and not k.startswith("unlabelled|"))
+        oth_same = sum(v for k, v in t.items() if k.endswith("|SAME") and not k.startswith("copy|")
+                       and not k.startswith("unlabelled|"))
+        unl = sum(v for k, v in t.items() if k.startswith("unlabelled|"))
+        unl_same = t.get("unlabelled|SAME", 0)
+        FACTS["judge_line"] = (f"Qwen3-1.7B (bf16, thinking off, greedy) read the {J['n']} most similar pairs (cosine "
+                               f"{J['min_score']} and above). On pairs labelled copy it said SAME for {cs_same} of {cs}; on "
+                               f"pairs labelled variant, similar or a false positive it said SAME for {oth_same} of {oth}; "
+                               f"{unl} pairs carry no label ({unl_same} judged SAME). A small local judge "
+                               "catches copies but also calls many variants the same question; Yang et al. used GPT-4, and the "
+                               "judge's own error rate has to be measured on labelled pairs like these before it removes "
+                               "anything. Measured on the M1 Pro GPU, 2026-10-15.")
+    return out
+
+
 def pj(name):
     p = os.path.join(HERE, "data", name)
     return json.load(open(p)) if os.path.exists(p) else None
@@ -590,7 +657,7 @@ def main():
     dtr = dt_removed()
     data = {"corpora": corpora, "checker": checker(items, lab, texts, dtr), "rules": rules_table(lab, dtr), "anim": anim_pairs(items, lab, texts),
             "optout": pj("optout.json"), "robots_now": pj("robots_now.json"), "prov": pj("prov.json"),
-            "canary": pj("canary.json"), "bench_names": NAMES, "bench_sizes": dict(Counter(it["bench"] for it in items)), "pii": pii(), "emb": emb(items, lab)}
+            "canary": pj("canary.json"), "bench_names": NAMES, "bench_sizes": dict(Counter(it["bench"] for it in items)), "pii": pii(), "emb": emb(items, lab), "gpu": gpu_results(items, lab)}
     facts(items, lab, corpora, texts, data)
     os.makedirs(os.path.join(HERE, "data"), exist_ok=True)
     json.dump(data, open(os.path.join(HERE, "data", "dg_data.json"), "w"), ensure_ascii=False, separators=(",", ":"))
