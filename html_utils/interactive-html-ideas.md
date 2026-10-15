@@ -3794,3 +3794,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_
 | Entity graph drawings | The GraphRAG child owns graphs |
 | An animated deep-research architecture diagram | Nothing was run; a table read from source with file and line teaches more than motion over boxes |
 | A 4B column everywhere | Only where the root or this page ran the 4B (strategies, position, optional block); the 4B answered with a different prompt in the root's runs, so mixing is labelled |
+
+### Topic: jax-and-tpu (2026-10-15)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_jax_and_tpu/src/viz_ideas.md`.
+
