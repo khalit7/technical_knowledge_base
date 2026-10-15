@@ -60,6 +60,13 @@ if os.path.exists(pp) and pend.get("root_position"):
     RP = json.load(open(pp))["1.7b"]["f1"]
     mine = [pend["root_position"]["1.7b"]["f1"][k] for k in ("0", "4", "9", "14", "18")]
     ok(all(abs(a - b) < 0.0015 for a, b in zip(mine, RP)), "position F1 by slot = root position.json %s" % RP)
+if os.path.exists(pp):
+    PJ = json.load(open(pp))
+    for m, key, txt in (("1.7b", "first_vs_middle", "+0.116 (paired 95% interval +0.063 to +0.168)"), ("1.7b", "last_vs_middle", "+0.087 (+0.045 to +0.130)"),
+                        ("4b", "first_vs_middle", "+0.128, interval +0.055 to +0.207")):
+        d = PJ[m][key]
+        ok(("%+.3f" % d["diff"]) in txt and ("%+.3f" % d["ci"][0]) in txt and ("%+.3f" % d["ci"][1]) in txt and txt in html,
+           "position text '%s' = root position.json %s %s" % (txt, m, key))
 lc = D("longctx.json")
 a, b, c = lc["coef"]
 p7611 = a + b * 7611 + c * 7611 * 7611 / 2 / 1000

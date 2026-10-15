@@ -41,7 +41,10 @@ def server(model):
         return
     log = open(A.work("logs", "llama-server-%s.log" % model), "a")
     p = subprocess.Popen(["llama-server", "-m", m["file"], "-ngl", "99", "-c", str(G.CTX), "-np", "1", "--port", str(m["port"]),
-                          "--host", "127.0.0.1", "--seed", "0", "--jinja", "--temp", "0"], stdout=log, stderr=log)
+                          "--host", "127.0.0.1", "--seed", "0", "--jinja", "--temp", "0",
+                          # no extra host-RAM prompt cache (default 8 GiB): with 16 GB shared it swapped and stalled the
+                          # lim run on 2026-10-15; the slot's own KV cache still reuses the previous prompt's prefix
+                          "-cram", "0"], stdout=log, stderr=log)
     _proc[model] = p
     print("started llama-server", model, "pid", p.pid, "port", m["port"], flush=True)
     atexit.register(lambda: p.poll() is None and p.terminate())
