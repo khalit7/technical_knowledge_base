@@ -100,8 +100,12 @@ def parse_hlo(txt):
             ins["src"] = sf.group(1).split("/")[-1] + ":" + sf.group(2)
         cur["instrs"].append(ins)
     called = {i.get("calls") for c in comps for i in c["instrs"] if i["opcode"] == "fusion"}
+    # reduction combiners (add or max of two parameters, reached through to_apply= from reduce, scatter, sort or
+    # all-reduce) are bodies applied inside their caller's kernel, not kernels of their own
+    applied = set(re.findall(r"to_apply=%?([\w.\-]+)", txt))
     for c in comps:
         c["fused"] = c["name"] in called
+        c["applied"] = c["name"] in applied and not c["fused"]
     return comps
 
 
@@ -133,7 +137,9 @@ def hlo_counts(txt):
         else:
             cats["multi-op loop fusion"] += 1
         merged += n
-    work = [i for c in nonfused for i in c["instrs"] if i["opcode"] not in TRIVIAL]
+    toplevel = [c for c in nonfused if not c.get("applied")]
+    work = [i for c in toplevel for i in c["instrs"] if i["opcode"] not in TRIVIAL]
+    reducer_ops = [i for c in nonfused if c.get("applied") for i in c["instrs"] if i["opcode"] not in TRIVIAL]
     return {"computations": len(comps), "fused_computations": sum(1 for c in comps if c.get("fused")),
             "instructions_total": len(allins),
             "entry_instructions": len(entry["instrs"]),
@@ -142,5 +148,6 @@ def hlo_counts(txt):
             "fusion_categories": dict(cats.most_common()), "ops_inside_fusions": merged,
             "fusions_multi": sum(1 for f in all_fusions if f.get("n_ops", 0) >= 2),
             "kernels": len(work),   # instructions that run as their own kernel: fusions, dots, custom calls, etc.
+            "reducer_bodies": len(reducer_ops),   # combiner instructions behind to_apply=, not kernels (before 2026-10-15 counted in "kernels")
             "kernels_by_op": dict(collections.Counter(i["opcode"] for i in work).most_common()),
             "lines": len(txt.splitlines()), "bytes": len(txt.encode())}

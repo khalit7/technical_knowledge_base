@@ -18,4 +18,4 @@ Status 2026-10-15 (final pass): every box filled from the labs' outputs; `check_
 | 12 | Further reading free TPU access | specs.json "free" |
 | 13 | Further reading lab times | Transforms 25, Compiler 16, Training 25 (labs); Sharding 19, TPU 24, Tool map 5 plus tables (measured from the built tabs at 200 words a minute) |
 
-Open: nothing on the page. The child pages' reading times in Further reading say "being built" until they exist.
+Open: nothing on the page. Since 2026-10-15 the seven published child pages carry their titles, reading times and one line in Further reading and the child-page grid; JAX LLM codebases still says "being built" until it is published.
