@@ -15,15 +15,10 @@ Shape: a child page of Topic: rag-and-retrieval (method `html_utils/methods/topi
 ## Scripts (`scripts/`), run as `$RAG_SCRATCH/venv/bin/python -I -B scripts/<name>.py`
 `RAG_SCRATCH` is the shared setup folder of the parent page; every script loads the running example through the parent's `src/data/load.py` (via `emblib.py`). Large outputs go to `$RAG_SCRATCH/emb/`.
 - Deterministic, CPU, no lock (done): `e_pooling.py` (pooling and normalisation rebuilt by hand for five models; code quotes), `e_anim.py` (one claim through three models), `e_mine.py` (hard-negative pools for the fine-tune, false-negative rates, examples), `e_losscheck.py` (our loss against sentence-transformers' MNRL; gradient cache against plain back-propagation), `e_prefix.py queries` (query-side prefixes and instructions, CPU float32), `e_long.py stats` (token lengths, evidence positions), `e_choose.py` (bootstrap intervals, paired comparisons, subsampling, choose-on-train), `e_mteb.py` (run with `$RAG_SCRATCH/mapenv/bin/python`, which has mteb 2.24.13).
-- GPU, bench lock (PENDING, waiting for a slot): `e_prefix.py e5`, `e_long.py embed`, `e_train.py` (all arms and seeds), then on CPU `e_ftstats.py` and `e_lab.py`. Exact sequence in `scripts/run_pending.sh`. `e_train.py --smoke` runs end to end on CPU at toy size (used to build the Training lab with `EMB_DEV=$RAG_SCRATCH/emb/lab_dev.json`; `check_data.py` fails if development data is embedded).
+- GPU, bench lock: `e_prefix.py e5` and `e_long.py embed` were run on 2026-10-15 00:50 to 00:59 (MPS, load average 31 to 61 from another topic's niced CPU jobs; the relevance numbers are deterministic, the seconds per corpus in data/ are distorted). The fine-tune (`e_train.py`, 18 runs) was run on 2026-10-15 07:36 to 09:04 (MPS, load average 4 to 21, browser and light jobs; one run per process after an MPS out-of-memory in a long multi-run process), then `e_ftstats.py` and `e_lab.py`. An earlier attempt (2026-10-15 00:59 to 01:59) was stopped: the machine was swapping (27.5 GB of swap used, 20% memory free) and another process kept the GPU about 48% busy, so a single forward and backward pass of 16 abstracts did not finish in 5 minutes; the base evaluation (inference only) did reproduce 0.7127 / 0.343. Exact sequence in `scripts/run_pending.sh`. `e_train.py --smoke` runs end to end on CPU at toy size (used to build the Training lab with `EMB_DEV=$RAG_SCRATCH/emb/lab_dev.json`; `check_data.py` fails if development data is embedded).
 
 ## Pending runs
-| what | command | needs | about |
-|---|---|---|---|
-| e5-small-v2 with and without "query: " / "passage: " on SciFact and NFCorpus | `e_prefix.py e5` | MPS, corpus re-embedded 4 times | 4 min |
-| truncation sweep (bge-small and MiniLM at 64 to 512 tokens) and wrong-pooling retrieval | `e_long.py embed` | MPS | 6 min |
-| tiny fine-tune: 6 arms x 3 seeds, bge-small on SciFact train | `e_train.py inbatch bm25 dense dense_f --seeds 0,1,2 --epochs 2` then `e_train.py inbatch8 inbatch128 --seeds 0,1,2 --epochs 2` | MPS | 60 to 90 min |
-| statistics and lab data | `e_ftstats.py`, `e_lab.py`, then `python3 build_data.py && sh build.sh` | CPU | 1 min |
+None. `scripts/run_pending.sh` records the sequence used.
 
 ## Downloads
 - intfloat/e5-small-v2 at revision ffb93f3b (safetensors sha256 checked), under the download lock, recorded in the shared SETUP.md.

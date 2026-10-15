@@ -3718,3 +3718,22 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/src/viz_ideas.md`.
 
+### Embedding models: training, choosing and fine-tuning (2026-10-15)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/agents_and_retrieval/topic_rag_and_retrieval/embedding_models/src/viz_ideas.md`.
+
+| # | Idea | Why it earns its place | Data | Placement |
+|---|---|---|---|---|
+| E1 | One real claim through three models, step by step (tokens, hidden states, pooling, normalisation, cosine), with a toggle running the same hidden states through a wrong pooling (before/after) | Pooling is the only part of "an embedding model" that is not a transformer; the wrong-pooling toggle shows that nothing fails while the numbers stop meaning anything | e_anim.py (real weights, CPU) | Reading 1 |
+| E2 | Pooling table: modules, pooling, dims, vector lengths, difference to encode() | Proves the code reading: five models rebuilt by hand, identical | e_pooling.py | Reading 1 |
+| E3 | Who gets pushed: softmax weight on each negative of a real batch row, temperature slider, hard negative toggle | The parent shows the loss; this shows where its gradient goes, which is what the temperature really changes | parent's contrastive.json | Reading 4 |
+| E4 | False-negative bars and real examples (two models agree on an unlabelled abstract) | Turns "false negatives exist" into a rate and readable cases | e_mine.py | Reading 5 |
+| E5 | Fine-tune results: every seed a dot, starting model as a line, SciFact and NFCorpus | Shows effect against seed noise and transfer | e_train.py, e_ftstats.py | Reading 6 |
+| E6 | Training lab: exact cosines around one claim (radius = 1 - cos, fixed angles), every 4 steps, two training arms on the same points (before/after), margins of all 12 claims | The contrastive-training animation the brief asks for, without a lying 2-D projection (the parent measured PCA keeps 0 to 3 of 10 neighbours) | e_train.py snapshots, e_lab.py | own tab |
+| E7 | Prefix effects as paired intervals against the documented setting, two sets | The direction and the noise in one picture | e_prefix.py | Reading 7 |
+| E8 | Document lengths per tokenizer and evidence position against token limits | Shows why a 256-token model misses evidence in abstracts | e_long.py stats | Reading 9 |
+| E9 | Same models across three sets, intervals, lines crossing | Domain shift on one screen | e_choose.py | Reading 10 |
+| E10 | MTEB scatter: 149 models, average against SciFact or NFCorpus, setup models labelled | The rank-transfer question measured | e_mteb.py | Reading 11 |
+| E11 | Subsample stability: same winner and same order against number of labelled queries | How many queries you need depends on the gap | e_choose.py | Reading 12 |
+| E12 | Model chooser: intervals, paired difference to the best, limits on latency and bytes, tied group, subsample stats | The protocol as a tool | e_choose.py + parent's models.json | own tab |
+| E13 | Four predict-then-reveal drills | Belief before evidence | facts | Reading 1, 7, 11, 12 |

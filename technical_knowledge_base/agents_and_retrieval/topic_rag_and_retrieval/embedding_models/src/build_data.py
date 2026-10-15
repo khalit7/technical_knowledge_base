@@ -87,9 +87,12 @@ lg = D("long.json") or {}
 emb = lg.get("embed") or {}
 if "bge-small|scifact|512" in emb and "minilm-l6|scifact|512" in emb:
     b5, m5 = emb["bge-small|scifact|512"], emb["minilm-l6|scifact|512"]
-    F["wrongpool_sentence"] = ("Over the whole SciFact corpus the damage is measured: bge-small read with mean pooling scores nDCG@10 %s instead of %s, "
-                               "and MiniLM-L6 read with CLS pooling %s instead of %s (queries and documents both pooled the wrong way). "
-                               '<span class="meas">measured here</span>') % (f3(b5["wrong_ndcg10"]), f3(b5["ndcg10"]), f3(m5["wrong_ndcg10"]), f3(m5["ndcg10"]))
+    n5 = emb["bge-small|nfcorpus|512"]; mn5 = emb["minilm-l6|nfcorpus|512"]
+    F["wrongpool_sentence"] = ("How much the wrong pooling costs in retrieval depends on the model, measured over whole corpora with queries pooled the same wrong way (512 tokens): "
+                               "bge-small read with mean pooling loses almost nothing (SciFact nDCG@10 %s instead of %s; NFCorpus %s instead of %s), "
+                               "while MiniLM-L6 read with CLS pooling drops from %s to %s on SciFact and from %s to %s on NFCorpus. Nothing in the code warns you either way. "
+                               '<span class="meas">measured here</span>') % (f3(b5["wrong_ndcg10"]), f3(b5["ndcg10"]), f3(n5["wrong_ndcg10"]), f3(n5["ndcg10"]),
+                                                                              f3(m5["ndcg10"]), f3(m5["wrong_ndcg10"]), f3(mn5["ndcg10"]), f3(mn5["wrong_ndcg10"]))
 else:
     pend("wrongpool_sentence", "What it does to retrieval over the whole SciFact corpus (bge-small read with mean pooling, MiniLM read with CLS) is measured by <code>e_long.py embed</code>.")
 # ---------------------------------------------------------------- loss check, mining
@@ -194,11 +197,14 @@ F["ev_256"] = pts(ev["end_beyond"]["256"]); F["ev_512"] = pts(ev["end_beyond"]["
 EMB["ln"] = dict(lengths=lg["lengths"], evidence=ev, embed=emb or None)
 if emb and len(emb) == 16:
     gl = lambda m, ds, T: emb["%s|%s|%d" % (m, ds, T)]["ndcg10"]
-    F["long_embed_text"] = ("<p>Measured by re-embedding each corpus at several limits (queries unchanged) <span class=\"meas\">measured here</span>: "
-                            "bge-small on SciFact scores nDCG@10 %s at 128 tokens, %s at 256 and %s at 512; MiniLM-L6 %s, %s and %s; on NFCorpus bge-small %s, %s, %s.</p>") % (
-        f3(gl("bge-small", "scifact", 128)), f3(gl("bge-small", "scifact", 256)), f3(gl("bge-small", "scifact", 512)),
-        f3(gl("minilm-l6", "scifact", 128)), f3(gl("minilm-l6", "scifact", 256)), f3(gl("minilm-l6", "scifact", 512)),
-        f3(gl("bge-small", "nfcorpus", 128)), f3(gl("bge-small", "nfcorpus", 256)), f3(gl("bge-small", "nfcorpus", 512)))
+    F["long_embed_text"] = ("<p>What the cut costs, measured by re-embedding each corpus at four limits with the stored queries <span class=\"meas\">measured here</span>:</p>"
+                            "<div class=\"tw\"><table><tr><th>model, set</th><th class=\"num\">64 tokens</th><th class=\"num\">128</th><th class=\"num\">256</th><th class=\"num\">512</th></tr>%s</table></div>"
+                            "<p>On SciFact the curve climbs to 512 for both models: bge-small gains %s points from 128 to 512, and MiniLM-L6, whose default is 256, scores %s at 512 against %s at 256 "
+                            "(its card: \"The sequence length was limited to 128 tokens\" in training, and input \"longer than 256 word pieces is truncated\" by default; it still uses text beyond both). On NFCorpus the limit barely matters past 128 (MiniLM is even slightly lower at 512): "
+                            "likely because the opening of these documents already carries their topic. Measure on your own documents before raising or lowering a limit.</p>") % (
+        "".join("<tr><td>%s, %s</td>%s</tr>" % (m, ds, "".join("<td class=\"num\">%s</td>" % f3(gl(m, ds, T)) for T in (64, 128, 256, 512)))
+                for m in ("bge-small", "minilm-l6") for ds in ("scifact", "nfcorpus")),
+        "%.1f" % (100 * (gl("bge-small", "scifact", 512) - gl("bge-small", "scifact", 128))), f3(gl("minilm-l6", "scifact", 512)), f3(gl("minilm-l6", "scifact", 256)))
 else:
     pend("long_embed_text", "What the cut costs in retrieval quality (bge-small and MiniLM-L6 re-embedding each corpus at 64, 128, 256 and 512 tokens) is measured by <code>e_long.py embed</code>.")
     F["long_embed_text"] = "<p>" + F["long_embed_text"] + "</p>"
@@ -232,7 +238,27 @@ if tr and len([r for r in tr["runs"] if r["variant"] != "base"]) >= 12 and tr.ge
                     "<tr><td>starting model</td><td class=\"num\">%s</td><td></td><td></td><td></td><td class=\"num\">%s</td><td></td></tr>%s</table></div>"
                     "<p class=\"small mute\">Measured on Apple M1 Pro (MPS), %s; per-query nDCG@10 averaged over seeds before the paired bootstrap (10,000 resamples of the test queries). <span class=\"meas\">measured here</span></p>") % (
         f3(b0), f3(base["nfcorpus"]["ndcg10"]), rows, tr.get("when", "October 2026"))
+    def mm(k, ds="scifact"):
+        return f3(m[k][ds])
+    def vi(k):
+        return ci(PR[k]["scifact"]["vs_inbatch"])
+    st_ = {k: arms[k][0]["steps"] for k in arms}
+    nf_lo = min(PR[k]["nfcorpus"]["vs_base"]["diff"] for k in arms); nf_hi = max(PR[k]["nfcorpus"]["vs_base"]["diff"] for k in arms)
+    sr = max(PR[k]["scifact"]["seed_range"] for k in arms)
+    F["tr_reading"] = ("<p><b>What it says.</b> (1) <b>In-domain training helps</b> even at this size: in-batch negatives alone take SciFact from %s to %s, and every arm's paired interval against the starting model is clear of zero. "
+                       "(2) <b>Mined hard negatives add about one point</b> over in-batch only: BM25-mined %s (paired difference against in-batch %s), bge-mined %s (%s). "
+                       "This is the opposite of the sibling cross-encoder run, where random negatives beat BM25-mined ones; the bi-encoder here also keeps its in-batch negatives, so the mined one is an addition, not a replacement. "
+                       "(3) <b>The false-negative filter took the gain away</b>: %s, against in-batch %s. It removed %s%% of the top-10 candidates and pushed the first kept candidate to rank %s, so the negatives left were easier. "
+                       "Whether the removed abstracts were truly relevant cannot be checked without new labels; on this set, keeping them helped. "
+                       "(4) <b>Batch size, at a fixed number of epochs, went the other way from the large-batch advice</b>: batch 8 %s (%d steps), 32 %s (%d steps), 128 %s (%d steps). With 919 pairs, a bigger batch means far fewer updates, and that dominates; the large-batch recipes (BGE's 19,200) train on millions of pairs, where the trade between negatives per step and number of steps may differ; this run cannot test that regime. "
+                       "(5) <b>No forgetting</b>: every arm also gains %s to %s on NFCorpus, a domain it never saw. "
+                       "(6) <b>The noise floor</b>: seeds move an arm's mean by at most %s, less than the effects in (1), (2) and (4), while the filtered arm's %s over in-batch is inside it; the test set adds a paired interval of about &plusmn;%s for differences between arms.</p>") % (
+        f3(b0), mm("inbatch"), mm("bm25"), vi("bm25"), mm("dense"), vi("dense"), mm("dense_f"), mm("inbatch"), F["filt_share"], F["kept_rank"],
+        mm("inbatch8"), st_["inbatch8"], mm("inbatch"), st_["inbatch"], mm("inbatch128"), st_["inbatch128"], "%+.3f" % nf_lo, "%+.3f" % nf_hi, "%.3f" % sr,
+        "%+.3f" % PR["dense_f"]["scifact"]["vs_inbatch"]["diff"],
+        "%.3f" % (sum((PR[k]["scifact"]["vs_inbatch"]["hi"] - PR[k]["scifact"]["vs_inbatch"]["lo"]) / 2 for k in arms if "vs_inbatch" in PR[k]["scifact"]) / sum(1 for k in arms if "vs_inbatch" in PR[k]["scifact"])))
 else:
+    F["tr_reading"] = ""
     pend("tr_onescreen", "Fine-tuning bge-small on SciFact's train pairs with four kinds of negatives, three batch sizes and three seeds each: script written and tested at toy size on CPU, GPU run waiting for a slot")
     F["tr_text"] = ('<div class="emb-pendbox"><b>Pending run.</b> The script (<code>scripts/e_train.py</code>) is written, its loss is checked against sentence-transformers and its gradient cache against plain back-propagation (section 4), and it ran end to end on CPU at toy size (64 pairs, 8 steps). The full run needs the shared GPU (about 18 trainings of a few minutes each) and is waiting for a slot. No result is shown until it has run.</div>')
     PEND.append("tr_text")
@@ -243,6 +269,20 @@ if lab is None and DEV:
 EMB["lab"] = lab
 if lab is None:
     PEND.append("lab")
+    F["lab_note"] = ""
+else:
+    import statistics as st2
+    def labstat(A, f):
+        r = [c for g, fr in zip(lab["groups"], A["frames"][f]) for k, c in zip(g["kinds"], fr) if k == "rand"]
+        p = [fr[0] for fr in A["frames"][f]]
+        mg = sum(1 for g, fr in zip(lab["groups"], A["frames"][f]) if fr[0] - max(c for k, c in zip(g["kinds"], fr) if k != "pos") > 0)
+        return st2.mean(r), st2.mean(p), mg
+    A = lab["arms"]["dense_f"]; r0, p0, m0 = labstat(A, 0); r1, p1, m1 = labstat(A, -1)
+    F["lab_note"] = ("<p class=\"small\"><b>What to watch.</b> Training spreads the whole space: with filtered dense negatives the mean cosine of a claim to the random abstracts falls from %s to %s, "
+                     "and to its own labelled abstract from %s to %s. Absolute cosines fall; what retrieval needs is the gap between the labelled abstract and everything else. "
+                     "On these 12 claims the labelled abstract wins before training for %d and after for %d: a sample this small does not show the gain that the 300-claim nDCG@10 measures "
+                     "(section 6 of Reading), which is why the lab is for seeing the mechanism, and the table below is for judging it. <span class=\"meas\">measured here</span></p>") % (
+        f3(r0), f3(r1), f3(p0), f3(p1), m0, m1)
 
 F["_pending"] = PEND
 json.dump(F, open(os.path.join(H, "facts.json"), "w"), indent=1)

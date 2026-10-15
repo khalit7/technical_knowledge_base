@@ -183,11 +183,14 @@ def run_one(variant, seed, epochs, smoke, data, items, tok, md, dev):
                 for i in range(0, len(txt), CHUNK):
                     e = encode(model, tok, txt[i:i + CHUNK], dev, grad=True)
                     e.backward(g[i:i + CHUNK])
-            opt.step(); sch.step(); opt.zero_grad()
-            losses.append(float(loss))
+            opt.step(); sch.step(); opt.zero_grad(set_to_none=True)
+            if dev == "mps":
+                torch.mps.empty_cache()  # keep the MPS allocator from growing into swap (seen on 2026-10-15)
+            losses.append(float(loss.detach()))
             step += 1
             if step % SNAP == 0 or step == total:
                 snaps.append(snapshot(model, tok, dev, items)); snap_steps.append(step)
+                print("  %s seed %d step %d/%d loss %.3f %.1f s load %.1f" % (variant, seed, step, total, float(loss), time.perf_counter() - t0, os.getloadavg()[0]), flush=True)
     if dev == "mps":
         torch.mps.synchronize()
     tt = time.perf_counter() - t0
