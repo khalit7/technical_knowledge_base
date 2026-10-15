@@ -1,0 +1,40 @@
+
+<section id="s-tunix">
+<h2>Tunix: post-training on Flax NNX</h2>
+<p><b>What it is.</b> Tunix ("Tune-in-JAX", <code data-src="tunix_readme_v2"></code>) is Google's post-training library: supervised fine-tuning with full weights or LoRA, DPO and ORPO, PPO, GRPO and its variants (GSPO-token, DAPO, Dr.GRPO), multi-turn agentic RL and distillation, on Flax NNX models, with vLLM's TPU backend or SGLang-JAX for generation. MaxText's post-training is Tunix underneath: its SFT, DPO and RL entry points import <code>tunix.sft.peft_trainer</code>, <code>tunix.sft.dpo.dpo_trainer</code> and <code>tunix.rl.grpo.grpo_learner</code> (<code data-src="sft_imports_tunix"></code>, <code data-src="dpo_imports_tunix"></code>, <code data-src="rl_imports_tunix"></code>). The PyTorch counterparts are Hugging Face's Trainer and TRL for SFT and DPO, and verl or OpenRLHF for RL. What the algorithms do is taught on {{Alignment: SFT, RLHF, DPO family, RLVR|n:3c65c17b0d0d81d5bed7e608d4061c7a}} and {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}; this section is about the code.</p>
+
+<h3>The trainer is twenty lines <span class="meas">measured</span></h3>
+<p><code>PeftTrainer._train_step</code> (<code data-src="tunix_train_step"></code>) is the whole algorithm:</p>
+<pre>inputs = self.gen_model_input_fn(inputs)
+grad_fn = nnx.value_and_grad(self.loss_fn,
+    argnums=nnx.DiffState(0, nnx.LoRAParam) if self._lora_enabled else 0, has_aux=self._has_aux)
+out, grads = grad_fn(model, **inputs)
+grad_norm = optax.global_norm(grads)
+optimizer.update(model, grads)</pre>
+<p>wrapped in <code>nnx.jit(train_step, donate_argnames=("optimizer",))</code> (<code data-src="tunix_jit"></code>). Everything else in the 882-line file is data iteration, metrics, profiling and checkpoints. LoRA is not a separate code path: if the model carries <code>nnx.LoRAParam</code> variables, the optimizer is built with <code>wrt=nnx.LoRAParam</code> (<code data-src="tunix_lora_wrt"></code>) and gradients are taken only for them. Gradient accumulation is <code>optax.MultiSteps</code> around your optimizer (<code data-src="tunix_multisteps"></code>).</p>
+<p>So Tunix can train the running example as it is. <code>runs/lc_tunix.py</code> gives <code>PeftTrainer</code> the root's Flax NNX model, its optax chain and its loss (<code>with_loss_fn</code>, <code>with_gen_model_input_fn</code>), and feeds the running example's batches: 100 steps of Tunix's trainer match the root's own 100-step NNX run to <b><span id="lc-v-tx-diff"></span></b> in loss. The same computation, in a different wrapper.</p>
+<pre><span class="c"># runs/lc_tunix.py (abridged)</span>
+trainer = peft_trainer.PeftTrainer(model, tx, peft_trainer.TrainingConfig(eval_every_n_steps=10**9, max_steps=100))
+trainer = trainer.with_loss_fn(loss_fn).with_gen_model_input_fn(lambda b: {"x": b["x"], "y": b["y"]})
+trainer.train(batches(0, 100, 500))     <span class="c"># dicts of the running example's int32 batches</span></pre>
+<div class="lc-card" id="lc-lora-card">
+<h4>LoRA through Qwix, as Tunix's own tests apply it <span class="meas">measured</span></h4>
+<div class="tw"><table class="rd-cmp narrow" id="lc-lora-tab"><thead><tr><th>Run (100 steps)</th><th class="num">trainable parameters</th><th class="num">share</th><th class="num">validation loss before</th><th class="num">after</th></tr></thead><tbody></tbody></table></div>
+<div class="lc-svg" id="lc-lora-svg"></div>
+<p class="small mute">Base: the root's model after its 500-step run (validation loss 2.0692, the root's figure). LoRA from <code>qwix.LoraProvider(module_path=".*(wq|wk|wv|wo|fc1|fc2).*", rank=r, alpha=2r)</code> and <code>qwix.apply_lora_to_model</code>, the call in Tunix's <code>tests/test_common.py</code>; Tunix detected the LoRA parameters and trained only them. Each run: 100 more training batches (500 to 599), <code>optax.adamw(1e-3, b1=0.9, b2=0.95, weight_decay=0)</code>, constant learning rate, one seed, nothing tuned. Validation: the root's 8 fixed batches. <span class="ill">A toy:</span> it shows the mechanics and parameter counts; that LoRA beats full fine-tuning here says more about an untuned learning rate on fresh Adam state than about LoRA. The {{PEFT|n:3c65c17b0d0d81eba08eef56b3e3b4eb}} page and the {{LoRA paper page|n:3c65c17b0d0d81018f15edd19fa5c28a}} have the real comparisons.</p>
+</div>
+<p>One detail worth copying from Tunix's default loss (<code data-src="tunix_default_loss"></code>): it normalises by the number of target tokens plus 1e-8 (<code data-src="tunix_norm_factor"></code>), so an all-padding batch gives zero loss instead of NaN.</p>
+
+<h3>RL: models by role, each on a mesh</h3>
+<p>RL for an LLM needs up to five models: the policy being trained (<b>actor</b>), a frozen <b>reference</b> for the KL penalty, a <b>rollout</b> engine that generates, a <b>reward</b> model, and for PPO a <b>critic</b>. Tunix's <code>Role</code> enum names them (<code data-src="tunix_role"></code>), and <code>ClusterConfig.role_to_mesh</code> is "Key config for colocated vs disaggregated setup" (<code data-src="tunix_role_to_mesh"></code>): give actor and rollout the same mesh and they share one copy of the weights (<code data-src="tunix_share_backbone"></code>); with LoRA, the reference shares the actor's frozen backbone too (<code data-src="tunix_lora_ref_share"></code>), because the base weights are the reference. Give them different meshes and every training step ends with <code>sync_weights</code> (<code data-src="tunix_sync_weights"></code>) pushing the actor's parameters to the rollout engine. The rollout engine is <code>"vanilla"</code>, <code>"vllm"</code> or <code>"sglang_jax"</code> (<code data-src="tunix_rollout_engine"></code>).</p>
+<div class="lc-card" id="lc-grpo-card">
+<h4>One GRPO step through <code>RLCluster</code>: colocated against disaggregated</h4>
+<div class="seg" id="lc-grpo-mode" role="group" aria-label="Placement"><span class="lbl">Placement</span><button data-m="co" class="on">colocated (one mesh)</button><button data-m="dis">disaggregated (two meshes)</button></div>
+<div class="lc-svg" id="lc-grpo-svg"></div>
+<div class="lc-cap" id="lc-grpo-cap"></div>
+<div class="an-ctl" id="lc-grpo-ctl"></div>
+<p class="small mute">Read from <code>grpo_learner.py</code> and <code>rl_cluster.py</code> at v0.1.7 (<code>_generate_and_compute_advantage</code>, <code data-src="tunix_grpo_gen_adv"></code>: generate <code data-src="tunix_grpo_generate"></code>, reference log-probabilities <code data-src="tunix_grpo_ref"></code>, advantages <code data-src="tunix_grpo_adv"></code>; defaults <code>num_generations = 2</code>, <code>beta = 0.04</code>, <code>epsilon = 0.2</code>, <code data-src="tunix_grpo_num_gen"></code>). <b>Not run here</b>: Tunix's samplers need a model with a key-value cache interface and a tokenizer, which the running example does not have; an illustrative sequence, not a timing.</p>
+</div>
+<p><b>When it matters.</b> Colocated is simpler and needs no weight transfer but makes training and generation take turns on the same chips; disaggregated lets a generation-optimised engine (vLLM's TPU backend) run on its own slice while the trainer runs on another, at the cost of moving the weights every step. PyTorch's verl makes the same choice ("hybrid engine" against separate placement).</p>
+<p><b>Version skew, measured.</b> MaxText's post-training does not use the Tunix release: <code>src/dependencies/extra_deps/post_train_github_deps.txt</code> pins <code>google-tunix @ https://github.com/google/tunix/archive/c2ee3bd8...zip</code> (<code data-src="post_train_tunix_pin"></code>). With the PyPI release v0.1.7 installed, MaxText main's SFT entry point fails at import: <code>ImportError: cannot import name 'diffusion' from 'tunix.sft'</code>. Its DPO entry point imports fine. Install the two from the same moment, or from MaxText's own requirement files.</p>
+</section>
