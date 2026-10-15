@@ -1,6 +1,7 @@
 """LightRAG 1.5.7 (pip lightrag-hku, its own env) run on a slice of the multi-hop subset with the local generator served by
 llama-server through a small OpenAI-style function (records token counts), and bge-small on the CPU as its embedding
-function. Default settings (chunk 1,200 tokens, one gleaning, query mode "mix"), except storage in a scratch folder.
+function. Default settings (chunk 1,200 tokens, one gleaning), except storage in a scratch folder and a query budget of
+16,000 tokens instead of 30,000 (max_total_tokens) so the 4B model runs with a 24,576-token window (AGT_CTX) on a 16 GB Mac.
   stub  no generator: every LLM call returns "" and is recorded, which counts the calls and prompt tokens LightRAG makes
         per paragraph (deterministic; checks the plumbing)
   run   the real thing: insert the first N paragraphs of the subset as separate documents, then ask the questions whose
@@ -19,7 +20,7 @@ import urllib.request
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from grlib import GEN_PORTS, L, hotpot, normalize_answer, para_text, save, work  # noqa: E402
+from grlib import GEN_PORTS, L, generator, hotpot, normalize_answer, para_text, save, work  # noqa: E402
 
 from lightrag import LightRAG, QueryParam  # noqa: E402
 from lightrag.utils import EmbeddingFunc  # noqa: E402
@@ -67,6 +68,9 @@ async def embed(texts, **kw):
 
 
 async def main():
+    if MODE == "run":
+        G, _ = generator()
+        G.server(MODEL)  # llama-server on this page's port, stopped at exit
     wd = work("lightrag_%s_%d" % (MODEL or "stub", N))
     shutil.rmtree(wd, ignore_errors=True); os.makedirs(wd)
     rag = LightRAG(working_dir=wd, llm_model_func=llm, embedding_func=EmbeddingFunc(embedding_dim=384, max_token_size=512, func=embed))
@@ -86,7 +90,7 @@ async def main():
             row = {"qid": q["qid"], "question": q["question"], "gold": q["answer"]}
             for mode in ("naive", "local", "global", "hybrid", "mix"):
                 c0 = len(CALLS)
-                a = await rag.aquery(q["question"] + " Answer in as few words as possible.", param=QueryParam(mode=mode))
+                a = await rag.aquery(q["question"] + " Answer in as few words as possible.", param=QueryParam(mode=mode, max_total_tokens=16000))
                 row[mode] = {"answer": str(a)[:300], "calls": len(CALLS) - c0, "tok_in": sum(c["n_in"] for c in CALLS[c0:]),
                              "contains_gold": normalize_answer(q["answer"]) in normalize_answer(str(a))}
             answers.append(row)

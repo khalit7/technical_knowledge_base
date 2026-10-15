@@ -45,7 +45,7 @@ ok(all(r["g"] == e["g"] and r["top"] == [e["top"][k] for k in GR["ba"]["systems"
 F = json.load(open(os.path.join(HERE, "facts.json")))
 ok("@@" not in html, "no unfilled @@key@@ in the page")
 missing = [k for k, v in F.items() if k != "pending_runs" and str(v) not in html and "gr-pend" not in str(v)]
-ok(not missing or all(k.startswith(("pt_", "ptq_", "ent_subset", "sr_bm25_tok", "sr_bm25_all", "sr_bgesmall_tok", "sr_bgesmall_all", "ppr_", "root_", "kz_", "lr_", "nlp_", "sub_", "full_", "sql_", "ex_", "lab_", "ent_")) for k in missing),
+ok(not missing or all(k.startswith(("pt_", "ptq_", "ent_subset", "sr_bm25_tok", "sr_bm25_all", "sr_bgesmall_tok", "sr_bgesmall_all", "ppr_", "root_", "kz_", "lr_", "nlp_", "sub_", "full_", "sql_", "ex_", "lab_", "ent_", "g17_", "g4_", "x17_", "x4_", "qa", "sql4", "cy4", "lr4", "e40", "e150", "agt_")) for k in missing),
    "facts not quoted in prose are only derived variants (%d unquoted)" % len(missing))
 # 3. independent recomputation
 from grlib import L, hotpot, both_at  # noqa: E402
@@ -63,6 +63,14 @@ rows = GR["sql"]["rows"]
 ok(sum(1 for r in rows if r["support_rows"] is not None) == GR["sql"]["meta"]["aggregate_q"] and sum(1 for r in rows if (r["support_rows"] or 0) > 10) == GR["sql"]["meta"]["aggregate_over_10_rows"], "aggregate counts recomputed from rows")
 st = json.load(open(os.path.join(HERE, "..", "..", "src", "agent", "out", "strategies.json")))["1.7b"]
 ok(F["root_dense_f1"] == "%.3f" % st["single_k5"]["f1"] and F["root_agent_f1"] == "%.3f" % st["react"]["f1"], "root Agentic lab F1 quoted as committed")
+qa = json.load(open(os.path.join(HERE, "data", "qa.json")))
+for m in ("1.7b", "4b"):
+    if m in qa and m in json.load(open(os.path.join(HERE, "..", "..", "src", "agent", "out", "strategies.json"))):
+        stm = json.load(open(os.path.join(HERE, "..", "..", "src", "agent", "out", "strategies.json")))[m]
+        ok(abs(qa[m]["agg"]["dense"]["f1"] - stm["single_k5"]["f1"]) < 0.0015 and abs(qa[m]["agg"]["agent"]["f1"] - stm["react"]["f1"]) < 0.0015,
+           "%s dense and agent F1 read from the root's run files equal its committed strategies.json" % m)
+for k in ("expand_title", "hybrid"):  # the top 5 the answers used are the top 5 of ppr_perq (both gold counts agree)
+    ok(qa["1.7b"]["agg"][k]["both_gold"] == GR["ppr"]["systems"][k]["both"]["5"], "QA prompts held the same top 5 as the retrieval table (%s)" % k)
 lab = json.load(open(os.path.join(HERE, "inputs", "merge_labels.json")))
 ok(all(F["lab_" + h] == "%d of 30" % sum(x["correct"] for x in lab["items"][h]) for h in ("norm", "subset", "embed")), "hand-label counts quoted as recorded")
 # 4. privacy

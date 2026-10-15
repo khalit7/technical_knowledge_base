@@ -78,6 +78,9 @@ def main():
             "entities": sum(len(r["entities"]) for r in out), "relations": sum(len(r["relations"]) for r in out),
             "entities_first_call": sum(r["n_ent_first"] for r in out), "relations_first_call": sum(r["n_rel_first"] for r in out),
             "empty": sum(1 for r in out if not r["entities"]),
+            "distinct_entities": len({(e[0], e[1]) for r in out for e in r["entities"]}),
+            "distinct_per_paragraph_first": round(sum(len({(e[0], e[1]) for e in r["entities"][:r["n_ent_first"]]}) for r in out) / max(1, len(out)), 2),
+            "distinct_per_paragraph_all": round(sum(len({(e[0], e[1]) for e in r["entities"]}) for r in out) / max(1, len(out)), 2),
             "tok_in_new": sum((c["n_in_new"] or 0) for r in out for c in r["calls"])}
     sample = [{"pid": r["pid"], "title": by[r["pid"]]["title"], "entities": r["entities"][:12], "relations": r["relations"][:12]} for r in out[:12]]
     save("extract_%s.json" % model, {"meta": meta, "sample": sample})
