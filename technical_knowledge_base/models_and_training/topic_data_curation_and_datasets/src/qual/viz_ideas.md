@@ -19,7 +19,7 @@ Question the tab keeps returning to: **quality according to what, and what does 
 - Live fastText training in the browser: the model is 900 MB; the learning curve shows the same thing.
 - ROC curves per classifier against Llama labels: the binary F1 table and the learning curve already answer the question; another chart adds little at root depth (fits the child page).
 - Domain (host) breakdown of drops like Nemotron-CC Table 11: 2,617 docs from one WARC give too few per host.
-- Qwen3 perplexity view: pending GPU run; shown as a dashed pending box instead of a chart.
+- Separate Qwen3 perplexity chart: the GPU run (2026-10-15) is shown as a filter in the shard animation, a bar in the inspector and numbers in section 8; a second histogram would repeat the CCNet one.
 
 ## What the methodology lacked
 A rule for labels made by the agent itself: here they are labelled as such, committed with reasons, and the

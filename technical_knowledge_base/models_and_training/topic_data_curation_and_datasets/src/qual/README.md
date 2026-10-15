@@ -28,8 +28,9 @@ sha256 in `$DC_SCRATCH/SETUP.md` under "Quality lab downloads".
 | 8 | `$PY q_make_data.py` | `../parts/33_js_q_0data.js` (embedded data) and `out/q_summary.json` (every number in the prose) | 1 min |
 | 9 | `node check_q.mjs` | page check: every control at 390 px dark and 920 px light, no errors, NaN or sideways scroll; prose numbers equal `out/q_summary.json` | 1 min |
 
-Pending GPU runs: `run_pending.sh` (Qwen3-0.6B perplexity on all 2,617 documents, about 10 min on mps;
-FineWeb-Edu classifier on 50,000 FineWeb rows, about 15 min on mps). Then rerun step 8.
+GPU runs (`run_pending.sh`; run 2026-10-15 under the bench lock on the M1 Pro GPU, float16 Qwen3 with float32
+log-softmax in chunks): Qwen3-0.6B perplexity on all 2,617 documents, and the FineWeb-Edu classifier on the 50,000
+FineWeb rows (the same `fineweb_rand50k` rows the Dedup lab embeds). Then rerun step 8.
 
 ## Privacy
 Only `run0/final` (PII-scrubbed) text is excerpted on the page: 300 characters, host name only, 4 excerpts

@@ -72,6 +72,10 @@ def edu_scores(texts, batch=16):
             lg = m(**enc).logits.squeeze(-1).float().cpu().numpy()
         for i, v in zip(idx, lg.reshape(-1)):
             res[i] = float(v)
+        if len(texts) > 5000 and (s // batch) % 50 == 0:
+            print(f"  edu {s + len(idx)}/{len(texts)}", flush=True)
+            if dev == "mps":
+                torch.mps.empty_cache()
     return res
 
 
