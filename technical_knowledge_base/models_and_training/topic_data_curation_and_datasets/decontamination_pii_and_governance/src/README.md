@@ -41,8 +41,8 @@ cd ..; $PY build_data.py; sh build.sh; python3 scripts/check_numbers.py; node sc
 `dg_common.py` is the shared module (benchmark items in one shape, every corpus as a stream, paths); the root's
 Post-training data lab can import it and `dg_contam.py` to measure the same overlaps with the same code.
 
-Pending GPU runs: `scripts/run_pending.sh mink` (Min-K%, Min-K%++, loss, zlib on Qwen3 0.6B and 1.7B, ~25 min) and
-`run_pending.sh judge` (LLM judge on the top embedding pairs, Qwen3-1.7B, ~10 min). Both smoke-tested on CPU.
+GPU runs (done 2026-10-15 on the M1 Pro GPU under the bench lock): `scripts/run_pending.sh mink` (Min-K%, Min-K%++, loss, zlib on Qwen3 0.6B and 1.7B, ~25 min) and
+`run_pending.sh judge` (LLM judge on the top embedding pairs, Qwen3-1.7B, ~10 min). Both were smoke-tested on CPU first.
 
 ## Choices and departures
 

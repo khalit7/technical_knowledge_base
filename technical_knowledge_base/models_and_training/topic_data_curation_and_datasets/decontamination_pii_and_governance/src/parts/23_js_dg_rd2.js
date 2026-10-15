@@ -25,6 +25,12 @@ window.DGCAT=['copy','variant','source','passage','phrase','diagram'];
     const st=EM.stats||{};
     h+='</tbody></table></div><p class="small">Nearest-prompt similarity per benchmark (items with a training prompt at 0.95 / 0.90 / 0.85 or more): '+Object.keys(st).map(b=>E(DG.bench_names[b])+' '+st[b].s95+' / '+st[b].s90+' / '+st[b].s85+' of '+f(st[b].n)).join('; ')+'.</p>';
     ev.innerHTML=h}
+  // section 5: Min-K% results
+  const mv=$('dg-mink-view'),MK=DG.gpu&&DG.gpu.mink;
+  if(mv&&MK){const ms=Object.keys(MK),bs=[...new Set(ms.flatMap(m=>Object.keys(MK[m].auc)))],mets=[['loss','loss'],['mink','Min-K%'],['minkpp','Min-K%++'],['zlib','zlib']];
+    let h='<div class="tw"><table><thead><tr><th>Model</th><th>Benchmark</th>'+mets.map(x=>'<th class="num">'+x[1]+'</th>').join('')+'</tr></thead><tbody>';
+    ms.forEach(m=>bs.forEach(b=>{const a=MK[m].auc[b];if(!a)return;h+='<tr><td>'+E(m)+'</td><td>'+E(DG.bench_names[b])+'</td>'+mets.map(x=>'<td class="num">'+a[x[0]].toFixed(2)+'</td>').join('')+'</tr>'}));
+    mv.innerHTML=h+'</tbody></table></div>'}
   // section 7: PII detectors
   const ps=$('dg-pii-sum'), PI=DG.pii;
   if(ps&&PI){const S=PI.summary, G=PI.gold_types, types=Object.keys(G);
