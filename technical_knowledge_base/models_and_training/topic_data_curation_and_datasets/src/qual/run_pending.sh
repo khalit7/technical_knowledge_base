@@ -1,5 +1,5 @@
 #!/bin/sh
-# Quality lab runs waiting for the GPU queue (not run here: the machine is CPU-only for this topic).
+# Quality lab GPU runs (run 2026-10-15 on the M1 Pro GPU under the bench lock; kept for reruns).
 # Run from the repo root with DC_SCRATCH set (see ../data/README.md). Each line: what, estimate.
 set -e
 cd "$(dirname "$0")"

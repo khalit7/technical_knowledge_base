@@ -18,6 +18,7 @@ window.QI=(function(){
     h+=bar('DCLM fastText',c,'P(hq) '+(c<0.001?c.toExponential(1):c.toFixed(4))+', top '+Q.pct(1-R.dclm(i),0),cPos,(Math.log10(D.cut)+5)/5,c>=D.cut,'cut: '+D.cut.toFixed(4)+' (axis log scale)');
     h+=bar('Our fastText',o,'P(hq) '+o.toFixed(3)+', top '+Q.pct(1-R.own(i),0),o,D.own_thr,o>=D.own_thr,'cut: '+D.own_thr+' (chosen on validation)');
     if(p!=null)h+=bar('CCNet perplexity',p,Q.fmt(p)+' (lower is more Wikipedia-like)',1-Math.min(1,Math.log10(p)/4),1-Math.log10(340)/4,p<340,'head &lt; 340, tail ≥ 520 (cc_net cutoff.csv)');
+    if(d.qppl){const q=d.qppl[i],s=[...d.qppl].sort((a,b)=>a-b),c30=s[Math.floor(0.3*s.length)-1];h+=bar('Qwen3-0.6B perplexity',q,q.toFixed(1)+' (first 512 tokens)',1-Math.min(1,Math.log10(q)/3),1-Math.log10(c30)/3,q<=c30,'lowest 30%: ≤ '+c30.toFixed(1))}
     if(L){h+='<div class="q-lab"><b>Hand label:</b> <span class="'+(L.k==='y'?'q-k':L.k==='n'?'q-d':'')+'">'+KN[L.k]+'</span> &middot; '+Q.esc(L.f.replace('_',' '))+(L.g?' &middot; reads like generated or spun text':'')+' &middot; '+Q.esc(L.note)+'<br><span class="small mute">stratum: '+SN[L.s]+'</span></div>';
       h+=L.x?'<blockquote class="q-x">'+Q.esc(L.x)+'</blockquote>':'<p class="small mute">Excerpt withheld: the page is about a private individual.</p>'}
     else h+='<p class="small mute">Not in the hand-labelled sample, so no excerpt is embedded (only the 100 labelled documents carry text, to keep the page small). Pick one from the list for its text.</p>';

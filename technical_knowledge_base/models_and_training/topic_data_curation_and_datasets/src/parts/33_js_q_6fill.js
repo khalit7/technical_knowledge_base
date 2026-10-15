@@ -28,13 +28,21 @@
     nemo_hi_dclm:()=>P(S.nemo_median.high.dclm_pass,0),nemo_mh_dclm:()=>P(S.nemo_median['medium-high'].dclm_pass,0),nemo_m_dclm:()=>P(S.nemo_median.medium.dclm_pass,1),
     nemo_hi_edu:()=>P(S.nemo_median.high.edu_pass,0),nemo_mh_edu:()=>P(S.nemo_median['medium-high'].edu_pass,0),
     nemo_sp:()=>F(S.nemo_spearman,2),
+    qw_med:()=>S.qwen?F(S.qwen.median_ppl,1):'n/a',qw_sp_cc:()=>S.qwen?F(S.qwen.spearman_ccnet,2):'n/a',qw_jacc_cc:()=>S.qwen?P(S.qwen.low30_jacc_ccnet,0):'n/a',
+    qw_sp_edu:()=>S.qwen?F(S.qwen.spearman_edu,2):'n/a',qw_sp_dclm:()=>S.qwen?F(S.qwen.spearman_dclm,2):'n/a',
+    qw_lo_edu:()=>S.qwen?P(S.qwen.low30_edu_keep):'n/a',qw_hi_edu:()=>S.qwen?P(S.qwen.high30_edu_keep):'n/a',
+    qw_lo_dclm:()=>S.qwen?P(S.qwen.low30_dclm_keep):'n/a',qw_hi_dclm:()=>S.qwen?P(S.qwen.high30_dclm_keep):'n/a',
+    f5_edu:()=>S.fw50k?P(S.fw50k.keep_edu):'n/a',f5_edu_tok:()=>S.fw50k?P(S.fw50k.keep_edu_tokens):'n/a',f5_dclm:()=>S.fw50k?P(S.fw50k.keep_dclm):'n/a',
+    f5_both:()=>S.fw50k?F(S.fw50k.both):'n/a',f5_jacc:()=>S.fw50k?P(S.fw50k.jacc_published):'n/a',f5_top10:()=>S.fw50k?P(S.fw50k.top10_jacc):'n/a',f5_sp:()=>S.fw50k?F(S.fw50k.spearman,2):'n/a',
+    qw_low12:()=>S.qwen?S.qwen.lowest12[0].toFixed(1)+' to '+S.qwen.lowest12[11].toFixed(1):'n/a',qw_gen_n:()=>S.qwen?F(S.qwen.gen_like_n):'n/a',qw_oth_n:()=>S.qwen?F(S.qwen.other_n):'n/a',
+    qw_gen_med:()=>S.qwen?F(S.qwen.gen_like_median,1):'n/a',qw_oth_med:()=>S.qwen?F(S.qwen.other_median,1):'n/a',
+    cc_gen_med:()=>S.qwen?F(S.qwen.gen_like_ccnet_median):'n/a',cc_oth_med:()=>S.qwen?F(S.qwen.other_ccnet_median):'n/a',
     repro:()=>S.dclm_repro_maxabs.toExponential(0)
   };
   document.querySelectorAll('#t-qual [data-q]').forEach(el=>{const f=V[el.dataset.q];el.textContent=f?f():'?'});
   document.querySelectorAll('#t-qual [data-qpr]').forEach(pr=>{const ans=pr.querySelector('.ans');pr.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
     pr.querySelectorAll('.opts button').forEach(x=>x.classList.toggle(x.dataset.r==='1'?'right':'wrong',x===b||x.dataset.r==='1'));ans.hidden=false}))});
   const cfg=document.getElementById('q-ft-cfg');if(cfg){const c=D.ft.best_cfg;cfg.textContent='word n-grams '+c.wordNgrams+', dimension '+c.dim+', '+c.epoch+' epochs, learning rate '+c.lr}
-  const sm=document.getElementById('q-ppl-smoke');if(sm)sm.textContent=S.ppl_smoke?(S.ppl_smoke.secs_per_doc.toFixed(1)+' s per document on 4 CPU threads for '+S.ppl_smoke.n+' documents, so about '+Math.round(S.ppl_smoke.secs_per_doc*S.n_run0/3600*10)/10+' hours on CPU'):'not run';
   const one=document.getElementById('q-one');
   if(one)one.innerHTML=[['FineWeb-Edu keeps',V.keep_edu(),'int_score ≥ 3'],['DCLM keeps',V.keep_dclm(),'P(hq) ≥ '+V.dclm_cut()],
     ['kept by both',V.keep_both(),'overlap '+V.jacc_published()+' of the union'],['rank correlation',V.spearman_edu_dclm(),'Spearman, 2,617 documents'],

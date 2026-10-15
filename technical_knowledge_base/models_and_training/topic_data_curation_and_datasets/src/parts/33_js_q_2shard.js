@@ -11,6 +11,8 @@
     or:{name:'either keeps (union; Nemotron-CC takes the maximum)',score:i=>Math.max(P.edu[i],P.dclm[i]),keep:i=>F.edu.keep(i)||F.dclm.keep(i)},
     own:{name:'our fastText (trained here), P(hq) ≥ '+D.own_thr,score:i=>P.own[i],keep:i=>D.docs.own[i]>=D.own_thr}
   };
+  const Pq=D.docs.qppl?pr(D.docs.qppl.map(v=>-v)):null;
+  if(Pq){const s=[...D.docs.qppl].sort((a,b)=>a-b),c30=s[Math.floor(0.3*s.length)-1];F.qwen={name:'Qwen3-0.6B perplexity, lowest 30% (≤ '+c30.toFixed(1)+')',score:i=>Pq[i],keep:i=>D.docs.qppl[i]<=c30}}
   if(P.ppl)F.ccnet={name:'CCNet perplexity, head bucket (< 340)',score:i=>P.ppl[i],keep:i=>D.docs.ppl[i]!=null&&D.docs.ppl[i]<340};
   const STEPS=['The shard','Score every document','Sort by score','Draw the cut-off','Drop','Compare with another filter'];
   const CAP=[
