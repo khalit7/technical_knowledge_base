@@ -3879,3 +3879,21 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | 10 | MoE dispatch/combine: the real 8 x 8 routing matrix, capacity and drops, two all-to-alls; top-1/2 and 3 capacity factors; hand vs propagation table | 12 | own tab | ss_moe.py |
 | 11 | Two processes vs one process, step animation, what each process sees, the two real errors | 10 | own tab | ss_multi.py |
 | 12 | Predict-then-reveal: which propagator sends more bytes | 8 | Reading | prop.json |
+
+### The JAX training stack: Flax NNX, optax, orbax and grain (2026-10-15)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_jax_and_tpu/training_stack/src/viz_ideas.md`.
+
+| # | Visual | Score | Data | Placement |
+|---|---|---|---|---|
+| 1 | Resume lab: five restore variants (everything, no data, no optimiser, no RNG, Params only) animated against the uninterrupted run, loss and log-gap panels; checkpoint files; RNG and iterator state | 16 | `ts_ckpt.py` (separate processes, NNX with dropout) | own tab |
+| 2 | Unrolled vs `nnx.scan` before/after animation at 4, 8, 16 layers: blocks traced, jaxpr equations and HLO lines to scale, parameter layout | 14 | `ts_nnx.py` E7 | Reading 2 |
+| 3 | Optimiser lab: one real AdamW step stage by stage (clip, m, v, bias correction, Adam direction, decay, lr) for 8 numbers and 12 steps, hand decomposition checked against `tx.update` | 14 | `ts_optax.py` S1 | own tab |
+| 4 | Muon Newton-Schulz: singular-value spectrum of a real gradient before and after each of 5 iterations | 13 | `ts_optax.py` S8 | Optimiser lab |
+| 5 | Data lab: grain batches cell by cell for four pipelines x 0/2/4 workers, cells out of place outlined | 14 | `ts_grain.py` G1 | own tab |
+| 6 | State inspector: the real NNX state split by any filter, module by module, for 4 model variants; graphdef static attributes; optimiser state | 12 | `ts_nnx.py` E1, E2, E7, E9 | own tab |
+| 7 | Mesh restore table with the "into the saved shardings" row (the finding that the compiler re-shards state after one step) | 13 | `ts_ckpt_mesh.py`, `ts_mesh_det.py` | Reading 5, Resume lab |
+| 8 | Four optimisers 300 steps (AdamW, Lion, Muon default, Muon excluding embeddings) | 9 | `ts_optax.py` S9 | Reading 4 |
+| 9 | float16 loss-scale table and loss-gap-from-float32 chart for no scaling, static and dynamic scales | 11 | `ts_mixed.py` | Reading 7 |
+| 10 | Complete script: A vs B+C validation loss, kept checkpoints | 11 | `ts_full.py` | Reading 9, Resume lab |
+| 11 | Predict-then-reveal drills (filter leaf count, resume without data iterator) | 8 | E2, ckpt | Reading 1, 5 |

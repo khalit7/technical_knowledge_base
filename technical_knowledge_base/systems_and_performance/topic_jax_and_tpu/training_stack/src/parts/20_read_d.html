@@ -1,0 +1,42 @@
+
+<section id="s-old">
+<h2>3. Reading other people's code: Linen and Equinox</h2>
+<p>Most JAX model code written before 2025 is Flax <b>Linen</b> (MaxText migrated to NNX only in mid 2026, per the root's Reading tab); much research code is <b>Equinox</b>. You need to read both. The root's Training lab runs the same transformer block in NNX, Linen, Equinox and Haiku against PyTorch; this section is about <b>how each holds state</b>, with the errors you meet when you get it wrong. Status (Haiku in maintenance mode, Linen maintained but not recommended for new code) is in the root's Tool map.</p>
+
+<h3>Linen: the module holds no arrays</h3>
+<p>A Linen module is a frozen dataclass of hyperparameters. <code>variables = model.init(rngs, x)</code> runs it once to create every array, grouped into <b>collections</b>; <code>model.apply(variables, x)</code> runs it as a pure function. A block with Dense, BatchNorm, Dropout and <code>sow</code> (a test module in <code>src/runs/ts_linen_eqx.py</code>):</p>
+<pre class="ts-code">class LBlock(nn.Module):
+    d_ff: int = 512
+    @nn.compact
+    def __call__(self, x, train: bool):
+        h = nn.Dense(self.d_ff)(x)                 # input width read from x at init time
+        h = nn.BatchNorm(use_running_average=not train, momentum=0.9)(h)
+        h = nn.gelu(h, approximate=False)
+        self.sow("intermediates", "hidden_mean", h.mean())
+        h = nn.Dropout(0.1, deterministic=not train)(h)
+        return nn.Dense(x.shape[-1])(h)</pre>
+<ul class="tight">
+<li><code>init</code> returned the collections <span data-ts="lx.linen.collections" data-f="list"></span>: <code>params</code> is what the optimiser sees; <code>batch_stats</code> is the running mean and variance. <code>@nn.compact</code> defines submodules inline and infers input sizes from the first input, so there is no <code>d_in</code> anywhere, unlike NNX and PyTorch.</li>
+<li>Training mode updates <code>batch_stats</code>, so the collection must be declared mutable; <code>apply</code> then returns <code>(y, updates)</code> and you merge the updates yourself. Forgetting it <span class="ts-meas">measured</span>:<div class="ts-err" data-ts-err="lx.linen.train_without_mutable"></div></li>
+<li>Dropout needs an RNG passed per call (<code>rngs={"dropout": key}</code>); without it:<div class="ts-err" data-ts-err="lx.linen.train_without_dropout_rng"></div></li>
+<li><code>mutable=["batch_stats", "intermediates"]</code> returned <span data-ts="lx.linen.mutable_returns" data-f="list"></span>; the running mean moved by up to <span data-ts="lx.linen.batch_mean_moved"></span> in one call; the sown value is in <code>updates["intermediates"]</code>. Parameters never come out of <code>apply</code>: they are only an input.</li>
+<li>Reading Linen code: look for <code>init</code>/<code>apply</code>, the collection names, <code>mutable=</code> and <code>rngs=</code> at every call site; the train step carries <code>params</code>, <code>batch_stats</code> and the optimiser state as three separate trees (often bundled in <code>flax.training.train_state.TrainState</code>).</li>
+<li><b>Bridging.</b> <code>nnx.bridge.ToNNX(linen_module, rngs=...)</code> plus <code>nnx.bridge.lazy_init</code> runs a Linen module inside NNX; its state became <span data-ts="lx.linen.bridge_state" data-f="bridge"></span> <span class="ts-meas">measured</span>. <code>nnx.bridge.ToLinen</code> goes the other way. That is how a codebase migrates one module at a time (Flax's bridge guide; source <a data-ts-src="flax_tonnx"></a>).</li>
+</ul>
+
+<h3>Equinox: the model is the pytree</h3>
+<p>An <code>eqx.Module</code> is a frozen dataclass registered as a pytree: its fields are its leaves. There is no split; you pass the model itself to transformations. Three consequences, measured on a two-layer MLP holding <code>jax.nn.gelu</code> as a field:</p>
+<ul class="tight">
+<li><b>Frozen.</b> <code>model.fc1 = ...</code> raises <code><span data-ts="lx.equinox.setattr_error.type"></span>: <span data-ts="lx.equinox.setattr_error.msg"></span></code>. Changes are made out of place: <code>eqx.tree_at(lambda m: m.fc1.bias, model, new)</code> returns a new model (bias sum <span data-ts="lx.equinox.tree_at.old_bias_sum"></span> became <span data-ts="lx.equinox.tree_at.new_bias_sum"></span>; the original is untouched).</li>
+<li><b>Not every leaf is an array.</b> The function field is a leaf too, so plain <code>jax.jit</code> on a function taking the model fails:<div class="ts-err" data-ts-err="lx.equinox.jax_jit_error" data-trim="first"></div><code>eqx.filter_jit</code> treats array leaves as traced and everything else as static, and runs (<a data-ts-src="eqx_filter_jit"></a>). <code>eqx.filter_grad</code> differentiates only floating-point arrays: the gradient had <span data-ts="lx.equinox.filter_grad_leaves" data-f="len"></span> array leaves. The general tool is <code>params, static = eqx.partition(model, eqx.is_array)</code> and <code>eqx.combine(params, static)</code> (<span data-ts="lx.equinox.partition.params_leaves"></span> and <span data-ts="lx.equinox.partition.static_leaves"></span> leaves here), the Equinox spelling of NNX's split and merge.</li>
+<li><b>Layers act on one example</b> (<code>eqx.nn.Linear</code> maps a vector); you <code>jax.vmap</code> over the batch. Its weight is <code>[out, in]</code> like PyTorch (<span data-ts="lx.equinox.fc1_weight_shape" data-f="shape"></span> for 128 to 512). Stateful layers (BatchNorm) keep their running statistics in a separate <code>eqx.nn.State</code> object that the call takes and returns: <code>make_with_state</code> built a <span data-ts="lx.equinox.batchnorm_state.state_type"></span> and each call returned a new one.</li>
+</ul>
+<div class="tw"><table class="ts-t"><thead><tr><th></th><th>Flax NNX</th><th>Flax Linen</th><th>Equinox</th></tr></thead><tbody>
+<tr><td>arrays live in</td><td>Variables inside the object</td><td>a separate <code>variables</code> dict of collections</td><td>the module's own fields</td></tr>
+<tr><td>to a pytree</td><td><code>nnx.split</code> / <code>nnx.merge</code></td><td>already one (<code>variables</code>)</td><td>already one; <code>eqx.partition</code> for arrays only</td></tr>
+<tr><td>mutable state</td><td>Variables written back by NNX transforms</td><td><code>mutable=[...]</code>, returned updates</td><td>explicit <code>eqx.nn.State</code> in and out</td></tr>
+<tr><td>randomness</td><td><code>nnx.Rngs</code> stored in the model</td><td><code>rngs={...}</code> per call</td><td><code>key=</code> per call</td></tr>
+<tr><td>shapes</td><td>explicit <code>d_in</code></td><td>inferred at <code>init</code></td><td>explicit, one example at a time</td></tr>
+<tr><td>weight layout</td><td><code>kernel [in, out]</code></td><td><code>kernel [in, out]</code></td><td><code>weight [out, in]</code></td></tr>
+</tbody></table></div>
+</section>
