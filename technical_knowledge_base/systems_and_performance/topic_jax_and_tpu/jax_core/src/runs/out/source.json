@@ -1,0 +1,265 @@
+{
+ "trace_classes": [
+  {
+   "name": "EvalTrace",
+   "file": "jax/_src/core.py",
+   "line": 1304
+  },
+  {
+   "name": "JVPTrace",
+   "file": "jax/_src/interpreters/ad.py",
+   "line": 520
+  },
+  {
+   "name": "LinearizeTrace",
+   "file": "jax/_src/interpreters/ad.py",
+   "line": 670
+  },
+  {
+   "name": "BatchTrace",
+   "file": "jax/_src/interpreters/batching.py",
+   "line": 232
+  },
+  {
+   "name": "JaxprTrace",
+   "file": "jax/_src/interpreters/partial_eval.py",
+   "line": 114
+  },
+  {
+   "name": "DynamicJaxprTrace",
+   "file": "jax/_src/interpreters/partial_eval.py",
+   "line": 1623
+  },
+  {
+   "name": "RematTrace",
+   "file": "jax/_src/interpreters/remat.py",
+   "line": 77
+  },
+  {
+   "name": "ShardMapTrace",
+   "file": "jax/_src/shard_map.py",
+   "line": 1358
+  }
+ ],
+ "repo": "https://github.com/jax-ml/jax",
+ "tag": "jax-v0.11.2",
+ "commit": "32544801e26115ac1794926d027148abf3baf009",
+ "excerpts": [
+  {
+   "id": "jaxpr_merged",
+   "title": "Jaxpr and ClosedJaxpr are one class now",
+   "file": "jax/_src/core.py",
+   "start": 333,
+   "end": 338,
+   "text": "# ClosedJaxpr and Jaxpr have been merged into a single class: a Jaxpr carries\n# a possibly-empty list of constant argument values, `consts`. The name\n# ClosedJaxpr remains as an alias for callers that construct closed jaxprs via\n# ClosedJaxpr(jaxpr, consts) or use it in isinstance checks and annotations.\n# TODO(dougalm): migrate users and remove the alias.\nClosedJaxpr = Jaxpr",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/core.py#L333-L338"
+  },
+  {
+   "id": "eqn",
+   "title": "A jaxpr equation",
+   "file": "jax/_src/core.py",
+   "start": 456,
+   "end": 469,
+   "text": "class JaxprEqn:\n  invars: list[Atom]\n  outvars: list[Var]\n  primitive: Primitive\n  params: dict[str, Any]\n  effects: Effects\n\n  # The source_info.name_stack is always relative to the enclosing jaxpr (only)\n  # and does not include any name context from the caller of the jaxpr. A jaxpr\n  # might have multiple callers, after all.\n  # TODO(phawkins): update source_info.tracebacks to also be relative to the\n  # enclosing jaxpr.\n  source_info: source_info_util.SourceInfo\n  ctx: JaxprEqnContext",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/core.py#L456-L469"
+  },
+  {
+   "id": "literal",
+   "title": "Literals: constants written into the program",
+   "file": "jax/_src/core.py",
+   "start": 567,
+   "end": 574,
+   "text": "class Literal:\n  # See https://docs.jax.dev/en/latest/internals/constants.html\n  __slots__ = [\"val\", \"aval\"]\n\n  val: Any\n  aval: AbstractValue\n\n  def __init__(self, val, aval):",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/core.py#L567-L574"
+  },
+  {
+   "id": "shapedarray",
+   "title": "ShapedArray: the abstract value of an array",
+   "file": "jax/_src/core.py",
+   "start": 2463,
+   "end": 2468,
+   "text": "class ShapedArray(AbstractValue):\n  # inherits slots from parent\n  __slots__ = ['shape', 'dtype', 'weak_type', 'sharding', 'manual_axis_type',\n               'memory_space', 'layout', '_stripped_weak_type', '__weakref__']\n  array_abstraction_level = 2\n",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/core.py#L2463-L2468"
+  },
+  {
+   "id": "bind",
+   "title": "Primitive.bind: hand the operation to the current trace",
+   "file": "jax/_src/core.py",
+   "start": 725,
+   "end": 739,
+   "text": "    # This is equivalent to \"with take_current_trace()\", but the bind() code\n    # is called frequently and it's slightly faster to avoid using a context\n    # manager object.\n    prev_trace = trace_ctx.trace\n    trace_ctx.set_trace(None)\n    try:\n      return self.bind_with_trace(prev_trace, args, avals, params)\n    finally:\n      trace_ctx.set_trace(prev_trace)\n\n  def bind_with_trace(self, trace, args, avals, params, /):\n    if self.is_high(*avals, **params) and trace.requires_low:\n      with set_current_trace(trace):\n        return self.to_lojax(*args, **params)\n    return trace.process_primitive(self, args, params)",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/core.py#L725-L739"
+  },
+  {
+   "id": "trace",
+   "title": "Trace: the interpreter interface",
+   "file": "jax/_src/core.py",
+   "start": 851,
+   "end": 868,
+   "text": "class Trace:\n  __slots__ = (\"__weakref__\", \"_invalidated\", \"_weakref\", \"requires_low\")\n\n  def __init__(self):\n    self._invalidated = False\n    # We frequently need a weakref to a trace, so let's precompute one.\n    self._weakref = weakref.ref(self)\n    self.requires_low = True\n\n  def stage_value(self, val):\n    \"\"\"Lifts a value into a trace.\n\n    Semantically equivalent to calling process_primitive on an identity\n    primitive, but may avoid, e.g., constructing a jaxpr equation.\"\"\"\n    raise NotImplementedError(\"must override\")\n\n  def process_primitive(self, primitive, tracers, params, /):\n    raise NotImplementedError(\"must override\")",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/core.py#L851-L868"
+  },
+  {
+   "id": "evaltrace",
+   "title": "EvalTrace: run the primitive's impl on real values",
+   "file": "jax/_src/core.py",
+   "start": 1304,
+   "end": 1320,
+   "text": "class EvalTrace(Trace):\n\n  def stage_value(self, val):\n    if isinstance(val, Array):\n      return val\n    return self.process_primitive(stage_p, [val], {})\n\n  def process_primitive(self, primitive, args, params, /):\n    with set_current_trace(self):\n      if config.debug_key_reuse.value:\n        from jax.experimental.key_reuse._core import call_impl_with_key_reuse_checks  # pyrefly: ignore[missing-import]\n        return call_impl_with_key_reuse_checks(primitive, primitive.impl, *args, **params)\n      else:\n        # TODO(dougalm): delete. this shouldn't be necessary\n        args = map(full_lower, args)\n        check_eval_args(args)\n        return primitive.impl(*args, **params)",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/core.py#L1304-L1320"
+  },
+  {
+   "id": "ctx",
+   "title": "TracingContext: the current trace is context, not data (\"stackless\")",
+   "file": "jax/_src/core.py",
+   "start": 1434,
+   "end": 1455,
+   "text": "class TracingContext:\n  __slots__ = ()\n\n  @staticmethod\n  def reset():\n    trace_state.set_local(config_ext.unset)\n    trace_state_strong_ref.set_local(config_ext.unset)\n    axis_env_state.set_local(config_ext.unset)\n\n  @property\n  def trace(self):\n    return trace_state_strong_ref.value\n\n  @property\n  def axis_env(self):\n    return axis_env_state.value\n\n  def is_top_level(self) -> bool:\n    return self.trace is eval_trace and self.axis_env is top_axis_env\n\n  def is_empty(self) -> bool:\n    return self.trace is None",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/core.py#L1434-L1455"
+  },
+  {
+   "id": "jaxprtrace",
+   "title": "DynamicJaxprTrace: record an equation (what jit and make_jaxpr use)",
+   "file": "jax/_src/interpreters/partial_eval.py",
+   "start": 1736,
+   "end": 1748,
+   "text": "  def process_primitive(self, primitive, tracers, params, /):\n    self.frame.is_high |= primitive.is_high(*map(typeof, tracers), **params)\n    if config.eager_constant_folding.value and not any(isinstance(x, Tracer) for x in tracers):\n      avals = tuple(core.typeof(x) for x in tracers)\n      return primitive.bind_with_trace(core.eval_trace, tracers, avals, params)\n    source_info = source_info_util.current()\n    to_jaxpr_tracer = partial(self.to_jaxpr_tracer, source_info=source_info)\n    jaxpr_tracers = map(to_jaxpr_tracer, tracers)\n    if primitive in custom_staging_rules:\n      return custom_staging_rules[primitive](self, source_info, *jaxpr_tracers,\n                                             **params)\n    return self.default_process_primitive(\n        primitive, jaxpr_tracers, params, source_info)",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/interpreters/partial_eval.py#L1736-L1748"
+  },
+  {
+   "id": "jvptrace",
+   "title": "JVPTrace: forward mode, one rule per primitive",
+   "file": "jax/_src/interpreters/ad.py",
+   "start": 520,
+   "end": 560,
+   "text": "class JVPTrace(Trace):\n  def __init__(self, parent_trace, tag):\n    super().__init__()\n    self.tag = tag\n    self.parent_trace = parent_trace\n    self.requires_low = False\n\n  def to_primal_tangent_pair(self, val):\n    if isinstance(val, JVPTracer) and val._trace.tag is self.tag:\n      return (val.primal, val.tangent)\n    else:\n      tangent_zero = p2tz(val)\n      return (val, tangent_zero)\n\n  def stage_value(self, val):\n    primal, tangent = self.to_primal_tangent_pair(val)\n    new_primal = self.parent_trace.stage_value(primal)\n    if type(tangent) is Zero:\n      return new_primal\n    else:\n      new_tangent = self.parent_trace.stage_value(tangent)\n      return JVPTracer(self, new_primal, new_tangent)\n\n  def process_primitive(self, primitive, tracers, params, /):\n    primals_in, tangents_in = unzip2(map(self.to_primal_tangent_pair, tracers))\n    if (all(type(t) is Zero for t in tangents_in) and\n        primitive is not core.ref_p and primitive is not core.empty_ref_p and\n        not any(isinstance(typeof(x), AbstractRef) for x in primals_in)):\n      avals = tuple(core.typeof(x) for x in primals_in)\n      return primitive.bind_with_trace(self.parent_trace, primals_in, avals, params)\n    jvp = primitive_jvps.get(primitive)\n    if not jvp:\n      msg = f\"Differentiation rule for '{primitive}' not implemented\"\n      raise NotImplementedError(msg)\n    with core.set_current_trace(self.parent_trace):\n      primal_out, tangent_out = jvp(primals_in, tangents_in, **params)\n\n    if primitive.multiple_results:\n      return [maybe_jvp_tracer(self, x, t) for x, t in zip(primal_out, tangent_out)]\n    else:\n      return maybe_jvp_tracer(self, primal_out, tangent_out)",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/interpreters/ad.py#L520-L560"
+  },
+  {
+   "id": "lintrace",
+   "title": "LinearizeTrace: primal now, tangent program for later (what grad uses)",
+   "file": "jax/_src/interpreters/ad.py",
+   "start": 713,
+   "end": 737,
+   "text": "  def process_primitive(self, primitive, tracers, params, /):\n    primals_in, tangents_in = unzip2(map(self.to_primal_tangent_pair, tracers))\n    tangent_nzs = [type(t) is not Zero for t in tangents_in]\n    if (not any(tangent_nzs) and\n        primitive not in linearize_on_zero_tangents and\n        not any(isinstance(typeof(x), AbstractRef) for x in primals_in)):\n      avals = tuple(core.typeof(x) for x in primals_in)\n      return primitive.bind_with_trace(self.parent_trace, primals_in, avals, params)\n    fallback = partial(fallback_linearize_rule, primitive)\n    lin = primitive_linearizations.get(primitive, fallback)\n    with core.set_current_trace(self.parent_trace):\n      primal_out, tangent_nzs_out, residuals, structured_res, linearized = lin(\n          self.is_vjp, tangent_nzs, *primals_in, **params)\n    if structured_res is not None:\n      self.structured_residuals.append(structured_res)\n    new_arg = lambda x: self.tangent_trace.new_arg(typeof(x), source_info_util.current())\n    structured_res_binders = tree_map(new_arg, structured_res)\n    with (core.set_current_trace(self.tangent_trace),\n          source_info_util.set_name_stack(self._name_stack_suffix())):\n      tangent_out = linearized(residuals, structured_res_binders, *tangents_in)\n    if primitive.multiple_results:\n      return [maybe_linearize_tracer(self, x, nz, t)\n              for x, nz, t in zip(primal_out, tangent_nzs_out, tangent_out)]\n    else:\n      return maybe_linearize_tracer(self, primal_out, tangent_nzs_out, tangent_out)",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/interpreters/ad.py#L713-L737"
+  },
+  {
+   "id": "batchtrace",
+   "title": "BatchTrace: vmap, one batching rule per primitive",
+   "file": "jax/_src/interpreters/batching.py",
+   "start": 253,
+   "end": 275,
+   "text": "  def process_primitive(self, p, tracers, params, /):\n    vals_in, dims_in = unzip2(map(self.to_batch_info, tracers))\n    unmapped_args = all(bdim is None for bdim in dims_in)\n    if p in fancy_primitive_batchers:\n      # TODO(yashkatariya): Remove remove_explicit_mesh_axis_names when vmap\n      # mesh ctx is correctly set.\n      with (core.set_current_trace(self.parent_trace),\n            core.remove_explicit_mesh_axis_names(self.axis_data.explicit_mesh_axis)):\n        val_out, dim_out = fancy_primitive_batchers[p](\n            self.axis_data, vals_in, dims_in, **params)\n        src = source_info_util.current()\n        if p.multiple_results:\n          return [BatchTracer(self, x, d, src) if d is not None else x\n                  for x, d in zip(val_out, dim_out)]\n        else:\n          return (BatchTracer(self, val_out, dim_out, src)\n                  if dim_out is not None else val_out)\n    elif unmapped_args:  # Not all primitives have batching rules defined\n      avals = tuple(core.typeof(x) for x in vals_in)\n      return p.bind_with_trace(self.parent_trace, tuple(vals_in), avals,\n                               dict(params))\n    else:\n      raise NotImplementedError(f\"Batching rule for '{p}' not implemented\")",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/interpreters/batching.py#L253-L275"
+  },
+  {
+   "id": "cond_select",
+   "title": "cond under vmap with a batched predicate becomes select",
+   "file": "jax/_src/lax/control_flow/conditionals.py",
+   "start": 481,
+   "end": 485,
+   "text": "  if index_dim is not None:\n    # Convert to a lax.select. While we could get away with not broadcasting\n    # some operands yet, because all outputs must be broadcast together anyway\n    # for the select we broadcast the input operands for simplicity and leave\n    # optimizations to XLA.",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/lax/control_flow/conditionals.py#L481-L485"
+  },
+  {
+   "id": "fori_scan",
+   "title": "fori_loop picks scan when the bounds are concrete",
+   "file": "jax/_src/lax/control_flow/loops.py",
+   "start": 2631,
+   "end": 2645,
+   "text": "  # If we can specialize on the trip count, call scan instead of a while_loop\n  # to enable efficient reverse-mode differentiation.\n  lower_ = upper_ = 0\n  if core.is_concrete(lower) and core.is_concrete(upper):\n    try:\n      lower_ = int(lower)\n      upper_ = int(upper)\n    except (TypeError, core.InconclusiveDimensionOperation):\n      use_scan = False\n    else:\n      use_scan = True\n  else:\n    use_scan = False\n\n  body_fun_dbg = api_util.debug_info(\"fori_loop\", body_fun,",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/lax/control_flow/loops.py#L2631-L2645"
+  },
+  {
+   "id": "while_T",
+   "title": "why grad of a while_loop fails",
+   "file": "jax/_src/lax/control_flow/loops.py",
+   "start": 2076,
+   "end": 2078,
+   "text": "def _while_transpose_error(*_, **kwargs):\n  raise ValueError(\"Reverse-mode differentiation does not work for \"\n                   \"lax.while_loop or lax.fori_loop with dynamic start/stop values. \"",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/lax/control_flow/loops.py#L2076-L2078"
+  },
+  {
+   "id": "while_batched",
+   "title": "a while_loop with a batched predicate: the body re-evaluates the predicate and selects",
+   "file": "jax/_src/lax/control_flow/loops.py",
+   "start": 2214,
+   "end": 2225,
+   "text": "    if batched:\n      body_pred_name_stack = name_stack.extend('body_pred')\n      cond_consts = mlir.ir_consts(\n          cond_jaxpr.consts, [v.aval for v in cond_jaxpr.constvars])\n      (body_pred,), _ = mlir.jaxpr_subcomp(\n          ctx.module_context, cond_jaxpr, body_pred_name_stack,\n          mlir.TokenSet(), cond_consts, *(x + z),\n          dim_var_values=ctx.dim_var_values, const_lowering=ctx.const_lowering,\n          outer_traceback=ctx.traceback)\n      new_z = _map(\n          partial(_pred_bcast_select_hlo, ctx, pred_aval, body_pred), new_z, z,  # pyrefly: ignore[bad-argument-type]\n          body_jaxpr.out_avals)",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/lax/control_flow/loops.py#L2214-L2225"
+  },
+  {
+   "id": "cvjp_jvp",
+   "title": "custom_vjp functions refuse forward mode",
+   "file": "jax/_src/custom_derivatives.py",
+   "start": 1700,
+   "end": 1700,
+   "text": "    message=\"can't apply forward-mode autodiff (jvp) to a custom_vjp function.\")",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/custom_derivatives.py#L1700-L1700"
+  },
+  {
+   "id": "wsc_batch",
+   "title": "vmap of a sharding constraint: the batch axis is unconstrained unless spmd_axis_name names it",
+   "file": "jax/_src/pjit.py",
+   "start": 2235,
+   "end": 2237,
+   "text": "  unconstrained_dims = {ud + (d <= ud) for ud in unconstrained_dims}\n  if axis_data.spmd_name is None:\n    unconstrained_dims.add(d)",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/pjit.py#L2235-L2237"
+  },
+  {
+   "id": "threefry",
+   "title": "Threefry-2x32: rotation constants and key schedule",
+   "file": "jax/_src/random/threefry2x32.py",
+   "start": 141,
+   "end": 143,
+   "text": "  rotations = [np.array([13, 15, 26, 6], dtype=np.uint32),\n               np.array([17, 29, 16, 24], dtype=np.uint32)]\n  ks = [key1, key2, key1 ^ key2 ^ np.uint32(0x1BD11BDA)]",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/random/threefry2x32.py#L141-L143"
+  },
+  {
+   "id": "split_fold",
+   "title": "split and fold_in in partitionable mode: both hash (0, i) with the key",
+   "file": "jax/_src/random/threefry2x32.py",
+   "start": 304,
+   "end": 314,
+   "text": "@api.jit(static_argnums=(1,), inline=api.Inline.JAX_EARLY)\ndef _threefry_split_foldlike(key, shape) -> typing.Array:\n  k1, k2 = key\n  counts1, counts2 = prng.iota_2x32_shape(shape)\n  bits1, bits2 = threefry2x32_p.bind(k1, k2, counts1, counts2)\n  return jnp.stack([bits1, bits2], axis=bits1.ndim)\n\n\ndef threefry_fold_in(key: typing.Array, data: typing.Array) -> typing.Array:\n  assert not data.shape\n  return _threefry_fold_in(key, jnp.asarray(data, dtype='uint32'))",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/random/threefry2x32.py#L304-L314"
+  },
+  {
+   "id": "prng_table",
+   "title": "jax.random's own summary of the implementations",
+   "file": "jax/random.py",
+   "start": 197,
+   "end": 203,
+   "text": "   Property                            Threefry  Threefry*  Philox  rbg  unsafe_rbg  rbg**  unsafe_rbg**\n   =================================   ========  =========  ======  ===  ==========  =====  ============\n   Fastest on TPU                                                   ✅   ✅          ✅     ✅\n   efficiently shardable (w/ pjit)                ✅        ✅                       ✅     ✅\n   identical across shardings           ✅        ✅        ✅      ✅   ✅\n   identical across CPU/GPU/TPU         ✅        ✅        ✅\n   exact ``jax.vmap`` over keys         ✅        ✅        ✅",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/random.py#L197-L203"
+  },
+  {
+   "id": "lattice",
+   "title": "The type promotion lattice (the default, non-strict one)",
+   "file": "jax/_src/dtypes.py",
+   "start": 714,
+   "end": 739,
+   "text": "  if not strict:\n    out: dict[JAXType, list[JAXType]] = {\n        b1: [i_],\n        i_: [u8, u2, u4, i8, i2, i4],\n        u2: [],\n        u4: [],\n        u8: [i16, u16],\n        u16: [i32, u32],\n        u32: [i64, u64],\n        u64: [f_],\n        i2: [],\n        i4: [],\n        i8: [i16],\n        i16: [i32],\n        i32: [i64],\n        i64: [f_],\n        f_: [*small_float_types, bf16, f16, c_],\n        **{t: [] for t in small_float_types},\n        bf16: [f32],\n        f16: [f32],\n        f32: [f64, c64],\n        f64: [c128],\n        c_: [c64],\n        c64: [c128],\n        c128: [],\n    }",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/dtypes.py#L714-L739"
+  },
+  {
+   "id": "precision",
+   "title": "lax.Precision: what DEFAULT, HIGH and HIGHEST mean per backend",
+   "file": "jax/_src/lax/lax.py",
+   "start": 2173,
+   "end": 2184,
+   "text": "  DEFAULT:\n    Fastest mode, but least accurate. On TPU: performs float32 computations in\n    bfloat16. On GPU: uses tensorfloat32 if available (e.g. on A100 and H100\n    GPUs), otherwise standard float32 (e.g. on V100 GPUs). Aliases:\n    ``'default'``, ``'fastest'``.\n  HIGH:\n    Slower but more accurate. On TPU: performs float32 computations in 3\n    bfloat16 passes. On GPU: uses tensorfloat32 where available, otherwise\n    float32. Aliases: ``'high'``..\n  HIGHEST:\n    Slowest but most accurate. On TPU: performs float32 computations in 6\n    bfloat16. Aliases: ``'highest'``. On GPU: uses float32.",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/lax/lax.py#L2173-L2184"
+  },
+  {
+   "id": "committed",
+   "title": "jax.Array.committed",
+   "file": "jax/_src/array.py",
+   "start": 280,
+   "end": 281,
+   "text": "  def committed(self) -> bool:\n    return self._committed",
+   "url": "https://github.com/jax-ml/jax/blob/jax-v0.11.2/jax/_src/array.py#L280-L281"
+  }
+ ]
+}
