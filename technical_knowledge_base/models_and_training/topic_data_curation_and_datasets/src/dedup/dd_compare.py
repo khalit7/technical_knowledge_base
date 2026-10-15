@@ -90,7 +90,7 @@ lab = json.load(open(os.path.join(C.HERE, "labels_boundary.json")))
 rows = []
 for a, b, l, rm, note in lab["pairs"]:
     k = pidx[(a, b)]
-    rows.append({"a": a, "b": b, "ha": host[a], "hb": host[b], "j": round(float(jac[k]), 3),
+    rows.append({"a": a, "b": b, "ha": C.host_label(host[a]), "hb": C.host_label(host[b]), "j": round(float(jac[k]), 3),
                  "est": round(float(eqs[k].mean()), 3), "cand": int(cand[k]),
                  "same_cluster": int(cluster_of.get(a, -1) == cluster_of.get(b, -2)),
                  "cos": round(float(S[a, b]), 3), "label": l, "remove": rm, "note": note,

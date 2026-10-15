@@ -38,7 +38,7 @@ cluster_of = {x: ci for ci, g in enumerate(cl["clusters"]) for x in g}
 show = []
 for i, why in SHOW:
     t = C.scrub(docs[i]["text"]).replace("\n", " / ")
-    show.append({"i": i, "host": urllib.parse.urlsplit(docs[i]["url"]).hostname, "why": why, "ex": t[:150],
+    show.append({"i": i, "host": C.host_label(urllib.parse.urlsplit(docs[i]["url"]).hostname), "why": why, "ex": t[:150],
                  "chars": len(docs[i]["text"]), "cluster": cluster_of.get(i, -1),
                  "fate": {k: int(i in M[k]) for k in M}, "sa": cmp_full["sa_frac"][i]})
     print(i, show[-1]["host"], show[-1]["fate"], show[-1]["ex"][:90])
@@ -97,6 +97,8 @@ if cdx:
                  "anyGe08": len({p[0] for x in cdx["crawls"].values() for p in x["pairs"] if p[1] >= 0.8})}
 fws = os.path.join(O, "dd_fwshard.json")
 DD["fwshard"] = json.load(open(fws)) if os.path.exists(fws) else None  # filled when dd_fwshard.py has finished
+if DD["fwshard"]:
+    DD["fwshard"]["seconds"] = 8935  # "rough seconds" printed by dd_fwshard.py sign on 2026-10-15 (fwshard.log)
 import numpy as np  # noqa: E402
 sizes = np.load(C.work("pairs.npz"))["sizes"]
 DD["medShingles"] = int(np.median(sizes))
