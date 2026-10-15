@@ -5,7 +5,7 @@
   if(gb)RD.bars(gb,[['2013-48 before global dedup (derived: 31 + 460)',491,0,'var(--dim)'],['Kept by global dedup (scored worse)',31,1,'var(--c2)'],['Removed by global dedup, deduplicated on its own (scored better)',171,1,'var(--c3)']],491,v=>(v===491?'~':'')+v+'B');
   const host=document.getElementById('rd-sc-svg');if(!host)return;
   const P=(s,b,r)=>1-Math.pow(1-Math.pow(s,r),b);
-  const M={fw:{b:14,r:8,pts:D.fwP,name:'FineWeb 14 x 8'},rw:{b:450,r:20,pts:D.rwP,name:'450 bands of 20'},rwtext:{b:20,r:450,pts:D.rwP,name:'20 bands of 450'}};
+  const M={fw:{b:14,r:8,pts:D.fwP,name:'FineWeb 14 x 8'},rw:{b:450,r:20,pts:D.rwP,name:'450 bands of 20'},rwtext:{b:20,r:450,pts:D.rwP,name:'20 bands of 450'},d3:{b:26,r:11,pts:D.d3P,name:'Dolma 3 26 x 11'}};
   let mode='fw';const sl=document.getElementById('rd-sc-s'),out=document.getElementById('rd-sc-out');
   function draw(){
     const W=RD.width(host),H=230,L=40,R=12,T=10,B=30,x=s=>L+s*(W-L-R),y=p=>T+(1-p)*(H-T-B);

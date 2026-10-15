@@ -23,6 +23,8 @@ lin:[
 ],
 // FineWeb paper Appendix: P(match) for 14 bands x 8 rows at Jaccard 0.7, 0.75, 0.8, 0.85; RefinedWeb Appendix G.3.1: 20 x 450 at 0.75 and 0.8
 fwP:[[0.7,0.56],[0.75,0.77],[0.8,0.92],[0.85,0.988]],rwP:[[0.75,0.76],[0.8,0.994]],
+// Dolma 3 pool README (allenai/dolma3 @ 1a9daced): 26 bands of 11, 'Jaccard 0.8 with probability 90%, 0.6 with 10%'
+d3P:[[0.6,0.10],[0.8,0.90]],
 // OLMo 2 Table 9, 7B: pretraining (4T tokens) vs pretraining plus 50B Dolmino tokens
 olmo:{cols:['Avg','MMLU','ARC-C','HSwag','WinoG','NQ','DROP','AGIEval','GSM8K','MMLU-Pro','TQA'],pre:[53.0,59.8,72.6,81.3,75.8,29.0,40.7,44.6,24.1,27.4,74.6],mid:[62.9,63.7,79.8,83.8,77.2,36.9,60.8,50.4,67.5,31.0,78.0]},
 // T5 Table 9 (T5-base, 2^35 training tokens): repeats, GLUE, SQuAD

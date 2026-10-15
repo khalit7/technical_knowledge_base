@@ -75,3 +75,13 @@ Format: fact | source | note. arXiv numbers read from the arXiv HTML version (ta
 - DCLM Table 4 (filtering approaches, Core / Extended): RefinedWeb reproduction 27.5/14.6; top 20% by PageRank 26.1/12.9; SemDedup 27.1/13.8; classifier on BGE features 27.2/14.0; AskLLM 28.6/14.3; perplexity filtering 29.0/15.0; top-k average logits 29.2/14.7; fastText OH-2.5+ELI5 30.2/15.4. Filtering model alone moves 7B (280B tokens) MMLU from 35% to 44%.
 - Common Crawl CC-MAIN-2025-26 (announcement 2025-06-27): 2.38B pages, 389 TiB uncompressed, 100 segments, 100,000 WARC files; compressed WARC 82.73 TiB, WAT 15.62 TiB, WET 6.24 TiB. FineWeb's row for this dump: 419.6 GB, 152.4B GPT-2 tokens.
 - FineWeb funnel (paper, GPT-2 tokens, 96 snapshots): base filtered ~36T; after per-snapshot MinHash ~20T; final 15T; FineWeb-Edu 1.3T.
+
+### read: corrections and additions 2026-10-15 (after the labs)
+- DoReMi's "baseline" (RegMix's "Human") is a document-count weighting from DoReMi's repo, not The Pile's Table 1 weights (mix2); the Reading tab now says so. DoReMi's +6.5 is one-shot on 5 generative tasks.
+- OLMo 2's text calls mid-training "5 to 10% of training FLOPs", counting all souped mid-training runs; 50B / 4.05T = 1.2% is one run (mix).
+- Nemotron-CC "recall around 10%" is Table 9's share of tokens labelled high quality (FineWeb-Edu 8%, DCLM 11%, ensemble 25%), not a recall; Table 8 intersection is 10.1% of the union (q).
+- FineWeb's "kept 10% / removed 90%" of 2013-48: its own token counts give 31 / 491 = 6.3% (dp).
+- RefinedWeb's two readings measured on the running example's pairs: 450 x 20 -> 363 candidates incl. all 308 >= 0.8; 20 x 450 -> 143, all identical (dedup).
+- Dolma 3 web MinHash: 26 bands of 11; the formula gives 90.3% at 0.8 and 9.0% at 0.6, matching the README's 90% / 10%.
+- FineWeb-Edu "F1 82%" matches a macro F1 (Quality lab: 0.85 macro, 0.72 positive class on 1,500 rows).
+- Real page for the Reading animation: protectnmwater.org (CC-MAIN-2024-30 file 00000): in FineWeb and FineWeb-Edu (score 2.765625); FineWeb-Edu classifier 2.765 here; DCLM fastText 0.00164 (< 0.0181 cut); WET text removed by gopher_below_alpha_threshold (alpha 0.751 with spaCy-like tokens), trafilatura 0.801 passes.
