@@ -1,0 +1,47 @@
+<div class="tab" id="t-roof" role="tabpanel" hidden>
+<h2 style="margin-top:14px">Roofline lab</h2>
+<p>Put a workload on the roofline of any TPU generation and read the best time it could reach. Four workloads: one layer of a 7B model in training or prefill, a decode step with a KV cache, the running example's training step, and a matmul you type. Everything here is <span class="der">calculated</span> from <span class="vend">published</span> peaks and bandwidths (the Reading tab's {{generation table|#t-read}}); real kernels reach perhaps 50 to 80% of these bounds. The formulas are in Reading <a href="#" data-tab="t-read">section 3</a>.</p>
+<div class="seg" id="tq-r-gen" role="group" aria-label="Generation"><span class="lbl">Generation</span></div>
+<div class="seg" id="tq-r-mode" role="group" aria-label="Workload"><span class="lbl">Workload</span></div>
+
+<div id="tq-r-layer" class="tq-card">
+<h4>One Llama 2 7B decoder layer, training or prefill</h4>
+<div class="tq-ctl"><label>Tokens per chip <input type="range" id="tq-r-n" min="0" max="16" step="1" value="12"> <b id="tq-r-nv"></b></label>
+<label>Sequence <select id="tq-r-s"><option>512</option><option>2048</option><option selected>4096</option><option>8192</option><option>32768</option></select></label>
+<label>Weights <select id="tq-r-wd"><option value="2">bf16</option><option value="1">int8 (bf16 compute)</option></select></label>
+<label><input type="checkbox" id="tq-r-flash" checked> fused attention (scores stay in VMEM)</label></div>
+<div class="tq-svg" id="tq-r-lsvg"></div>
+<div class="tw" id="tq-r-ltab"></div>
+<div class="tq-cnt" id="tq-r-lcnt"></div>
+<p class="tq-src">Shapes from MaxText's <code>configs/models/llama2-7b.yml</code> (width 4,096, MLP 11,008 with a gated activation, 32 heads of 128, multi-head attention). Tokens per chip = sequences x sequence length; attention is per sequence, so fewer tokens than one sequence means one shorter sequence. With "fused attention" the S x S scores are not written to HBM (the flash-attention idea); without it they are, in bf16. The attention FLOPs are counted in full (a causal kernel can skip half). Softmax, LayerNorm and the rest run on the VPU and are left out.</p>
+</div>
+
+<div id="tq-r-dec" class="tq-card" hidden>
+<h4>A decode step: weights plus KV cache</h4>
+<div class="tq-ctl"><label>Preset <select id="tq-r-dpre"><option value="l7">Llama 2 7B, one v5e chip</option><option value="sb">Scaling book quiz: 30B, int8, 16 v5e chips</option><option value="l70">Llama 3.1 70B (GQA), 8 v6e chips</option></select></label></div>
+<div class="tq-ctl"><label>Batch (sequences) <input type="range" id="tq-r-b" min="0" max="11" step="1" value="0"> <b id="tq-r-bv"></b></label>
+<label>Context <select id="tq-r-t"><option>512</option><option selected>2048</option><option>8192</option><option>32768</option><option>131072</option></select></label>
+<label>Chips <select id="tq-r-c"><option>1</option><option>4</option><option>8</option><option>16</option><option>64</option></select></label>
+<label>Weights <select id="tq-r-dw"><option value="2">bf16</option><option value="1">int8</option></select></label>
+<label>KV cache <select id="tq-r-kv"><option value="2">bf16</option><option value="1">int8</option></select></label></div>
+<div class="tq-svg" id="tq-r-dsvg"></div>
+<div class="tq-cnt" id="tq-r-dcnt"></div>
+<p class="tq-src" id="tq-r-dsrc"></p>
+</div>
+
+<div id="tq-r-run" class="tq-card" hidden>
+<h4>The running example's training step</h4>
+<div class="tq-ctl"><label>Numbers in <select id="tq-r-rd"><option value="2">bf16</option><option value="4">float32</option></select></label></div>
+<div class="tq-svg" id="tq-r-rsvg"></div>
+<div class="tw" id="tq-r-rtab"></div>
+<p class="tq-src">The 12 distinct matmul shapes among the 99 <code>dot_general</code>s of <code>jax.value_and_grad(loss_fn)</code> (<span class="meas">measured</span> by the root's TPU lab with <code>jax.make_jaxpr</code>), counted with their multiplicity. All are memory-bound on every generation: the model's width of 128, not its batch, limits the intensity. Placed here so the same object can be compared with the 7B layer; the root's {{TPU and Pallas lab|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} discusses it.</p>
+</div>
+
+<div id="tq-r-own" class="tq-card" hidden>
+<h4>Your matmul on every generation</h4>
+<div class="tq-ctl"><label>m <input type="number" id="tq-r-m" value="8192" min="1"></label><label>k <input type="number" id="tq-r-k" value="8192" min="1"></label><label>n <input type="number" id="tq-r-nn" value="28672" min="1"></label><label>batch copies <input type="number" id="tq-r-bb" value="1" min="1"></label>
+<label>dtype <select id="tq-r-od"><option value="bf16">bf16</option><option value="int8">int8 x int8</option><option value="w8">int8 weights, bf16 compute</option><option value="f32">float32 (HIGHEST, 6 passes)</option></select></label></div>
+<div class="tw" id="tq-r-otab"></div>
+<p class="tq-src">Default: Llama 3.1 70B's MLP up-projection for one 8,192-token sequence. int8 x int8 uses the int8 peak (v4: the same as bf16; v5p and TPU7x: the scaling book's figure); float32 at HIGHEST is modelled as 6 bf16 passes over float32 bytes; padding to the MXU is not included (the {{Tiles and padding|#t-tile}} tab does that).</p>
+</div>
+</div>
