@@ -68,18 +68,20 @@ def main():
                 body = ("one tiny decoder-only transformer language model over characters: the %d distinct characters of TinyShakespeare, "
                         "%d layers, width %d, %d attention heads, MLP width %d, context %d characters, <b>%s parameters</b>. It is written three times, "
                         "in PyTorch, in Flax NNX and in plain JAX with optax (<code>src/data/</code>), and all three read the same batches of %d sequences. "
-                        "Started from the same weights, their logits agree to within %.1e and their losses over the first %d training steps to within %.1e "
+                        "Started from the same weights, their logits agree to within %.1e and their training losses over %d steps to within %.1e "
                         "<span class=\"meas\">measured</span> (setup's <code>check_equiv.py</code>), so any later difference between them is a finding, not noise.") % (
                     c["vocab"], c["n_layers"], c["d_model"], c["n_heads"], c["d_ff"], c["ctx"], format(q["n_params"], ","), c["batch"],
-                    lg["torch_vs_nnx"], q["steps"], t["max_abs_loss_diff"]["torch_vs_nnx"])
+                    max(lg["torch_vs_nnx"], lg["torch_vs_jax"]), q["steps"], max(t["max_abs_loss_diff"].values()))
             elif name == "twin":
                 q = json.load(open(os.path.join(HERE, "..", "data", "equiv.json")))
-                t = q["train"]; st, fs = t["step_time_median_s"], t["first_step_time_s"]
-                body = ("The running example's twins, from the same weights on the same batches: losses equal to within %.1e over %d steps; "
-                        "median CPU step %.0f ms in PyTorch eager, %.0f ms in Flax NNX and %.0f ms in plain JAX, first JAX step %.1f s (tracing and compiling) "
-                        "<span class=\"meas\">measured</span> on Apple M1 Pro (CPU), shared machine, 4 threads, low priority. On a CPU this small model is dominated by fixed costs, "
-                        "so these speeds say nothing about accelerators. <span class=\"rd-todo\" id=\"rd-todo-twin\">TODO (Training lab): the longer run's curves and step times.</span>") % (
-                    t["max_abs_loss_diff"]["torch_vs_nnx"], q["steps"], st["torch"] * 1000, st["nnx"] * 1000, st["jax"] * 1000, fs["nnx"])
+                t = q["train"]; st, fs, v = t["step_time_median_s"], t["first_step_time_s"], t["val"]
+                body = ("The running example's twins, from the same weights on the same batches for %d steps: validation loss %.4f in PyTorch and %.4f in plain JAX at the end, "
+                        "training losses within %.1e of each other all the way <span class=\"meas\">measured</span>. The tiny drift is summation order: different kernels add the same numbers in different orders, "
+                        "and training compounds the last-bit differences slowly (explained in <code>src/data/README.md</code>). "
+                        "Median CPU step %.0f ms in PyTorch eager, %.0f ms in plain JAX and %.0f ms in Flax NNX; the first JAX step %.1f s (tracing and compiling), "
+                        "measured on Apple M1 Pro (CPU), shared machine, 4 threads, low priority. On a CPU this small model is dominated by fixed costs, "
+                        "so these speeds say nothing about accelerators; the {{Training lab|#t-train}} overlays the curves.") % (
+                    q["steps"], v["torch"][-1], v["jax"][-1], t["max_abs_loss_diff"]["torch_vs_jax"], st["torch"] * 1000, st["jax"] * 1000, st["nnx"] * 1000, fs["jax"])
             elif name == "step":
                 if not step:
                     return m.group(0)
