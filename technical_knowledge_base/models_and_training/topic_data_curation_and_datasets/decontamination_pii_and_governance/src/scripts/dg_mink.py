@@ -34,12 +34,18 @@ def scores(text, tok, model, device):
     import torch
     ids = tok(text, return_tensors="pt", truncation=True, max_length=512).input_ids.to(device)
     with torch.inference_mode():
-        logits = model(ids).logits[0, :-1].float()
-    lp = torch.log_softmax(logits, -1)
-    tgt = ids[0, 1:]
-    tl = lp.gather(1, tgt[:, None])[:, 0]
-    mu = (lp.exp() * lp).sum(-1)
-    sigma = ((lp.exp() * lp.pow(2)).sum(-1) - mu.pow(2)).clamp_min(1e-6).sqrt()
+        logits = model(ids).logits[0, :-1]
+        tgt = ids[0, 1:]
+        tls, mus, sigs = [], [], []
+        for a in range(0, logits.shape[0], 64):  # float32 log-softmax in chunks of 64 positions: bounded memory
+            lp = torch.log_softmax(logits[a:a + 64].float(), -1)
+            p = lp.exp()
+            mu_ = (p * lp).sum(-1)
+            tls.append(lp.gather(1, tgt[a:a + 64, None])[:, 0])
+            mus.append(mu_)
+            sigs.append(((p * lp.pow(2)).sum(-1) - mu_.pow(2)).clamp_min(1e-6).sqrt())
+            del lp, p
+        tl, mu, sigma = torch.cat(tls).cpu(), torch.cat(mus).cpu(), torch.cat(sigs).cpu()
     zpp = (tl - mu) / sigma
     k = max(1, int(0.2 * len(tl)))
     loss = float(-tl.mean())
@@ -57,30 +63,36 @@ def main():
     ap.add_argument("--model", required=True)
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--dtype", default="float32", choices=["float32", "float16", "bfloat16"],
+                    help="weights; log-softmax is always float32")
     a = ap.parse_args()
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
     torch.set_num_threads(4)
     tok = AutoTokenizer.from_pretrained(a.model)
-    model = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.float32).to(a.device).eval()
+    model = AutoModelForCausalLM.from_pretrained(a.model, dtype=getattr(torch, a.dtype)).to(a.device).eval()
     mm = C.L.bench("mmlu_test")
     items = [it for it in C.bench_items() if it["bench"] in ("gsm8k_test", "math500_test")
              or (it["bench"] == "mmlu_test" and mm.subject[it["idx"]] == "high_school_mathematics")]
     if a.smoke:
         items = items[:3]
     res = []
-    for it in items:
+    for k, it in enumerate(items):
+        if k % 200 == 0:
+            print("item", k, "of", len(items), flush=True)
+            if a.device == "mps":
+                torch.mps.empty_cache()
         t = it["full"]
         res.append({"bench": it["bench"], "idx": it["idx"], "orig": scores(t, tok, model, a.device),
                     "pert": scores(perturb(t), tok, model, a.device)})
-    out = {"model": os.path.basename(a.model.rstrip("/")), "n": len(res), "auc": {}}
+    out = {"model": os.path.basename(a.model.rstrip("/")), "dtype": a.dtype, "n": len(res), "auc": {}}
     for b in sorted({r["bench"] for r in res}):
         R = [r for r in res if r["bench"] == b]
         # higher membership score = more likely member: use -loss, mink, minkpp, -zlib
         out["auc"][b] = {m: auc([s * r["orig"][m] for r in R], [s * r["pert"][m] for r in R])
                          for m, s in (("loss", -1), ("mink", 1), ("minkpp", 1), ("zlib", -1))}
     od = C.out_dir("mink")
-    json.dump({"summary": out, "items": res}, open(os.path.join(od, out["model"] + (".smoke" if a.smoke else "")
+    json.dump({"summary": out, "items": res}, open(os.path.join(od, out["model"] + "." + a.dtype + (".smoke" if a.smoke else "")
                                                                 + ".json"), "w"))
     print(json.dumps(out, indent=1))
 
