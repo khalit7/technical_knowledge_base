@@ -1,0 +1,35 @@
+{
+ "nnx_module": {
+  "code": "import jax, jax.numpy as jnp\nfrom flax import nnx\n\nclass MLP(nnx.Module):                       # like torch.nn.Module: the object holds its state\n    def __init__(self, d, f, *, rngs):\n        self.fc1 = nnx.Linear(d, f, rngs=rngs)\n        self.fc2 = nnx.Linear(f, d, rngs=rngs)\n        self.calls = nnx.Variable(jnp.zeros((), jnp.int32))  # state that is not a parameter\n\n    def __call__(self, x):\n        self.calls[...] += 1                 # mutate in place, like a PyTorch buffer\n        return self.fc2(jax.nn.gelu(self.fc1(x), approximate=False))\n\nm = MLP(128, 512, rngs=nnx.Rngs(0))\ny = m(jnp.ones((4, 128)))\nprint(type(m.fc1.kernel).__name__, m.fc1.kernel.shape, \"calls:\", m.calls[...])\ngraphdef, params, rest = nnx.split(m, nnx.Param, ...)   # structure | parameters | everything else\nprint(jax.tree.map(jnp.shape, nnx.to_pure_dict(params)))\nprint(nnx.to_pure_dict(rest))\nm2 = nnx.merge(graphdef, params, rest)                # a new module object with the same state\nprint((m2(jnp.ones((4, 128))) == y).all())",
+  "output": "Param (128, 512) calls: 1\n{'fc1': {'bias': (512,), 'kernel': (128, 512)}, 'fc2': {'bias': (128,), 'kernel': (512, 128)}}\n{'calls': Array(1, dtype=int32)}\nTrue"
+ },
+ "nnx_pure": {
+  "code": "import jax, jax.numpy as jnp\nfrom flax import nnx\n\nm = nnx.Linear(128, 64, rngs=nnx.Rngs(0))\ngraphdef, state = nnx.split(m)\n\n@jax.jit                                   # plain jax.jit: only arrays (the state) cross the boundary\ndef forward(state, x):\n    model = nnx.merge(graphdef, state)     # rebuild the module inside the trace\n    return model(x)\n\nx = jnp.ones((2, 128))\nprint(jnp.allclose(forward(state, x), m(x)))\nprint(nnx.jit(lambda m, x: m(x))(m, x).shape)   # nnx.jit does the split and merge for you",
+  "output": "True\n(2, 64)"
+ },
+ "optimizer_wrt": {
+  "code": "import optax\nfrom flax import nnx\n\nm = nnx.Linear(4, 4, rngs=nnx.Rngs(0))\ntry:\n    nnx.Optimizer(m, optax.adamw(1e-3))\nexcept TypeError as e:\n    print(\"TypeError:\", e)\nopt = nnx.Optimizer(m, optax.adamw(1e-3), wrt=nnx.Param)\nprint(type(opt).__name__, \"step\", opt.step[...])",
+  "output": "TypeError: Missing required argument `wrt`. As of Flax 0.11.0 the `wrt` argument is required, if you want to keep the previous use nnx.ModelAndOptimizer instead of nnx.Optimizer.\nOptimizer step 0"
+ },
+ "value_dep": {
+  "code": "import warnings, jax.numpy as jnp\nfrom flax import nnx\n\nm = nnx.Linear(2, 2, rngs=nnx.Rngs(0))\nwith warnings.catch_warnings(record=True) as w:\n    warnings.simplefilter(\"always\")\n    m.kernel.value = jnp.eye(2)            # the pre-0.12 spelling\n    print(w[0].category.__name__ + \":\", str(w[0].message).splitlines()[0])\nm.kernel[...] = jnp.eye(2)                 # what flax 0.12 asks for\nprint(m.kernel[...])",
+  "output": "DeprecationWarning: '.value' setter is now deprecated. For Variable[Array] instances use:\n[[1. 0.]\n [0. 1.]]"
+ },
+ "optax_chain": {
+  "code": "import jax, jax.numpy as jnp, optax\n\nparams = {\"w\": jnp.ones((2, 2)), \"ln\": jnp.ones(2)}\ngrads = {\"w\": jnp.full((2, 2), 3.0), \"ln\": jnp.full(2, 4.0)}\ntx = optax.chain(\n    optax.clip_by_global_norm(1.0),                       # torch: clip_grad_norm_\n    optax.adamw(learning_rate=1e-3, b1=0.9, b2=0.95, weight_decay=0.1,\n                mask={\"w\": True, \"ln\": False}))           # torch: parameter groups\nstate = tx.init(params)                                   # optimiser state is a pytree too\nupdates, state = tx.update(grads, state, params)          # pure: returns new state\nparams = optax.apply_updates(params, updates)\nprint(jax.tree.map(lambda u: u.round(6), updates))\nprint(type(state[1][0]).__name__, int(state[1][0].count))",
+  "output": "{'ln': Array([-0.001, -0.001], dtype=float32), 'w': Array([[-0.0011, -0.0011],\n       [-0.0011, -0.0011]], dtype=float32)}\nScaleByAdamState 1"
+ },
+ "muon": {
+  "code": "import inspect, optax, optax.contrib\nprint(optax.__version__, \"muon\" in dir(optax.contrib))\nprint(list(inspect.signature(optax.contrib.muon).parameters)[:7])",
+  "output": "0.2.8 True\n['learning_rate', 'ns_coeffs', 'ns_steps', 'beta', 'eps', 'weight_decay', 'weight_decay_mask']"
+ },
+ "jmp_policy": {
+  "code": "import jax.numpy as jnp, jmp\n\npolicy = jmp.get_policy(\"params=float32,compute=bfloat16,output=float32\")\nw = jnp.ones((128, 128), jnp.float32)          # master weights stay float32\nw_c = policy.cast_to_compute(w)                 # the copy the matmuls use\nprint(w.dtype, \"->\", w_c.dtype)\nscale = jmp.DynamicLossScale(jnp.float32(2 ** 15))  # only needed for float16, not bfloat16\nprint(scale.loss_scale)",
+  "output": "float32 -> bfloat16\n32768.0"
+ },
+ "_versions": {
+  "jax": "0.11.2",
+  "flax": "0.12.10",
+  "optax": "0.2.8"
+ }
+}

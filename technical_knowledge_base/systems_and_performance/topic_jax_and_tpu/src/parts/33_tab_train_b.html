@@ -1,0 +1,29 @@
+<section id="tr-s1">
+<h2>1. Modules: where do the weights live?</h2>
+<p><b>The problem.</b> In PyTorch a layer is an object that owns its weights and changes them in place, and <code>loss.backward()</code> finds them through the object. JAX's transformations (<code>jit</code>, <code>grad</code>, <code>vmap</code>) work on <dfn>pure functions</dfn> of arrays: they only see what is passed in as arguments, as a <dfn>pytree</dfn> (any nesting of lists, tuples and dicts whose leaves are arrays; the {{Transforms lab|#t-xf}} builds them from zero). So every JAX neural-network library has to answer one question: how does a model's state get in and out of a pure function? There are four answers.</p>
+<div class="tw"><table class="tr-tbl">
+<thead><tr><th>Library</th><th>Where the weights live</th><th>How you run it</th><th>Linear weight layout</th><th>Same block, same weights: max difference from PyTorch</th></tr></thead>
+<tbody id="tr-fwtab"></tbody></table></div>
+<p class="tr-cap">The running example's transformer block (pre-LayerNorm attention and MLP, 198,272 parameters) written in each library, loaded with block 0 of the PyTorch model after 500 training steps, run on the embeddings of training batch 0 ([32, 128, 128]); the largest output is about 2.1, so a difference of 8e-7 is float32 rounding <span class="tr-meas">measured</span> (<code>src/train/frameworks.py</code>).</p>
+
+<h3>Flax NNX: objects that split into structure and arrays</h3>
+<p>An <code>nnx.Module</code> is a normal Python object, built eagerly like an <code>nn.Module</code>; its weights are <code>nnx.Param</code> attributes and other state (counters, batch-norm statistics, RNG streams) is any other <code>nnx.Variable</code>. To cross into a JAX transformation it is <dfn>split</dfn>: <code>nnx.split(model)</code> returns a <dfn>graphdef</dfn> (the structure: classes, attribute names, shapes, no arrays; static and hashable, so it can key the compile cache) and a <dfn>state</dfn> (a pytree of the arrays). <code>nnx.merge(graphdef, state)</code> builds the object back. <code>nnx.jit</code>, <code>nnx.grad</code> and the other lifted transforms do the split before the call and the merge after, and copy any mutation (an updated counter, new weights) back into your object, which is why NNX code reads like PyTorch.</p>
+<div class="tr-box" id="tr-split-card">
+<h4>The same module before and after <code>nnx.split</code></h4>
+<div class="tr-svgw" id="tr-split-svg"></div>
+<div class="tr-capstep" id="tr-split-cap"></div>
+<div class="tr-anctl" id="tr-split-ctl"></div>
+<p class="tr-cap">The <code>MLP</code> of the code below; each array is a square whose area is proportional to its number of elements (the 128 x 512 kernel is 65,536, the counter is 1).</p>
+</div>
+<div id="tr-snip-nnx_module"></div>
+<p>The same thing written by hand shows what <code>nnx.jit</code> automates: only the state crosses the <code>jax.jit</code> boundary, and the graphdef is closed over as a constant.</p>
+<div id="tr-snip-nnx_pure"></div>
+<p class="small">Source at flax v0.12.10: <code>class Module(Pytree)</code> in {{flax/nnx/module.py:54|https://github.com/google/flax/blob/d1f0d69b49a4f208e0a854039d7914c1c7c431e3/flax/nnx/module.py#L54}} (a <code>Pytree</code>, {{pytreelib.py:510|https://github.com/google/flax/blob/d1f0d69b49a4f208e0a854039d7914c1c7c431e3/flax/nnx/pytreelib.py#L510}}); <code>split</code> in {{graphlib.py:2268|https://github.com/google/flax/blob/d1f0d69b49a4f208e0a854039d7914c1c7c431e3/flax/nnx/graphlib.py#L2268}}, which calls <code>flatten(node)</code> at line 2343 to walk the object graph and returns <code>graphdef, *states</code>.</p>
+
+<h3>Linen, Equinox and Haiku</h3>
+<p><b>Flax Linen</b> modules are dataclasses that hold no weights: <code>params = model.init(key, x)</code> traces the model once to create a nested dict, and <code>model.apply(params, x)</code> runs it. Most JAX code written before 2025 looks like this; Flax says Linen will not be deprecated soon but recommends NNX for new code (quoted in the Reading tab). <b>Equinox</b> makes the model itself a pytree (a frozen dataclass whose array fields are leaves), so <code>jax.jit</code> and <code>jax.grad</code> take the model directly; its layers act on one example, so you <code>jax.vmap</code> over the batch, and its <code>Linear.weight</code> is <code>[out, in]</code> like PyTorch. <b>Haiku</b> (DeepMind) turns a function that creates modules into a pure <code>(init, apply)</code> pair with <code>hk.transform</code>; DeepMind recommends Flax for new projects and Haiku is in maintenance mode (see the {{Tool map|#t-map}}). Pick a library to compare with PyTorch:</p>
+<div class="seg" id="tr-fwseg" role="group" aria-label="Library"><button data-m="nnx" class="on">Flax NNX</button><button data-m="linen">Linen</button><button data-m="equinox">Equinox</button><button data-m="haiku">Haiku</button></div>
+<div class="tr-pair"><div><div class="hd">PyTorch (model_torch.py)</div><pre class="tr-code" id="tr-fw-l"></pre></div><div><div class="hd" id="tr-fw-rh"></div><pre class="tr-code" id="tr-fw-r"></pre></div></div>
+<p class="tr-cap" id="tr-fw-cap"></p>
+<div class="deepnote"><b>Go deeper.</b> The child page {{The JAX training stack|n:3c65c17b0d0d817ea0ace9a2ca8677ec}} covers NNX's lifted transforms, <code>nnx.Rngs</code>, filters and the Linen bridge; the {{Tool map|#t-map}} has each library's status and dates.</div>
+</section>
