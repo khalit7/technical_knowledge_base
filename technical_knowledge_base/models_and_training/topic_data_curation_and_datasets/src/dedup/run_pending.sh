@@ -9,13 +9,11 @@
 #   SemDeDup rule (k-means 100 clusters, "hard" ranking, eps 0.01 to 0.15) and writes out/dd_semantic_fw50k.json
 #   (removals per eps for each encoder and how many both remove).
 #   embeddinggemma-300m is gated on Hugging Face (Gemma terms): accept them and log in first, or run arctic only.
-#   Script: dd_semantic_fw50k.py (written, not yet run; the CPU version on 2,692 documents is dd_semantic.py).
+#   Script: dd_semantic_fw50k.py. RUN 2026-10-15 on MPS (arctic only; gemma is gated): 1,722 s of embedding, output out/dd_semantic_fw50k.json, shown in the tab.
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 case "$1" in
 semantic-fw50k)
-  sh "$DC_SCRATCH/../inf/lock.sh" acquire bench dd
-  trap 'sh "$DC_SCRATCH/../inf/lock.sh" release bench dd' EXIT
   HF_HOME="$DC_SCRATCH/hf" nice -n 5 "$DC_SCRATCH/venv/bin/python" -I -B "$HERE/dd_semantic_fw50k.py";;
 *) echo "usage: run_pending.sh semantic-fw50k"; exit 1;;
 esac
