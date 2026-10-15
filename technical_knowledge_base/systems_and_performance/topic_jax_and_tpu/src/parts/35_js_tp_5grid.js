@@ -41,7 +41,7 @@
   }
   const A=T.anim({card:'tp-gr-card',ctl:'tp-gr-ctl',n:ORD.length+1,ms:700,label:'Grid step',draw});
   T.seg($('tp-gr-cfg'),CF.map((c,i)=>[String(i),c[0]===M?'whole arrays (before)':c.join(' x ')]),String(ci),m=>{ci=+m;if(mode==='2'&&ci!==2){mode='1';document.querySelectorAll('#tp-gr-mode button').forEach(x=>x.classList.toggle('on',x.dataset.m==='1'))}setup()});
-  T.seg($('tp-gr-mode'),[['1','in order, 1 core'],['2','2 cores, parallel i (512 x 128 x 128)']],mode,m=>{mode=m;if(m==='2'&&ci!==2){ci=2;document.querySelectorAll('#tp-gr-cfg button').forEach(x=>x.classList.toggle('on',x.dataset.m==='2'))}setup()});
+  T.seg($('tp-gr-mode'),[['1','1 core, axes "arbitrary" (default)'],['2','2 cores, parallel i (512 x 128 x 128)']],mode,m=>{mode=m;if(m==='2'&&ci!==2){ci=2;document.querySelectorAll('#tp-gr-cfg button').forEach(x=>x.classList.toggle('on',x.dataset.m==='2'))}setup()});
   T.onResize(()=>A.redraw());
 
   // ---- section 7 table

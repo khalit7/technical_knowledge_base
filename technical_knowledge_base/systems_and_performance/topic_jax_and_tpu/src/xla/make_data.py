@@ -49,7 +49,7 @@ def main():
                  "shloFuncs": P["stablehlo"]["funcs"], "hlo": P["hlo"]["instructions_total"],
                  "optTop": o["entry_instructions"], "optAll": o["instructions_total"], "fusions": o["fusions_all"],
                  "fusionsMulti": o["fusions_multi"], "kernels": o["kernels"], "cats": o["fusion_categories"],
-                 "kernelsByOp": o["kernels_by_op"], "opsInFusions": o["ops_inside_fusions"],
+                 "kernelsByOp": o["kernels_by_op"], "reducerBodies": o.get("reducer_bodies"), "opsInFusions": o["ops_inside_fusions"],
                  "bytes": {"jaxpr": P["jaxpr"]["bytes"], "shlo": P["stablehlo"]["bytes"], "hlo": P["hlo"]["bytes"], "opt": o["bytes"]},
                  "flops": P["cost_analysis"].get("flops"), "bytesAccessed": P["cost_analysis"].get("bytes accessed"),
                  "transc": P["cost_analysis"].get("transcendentals"),

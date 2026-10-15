@@ -1,6 +1,6 @@
 # Reading and Further reading (Topic: jax-and-tpu)
 
-Reading time: about 27 minutes (5,323 words outside widgets at 200 a minute, measured by check_read.mjs 2026-10-15 after the labs were filled in) plus about 10 for folded answers and code.
+Reading time: about 28 minutes (5,537 words outside widgets at 200 a minute, measured by check_read.mjs 2026-10-15 after the final fix pass) plus about 10 for folded answers and code.
 
 Owned by the Reading agent (prefix `rd`). Parts: `../parts/20_read.html` (style, nav, section 0), `20_read_a` (1 why JAX and who uses it), `20_read_b` (2 transformations; eager vs jit animation; print predict), `20_read_c` (3 compiler; compiler strip), `20_read_d` (4 training stack; train step), `20_read_e` (5 sharding; memory widget), `20_read_f` (6 TPUs and Pallas; ridge points; decode predict), `20_read_g` (7 codebases), `20_read_h` (8 JAX vs PyTorch, 9 choosing), `20_read_i` (common mistakes, real errors), `20_read_j` (interview questions, child pages), `39_tab_more.html`. JS: `22_js_rd_data.js` (published and measured figures, `window.RDJ`), `23_js_rd_drills.js` (predict questions, compiler strip), `24_js_rd_trace.js` (eager vs jit animation), `25_js_rd_shard.js` (memory per device).
 

@@ -24,10 +24,10 @@ node check_tab.mjs ../../index.html <shots dir>   # every control at 390 dark an
 `xc_common.py` (paths, `scrub()` for paths and host names, the shared initial state) and `hlo_tools.py` (jaxpr, StableHLO and HLO text counting) are helpers.
 
 ## Definitions used in the counts
-- **jaxpr equations**: recursive, nested `pjit`/`custom_jvp` wrappers inlined (wrappers not counted).
+- **jaxpr equations**: recursive, nested `jit` (printed `pjit` before newer versions)/`custom_jvp` wrappers inlined (wrappers not counted).
 - **StableHLO operations**: `stablehlo.*`, `chlo.*`, `func.call` lines, returns excluded.
 - **HLO instructions**: every instruction in every computation of the unoptimised module.
-- **kernels**: top-level instructions of the optimised module outside fused computations that do work (not parameter, constant, tuple, get-tuple-element, bitcast). Fusions are counted as one; "multi-op" fusions merge two or more operations.
+- **kernels**: top-level instructions of the optimised module outside fused computations that do work (not parameter, constant, tuple, get-tuple-element, bitcast). Fusions are counted as one; "multi-op" fusions merge two or more operations. Reduction combiners (the two-parameter `add` or `maximum` bodies a reduce reaches through `to_apply=`) are not kernels and are left out (`reducer_bodies`): until 2026-10-15 they were counted, which gave 1,057 for the undonated step instead of 816 (783 fusions + 33 dots; 817 donated, one extra copy), as the child page XLA and compilation found. `out/pipeline.json` was recounted from the same compiled programs (fusion counts unchanged); its unoptimised `hlo` block and `out/timing.json`'s per-layer counts still include the combiners and are not shown on the page.
 - **PyTorch operators that compute**: aten leaf operators under `torch.profiler`, leaving out views, allocations and scalar reads (list in `torch_compile.py`).
 - Timings: "measured on Apple M1 Pro (CPU), shared machine, 4 threads, low priority", medians, with the 1-minute load average recorded per run. Everything else is deterministic.
 
