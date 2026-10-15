@@ -79,6 +79,21 @@ pol["crag_ce1_median_k10"] = score(["single_k10" if O["ce1"][i] < med else "sing
 pol["lr_gain_0.5"] = score(["react" if p_gain[i] >= 0.5 else "single_k5" for i in range(n)])
 pol["random_half"] = score(["react" if (i * 7919) % 2 else "single_k5" for i in range(n)])
 
+# paired comparisons (same questions): policy minus always-pipeline, and policy minus always-agent
+CH = {"rule_cmp_to_react": ["react" if O["cue_cmp"][i] else "single_k5" for i in range(n)],
+      "crag_ce1_median": ["react" if O["ce1"][i] < med else "single_k5" for i in range(n)],
+      "always_react": ["react"] * n, "always_longctx": ["longctx"] * n, "always_single_k10": ["single_k10"] * n}
+paired = {}
+for k, ch in CH.items():
+    d1 = [R[c]["f1"][i] - R["single_k5"]["f1"][i] for i, c in enumerate(ch)]
+    d2 = [R[c]["f1"][i] - R["react"]["f1"][i] for i, c in enumerate(ch)]
+    paired[k] = {"vs_single": A.r3(np.mean(d1)), "vs_single_ci": A.boot_ci(d1), "vs_react": A.r3(np.mean(d2)), "vs_react_ci": A.boot_ci(d2)}
+# rule escalation of comparison questions: F1 of each path on the 24% with a comparison word
+cmpq = [i for i in range(n) if O["cue_cmp"][i]]
+paired["cmp_subset"] = {"n": len(cmpq), "single": A.r3(np.mean([R["single_k5"]["f1"][i] for i in cmpq])),
+                        "react": A.r3(np.mean([R["react"]["f1"][i] for i in cmpq])),
+                        "n_type_cmp": sum(1 for i in cmpq if O["type"][i] == "comparison")}
+
 # frontier sweep for the evaluator thresholds (share escalated vs F1), for the prose and the check
 sweep = {}
 for name, sig, hi in (("ce1", O["ce1"], False), ("s1", O["s1"], False), ("lr", list(p_gain), True)):
@@ -94,7 +109,7 @@ for name, sig, hi in (("ce1", O["ce1"], False), ("s1", O["s1"], False), ("lr", l
 
 res = {"feats": FEATS, "auroc": au, "coef": coef, "p_gain": [A.r3(x) for x in p_gain], "p_ok": [A.r3(x) for x in p_ok],
        "react_gain_n": int(sum(react_gain)), "react_loss_n": int(sum(a < b for a, b in zip(R["react"]["f1"], R["single_k5"]["f1"]))),
-       "single_ok_n": int(sum(single_ok)), "ce1_median": A.r3(med), "policies": pol, "sweep": sweep}
+       "single_ok_n": int(sum(single_ok)), "ce1_median": A.r3(med), "policies": pol, "sweep": sweep, "paired": paired}
 A.save("router.json", res)
 for k, v in pol.items():
     print("%-26s F1 %.3f %s tok %7.1f sec %.2f exp %.2f" % (k, v["f1"], v["f1_ci"], v["tok"], v["sec"], v["share_exp"]))

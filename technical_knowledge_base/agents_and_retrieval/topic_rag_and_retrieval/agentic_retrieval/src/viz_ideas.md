@@ -19,8 +19,10 @@ Scores 0 to 2 on the Methodology's questions (moves with a parameter, reproduces
 | Trajectory comparer (own tab) | 40 questions, five strategies side by side, step chips with gold marked, thoughts, answers, bins, and one clock in recorded seconds across all lanes (play, scrub), counters for calls, billed and computed tokens | root runs via s_traj.py | Tab | 12 |
 | Router lab (own tab) | Pick cheap and expensive paths, a signal and the escalated share; F1, EM, tokens, seconds with bootstrap CI; cost-accuracy plot with the policy's curve, the random-split line, all always-X points and the oracle | outcomes.json, router.json | Tab | 12 |
 | Long-context calculator (own tab) | Tokens, dollars per query and per day at dated list prices with cache writes, seconds to first token from the fitted prefill model, KV GiB from configs, window and extrapolation flags; a to-scale race of time to first token (RAG vs uncached vs cached); predicted-vs-recorded validation scatter; accuracy against tokens read | longctx.json, prices from the production child | Tab | 12 |
-| Root position result | The root's 20-paragraph lost-in-the-middle run, with its intervals stated | root position run via s_post.py | Reading, section 8 | 7 |
-| Dashed pending boxes | Every number awaiting a generator run, with the command and time estimate; fill automatically from data/pending.json | s_post.py | inline | n/a |
+| Root position result | The root's 20-paragraph lost-in-the-middle run for 1.7B and 4B, with its paired intervals stated | root position run via s_post.py | Reading, section 8 | 8 |
+| Lost in the middle by length | 5 / 10 / 40 / 80 paragraphs x 5 positions, 50 questions, the dip deepening with length | s_pending.py lim (generator, bench lock) | Reading, section 8 (table in the filled pending box) | 10 |
+| Out-of-range prefill check | Orange points on the validation scatter: 49 calls at 9k to 15k tokens against the model fitted below 8k | s_longctx.py | Long-context tab | 8 |
+| Dashed pending boxes | Every number awaiting a generator run, with the command and time estimate; filled automatically from data/pending.json when the runs exist (all 1.7B runs were made on 2026-10-15) | s_post.py | inline | n/a |
 
 ## Rejected
 
@@ -30,8 +32,7 @@ Scores 0 to 2 on the Methodology's questions (moves with a parameter, reproduces
 | Live agent in the page | No network, no model in the sandboxed iframe; recorded runs are exact |
 | Entity graph drawings | The GraphRAG child owns graphs |
 | An animated deep-research architecture diagram | Nothing was run; a table read from source with file and line teaches more than motion over boxes |
-| Answer-level numbers for IRCoT, Self-Ask, FLARE, CRAG, budgets, memory, long lengths | Need the generator; the bench lock was held by the root and three children were queued: shown as pending boxes with commands |
-| A 4B column everywhere | The root's 4B runs were still in its chain; pending |
+| A 4B column everywhere | Only where the root or this page ran the 4B (strategies, position, optional block); the 4B answered with a different prompt in the root's runs, so mixing is labelled |
 
 ## What the methodology lacked for this page
 

@@ -49,12 +49,18 @@ def rec(r, role):
 
 
 # ---------------------------------------------------------------- IRCoT
-IRCOT = ("Answer the question by reasoning one sentence at a time, using the paragraphs.\n\n{ctx}\n\nQuestion: {q}\n"
-         "Reasoning so far: {cot}\nWrite the next single sentence of reasoning. When you know the answer, write a sentence that "
-         "ends with: So the answer is: <short answer>.")
+IRCOT = {
+    "i1": ("Answer the question by reasoning one sentence at a time, using the paragraphs.\n\n{ctx}\n\nQuestion: {q}\n"
+           "Reasoning so far: {cot}\nWrite the next single sentence of reasoning. When you know the answer, write a sentence that "
+           "ends with: So the answer is: <short answer>."),
+    "i2": ("Answer the question by reasoning one sentence at a time, using the paragraphs.\n\n{ctx}\n\nQuestion: {q}\n"
+           "Reasoning so far: {cot}\nWrite the next single sentence of reasoning: state ONE fact from the paragraphs that the question "
+           "needs, naming the person, place or thing it is about. Do not give the answer until the reasoning so far states every "
+           "fact the question needs. Then write only: So the answer is: <a name, date, number, or yes/no>."),
+}
 
 
-def ircot(q, cache, model, k=3, steps=4, offline=False):
+def ircot(q, cache, model, k=3, steps=4, prompt="i1", offline=False):  # i1 chosen on 60 held-out questions (F1 0.541 vs 0.459)
     t0 = time.perf_counter()
     seen, calls, searches, cot, out = [], [], [], [], []
     query = q["question"]
@@ -64,7 +70,7 @@ def ircot(q, cache, model, k=3, steps=4, offline=False):
         pids = [p for p, _ in hits]
         seen += pids
         searches.append({"query": query, "pids": pids, "ms": round(ms, 2)})
-        r = G.chat(IRCOT.format(ctx=fmt(seen), q=q["question"], cot=" ".join(cot) or "(none)"), cache, model, max_tokens=64,
+        r = G.chat(IRCOT[prompt].format(ctx=fmt(seen), q=q["question"], cot=" ".join(cot) or "(none)"), cache, model, max_tokens=64,
                    stop_s=["\n"], tag="ircot", offline=offline)
         if r is None:
             return None
@@ -72,12 +78,11 @@ def ircot(q, cache, model, k=3, steps=4, offline=False):
         sent = r["text"].strip().split("\n")[0]
         cot.append(sent)
         out.append({"kind": "search", "query": query, "pids": pids, "thought": sent})
-        m = re.search(r"(?i)answer is\s*:?\s*(.+)", sent)
-        if m:
-            answer = clean_answer(m.group(1))
+        if re.search(r"(?i)answer is", sent):
             break
         query = sent  # IRCoT: the latest reasoning sentence is the next query
-    if answer is None:
+    # IRCoT separates retrieval from reading: a reader answers from every collected paragraph (with the reasoning as notes)
+    if True:
         rf = G.chat(ST.FINAL.format(ctx=fmt(seen), notes=" ".join(cot), q=q["question"]), cache, model, max_tokens=32, tag="final", offline=offline)
         if rf is None:
             return None
@@ -95,24 +100,37 @@ SELFASK = ("Answer the question. If it needs facts you do not have, ask follow-u
            "So the final answer is: Muhammad Ali\n\nQuestion: {q}\nAre follow up questions needed here: Yes.\n{trace}")
 
 
+SELFASK_NEXT = ("Answer the question by asking follow-up questions; each follow-up is searched and answered for you. Example:\n"
+                "Question: Who lived longer, Muhammad Ali or Alan Turing?\nFollow up: How old was Muhammad Ali when he died?\n"
+                "Intermediate answer: 74\nFollow up: How old was Alan Turing when he died?\nIntermediate answer: 41\n"
+                "So the final answer is: Muhammad Ali\n\nNow:\nQuestion: {q}\n{trace}\n"
+                "Write only the next line. If another fact is needed, write: Follow up: <one short question naming the person, place "
+                "or thing>. If the intermediate answers are enough, write: So the final answer is: <a name, date, number, or yes/no>.")
+
+
 def selfask(q, cache, model, k=3, steps=4, offline=False):
+    """Self-Ask with search, as a chat model: each call writes the next line (a follow-up or the final answer); the
+    follow-up is searched (k 3) and answered by the model from those paragraphs; at the step limit a reader answers
+    from every paragraph with the trace as notes."""
     t0 = time.perf_counter()
     seen, calls, searches, out, trace = [], [], [], [], ""
     answer = None
     for i in range(steps + 1):
-        r = G.chat(SELFASK.format(q=q["question"], trace=trace), cache, model, max_tokens=60, stop_s=["Intermediate answer:"],
-                   tag="selfask", offline=offline)
+        r = G.chat(SELFASK_NEXT.format(q=q["question"], trace=trace.strip()), cache, model, max_tokens=48, stop_s=["\n"],
+                   tag="selfask2", offline=offline)
         if r is None:
             return None
         calls.append(rec(r, "step"))
-        txt = r["text"]
-        m = re.search(r"(?i)final answer is\s*:?\s*(.+)", txt)
-        fu = re.search(r"(?i)Follow up:\s*(.+)", txt)
-        if m and (not fu or m.start() < fu.start()) or i == steps or not fu:
-            answer = clean_answer(m.group(1)) if m else clean_answer(txt)
+        line = r["text"].strip().split("\n")[0]
+        m = re.search(r"(?i)final answer is\s*:?\s*(.+)", line)
+        fu = re.search(r"(?i)follow[ -]?up\s*:\s*(.+)", line)
+        if m:
+            answer = clean_answer(m.group(1))
             out.append({"kind": "finish", "answer": answer})
             break
-        follow = fu.group(1).strip().split("\n")[0]
+        if not fu or i == steps:
+            break
+        follow = fu.group(1).strip()
         hits, ms = S.timed(follow, k, exclude=set(seen))
         pids = [p for p, _ in hits]
         seen += pids
@@ -124,7 +142,15 @@ def selfask(q, cache, model, k=3, steps=4, offline=False):
         ia = clean_answer(ra["text"])
         out.append({"kind": "search", "query": follow, "pids": pids, "sub_answer": ia})
         trace += "Follow up: %s\nIntermediate answer: %s\n" % (follow, ia)
-    return {"answer": answer or "", "calls": calls, "searches": searches, "seen": seen, "steps": out, "wall_s": time.perf_counter() - t0}
+    if answer is None:
+        rf = G.chat(ST.FINAL.format(ctx=fmt(seen), notes=trace or "(none)", q=q["question"]), cache, model, max_tokens=32, tag="final",
+                    offline=offline)
+        if rf is None:
+            return None
+        calls.append(rec(rf, "answer"))
+        answer = clean_answer(rf["text"])
+        out.append({"kind": "answer", "text": rf["text"]})
+    return {"answer": answer, "calls": calls, "searches": searches, "seen": seen, "steps": out, "wall_s": time.perf_counter() - t0}
 
 
 # ---------------------------------------------------------------- FLARE-style
@@ -311,7 +337,7 @@ def main(argv):
     else:
         cache = AG.Cache("%s_%s" % (model, job))
         base = JOBS[job]
-        kw = {k: (float(v) if "." in v else int(v)) if k not in ("how",) else v for k, v in opts.items()}
+        kw = {k: (float(v) if "." in v else int(v)) if k not in ("how", "prompt") else v for k, v in opts.items()}
         fn = lambda q, c, m, offline=False: base(q, c, m, offline=offline, **kw)  # noqa: E731
     rows, t0 = [], time.time()
     for i, q in enumerate(qs):
