@@ -46,7 +46,7 @@
       'All six layouts computed the same training run: largest loss gap from one device '+mxl.toExponential(1)+' over '+D.steps+' steps (float32 rounding; the order of additions changes with the layout).',
       'Memory per device for parameters and Adam state: '+S.fmtB(dp.param_b+dp.opt_b)+' replicated, '+S.fmtB(tp.param_b+tp.opt_b)+' with 4-way tensor parallelism, '+S.fmtB(f.param_b+f.opt_b)+' with 8-way FSDP.',
       'Annotating only the weights for FSDP sent '+(sent(fn)/sent(f)).toFixed(0)+'&times; the bytes of the version with one activation constraint per block. Check the HLO, then constrain activations.',
-      'Tensor parallelism: '+fwdAR(tp)+' forward all-reduces for 4 blocks, as Megatron predicts. With the older GSPMD propagator the same annotations gave '+(gtp['all-reduce']?gtp['all-reduce'][0]:0)+' all-reduces and '+(gtp['all-gather']?gtp['all-gather'][0]:0)+' all-gathers.',
+      'Tensor parallelism: '+fwdAR(tp)+' forward all-reduces for 4 blocks, as Megatron predicts. With the older GSPMD propagator the same annotations gave '+(gtp['all-reduce']?gtp['all-reduce'][0]:0)+' all-reduces and '+(gtp['all-gather']?gtp['all-gather'][0]:0)+' all-gathers (84 of them in the optimiser update on small replicated parameters it split over the model axis, 29 in LayerNorm: see the mistakes below).',
       'Two CPU-only differences (no reduce-scatter formed, no all-reduce reassociation) come from passes the GPU pipeline runs and the CPU one lacks; read collective counts from the backend you will train on.'].map(s=>'<li>'+s+'</li>').join('');
     $('sh-mx-loss').textContent=mxl.toExponential(1);
     $('sh-gs-tp').innerHTML=(gtp['all-reduce']?gtp['all-reduce'][0]:0)+' all-reduces and '+(gtp['all-gather']?gtp['all-gather'][0]:0)+' all-gathers'}
