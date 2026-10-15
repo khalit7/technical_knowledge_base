@@ -12,7 +12,7 @@ Each item is a dashed box on the page (id in brackets) or a null in `../parts/22
 | 6 | Section 5 (`rd-todo-coll`) | Collectives found in the compiled HLO per strategy, their bytes, per-device parameter bytes, loss equality | Sharding lab |
 | 7 | Section 6 (`rd-todo-pallas`) | Kernels written in interpret mode and their agreement with jnp | TPU and Pallas lab |
 | 8 | Section 7 (`rd-todo-mfu`) | MaxText's published MFU table, dated, with slice | pinned MaxText clone or codebases child |
-| 9 | Section 8 (`rd-todo-twin`) | Twins trained side by side: final losses, max curve difference and why, rough CPU step times | Training lab |
+| 9 | Section 8 twin row | Filled from setup's 500-step equiv.json (val 2.0692 PyTorch, 2.0691 JAX; curves within 2.9e-5; step times) via make_read_data.py | done |
 | 10 | Mistakes (`rd-todo-donate`) | memory_analysis with and without donation | Compiler lab |
 | 11 | Interview (`rd-todo-port`) | Defaults that differed between the twins, confirmed in pinned source | setup equivalence check, Training lab |
 | 12 | Further reading (`rd-todo-free`) | Colab, Kaggle, TRC facts | TPU and Pallas lab FACTS |
