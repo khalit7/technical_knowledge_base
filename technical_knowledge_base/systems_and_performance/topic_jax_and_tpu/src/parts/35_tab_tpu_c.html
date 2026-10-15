@@ -1,0 +1,60 @@
+<section id="tp-s5">
+<h2>5. Pallas from zero</h2>
+<p>XLA writes nearly every kernel of a JAX program, and fuses elementwise work into its matmuls well (the {{Compiler lab|#t-xla}} shows it). It cannot invent an algorithm, though: it will not turn attention into flash attention (never writing the <i>T</i> &times; <i>T</i> score matrix to HBM), route tokens to experts with ragged matmuls, or overlap a matmul with a collective by hand. For those you write a kernel, and on JAX that means <dfn>Pallas</dfn>. Five ideas are all of it:</p>
+<ul class="tight">
+<li><dfn>Kernel</dfn>: a Python function over <dfn>refs</dfn>, mutable views of buffers in VMEM (or SMEM). You read with <code>x_ref[...]</code> and write with <code>o_ref[...] = </code>; inside, ordinary <code>jnp</code> code runs on the tile.</li>
+<li><dfn>Grid</dfn>: a tuple of loop bounds. The kernel body runs once per grid point; <code>pl.program_id(axis)</code> says which. On a TPU the points run <i>in order</i>, as nested loops (Pallas's TPU docs: "sequentially, in lexicographic order"), unlike a GPU, where Triton's program instances run in parallel.</li>
+<li><dfn>BlockSpec</dfn>(<i>block_shape</i>, <i>index_map</i>): for each input and output, the tile size and a function from grid point to <i>block index</i> (which tile). Pallas turns this into the HBM to VMEM copies, double-buffered so the next tile arrives while this one is used, and skips a copy when consecutive grid points ask for the same tile.</li>
+<li><dfn>Dimension semantics</dfn>: <code>"parallel"</code> (order does not matter, so the axis may be split across a megacore's two cores) or <code>"arbitrary"</code> (must run in order, as an accumulation must). The default is all arbitrary (<code>lowering.py:778</code>).</li>
+<li><dfn>Backends</dfn>: on TPU the kernel lowers to <dfn>Mosaic</dfn>, an MLIR dialect that libtpu compiles; on GPU to Triton or to Mosaic GPU; anywhere, <code>interpret=True</code> runs it as ordinary JAX (section 6 shows what that does and does not tell you).</li>
+</ul>
+<div class="tw"><table class="tp-t"><thead><tr><th>Idea</th><th>Pallas (TPU)</th><th>Triton (GPU)</th><th>PyTorch or CUDA counterpart</th></tr></thead><tbody>
+<tr><td>which instance am I</td><td><code>pl.program_id(i)</code>, grid runs in order</td><td><code>tl.program_id(i)</code>, instances run in parallel</td><td><code>blockIdx</code></td></tr>
+<tr><td>which tile to load</td><td><code>BlockSpec</code> index map; copies generated and pipelined for you</td><td>pointer arithmetic or block pointers, <code>tl.load</code> with masks</td><td>indexing by hand into shared memory</td></tr>
+<tr><td>fast memory</td><td>VMEM, 16 to 128 MiB per core</td><td>shared memory, up to a few hundred KiB per SM</td><td><code>__shared__</code></td></tr>
+<tr><td>edges</td><td>block shape divisible by (8, 128) or equal to the array; ragged edges padded</td><td>masks on every load and store</td><td>bounds checks</td></tr>
+<tr><td>matrix unit</td><td><code>jnp.dot</code> on tiles goes to the MXU</td><td><code>tl.dot</code> to tensor cores</td><td>WMMA, wgmma</td></tr>
+<tr><td>calling it</td><td><code>pl.pallas_call(kernel, out_shape, grid, in_specs, out_specs)</code>, inside <code>jax.jit</code></td><td><code>kernel[grid](...)</code></td><td><code>torch.library</code> custom op</td></tr>
+</tbody></table></div>
+<p class="small mute">Triton itself, and how GPU kernels are tuned, live on {{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}} under {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}.</p>
+<div class="tp-box" id="tp-gr-card">
+<h4>The running example's MLP matmul, before and after tiling: which tile each grid step loads into VMEM</h4>
+<p class="small">A = the MLP's hidden activations of layer 0 [4,096 &times; 512], B = its down-projection weight [512 &times; 128], O = A B [4,096 &times; 128]. Drawn to scale. Pick a block shape; "whole arrays" is the before, a grid of one step.</p>
+<div class="seg" id="tp-gr-cfg"><span class="lbl">Blocks (bm, bn, bk)</span></div>
+<div class="seg" id="tp-gr-mode"><span class="lbl">Order</span></div>
+<div class="tp-anctl" id="tp-gr-ctl"></div>
+<div class="tp-svgw" id="tp-gr-svg"></div>
+<div class="tp-cap" id="tp-gr-cap"></div>
+<div class="tp-cnt" id="tp-gr-cnt"></div>
+<p class="tp-src">The order of grid points is <span class="tp-meas">measured</span>: recorded by the TPU interpreter's <code>grid_point_recorder</code> while it ran the kernel of section 6 (1 core: lexicographic, k innermost; 2 cores with <code>("parallel", "parallel", "arbitrary")</code>: each core took 4 of the 8 row blocks, in an order the interpreter shuffles on purpose, here with seed 0). Copies and bytes are <span class="tp-der">calculated</span> with Pallas's rule (copy a tile only when its block index changes), bf16 inputs and a float32 output, two buffers per operand.</p>
+</div>
+</section>
+
+<section id="tp-s6">
+<h2>6. Two kernels, run here in interpret mode</h2>
+<p>Both run on the running example's real tensors (layer 0, training batch 0, the shared initial weights) and are checked against <code>jnp</code>. This is the code that ran (<code>src/tpu/tp_kernels.py</code>):</p>
+<details class="tp-det" open><summary>Tiled matmul with a K loop</summary><pre id="tp-code-mm"></pre></details>
+<details class="tp-det"><summary>Causal flash attention, forward (online softmax)</summary><pre id="tp-code-fa"></pre></details>
+<div class="tw"><table class="tp-t" id="tp-res-t"><thead><tr><th>Kernel, input</th><th>grid, blocks</th><th class="num">max |error| vs jnp</th><th class="num">time: XLA</th><th class="num">time: interpret</th></tr></thead><tbody></tbody></table></div>
+<p class="tp-src">Errors <span class="tp-meas">measured</span> (deterministic). Times are rough: measured on Apple M1 Pro (CPU), shared machine, 4 threads, low priority (1-minute load about 29 during the run), median of 5 after a warm-up.</p>
+<p>What the numbers say. The matmul agrees with XLA to float32 rounding (2.5e-7 on outputs up to 0.26); fed bf16 inputs, as an MXU would be, it is off from the float32 answer by 7.1e-4, and matches XLA's own bf16 matmul to 1.2e-7, so the error is bf16's, not the kernel's. Flash attention agrees with the model's attention to 8.9e-8 while computing only 384 of its 512 blocks (for each head, the block where the first 64 queries meet the last 64 keys is entirely masked by causality, and the <code>pl.when</code> skips it), and never stores the 8.4 MB score matrix. Interpret mode is 10 times slower than XLA on the matmul and 70 times on attention: it is a correctness tool. What it builds explains why: the jitted interpreted matmul lowers to 147 lines of StableHLO with one <code>while</code> loop over the 32 grid points, 3 <code>dynamic_slice</code> and 3 <code>dynamic_update_slice</code>, where <code>a @ b</code> lowers to 6.</p>
+<h3>What each interpret mode catches</h3>
+<p>Pallas has two interpreters. <code>interpret=True</code> is the plain one (<code>hlo_interpreter.py</code>). Passing <code>interpret=pltpu.InterpretParams(...)</code> selects the <dfn>TPU interpreter</dfn>, which simulates the TPU's DMAs, semaphores and cores, checks every block index, and can run a race detector. Three deliberate bugs in the matmul above:</p>
+<div class="tw"><table class="tp-t" id="tp-bug-t"><thead><tr><th>Bug</th><th>interpret=True</th><th>TPU interpreter</th></tr></thead><tbody></tbody></table></div>
+<p class="small">The second bug is the dangerous one: the plain interpreter drops <code>compiler_params</code> (<code>hlo_interpreter.py:329</code>), so it never sees the wrong semantics, and on a single-core chip the real compiler would run the axis in order anyway. On a megacore chip the two cores would race on the same output tile. The TPU interpreter shuffles parallel axes on purpose to expose this: here it ran k = 1 before k = 0 for the first output tile, so the zeroing step erased a partial sum. The third bug is silent in plain interpret mode because its <code>dynamic_slice</code> clamps an out-of-range start (XLA's rule) and quietly re-reads the last tile.</p>
+<h3>What JAX hands the TPU compiler, produced on this CPU</h3>
+<p><code>jax.export</code> can lower a function for a platform the machine does not have. Lowered for <code>"tpu"</code>, the matmul becomes one <code>stablehlo.custom_call @tpu_custom_call</code> whose payload is a Mosaic module; <code>debug=True</code> prints it. This is the program libtpu would compile (not run here: compiling needs libtpu and a TPU). Note the refs typed <code>#tpu.memory_space&lt;vmem&gt;</code>, the grid as <code>iteration_bounds</code>, each index map turned into a <code>transform_</code> function, and <code>jnp.dot</code> into <code>tpu.matmul</code>. The flash kernel lowers too, to two <code>tpu.matmul</code> ops.</p>
+<details class="tp-det"><summary>The Mosaic module for the matmul (bf16 inputs, blocks 512 &times; 128 &times; 128)</summary><pre id="tp-mosaic"></pre></details>
+<p>Lowering for TPU also enforces the tiling rule that interpret mode does not. With a block of 100 rows:</p>
+<div class="tp-err" id="tp-badblock"></div>
+<p class="small">The same kernel runs under <code>interpret=True</code> and gives the right answer (error 2.1e-7): a kernel that passes in interpret mode can still be rejected by the TPU compiler. Lowering with <code>jax.export(..., platforms=["tpu"])</code> on your laptop catches this class of error before you pay for a TPU.</p>
+</section>
+
+<section id="tp-s7">
+<h2>7. Block sizes: VMEM against HBM traffic</h2>
+<p>The block shape is the one decision that matters in a Pallas matmul. Small blocks re-read A and B many times from HBM; large blocks need more VMEM (and, beyond what fits, the kernel fails to compile). The table counts, with Pallas's skip-if-unchanged rule, the bytes each choice moves for the running example's MLP matmul and for one 7B-class MLP matmul (4,096 tokens, 4,096 to 11,008).</p>
+<div class="seg" id="tp-tr-gen"><span class="lbl">VMEM of</span></div>
+<div class="tw"><table class="tp-t" id="tp-tr-t"><thead><tr><th>Matmul</th><th>blocks (bm, bn, bk)</th><th class="num">grid steps</th><th class="num">HBM to VMEM (and back)</th><th class="num">vs the minimum</th><th class="num">VMEM, 2 buffers</th><th>fits</th></tr></thead><tbody></tbody></table></div>
+<p class="tp-src"><span class="tp-der">Calculated</span> in src/tpu/tp_pallas.py; each of the running example's six choices was also lowered for TPU (all legal). "Minimum" = every input read once and the output written once. Fits = against the chosen generation's VMEM per core in <code>tpu_info.py</code>; the compiler also applies a default per-kernel (scoped) limit, which <code>pltpu.CompilerParams(vmem_limit_bytes=...)</code> overrides (<code>mosaic/core.py:97</code>).</p>
+<p>The pattern: with bk the full K, A is read once, and B once per row of blocks; HBM traffic falls towards the minimum as bm grows, while VMEM grows linearly. For the 7B-class matmul, 128-cubed blocks move 19.6 times the minimum traffic, whose arithmetic intensity is then far below any ridge point; 512 &times; 5,504 &times; 256 blocks move 3.2 times the minimum in 27 MiB of VMEM, too much for v4's 16 MiB per core. Autotuning a kernel is searching this table with real timings.</p>
+</section>
