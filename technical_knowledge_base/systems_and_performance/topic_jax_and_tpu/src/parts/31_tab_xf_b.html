@@ -1,0 +1,50 @@
+<section id="xf-s2">
+<h2>2. Static and dynamic values; Python control flow against lax</h2>
+<p><b>The rule.</b> While tracing, a value is either <dfn>static</dfn> (known to Python now: shapes, dtypes, Python numbers, arguments marked <code>static_argnums</code>) or <dfn>dynamic</dfn> (a tracer: known only when the compiled program runs). Python may branch and loop on static values freely; the branch taken is simply baked into the program. It cannot branch on a dynamic value, because there is no value yet. The real errors, from this run:</p>
+<pre class="xf-code">@jax.jit
+def f_if(x):
+    if x.sum() &gt; 0:       # needs a Python bool from a tracer
+        return x
+    return -x</pre>
+<pre class="xf-code xf-err" data-xf-text="tr.err_if"></pre>
+<pre class="xf-code">@jax.jit
+def f_int(x):
+    return jnp.zeros(int(x.sum()))   # a shape that depends on data</pre>
+<pre class="xf-code xf-err" data-xf-text="tr.err_int"></pre>
+<p>The second error is the deeper rule: <b>no array may have a shape that depends on data</b>, because XLA compiles for fixed shapes. Variable-length work is padded to a fixed size and masked.</p>
+<p><b>The structured replacements</b>, all primitives in the jaxpr:</p>
+<ul class="tight">
+<li><code>jnp.where(c, a, b)</code>: both sides computed, then selected elementwise (a <code>select_n</code>). Cheap for small branches.</li>
+<li><code>jax.lax.cond(pred, true_fn, false_fn, x)</code>: both branches traced and compiled into one <code>cond</code> primitive; one runs. On the inputs [-1, -2, 0.5] it returned <span data-xf="tr.cond_val"></span>.</li>
+<li><code>jax.lax.scan(f, carry, xs)</code>: a loop with a carried state, compiled once. <code>jax.lax.fori_loop</code> with bounds known at trace time becomes a <code>scan</code> (seen in the jaxpr below); with traced bounds it becomes a <code>while</code>, which reverse-mode <code>grad</code> cannot differentiate.</li>
+</ul>
+<div class="xf-box"><h4>The same 10-step loop, four ways (real jaxprs)</h4>
+<pre class="xf-code">def body(i, c): return c * 0.5 + i
+# python for: for i in range(10): c = body(i, c)
+# lax.fori_loop(0, 10, body, c);  lax.scan(step, c, jnp.arange(10));  lax.while_loop(cond, step, (0, c))</pre>
+<div class="tw"><table class="xf-t" id="xf-loops"></table></div>
+<p class="small mute">"Equations" counts the top-level jaxpr; "inside" adds the equations of nested bodies. All four return the same value. Script <code>src/xf/run_trace.py</code>.</p></div>
+<p><b>Why it matters at model scale.</b> The running example's forward pass loops over its 4 layers in Python, so the trace contains every layer. Written with <code>lax.scan</code> over stacked layer weights (the setup's <code>apply_scan</code>, same logits to the last bit), the traced program holds one layer whatever the depth:</p>
+<div class="xf-box"><h4>Jaxpr size against depth: Python loop (unrolled) against lax.scan</h4>
+<div class="xf-chart" id="xf-scan-chart"></div>
+<div class="xf-leg"><span><i style="background:var(--c2)"></i>Python loop: equations in the trace</span><span><i style="background:var(--c1)"></i>lax.scan: equations, body included</span></div>
+<p class="small mute" id="xf-scan-note"></p></div>
+<p>Compile time grows with program size, which is why large-model code (MaxText, levanter) scans over layers; the compile-time side is measured in the {{Compiler lab|#t-xla}}.</p>
+</section>
+
+<section id="xf-s3">
+<h2>3. jit: one trace per signature, and when it recompiles</h2>
+<p><b>How the cache works.</b> <code>jax.jit(f)</code> returns a wrapper. On each call, a C++ fast path builds a key from the arguments and looks it up; on a miss, Python code traces <code>f</code>, lowers the jaxpr and asks XLA to compile it, then stores the executable. The key (read from the pinned source, section 10) is: the Python function object, the jit options, the <dfn>signature</dfn> (the pytree structure of the arguments and the values of static arguments) and the abstract value of every array leaf (shape, dtype, weak type, sharding). Nothing else. Not the numbers in the arrays, not the values of globals.</p>
+<p><b>Counted, not guessed.</b> Each drill below warmed a fresh jitted function of the running example's loss, then made the calls shown and counted Python traces (a counter inside the function) and XLA compiles (JAX's own monitoring event <code>/jax/core/compile/backend_compile_duration</code>), with <code>jax_explain_cache_misses</code> on to capture JAX's explanation. Predict first.</p>
+<div class="xf-score" id="xf-dr-score"></div>
+<div id="xf-drills"></div>
+<p class="small mute">Script <code>src/xf/run_recompile.py</code>; counts are deterministic. Explanation text is JAX's log, with file paths replaced by "the call site".</p>
+<div class="co"><div class="t">Rules that fall out</div>
+<ul class="tight">
+<li>Pad to a few fixed shapes (buckets) instead of feeding ragged lengths; drop or pad the last batch.</li>
+<li>Mark an argument static only when it changes the program (a flag, a layer count); never a value that changes every step.</li>
+<li>Jit once, outside the loop. A new lambda per step compiles every step.</li>
+<li>Anything that varies goes in as an argument; a global read inside a jitted function is frozen at trace time.</li>
+<li>To watch a running job: <code>jax.config.update("jax_explain_cache_misses", True)</code> logs every miss with its reason; <code>jax_log_compiles</code> logs each compile.</li>
+</ul></div>
+</section>

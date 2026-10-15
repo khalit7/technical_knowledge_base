@@ -1,0 +1,48 @@
+<section id="xf-s4">
+<h2>4. Pure functions: side effects run once, at trace time</h2>
+<p>A <dfn>pure function</dfn> computes its outputs from its inputs only and changes nothing outside itself. JAX needs purity because of section 1: the Python body runs only while tracing, and later calls run the compiled program, which contains array operations and nothing else. Anything Python does on the side (print, append to a list, increment a counter, read the clock, draw a NumPy random number) happens once, at trace time, or is frozen into the program as a constant. PyTorch has no such rule, because eager mode runs your Python every step.</p>
+<div class="xf-box"><h4>One jitted function, three calls (real run)</h4>
+<pre class="xf-code">log, count = [], [0]
+
+@jax.jit
+def f_side(x):
+    count[0] += 1                 # Python side effect
+    log.append(x)                 # keeps a reference to a tracer
+    jax.debug.print("debug.print sees x[0] = {v}", v=x[0])
+    return x * 2
+
+for i in range(3):
+    f_side(jnp.full(4, float(i)))</pre>
+<div class="tw"><table class="xf-t" id="xf-side"></table></div>
+<p>Using the saved value later:</p>
+<pre class="xf-code xf-err" data-xf-text="side.leak"></pre>
+<p class="small mute">That is a <dfn>tracer leak</dfn>: a tracer escaped the function it belonged to. Script <code>src/xf/run_basics.py</code>.</p></div>
+<p>Two more that run without any error, which makes them worse:</p>
+<ul class="tight">
+<li><code>x + np.random.rand()</code> inside a jitted function returned <span data-xf="side.nprand"></span> on three calls: NumPy's generator ran once, while tracing, and its number became a constant. Use <code>jax.random</code> with a key (section 6).</li>
+<li><code>x + time.time()</code> returned the same value on two calls 50 ms apart (<span data-xf="side.time"></span>): the clock was read once.</li>
+<li>A global read inside a jitted function is frozen the same way: drill "A global changed between calls" in section 3 returned <span data-xf="side.global"></span> both times after the global was multiplied by 100.</li>
+</ul>
+<p><b>Safe ways to look inside:</b> <code>jax.debug.print</code> (runs every call, as above), <code>jax.debug.callback</code> (calls any Python function with the runtime values), and returning the values you want as extra outputs (the <code>has_aux</code> pattern of section 8). Logging a metric every step means returning it from the step function.</p>
+</section>
+
+<section id="xf-s5">
+<h2>5. Arrays are immutable</h2>
+<p>A JAX array never changes after it is created; operations return new arrays. This is what makes purity cheap to check, and the compiler gets the in-place update back where it is safe (inside <code>jit</code>, and across steps with buffer donation, measured in the {{Compiler lab|#t-xla}}). The indexed-update API is <code>x.at[index].set / add / multiply / min / max / get</code>.</p>
+<div class="tw"><table class="xf-t" id="xf-immut"></table></div>
+<pre class="xf-code xf-err" data-xf-text="immut.setitem"></pre>
+<p><b>Two behaviours that differ from PyTorch:</b></p>
+<ul class="tight">
+<li><b>Repeated indices accumulate in JAX.</b> <code>x.at[[0, 0, 0]].add(1.0)</code> adds 3 to <code>x[0]</code> (scatter-add). PyTorch's <code>t[[0, 0, 0]] += 1</code> adds only 1, because it gathers, adds, then writes back; <code>index_put_(..., accumulate=True)</code> is the accumulating form.</li>
+<li><b>Out-of-bounds indices do not raise in JAX.</b> On a 5-element array, <code>x[10]</code> returned <span data-xf="oob.get"></span> (clamped to the last element), <code>x[-10]</code> returned <span data-xf="oob.neg"></span> (clamped to the first), and <code>x.at[10].set(99.0)</code> silently did nothing. An error would need a host check on device data, so XLA clamps gathers and drops out-of-range scatters. PyTorch raised <code data-xf="oob.torch"></code>. Use <code>.at[i].get(mode="fill", fill_value=...)</code> to make out-of-range reads visible: <code>x.at[[1, 7]].get(mode="fill", fill_value=-1.0)</code> gave <span data-xf="immut.fill"></span>.</li>
+</ul>
+</section>
+
+<section id="xf-s6">
+<h2>6. Randomness is a value: keys instead of a global generator</h2>
+<p><b>The problem.</b> <code>torch.manual_seed(0)</code> seeds a hidden global generator whose state advances on every call. A pure function cannot use hidden state, and a traced function would freeze it (section 4). So JAX makes the generator state an explicit array, a <dfn>key</dfn>, that you pass in like any other argument.</p>
+<div class="tw"><table class="xf-t" id="xf-prng"></table></div>
+<p><b>How to use keys.</b> Never use a key twice. <code>key, sub = jax.random.split(key)</code> makes new independent keys (keep one to split again, use the other); <code>jax.random.fold_in(key, step)</code> derives a key from an integer such as the step number, handy inside a training loop. Flax's <code>nnx.Rngs</code> does the splitting inside modules. In this run <code>fold_in(key, i)</code> and <code>split(key)[i]</code> drew the same numbers for i = 0 and 1 (<span data-xf="prng.foldsame"></span>), an observation about jax <span data-xf="ver.jax"></span>'s default implementation, not a documented guarantee: do not rely on it.</p>
+<p><b>Key reuse is the classic bug.</b> Two dropout masks drawn with the same key at keep probability 0.9 agreed on <span data-xf="prng.reuse"></span> of 4,096 positions: they are the same mask. Masks drawn from a key and a split key agreed on <span data-xf="prng.split"></span>, close to 0.9 &times; 0.9 + 0.1 &times; 0.1 = 82% for independent masks. Nothing errors; your two layers just drop the same units. (JAX has a checker, <code>jax_debug_key_reuse</code>, visible in the EvalTrace source in section 10.)</p>
+<p><b>Same key, same numbers, on any number of devices.</b> On 8 simulated CPU devices, <code>jax.random.normal(key, (8, 4096))</code> computed inside <code>jit</code> with its output sharded by rows over 8 devices, and over a 2 &times; 4 mesh, matched the single-device result exactly (maximum difference <span data-xf="prng.p8"></span>). <code>jax_threefry_partitionable</code> is on by default in this version (<span data-xf="prng.part"></span>); its help text in the pinned source (<a href="https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/config.py#L1402-L1413" target="_blank" rel="noopener noreferrer">jax/_src/config.py:1402</a>) says that without it, jax.random "may result in extraneous communication and/or redundant distributed computation". Turning it off gave the same values across shardings here too, but different numbers from the default (largest difference <span data-xf="prng.modes"></span>): the setting changes the stream, so switching it changes your initialisation. Script <code>src/xf/run_prng8.py</code>; the {{Sharding lab|#t-shard}} owns sharding.</p>
+</section>

@@ -1,0 +1,133 @@
+{
+ "repo": "https://github.com/jax-ml/jax",
+ "tag": "jax-v0.11.2",
+ "commit": "32544801e26115ac1794926d027148abf3baf009",
+ "excerpts": [
+  {
+   "id": "bind",
+   "file": "jax/_src/core.py",
+   "start": 728,
+   "end": 733,
+   "text": "    prev_trace = trace_ctx.trace\n    trace_ctx.set_trace(None)\n    try:\n      return self.bind_with_trace(prev_trace, args, avals, params)\n    finally:\n      trace_ctx.set_trace(prev_trace)",
+   "why": "Every primitive call goes through Primitive.bind, which hands the operation to the current trace's process_primitive. The trace in charge decides what 'doing' an operation means.",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/core.py#L728-L733"
+  },
+  {
+   "id": "bind_with_trace",
+   "file": "jax/_src/core.py",
+   "start": 735,
+   "end": 739,
+   "text": "  def bind_with_trace(self, trace, args, avals, params, /):\n    if self.is_high(*avals, **params) and trace.requires_low:\n      with set_current_trace(trace):\n        return self.to_lojax(*args, **params)\n    return trace.process_primitive(self, args, params)",
+   "why": "bind_with_trace: the one-line dispatch at the heart of every transformation.",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/core.py#L735-L739"
+  },
+  {
+   "id": "eval",
+   "file": "jax/_src/core.py",
+   "start": 1304,
+   "end": 1320,
+   "text": "class EvalTrace(Trace):\n\n  def stage_value(self, val):\n    if isinstance(val, Array):\n      return val\n    return self.process_primitive(stage_p, [val], {})\n\n  def process_primitive(self, primitive, args, params, /):\n    with set_current_trace(self):\n      if config.debug_key_reuse.value:\n        from jax.experimental.key_reuse._core import call_impl_with_key_reuse_checks  # pyrefly: ignore[missing-import]\n        return call_impl_with_key_reuse_checks(primitive, primitive.impl, *args, **params)\n      else:\n        # TODO(dougalm): delete. this shouldn't be necessary\n        args = map(full_lower, args)\n        check_eval_args(args)\n        return primitive.impl(*args, **params)",
+   "why": "The bottom of the stack: EvalTrace runs the primitive's implementation on real arrays (eager JAX).",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/core.py#L1304-L1320"
+  },
+  {
+   "id": "eval_jaxpr",
+   "file": "jax/_src/core.py",
+   "start": 803,
+   "end": 827,
+   "text": "def eval_jaxpr(jaxpr: Jaxpr, consts, *args, propagate_source_info=True) -> list[Any]:\n  def read(v: Atom) -> Any:\n    return v.val if isinstance(v, Literal) else env[v]\n\n  def write(v: Var, val: Any) -> None:\n    if config.enable_checks.value:\n      assert typecheck(v.aval, val), (v.aval, typeof(val), val)\n    env[v] = val\n\n  env: dict[Var, Any] = {}\n  foreach(write, jaxpr.all_invars, [*consts, *args])\n  lu = last_used(jaxpr)\n  for eqn in jaxpr.eqns:\n    bind_params = eqn.primitive.get_bind_params(eqn.params)\n    name_stack = source_info_util.current_name_stack() + eqn.source_info.name_stack\n    traceback = eqn.source_info.traceback if propagate_source_info else None\n    with (source_info_util.user_context(traceback, name_stack=name_stack),\n          eqn.ctx.manager):\n      ans = eqn.primitive.bind(*map(read, eqn.invars), **bind_params)\n    if eqn.primitive.multiple_results:\n      foreach(write, eqn.outvars, ans)\n    else:\n      write(eqn.outvars[0], ans)\n    clean_up_dead_vars(eqn, env, lu)\n  return map(read, jaxpr.outvars)",
+   "why": "eval_jaxpr: an interpreter over a jaxpr. It walks the equations in order and binds each primitive again, so whatever trace is current (jvp, vmap, another jit) transforms the replayed program.",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/core.py#L803-L827"
+  },
+  {
+   "id": "jit_trace",
+   "file": "jax/_src/interpreters/partial_eval.py",
+   "start": 1736,
+   "end": 1748,
+   "text": "  def process_primitive(self, primitive, tracers, params, /):\n    self.frame.is_high |= primitive.is_high(*map(typeof, tracers), **params)\n    if config.eager_constant_folding.value and not any(isinstance(x, Tracer) for x in tracers):\n      avals = tuple(core.typeof(x) for x in tracers)\n      return primitive.bind_with_trace(core.eval_trace, tracers, avals, params)\n    source_info = source_info_util.current()\n    to_jaxpr_tracer = partial(self.to_jaxpr_tracer, source_info=source_info)\n    jaxpr_tracers = map(to_jaxpr_tracer, tracers)\n    if primitive in custom_staging_rules:\n      return custom_staging_rules[primitive](self, source_info, *jaxpr_tracers,\n                                             **params)\n    return self.default_process_primitive(\n        primitive, jaxpr_tracers, params, source_info)",
+   "why": "DynamicJaxprTrace (the tracer under jit and make_jaxpr): it does not compute; it asks the primitive for its output abstract value and appends an equation to the jaxpr being built.",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/interpreters/partial_eval.py#L1736-L1748"
+  },
+  {
+   "id": "jvp",
+   "file": "jax/_src/interpreters/ad.py",
+   "start": 543,
+   "end": 560,
+   "text": "  def process_primitive(self, primitive, tracers, params, /):\n    primals_in, tangents_in = unzip2(map(self.to_primal_tangent_pair, tracers))\n    if (all(type(t) is Zero for t in tangents_in) and\n        primitive is not core.ref_p and primitive is not core.empty_ref_p and\n        not any(isinstance(typeof(x), AbstractRef) for x in primals_in)):\n      avals = tuple(core.typeof(x) for x in primals_in)\n      return primitive.bind_with_trace(self.parent_trace, primals_in, avals, params)\n    jvp = primitive_jvps.get(primitive)\n    if not jvp:\n      msg = f\"Differentiation rule for '{primitive}' not implemented\"\n      raise NotImplementedError(msg)\n    with core.set_current_trace(self.parent_trace):\n      primal_out, tangent_out = jvp(primals_in, tangents_in, **params)\n\n    if primitive.multiple_results:\n      return [maybe_jvp_tracer(self, x, t) for x, t in zip(primal_out, tangent_out)]\n    else:\n      return maybe_jvp_tracer(self, primal_out, tangent_out)",
+   "why": "JVPTrace (forward mode, jax.jvp): each tracer carries a primal and a tangent; process_primitive looks up the primitive's JVP rule in primitive_jvps and calls it on the parent trace.",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/interpreters/ad.py#L543-L560"
+  },
+  {
+   "id": "linearize",
+   "file": "jax/_src/interpreters/ad.py",
+   "start": 713,
+   "end": 733,
+   "text": "  def process_primitive(self, primitive, tracers, params, /):\n    primals_in, tangents_in = unzip2(map(self.to_primal_tangent_pair, tracers))\n    tangent_nzs = [type(t) is not Zero for t in tangents_in]\n    if (not any(tangent_nzs) and\n        primitive not in linearize_on_zero_tangents and\n        not any(isinstance(typeof(x), AbstractRef) for x in primals_in)):\n      avals = tuple(core.typeof(x) for x in primals_in)\n      return primitive.bind_with_trace(self.parent_trace, primals_in, avals, params)\n    fallback = partial(fallback_linearize_rule, primitive)\n    lin = primitive_linearizations.get(primitive, fallback)\n    with core.set_current_trace(self.parent_trace):\n      primal_out, tangent_nzs_out, residuals, structured_res, linearized = lin(\n          self.is_vjp, tangent_nzs, *primals_in, **params)\n    if structured_res is not None:\n      self.structured_residuals.append(structured_res)\n    new_arg = lambda x: self.tangent_trace.new_arg(typeof(x), source_info_util.current())\n    structured_res_binders = tree_map(new_arg, structured_res)\n    with (core.set_current_trace(self.tangent_trace),\n          source_info_util.set_name_stack(self._name_stack_suffix())):\n      tangent_out = linearized(residuals, structured_res_binders, *tangents_in)\n    if primitive.multiple_results:",
+   "why": "LinearizeTrace (what jax.grad uses in 0.11.2, through vjp and linearize): the primal is computed on the parent trace, the linear tangent part is recorded on a separate tangent trace, which is later transposed to run backwards.",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/interpreters/ad.py#L713-L733"
+  },
+  {
+   "id": "grad",
+   "file": "jax/_src/api.py",
+   "start": 551,
+   "end": 554,
+   "text": "    ans, vjp_py, *maybe_aux = vjp(f_partial, *dyn_args, has_aux=has_aux)\n    _check_scalar(ans)\n    tree_map(partial(_check_output_dtype_grad, holomorphic), ans)\n    g = vjp_py(lax_internal._one_vjp(ans))",
+   "why": "value_and_grad is vjp with a cotangent of 1.0: grad is not a separate mechanism.",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/api.py#L551-L554"
+  },
+  {
+   "id": "batch",
+   "file": "jax/_src/interpreters/batching.py",
+   "start": 253,
+   "end": 275,
+   "text": "  def process_primitive(self, p, tracers, params, /):\n    vals_in, dims_in = unzip2(map(self.to_batch_info, tracers))\n    unmapped_args = all(bdim is None for bdim in dims_in)\n    if p in fancy_primitive_batchers:\n      # TODO(yashkatariya): Remove remove_explicit_mesh_axis_names when vmap\n      # mesh ctx is correctly set.\n      with (core.set_current_trace(self.parent_trace),\n            core.remove_explicit_mesh_axis_names(self.axis_data.explicit_mesh_axis)):\n        val_out, dim_out = fancy_primitive_batchers[p](\n            self.axis_data, vals_in, dims_in, **params)\n        src = source_info_util.current()\n        if p.multiple_results:\n          return [BatchTracer(self, x, d, src) if d is not None else x\n                  for x, d in zip(val_out, dim_out)]\n        else:\n          return (BatchTracer(self, val_out, dim_out, src)\n                  if dim_out is not None else val_out)\n    elif unmapped_args:  # Not all primitives have batching rules defined\n      avals = tuple(core.typeof(x) for x in vals_in)\n      return p.bind_with_trace(self.parent_trace, tuple(vals_in), avals,\n                               dict(params))\n    else:\n      raise NotImplementedError(f\"Batching rule for '{p}' not implemented\")",
+   "why": "BatchTrace (vmap): each tracer carries a value and the dimension that is batched; process_primitive calls the primitive's batching rule, which returns the batched result and where its batch dimension now is.",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/interpreters/batching.py#L253-L275"
+  },
+  {
+   "id": "tanh_rule",
+   "file": "jax/_src/lax/lax.py",
+   "start": 4665,
+   "end": 4678,
+   "text": "tanh_p = standard_unop(_float | _complex, 'tanh')\nad.defjvp2(\n    tanh_p,\n    lambda g, ans, x, accuracy: mul(g,\n        mul(_const(x, 4),\n            mul(logistic(mul(_const(x, 2), x), accuracy=accuracy),\n                logistic(mul(_const(x, -2), x), accuracy=accuracy)),\n        ),\n    )\n    if accuracy is AccuracyMode.HIGHEST\n    else mul(g, one_minus_square(ans)),\n)\nmlir.register_lowering(tanh_p, partial(_nary_lower_hlo, hlo.tanh))\ncore.pp_eqn_rules[tanh_p] = _unary_with_accuracy_pp_rule",
+   "why": "Where a primitive gets its rules: tanh's JVP rule (d tanh = g * (1 - tanh^2)) and its lowering to the HLO tanh op.",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/lax/lax.py#L4665-L4678"
+  },
+  {
+   "id": "dot_rules",
+   "file": "jax/_src/lax/lax.py",
+   "start": 6202,
+   "end": 6207,
+   "text": "ad.defbilinear(dot_general_p,\n               _dot_general_transpose_lhs, _dot_general_transpose_rhs)\n_dot_general_batch_rule = functools.partial(\n    _dot_batch_rule, _dot_general_batch_unpack_args,\n    _dot_general_batch_unpack_dims, dot_general)\nbatching.fancy_primitive_batchers[dot_general_p] = _dot_general_batch_rule",
+   "why": "dot_general's rules: bilinear (its JVP and transpose come from the two transpose functions) and a batching rule that folds the vmapped dimension into the dot's batch dimensions.",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/lax/lax.py#L6202-L6207"
+  },
+  {
+   "id": "jit_cpp",
+   "file": "jax/_src/pjit.py",
+   "start": 255,
+   "end": 264,
+   "text": "def _cpp_pjit(fun: Callable, jit_info: PjitInfo):\n\n  @api_boundary\n  def cache_miss(*args, **kwargs):\n    # args do not include the const args\n    # See https://docs.jax.dev/en/latest/internals/constants.html.\n    if config.no_tracing.value:\n      raise RuntimeError(f\"re-tracing function {jit_info.fun_sourceinfo} for \"\n                         \"`jit`, but 'no_tracing' is set\")\n    p, args_flat = _infer_params(fun, jit_info, args, kwargs)",
+   "why": "jax.jit's fast path is C++: it keeps its own cache of compiled executables and only calls this Python cache_miss when the call's signature is new; cache_miss is where tracing and compiling start.",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/pjit.py#L255-L264"
+  },
+  {
+   "id": "jit_cache",
+   "file": "jax/_src/pjit.py",
+   "start": 629,
+   "end": 648,
+   "text": "def _infer_params(\n    fun: Callable, ji: PjitInfo, args: tuple[Any, ...], kwargs: dict[str, Any]\n  ) -> tuple[PjitParams, list[core.Value]]:\n  ctx_mesh = get_ctx_mesh(ji.use_resource_env)\n  dbg_fn = lambda: debug_info(\n      'jit', fun, args, kwargs, static_argnums=ji.static_argnums,\n      static_argnames=ji.static_argnames, sourceinfo=ji.fun_sourceinfo,\n      signature=ji.fun_signature)\n  arg_signature, dynargs = jax_jit.parse_arguments(\n      args, tuple(kwargs.values()), tuple(kwargs.keys()), ji.static_argnums,\n      ji.static_argnames, tree_util.tracing_registry)\n  avals = _infer_input_type(fun, dbg_fn, dynargs)\n  entry = _infer_params_cached(fun, ji, arg_signature, avals, ctx_mesh)\n\n  if entry.pjit_params is not None:\n    return entry.pjit_params, entry.pjit_params.consts + dynargs\n\n  p = _trace_for_jit(fun, ji, ctx_mesh, dbg_fn(), avals, args, kwargs)\n  entry.pjit_params = p\n  return p, p.consts + dynargs",
+   "why": "jit's trace cache: the key is the Python function, the jit options, the argument signature (static values and pytree structure) and the abstract values. A miss traces again (_trace_for_jit).",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/pjit.py#L629-L648"
+  },
+  {
+   "id": "jit_cache_fn",
+   "file": "jax/_src/pjit.py",
+   "start": 606,
+   "end": 611,
+   "text": "@weakref_lru_cache\ndef _infer_params_cached(\n    fun: Callable, jit_info: PjitInfo, signature: jax_jit.ArgumentSignature,\n    in_avals: tuple[core.AbstractValue, ...], ctx_mesh: mesh_lib.Mesh\n    ) -> InferParamsCacheEntry:\n  return InferParamsCacheEntry()",
+   "why": "The cache itself: a weak-reference LRU cache on the function object.",
+   "url": "https://github.com/jax-ml/jax/blob/32544801e26115ac1794926d027148abf3baf009/jax/_src/pjit.py#L606-L611"
+  }
+ ]
+}

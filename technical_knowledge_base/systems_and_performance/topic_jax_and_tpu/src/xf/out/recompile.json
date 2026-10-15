@@ -1,0 +1,168 @@
+{
+ "versions": {
+  "jax": "0.11.2",
+  "jaxlib": "0.11.2",
+  "python": "3.12.11"
+ },
+ "drills": [
+  {
+   "id": "values",
+   "title": "Same shapes, different data",
+   "code": "f = jax.jit(loss)\nf(params, x, y)          # batch 0, int32[32,128]\nf(params, x_next, y_next) # batch 1, same shapes",
+   "traces": 0,
+   "compiles": 0,
+   "explain": "",
+   "answer": 0,
+   "why": "The cache key is shapes, dtypes, the pytree structure and static values, never the numbers. New data with the same signature reuses the executable.",
+   "probe_s": 0.106
+  },
+  {
+   "id": "batch16",
+   "title": "A smaller last batch",
+   "code": "f(params, x, y)            # int32[32,128]\nf(params, x[:16], y[:16])  # int32[16,128]: the ragged last batch",
+   "traces": 1,
+   "compiles": 1,
+   "explain": "TRACING CACHE MISS at the call site:\n  for loss defined at run_recompile.py\n  all previously seen cache keys differ. For the closest previous key:\n  different input types:\n  * at x, now i32[16,128] and before i32[32,128]\n  * at y, now i32[16,128] and before i32[32,128]",
+   "answer": 1,
+   "why": "A new shape is a new program: XLA compiles for exact shapes. The usual fix is to drop the last batch or pad it to the full size and mask the padding out of the loss.",
+   "probe_s": 0.457
+  },
+  {
+   "id": "back",
+   "title": "Back to a shape seen before",
+   "code": "f(params, x, y)            # [32,128]: compile 1\nf(params, x[:16], y[:16])  # [16,128]: compile 2\nf(params, x, y)            # [32,128] again",
+   "traces": 0,
+   "compiles": 0,
+   "explain": "",
+   "answer": 0,
+   "why": "Every signature stays in the cache for the life of the jitted function, so alternating between two shapes compiles twice in total, not on every switch.",
+   "probe_s": 0.086
+  },
+  {
+   "id": "seqlen",
+   "title": "Variable sequence length",
+   "code": "f(params, x, y)                  # [32,128]\nfor T in (64, 96, 112, 128):     # real text arrives in many lengths\n    f(params, x[:, :T], y[:, :T])",
+   "traces": 3,
+   "compiles": 3,
+   "explain": "TRACING CACHE MISS at the call site:\n  for loss defined at run_recompile.py\n  all previously seen cache keys differ. For the closest previous key:\n  different input types:\n  * at x, now i32[32,64] and before i32[32,128]\n  * at y, now i32[32,64] and before i32[32,128]\nTRACING CACHE MISS at the call site:\n  for loss defined at run_recompile.py\n  all previously seen cache keys differ. For the closest previous key:\n  different input types:\n  * at x, now i32[32,96] and before i32[32,128]\n  * at y, now i32[32,96] and before i32[32,128]\nTRACING CACHE MISS at the call site:\n  for loss defined at run_recompile.py\n  all previously seen cache keys differ. For the closest previous key:\n  different input types:\n  * at x, now i32[32,112] and before i32[32,128]\n  * at y, now i32[32,112] and before i32[32,128]",
+   "answer": 3,
+   "why": "Three new lengths, three compiles (128 was cached). With free-form lengths this becomes a recompilation storm; production code pads to a few bucket sizes (for example powers of two) so the number of programs is bounded.",
+   "probe_s": 1.632
+  },
+  {
+   "id": "bf16",
+   "title": "Parameters cast to bfloat16",
+   "code": "f(params, x, y)\nparams16 = jax.tree.map(lambda a: a.astype(jnp.bfloat16), params)\nf(params16, x, y)",
+   "traces": 1,
+   "compiles": 1,
+   "explain": "TRACING CACHE MISS at the call site:\n  for loss defined at run_recompile.py\n  all previously seen cache keys differ. For the closest previous key:\n  different input types:\n  * at params['blocks'][0]['attn']['wk']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][0]['attn']['wk']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][0]['attn']['wo']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][0]['attn']['wo']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][0]['attn']['wq']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][0]['attn']['wq']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][0]['attn']['wv']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][0]['attn']['wv']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][0]['ln1']['bias'], now bf16[128] and before f32[128]\n  * at params['blocks'][0]['ln1']['scale'], now bf16[128] and before f32[128]\n  * at params['blocks'][0]['ln2']['bias'], now bf16[128] and before f32[128]\n  * at params['blocks'][0]['ln2']['scale'], now bf16[128] and before f32[128]\n  * at params['blocks'][0]['mlp']['fc1']['b'], now bf16[512] and before f32[512]\n  * at params['blocks'][0]['mlp']['fc1']['w'], now bf16[128,512] and before f32[128,512]\n  * at params['blocks'][0]['mlp']['fc2']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][0]['mlp']['fc2']['w'], now bf16[512,128] and before f32[512,128]\n  * at params['blocks'][1]['attn']['wk']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][1]['attn']['wk']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][1]['attn']['wo']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][1]['attn']['wo']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][1]['attn']['wq']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][1]['attn']['wq']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][1]['attn']['wv']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][1]['attn']['wv']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][1]['ln1']['bias'], now bf16[128] and before f32[128]\n  * at params['blocks'][1]['ln1']['scale'], now bf16[128] and before f32[128]\n  * at params['blocks'][1]['ln2']['bias'], now bf16[128] and before f32[128]\n  * at params['blocks'][1]['ln2']['scale'], now bf16[128] and before f32[128]\n  * at params['blocks'][1]['mlp']['fc1']['b'], now bf16[512] and before f32[512]\n  * at params['blocks'][1]['mlp']['fc1']['w'], now bf16[128,512] and before f32[128,512]\n  * at params['blocks'][1]['mlp']['fc2']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][1]['mlp']['fc2']['w'], now bf16[512,128] and before f32[512,128]\n  * at params['blocks'][2]['attn']['wk']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][2]['attn']['wk']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][2]['attn']['wo']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][2]['attn']['wo']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][2]['attn']['wq']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][2]['attn']['wq']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][2]['attn']['wv']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][2]['attn']['wv']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][2]['ln1']['bias'], now bf16[128] and before f32[128]\n  * at params['blocks'][2]['ln1']['scale'], now bf16[128] and before f32[128]\n  * at params['blocks'][2]['ln2']['bias'], now bf16[128] and before f32[128]\n  * at params['blocks'][2]['ln2']['scale'], now bf16[128] and before f32[128]\n  * at params['blocks'][2]['mlp']['fc1']['b'], now bf16[512] and before f32[512]\n  * at params['blocks'][2]['mlp']['fc1']['w'], now bf16[128,512] and before f32[128,512]\n  * at params['blocks'][2]['mlp']['fc2']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][2]['mlp']['fc2']['w'], now bf16[512,128] and before f32[512,128]\n  * at params['blocks'][3]['attn']['wk']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][3]['attn']['wk']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][3]['attn']['wo']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][3]['attn']['wo']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][3]['attn']['wq']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][3]['attn']['wq']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][3]['attn']['wv']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][3]['attn']['wv']['w'], now bf16[128,128] and before f32[128,128]\n  * at params['blocks'][3]['ln1']['bias'], now bf16[128] and before f32[128]\n  * at params['blocks'][3]['ln1']['scale'], now bf16[128] and before f32[128]\n  * at params['blocks'][3]['ln2']['bias'], now bf16[128] and before f32[128]\n  * at params['blocks'][3]['ln2']['scale'], now bf16[128] and before f32[128]\n  * at params['blocks'][3]['mlp']['fc1']['b'], now bf16[512] and before f32[512]\n  * at params['blocks'][3]['mlp']['fc1']['w'], now bf16[128,512] and before f32[128,512]\n  * at params['blocks'][3]['mlp']['fc2']['b'], now bf16[128] and before f32[128]\n  * at params['blocks'][3]['mlp']['fc2']['w'], now bf16[512,128] and before f32[512,128]\n  * at params['head']['w'], now bf16[128,65] and before f32[128,65]\n  * at params['ln_f']['bias'], now bf16[128] and before f32[128]\n  * at params['ln_f']['scale'], now bf16[128] and before f32[128]\n  * at params['pos_emb'], now bf16[128,128] and before f32[128,128]\n  * at params['tok_emb'], now bf16[65,128] and before f32[65,128]",
+   "answer": 1,
+   "why": "Dtype is part of the abstract value (bfloat16[128,128] is not float32[128,128]), so a precision change is a new program.",
+   "probe_s": 0.451
+  },
+  {
+   "id": "numpy",
+   "title": "A NumPy array instead of a JAX array",
+   "code": "f(params, x, y)                  # jax.Array int32[32,128]\nf(params, np.asarray(x), np.asarray(y))  # numpy int32[32,128]",
+   "traces": 0,
+   "compiles": 0,
+   "explain": "",
+   "answer": 0,
+   "why": "The abstract value is the same (int32[32,128]); jit copies the NumPy array to the device and reuses the executable.",
+   "probe_s": 0.187
+  },
+  {
+   "id": "int64",
+   "title": "NumPy int64 input",
+   "code": "f(params, x, y)                  # int32\nf(params, x.astype(np.int64), y.astype(np.int64))",
+   "traces": 0,
+   "compiles": 0,
+   "explain": "",
+   "answer": 0,
+   "why": "With 64-bit mode off (the default, jax_enable_x64=False) JAX canonicalises int64 to int32 before building the key, so this hits the cache. Turn x64 on and it would be a new program.",
+   "probe_s": 0.064
+  },
+  {
+   "id": "pyfloat",
+   "title": "A Python float that changes",
+   "code": "f(params, x, y, 1.0)\nf(params, x, y, 0.5)   # scale is an ordinary (traced) argument",
+   "traces": 0,
+   "compiles": 0,
+   "explain": "",
+   "answer": 0,
+   "why": "A Python scalar passed as a normal argument becomes a traced weakly typed float32[] (shown as ~float32[]); its value is data, not part of the key.",
+   "probe_s": 0.083
+  },
+  {
+   "id": "static",
+   "title": "The same float, marked static",
+   "code": "fs = jax.jit(loss, static_argnames='scale')\nfs(params, x, y, scale=1.0)\nfor s in (0.5, 0.25, 1.0):\n    fs(params, x, y, scale=s)",
+   "traces": 2,
+   "compiles": 2,
+   "explain": "TRACING CACHE MISS at the call site:\n  for loss defined at run_recompile.py\n  all previously seen cache keys differ. For the closest previous key:\n  cache miss explanation unavailable\nTRACING CACHE MISS at the call site:\n  for loss defined at run_recompile.py\n  all previously seen cache keys differ. For the closest previous key:\n  cache miss explanation unavailable",
+   "answer": 2,
+   "why": "A static argument's Python value is baked into the program, so each new value compiles (0.5 and 0.25), and a value seen before (1.0) is a hit. Make an argument static only when it changes the program's structure (a flag, a layer count, a shape), never for a value that varies each step such as a learning rate.",
+   "probe_s": 1.528
+  },
+  {
+   "id": "weak",
+   "title": "A Python 2.0 against jnp.float32(2.0)",
+   "code": "f(params, x, y, 2.0)              # Python float: weakly typed ~float32[]\nf(params, x, y, jnp.float32(2.0))  # a strongly typed float32[] array",
+   "traces": 1,
+   "compiles": 1,
+   "explain": "TRACING CACHE MISS at the call site:\n  for loss defined at run_recompile.py\n  all previously seen cache keys differ. For the closest previous key:\n  different input types:\n  * at scale, now f32[]{weak_type=False} and before f32[]{weak_type=True}https://docs.jax.dev/en/latest/type_promotion.html#weak-types",
+   "answer": 1,
+   "why": "Same value, same shape, same dtype, but weak typing is part of the abstract value: a Python scalar is ~float32[] (it defers to the other operand's dtype in arithmetic), a jnp scalar is float32[]. The cache-miss log says exactly that.",
+   "probe_s": 0.781
+  },
+  {
+   "id": "pytree",
+   "title": "One more entry in the parameter dict",
+   "code": "f(params, x, y)\nf({**params, 'extra': jnp.zeros(())}, x, y)   # unused by the model",
+   "traces": 1,
+   "compiles": 1,
+   "explain": "TRACING CACHE MISS at the call site:\n  for loss defined at run_recompile.py\n  all previously seen cache keys differ. For the closest previous key:\n  different input pytree:\n  * at input path [0][0], now <class 'dict'> with 6 children and before <class 'dict'> with 5 children, so the numbers of children do not match, with the symmetric difference of key sets: {'extra'}",
+   "answer": 1,
+   "why": "The pytree structure (the tree definition: keys, nesting, number of leaves) is part of the key, even if the new leaf is never used.",
+   "probe_s": 0.523
+  },
+  {
+   "id": "lambda",
+   "title": "jax.jit called inside the loop",
+   "code": "for step in range(3):\n    g = jax.jit(lambda p, x, y: loss(p, x, y))   # a new function object each time\n    g(params, x, y)",
+   "traces": 3,
+   "compiles": 3,
+   "explain": "TRACING CACHE MISS at the call site:\n  never seen function:\n    <lambda> defined at run_recompile.py\nTRACING CACHE MISS at the call site:\n  never seen function:\n    <lambda> defined at run_recompile.py\n  but seen another function defined on the same line; maybe the function is\n  being re-defined repeatedly, preventing caching?\nTRACING CACHE MISS at the call site:\n  never seen function:\n    <lambda> defined at run_recompile.py\n  but seen another function defined on the same line; maybe the function is\n  being re-defined repeatedly, preventing caching?",
+   "answer": 3,
+   "why": "The trace cache is keyed on the Python function object; a new lambda each iteration is a function never seen before, so every step traces, lowers and compiles again (measured: 3 traces and 3 XLA compiles for 3 steps), even though the program is identical each time. JAX's own log even guesses the cause: \"maybe the function is being re-defined repeatedly\". Jit once, outside the loop.",
+   "probe_s": 1.325
+  },
+  {
+   "id": "inline",
+   "title": "jax.jit(loss) re-wrapped every step, same function",
+   "code": "for step in range(3):\n    jax.jit(loss)(params, x, y)   # a new jit wrapper, the same loss function",
+   "traces": 1,
+   "compiles": 1,
+   "explain": "TRACING CACHE MISS at the call site:\n  never seen function:\n    loss defined at run_recompile.py",
+   "answer": 1,
+   "why": "One trace and one compile for three steps (measured). The trace cache is keyed on the underlying Python function, not on the jit wrapper, so re-wrapping the same function hits the cache; it is the new lambda per step (the drill above) that defeats it. Still, jit once outside the loop: it is clearer and skips the wrapper overhead.",
+   "probe_s": 0.503
+  },
+  {
+   "id": "global",
+   "title": "A global changed between calls",
+   "code": "SCALE = 1.0\nfg = jax.jit(lambda p, x: apply(p, x).mean() * SCALE)\nfg(params, x)    # traced with SCALE = 1.0\nSCALE = 100.0\nfg(params, x)    # what does it return?",
+   "traces": 0,
+   "compiles": 0,
+   "explain": "",
+   "answer": 0,
+   "why": "No recompile, and a stale answer: the global was read once, while tracing, and baked into the program as a constant. The second call returns exactly the first value, not 100 times it. Pass anything that changes as an argument.",
+   "probe_s": 0.1,
+   "value": {
+    "first": 0.017417,
+    "second": 0.017417
+   }
+  }
+ ],
+ "note": "Counted on Apple M1 Pro (CPU) with jax 0.11.2; counts are deterministic, independent of the machine."
+}
