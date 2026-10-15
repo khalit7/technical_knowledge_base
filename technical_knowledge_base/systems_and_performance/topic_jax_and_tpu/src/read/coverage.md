@@ -20,7 +20,7 @@ Sources checked live on 2026-10-15 unless dated otherwise: JAX changelog (docs.j
 | 10 | Flax Linen (maintained) | verified with wording | Flax docs: Linen "is not going to be deprecated in the near future as most of Flax users still rely on this API". MaxText migrated from Linen to NNX (README news 2026-06-29). | R4 |
 | 11 | Equinox | verified | equinox 0.13.8 (2026-05-05, PyPI) | R4 |
 | 12 | Haiku legacy, DeepMind moved to Flax | corrected wording | Haiku README: "As of July 2023 Google DeepMind recommends that new projects adopt Flax instead of Haiku"; maintenance mode (bug fixes and JAX compatibility, no new features); still released (dm-haiku 0.0.17, 2026-07-27). "Legacy" is fair; "moved" overstates (DeepMind still uses it internally per the README). | R4 |
-| 13 | optax: optimisers as gradient transformations; clipping, EMA, accumulation, masks, Lion, Muon as links in a chain | verified (Muon: in optax.contrib; checked by Training lab) | optax 0.2.8 (2026-03-20). TODO-T: confirm `optax.contrib.muon` exists at the pinned version. | R4 |
+| 13 | optax: optimisers as gradient transformations; clipping, EMA, accumulation, masks, Lion, Muon as links in a chain | verified (Muon: in optax.contrib; checked by Training lab) | optax 0.2.8 (2026-03-20). Training lab confirmed `optax.contrib.muon` exists in optax 0.2.8. | R4 |
 | 14 | orbax: async distributed checkpointing; makes checkpointing a pod slice practical | verified | orbax docs; orbax-checkpoint 0.12.7 (2026-10-06) | R4 |
 | 15 | grain: deterministic checkpointable data loading; preempted run resumes mid-epoch | verified | grain docs; grain 0.2.18 (2026-06-17); resume shown by the Training lab | R4 |
 | 16 | GSPMD acronym, inserts collectives where two annotations disagree; Mesh + NamedSharding; DP/FSDP/TP are just PartitionSpecs; shard_map escape hatch | verified | GSPMD paper; JAX sharded-computation tutorial; Sharding lab compiles each | R5 |
@@ -63,6 +63,7 @@ Sources checked live on 2026-10-15 unless dated otherwise: JAX changelog (docs.j
 | 48 | vmap: in_axes/out_axes; per-example grads vmap(grad(f)); torch.vmap is a port of the idea | verified | torch.func docs credit JAX | R2 |
 | 49 | Pytrees: tree.map, leaves, flatten; replaces parameters() and state_dict() | verified | | R2 |
 | 50 | Footgun 8: out-of-bounds indexing clamps on read, drops on write under jit | verified | JAX "Sharp bits" | Mistakes |
+| 44b | "nnx.jit ... donates internally" (old training stack code comment) | corrected | flax 0.12.10 nnx.jit donates nothing by default (compilation.py:317-318) | R3, Mistakes |
 | 51 | Footgun 9: default float32; on TPU default matmul precision uses bf16 passes; precision= / jax.default_matmul_precision | verified | JAX docs (default precision on TPU) | Mistakes |
 | 52 | Footgun 10: weak typing promotion differs from NumPy | verified | JAX type promotion docs | moved to jax_core child |
 | 53 | Resources (Thinking in JAX, tutorials, jit docs, Common gotchas, Autodidax, scaling book ch. 10) | verified links | | Further reading |
@@ -74,8 +75,8 @@ Sources checked live on 2026-10-15 unless dated otherwise: JAX changelog (docs.j
 | 54 | NNX recommended; Linen maintained, not deprecated; interop via flax.nnx.bridge | verified | Flax docs | R4 |
 | 55 | Library table (NNX, Linen, Equinox, Haiku: status, model, feel) | verified, statuses updated | as rows 9 to 12 | R4 table |
 | 56 | NNX code block, nnx.Param, nnx.Variable, nnx.Rngs, split/merge, lifted transforms | verified by the Training lab against flax 0.12.10 | | R4 (short), training_stack child |
-| 57 | nnx.Optimizer(model, tx, wrt=nnx.Param); optimizer.update(model, grads) | to be confirmed by the Training lab at the pinned flax | TODO-T | R4 |
-| 58 | optax init/update pure pair; apply_updates; chain; schedules are functions; MultiSteps; masks; EMA, SAM, Lion, Muon | verified (Muon TODO-T) | optax docs | R4 |
+| 57 | nnx.Optimizer(model, tx, wrt=nnx.Param); optimizer.update(model, grads) | verified by the Training lab (flax 0.12.10: `wrt` required since 0.11.0, optimizer.py:83-92; update(model, grads) at :178) | | R4 |
+| 58 | optax init/update pure pair; apply_updates; chain; schedules are functions; MultiSteps; masks; EMA, SAM, Lion, Muon | verified (Muon: optax.contrib.muon, Training lab) | optax docs | R4 |
 | 59 | Train loop line by line vs PyTorch | moved | pytorch_to_jax child and Training lab's translation table | R4 link |
 | 60 | No .train()/.eval() global mode; NNX model.eval() | verified | Flax NNX docs | moved to training_stack child |
 | 61 | Metrics pulled to host every step force a sync | verified | | Mistakes |
@@ -92,7 +93,7 @@ Sources checked live on 2026-10-15 unless dated otherwise: JAX changelog (docs.j
 | 67 | Sharding is a type annotation, parallelism is compilation | verified | | R5 |
 | 68 | make_mesh, NamedSharding, PartitionSpec, device_put, with_sharding_constraint, visualize_array_sharding | verified | Sharding lab | R5 |
 | 69 | DP/FSDP/TP table with what XLA inserts | verified by compiling (Sharding lab) | | R5 |
-| 70 | Optimiser state inherits the param sharding; ZeRO-1 "falls out for free" | corrected nuance | Under jit with sharded params, optax state created inside jit follows propagation; it is not automatic if created outside jit on one device. TODO-S: Sharding lab to confirm. | R5 |
+| 70 | Optimiser state inherits the param sharding; ZeRO-1 "falls out for free" | corrected nuance | Under jit with sharded params, optax state created inside jit follows propagation; it is not automatic if created outside jit on one device. Not separately measured: the Sharding lab's FSDP rows shard the optimiser state with the parameters (opt bytes per device 1/8), set explicitly in its script; kept as a nuance on the sharding child. | R5 |
 | 71 | Pipeline parallelism is the last resort on TPU | verified as the scaling book's position | scaling book ch. 5 | R5 |
 | 72 | `from jax.shard_map import shard_map` | corrected | The public API is `jax.shard_map` (0.8.0 deprecated `jax.experimental.shard_map.shard_map`). | R5 |
 | 73 | shard_map out of experimental since JAX 0.8 | verified | changelog 0.8.0 | R5 |
@@ -109,7 +110,7 @@ Sources checked live on 2026-10-15 unless dated otherwise: JAX changelog (docs.j
 |---|---|---|---|---|
 | 80 | 1 to 2 TensorCores per chip vs ~100+ SMs | verified | Hardware TPU page | R6 |
 | 81 | MXU 128x128 systolic; pad to multiples of 128; (8, 128) tiles | verified | scaling book | R6 |
-| 82 | VMEM "tens of MB (128 MB on newer chips)" | TPU lab owns | TODO-P: per-generation VMEM from the TPU lab's FACTS | R6 |
+| 82 | VMEM "tens of MB (128 MB on newer chips)" | corrected | jax/_src/tpu_info.py (TPU lab): per TensorCore v4 16 MiB, v5e 128, v5p 64, v6e 128, TPU7x 64 MiB; not monotonic by generation | tpu child |
 | 83 | HBM v5e 16 GB, v5p 95 GB, v6e 32 GB, v7 192 GB | verified | Hardware TPU page (v5p 95 GiB, Ironwood 192 GiB) | R6 |
 | 84 | Generations table: v4 2021 275 TF 32 GB 4096 chips; v5e 197 TF 16 GB 256; v5p 459 TF 95 GB 8960; v6e 4.7x v5e 32 GB 256; v7 GA Apr 2026, >4x v6e, 192 GB, FP8, 9216 | corrected two cells | v4 deployed 2020 (announced May 2021); v6e 918 TF bf16 (4.7x v5e matches 918/197 = 4.66); Ironwood "GA Apr 2026" unconfirmed: Google's 2025-11-06 post said GA "in the coming weeks" (Hardware TPU page). ">4x Trillium per chip" is Google's headline; bf16 peak is 2,307/918 = 2.5x, fp8 4,614/918 = 5.0x (Trillium has no fp8 speed-up), so the 4x is not a bf16 peak ratio. | R6 |
 | 85 | Two tracks e and p; HBM per chip 6x with Ironwood | verified | 192/32 = 6 vs v6e | R6 |
@@ -119,9 +120,9 @@ Sources checked live on 2026-10-15 unless dated otherwise: JAX changelog (docs.j
 | 89 | Beyond a pod: data parallel over DCN, MaxText multislice | verified | | R5 |
 | 90 | Pallas code, BlockSpec, grid, Mosaic, double buffering, (8,128), dimension_semantics, custom VJP needed | verified; code replaced by the TPU lab's run kernel | | R6 |
 | 91 | "For most training work you never write one: XLA fusion + stock attention kernel competitive" | kept as opinion, labelled | | R6 |
-| 92 | Colab: single v5e chip free/Pro | TPU lab owns | TODO-P | Further reading |
+| 92 | Colab: single v5e chip free/Pro | corrected | Colab FAQ: TPU types "vary over time", limits not published, free notebooks at most 12 hours | Further reading |
 | 93 | Kaggle: free v5e-8, "roughly 20 h/month", ~9 h sessions | corrected (unconfirmed) | Kaggle does not publish the number on a readable page; third-party guides give 20 h per **week**, 9 h per session; the v5e-8 replacing v3-8 is third-party only. Marked unconfirmed. | Further reading |
-| 94 | TRC ~30 days free, v2-8/v3-8 up to v4/v5e | TPU lab owns | TODO-P | Further reading |
+| 94 | TRC ~30 days free, v2-8/v3-8 up to v4/v5e | corrected | TRC pages: no charge, >1,000 Cloud TPU devices, temporary quota; no generations or duration stated | Further reading |
 | 95 | Practical loop: develop on CPU, smoke-test on Colab, train on Kaggle/TRC, profile with XProf | kept | | R11 |
 
 ## Added beyond the old pages (the old pages had none of these)

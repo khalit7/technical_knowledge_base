@@ -18,8 +18,10 @@ window.RDJ={
  devices:[8,16,64,256,1024,2048,4096,8960],
  // Hugging Face Hub library filter, 2026-10-15
  hf:{pytorch:255916,jax:12404,date:'2026-10-15'},
- // the running example's train step (Compiler lab): primitive count in the jaxpr, fusions in optimised HLO, kernels launched by eager PyTorch per step
- trace:{ops:null,fusions:null,torchKernels:null},
- // the running example's train step through the pipeline (Compiler lab): lines or ops at each stage, and compile time
- xla:null
+ // the running example's train step (Compiler lab, src/xla/out/read_numbers.json): jaxpr equations, kernels after XLA (fusions plus
+ // library calls such as matmuls), of which fusions; and the PyTorch twin's eager step: aten operators that do work (views, allocations
+ // and scalar reads excluded). The Training lab's torch_ops.json counts 1,309 top-level ATen calls including those; this page quotes 1,302.
+ trace:{"ops": 3411, "kernels": 1057, "fusions": 783, "torchKernels": 1302},
+ // the same train step at each stage, compile times (wall and CPU) and memory_analysis without and with donation (Compiler lab)
+ xla:{"stages": [{"n": "jaxpr equations", "v": 3411, "c": "var(--c1)"}, {"n": "StableHLO operations", "v": 5318, "c": "var(--c4)"}, {"n": "HLO instructions (before XLA)", "v": 4932, "c": "var(--c4)"}, {"n": "kernels after XLA (fusions, matmuls, ...)", "v": 1057, "c": "var(--c2)"}, {"n": "of which fusions", "v": 783, "c": "var(--c2)"}], "compile_s": 3.596, "compile_cached_s": 0.5827, "compile_cpu_s": 2.335, "compile_cached_cpu_s": 0.1646, "trace_s": 1.624, "mem_no": {"argument_size_in_bytes": 9949192, "output_size_in_bytes": 9918120, "temp_size_in_bytes": 365969476, "alias_size_in_bytes": 0, "total_allocation_bytes": 385839716}, "mem_don": {"argument_size_in_bytes": 9949192, "output_size_in_bytes": 9918120, "temp_size_in_bytes": 366625412, "alias_size_in_bytes": 9916424, "total_allocation_bytes": 376579228}}
 };
