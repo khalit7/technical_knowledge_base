@@ -1,0 +1,28 @@
+{
+ "versions": {
+  "jax": "0.11.2",
+  "jaxlib": "0.11.2",
+  "python": "3.12.11",
+  "machine": "Apple M1 Pro (CPU)"
+ },
+ "debug_print": {
+  "code": "import jax, jax.numpy as jnp\n\n@jax.jit\ndef f(x):\n    print(\"print sees:\", x)                  # Python print: runs once, while tracing\n    jax.debug.print(\"debug.print sees: {}\", x.sum())   # compiled into the program: runs every call\n    return x * 2\n\nf(jnp.arange(3.0))\nf(jnp.arange(3.0) + 1)",
+  "output": "print sees: JitTracer(float32[3])\ndebug.print sees: 3.0\ndebug.print sees: 6.0"
+ },
+ "checkify": {
+  "code": "import jax, jax.numpy as jnp\nfrom jax.experimental import checkify\n\ndef safe_log(x):\n    checkify.check(jnp.all(x > 0), \"log of a non-positive value: min {m}\", m=x.min())\n    return jnp.log(x)\n\nchecked = jax.jit(checkify.checkify(safe_log))\nerr, out = checked(jnp.array([1.0, 2.0]))\nprint(\"ok call ->\", err.get())\nerr, out = checked(jnp.array([1.0, -2.0]))\nprint(\"bad call ->\", err.get())\nprint(\"out is still computed:\", out)\n\n# automatic checks for NaNs, division by zero and out-of-bounds indexing\ng = jax.jit(checkify.checkify(lambda x, i: x[i] / x, errors=checkify.all_checks))\nerr, _ = g(jnp.array([1.0, 0.0]), 5)\nprint(\"all_checks ->\", err.get())",
+  "output": "ok call -> None\nbad call -> log of a non-positive value: min -2.0 (`check` failed)\nout is still computed: [ 0. nan]\nall_checks -> out-of-bounds indexing for array of shape (2,): index 5 is out of bounds for axis 0 with size 2."
+ },
+ "debug_nans": {
+  "code": "import jax, jax.numpy as jnp\njax.config.update(\"jax_debug_nans\", True)\n\n@jax.jit\ndef f(x):\n    y = jnp.log(x)          # log(-1) = nan\n    return y * 2\n\ntry:\n    f(jnp.array([1.0, -1.0]))\nexcept FloatingPointError as e:\n    print(type(e).__name__ + \":\", str(e).splitlines()[0])",
+  "output": "Invalid nan value encountered in the output of a jax.jit function. Calling the de-optimized version.\nInvalid nan value encountered in the output of a jax.jit function. Calling the de-optimized version.\nFloatingPointError: invalid value (nan) encountered in log"
+ },
+ "donate": {
+  "code": "import jax, jax.numpy as jnp\n\n@jax.jit\ndef plain(w, g):\n    return w - 0.1 * g\n\ndonating = jax.jit(plain, donate_argnums=0)     # promise: w is not used after the call\n\nw, g = jnp.ones((1024, 1024)), jnp.ones((1024, 1024))\nw2 = donating(w, g)\nprint(\"donated input deleted:\", w.is_deleted())\ntry:\n    w + 1\nexcept RuntimeError as e:\n    print(\"RuntimeError:\", str(e).splitlines()[0][:110])\n\n# donation XLA cannot use (no output has the donated shape) is ignored, with a warning\nimport warnings\nwith warnings.catch_warnings(record=True) as ws:\n    warnings.simplefilter(\"always\")\n    jax.jit(lambda w: w.sum(), donate_argnums=0)(jnp.ones((256, 256)))\nprint(\"warning:\", str(ws[0].message).splitlines()[0][:120])",
+  "output": "donated input deleted: True\nRuntimeError: Array has been deleted with shape=float32[1024,1024].\nwarning: Some donated buffers were not usable: float32[256,256]."
+ },
+ "cost": {
+  "code": "import jax, jax.numpy as jnp\nfrom jax.experimental import checkify\n\ndef step(x):\n    return jnp.log(x).sum()\n\nplain = jax.jit(step).lower(jnp.ones(1024)).compile()\ndbg = jax.jit(lambda x: (jax.debug.print(\"{}\", x.sum()), step(x))[1]).lower(jnp.ones(1024)).compile()\nchk = jax.jit(checkify.checkify(step, errors=checkify.float_checks)).lower(jnp.ones(1024)).compile()\nfor name, c in [(\"plain\", plain), (\"with debug.print\", dbg), (\"checkified (float_checks)\", chk)]:\n    t = c.as_text()\n    instrs = sum(1 for l in t.splitlines() if l.startswith(\"  \") and \" = \" in l)\n    calls = t.count('custom_call_target=\"xla_ffi_python_cpu_callback\"')\n    print(f\"{name:26s} HLO instructions: {instrs:3d}   calls back into Python: {calls}\")",
+  "output": "plain                      HLO instructions:  19   calls back into Python: 0\nwith debug.print           HLO instructions:  34   calls back into Python: 1\ncheckified (float_checks)  HLO instructions:  50   calls back into Python: 0"
+ }
+}

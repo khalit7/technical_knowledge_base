@@ -1,0 +1,61 @@
+
+<section id="xc-s8">
+<h3>8. Debugging a program you never see run</h3>
+<p>Inside <code>jit</code>, your Python ran once, during tracing; what runs later is XLA's program. So the PyTorch habits (a <code>print</code>, a breakpoint, checking a tensor for NaNs after each line) need JAX equivalents, each of which puts something into the compiled program:</p>
+<div class="xc-two">
+<div><h3 style="margin-top:4px"><code>print</code> against <code>jax.debug.print</code></h3><pre class="xc-code" id="xc-dbg-print-c"></pre><pre class="xc-code xc-out" id="xc-dbg-print-o"></pre>
+<p class="xc-small">Python's <code>print</code> fired once, while tracing, and shows a tracer; <code>jax.debug.print</code> became part of the program and fires on every call with the real value.</p></div>
+<div><h3 style="margin-top:4px"><code>checkify</code>: errors from inside the program</h3><pre class="xc-code" id="xc-dbg-chk-c"></pre><pre class="xc-code xc-out" id="xc-dbg-chk-o"></pre>
+<p class="xc-small">Accelerators cannot raise an exception mid-kernel, so a check becomes an error <i>value</i> returned next to the output, which you inspect on the host.</p></div>
+</div>
+<h3><code>jax_debug_nans</code>: find the operation that made the NaNs</h3>
+<pre class="xc-code" id="xc-dbg-nan-c"></pre><pre class="xc-code xc-out" id="xc-dbg-nan-o"></pre>
+<p class="xc-small">When a jitted function returns NaNs, JAX reruns it de-optimised, operation by operation, and raises at the first one that produced it. Slow; turn it on to hunt, off to train.</p>
+<h3>What each costs in the compiled program</h3>
+<pre class="xc-code" id="xc-dbg-cost-c"></pre><pre class="xc-code xc-out" id="xc-dbg-cost-o"></pre>
+<p class="xc-small"><code>debug.print</code> adds a call back into Python (a host round trip that also orders the program); <code>checkify</code> adds the checks and the error plumbing but stays on the device. All examples ran here with JAX <span data-xc="v.jax|raw"></span>; outputs as printed (<code>src/xla/debug_tools.py</code>).</p>
+
+<h3>Reading the compiler's own output</h3>
+<ul class="tight">
+<li><b>Dumps:</b> <code>XLA_FLAGS=--xla_dump_to=DIR</code> writes, per compiled module, the HLO before and after optimisation, the buffer assignment, a memory-usage report and, on CPU, object files; add <code>--xla_dump_hlo_pass_re=.*</code> for one file per pass (section 3). The dump of the MLP block alone: <span id="xc-dump-files" class="xc-small"></span>. Dumps contain absolute file paths in their metadata: strip them before sharing.</li>
+<li><b>Compile logging:</b> <code>jax.config.update("jax_log_compiles", True)</code> logs every compilation; <code>"jax_explain_cache_misses"</code> logs why a cache missed (which argument's shape or static value changed). The first tool to reach for when a step is slow because it recompiles.</li>
+<li><b>The profiler:</b> <code>with jax.profiler.trace(DIR):</code> (or <code>start_trace</code> / <code>stop_trace</code>) records a timeline you open in XProf, the tool behind TensorBoard's profiler, or in Perfetto; <code>jax.profiler.StepTraceAnnotation</code> marks training steps. On GPU the trace has rows for the GPU streams, and XProf covers "activity on GPU and TPU" (<a href="https://docs.jax.dev/en/latest/profiling.html" target="_blank" rel="noopener noreferrer">JAX profiling docs</a>, read 2026-10-15). On this CPU the timeline shows host threads running XLA:CPU's kernels, named after the fusions in the optimised HLO, so a slow kernel can be traced back to the operations it fused. The files are named after the machine: scrub the host name before sharing.</li>
+</ul>
+<div id="xc-prof"></div>
+</section>
+
+<section id="xc-s9">
+<h3>9. Against <code>torch.compile</code>, on the PyTorch twin</h3>
+<p>The running example's PyTorch twin (same weights, same batches) under eager mode and under <code>torch.compile</code> (TorchDynamo captures graphs from Python bytecode, TorchInductor generates kernels: C++ on CPU, Triton on GPU). How Dynamo's guards, graph breaks and recompiles behave is taught on {{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}}; here, only the comparison.</p>
+<div class="tw"><table class="xc-tbl xc-cards" id="xc-tc-tbl"></table></div>
+<div class="xc-two">
+<div><h3 style="margin-top:4px">A data-dependent branch in PyTorch</h3><pre class="xc-code" id="xc-br-tc"></pre><pre class="xc-code xc-out" id="xc-br-to"></pre></div>
+<div><h3 style="margin-top:4px">The same branch in JAX</h3><pre class="xc-code" id="xc-br-jc"></pre><pre class="xc-code xc-out" id="xc-br-jo"></pre></div>
+</div>
+<p class="xc-small">Dynamo splits the function at the branch (2 graphs, 1 graph break) and runs the branch in Python: it always works, sometimes slowly. JAX's tracer has no value to branch on, so it refuses; you rewrite the branch as data (<code>jnp.where</code>, <code>lax.cond</code>). One program or an error, never a silent fallback. Ran here (<code>src/xla/torch_compile.py</code>), torch <span data-xc="torch.ver|raw"></span>.</p>
+</section>
+
+<section id="xc-s10">
+<h3>10. jit's path through the source</h3>
+<p>Every stage above is a few functions in JAX's Python, at the pinned version <code>jax-v0.11.2</code> (commit <code>32544801e261</code>, 2026-09-17). XLA itself is C++ in <code>openxla/xla</code>; JAX only builds the module and asks for an executable. The full walk through these files is on the child page {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}}.</p>
+<div class="tw"><table class="xc-tbl xc-src xc-cards" id="xc-src-tbl"></table></div>
+</section>
+
+<section id="xc-s11">
+<h3>Common mistakes</h3>
+<details class="mist"><summary><b>Timing the first call</b></summary><div class="b">The first call traces, lowers and compiles (section 7). Time steady state after a warm-up call, and call <code>jax.block_until_ready(out)</code> before stopping the clock: JAX dispatches asynchronously, so without it you time the dispatch, not the work.</div></details>
+<details class="mist"><summary><b>Not donating the training state</b></summary><div class="b">Two copies of parameters and optimiser state at the end of every step (section 4). <code>jax.jit(step, donate_argnums=(0, 1))</code>; with Flax NNX, <code>nnx.jit(donate_argnames=("model", "optimizer"))</code>, since <code>nnx.jit</code> donates nothing by default.</div></details>
+<details class="mist"><summary><b>Reading FLOPs from cost_analysis on a scanned model</b></summary><div class="b">The loop body is counted once (section 6). Multiply by the number of layers, or compute FLOPs from the model's shapes.</div></details>
+<details class="mist"><summary><b>Expecting the persistent cache to help small programs</b></summary><div class="b">With the default 1-second threshold, quick compiles are never written (section 7). Lower <code>jax_persistent_cache_min_compile_time_secs</code> when iterating on small models.</div></details>
+<details class="mist"><summary><b>Remat everywhere</b></summary><div class="b">Recomputing every block costs FLOPs on every layer, but the last block saves nothing (section 5). Start from the memory you need to free and pick the cheapest policy that frees it.</div></details>
+<details class="mist"><summary><b>Leaving debugging on</b></summary><div class="b"><code>jax.debug.print</code> adds a host callback to every step; <code>jax_debug_nans</code> checks every output and reruns de-optimised on a hit. Both belong in a debugging run, not a training run.</div></details>
+
+<h3>Interview questions</h3>
+<details class="mist"><summary><b>What happens between <code>jax.jit(f)(x)</code> and the result?</b></summary><div class="b">Look up the cache by the signature (shapes, dtypes, shardings, static values). On a miss: trace <code>f</code> with abstract tracers into a jaxpr, lower each primitive to StableHLO, hand the module to XLA, which optimises (simplification, CSE, layout assignment, fusion, buffer assignment) and generates code; cache the executable. Then dispatch it asynchronously and return arrays whose values arrive later.</div></details>
+<details class="mist"><summary><b>Why is a JAX train step often fast without custom kernels?</b></summary><div class="b">The whole step, forward, backward and optimiser, is one program, so XLA can fuse across operations that eager execution runs separately: elementwise chains, LayerNorm's reductions, matmul epilogues. Fusion cuts memory traffic, the usual bottleneck (here <span data-xc="demo.ratio|x1"></span> less on one MLP block). What it cannot do (new algorithms like flash attention) is what Pallas is for.</div></details>
+<details class="mist"><summary><b>Your model OOMs on a TPU. What do you check, in order?</b></summary><div class="b"><code>memory_analysis()</code> of the compiled step before running anything: are the state arguments donated (alias equal to the state size)? Is temp dominated by activations? Then remat (a policy, and which layers), smaller micro-batches with gradient accumulation, sharding the state (FSDP), and offloading saved activations or optimiser state to host memory.</div></details>
+<details class="mist"><summary><b>Scan or a Python loop over layers?</b></summary><div class="b">Scan: compile time and program size stay flat as depth grows, and the per-layer weights become one stacked array, which suits sharding and remat per layer. A Python loop: XLA sees across layer boundaries and compile time grows with depth. Production JAX LLM code scans by default.</div></details>
+<details class="mist"><summary><b>How does <code>jit</code> differ from <code>torch.compile</code>?</b></summary><div class="b"><code>jit</code> traces with abstract values and produces one whole program or an error; <code>torch.compile</code> reads bytecode, captures what it can and falls back to Python at graph breaks, guarded by runtime checks that trigger recompiles. JAX demands purity up front and gets whole-program compilation; PyTorch keeps eager semantics and compiles opportunistically.</div></details>
+<p class="xc-small" style="margin-top:14px">Scripts and outputs: <code>src/xla/</code> (see its README). Every figure on this tab is regenerated by those scripts and embedded by <code>make_data.py</code>; <code>check_data.py</code> confirms the page holds exactly that data.</p>
+</section>
+</div>
