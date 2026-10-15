@@ -1,0 +1,149 @@
+{
+ "versions": {
+  "jax": "0.11.2",
+  "jaxlib": "0.11.2",
+  "python": "3.12.11"
+ },
+ "in_axes": {
+  "code": "ens = jax.tree.map(lambda a: jnp.stack([a, a * 1.1, a * 0.9]), p)   # 3 MLPs, every leaf gets a leading axis of 3\njax.vmap(mlp, in_axes=(0, None))(ens, x)          # x f32[8,128] shared by all three\n\n# in_axes can be a pytree prefix: batch only fc1's bias\njax.vmap(mlp, in_axes=({\"fc1\": {\"w\": None, \"b\": 0}, \"fc2\": {\"w\": None, \"b\": None}}, None))(p_mixed, x)",
+  "out_shape": [
+   3,
+   8,
+   128
+  ],
+  "out_shape_bias_only": [
+   3,
+   8,
+   128
+  ],
+  "matches_loop": 0.0
+ },
+ "out_axes": {
+  "out_axes=0": [
+   5,
+   3,
+   3
+  ],
+  "out_axes=2": [
+   3,
+   3,
+   5
+  ],
+  "out_axes=None error": "ValueError: at vmap out_axes, got axis spec None but output was batched on axis 0",
+  "out_axes=None ok (output does not depend on the batch)": [
+   3
+  ]
+ },
+ "axis_size": {
+  "code": "jax.vmap(lambda: jnp.zeros(3), axis_size=4)()",
+  "shape": [
+   4,
+   3
+  ],
+  "mismatch_error": "ValueError: vmap got inconsistent sizes for array axes to be mapped:\n  * one axis had size 4: axis 0 of argument a of type float32[4,3];\n  * one axis had size 5: axis 0 of argument b of type float32[5,3]"
+ },
+ "axis_name": {
+  "code": "def normalize(v):                               # written for one example\n    return v / lax.psum(v.sum(), axis_name=\"b\")   # ...but sums over the whole batch\n\njax.vmap(normalize, axis_name=\"b\")(xs)          # xs: rows 1, 2, 3, 4 (3 columns each)",
+  "out_first_col": [
+   0.03333333507180214,
+   0.06666667014360428,
+   0.10000000894069672,
+   0.13333334028720856
+  ],
+  "jaxpr": "{ lambda ; a:f32[4,3]. let\n    b:f32[4] = reduce_sum[axes=(np.int64(1),) out_sharding=None] a\n    c:f32[] = psum[axes=(0,) axis_index_groups=None] b\n    d:f32[4,3] = div a c\n  in (d,) }",
+  "unbound_error": "NameError: unbound axis name: b",
+  "axis_index": [
+   0,
+   1,
+   2,
+   3
+  ]
+ },
+ "random": {
+  "same_key_rows_equal": true,
+  "split_keys_rows_equal": false,
+  "split_keys_values": [
+   [
+    1.004,
+    -0.9063
+   ],
+   [
+    -2.4425,
+    -2.0357
+   ],
+   [
+    1.2956,
+    1.355
+   ]
+  ],
+  "code": "jax.vmap(lambda _: jax.random.normal(k, (2,)))(jnp.arange(3))        # one key closed over: 3 equal rows\njax.vmap(lambda kk: jax.random.normal(kk, (2,)))(jax.random.split(k, 3))   # one key per example"
+ },
+ "nested": {
+  "shape": [
+   6,
+   7
+  ],
+  "jaxpr": "{ lambda ; a:f32[6,32] b:f32[7,32]. let\n    c:f32[6,7] = dot_general[\n      dimension_numbers=(([1], [1]), ([], []))\n      preferred_element_type=float32\n    ] a b\n  in (c,) }",
+  "code": "jax.vmap(jax.vmap(dot, in_axes=(None, 0)), in_axes=(0, None))(q, k)   # q [6,32], k [7,32] -> [6,7]"
+ },
+ "rule_tables": {
+  "batching.fancy_primitive_batchers": 231,
+  "ad.primitive_jvps": 198,
+  "ad.primitive_transposes": 76,
+  "ad.primitive_linearizations": 11,
+  "mlir lowerings (platform independent)": 253,
+  "mlir lowerings (cpu)": 21,
+  "mlir lowerings (tpu)": 15,
+  "mlir lowerings (cuda)": 41,
+  "note": "sizes of the rule dictionaries after `import jax` and running this script (rules register as modules import)"
+ },
+ "dot_general_batcher": "_dot_batch_rule",
+ "has_rules": {
+  "sin": {
+   "batch": true,
+   "jvp": true,
+   "transpose": false,
+   "lowering": true
+  },
+  "dot_general": {
+   "batch": true,
+   "jvp": true,
+   "transpose": true,
+   "lowering": true
+  },
+  "add": {
+   "batch": true,
+   "jvp": true,
+   "transpose": true,
+   "lowering": true
+  },
+  "mul": {
+   "batch": true,
+   "jvp": true,
+   "transpose": true,
+   "lowering": true
+  },
+  "while": {
+   "batch": true,
+   "jvp": true,
+   "transpose": true,
+   "lowering": true
+  },
+  "cond": {
+   "batch": true,
+   "jvp": true,
+   "transpose": false,
+   "lowering": true
+  },
+  "scan": {
+   "batch": true,
+   "jvp": true,
+   "transpose": false,
+   "lowering": true
+  }
+ },
+ "batch_axis1": {
+  "code": "jax.vmap(mlp, in_axes=(None, 1), out_axes=1)(p, x_t)   # x_t: f32[128, 8], the batch on axis 1",
+  "jaxpr_head": "{ lambda ; a:f32[512] b:f32[128,512] c:f32[128] d:f32[512,128] e:f32[128,8]. let\n    f:f32[8,512] = dot_general[\n      dimension_numbers=(([0], [0]), ([], []))\n      preferred_element_type=float32\n    ] e b\n    g:f32[1,512] = broadcast_in_dim[broadcast_dimensions=(np.int64(1),)] a\n    h:f32[8,512] = add f g\n    i:f32[8,512] = mul 0.5:f32[] h\n    j:f32[8,512] = neg h\n    k:f32[8,512] = mul j 0.7071067690849304:f32[]\n    l:f32[8,512] = erfc k\n    m:f32[8,512] = mul i l"
+ }
+}

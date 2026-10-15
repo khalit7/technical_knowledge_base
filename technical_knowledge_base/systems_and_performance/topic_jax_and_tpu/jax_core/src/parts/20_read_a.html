@@ -1,0 +1,35 @@
+<div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" id="rd-nav"><a href="#s-one">In one screen</a><a href="#s-arr">1 Arrays</a><a href="#s-trace">2 Tracing</a><a href="#s-jaxpr">3 Jaxprs</a><a href="#s-cf">4 Control flow</a><a href="#s-ad">5 Autodiff</a><a href="#s-cust">6 Custom rules</a><a href="#s-vmap">7 vmap</a><a href="#s-tree">8 Pytrees</a><a href="#s-prng">9 Random keys</a><a href="#s-prim">10 New primitive</a><a href="#s-mist">Mistakes</a><a href="#s-iq">Interview</a><a href="#s-old">Old page</a></nav>
+
+<section id="s-one">
+<p class="lead">The root page, {{Topic: jax-and-tpu|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}}, showed in its <b>Transforms lab</b> what jit, grad and vmap do: a function traced into a jaxpr, recompiles counted, per-example gradients timed. This page opens the machine. It answers, for each part, <b>how it works inside, what it costs, and how to check it</b>, and it reads the answer in JAX's own source (tag <code>jax-v0.11.2</code>) rather than in blog posts.</p>
+
+<div class="co key"><div class="t">The whole of JAX in four sentences</div>
+A <b>jax.Array</b> is an immutable, typed, device-resident buffer. A <b>transformation</b> calls your Python function on <b>tracers</b>, stand-ins that carry an abstract value (shape and dtype); every array operation lands on a <b>primitive</b>, and the primitive asks the <b>current trace</b> (an interpreter) what to do with it. One interpreter records a <b>jaxpr</b> (jit), one computes derivatives (grad, jvp), one adds a batch dimension (vmap), and they stack. Everything else on this page (dtypes, control flow, custom rules, pytrees, keys) is a consequence of that design.</div>
+
+<svg id="jc-map" role="img" aria-label="Map: a Python function and pytree of arrays go through tracing into a jaxpr; interpreters jit, grad and vmap; then XLA."></svg>
+<div class="jc-cap">The page in one picture. Click a box to jump to its section.</div>
+
+<h3>What you know from PyTorch, and where it went</h3>
+<div class="tw"><table class="jc-t">
+<thead><tr><th>JAX idea</th><th>What it is</th><th>Nearest PyTorch thing</th><th>Section</th></tr></thead>
+<tbody>
+<tr><td><code>jax.Array</code></td><td>immutable buffer on one or many devices, with a dtype, a sharding and a "committed" flag</td><td><code>torch.Tensor</code> (mutable, one device)</td><td><a href="#s-arr">1</a></td></tr>
+<tr><td>async dispatch, <code>block_until_ready</code></td><td>operations return before the device finishes</td><td>CUDA streams, <code>torch.cuda.synchronize()</code></td><td><a href="#s-arr">1</a></td></tr>
+<tr><td>weak types, x64 off</td><td>Python scalars do not upcast arrays; 64-bit types off by default</td><td><code>torch.result_type</code>; float32 default dtype</td><td><a href="#s-arr">1</a></td></tr>
+<tr><td>tracer, abstract value</td><td>a stand-in carrying shape and dtype while a transformation runs your Python</td><td>FakeTensor and proxies in torch.fx / Dynamo</td><td><a href="#s-trace">2</a></td></tr>
+<tr><td>trace (interpreter)</td><td>the object that decides what a primitive does: evaluate, record, differentiate, batch</td><td><code>__torch_dispatch__</code> modes, dispatcher keys</td><td><a href="#s-trace">2</a></td></tr>
+<tr><td>jaxpr</td><td>a small typed program of primitives, the IR every transformation reads and writes</td><td>an FX graph or an aten graph from <code>torch.export</code></td><td><a href="#s-jaxpr">3</a></td></tr>
+<tr><td><code>lax.cond</code>, <code>scan</code>, <code>while_loop</code></td><td>control flow as primitives with sub-programs</td><td><code>torch.cond</code>, <code>torch._higher_order_ops.while_loop</code>; usually just Python</td><td><a href="#s-cf">4</a></td></tr>
+<tr><td><code>jax.jvp</code>, <code>jax.vjp</code>, <code>linearize</code></td><td>forward and reverse mode as function transformations; reverse = linearize, then transpose</td><td><code>torch.func.jvp</code>, <code>vjp</code>; autograd's tape</td><td><a href="#s-ad">5</a></td></tr>
+<tr><td><code>custom_jvp</code>, <code>custom_vjp</code></td><td>your own derivative rule for a Python function</td><td><code>torch.autograd.Function</code></td><td><a href="#s-cust">6</a></td></tr>
+<tr><td><code>vmap</code> and batching rules</td><td>an interpreter that adds a batch axis to every primitive</td><td><code>torch.func.vmap</code> (a port of JAX's design)</td><td><a href="#s-vmap">7</a></td></tr>
+<tr><td>pytree</td><td>any nested container of arrays, flattened to leaves plus a structure</td><td><code>torch.utils._pytree</code>; <code>state_dict()</code></td><td><a href="#s-tree">8</a></td></tr>
+<tr><td>PRNG key</td><td>random state as an explicit, splittable array</td><td><code>torch.Generator</code>, global seed</td><td><a href="#s-prng">9</a></td></tr>
+<tr><td>primitive with rules</td><td>impl, abstract eval, lowering, JVP, transpose, batching</td><td>a custom op with autograd and vmap registrations</td><td><a href="#s-prim">10</a></td></tr>
+</tbody></table></div>
+
+<div class="deepnote"><b>How to read this page.</b> Sections 1 to 3 are the data model (arrays, tracers, jaxprs). Sections 4 to 7 are the transformations, each with its cost. Sections 8 to 10 are the pieces you use daily (pytrees, keys) and the extension point (primitives). Four lab tabs give the long visuals room: the <a href="#" data-tab="t-jcx">Jaxpr explorer</a> (every equation of six real programs), the <a href="#" data-tab="t-jcad">Autodiff tape</a> (the running example's MLP differentiated step by step, before and after transposition), <a href="#" data-tab="t-jccf">Control flow</a> (a chooser and every loop form measured), and <a href="#" data-tab="t-jccv">Custom derivatives</a> (gradients that go NaN and the rules that fix them). Labels: <span class="jc-lbl m">measured here</span> ran on this Mac; <span class="jc-lbl s">source</span> is read from the pinned code; <span class="jc-lbl p">published</span> is someone else's number or docs, dated.</div>
+
+<p class="small mute">Environment for every run: jax <span data-k="arr.versions.jax"></span>, jaxlib <span data-k="arr.versions.jaxlib"></span>, Python <span data-k="arr.versions.python"></span>, CPU only (<code>JAX_PLATFORMS=cpu</code>), on an Apple M1 Pro shared with other long jobs (1-minute load average 20 to 45 during these runs). Programs, jaxprs, counts, FLOPs from XLA's cost analysis and numerical differences are deterministic and hold on any machine; the few timings are labelled and rough. The running example is the root's tiny character transformer (4 layers, d_model 128, 826,368 parameters, TinyShakespeare), defined in the root's <code>src/data/README.md</code>; scripts for this page are in <code>src/runs/</code>.</p>
+</section>

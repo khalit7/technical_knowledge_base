@@ -6,6 +6,7 @@ the shared venv, CPU only, low priority:
 Outputs go to out/<name>.json (small, committed). Paths in captured messages are scrubbed
 (same rules as the root's src/xf/xfcommon.py).
 """
+import getpass
 import json
 import os
 import re
@@ -31,7 +32,10 @@ def scrub(s):
     s = re.sub(r"/(?:Users|private|tmp|home|var)/[^\s'\"]*?/topic_jax_and_tpu/", "<root>/", s)
     s = re.sub(r"/(?:Users|private|tmp|home|var)/[^\s'\"]*?/src/jax/", "<jax-src>/", s)
     s = re.sub(r"/(?:Users|private|tmp|home|var)/[^\s'\"]+", "<path>", s)
-    s = re.sub(r"\bkhalid\b", "<user>", s)
+    user = getpass.getuser()
+    if user:
+        s = re.sub(r"\b" + re.escape(user) + r"\b", "<user>", s)
+    s = re.sub(r" at 0x[0-9a-f]{6,}", "", s)
     return s
 
 
