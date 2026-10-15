@@ -67,3 +67,16 @@ def scrub(text):
         from datatrove.pipeline.formatters import PIIFormatter
         _pii = PIIFormatter()
     return _pii.format(text)
+
+
+# Hostnames that look like a private individual's site (a person's name as the domain, a family or hobby blog) are
+# replaced by neutral labels everywhere the lab shows a hostname (decision of 2026-10-15). Organisations, companies,
+# public institutions and well-known sites are kept.
+# stored as the first 16 hex digits of sha256(hostname), so the repository does not name them
+PERSONAL_HOSTS = ['952940e2e4afd969', 'a103d633399b854a', '8ec5a1ccdc6559dc', '1a11afd94299596a', 'd59c3cae3e41a360']
+
+
+def host_label(h):
+    import hashlib
+    d = hashlib.sha256((h or "").encode()).hexdigest()[:16]
+    return f"personal-site-{PERSONAL_HOSTS.index(d) + 1}.example" if d in PERSONAL_HOSTS else h
