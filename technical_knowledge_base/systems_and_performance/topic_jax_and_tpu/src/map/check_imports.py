@@ -50,7 +50,8 @@ try:
         try:
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always"); importlib.import_module(m)
-            api[m] = "imports" + ("; warns: " + str(w[0].message)[:100] if w else "")
+            api[m] = "still imports" + ("; warns: " + str(w[0].message)[:100] if w else " (no warning on import)") + \
+                ("; deprecated since 0.8.0, see the table above" if m in ("jax.experimental.pjit", "jax.experimental.shard_map") else "")
         except Exception as e:
             api[m] = "fails: " + type(e).__name__
     api["devices"] = [str(d) for d in jax.devices()][:2]
