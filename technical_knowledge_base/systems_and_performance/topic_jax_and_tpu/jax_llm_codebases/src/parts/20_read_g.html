@@ -1,0 +1,48 @@
+
+<section id="s-lev">
+<h2>Levanter in Marin: named axes and bitwise reproducibility</h2>
+<p><b>What it is.</b> Levanter is Stanford CRFM's trainer, "built with JAX, Equinox, and Haliax" and designed to be "legible, scalable, and reproducible": "Levanter is bitwise deterministic, meaning that the same configuration will always produce the same results, even in the face of preemption and resumption" (<code data-src="lev_readme_bitwise"></code>). The standalone repository now says "Levanter has been merged into Marin as of November 2025" (<code data-src="lev_readme_merged"></code>, frozen at 982cef7f); development continues in the Marin monorepo under <code>lib/levanter</code> (255 Python files, 87,114 lines at 1290cfb5), published to PyPI as <code>marin-levanter</code> in development builds (0.2.180.dev38754195437, uploaded 2026-10-15), requiring <code>jax&gt;=0.9.2,&lt;0.12</code> (<code data-src="lev_pyproject_jax"></code>). Marin itself is an open research programme that logs every experiment; its README lists a scaling suite trained on Google's TPU Research Cloud and, as current work, a 500B+ parameter mixture-of-experts model.</p>
+<p><b>Named tensors.</b> Haliax arrays carry an axis name per dimension, and every operation names the axes it touches. Levanter's GPT-2 attention splits its fused projection with <code>q, k, v = qkv_out.unbind("qkv")</code> (<code data-src="lev_gpt2_unbind"></code>) and must rename the keys' sequence axis, <code>k.rename({"position": "key_position"})</code> (<code data-src="lev_gpt2_rename"></code>), because a dot product of two arrays that both have a <code>position</code> axis would contract or broadcast the wrong one. In PyTorch you track the same thing in comments next to <code>transpose(1, 2)</code>; the closest PyTorch feature, named tensors, was experimental and is little used. Modules are Equinox modules (plain pytrees), not Flax.</p>
+<pre><span class="c"># runs/lc_haliax.py (abridged): block 0's attention of the running example, with named axes</span>
+Batch, Pos, KPos = Axis("batch", 32), Axis("position", 128), Axis("key_position", 128)
+Embed, Heads, HeadSize = Axis("embed", 128), Axis("heads", 4), Axis("head_size", 32)
+q = hax.dot(hn, W("wq"), axis=Embed) + Bv("wq")                        <span class="c"># [batch, position, heads, head_size]</span>
+k = (hax.dot(hn, W("wk"), axis=Embed) + Bv("wk")).rename({"position": "key_position"})
+scores = hax.dot(q, k, axis=HeadSize) / math.sqrt(32)                  <span class="c"># no transpose to remember</span>
+probs = hax.nn.softmax(hax.where(causal, scores, -jnp.inf), axis=KPos)
+ctx = hax.dot(probs, v, axis=KPos)
+out = hax.dot(ctx, wo, axis=(Heads, HeadSize)) + bo</pre>
+<pre class="out"><span class="c"># result, on the running example's initial weights and first batch (marin-haliax 0.2.180.dev38754195437)</span>
+max |named - plain JAX attention| = <span id="lc-v-hal-diff"></span>     shape [32, 128, 128]
+hax.dot(q, k, axis="embed")  -&gt;  <span id="lc-v-hal-err"></span></pre>
+<p><b>Sharding by name.</b> Levanter has no separate logical vocabulary: the model's own axis names are mapped to mesh axes by a dictionary. The defaults (<code data-src="lev_mesh_ici"></code>, <code data-src="lev_mesh_defaults"></code>, <code data-src="lev_param_mapping"></code>): mesh axes <code>data</code> (absorbs all devices), <code>replica</code> and <code>model</code> (1 each), <code>replica_dcn</code> across slices; <code>mlp</code> and <code>heads</code> map to <code>model</code>; for parameters only, <code>embed</code> maps to <code>data</code>, which is FSDP. Parameters and activations get separate mappings (<code>parameter_axis_mapping</code>, <code>compute_axis_mapping</code>), and the trainer reshards the new state with the parameter mapping after every update (<code data-src="lev_trainer_param_map"></code>).</p>
+<div class="tw"><table class="rd-cmp" id="lc-lev-tab"><thead><tr><th>Weight</th><th>Levanter (default mapping, mesh data &times; model)</th><th>MaxText (base rules, mesh fsdp &times; tensor)</th></tr></thead><tbody></tbody></table></div>
+<p class="small mute">Levanter specs from Haliax's <code>pspec_for_axis</code> with the default mapping (<code>runs/lc_haliax.py</code>); MaxText specs from <code>runs/lc_shard.py</code> on the running example's gpt3 config under fsdp 2 &times; tensor 4, without the stacked <code>layers</code> dimension. Same idea, different spelling: FSDP on the embedding dimension, tensor parallelism on <code>mlp</code> and <code>heads</code>.</p>
+<p><b>Reproducibility, and what was checked.</b> Bitwise determinism needs three things, all visible in the code: explicit PRNG keys (JAX has no global random state), a data loader that can jump to batch <i>n</i> without replaying the stream (Levanter writes a preprocessed cache with random access and shuffles with a pseudo-random permutation, <code data-src="lev_permutation"></code>), and checkpoints that hold the step and the keys. The README adds the caveat that training "can even be resumed on a different number of hosts, though this breaks reproducibility for now". The claim is for TPU and was <b>not tested here</b>; what this topic did check is the CPU side: the running example's reruns are deterministic, and the {{training stack|n:3c65c17b0d0d817ea0ace9a2ca8677ec}} page shows a restored Orbax checkpoint continuing bit for bit on the same mesh, and drifting by about 3e-6 within 40 steps when restored into freshly annotated shardings instead of the saved ones.</p>
+<p><span class="jdg">judgement</span> Read Levanter for named axes and for its data loader design document; read Marin for how an open lab organises experiments. Its newer <code>grug/</code> package (28 files) holds array-first building blocks for model templates; it was not read in depth here.</p>
+</section>
+
+<section id="s-others">
+<h2>The others: who still matters</h2>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Codebase</th><th>Status (root Tool map, read 2026-10-15)</th><th>Read it for <span class="jdg">judgement</span></th></tr></thead>
+<tbody>
+<tr><td>{{AXLearn|https://github.com/apple/axlearn}} (Apple)</td><td><span class="lc-tag act">active</span> pushed 2026-07-08; trained Apple's foundation models (the root's Reading tab, section 1)</td><td>A second large-company design, configuration-heavy (the root's description). Worth an afternoon if you want to compare with MaxText.</td></tr>
+<tr><td>{{EasyDeL|https://github.com/erfanzar/EasyDeL}}</td><td><span class="lc-tag act">active</span> 0.3.0 (2026-07-27), mostly one maintainer</td><td>Many Hugging Face architectures in Flax NNX with SFT, DPO and GRPO trainers; good for trying a model quickly, a bus-factor risk in production.</td></tr>
+<tr><td>{{big_vision|https://github.com/google-research/big_vision}}</td><td><span class="lc-tag qt">quiet</span> last commit 2025-05-19</td><td>The cleanest Linen-era training code (ViT, SigLIP, PaliGemma); read to understand older Flax code.</td></tr>
+<tr><td>{{T5X|https://github.com/google-research/t5x}}</td><td><span class="lc-tag qt">quiet</span> recent commits are automated</td><td>Gin configs and partitioning rules of the pjit era: MaxText's logical axis rules descend from this style.</td></tr>
+<tr><td>{{Pax (paxml, praxis)|https://github.com/google/paxml}}</td><td><span class="lc-tag qt">quiet</span> last release 1.4.0, 2024-04-09</td><td>PaLM-era Google training framework; history only.</td></tr>
+<tr><td>{{EasyLM|https://github.com/young-geng/EasyLM}}</td><td><span class="lc-tag qt">quiet</span> last commit 2024-08-13</td><td>A complete pjit-era LLM trainer small enough to read in an afternoon; uses APIs deprecated since (pjit).</td></tr>
+</tbody></table></div>
+<p class="small mute">None of the quiet ones carries an official deprecation notice; "quiet" is the root's reading of commit and release dates. The {{Tool map|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} (tab "Tool map") has the lineage: T5X and Pax gave way to MaxText in Google's practice, EasyLM to mesh-based trainers, Levanter to Marin.</p>
+</section>
+
+<section id="s-serve">
+<h2>Serving what you trained</h2>
+<p>Training codebases decode, but serving at scale is a separate engine. In October 2026 the JAX world has two, and one retired:</p>
+<ul>
+<li><b>vLLM on TPU</b> (<code>tpu-inference</code> 0.31.0, 2026-10-06, with vllm 0.31.0) is the default: vLLM's scheduler and paged KV cache with a TPU backend that, in vLLM's words, unifies "JAX and PyTorch under a single lowering path" (vLLM blog, 2025-10-16). MaxText ships an adapter (<code>integration/vllm/</code>, <code>inference/vllm_decode.py</code>) and its post-training pins a <code>tpu-inference</code> commit for RL rollouts (<code data-src="post_train_tpu_inference_pin"></code>). The engine itself is taught on {{vLLM: inside the default engine|n:3c65c17b0d0d8113b976d8bcaf2c0722}}.</li>
+<li><b>SGLang-JAX</b> (0.1.0rc0, 2026-08-29) is a JAX-native engine from the SGLang team, separate from SGLang's PyTorch code; Tunix can use it for rollouts. The design ideas (radix cache) are on {{SGLang|n:3c65c17b0d0d81e691e4ce9f9b5d1fad}}.</li>
+<li><b>JetStream</b>, Google's earlier engine for MaxText models, announced it would archive on 2026-02-01 with its functions moved to <code>tpu-inference</code>; on 2026-10-15 GitHub still shows it unarchived. MaxText still contains its JetStream engine (<code>inference/maxengine/</code>), and MaxText's decoupled mode stubs JetStream out. Do not start new work on it.</li>
+</ul>
+</section>
