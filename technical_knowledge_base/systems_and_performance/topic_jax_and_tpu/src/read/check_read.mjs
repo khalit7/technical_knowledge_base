@@ -35,6 +35,21 @@ ok(has('166 (v5p) to 560 (v6e)'),'interview ridge range');
 const sh=await p.evaluate(()=>document.getElementById('rd-sh-cap').innerText);
 ok(/1\.1 TB of training state/.test(sh)&&/v5p 12/.test(sh)&&/Ironwood 6/.test(sh),'memory widget default: '+sh.split('\n')[0]);
 ok(Math.ceil(16*70.4e9/1e9/(95*1.073741824))===12,'70B needs 12 v5p chips for the state alone');
+// 4b. lab numbers embedded and quoted as the labs recorded them
+const rp=f=>JSON.parse(fs.readFileSync(path.join(path.dirname(page_path),'src',f),'utf8'));
+const XN=rp('xla/out/read_numbers.json');
+ok(D.trace.ops===XN.trace.ops&&D.trace.kernels===XN.trace.kernels&&D.trace.fusions===XN.trace.fusions&&D.trace.torchKernels===XN.trace.torchKernels,'trace counts = Compiler lab ('+XN.trace.ops+', '+XN.trace.kernels+', '+XN.trace.fusions+', '+XN.trace.torchKernels+')');
+ok(JSON.stringify(D.xla.stages.map(x=>x.v))===JSON.stringify(XN.xla.stages.map(x=>x.v)),'compiler strip = Compiler lab');
+ok(has('385.8 MB')&&has('376.6 MB')&&Math.abs(XN.xla.memory_no_donation.total_allocation_bytes/1e6-385.8)<0.05&&Math.abs(XN.xla.memory_donated.total_allocation_bytes/1e6-376.6)<0.05,'donation memory quoted');
+ok(has('6.39 GFLOP against 23.71'),'cost_analysis scan note');
+const SC=rp('shard/out/rd_collectives.json');
+const tp=SC.rows.find(r=>r.id==='tp'),dp=SC.rows.find(r=>r.id==='dp');
+ok(tp.collectives['all-reduce'].count===18&&dp.collectives['all-reduce'].count===1&&has("18 all-reduces include 8 in the forward pass"),'collective counts quoted');
+const TL=rp('train/out/twin_long.json');
+ok(has(TL.val.torch.at(-1).toFixed(4)+' in PyTorch')&&has(TL.val.jax.at(-1).toFixed(4)+' in plain JAX')&&has(TL.max_abs_loss_diff.torch_vs_jax.toExponential(1).replace('e-4','e-04')),'twin long run quoted');
+const PL=rp('tpu/out/pallas.json');
+ok(has('to 2.5e-7')&&PL.matmul.err_f32<2.6e-7&&has('to 8.9e-8')&&PL.flash.err<9e-8&&PL.flash.blocks_total-PL.flash.blocks_run===128,'Pallas results quoted');
+ok(has('65.4%')&&has('50.33%'),'MaxText MFU table');
 // 4. code shown on the page equals the recorded run (if filled)
 const exPath=path.join(path.dirname(page_path),'src/read/out/examples.json');
 if(fs.existsSync(exPath)){const ex=JSON.parse(fs.readFileSync(exPath,'utf8'));

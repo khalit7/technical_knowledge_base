@@ -1,21 +1,21 @@
 # Reading tab: TODOs
 
-Each item is a dashed box on the page (id in brackets) or a null in `../parts/22_js_rd_data.js`, to be filled from a lab's own output once it exists; `check_read.mjs` lists the boxes still on the page.
+Status 2026-10-15 (final pass): every box filled from the labs' outputs; `check_read.mjs` asserts each quoted number against its source file and reports 0 boxes left.
 
-| # | Where | What is needed | From |
-|---|---|---|---|
-| 1 | Section 0 (`rd-todo-ex`) | The running example: model size, parameter count, data, the PyTorch/JAX equivalence result | root `src/data/README.md` (setup) |
-| 2 | `RDJ.models[0].p` | Running example parameter count (memory widget preset) | setup |
-| 3 | `RDJ.trace` | Primitives in the train step's jaxpr; fusions in the optimised HLO; kernels launched per eager step by the PyTorch twin (torch profiler) | Compiler lab (and Training lab for the torch count) |
-| 4 | `RDJ.xla` (section 3 strip) | Train step at each stage: jaxpr primitives, StableHLO ops, optimised HLO ops and fusions, compile time cold and cached, memory with and without donation | Compiler lab |
-| 5 | Section 4 `<!--CODE:step-->` | The running example's JAX train step, as run, with its output | setup's model_nnx.py / functional train_step |
-| 6 | Section 5 (`rd-todo-coll`) | Collectives found in the compiled HLO per strategy, their bytes, per-device parameter bytes, loss equality | Sharding lab |
-| 7 | Section 6 (`rd-todo-pallas`) | Kernels written in interpret mode and their agreement with jnp | TPU and Pallas lab |
-| 8 | Section 7 (`rd-todo-mfu`) | MaxText's published MFU table, dated, with slice | pinned MaxText clone or codebases child |
-| 9 | Section 8 twin row | Filled from setup's 500-step equiv.json (val 2.0692 PyTorch, 2.0691 JAX; curves within 2.9e-5; step times) via make_read_data.py | done |
-| 10 | Mistakes (`rd-todo-donate`) | memory_analysis with and without donation | Compiler lab |
-| 11 | Interview (`rd-todo-port`) | Defaults that differed between the twins, confirmed in pinned source | setup equivalence check, Training lab |
-| 12 | Further reading (`rd-todo-free`) | Colab, Kaggle, TRC facts | TPU and Pallas lab FACTS |
-| 13 | Further reading lab times (`data-rd-lab`) | Each lab tab's reading time | each tab's word count at 200 a minute |
-| 14 | Section 2 and Mistakes code | Run `run_examples.py` in the shared venv, then `make_read_data.py` | shared venv (READY) |
-| 15 | Section 8 "same key, same numbers on any device count" | Confirm with 8 simulated devices (jax_threefry_partitionable default) | run here |
+| # | Where | Filled from |
+|---|---|---|
+| 1 | Section 0 running example | `src/data/equiv.json` (setup, 500 steps) via `make_read_data.py` |
+| 2 | Memory widget preset | equiv.json n_params 826,368 |
+| 3 | Eager vs jit animation counts | `src/xla/out/read_numbers.json`: 3,411 primitives, 1,057 kernels (783 fusions); PyTorch 1,302 working aten ops (Training lab counts 1,309 top-level calls; 1,302 quoted, both named) |
+| 4 | Section 3 strip, compile times, cost_analysis scan note | Compiler lab read_numbers.json and FACTS "xla" |
+| 5 | Section 4 train step | `run_step.py` (now with donate_argnames) |
+| 6 | Section 5 collectives table | `src/shard/out/rd_collectives.json` |
+| 7 | Section 6 Pallas results, TPU7x devices, v5e bandwidth note | `src/tpu/out/pallas.json`, `specs.json`, FACTS "tpu" |
+| 8 | Section 7 MaxText MFU | pinned clone 1a95d1e5, `docs/reference/models/tiering.md` (vendor) |
+| 9 | Section 8 twin row | `src/train/out/twin_long.json` (4,000 steps) and equiv.json step times |
+| 10 | Mistakes, donation | read_numbers.json memory_analysis; flax compilation.py:317-318 |
+| 11 | Interview porting answer | `check_defaults.py` output and twin_long.json |
+| 12 | Further reading free TPU access | specs.json "free" |
+| 13 | Further reading lab times | Transforms 25, Compiler 16, Training 25 (labs); Sharding 19, TPU 24, Tool map 5 plus tables (measured from the built tabs at 200 words a minute) |
+
+Open: nothing on the page. The child pages' reading times in Further reading say "being built" until they exist.

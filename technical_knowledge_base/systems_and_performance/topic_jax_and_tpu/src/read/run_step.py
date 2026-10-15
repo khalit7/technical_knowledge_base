@@ -14,7 +14,7 @@ import common as C, model_nnx as M                # the running example (src/dat
 model = M.make_model(C.CFG)                       # built eagerly, like an nn.Module
 optimizer = M.make_optimizer(model, C.CFG)        # nnx.Optimizer(model, optax chain, wrt=nnx.Param)
 
-@nnx.jit                                          # one compiled program: forward, backward, update
+@nnx.jit(donate_argnames=("model", "optimizer"))  # one compiled program; reuse the old buffers
 def train_step(model, optimizer, x, y):
     def loss_fn(model):
         logits = model(x)                         # [B, T, vocab]
@@ -37,5 +37,5 @@ out = buf.getvalue().rstrip()
 print(out)
 os.makedirs(os.path.join(HERE, "out"), exist_ok=True)
 json.dump({"code": CODE, "output": out,
-           "caption": "Ran with jax %s and flax %s on Apple M1 Pro (CPU); output as printed. The model and optimiser come from <code>src/data/model_nnx.py</code> (AdamW with warmup, global-norm clipping and weight decay on weight matrices only); <code>float(...)</code> forces a host sync, fine for three steps and a mistake in a real loop." % (jax.__version__, flax.__version__)},
+           "caption": "Ran with jax %s and flax %s on Apple M1 Pro (CPU); output as printed. The model and optimiser come from <code>src/data/model_nnx.py</code> (AdamW with warmup, global-norm clipping and weight decay on weight matrices only); <code>nnx.jit</code> donates nothing unless asked, hence <code>donate_argnames</code>; <code>float(...)</code> forces a host sync, fine for three steps and a mistake in a real loop." % (jax.__version__, flax.__version__)},
           open(os.path.join(HERE, "out", "step.json"), "w"), indent=1)
