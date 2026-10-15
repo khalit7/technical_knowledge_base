@@ -13,7 +13,7 @@ The question the page keeps returning to: **for a given training run, which corp
 
 | PC5 | Every corpus, one table | Chips by kind; name, release, tokens, tokenizer, licence field; tap a name to open its Lineage card | One place to compare headline sizes with their units and licences | data/corpora.json | Reading s3 |
 | PC6 | DCLM Table 4 bars | Eight quality filters on the same pool, Core score | The learned-filter result in one picture, with an honest axis note | DCLM paper Table 4 | Reading s3 |
-| PC7 | What each corpus kept from one WARC file (before/after animation) | 20,617 HTML pages as cells, steps raw -> FineWeb -> FineWeb-Edu -> the classifier re-run here; toggle the strict (3+) and lenient (2+) cut; counters for pages, share and GPT-2 tokens | The same input before and after each corpus's pipeline, drawn to scale (one cell per page); reproduces FineWeb-Edu's 159 within 2 pages independently | WARC scan + FineWeb rows of the running example; classifier on CPU | Reading s4 |
+| PC7 | What each corpus kept from one WARC file (before/after animation) | 20,617 HTML pages as cells, steps raw -> FineWeb -> FineWeb-Edu -> the classifier re-run here; toggle the strict (3+) and lenient (2+) cut; counters for pages, share and GPT-2 tokens | The same input before and after each corpus's pipeline, drawn to scale (one cell per page); reproduces FineWeb-Edu's 159 within 2 pages independently; a fifth step shows the Nemotron-CC pages found by streaming its files, coloured by quality bucket | WARC scan + FineWeb rows of the running example; classifier on CPU | Reading s4 |
 | PC8 | Published-study viewer | Pick one of 8 studies; bars with the study's own corpus highlighted (vendor) and the rest independent; alternate metric where the paper gives one | Makes "who ran it" and "which metric" visible; every cell copied from a table | data/ablations.json | Reading s5 |
 | PC9 | Licence layers | Pick a corpus; its four layers (content, crawler terms, dataset licence, access gate) filled from its card | Shows why a licence field is not the whole answer | data/corpora.json + per-corpus layer text | Reading s7 |
 | PC10 | Measured-samples table | 19 samples: docs, median length, characters per GPT-2 token, top language, Gopher pass rate, mean edu score | The summary of section 8 | data/measured.json | Reading s8 |
@@ -27,7 +27,7 @@ The question the page keeps returning to: **for a given training run, which corp
 | Idea | Why rejected |
 |---|---|
 | Horizontal timeline for the lineage | 39 labels do not fit at 390 px; rows in date order keep every name readable |
-| Nemotron-CC and DCLM membership in the WARC animation | DCLM has no 2024 documents; Nemotron-CC's files are not split by source WARC (about 260 GB to scan): stated on the page |
+| DCLM membership in the WARC animation | DCLM has no 2024 documents (built partially instead: Nemotron-CC by a streamed scan of 168 of its 722 files for the crawl, coverage stated) |
 | A map of crawl languages | Common Crawl publishes the table; one sentence carries it |
 | Re-plotting FineWeb's smoothed curves | Read from plots; the csv's final values are used instead |
 | Price or cost tab | Not the page's subject (such tabs were removed from other pages at review) |
