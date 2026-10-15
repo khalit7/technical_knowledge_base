@@ -110,7 +110,7 @@ def build():
              [q for q, s_ in picks if q["type"] == "comparison"][:1]
     out = {"questions": graph_view(g, ph, chosen), "hierarchy": {str(k): v for k, v in comms.items()}, "n_nodes": len(surv), "n_edges": len(E)}
     # the same questions on an LLM-extracted graph, when one exists (this page's graphrag-prompt run, else the Agentic lab's)
-    for mode in ("1.7b_394", "agt"):
+    for mode in ("agt", "1.7b_150"):  # the Agentic lab extracted all 394 subset paragraphs; this page's run covers the first 150
         f = work("graph_subset_%s.json" % mode)
         if os.path.exists(f):
             sys.argv = ["s_entities", mode]

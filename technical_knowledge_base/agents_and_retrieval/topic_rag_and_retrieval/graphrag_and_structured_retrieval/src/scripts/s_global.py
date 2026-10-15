@@ -21,9 +21,12 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from grlib import L, generator, hotpot, para_text, save, work  # noqa: E402
 
-from graphrag.prompts.index.community_report_text_units import COMMUNITY_REPORT_TEXT_PROMPT  # noqa: E402
-from graphrag.prompts.query.global_search_map_system_prompt import MAP_SYSTEM_PROMPT  # noqa: E402
-from graphrag.prompts.query.global_search_reduce_system_prompt import REDUCE_SYSTEM_PROMPT  # noqa: E402
+try:  # the graphrag env; the shared env only runs "encode"
+    from graphrag.prompts.index.community_report_text_units import COMMUNITY_REPORT_TEXT_PROMPT  # noqa: E402
+    from graphrag.prompts.query.global_search_map_system_prompt import MAP_SYSTEM_PROMPT  # noqa: E402
+    from graphrag.prompts.query.global_search_reduce_system_prompt import REDUCE_SYSTEM_PROMPT  # noqa: E402
+except ImportError:
+    pass
 
 CTX = 2500  # tokens of paragraphs per community report
 QUESTIONS = ["What are the main themes of this collection of paragraphs?",
@@ -63,6 +66,12 @@ def report_inputs(by, ntok):
     return out
 
 
+def qvecs():
+    """bge-small query vectors of the global questions (this env has no torch: written once by the shared env,
+    `$RAG_SCRATCH/venv/bin/python -I -B s_global.py encode`)."""
+    return json.load(open(work("global_qvec.json")))
+
+
 def parse_json(t):
     m = re.search(r"\{.*\}", t, re.S)
     try:
@@ -73,6 +82,11 @@ def parse_json(t):
 
 def main():
     a = sys.argv[1:]
+    if a[0] == "encode":
+        enc = L.encoder("bge-small", device="cpu")
+        V = enc.encode(QUESTIONS, prompt=L.query_prefix("bge-small", "hotpotqa"), normalize_embeddings=True)
+        json.dump({q: v.tolist() for q, v in zip(QUESTIONS, V)}, open(work("global_qvec.json"), "w"))
+        return
     model = a[1]
     offline = a[0] == "summary"
     qs, corpus, by = hotpot()
@@ -93,7 +107,6 @@ def main():
     sub = set(communities()[2])
     ids, X = L.embeddings("hotpotqa", "bge-small")
     X = np.asarray(X); idx = {p: i for i, p in enumerate(ids)}
-    enc = None
     answers = []
     for q in QUESTIONS:
         pts, c, mp = [], Counter(), []
@@ -122,9 +135,7 @@ def main():
         if res is None:
             print("not cached"); return
         c["calls"] += 1; c["in"] += res["n_in"]; c["out"] += res["n_out"]; c["s"] += res["seconds"]
-        if enc is None:
-            enc = L.encoder("bge-small", device="cpu")
-        qv = enc.encode([q], prompt=L.query_prefix("bge-small", "hotpotqa"), normalize_embeddings=True)[0]
+        qv = np.asarray(qvecs()[q], dtype=np.float32)
         top = sorted(sub, key=lambda p: -float(X[idx[p]] @ qv))[:10]
         rn = G.chat(NAIVE.format(ctx="\n".join("[%d] %s" % (i + 1, para_text(by[p])) for i, p in enumerate(top)), q=q), cache, model, max_tokens=300, tag="naive", offline=offline)
         if rn is None:
