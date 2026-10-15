@@ -1,0 +1,36 @@
+<section id="xf-s7">
+<h2>7. Pytrees: the model's parameters as one nested value</h2>
+<p><b>The problem.</b> Transformations take and return arrays, but a model has dozens of parameters. PyTorch keeps them as attributes of <code>nn.Module</code> objects and gives you <code>model.parameters()</code> and <code>state_dict()</code> to walk them. JAX instead accepts any nesting of containers, a <dfn>pytree</dfn>, and flattens it to a list of <dfn>leaves</dfn> (the arrays) plus a <dfn>tree definition</dfn> (the structure) whenever a transformation needs to. <code>jit</code>, <code>grad</code>, <code>vmap</code>, optax and orbax all speak pytrees, so parameters, gradients, optimiser states and checkpoints share one shape.</p>
+<div class="xf-box" id="xf-pt-card"><h4>Explore the running example's parameter pytree</h4>
+<p class="small mute">The plain-JAX model's parameters: nested dicts and a list. Click a node; leaves show their path (<code>jax.tree_util.keystr</code>), shape, position in <code>jax.tree.leaves</code> order, and the PyTorch name the setup maps them to.</p>
+<div class="xf-two"><div class="xf-tree" id="xf-pt-tree"></div><div id="xf-pt-detail" class="detail" style="margin-top:0"></div></div>
+<div class="xf-cnt" id="xf-pt-cnt"></div>
+</div>
+<p><b>What counts as a leaf.</b> Lists, tuples, dicts, <code>None</code> and classes registered with JAX are containers; everything else is a leaf, including Python floats and strings. An unregistered class is a single opaque leaf, so transformations cannot see the arrays inside it. Flattening this object (real output):</p>
+<pre class="xf-code">obj = {"tuple": (1.0, 2.0), "none": None, "str": "adam", "opaque": Opaque(),   # plain class holding an array
+       "pair": Pair(jnp.ones(2), jnp.zeros(2)),   # @jax.tree_util.register_dataclass
+       "list": [jnp.ones(3)], "empty": {}}
+jax.tree_util.tree_flatten_with_path(obj)</pre>
+<div class="tw"><table class="xf-t" id="xf-leaves"></table></div>
+<p><code>None</code> and the empty dict contribute no leaves, the dict keys come out sorted, and the opaque object is one leaf. Flax NNX modules are registered, which is how <code>nnx.split(model)</code> returns a state pytree: for the running example's NNX twin it has <span data-xf="pt.nnx"></span>.</p>
+<p><b>tree_map.</b> <code>jax.tree.map(f, *trees)</code> applies <code>f</code> leaf by leaf across trees of the same structure; <code>jax.tree.map(lambda p, g: p - lr * g, params, grads)</code> is a complete SGD step. If the structures differ, it refuses:</p>
+<pre class="xf-code xf-err" data-xf-text="pt.mismatch"></pre>
+</section>
+
+<section id="xf-s8">
+<h2>8. grad and value_and_grad against loss.backward()</h2>
+<p><b>The difference in one line.</b> PyTorch differentiates the computation that just ran: <code>loss.backward()</code> walks the graph autograd recorded during the forward pass and adds gradients into each parameter's <code>.grad</code>. JAX differentiates a function: <code>jax.grad(loss_fn)</code> returns a new function that, given parameters, returns a gradient pytree shaped like them. There is no <code>.grad</code> attribute, no <code>zero_grad()</code> and no <code>requires_grad</code>; you choose what to differentiate with <code>argnums</code>.</p>
+<pre class="xf-code">loss, grads = jax.jit(jax.value_and_grad(loss_fn))(params, x, y)   # JAX: one pure call
+# PyTorch on the same weights and batch:
+loss_t = loss_fn_torch(model, x, y); loss_t.backward()            # fills p.grad for every parameter</pre>
+<div class="xf-box"><h4>Same weights, same batch: JAX gradients against PyTorch's, parameter by parameter</h4>
+<div class="xf-cnt" id="xf-gr-cnt"></div>
+<div class="xf-chart" id="xf-gr-chart"></div>
+<div class="xf-leg"><span><i style="background:var(--c1)"></i>largest |difference| (JAX minus PyTorch)</span><span><i style="background:var(--dim)"></i>largest |gradient| in that parameter</span></div>
+<p class="small mute" id="xf-gr-note"></p></div>
+<p><b>Why the key biases stand out.</b> Their true gradient is exactly zero: adding the same vector to every key adds the same number to every score in a row, and softmax ignores a constant added to a whole row. Both frameworks compute float noise around zero (about 2e-11 here), so their relative difference is meaningless and is left out of the "worst relative" figure. The setup's equivalence check explains why that noise still moves those biases during AdamW training (<a href="#" data-tab="t-read">Reading, section 0</a> and the {{Training lab|#t-train}}).</p>
+<div class="tw"><table class="xf-t" id="xf-gr-sem"></table></div>
+<p><b>has_aux</b> returns metrics next to the loss without differentiating them: <code>jax.value_and_grad(loss_aux, has_aux=True)</code> where <code>loss_aux</code> returns <code>(loss, {"accuracy": ..., "max_logit": ...})</code> gave <span data-xf="gr.aux"></span>, and the gradient matched the plain one to <span data-xf="gr.auxdiff"></span>. Forgetting <code>has_aux</code>:</p>
+<pre class="xf-code xf-err" data-xf-text="gr.auxmiss"></pre>
+<p><b>Transformations compose.</b> <code>grad</code> returns an ordinary function, so <code>jax.grad(jax.grad(jnp.tanh))(0.5)</code> is the second derivative: <span data-xf="gr.d2"></span>, against the formula &minus;2 tanh(x)(1 &minus; tanh&sup2;(x)) = <span data-xf="gr.d2f"></span>. <code>jax.jit(jax.vmap(jax.grad(f)))</code> is the per-example gradient of section 9. In PyTorch, higher derivatives need <code>create_graph=True</code>.</p>
+</section>
