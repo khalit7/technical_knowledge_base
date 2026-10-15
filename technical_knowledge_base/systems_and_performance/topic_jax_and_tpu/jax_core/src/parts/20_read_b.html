@@ -1,0 +1,81 @@
+<section id="s-arr">
+<h2>1. Arrays: what a jax.Array is, where it lives, and what dtype it really has</h2>
+<p><b>The problem.</b> A PyTorch tensor is a mutable buffer on one device, and most of its behaviour (dtype rules, synchronisation) is inherited from CUDA and NumPy habits. JAX arrays look the same from Python but differ in four ways that bite when porting: they can span several devices, they remember whether you placed them on purpose, operations on them return before the work is done, and their dtype rules are JAX's own, not NumPy's.</p>
+
+<h3>What the object is</h3>
+<p>Every array you touch is a <code>jaxlib._jax.ArrayImpl</code>, a C++ object behind the public type <code>jax.Array</code> (<code>isinstance(x, jax.Array)</code> is <span data-k="arr.array.isinstance_jax_Array"></span>). For <code>x = jnp.arange(6.0).reshape(2, 3)</code> this run printed:</p>
+<div class="tw"><table class="jc-t"><tbody>
+<tr><td><code>x.shape</code>, <code>x.dtype</code></td><td class="mono">(2, 3), <span data-k="arr.array.dtype"></span></td><td>static: known without computing anything; they make up the abstract value</td></tr>
+<tr><td><code>jax.typeof(x)</code></td><td class="mono" data-k="arr.array.typeof"></td><td>the abstract value tracing works with (<a href="#s-trace">section 2</a>)</td></tr>
+<tr><td><code>x.devices()</code></td><td class="mono" data-k="arr.array.devices"></td><td>a set: a sharded array lives on many</td></tr>
+<tr><td><code>x.sharding</code></td><td class="mono" data-k="arr.array.sharding"></td><td>how the logical array maps to device buffers ({{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}} owns this)</td></tr>
+<tr><td><code>x.committed</code></td><td class="mono" data-k="arr.array.committed"></td><td>placed on purpose, or left to JAX (next paragraph)</td></tr>
+<tr><td><code>x.weak_type</code></td><td class="mono" data-k="arr.array.weak_type"></td><td>whether the dtype is "weak" (below)</td></tr>
+</tbody></table></div>
+<p>It is immutable: <code>x[0] = 1</code> raises and <code>x.at[0].set(1)</code> returns a new array; the root's {{Transforms lab|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} (section 5) shows the indexed-update API and why out-of-bounds indices clamp instead of raising.</p>
+
+<h3>Committed and uncommitted: who chose the device</h3>
+<p>An array is <b>committed</b> when you placed it explicitly (<code>jax.device_put(x, device)</code> or a sharding), and <b>uncommitted</b> when JAX chose the default device for you (<code>jnp.ones</code>, <code>jnp.asarray(numpy_array)</code>, <code>jax.device_put(x)</code> with no device). The rule: an operation on uncommitted arrays may move them to wherever the committed operands are; an operation mixing arrays committed to different devices is an error, because JAX will not silently copy what you placed on purpose. <span class="jc-lbl m">measured here</span> with 8 simulated CPU devices (<code>run_array8.py</code>):</p>
+<pre class="jc-code">a0 = jax.device_put(x, devs[0])   # committed to cpu:0
+a3 = jax.device_put(x, devs[3])   # committed to cpu:3
+u  = jnp.ones(4)                  # uncommitted, on cpu:0
+u + a3     # -> lands on cpu:3, committed: u followed a3
+a0 + a3    # -> error below</pre>
+<pre class="jc-code jc-err" data-code="arr8.two_committed_error"></pre>
+<p>Fix: move one side explicitly, <code>jax.device_put(a0, devs[3]) + a3</code>. PyTorch counterpart: <code>RuntimeError: Expected all tensors to be on the same device</code> fires for any mix of devices; JAX is more permissive for arrays you never placed, and exactly as strict for those you did. Inside <code>jit</code> the same check gives the same message with the argument names.</p>
+
+<h3>Async dispatch: the call returns before the work is done</h3>
+<p><b>How it works.</b> Calling a jitted function enqueues the compiled program on the device and returns an array whose buffer is not filled yet; Python runs ahead. Anything that needs the actual numbers in Python waits: <code>x.block_until_ready()</code>, <code>float(x)</code>, <code>x.item()</code>, <code>print(x)</code>, <code>np.asarray(x)</code>, <code>jax.device_get(x)</code>, or a Python <code>if</code> on a value. <span class="jc-lbl m">measured here</span> for <code>tanh(a @ b)</code> with two float32 1024 x 1024 matrices, jitted, median of 7 calls:</p>
+<div class="out">
+<div class="stat"><div class="k">call returns after</div><div class="v"><span data-k="arr.async.dispatch_only_ms" data-f="f3"></span> ms</div><div class="d">dispatch only</div></div>
+<div class="stat"><div class="k">result ready after</div><div class="v"><span data-k="arr.async.dispatch_and_block_ms" data-f="f1"></span> ms</div><div class="d">with <code>.block_until_ready()</code></div></div>
+<div class="stat"><div class="k"><code>is_ready()</code> right after the call</div><div class="v" id="jc-ready"></div><div class="d">5 of 5 calls</div></div>
+</div>
+<p class="small mute">Measured on Apple M1 Pro (CPU), shared machine, low priority, load average about 24 to 40: only the ratio matters. On a GPU or TPU the same thing happens, which is why a benchmark without <code>block_until_ready()</code> measures dispatch, and why one stray <code>float(loss)</code> per step serialises Python with the device. PyTorch counterpart: CUDA kernels are asynchronous too and <code>loss.item()</code> is the same hidden sync; on CPU, PyTorch is synchronous and JAX is not. JAX's docs: {{Asynchronous dispatch|https://docs.jax.dev/en/latest/async_dispatch.html}}.</p>
+
+<h3>Default dtypes and x64</h3>
+<p>JAX turns 64-bit types off by default (flag <code>jax_enable_x64</code>, currently <span data-k="arr.x64_off.jax_enable_x64"></span>): accelerators are slow or unable at float64, and silent float64 doubles memory. So the NumPy defaults change under you:</p>
+<div class="tw"><table class="jc-t"><thead><tr><th>expression</th><th>JAX (x64 off)</th><th>NumPy</th></tr></thead><tbody>
+<tr><td><code>array(1.0)</code></td><td class="mono" data-k="arr.x64_off.jnp.array(1.0)"></td><td class="mono" data-k="arr.x64_off.np.array(1.0)"></td></tr>
+<tr><td><code>arange(3)</code></td><td class="mono" data-k="arr.x64_off.jnp.arange(3)"></td><td class="mono" data-k="arr.x64_off.np.arange(3)"></td></tr>
+<tr><td><code>jnp.asarray(float64 NumPy array)</code></td><td class="mono" data-k="arr.x64_off.jnp.asarray(np.float64 array)"></td><td>(stays float64)</td></tr>
+<tr><td><code>sum(int8 array)</code></td><td class="mono" data-k="arr.x64_off.jnp.sum(int8 array) dtype"></td><td class="mono" data-k="arr.x64_off.np.sum(int8 array) dtype"></td></tr>
+<tr><td><code>int32 max + 1</code></td><td class="mono" data-k="arr.x64_off.int32 overflow" data-f="int"></td><td>(int64: no overflow)</td></tr>
+</tbody></table></div>
+<p>Asking for float64 with x64 off does not fail; it warns and gives float32:</p>
+<pre class="jc-code jc-err wrap" data-code="arr.x64_off.warning"></pre>
+<p>Turn x64 on at startup (<code>jax.config.update("jax_enable_x64", True)</code> or <code>JAX_ENABLE_X64=1</code>) for numerics work; leave it off for models. The data loader is the usual source of surprise: NumPy int64 token ids become int32 on the way in, which is fine below 2<sup>31</sup>.</p>
+
+<h3>Matmul precision: why float32 is not always float32</h3>
+<p>The precision of a float32 matrix product is a per-backend setting, and the defaults differ. <span class="jc-lbl s">source</span> <code>lax.Precision</code>'s docstring in the pinned source:</p>
+<div class="jc-srcx" data-id="precision" data-open="1"></div>
+<p><span class="jc-lbl m">measured here</span> on CPU, a 256 x 256 float32 product against a float64 reference: largest error <span data-k="arr.matmul_precision_cpu.max_abs_err_vs_float64.default" data-f="e1"></span> with <code>default</code>, <code>high</code> and <code>highest</code> alike ("no impact on CPU backends"), and <span data-k="arr.matmul_precision_cpu.max_abs_err_vs_float64.inputs cast to bfloat16" data-f="s3"></span> with inputs cast to bfloat16 (entries up to <span data-k="arr.matmul_precision_cpu.max_abs_ref" data-f="f1"></span>). That second number is roughly what <code>DEFAULT</code> does to every float32 matmul on a TPU. Comparing a TPU run against a float32 PyTorch GPU run, or against this CPU, therefore needs <code>jax.default_matmul_precision("highest")</code> or a tolerance at bfloat16 level; the {{PyTorch to JAX|n:3fa5c17b0d0d81c5abb9fedab418578d}} child page owns that equivalence method.</p>
+
+<h3>Weak types: why <code>bf16_array * 2.0</code> stays bfloat16</h3>
+<p><b>The problem.</b> In NumPy 1, <code>float32_array * 2.0</code> could upcast to float64 because the Python float was treated as float64. For bfloat16 models that would be a disaster: every <code>x * 0.5</code> would double memory. JAX gives Python scalars a <b>weak type</b>: a dtype marked "defer to the other operand". <code>jax.typeof(2.0)</code> prints <code data-k="tr.avals.2.typeof"></code>; the tilde is the weak flag, and <code>jax.typeof(jnp.float32(2.0))</code> prints <code data-k="tr.avals.5.typeof"></code> (strong).</p>
+<div class="jc-pr" data-ans="b"><div class="q">Predict: <code>x</code> is a bfloat16 array. What dtype is <code>x * jnp.float32(2.0)</code>?</div>
+<div class="opts"><button data-o="a">bfloat16, like <code>x * 2.0</code></button><button data-o="b">float32</button><button data-o="c">an error</button></div>
+<div class="ans" hidden><b>float32</b> (<code data-k="arr.weak.bf16 * jnp.float32(2.0)"></code> in this run), while <code>x * 2.0</code> stayed <code data-k="arr.weak.bf16 * 2.0"></code>. A NumPy scalar <code>np.float32(2.0)</code> is strongly typed too (<code data-k="arr.weak.bf16 * np.float32(2.0)"></code>), but <code>jnp.array(2.0)</code> keeps the weak flag of the Python float it came from (<code data-k="arr.weak.bf16 * jnp.array(2.0)"></code>). A constant built with an explicit dtype in a bf16 model silently upcasts the whole expression.</div></div>
+<p><b>How it works.</b> JAX defines promotion on a lattice: each type points to the types just above it, and two types promote to their lowest common upper bound. Weak int and weak float sit low in the lattice, so they join any array type without raising it. <span class="jc-lbl s">source</span>:</p>
+<div class="jc-srcx" data-id="lattice"></div>
+<p>The design and its reasoning are in {{JEP 9407, type promotion semantics|https://docs.jax.dev/en/latest/jep/9407-type-promotion.html}}. NumPy 2 adopted weak Python scalars too (NEP 50), so the two now agree more often than they used to; the table below is the real result of <code>x + y</code> in both libraries in this environment (NumPy <span data-k="arr.numpy"></span>), with every difference highlighted.</p>
+<div class="jc-box" id="jc-prom-box"><h4>Promotion table: JAX against NumPy, real results of x + y</h4>
+<div class="jc-sel"><span class="seg" id="jc-prom-x64"><button data-m="off" class="on">x64 off (default)</button><button data-m="on">x64 on</button></span><span class="seg" id="jc-prom-show"><button data-m="jax" class="on">show JAX</button><button data-m="numpy">show NumPy</button></span><label class="chk"><input type="checkbox" id="jc-prom-only"> only cells that differ</label></div>
+<div class="hmwrap"><div id="jc-prom"></div></div>
+<div class="jc-cap" id="jc-prom-cap"></div>
+</div>
+<p><b>Two weak-type results worth knowing</b> <span class="jc-lbl m">measured here</span>: <code>int8_array + 1000</code> gives <code data-k="arr.jnp_vs_np.int8 array + 1000.jax.0"></code> in JAX (1000 is cast to int8 and wraps) while NumPy 2 refuses (<code data-k="arr.jnp_vs_np.int8 array + 1000.numpy"></code>); <code>uint8_array + (-1)</code> gives <code data-k="arr.jnp_vs_np.uint8 array + (-1).jax.0"></code> in JAX and <code data-k="arr.jnp_vs_np.uint8 array + (-1).numpy"></code> in NumPy. JAX never raises on a value it would have to inspect, because under jit there is no value to inspect.</p>
+
+<h3>jax.numpy is not NumPy</h3>
+<p><code>jax.numpy</code> follows NumPy's API where it can, and departs where tracing or immutability force it to. Each row ran in <code>run_array.py</code>:</p>
+<div class="tw"><table class="jc-t"><thead><tr><th>case</th><th>JAX</th><th>NumPy</th><th>why</th></tr></thead><tbody>
+<tr><td><code>sum([1, 2, 3])</code> (a list)</td><td class="mono" data-k="arr.jnp_vs_np.list input.jax"></td><td class="mono" data-k="arr.jnp_vs_np.list input.numpy"></td><td>converting a list costs one transfer per element; JAX makes you build the array once</td></tr>
+<tr><td><code>arange(3) / 2</code></td><td class="mono" data-k="arr.jnp_vs_np.int / int.jax"></td><td class="mono" data-k="arr.jnp_vs_np.int / int.numpy"></td><td>x64 off</td></tr>
+<tr><td><code>jit(unique)(...)</code></td><td class="mono" data-k="arr.jnp_vs_np.unique under jit.jax"></td><td>[1, 2]</td><td>output size depends on data; give <code>size=</code> (with <code>size=3, fill_value=-1</code>: <span data-k="arr.jnp_vs_np.unique under jit.jax_with_size"></span>)</td></tr>
+<tr><td><code>jit(lambda v: v[v &gt; 0])</code></td><td class="mono" data-k="arr.jnp_vs_np.boolean mask under jit.jax"></td><td>works</td><td>same reason; use <code>jnp.where(v &gt; 0, v, 0)</code></td></tr>
+<tr><td><code>log(-1.0)</code></td><td class="mono" data-k="arr.jnp_vs_np.log(-1).jax"></td><td>nan and a RuntimeWarning</td><td>no warnings from compiled code; turn on <code>jax_debug_nans</code> to stop at the first NaN</td></tr>
+<tr><td><code>array(7) // 0</code></td><td class="mono" data-k="arr.jnp_vs_np.7 // 0 (int32).jax"></td><td>0 and a RuntimeWarning</td><td>integer division by zero has no defined result in XLA; the value is garbage and nothing tells you</td></tr>
+</tbody></table></div>
+<div class="co"><div class="t">Problem, cost, when it matters, how to check</div>
+<b>Cost:</b> none at run time; the cost is bugs. <b>When it matters:</b> mixed-precision models (strong constants upcasting bf16), integer ids and counters (int32 overflow), cross-device code (committed arrays), benchmarks and training loops (hidden syncs). <b>How to check:</b> <code>jax.typeof(x)</code> prints dtype, weak flag and sharding; <code>x.committed</code>, <code>x.devices()</code>; <code>jax.config.update("jax_numpy_dtype_promotion", "strict")</code> makes any operation between arrays of two different strong dtypes an error (weak scalars still promote); the profiler's trace shows device idle gaps from host syncs (the {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}} child page reads profiles).</div>
+</section>

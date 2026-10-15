@@ -1,0 +1,122 @@
+{
+ "versions": {
+  "jax": "0.11.2",
+  "jaxlib": "0.11.2",
+  "python": "3.12.11"
+ },
+ "steps": [
+  {
+   "title": "Create the primitive and a function that binds it",
+   "code": "multiply_add_p = jax.extend.core.Primitive(\"multiply_add\")\n\ndef multiply_add(x, y, z):\n    return multiply_add_p.bind(x, y, z)",
+   "result": {
+    "eager": "NotImplementedError: Evaluation rule for 'multiply_add' not implemented",
+    "make_jaxpr": "NotImplementedError: Abstract evaluation for 'multiply_add' not implemented",
+    "jit": "NotImplementedError: Abstract evaluation for 'multiply_add' not implemented",
+    "jvp": "NotImplementedError: Differentiation rule for 'multiply_add' not implemented",
+    "grad": "NotImplementedError: Differentiation rule for 'multiply_add' not implemented",
+    "vmap": "NotImplementedError: Batching rule for 'multiply_add' not implemented"
+   }
+  },
+  {
+   "title": "Evaluation rule (impl): runs eagerly on concrete values",
+   "code": "@multiply_add_p.def_impl\ndef _impl(x, y, z):\n    return jnp.add(jnp.multiply(x, y), z)",
+   "result": {
+    "eager": "ok",
+    "make_jaxpr": "NotImplementedError: Abstract evaluation for 'multiply_add' not implemented",
+    "jit": "NotImplementedError: Abstract evaluation for 'multiply_add' not implemented",
+    "jvp": "NotImplementedError: Differentiation rule for 'multiply_add' not implemented",
+    "grad": "NotImplementedError: Differentiation rule for 'multiply_add' not implemented",
+    "vmap": "NotImplementedError: Batching rule for 'multiply_add' not implemented"
+   }
+  },
+  {
+   "title": "Abstract evaluation rule: output shape and dtype from input shapes and dtypes",
+   "code": "@multiply_add_p.def_abstract_eval\ndef _abstract(xs, ys, zs):\n    shape = jnp.broadcast_shapes(xs.shape, ys.shape, zs.shape)\n    return core.ShapedArray(shape, jnp.result_type(xs.dtype, ys.dtype, zs.dtype))",
+   "result": {
+    "eager": "ok",
+    "make_jaxpr": "ok",
+    "jit": "NotImplementedError: MLIR translation rule for primitive 'multiply_add' not found for platform cpu",
+    "jvp": "NotImplementedError: Differentiation rule for 'multiply_add' not implemented",
+    "grad": "NotImplementedError: Differentiation rule for 'multiply_add' not implemented",
+    "vmap": "NotImplementedError: Batching rule for 'multiply_add' not implemented"
+   }
+  },
+  {
+   "title": "Lowering rule: how to emit StableHLO (here: by tracing the impl, which uses existing primitives)",
+   "code": "mlir.register_lowering(multiply_add_p, mlir.lower_fun(_impl, multiple_results=False))",
+   "result": {
+    "eager": "ok",
+    "make_jaxpr": "ok",
+    "jit": "ok",
+    "jvp": "NotImplementedError: Differentiation rule for 'multiply_add' not implemented",
+    "grad": "NotImplementedError: Differentiation rule for 'multiply_add' not implemented",
+    "vmap": "NotImplementedError: Batching rule for 'multiply_add' not implemented"
+   }
+  },
+  {
+   "title": "JVP rule: forward-mode derivative",
+   "code": "def _jvp(primals, tangents):\n    x, y, z = primals\n    xt, yt, zt = (ad.instantiate_zeros(t) for t in tangents)\n    out = multiply_add(x, y, z)\n    t_out = multiply_add(xt, y, multiply_add(x, yt, zt))   # linear in the tangents\n    return out, t_out\n\nad.primitive_jvps[multiply_add_p] = _jvp",
+   "result": {
+    "eager": "ok",
+    "make_jaxpr": "ok",
+    "jit": "ok",
+    "jvp": "ok",
+    "grad": "NotImplementedError: Transpose rule (for reverse-mode differentiation) for 'multiply_add' not implemented",
+    "vmap": "NotImplementedError: Batching rule for 'multiply_add' not implemented"
+   }
+  },
+  {
+   "title": "Transpose rule: reverse mode is JVP + transpose, so grad needs it",
+   "code": "def _transpose(ct, x, y, z):            # x or y is the linear input (an UndefinedPrimal)\n    if ad.is_undefined_primal(x):\n        return multiply_add(ct, y, zeros), None, (ct if ad.is_undefined_primal(z) else None)\n    ...\n\nad.primitive_transposes[multiply_add_p] = _transpose",
+   "result": {
+    "eager": "ok",
+    "make_jaxpr": "ok",
+    "jit": "ok",
+    "jvp": "ok",
+    "grad": "ok",
+    "vmap": "NotImplementedError: Batching rule for 'multiply_add' not implemented"
+   }
+  },
+  {
+   "title": "Batching rule: vmap",
+   "code": "def _batch(args, dims):                 # dims[i]: which axis of args[i] is the batch, or None\n    # move batch axes to the front; unbatched operands get a leading axis of 1\n    moved = [front_or_expand(a, d) for a, d in zip(args, dims)]\n    return multiply_add(*moved), 0       # the output's batch axis is 0\n\nbatching.primitive_batchers[multiply_add_p] = _batch",
+   "result": {
+    "eager": "ok",
+    "make_jaxpr": "ok",
+    "jit": "ok",
+    "jvp": "ok",
+    "grad": "ok",
+    "vmap": "ok"
+   }
+  }
+ ],
+ "final": {
+  "eager": [
+   3.0,
+   6.0,
+   9.0
+  ],
+  "jit": [
+   3.0,
+   6.0,
+   9.0
+  ],
+  "grad": [
+   3.0,
+   3.0,
+   3.0
+  ],
+  "grad_expected": [
+   3.0,
+   3.0,
+   3.0
+  ],
+  "vmap_shape": [
+   2,
+   3
+  ],
+  "jaxpr": "{ lambda ; a:f32[3]. let b:f32[3] = multiply_add a 2.0:f32[] a in (b,) }",
+  "grad_jaxpr": "{ lambda ; a:f32[3]. let\n    b:f32[3] = multiply_add a 2.0:f32[] a\n    _:f32[] = reduce_sum[axes=(0,) out_sharding=None] b\n    c:f32[3] = broadcast_in_dim 1.0:f32[]\n    d:f32[3] = broadcast_in_dim 0.0:f32[]\n    e:f32[3] = multiply_add c 2.0:f32[] d\n    f:f32[3] = add_any e c\n  in (f,) }",
+  "stablehlo": "  func.func public @main(%arg0: tensor<3xf32>) -> (tensor<3xf32> {jax.result_info = \"result\"}) {\n    %cst = stablehlo.constant dense<2.000000e+00> : tensor<f32>\n    %0 = stablehlo.convert %cst : tensor<f32>\n    %1 = stablehlo.broadcast_in_dim %0, dims = [] : (tensor<f32>) -> tensor<3xf32>\n    %2 = stablehlo.multiply %arg0, %1 : tensor<3xf32>\n    %3 = stablehlo.add %2, %arg0 : tensor<3xf32>"
+ }
+}

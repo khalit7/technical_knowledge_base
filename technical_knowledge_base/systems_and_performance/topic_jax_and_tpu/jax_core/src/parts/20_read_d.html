@@ -1,0 +1,88 @@
+<section id="s-cf">
+<h2>4. Control flow: primitives with programs inside</h2>
+<p><b>The problem.</b> While tracing, a Python <code>if</code> on a tracer has no value to test, and a Python <code>for</code> is unrolled into the jaxpr once per iteration (the root's {{Transforms lab|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}}, section 2, shows both). For control flow that must live inside the compiled program, JAX provides primitives whose params are sub-jaxprs, traced once each.</p>
+<h3>The primitives and what each transformation can do with them</h3>
+<p><span class="jc-lbl m">measured here</span>: each primitive below was applied inside <code>jit</code> to a small function of a float32[3] and put through <code>grad</code> (reverse mode), <code>jvp</code> (forward mode) and <code>vmap</code>; "ok" means it compiled and ran (<code>run_cf.py</code>).</p>
+<div class="tw"><table class="jc-t" id="jc-cfsup"></table></div>
+<p>Only one row fails, and it is the one with a trip count unknown until run time. <b>Why:</b> reverse mode must replay the loop backwards, so it must know how many iterations to store; a <code>while_loop</code> does not. <span class="jc-lbl s">source</span> the transpose rule of <code>while</code> is an error by design:</p>
+<div class="jc-srcx" data-id="while_T"></div>
+<p><code>fori_loop</code> is not a primitive of its own: it becomes a <code>scan</code> when both bounds are concrete at trace time (so it is reverse-differentiable) and a <code>while</code> when either is traced. <span class="jc-lbl s">source</span></p>
+<div class="jc-srcx" data-id="fori_scan"></div>
+<p>When you need gradients through a loop whose length depends on data (a solver, a decode loop with early stop), the options are a <code>scan</code> to a fixed maximum length with masking, or a custom rule that differentiates the solution rather than the iterations (the fixed-point example in <a href="#s-cust">section 6</a>).</p>
+
+<h3>Unrolled against rolled: what compile time pays for</h3>
+<p>The same recurrent cell <code>h = tanh(h @ W + x_t)</code> (h of 32 x 128, the running example's width), run for n steps. <span class="jc-lbl m">measured here</span>; compile times and run times are on a loaded CPU, the HLO line counts are deterministic:</p>
+<div class="out">
+<div class="stat"><div class="k">Python <code>for</code>, n = 1000</div><div class="v"><span data-k="cf.loops.rows.12.compile_s" data-f="f1"></span> s compile</div><div class="d"><span data-k="cf.loops.rows.12.hlo_lines" data-f="int"></span> lines of optimised HLO; run <span data-k="cf.loops.rows.12.run_ms" data-f="f1"></span> ms</div></div>
+<div class="stat"><div class="k"><code>lax.scan</code>, n = 1000</div><div class="v"><span data-k="cf.loops.rows.15.compile_s" data-f="f2"></span> s compile</div><div class="d"><span data-k="cf.loops.rows.15.hlo_lines" data-f="int"></span> lines; run <span data-k="cf.loops.rows.15.run_ms" data-f="f1"></span> ms</div></div>
+<div class="stat"><div class="k"><code>lax.while_loop</code>, n = 1000</div><div class="v"><span data-k="cf.loops.rows.17.compile_s" data-f="f2"></span> s compile</div><div class="d"><span data-k="cf.loops.rows.17.hlo_lines" data-f="int"></span> lines; run <span data-k="cf.loops.rows.17.run_ms" data-f="f1"></span> ms</div></div>
+</div>
+<p>The unrolled program grows linearly with n and so does its compile time, while the rolled forms stay one loop of the same size; on this CPU the run times are within noise of each other, because the body (a 32 x 128 by 128 x 128 matmul) dominates either way. That is the whole case for <code>scan</code> over layers in large models: same speed, compile time independent of depth (MaxText's <code>scan_layers</code>, on the {{JAX LLM codebases|n:3fa5c17b0d0d81f8bd5ad523e9f2dde0}} page). <code>unroll=k</code> sits between: k copies of the body per loop iteration, which can help an accelerator overlap iterations and costs compile time (<span data-k="cf.loops.rows.10.compile_s" data-f="f2"></span> s against <span data-k="cf.loops.rows.9.compile_s" data-f="f2"></span> s at n = 100 here, with no run-time gain on this CPU).</p>
+
+<h3>Control flow under vmap</h3>
+<p>A batching rule must produce one program for the whole batch. If the predicate of a <code>cond</code> is the same for every example, the batched program is still a <code>cond</code>. If the predicate differs per example, there is no single branch to take, so the rule <b>runs both branches for everyone and selects</b>. <span class="jc-lbl s">source</span></p>
+<div class="jc-srcx" data-id="cond_select"></div>
+<div class="jc-pr" data-ans="c"><div class="q">Predict: <code>br(p, h) = lax.cond(p, heavy, light, h)</code>, where heavy is 30 matmuls and light returns h. You vmap it over 8 examples, all with <code>p = False</code>. How long does it take compared with calling it with a predicate that is not batched?</div>
+<div class="opts"><button data-o="a">about the same: every example takes the light branch</button><button data-o="b">8 times longer</button><button data-o="c">hundreds of times longer: heavy runs for all 8</button></div>
+<div class="ans" hidden><span class="jc-lbl m">measured here</span> <b><span data-k="cf.cond_vmap.ms_pred_batched" data-f="f2"></span> ms</b> with a batched predicate against <span data-k="cf.cond_vmap.ms_pred_not_batched" data-f="f3"></span> ms with an unbatched one (and <span data-k="cf.cond_vmap.ms_python_loop_of_cond" data-f="f3"></span> ms for a Python loop of 8 unbatched conds inside one jit). The batched jaxpr contains no <code>cond</code> at all: <span id="jc-condprims"></span>. The predicate's value never mattered; its batching did.</div></div>
+<p>A <code>while_loop</code> with a per-example predicate does the same thing over time: the loop continues while <b>any</b> example still wants to, and each iteration keeps the old carry for examples that are done. <span class="jc-lbl s">source</span> the lowering re-evaluates the batched predicate inside the body and selects:</p>
+<div class="jc-srcx" data-id="while_batched"></div>
+<p><span class="jc-lbl m">measured here</span>: <code>jax.vmap(count_to)(jnp.array([1, 10, 100, 1000]), ...)</code> returned counts <span data-k="cf.while_vmap.counts"></span>: each answer is right, but every example paid for 1,000 iterations. Sorting or bucketing work by length before vmapping a loop is the fix.</p>
+
+<h3>associative_scan: a loop as a tree</h3>
+<p>A linear recurrence <code>h_t = a_t * h_(t-1) + b_t</code> can be computed by combining steps pairwise, because composing two such steps gives another one of the same form. <code>lax.associative_scan</code> does that in about log2(n) rounds instead of n sequential steps, at the price of more total work. <span class="jc-lbl m">measured here</span> on float32 (n, 256), same answers to <span data-k="cf.assoc.rows.2.max_diff" data-f="e1"></span>:</p>
+<div class="tw"><table class="jc-t" id="jc-assoc"></table></div>
+<p>On this CPU the sequential scan wins at every length; the tree version only pays where many cores or a wide accelerator can run a round in parallel, which is why it appears in linear-RNN and state-space layers trained on GPUs and TPUs. Not run here on such hardware.</p>
+<div class="deepnote"><b>Go deeper.</b> The <a href="#" data-tab="t-jccf">Control flow</a> tab has a chooser (answer five questions, get the primitive and the reason) and every loop form measured at n = 10, 100 and 1,000. JAX's docs: {{Control flow and logical operators with JIT|https://docs.jax.dev/en/latest/control-flow.html}}.</div>
+</section>
+
+<section id="s-ad">
+<h2>5. Autodiff from zero: JVP, VJP, linearize and transpose</h2>
+<p><b>The idea.</b> Near a point x, a differentiable function f from n numbers to m numbers behaves like a linear map: its Jacobian J, an m x n matrix. Autodiff never builds J. It offers two ways to apply it:</p>
+<div class="grid">
+<div class="sp"><div class="n">Forward mode: JVP</div><p><code>jax.jvp(f, (x,), (v,))</code> returns f(x) and <b>J v</b>: push a direction v (a "tangent") from the inputs to the outputs, alongside the ordinary computation. One pass gives one column of information about J. PyTorch: <code>torch.func.jvp</code>; dual numbers.</p></div>
+<div class="sp"><div class="n">Reverse mode: VJP</div><p><code>y, f_vjp = jax.vjp(f, x)</code>, then <code>f_vjp(u)</code> returns <b>u<sup>T</sup> J</b>: pull a weighting u of the outputs (a "cotangent") back to the inputs. For a scalar loss, u = 1 gives the gradient. PyTorch: <code>loss.backward()</code>, <code>torch.func.vjp</code>.</p></div>
+</div>
+<h3>What each costs, and why training uses reverse mode</h3>
+<p>One JVP and one VJP each cost a small constant times one forward pass. A full Jacobian therefore costs <b>n JVPs</b> (one per input) or <b>m VJPs</b> (one per output): forward mode wins when there are few inputs, reverse mode when there are few outputs. <span class="jc-lbl m">measured here</span> with XLA's own FLOP count (deterministic) for Jacobians of the running example's MLP restricted to k inputs and m outputs of one token:</p>
+<div class="jc-box" id="jc-jac-card"><h4>Jacobian cost: jacfwd against jacrev, k inputs to m outputs</h4>
+<div class="jc-sel"><span class="seg" id="jc-jac-mode"><button data-m="ratio" class="on">which wins</button><button data-m="fwd">jacfwd FLOPs</button><button data-m="rev">jacrev FLOPs</button></span></div>
+<div id="jc-jac"></div><div class="jc-cap" id="jc-jac-cap"></div>
+<pre class="jc-code" data-code="ad.jac.code"></pre></div>
+<p>The pattern is exact: jacfwd's cost grows with k only, jacrev's with m only, and they cross on the diagonal. A training loss has 826,368 inputs and 1 output, so reverse mode costs one VJP. <span class="jc-lbl m">measured here</span> on one training batch: forward pass <span data-k="ad.model.flops.forward (loss)" data-f="gflop"></span> GFLOP, <code>value_and_grad</code> <span data-k="ad.model.flops.value_and_grad" data-f="gflop"></span> GFLOP (<b id="jc-vg-ratio"></b> times the forward), one JVP in one direction <span data-k="ad.model.flops.jvp (one direction)" data-f="gflop"></span> GFLOP. The rule of thumb "backward is twice the forward" holds here to within a few percent.</p>
+
+<h3>How JAX does reverse mode: linearize, then transpose</h3>
+<p>PyTorch records a tape of operations and runs each one's backward function. JAX derives reverse mode from forward mode in two steps (described in {{Radul et al., You Only Linearize Once (2022)|https://arxiv.org/abs/2204.10923}}):</p>
+<ol>
+<li><b>Linearize</b>: run the forward computation once with a <code>LinearizeTrace</code>. For each primitive it computes the primal value now and records the <b>tangent</b> computation (which is linear) into a separate jaxpr. Values the linear program needs from the forward pass, such as an activation to multiply by, become that jaxpr's constants: the <b>residuals</b>.</li>
+<li><b>Transpose</b>: run the linear jaxpr backwards, replacing every linear primitive by its transpose: a matmul by x becomes a matmul by x<sup>T</sup>, a broadcast becomes a sum, a sum becomes a broadcast, an addition sends its cotangent to both inputs.</li>
+</ol>
+<p><span class="jc-lbl s">source</span> the linearize interpreter: primal now, tangent equations into <code>tangent_trace</code>:</p>
+<div class="jc-srcx" data-id="lintrace"></div>
+<p>The consequence for rule writers: every primitive needs a JVP rule (<span data-k="vm.rule_tables.ad.primitive_jvps"></span> registered in this process), but only the <b>linear</b> primitives need a transpose rule (<span data-k="vm.rule_tables.ad.primitive_transposes"></span>), because only they appear in linearized programs. <code>sin</code> has a JVP rule and no transpose; its derivative multiplies the tangent by <code>cos(x)</code>, and <code>mul</code> by a constant is what gets transposed. Section 10 writes both rules for a new primitive.</p>
+<p><span class="jc-lbl m">measured here</span> on block 0's MLP: the transposed program and <code>jax.vjp</code> give the same weight gradients to <span data-k="ad.mlp.transpose_equals_vjp"></span> (they are the same program), and JAX's gradient of the first weight matrix matches PyTorch's to <span data-k="ad.mlp.torch_vs_jax_grad_w1" data-f="e1"></span>.</p>
+<div class="deepnote"><b>Watch it.</b> The <a href="#" data-tab="t-jcad">Autodiff tape</a> tab animates this on the running example's MLP: the forward pass filling the tape with residuals, then the linear program before transposition against the transposed one, stage by stage, with the cotangent flowing back and gradients appearing; a toggle runs forward mode on the same input.</div>
+
+<h3>What reverse mode keeps in memory</h3>
+<p>The residuals are reverse mode's memory bill: everything the backward pass needs from the forward pass, alive until it is used. <span class="jc-lbl m">measured here</span> with <code>jax.ad_checkpoint.print_saved_residuals</code>'s underlying function, and with PyTorch's <code>saved_tensors_hooks</code> on the same weights and batch:</p>
+<div id="jc-resbars"></div>
+<div class="jc-cap">MLP rows: block 0 on 4 tokens. Model rows: the whole loss on one training batch (32 x 128 characters). "Before XLA" counts the jaxpr's residuals; XLA then fuses and reuses buffers, so the compiled program's scratch (<code>memory_analysis().temp_size_in_bytes</code>) is the number that decides out-of-memory. Checkpointing each block (<code>jax.checkpoint</code>) recomputes activations in the backward pass instead of storing them; the loss is identical (difference <span data-k="ad.mem.remat_same_loss"></span>).</div>
+<p>Two things show. JAX's residuals follow its primitives: exact GELU is <code>erfc</code> plus multiplies, and the linearized program keeps <code>exp</code>, <code>erfc</code> and a scaled copy of the pre-activation (four [4, 512] arrays) where PyTorch's fused <code>GeluBackward0</code> keeps only its input (<span id="jc-mlp-res"></span>). And the compiled program, not the residual list, is what you budget: the {{Compiler lab|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} of the root and the {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}} page cover remat policies (<code>dots_saveable</code> and friends) and how XLA trades memory for recomputation.</p>
+
+<h3>Higher derivatives, Hessians and Hessian-vector products</h3>
+<p>Transformations compose, so second derivatives are just nesting. <code>jax.hessian(f)</code> is <code>jacfwd(jacrev(f))</code>: reverse mode for the gradient (many inputs, one output), then forward mode over it. JAX's {{Autodiff Cookbook|https://docs.jax.dev/en/latest/notebooks/autodiff_cookbook.html}} calls forward-over-reverse "typically the most efficient", because the outer Jacobian is square, where forward mode does well; here reverse-over-reverse came out the same to within 0.2%, and forward-over-forward, which pays n JVPs twice, about 32 times more. <span class="jc-lbl m">measured here</span> for s(x) = sum(mlp(x)<sup>2</sup>) with n = 128 (FLOPs from XLA's cost analysis):</p>
+<div id="jc-hess"></div>
+<p>When you need curvature times a vector (Newton-CG, influence functions, sharpness), never build the Hessian: <code>jax.jvp(jax.grad(f), (x,), (v,))[1]</code> is one forward-over-reverse pass, here <b id="jc-hvp-x"></b> times the cost of the gradient, and it matches the full Hessian times v to <span data-k="ad.hess.hvp_matches_hessian" data-f="e1"></span>.</p>
+
+<h3>stop_gradient, and what the derivative is at a kink</h3>
+<p><code>jax.lax.stop_gradient(x)</code> is PyTorch's <code>x.detach()</code>: an identity whose JVP is zero (softmax uses it on the row maximum it subtracts). Where a function has no derivative, JAX returns a convention, and the conventions are worth knowing <span class="jc-lbl m">measured here</span>:</p>
+<div class="tw"><table class="jc-t"><thead><tr><th>gradient at</th><th>JAX</th><th>PyTorch</th></tr></thead><tbody>
+<tr><td><code>relu</code> at 0</td><td class="mono" data-k="ad.misc.relu_grad_at_0"></td><td class="mono" data-k="ad.misc.torch_relu_grad_at_0"></td></tr>
+<tr><td><code>abs</code> at 0</td><td class="mono" data-k="ad.misc.abs_grad_at_0"></td><td>not run</td></tr>
+<tr><td><code>max([1, 1, 0])</code> (a tie)</td><td class="mono" data-k="ad.misc.max_grad_tie"></td><td class="mono" data-k="ad.misc.torch_max_grad_tie"></td></tr>
+<tr><td><code>sqrt</code> at 0</td><td class="mono" data-k="ad.misc.sqrt_grad_at_0"></td><td>not run</td></tr>
+<tr><td><code>jnp.linalg.norm</code> at the zero vector</td><td class="mono" data-k="ad.misc.norm_grad_at_0"></td><td>not run</td></tr>
+</tbody></table></div>
+<p>The last row is a real trap (a norm of a difference that happens to be zero gives NaN gradients and poisons training); section 6 fixes it.</p>
+<div class="co"><div class="t">Problem, cost, when it matters, how to check</div><b>Cost:</b> a gradient is about 3 forward passes of FLOPs (measured 2.88) and holds the residuals; a full Jacobian is n JVPs or m VJPs. <b>When it matters:</b> memory at scale (residuals, remat), non-scalar objectives (choose the mode by the shape), second order (HVPs, never Hessians). <b>How to check:</b> <code>jax.make_jaxpr(jax.grad(f))</code> shows forward and backward; <code>jax.ad_checkpoint.print_saved_residuals(f, *args)</code> lists what is kept and why; <code>jax.jit(f).lower(*a).compile().cost_analysis()</code> and <code>.memory_analysis()</code> give FLOPs and bytes; <code>jax.test_util.check_grads</code> compares against finite differences.</div>
+</section>
