@@ -1,0 +1,77 @@
+<section id="sh-s4">
+<h2>4. Six layouts of the running example's train step</h2>
+<p>The whole train step (forward, backward, gradient clipping and AdamW, parameters and optimizer state donated) compiled for each layout, then run for <span id="sh-nsteps"></span> steps from the shared initial weights on the shared batches. Same Python function every time: only the shardings change. The parallelism strategies themselves (why each exists, what it costs in the abstract) are taught framework-free on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}; the PyTorch implementations on {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}}. This section shows what XLA actually does with them.</p>
+<div class="tw"><table class="sh-t" id="sh-st-t"><thead><tr><th>Layout</th><th>mesh</th><th>collectives in the compiled step</th><th class="num">sent per device</th><th class="num">params + Adam per device</th><th class="num">temp per device</th><th class="num">loss gap</th></tr></thead><tbody></tbody></table></div>
+<p class="small mute"><span class="sh-meas">measured</span> Collectives counted in <code>compile().as_text()</code>; "sent per device" sums the ring cost of each (section 3) <span class="sh-der">derived</span>; parameter and optimizer bytes from each array's shard shape; temp from <code>memory_analysis().temp_size_in_bytes</code> (activations and scratch); loss gap = largest |loss &minus; one-device loss| over the steps. Click a row for the detail.</p>
+<div class="seg" id="sh-st-m"><span class="lbl">chart</span><button data-m="mem" class="on">memory per device</button><button data-m="comm">bytes sent per device</button></div>
+<div class="sh-svgw" id="sh-st-chart"></div>
+<div class="sh-box" id="sh-st-detail"></div>
+<div class="co key"><div class="t">What the six runs teach</div><ul class="tight" id="sh-st-lessons"></ul></div>
+<p><b>Sequence and context parallelism, briefly.</b> <dfn>Sequence parallelism</dfn> (Megatron's sense) splits the activations that tensor parallelism leaves replicated (LayerNorm, dropout) along the sequence, turning each TP all-reduce into a reduce-scatter plus an all-gather; <dfn>context parallelism</dfn> splits the whole sequence over devices so that very long contexts fit, and must then bring every query together with every key. The "Sequence sharded" row does the second by annotation only: the compiler's answer is to all-gather K and V in every layer, which works but sends the full K and V to everyone. Ring attention instead passes K/V blocks round the ring with <code>ppermute</code> while computing, overlapping the transfer with the math; that is hand-written with <code>shard_map</code>, not something propagation invents. Not run here.</p>
+</section>
+
+<section id="sh-s5">
+<h2>5. shard_map: writing the per-device program yourself</h2>
+<p><b>When propagation is not enough.</b> You may need a communication pattern the compiler will not invent (ring attention, overlapping a collective with compute, a custom MoE dispatch), or simply want certainty. <code>jax.shard_map(f, mesh=..., in_specs=..., out_specs=...)</code> runs <code>f</code> once per device on that device's shard (shapes inside are the per-device shapes) and you write the collectives yourself: <code>psum</code>, <code>all_gather</code>, <code>psum_scatter</code>, <code>all_to_all</code>, <code>ppermute</code>, with <code>jax.lax.axis_index(name)</code> as the rank. Inside, the mesh axes are <dfn>Manual</dfn>: the partitioner leaves that region alone. This is the rank-view program a <code>torch.distributed</code> user already knows; the difference is that it is still traced and compiled as one program, so it composes with <code>jit</code>, <code>grad</code> and <code>vmap</code>. It left <code>jax.experimental</code> in JAX 0.8.0 (2025-10-15); <code>jax.experimental.shard_map</code> still imports in 0.11.2 with a DeprecationWarning.</p>
+<p>A ring all-reduce written by hand, the exact code that ran (from <code>src/shard/sh_collectives.py</code>):</p>
+<pre>def ring_allreduce(b):                       <span class="c"># b: this device's block [1, N*k]; chunks of k</span>
+    me = jax.lax.axis_index("i")
+    chunks = b.reshape(N, -1)                <span class="c"># N chunks</span>
+    right = [(j, (j + 1) % N) for j in range(N)]
+    <span class="c"># phase 1, reduce-scatter: at step s, send chunk (me - s) mod N to the right; add what arrives to chunk (me - s - 1)</span>
+    acc = chunks
+    for s in range(N - 1):
+        send = acc[(me - s) % N]
+        recv = jax.lax.ppermute(send, "i", perm=right)
+        acc = acc.at[(me - s - 1) % N].add(recv)
+    <span class="c"># now chunk (me + 1) mod N holds the full sum on this device</span>
+    <span class="c"># phase 2, all-gather: pass the finished chunks round the ring</span>
+    for s in range(N - 1):
+        send = acc[(me + 1 - s) % N]
+        recv = jax.lax.ppermute(send, "i", perm=right)
+        acc = acc.at[(me - s) % N].set(recv)
+    return acc.reshape(1, -1)
+
+f_ring = jax.jit(jax.shard_map(ring_allreduce, mesh=mesh, in_specs=P("i", None), out_specs=P("i", None)))</pre>
+<p id="sh-ring-res"></p>
+<p><b>Two errors you will meet, both pasted from runs here.</b></p>
+<ul class="tight">
+<li><b>Input laid out differently from <code>in_specs</code>.</b> <span id="sh-mm"></span></li>
+<li><b>Claiming an output is replicated when JAX cannot prove it.</b> <code>out_specs=P(None, None)</code> says "every device holds the same value". After <code>all_gather</code> that is true, but JAX types the result as still varying over the axis, and refuses: <span id="sh-agrep"></span> Either declare <code>out_specs=P('i', None)</code> (what the table in section 3 did: the global result is then 8 stacked copies) or pass <code>check_vma=False</code> if you are sure.</li>
+</ul>
+</section>
+
+<section id="sh-s6">
+<h2>6. Many hosts, and the APIs you will see in old code</h2>
+<p><b>Multi-host (not run here: this machine is one host).</b> A TPU slice bigger than one host (typically 4 chips per host) runs the <i>same</i> Python script on every host. <code>jax.distributed.initialize()</code> connects them (on Cloud TPU it finds the coordinator by itself); then <code>jax.devices()</code> lists every chip in the slice, <code>jax.local_devices()</code> only this host's, and <code>jax.process_index()</code> / <code>jax.process_count()</code> play the role of rank and world size. A sharded array is now a <dfn>global array</dfn> whose shards live on several hosts; each host can only touch its own (<code>x.addressable_shards</code>), so data loading builds the global batch from per-host pieces with <code>jax.make_array_from_process_local_data</code>. The jitted program is still one program over all devices; its collectives ride ICI inside a slice and the data-centre network between slices. PyTorch's equivalent is <code>torchrun</code> + <code>init_process_group</code>, with one process per GPU rather than one per host.</p>
+<p><b>History.</b> <code>pmap</code> (one mapped axis, one device per element) is "in maintenance mode" since JAX 0.8.0 and, since 0.10.0, implemented on top of <code>jit(shard_map)</code>; it still runs in 0.11.2 (<span id="sh-pmap"></span>). <code>pjit</code> was merged into <code>jit</code> (<code>jax.experimental.pjit.pjit</code> deprecated in 0.8.0); <code>xmap</code> was deleted in 0.4.31; <code>with mesh:</code> is deprecated in favour of <code>jax.set_mesh</code> (0.10.1); <code>PmapSharding</code> and <code>device_put_sharded/replicated</code> were removed in 0.10.0 ({{JAX changelog|https://docs.jax.dev/en/latest/changelog.html}}). New code: <code>jax.jit</code> with shardings, plus <code>jax.shard_map</code> where needed.</p>
+</section>
+
+<section id="sh-s7">
+<h2>7. Read the source (pinned: jax-v0.11.2, XLA 91888df6)</h2>
+<ul class="tight">
+<li><code>jax/_src/named_sharding.py:71</code> <code>class NamedSharding</code>: "a pair of a Mesh of devices and PartitionSpec"; lines 246&ndash;260 lower it two ways, <code>_to_xla_hlo_sharding</code> (GSPMD's <code>HloSharding</code>) and <code>_to_sdy_sharding</code> (Shardy's representation), so one annotation feeds either partitioner.</li>
+<li><code>jax/_src/sharding_impls.py:900</code> <code>def make_mesh</code>; line 975 <code>axis_types = (AxisType.Explicit,) * len(mesh_devices.shape)</code> when none are given. <code>jax/_src/mesh.py:303&ndash;304</code>: the <code>Mesh</code> constructor's default is <code>AxisType.Auto</code>.</li>
+<li><code>jax/_src/pjit.py:2037</code> <code>def with_sharding_constraint</code>; <code>pjit.py:2263</code> <code>def reshard</code>.</li>
+<li><code>jax/_src/shard_map.py:108</code> <code>def shard_map(f, /, *, out_specs, in_specs=Infer, mesh=None, axis_names=frozenset(), check_vma=True)</code>; lines 288&ndash;306 raise "in_specs passed to shard_map: ... does not match the specs of the input" only when every mesh axis involved is <code>Explicit</code>; lines 783&ndash;786 mark the mapped axes <code>AxisType.Manual</code>; lines 1109&ndash;1114 pick the Shardy lowering (<code>sdy.ManualComputationOp</code>, line 1066) or the GSPMD one.</li>
+<li>XLA <code>xla/service/cpu/cpu_compiler.cc:637&ndash;646</code>: <code>if (use_shardy_partitioner) spmd_pipeline.AddPass&lt;sdy::ShardyXLA&gt;(); else spmd_pipeline.AddPass&lt;ShardingPropagation&gt;(...)</code>, then <code>spmd_pipeline.AddPass&lt;spmd::StatefulRngSpmdPartitioner&gt;(...)</code>: the two propagators, one partitioner. Lines 1108&ndash;1111: <code>CpuAllReduceCombiner(kCombineBytes = max int64, kCombineCount = 256)</code>, which is why data parallelism compiles to a single all-reduce here.</li>
+<li>XLA <code>xla/service/gpu/gpu_compiler.cc:1099</code> <code>AllReduceReassociate</code> and <code>:1334</code> <code>ReduceScatterCreator</code>: two passes the GPU pipeline runs and <code>cpu_compiler.cc</code> does not contain. The first rewrites all-reduce(a) + all-reduce(b) into all-reduce(a + b); the second turns all-reduce followed by a slice into a reduce-scatter. Their absence explains the FSDP and tensor-parallel details in section 4. The TPU compiler is not open source, so what it runs cannot be checked here.</li>
+</ul>
+<p class="sh-src">Files read at jax tag jax-v0.11.2 (commit 32544801, 2026-09-17) and openxla/xla 91888df6ce85102c30220e41d952065925e10886 (the commit jax-v0.11.2 pins); MaxText at main 1a95d1e5 (2026-10-15).</p>
+</section>
+
+<section id="sh-s8">
+<h2>8. Common mistakes and interview questions</h2>
+<details class="mist"><summary>Annotating only the weights and trusting propagation</summary><div class="b">The "FSDP, weights annotated only" row: the compiler followed the weights' split into the activations and then all-gathered whole-batch activations: 8 copies of the MLP hidden layer [32, 128, 512] (8 MiB each) and 16 of [32, 128, 128] (2 MiB each), about 32 times the all-gather bytes of the fixed version. One <code>with_sharding_constraint</code> on the residual stream per block fixed it. Constrain activations at block boundaries, as MaxText does with logical axis rules.</div></details>
+<details class="mist"><summary>Assuming make_mesh gives an Auto mesh</summary><div class="b">In jax 0.11.2 it gives Explicit axes: shard_map then refuses mismatched inputs, and a matmul with both contracting dimensions sharded is a type error. Pass <code>axis_types</code> explicitly so the code says which mode it relies on.</div></details>
+<details class="mist"><summary>Reading the collectives off the code instead of the compiled HLO</summary><div class="b">The code has none; the HLO has them all, and they depend on the backend's passes (on CPU no reduce-scatter is formed from all-reduce + slice). Search <code>compile().as_text()</code>, and profile on the real hardware before drawing conclusions about cost.</div></details>
+<details class="mist"><summary>Expecting bit-identical losses across layouts</summary><div class="b">Sharding changes the order of additions (each device sums its part, then the parts are added), so float32 results differ in the last bits: here by at most <span id="sh-mx-loss"></span> over the steps, the same size as float32 rounding of a loss near 4. A gap far larger than that is a bug.</div></details>
+<details class="mist"><summary>Switching partitioner and expecting the same program</summary><div class="b">Same annotations, different propagators: the older GSPMD propagator produced <span id="sh-gs-tp"></span> for the tensor-parallel layout where Shardy produced 18 all-reduces, but did better than Shardy on the unconstrained FSDP case. Neither is uniformly better; constraints make the result robust to both.</div></details>
+<h3>Interview questions</h3>
+<details class="mist"><summary>You annotate x as P('data', None) and W as P(None, 'model'). What does y = x @ W cost in communication?</summary><div class="b">Nothing: each device multiplies its rows of x by its columns of W and the result is P('data', 'model'). Communication appears only if you then ask for another layout (P('data', None) costs an all-gather over 'model').</div></details>
+<details class="mist"><summary>FSDP versus data parallel: how much more traffic?</summary><div class="b">Data parallel all-reduces the gradients: 2(n&minus;1)/n &times; P bytes per device. FSDP all-gathers the weights in the forward pass, again in the backward pass if they were freed, and reduce-scatters the gradients: (n&minus;1)/n &times; P each, so 1.5&times; data parallel with re-gathering, 1&times; without. In exchange each device holds 1/n of weights, gradients and optimizer state.</div></details>
+<details class="mist"><summary>Megatron tensor parallelism: where are the all-reduces, and why does the MLP need only one?</summary><div class="b">Split the first MLP matrix by columns and the second by rows: GELU is elementwise, so each device keeps its slice of the hidden layer and the only communication is one all-reduce of the [batch, seq, d_model] output (forward), and one of the input gradient (backward). Attention likewise: heads split, one all-reduce after the output projection. Measured here: 8 forward all-reduces for 4 blocks.</div></details>
+<details class="mist"><summary>Your sharded step is slower than expected. What do you check?</summary><div class="b">The compiled HLO for collectives you did not plan (an all-gather of activations, an all-to-all), their sizes and replica groups; whether propagation changed after a code edit (compare HLO between versions); <code>memory_analysis()</code> for unexpected replication; a profile to see whether collectives overlap with compute; and that the mesh axis carrying the most traffic maps onto the fastest links (ICI within a slice).</div></details>
+<div class="deepnote"><b>Go deeper.</b> Child page {{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}}; why the interconnect decides the strategy: {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}; how a mesh maps onto the TPU torus: the {{TPU and Pallas lab|#t-tpu}}. Scripts and raw outputs: <code>src/shard/</code>.</div>
+</section>
+</div>
