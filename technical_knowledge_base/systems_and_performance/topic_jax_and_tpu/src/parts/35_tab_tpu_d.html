@@ -1,0 +1,44 @@
+<section id="tp-s8">
+<h2>8. Write a kernel, call one, or let XLA do it</h2>
+<ul class="tight">
+<li><b>Let XLA do it</b> for matmuls, elementwise chains, reductions and normalisation: it fuses them, picks tiles and lays out memory, and its result is portable across generations. Most of a training step should stay here.</li>
+<li><b>Call a ready-made kernel</b> for the well-known algorithms XLA cannot derive. The pinned jax ships TPU kernels in <code>jax/experimental/pallas/ops/tpu/</code>: <code>flash_attention</code>, <code>splash_attention</code> (block-sparse attention with masks), <code>paged_attention</code> and <code>ragged_paged_attention</code> (serving), <code>megablox</code> (grouped matmuls for mixture-of-experts) and <code>matmul</code>. MaxText imports <code>splash_attention</code> from there (<code>layers/attention_op.py:29</code>, main @ 1a95d1e5) and also uses kernels from {{tokamax|https://github.com/openxla/tokamax}}, OpenXLA's library of ready-made Pallas kernels (0.0.16 on PyPI, 2026-10-09; the {{Tool map|#t-map}} dates it).</li>
+<li><b>Write your own</b> when the algorithm is yours: a new attention variant, a fused quantised matmul, a collective overlapped with compute (Pallas TPU kernels can copy to another chip over ICI with <code>pltpu.make_async_remote_copy</code>). Start in interpret mode against a <code>jnp</code> reference, then lower for TPU on your laptop, then tune block sizes on the chip.</li>
+</ul>
+<div class="tp-pr" id="tp-pr8"><div class="q">Predict: your Pallas kernel matches jnp to 1e-7 in interpret mode on your laptop. What do you know about its speed on a v5e?</div>
+<div class="tp-opts"><button data-r="0">It will be at least as fast as XLA: it is a hand-written kernel</button><button data-r="1">Nothing yet</button><button data-r="0">It will be about 10 times faster than in interpret mode</button></div>
+<div class="tp-ans" hidden>Nothing. Interpret mode runs the kernel body as ordinary XLA:CPU code inside a <code>while</code> loop; it does not model DMAs, pipelining, VMEM limits or the MXU. Section 6 also shows it accepts a block shape the TPU compiler rejects. Speed is measured on the chip, with the profiler, against the XLA version you are trying to beat.</div></div>
+</section>
+
+<section id="tp-s9">
+<h2>9. Free TPU access (described, not used)</h2>
+<div id="tp-free"></div>
+<p class="small mute">Read 2026-10-15. Paid access is Cloud TPU (a TPU VM or GKE) by the chip-hour; prices are not quoted here.</p>
+</section>
+
+<section id="tp-s10">
+<h2>10. Read the source (pinned: jax-v0.11.2)</h2>
+<p>Each line below was found by a regular expression in src/tpu/tp_source.py, so a wrong number fails the build rather than drifting.</p>
+<div class="tw"><table class="tp-t" id="tp-src-t"><thead><tr><th>file:line</th><th>what it shows</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section id="tp-s11">
+<h2>11. Common mistakes and interview questions</h2>
+<details class="mist"><summary><b>Head dimensions or vocabularies that are not multiples of 128</b></summary><div class="b">Each MXU pass is a full 128 &times; 128 (or 256 &times; 256) tile; a head dimension of 32 uses a quarter of it on v5e and a sixteenth on v6e (section 2). Pad vocabularies to a multiple of 128; choose head dimensions of 128.</div></details>
+<details class="mist"><summary><b>Expecting small-batch decoding to use the chip</b></summary><div class="b">A 7B-class model decoding one sequence reaches 0.2 to 0.6% of bf16 peak on any generation (section 3): every weight byte is read for one multiply-add. Batch requests until the token count approaches the ridge point.</div></details>
+<details class="mist"><summary><b>Mesh axes in the wrong order</b></summary><div class="b"><code>create_device_mesh</code> gives the most physical axes to the <i>last</i> logical axis. Put tensor parallelism last; a mesh written <code>("model", "data")</code> gives the chatty axis the worst placement.</div></details>
+<details class="mist"><summary><b>Forgetting to zero an accumulator, or zeroing it on the wrong grid step</b></summary><div class="b">Pallas outputs start uninitialised; both interpreters fill them with NaN, which is how the bug shows (section 6). Initialise under <code>pl.when(pl.program_id(k_axis) == 0)</code>.</div></details>
+<details class="mist"><summary><b>Marking a reduction axis "parallel"</b></summary><div class="b">The plain interpreter ignores dimension semantics and gives the right answer; the TPU interpreter, with two cores, gave an error of 0.17 (section 6). Only axes whose output tiles differ may be parallel; Pallas's rule of thumb is "parallel, unless the output window does not vary".</div></details>
+<details class="mist"><summary><b>Leaving every axis "arbitrary" on v4 or v5p</b></summary><div class="b">The default semantics are all arbitrary, so a megacore chip runs the kernel on one of its two cores. Mark independent output axes parallel.</div></details>
+<details class="mist"><summary><b>Trusting interpret mode for shapes and speed</b></summary><div class="b">It accepted a 100-row block the TPU compiler rejects, and it clamps out-of-range tiles silently. Lower for <code>"tpu"</code> with <code>jax.export</code>, and use <code>InterpretParams()</code> for index checks.</div></details>
+
+<h3>Interview questions</h3>
+<details class="mist tp-qa"><summary>Why do TPUs want shapes in multiples of 128, and what changed with v6e?</summary><div class="b">The MXU is a 128 &times; 128 systolic array (256 &times; 256 on v6e and TPU7x) holding one weight tile; any dimension is padded up to a whole tile, and the VPU's registers are 8 &times; 128, so the last two dimensions of arrays and Pallas blocks want multiples of 8 and 128. On v6e the tile is 256, so a model of 128-wide matrices uses a quarter of each pass.</div></details>
+<details class="mist tp-qa"><summary>Your 7B model decodes at 60 tokens per second on one v5e. Is something wrong?</summary><div class="b">No: that is the memory bound. 13.5 GB of bf16 weights at 819 GB/s is 16 ms per step, 62 tokens per second for a batch of one. Raise the batch (throughput grows almost linearly until about 240 tokens per step, the ridge), quantise the weights, or shard the weights over more chips.</div></details>
+<details class="mist tp-qa"><summary>On a 4 &times; 4 &times; 4 v5p slice, how would you lay out FSDP 16 and tensor parallelism 4, and why?</summary><div class="b"><code>jax.make_mesh((16, 4), ("fsdp", "model"))</code>: the model axis, which communicates every layer, gets one whole physical axis with wraparound (neighbours 1 hop apart); FSDP, which gathers weights once per layer and can overlap with compute, gets the other two (y and z), so its all-gathers use two axes of bandwidth. (8, 8) is not placeable without splitting axes.</div></details>
+<details class="mist tp-qa"><summary>What does a BlockSpec do that a Triton kernel does by hand?</summary><div class="b">It states which tile each grid point needs; Pallas then generates the HBM to VMEM DMAs, double-buffers them so loads overlap compute, and skips copies of a tile that did not change. In Triton you compute pointers and masks and the hardware cache and the compiler's pipelining do the rest.</div></details>
+<details class="mist tp-qa"><summary>How do you develop a TPU kernel without a TPU?</summary><div class="b">Write it with a <code>jnp</code> reference; run it with <code>interpret=True</code> for correctness, then with <code>interpret=pltpu.InterpretParams(detect_races=True, num_cores_or_threads=2)</code> for index, ordering and race bugs; lower it with <code>jax.export(..., platforms=["tpu"])</code> to catch tiling errors; then measure on a real chip. All four steps but the last ran on this page.</div></details>
+<details class="mist tp-qa"><summary>When is an all-reduce over ICI latency-bound?</summary><div class="b">When the bytes per hop are small: the scaling book puts the per-hop floor at about 1 &micro;s, so on v5e (4.5e10 B/s one way) anything under about 45 kB per hop is latency-bound. The running example's 3.3 MB of float32 gradients over 16 chips is not: all-reduced over a 16-chip v5e axis with wraparound it takes about 73 &micro;s, about a sixth of the step's matmul bound (section 3).</div></details>
+<div class="deepnote"><b>Go deeper.</b> Child pages {{TPU programming and performance|n:3c65c17b0d0d8129b0a5fd82e44ecf6e}} and {{Pallas kernels|n:3fa5c17b0d0d817699fcf65d085402e7}}; the chip on {{TPUs and other accelerators|n:3c65c17b0d0d8151bbc2e0ceea196187}}; rooflines and costing on {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}; ICI against NVLink on {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}; the {{scaling book|https://jax-ml.github.io/scaling-book/}} (Austin et al., 2025) and the {{Pallas documentation|https://docs.jax.dev/en/latest/pallas/index.html}}.</div>
+</section>
+</div>
