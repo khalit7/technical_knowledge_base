@@ -1,0 +1,48 @@
+{
+ "_versions": {
+  "jax": "0.11.2",
+  "jaxlib": "0.11.2",
+  "python": "3.12.11",
+  "platform": "cpu"
+ },
+ "jaxpr": {
+  "code": "import jax, jax.numpy as jnp\n\ndef mlp(w1, w2, x):          # x: [tokens, d_model]\n    h = jax.nn.gelu(x @ w1)  # [tokens, 4 * d_model]\n    return h @ w2\n\nw1, w2 = jnp.ones((128, 512)), jnp.ones((512, 128))\nx = jnp.ones((8, 128))\nprint(jax.make_jaxpr(mlp)(w1, w2, x))",
+  "output": "{ lambda ; a:f32[128,512] b:f32[512,128] c:f32[8,128]. let\n    d:f32[8,512] = dot_general[\n      dimension_numbers=(([1], [0]), ([], []))\n      preferred_element_type=float32\n    ] c a\n    e:f32[8,512] = integer_pow[y=3] d\n    f:f32[8,512] = mul 0.044714998453855515:f32[] e\n    g:f32[8,512] = add d f\n    h:f32[8,512] = mul 0.7978845834732056:f32[] g\n    i:f32[8,512] = tanh h\n    j:f32[8,512] = add 1.0:f32[] i\n    k:f32[8,512] = mul 0.5:f32[] j\n    l:f32[8,512] = mul d k\n    m:f32[8,128] = dot_general[\n      dimension_numbers=(([1], [0]), ([], []))\n      preferred_element_type=float32\n    ] l b\n  in (m,) }"
+ },
+ "print": {
+  "code": "import jax, jax.numpy as jnp\n\n@jax.jit\ndef f(x):\n    print(\"step\", x)\n    return x * 2\n\nfor _ in range(3):\n    f(jnp.ones(4))",
+  "output": "step JitTracer(float32[4])"
+ },
+ "err_if": {
+  "code": "import jax, jax.numpy as jnp\n\n@jax.jit\ndef relu_or_not(x):\n    if x.sum() > 0:          # a Python bool of a traced value\n        return x\n    return -x\n\nrelu_or_not(jnp.ones(3))",
+  "output": "jax.errors.TracerBoolConversionError: Attempted boolean conversion of traced array with shape bool[].\nThe error occurred while tracing the function relu_or_not at <snippet>:3 for jit. This concrete value was not available in Python because it depends on the value of the argument x.\nSee https://docs.jax.dev/en/latest/errors.html#jax.errors.TracerBoolConversionError"
+ },
+ "err_shape": {
+  "code": "import jax, jax.numpy as jnp\n\n@jax.jit\ndef positives(x):\n    return x[x > 0]          # how many? depends on the data\n\npositives(jnp.array([1.0, -2.0, 3.0]))",
+  "output": "jax.errors.NonConcreteBooleanIndexError: Array boolean indices must be concrete; got bool[3]\n\nSee https://docs.jax.dev/en/latest/errors.html#jax.errors.NonConcreteBooleanIndexError"
+ },
+ "err_set": {
+  "code": "import jax.numpy as jnp\nx = jnp.zeros(3)\ntry:\n    x[0] = 1.0\nexcept TypeError as e:\n    print(\"TypeError:\", e)\nx = x.at[0].set(1.0)         # a new array\nprint(x)",
+  "output": "TypeError: JAX arrays are immutable and do not support in-place item assignment. Instead of x[idx] = y, use x = x.at[idx].set(y) or another .at[] method: https://docs.jax.dev/en/latest/_autosummary/jax.numpy.ndarray.at.html\n[1. 0. 0.]"
+ },
+ "err_side": {
+  "code": "import jax, jax.numpy as jnp\nseen = []\n\n@jax.jit\ndef f(x):\n    seen.append(x)           # runs while tracing only\n    return x + 1\n\nfor _ in range(3):\n    f(jnp.ones(2))\nprint(len(seen), seen[0])",
+  "output": "1 JitTracer(float32[2])"
+ },
+ "err_global": {
+  "code": "import jax, jax.numpy as jnp\nscale = 2.0\n\n@jax.jit\ndef f(x):\n    return x * scale         # read once, while tracing\n\nprint(f(jnp.ones(2)))\nscale = 10.0\nprint(f(jnp.ones(2)))        # same shape: cached, still 2.0",
+  "output": "[2. 2.]\n[2. 2.]"
+ },
+ "err_key": {
+  "code": "import jax\nkey = jax.random.key(0)\na = jax.random.normal(key, (3,))\nb = jax.random.normal(key, (3,))      # same key: same numbers\nkey, sub = jax.random.split(key)\nc = jax.random.normal(sub, (3,))      # fresh subkey: new numbers\nprint(a); print(b); print(c)",
+  "output": "[ 1.6226422   2.0252647  -0.43359444]\n[ 1.6226422   2.0252647  -0.43359444]\n[-2.4424558  -2.0356805   0.20554423]"
+ },
+ "err_recompile": {
+  "code": "import jax, jax.numpy as jnp\n\n@jax.jit\ndef f(x):\n    return jnp.tanh(x).sum()\n\nbatches = [jnp.ones(n) for n in [100, 100, 101, 102]]\njax.config.update(\"jax_log_compiles\", True)\nfor x in batches:                     # a new length is a new signature\n    f(x)\nprint(\"cache size:\", f._cache_size())",
+  "output": "Compiling jit(f) with global shapes and types (ShapedArray(float32[100]),). Argument mapping: (UnspecifiedValue,).\nCompiling jit(f) with global shapes and types (ShapedArray(float32[101]),). Argument mapping: (UnspecifiedValue,).\nCompiling jit(f) with global shapes and types (ShapedArray(float32[102]),). Argument mapping: (UnspecifiedValue,).\ncache size: 3"
+ },
+ "err_oob": {
+  "code": "import jax, jax.numpy as jnp\nx = jnp.arange(5.0)\nprint(x[10])                          # no error: clamped to the last element\nprint(x.at[10].set(99.0))             # no error: the write is dropped",
+  "output": "4.0\n[0. 1. 2. 3. 4.]"
+ }
+}

@@ -1,0 +1,40 @@
+<section id="rd-s4">
+<h2>4. The training stack</h2>
+<p>JAX itself has no layers, optimisers or checkpoints. Four libraries supply them, each a separate install, and together they are what Google calls the JAX AI stack ({{docs.jaxstack.ai|https://docs.jaxstack.ai/}}). Versions are the latest on PyPI on 2026-10-15.</p>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>PyTorch</th><th>JAX stack</th><th>The difference that matters</th></tr></thead>
+<tbody>
+<tr><td><code>nn.Module</code></td><td><b>Flax NNX</b> (flax 0.12.10): <code>nnx.Module</code>, <code>nnx.Linear(d_in, d_out, rngs=rngs)</code></td><td>Feels like PyTorch: modules hold their parameters as attributes (<code>nnx.Param</code>) and are built eagerly. To enter a JAX transformation a module is split into a static <dfn>graphdef</dfn> (its structure) and a <dfn>state</dfn> pytree (its arrays) and merged back after; <code>nnx.jit</code> and <code>nnx.value_and_grad</code> do this for you.</td></tr>
+<tr><td><code>torch.optim.AdamW</code></td><td><b>optax</b> (0.2.8): <code>optax.adamw(...)</code></td><td>An optimiser is a pair of pure functions, <code>init(params)</code> and <code>update(grads, state, params)</code>, returning updates you apply. Clipping, schedules, weight-decay masks, accumulation (<code>MultiSteps</code>) and EMA are links in <code>optax.chain(...)</code>, not subclasses; a schedule is just a function of the step.</td></tr>
+<tr><td><code>torch.save</code>, DCP</td><td><b>orbax</b> (orbax-checkpoint 0.12.7)</td><td>Asynchronous and sharded by default: each host writes its own shards and restores straight into a target sharding; the counterpart of <code>torch.distributed.checkpoint</code>, but the default path.</td></tr>
+<tr><td><code>DataLoader</code></td><td><b>grain</b> (0.2.18)</td><td>Deterministic shuffling and an iterator whose position is saved with the checkpoint, so a preempted run resumes mid-epoch on exactly the next batch.</td></tr>
+</tbody></table></div>
+<p><b>Which neural-network library.</b> Flax's own docs: "Flax NNX is an evolution of the previous Flax Linen API", "new users are encouraged to use Flax NNX", and Linen "is not going to be deprecated in the near future as most of Flax users still rely on this API" ({{Flax docs|https://flax.readthedocs.io/en/latest/}}). <b>Linen</b> modules hold no state: <code>model.init(key, x)</code> returns a parameter dict and <code>model.apply(params, x)</code> runs it, so most JAX code written before 2025 reads like that. <b>Equinox</b> (0.13.8) makes a model itself a pytree, minimal and popular in research. <b>Haiku</b>: "As of July 2023 Google DeepMind recommends that new projects adopt Flax instead of Haiku"; it is in maintenance mode, bug fixes and JAX compatibility only, though still released (0.0.17, 2026-07-27) ({{Haiku README|https://github.com/google-deepmind/dm-haiku}}). For a PyTorch user writing new code: NNX, and learn to read Linen.</p>
+<p><b>Mixed precision.</b> The common recipe is the same as in PyTorch, written explicitly: float32 master parameters and optimiser state, a bf16 copy for the forward and backward matmuls, float32 for reductions such as softmax and the loss. On TPUs bf16 is native and no loss scaling is needed.</p>
+<p><b>A whole train step</b>, in the running example's JAX twin:</p>
+<!--CODE:step--><pre class="rd-code">import jax, optax
+from flax import nnx
+import common as C, model_nnx as M                # the running example (src/data)
+
+model = M.make_model(C.CFG)                       # built eagerly, like an nn.Module
+optimizer = M.make_optimizer(model, C.CFG)        # nnx.Optimizer(model, optax chain, wrt=nnx.Param)
+
+@nnx.jit                                          # one compiled program: forward, backward, update
+def train_step(model, optimizer, x, y):
+    def loss_fn(model):
+        logits = model(x)                         # [B, T, vocab]
+        return optax.softmax_cross_entropy_with_integer_labels(logits, y).mean()
+    loss, grads = nnx.value_and_grad(loss_fn)(model)   # grads mirror the parameters
+    optimizer.update(model, grads)                # zero_grad + backward + step, in one call
+    return loss
+
+params = nnx.state(model, nnx.Param)
+print(&quot;parameters:&quot;, sum(p.size for p in jax.tree.leaves(params)))
+for step in range(3):
+    x, y = C.batch(step)                          # int32 [32, 128]: the batches PyTorch reads too
+    print(step, x.shape, float(train_step(model, optimizer, x, y)))</pre><pre class="rd-code rd-out">parameters: 826368
+0 (32, 128) 4.200614929199219
+1 (32, 128) 4.168322563171387
+2 (32, 128) 4.115612506866455</pre><p class="rd-codecap">Ran with jax 0.11.2 and flax 0.12.10 on Apple M1 Pro (CPU); output as printed. The model and optimiser come from <code>src/data/model_nnx.py</code> (AdamW with warmup, global-norm clipping and weight decay on weight matrices only); <code>float(...)</code> forces a host sync, fine for three steps and a mistake in a real loop.</p><!--/CODE:step-->
+<div class="deepnote"><b>Go deeper.</b> The {{Training lab|#t-train}} trains both twins and overlays their loss curves, checks optax's AdamW against PyTorch's on the same gradients, resumes from an orbax checkpoint bit for bit and builds optax chains; child pages {{The JAX training stack|n:3c65c17b0d0d817ea0ace9a2ca8677ec}} and {{PyTorch to JAX: porting a small LM|n:3fa5c17b0d0d81c5abb9fedab418578d}}.</div>
+</section>
