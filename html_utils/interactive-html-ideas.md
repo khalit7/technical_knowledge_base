@@ -3860,3 +3860,22 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | 11 | Recompile detective tab: 11 predict-then-reveal cases | own tab | `recompile_lab.py` | Belief elicitation with JAX's real explanations | 9 |
 | 12 | Profile reader tab: mini trace viewer with zoom, kernels joined to phases | own tab | `profile_lab.py` + fusion catalogue | Reading a trace on the running example; what each xprof view returns on CPU | 9 |
 | 13 | Tables: cache cases, export per platform, flag settings, in-place check | Reading s6, s8, s9, s12 | the lab scripts | Each a measured answer to a question people get wrong | n/a |
+
+### Sharding and scale: Mesh, GSPMD, shard_map and multi-host (2026-10-15)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_jax_and_tpu/sharding_and_scale/src/viz_ideas.md`.
+
+| # | Idea | Score | Where | Data |
+|---|---|---|---|---|
+| 1 | Propagation before/after: one block, every op filled in with the sharding the propagator chose, collectives per line; Shardy vs GSPMD toggle; table of every op group with differences highlighted | 13 | Propagation explorer | HLO dumped after `shardy-xla` / `sharding-propagation`, 5 cases x 2 propagators (ss_prop.py) |
+| 2 | Whole-step propagator diff by source line (bars, Shardy vs GSPMD) | 12 | Propagation explorer + Reading table | full train step of 3 root-lab layouts |
+| 3 | Explicit-mode ladder: naive, intermediate, fixed, with the real errors and jax.typeof of intermediates | 11 | Reading | ss_explicit.py |
+| 4 | Strategies at two sizes: bytes per kind or memory per device | 11 | Reading | ss_scale.py |
+| 5 | Context parallelism: ring vs all-gather on the same 8 x 8 query/key block grid, step animation, counters (bytes, blocks held, work device 0 vs 7), measured table incl. 8,192-token memory | 13 | Reading | ss_cp.py |
+| 6 | Collective cost calculator: ring, 2-D torus, tree against message size, devices and link; real message sizes marked | 10 | Reading | scaling book formulas, alpha-beta; derived |
+| 7 | Formula vs compiled bytes table | 12 (reproduces the compiler within 0.4% except one explained miss) | Reading + Mesh designer | ss_formulas.py |
+| 8 | Mesh designer: model, slice, batch, X, Y, remat -> memory bar, compute vs communication bar, scaling-book conditions, torus placement or make_mesh refusal | 12 | own tab | specs.json (root TPU lab), torus.json, scaling book; JS checked against ss_mesh.py |
+| 9 | Pipeline schedule tick by tick from the real runs, GPipe vs circular (same layers, same devices), bubble counters vs formula | 12 | own tab | ss_pipe.py |
+| 10 | MoE dispatch/combine: the real 8 x 8 routing matrix, capacity and drops, two all-to-alls; top-1/2 and 3 capacity factors; hand vs propagation table | 12 | own tab | ss_moe.py |
+| 11 | Two processes vs one process, step animation, what each process sees, the two real errors | 10 | own tab | ss_multi.py |
+| 12 | Predict-then-reveal: which propagator sends more bytes | 8 | Reading | prop.json |

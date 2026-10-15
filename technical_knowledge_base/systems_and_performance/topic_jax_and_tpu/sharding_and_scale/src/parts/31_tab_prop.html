@@ -1,0 +1,43 @@
+<div class="tab" id="t-prop" role="tabpanel" hidden>
+<style>
+#t-prop .pp-spec{font:12px ui-monospace,Menlo,monospace;white-space:nowrap}
+#t-prop .pp-ax-data{color:var(--c1);font-weight:600}#t-prop .pp-ax-model{color:var(--c2);font-weight:600}
+#t-prop tr.pp-diff td{background:var(--hl)}#t-prop tr.pp-cur td{outline:2px solid var(--acc);outline-offset:-2px}
+#t-prop .tw table{min-width:640px}#t-prop td.src code{font-size:11.5px}
+#t-prop .pp-flow{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:4px;margin:8px 0}
+#t-prop .pp-op{border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;line-height:1.3;min-width:0;background:var(--bg);transition:background .25s,border-color .25s}
+#t-prop .pp-op .o{font-weight:600}#t-prop .pp-op .s{font-family:ui-monospace,Menlo,monospace;font-size:11px;overflow-wrap:anywhere}
+#t-prop .pp-op.done{border-color:var(--acc)}#t-prop .pp-op.now{background:var(--acc2);border-color:var(--acc)}#t-prop .pp-op.pend .s{color:var(--dim)}
+#t-prop .pp-op.ann{border-color:var(--good);background:var(--open2)}
+@media (prefers-reduced-motion:reduce){#t-prop .pp-op{transition:none}}
+</style>
+<p class="lead">One transformer block of the running example (forward and backward), five ways of annotating it, two propagators. Every sharding here was read from the HLO that XLA dumped right after its propagation pass, and every collective from the compiled program.</p>
+<p>How it was made: <code>src/runs/ss_prop.py</code> compiles <code>loss = mean(block(x)<sup>2</sup>)</code> and its gradient with <code>XLA_FLAGS=--xla_dump_hlo_pass_re=shardy-xla|sharding-propagation</code>, once with Shardy (the default) and once with <code>jax_use_shardy_partitioner=False</code> (GSPMD); <code>src/runs/ss_hlo.py</code> reads each instruction's sharding (converting both notations to <code>P(...)</code> over the mesh) and the Python line it came from. Operations are grouped by source line and kind; the largest instance stands for the group. <span class="meas">measured</span> jax 0.11.2, 8 simulated CPU devices, Auto axes.</p>
+<div class="ss-card" id="pp-card">
+<div class="seg" id="pp-case"><span class="lbl">Case</span></div>
+<p class="small" id="pp-note"></p>
+<div class="seg" id="pp-part"><span class="lbl">Propagator</span><button data-m="shardy" class="on">Shardy</button><button data-m="gspmd">GSPMD</button></div>
+<h4>Before and after propagation</h4>
+<p class="small">The same program twice: at step 0 only what you annotated has a sharding (green); each step fills in the next operation, in program order (forward, then backward), with the sharding the propagator chose and the collectives the partitioner put on that line. The propagator's own visiting order is not recorded in the dump; program order is used for reading.</p>
+<div class="an-ctl" id="pp-ctl"></div>
+<div class="ss-cap" id="pp-cap"></div>
+<div class="ss-cnt" id="pp-cnt"></div>
+<div class="pp-flow" id="pp-flow"></div>
+</div>
+<div class="ss-card">
+<h4>Every operation group, both propagators</h4>
+<p class="small">Highlighted rows: the two propagators chose differently. "none" means the propagator left the operation unannotated (the partitioner then replicates it). Per-device shape follows from the sharding and the mesh.</p>
+<div class="seg" id="pp-ph"><span class="lbl">Phase</span><button data-m="all" class="on">Both</button><button data-m="fwd">Forward</button><button data-m="bwd">Backward</button></div>
+<div class="tw"><table id="pp-t"><thead><tr><th>Line</th><th>Op</th><th>Phase</th><th>Shape</th><th>Shardy</th><th>GSPMD</th><th>Per device (Shardy)</th><th>Source (model_jax.py)</th></tr></thead><tbody></tbody></table></div>
+<div id="pp-coll"></div>
+</div>
+<div class="ss-card" id="pp-full-card">
+<h4>The whole train step: where the propagators part ways</h4>
+<p class="small">The root lab's layouts, full train step (forward, backward, clipping, AdamW), collectives grouped by the Python line they came from. Bars: bytes (summed result sizes) per line, Shardy above GSPMD.</p>
+<div class="seg" id="pp-full"><span class="lbl">Layout</span><button data-m="tp" class="on">Data 2 x tensor 4</button><button data-m="fsdp_naive">FSDP, weights only</button><button data-m="seq">Sequence sharded</button></div>
+<div class="ss-svg" id="pp-full-svg"></div>
+<div class="ss-leg"><span><i style="background:var(--c1)"></i>Shardy</span><span><i style="background:var(--c2)"></i>GSPMD</span></div>
+<p class="ss-src" id="pp-full-note"></p>
+</div>
+<p>What to take from it: on the block alone the two propagators agree; on the whole step they diverge where the program has <em>freedom</em>, small replicated tensors and elementwise optimizer math that could be split over an idle axis, or activations whose layout nothing pins down. The Reading tab's {{Propagation section|#t-read}} explains the rules behind both.</p>
+</div>
