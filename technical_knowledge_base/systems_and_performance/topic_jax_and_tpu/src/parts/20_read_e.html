@@ -1,0 +1,33 @@
+<section id="rd-s5">
+<h2>5. Sharding and scale</h2>
+<p>In PyTorch you choose a parallelism <i>implementation</i> (wrap the model in DDP or FSDP, swap in tensor-parallel layers) and it owns the communication. In JAX you write the single-device step once, describe how arrays are laid out over devices, and the compiler works out the rest. Three objects carry the description:</p>
+<ul class="tight">
+<li><dfn>Mesh</dfn>: the devices arranged as a named grid, for example 8 devices as <code>jax.make_mesh((2, 4), ('data', 'model'))</code>. The axis names are your vocabulary from then on.</li>
+<li><dfn>PartitionSpec</dfn> (<code>P</code>): for each dimension of an array, which mesh axis splits it, or <code>None</code> for "replicated along this dimension". <code>P('data', None)</code> on a <code>[batch, features]</code> array splits the batch over the 2 devices of the <code>data</code> axis.</li>
+<li><dfn>NamedSharding</dfn> = mesh + spec, attached to arrays with <code>jax.device_put</code>, to a jitted function's inputs and outputs, and to intermediates with <code>jax.lax.with_sharding_constraint</code>.</li>
+</ul>
+<p>Then the compiler's <dfn>partitioner</dfn> <dfn>propagates</dfn> shardings from the annotated arrays to every other array in the program and, wherever an operation needs data laid out differently from how it is, inserts a <dfn>collective</dfn>: an all-gather (every device gets the whole array), a reduce-scatter (sum, then each device keeps a slice), an all-reduce (sum, everyone gets the whole result), an all-to-all, or a permute. The design comes from <dfn>GSPMD</dfn> ({{Xu et al. 2021|https://arxiv.org/abs/2105.04663}}), the name you will see everywhere; since JAX 0.7.0 (2025-07-22) the propagation is done by default by its successor <dfn>Shardy</dfn>, which "will be the only partitioner in JAX" once the migration ends ({{JAX Shardy migration guide|https://docs.jax.dev/en/latest/shardy_jax_migration.html}}). The idea is unchanged. The parallelism strategies you know are then just different specs on the same function:</p>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Strategy</th><th>Batch spec</th><th>Weight spec</th><th>Collectives XLA inserts</th><th>PyTorch</th></tr></thead>
+<tbody>
+<tr><td>Data parallel</td><td><code>P('data')</code></td><td>replicated, <code>P()</code></td><td>all-reduce of gradients</td><td>DDP</td></tr>
+<tr><td>FSDP (ZeRO-3 style)</td><td><code>P('data')</code></td><td>split on <code>'data'</code> too</td><td>all-gather weights before use, reduce-scatter gradients</td><td>FSDP2</td></tr>
+<tr><td>Tensor parallel</td><td><code>P('data')</code></td><td>MLP in: <code>P(None, 'model')</code>; MLP out: <code>P('model', None)</code></td><td>one all-reduce of activations per block (forward)</td><td>Megatron-style TP, DTensor</td></tr>
+</tbody></table></div>
+<p class="small"><span class="rd-todo" id="rd-todo-coll">TODO (Sharding lab): for each row, the collectives actually found in the running example's compiled HLO on 8 simulated devices, their bytes, the per-device parameter bytes from memory_analysis, and the check that the loss equals the one-device loss.</span></p>
+<p><b>When you want control.</b> <code>jax.shard_map</code> runs a function per device on its local shard, and you write the collectives yourself (<code>jax.lax.psum</code>, <code>all_gather</code>, <code>psum_scatter</code>, <code>ppermute</code>): the rank-view program a <code>torch.distributed</code> user knows, used for custom communication, overlap tricks and wrapping kernels. It left <code>jax.experimental</code> in JAX 0.8.0 (2025-10-15). Between the two sits the newer <dfn>explicit sharding</dfn> mode, where shardings are part of an array's type (visible in <code>jax.typeof(x)</code>) and checked while tracing; <code>jax.set_mesh(mesh)</code> sets the mesh it uses. History you will meet in old code: <code>pmap</code> (one device axis; since 0.8.0 reimplemented over <code>jit</code> and <code>shard_map</code> and "in maintenance mode"), <code>pjit</code> (merged into <code>jit</code>), <code>xmap</code> (deleted in 0.4.31) ({{JAX changelog|https://docs.jax.dev/en/latest/changelog.html}}).</p>
+<p><b>Many hosts.</b> A TPU slice larger than one host runs the same script on every host (usually 4 chips each). <code>jax.distributed.initialize()</code> connects them; <code>jax.devices()</code> then lists every chip in the slice and <code>jax.process_index()</code> is the rank; each host feeds only its part of the batch (<code>jax.make_array_from_process_local_data</code>), and one jitted program spans the slice, its collectives riding the ICI links. Not run here: this machine is one host.</p>
+
+<div class="rd-card" id="rd-sh-card">
+<h4>Why sharding is not optional: training-state memory per device</h4>
+<div class="rd-calc">
+<label>Model<select id="rd-sh-model"></select></label>
+<label>Devices <b id="rd-sh-nv">8</b><input type="range" id="rd-sh-n" min="0" max="7" step="1" value="0" aria-label="Number of devices"></label>
+</div>
+<div class="seg" id="rd-sh-mode"><button data-m="dp" class="on">Data parallel (replicate)</button><button data-m="fsdp">FSDP (shard over all devices)</button></div>
+<div class="rd-bars" id="rd-sh-bars"></div>
+<div class="an-cap" id="rd-sh-cap"></div>
+<p class="small mute">Training state = 16 bytes per parameter (bf16 weights and gradients, fp32 master weights and two Adam moments; the accounting of the {{ZeRO paper|n:3c65c17b0d0d81879a7ed90bca007699}}), activations excluded. <span class="der">derived</span> 16 &times; parameters &divide; devices for FSDP, 16 &times; parameters for data parallel; HBM capacities <span class="vend">vendor</span> (section 6), all in GB of 10<sup>9</sup> bytes (v5p's 95 GiB is 102 GB, Ironwood's 192 GiB is 206 GB).</p>
+</div>
+<div class="deepnote"><b>Go deeper.</b> The {{Sharding lab|#t-shard}} shards the running example's weights on a 2 &times; 4 mesh, lets you pick partition specs and see the collectives the compiler inserts, and animates bytes moving round a ring; child page {{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}}. The strategies themselves, framework-free, are taught on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}; why the interconnect decides the strategy, on {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}.</div>
+</section>
