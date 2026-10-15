@@ -1,0 +1,33 @@
+<style>
+#t-band .dp-ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:8px 0;font-size:13px}
+#t-band .dp-ctl label{display:flex;gap:6px;align-items:center}
+#t-band .dp-ctl input[type=range]{width:150px;max-width:42vw}
+#t-band .dp-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:8px;margin:8px 0}
+#t-band .dp-cnt .stat{border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+#t-band .dp-cnt .stat .k{font-size:11.5px;color:var(--mute)}#t-band .dp-cnt .stat .v{font-size:17px;font-weight:600}#t-band .dp-cnt .stat .d{font-size:11.5px;color:var(--mute)}
+#t-band .dp-svg{min-width:0;overflow:hidden}
+#t-band .dp-res{font-size:14px;margin:6px 0}
+</style>
+<div class="tab" id="t-band" role="tabpanel" hidden>
+<p class="lead">Choose the similarity you want to catch and how many hash functions you can afford; the designer picks bands <i>b</i> and rows <i>r</i> the way datasketch does, draws the S-curve, and checks it against real pairs from the running example hashed with 1,024 functions.</p>
+<div class="try"><b>Try:</b> keep 112 hashes and move the target from 0.75 to 0.9: the rule moves to fewer, longer bands. Then raise the false-negative weight: it buys recall with more candidates below the target. Compare the presets: FineWeb's 14 &times; 8 is not the rule's optimum for 0.75 (it sits lower, catching more).</div>
+<div class="card">
+<div class="dp-ctl"><span class="small mute">Presets</span><span class="seg" id="dp-bd-pre">
+<button data-m="fw" class="on">FineWeb 14 &times; 8</button><button data-m="d3">Dolma 3 web 26 &times; 11</button><button data-m="nemo">NeMo Curator 20 &times; 13</button><button data-m="dsk">datasketch default (0.9, 128)</button><button data-m="td">text-dedup Spark (0.7, 250)</button><button data-m="rw">RefinedWeb 450 &times; 20</button></span></div>
+<div class="dp-ctl">
+<label>target <i>t</i> <input type="range" id="dp-bd-t" min="0.5" max="0.95" step="0.01" value="0.75"><b id="dp-bd-tv"></b></label>
+<label>hashes <select id="dp-bd-k"><option>64</option><option selected>112</option><option>128</option><option>250</option><option>256</option><option>286</option><option>512</option><option>1024</option></select></label>
+<label>false-negative weight <input type="range" id="dp-bd-w" min="0.1" max="0.9" step="0.05" value="0.5"><b id="dp-bd-wv"></b></label>
+</div>
+<div class="dp-ctl"><span class="small mute">Bands and rows</span><span class="seg" id="dp-bd-mode"><button data-m="opt">rule&rsquo;s optimum</button><button data-m="man" class="on">set by hand</button></span>
+<label><i>b</i> <input type="range" id="dp-bd-b" min="1" max="128" step="1" value="14"><b id="dp-bd-bv"></b></label>
+<label><i>r</i> <input type="range" id="dp-bd-r" min="1" max="32" step="1" value="8"><b id="dp-bd-rv"></b></label></div>
+<div class="dp-res" id="dp-bd-res"></div>
+<div class="dp-svg" id="dp-bd-plot"></div>
+<div class="dp-cnt" id="dp-bd-cnt"></div>
+<p class="small mute" id="dp-bd-note"></p>
+</div>
+<h3>How the rule chooses</h3>
+<p>datasketch's <code>MinHashLSH</code> (v2.0.0, <code>lsh.py:21-48</code>) tries every <i>b</i> and <i>r</i> with <i>b</i> &times; <i>r</i> &le; the number of hashes and keeps the pair that minimises <i>w</i><sub>fp</sub> &middot; (area under the S-curve left of <i>t</i>) + <i>w</i><sub>fn</sub> &middot; (area above it right of <i>t</i>), weights 0.5 and 0.5 by default. The areas treat every similarity as equally likely, which real data is not: on the web almost all pairs sit near 0, so a false-positive area that looks small still multiplies by billions of pairs. That is why the counters below report both the measured pairs and the expected candidates over all 3,622,086 pairs of the running example, and why production pipelines add a true-Jaccard check on candidates (Dolma 3) or accept a low <i>r</i> because candidates are cheap to verify.</p>
+<p class="small mute"><span class="lbl me">measured</span> dots: <span id="dp-bd-np"></span> real pairs with Jaccard &ge; 0.01 (<span id="dp-bd-n1"></span> identical shingle sets plus <span id="dp-bd-nm"></span> with 1,024-bit equality masks from a hash family drawn with seed 2, independent of the one used to find the pairs), candidate rate per 0.05-wide bin, bands as consecutive slices; <span class="lbl der">derived</span> line and expected counts: 1&minus;(1&minus;<i>s</i><sup><i>r</i></sup>)<sup><i>b</i></sup> summed over every pair's true Jaccard. Presets: <span class="lbl pub">published</span> FineWeb paper Appendix E.1 and datatrove <code>minhash.py:51-54</code>; Dolma 3 pool README (allenai/dolma3 @ 1a9daced); NeMo Curator 1.4.0 <code>fuzzy/workflow.py:75-83</code> (character 24-grams, so not directly comparable with word 5-grams); datasketch defaults <code>lsh.py:149-151</code>; text-dedup's Spark script defaults (tag 2023.09.20, <code>minhash_spark.py:365-370</code>); RefinedWeb Appendix G.3.1 read as 450 bands of 20 (the only reading that reproduces its own probabilities).</p>
+</div>

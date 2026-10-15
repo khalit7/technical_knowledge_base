@@ -1,0 +1,38 @@
+<section id="qc-s2">
+<h2>2. Reference-set classifiers from zero: how fastText scores a page</h2>
+<p><b>The problem.</b> You have billions of documents and a few hundred thousand examples of text you like (the <dfn>reference set</dfn>, or positives). You want a scorer cheap enough to run on every document of a crawl. The answer since GPT-3 has been a linear classifier on word features, trained to separate the reference set from random crawl documents (the <dfn>negatives</dfn>). DCLM's classifier, the one behind DCLM-baseline and OLMo 2's pretraining mix, is a <dfn>fastText</dfn> model: Facebook's library for linear text classifiers with hashed word n-grams (<a href="https://arxiv.org/abs/1607.01759" target="_blank" rel="noopener noreferrer">Joulin et al. 2016</a>).</p>
+<p><b>How it works</b>, read from fastText v0.9.2's source (the version every pipeline here uses) and checked number for number below:</p>
+<ol>
+<li><b>One line of text.</b> fastText reads one line at a time, so the document's lines are first joined with a space: <code>" ".join(text.strip().splitlines())</code> (DCLM's enricher, <code>baselines/mappers/enrichers/quality_prediction_enrichers_calc_fasttext.py:49</code> at commit 361714b; Dolma's tagger does the same). The Python binding appends a newline, which becomes the end-of-sentence token <code>&lt;/s&gt;</code>.</li>
+<li><b>Tokens</b> are what lies between ASCII spaces, tabs and newlines (<code>dictionary.cc:208-232</code>). No lowercasing and no punctuation splitting: <code>Why</code>, <code>why</code> and <code>why?</code> are three different words.</li>
+<li><b>Features.</b> Every token found in the vocabulary contributes its own row (DCLM's model has @@dclm_nwords@@ words). Every pair of neighbouring tokens contributes a <dfn>hashed bigram</dfn>: the two tokens' 32-bit FNV-1a hashes are combined as <code>h = h1 * 116049371 + h2</code> and reduced modulo 2,000,000 buckets (<code>dictionary.cc:312-322</code>). Unknown words still take part in bigrams, and unrelated bigrams that land in the same bucket share a row.</li>
+<li><b>Average.</b> The document vector is the plain mean of all feature rows, 100 numbers each (<code>model.cc:42-50</code>). A 50-word page and a 5,000-word page both end up as one averaged vector.</li>
+<li><b>Score.</b> Two output vectors, one per label (<code>__label__hq</code>, <code>__label__cc</code>); a softmax over the two dot products gives P(hq). With two labels this is a logistic regression: logit = (w<sub>hq</sub> - w<sub>cc</sub>) · mean of rows.</li>
+<li><b>Cut.</b> DCLM keeps a document when P(hq) ≥ 0.018112 (<code>baselines/baselines_configs/fasttext_filter.yaml:8</code>), the value that keeps the top 10% of its pool.</li>
+</ol>
+<p>Because step 5 is linear, every feature's <dfn>push</dfn>, its row dotted with (w<sub>hq</sub> - w<sub>cc</sub>), adds up exactly to the document's logit after dividing by the number of features. This page rebuilds DCLM's prediction from the weights this way for all @@n_run0@@ documents; the largest difference from fastText's own output is @@ft_rebuild_maxdiff@@, which is fastText adding 10<sup>-5</sup> inside its log (<code>loss.cc std_log</code>). That decomposition drives the animation below and the {{Classifier replay|#t-qctr}} tab.</p>
+<div class="co warn"><div class="t">A trap found while rebuilding it</div>The first rebuild was wrong on some documents by up to 0.84 in probability. Two details of the C++ matter: tokens are split on ASCII whitespace only (Python's <code>str.split()</code> also splits on non-breaking spaces), and the 32-bit word hashes are stored in a <code>std::vector&lt;int32_t&gt;</code> (<code>dictionary.cc:382</code>), so a hash above 2<sup>31</sup> becomes negative and is sign-extended when widened to 64 bits for the bigram formula. Any reimplementation of fastText features (in Rust, Spark or a GPU kernel) has to copy both, or its bigram buckets silently differ.</div>
+
+<div class="rd-card" id="qc-a1">
+<h4>One page, two reference sets: the same document scored step by step</h4>
+<div class="seg" id="qc-a1-doc"></div>
+<div class="seg" id="qc-a1-mod"></div>
+<div id="qc-a1-ctl" class="an-ctl"></div>
+<div class="an-cap" id="qc-a1-cap"></div>
+<div id="qc-a1-view"></div>
+<div class="an-cnt" id="qc-a1-cnt"></div>
+<p class="small mute">Real weights: DCLM's published classifier (mlfoundations/fasttext-oh-eli5 rev cd8b714a) and classifiers trained here with DCLM's hyperparameters (smaller bucket table) on other reference sets (section 3). Colour = each token's push toward high quality (green) or crawl (red); a bigram's push is split between its two tokens. Only the first tokens are drawn; the counters use every feature. Text is from run0's PII-scrubbed output.</p>
+</div>
+
+<h3>The cost</h3>
+<p>Training is minutes on a laptop: DCLM's recipe at full size (200,000 positives and 200,000 negatives, with the smaller bucket table of section 3) took @@train_full_secs@@ s here on 4 threads <span class="meas">measured, rough</span>. Scoring is a hash lookup and a 100-dimensional average, about @@cost_ft_ms@@ ms per document per core, so a whole crawl is a CPU job, not a GPU job. The memory is the catch: the 2,000,000 bigram buckets plus a vocabulary of millions of words make DCLM's file 2.39 GB, loaded once per worker process (DCLM's README asks for <code>--ray_num_cpus 2</code> per task for this reason).</p>
+
+<h3>GPT-3's version: logistic regression and a random keep</h3>
+<p>GPT-3 (<a href="https://arxiv.org/abs/2005.14165" target="_blank" rel="noopener noreferrer">Brown et al. 2020, Appendix A</a>) trained a logistic regression on Spark's standard tokenizer and HashingTF features, with WebText, Wikipedia and a web books corpus as positives and unfiltered Common Crawl as negatives. It did not keep a top slice. It kept a document when <code>np.random.pareto(α) &gt; 1 - score</code> with α = 9, "to take mostly documents the classifier scored highly, but still include some documents that were out of distribution". NumPy's <code>pareto</code> draws from a Lomax distribution with P(X &gt; x) = (1 + x)<sup>-α</sup>, so the chance of keeping a document with score s is</p>
+<div class="fm"><div class="eq">P(keep | s) = (2 - s)<sup>-9</sup></div><dl><dt>s = 1</dt><dd>kept with probability 1</dd><dt>s = 0.5</dt><dd>1.5<sup>-9</sup> = 2.6%</dd><dt>s = 0</dt><dd>2<sup>-9</sup> = 0.2%: even the lowest-scoring page survives 1 time in 512</dd></dl></div>
+<p class="small mute">Derived here from NumPy's definition and checked by simulation (@@pareto_sim@@). The GPT-3-style classifier rebuilt in section 3 applies this rule; the {{Threshold explorer|#t-qcth}} shows what it keeps.</p>
+<div class="rd-svg" id="qc-pareto"></div>
+
+<div class="pr" id="qc-pr1"><div class="q">Predict: which single word pushes DCLM's classifier hardest toward "high quality"? (Among words seen at least 200 times in its training data.)</div>
+<div class="opts"><button data-a="0">"Abstract"</button><button data-a="1">"therefore"</button><button data-a="2">three backticks (a Markdown code fence)</button><button data-a="3">"Wikipedia"</button></div><div class="ans" hidden></div></div>
+</section>

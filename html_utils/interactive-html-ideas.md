@@ -3713,3 +3713,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | R2 | Funnel animation | none | rejected: the root's Pipeline lab owns it |
 | R3 | Training proxy models per extractor | none | rejected: GPU scale far beyond one WARC; FineWeb and DCLM published results quoted instead |
 | R4 | Per-line LID heat strip per document | none | rejected for now: the code-switching table carries the finding; a per-line strip needs per-line text, too large to embed |
+
+### Topic: data-curation-and-datasets (2026-10-15)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/src/viz_ideas.md`.
+
