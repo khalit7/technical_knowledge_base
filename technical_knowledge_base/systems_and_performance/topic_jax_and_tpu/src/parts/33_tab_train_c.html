@@ -1,0 +1,38 @@
+<section id="tr-s2">
+<h2>2. optax: an optimiser is a pair of pure functions</h2>
+<p><b>The problem.</b> <code>torch.optim.AdamW</code> is an object that holds the moment estimates and writes into the parameters in <code>step()</code>; parameter groups carry per-group settings such as "no weight decay on biases", and a separate scheduler object changes the learning rate. Under <code>jit</code> nothing may be mutated, so optax splits the optimiser into data and functions.</p>
+<p><b>How it works.</b> An optax <dfn>GradientTransformation</dfn> is two pure functions: <code>init(params)</code> returns the optimiser state (a pytree, for Adam the step count and the two moment trees), and <code>update(grads, state, params)</code> returns <code>(updates, new_state)</code>. You add the updates yourself with <code>optax.apply_updates(params, updates)</code>, a plain sum. Bigger optimisers are <code>optax.chain(...)</code> of small transformations, and that is literally how <code>optax.adamw</code> is written: <code>chain(scale_by_adam(b1, b2, eps), add_decayed_weights(weight_decay, mask), scale_by_learning_rate(learning_rate))</code> ({{alias.py:724-727|https://github.com/google-deepmind/optax/blob/107e9ad20ca62bcbee1a8c016daab71c690a678c/optax/_src/alias.py#L598-L727}} at optax v0.2.8). A <dfn>mask</dfn> (a pytree of booleans, or a function returning one) replaces parameter groups, and a learning-rate <dfn>schedule</dfn> is just a function of the step count.</p>
+<div id="tr-snip-optax_chain"></div>
+
+<h3>Checked against torch.optim.AdamW on the same gradients</h3>
+<p>Both libraries implement decoupled weight decay (Loshchilov and Hutter). PyTorch shrinks the weights first, then takes the Adam step: <code>param.mul_(1 - lr * weight_decay)</code>, then <code>param.addcdiv_(exp_avg, denom, value=-step_size)</code> with <code>denom = sqrt(v) / sqrt(1 - b2^t) + eps</code> ({{torch/optim/adam.py:419, 544-546|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/optim/adam.py#L419}}, torch 2.14.1). optax adds <code>weight_decay * p</code> to the Adam direction and multiplies the sum by <code>-lr</code> ({{transform.py:300|https://github.com/google-deepmind/optax/blob/107e9ad20ca62bcbee1a8c016daab71c690a678c/optax/_src/transform.py#L300}}, {{_adding.py:72-73|https://github.com/google-deepmind/optax/blob/107e9ad20ca62bcbee1a8c016daab71c690a678c/optax/transforms/_adding.py#L72}}). Same algebra, different rounding order. To test only the optimisers, both were fed the same 50 gradients: the running example's real gradients on training batches 0 to 49, all taken at the initial weights.</p>
+<div class="out" id="tr-adamw-stats"></div>
+<div class="tr-svgw" id="tr-adamw-plot"></div>
+<p class="tr-cap" id="tr-adamw-cap"></p>
+<p><b>The defaults are not the same.</b> Relying on either library's defaults gives a different optimiser:</p>
+<div class="tw"><table class="tr-tbl">
+<thead><tr><th>Setting</th><th>torch.optim.AdamW</th><th>optax.adamw</th><th>Effect if a port keeps the default</th></tr></thead>
+<tbody>
+<tr><td>weight_decay</td><td>0.01 ({{adamw.py:26|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/optim/adamw.py#L26}})</td><td>1e-4 ({{alias.py:605|https://github.com/google-deepmind/optax/blob/107e9ad20ca62bcbee1a8c016daab71c690a678c/optax/_src/alias.py#L605}})</td><td id="tr-def-wd"></td></tr>
+<tr><td>which tensors decay</td><td>every tensor in the group (biases and LayerNorm too, unless you build groups)</td><td>every leaf, unless <code>mask</code> is given</td><td>the running example decays only its 25 two-dimensional weight matrices, so both sides need it written out</td></tr>
+<tr><td>betas, eps</td><td>(0.9, 0.999), 1e-8</td><td>b1 0.9, b2 0.999, eps 1e-8, eps_root 0</td><td>the same; the running example uses b2 = 0.95 on both</td></tr>
+<tr><td>gradient clipping</td><td><code>clip_grad_norm_</code> scales by <code>max_norm / (norm + 1e-6)</code> ({{clip_grad.py:164|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/nn/utils/clip_grad.py#L164}})</td><td><code>clip_by_global_norm</code> scales by <code>max_norm / norm</code> when <code>norm &gt;= max_norm</code> ({{_clipping.py:101-105|https://github.com/google-deepmind/optax/blob/107e9ad20ca62bcbee1a8c016daab71c690a678c/optax/transforms/_clipping.py#L101}})</td><td>about one part in a million: float32 rounding size</td></tr>
+<tr><td>learning-rate schedule</td><td>a <code>LambdaLR</code> object, stepped after <code>opt.step()</code></td><td>a function of optax's own update count, starting at 0</td><td>the same values when written as the same function (<code>common.lr_at</code>)</td></tr>
+</tbody></table></div>
+
+<h3>Build an optax chain</h3>
+<p>Eight numbers from the running example (six entries of the first MLP weight, two LayerNorm scales) and their real gradients over the first six steps go through the chain you build. The page re-implements each transformation in JavaScript; <code>src/train/check_train.mjs</code> compares it with optax 0.2.8's own output for every combination (<span id="tr-ch-check"></span>). Clipping uses the norm of these eight gradients alone.</p>
+<div class="tr-box" id="tr-chain">
+<div class="tr-ctl"><span class="lbl">Optimiser</span><div class="seg" id="tr-ch-opt"><button data-m="sgd">sgd</button><button data-m="momentum">momentum</button><button data-m="adam">adam</button><button data-m="adamw" class="on">adamw</button><button data-m="lion">lion</button></div></div>
+<div class="tr-ctl"><span class="lbl">Schedule</span><div class="seg" id="tr-ch-sch"><button data-m="constant" class="on">constant</button><button data-m="warmup">warmup 3</button><button data-m="cosine">warmup 2 + cosine</button></div>
+<span class="lbl">lr</span><div class="seg" id="tr-ch-lr"><button data-m="0.001" class="on">1e-3</button><button data-m="0.01">1e-2</button></div></div>
+<div class="tr-ctl"><label class="small"><input type="checkbox" id="tr-ch-clip"> clip_by_global_norm(0.05)</label>
+<label class="small"><input type="checkbox" id="tr-ch-wd" checked> weight_decay 0.1</label>
+<label class="small"><input type="checkbox" id="tr-ch-mask" checked> mask: decay the 6 weights, not the 2 LayerNorm scales</label></div>
+<pre class="tr-code" id="tr-ch-code"></pre>
+<div class="tr-svgw" id="tr-ch-plot"></div>
+<p class="tr-cap" id="tr-ch-cap"></p>
+</div>
+<div id="tr-snip-muon"></div>
+<div class="deepnote"><b>Go deeper.</b> {{optax docs|https://optax.readthedocs.io/en/latest/}}; gradient accumulation is <code>optax.MultiSteps</code>, an exponential moving average of weights is <code>optax.ema</code>; the child page {{The JAX training stack|n:3c65c17b0d0d817ea0ace9a2ca8677ec}} goes through them.</div>
+</section>

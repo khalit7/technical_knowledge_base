@@ -1,0 +1,43 @@
+{
+ "results": {
+  "nnx": 8.344650268554688e-07,
+  "nnx_state_leaves": 16,
+  "nnx_param_count": 198272,
+  "linen": 8.344650268554688e-07,
+  "linen_param_paths": [
+   "['params']['fc1']['bias']",
+   "['params']['fc1']['kernel']",
+   "['params']['fc2']['bias']",
+   "['params']['fc2']['kernel']"
+  ],
+  "equinox": 8.940696716308594e-07,
+  "equinox_leaves": 16,
+  "haiku_init_keys": [
+   "fc1",
+   "fc2",
+   "ln1",
+   "ln2",
+   "wk",
+   "wo",
+   "wq",
+   "wv"
+  ],
+  "haiku": 8.344650268554688e-07,
+  "ref_max_abs": 2.1016385555267334,
+  "input": "embeddings of training batch 0, shape [32, 128, 128]",
+  "versions": {
+   "jax": "0.11.2",
+   "flax": "0.12.10",
+   "equinox": "0.13.8",
+   "haiku": "0.0.17",
+   "torch": "2.14.1"
+  }
+ },
+ "source": {
+  "torch": "class Block(nn.Module):\n    def __init__(self, cfg):\n        super().__init__()\n        d = cfg[\"d_model\"]\n        self.ln1 = nn.LayerNorm(d, eps=cfg[\"ln_eps\"])\n        self.attn = Attention(d, cfg[\"n_heads\"])\n        self.ln2 = nn.LayerNorm(d, eps=cfg[\"ln_eps\"])\n        self.mlp = MLP(d, cfg[\"d_ff\"])\n\n    def forward(self, x):\n        x = x + self.attn(self.ln1(x))\n        return x + self.mlp(self.ln2(x))\n\nclass Attention(nn.Module):\n    def __init__(self, d, h):\n        super().__init__()\n        self.h, self.dh = h, d // h\n        self.wq, self.wk, self.wv, self.wo = (nn.Linear(d, d) for _ in range(4))\n\n    def forward(self, x):                                    # x [B, T, D]\n        B, T, D = x.shape\n        q = self.wq(x).view(B, T, self.h, self.dh).transpose(1, 2)   # [B, H, T, dh]\n        k = self.wk(x).view(B, T, self.h, self.dh).transpose(1, 2)\n        v = self.wv(x).view(B, T, self.h, self.dh).transpose(1, 2)\n        s = q @ k.transpose(-1, -2) / math.sqrt(self.dh)             # [B, H, T, T]\n        mask = torch.ones(T, T, dtype=torch.bool, device=x.device).tril()\n        s = s.masked_fill(~mask, float(\"-inf\"))\n        a = s.softmax(-1) @ v                                        # [B, H, T, dh]\n        return self.wo(a.transpose(1, 2).reshape(B, T, D))\n\nclass MLP(nn.Module):\n    def __init__(self, d, f):\n        super().__init__()\n        self.fc1, self.fc2 = nn.Linear(d, f), nn.Linear(f, d)\n\n    def forward(self, x):\n        return self.fc2(F.gelu(self.fc1(x)))                 # exact (erf) GELU, PyTorch's default\n",
+  "nnx": "class Block(nnx.Module):\n    def __init__(self, cfg, *, rngs):\n        d = cfg[\"d_model\"]\n        self.ln1 = nnx.LayerNorm(d, epsilon=cfg[\"ln_eps\"], rngs=rngs)\n        self.attn = Attention(d, cfg[\"n_heads\"], rngs=rngs)\n        self.ln2 = nnx.LayerNorm(d, epsilon=cfg[\"ln_eps\"], rngs=rngs)\n        self.mlp = MLP(d, cfg[\"d_ff\"], rngs=rngs)\n\n    def __call__(self, x):\n        x = x + self.attn(self.ln1(x))\n        return x + self.mlp(self.ln2(x))\n\nclass Attention(nnx.Module):\n    def __init__(self, d, h, *, rngs):\n        self.h, self.dh = h, d // h\n        self.wq, self.wk, self.wv, self.wo = (_linear(d, d, rngs) for _ in range(4))\n\n    def __call__(self, x):                                   # x [B, T, D]\n        B, T, D = x.shape\n        split = lambda t: t.reshape(B, T, self.h, self.dh).transpose(0, 2, 1, 3)\n        q, k, v = split(self.wq(x)), split(self.wk(x)), split(self.wv(x))\n        s = q @ k.transpose(0, 1, 3, 2) / math.sqrt(self.dh)\n        s = jnp.where(jnp.tril(jnp.ones((T, T), bool)), s, -jnp.inf)\n        a = jax.nn.softmax(s, axis=-1) @ v\n        return self.wo(a.transpose(0, 2, 1, 3).reshape(B, T, D))\n\nclass MLP(nnx.Module):\n    def __init__(self, d, f, *, rngs):\n        self.fc1, self.fc2 = _linear(d, f, rngs), _linear(f, d, rngs)\n\n    def __call__(self, x):\n        return self.fc2(jax.nn.gelu(self.fc1(x), approximate=False))\n",
+  "linen": "class LinenBlock(nn.Module):\n    d: int\n    h: int\n    f: int\n    eps: float = 1e-5\n\n    @nn.compact\n    def __call__(self, x):                                   # x [B, T, D]\n        B, T, D = x.shape\n        split = lambda t: t.reshape(B, T, self.h, D // self.h).transpose(0, 2, 1, 3)\n        y = nn.LayerNorm(epsilon=self.eps, name=\"ln1\")(x)\n        q, k, v = (split(nn.Dense(D, name=n)(y)) for n in (\"wq\", \"wk\", \"wv\"))\n        s = q @ k.transpose(0, 1, 3, 2) / math.sqrt(D // self.h)\n        s = jnp.where(jnp.tril(jnp.ones((T, T), bool)), s, -jnp.inf)\n        a = (jax.nn.softmax(s, -1) @ v).transpose(0, 2, 1, 3).reshape(B, T, D)\n        x = x + nn.Dense(D, name=\"wo\")(a)\n        y = nn.LayerNorm(epsilon=self.eps, name=\"ln2\")(x)\n        y = nn.Dense(self.f, name=\"fc1\")(y)\n        return x + nn.Dense(D, name=\"fc2\")(jax.nn.gelu(y, approximate=False))\n",
+  "equinox": "class EqxBlock(eqx.Module):\n    ln1: eqx.nn.LayerNorm\n    ln2: eqx.nn.LayerNorm\n    wq: eqx.nn.Linear\n    wk: eqx.nn.Linear\n    wv: eqx.nn.Linear\n    wo: eqx.nn.Linear\n    fc1: eqx.nn.Linear\n    fc2: eqx.nn.Linear\n    h: int = eqx.field(static=True)\n\n    def __init__(self, d, h, f, eps, key):\n        ks = jax.random.split(key, 6)\n        self.ln1, self.ln2 = eqx.nn.LayerNorm(d, eps=eps), eqx.nn.LayerNorm(d, eps=eps)\n        self.wq, self.wk, self.wv, self.wo = (eqx.nn.Linear(d, d, key=k) for k in ks[:4])\n        self.fc1, self.fc2 = eqx.nn.Linear(d, f, key=ks[4]), eqx.nn.Linear(f, d, key=ks[5])\n        self.h = h\n\n    def __call__(self, x):                                   # x [T, D]: one sequence, vmap for a batch\n        T, D = x.shape\n        lin = lambda m, t: jax.vmap(m)(t)                    # Equinox layers act on one vector\n        split = lambda t: t.reshape(T, self.h, D // self.h).transpose(1, 0, 2)\n        y = jax.vmap(self.ln1)(x)\n        q, k, v = (split(lin(m, y)) for m in (self.wq, self.wk, self.wv))\n        s = q @ k.transpose(0, 2, 1) / math.sqrt(D // self.h)\n        s = jnp.where(jnp.tril(jnp.ones((T, T), bool)), s, -jnp.inf)\n        a = (jax.nn.softmax(s, -1) @ v).transpose(1, 0, 2).reshape(T, D)\n        x = x + lin(self.wo, a)\n        y = lin(self.fc1, jax.vmap(self.ln2)(x))\n        return x + lin(self.fc2, jax.nn.gelu(y, approximate=False))\n",
+  "haiku": "def haiku_block(x):                                          # x [B, T, D]\n    B, T, D = x.shape\n    split = lambda t: t.reshape(B, T, H, D // H).transpose(0, 2, 1, 3)\n    ln = lambda n: hk.LayerNorm(-1, create_scale=True, create_offset=True, eps=EPS, name=n)\n    y = ln(\"ln1\")(x)\n    q, k, v = (split(hk.Linear(D, name=n)(y)) for n in (\"wq\", \"wk\", \"wv\"))\n    s = q @ k.transpose(0, 1, 3, 2) / math.sqrt(D // H)\n    s = jnp.where(jnp.tril(jnp.ones((T, T), bool)), s, -jnp.inf)\n    a = (jax.nn.softmax(s, -1) @ v).transpose(0, 2, 1, 3).reshape(B, T, D)\n    x = x + hk.Linear(D, name=\"wo\")(a)\n    y = hk.Linear(F, name=\"fc1\")(ln(\"ln2\")(x))\n    return x + hk.Linear(D, name=\"fc2\")(jax.nn.gelu(y, approximate=False))\n"
+ }
+}
