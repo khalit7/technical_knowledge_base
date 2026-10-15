@@ -32,7 +32,7 @@
     edu(){let h='<div class="small mute">FineWeb-Edu classifier, share of documents at each rounded score 0 to 5 (darker = higher); the number is the mean.</div>';
       O.filter(k=>S[k].edu).forEach(k=>{const e=S[k].edu,t=e.hist.reduce((a,b)=>a+b,0);const seg=e.hist.map((c,i)=>'<span title="score '+i+': '+c+'" style="width:'+(100*c/t).toFixed(2)+'%;background:color-mix(in srgb,var(--c2) '+(15+17*i)+'%,var(--bg))"></span>').join('');
         h+='<div class="cm-row"><span class="nm">'+name(k)+'</span><span style="display:flex;gap:6px;align-items:center;min-width:0"><span class="cm-stack" style="flex:1">'+seg+'</span><span class="small" style="white-space:nowrap;min-width:6.8em">'+e.mean.toFixed(2)+' · '+pct(e.ge3)+' at 3+</span></span></div>'});
-      return [h,'The classifier was trained on Llama-3-70B grades of FineWeb pages for "educational value at primary to grade school level". It rewards explanatory prose; maths and papers score high, forums and shops low. Up to 300 documents per sample, all of FineWeb\'s 2,423 and FineWeb-Edu\'s 159.']}
+      return [h,'The classifier was trained on Llama-3-70B grades of FineWeb pages for "educational value at primary to grade school level". It rewards explanatory prose; Wikipedia and maths score high, forums, shops and most PDFs low. Every document of every sample is scored.']}
   };
   function detail(){const d=document.getElementById('cm-detail');if(!sel){d.innerHTML='';return}const s=S[sel];
     const src=s.src||{};

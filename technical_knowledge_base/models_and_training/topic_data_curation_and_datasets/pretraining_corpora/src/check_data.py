@@ -54,6 +54,11 @@ ok(K['code'].count('2') == K['fineweb_edu'] == 159, 'FineWeb-Edu pages = 159')
 ok(len(K['code']) == K['html200'], 'one code per HTML page')
 ok(len(K['edu_scores_measured']) == K['fineweb'] == len(K['fw_tokens_gpt2']), 'one score and token count per FineWeb page')
 ok(F['kp_fw'] == f"{K['fineweb']:,}" and F['kp_html'] == f"{K['html200']:,}", 'prose counts = kept.json')
+if K.get('nemo'):
+    N = K['nemo']
+    ok(len(N['real']) == K['html200'], 'one Nemotron-CC bucket code per HTML page')
+    ok(sum(c != '0' for c in N['real']) == sum(v['found'] for b, v in N['coverage'].items() if b.endswith('/actual/actual')), 'Nemotron-CC real pages = sum of real-bucket matches')
+    ok(F['nm_real'] == f"{sum(c != '0' for c in N['real']):,}", 'prose Nemotron-CC count = data')
 # published studies quoted in prose
 A = {s['id']: s for s in D('ablations.json')}
 nem = dict(A['nem_t5']['rows'])

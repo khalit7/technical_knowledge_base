@@ -12,7 +12,7 @@ A child page (Part B of `html_utils/methods/topic_pages.md`): Reading organised 
 | `data/ablations.json` | `make_ablations.py` | cells copied from papers' tables (or FineWeb's eval_results.csv) |
 | `data/mixes.json` | `make_mixes.py` | published mixes of open models |
 | `data/robots_optout.json` | `scripts/robots_optout.py` (download, measure) | 20 robots.txt WARC files from each of 4 crawls (manifest in `inputs/cc/robots_manifest.json`) |
-| `data/measured.json`, `data/kept.json` | `make_measured.py` | the scratch outputs of `scripts/sample_corpora.py`, `scripts/measure_samples.py`, `scripts/score_samples.py`, `scripts/what_each_kept.py` |
+| `data/measured.json`, `data/kept.json` | `make_measured.py` | the scratch outputs of `scripts/sample_corpora.py`, `scripts/measure_samples.py`, `scripts/score_samples.py`, `scripts/what_each_kept.py` and `scripts/nemo_scan.py` (Nemotron-CC streamed by WARC record id; resumable) |
 | `inputs/cc/*` | fetched 2026-10-14 | Common Crawl collinfo.json, cc-crawl-statistics monthly.csv and cumulative.csv @ 9ff265d, the recorded output of `scripts/cc_one_record.sh` |
 | `data/samples_manifest.json`, `data/tokenizers_manifest.json` | copied from the scratch area | which file, revision and sha256 each sample and tokenizer came from |
 

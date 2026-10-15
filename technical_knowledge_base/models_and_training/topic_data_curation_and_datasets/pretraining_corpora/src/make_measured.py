@@ -111,6 +111,54 @@ kept = {'warc': 'crawl-data/CC-MAIN-2024-30/segments/1720763514387.30/warc/CC-MA
         'responses': K['summary']['responses'], 'html200': K['summary']['html_200'], 'code': ''.join(code),
         'edu_scores_measured': scores, 'edu_int': ints, 'fw_tokens_gpt2': toks, 'fineweb': K['summary']['fineweb'], 'fineweb_edu': K['summary']['fineweb_edu'],
         'mine_ge3': mine_ge3, 'edu_pub_vs_mine_maxdiff': round(maxdiff, 3), 'edu_int_agree': agree, 'edu_n': len(both)}
+# Nemotron-CC v1: pages of the WARC found by the streamed scan of its CC-MAIN-2024-30 files (scripts/nemo_scan.py)
+NS = os.path.join(PC, 'nemo_scan')
+if os.path.exists(os.path.join(NS, 'done.txt')):
+    import gzip as _gz
+    allp = [p for p in _gz.decompress(open(os.path.join(SCR, 'data', 'nemotron_cc', 'data-jsonl.paths.gz'), 'rb').read()).decode().split() if 'CC-MAIN-2024-30-part' in p]
+    bk = lambda p: p.split('/data-jsonl/')[1].rsplit('/', 1)[0].replace('quality=', '').replace('kind=', '').replace('kind2=', '')
+    tot, dn = collections.Counter(bk(p) for p in allp), collections.Counter(bk(p) for p in open(os.path.join(NS, 'done.txt')).read().split())
+    LV = {'low': 1, 'medium-low': 2, 'medium': 3, 'medium-high': 4, 'high': 5}
+    rid = {r['id'].replace('<urn:uuid:', '').rstrip('>'): i for i, r in enumerate(K['rows'])}
+    real = ['0'] * len(K['rows'])
+    synth = collections.Counter()
+    found = collections.Counter()
+    for line in open(os.path.join(NS, 'matches.jsonl')):
+        d = json.loads(line)
+        i = rid.get(d.get('warc_record_id'))
+        if i is None:
+            continue
+        b = bk(d['_file'])
+        found[b] += 1
+        if '/actual/actual' in b:
+            real[i] = str(LV[b.split('/')[0]])
+        else:
+            synth[b] += 1
+    buckets = sorted(tot, key=lambda b: (-LV[b.split('/')[0]], b))
+    cov = {b: {'files_done': dn[b], 'files': tot[b], 'found': found[b]} for b in buckets}
+    nd, nt = sum(dn.values()), sum(tot.values())
+    kept_nemo = {'real': ''.join(real), 'coverage': cov, 'files_done': nd, 'files': nt,
+                 'bytes_done': sum(int(l.split('\t')[1]) for l in open(os.path.join(NS, 'log.tsv')))}
+    nreal = sum(c != '0' for c in real)
+    nboth = sum(1 for i, c in enumerate(real) if c != '0' and code[i] != '0')
+    facts.update({'nm_files_done': str(nd), 'nm_files': str(nt), 'nm_cov': f'{100 * nd / nt:.0f}%', 'nm_real': f'{nreal:,}',
+                  'nm_gb': f"{kept_nemo['bytes_done'] / 1e9:.0f}", 'nm_both': f'{nboth:,}',
+                  'nm_only': f'{nreal - nboth:,}', 'nm_fw_not_nemo': f"{sum(1 for i, c in enumerate(real) if c == '0' and code[i] != '0'):,}",
+                  'nm_synth': f'{sum(synth.values()):,}'})
+    realb = [b for b in buckets if b.endswith('/actual/actual')]
+    est = sum(found[b] * tot[b] / dn[b] for b in realb if dn[b])
+    rd, rt = sum(dn[b] for b in realb), sum(tot[b] for b in realb)
+    edu_in = sum(1 for i, c in enumerate(real) if c != '0' and code[i] == '2')
+    facts.update({'nm_real_files_done': str(rd), 'nm_real_files': str(rt), 'nm_real_cov': f'{100 * rd / rt:.0f}%',
+                  'nm_est': f'{round(est, -1):,.0f}', 'nm_est_pct': f'{100 * est / len(real):.1f}%',
+                  'nm_both_pct': f'{100 * nboth / max(1, nreal):.0f}%', 'nm_edu_in': str(edu_in),
+                  'nm_high_found': str(found['high/actual/actual']), 'nm_low_found': str(found['low/actual/actual'])})
+    kept_nemo['estimate'] = round(est)
+    facts['nm_real_unscanned'] = str(rt - rd)
+    facts['nm_rest_hours'] = f'{(nt - nd) * 55 / 3600:.0f}'
+else:
+    kept_nemo = None
+kept['nemo'] = kept_nemo
 facts.update({'kp_responses': f"{K['summary']['responses']:,}", 'kp_html': f"{K['summary']['html_200']:,}", 'kp_fw': f"{K['summary']['fineweb']:,}",
               'kp_edu': str(K['summary']['fineweb_edu']), 'kp_fw_pct': f"{100 * K['summary']['fineweb'] / K['summary']['html_200']:.1f}%",
               'kp_edu_pct': f"{100 * K['summary']['fineweb_edu'] / K['summary']['html_200']:.2f}%",
@@ -119,6 +167,7 @@ facts.update({'kp_responses': f"{K['summary']['responses']:,}", 'kp_html': f"{K[
 # facts the Reading tab quotes
 pct = lambda x: f'{100 * x:.1f}%'
 facts['ms_n'] = str(len(out))
+facts['ms_scored'] = f"{sum(v['edu']['n'] for v in out.values() if 'edu' in v):,}"
 facts['ms_fw_gq'] = pct(out['fineweb']['pass']['gopher_quality'])
 facts['ms_fw_c4'] = pct(out['fineweb']['pass']['c4_quality'])
 facts['ms_fw_fq'] = pct(out['fineweb']['pass']['fineweb_quality'])
