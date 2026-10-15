@@ -74,3 +74,9 @@
   const all=()=>{dclm();variance();sim();sa();sem()};
   RD.onRender(all);RD.onResize(all);all();
 })();
+// ---- D4 / SemDeDup on 50,000 FineWeb-Edu rows (GPU run): table when the result is embedded ----
+(function(){const el=document.getElementById('rd-d4fw'),R=DP.d4fw,U=DPU;if(!el||!R)return;const pd=document.getElementById('rd-d4pend');if(pd)pd.hidden=true;
+  el.innerHTML='<div class="tw"><table><thead><tr><th>SemDeDup &epsilon;</th>'+R.sweep.map(s=>'<th class="num">'+s.eps+'</th>').join('')+'</tr></thead><tbody><tr><td>removed of '+U.fmt(R.n)+'</td>'+R.sweep.map(s=>'<td class="num">'+U.fmt(s.removed)+' ('+U.pct(s.removed/R.n)+')</td>').join('')+'</tr></tbody></table></div>'+
+  '<div class="tw"><table><thead><tr><th>D4, share kept</th><th class="num">median score kept</th><th class="num">median score pruned</th><th class="num">score &ge; 3 kept</th><th class="num">score &ge; 3 pruned</th></tr></thead><tbody>'+
+  R.d4.map(d=>'<tr><td>'+U.pct(d.keep,0)+'</td><td class="num">'+d.score_median_kept.toFixed(2)+'</td><td class="num">'+(d.score_median_pruned==null?'n/a':d.score_median_pruned.toFixed(2))+'</td><td class="num">'+U.fmt(d.score3_kept)+'</td><td class="num">'+U.fmt(d.score3_pruned)+'</td></tr>').join('')+'</tbody></table></div>'+
+  '<p class="small mute"><span class="lbl me">measured</span> on the Mac\'s GPU ('+R.device+', '+R.dtype+' weights, embedding '+U.fmt(R.embed_seconds)+' s, rough); k-means 100 clusters on CPU. Score: the rows\' own FineWeb-Edu classifier score (0 to 5).</p>'})();

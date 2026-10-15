@@ -89,6 +89,8 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
     ok(has('about 140 bytes per document')&&Math.round(D.ufscale.dict[1].bytes_per_node)===140,'prose: 140 bytes per union-find node');
     ok(has('in about 2.5 s')&&Math.abs(D.ufscale.scipy[1].rough_s-2.45)<0.01,'prose: scipy CC 2.5 s');
     const FW=D.fwshard;ok(FW&&has('969,556 rows from 353')&&FW.rows_other_files===969556&&FW.files===353&&has('370 candidate pairs, 14 of them')&&FW.inside_candidates===370&&FW.inside_ge08===14&&has('424 candidate pairs')&&FW.cross_candidates===424&&has('15 have a partner')&&FW.ours_with_partner_ge08.kept_by_us_not_in_fineweb===15&&FW.ours_with_partner_ge08.in_fineweb===0,'prose: FineWeb shard join');
+    const R4=D.d4fw;ok(R4&&has('removes 3 documents at')&&R4.sweep[0].removed===3&&has('96 at 0.05, 302 at 0.1 and 866')&&R4.sweep[2].removed===96&&R4.sweep[3].removed===302&&R4.sweep[4].removed===866,'prose: D4 run sweep');
+    ok(has('(3.02 vs 2.91)')&&Math.abs(R4.d4[0].score_median_pruned-3.0156)<1e-3&&Math.abs(R4.d4[0].score_median_kept-2.9062)<1e-3&&has('prunes 14,560 of the 21,939')&&R4.d4[2].score3_pruned===14560&&R4.d4[2].score3_kept+R4.d4[2].score3_pruned===21939,'prose: D4 run scores');
     ok(has('standard deviations within 0.02')&&has('k &ge; 4'.replace('&ge;','≥'))||true,'interview arithmetic present');
   }
   await p.close();

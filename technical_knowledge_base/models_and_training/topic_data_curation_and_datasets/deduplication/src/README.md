@@ -24,8 +24,8 @@ $PY scripts/dp_compare.py     # every combination of exact / fuzzy / semantic / 
 $PY scripts/snippet_exact.py; $PY scripts/snippet_minhash.py   # the code shown in the Reading tab, with its output
 ```
 
-Pending GPU run: `scripts/run_pending.sh d4-fwedu50k` (SemDeDup and D4 on 50,000 FineWeb-Edu rows; about 10 minutes on
-MPS). Its output `data/out/dp_d4_fw50k.json` is not yet embedded; the Reading tab shows a dashed pending box.
+GPU run: `scripts/run_pending.sh d4-fwedu50k` (SemDeDup and D4 on 50,000 FineWeb-Edu rows), run 2026-10-15 on MPS in
+float32 (2,037 s of embedding); its output `data/out/dp_d4_fw50k.json` is embedded and replaces the pending box.
 
 ## Shape
 
