@@ -10,7 +10,7 @@ const b=await puppeteer.launch({headless:'shell'});const p=await b.newPage();
 await p.goto('file://'+page_path,{waitUntil:'load'});
 let fail=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)fail++};
 const D=await p.evaluate(()=>window.RDD);
-const text=await p.evaluate(()=>{document.querySelectorAll('#t-read details').forEach(d=>d.open=true);return document.getElementById('t-read').innerText});
+const text=await p.evaluate(()=>{document.querySelectorAll('#t-read details').forEach(d=>d.open=true);document.querySelectorAll('#t-read .ans').forEach(a=>a.hidden=false);return document.getElementById('t-read').innerText});
 const has=s=>text.includes(s);
 // 1. embedded data equals the recorded facts
 const expect={
@@ -31,6 +31,7 @@ const P=(s,bb,r)=>1-Math.pow(1-Math.pow(s,r),bb);
 ok(D.fwP.every(([s,v])=>Math.abs(P(s,14,8)-v)<0.006),'14 x 8 reproduces FineWeb');
 ok(D.rwP.every(([s,v])=>Math.abs(P(s,450,20)-v)<0.006),'450 x 20 reproduces RefinedWeb');
 ok(D.rwP.every(([s])=>P(s,20,450)<1e-6),'20 x 450 (prose reading) matches almost nothing');
+ok(JSON.stringify(D.d3P)===JSON.stringify([[0.6,0.10],[0.8,0.90]])&&D.d3P.every(([s,v])=>Math.abs(P(s,26,11)-v)<0.011),'26 x 11 reproduces Dolma 3 (90% at 0.8, 10% at 0.6)');
 // 3. prose numbers match data
 ok(has('56%, 77%, 92% and 98.8%')&&has('76% and 99.4%'),'prose LSH probabilities');
 ok(has('29.0 Core against fastText\'s 30.2')&&has('27.1 Core against 27.5'),'prose DCLM Table 4 numbers');
@@ -46,10 +47,16 @@ ok(['13','8','5'].every(n=>dc[n+'para'][1]==='35%'&&dc[n+'para'][2]==='not flagg
 ok(dc['5topic'][1]==='19%'&&dc['8topic'][1]==='0%','topic page: 19% at 5-grams, 0% at 8');
 ok(['13','8','5'].every(n=>dc[n+'copy'][2]==='contaminated'),'quoting page flagged at every n');
 const pg=await p.evaluate(async()=>{const r={};const seg=document.getElementById('rd-page-mode'),ctl=document.getElementById('rd-page-ctl'),sl=ctl.querySelector('input[type=range]');
-  for(const m of ['wet','ext']){seg.querySelector('[data-m="'+m+'"]').click();sl.value=4;sl.dispatchEvent(new Event('input'));r[m]=document.getElementById('rd-page-cap').innerText;
-    sl.value=6;sl.dispatchEvent(new Event('input'));r[m+'6']=document.getElementById('rd-page-cap').innerText}return r});
-ok(/dropped/.test(pg.wet)&&/Lines of 30 characters/.test(pg.wet),'WET version dropped by the short-line rule');
-ok(/passed/.test(pg.ext)&&/candidate pair/.test(pg.ext6),'extracted version passes and its mirror is a candidate pair');
+  for(const m of ['wet','traf','res']){seg.querySelector('[data-m="'+m+'"]').click();for(const st of [1,4,5,6,8]){sl.value=st;sl.dispatchEvent(new Event('input'));r[m+st]=document.getElementById('rd-page-cap').innerText+' | '+document.getElementById('rd-page-view').innerText}}return r});
+ok(/dropped/.test(pg.wet4)&&/Words with a letter/.test(pg.wet4)&&/gopher_below_alpha_threshold/.test(pg.wet4),'WET text: live rules and datatrove agree (alpha rule)');
+ok(/passed/.test(pg.traf4)&&/: 0\.801/.test(pg.traf4)&&/passed/.test(pg.res4),'trafilatura and resiliparse text pass; alpha 0.801 as the caption says');
+ok(/2\.765/.test(pg.traf5)&&/0\.00164/.test(pg.traf5),'quality scores of the real page shown');
+ok(/a candidate pair/.test(pg.traf6),'the three extractions of the page are candidate near duplicates');
+console.log(pg.wet1.split('|')[0]);ok(/24 of its 36 lines/.test(pg.wet1),'WET line count in caption');
+const R=await p.evaluate(()=>window.RDP);
+ok(R.funnel.docs.html_pages===20463&&R.funnel.docs.after_minhash_in_file===2617&&R.chardup['extra_docs_kept_at_0.1']===154&&R.chardup['kept_at_0.1']===2846,'embedded Pipeline lab funnel and char-dup numbers');
+const prose=[['12.8%',Math.abs(2617/20463-0.128)<0.0005],['2,846 against 2,692',true],['14.4%',true],['92 are kept by both, out of 640',true],['592 of 5,000 pairs (11.8%)',Math.abs(592/5000-0.118)<0.0005],['75 of 2,692 documents (2.8%)',Math.abs(75/2692-0.028)<0.0005],['914 of the same 2,692 (34.0%)',Math.abs(914/2692-0.340)<0.0005],['31 / (31 + 460) = 6.3%',Math.abs(31/491-0.063)<0.0005],['1,277, 912 of them',true],['4,334 of 7,500',true]];
+prose.forEach(([t,c])=>ok(has(t)&&c,'prose: '+t));
 // 5. calculator: the default strict cut needs more crawls than exist (prose claim)
 const calc=await p.evaluate(()=>document.getElementById('rd-c-cap').innerText);
 ok(/Not enough web/.test(calc),'calculator default: 2T at score 3 is infeasible ('+calc.split('\n')[0]+')');

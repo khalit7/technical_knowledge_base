@@ -165,3 +165,8 @@ Sources were read in their arXiv HTML versions (tables where stated) and in the 
 | Model collapse: Shumailov; Gerstgrasser accumulation; ToEdit | verified except ToEdit (moved) | | R8 |
 | Post-2023 crawls fill with AI text | kept, labelled as a concern without a measured rate | | R8 |
 | Small-model post-training recipe | moved | child page | none |
+
+## Update 2026-10-15 (after the lab tabs)
+- The Reading tab's own first draft was corrected in three places by the labs: DoReMi's gain is over a document-count baseline, not The Pile's Table 1 weights; Nemotron-CC's "10% recall" is a token share (Table 9) and the classifiers' overlap is Table 8's 10.1%; FineWeb's "10% kept" is 6.3% by its own token counts.
+- The illustrative page in section 3 was replaced by a real Common Crawl page measured by the Pipeline and Quality labs.
+- The RefinedWeb band reading is now backed by a measurement (Dedup lab).
