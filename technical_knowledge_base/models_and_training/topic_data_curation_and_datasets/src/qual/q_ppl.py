@@ -33,7 +33,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
 
 Q.threads()
 tok = AutoTokenizer.from_pretrained(a.model)
-m = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.float32 if a.device == "cpu" else torch.bfloat16).to(a.device).eval()
+m = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.float32 if a.device == "cpu" else torch.float16).to(a.device).eval()
 
 docs = {d["id"]: d["text"] for d in L.run0("final")}
 if a.set == "sample":
@@ -47,7 +47,13 @@ t0 = time.time()
 for k, i in enumerate(ids):
     enc = tok(docs[i], return_tensors="pt", truncation=True, max_length=a.max_tokens).to(a.device)
     with torch.no_grad():
-        loss = m(**enc, labels=enc["input_ids"]).loss.float().item()
+        lg = m(**enc).logits[0, :-1]  # half precision on the GPU; log-softmax in float32, 128 positions at a time
+        tgt = enc["input_ids"][0, 1:]
+        nll = 0.0
+        for s in range(0, lg.shape[0], 128):
+            lp = torch.log_softmax(lg[s:s + 128].float(), dim=-1)
+            nll -= lp.gather(1, tgt[s:s + 128, None]).sum().item()
+        loss = nll / max(1, tgt.shape[0])
     out.write(json.dumps({"id": i, "tokens": int(enc["input_ids"].shape[1]), "nll": loss, "ppl": math.exp(loss)}) + "\n")
     out.flush()
     if k % 25 == 0:

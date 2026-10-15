@@ -124,6 +124,34 @@ sm = os.path.join(Q.OUT, "q_ppl_smoke.json")
 if os.path.exists(sm):
     S["ppl_smoke"] = json.load(open(sm))
 
+# GPU-queue results (run 2026-10-15 on the M1 Pro GPU): Qwen3-0.6B perplexity on run0, FineWeb-Edu classifier on 50k FineWeb rows
+qp = Q.qdir("ppl_run0.jsonl")
+qppl = None
+if os.path.exists(qp):
+    qq = {r["id"]: r for r in qj("ppl_run0.jsonl")}
+    if len(qq) == len(ids):
+        qppl = np.array([qq[i]["ppl"] for i in ids])
+        lowq = qppl <= np.quantile(qppl, 0.3); lowc = ppl <= np.quantile(ppl, 0.3)
+        S["qwen"] = {"n": len(qq), "median_ppl": float(np.median(qppl)), "spearman_edu": float(spearmanr(-qppl, edu).statistic),
+                     "spearman_dclm": float(spearmanr(-qppl, dc).statistic), "spearman_ccnet": float(spearmanr(qppl, ppl).statistic),
+                     "low30_jacc_ccnet": float((lowq & lowc).sum() / (lowq | lowc).sum()),
+                     "low30_edu_keep": float(ke[lowq].mean()), "high30_edu_keep": float(ke[qppl >= np.quantile(qppl, 0.7)].mean()),
+                     "low30_dclm_keep": float(kd[lowq].mean()), "high30_dclm_keep": float(kd[qppl >= np.quantile(qppl, 0.7)].mean())}
+        gl = [(r["generated_like"], qppl[ids.index(r["id"])], ppl[ids.index(r["id"])]) for r in labels if r["stratum"] in ("S3", "S4", "S5")]
+        S["qwen"]["gen_like_median"] = float(np.median([q for g, q, c in gl if g])); S["qwen"]["gen_like_n"] = sum(g for g, q, c in gl)
+        S["qwen"]["other_median"] = float(np.median([q for g, q, c in gl if not g])); S["qwen"]["other_n"] = sum(1 - g for g, q, c in gl)
+        S["qwen"]["gen_like_ccnet_median"] = float(np.median([c for g, q, c in gl if g])); S["qwen"]["other_ccnet_median"] = float(np.median([c for g, q, c in gl if not g]))
+        S["qwen"]["lowest12"] = [round(float(x), 1) for x in np.sort(qppl)[:12]]
+if os.path.exists(Q.qdir("fw50k_edu.jsonl")):
+    e5 = np.array([r["edu"] for r in qj("fw50k_edu.jsonl")]); d5 = np.array([r["dclm"] for r in qj("fineweb_rand50k_dclm.jsonl")])
+    t5 = np.array([r["tokens"] for r in qj("fw50k_edu.jsonl")])
+    assert len(e5) == len(d5) == 50000
+    k5e, k5d = e5 >= 2.5, d5 >= CUT
+    n10 = 5000; A = set(np.argsort(-e5)[:n10]); B = set(np.argsort(-d5)[:n10])
+    S["fw50k"] = {"n": 50000, "keep_edu": float(k5e.mean()), "keep_edu_tokens": float(t5[k5e].sum() / t5.sum()), "keep_dclm": float(k5d.mean()),
+                  "jacc_published": float((k5e & k5d).sum() / (k5e | k5d).sum()), "spearman": float(spearmanr(e5, d5).statistic),
+                  "top10_jacc": len(A & B) / len(A | B), "both": int((k5e & k5d).sum())}
+
 # CCNet buckets
 if cc:
     ok = ~np.isnan(ppl)
@@ -158,7 +186,7 @@ S["labels"]["dclm_kept_no"] = [r["n"] for r in labels if r["stratum"] in ("S4", 
 # --------------------------------------------------------- the page's data
 r2 = lambda a, d: [round(float(x), d) for x in a]  # noqa: E731
 docs = {"edu": r2(edu, 4), "dclm": [float(f"{x:.5g}") for x in dc], "dclm_dt": [float(f"{x:.5g}") for x in dc0],
-        "own": r2(own, 4), "ppl": [None if np.isnan(x) else round(float(x)) for x in ppl], "words": [int(x) for x in words],
+        "own": r2(own, 4), "qppl": None if qppl is None else [round(float(x), 1) for x in qppl], "ppl": [None if np.isnan(x) else round(float(x)) for x in ppl], "words": [int(x) for x in words],
         "fwedu": [int(i in fwedu_ids) for i in ids], "lab": [lab_of[i]["n"] if i in lab_of else -1 for i in ids]}
 
 
