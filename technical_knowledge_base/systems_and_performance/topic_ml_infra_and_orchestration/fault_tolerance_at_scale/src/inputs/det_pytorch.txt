@@ -1,0 +1,179 @@
+DETECTION IN PYTORCH v2.14.1: NCCL watchdog, heartbeat monitor, flight recorder, torchelastic
+Source: PyTorch git tag v2.14.1 (sparse clone of torch/distributed and torch/csrc/distributed/c10d).
+Machine-readable quotes with file:line: source_quotes.json (made by ../scripts/ft_quotes.py <clone> <out>).
+Read 2026-10-16. All paths relative to the PyTorch repo root.
+
+1. Default collective timeout
+torch/csrc/distributed/c10d/ProcessGroupNCCL.hpp:159-160
+    constexpr auto kProcessGroupNCCLDefaultTimeout =
+        std::chrono::milliseconds(10 * 60 * 1000);
+=> 10 minutes. Used as the Options default at ProcessGroupNCCL.cpp:3600 and exposed to Python
+   (init.cpp:3784, init.cpp:4748).
+
+2. TORCH_NCCL_ASYNC_ERROR_HANDLING (what the watchdog does when a collective errors or times out)
+ProcessGroupNCCL.hpp:66-71
+    // TODO: We want to eventually remove this variable and make users to use
+    // the default value (3 - SkipCleanUp).
+    // Control whether or not we perform Async Error Handling with NCCL.
+    static std::vector<std::string> TORCH_NCCL_ASYNC_ERROR_HANDLING = {
+        "TORCH_NCCL_ASYNC_ERROR_HANDLING",
+        "NCCL_ASYNC_ERROR_HANDLING"};
+ProcessGroupNCCL.cpp:975-976 (default)
+      asyncErrorHandling_ = static_cast<ErrorHandlingMode>(
+          getCvarInt(TORCH_NCCL_ASYNC_ERROR_HANDLING, 3 /*SkipCleanUp*/));
+Modes, ProcessGroupNCCL.hpp:162-174
+    // NoHandling: do not handle asynchronous NCCL errors
+    // TearDown: tear down process upon error, see `WorkNCCL::handleException`
+    // CleanUpOnly: just clean up collectives and abort communicators without
+    // tearing down process SkipCleanUp: (this is a temporary option and can be
+    // removed in future) tear down process without cleaning up NCCL communicators.
+    // This should be used as a last resort in case `ncclCommAbort` itself is
+    // hanging
+    enum ErrorHandlingMode {
+      NoHandling = 0,
+      TearDown = 1,
+      CleanUpOnly = 2,
+      SkipCleanUp = 3
+    };
+Note: default 3 (SkipCleanUp) = kill the process without calling ncclCommAbort.
+The new "nccl2" backend uses the same default:
+torch/csrc/distributed/c10d/nccl2/ProcessGroupNCCLBackend.cpp:94-96
+          async_error_handling_(static_cast<::c10d::ErrorHandlingMode>(getCvarInt(
+              ::c10d::TORCH_NCCL_ASYNC_ERROR_HANDLING,
+              ::c10d::SkipCleanUp))),
+
+3. TORCH_NCCL_BLOCKING_WAIT
+ProcessGroupNCCL.hpp:61-64
+    // Control whether or not wait() is blocking or non-blocking.
+    static std::vector<std::string> TORCH_NCCL_BLOCKING_WAIT = {
+        "TORCH_NCCL_BLOCKING_WAIT",
+        "NCCL_BLOCKING_WAIT"};
+ProcessGroupNCCL.cpp:974 (default false)
+      blockingWait_ = getCvarBool(TORCH_NCCL_BLOCKING_WAIT, false);
+ProcessGroupNCCL.cpp:1005
+            << "TORCH_NCCL_BLOCKING_WAIT is enabled, NO watchdog thread is created.";
+Message with blocking wait, ProcessGroupNCCL.cpp:872
+                logPrefix(), "Work ", (*this), " timed out in blocking wait.");
+
+4. Watchdog timeout message (watchdog thread checks each in-flight WorkNCCL against its timeout)
+ProcessGroupNCCL.cpp:733-739
+      std::string exceptionMsg = c10::str(
+          logPrefix(),
+          "Watchdog caught collective operation timeout: ",
+          *this,
+          " ran for ",
+          timeElapsed.count(),
+          " milliseconds before timing out.");
+Teardown message start, ProcessGroupNCCL.cpp:799
+            "Some NCCL operations have failed or timed out. Due to the ",
+
+5. Heartbeat monitor (a second thread that kills the process if the watchdog itself is stuck)
+ProcessGroupNCCL.hpp:97-109
+    // Enable monitoring thread which aborts the process when the ProcessGroupNCCL
+    // Watchdog thread gets stuck and no heartbeat is detected after
+    // TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC. This can happen due to calling CUDA/NCCL
+    // APIs that may hang. It is Useful to prevent jobs being stuck for a prolonged
+    // time than necessary tying up cluster resources.
+    static std::vector<std::string> TORCH_NCCL_ENABLE_MONITORING = {
+        "TORCH_NCCL_ENABLE_MONITORING"};
+    // Control the watchdog heartbeat timeout period after which the monitoring
+    // thread will abort the process.
+    static std::vector<std::string> TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC = {
+        "TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC"};
+Defaults, ProcessGroupNCCL.cpp:1772-1787 (HeartbeatMonitor constructor)
+      heartbeatTimeoutInSec_ =
+          getCvarInt(TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC, 60 * 8 /*8 Mins*/);      (line 1775)
+      waitTimeoutDumpInMilSec_ =
+          getCvarInt(TORCH_NCCL_WAIT_TIMEOUT_DUMP_MILSEC, 15 * 1000 /*15 Sec*/); (line 1777)
+      coordCheckIntervalMilSec_ = getCvarInt(TORCH_NCCL_COORD_CHECK_MILSEC, 1000); (line 1778)
+      dumpOnTimeoutOrEx_ = getCvarBool(TORCH_NCCL_DUMP_ON_TIMEOUT, true);      (line 1782)
+      watchdogHeartbeatMonitorEnabled_ =
+          getCvarBool(TORCH_NCCL_ENABLE_MONITORING, true);                     (line 1787)
+=> heartbeat timeout 480 s; monitoring on; dump on timeout on; 15 s extra wait for the dump;
+   1000 ms poll for remote dump signals.
+Meaning of TORCH_NCCL_WAIT_TIMEOUT_DUMP_MILSEC, ProcessGroupNCCL.hpp:120-123
+    // Control how much extra time we will wait for dumping the debugging info
+    // before we exit and throws timeout exception.
+Meaning of TORCH_NCCL_DUMP_ON_TIMEOUT, ProcessGroupNCCL.hpp:73-77
+    // Control whether dumping debug info on watchdog
+    // timeout is enabled. This variable must be set together with
+    // TORCH_NCCL_ENABLE_MONITORING=1 and TORCH_NCCL_TRACE_BUFFER_SIZE > 0.
+Heartbeat message (there is NO literal "Heartbeat monitor timed out" string at v2.14.1;
+the actual text is), ProcessGroupNCCL.cpp:1952-1965
+            errorMsg = c10::str(
+                pg_->logPrefix(),
+                "ProcessGroupNCCL's watchdog got stuck for ",
+                heartbeatTimeoutInSec_,
+                " seconds without making progress in monitoring enqueued collectives. ",
+                "This typically indicates a NCCL/CUDA API (e.g., CudaEventDestroy) hang blocking the watchdog, ",
+                ...
+                "you can either increase the timeout (TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC) to a larger value "
+                "or disable the heartbeat monitor (TORCH_NCCL_ENABLE_MONITORING=0)."
+                ...
+            exitReason = "ProcessGroupNCCL watchdog hang";
+Other monitor messages:
+ProcessGroupNCCL.cpp:1737  "Received a dump signal due to a collective timeout from ",
+   (continues: "Last enqueued NCCL work: ", ..., ", last completed NCCL work: ", ...,
+    "This is most likely caused by incorrect usages of collectives, e.g., wrong ",
+    "sizes used across ranks, the order of collectives is not same for all ranks ",
+    "or the scheduled collective, for some reason, didn't run. Additionally, ",
+    "this can be caused by GIL deadlock or other reasons such as network errors or ",
+    "bugs in the communications library (e.g. NCCL), etc. ")
+ProcessGroupNCCL.cpp:1756  "Terminating the process after attempting to dump debug info, due to ",
+Mechanism (from the code at 1940-1965): every heartbeatTimeoutInSec_ the monitor compares the
+watchdog's heartbeat counter with the last value; if unchanged it sets shouldDump_ and aborts.
+
+6. Flight recorder buffer
+ProcessGroupNCCL.hpp:115-118
+    // The maximum number of events we store in the flight recorder's ring buffer.
+    // (One event could be the start or end of a collective, for example).
+    static std::vector<std::string> TORCH_NCCL_TRACE_BUFFER_SIZE = {
+        "TORCH_NCCL_TRACE_BUFFER_SIZE"};
+ProcessGroupNCCL.cpp:981
+      traceBufferSize_ = getCvarInt(TORCH_NCCL_TRACE_BUFFER_SIZE, 2000);
+torch/csrc/distributed/c10d/FlightRecorder.hpp:109-113
+        max_entries_ = getCvarInt(
+            {"TORCH_FR_BUFFER_SIZE", "TORCH_NCCL_TRACE_BUFFER_SIZE"}, 2000);
+        capture_cpp_stack_ = getCvarBool(
+            {"TORCH_FR_CPP_STACK", "TORCH_NCCL_TRACE_CPP_STACK"}, false);
+        enabled_ = max_entries_ > 0;
+=> flight recorder ON by default at v2.14.1 with 2000 entries (TORCH_FR_BUFFER_SIZE is the
+   preferred name, TORCH_NCCL_TRACE_BUFFER_SIZE the fallback). Note: older PyTorch versions
+   defaulted the buffer to 0 (off); that history is not checked here (unconfirmed).
+
+7. Related, not asked: TORCH_NCCL_PROPAGATE_ERROR (hpp:79-81, "Control whether to propagate NCCL
+   errors to all ranks through TCPStore."), TORCH_NCCL_DESYNC_DEBUG (hpp:83-87), TORCH_NCCL_NAN_CHECK
+   (hpp:149; default false at cpp:977). kWorkStatusUpdatePeriodMs = 30 * 1000 (hpp:157).
+
+8. torchelastic agent
+torch/distributed/run.py:572-578
+            "--monitor-interval",
+            "--monitor_interval",
+            action=env,
+            type=float,
+            default=0.1,
+            help="Interval, in seconds, to monitor the state of workers.",
+torch/distributed/elastic/agent/server/api.py:66   monitor_interval: monitor status of workers every ``n`` seconds
+torch/distributed/elastic/agent/server/api.py:97       monitor_interval: float = 0.1
+torch/distributed/launcher/api.py:112                  monitor_interval: float = 0.1
+Restarts: run.py:564-569 "--max-restarts" default=0 ("Maximum number of worker group restarts before
+failing."); WorkerSpec in elastic/agent/server/api.py:96 "max_restarts: int = 3".
+Health check: torch/distributed/elastic/agent/server/local_elastic_agent.py:66
+    TORCHELASTIC_HEALTH_CHECK_PORT = "TORCHELASTIC_HEALTH_CHECK_PORT"
+_setup_healthcheck (local_elastic_agent.py:304-345): if the env var is set, the agent starts a
+health-check server on that port via create_healthcheck_server(alive_callback=..., port=..., timeout=60)
+(line 341 "timeout=60,"); alive_callback is the FileTimerServer watchdog's last progress time, or the
+current time if no watchdog. health_check_server.py:30 "timeout: int, timeout seconds to decide agent is
+alive/dead".
+D-state check, local_elastic_agent.py:68-74
+    # Seconds a worker may spend in Linux uninterruptible kernel sleep (D-state)
+    # before the agent marks the worker group UNHEALTHY. Used as the default when
+    # ``uninterruptible_state_timeout`` is not passed to ``LocalElasticAgent``.
+    # Unset / non-positive disables the check. Linux-only.
+    TORCHELASTIC_UNINTERRUPTIBLE_STATE_TIMEOUT = (
+
+Timeline implied by defaults (my note): a hung collective is declared by the watchdog after 10 min;
+if the watchdog itself is wedged, the heartbeat monitor kills the process after 8 min without
+heartbeat; on timeout, the flight recorder (2000 entries) is dumped with up to 15 s extra wait;
+then SkipCleanUp tears the process down; torchrun notices within 0.1 s and restarts the group
+if --max-restarts allows (CLI default 0).

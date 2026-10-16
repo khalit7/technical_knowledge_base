@@ -1,0 +1,29 @@
+SOURCE: Kokolis, Kuchnik, Hoffman, Kumar, Malani, Ma, DeVito, Sengupta, Saladi, Wu (FAIR at Meta). "Revisiting Reliability in Large-Scale Machine Learning Research Clusters". HPCA 2025. arXiv:2410.21680v2, 6 Feb 2025.
+URL: https://arxiv.org/abs/2410.21680
+LABEL: operator's own clusters (Meta RSC-1, RSC-2; A100). Not selling a system; treat as first-party operator data. Read 2026-10-16 (section II-D metrics; section III ETTR model; Appendix A derivation not read).
+
+ETTR DEFINITION (verbatim)
+"Effective Training Time Ratio (ETTR). ETTR is defined as the ratio of productive runtime to available wallclock time of a job run. A job run consists of one or more scheduler jobs related to the same logical job [52]. ... (ETTR attempts to ignore the impact from userspace failures to focus on impact from cluster stability only). The available wallclock time of a job run is defined as the total time a job in the multi-job run was either (1) scheduled or (2) eligible to be scheduled but waiting in the queue. Productive runtime refers to scheduled time during which meaningful progress is being made for the workload. ... we consider three sources of unproductive scheduled time:
+1) Catching up from last saved checkpoint: Re-training between the most recent checkpoint and a job interruption.
+2) Restart overhead: all initialization tasks that need to be performed after a restart that wouldn't otherwise be needed.
+3) Checkpoint overhead: The time checkpointing adds to job runtime."
+"ETTR varies from 0 (the job never makes any meaningful progress) to 1 (100% of the wallclock time was spent making meaningful progress i.e., no queueing or unproductive runtime)."
+"Google Cloud defines a similar metric that they term "Runtime Goodput" [3]." "the ETTR we use differs from other definitions [61] in that we model the wait time found in multi-tenant clusters."
+Goodput (cluster level): "the amount of productive work completed in aggregate per unit time. The goodput can be normalized by the maximum possible goodput to produce a utilization in the range 0 to 1."
+MTTF: "the amount of measured system time divided by the amount of failures."
+
+FORMULA (symbols verbatim; equation layout reconstructed from garbled pdftotext, checked against the surrounding text)
+"define Q as time the job was eligible to be scheduled but was waiting in the job queue, R as productive runtime, and U as unproductive runtime. The wallclock time, W = Q + R + U". Delta_t_cp = interval between checkpoints; w_cp = constant time penalty per checkpoint write; u0 = initialization time after restart (e.g. loading checkpoints); q = expected queue time after submission and after every interruption; N_nodes; r_f = failures per node-day; job MTTF = (N_nodes r_f)^-1.
+Eq. (1) (general, includes q): layout lost in extraction; not reproduced.
+Eq. (2), "for long-running, high priority jobs where queue time is much smaller than the MTTF and R >> q + u0 + Delta_t_cp/2":
+  E[ETTR] ~= ( 1 - N_nodes r_f ( u0 + Delta_t_cp / 2 ) ) / ( 1 + w_cp / Delta_t_cp )
+Eq. (3) Daly/Young optimal interval: Delta_t*_cp ~= sqrt( 2 w_cp / ( N_nodes r_f ) )
+Valid "when (u0 + Delta_t_cp/2) << MTTF".
+
+NUMBERS (first-party)
+- "For the RSC clusters, r_f ~ 5 x 10^-3 failures per GPU node-day of runtime, w_cp ~ 5 mins, u0 ~ 5 - 20 mins, and (N_nodes r_f)^-1 >~ 0.1 day." Approximation accurate "to within ~5%" vs Monte Carlo for 8k GPU jobs.
+- RSC-1 r_f = 6.50 per thousand node-days; RSC-2 = 2.34.
+- Projected MTTF: "16384 GPU jobs to be 1.8 hours and for 131072 GPU jobs to be 0.23 hours."
+- Observation 10: "The RSC clusters are highly efficient (ETTR 0.85-0.9) for their largest and highest priority jobs. 2+ day 2048-4096 GPU job runs on RSC-1 show an average ETTR of around 0.9 assuming checkpoint intervals are Daly-Young optimal and that both restart overhead and checkpoint write overhead is 5 minutes ... To reach ETTR of 0.9 for the largest feasible training runs on RSC-1 (~12,000 GPUs, taking two thirds of RSC-1), checkpoint write time overhead needs to be on the order of ~10 seconds or failure rate needs to dramatically improve from 6.50 to ~1."
+- Lemon node removal "can improve large job completion rates by over 30% (Observation 11)".
+- Data: 11 months, two clusters, 4 million jobs, over 150 million A100 GPU hours.

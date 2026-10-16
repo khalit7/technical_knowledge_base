@@ -1,0 +1,224 @@
+{
+ "rates": [
+  {
+   "k": "l3",
+   "label": "Llama 3 (419 in 54 days on 16,384 GPUs)",
+   "per_gpu_s": 5.481337977698474e-09,
+   "src": "https://arxiv.org/html/2407.21783v3#S3.SS3.SSS4"
+  },
+  {
+   "k": "rsc1",
+   "label": "Meta RSC-1 (6.50 per 1,000 node-days)",
+   "per_gpu_s": 9.403935185185186e-09,
+   "src": "https://arxiv.org/abs/2410.21680"
+  },
+  {
+   "k": "m32k",
+   "label": "Meta 32K job, 2026 (2.3 per 1,000 servers per day)",
+   "per_gpu_s": 3.327546296296296e-09,
+   "src": "https://arxiv.org/abs/2602.00277"
+  },
+  {
+   "k": "rsc2",
+   "label": "Meta RSC-2 (2.34 per 1,000 node-days)",
+   "per_gpu_s": 3.3854166666666668e-09,
+   "src": "https://arxiv.org/abs/2410.21680"
+  }
+ ],
+ "components": [
+  {
+   "k": "detect",
+   "label": "detect the failure",
+   "col": "var(--c5)"
+  },
+  {
+   "k": "wait",
+   "label": "wait for the scheduler (requeue, queue)",
+   "col": "var(--c3)"
+  },
+  {
+   "k": "replace",
+   "label": "get a healthy machine",
+   "col": "var(--c2)"
+  },
+  {
+   "k": "start",
+   "label": "start processes, rendezvous, initialise communication",
+   "col": "var(--c4)"
+  },
+  {
+   "k": "load",
+   "label": "load the checkpoint",
+   "col": "var(--c1)"
+  }
+ ],
+ "designs": [
+  {
+   "id": "base",
+   "name": "Defaults: requeue, restart from remote storage",
+   "col": "var(--bad)",
+   "C_s": 300,
+   "C_note": "Meta's research clusters: checkpoint write w_cp about 5 min (Kokolis et al., HPCA 2025)",
+   "R": {
+    "detect": 600,
+    "wait": 121,
+    "replace": 330,
+    "start": 240,
+    "load": 162
+   },
+   "notes": {
+    "detect": "NCCL watchdog default, 10 min (ProcessGroupNCCL.hpp lines 159-160 @ v2.14.1), for a failure that leaves sockets open",
+    "wait": "Slurm requeue hold, measured on the lab cluster (BeginTime = now + credential lifetime + 1, job_mgr.c @ slurm-24-11-5-1)",
+    "replace": "Gemini (SOSP 2023): 4 to 7 min to obtain a replacement p4d instance (midpoint used)",
+    "start": "Gemini (SOSP 2023): restart warm-up \"more than four minutes\" (4 min used)",
+    "load": "Gemini (SOSP 2023): 162 s to serialise two checkpoint replicas with torch.save, used as the load time (illustrative)"
+   },
+   "evidence": "published inputs from several sources, combined (illustrative)",
+   "what": "Nothing tuned: a hang is noticed by the NCCL watchdog, the job is requeued, a new machine is provisioned, everything restarts and reloads from storage, checkpoints block training for minutes."
+  },
+  {
+   "id": "det",
+   "name": "+ fast detection",
+   "col": "var(--c5)",
+   "C_s": 300,
+   "C_note": "Meta's research clusters: checkpoint write w_cp about 5 min (Kokolis et al., HPCA 2025)",
+   "R": {
+    "detect": 10,
+    "wait": 121,
+    "replace": 330,
+    "start": 240,
+    "load": 162
+   },
+   "notes": {
+    "detect": "ByteRobust: GPU driver hang or lost GPU detected in 10 s with inspection (Wan et al., SOSP 2025, Table 3)",
+    "wait": "Slurm requeue hold, measured on the lab cluster (BeginTime = now + credential lifetime + 1, job_mgr.c @ slurm-24-11-5-1)",
+    "replace": "Gemini (SOSP 2023): 4 to 7 min to obtain a replacement p4d instance (midpoint used)",
+    "start": "Gemini (SOSP 2023): restart warm-up \"more than four minutes\" (4 min used)",
+    "load": "Gemini (SOSP 2023): 162 s to serialise two checkpoint replicas with torch.save, used as the load time (illustrative)"
+   },
+   "evidence": "published inputs, combined (illustrative)",
+   "what": "The same, with health inspections that notice a hung GPU in seconds instead of the 10-minute watchdog."
+  },
+  {
+   "id": "spare",
+   "name": "+ hot spares, fast init",
+   "col": "var(--c3)",
+   "C_s": 300,
+   "C_note": "Meta's research clusters: checkpoint write w_cp about 5 min (Kokolis et al., HPCA 2025)",
+   "R": {
+    "detect": 10,
+    "replace": 10,
+    "start": 30,
+    "load": 162
+   },
+   "notes": {
+    "detect": "ByteRobust: GPU driver hang or lost GPU detected in 10 s with inspection (Wan et al., SOSP 2025, Table 3)",
+    "replace": "illustrative: the spare is already up; Gemini 1.0's optical switches reconfigure TPU cubes in about 10 s",
+    "start": "MegaScale: initialisation under 30 s on more than 10,000 GPUs after its optimisations (NSDI 2024)",
+    "load": "Gemini (SOSP 2023): 162 s to serialise two checkpoint replicas with torch.save, used as the load time (illustrative)"
+   },
+   "evidence": "published inputs, combined (illustrative)",
+   "what": "A spare machine already in the job replaces the bad one: no requeue, no provisioning, and an initialisation optimised to seconds."
+  },
+  {
+   "id": "async",
+   "name": "+ asynchronous checkpoints",
+   "col": "var(--c4)",
+   "C_s": 0.78,
+   "C_note": "PyTorch DCP async_save: training blocked 0.78 s, Llama3-70B on 1,856 H200 (PyTorch blog, Apr 2025)",
+   "R": {
+    "detect": 10,
+    "replace": 10,
+    "start": 30,
+    "load": 162
+   },
+   "notes": {
+    "detect": "ByteRobust: GPU driver hang or lost GPU detected in 10 s with inspection (Wan et al., SOSP 2025, Table 3)",
+    "replace": "illustrative: the spare is already up; Gemini 1.0's optical switches reconfigure TPU cubes in about 10 s",
+    "start": "MegaScale: initialisation under 30 s on more than 10,000 GPUs after its optimisations (NSDI 2024)",
+    "load": "Gemini (SOSP 2023): 162 s to serialise two checkpoint replicas with torch.save, used as the load time (illustrative)"
+   },
+   "evidence": "published inputs, combined (illustrative)",
+   "what": "Checkpoints copy to host memory (the only pause) and write to storage in the background, so they can be frequent and the rework shrinks."
+  },
+  {
+   "id": "mem",
+   "name": "+ in-memory peer checkpoints",
+   "col": "var(--c1)",
+   "C_s": 3,
+   "C_note": "Gemini (SOSP 2023): in-memory checkpoint under 3 s (GPT-2 100B, 16 p4d)",
+   "R": {
+    "detect": 15,
+    "replace": 10,
+    "start": 30,
+    "load": 3
+   },
+   "notes": {
+    "detect": "Gemini (SOSP 2023): 15 s for the root agent to detect the failure",
+    "replace": "illustrative: the spare is already up; Gemini 1.0's optical switches reconfigure TPU cubes in about 10 s",
+    "start": "MegaScale: initialisation under 30 s on more than 10,000 GPUs after its optimisations (NSDI 2024)",
+    "load": "Gemini (SOSP 2023): checkpoint retrieval from peer CPU memory under 3 s"
+   },
+   "evidence": "published (Gemini SOSP 2023, measured on 128 A100) plus a spare (illustrative)",
+   "what": "Every checkpoint also lands in the CPU memory of peer machines; recovery reads it from there in seconds instead of from remote storage."
+  },
+  {
+   "id": "ft",
+   "name": "Replica groups (torchft-style)",
+   "col": "var(--c6)",
+   "C_s": 0,
+   "C_note": "torchft: no checkpoint needed while one replica group is healthy",
+   "R": {
+    "detect": 5,
+    "start": 60,
+    "load": 30
+   },
+   "notes": {
+    "detect": "torchft demo: Gloo timeout set to 5 s on all cross-group operations (PyTorch blog, Jun 2025)",
+    "start": "illustrative: restart of one replica group; not published",
+    "load": "illustrative: weights and optimiser state copied from a healthy peer; not published"
+   },
+   "evidence": "mechanism published (torchft, demonstrated on 300 L40S); times illustrative",
+   "what": "Only the failed replica group restarts; the other groups keep training with a smaller batch and the step in flight is discarded.",
+   "keep": 0.9375,
+   "tau_s": 10,
+   "keep_note": "illustrative: 16 replica groups, 15 keep training during the recovery; the failure costs the step in flight (10 s step, illustrative)"
+  },
+  {
+   "id": "lab_rq",
+   "name": "This topic's Slurm requeue (tiny job)",
+   "col": "var(--mute)",
+   "C_s": 0.00425,
+   "C_note": "measured: median checkpoint write of the running example on the lab Slurm cluster, 4.25 ms (root Storage lab)",
+   "R": {
+    "detect": 32.07,
+    "wait": 129.93,
+    "start": 4.3799999999999955
+   },
+   "notes": {
+    "detect": "measured: node set DOWN after SlurmdTimeout=30 (root Failure lab, fl-node)",
+    "wait": "measured: requeued job held until eligible, then started 162 s after the kill",
+    "start": "measured: start-up and checkpoint load of the tiny job, to the first resumed step"
+   },
+   "evidence": "measured on Apple M1 Pro, Docker Desktop VM, shared machine (tiny job)",
+   "what": "The root Failure lab's node kill on Slurm: heartbeat timeout, automatic requeue, restart on the spare node."
+  },
+  {
+   "id": "lab_tr",
+   "name": "This topic's torchrun in-job restart (tiny job)",
+   "col": "var(--ink)",
+   "C_s": 0.00425,
+   "C_note": "measured: as above",
+   "R": {
+    "detect": 0.12,
+    "start": 3.29
+   },
+   "notes": {
+    "detect": "measured: the crash seen by torchrun (root Failure lab, fl-maxr)",
+    "start": "measured: torchrun restarted the group inside the allocation and resumed (fl-maxr2, with TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1)"
+   },
+   "evidence": "measured on Apple M1 Pro, Docker Desktop VM, shared machine (tiny job)",
+   "what": "The root Failure lab's crashed rank restarted by torchrun --max-restarts inside the Slurm allocation."
+  }
+ ]
+}

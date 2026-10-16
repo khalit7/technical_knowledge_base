@@ -1,0 +1,24 @@
+SOURCE: Wang, Jia, Zheng, Zhang, Fu, Ng, Wang. "Gemini: Fast Failure Recovery in Distributed Training with In-Memory Checkpoints". SOSP 2023 (Oct 23-26, 2023). Rice University + Amazon Web Services.
+URL: https://cdn.amazon.science/29/31/6523473f48e4af52252bac56ef51/gemini-fast-failure-recovery-in-distributed-training-with-in-memory-checkpoints.pdf
+DOI: https://doi.org/10.1145/3600006.3613145
+LABEL: vendor (authors of the system; AWS co-authors). Read 2026-10-16 from the PDF.
+NOT to be confused with Google's Gemini model family.
+
+MECHANISM (my words): Each machine checkpoints model state to CPU memory of itself and of m-1 peer machines (placement: group strategy, mixed when N not divisible by m), every iteration, with checkpoint traffic interleaved into the network idle gaps of training traffic. Persistent remote storage is still written at low frequency (every three hours in the eval) as a fallback. On failure a root agent (etcd-coordinated, heartbeats) has alive machines serialize in-memory checkpoints and a replacement (or standby) machine fetches its shards from a peer's CPU memory.
+
+VERBATIM KEY PASSAGES
+- Abstract: "checkpointing to CPU memory of the host machines with much larger aggregated bandwidth" ... "faster failure recovery by more than 13x than existing solutions. Moreover, it achieves optimal checkpoint frequency, i.e., every iteration, and incurs no overhead on training throughput for large model training."
+- Hardware: "Unless otherwise specified, we use 16 p4d.24xlarge instances" (8 NVIDIA A100 40GB each, NVSwitch); also p3dn.24xlarge (8 V100 32GB). PyTorch-1.13, nccl-v2.14.3, etcd-v3.5. Built on DeepSpeed ZeRO-3. Model: GPT-2 100B (largest that fits).
+- Baselines: "Strawman uses the checkpoint frequency following the setup in training BLOOM [3] and it checkpoints model states every three hours. HighFreq aims to fully saturate the bandwidth capacity of the remote persistent storage".
+- Wasted time, no instance replaced: "The average wasted time in this case is 1.5x the iteration time (1.5 T_iter)." With one instance replaced: "the retrieval time is less than three seconds. In these cases, Gemini can reduce the average wasted time by more than 13x compared to HighFreq. However, when two instances are replaced and training cannot be recovered from the CPU memory, of which the possibility is 6.7% with 16 instances according to Figure 9, Gemini degrades to Strawman."
+- Checkpoint time: "with 16 p4d.24xlarge instances, the reduction is 65x with a 100Gbps network, and it increases to more than 250x with a 400Gbps network." "persistent storage would need to achieve an aggregated bandwidth of 6.4Tbps theoretically."
+- Frequency: "The iteration time of GPT-2 100B with 16 p4d.24xlarge is 62 seconds, but the checkpoint time with Gemini is less than 3 seconds. ... Gemini improves the checkpoint frequency over HighFreq by 8x and over Strawman by more than 170x."
+- Recovery breakdown (Fig. 14, GPT-2 100B, 16 p4d): "it takes 15 seconds for the root agent to detect this failure. The root agent then notifies all alive instances to serialize the checkpoints stored in CPU memory with torch.save(). ... it takes 162 seconds to finish the serialization of two checkpoint replicas ... waiting time to successfully reserve a new p4d.24xlarge instance with ASG ... around 4-7 minutes. Another noticeable overhead is the restart warmup time and it takes more than four minutes before the training can proceed ... the total overhead resulting from a failure that can be recovered from CPU memory is around 7 minutes for software failures and 12 minutes for hardware failures. Note that the instance-replacing overhead for hardware failures can be greatly reduced by standby machines."
+- Baseline pause: "HighFreq checkpoints the model states every nine iterations and the incurred overhead for each checkpoint serialization is around 81 seconds." "Even without any failures, 14.5% time is spent on checkpoint serialization" (HighFreq, simulation).
+- Simulation: "even with 8 failures per day, Gemini remains highly efficient"; "we assume that 1.5% instances fail every day ... with 1000 instances, the effective training time ratio of Gemini is still around 91%, which is 54% higher than HighFreq."
+- Detection: relies on cloud tools (SageMaker) plus "worker agents and the root agent in Gemini also periodically send heartbeat signals to the distributed key-value store for failure detection."
+- Standby: "the training cluster can pre-allocate a few standby machines".
+
+CHECKS / CAVEATS
+- Measured at 16 instances (128 A100); 1000-instance number is simulation. 13x is wasted-time vs HighFreq, not end-to-end restart time; the measured end-to-end failure overhead is still about 7 min (software) / 12 min (hardware).
+- Metric "effective training time ratio" is their name for a goodput-like ratio.

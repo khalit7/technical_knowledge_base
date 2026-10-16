@@ -1,0 +1,32 @@
+SOURCES (two PyTorch blog posts, plus the DCP async recipe referenced)
+A. "Reducing Model Checkpointing Times by Over 10x with PyTorch Distributed Asynchronous Checkpointing". By Meta (Lucas Pasqualin, Less Wright, Iris Zhang, Chien-Chin Huang) and IBM Research (Swaminathan Sundararaman, Saransh Gupta, Raghu Ganti). Page shows "June 12, 2024" with an update date "November 13th, 2024".
+   URL: https://pytorch.org/blog/reducing-checkpointing-times/
+B. "6x faster Async Checkpointing in PyTorch, using Cached Plans, no GIL contention". By Meta (Less Wright, Meet Vadakkanchery, Saurabh Mishra, Ela Krepska, Hamid Shojanazeri, Pradeep Fernando) and Crusoe (Ethan Petersen, Martin Cala, Chip Smith). April 30, 2025 (updated May 3, 2025).
+   URL: https://pytorch.org/?p=3455 (PyTorch blog post id; canonical slug not recorded)
+C. Recipe: "Asynchronous Saving with Distributed Checkpoint (DCP)" https://pytorch.org/tutorials/recipes/distributed_async_checkpoint_recipe.html (not read in full here).
+LABEL: vendor (PyTorch/Meta, with IBM in A and Crusoe in B as co-authors; A says timings "verified by IBM's Research team"). Read 2026-10-16.
+
+MECHANISM (my words): dcp.async_save splits a checkpoint into a blocking staging phase (copy each rank's shards GPU to CPU memory) and a background phase (serialize and write to storage, plus DCP's planning/metadata collectives). Training resumes after staging. A separate process group (gloo) is used for checkpoint collectives so they cannot interleave with training collectives and hang. In 2025, background work moved from a thread to a separate process (no GIL contention with the trainer) and save plans are cached so the planning collective is paid only on the first save.
+
+VERBATIM, A (2024)
+- "IBM Research Team is able to implement and reduce effective checkpointing time by a factor of 10-20x. Example: 7B model 'down time' for a checkpoint goes from an average of 148.8 seconds to 6.3 seconds, or 23.62x faster."
+- "torch.save could take up to 30 minutes to checkpoint a single 11B model (PyTorch 1.13). With advancements in distributed checkpointing, checkpoints could be done in under 4 minutes for up to 30B model sizes. With asynchronous checkpointing, the training time lost due to checkpointing now moves to under 30 seconds, and often as short as 6 seconds."
+- "asynchronous checkpointing does not compress the actual serialization checkpointing time ... Rather it moves the final checkpointing process off the critical path (to cpu threads)".
+- "The first phase copies the data from each gpu/rank from GPU to CPU. This is the visible downtime to the user and can take from 6 - 14 seconds for 7B-13B model sizes. The second phase asynchronously copies the data from CPU memory to disk to persist the checkpoint."
+- "a race condition between the calls could potentially cause training and asynch checkpointing save threads to wait on collective calls at the same time, resulting in a true collective hang. We avoided this scenario by initializing a separate process group for async checkpointing."
+- Future: "zero overhead checkpointing where even the < 30 seconds is eliminated by streaming the updated weights during the backward pass".
+- Hardware/scale for A: not stated in the text I read (results shown in a chart; IBM cluster). Unconfirmed.
+
+VERBATIM, B (2025)
+- "Using Crusoe's 2K H200 cluster, with TorchTitan and training a Llama3-70B, we were able to verify these new features deliver substantial speedups at 1856 GPU scale, reducing the background processing time for async DCP checkpoints from ~436 seconds to ~67 seconds. This is roughly a 6.5x reduction".
+- "GPU training was blocked for less than a second (.78 seconds at 1856 scale) while checkpoint data was moved from GPU to CPU (staging)."
+- Set up: "1856 H200 GPUs, Llama3-70B, HSDP2 with TorchTitan".
+- "TPS drop has significantly narrowed, with a peak dip to 372 vs 315 tps, and for a greatly reduced time window (~67 seconds vs ~437 seconds)."
+- "this drawdown in GPU processing time takes training throughput from 700 down to 320 tps, and suppresses it for roughly 7 minutes (467 seconds)" (first, uncached checkpoint, includes daemon init).
+- Flags: "Set the async_checkpointer_type to AsyncCheckpointerType.PROCESS in the async_save API"; "Set the enable_plan_caching flag to true in the DefaultSavePlanner."
+- Future: "DCP will also introduce additional optimizations, such as zero-overhead checkpointing". (No shipped "zero-overhead" result found as of this read.)
+
+CHECKS / CAVEATS
+- The cost of async checkpointing is not only the blocking stage: B shows a throughput dip during background processing (GIL, collectives); report both "blocked" (0.78 s) and "suppressed" (~67 s) windows.
+- B text uses both ~436 and ~437 s for the old window and 467 s for the first uncached save.
+- Pinned host buffers: the recipe (C) notes extra CPU memory (roughly checkpoint size per rank) is held; not quoted verbatim here.

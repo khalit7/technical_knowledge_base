@@ -1,0 +1,28 @@
+SOURCES
+A. torchft README, github pytorch/torchft (main branch, read 2026-10-16). https://github.com/pytorch/torchft (repo also appears as meta-pytorch/torchft). Docs https://pytorch.org/torchft/
+B. PyTorch blog: "Fault Tolerant Llama: training with 2000 synthetic failures every ~15 seconds and no checkpoints on Crusoe L40S". By Tristan Rice, Howard Huang; June 20, 2025. Collaborators Less Wright, Howard Huang, Chien-Chin Huang; Crusoe: Martin Cala, Ethan Petersen.
+   https://pytorch.org/blog/fault-tolerant-llama-training-with-2000-synthetic-failures-every-15-seconds-and-no-checkpoints-on-crusoe-l40s/
+LABEL: vendor (PyTorch/Meta authors of torchft; Crusoe lent the cluster). Read 2026-10-16.
+
+MECHANISM (my words): Training is split into replica groups (fault domains); inside a group any normal parallelism (FSDP2, TP, PP) runs with NCCL, and across groups gradients are all-reduced through torchft's fault-tolerant process group (Fault Tolerant HSDP/DDP). A global Lighthouse tracks group health by heartbeats and forms a quorum every step; a per-group Manager joins the quorum (async, started at zero_grad), and each step is a transaction: commit (optimizer step) only if all workers succeeded, else discard the gradients (should_commit). A failed group is restarted by the scheduler in isolation while the others continue with a smaller batch; when it comes back it receives weights and optimizer state peer-to-peer from a healthy replica (live recovery), so no checkpoint is needed as long as one group stays healthy. LocalSGD/DiLoCo variants synchronise every N steps instead of every step.
+
+VERBATIM, A (README)
+- "This repository implements techniques for doing a per-step fault tolerance so you can keep training if errors occur without interrupting the entire training job."
+- Algorithms: "Fault Tolerant DDP; Fault Tolerant HSDP: fault tolerance across the replicated dimension with any mix of FSDP/TP/etc across the other dimensions; LocalSGD; DiLoCo". "LocalSGD and DiLoCo are currently experimental."
+- Components: "Coordination primitives that can determine which workers are healthy via heartbeating on a per-step basis; Fault tolerant ProcessGroup implementations that report errors sanely and be reinitialized gracefully; Checkpoint transports that can be used to do live recovery from a healthy peer when doing scale up operations."
+- Lighthouse: "a lighthouse server that coordinates across the different replica groups and then a per replica group manager ... This allows for membership changes at the training step granularity which can greatly improve efficiency by avoiding stopping the world training on errors."
+- Example launch: "torchft_lighthouse --min_replicas 1 --quorum_tick_ms 100 --join_timeout_ms 10000" (example flags, not necessarily defaults).
+
+VERBATIM, B (blog)
+- Cluster: "Crusoe graciously lent us a cluster of 300 L40S GPUs. The GPUs were split up across 30 hosts, each with 10 NVIDIA L40S GPUs." Model "Llama 3 model with 1B parameters". "The average step time for training was ~9s each." Config "30x1x10 ... 30 replica groups (fault tolerant domains), each with 1 host and 10 gpus/workers."
+- Network: NCCL inside groups, Gloo across groups: "Gloo ... can reinitialize in <1s for our use case, and we were able to set the timeout on all operations at 5s."
+- "we turned off checkpointing entirely as a persistent checkpoint save and load is much longer than our P2P recovery time."
+- Quorum: "determines which workers are healthy using frequent heartbeats ... and enforce no split-brain conditions." "Each training step within a replica group is handled as a distributed transaction, where we ensure all workers commit the step by stepping the optimizer or if an error occurs they all rollback by discarding the gradients."
+- Scheduling: "Each replica group ran on Slurm as a separate training job with the Lighthouse and a monitoring script running on the head node." Failures injected with scancel.
+- Run 1 (failure every 60 s, 1100 failures): "a little over 19 hours and 6249 steps. On average, each step took 10.9 seconds." "5145 successful steps / 6249 total steps = 82.3%" ; "We averaged 29.6 participating replica groups per step, so the total training efficiency of this was 81.2%." Also: "we briefly shrunk the world size to 25 hosts until the machine was replaced, and we scaled the job back up with zero downtime."
+- Run 2 (failure every 15 s on average, random 0-30 s, 1015 failures): "On average, we had 18.9 (18.9/30 = 63%) workers healthy and participating on any given step and an average step time of 15.46 seconds. Out of the first 888 steps, 268 of those steps were committed successfully, which gives us a 30.2% step efficiency. This gives us training efficiency of just 13.4%". "Just loading a model from a checkpoint often takes longer than 1 minute." min replicas set to 1.
+- Run 3 DiLoCo, sync every 40 steps: "DiLoCo's throughput (yellow), averaging around 4000 tps, compared with that of regular HSDP2 (purple), which averages around 1200 tps."
+- Figure caption: "Training loss across 1200 failures with no checkpoints."
+
+CHECKS / CAVEATS
+- Title says 2000 failures; runs listed are 1100 + 1015 (about 2100 total); one caption says 1200. Demonstrated at 300 L40S on TCP/Ethernet with a 1B model; synthetic failures (scancel), not real hardware faults. Requires replicated weights (DP/HSDP dimension) and at least one healthy group. Efficiency loss per failure is dominated by discarded steps and smaller effective batch, not restart.

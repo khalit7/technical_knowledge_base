@@ -1,0 +1,74 @@
+SOURCE
+Ziheng Jiang, Haibin Lin, Yinmin Zhong, Qi Huang, Yangrui Chen, Zhi Zhang, Yanghua Peng, Xiang Li, Cong Xie, Shibiao
+Nong, Yulu Jia, Sun He, Hongmin Chen, Zhihao Bai, Qi Hou, Shipeng Yan, Ding Zhou, Yiyao Sheng, Zhuo Jiang, Haohan Xu,
+Haoran Wei, Zhang Zhang, Pengfei Nie, Leqi Zou, Sida Zhao, Liang Xiang, Zherui Liu, Zhe Li, Xiaoying Jia, Jianxi Ye,
+Xin Jin, Xin Liu (ByteDance, Peking University).
+"MegaScale: Scaling Large Language Model Training to More Than 10,000 GPUs". NSDI 2024.
+arXiv 2402.15627, version read: v1 (23 Feb 2024, the only version). https://arxiv.org/abs/2402.15627
+Read 2026-10-16 from the arXiv PDF via pdftotext.
+
+IMPORTANT: MegaScale publishes NO failure-cause table and no per-category counts or percentages.
+What it gives is aggregate restart and recovery numbers for one production run, plus named case studies.
+
+SCALE AND PERIOD
+- Production run: "a proprietary model with hundreds of billions of parameters on multi-trillion tokens. This run
+  uses more than 10,000 GPUs and lasts for several weeks." (NVIDIA Ampere GPUs.)
+- Benchmark: "55.2% Model FLOPs Utilization (MFU) when training a 175B LLM model on 12,288 GPUs, improving the MFU
+  by 1.34x compared to Megatron-LM."
+
+UNIT OF COUNTING
+Training restarts of one job; "exceptions" in the fault records of that job. No denominators are printed.
+
+NUMBERS (verbatim)
+- "Over the several weeks of this run, we experience training restarts over 100 times. With the robust training
+  framework, over 90% of software and hardware faults are automatically identified and fixed by the techniques
+  detailed in sec 4. The rest of the problems are handled with the help of the troubleshooting tools described in
+  sec 5."
+- "over 90% of the exceptions among them are automatically detected, located, and recovered using our robust
+  training framework, such as CUDA error and segmentation fault. The average time required for detecting failure
+  and executing diagnostic tests is less than 10 minutes. Moreover, the system can catch up to the training
+  progress prior to the crash within 15 minutes from the latest checkpoints, maintaining over 90% effective
+  training time rate, which is calculated as the number of iterations multiplied by the iteration training time,
+  divided by the total training time."
+- Initialization (restart cost): "for Megatron-LM on 2,048 NVIDIA Ampere GPUs is approximately 1047 seconds";
+  after optimisations "361 seconds on 2,048 GPUs", then "under 5 seconds on 2048 GPUs, and to under 30 seconds on
+  more than 10,000 GPUs".
+- Stragglers: "a minor fraction of machines (approximately 0.5%) exhibit substantially slower performance during
+  training"; "specific hosts took approximately 10% more time to execute the same forward computations ... After
+  isolating and removing these problematic hosts from the cluster, we observed an approximate 0.7% improvement in
+  MFU."
+
+ARITHMETIC CHECK (mine, illustrative only, not printed)
+- ">100 restarts over several weeks": at 3 weeks that is about 4.8 restarts/day (one per ~5 h); at 6 weeks about
+  2.4/day. The paper does not state the exact duration, so the rate is unconfirmed.
+- Lost time per incident upper bound implied: <10 min detect + diagnose, plus <15 min catch-up, so roughly
+  <25 min of lost progress per auto-recovered fault (excluding reschedule and init time). My inference, not stated.
+- ETTR definition here differs from Meta's: iterations x iteration time / total training time (no queue time).
+
+MECHANISM (verbatim fragments)
+- Detection: a robust training daemon "sends heartbeat to the driver periodically"; "When the driver process
+  detects an abnormal status in a particular training process, or fails to receive a heartbeat from an executor
+  within a predefined time window, it triggers the fault recovery procedure." RDMA traffic: "If the traffic ceases
+  entirely, the driver will automatically initiate the fault recovery procedure."
+- Diagnostics: intra-host loopback test (RNICs to memory nodes and GPUs), RNIC-to-RNIC test, NCCL all-to-all within a
+  node and all-reduce with neighbours under the same ToR switch.
+- Eviction: driver submits faulty node IPs to Kubernetes, "which evicts the faulty nodes and replenishes the cluster
+  with an equivalent amount of healthy ones".
+- Checkpoint: two-stage (GPU to host memory "several seconds", then async to HDFS); recovery reads one copy per
+  data-parallel group from HDFS and broadcasts.
+
+CASE STUDIES (failure kinds named, no counts)
+- CUDA errors, segmentation faults (auto-recovered examples).
+- Defective GPUs that "probabilistically cause blocking when executing NCCL communication operations. Such blocking
+  can hang the entire machine, leading to cascading timeouts" (found via the 3D-parallel visualiser: hung nodes do
+  not log, timed-out peers do).
+- Computational stragglers (specific hosts, ~10% slower).
+- MFU decreasing over time (irregular garbage collection, certain PyTorch ops on the critical path).
+- "Frequent network interface flapping": "the root cause of this problem is the bad link quality between network
+  card, AOC cable and switch"; lesson: set NCCL timeout threshold explicitly larger.
+
+KEY QUOTES
+1. "we experience training restarts over 100 times."
+2. "The average time required for detecting failure and executing diagnostic tests is less than 10 minutes."
+3. "the system can catch up to the training progress prior to the crash within 15 minutes from the latest
+   checkpoints, maintaining over 90% effective training time rate".

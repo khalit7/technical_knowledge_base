@@ -1,0 +1,159 @@
+SOURCE
+Kokolis, Kuchnik, Hoffman, Kumar, Malani, Ma, DeVito, Sengupta, Saladi, Wu (FAIR at Meta).
+"Revisiting Reliability in Large-Scale Machine Learning Research Clusters". HPCA 2025.
+arXiv 2410.21680, version read: v2 (6 Feb 2025; v1 29 Oct 2024). https://arxiv.org/abs/2410.21680
+Read 2026-10-16 from the arXiv PDF via pdftotext; Fig. 4 and Table II read from rendered page images.
+
+SCALE AND PERIOD
+- Two clusters: RSC-1 "general ML cluster ... of 16k GPU size", RSC-2 "focuses on vision applications and is of 8k GPU size".
+  8x NVIDIA A100 80GB per server; "spanning 24k of NVIDIA A100 GPUs".
+- "The 11-month data ... spans 4 million jobs and over 150 million A100 GPU hours."
+- Scheduler: Slurm. Failure view: "through the lens of the scheduler and server-level health checks".
+
+UNIT OF COUNTING
+- Fig. 3: share of Slurm jobs (and of GPU runtime) by final job state, RSC-1.
+- Fig. 4: attributed hardware failures as a rate per GPU-hour, by health-check cause.
+  "We attribute a failure to a cause if the cause was detected within the last 10 minutes or 5 minutes
+  after a failing jobs lifetime (FAILED or NODE_FAIL)."
+- Fig. 5 / sec III-D: failures per 1000 node-days.
+- Table II: share of identified lemon nodes by root cause.
+
+TABLE I (verbatim): Taxonomy of Failures. "Users and cluster operators must infer a cause from a potentially
+ambiguous symptom. A common error is to misattribute the cause to the wrong component, especially when multiple
+domains are suspect."
+Failure Symptoms            User Program  System Software  Hardware Infra  Likely Failure Cause
+OOM                         yes           no               no              User Bug
+GPU Unavailable             no            yes              yes             PCIe error, Driver/BIOS, thermals
+GPU Memory Errors           no            no               yes             Thermal Noise, Cosmic Rays, HBM Defect or Wear
+GPU Driver/Firmware Error   no            yes              no              Outdated Software, High Load
+GPU NVLink Error            no            no               yes             Electro/Material Failure, Switch
+Infiniband Link             no            no               yes             Electro/Material Failure, Switch
+Filesystem Mounts           no            yes              no              Failed Frontend Network, Drivers in D State, Storage Backend
+Main Memory Errors          no            no               yes             Circuit Wear, Thermal Noise, Cosmic Rays
+Ethlink Errors              no            no               yes             Electro/Material Failure, Switch
+PCIe Errors                 no            no               yes             GPU Failure, Poor Electrical Contacts
+NCCL Timeout                yes           yes              yes             Userspace Crash, Deadlock, Failed HW
+System Services             yes           yes              yes             Userspace Interference, Software Bugs, Network Partition
+(The table has no counts: it is a symptom to domain map.)
+
+FIG. 3 (RSC-1): Scheduler Job Status Breakdown by Number of Jobs and GPU Runtime.
+Bar labels read from the figure (pairing by x position in the PDF text layer):
+State             Job Count   GPU Runtime
+CANCELLED         4.2%        14.2%
+COMPLETED         59.8%       15.7%
+FAILED            23.7%       21.1%
+FAILED (HW)       0.1%        6.5%
+NODE_FAIL (HW)    0.1%        12.2%
+OUT_OF_MEMORY     0.1%        0.0%
+PREEMPTED         9.8%        18.0%
+REQUEUED          1.6%        9.9%
+TIMEOUT           0.6%        2.4%
+CHECK: job column sums to 100.0%; runtime column sums to 100.0%. HW rows 6.5 + 12.2 = 18.7% of runtime,
+matching the text "18.7% of runtime is impacted by these failures". Text: "60% of scheduled jobs completed. 24%
+and 0.1% of jobs failed because of FAILED and NODE_FAIL, respectively. 10% of jobs were pre-empted, 2% requeued,
+0.1% ran out of memory, and 0.6% timed-out." Consistent (rounded). Pairing note: the per-bar pairing is from
+label x positions; the sums and the 18.7% check support it.
+
+FIG. 4: Attributed hardware failures, per-GPU hourly rate (failures per GPU-hour). Read from the figure.
+Legend colours: GPU, Network, Filesystem, PCI, Host Memory, Multiple, Unknown, Other.
+(a) RSC-1 (21 bars, largest first)
+[MISC] NODE_FAIL                     1.6e-05   (Unknown)
+[Filesystem] Mount                   8.6e-06   (Filesystem)
+[IB] Link                            6.9e-06   (Network)
+[GPU] GSP RPC Timeout                4.8e-06   (GPU)
+[PCI] PCIe                           2.2e-06   (PCI)
+[Multiple] 2 cooccuring              1.9e-06   (Multiple)
+[GPU] ECC Memory                     1.4e-06
+[GPU] Row Remap                      1.1e-06
+[GPU] Missing GPU                    7.6e-07
+[check ufm]                          6.4e-07   (Other)
+[IPMI] Critical Interrupt            5.7e-07   (Other)
+[Host Memory] Memory                 3.1e-07   (Host Memory)
+[GPU] NVLINK                         2.8e-07
+[GPU] Inv./corrupted buffer stream   1.6e-07
+[Multiple] 3 cooccuring              1.5e-07
+[Other] REMAINING EVENTS             1.3e-07
+[GPU] CUDA Memtest                   1.1e-07
+[IPMI] Power Supply                  1.1e-07
+[GPU] REMAINING EVENTS               1.1e-07
+[service status]                     7.7e-08
+[GPU] Context Switch Timeout Error   5.8e-08
+(b) RSC-2 (18 bars)
+[MISC] NODE_FAIL                     4.2e-05
+[IB] Link                            6.9e-06
+[GPU] ECC Memory                     3.7e-06
+[Filesystem] Mount                   3e-06
+[Multiple] 2 cooccuring              2.5e-06
+[GPU] GSP RPC Timeout                7.5e-07
+[GPU] Row Remap                      5.7e-07
+[PCI] PCIe                           5.4e-07
+[GPU] NVLINK                         4.8e-07
+[GPU] CUDA Memtest                   4.3e-07
+[IPMI] Critical Interrupt            3.6e-07
+[GPU] Context Switch Timeout Error   3.2e-07
+[Host Memory] Memory                 2.5e-07
+[GPU] Inv./corrupted buffer stream   2e-07
+[GPU] REMAINING EVENTS               1.6e-07
+[Other] REMAINING EVENTS             1.4e-07
+[GPU] Multiple XIDs: 4               6.8e-08
+[IPMI] Power Supply                  6.8e-08
+CHECK (own arithmetic, approximate since bars are rounded): RSC-1 sum ~ 4.6e-05 per GPU-hour, of which
+NODE_FAIL (unknown) ~ 35%; GPU-coloured bars ~ 8.8e-06 (~19%); filesystem ~19%; IB ~15%.
+RSC-2 sum ~ 6.2e-05 per GPU-hour, NODE_FAIL ~ 67%. These shares are my computation, not printed.
+No totals or percentages are printed for Fig. 4.
+
+TABLE II (verbatim): Fraction of Lemon Node Root Causes
+Optics 2.6% | CPU 2.6% | PSU 5.1% | NIC 7.7% | EUD 10.3% | PCIE 15.4% | DIMM 20.5% | GPU 28.2% | BIOS 7.7%
+CHECK: sums to 100.1% (rounding). The values are exact multiples of 1/39: 1,1,2,3,4,6,8,11,3 of 39 nodes
+(2.56, 2.56, 5.13, 7.69, 10.26, 15.38, 20.51, 28.21, 7.69). The text says 40 lemon nodes were identified
+(24 on RSC-1, 16 on RSC-2) and "More than 85% of identified lemon nodes failed one of the tests", so the table
+denominator (39 by arithmetic) is not 40; not explained in the paper. EUD is not expanded in the table.
+
+RATES AND OTHER NUMBERS (verbatim)
+- "RSC-1 has an rf of 6.50 failures per thousand node-days and RSC-2 has a significantly lower rf of 2.34
+  failures per thousand node-days."
+- "failure rate is ~2.5 failures per 1000 node-days on RSC-1 and periods where failure rate spikes as high as
+  ~17.5 failures per 1000 node-days (an order of magnitude higher)."
+- "the mean-time-to-failure (MTTF) of 1024-GPU jobs is 7.9 hours, roughly 2 orders-of-magnitude lower than 8-GPU
+  jobs (47.7 days)." [dash in original replaced by comma]
+- "we project the MTTF for 16384 GPU jobs to be 1.8 hours and for 131072 GPU jobs to be 0.23 hours."
+  Model: MTTF = (N_nodes r_f)^-1. CHECK: 16384 GPUs = 2048 nodes; 1/(2048 x 6.50/1000) = 0.0751 days = 1.80 h. OK.
+  131072 GPUs = 16384 nodes; 1/(16384 x 0.0065) = 0.00939 days = 0.225 h, printed 0.23. OK.
+  1024 GPUs = 128 nodes; model gives 28.8 h vs observed 7.9 h (observed is the measured number, not the model).
+- "Already at 4k scale, MTTF is around 10 hours" (Observation 8). Model check: 512 nodes x 0.0065 -> 7.2 h.
+- "Attributed hardware failures impact 19% of GPU runtime and less than 1% of jobs."
+- "In late 2023, XID errors from a driver bug were the dominant source of job failures on RSC-1"; "GSP Timeouts
+  were caused by a code regression that was fixed with a driver patch".
+- "Failures may co-occur, 3% and 5% of hardware failures on RSC-1/RSC-2 have co-occuring events of similar
+  priority." "we observe 43% (63%) of PCI errors co-occur with XID 79 and 21% (49%) have all 3 event types."
+- Overlapping checks: a PCIe failure without the GPU's own XID "occurs in our logs 57% of the time on RSC-1 (37%
+  on RSC-2)".
+- Crash loop: "we see a 1024 GPU job NODE_FAIL and subsequently requeue 35 times, causing a total of 548
+  preemptions (over 7k GPUs)."
+- "16% of the total lost goodput resulting from hardware failures on RSC-1 is due to second-order preemptions".
+- Lemon nodes: "The identified lemon nodes represent 1.2% of RSC-1's footprint, 13% of daily jobs, and 1.7% of
+  RSC-2's footprint. Our lemon node detection mechanism led to 10% reduction in large job failures (512+ GPUs),
+  from 14% to 4%." CHECK: 14% to 4% is 10 percentage points (a 71% relative reduction).
+  RSC-1 24 nodes / 2000 nodes (16k GPUs / 8) = 1.2% OK; RSC-2 16 / 1000 = 1.6%, printed 1.7% (minor mismatch,
+  possibly a node count slightly under 1000).
+- Lemon signals: excl_jobid_count, xid_cnt, tickets, out_count, multi_node_node_fails, single_node_node_fails,
+  single_node_node_failure_rate.
+
+ETTR DEFINITION (verbatim)
+"ETTR is defined as the ratio of productive runtime to available wallclock time of a job run. A job run consists
+of one or more scheduler jobs related to the same logical job." "(ETTR attempts to ignore the impact from
+userspace failures to focus on impact from cluster stability only). The available wallclock time of a job run is
+defined as the total time a job in the multi-job run was either (1) scheduled or (2) eligible to be scheduled but
+waiting in the queue." Unproductive scheduled time: "1) Catching up from last saved checkpoint ... 2) Restart
+overhead ... 3) Checkpoint overhead". "ETTR varies from 0 ... to 1".
+Observation 10: "The RSC clusters are highly efficient (ETTR 0.85-0.9) for their largest and highest priority
+jobs." ETTR of ~0.9 for 2+ day 2048-4096 GPU runs assumes Daly-Young optimal checkpoint interval and 5 min restart
+and 5 min checkpoint write overhead. For ~12,000 GPUs: "checkpoint write time overhead needs to be on the order of
+~10 seconds or failure rate needs to dramatically improve from 6.50 to ~1."
+
+KEY QUOTES
+1. "Observation 5: Many hardware failures are unattributed, and the most common attributed failures are due to
+   the backend network, the filesystem, and GPUs."
+2. "Observation 3: Beware of the red-herrings ... Errors such as NCCL timeouts may be naively attributed to a
+   proximal cause e.g., on the network rather than a deadlock."
+3. "Observation 4: Because of the health checks, hardware failures constitute a rare set of outcomes."

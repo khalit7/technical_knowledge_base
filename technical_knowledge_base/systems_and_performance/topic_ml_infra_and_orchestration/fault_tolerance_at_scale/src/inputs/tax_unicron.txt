@@ -1,0 +1,93 @@
+SOURCE
+Tao He, Xue Li, Zhibin Wang, Kun Qian, Jingbo Xu, Wenyuan Yu, Jingren Zhou (Alibaba Group; Nanjing University).
+"Unicron: Economizing Self-Healing LLM Training at Scale". arXiv 2401.00134, version read: v1 (30 Dec 2023, the
+only version). https://arxiv.org/abs/2401.00134
+Read 2026-10-16 from the arXiv PDF via pdftotext; Figure 1 checked on a rendered page image.
+
+SCALE AND PERIOD
+- "Our analysis of one of the major cloud platforms, referred to as Alibaba Cloud for clarity in this paper".
+  Number of tasks, GPUs and the observation period behind Figure 1: NOT given (unconfirmed).
+- Recovery walk-through: "a GPT-3 training exercise on Alibaba Cloud, leveraging a fleet of 256 NVIDIA H800 GPUs
+  within the Megatron framework."
+
+UNIT OF COUNTING
+Figure 1 "Distribution of task termination statistics": share of LLM training TASKS by how they terminated, for
+"the most resource-intensive tasks, representing the top 5%" [dash replaced]. So the percentages are of all such
+tasks (success included), not of failures.
+
+FIGURE 1 (labels verbatim, outer ring of a two-ring donut)
+finish successfully      56.6%
+others                    3.3%
+CUDA errors               1.6%
+illegal memory access     2.1%
+task hang                 3.1%
+GPU driver errors         0.6%
+NVLink errors             4.5%
+invalid DMA mapping       2.1%
+ECC errors                5.0%
+other network errors      4.0%
+connection reset          1.0%
+link flapping             3.9%
+connection refused        2.1%
+NCCL timeout             10.1%
+Inner ring: unlabelled; colours group the outer slices into 4 groups (read from the image, so group names are mine):
+ green  = success                                                        56.6%
+ grey   = others, CUDA errors, illegal memory access, task hang           10.1%  (software or unclassified)
+ blue   = GPU driver errors, NVLink errors, invalid DMA mapping, ECC      12.2%  (GPU hardware)
+ orange = other network errors, connection reset, link flapping,
+          connection refused, NCCL timeout                                21.1%  (network)
+CHECKS (mine)
+- All 14 slices sum to 100.0%. Failures = 100 minus 56.6 = 43.4%, matching the text "a startling 43.4% rate of
+  abnormal terminations". OK.
+- Grouped: 10.1 + 12.2 + 21.1 = 43.4. OK.
+- Shares among failed tasks only (my computation): network 48.6%, GPU hardware 28.1%, software/other 23.3%;
+  NCCL timeout alone 23.3% of failures; ECC 11.5%; NVLink 10.4%.
+- No counts are printed, so percentages cannot be checked against counts.
+
+TABLE 1 (verbatim): Detection methods and severity levels of errors. ("our subjective classification of error
+statuses based on their severity levels ... ranging from SEV 1 (most severe) to SEV 3 (least severe)")
+Detection method                Error status               Severity
+Node health monitoring          Lost connection            SEV 1
+Process supervision             Exited abnormally          SEV 2
+Exception propagation           Connection refused/reset   SEV 3
+Exception propagation           Illegal memory access      SEV 2
+Exception propagation           ECC errors                 SEV 1
+Exception propagation           Invalid DMA mapping        SEV 1
+Exception propagation           CUDA errors                SEV 2
+Exception propagation           NVLink errors              SEV 1
+Exception propagation           GPU driver errors          SEV 1
+Exception propagation           Other network errors       SEV 3
+Exception propagation           Other software errors      SEV 2
+Online statistical monitoring   NCCL timeout               SEV 3
+Online statistical monitoring   Link flapping              SEV 3
+Online statistical monitoring   Task hang                  SEV 2
+Online statistical monitoring   Other software errors      SEV 2
+(Grouping of rows to detection method follows the layout: the "Exception propagation" label sits in the middle of
+its block; the exact boundary between the exception-propagation and online-monitoring blocks is my reading of the
+layout text, consistent with the prose: "online statistical monitoring to detect certain errors like NCCL timeout,
+TCP timeout, and task hangs".)
+"solely SEV 1 failures lead to a decrease in the count of available GPUs" (node must be drained); in their
+simulation, SEV 1 node recovery time is uniform random "from 1 to 7 days" (simulation assumption, not a measurement).
+
+NUMBERS (verbatim)
+- "For transient faults, which constitute 73% of all errors and are typically remediable by restarting the system,
+  the recovery trajectory may involve a system hang lasting up to 30 minutes, stemming from the all-reduce
+  communication timeout. This delay is followed by task termination and a succession of steps including a 9-minute
+  wait for task resubmission, a 14-minute span for environment and CUDA configuration, and a final 15-minute
+  recomputation phase. Collectively, this results in a downtime of 68 minutes." CHECK: 30 + 9 + 14 + 15 = 68. OK.
+- "Conversely, hardware faults, which precipitate the need for node drainage in 37% of cases, set off a more
+  labor-intensive recovery ... This manual labor can extend the 'interrupted' state for several hours to days".
+  NOTE: 73% transient + 37% node drainage = 110%, so these two numbers are not shares of one partition (perhaps 37%
+  is of hardware faults, or the populations differ). The paper does not say; flag as ambiguous.
+  Compare Figure 1: GPU-hardware group is 28.1% of failures, not 27% or 37%.
+- "In a typical set of 128 GPUs, failure frequencies range from once to seven times weekly, equating to an average
+  time between failures of over a day." CHECK: 7 per week = one per 24 h; "over a day" holds only at the low end.
+- Detection: failure confirmed when iteration wait exceeds "3x the average iteration time"; normal jitter within
+  "1.1x the average iteration time".
+
+KEY QUOTES
+1. "the most resource-intensive tasks, representing the top 5%, exhibit a startling 43.4% rate of abnormal
+   terminations" [dash replaced].
+2. "around 73% of such failures can be rectified by simply restarting the training processes. Although this process
+   takes about 68 minutes under default settings".
+3. "a delay of up to 30 minutes may occur before a NCCL timeout error is raised".

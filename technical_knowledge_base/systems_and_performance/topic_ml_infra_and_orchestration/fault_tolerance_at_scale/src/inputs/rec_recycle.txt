@@ -1,0 +1,16 @@
+SOURCE: Gandhi, Zhao, Skiadopoulos, Kozyrakis (Stanford). "ReCycle: Resilient Training of Large DNNs using Pipeline Adaptation". SOSP 2024 (Nov 4-6, 2024, Austin). arXiv:2405.14009v2, 25 Sep 2024.
+URL: https://arxiv.org/abs/2405.14009
+LABEL: vendor (authors). Read 2026-10-16.
+
+MECHANISM (my words): No spare servers. When a server fails, its micro-batches are re-routed to the server holding the same pipeline stage in another data-parallel pipeline (functional redundancy across DP replicas), and the extra work is fitted into existing pipeline bubbles. To make it fit, the backward pass is split into input-gradient and weight-gradient phases (the weight-gradient part can be deferred into bubbles) and the optimizer step is staggered across stages. An offline planner (dynamic programming + MILP) precomputes schedules for a set number of failures. Failure detection: GPU hardware error APIs (SMBPBI), runtime stderr, periodic heartbeats with GPU stats (page retirement, row remapping, ECC, XID) to a central driver.
+
+VERBATIM
+- Abstract: "When servers fails, ReCycle dynamically re-routes micro-batches to data-parallel peers, allowing for uninterrupted training despite multiple failures ... it decouples the backward pass into two phases ... it avoids synchronization across pipeline stages by staggering the optimizer step ... outperforming recent proposals for fault-tolerant training such as Oobleck and Bamboo by up to 1.46x and 1.64x, respectively."
+- "ReCycle supports high throughput training even at high failure counts, e.g. >=10% of the overall system."
+- Cost of the alternatives: "training a 530B GPT model requires 280 spare GPUs, provisioned according to the full capacity of a data parallel group, increasing costs by 11% [52]." Dropping a DP group: "a single node failure would force 280 GPUs to go offline and cause a roughly 11% drop in training throughput." Naive rerouting: "the failure of 8.3% of workers (1 out of 12) leads to a 33% slowdown in iteration time."
+- Bubble budget: synchronous 1F1B over 8192 GPUs "(3 x (16 - 1) x 64) = 2880 bubbles per iteration".
+- Hardware: "32-GPU cluster featuring NVIDIA A100 80GB GPUs in Azure, utilizing Standard_NC96ads_A100_v4 instances (8 GPUs ...)"; larger scales "conducted using a simulator" validated against real runs (Table 2).
+- Implementation on DeepSpeed.
+
+CAVEATS
+- Real runs on 32 A100; thousands-of-GPU results are simulated. Throughput degrades with failures (no state lost, but capacity shrinks until repair).
