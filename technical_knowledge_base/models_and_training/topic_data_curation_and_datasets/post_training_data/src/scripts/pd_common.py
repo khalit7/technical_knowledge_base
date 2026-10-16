@@ -134,7 +134,8 @@ def _len(text):
 
 
 def mask_stats(messages, trained_roles=("assistant",)):
-    """Token counts under the tulu template with open-instruct's mask_labels logic (dataset_transformation.py:1307
+    """Token counts under the tulu template with open-instruct's prefix masking (finetune.py encode_sft_example,
+    lines 401-444 at the Tulu 3 release commit b0899767; the same logic is mask_labels, dataset_transformation.py:1307
     @ 72f46040): every non-assistant message span, plus the '<|assistant|>' header that follows it, is masked by
     rendering prefixes and taking their token lengths. Returns (total tokens, trained tokens, per-role tokens)."""
     total = _len(render_tulu(messages))
