@@ -1,0 +1,46 @@
+# Failure lab: the running example's JobSet (src/data/k8s/train-jobset.yaml) with three changes:
+# its name and RUN come from the run, failurePolicy.maxRestarts from MAXR, and train.py runs through
+# fl_wrap.py (for --crash-once) with the run's extra arguments (ARGS). __X__ fields are filled by fl_k8s.py.
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: fl-k3
+  namespace: mi
+  labels:
+    kueue.x-k8s.io/queue-name: mi-lq
+spec:
+  failurePolicy:
+    maxRestarts: 2
+  replicatedJobs:
+  - name: node
+    replicas: 1
+    template:
+      spec:
+        parallelism: 2
+        completions: 2
+        completionMode: Indexed
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            terminationGracePeriodSeconds: 5
+            containers:
+            - name: trainer
+              image: mi-train:1
+              imagePullPolicy: Never
+              env:
+              - {name: RUN, value: fl-k3}
+              command: ["sh", "-c"]
+              args:
+              - >-
+                exec torchrun --nnodes=2 --nproc-per-node=2 --node-rank=$JOB_COMPLETION_INDEX
+                --master-addr=fl-k3-node-0-0.fl-k3 --master-port=29500
+                /shared/fl/fl_wrap.py --ckpt-dir=/shared/ckpt/$RUN --log-dir=/shared/logs/$RUN --steps 200 --step-sleep-ms 150 --timeout-s 30
+              resources:
+                requests: {cpu: "1", memory: 900Mi, example.com/gpu: "2"}
+                limits: {cpu: "2", memory: 900Mi, example.com/gpu: "2"}
+              volumeMounts:
+              - {name: shared, mountPath: /shared}
+            volumes:
+            - name: shared
+              hostPath: {path: /shared, type: Directory}
