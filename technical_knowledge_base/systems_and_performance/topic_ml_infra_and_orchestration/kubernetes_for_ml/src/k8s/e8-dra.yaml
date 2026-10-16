@@ -1,0 +1,65 @@
+# Dynamic Resource Allocation (resource.k8s.io/v1, GA since v1.34) with no driver installed.
+# A DRA driver normally publishes ResourceSlices (its devices and their attributes) and prepares a device on
+# the node when a pod gets it. Here the ResourceSlice is written by hand: the scheduler can allocate from it,
+# and the kubelet then has nobody to prepare the device. Four fake GPUs on worker3, two memory sizes.
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata: {name: km-gpu}
+spec:
+  selectors:
+  - cel: {expression: 'device.driver == "gpu.km.example.com"'}
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceSlice
+metadata: {name: km-worker3-gpus}
+spec:
+  driver: gpu.km.example.com
+  nodeName: mi-kind-worker3
+  pool: {name: mi-kind-worker3, generation: 1, resourceSliceCount: 1}
+  devices:
+  - name: gpu-0
+    attributes: {model: {string: "fake-40g"}, index: {int: 0}}
+    capacity: {memory: {value: 40Gi}}
+  - name: gpu-1
+    attributes: {model: {string: "fake-40g"}, index: {int: 1}}
+    capacity: {memory: {value: 40Gi}}
+  - name: gpu-2
+    attributes: {model: {string: "fake-80g"}, index: {int: 2}}
+    capacity: {memory: {value: 80Gi}}
+  - name: gpu-3
+    attributes: {model: {string: "fake-80g"}, index: {int: 3}}
+    capacity: {memory: {value: 80Gi}}
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata: {name: km-two-big-gpus, namespace: km}
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpus
+        exactly:
+          deviceClassName: km-gpu
+          allocationMode: ExactCount
+          count: 2
+          selectors:
+          - cel: {expression: 'device.capacity["gpu.km.example.com"].memory.compareTo(quantity("80Gi")) >= 0'}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: km-dra-pod, namespace: km}
+spec:
+  restartPolicy: Never
+  terminationGracePeriodSeconds: 1
+  resourceClaims:
+  - name: gpus
+    resourceClaimTemplateName: km-two-big-gpus
+  containers:
+  - name: main
+    image: mi-train:1
+    imagePullPolicy: Never
+    command: ["sh", "-c", "env | sort; sleep 30"]
+    resources:
+      requests: {cpu: 50m, memory: 32Mi}
+      limits: {memory: 64Mi}
+      claims: [{name: gpus}]

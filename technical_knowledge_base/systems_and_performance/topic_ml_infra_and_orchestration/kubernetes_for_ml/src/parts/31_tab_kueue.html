@@ -1,0 +1,74 @@
+<div class="tab" id="t-kmq" role="tabpanel" hidden>
+<style>
+#t-kmq .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-kmq .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-kmq .an-play{min-width:6.4em}
+#t-kmq .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px;overflow-wrap:anywhere}
+#t-kmq .an-cap .t{font-weight:600;font-size:14px}
+#t-kmq .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-kmq .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-kmq .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-kmq .wl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:8px 0}
+#t-kmq .wl div{border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:12px;min-width:0;overflow-wrap:anywhere}
+#t-kmq .wl div.cur{outline:2px solid var(--acc)}#t-kmq .wl div.ok{border-left:4px solid var(--good)}#t-kmq .wl div.no{border-left:4px solid var(--bad)}
+#t-kmq .qb .row{display:grid;grid-template-columns:minmax(0,8em) minmax(0,1fr) 5.5em;gap:8px;align-items:center;font-size:12.5px;margin:4px 0}
+#t-kmq .qb .tr{height:16px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden;border:1px solid var(--line)}
+#t-kmq .qb .fi{position:absolute;top:0;bottom:0;border-radius:2px}#t-kmq .qb .v{text-align:right;font-variant-numeric:tabular-nums}
+#t-kmq .topo{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px;margin:8px 0}
+#t-kmq .blk{border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}#t-kmq .blk.ok{border-color:var(--good)}#t-kmq .blk.bad{border-color:var(--bad)}
+#t-kmq .blk b{font-size:13px}#t-kmq .hosts{display:flex;gap:6px;margin-top:4px}
+#t-kmq .host{flex:1;border:1px solid var(--line);border-radius:6px;padding:4px;font-size:11.5px;min-width:0}
+#t-kmq .host .sl{display:flex;gap:2px;margin-top:3px}#t-kmq .host .sl i{flex:1;height:14px;border-radius:2px;border:1px dashed var(--line)}#t-kmq .host .sl i.u{background:var(--c1);border:0}
+#t-kmq pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}
+</style>
+<h2>Kueue admission: what Kueue decided for each workload, and why</h2>
+<p>Seven workloads, as Kueue v0.20.2 recorded them on this topic's kind cluster (16 Oct 2026): four ordinary jobs against a ClusterQueue with two flavors, and three topology-aware jobs against a ClusterQueue whose flavor carries a Topology. Each step replays one decision of Kueue's flavor assigner from the Workload objects (<code>src/runs/e10a.workloads.yaml</code>, <code>e10b*.workloads.yaml</code>): the requests summed over the pod set, each flavor's quota before and after, and the message or nodeSelector Kueue wrote. Reading section {{7|#t-read}} explains the objects; the parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} has queueing, borrowing and reclaim.</p>
+<div class="card" id="km-q-card">
+<div class="seg" id="km-q-mode"><button data-m="flavors" class="on">Flavors: km-b1 then km-b2</button><button data-m="tas">Topology-aware (TAS)</button></div>
+<div class="wl" id="km-q-wl"></div>
+<div id="km-q-viz"></div>
+<div class="an-ctl" id="km-q-ctl"></div>
+<div class="an-cap" id="km-q-cap"></div>
+</div>
+<h3>The objects that ran</h3>
+<pre>apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata: {name: km-b1}
+spec:
+  nodeLabels: {mi.example.com/block: b1}     # km-b2: b2
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata: {name: km-cq}
+spec:
+  cohortName: km-cohort
+  namespaceSelector: {}
+  queueingStrategy: BestEffortFIFO
+  resourceGroups:
+  - coveredResources: ["cpu", "memory", "example.com/gpu"]
+    flavors:
+    - name: km-b1
+      resources:
+      - {name: cpu, nominalQuota: 4}
+      - {name: memory, nominalQuota: 2Gi}
+      - {name: example.com/gpu, nominalQuota: 8}
+    - name: km-b2
+      resources:
+      - {name: cpu, nominalQuota: 2}
+      - {name: memory, nominalQuota: 1Gi}
+      - {name: example.com/gpu, nominalQuota: 4}
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: Topology
+metadata: {name: km-topo}
+spec:
+  levels:
+  - nodeLabel: mi.example.com/block
+  - nodeLabel: kubernetes.io/hostname
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata: {name: km-tas}
+spec:
+  nodeLabels: {km.example.com/tas: "true"}
+  topologyName: km-topo                      # ClusterQueue km-cq-tas: 4 CPUs, 3Gi, 12 GPUs of km-tas</pre>
+<p class="small mute">Abridged from <code>src/k8s/e10-kueue.yaml</code>; jobs from <code>src/k8s/kueue-job.sh</code> (an Indexed Job labelled <code>kueue.x-k8s.io/queue-name</code>, the TAS ones annotated <code>kueue.x-k8s.io/podset-required-topology</code> or <code>podset-preferred-topology</code> on the pod template). The label <code>km.example.com/tas=true</code> was put on the three workers for the TAS runs and removed after.</p>
+</div>
