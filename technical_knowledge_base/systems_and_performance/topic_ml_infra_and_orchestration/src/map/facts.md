@@ -29,3 +29,9 @@ Read 2026-10-16 unless stated. Machine-read versions and dates are in inputs/ (P
 - RL frameworks on Ray: veRL and OpenRLHF READMEs.
 - www.determined.ai redirects (301) to hpe.com/us/en/solutions/ai-artificial-intelligence.html (checked 2026-10-16).
 - - (map) Version cross-check 2026-10-16: venv ray 2.59.0 and torch 2.14.1 (both the latest); Slurm containers 24.11.5 (Debian 13 package; latest 26.05.5, and SchedMD's 2026-09-02 patches covered 26.05, 25.11, 25.05 only); kind server v1.37.0 (latest v1.37.1); Kueue v0.20.2 and JobSet v0.13.0 (both latest). Kueue 0.20 serves only kueue.x-k8s.io/v1beta2.
+
+## Corrections (root fix pass, 2026-10-16)
+- Alluxio: the GitHub API's releases/latest is v2.9.4 (published 2024-06-11); v2.9.5 (2024-06-24) and v2.9.6 (2024-07-02) are git tags with no release object (releases/tags/v2.9.6 returns 404). The Atom feed lists tags, hence the earlier "v2.9.6". The map now shows v2.9.4 and explains the tags.
+- Prometheus: releases/latest is v3.15.0 (published 2026-09-25); 3.13.4 (2026-10-02) is a later patch of an older line, which the feed-order pick had taken. The map now shows 3.15.0.
+- Neptune: transition hub (read 2026-10-16): hosted app and API off "On March 5, 2026, at 10 am PST"; changelog "December 5, 2025: Changed the shutdown date from March 4 to March 5, 2026". The map said 03-04: fixed, hub added as a source.
+- Slurm 25.11+ serves OpenMetrics from slurmctld (MetricsType=metrics/openmetrics, gauges only; Observability child, Slurm Metrics Guide): added to the Slurm and Prometheus entries. DCGM 4.6.1 field rename noted in the DCGM exporter entry.

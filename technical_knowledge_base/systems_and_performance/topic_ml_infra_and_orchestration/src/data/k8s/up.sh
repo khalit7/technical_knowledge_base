@@ -9,8 +9,8 @@ KIND=${KIND:-kind}; K=${KUBECTL:-kubectl}; : "${MI_SHARED:?set MI_SHARED}"; : "$
 mkdir -p "$MI_SHARED"; chmod 1777 "$MI_SHARED"
 sed "s|SHARED_DIR|$MI_SHARED|" "$H/kind-config.yaml" > "$MI_SHARED/.kind-config.yaml"
 $KIND create cluster --config "$MI_SHARED/.kind-config.yaml" --wait 120s
-# Caps right after creation (kind has no flag for them): control plane 1300 MB, workers 1100 MB, 1.5 CPUs each.
-docker update --memory 1300m --memory-swap 1300m --cpus 1.5 mi-kind-control-plane >/dev/null
+# Caps right after creation (kind has no flag for them): control plane 1600 MB (1300 until 2026-10-16: the API server restarted at that cap), workers 1100 MB, 1.5 CPUs each.
+docker update --memory 1600m --memory-swap 1600m --cpus 1.5 mi-kind-control-plane >/dev/null
 for w in mi-kind-worker mi-kind-worker2 mi-kind-worker3; do docker update --memory 1100m --memory-swap 1100m --cpus 1.5 $w >/dev/null; done
 K="$K --context kind-mi-kind"
 $K apply --server-side -f "$MANIFESTS/jobset-v0.13.0.yaml" >/dev/null
