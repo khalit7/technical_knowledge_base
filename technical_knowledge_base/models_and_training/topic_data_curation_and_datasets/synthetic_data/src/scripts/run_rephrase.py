@@ -4,7 +4,7 @@ GPU; the CPU smoke test starts it with -ngl 0). Thinking is switched off (Qwen3 
 Input: the FineWeb rows of the running example's WARC file (CC-MAIN-2024-30, file 00000), 200 documents of 150 to 700
 words chosen with a fixed seed; each is cut to its first segment of at most 300 words (WRAP caps output at 300 tokens and
 rephrases segments). Sampling: temperature 0.5, top-p 0.9 (Nemotron-CC's published settings), max 450 new tokens.
-usage: DC_SCRATCH=<scratch>/dc python -I run_rephrase.py <out.jsonl> [n_docs] [port] [model_label]
+usage: DC_SCRATCH=<scratch>/dc python -I run_rephrase.py <out.jsonl> [n_docs] [port] [model_label] [parallel requests, default 1]
 Resumable: documents already in <out.jsonl> are skipped.
 """
 import os, sys, json, random, re, time, urllib.request
@@ -13,6 +13,7 @@ import pyarrow.parquet as pq
 D = os.path.join(os.environ['DC_SCRATCH'], 'data')
 OUT = sys.argv[1]; N = int(sys.argv[2]) if len(sys.argv) > 2 else 200
 PORT = sys.argv[3] if len(sys.argv) > 3 else '8091'; LABEL = sys.argv[4] if len(sys.argv) > 4 else 'qwen3'
+PAR = int(sys.argv[5]) if len(sys.argv) > 5 else 1
 SYS = ("A chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, "
        "and polite answers to the questions.")  # WRAP's Vicuna-style system line (App. G)
 STYLES = {  # WRAP, Appendix G, verbatim
@@ -46,11 +47,17 @@ def chat(prompt):
 done = set()
 if os.path.exists(OUT):
     done = {(json.loads(l)['id'], json.loads(l)['style']) for l in open(OUT)}
-with open(OUT, 'a') as f:
-    for d in pick():
-        for st, p in STYLES.items():
-            if (d['id'], st) in done: continue
-            txt, use, sec = chat(p + '\n\n' + d['source'])
-            f.write(json.dumps(dict(id=d['id'], url=d['url'], style=st, model=LABEL, source=d['source'], output=txt,
-                                    completion_tokens=use.get('completion_tokens'), seconds=sec)) + '\n'); f.flush()
-            print(d['id'][:30], st, use.get('completion_tokens'), sec, flush=True)
+import threading
+from concurrent.futures import ThreadPoolExecutor
+todo = [(d, st, p) for d in pick() for st, p in STYLES.items() if (d['id'], st) not in done]
+wl = threading.Lock()
+def job(a):
+    d, st, p = a
+    txt, use, sec = chat(p + '\n\n' + d['source'])
+    rec = dict(id=d['id'], url=d['url'], style=st, model=LABEL, source=d['source'], output=txt,
+               completion_tokens=use.get('completion_tokens'), seconds=sec)
+    with wl:
+        with open(OUT, 'a') as f: f.write(json.dumps(rec) + '\n')
+        print(d['id'][:30], st, use.get('completion_tokens'), sec, flush=True)
+with ThreadPoolExecutor(PAR) as ex:
+    list(ex.map(job, todo))

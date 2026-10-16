@@ -54,8 +54,4 @@
   ['sc-n','sc-s','sc-pi','sc-g','sc-seed'].forEach(id=>$(id).addEventListener('change',rebuild));
   (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-syco']=window.TAB_RENDER['t-syco']||[]).push(()=>A.redraw());
   addEventListener('resize',()=>{const t=$('t-syco');if(t&&!t.hidden)A.redraw()});
-  // pending GPT run result, when it exists
-  const g=D.collapse_gpt;if(g&&g.replace&&!g.params.max_steps){$('sc-pend').hidden=true;
-    $('sc-gpt').innerHTML='<div class="card"><h3>Word-level GPT on TinyStories: test cross-entropy by iteration <span class="meas">measured</span></h3><table><thead><tr><th>Iteration</th><th class="num">Replace</th><th class="num">Accumulate</th></tr></thead><tbody>'+
-      g.replace.map((r,i)=>'<tr><td>'+r.it+'</td><td class="num">'+r.test_ce.toFixed(3)+'</td><td class="num">'+(g.accumulate[i]?g.accumulate[i].test_ce.toFixed(3):'')+'</td></tr>').join('')+'</tbody></table></div>'}
 })();

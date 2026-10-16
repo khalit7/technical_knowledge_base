@@ -15,7 +15,7 @@ Central question: what does model-written pretraining text buy, how do you check
 | Rare-word survival calculator | Reading 7 | 8 | The collapse mechanism in one formula | derived |
 | Bigram LM collapse animation (replace / keep 10% / accumulate) | Reading 7 | 12 | A real tiny LM on real text, Shumailov's two settings plus Gerstgrasser's; found the beam-search caveat | collapse_bigram.py |
 | Generation cost calculator | Reading 9 | 8 | Presets reproduce published throughputs (WRAP, Cosmopedia, REWIRE, FinePhrase) | FinePhrase Table 10, WRAP 7.1 |
-| Rephrasing lab: 5 real pairs with stats; WRAP four-style tour on running-example pages (Qwen3 smoke test, 200-doc run pending) | Tab | 11 | Same document before/after in several styles | get_sources.py, run_rephrase.py |
+| Rephrasing lab: 5 real pairs with stats; WRAP four-style tour on running-example pages (Qwen3-4B on 200 pages, GPU, 2026-10-16) | Tab | 11 | Same document before/after in several styles | get_sources.py, run_rephrase.py |
 | Collapse lab: categorical model, rank-frequency animation, four workflows, parity check against Python | Tab | 12 | Distribution tails over generations, replace vs accumulate vs subsample vs fresh; JS matches Python run | collapse_categorical.py |
 | Diversity meter: 11 measures x 24 sets, detail view, measure-your-own-text at matched budget | Tab | 11 | Makes the budget-dependence of distinct-n concrete | measure_sets.py, budget_curves.py |
 
@@ -25,6 +25,7 @@ Central question: what does model-written pretraining text buy, how do you check
 - Embedding scatter (2-D projection) of sets: pretty but not measurable; the pairwise similarity number says the same.
 - Perplexity histogram per generation (Shumailov Fig. 1 style): our toy samples at temperature 1, so the histogram does not move; stated in prose rather than drawn as a flat chart.
 - Licence matrix as a tab: a table in Reading 8 is enough.
+- Neural replace-vs-accumulate run (3.66M GPT on TinyStories, GPU hours): dropped 2026-10-15; it would restate Gerstgrasser et al.'s Table 2, which the Collapse lab quotes.
 
 ## What the methodology lacked
 Rules for showing model-generated text: flag unsupported claims by hand and say so; prefer seeds from organisations; keep source pages' author boxes out (the QA example is cut before a staff bio).
