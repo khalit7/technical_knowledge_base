@@ -10,6 +10,7 @@ Scores 0 to 2 on: parameter the reader moves; reproduces a published figure (cou
 |---|---|---|---|---|---|
 | 1 | Mixing-law fitter on RegMix's 1,088 released runs: linear and exponential law fitted in the browser, tested on 1M, 60M and 1B, recommended mixtures, coefficients | tab | 13 | sail-sg/regmix data/*.csv (MIT) | Reproduces Table 2 rho within 0.7 points independently; adds the Data Mixing Laws form RegMix did not fit (1B rho 98.76); exposes coefficient instability for tiny domains |
 | 2 | DoReMi step by step: Algorithm 1 ported, toy power-law losses, excess, update, average; before/after main model | tab | 10 | illustrative losses, paper's rule | Toy agrees with recompute.py; measured mode pending (GPU) |
+| 2b | Measured DoReMi run animated: per-step weights and running average over 4,000 proxy steps, excess strip, reference vs averaged weights and held-out losses | DoReMi tab and Reading s7 | 11 | this page's run on five running-example domains | Shows what the toy cannot: weights swinging to one domain, the slowly converging average, equalised final excess, web downweighted (reverse of the Pile result) |
 | 3 | Token-budget planner: pools, stages, weights to epochs and Muennighoff D'; same tokens in two orders animated | tab | 11 | OLMo 2 Tables 4/13, SmolLM3 configs, DeepSeekMath, published pool sizes | Presets reproduce Table 13 source % to rounding by construction |
 | 4 | Temperature and UniMax on The Pile's 22 real sizes with epochs per domain | Reading s1 | 10 | Pile Table 1 | UniMax N=3 reproduces the Pile's own Wikipedia weight (both cap at 3 epochs) |
 | 5 | Repetition curve D'(epochs) with marker and marginal value | Reading s2 | 9 | Muennighoff R*_D | Corrects the "few dozen repeats" claim |
@@ -23,7 +24,8 @@ Scores 0 to 2 on: parameter the reader moves; reproduces a published figure (cou
 - Re-drawing the Pretraining page's stage animation and OLMo 2 Table 11 split: linked.
 - LightGBM in the browser: too heavy; predictions precomputed and embedded for Pile-CC.
 - Data Mixing Laws' own figures: their points exist only as plotted images, not tables; replaced by the same functional form fitted on RegMix's released numbers.
-- A real DoReMi run on CPU: training beyond a smoke test is GPU work under this topic's rules; scripted as pending.
+- RegMix-style sweep of 48 proxies and a rank check on the running example: dropped 2026-10-15 (hours of GPU to re-measure published results); RegMix's released runs used instead.
+- Training a main model on the measured DoReMi weights: dropped with the sweep; said as not run.
 - SmolLM2 preset in the planner: its stage-3 shares and some pool sizes exist only in a figure.
 
 ## What the methodology lacked

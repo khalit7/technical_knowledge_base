@@ -1,7 +1,7 @@
 #!/bin/sh
 # Pending runs for the data mixing page (prefix mx2). Run from this folder on the GPU queue, holding the bench lock.
 # Needs: DC_SCRATCH=<scratch>/dc (the topic's shared scratch), the shared venv at $DC_SCRATCH/venv.
-# Time estimates: CPU throughput was measured (rough, shared machine, 4 threads at low priority): about 6,400 tokens/s
+# Status: steps 1 to 4 run on 2026-10-16 (see data/proxy_runs.json). Original time estimates: CPU throughput was measured (rough, shared machine, 4 threads at low priority): about 6,400 tokens/s
 # for the 0.79M-non-embedding proxy. GPU (MPS) speed is NOT measured here; the estimates assume 10 to 20 times the CPU
 # figure for the proxy. Re-time the first run and correct this header.
 set -e
@@ -22,25 +22,18 @@ sh "$DC_SCRATCH/../inf/lock.sh" release download mx2
 # 2. Tokenize (CPU, about 3 min).
 $PY proxy_mix.py prep --tokenizer "$DC_SCRATCH/data/pc/tok/gpt2.json"
 
-# 3. RegMix-style sweep: 48 mixtures x 2,000 steps x 32 x 256 = 16.4M tokens each, 786M in total.
-#    Estimate: 1.7 to 3.4 h on MPS (CPU would be about 34 h).
-$PY proxy_mix.py sweep --device $DEV --n_runs 48 --steps 2000 --bs 32 --ctx 256 --sweep_seed 0
-#    plus four fixed mixtures as anchors (natural, uniform, temperature 2, the fitted best is step 5)
+# 3. Natural-share mixture for the DoReMi reference (seconds). The RegMix-style sweep and anchors were dropped
+#    (Khalid, 2026-10-15: skip expensive runs that teach little); the page uses RegMix's released runs instead.
 $PY - <<'EOF'
 import json, os, numpy as np
 w = os.environ['MX2_WORK']; names = list(json.load(open(f'{w}/domains.json'))); st = json.load(open(f'{w}/tok/stats.json'))
 p = np.array([st[n]['train'] for n in names], float); p /= p.sum()
-for tag, v in [('natural', p), ('uniform', np.ones(len(p)) / len(p)), ('temp2', p ** 0.5 / (p ** 0.5).sum())]:
-    json.dump(dict(zip(names, v.tolist())), open(f'{w}/mix_{tag}.json', 'w'))
+json.dump(dict(zip(names, p.tolist())), open(f'{w}/mix_natural.json', 'w'))
 EOF
-for t in natural uniform temp2; do $PY proxy_mix.py train --device $DEV --weights "$MX2_WORK/mix_$t.json" --tag anchor_$t --steps 2000 --bs 32; done
 
-# 4. DoReMi (Algorithm 1): reference on natural shares, Group DRO proxy, 2,000 steps each. Estimate 0.1 to 0.2 h on MPS.
-$PY proxy_mix.py doremi --device $DEV --ref_weights "$MX2_WORK/mix_natural.json" --steps 2000 --bs 30 --seed 0
+# 4. DoReMi (Algorithm 1): reference on the pools' natural shares, Group DRO proxy, 4,000 steps each (ran 2026-10-16 on MPS, see the log timing in data/proxy_runs.json). Bench lock.
+$PY proxy_mix.py doremi --device $DEV --ref_weights "$MX2_WORK/mix_natural.json" --steps 4000 --bs 30 --seed 0 --eval_batches 16
 
-# 5. Fit and pick (CPU, seconds), then the rank check: two larger models (width 384, 6 layers, 10.6M non-embedding)
-#    on 100M tokens each, natural shares against the predicted best. Estimate 2 to 3.5 h on MPS.
-$PY collect_runs.py --fit
-for t in natural best; do $PY proxy_mix.py train --device $DEV --weights "$MX2_WORK/mix_$t.json" --tag rank_$t --d 384 --layers 6 --heads 6 --steps 12000 --bs 32 --lr 1e-3; done
+# 5. Collect into ../data/proxy_runs.json (CPU, seconds); the rank check was dropped with the sweep.
 $PY collect_runs.py
-# Total estimate: about 4 to 7 hours on the GPU queue. Then rebuild the page: sh ../build.sh
+# Then rebuild the page: sh ../build.sh
