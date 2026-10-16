@@ -1,0 +1,41 @@
+# Prometheus v3.13.4 for the topic's local clusters (Observability and cost child page, prefix oc).
+# One container (oc-prom, 256 MB, 0.5 CPU). Targets are reached through host.docker.internal:
+#   18001 kubectl proxy on the host (kubelet cAdvisor of each kind worker, through the API server)
+#   18443 kubectl port-forward to Kueue's metrics service (HTTPS, needs a bearer token of a reader)
+#   19811 oc_exporter.py (training logs, Kueue ClusterQueue status, Slurm squeue/scontrol, node cgroups)
+global:
+  scrape_interval: 5s          # default is 1m; 5 s so a 1-minute job shows a shape
+  evaluation_interval: 5s
+rule_files: [/etc/prometheus/oc_rules.yml]
+scrape_configs:
+- job_name: prometheus
+  static_configs: [{targets: ['localhost:9090']}]
+- job_name: oc-exporter
+  static_configs: [{targets: ['host.docker.internal:19811']}]
+- job_name: kueue
+  scheme: https
+  tls_config: {insecure_skip_verify: true}
+  authorization: {credentials_file: /etc/prometheus/kueue_token}
+  static_configs: [{targets: ['host.docker.internal:18443']}]
+  metric_relabel_configs:
+  - source_labels: [__name__]
+    regex: kueue_.*
+    action: keep
+- job_name: cadvisor
+  static_configs:
+  - {targets: ['host.docker.internal:18001'], labels: {node: mi-kind-worker}}
+  - {targets: ['host.docker.internal:18001'], labels: {node: mi-kind-worker2}}
+  - {targets: ['host.docker.internal:18001'], labels: {node: mi-kind-worker3}}
+  relabel_configs:
+  - source_labels: [node]
+    target_label: __metrics_path__
+    replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+  - source_labels: [node]
+    target_label: instance
+  metric_relabel_configs:          # keep 4 metric names of the training pods only (the rest is counted, then dropped)
+  - source_labels: [__name__]
+    regex: container_(cpu_usage_seconds_total|memory_working_set_bytes|cpu_cfs_throttled_periods_total|cpu_cfs_periods_total)
+    action: keep
+  - source_labels: [namespace]
+    regex: mi
+    action: keep

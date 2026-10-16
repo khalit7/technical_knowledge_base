@@ -1,0 +1,90 @@
+Published GPU-cluster utilisation numbers
+All read 2026-10-16. Quotes are verbatim. Labels: operator = paper by the team that runs the cluster (operator + academic co-authors); independent = academic only.
+KEY WARNING for the page: the papers use three different things called "utilisation":
+ (1) allocation / occupancy: fraction of GPUs handed to jobs (Meta 83--85%, Philly "majority (90%)");
+ (2) nvidia-smi / NVML / DCGM_FI_DEV_GPU_UTIL: fraction of time any kernel runs (Philly 52%, Acme Fig 2b 97--99%);
+ (3) DCGM SM activity (PROF_SM_ACTIVE): fraction of SMs with a warp resident (Acme median about 40%, PAI 20%).
+The same Acme clusters read 97--99% on (2) and about 40% on (3).
+
+======================================================================
+1. Microsoft Philly  [operator]
+Jeon et al., "Analysis of Large-Scale Multi-Tenant GPU Clusters for DNN Training Workloads", USENIX ATC 2019
+URL: https://www.usenix.org/system/files/atc19-jeon.pdf
+======================================================================
+Scope: "The cluster under study consists of hundreds of machines accounting for thousands of GPUs of the same model. The cluster has 2 server SKUs, one with 2 GPUs per server and another with 8 GPUs per server" ... "collect logs over a 75-day period from Oct. 2017 to Dec. 2017. Our logs contain a total of 96260 jobs over 14 virtual clusters."
+Measurement: "(3) We collect logs from Ganglia monitoring system that reports per-minute statistics on hardware usage on every server, including CPU, memory, network, GPU utilizations." Section 3.2: "For each individual GPU, Ganglia [33] reports aggregate performance counters every minute, including utilization of processing cycles and memory, temperature, power usage, etc [3]. ... Note that our current generation of GPUs only report coarse-grained utilization for processing cycles that can only be used to detect if any of the streaming multiprocessors (SMs) are being utilized [3]. They do not report what fraction of the SMs are being actually used within a single GPU. Therefore, our analysis presents an "upper bound" of actual effective SM utilization."
+=> metric type (2), NVML-style "any kernel" utilisation.
+Headline: "Even though most GPUs within a cluster are allocated to users, thus suggesting high cluster utilization, this metric alone is misleading. We show that the hardware utilization of GPUs in use is only around 52% on average."
+"Surprisingly we find that around 47.7% of in-use GPUs' cycles are wasted across all jobs, with jobs using 16 GPUs exhibiting the lowest utilization at 40.39%. Moreover, across job status in Figure 5, the median utilization for 16 GPU jobs is 45.00%, 34.24%, 39.54% for Passed, Killed, and Unsuccessful, respectively."
+Table 3 "Mean GPU utilization for different job sizes" (columns Passed / Killed / Unsuccessful / All):
+  1 GPU: 53.51 / 37.02 / 62.82 / 52.38
+  4 GPU: 51.13 / 34.39 / 50.95 / 45.18
+  8 GPU: 51.09 / 60.63 / 64.34 / 58.99
+  16 GPU: 44.88 / 36.98 / 39.02 / 40.39
+  All: 52.43 / 42.98 / 60.43 / 52.32
+(Table read from pdftotext column order; check against the PDF before quoting individual cells.)
+Placement experiment (Table 4): "SameServer achieves utilization of" 57.7 (GPU util.) vs "lower utilization of 49.6% in DiffServer".
+Allocation: "Our scheduler starts preemption only when a majority (90%) of total GPUs are being used."
+
+======================================================================
+2. Alibaba PAI  [operator]
+Weng et al., "MLaaS in the Wild: Workload Analysis and Scheduling in Large-Scale Heterogeneous GPU Clusters", NSDI 2022
+URL: https://www.usenix.org/system/files/nsdi22-paper-weng.pdf
+======================================================================
+Scope: "a two-month workload trace collected from a production cluster with 6,742 GPUs in Alibaba PAI" ... "submitted by over 1,300 users"; footnote: "The trace was collected in July and August 2020". Mix of training and inference; V100, P100, T4 and others.
+Measurement: "PAI collects the system metrics of running tasks every 15 seconds"; "Each machine has time series data of resource utilization measured every 15 seconds by the monitoring system." (GPU utilisation expressed as fraction of "the computing power provided by the streaming multiprocessors"; NVML is cited.)
+Headline: "In our cluster, a task instance usually can only use parts of a GPU. In fact, the median usage of streaming multiprocessors (SMs) of an instance is 0.042 GPUs."
+"the median instance resource usages are 1.4 vCPU cores, 0.042 GPUs, and 3.5 GiB memory, much smaller than the median request" (median request "6 vCPU cores, 0.5 GPUs, and 29 GiB memory").
+Machine level (Fig 6): "In 8-GPU machines ..., the average P90 utilization of GPU ... and CPU ..., i.e., the arithmetic mean of P90 values from all timestamps, reaches 82% and 77%, respectively. In 2-GPU machines ..., the P90 GPU utilization remains high (77% on average)". "the distribution of P90 GPU utilization spans a wide range from less than 40% to 100%".
+Sharing: "On average, only 50% of GPUs are needed with sharing. In the peak hour at around 10 am, the savings can be up to 73%." "Heavy utilization (>= 95%) is rarely measured, which accounts for only 7% cases in the trace."
+(Acme, below, summarises PAI as median GPU utilisation 4% and median SM activity 20%.)
+
+======================================================================
+3. Shanghai AI Lab Acme  [operator]
+Hu et al., "Characterization of Large Language Model Development in the Datacenter", NSDI 2024
+URL: https://arxiv.org/html/2403.07648v2  (arXiv:2403.07648v2, 03 Apr 2024)
+======================================================================
+Scope: "two distinct clusters, Seren and Kalos, dedicated to LLM development and equipped with 4,704 A100 GPUs in total. Our analysis draws upon traces collected over a six-month period from March to August 2023". "Seren and Kalos have 2,288 and 2,416 GPUs respectively." Schedulers: Seren on Slurm, Kalos on Kubernetes.
+Measurement: "GPU-related metrics from NVIDIA DCGM [7], and power-related data from IPMI [12]. The sampling interval for this data is set at 15 seconds." Profiling of selected jobs: "We collect GPU performance counters like DCGM metrics at 1 ms intervals."
+Metric (2), GPU utilisation (Fig 2b): "the GPU utilization in our two clusters exhibits a polarized pattern, primarily concentrated in two distinct states: 0% and 100%. ... when comparing the median GPU utilization, Seren and Kalos exhibit significantly higher values at 97% and 99%, respectively, in contrast to 48% and 4% observed in Philly and PAI." Caveat in the paper: "Note that 'GPU utilization' may sometimes be a weak utilization indicator".
+Metric (3), SM activity (section 3.3, Fig 7a): "we collect fine-grained performance counter metrics from DCGM [7], including SM Activity ( PROF_SM_ACTIVE ), TC Activity ( PROF_PIPE_TENSOR_ACTIVE ), and GPU memory footprint ( DEV_FB_USED ). ... our observations in Kalos indicate that 50% of GPUs consume over 75% of GPU memory (60 GB). Furthermore, we observe that the median SM activity in both clusters is approximately 40%, which is twice the reported 20% in PAI."
+Pretraining (Fig 10, 123B LLM, InternEvo, 2048 GPUs): SM utilisation timeline; "InternEvo V2 presents superior peak SM utilization and exhibits reduced idle periods compared to InternEvo V1, achieving around 16% acceleration." Exact SM levels are image only.
+Job mix vs GPU time: "pretraining jobs only account for 3.2% of the total job count but consume 94.0% of the whole compute resource (i.e., GPU time) in Kalos. Conversely, evaluation jobs, despite constituting 92.9% of all jobs, only utilize a meager 0.8% of resources." Seren: pretraining "0.9%" of jobs, "69.5%" of GPU time.
+Evaluation jobs waste GPUs (section 4.2, Fig 13, HumanEval, 7B): "the evaluation task consumes over 1 minute prior to the actual GPU inference, accounting for 29.5% of the evaluation duration." "the GPU is idle for the last 42 seconds, wasting about 19.0% of the total GPU time." "These procedures can take up to 30 minutes, during which the GPU remains idle." Summary: "only half of the time is dedicated to GPU inference". Also: "evaluation jobs have the longest queuing delay despite having the lowest GPU demands and shortest job duration".
+Fix: decoupled evaluation scheduling "can reduce the evaluation makespan by up to 1.8" (times).
+
+======================================================================
+4. Meta RSC  [operator]
+Kokolis et al., "Revisiting Reliability in Large-Scale Machine Learning Research Clusters", HPCA 2025
+URL: https://arxiv.org/html/2410.21680  (arXiv:2410.21680v2, 06 Feb 2025)
+======================================================================
+Scope: "11 months of data collected from state-of-the-art AI research clusters with >80% utilization ... across 2 clusters, spanning 24k of NVIDIA A100 GPUs." "RSC-1 is a general ML cluster ... of 16k GPU size, while RSC-2 focuses on vision applications and is of 8k GPU size." Scheduler: Slurm.
+Number: "Overall, our clusters average 7.2k for RSC-1 and 4.4k for RSC-2 jobs submitted per day, averaging 83% and 85% cluster utilization, respectively."
+Metric: not defined as SM activity; context (Slurm, quotas, "the clusters discussed in this section are over-provisioned") indicates scheduler allocation, type (1). The paper defines goodput instead: "The cluster as a whole can be measured in terms of goodput, which is the amount of productive work completed in aggregate per unit time. The goodput can be normalized by the maximum possible goodput to produce a utilization in the range 0 to 1."
+ETTR: "ETTR is defined as the ratio of productive runtime to available wallclock time of a job run". "Observation 10: The RSC clusters are highly efficient (ETTR 0.85-0.9) for their largest and highest priority jobs." Failure rates: "RSC-1 has an [failure rate] of 6.50 failures per thousand node-days and RSC-2 ... 2.34 failures per thousand node-days."
+MFU left out: "MFU corresponds to the number of FLOPs a model theoretically utilizes compared to the hardware peak FLOPs, making it difficult to apply generally across an entire cluster."
+Lost goodput accounting: "estimate the lost goodput (the minimum value of the jobs runtime and 30 minutes, multiplied by the number GPUs allocated to the job)."
+
+======================================================================
+5. Google TPU fleet, ML Productivity Goodput  [operator]
+"Machine Learning Fleet Efficiency: Analyzing and Optimizing Large-Scale Google TPU Systems with ML Productivity Goodput", arXiv:2502.06982v2 (20 Apr 2025); MLSys 2026 oral "ML Fleet Efficiency: Improving TPU Systems at Scale with ML Productivity Goodput" (https://mlsys.org/virtual/2026/oral/3734)
+URL: https://arxiv.org/html/2502.06982
+======================================================================
+MPG = SG x RG x PG ("analogous to the 'iron law' of computer performance").
+SG: "It measures the fraction of time that an application has all the required resources simultaneously available to make progress. This metric can be lower than traditional Occupancy metrics, particularly in distributed, bulk-synchronous applications ... The denominator is fleet capacity, expressed as chip-time."
+RG: "The numerator of RG is the productive chip-time of the application's progress that has been saved in checkpoints; work done between the last checkpoint and failure (or preemption) doesn't count as "productive" time ... The denominator of RG is the allocated chip-time".
+Number: "for workloads of all sizes, the SG is greater than 95% due to the particular pre-emption preferences of the scheduler."
+Duty cycle critique: "Duty Cycle measures whether an accelerator is in use, not how much of its compute capacity is used. ... An accelerator could have a high duty cycle while executing unnecessary or redundant computations."
+Fleet utilisation numbers withheld: "While we cannot provide specific measured details for proprietary reasons". So no fleet-wide utilisation number: not found.
+Cited example: "72% FLOPS utilization on 1024 TPU chips for a large language model with 500 billion parameters (Wang et al., 2022)".
+
+======================================================================
+6. NERSC Perlmutter (HPC + some ML, not a training fleet)  [independent / operator co-author]
+Cankur, Austin, Bhatele, "Characterizing Production GPU Workloads using System-wide Telemetry Data", arXiv:2502.18680v2 (24 Feb 2026)
+URL: https://arxiv.org/html/2502.18680v2
+======================================================================
+"We analyze one month of data sampled every 10 seconds from March 1 to April 1, 2025 across all compute nodes. The dataset includes NVIDIA Data Center GPU Manager (DCGM) counters covering SM activity, FP32/FP64/tensor pipe activity, frame-buffer (HBM) usage, NVLink and PCIe traffic, energy, and temperature." (A100, 4 per node.)
+Per-job mean GPU_UTIL: "means of GPU_UTIL improve at moderate scales and peak for 33--512 GPUs (about 47--48%). At very large scales (above 512 GPUs), medians drop to about 20%". "Small jobs (1--4 GPUs) have lower medians than 5--8 GPUs (38% vs 45%)".
+"81% of jobs are memory-bound". "Among jobs requesting 80 GB GPUs, 55% peak at 50% HBM capacity or less." "Across all jobs, overall GPU utilization aligns most closely with SM activity, power usage, and GPU temperature."
+
+Not found today: a ByteDance fleet-wide SM-activity number (MegaScale reports MFU, not fleet utilisation); a "Characterizing GPU utilization in Kubernetes" primary paper with a DCGM fleet number (not searched further).

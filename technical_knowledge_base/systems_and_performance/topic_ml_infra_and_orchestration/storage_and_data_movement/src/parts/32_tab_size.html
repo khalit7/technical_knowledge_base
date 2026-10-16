@@ -1,0 +1,48 @@
+<div class="tab" id="t-sdsize" role="tabpanel" hidden>
+<style>
+#t-sdsize .calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:6px 14px;font-size:13px;margin:6px 0}
+#t-sdsize .calc label{display:flex;flex-direction:column;gap:2px;min-width:0}
+#t-sdsize .calc select{width:100%}
+#t-sdsize h3{margin:16px 0 4px}
+#t-sdsize .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}
+#t-sdsize .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-sdsize .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-sdsize .der{font-size:11.5px;color:var(--c5);font-weight:600}#t-sdsize .pub{font-size:11.5px;color:var(--c1);font-weight:600}#t-sdsize .ill{font-size:11.5px;color:var(--bad);font-weight:600}#t-sdsize .meas{font-size:11.5px;color:var(--good);font-weight:600}
+#t-sdsize .bind{outline:2px solid var(--bad);outline-offset:-2px}
+#t-sdsize .tw table{min-width:520px}
+</style>
+<h2>Sizing calculator: what shared storage a training cluster needs</h2>
+<p>The four questions of the Reading tab's section 9 (write bandwidth, read bandwidth, metadata rate, capacity), answered from the job instead of from a vendor table. Every output is <span class="der">derived</span> from the inputs with the formulas below; inputs marked <span class="ill">illustrative</span> are choices, not facts. The parent's {{Storage lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} has the opposite calculator: given a store, how long a checkpoint takes.</p>
+<div class="seg" id="sdz-pre"><button data-m="ex">Running example</button><button data-m="8b">8B, 64 GPUs</button><button data-m="70b" class="on">70B, 1,024 GPUs</button><button data-m="405b">405B, 16,384 GPUs</button></div>
+<h3>The job</h3>
+<div class="calc">
+<label>Parameters, billions <input type="number" id="sdz-p" min="0.0001" step="any" value="70"></label>
+<label>Bytes per parameter in a checkpoint <select id="sdz-bpp"><option value="12.31">12.31: fp32 + AdamW (running example, measured)</option><option value="13.1">13.1: MLPerf Storage's 405B checkpoint (5.29 TB)</option><option value="14" selected>14: bf16 + fp32 master + AdamW</option><option value="2">2: bf16 weights only (no resume)</option></select></label>
+<label>GPUs <input type="number" id="sdz-g" min="1" step="1" value="1024"></label>
+<label>GPUs per node <input type="number" id="sdz-gn" min="1" step="1" value="8"></label>
+</div>
+<h3>Checkpoints</h3>
+<div class="calc">
+<label>Saving <select id="sdz-mode"><option value="async" selected>asynchronous (stop for the host copy)</option><option value="sync">synchronous (stop for the write)</option></select></label>
+<label>Stall you accept for a synchronous save, s <input type="number" id="sdz-stall" min="1" step="1" value="30"></label>
+<label>Interval, minutes <input type="number" id="sdz-int" min="1" step="1" value="30"></label>
+<label>Restore time you accept, s <input type="number" id="sdz-rest" min="1" step="1" value="60"></label>
+<label>Checkpoints kept on the fast tier <input type="number" id="sdz-k" min="1" step="1" value="10"></label>
+<label>Store's aggregate write, GB/s (to see the stall) <input type="number" id="sdz-bw" min="0.1" step="any" value="80"></label>
+</div>
+<h3>Data and start-up <span class="ill">illustrative</span></h3>
+<div class="calc">
+<label>Training tokens, trillions <input type="number" id="sdz-tok" min="0" step="any" value="2"></label>
+<label>Training days <input type="number" id="sdz-days" min="0.1" step="any" value="30"></label>
+<label>Bytes per token on disk <input type="number" id="sdz-bpt" min="1" step="1" value="4"></label>
+<label>Datasets kept on the fast tier, TB <input type="number" id="sdz-ds" min="0" step="any" value="50"></label>
+<label>Metadata calls per rank at start <select id="sdz-mc"><option value="652" selected>652: failed lookups of import torch (measured)</option><option value="1341">1,341: its opens (measured)</option><option value="17983">17,983: all its file-system calls (measured)</option><option value="0">0: environment on local disk</option></select></label>
+<label>Start-up you accept, s <input type="number" id="sdz-st" min="1" step="1" value="60"></label>
+</div>
+<h3>Answer</h3>
+<div class="out" id="sdz-out"></div>
+<div class="tw" id="sdz-fsx"></div>
+<div class="fm"><div class="eq">S = P &middot; b &nbsp;&nbsp; W = S / (sync ? stall : interval) &nbsp;&nbsp; R = S / restore &nbsp;&nbsp; M = ranks &middot; calls / start-up</div>
+<dl><dt>S</dt><dd>checkpoint size: parameters x bytes per parameter</dd><dt>W</dt><dd>aggregate write bandwidth needed; per node W / nodes must fit the node's storage link (one 400 Gb/s port is 50 GB/s)</dd><dt>R</dt><dd>aggregate read bandwidth for a restart, every rank reading at once</dd><dt>M</dt><dd>metadata operations per second at start-up</dd><dt>FSx</dt><dd>capacity bought = max(bytes, bandwidth / throughput per TiB); price $0.145 per GB-month for the 125 MB/s per TiB tier (AWS, us-east-1, read 2026-10-16), the only tier priced in the snapshot</dd></dl></div>
+<p class="small" id="sdz-check"></p>
+</div>

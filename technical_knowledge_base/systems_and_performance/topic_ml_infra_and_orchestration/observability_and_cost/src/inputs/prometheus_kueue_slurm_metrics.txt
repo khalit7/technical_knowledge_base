@@ -1,0 +1,99 @@
+Prometheus, Kueue, Slurm and Kubernetes metrics facts
+All read 2026-10-16. Quotes verbatim. All sources are docs (project documentation) unless noted.
+
+======================================================================
+(a) Prometheus
+======================================================================
+Storage page: https://prometheus.io/docs/prometheus/latest/storage/
+- "Prometheus stores an average of only 1-2 bytes per sample. Thus, to plan the capacity of a Prometheus server, you can use the rough formula:
+   needed_disk_space = retention_time_seconds * ingested_samples_per_second * bytes_per_sample
+  To lower the rate of ingested samples, you can either reduce the number of time series you scrape (fewer targets or fewer series per target), or you can increase the scrape interval."
+- "--storage.tsdb.retention.time : How long to retain samples in storage. If neither this flag nor storage.tsdb.retention.size is set, the retention time defaults to 15d ."
+- "--storage.tsdb.retention.size : The maximum number of bytes of storage blocks to retain. The oldest data will be removed first. Defaults to 0 or disabled."
+- "At present, we recommend setting the retention size to, at most, 80-85% of your allocated Prometheus disk space. The remaining 15-20% buffer covers the temporary extra space required by in-progress compactions"
+- "The initial two-hour blocks are eventually compacted into longer blocks in the background. Compaction will create larger blocks containing data spanning up to 10% of the retention time, or 31 days, whichever is smaller."
+Configuration page: https://prometheus.io/docs/prometheus/latest/configuration/configuration/
+- global: "[ scrape_interval : <duration> | default = 1m ]", "[ scrape_timeout : <duration> | default = 10s ]", "[ evaluation_interval : <duration> | default = 1m ]"
+Releases (GitHub API releases/latest):
+- Prometheus v3.15.0, published 2026-09-25.
+- Grafana v13.2.4, published 2026-10-13.
+
+Worked capacity example for the page (my arithmetic from the formula, not a quoted number): 1,000 GPUs x 25 default dcgm-exporter metrics = 25,000 series; at a 15 s scrape that is about 1,667 samples/s; over 15 d (1,296,000 s) at 2 bytes/sample that is about 4.3 GB. Recompute in the page script rather than quoting.
+
+======================================================================
+(b) Kueue metrics
+======================================================================
+Reference: https://kueue.sigs.k8s.io/docs/reference/metrics/ (Kueue latest release v0.20.2, published 2026-10-15)
+"Kueue exposes prometheus metrics to monitor the health of the system and the status of ClusterQueues and LocalQueues."
+All metrics below carry "replica_role : one of leader , follower , or standalone".
+- kueue_pending_workloads (Gauge): "The number of pending workloads, per 'cluster_queue' and 'status'. 'status' can have the following values: - "active" means that the workloads are in the admission queue. - "inadmissible" means there was a failed admission attempt for these workloads and they won't be retried until cluster conditions, which could make this workload admissible, change"
+- kueue_admitted_workloads_total (Counter): "The total number of admitted workloads per 'cluster_queue'" (labels cluster_queue, priority_class)
+- kueue_admission_wait_time_seconds (Histogram): "The time between a workload was created or requeued until admission, per 'cluster_queue'"
+- kueue_quota_reserved_workloads_total (Counter): "The total number of quota reserved workloads per 'cluster_queue'"
+- kueue_quota_reserved_wait_time_seconds (Histogram): "The time between a workload was created or requeued until it got quota reservation, per 'cluster_queue'"
+- kueue_admission_attempts_total (Counter): "The total number of attempts to admit workloads. Each admission attempt might try to admit more than one workload. The label 'result' can have the following values: - 'success' means that at least one workload was admitted., - 'inadmissible' means that no workload was admitted."
+- kueue_admission_attempt_duration_seconds (Histogram): "The latency of an admission attempt."
+- kueue_evicted_workloads_total (Counter): "The number of evicted workloads per 'cluster_queue', The label 'reason' can have the following values: - "Preempted" means that the workload was evicted in order to free resources for a workload with a higher priority or reclamation of nominal quota. - "PodsReadyTimeout" means that the eviction took place due to a PodsReady timeout. - "AdmissionCheck" ... - "ClusterQueueStopped" ... - "LocalQueueStopped" ... - "NodeFailures" ..."
+- kueue_preempted_workloads_total (Counter): "The number of preempted workloads per 'preempting_cluster_queue'", reasons "InClusterQueue", "InCohortReclamation", "InCohortFairSharing", "InCohortReclaimWhileBorrowing".
+- kueue_admitted_active_workloads (Gauge): "The number of admitted Workloads that are active, per 'cluster_queue'"
+- kueue_reserving_active_workloads (Gauge): "The number of Workloads that are reserving quota, per 'cluster_queue'"
+- kueue_cluster_queue_resource_usage (Gauge): "Reports the cluster_queue's total resource usage within all the flavors" (labels cohort, cluster_queue, flavor, resource)
+- kueue_cluster_queue_resource_reservation (Gauge): "Reports the cluster_queue's total resource reservation within all the flavors"
+- kueue_cluster_queue_nominal_quota (Gauge): "Reports the cluster_queue's resource nominal quota within all the flavors"
+- kueue_cluster_queue_borrowing_limit (Gauge): "Reports the cluster_queue's resource borrowing limit within all the flavors. If borrowingLimit is unset, this metric reports +Inf."
+Optional: "To enable metrics like kueue_cluster_queue_resource_usage and kueue_cluster_queue_nominal_quota , set enableClusterQueueResources: true in the Kueue configuration." (https://kueue.sigs.k8s.io/docs/tasks/manage/observability/setup_prometheus/)
+Endpoint security:
+- Config example: "metrics: bindAddress: :8443 enableClusterQueueResources: true" (setup_prometheus page). Helm: "enablePrometheus : true"; manifests: prometheus.yaml ServiceMonitor "kueue-controller-manager-metrics-monitor".
+- TLS page (https://kueue.sigs.k8s.io/docs/tasks/manage/productization/prometheus/, "Last modified September 29, 2026"): "This page shows how to configure Kueue to use Prometheus metrics with TLS encryption." Default uses Kueue's internal certificates; "Certificate verification stays disabled unless you set insecureSkipVerify: false ." With cert-manager: "The chart configures the ServiceMonitor to verify the metrics certificate issued by cert-manager, so no tlsConfig is needed." ServiceMonitor serverName "kueue-controller-manager-metrics-service.kueue-system.svc".
+- So: HTTPS on :8443. Authentication/authorization of scrapers (RBAC token review) is not described on these pages: not found.
+
+======================================================================
+(c) Slurm
+======================================================================
+Native endpoint: YES, since Slurm 25.11.
+Metrics Guide: https://slurm.schedmd.com/metrics.html
+- "Slurm 25.11 introduced a comprehensive system for collecting and exposing metrics related to cluster resources, job states, and scheduler performance. The metrics system exposes real-time data about various Slurm entities through HTTP endpoints provided by the slurmctld daemon."
+- "MetricsType=metrics/openmetrics" ("Currently, only the OpenMetrics plugin is supported").
+- "Slurm exposes metrics through HTTP GET endpoints on the slurmctld daemon's listening port (default 6817)." Endpoints: "GET /metrics", "GET /metrics/jobs", "GET /metrics/jobs-users-accts", "GET /metrics/nodes", "GET /metrics/partitions", "GET /metrics/scheduler".
+- "The OpenMetrics plugin implements the OpenMetrics 1.0 specification"; "Metric name : A descriptive name prefixed with "slurm_"", "Metric type : Only "gauge" metrics are exposed".
+- Examples: slurm_jobs, slurm_jobs_running, slurm_jobs_pending, slurm_jobs_cpus_alloc, slurm_jobs_memory_alloc, slurm_user_jobs_pending{username=...}, slurm_account_jobs_pending{account=...}, slurm_nodes_idle, slurm_nodes_alloc, slurm_partition_jobs, slurm_sched_cycle_cnt, slurm_sched_cycle_last, slurm_bf_cycle_cnt, slurm_bf_active. (No GPU/GRES metric is listed in the examples; "Numerous metrics are provided so they are not all documented on this page.")
+- Cardinality warning: "every unique key-value pair represents a new time series, which can dramatically increase the amount of data stored."
+- Security: "By default, metrics endpoints do not require authentication. They are either accessible to everyone or to no one (with the exceptions of SlurmUser and root ), depending on whether PrivateData is set." MetricsAuthUsers "enables JWT authentication for querying metrics endpoints." MetricsParameters=ignore_private_data allows all users without authentication.
+- Performance: "Lock contention : Querying metrics requires acquiring various locks within slurmctld, which can impact scheduler performance during high-frequency queries."
+slurm.conf man page (Version 26.05): https://slurm.schedmd.com/slurm.conf.html: "MetricsType Specify the metrics plugin to be used to dump statistics from the slurmctld socket. ... metrics/openmetrics Use the OpenMetrics based plugin."
+(NEWS file not checked; the 25.11 version is from the Metrics Guide.)
+
+Community exporters [independent, open source]:
+- vpenso/prometheus-slurm-exporter, release 0.24 (2026-10-08), README at tag: https://raw.githubusercontent.com/vpenso/prometheus-slurm-exporter/0.24/README.md
+  "Minimum Slurm version: 23.02. As of this version the exporter parses `sinfo --json`, `squeue --json` and `sacct --json` output rather than hand-parsed positional text fields ... The `sdiag`/`sshare`-based collectors (scheduler and fair-share metrics) still parse legacy text output".
+  GPUs: "Allocated", "Idle", "Total", "Utilization: allocation ratio (alloc/total) per GPU type", label gpu_type; "the exporter never talks to vendor tooling for these metrics, only to Slurm itself." "since version 0.19, GPU accounting has to be explicitly enabled adding the -gpus-acct option".
+  => its "GPU utilization" is allocation, not SM activity.
+- rivosinc/prometheus-slurm-exporter, release v1.8.0 (2025-09-11): https://raw.githubusercontent.com/rivosinc/prometheus-slurm-exporter/v1.8.0/README.md
+  "Inspired by the now unmaintained prometheus slurm exporter ... We have not yet added GPU or fairshare support". "This exporter supports `--json` output from cli." "the cli fallback (defining a custom json format from the slurm cmdline) performs far better and more reliably than parsing with the slurm provided json output." "We also support client-side throttling." Scrape target example port 9092.
+  (Note: rivosinc calls vpenso "now unmaintained", but vpenso shows a release on 2026-10-08.)
+
+Billing and chargeback:
+- slurm.conf TRESBillingWeights: "Comma-separated list of <TRES Type>=<Numeric Weight> pairs defining the billing weights of one or more tracked TRES types (see AccountingStorageTRES ) that will be used in calculating the usage of a job in this partition. The resulting usage amount is used when calculating fairshare and when enforcing the TRES billing limit on jobs. ... By default, jobs are billed against the total number of allocated CPUs (TRESBillingWeights="CPU=1")."
+- TRES page (https://slurm.schedmd.com/tres.html): example "TRESBillingWeights="CPU=1.0,Mem=0.25G,GRES/gpu=2.0,license/licA=1.5"" ; "A job in this partition that gets allocated 1 CPU and 8 GiB of memory would be billed as: (1*1.0) + (8*0.25) + (0*2.0) + (0*1.5) = 3.0". "the final billing amount is stored as an integer and truncated if needed".
+  PriorityFlags=MAX_TRES: "MAX of individual TRESs ... SUM of all global TRESs"; PriorityFlags=MAX_TRES_GRES: "SUM of all billable GRESs (e.g., GPUs)" + "MAX of other individual TRESs"; "Adding a GPU to the example job, the billable TRES will be: (1*2.0) + MAX(1*1.0, 8*0.25) + (0*1.5) = 3.0".
+  "NOTE : Setting gres/gpu will also set gres/gpumem and gres/gpuutil."
+  sreport: "In sreport , the "Reported" Billing TRES is calculated from the largest Billing TRES of each node multiplied by the time frame."
+- PriorityWeightTRES (slurm.conf): "A comma-separated list of TRES Types and weights that sets the degree that each TRES Type contributes to the job's priority. e.g. PriorityWeightTRES=CPU=1000,Mem=2000,GRES/gpu=3000 Applicable only if PriorityType=priority/multifactor and if AccountingStorageTRES is configured with each TRES Type." "The default values are 0."
+- sreport man page (Version 26.05): https://slurm.schedmd.com/sreport.html
+  "-t < time_format > Specify the output time format." Options include "Hours Hours", "HourPer Hours/Percentage of Total", "Percent Percentage of Total"; "The default format is Minutes."
+  "-T , --tres =< tres_names > Trackable resource (TRES) to report values for. By default CPU resource use is reported".
+  "cluster AccountUtilizationByUser This report will display account utilization as it appears on the hierarchical tree. ... list the underlying usage with a sum on each level." "NOTE : Idle reservation time will be split evenly among accounts/users given access to it."
+  "cluster Utilization This report will display total usage divided amongst Allocated, Down, Planned Down, Idle, and Planned time for selected clusters."
+  Example usage on the page: "sreport cluster AccountUtilizationByUser start=7/10 end=7/11 cluster=minesofmoria user=stephen format=Account,Cluster,TresCount,Login,Proper,Used". For GPU-hours chargeback combine: sreport -t hours -T gres/gpu (or billing) cluster AccountUtilizationByUser start=... end=... (composed from the documented options; not a quoted example).
+
+======================================================================
+(d) Kubernetes metrics reference, v1.37
+URL: https://kubernetes.io/docs/reference/instrumentation/metrics/ ("Metrics (v1.37)", "Last modified August 28, 2026")
+======================================================================
+- scheduler_pending_pods: "Number of pending pods, by the queue type. 'active' means number of pods in activeQ; 'backoff' means number of pods in backoffQ; 'unschedulable' means number of pods in unschedulableEntities that the scheduler attempted to schedule and failed; 'gated' is the number of unschedulable pods that the scheduler never attempted to schedule because they are gated; 'incomplete' means number of pods in incompletePodGroupPods; 'pending' means number of pods in pendingPodGroupPods. Stability Level: STABLE Type: Gauge Labels: queue Components: kube-scheduler (/metrics)"
+- scheduler_pod_scheduling_sli_duration_seconds: "E2e latency for a pod being scheduled, from the time the pod enters the scheduling queue and might involve multiple scheduling attempts. Stability Level: BETA Type: Histogram Labels: attempts Components: kube-scheduler (/metrics)"
+- scheduler_schedule_attempts_total: "Number of attempts to schedule pods, by the result. 'unschedulable' means a pod could not be scheduled, while 'error' means an internal scheduler problem. Stability Level: STABLE Type: Counter Labels: profile result"
+- scheduler_unschedulable_pods: "The number of unschedulable pods broken down by plugin name. ... Stability Level: BETA Type: Gauge Labels: plugin profile"
+- container_cpu_usage_seconds_total: "Cumulative cpu time consumed by the container in core-seconds Stability Level: STABLE Type: Custom Labels: container pod namespace Components: kubelet (/metrics/resource)"
+- container_memory_working_set_bytes: "Current working set of the container in bytes Stability Level: STABLE Type: Custom Labels: container pod namespace Components: kubelet (/metrics/resource)"
+cAdvisor docs (https://raw.githubusercontent.com/google/cadvisor/master/docs/storage/prometheus.md, master, read 2026-10-16): "container_cpu_usage_seconds_total | Counter | Cumulative cpu time consumed | seconds"; "container_memory_working_set_bytes | Gauge | Current working set | bytes".

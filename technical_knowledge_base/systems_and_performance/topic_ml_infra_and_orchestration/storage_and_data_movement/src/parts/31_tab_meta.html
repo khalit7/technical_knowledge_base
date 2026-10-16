@@ -1,0 +1,60 @@
+<div class="tab" id="t-sdmeta" role="tabpanel" hidden>
+<style>
+#t-sdmeta .card{min-width:0}
+#t-sdmeta .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-sdmeta .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-sdmeta .sd-play{min-width:6.4em}
+#t-sdmeta .an-cap{min-height:4.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
+#t-sdmeta .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:6px;margin:6px 0}
+#t-sdmeta .an-cnt .stat .v{font-size:15px}
+#t-sdmeta .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}
+#t-sdmeta .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-sdmeta .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-sdmeta .meas{font-size:11.5px;color:var(--good);font-weight:600}#t-sdmeta .der{font-size:11.5px;color:var(--c5);font-weight:600}#t-sdmeta .vend{font-size:11.5px;color:var(--c4);font-weight:600}
+#t-sdmeta .sv{width:100%;overflow:hidden;margin:6px 0}
+#t-sdmeta .calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:6px 14px;font-size:13px;margin:6px 0}
+#t-sdmeta .calc label{display:flex;flex-direction:column;gap:2px;min-width:0}
+#t-sdmeta .calc select{width:100%}
+#t-sdmeta .tw table{min-width:520px}
+</style>
+<h2>Metadata storm: when names, not bytes, are the bottleneck</h2>
+<p>Two kinds of run. On <b>tpfs</b>, the toy parallel file system of the {{Striping lab|#t-sdstripe}}, every client process creates, stats and deletes 300 files of its own through one metadata server held to half a CPU, then through two (the DNE idea: entries hashed over servers by name). On <b>real stores</b>, the same operations run on a Docker volume, a host folder shared into the VM and SeaweedFS's S3 gateway <span class="meas">measured</span> (Apple M1 Pro, Docker Desktop VM, shared machine, 2026-10-16; medians of 3).</p>
+
+<div class="card" id="sdm-anim-card">
+<h3 style="margin-top:0">The same 14,400 operations from 16 clients, one metadata server against two</h3>
+<p class="small">16 processes x 300 files x (create, stat, unlink). The bar is completed operations at the measured aggregate rate, on one clock for both modes; each client's dot is busy while it waits for its answer.</p>
+<div class="seg" id="sdm-mode"><button data-m="1" class="on">One metadata server</button><button data-m="2">Two (DNE)</button></div>
+<div class="sv" id="sdm-svg"></div>
+<div class="an-cap" id="sdm-cap"></div>
+<div class="an-cnt" id="sdm-cnt"></div>
+<div class="an-ctl" id="sdm-ctl"></div>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">More clients, same server: throughput flattens, every operation waits longer</h3>
+<div class="sv" id="sdm-curve"></div>
+<div class="tw" id="sdm-cpu"></div>
+<p class="small">The evidence that the server, not the clients, is the limit: at 16 and 32 clients the metadata server's container used all of its half CPU while the client container used about a fifth of its two. Past that point more clients only queue: 32 clients got fewer operations per second than 16 and waited twice as long for each.</p>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">Real stores: operations per second by kind</h3>
+<div class="seg" id="sdm-p"><button data-m="1">1 process</button><button data-m="4">4</button><button data-m="16" class="on">16</button></div>
+<div class="sv" id="sdm-real"></div>
+<p class="small">Log scale. "miss" is a <code>stat</code> of a name that does not exist (an S3 HEAD that returns 404), what Python's import does on every <code>sys.path</code> entry. The shared folder caches existing files' attributes (its stat is as fast as local) but not absence, so its misses cost a round trip to the host each.</p>
+</div>
+
+<div class="card" id="sdm-calc">
+<h3 style="margin-top:0">The start-up storm calculator</h3>
+<p class="small">How long do ranks wait at start-up if their imports go to the metadata servers? Calls per rank are measured here with <code>strace</code>; how many of them a real client sends to the server depends on its caches, so choose the bound.</p>
+<div class="calc">
+<label>Ranks starting together <input type="number" id="sdm-r" min="1" step="1" value="16384"></label>
+<label>What each rank runs <select id="sdm-w"></select></label>
+<label>Calls that reach the server <select id="sdm-b"><option value="err" selected>only failed lookups (best case)</option><option value="open">opens</option><option value="all">all file-system calls (no caching)</option></select></label>
+<label>Metadata server capacity <select id="sdm-m"></select></label>
+<label>Custom capacity, operations per second <input type="number" id="sdm-cm" min="1" step="100" value="50000"></label>
+</div>
+<div class="out" id="sdm-out"></div>
+<p class="small mute" id="sdm-note"></p>
+</div>
+</div>

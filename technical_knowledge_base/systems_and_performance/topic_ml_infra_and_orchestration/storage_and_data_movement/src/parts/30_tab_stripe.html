@@ -1,0 +1,81 @@
+<div class="tab" id="t-sdstripe" role="tabpanel" hidden>
+<style>
+#t-sdstripe .card{min-width:0}
+#t-sdstripe .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-sdstripe .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-sdstripe .sd-play{min-width:6.4em}
+#t-sdstripe .an-cap{min-height:4.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
+#t-sdstripe .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:6px;margin:6px 0}
+#t-sdstripe .an-cnt .stat .v{font-size:15px}
+#t-sdstripe .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}
+#t-sdstripe .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-sdstripe .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-sdstripe .meas{font-size:11.5px;color:var(--good);font-weight:600}#t-sdstripe .der{font-size:11.5px;color:var(--c5);font-weight:600}#t-sdstripe .unc{font-size:11.5px;color:var(--bad);font-weight:600}
+#t-sdstripe .sv{width:100%;overflow:hidden;margin:6px 0}
+#t-sdstripe .bars .row{grid-template-columns:minmax(0,15em) minmax(0,1fr) 6em}
+#t-sdstripe .bars .row .nm{white-space:normal;line-height:1.2}
+#t-sdstripe .calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:6px 14px;font-size:13px;margin:6px 0}
+#t-sdstripe .calc label{display:flex;flex-direction:column;gap:2px;min-width:0}
+#t-sdstripe pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.45;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px;overflow-x:auto;white-space:pre;max-width:100%}
+@media (max-width:520px){#t-sdstripe .bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 5.2em;font-size:12px}}
+</style>
+<h2>Striping lab: one file over many servers</h2>
+<p>Every run here used <b>tpfs</b>, a toy parallel file system written for this page (<code>src/runs/tpfs.py</code>, standard-library Python): one metadata server that hands out layouts, and four object servers that store the bytes, each in its own container (0.5 CPU, 256 MB) and each held to <b>25 MB/s by a token bucket</b> standing in for its disks. The client gets a file's layout once and then talks to the object servers directly, using Lustre's RAID 0 arithmetic. The per-server limit is an input; the scaling, the hot spots and the slowdowns below are what happened <span class="meas">measured</span> (Apple M1 Pro, Docker Desktop VM, shared machine, 2026-10-16; medians of 3). Not modelled: locks, caches, failures.</p>
+
+<div class="card" id="sds-anim-card">
+<h3 style="margin-top:0">The same 128 MiB file, written with stripe count 1, 2 and 4</h3>
+<p class="small">Each square is 1 MiB (one stripe), coloured by the object server that received it, filled at the rate the real run achieved. The clock is the same for all three, so the striped runs finish early on screen exactly as they did.</p>
+<div class="seg" id="sds-mode"><button data-m="1">Stripe count 1 (the default)</button><button data-m="2">Stripe count 2</button><button data-m="4" class="on">Stripe count 4</button></div>
+<div class="sv" id="sds-svg"></div>
+<div class="an-cap" id="sds-cap"></div>
+<div class="an-cnt" id="sds-cnt"></div>
+<div class="an-ctl" id="sds-ctl"></div>
+<p class="small mute" id="sds-note"></p>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">Four writers at once: where the bytes land decides the speed</h3>
+<p class="small">Four processes in one client container each write 64 MiB, in four layouts <span class="meas">measured</span>. Bars: aggregate MB/s (256 MiB over the time from the first start to the last finish).</p>
+<div class="bars" id="sds-np"></div>
+<p class="small">The two slow rows are the same mistake in two forms: all the bytes on one server (every file pinned to OST 0 with <code>-i 0</code>, or one shared file left at stripe count 1). The two fast rows are equal: when every rank writes its own file and the files are spread, striping each file adds nothing. On real Lustre the shared-file row also pays for lock exchange between writers in the same stripe, which tpfs does not model, so the shared file would do worse than shown.</p>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">Smaller stripes cost requests</h3>
+<p class="small" id="sds-64"></p>
+</div>
+
+<div class="card" id="sds-calc">
+<h3 style="margin-top:0">Where does byte X live? Lustre's arithmetic</h3>
+<p class="small">The same computation as <code>lov_stripe_number()</code> and <code>lov_stripe_offset()</code> (lustre/lov/lov_offset.c, tag 2.17.0). Pick a plain layout or the manual's PFL example; the strip shows which OST holds each of the first stripe units.</p>
+<div class="seg" id="sds-lay"><button data-m="plain" class="on">Plain layout</button><button data-m="pfl">PFL: the manual's example on 8 OSTs</button><button data-m="fsx">PFL: FSx default</button></div>
+<div class="calc">
+<label>File offset, MiB <input type="number" id="sds-off" min="0" step="1" value="5"></label>
+<label id="sds-l-s">Stripe size <select id="sds-s"><option value="64">64 KiB</option><option value="1024" selected>1 MiB</option><option value="4096">4 MiB</option></select></label>
+<label id="sds-l-c">Stripe count <input type="number" id="sds-c" min="1" max="64" step="1" value="4"></label>
+<label id="sds-l-i">Starting OST <input type="number" id="sds-i" min="0" max="63" step="1" value="0"></label>
+<label>OSTs in the file system <input type="number" id="sds-n" min="1" max="64" step="1" value="8"></label>
+</div>
+<div class="out" id="sds-out"></div>
+<div class="sv" id="sds-map"></div>
+<p class="small mute" id="sds-lnote"></p>
+</div>
+
+<div class="card">
+<h3 style="margin-top:0">How the toy is built, and how to run it</h3>
+<pre id="sds-code">docker network create sd-net
+for i in 0 1 2 3; do
+  docker run -d --rm --name sd-ost$i --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \
+    --memory 256m --cpus 0.5 python:3.12-slim python3 /tpfs.py ost --mbps 25
+done
+docker run -d --rm --name sd-mds0 --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \
+  --memory 256m --cpus 0.5 python:3.12-slim \
+  python3 /tpfs.py mds --osts sd-ost0:9000,sd-ost1:9000,sd-ost2:9000,sd-ost3:9000
+docker run -d --rm --name sd-cli --network sd-net -v $PWD/tpfs.py:/tpfs.py:ro \
+  --memory 768m --cpus 2 python:3.12-slim sleep 3600
+docker exec sd-cli python3 /tpfs.py bench stripe --mds sd-mds0:8000 --mib 128 --counts 1,2,4</pre>
+<p class="small">The whole run is <code>src/runs/run_tpfs.sh</code>; one output line (layout shortened):</p>
+<pre id="sds-out1"></pre>
+<p class="small">What transfers to a real cluster: the arithmetic (one file's bandwidth is its stripe count times one server's, until the client's network card or the job's other files get in the way), the hot spot when files share a server, and the cost of small stripes. What does not: the absolute numbers (25 MB/s per server is a choice, a real OST does gigabytes), locks, and the client-side caching and RPC pipelining that make Lustre's per-request costs far lower than Python's.</p>
+</div>
+</div>
