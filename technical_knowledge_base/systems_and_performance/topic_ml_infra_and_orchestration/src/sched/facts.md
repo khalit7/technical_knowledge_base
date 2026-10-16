@@ -1,0 +1,9 @@
+## sc (Scheduling lab)
+Checked 2026-10-16.
+- kube-scheduler v1.37.0 (kind node) `--help`: `GenericWorkload=true|false (BETA - default=false)`, `CompositePodGroup` and `TopologyAwareWorkloadScheduling` ALPHA default false. KEP-4671 "Gang Scheduling using Workload Object": alpha v1.35; GangScheduling gate merged into GenericWorkload in v1.37; beta deferred from v1.36 to v1.37; API to v1 planned v1.38. https://github.com/kubernetes/enhancements/tree/master/keps/sig-scheduling/4671-gang-scheduling . So: the DEFAULT scheduler here has no gang scheduling.
+- Slurm 24.11.5: Fair Tree is the default (src/common/read_config.c:4843 sets PRIORITY_FLAGS_FAIR_TREE unless PriorityFlags has NO_FAIR_TREE or DEPTH_OBLIVIOUS); `scontrol show config` prints PriorityFlags empty even so.
+- Slurm backfill (backfill.c @ slurm-24-11-5-1) is conservative (header lines 4-8; reserves for every tested job up to bf_max_job_test=500, line 121) and its reservations are whole NODES (bit_not avail_bitmap line 3527, _add_reservation line 3557, bit_and line 3909). Defaults bf_interval 30 s, bf_resolution 60 s, bf_window 1 day (lines 107-109).
+- Slurm `sbatch --gpus=6 --cpus-per-gpu=1` on 2 nodes of 4 CPUs/4 GPUs gave NumCPUs=8 (one task per node, all CPUs), stranding 2 GPUs; `--ntasks=6 --gpus-per-task=1 --cpus-per-task=1` gave 6 CPUs.
+- Slurm requeue: a requeued (e.g. preempted) job gets BeginTime = now + credential lifetime + 1 (job_mgr.c:16389); measured 121 s (requeued 02:46:09, eligible 02:48:10).
+- Kueue v0.20.2 measured messages: "insufficient unused quota for example.com/gpu in flavor default-flavor, 4 more needed"; reclaim event "Preempted to accommodate a workload ... due to reclamation within the cohort".
+- kind control plane at 1.27 GB cap: kube-apiserver restarted (memory.events max 3367, no oom_kill) at about 03:16 UTC; sc raised mi-kind-control-plane to 1600m with docker update.

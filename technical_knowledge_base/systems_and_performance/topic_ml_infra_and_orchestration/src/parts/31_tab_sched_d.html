@@ -1,0 +1,72 @@
+<section id="sc-s8">
+<h2>8. How each system expresses each idea</h2>
+<div class="tw"><table class="sc-tbl"><thead><tr><th>Idea</th><th>Slurm</th><th>Kubernetes (default scheduler, then add-ons)</th><th>Ray</th></tr></thead><tbody>
+<tr><td data-h="Idea"><b>Queue</b></td><td data-h="Slurm">one queue per partition, ordered by priority; <code>squeue</code></td><td data-h="Kubernetes">none: pods are retried until they fit. Kueue adds LocalQueue and ClusterQueue (<code>StrictFIFO</code> or <code>BestEffortFIFO</code>); Volcano adds Queue</td><td data-h="Ray">pending tasks, actors and placement groups wait on the raylets and GCS; no multi-user queue</td></tr>
+<tr><td data-h="Idea"><b>Backfill</b></td><td data-h="Slurm"><code>sched/backfill</code>, conservative, from time limits (section 1)</td><td data-h="Kubernetes">no time limits, so no backfill in the Slurm sense; BestEffortFIFO lets a smaller workload be admitted past one that does not fit</td><td data-h="Ray">no</td></tr>
+<tr><td data-h="Idea"><b>Fairshare</b></td><td data-h="Slurm">multifactor priority with Fair Tree (section 3)</td><td data-h="Kubernetes">Kueue fair sharing across a cohort (weights, and admission fair sharing on recent usage); Volcano DRF and proportion plugins</td><td data-h="Ray">no</td></tr>
+<tr><td data-h="Idea"><b>Preemption</b></td><td data-h="Slurm">partition priority tiers or QOS; CANCEL, REQUEUE, SUSPEND (section 4)</td><td data-h="Kubernetes">pod <code>PriorityClass</code> preemption by the scheduler; Kueue preempts whole workloads (within a queue by priority, across a cohort to reclaim)</td><td data-h="Ray">no scheduler preemption; the memory monitor kills tasks under memory pressure</td></tr>
+<tr><td data-h="Idea"><b>Gang</b></td><td data-h="Slurm">built in: one allocation</td><td data-h="Kubernetes">not by default (v1.37: <code>GenericWorkload</code> beta, off); Kueue admission, Volcano PodGroup, coscheduling plugin (section 5)</td><td data-h="Ray">placement groups are atomic</td></tr>
+<tr><td data-h="Idea"><b>Quotas and borrowing</b></td><td data-h="Slurm"><code>GrpTRES</code> limits on accounts and QOS; no lending</td><td data-h="Kubernetes"><code>ResourceQuota</code> (namespace caps, no queueing); Kueue nominal quota, cohorts, borrowing and reclaim (section 6)</td><td data-h="Ray">no (KubeRay jobs can be admitted by Kueue)</td></tr>
+<tr><td data-h="Idea"><b>Placement</b></td><td data-h="Slurm">topology/tree and topology/block, <code>--switches</code></td><td data-h="Kubernetes">affinity, spread constraints; Kueue TAS; JobSet exclusive placement</td><td data-h="Ray">PACK, SPREAD, STRICT_PACK, STRICT_SPREAD (section 7)</td></tr>
+<tr><td data-h="Idea"><b>Why pending?</b></td><td data-h="Slurm"><code>squeue</code> reason, <code>squeue --start</code>, <code>sprio</code>, <code>scontrol show job</code></td><td data-h="Kubernetes">pod event <code>FailedScheduling</code>; Kueue Workload condition <code>QuotaReserved=False</code> with its message</td><td data-h="Ray"><code>ray status</code> (pending and infeasible demands), <code>ray list placement-groups</code></td></tr>
+</tbody></table></div>
+<p>The pattern: Slurm was built for batch jobs that hold machines for a time limit, so queueing, backfill, fairshare and gangs are one integrated plugin chain. Kubernetes was built for services that run forever, so its scheduler places pods and everything job-shaped is an add-on; Kueue is the add-on that turns it into a batch system without replacing the scheduler. Ray schedules inside one application and leaves multi-user policy to whatever runs Ray.</p>
+</section>
+
+<section id="sc-s9">
+<h2>9. Why is my job pending? The real messages</h2>
+<p>Every message below was produced by the lab clusters. Learn to read the reason before changing anything.</p>
+<h3>Slurm: the reason column, and the plan behind it</h3>
+<pre> JOBID       NAME     USER ST       TIME NODES        TRES_PER_NODE NODELIST(REASON)
+    26 sc-backfil    alice PD       0:00     1                  N/A (Priority)
+    27 sc-backfil    alice PD       0:00     1                  N/A (Priority)
+    23 sc-backfil    alice PD       0:00     2                  N/A (Resources)
+    29 sc-backfil    alice PD       0:00     1                  N/A (Priority)
+    28 sc-backfil    alice  R       0:13     1                  N/A c2
+    24 sc-backfil    alice  R       0:15     1                  N/A c2
+    25 sc-backfil    alice  R       0:15     1                  N/A c2
+    22 sc-backfil    alice  R       0:16     1                  N/A c1
+$ squeue --start
+ JOBID       NAME     USER ST           START_TIME NODELIST(REASON)
+    29 sc-backfil    alice PD  2026-10-16T02:24:51 (Priority)
+    23 sc-backfil    alice PD  2026-10-16T02:27:50 (Resources)
+    26 sc-backfil    alice PD  2026-10-16T02:31:50 (Priority)
+    27 sc-backfil    alice PD  2026-10-16T02:31:50 (Priority)</pre>
+<p class="sc-codecap">The backfill run of section 1, 15 s after submission (job names cut to 10 characters by the default format; 23 is B, 26 E, 27 F, 29 H).</p>
+<p><code>(Resources)</code>: the job is next in line and waiting for resources to free up. <code>(Priority)</code>: a job ahead of it is waiting. <code>squeue --start</code> prints the backfill plan's start for each job, from time limits: B was planned at 02:27:50 and started at 02:27:47 (A ended 5 s early). F was planned after B at 02:31:50 but started at 02:27:47 with B: once B was running on real GPUs, the 2 GPUs it left on c2 were no longer covered by a whole-node reservation. Plans are recomputed every <code>bf_interval</code>; treat a planned start as an estimate that usually moves earlier. Other reasons you will meet: <code>AssocGrpGRES</code> or <code>QOSMaxGRESPerUser</code> (a limit, not a lack of GPUs), <code>ReqNodeNotAvail</code> (a requested node is down or drained), <code>BeginTime</code>, <code>Dependency</code>, <code>PartitionTimeLimit</code> (the time limit is above the partition's maximum: the job will never start).</p>
+<h3>Kubernetes and Kueue: two places to look</h3>
+<p>A pod that is <code>Pending</code> has either not been admitted (Kueue holds its job suspended, so the pod may not even exist) or been admitted and not placed. Look at the Workload first, then the pod:</p>
+<pre>$ kubectl get workloads -n sc
+NAME                QUEUE   RESERVED IN   ADMITTED   FINISHED   AGE
+jobset-sc-a-0ea54   sc-lq   mi-cq         True                  6s
+jobset-sc-b-105c3   sc-lq                 False                 6s
+$ kubectl get events -n sc    (Workload jobset-sc-b-105c3)
+WaitingForQuota  couldn't assign flavors to pod set node: insufficient unused quota for example.com/gpu
+                 in flavor default-flavor, 4 more needed
+$ kubectl describe pod sc-a-node-0-1-m4dw7    (no Kueue: section 5's deadlock)
+Warning  FailedScheduling  default-scheduler  0/4 nodes are available: 1 node(s) had untolerated taint(s),
+  3 Insufficient example.com/gpu. preemption: 0/4 nodes are available: 1 Preemption is not helpful for
+  scheduling, 3 No preemption victims found for incoming pod.</pre>
+<p class="sc-codecap">From the lab's runs, 16 Oct 2026 (columns trimmed, lines wrapped).</p>
+<p><code>insufficient unused quota</code> is a policy answer (your queue's quota is in use: wait, borrow, or ask for quota). <code>Insufficient example.com/gpu</code> is a capacity answer (no node has room: fragmentation, a cordoned node, or a job that should not have been admitted). <code>untolerated taint(s)</code> lists nodes excluded by taints (here the control plane; on a GPU cluster often a node marked unhealthy).</p>
+<h3>Ray</h3>
+<p><code>ray status</code> lists pending and infeasible resource demands; a placement group that can never be satisfied stays <code>PENDING</code> forever, with the autoscaler's <code>No available node types can fulfill resource request</code> (section 7) as the only clue. <code>ray list placement-groups</code> shows each group's state.</p>
+<details class="mist"><summary>Asking for far more time than the job needs</summary><div class="b">The backfill plan uses your limit. A 2-hour job that asks for 24 hours cannot fit in a 3-hour hole before a reservation and waits behind everything. Ask for the expected time plus a margin, and checkpoint.</div></details>
+<details class="mist"><summary>Reading <code>(Priority)</code> as "something is broken"</summary><div class="b">It means a job ahead of yours is waiting. Look at that job (<code>squeue --start</code>, <code>sprio</code>); your job moves when it does, or when backfill finds a hole that fits your limit.</div></details>
+<details class="mist"><summary>Free GPUs that nothing can use</summary><div class="b">GPUs come with CPUs and memory. A job that takes all CPUs or memory of a node strands its remaining GPUs (section 1's first attempt). Request CPUs and memory per GPU (<code>--cpus-per-gpu</code>, <code>--mem-per-gpu</code>, or tasks with <code>--gpus-per-task</code>) and check <code>AllocTRES</code>.</div></details>
+<details class="mist"><summary>Running multi-pod training on plain Kubernetes</summary><div class="b">Without gang admission, partial jobs hold GPUs while waiting at the rendezvous (section 5). Use Kueue, Volcano or the coscheduling plugin, and set <code>waitForPodsReady</code> so a job that cannot fully start gives its pods back.</div></details>
+<details class="mist"><summary>Quota without capacity</summary><div class="b">Kueue admits against quota, not nodes. If the ClusterQueue's quota is larger than the healthy capacity (a drained node, fragmented GPUs), admitted workloads end up with Pending pods. Keep quota equal to what nodes can deliver, or use TAS, which checks node capacity too.</div></details>
+<details class="mist"><summary>Borrowing without preemption</summary><div class="b">If <code>reclaimWithinCohort</code> is <code>Never</code>, a team that lent its quota waits until the borrower's jobs end, which for training can be days. Allow reclaim, and make borrowers' jobs checkpoint and resume.</div></details>
+</section>
+
+<section id="sc-s10">
+<h2>10. Interview questions</h2>
+<details class="qa"><summary>What is backfill, and why does it need time limits?</summary><div><p>Backfill starts a lower-priority job ahead of its turn when it fits in idle resources and will finish (by its time limit) before the reserved start of higher-priority jobs, or uses resources they will not need. The scheduler cannot know real runtimes, so it plans with limits; over-asked limits make jobs look too long to fit in any hole.</p></div></details>
+<details class="qa"><summary>EASY or conservative backfill?</summary><div><p>EASY reserves only for the first waiting job: more jobs can jump, so usually lower mean wait, but later jobs' predicted starts can slip. Conservative reserves for every waiting job: predictable starts, slightly less packing. Slurm is conservative within <code>bf_max_job_test</code> and <code>bf_window</code>; its reservations block whole nodes.</p></div></details>
+<details class="qa"><summary>A 2-GPU job has been pending for hours on a cluster with free GPUs. What do you check?</summary><div><p>The reason (<code>squeue</code>): <code>Priority</code> means it is behind a waiting job, <code>Resources</code> that it does not fit now. Its time limit against the hole before the next reservation (<code>squeue --start</code> for the jobs ahead). Whether the free GPUs come with free CPUs and memory (<code>scontrol show node</code>: <code>AllocTRES</code>). Limits on its account or QOS (reasons such as <code>AssocGrpGRES</code>). Its fairshare (<code>sprio</code>, <code>sshare</code>).</p></div></details>
+<details class="qa"><summary>Why does distributed training need gang scheduling, and how do you get it on Kubernetes?</summary><div><p>All ranks must run at once; a partial allocation holds GPUs that do nothing, and several partial jobs can deadlock the cluster (section 5 reproduced it). On Kubernetes: Kueue (admit the whole workload against quota, with <code>waitForPodsReady</code>), Volcano (PodGroup <code>minMember</code>), the coscheduling plugin, or, from v1.35 onward, the upstream Workload API behind the <code>GenericWorkload</code> gate.</p></div></details>
+<details class="qa"><summary>Design the scheduling for a 1,000-GPU lab with three teams.</summary><div><p>Gang allocation of whole nodes for training; a quota per team equal to its budget, with borrowing of idle quota and reclaim by preemption (Kueue cohorts, or Slurm accounts with a preemptible scavenger QOS); fairshare with a half-life of days so heavy weeks are paid back; time limits enforced and backfill on, with a short-job partition for debugging and evaluation; topology-aware placement for jobs above one switch's worth of nodes; every preemptible job checkpointing and requeueing automatically; dashboards of queue wait per team and of allocated-but-idle GPUs (the {{Cost lab|#t-cost}}).</p></div></details>
+<details class="qa"><summary>How is fairshare computed in Slurm?</summary><div><p>Usage (billed resources times seconds) decays with a half-life; Fair Tree compares, level by level in the account tree, shares over usage (S/U), ranks users depth first, and gives each user rank / number of users; priority adds weighted factors (fairshare, age, size, partition, QOS). A user in a team that used a lot ranks below every user of a team that used less.</p></div></details>
+</section>
+<p class="small mute" style="margin-top:24px">Recorded runs, scripts and configs: <code>src/sched/</code> in the repository (raw logs scrubbed of host names and paths). Built 16 October 2026.</p>
+</div>
