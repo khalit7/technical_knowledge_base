@@ -134,6 +134,7 @@ def train_one(args, weights, tag):
         x, y = tr.batch(rng.choice(len(names), size=args.bs, p=w), device)
         loss = token_losses(m, x, y).mean(); opt.zero_grad(set_to_none=True); loss.backward()
         torch.nn.utils.clip_grad_norm_(m.parameters(), 1.0); opt.step(); seen += x.numel()
+        if step % 200 == 0: print(f'{tag} step {step} loss {loss.item():.3f} {time.time() - t0:.0f}s', flush=True)
     if device.type == 'mps': torch.mps.synchronize()
     secs = time.time() - t0
     res = {'tag': tag, 'weights': dict(zip(names, w.round(6).tolist())), 'val_loss': evaluate(m, names, args.ctx, device, args.eval_batches, args.bs),
@@ -167,9 +168,10 @@ def doremi(args):
     ref = train_one(args, ref_w, f'doremi_ref_{args.seed}'); ref.eval()
     for p in ref.parameters(): p.requires_grad_(False)
     m, opt = build(args, device); tr = Streams(names, 'train', args.ctx, rng)
-    u = np.full(k, 1 / k); alpha = u.copy(); hist = []
+    u = np.full(k, 1 / k); alpha = u.copy(); hist = []; exh = []; t0 = time.time()
     per = max(1, args.bs // k)
     for step in range(args.steps):
+        if step % 200 == 0: print(f'proxy step {step} alpha {np.round(alpha, 3).tolist()} {time.time() - t0:.0f}s', flush=True)
         for g in opt.param_groups: g['lr'] = lr_at(step, args.steps, args.lr, args.warmup)
         dom = np.repeat(np.arange(k), per)                      # uniform minibatch over domains
         x, y = tr.batch(dom, device)
@@ -178,13 +180,21 @@ def doremi(args):
             lr_ = token_losses(ref, x, y)
             exc = (lp - lr_).clamp_min(0).view(k, per, -1).mean(dim=(1, 2)).cpu().numpy()
         alpha = alpha * np.exp(args.eta * exc); alpha = (1 - args.c) * alpha / alpha.sum() + args.c * u
-        hist.append(alpha.copy())
+        hist.append(alpha.copy()); exh.append(exc.copy())
         wt = torch.tensor(alpha, dtype=lp.dtype, device=device)
         loss = (lp.view(k, per, -1).mean(dim=(1, 2)) * wt).sum()
         opt.zero_grad(set_to_none=True); loss.backward(); torch.nn.utils.clip_grad_norm_(m.parameters(), 1.0); opt.step()
-    avg = np.mean(hist, axis=0)
+    if device.type == 'mps': torch.mps.synchronize()
+    secs = time.time() - t0
+    avg = np.mean(hist, axis=0); H = np.array(hist); E = np.array(exh); every = max(1, len(hist) // 200)
+    run_avg = np.cumsum(H, axis=0) / np.arange(1, len(H) + 1)[:, None]
+    ref_res = json.load(open(os.path.join(WORK, 'runs', f'doremi_ref_{args.seed}.json')))
     res = {'names': names, 'eta': args.eta, 'c': args.c, 'ref_weights': ref_w, 'avg_weights': dict(zip(names, avg.round(5).tolist())),
-           'trajectory': np.array(hist)[:: max(1, len(hist) // 100)].round(5).tolist(), 'config': {k_: getattr(args, k_) for k_ in ('d', 'layers', 'heads', 'ctx', 'bs', 'steps', 'lr', 'seed')}}
+           'every': every, 'steps_logged': list(range(0, len(H), every)),
+           'trajectory': H[::every].round(5).tolist(), 'running_avg': run_avg[::every].round(5).tolist(),
+           'excess': E[::every].round(5).tolist(), 'excess_smoothed': np.array([E[max(0, i - every + 1):i + 1].mean(0) for i in range(0, len(E), every)]).round(5).tolist(),
+           'proxy_val_loss': evaluate(m, names, args.ctx, device, args.eval_batches, args.bs), 'ref_val_loss': ref_res['val_loss'],
+           'seconds': round(secs, 1), 'ref_seconds': ref_res['seconds'], 'device': args.device, 'params_non_embedding': m.n_params(), 'config': {k_: getattr(args, k_) for k_ in ('d', 'layers', 'heads', 'ctx', 'bs', 'steps', 'lr', 'seed')}}
     json.dump(res, open(os.path.join(WORK, 'runs', f'doremi_proxy_{args.seed}.json'), 'w'), indent=1)
     print('doremi weights', res['avg_weights'])
 

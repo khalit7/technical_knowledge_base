@@ -70,8 +70,18 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
     ok(has('maths from 2.7% to 12.5%')&&Math.abs(sm[0].groups.math-0.027)<1e-9&&Math.abs(sm[2].groups.math-0.1249)<1e-9,'prose: SmolLM3 maths share');
     ok(has('from 0.40 to about 0.29')&&Math.abs(D.toy.check_avg[0]-0.29088)<1e-4&&has('from 0.15 to about 0.11'),'prose: toy prediction answer');
     ok(D.regmix.ratio_flops_doremi===0.095&&has('about 10%'),'prose: RegMix FLOPs about 10% of DoReMi');
-    ok(D.smoke!==null&&has(D.smoke.tokens_per_s.toLocaleString('en-GB')),'smoke test numbers shown');
-    ok(D.proxy_runs===null,'proxy runs pending (expected null until the GPU queue runs: not a failure of the page)');
+    const PR=D.proxy_runs;ok(PR&&PR.doremi&&PR.doremi.length===1,'measured DoReMi run embedded');
+    const R=PR.doremi[0],pc=v=>(100*v).toFixed(1)+'%';
+    ok(has('(17% to 2.6%)')&&Math.round(100*R.ref_weights.web)===17&&R.avg_weights.web===0.0263,'prose: web 17% to 2.6%');
+    ok(has('rise to about 38% each')&&Math.round(100*R.avg_weights.code)===38&&Math.round(100*R.avg_weights.math)===38,'prose: code and maths about 38%');
+    const H=R.trajectory,mx=k=>Math.max(...H.map(r=>r[k]));ok(has('reached 0.998 on code and 0.994 on maths')&&mx(2).toFixed(3)==='0.998'&&mx(3).toFixed(3)==='0.994','prose: max single-step alpha');
+    const top=H.map(r=>r.indexOf(Math.max(...r)));ok(has('93% of the logged steps')&&Math.round(100*top.filter(t=>t===2||t===3).length/top.length)===93,'prose: code or maths on top 93%');
+    const RA=R.running_avg,at=st=>RA[R.steps_logged.indexOf(st)];ok(has('maths 0.59 at step 200, 0.47 at 2,000, 0.385 at the end')&&at(200)[3].toFixed(2)==='0.59'&&at(2000)[3].toFixed(2)==='0.47'&&R.avg_weights.math.toFixed(3)==='0.385','prose: running average of maths (end value '+R.avg_weights.math+', logged end '+RA[RA.length-1][3]+')');
+    const E=R.excess,n10=Math.round(E.length/10),last=[0,1,2,3,4].map(k=>E.slice(-n10).reduce((a,r)=>a+r[k],0)/n10),first=[0,1,2,3,4].map(k=>E.slice(0,n10).reduce((a,r)=>a+r[k],0)/n10);
+    ok(has('0.58 to 0.62 nats on all five')&&Math.min(...last).toFixed(2)==='0.58'&&Math.max(...last).toFixed(2)==='0.62','prose: final excess equalised '+last.map(v=>v.toFixed(3)).join(' '));
+    ok(has('about 2.3 to 2.7 nats')&&Math.min(...first)>2.3&&Math.max(...first)<2.8,'prose: early excess '+first.map(v=>v.toFixed(2)).join(' '));
+    const dl=R.names.map(n=>R.proxy_val_loss[n]-R.ref_val_loss[n]);ok(has('0.35 to 0.39 nats worse')&&Math.min(...dl)>0.345&&Math.max(...dl)<0.395,'prose: proxy worse by '+dl.map(v=>v.toFixed(3)).join(' '));
+    ok(D.smoke!==null&&Math.abs(D.smoke.tokens_per_s-6400)<100&&Math.abs(PR.runs[0].tokens_per_s-14700)<100,'prose: CPU about 6,400 and GPU about 14,700 tokens/s');
   }
   await p.close();
 }

@@ -73,8 +73,15 @@
   $('mx2-dolmino').innerHTML='<thead><tr><th>Source</th><th class="num">Pool</th>'+['50B','100B','300B'].map(b=>'<th class="num">'+b+' mix %</th><th class="num">'+b+' source % (implied)</th>').join('')+'</tr></thead><tbody>'+
     DM.map(x=>'<tr><td>'+esc(x.src)+'</td><td class="num">'+fB(x.pool)+'</td>'+['50B','100B','300B'].map(b=>'<td class="num">'+x['mix_pct_'+b]+'</td><td class="num"'+(x['src_pct_'+b]>100?' style="color:var(--bad);font-weight:600"':'')+'>'+x['src_pct_'+b]+' <span class="mute">('+x['implied_src_pct_'+b]+')</span></td>').join('')+'</tr>').join('')+'</tbody>';
 
-  // 7. smoke test and pending estimates
-  const sm=D.smoke;
-  if(sm){$('mx2-smoke').innerHTML=esc(sm.summary);$('mx2-sm-nep').textContent=(sm.params_non_embedding/1e6).toFixed(2)+'M';$('mx2-pend-est').innerHTML=sm.estimates_html}
-  else $('mx2-smoke').textContent='not yet run.';
+  // 7. the measured DoReMi run (data/proxy_runs.json)
+  const PR=D.proxy_runs;
+  if(PR&&PR.doremi&&PR.doremi.length){const R=PR.doremi[0],N=R.names,f=x=>(x/1e6).toFixed(1)+'M';
+    $('mx2-pool-txt').textContent=N.map(n=>n+' '+f(PR.pools[n].train)).join(', ');
+    $('mx2-sm-nep').textContent=(R.params_non_embedding/1e6).toFixed(2)+'M';
+    $('mx2-run-time').textContent='reference '+Math.round(R.ref_seconds/60)+' min and proxy '+Math.round(R.seconds/60)+' min';
+    $('mx2-drm-tab').innerHTML='<thead><tr><th></th>'+N.map(n=>'<th class="num">'+n+'</th>').join('')+'</tr></thead><tbody>'+
+      '<tr><td>Reference weights (natural shares of the pools)</td>'+N.map(n=>'<td class="num">'+R.ref_weights[n].toFixed(3)+'</td>').join('')+'</tr>'+
+      '<tr><td><b>DoReMi averaged weights</b></td>'+N.map(n=>'<td class="num"><b>'+R.avg_weights[n].toFixed(3)+'</b></td>').join('')+'</tr>'+
+      '<tr><td>Held-out loss, reference (nats)</td>'+N.map(n=>'<td class="num">'+R.ref_val_loss[n].toFixed(2)+'</td>').join('')+'</tr>'+
+      '<tr><td>Held-out loss, Group DRO proxy</td>'+N.map(n=>'<td class="num">'+R.proxy_val_loss[n].toFixed(2)+'</td>').join('')+'</tr></tbody>'}
 })();

@@ -51,3 +51,38 @@
   RD.seg($('mx2-dr-tr'),m=>{P.tr_web=+m;rerun()});
   RD.onRender(()=>{A.redraw();drawBA()},'t-dr'); RD.onResize(()=>{A.redraw();drawBA()},'t-dr'); drawBA();
 })();
+// ---- measured DoReMi run (data/proxy_runs.json, written by scripts/collect_runs.py) ----
+(function(){
+  const PR=window.MX2.proxy_runs, $=id=>document.getElementById(id);
+  if(!PR||!PR.doremi||!PR.doremi.length){$('mx2-drm-intro').textContent='The measured run has not been collected yet.';return}
+  const R=PR.doremi[0],N=R.names,K=N.length,COL=['var(--c1)','var(--c6)','var(--c3)','var(--c2)','var(--c4)'],T=R.trajectory.length,steps=R.steps_logged;
+  const f3=x=>x.toFixed(3),ref=N.map(n=>R.ref_weights[n]),avg=N.map(n=>R.avg_weights[n]);
+  $('mx2-drm-leg').innerHTML=N.map((n,k)=>'<span><i style="background:'+COL[k]+'"></i>'+n+'</span>').join('')+'<span>thin: α at that step; dashed: running average</span>';
+  function draw(i){
+    const W=RD.width($('mx2-drm-plot')),H=260,L=36,Rr=8,Tp=8,B=26,h2=70,mx=Math.max(0.5,...R.trajectory.flat()),X=j=>L+j/(T-1)*(W-L-Rr),Y=v=>Tp+(1-v/mx)*(H-Tp-B-h2-14);let g='';
+    for(let v=0;v<=mx+1e-9;v+=0.1){g+='<line x1="'+L+'" x2="'+(W-Rr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(L-4,Y(v)+4,v.toFixed(1),{a:'end',fs:9,fill:'var(--mute)'})}
+    const upto=Math.max(1,i);
+    for(let k=0;k<K;k++){let p='',q='';for(let j=0;j<upto;j++){p+=(j?'L':'M')+X(j).toFixed(1)+' '+Y(R.trajectory[j][k]).toFixed(1);q+=(j?'L':'M')+X(j).toFixed(1)+' '+Y(R.running_avg[j][k]).toFixed(1)}
+      g+='<path d="'+p+'" fill="none" stroke="'+COL[k]+'" stroke-width="1" opacity=".6"/><path d="'+q+'" fill="none" stroke="'+COL[k]+'" stroke-width="2.2" stroke-dasharray="5 3"/>'}
+    // excess (smoothed) strip
+    const y0=H-B-h2,ex=R.excess_smoothed,emx=Math.max(...ex.slice(1).flat())||1;g+=RD.t(L,y0-2,(W<560?'excess λ (nats, 20-step mean)':'excess loss λ per domain (nats, mean of each 20 steps; step 0, '+Math.max(...ex[0]).toFixed(1)+', off scale)'),{fs:9,fill:'var(--mute)'});
+    for(let k=0;k<K;k++){let p='';for(let j=0;j<upto;j++)p+=(j?'L':'M')+X(j).toFixed(1)+' '+(y0+h2-Math.min(1,ex[j][k]/emx)*h2).toFixed(1);g+='<path d="'+p+'" fill="none" stroke="'+COL[k]+'" stroke-width="1.2"/>'}
+    [0,0.5,1].forEach(f=>g+=RD.t(X(f*(T-1)),H-6,'step '+steps[Math.round(f*(T-1))],{a:f===0?'start':f===1?'end':'middle',fs:9,fill:'var(--mute)'}));
+    $('mx2-drm-plot').innerHTML=RD.svg(W,H,g,'Measured DoReMi weights over the proxy run');
+    const j=upto-1;
+    $('mx2-drm-out').innerHTML=RD.stat('Proxy step',steps[j]+' of '+R.config.steps,'')+RD.stat('α at this step',R.trajectory[j].map(v=>v.toFixed(2)).join(' / '),N.join(' / '))+RD.stat('Running average',R.running_avg[j].map(v=>v.toFixed(2)).join(' / '),'the answer if the run stopped here');
+    const top=R.excess_smoothed[j].indexOf(Math.max(...R.excess_smoothed[j]));
+    $('mx2-drm-cap').textContent='Step '+steps[j]+': largest smoothed excess is '+N[top]+' ('+f3(R.excess_smoothed[j][top])+' nats), so its weight is being pushed up; weights only settle once the proxy has caught up with the reference everywhere.'}
+  const A=RD.anim({card:'mx2-drm-card',ctl:'mx2-drm-ctl',n:T+1,ms:60,label:'Proxy step',draw,tab:'t-dr'});A.go(T);
+  function drawBA(){
+    const W=RD.width($('mx2-drm-baplot')),nmW=58,bw=(W-nmW-20)/2-40,rh=34,H=K*rh+26,mw=Math.max(...ref,...avg),lv=N.map(n=>[R.ref_val_loss[n],R.proxy_val_loss[n]]),ml=Math.max(...lv.flat());let g='';
+    g+=RD.t(nmW,12,'weight: reference / DoReMi',{fs:10,fill:'var(--mute)'})+RD.t(nmW+bw+60,12,'held-out loss: ref. / proxy',{fs:10,fill:'var(--mute)'});
+    N.forEach((n,k)=>{const y=20+k*rh;g+=RD.t(nmW-6,y+17,n,{a:'end',fs:12,w:600,fill:COL[k]});
+      g+='<rect x="'+nmW+'" y="'+(y+2)+'" width="'+(ref[k]/mw*bw).toFixed(1)+'" height="11" fill="var(--dim)"/>'+RD.t(nmW+ref[k]/mw*bw+3,y+11,ref[k].toFixed(2),{fs:9.5,fill:'var(--mute)'});
+      g+='<rect x="'+nmW+'" y="'+(y+15)+'" width="'+(avg[k]/mw*bw).toFixed(1)+'" height="11" fill="'+COL[k]+'"/>'+RD.t(nmW+avg[k]/mw*bw+3,y+24,avg[k].toFixed(2),{fs:9.5,fill:'var(--mute)'});
+      const x2=nmW+bw+60;g+='<rect x="'+x2+'" y="'+(y+2)+'" width="'+(lv[k][0]/ml*bw).toFixed(1)+'" height="11" fill="var(--dim)"/>'+RD.t(x2+lv[k][0]/ml*bw+3,y+11,lv[k][0].toFixed(2),{fs:9.5,fill:'var(--mute)'});
+      g+='<rect x="'+x2+'" y="'+(y+15)+'" width="'+(lv[k][1]/ml*bw).toFixed(1)+'" height="11" fill="'+COL[k]+'"/>'+RD.t(x2+lv[k][1]/ml*bw+3,y+24,lv[k][1].toFixed(2),{fs:9.5,fill:'var(--mute)'})});
+    $('mx2-drm-baplot').innerHTML=RD.svg(W,H,g,'Reference against DoReMi weights, and held-out losses');
+    $('mx2-drm-banote').textContent='Grey: the reference run (trained on the pools\' natural shares). Colour: DoReMi\'s averaged weights, and the held-out loss of the Group DRO proxy, a model of the same size trained for the same steps with the loss reweighted by α. Both are '+R.params_non_embedding.toLocaleString('en-GB')+' non-embedding parameters, '+R.config.steps+' steps of '+R.config.bs+' × '+R.config.ctx+' tokens; measured on Apple M1 Pro ('+R.device.toUpperCase()+').'}
+  RD.onRender(()=>{A.redraw();drawBA()},'t-dr');RD.onResize(()=>{A.redraw();drawBA()},'t-dr');drawBA();
+})();
