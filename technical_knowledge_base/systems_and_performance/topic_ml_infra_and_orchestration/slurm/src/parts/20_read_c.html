@@ -1,0 +1,47 @@
+
+<section id="s-life">
+<h2>2. The life of a job, from the controller's own log</h2>
+<p><b>The problem.</b> "My job is not running" can mean a dozen things: it is waiting its turn, waiting for nodes, waiting for a limit, its nodes are booting, its prolog is running, its first step has not launched, it finished and is cleaning up. Each is a different state in Slurm, and knowing them tells you where to look.</p>
+<div class="sl-card"><h4>Job states</h4><div id="sl-states"></div>
+<p class="sl-cap">The states <code>squeue</code> and <code>sacct</code> print (short codes in brackets). Click one. The main line is what the running example did here; the side exits are the ways a job ends badly.</p><div id="sl-states-info" class="sl-anc"></div></div>
+<p><b>Watching it happen.</b> The running example was submitted while another job (bob's, 12 GPUs, time limit 1 minute, sleeping 25 s) held every GPU, with the controller at <code>debug</code> log level and the <code>Backfill</code> debug flag on, a prolog and epilog that log a line on each node, and <code>squeue</code> polled every second <span class="sl-meas">measured</span>. The key lines:</p>
+<pre><span class="c"># slurmctld.log on the controller (UTC; lines trimmed)</span>
+05:36:55.526 _slurm_rpc_submit_batch_job: JobId=79 InitPrio=4166
+05:36:55.852 sched/backfill: BACKFILL: test for JobId=79 Prio=4166 Partition=batch
+05:36:55.852 sched/backfill: _dump_job_sched: BACKFILL: JobId=79 to start at 2026-10-16T05:37:53,
+             end at 2026-10-16T05:47:53 on nodes c[1-2] in partition batch
+<span class="c">  ... the same plan every 2 s (bf_interval=2), 12 times ...</span>
+05:37:18.890 _job_complete: JobId=78 WEXITSTATUS 0                <span class="c"># the blocker ends</span>
+05:37:18.911 debug:  sched: Running job scheduler for default depth.
+05:37:18.912 sched: Allocate JobId=79 NodeList=c[1-2] #CPUs=4 Partition=batch
+<span class="c"># slurmd.log on c1, and the prolog's own line</span>
+05:37:18.917 prolog c1 job=79 user=alice
+05:37:18.929 Launching batch job 79 for UID 2001
+05:37:18.956 launch task StepId=79.0 request from UID:2001 ...   <span class="c"># srun torchrun, on c1 and c2</span>
+<span class="c"># the training processes (rank logs): started 05:37:21.2, step 200 at 05:37:27.7, gloss 2.2638769149780273</span>
+05:37:28.639 [79.0] done with step
+05:37:28.644 [79.batch] done with step
+05:37:28.649 epilog c1 job=79 user=alice</pre>
+<p class="sl-cap">Raw logs (IPs scrubbed) in <code>src/runs/raw1/</code>. The {{Job lifecycle|#t-life}} tab replays every line on a timeline, against the same job on an idle cluster.</p>
+<p>Read it as the job's life:</p>
+<ol>
+<li><b>Submit.</b> <code>sbatch</code> sends the script and its options to the controller, which validates them against partitions, limits and node configurations (a request no node could ever satisfy is refused here, with <code>Requested node configuration is not available</code>), gives the job an id and an initial priority, and returns. The script is stored by the controller; editing the file afterwards changes nothing.</li>
+<li><b>Pending.</b> The job waits with a <b>reason</b>, here <code>Resources</code>: it is first in line and the resources are busy. The backfill scheduler planned a start at 05:37:53, which is the blocker's <i>time limit</i> (started 05:36:53, limit 1 minute), not its real end: Slurm plans with limits because it cannot know runtimes.</li>
+<li><b>Allocate.</b> The blocker actually ended at 05:37:18.890. Ending a job is an event that triggers the main scheduler, which allocated c1 and c2 to job 79 22 ms later, 34 s before the plan. A job's planned start is an upper bound that usually moves earlier.</li>
+<li><b>Prolog.</b> With <code>PrologFlags=Alloc</code>, slurmd runs the site's prolog as root on every node of the allocation before anything else (5 ms later here). Sites check GPU health here; a prolog that exits non-zero drains the node and requeues the job.</li>
+<li><b>Batch step.</b> The script runs on the first node of the allocation (c1) as the user. This is step <code>79.batch</code>.</li>
+<li><b>Job steps.</b> Each <code>srun</code> inside the script asks the controller for a step; slurmd on each node starts a <code>slurmstepd</code>, which starts the tasks. The running example's one <code>srun</code> started one <code>torchrun</code> per node: step <code>79.0</code>.</li>
+<li><b>Completing.</b> When the script exits, the job is COMPLETING while every node kills leftovers and runs the epilog; only then are the nodes free for the next job.</li>
+<li><b>Completed, and recorded.</b> The accounting record goes to slurmdbd; <code>sacct</code> shows the job and each step:</li>
+</ol>
+<pre>$ sacct -j 79 --format=JobID,JobName,State,Start,End,Elapsed,NodeList,AllocTRES
+       JobID    JobName      State               Start                 End    Elapsed        NodeList                                     AllocTRES
+------------ ---------- ---------- ------------------- ------------------- ---------- --------------- ---------------------------------------------
+          79   mi-train  COMPLETED 2026-10-16T05:37:18 2026-10-16T05:37:28   00:00:10          c[1-2]             billing=5,cpu=4,gres/gpu=4,node=2
+    79.batch      batch  COMPLETED 2026-10-16T05:37:18 2026-10-16T05:37:28   00:00:10              c1                 cpu=2,gres/gpu=2,mem=0,node=1
+        79.0   torchrun  COMPLETED 2026-10-16T05:37:18 2026-10-16T05:37:28   00:00:10          c[1-2]                 cpu=4,gres/gpu=4,mem=0,node=2</pre>
+<p><b>Where the 10 seconds went.</b> Of the job's 10 s of elapsed time, the training loop itself ran about 6.5 s (the ranks' own <code>wall_s</code>); the rest is the chain every job pays: prolog, starting the batch shell, the step request, <code>torchrun</code> and Python imports, rendezvous, and the epilog. On a real cluster the prolog (GPU health checks), image pulls and the rendezvous of hundreds of nodes make this chain minutes long, and it is paid again on every restart. The root's {{Launch lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} splits it by stage. <span class="sl-meas">measured on Apple M1 Pro, Docker Desktop VM, shared machine</span></p>
+<div class="sl-pr" id="sl-pr2"><div class="q">Predict: <code>squeue --start</code> said job 79 would start at 05:37:53. Why did it start at 05:37:18?</div>
+<div class="opts"><button data-a="0">Backfill found a hole for it</button><button data-a="1">The blocker ended before its time limit, and a job ending triggers the main scheduler</button><button data-a="0">Its priority rose with age until it preempted the blocker</button></div>
+<div class="ans">The plan uses time limits; the blocker asked for 1 minute and used 25 s. When it ended, <code>_job_complete</code> was followed 21 ms later by <code>Running job scheduler for default depth</code> and the allocation: the main scheduler runs on events (a job submitted or ending, a node coming back) and also periodically, so it does not wait for the next backfill cycle. Nothing was preempted: both jobs were in partition batch, and preemption here works only across partition tiers (<a href="#s-pre">section 9</a>).</div></div>
+</section>

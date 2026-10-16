@@ -1,0 +1,48 @@
+
+<section id="s-arch">
+<h2>1. The daemons: who does what</h2>
+<p><b>The problem.</b> Hundreds or thousands of machines, many users, and one rule: no GPU may be given to two jobs at once. Slurm's answer is a single brain. Every decision is made in one process that holds the whole cluster in memory, and the machines are its hands.</p>
+<div class="tw"><table><thead><tr><th>Daemon</th><th>Runs on</th><th>Does</th><th>If it dies</th></tr></thead><tbody>
+<tr><td><code>slurmctld</code><br><span class="small mute">the controller</span></td><td>one head node (plus optional backups)</td><td>holds every job, node, partition and reservation in memory; runs the schedulers; answers every <code>sbatch</code>, <code>squeue</code>, <code>scontrol</code>; saves its state to <code>StateSaveLocation</code> so a restart loses nothing</td><td>running jobs keep running (their processes live on the nodes); nothing new starts and commands fail until it is back or a backup controller (a second <code>SlurmctldHost</code> line) takes over after <code>SlurmctldTimeout</code> (default 120 s)</td></tr>
+<tr><td><code>slurmd</code></td><td>every compute node, as root</td><td>registers the node (CPUs, memory, GRES), starts job steps, runs the prolog and epilog, reports back</td><td>after <code>SlurmdTimeout</code> without an answer (default 300 s) the controller marks the node DOWN and requeues or kills its jobs</td></tr>
+<tr><td><code>slurmstepd</code></td><td>one per step per node, started by slurmd</td><td>starts the step's tasks, tracks every process they fork, applies the cgroup limits, collects usage, forwards stdout to <code>srun</code></td><td>its step fails</td></tr>
+<tr><td><code>slurmdbd</code> + a MariaDB/MySQL database</td><td>usually the head node</td><td>the accounting database: every job's usage (what <code>sacct</code> and fairshare read), users, accounts, QOS and their limits</td><td>the controller queues records and keeps scheduling; new limits and users cannot be changed until it returns</td></tr>
+<tr><td><code>munged</code></td><td>every node</td><td>authentication: every message carries a credential sealed with a key that every node shares</td><td>nothing on that node can talk to Slurm</td></tr>
+</tbody></table></div>
+<p class="small mute">Defaults read from <code>src/common/read_config.h</code> at slurm-24-11-5-1: <span id="sl-q-def"></span>. This lab cluster sets both timeouts to 30 s so the root's Failure lab could watch a node die in seconds: there a killed node was marked DOWN and its job requeued 32.1 s after the kill.</p>
+<p>What runs where, on this cluster <span class="sl-meas">measured</span>:</p>
+<pre>$ ps -eo user,comm        <span class="c"># on the controller container (ctl)</span>
+munge    munged
+mysql    mariadbd
+slurm    slurmdbd
+slurm    slurmctld
+slurm    slurmscriptd     <span class="c"># a helper slurmctld forks once, to run scripts so the controller never forks itself</span>
+$ ps -eo user,comm        <span class="c"># on a compute node (c1), idle</span>
+root     slurmd
+munge    munged
+$ scontrol ping
+Slurmctld(primary) at ctl is UP</pre>
+<h3>Configless: one copy of the configuration</h3>
+<p>Every daemon needs <code>slurm.conf</code>, and on old clusters it was copied to every node, where copies drifted apart. Since Slurm 20.02 a node can fetch it: <code>slurmd --conf-server ctl</code> asks the controller, which serves <code>slurm.conf</code>, <code>gres.conf</code>, <code>cgroup.conf</code> and a few others, and slurmd caches them under <code>SlurmdSpoolDir/conf-cache</code> ({{configless docs|https://slurm.schedmd.com/configless_slurm.html}}). On this cluster <span class="sl-meas">measured</span>:</p>
+<pre>$ ls /var/spool/slurmd/conf-cache     <span class="c"># on c1</span>
+cgroup.conf
+gres.conf
+slurm.conf</pre>
+<p>A change is then two commands on the controller: edit <code>slurm.conf</code>, run <code>scontrol reconfigure</code>. In 24.11 that restarts the controller in place; its own log says so (<span class="sl-meas">measured</span>, 05:36:39 to 05:36:40 UTC): <code>Reconfigure signal (SIGHUP) received</code>, <code>Saving all slurm state</code>, <code>slurmctld version 24.11.5 started on cluster mi</code>, <code>Recovered state of 3 nodes</code>, <code>Relinquishing control to new slurmctld process</code>. Every experiment on this page that changed the configuration did it this way and put the original back the same way.</p>
+<h3>Declared, not detected</h3>
+<p>Slurm schedules what <code>slurm.conf</code> <i>declares</i> for a node, not what the hardware has. <code>slurmd -C</code> prints what the node would declare from its hardware:</p>
+<pre>$ slurmd -C                      <span class="c"># on c1: what the hardware says</span>
+NodeName=c1 CPUs=5 Boards=1 SocketsPerBoard=1 CoresPerSocket=5 ThreadsPerCore=1 RealMemory=9951
+$ scontrol show node c1          <span class="c"># what Slurm uses (lines trimmed)</span>
+NodeName=c1 Arch=aarch64 CoresPerSocket=4
+   CPUAlloc=0 CPUEfctv=4 CPUTot=4 CPULoad=0.45
+   Gres=gpu:4
+   RealMemory=4000 AllocMem=0 FreeMem=5565 Sockets=1 Boards=1
+   State=IDLE ThreadsPerCore=1 TmpDisk=0 Weight=1
+   CfgTRES=cpu=4,mem=4000M,billing=5,gres/gpu=4</pre>
+<p class="sl-cap">16 Oct 2026. The container sees the whole Docker VM (5 CPUs, 9.7 GB); the configuration declares 4 CPUs and 4,000 MB per node, and Slurm hands out exactly those. <code>billing=5</code> is this cluster's TRESBillingWeights: 4 GPUs at 1.0 plus 4 CPUs at 0.25.</p>
+<p><b>Why it matters.</b> Declaring less than the hardware is safe (some is left for the OS). Declaring more is not: a node that registers with fewer CPUs, less memory or less temporary disk than declared is taken out of service "to avoid scheduling jobs on them" ({{slurm.conf, node configuration|https://slurm.schedmd.com/slurm.conf.html}}; the state shows as INVAL, an invalid registration). This cluster hit it while being built: with no device files for its fake GPUs a node went INVAL with <code>gres/gpu count reported lower than configured (0 &lt; 4)</code> (root page, <code>src/data/README.md</code>). So a typo in <code>slurm.conf</code> takes nodes out of service, and production sites declare a little less memory than <code>slurmd -C</code> reports.</p>
+<div class="sl-pr" id="sl-pr1"><div class="q">Predict: the controller crashes on day 2 of a 3-day training job and is restarted an hour later. What happened to the job?</div>
+<div class="opts"><button data-a="0">It was killed: no controller, no job</button><button data-a="1">It kept training; the restarted controller recovered it from its saved state</button><button data-a="0">It was requeued from its last checkpoint</button></div>
+<div class="ans">It kept training. The processes run under <code>slurmstepd</code> on the compute nodes and do not need the controller while they run; the controller's state (jobs, allocations) is on disk in <code>StateSaveLocation</code>, and on restart it logs <code>Recovered state of N nodes</code> and <code>Recovered information about N jobs</code>, as it did here at every reconfigure. What stops for that hour is everything new: submissions, starts, and steps (<code>srun</code> must ask the controller for each step, so a script that launches a new step every epoch would stall).</div></div>
+</section>
