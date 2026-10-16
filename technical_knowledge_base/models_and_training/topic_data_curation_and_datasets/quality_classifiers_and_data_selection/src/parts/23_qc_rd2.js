@@ -45,4 +45,16 @@
     }
     rc.addEventListener('input',calc);RD.onRender(calc);RD.onResize(calc);calc();
   }
+  // Qwen3-1.7B perplexity histogram on 2,000 FineWeb rows, FineWeb-Edu keeps in green
+  function qwen(){
+    const el=document.getElementById('qc-qwen');if(!el||!D.qwen17_hist)return;
+    const h=D.qwen17_hist,e=D.qwen17_hist_edu||[],W=Math.min(RD.width(el),640),H=170,L=40,R=12,T=10,B=34,iw=W-L-R,ih=H-T-B,mx=Math.max(...h),bw=iw/h.length;
+    let g='<rect x="'+L+'" y="'+T+'" width="'+iw+'" height="'+ih+'" fill="none" stroke="var(--line)"/>';
+    h.forEach((c,i)=>{const x=L+i*bw,hh=c/mx*ih,he=(e[i]||0)/mx*ih;g+='<rect x="'+(x+1).toFixed(1)+'" y="'+(T+ih-hh).toFixed(1)+'" width="'+(bw-2).toFixed(1)+'" height="'+hh.toFixed(1)+'" fill="var(--acc)" opacity=".45"/>';
+      if(he>0)g+='<rect x="'+(x+1).toFixed(1)+'" y="'+(T+ih-he).toFixed(1)+'" width="'+(bw-2).toFixed(1)+'" height="'+he.toFixed(1)+'" fill="var(--good)"/>'});
+    [[0,'1'],[1,'10'],[2,'100'],[3,'1,000']].forEach(([v,t])=>g+=RD.t(L+v/3*iw,H-B+14,t,{a:v===3?'end':v===0?'start':'middle',fs:10.5}));
+    g+=RD.t(L-5,T+10,mx,{a:'end',fs:10.5})+RD.t(L+iw/2,H-4,'perplexity (log scale)',{a:'middle',fs:11});
+    el.innerHTML=RD.svg(W,H,g,'Histogram of Qwen3-1.7B perplexity on 2,000 FineWeb rows');
+  }
+  RD.onRender(qwen);RD.onResize(qwen);qwen();
 })();

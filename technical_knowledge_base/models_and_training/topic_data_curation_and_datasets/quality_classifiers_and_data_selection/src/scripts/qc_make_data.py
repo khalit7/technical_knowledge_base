@@ -367,6 +367,29 @@ if sc_of("pythia") is not None:
     r = rank_desc(sc_of("pythia"))
     low = r[ri] < round(0.1 * N); mid = (r[ri] >= round(0.45 * N)) & (r[ri] < round(0.55 * N))
     F["ppl_low_hand_no"] = f"{int(rn[low].sum())} of {int(low.sum())}"; F["ppl_mid_hand_no"] = f"{int(rn[mid].sum())} of {int(mid.sum())}"
+QW = C.sdir("qwen17_fw2k.jsonl")
+if os.path.exists(QW):
+    qw = [json.loads(l) for l in open(QW)]
+    if len(qw) == 2000:
+        qn = np.array([r["nll"] for r in qw]); qp = np.exp(qn)
+        fs = [json.loads(l) for l in open(C.Q.qdir("fw_sample_scores.jsonl"))]
+        fe = np.array([r["edu"] for r in fs]); fd = np.array([r["dclm"] for r in fs])
+        F["qwen17_median"] = f"{np.median(qp):.1f}"
+        F["sp_qwen17_edu"] = f"{spearmanr(-qn, fe).statistic:.2f}"; F["sp_qwen17_dclm"] = f"{spearmanr(-qn, fd).statistic:.2f}"
+        nm = npy("nemo_mixtral", "fw2k")
+        if nm is not None:
+            F["sp_qwen17_mix"] = f"{spearmanr(-qn, nm).statistic:.2f}"
+        lo, hi = qp <= np.quantile(qp, 0.3), qp >= np.quantile(qp, 0.7)
+        F["qwen17_low30_edu"] = pct((fe[lo] >= 2.5).mean()); F["qwen17_high30_edu"] = pct((fe[hi] >= 2.5).mean())
+        F["qwen17_low30_dclm"] = pct((fd[lo] >= C.DCLM_CUT).mean()); F["qwen17_high30_dclm"] = pct((fd[hi] >= C.DCLM_CUT).mean())
+        o = np.argsort(qp)[:12]
+        F["qwen17_low12"] = f"{qp[o[0]]:.1f} to {qp[o[-1]]:.1f}"
+        Q["qwen17_hist"] = np.histogram(np.log10(qp), bins=30, range=(0, 3))[0].tolist()
+QR = C.Q.qdir("ppl_run0.jsonl")
+if os.path.exists(QR) and sc_of("pythia") is not None:
+    q6 = {json.loads(l)["id"]: json.loads(l)["nll"] for l in open(QR)}
+    if len(q6) == N:
+        F["sp_pythia_qwen06"] = f"{spearmanr(sc_of('pythia'), [-q6[i] for i in ids]).statistic:.2f}"
 if os.path.exists(os.path.join(C.OUT, "dsir.json")):
     DS = C.load_out("dsir.json")
     T = DS["targets"]
@@ -463,6 +486,15 @@ for dim, names, f in [("topic", WO_T, "wo_topic"), ("format", WO_F, "wo_format")
 fwu = C.L.curated("fineweb_rand50k", columns=["url"]).url.map(lambda u: C.host(u).rsplit(".", 1)[-1]).values
 dfw = np.array([json.loads(l)["dclm"] for l in open(C.Q.qdir("fineweb_rand50k_dclm.jsonl"))])
 tcols = {"dclm": dfw >= C.DCLM_CUT}
+FWE = C.Q.qdir("fw50k_edu.jsonl")  # the root Quality lab's GPU run (2026-10-15): FineWeb-Edu classifier on the same 50,000 rows
+if os.path.exists(FWE):
+    fids = C.L.curated("fineweb_rand50k", columns=["id"]).id.tolist()
+    ev = {json.loads(l)["id"]: json.loads(l)["edu"] for l in open(FWE)}
+    if all(i in ev for i in fids[:100]):
+        tcols["edu"] = np.array([ev.get(i, -1) for i in fids]) >= 2.5
+        F["fw50_edu"] = pct(tcols["edu"].mean(), 1)
+        for t in ["com", "us", "uk", "au", "nz", "in"]:
+            F[f"tld_edu_{t}"] = pct(tcols["edu"][fwu == t].mean(), 1)
 for k in ["oh_eli5_200k", "wiki_50k", "gpt3_lr"]:
     a = npy(k, "fw50k")
     if a is not None:

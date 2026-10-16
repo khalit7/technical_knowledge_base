@@ -38,7 +38,9 @@ with revision, size and sha256 in `$DC_SCRATCH/SETUP.md` under "qc downloads"; r
 | 12 | `qc_pairs.py fetch 60` (download lock), `qc_pairs.py score` | Nemotron-CC rewrites paired with their source pages | network-bound |
 | 13 | `qc_make_data.py`, `sh ../build.sh` | the page | 2 min |
 | 14 | `node check_page.mjs` | every control at 390 px dark and 920 px light | 2 min |
-Pending GPU runs: `scripts/run_pending.sh` (encoders on 50,000 FineWeb rows, about 75 min; Qwen3-1.7B perplexity, about 25 min).
+GPU queue (`scripts/run_pending.sh`): job 1 (encoders on 50,000 FineWeb rows) dropped 2026-10-15; job 2 (Qwen3-1.7B perplexity on 2,000 FineWeb rows, `qc_qwen_ppl.py`, float16 + float32 chunked log-softmax) run 2026-10-16 on mps in 836 s, with the FineWeb-Edu classifier rescored on the same rows.
+
+**Scratch wipe (2026-10-15 reboot).** `$DC_SCRATCH/qc` was lost, so `qc_make_data.py` can no longer be rerun as a whole; `data/qc_data.json` and `data/facts.json` hold every recorded value. `scripts/qc_refresh_pending.py` adds the job 2 results and the root's new Qwen3-0.6B and 50,000-row numbers without touching recorded values (one fact, the reading of the 12 lowest-perplexity rows, was written by hand into facts.json).
 
 ## Departures from DCLM's recipe (said on the page)
 OpenWebText (Skylion007/openwebtext) for OpenWebText2 (absent from pile-uncopyrighted); Project Gutenberg chunks from the Pile

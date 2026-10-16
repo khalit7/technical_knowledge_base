@@ -39,7 +39,7 @@
       return '<div><span>'+esc(o.label)+'</span><span class="tr"><span style="width:'+(j*100).toFixed(1)+'%"></span><i style="left:'+(rnd*100).toFixed(1)+'%"></i></span><span class="v">'+pc(j)+'</span></div>'}).join('');
     const a=m.annot;
     $('th-annot').innerHTML=a?(()=>{let bi=0;a.rates.forEach((r,i)=>{if(Math.abs(r-k)<Math.abs(a.rates[bi]-k))bi=i});
-      return RD.stat('AUC vs Llama score ≥ 3',a.auc.toFixed(3),'1.0 = perfect ranking, 0.5 = chance')+RD.stat('Precision at top '+pc(a.rates[bi]),pc(a.prec[bi]),'Llama ≥ 3 among kept (base rate '+pc(a.base)+')')+RD.stat('Recall at top '+pc(a.rates[bi]),pc(a.rec[bi]),'of all Llama ≥ 3 pages')})():RD.stat('Not scored','n/a','this classifier was not run on the annotation pages ('+esc(m.why_no_annot||'encoder, pending GPU')+')');
+      return RD.stat('AUC vs Llama score ≥ 3',a.auc.toFixed(3),'1.0 = perfect ranking, 0.5 = chance')+RD.stat('Precision at top '+pc(a.rates[bi]),pc(a.prec[bi]),'Llama ≥ 3 among kept (base rate '+pc(a.base)+')')+RD.stat('Recall at top '+pc(a.rates[bi]),pc(a.rec[bi]),'of all Llama ≥ 3 pages')})():RD.stat('Not scored','n/a','this classifier was not run on the annotation pages ('+esc(m.why_no_annot||'an encoder; not run on all rows here')+')');
     plot();
   }
   sel.addEventListener('change',render);K.addEventListener('input',render);
