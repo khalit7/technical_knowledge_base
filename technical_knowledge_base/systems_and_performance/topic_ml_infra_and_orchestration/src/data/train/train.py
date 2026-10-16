@@ -177,10 +177,14 @@ def train(a, rank, world, local_rank=0, host=None, extra_start=None):
                 name = f"step_{done:06d}.pt"
                 tmp = os.path.join(a.ckpt_dir, name + ".tmp")
                 torch.save({"model": model.state_dict(), "opt": opt.state_dict(), "step": done}, tmp)
+                fsync_path(tmp)  # added after the recorded runs (2026-10-16): survive a power loss, not only a crash
                 os.replace(tmp, os.path.join(a.ckpt_dir, name))
                 with open(os.path.join(a.ckpt_dir, "latest.tmp"), "w") as f:
                     f.write(name)
+                    f.flush()
+                    os.fsync(f.fileno())
                 os.replace(os.path.join(a.ckpt_dir, "latest.tmp"), os.path.join(a.ckpt_dir, "latest"))
+                fsync_path(a.ckpt_dir)  # make both renames durable
                 emit("ckpt", step=done, file=name, bytes=os.path.getsize(os.path.join(a.ckpt_dir, name)),
                      secs=round(time.time() - t, 4))
             if world > 1:
@@ -201,6 +205,16 @@ def main():
     train(a, rank, world, local_rank, extra_start={"env": env})
     if world > 1:
         dist.destroy_process_group()
+
+
+def fsync_path(path):
+    """Flush a file's (or a directory's) data and metadata to the device. Defined here, at the end, so
+    that the line numbers quoted from earlier runs (py-spy stacks at train.py:154-166) stay valid."""
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 if __name__ == "__main__":

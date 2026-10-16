@@ -32,3 +32,13 @@ Each line: the fact as the page uses it, the source, its date, and its label (ve
 - slurm.conf HealthCheckProgram (the script drains the node itself): https://slurm.schedmd.com/slurm.conf.html ; squeue reason codes: https://slurm.schedmd.com/squeue.html#SECTION_JOB-REASON-CODES
 - HybridFlow (verl): "The centralized single controller is built on top of Ray" https://arxiv.org/html/2409.19256
 - Running example facts (112,577 parameters, 1,386,049-byte checkpoint, bit-identical loss on all three systems, step 200 = 2.2638769149780273, Slurm job submitted 01:10:20 and started 01:10:21, Kueue admitted at creation, init_s 2.353 s Slurm and 3.937 s Kubernetes) come from ../data/README.md and ../data/runs/.
+
+## Added 2026-10-16 (root fix pass)
+- Real Slurm FIFO against backfill, the Reading's eight-job queue: `../sched/runs/slurm/w1_fifo.sacct`, `w1_backfill.sacct` (makespan 16:48 / 14:48, utilisation 71% / 80%, mean wait 8:09 / 3:06 as the Scheduling lab computes it: start minus first submission). Whole-node reservations: backfill.c at slurm-24-11-5-1 (Scheduling lab). Idle job started by backfill: Slurm child `slurm/src/runs/raw2/slurmctld_session.log` ("sched/backfill: _start_job: Started JobId=125").
+- Kind deadlock and Kueue message: `../sched/runs/k8s/k1.snap`, `k1.detail`, Scheduling lab data (Kueue "insufficient unused quota ... 4 more needed").
+- Missing node per system and wrong MASTER_ADDR: `../launch/out/hangs.json` (602.1 s, 903.2 s, Ray 60 s retried, 902.4 s, 601.1 s, 162.3 s). Static rendezvous 900 s: torch/distributed/launcher/api.py L125-130 at v2.14.1. Launch medians: `../launch/out/launch_times.json` (5 runs per system).
+- Storage numbers: `../io/out/io_data.json` (clusters, tiers l, slow_bind train sync/async).
+- Scheduling efficiency: `../cost/out/co_data.json` queue (deadlock 5 to 251 s on 12 GPUs; Kueue 8 of 12).
+- Meta 32K-GPU table: arXiv 2602.00277v1 (30 Jan 2026) sec. 2.2, Table 1 (extract in the Fault tolerance child, `fault_tolerance_at_scale/src/inputs/tax_meta_32k.txt`). Arithmetic checked here: 100,000 / 8 = 12,500 servers x 2.3 / 1,000 = 28.75 a day = one per 50.1 min; Llama 3: 419 / 54 / 2,048 x 1,000 = 3.79 per 1,000 servers per day.
+- NCCL messages: ProcessGroupNCCL.cpp at v2.14.1 (commit 5c48869), lines 735-739 ("Watchdog caught collective operation timeout"), 1954 ("ProcessGroupNCCL's watchdog got stuck for"), heartbeat default 480 s line 1775. Read in the shallow clone.
+- Kubernetes: default scoring CPU and memory only (Kubernetes for ML child, apis/config/v1/defaults.go 33-35); GenericWorkload beta, off in v1.37 (Scheduling lab, kube-scheduler --help); Kueue pod webhook mpod.kb.io failurePolicy Fail (Kubernetes for ML child, measured). Ray GCS = Global Control Service (Ray docs).

@@ -1,5 +1,7 @@
 # Reading tab: numbers and outputs still to fill from the labs
 
+ALL DONE 2026-10-16 (root fix pass): every TODO box below is filled from the labs' recorded data; no rd-todo box remains on the page. Child-page links still to wire: `links_todo.md`.
+
 Each item is a dashed red "TODO" box on the page (class rd-todo). Replace the box with the sentence or output, keep the label (measured on Apple M1 Pro, Docker Desktop VM / native, shared machine, for timings), and check the number against the lab's recorded data.
 
 | Section | Part file | From | What |
