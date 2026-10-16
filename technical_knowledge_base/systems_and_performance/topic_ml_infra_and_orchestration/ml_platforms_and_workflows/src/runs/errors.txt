@@ -1,0 +1,18 @@
+# Real error messages met in this lab (2026-10-16, MLflow 3.17.1, Metaflow 2.19.39, torch 2.14.1, macOS arm64). Paths scrubbed.
+
+## 1. mlflow.set_tracking_uri("file:./mlruns") then mlflow.set_experiment("x")
+mlflow.exceptions.MlflowException: The filesystem tracking backend (e.g., './mlruns') is in maintenance mode and will not receive further updates. Please migrate to a database backend (e.g., 'sqlite:///mlflow.db') to access the latest MLflow features. The `mlflow migrate-filestore` tool migrates your existing data losslessly. See https://mlflow.org/docs/latest/self-hosting/migrate-from-file-store for migration guidance. If the filesystem backend is required for your workflow, set `MLFLOW_ALLOW_FILE_STORE=true` to opt out of this exception.
+(raised in mlflow/store/tracking/file_store.py line 225; with no URI set, mlflow.get_tracking_uri() printed sqlite:///<cwd>/mlflow.db)
+
+## 2. mlflow.pytorch.log_model(model, name="tiny-gpt", ...) without input_example
+mlflow.exceptions.MlflowException: If `serialization_format` is set to 'pt2', then input_example is required. It must be a numpy array or torch tensor, or a tuple/list of numpy arrays or torch tensors. This is because 'pt2' is a traced-graph format: PyTorch traces the model graph by virtually executing model.forward with the provided example input.
+
+## 3. Calling the loaded champion (logged with input_example of shape (1, 64)) on a batch of 4
+AssertionError: Guard failed: idx.size()[0] == 1
+(at log time: torch/_export/non_strict_utils.py:825] dimension inputs[0].shape[0] 0/1 specialized; Dim.AUTO was specified along with a sample input with hint = 1.)
+An input example of shape (2, 64) kept the batch dimension dynamic: the reloaded model accepted shape (4, 64).
+
+## 4. torchrun --standalone --nproc-per-node 2 natively on macOS, inside a Metaflow step
+[W1016 10:17:44.321896000 socket.cpp:764] [c10d] The IPv6 network addresses of (1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa, 55935) cannot be retrieved (gai error: 8 - nodename nor servname provided, or not known).
+[E1016 10:22:02.788963000 socket.cpp:1028] [c10d] The client socket has timed out after 300000ms while trying to connect to (1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa, 55935).
+The step had no timeout and hung for 6 minutes until killed. Fixed with static rendezvous on 127.0.0.1 (--nnodes 1 --master-addr 127.0.0.1 --master-port 29577) and @timeout(minutes=5) on the step.
