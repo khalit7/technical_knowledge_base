@@ -1,0 +1,25 @@
+<section id="co-queue">
+<h3>A queue: scheduling efficiency on the three systems <span class="co-tag co-m">measured</span></h3>
+<p>One job's allocation is the inner loss. The outer one is the cluster: how many of its GPU-seconds were given to any job at all. These are the {{Scheduling lab|#t-sched}}'s recorded runs, read through the cost lens (that lab explains the policies; here only the accounting).</p>
+<div class="co-card" id="co-q-card">
+<div class="co-seg" id="co-q-seg" role="group" aria-label="Queue run"><button class="on" data-m="fifo">Slurm FIFO</button><button data-m="backfill">Slurm backfill</button><button data-m="deadlock">Kubernetes, no gang</button><button data-m="kueue">Kubernetes + Kueue</button><button data-m="ray">Ray placement groups</button></div>
+<div class="co-svg" id="co-q-svg"></div>
+<div class="out" id="co-q-out"></div>
+<p class="co-cap" id="co-q-cap"></p>
+</div>
+<p>Read as money, the three systems fail in three different ways. <b>Slurm without backfill</b> leaves GPUs idle behind a big job at the head of the queue: the same eight jobs used <span data-co="fifo"></span> of 8 GPUs' time under FIFO and <span data-co="bf"></span> with backfill, and the mean wait fell from <span data-co="fifowait"></span> to <span data-co="bfwait"></span>. <b>Kubernetes without gang scheduling</b> can allocate every GPU and run nothing: half of each of three jobs held all 12 GPUs for <span data-co="dlsec"></span> (<span data-co="dlgpus"></span> GPU-seconds), every one of them idle at a rendezvous, until the lab gave up. Kueue's all-or-nothing admission removed the deadlock but not every loss: with 8-GPU jobs and a 12-GPU quota, 4 GPUs stayed free the whole time because no waiting job fit in them (<b>fragmentation</b>: at most <span data-co="kqmax"></span> of the quota can ever be busy). <b>Ray</b> refuses rather than wastes: a 4-bundle <code>STRICT_PACK</code> group stays <code>PENDING</code> forever on nodes of 2 fake GPUs each, holding nothing, and a second gang waits with one GPU free rather than taking a partial set.</p>
+<div class="co-pr" id="co-pr1"><div class="q">Predict: a 1,000-GPU cluster's scheduler reports 92% of GPU-hours allocated over a month. Your finance team asks whether the lab is using its GPUs well. What do you answer?</div>
+<div class="opts"><button data-ok="0">Yes: 92% is excellent</button><button data-ok="1">Allocated is an upper bound: it says nothing about deadlocked, hung, or slow jobs inside the 92%</button><button data-ok="0">No: anything under 100% is waste</button></div>
+<div class="ans" hidden>The scheduler only knows what it gave out. The Kubernetes run above was 100% allocated and 0% useful for four minutes; the Slurm job above was 100% allocated and about 40% in training steps. You need the GPU's own counters and the training logs (tokens per second, MFU) to say more, and 100% allocation is not the goal either: a queue with no slack makes every new job wait.</div></div>
+</section>
+
+<section id="co-fail">
+<h3>Failures priced <span class="co-tag co-m">measured</span></h3>
+<p>The {{Failure lab|#t-fail}} broke the running example on Slurm on purpose: it explains what each failure does and how runs survive it. Here each run is reduced to the one number a bill sees, the GPU-seconds held (4 fake GPUs times the time each job held them, from <code>sacct</code>), against the clean run. The first five runs train the same 200 steps to the same final loss, except the hang, which never finishes; the three straggler runs train 100 steps and are compared with each other.</p>
+<div class="co-card" id="co-f-card">
+<div class="co-svg" id="co-f-svg"></div>
+<div class="co-leg" id="co-f-leg"></div>
+<p class="co-cap" id="co-f-cap">Select a bar for its story.</p>
+</div>
+<p>The pattern scales. A crash costs <b>the work since the last checkpoint plus the restart</b>, so the checkpoint interval is a cost knob (the {{Failure lab|#t-fail}} finds its optimum). A lost node costs <b>detection plus requeue delay</b>: here Slurm noticed after <span data-co="nodedet"></span> (<code>SlurmdTimeout=30</code>) and then waited <span data-co="nodegap"></span> before starting the requeued job (a requeued job's earliest start is pushed back by the credential lifetime, the {{Scheduling lab|#t-sched}} found in <code>job_mgr.c</code>). A hang is the worst kind: it holds every GPU <b>until a timeout fires</b> (<span data-co="hangdet"></span> here, because the lab set a short one; PyTorch's default process-group timeout is 30 minutes, NCCL's 10) and produces nothing. And one slow rank makes <b>all</b> ranks slow: synchronous training runs at the pace of the slowest, so a straggler multiplies cost by the number of GPUs waiting for it.</p>
+</section>

@@ -1,0 +1,45 @@
+<section id="co-prices">
+<h3>What a GPU-hour costs <span class="co-tag co-p">published</span></h3>
+<p>Three kinds of price, and they are not interchangeable. <dfn>On-demand list</dfn>: pay per hour, stop any time, no promise of capacity. <dfn>Reserved</dfn> (commitments, capacity blocks, cluster contracts): a lower or fixed rate for a term, <b>paid whether the GPUs work or not</b>, which is why every loss in this lab becomes real money on a reservation. <dfn>Spot</dfn>: spare capacity at a discount that the provider can take back with short notice, usable only by jobs that checkpoint and restart well. All prices per GPU-hour, US East, read on 2026-10-16 from each provider's own pages or price data; an 8-GPU instance price is divided by 8.</p>
+<div class="tw"><table class="co-tbl" id="co-pt"><thead><tr><th>Provider</th><th>GPU</th><th>Kind</th><th class="num">$ / GPU-hour</th><th>What it is</th></tr></thead><tbody></tbody></table></div>
+<ul class="small">
+<li>Not like for like: Lambda's on-demand price is one 8-GPU machine; its reserved price is an InfiniBand cluster of 16 to 2,000+ GPUs, which is why the "reserved" rate is higher than the on-demand one. A multi-node training run needs the cluster, so the cluster price is the honest one for it.</li>
+<li>AWS's public spot price feed (<code>website.spot.ec2.aws.a2z.com/spot.js</code>) was last modified on 2024-05-13 and lists p5.48xlarge above its current on-demand price, so it is stale and not used. Google Cloud's GPU price tables load in the browser and could not be read as text; not included.</li>
+<li>Azure's reservation figures are the price of the whole term; the table divides by the hours in it (8,760 a year) and by 8 GPUs. Large customers negotiate prices that are not published; treat these as ceilings.</li>
+</ul>
+</section>
+
+<section id="co-calc">
+<h3>Run-cost calculator <span class="co-tag co-d">derived</span></h3>
+<p>From a model and a token budget to days and dollars, with every assumption visible. The compute side (6 FLOPs per parameter per token, peak FLOPs, MFU) is the {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} page's, with the same peak values, so the two pages agree; its <i>Run and serving planner</i> tab sizes a cluster for a deadline. What this calculator adds is the infrastructure: failures, checkpoints, restarts, idle reservation, and the price kind.</p>
+<div class="co-card">
+<div class="co-calc">
+<label>Model<select id="co-c-model"></select><span class="src" id="co-c-model-s"></span></label>
+<label>Training tokens (trillions)<input type="number" id="co-c-tok" min="0.01" step="0.1"><span class="src" id="co-c-tok-s"></span></label>
+<label>GPU<select id="co-c-gpu"><option value="h100">H100 SXM (989.5 TFLOP/s dense BF16)</option><option value="b200">B200 (2,250 TFLOP/s dense BF16)</option></select><span class="src">Peaks as on Performance math (NVIDIA datasheets)</span></label>
+<label>GPUs<input type="number" id="co-c-n" min="8" step="8"></label>
+<label>MFU (%)<input type="number" id="co-c-mfu" min="1" max="80" step="1"><span class="src">Llama 3 405B: 38 to 43% (Table 4) <span class="co-tag co-p">published</span></span></label>
+<label>Price<select id="co-c-price"></select></label>
+<label>Interruptions per 1,000 GPU-days<input type="number" id="co-c-fr" min="0" step="0.01"><span class="src" id="co-c-fr-s"></span></label>
+<label>Checkpoint stall (s)<input type="number" id="co-c-ck" min="0" step="5"><span class="src"><span class="co-tag co-a">assumption</span> time training stops per save; async saving shrinks it ({{Storage lab|#t-io}})</span></label>
+<label>Restart time (min)<input type="number" id="co-c-rs" min="0" step="1"><span class="src"><span class="co-tag co-a">assumption</span> detect, replace node, reschedule, reload</span></label>
+<label>Checkpoint interval (min)<input type="number" id="co-c-iv" min="1" step="1"><span class="src"><button id="co-c-yd" class="small">Use Young/Daly optimum</button> &radic;(2 &times; stall &times; MTBF), derived on the {{Failure lab|#t-fail}}</span></label>
+<label>Reserved but not running this job (%)<input type="number" id="co-c-idle" min="0" max="90" step="1"><span class="src"><span class="co-tag co-a">assumption</span> queue gaps, fragmentation, maintenance; the Slurm FIFO queue above left 29% idle</span></label>
+<label>Deadline for capacity planning (days)<input type="number" id="co-c-dl" min="1" step="1"></label>
+</div>
+<div class="out" id="co-c-out"></div>
+<p class="co-res" id="co-c-res"></p>
+<p class="co-why">Formulas: training FLOPs = 6 &times; parameters &times; tokens; ideal GPU-hours = FLOPs / (peak &times; MFU) / 3,600; job MTBF = 1 / (interruption rate per GPU &times; GPUs), so a job twice as big fails twice as often; goodput = 1 &minus; stall/interval &minus; (interval/2 + restart)/MTBF (first-order: on average half an interval is redone per failure); wall days = ideal GPU-hours / GPUs / goodput / 24; paid GPU-hours = GPUs &times; wall hours / (1 &minus; idle share). Capacity planning solves for the GPU count that meets the deadline, with goodput recomputed at each count. Checked against <code>src/cost/recompute.py</code>.</p>
+</div>
+</section>
+
+<section id="co-wf">
+<h3>The utilisation waterfall: from a paid GPU-hour to useful FLOPs</h3>
+<p>Every loss on this tab in one picture: each bar is the share of paid GPU-hours still doing useful work after one more kind of loss. Toggle <b>before</b> and <b>after</b> to watch the biggest infrastructure loss being fixed on the same input.</p>
+<div class="co-card" id="co-wf-card">
+<div class="co-seg" id="co-wf-pre" role="group" aria-label="Preset"><button class="on" data-m="local">This Mac, measured</button><button data-m="scale">At scale, published</button></div>
+<div class="co-seg" id="co-wf-ba" role="group" aria-label="Before or after"><button class="on" data-m="before">Before</button><button data-m="after">After the fix</button></div>
+<div class="co-svg" id="co-wf-svg"></div>
+<p class="co-cap" id="co-wf-cap"></p>
+</div>
+</section>
