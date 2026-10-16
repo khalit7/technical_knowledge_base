@@ -1,0 +1,64 @@
+<section id="rd-s9">
+<h2>9. Choosing</h2>
+<p>The scheduler matters less than people argue: the evidence in section 3 shows every large operator extending whatever it chose with health checks, fast restarts and storage sized for checkpoints. Choose by what else the cluster must do and who will use it.</p>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Your situation</th><th>Start with</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>A fixed bare-metal GPU cluster, mostly big training runs, researchers used to HPC</td><td data-h="Start with">Slurm (managed by the provider, or Slurm on Kubernetes)</td><td data-h="Why">queues, backfill, fairshare and gang allocation out of the box; one script per job; the least to debug</td></tr>
+<tr><td>A platform team already running Kubernetes for serving and pipelines, or elastic cloud capacity</td><td data-h="Start with">Kubernetes with Kueue and JobSet (and the Kubeflow Trainer)</td><td data-h="Why">one control plane for every workload; quotas and borrowing across teams; containers everywhere</td></tr>
+<tr><td>A job made of many cooperating programs: RL with rollout workers and inference engines, data processing, hyperparameter search</td><td data-h="Start with">Ray, on Kubernetes through KubeRay</td><td data-h="Why">tasks, actors and an object store make the program itself distributed; Kubernetes and Kueue still handle teams and quotas</td></tr>
+<tr><td>A few nodes, one team</td><td data-h="Start with">torchrun over SSH, or Slurm on the nodes</td><td data-h="Why">a scheduler pays off once people queue for the same GPUs</td></tr>
+</tbody></table></div>
+<p>Whatever the choice, the same five things decide whether 1,000 GPUs do useful work: <b>gang admission</b> (no partial jobs), <b>health checks with automatic draining</b>, <b>checkpoints that are sharded and asynchronous</b>, <b>storage sized for the checkpoint burst</b>, and <b>meters for goodput and MFU, not just utilisation</b>.</p>
+</section>
+
+<section id="rd-mis">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>Asking for far more time than the job needs</summary><div class="b">The scheduler plans with your limit, so the job is never backfilled and waits behind everything (section 2). Ask for the expected time plus a margin; checkpoint so that hitting the limit costs little.</div></details>
+<details class="mist"><summary>Submitting multi-pod training to plain Kubernetes</summary><div class="b">The default scheduler places pods one at a time; two jobs can each get part of what they need and deadlock, holding GPUs that do nothing (OpenAI's 2021 experience). Admit jobs as a whole: Kueue, JobSet with Kueue, Volcano, or the coscheduling plugin. <span class="rd-todo">TODO (sched lab): the real <code>kubectl get pods</code> picture of the deadlock on kind.</span></div></details>
+<details class="mist"><summary>A rendezvous address that only works on one node</summary><div class="b"><code>MASTER_ADDR=localhost</code> or a short host name that other nodes resolve differently makes every other rank wait until the timeout. Use the first node of the allocation (Slurm) or pod 0's DNS name through the headless service (JobSet). <span class="rd-todo">TODO (launch lab): the real error text and the time to error.</span></div></details>
+<details class="mist"><summary>Trusting the default timeouts, or setting them too short</summary><div class="b">At 30 minutes (gloo) or 10 minutes (NCCL) a hang burns that much of every GPU before anything fails; but a timeout shorter than your slowest legitimate wait (a first-step compile, a large synchronous checkpoint) kills healthy jobs. Set it on purpose, and add a watchdog on step progress.</div></details>
+<details class="mist"><summary>A restart that lands on the same broken node</summary><div class="b">If the failed node is not drained or cordoned, the requeued job is placed on it again and fails again: a restart loop that looks like a software bug. Health checks must take the node out automatically (Ai2's Beaker cordons and reschedules; Slurm runs a <code>HealthCheckProgram</code> periodically on every node, and that script drains the node itself, for example with <code>scontrol update NodeName=... State=drain</code>: {{slurm.conf|https://slurm.schedmd.com/slurm.conf.html}}).</div></details>
+<details class="mist"><summary>A checkpoint that restores the model but not the run</summary><div class="b">Without the optimiser state, the learning-rate scheduler step, the data loader's position and the random-number generators, a resumed run sees different data and its loss jumps. Save all of them, and test a restore before you need one. <span class="rd-todo">TODO (failure lab): the measured loss continuity after resume, bit-exact or not.</span></div></details>
+<details class="mist"><summary>Checkpoints only on node-local disk, or gathered on rank 0</summary><div class="b">Local disk dies with the node it was meant to protect against; gathering everything on rank 0 is slow and can run that rank out of memory. Stage locally if you like, but upload, and shard the write across ranks.</div></details>
+<details class="mist"><summary>Reading 100% GPU utilisation as efficiency</summary><div class="b">It means a kernel was running (section 7). Track tokens per second and MFU.</div></details>
+<details class="mist"><summary>Elastic restarts that silently change the experiment</summary><div class="b">Continuing on fewer workers changes the global batch size (or the steps per epoch) unless the code compensates; torchrun also reassigns ranks between restarts, so code that assumed a fixed rank-to-data mapping reads the wrong shards.</div></details>
+</section>
+
+<section id="rd-iq">
+<h2>Interview questions</h2>
+<details class="qa"><summary>Design the training platform for a 1,000-GPU lab: scheduler, storage, failure handling, cost controls.</summary><div>
+<p><b>Shape:</b> 125 nodes of 8 GPUs, NVLink inside, one 400 Gb/s NIC per GPU on a rail-optimised fabric, a separate front-end network. <b>Scheduler:</b> Slurm with fairshare and QOS if most work is large training by researchers; Kubernetes with Kueue (team ClusterQueues in a cohort, borrowing, preemption) and JobSet if the lab also serves models and runs pipelines; either way gang admission and topology-aware placement, and a low-priority preemptible queue that soaks up idle GPUs. <b>Failures:</b> at Llama 3's rate a 1,000-GPU job stops about every 51 hours; with a 1-minute blocking checkpoint, Young gives about 78 minutes between checkpoints and about 3% loss with 10-minute restarts (the calculator in section 5). Add asynchronous checkpoints, preflight and periodic health checks with automatic drain, a few spare nodes, and automatic requeue. <b>Storage:</b> a parallel file system sized for the checkpoint burst (a 70B model is about 1 TB, so about 16 GB/s to write it in a minute), object storage for datasets and old checkpoints, local NVMe for staging. <b>Cost:</b> per-team quotas, dashboards of allocated against idle GPUs, goodput and MFU per job, alerts on step time and on GPUs allocated but idle.</p></div></details>
+<details class="qa"><summary>A 512-GPU job is stuck at init. What do you check, in order?</summary><div>
+<p>(1) Did every rank start? Count processes or pods against the world size; find the missing one in the scheduler's per-node logs or the pod status (image pull, out of memory, a bad node). (2) Can every node reach <code>MASTER_ADDR:MASTER_PORT</code>, and does the name resolve the same everywhere? (3) Do all ranks agree on the world size and the rendezvous id? (4) If all arrived and it hangs inside <code>init_process_group</code> or the first collective: <code>NCCL_DEBUG=INFO</code> for transport errors, <code>py-spy dump</code> on a few ranks, the flight recorder to find the rank out of step, then that node's health (NICs down, GPU Xid errors). Drain the bad node and resubmit.</p></div></details>
+<details class="qa"><summary>Your job has been pending for hours. Why?</summary><div>
+<p>Ask the scheduler: Slurm's <code>squeue</code> prints a reason such as "Resources" (waiting for nodes), "Priority" (higher-priority jobs exist for the partition) or a QOS limit ({{squeue reason codes|https://slurm.schedmd.com/squeue.html#SECTION_JOB-REASON-CODES}}); on Kubernetes, <code>kubectl describe</code> the pod's events and Kueue's Workload status (quota exhausted, waiting to be admitted). Then fix the cause: a smaller or shorter request, another partition, or quota.</p></div></details>
+<details class="qa"><summary>Slurm or Kubernetes for training?</summary><div>
+<p>Slurm gives batch semantics (queue, backfill, fairshare, all-or-nothing allocations) for free and is simplest for big synchronous jobs on a fixed cluster. Kubernetes gives one platform for everything and an ecosystem, but needs Kueue or Volcano and JobSet to behave like a batch system. The deciding question is what else must run on the cluster and who operates it. Both are used at frontier scale (section 3).</p></div></details>
+<details class="qa"><summary>Why does distributed training need gang scheduling?</summary><div>
+<p>Synchronous training cannot start until all ranks exist; a partly started job holds GPUs and does nothing. Two partly started jobs can each wait forever for GPUs the other holds: a deadlock. All-or-nothing admission prevents both.</p></div></details>
+<details class="qa"><summary>How often should a 16,000-GPU run checkpoint?</summary><div>
+<p>Estimate the job's MTBF (Llama 3: about 3.1 hours on 16,384 GPUs) and the blocking write time C; Young's &radic;(2CM) gives about 19 minutes for C = 1 minute. Then make C smaller (asynchronous, in-memory copies) because the loss falls with &radic;C, and make restarts faster because each one costs R on top.</p></div></details>
+<details class="qa"><summary>Goodput against MFU?</summary><div>
+<p>Goodput is the share of paid time spent making progress (lost to queues, launches, failures, checkpoints); MFU is how much of the chip's peak the progress uses while it runs. Cost per useful FLOP is the product of both: 90% goodput at 40% MFU uses 36% of what you paid for.</p></div></details>
+<details class="qa"><summary>One GPU in a data-parallel job is 20% slower. What happens?</summary><div>
+<p>Every step waits for it at the gradient all-reduce, so the whole job runs about 20% slower, and the other GPUs show high "utilisation" while waiting. Find it from per-rank step or collective times, then drain the node.</p></div></details>
+<details class="qa"><summary>What does torchrun do when one worker dies?</summary><div>
+<p>The agent stops and restarts all workers, up to <code>--max-restarts</code>; "if k&lt;=n workers fail all workers are stopped and restarted" (torchrun's docstring, torch 2.14.1). A lost node (agent failure) is left to the job manager: fail the job or replace the node.</p></div></details>
+</section>
+
+<section id="rd-kids">
+<h2>Child pages</h2>
+<p>Each owns one subject in depth; links will be added when the pages exist in Notion.</p>
+<div class="kids">
+<div><b>Cluster anatomy</b>Nodes, GPUs, the networks and storage, the control plane, and how a cluster is laid out.<span class="own">Owns: node and fabric design for training clusters.</span></div>
+<div><b>Slurm</b>Allocation, the controller and node daemons, backfill, fairshare, QOS, preemption, accounting.<span class="own">Owns: everything Slurm.</span></div>
+<div><b>Kubernetes for ML</b>Pods, the scheduler and device plugins, Kueue, JobSet, Volcano, the Kubeflow Trainer.<span class="own">Owns: Kubernetes as a training platform.</span></div>
+<div><b>Ray</b>Tasks, actors, the GCS, raylets and the object store, placement groups, Ray Train, KubeRay.<span class="own">Owns: Ray for training and RL.</span></div>
+<div><b>Launching distributed training</b>Launchers, ranks, rendezvous, process groups, the environment each system sets, hang debugging.<span class="own">Owns: start-up and its failures.</span></div>
+<div><b>Fault tolerance at scale</b>Failure data, checkpoint and restart, async and in-memory checkpoints, elasticity, stragglers, health checks.<span class="own">Owns: keeping runs alive.</span></div>
+<div><b>Storage and data movement</b>Tiers, parallel file systems, object storage, checkpoint I/O, caching.<span class="own">Owns: bytes at rest and in flight.</span></div>
+<div><b>Observability and cost</b>Metrics that matter, DCGM, goodput, scheduling efficiency, costing a run, capacity planning.<span class="own">Owns: meters and money.</span></div>
+<div><b>ML platforms and workflows</b>Tracking, registries, pipeline engines, how they sit on schedulers.<span class="own">Owns: the loop around jobs.</span></div>
+</div>
+</section>

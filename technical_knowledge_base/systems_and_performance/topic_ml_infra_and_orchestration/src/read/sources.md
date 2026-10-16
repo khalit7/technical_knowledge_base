@@ -1,0 +1,34 @@
+# Reading tab: verified facts and their sources (checked 2026-10-16)
+
+Each line: the fact as the page uses it, the source, its date, and its label (vendor = said by the maker or seller about itself; independent = no stake; paper = the organisation's own technical report about its own run).
+
+## Who runs what
+- Meta, Llama 3 405B: up to 16K H100 (700 W, 80 GB) in Grand Teton servers of 8 GPUs, scheduled by MAST, Meta's global training scheduler; storage Tectonic, 240 PB on 7,500 SSD servers, 2 TB/s sustained, 7 TB/s peak; 466 interruptions in a 54-day snapshot, 47 planned, 419 unexpected, about 78% confirmed or suspected hardware; three needed significant manual intervention; more than 90% effective training time. Llama 3 Herd paper, section 3.3 (arXiv 2407.21783, Jul 2024), as verified on the KB paper page (3c65c17b0d0d81aca58ccb9d720b474e) and the hardware reliability page (3f05c17b0d0d8143851cfc3ae14c3c22). Paper.
+- MAST: OSDI 2024 (Choudhury et al., Meta), https://www.usenix.org/conference/osdi24/presentation/choudhury ; global scheduling across regions; most overloaded region's high-priority demand-to-supply ratio 2.63 before, 0.98 after. Paper.
+- OpenAI: Kubernetes clusters scaled to 7,500 nodes for GPT-3, CLIP, DALL-E and small research; "a single pod occupies the entire node"; biggest jobs run MPI, one communicator, any pod dies the job halts and restarts from the last checkpoint; default scheduler could place half of each of two experiments (deadlock); fixed with the Coscheduling plugin; "preflight" taint removed by a DaemonSet's GPU tests. https://openai.com/index/scaling-kubernetes-to-7500-nodes/ (Jan 25, 2021). Extract: inputs/openai_k8s_7500_extract.txt. Own blog (practitioner).
+- OpenAI and Ray: Greg Brockman at Ray Summit 2022, "We're using it to train our largest models", reported by Anyscale (vendor): https://www.anyscale.com/blog/ray-summit-2022-stories-large-language-models . Vendor-reported.
+- Google Gemini 1.0 report section 3 (arXiv 2312.11805, Dec 2023): single-controller model of JAX and Pathways, one Python process orchestrates the run; TPUv4 SuperPods of 4,096 chips; a few cubes per superpod held for hot standbys and rolling maintenance; Ultra across multiple data centres; periodic checkpoints to persistent storage impractical at that scale, redundant in-memory copies of model state instead; goodput of the largest job rose from 85% to 97%; SDC expected to hit training "every week or two". Paper.
+- Ai2 OLMo 2 (arXiv 2501.00656 section 6): Jupiter 1,024 H100 with 800 Gbps network to a WEKA storage cluster (761 Gbps read/write measured with 64 clients); Augusta on Google Cloud A3 Mega VMs, 8 H100 each, Google Cloud Storage up to 1 GB/s per VM; Beaker "a custom workload management system", containerised; health check "attempts to multiply two tensors" before a workload, on failure "Beaker cordons the associated host and reschedules the workload". Paper.
+- DeepSeek Fire-Flyer AI-HPC (arXiv 2408.14158, Aug 2024): 10,000 PCIe A100; HAI Platform time-sharing scheduler interrupts and reloads tasks (signal, save checkpoint, notify, resume); checkpoints typically every 5 minutes, over 10 GiB/s per node, saved in a few seconds, at most 5 minutes lost; 3FS 8 TB/s aggregate read; Xid 74 (NVLink) 42.57% of Xid errors, Xid 43 33.48%; IB link failures 30% of hardware faults excluding Xid 74. Paper.
+- OpenRLHF README: "the first RLHF framework built on Ray + vLLM distributed architecture" https://github.com/OpenRLHF/OpenRLHF (read 2026-10-16). Project's own.
+- Slurm in TOP500: NVIDIA says Slurm runs on more than half of the top 10 and top 100 TOP500 systems; NVIDIA acquired SchedMD on Dec 15, 2025 and says Slurm stays open source and vendor-neutral. https://blogs.nvidia.com/blog/nvidia-acquires-schedmd/ Vendor.
+- GKE 130,000-node experimental cluster (supported limit 65,000): Google Cloud blog, Nov 21, 2025, https://cloud.google.com/blog/products/containers-kubernetes/how-we-built-a-130000-node-gke-cluster/ Vendor.
+- Ray joined the PyTorch Foundation (Linux Foundation) Oct 22, 2025: https://pytorch.org/blog/pytorch-foundation-welcomes-ray-to-deliver-a-unified-open-source-ai-compute-stack/ Foundation's own.
+- SemiAnalysis ClusterMAX 2.0 (Nov 2025) rates neoclouds with separate expectations for Slurm and Kubernetes; https://clustermax.semianalysis.com/ Independent (analyst; sells research).
+
+## Platforms (status; the Tool map owns the full table)
+- CoreWeave completed its acquisition of Weights & Biases on May 5, 2025: https://coreweave.com/news/coreweave-completes-acquisition-of-weights-biases-2 Vendor.
+- Neptune: acquired by OpenAI (announced Dec 2025); hosted service wound down Mar 5, 2026: https://docs.neptune.ai/transition_hub Vendor.
+- Kubeflow Trainer v2: TrainJob plus TrainingRuntime/ClusterTrainingRuntime replace PyTorchJob, TFJob, MPIJob: https://www.kubeflow.org/docs/components/trainer/operator-guides/migration/ Project docs.
+
+## Formulas
+- Young 1974, Communications of the ACM 17(9) 530-531, doi 10.1145/361147.361115: optimal checkpoint interval about sqrt(2 C M), C checkpoint write time, M mean time between interruptions. Daly 2006 adds restart time and a higher-order term (doi 10.1016/j.future.2004.11.016).
+- Job MTBF scaling: if each GPU (with its share of host, network) fails independently at rate r, a job on N GPUs sees interruptions at rate N r, so its MTBF falls as 1/N. Llama 3: 54 days x 24 h / 419 = 3.09 h at 16,384 GPUs (derived).
+
+## Added after the setup was READY
+- Neptune transition hub: hosted app and API turned off "On March 5, 2026, at 10 am PST"; changelog "December 5, 2025: Changed the shutdown date from March 4 to March 5, 2026"; the page describes an "agreement to be acquired by OpenAI, subject to closing conditions".
+- torch 2.14.1 timeouts: default_pg_timeout 30 min (installed package); NCCL 10 min (ProcessGroupNCCL.hpp L159-160 at v2.14.1); dynamic rendezvous join_timeout 600 s (dynamic_rendezvous.py L1405); torchrun restarts all workers when k<=n fail (run.py docstring, "Failure Modes").
+- nvidia-smi utilization.gpu definition: https://docs.nvidia.com/deploy/nvidia-smi/index.html ; DCGM SM activity and the 0.8 rule: https://docs.nvidia.com/datacenter/dcgm/latest/learn/modules/profiling.html
+- slurm.conf HealthCheckProgram (the script drains the node itself): https://slurm.schedmd.com/slurm.conf.html ; squeue reason codes: https://slurm.schedmd.com/squeue.html#SECTION_JOB-REASON-CODES
+- HybridFlow (verl): "The centralized single controller is built on top of Ray" https://arxiv.org/html/2409.19256
+- Running example facts (112,577 parameters, 1,386,049-byte checkpoint, bit-identical loss on all three systems, step 200 = 2.2638769149780273, Slurm job submitted 01:10:20 and started 01:10:21, Kueue admitted at creation, init_s 2.353 s Slurm and 3.937 s Kubernetes) come from ../data/README.md and ../data/runs/.
