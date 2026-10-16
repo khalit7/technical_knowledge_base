@@ -1,0 +1,56 @@
+<section id="rd-s8">
+<h2>8. The toy cluster: what our "nodes" say they are</h2>
+<p>The parent page's labs run on a Slurm cluster of three "nodes" (<code>c1</code>, <code>c2</code>, <code>c3</code>), which are containers inside one Linux VM on a laptop. Asking them what they are is a cheap way to learn the questions to ask of a real node, because here every answer is visibly different. All of this is <span class="meas">measured</span> on 2026-10-16 with read-only commands (<code>src/meas/probe.sh</code>; output in <code>src/meas/out/</code>).</p>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Question</th><th>Answer on c1</th><th>Who says so</th></tr></thead>
+<tbody>
+<tr><td>How many CPUs?</td><td data-h="Answer"><b>1, 5, 2 or 4</b></td><td data-h="Who"><code>nproc</code> says 1 (it obeys <code>OMP_NUM_THREADS=1</code>, set in the image); <code>lscpu</code>, <code>os.cpu_count()</code> and <code>nproc</code> without that variable say 5 (the whole VM); the cgroup's <code>cpu.max</code> of <code>200000 100000</code> allows 2 CPUs' worth of time; Slurm was told 4</td></tr>
+<tr><td>How much memory?</td><td data-h="Answer"><b>9,951 MiB, 800 MiB or 4,000 MB</b></td><td data-h="Who"><code>/proc/meminfo</code> shows the VM; the cgroup's <code>memory.max</code> (838,860,800 bytes) is the real fence, past which the kernel kills a process; <code>slurm.conf</code> declares <code>RealMemory=4000</code>, and <code>scontrol show node</code> reports <code>FreeMem=5570</code>, read from the VM</td></tr>
+<tr><td>How many GPUs?</td><td data-h="Answer"><b>4 or 0</b></td><td data-h="Who">Slurm counts <code>gpu:4</code> backed by four empty files <code>/dev/mi_gpu0..3</code>; there is no <code>/dev/nvidia*</code> and no <code>/sys/class/infiniband</code></td></tr>
+<tr><td>NUMA nodes?</td><td data-h="Answer"><b>none visible</b></td><td data-h="Who"><code>/sys/devices/system/node</code> does not exist in the VM; a DGX H100 has two</td></tr>
+<tr><td>Network?</td><td data-h="Answer"><b>one 10 Gb/s "card"</b></td><td data-h="Who"><code>eth0</code>, MTU 1500, reporting <code>speed=10000</code>: a virtual Ethernet pair on Docker's bridge, so the number is a label, not a wire</td></tr>
+<tr><td>Topology?</td><td data-h="Answer"><b>none</b></td><td data-h="Who"><code>scontrol show topology</code> prints nothing: no <code>TopologyPlugin</code> is set, so Slurm treats all three nodes as equally close</td></tr>
+</tbody></table></div>
+<pre class="rd-code rd-out" id="ca-probe-pre">$ docker exec mi-slurm-c1 sh -c 'nproc; env -u OMP_NUM_THREADS nproc'
+1
+5
+$ docker exec mi-slurm-c1 sh -c 'cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/memory.max'
+200000 100000
+838860800
+$ docker exec mi-slurm-ctl scontrol show node c1     (excerpt)
+NodeName=c1 Arch=aarch64 CoresPerSocket=4
+   CPUAlloc=0 CPUEfctv=4 CPUTot=4 CPULoad=0.42
+   Gres=gpu:4
+   RealMemory=4000 AllocMem=0 FreeMem=5570 Sockets=1 Boards=1
+   CfgTRES=cpu=4,mem=4000M,billing=5,gres/gpu=4</pre>
+<p class="rd-codecap">Real output, 2026-10-16. The node's declared size and its real fence differ; on a real cluster that mismatch is a bug (section 9's first check).</p>
+<p><b>One network hop.</b> A 64-byte TCP ping-pong between <code>c1</code> and <code>c2</code> took a median round trip of <b><span id="ca-rtt-br">79</span> µs</b> (three runs of 2,000: <span id="ca-rtt-br-all"></span> µs), and <span id="ca-rtt-lo">69</span> µs inside one container over loopback <span class="meas">measured</span>. A 64-byte transfer over InfiniBand on DeepSeek's cluster took 2.8 µs one way within a leaf ({{Zhao et al. 2025, Table 5|https://arxiv.org/html/2505.09343}}) <span class="pub">authors</span>. The toy's "network" is the Linux kernel copying between two containers' sockets: the hop costs about as much as loopback, because both are the same software path. Bulk transfer was 2.3 to 5.1 GB/s across the bridge and about 1.5 GB/s over loopback inside one 2-CPU container, which shows that CPU, not wire, limits it.</p>
+<div class="co"><div class="t">What transfers to a real cluster and what does not</div>Transfers: the questions (CPUs, memory, GPUs, NUMA, NICs, topology, as each layer sees them), the habit of checking the declared size against the real fence, and the fact that Slurm schedules what it is told. Does not transfer: any speed. There is no NVLink, no RDMA, no PCIe tree and no second socket here, which is why the page's bandwidth figures are published or derived, never measured.</div>
+</section>
+
+<section id="rd-s9">
+<h2>9. Checking a real cluster</h2>
+<p>None of these could run here (no GPUs, no InfiniBand); they are what to run on the first day on a new cluster, each with what to look for. The parent's {{Failure lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} and the sibling Observability and cost cover health checks that run every day.</p>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Question</th><th>Command</th><th>What to look for</th></tr></thead>
+<tbody>
+<tr><td>Are GPUs, NICs and NUMA nodes paired as expected?</td><td data-h="Command"><code>nvidia-smi topo -m</code></td><td data-h="Look for">a matrix of GPUs and NICs: <code>NV#</code> between GPUs (NVLink), <code>PIX</code> between each GPU and its own NIC, and the CPU and NUMA affinity column per GPU, which tells you how to bind ranks</td></tr>
+<tr><td>Are all NVLinks up?</td><td data-h="Command"><code>nvidia-smi nvlink --status</code></td><td data-h="Look for">every link at the same speed; one inactive link slows every collective that uses it</td></tr>
+<tr><td>Are the compute NICs up, at full rate?</td><td data-h="Command"><code>ibstat</code>, <code>ibv_devinfo</code></td><td data-h="Look for">every port <code>Active</code>, the expected rate (400 for NDR), the expected link layer (InfiniBand, or Ethernet for RoCE)</td></tr>
+<tr><td>What does the PCIe tree look like?</td><td data-h="Command"><code>lspci -tv</code>, <code>lstopo</code> (hwloc)</td><td data-h="Look for">which GPUs, NICs and NVMe drives share a PCIe switch and a socket; links trained at the right width and generation</td></tr>
+<tr><td>NUMA layout</td><td data-h="Command"><code>numactl -H</code></td><td data-h="Look for">two nodes on a two-socket server, with the cores and memory of each</td></tr>
+<tr><td>What did NCCL pick?</td><td data-h="Command"><code>NCCL_DEBUG=INFO</code>, <code>NCCL_TOPO_DUMP_FILE=topo.xml</code></td><td data-h="Look for">which transport (<code>NET/IB</code> or <code>NET/Socket</code>), which NIC per GPU; the dumped XML is NCCL's view of the tree ({{NCCL env|https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html}})</td></tr>
+<tr><td>Does the scheduler know the shape?</td><td data-h="Command"><code>scontrol show topology</code>, <code>scontrol show node</code>; <code>kubectl get nodes --show-labels</code></td><td data-h="Look for">switches or blocks matching the real wiring; declared CPUs, memory and GPUs equal to what the node has</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="rd-mis">
+<h2>Common mistakes</h2>
+<details class="mist"><summary>NCCL quietly uses TCP sockets instead of InfiniBand</summary><div class="b">With <code>NCCL_DEBUG=INFO</code> the log says <code>NET/IB : No device found.</code> (NCCL's <code>src/transport/net_ib.cc</code> line 749 at tag <code>v2.27.7-1</code>) and then uses <code>NET/Socket</code>. The job runs, much slower, with no error. Usual causes: a container started without the RDMA devices (<code>/dev/infiniband</code>) or the user-space RDMA libraries. Always grep the first job on a new cluster or image for the transport line.</div></details>
+<details class="mist"><summary>The socket interface name is wrong on some nodes</summary><div class="b"><code>NET/Socket : no interface found</code> (<code>net_socket.cc</code> line 50, same tag) when <code>NCCL_SOCKET_IFNAME</code> names an interface the node does not have; common when two node types name their Ethernet ports differently. Use a prefix (<code>NCCL_SOCKET_IFNAME=eth</code>) or check every node type.</div></details>
+<details class="mist"><summary>Scheduling what Slurm was told instead of what the node has</summary><div class="b">Slurm hands out the resources in <code>slurm.conf</code>; slurmd compares some of them with the hardware. On this topic's toy cluster a node declared with <code>gpu:4</code> and no device files went INVAL with <code>gres/gpu count reported lower than configured (0 &lt; 4)</code> <span class="meas">measured</span> (the parent's setup), while 4 declared CPUs on a 2-CPU cgroup passed silently (section 8). Compare <code>scontrol show node</code> with <code>nvidia-smi</code>, <code>lscpu</code> and the cgroup limits.</div></details>
+<details class="mist"><summary>Asking the container how many CPUs it has</summary><div class="b"><code>nproc</code> printed 1 because of <code>OMP_NUM_THREADS</code>; <code>os.cpu_count()</code> printed the whole VM's 5; the cgroup allowed 2 <span class="meas">measured</span>. A data loader that starts <code>os.cpu_count()</code> workers in a container limited to a few CPUs oversubscribes them. Read the cgroup (<code>cpu.max</code>) or the scheduler's variables (<code>SLURM_CPUS_PER_TASK</code>).</div></details>
+<details class="mist"><summary>Reading a vendor's "900 GB/s" as one direction</summary><div class="b">NVLink 4's "900 GB/s" adds both directions: 450 GB/s each way. The same for NVL72's "130 TB/s". Network cards are quoted per direction (400 Gb/s = 50 GB/s each way). Mix them and NVLink looks 18 times faster than the network instead of 9.</div></details>
+<details class="mist"><summary>Sizing storage for the average, or power for the GPUs</summary><div class="b">The checkpoint burst, not the average read rate, decides how long GPUs wait (section 5: 51 s for a 4 GB-per-GPU checkpoint on 1,016 GPUs at 80 GB/s). And GPUs are only about 55% of a DGX H100's 10.2 kW (the power page), so a plan from GPU watts is short by almost half.</div></details>
+<details class="mist"><summary>"Any 16 free GPUs are the same"</summary><div class="b">Only on an idle, non-oversubscribed network. Section 4: the same job is 7 times slower in its bandwidth term when spread across a 1:7 top layer that other jobs are using <span class="der">derived</span>.</div></details>
+</section>

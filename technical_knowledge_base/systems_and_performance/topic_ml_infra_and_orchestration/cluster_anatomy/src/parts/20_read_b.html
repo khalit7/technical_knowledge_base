@@ -1,0 +1,36 @@
+<section id="rd-s2">
+<h2>2. The scale-up domain: how many GPUs share NVLink</h2>
+<p><b>The idea.</b> The <dfn>scale-up domain</dfn> (NVIDIA says <dfn>NVLink domain</dfn>) is the set of GPUs joined by memory-speed links, so that any of them can read another's memory at hundreds of GB/s. Outside it, GPUs talk through network cards at about a ninth of that (450 against 50 GB/s each way for an H100 and a 400 Gb/s card <span class="der">derived</span>). The {{interconnects page|n:3c65c17b0d0d81808563fd41fb163af0}} explains why tensor and expert parallelism must stay inside the domain; here the question is what the domain's size does to a cluster.</p>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>System</th><th>GPUs in one domain</th><th>Joined by</th><th>Label</th></tr></thead>
+<tbody id="ca-su-rows"></tbody></table></div>
+<p><b>What changes when the domain is a rack instead of a server.</b> With 8-GPU servers, a node is both the unit the scheduler hands out and the whole scale-up domain, and any two free nodes are as good as any other two for a data-parallel job. With a GB200 NVL72, 18 compute trays of 4 GPUs share one NVLink domain of 72 ({{DGX GB200 user guide|https://docs.nvidia.com/dgx/dgxgb200-user-guide/hardware.html}}) <span class="vend">vendor</span>, so:</p>
+<ul>
+<li><b>The scheduler must know which trays are in which rack.</b> Eight trays in one rack form a 32-GPU NVLink group; eight trays spread over eight racks do not. Slurm describes this with its topology plugins (<code>topology/tree</code> for switch trees, <code>topology/block</code> for blocks such as NVLink racks: {{Slurm topology guide|https://slurm.schedmd.com/topology.html}}), Kueue with Topology Aware Scheduling ({{Kueue TAS|https://kueue.sigs.k8s.io/docs/concepts/topology_aware_scheduling/}}). The siblings Slurm and Kubernetes for ML show them working; the parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} runs topology-aware placement on its toy clusters.</li>
+<li><b>The rack becomes the unit of power and cooling:</b> about 120 kW, liquid-cooled (same guide), against 10.2 kW for an air-cooled DGX H100. Section 6.</li>
+<li><b>The rack becomes a unit of failure and maintenance.</b> A tray can be swapped, but the NVLink switch trays serve all 72 GPUs; how operators handle a partly broken rack is described on {{Power, cooling and reliability|n:3f05c17b0d0d8143851cfc3ae14c3c22}} and the sibling Fault tolerance at scale.</li>
+</ul>
+<div class="pr"><div class="q">Predict. A model needs tensor parallelism of 16. On 8-GPU H100 servers, what carries half of each tensor-parallel all-reduce, and how much slower is it than NVLink?</div>
+<div class="opts"><button data-a="0">NVLink still, the NVSwitches of two servers are joined</button><button data-a="1">The compute NICs, about 9 times slower</button><button data-a="0">PCIe, about 2 times slower</button></div>
+<div class="ans" hidden>A group of 16 spans two servers, so the all-reduce has to cross the 400 Gb/s NICs: 50 GB/s against 450 GB/s each way, 9 times slower <span class="der">derived</span>, on the critical path of every layer. That is why Llama 3 used tensor parallelism of exactly 8, and why rack-scale domains exist: on an NVL72 a group of 16 (or 64) stays on NVLink.</div></div>
+</section>
+
+<section id="rd-s3">
+<h2>3. The four networks (and which byte rides which)</h2>
+<p><b>The problem.</b> A training cluster moves very different kinds of traffic: gradients between GPUs (huge, bursty, every step, and the step waits for them), training data and checkpoints (large, steady or bursty), logins, job submissions and container images (small, many), and the "turn it off and on again" commands for a node whose operating system is dead. Putting all of it on one network lets a checkpoint burst slow the gradients, or a broken switch take away the only way to reach a hung node. So clusters separate them.</p>
+<p><b>The four networks</b> of NVIDIA's DGX SuperPOD reference design, in its own words: "DGX SuperPOD configurations utilize four network fabrics" ({{SuperPOD network fabrics|https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/network-fabrics.html}}) <span class="vend">vendor</span>, plus the NVLink inside each node:</p>
+<div class="rd-card" id="ca-net-card">
+<h4>Which network does this traffic ride? (SuperPOD layout)</h4>
+<div class="chips" id="ca-net-chips"></div>
+<div class="ca-net" id="ca-net-boxes"></div>
+<div class="ca-det" id="ca-net-det"></div>
+</div>
+<ul>
+<li><b>Compute fabric</b> (also <dfn>back-end</dfn>, <dfn>east-west</dfn> or <dfn>scale-out</dfn> network): one 400 Gb/s port per GPU, InfiniBand or RoCE, rail-optimised. Only GPU-to-GPU traffic: the collectives of the training job.</li>
+<li><b>Storage fabric:</b> the two dual-port cards per node to the shared file system. NVIDIA asks that "the I/O per-node for the DGX SuperPOD must exceed 40 GBps", with the node side "slightly oversubscribed with a ratio near 4:3" (same page).</li>
+<li><b>In-band management</b> (often called the <dfn>front-end</dfn>): ordinary Ethernet to the login nodes, the scheduler (Slurm, Kubernetes, Run:ai in NVIDIA's list), home directories over NFS and outside services such as container registries.</li>
+<li><b>Out-of-band management</b> (<dfn>OOB</dfn>): 1 GbE to "the management ports of all devices including DGX and management servers, storage, networking gear, rack PDUs": the BMCs, so a hung node can be power-cycled.</li>
+</ul>
+<p><b>Not everyone splits them the same way.</b> Meta's description of its RoCE clusters uses two names: "the frontend (FE) network for tasks such as data ingestion, checkpointing, and logging", and the backend, "a specialized fabric that connects all RDMA NICs in a non-blocking architecture" ({{Meta engineering, Aug 5 2024|https://engineering.fb.com/2024/08/05/data-center-engineering/roce-network-distributed-ai-training-at-scale/}}) <span class="pub">published</span>: storage rides the front-end. DeepSeek's Fire-Flyer 2 goes the other way: each node has a single 200 Gb/s InfiniBand card, and its storage servers sit on the same fabric, "each storage server equipped with two IB NICs, respectively connected to different zones" ({{Fire-Flyer 2, section III|https://arxiv.org/html/2408.14158v2}}) <span class="pub">authors</span>, so gradients and checkpoints share one network; the paper keeps them apart with InfiniBand service levels mapped to virtual lanes, so that "flows in distinct lanes do not interfere with each other" (section VI-A1). Three designs, three answers: the choice is cost (every separate network is cables, switches and ports) against interference.</p>
+<div class="co key"><div class="t">One thing that surprises people: NCCL's bootstrap uses the front-end</div>Before NCCL opens its fast InfiniBand or RoCE connections, ranks exchange their addresses over ordinary TCP sockets, on whatever interface <code>NCCL_SOCKET_IFNAME</code> selects (or NCCL's guess). A job whose ranks cannot reach each other on the management network hangs at initialisation even though the compute fabric is fine. The sibling Launching distributed training covers bootstrap and its hangs.</div>
+</section>
