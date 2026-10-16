@@ -85,3 +85,6 @@ Format: fact | source | note. arXiv numbers read from the arXiv HTML version (ta
 - Dolma 3 web MinHash: 26 bands of 11; the formula gives 90.3% at 0.8 and 9.0% at 0.6, matching the README's 90% / 10%.
 - FineWeb-Edu "F1 82%" matches a macro F1 (Quality lab: 0.85 macro, 0.72 positive class on 1,500 rows).
 - Real page for the Reading animation: protectnmwater.org (CC-MAIN-2024-30 file 00000): in FineWeb and FineWeb-Edu (score 2.765625); FineWeb-Edu classifier 2.765 here; DCLM fastText 0.00164 (< 0.0181 cut); WET text removed by gopher_below_alpha_threshold (alpha 0.751 with spaCy-like tokens), trafilatura 0.801 passes.
+
+### read: final pass 2026-10-16
+- Reading now quotes: DoReMi on five domains (averaged weights web 2.6%, wiki 10.7%, code 37.9%, maths 38.5%, papers 10.3%; proxy 0.35 to 0.39 nats worse), WRAP rephrasing with Qwen3-4B (Medium length 1.02, numbers kept 93.7%, preamble 18.5%; Easy 0.52, 47.0%; FineWeb-Edu pass sources 8.5% vs 7.0 to 17.0%), the Qwen3-4B judge (67/55/53/66%), Qwen3-0.6B and 1.7B perplexity, SemDeDup on FineWeb 50k (0/7/49/242/569), D4 on FineWeb-Edu 50k (pruned median 3.02 vs 2.91), FineWeb 50k classifier overlap 16.0% (Spearman 0.41), IF_multi_constraints_upto5 22 copies in 21 rows.

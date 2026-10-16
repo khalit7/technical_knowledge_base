@@ -119,7 +119,14 @@ for r in nemo['table4']:
 
 # ---------------------------------------------------------------- 5. proxy experiment: smoke (measured) and results (pending)
 proxy_view = None
-if proxy:
+if proxy and 'fit' not in proxy:
+    # only DoReMi ran (2026-10-16); the RegMix sweep and rank check were dropped (see the child's README)
+    dm = proxy['doremi'][0]; names = proxy['names']
+    proxy_view = dict(names=names, fit=None, device=dm.get('device'),
+                      doremi=dict(ref_w=[round(dm['ref_weights'][n], 4) for n in names], avg_w=[round(dm['avg_weights'][n], 4) for n in names],
+                                  ref_loss=[round(dm['ref_val_loss'][n], 3) for n in names], proxy_loss=[round(dm['proxy_val_loss'][n], 3) for n in names],
+                                  steps=dm['config']['steps'], minutes=round((dm['seconds'] + dm['ref_seconds']) / 60)))
+elif proxy:
     names = proxy['names']; runs = proxy['runs']
     f = proxy['fit']; t = [f['t'][n] for n in names]
     pts = []

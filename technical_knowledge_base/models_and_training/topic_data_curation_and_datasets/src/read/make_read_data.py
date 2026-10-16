@@ -25,6 +25,8 @@ out = {
         'edu_score': 2.765, 'edu_int': 3, 'dclm_p': 0.00164, 'dclm_cut': q['dclm_cut'],
         'in_fineweb': True, 'in_fineweb_edu': True, 'fineweb_edu_stored_score': 2.765625,
     },
+    # the Synthetic data child's full rephrasing run (200 pages x 4 styles, Qwen3-4B), for the Post-training lab's box
+    'syn': J('..', 'synthetic_data', 'src', 'data', 'syn_data.json')['rephrase_stats'],
     'funnel': fr['todo4_measured_funnel'],
     'chardup': fr['todo5_char_dup'],
 }
