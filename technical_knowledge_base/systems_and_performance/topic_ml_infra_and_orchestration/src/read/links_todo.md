@@ -26,6 +26,7 @@ Written 2026-10-16 in the root fix pass. None of the 9 children has a Notion id 
 | `31_tab_sched_d.html` | 37 | Slurm from zero |
 | `31_tab_sched_d.html` | 78 | Kubernetes for ML, Ray, Slurm from zero |
 | `32_tab_launch_e.html` | 28 | Kubernetes for ML, Launching distributed training, Ray, Slurm from zero |
+| `33_tab_fail_c.html` | 108 | Launching distributed training (added 2026-10-16, restart-store mechanism) |
 | `33_tab_fail_d.html` | 35 | Ray |
 | `33_tab_fail_d.html` | 47 | Fault tolerance at scale, Kubernetes for ML, Ray |
 | `34_tab_io_d.html` | 83 | Fault tolerance at scale, Storage and data movement |
@@ -43,7 +44,7 @@ Written 2026-10-16 in the root fix pass. None of the 9 children has a Notion id 
 
 Where they are, by kind:
 - Reading deepnotes ("Go deeper (optional)") at the end of sections 1 to 8: `20_read_a.html` to `20_read_e.html`.
-- Reading child-page grid `#rd-kids` (`20_read_f.html`) and the Further reading child grid (`39_tab_more.html`): one card per child, title, reading time, one line; Launching distributed training and ML platforms and workflows say "being built" (update their times when built).
+- Reading child-page grid `#rd-kids` (`20_read_f.html`) and the Further reading child grid (`39_tab_more.html`): one card per child, title, reading time, one line; all nine built; Launching distributed training (36 min) and ML platforms and workflows (35 min) filled in 2026-10-16 from their own pages.
 - One "Go deeper (optional)" line per lab tab: Scheduling `31_tab_sched_d.html`, Launch `32_tab_launch_e.html`, Failure `33_tab_fail_d.html` (also `33_tab_fail_a.html`), Storage `34_tab_io_d.html`, Cost `35_tab_cost_d.html`, Tool map `36_tab_map_b.html`.
 - In-text mentions: Reading section 2 (Slurm from zero, backfill log), Scheduling lab sections 5 and 9 (Kubernetes for ML, Slurm from zero), Failure lab mistakes (Ray).
 
