@@ -1,0 +1,60 @@
+<section id="s-data">
+<h2>Ray Data: streaming blocks through the cluster</h2>
+<p><b>The problem.</b> Training reads and transforms data (decode, tokenize, augment, pack) while GPUs wait. Doing it inside each training process ties preprocessing to the trainer's CPUs; doing it all up front needs storage for the whole result and a long wait before the first step.</p>
+<p><b>How it works.</b> A Ray Data <code>Dataset</code> is a lazy plan: <code>read_*</code> or <code>from_items</code>, then transformations such as <code>map_batches(fn)</code>, then a consumer such as <code>iter_batches</code> or a Ray Train worker. Data moves as <b>blocks</b> (chunks of rows in Arrow, pandas or NumPy form) stored in the object store; Ray Data "attempts to bound block sizes between 1 MiB and 128 MiB" ({{Ray Data internals|https://docs.ray.io/en/latest/data/data-internals.html}}; <code>DEFAULT_TARGET_MAX_BLOCK_SIZE</code>, <code>python/ray/data/context.py</code> line 76). When the consumer starts pulling, the <b>streaming executor</b> runs every operator at once: each operator "takes in and outputs a stream of blocks", each block is processed by a Ray task (or an actor pool for stateful work such as a model), and the first batch arrives as soon as the first block has passed every stage. Two refinements:</p>
+<ul class="tight">
+<li><b>Operator fusion.</b> Consecutive map operators with compatible remote arguments are merged into one task per block, so a block goes through both functions without being written to the object store in between (<code>are_remote_args_compatible</code>, <code>python/ray/data/_internal/logical/rules/operator_fusion.py</code> lines 886 to 899: different <code>num_cpus</code> means no fusion).</li>
+<li><b>Backpressure.</b> "To limit object store use, Ray Data applies backpressure and stops launching tasks once enough data is buffered" (same docs page), so a slow consumer does not make the producers fill memory.</li>
+</ul>
+<p class="ry-src-q">From <code>src/scripts/ry_data.py</code>: the running example's text in 24 chunks, two pretend preprocessing stages (0.3 s and 0.2 s of work per block), a pretend training loop (0.1 s per batch of 512 samples):</p>
+<pre>ds = ray.data.from_items(items, override_num_blocks=24)
+ds = ds.map_batches(encode, batch_size=1)                 <span class="c"># characters to ids</span>
+<span class="c"># staged: ds = ds.materialize()   (finish stage 1 everywhere first)</span>
+ds = ds.map_batches(window, batch_size=1)                 <span class="c"># pipelined: num_cpus=0.5 stops fusion</span>
+for b in ds.iter_batches(batch_size=512, batch_format="numpy"):
+    time.sleep(0.1)                                       <span class="c"># a training step</span></pre>
+<div class="out" id="ry-data-stats"></div>
+<p class="ry-cap"><span class="ry-meas">measured</span> Same 24 blocks, same 17,424 samples in 35 batches, three plans. Fused streaming delivered the first batch soonest; staging (bulk-synchronous) delayed it until every block had passed stage 1 and finished last. Unfusing the two stages added a task and an object-store hop per block and cost time here; on a real pipeline you unfuse on purpose when the stages need different resources (CPU decode, GPU model). The {{Ray Data pipeline|#t-data}} tab draws every block of all three runs on the workers' timelines.</p>
+<p><b>Published claim.</b> The Ray Data paper ({{Luan et al., The Streaming Batch Model for Efficient and Fault-Tolerant Heterogeneous Execution|https://arxiv.org/abs/2501.12407}}, first posted 2025-01-16; authors from UC Berkeley and Anyscale, Ray's company) reports throughput gains of "2.5-12x" on heterogeneous batch inference pipelines over batch and stream processing systems, and 31% higher training throughput for Stable Diffusion than single-node data loaders <span class="ry-pub">published, authors' own measurements</span>. Not reproduced here.</p>
+<p><b>When it matters.</b> Ray Data earns its place when preprocessing is heavy or needs a different machine type than training (CPU-only nodes decoding video for GPU trainers), or for offline batch inference. For a text pretraining run whose data is already tokenized into shards, a plain loader is simpler; the data-curation topic's {{storage and loading page|n:3f95c17b0d0d81398782efcb29d950d4}} covers formats and loaders.</p>
+</section>
+
+<section id="s-train">
+<h2>Ray Train: the worker group, checkpoints and failures</h2>
+<p><b>The problem.</b> Distributed PyTorch needs N processes on the right machines, each told its rank, the world size and the address of rank 0, a process group initialised, and someone to notice when one dies and start again from a checkpoint. torchrun does this per node; Slurm or Kubernetes supply the machines. Ray Train does all of it inside a Ray cluster.</p>
+<p><b>How it works.</b> <code>TorchTrainer(train_loop, scaling_config=ScalingConfig(num_workers=4, resources_per_worker=...), run_config=RunConfig(...))</code>, then <code>trainer.fit()</code>:</p>
+<ol class="tight">
+<li>A <b>controller</b> actor (Ray Train v2, the default since <code>RAY_TRAIN_V2_ENABLED</code> defaults to true, <code>python/ray/train/v2/_internal/constants.py</code> line 149) requests a placement group of N bundles ("Requesting resources: {'CPU': 1, 'fake_gpu': 1} * 4" in the log).</li>
+<li>It starts N <code>RayTrainWorker</code> actors in the bundles, picks rank 0's address, sets <code>MASTER_ADDR</code>, <code>MASTER_PORT</code>, <code>RANK</code>, <code>WORLD_SIZE</code>, <code>LOCAL_RANK</code> in each, and initialises the process group with <code>TorchConfig(backend=...)</code> ("Setting up process group for: env:// [rank=0, world_size=4]"). The Launch lab's env dump of these variables is on the root page.</li>
+<li>Every worker runs your <code>train_loop</code>. Inside it, <code>ray.train.report(metrics, checkpoint=Checkpoint.from_directory(d))</code> uploads the checkpoint to <code>storage_path</code> and queues a report; <code>ray.train.get_checkpoint()</code> returns the latest registered one after a restart.</li>
+<li>The controller polls the workers (every <code>DEFAULT_HEALTH_CHECK_INTERVAL_S</code> = 2.0 s, line 35; <code>controller.py</code> line 436), collects reports and, when a worker has failed, applies the <code>FailureConfig</code>: retry by building a new worker group from the latest checkpoint, up to <code>max_failures</code> times (default 0: <code>python/ray/air/config.py</code> line 368), or raise.</li>
+</ol>
+<p class="ry-src-q">The loop of <code>src/scripts/ry_train.py</code>: the running example's model, data order and DDP, with Ray Train's checkpoint API:</p>
+<pre>ck = ray.train.get_checkpoint()                 <span class="c"># None on the first attempt</span>
+if ck:
+    with ck.as_directory() as d:
+        st = torch.load(os.path.join(d, "state.pt"))
+    model.load_state_dict(st["model"]); opt.load_state_dict(st["opt"]); start = st["step"]
+ddp = DistributedDataParallel(model)
+for step in range(start, steps):
+    ...                                          <span class="c"># forward, backward, AdamW, all-reduce of the loss</span>
+    if done % 50 == 0:
+        with tempfile.TemporaryDirectory() as d:
+            c = None
+            if rank == 0:
+                torch.save({...}, os.path.join(d, "state.pt")); c = Checkpoint.from_directory(d)
+            ray.train.report({"step": done, "gloss": g.item()}, checkpoint=c)
+
+TorchTrainer(loop, torch_config=TorchConfig(backend="gloo"),
+    scaling_config=ScalingConfig(num_workers=4, resources_per_worker={"CPU": 1, "fake_gpu": 1}, placement_strategy="PACK"),
+    run_config=RunConfig(storage_path="/shared/results", failure_config=FailureConfig(max_failures=1),
+                         checkpoint_config=CheckpointConfig(num_to_keep=2))).fit()</pre>
+<div class="ry-pr" id="ry-pr3"><div class="q">Predict: checkpoints every 50 steps; rank 3 crashes at step 120 on the first attempt; <code>max_failures=1</code>. From which step does the second attempt start?</div>
+<div class="opts"><button data-r="0">100</button><button data-r="1">50</button><button data-r="0">0</button><button data-r="0">it does not restart</button></div>
+<div class="ans">From step 50, in all three runs made here, although every worker had called <code>report</code> for step 100 and rank 0 had written the step-100 checkpoint to storage half a second before the crash. A report reaches the controller only when the controller polls the workers, and it registers a checkpoint only once it holds that report from <em>every</em> worker (<code>report_handler.py</code> lines 40 and 63: "Wait for all workers to report training results", <code>if not all(self._training_report_queues): return</code>). Rank 3's step-100 report was still inside its process when it died, so step 100 was never registered: 70 steps redone instead of 20, and the step-100 files stayed in storage as an orphan directory that <code>num_to_keep=2</code> did not delete (it was still there at the end of every run). Replayed step by step in the {{Train failure replay|#t-train}}.</div></div>
+<div class="out" id="ry-train-stats"></div>
+<p class="ry-cap"><span class="ry-meas">measured</span> Three repeats of the same crash. The restarted group recomputed steps 50 to 120 and finished; its loss matched the uninterrupted running example at most logged steps and differed by one float32 rounding step (2.4e-7) at steps 70, 180 and 200, the DDP bucket-rebuild effect the root's Failure lab explains (a restarted process steps once with the initial bucket layout).</p>
+<p><b>What it costs.</b> Launch: the root's Launch lab measured a median 10.0 s from submit to first step for this job on Ray Train, against 7.5 s on Slurm and 5.8 s on Kubernetes (5 runs each, image preloaded, laptop), most of it starting worker processes and importing torch. Recovery: about 6 to 7 s from crash to the new group's first step here (process start, rendezvous, checkpoint load), plus the steps redone. Memory: the controller (about 0.21 GB) and the driver (about 0.23 GB) live on the head (setup measurements).</p>
+<div class="co"><div class="t">Measured in the root's Failure lab (not repeated here)</div>With train.py writing its own checkpoints (no Ray Train checkpoint API), the {{Failure lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} ran: <code>max_failures=0</code>, a rank crash: <code>fit()</code> raised <code>WorkerGroupError</code> after 1.27 s; <code>max_failures=2</code>: a new worker group resumed from step 100 10.15 s after the crash; a killed worker node: Ray waited for 4 <code>fake_gpu</code> with only 2 alive and resumed only when the node came back (93.6 s), because Ray Train does not shrink the group unless you configure elastic scaling. The Launch lab found that the worker-group start timeout (60 s, <code>RAY_TRAIN_WORKER_GROUP_START_TIMEOUT_S</code>) is retried forever when capacity never comes.</div>
+<p><b>How to check it.</b> The driver log shows the controller's decisions ("[FailurePolicy] RETRY ... Error count: 1 (max allowed: 1)", "Started training worker group of size 4" with every rank's node and pid); the storage path shows which checkpoints exist; <code>result.checkpoint</code> and <code>result.best_checkpoints</code> are what the controller registered. If the newest checkpoint on disk is not the one <code>get_checkpoint()</code> returned, you are looking at this race.</p>
+</section>
