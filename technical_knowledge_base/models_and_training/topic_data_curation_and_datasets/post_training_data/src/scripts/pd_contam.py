@@ -55,7 +55,8 @@ CORP = {
 
 
 def out_dir(*parts):
-    d = os.path.join(C.scratch(), "contam", *parts)
+    # dg_contam calls out_dir("contam"); everything of this page goes to one folder
+    d = C.scratch("contam")
     os.makedirs(d, exist_ok=True)
     return d
 
@@ -94,8 +95,9 @@ def ifeval():
                     best[i], bestrow[i] = c, ri
         flagged = [int(i) for i in np.nonzero(best > 0.5)[0]]
         res[name] = dict(rows=len(d), items=len(items), flagged=len(flagged), cov_hist=np.histogram(best, bins=10, range=(0, 1))[0].tolist(),
-                         examples=[dict(item=ev.prompt.iloc[i][:400], row=int(bestrow[i]), cov=round(float(best[i]), 3))
-                                   for i in sorted(flagged, key=lambda i: -best[i])[:8]])
+                         examples=[dict(item=ev.prompt.iloc[i][:400], row=int(bestrow[i]), cov=round(float(best[i]), 3),
+                                        row_text=(_m(d[col].iloc[int(bestrow[i])]) if col == "messages" else str(d[col].iloc[int(bestrow[i])]))[:500])
+                                   for i in sorted(flagged, key=lambda i: -best[i])])
         print(name, res[name]["flagged"], flush=True)
     json.dump(res, open(os.path.join(out_dir(), "ifeval.json"), "w"))
 
@@ -103,6 +105,7 @@ def ifeval():
 if __name__ == "__main__":
     G.CORPORA.update(CORP)
     G.out_dir = out_dir
+    K.WORKERS = int(os.environ.get("PD_WORKERS", "2"))
     names = sys.argv[1:] or list(CORP)
     for n in names:
         if n == "ifeval":

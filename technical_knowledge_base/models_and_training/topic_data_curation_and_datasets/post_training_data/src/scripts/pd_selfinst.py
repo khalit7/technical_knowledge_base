@@ -100,7 +100,8 @@ def sequential(best_pairs, n):
 def seeds():
     out = {}
     # data/seed_tasks.jsonl of yizhongw/self-instruct @ 0b26ccaa and seed_tasks.jsonl of tatsu-lab/stanford_alpaca
-    # @ 761dc5bf are byte-identical (sha256 7779004f...); one copy is kept in inputs/seed_tasks.jsonl.
+    # @ 761dc5bf are byte-identical (sha256 7779004f...); one copy is kept in inputs/seed_tasks.jsonl, with its three
+    # fictional example e-mail addresses rewritten to example.com (the instructions are unchanged).
     for k, fn in [("seeds", "seed_tasks.jsonl")]:
         p = os.path.join(C.PAGE, "inputs", fn)
         if os.path.exists(p):

@@ -93,7 +93,7 @@ def nebius():
         cmds = [m.group(1) for role, mask, txt in msgs if role == "ai" for m in [CMD.search(txt)] if m]
         out.append(dict(model=r.model_name, target=str(r.target) == "True", exit=r.exit_status,
                         turns=sum(1 for x in msgs if x[0] == "ai"), tok=tot, trained=trained, by=dict(by), cmds=cmds,
-                        patch_lines=len((r.generated_patch or "").splitlines())))
+                        patch_lines=len(r.generated_patch.splitlines()) if isinstance(r.generated_patch, str) else 0))
     res = dict(n=len(out), resolved=sum(o["target"] for o in out),
                by_model={m: [sum(1 for o in out if o["model"] == m), sum(1 for o in out if o["model"] == m and o["target"])]
                          for m in sorted(set(o["model"] for o in out))},
