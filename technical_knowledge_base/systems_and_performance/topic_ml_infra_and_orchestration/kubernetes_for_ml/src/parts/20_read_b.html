@@ -1,0 +1,61 @@
+<style>
+#t-read .km-svg{width:100%;overflow:hidden;margin:6px 0}
+#t-read #km-pvc-out{white-space:pre-wrap;overflow-wrap:anywhere}
+#t-read .km-objs{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;min-height:2.2em}
+#t-read .km-objs span{font-size:11.5px;border:1px solid var(--line);border-radius:6px;padding:1px 7px;background:var(--bg);overflow-wrap:anywhere}
+#t-read .km-objs span.new{border-color:var(--acc);background:var(--acc2)}
+#t-read .km-objs span.done{border-color:var(--good);color:var(--good)}
+#t-read .km-objs span.bad{border-color:var(--bad);color:var(--bad)}
+#t-read .km-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .km-leg i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#t-read .km-pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:8px;margin:8px 0}
+#t-read .km-pair>div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;min-width:0}
+#t-read .km-pair>div b{display:block;font-size:13.5px;margin-bottom:2px}
+#t-read .km-map{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:6px;margin:8px 0}
+#t-read .km-map>div{border:1px solid var(--line);border-left:4px solid var(--kc,var(--acc));border-radius:7px;padding:6px 9px;font-size:12.5px;min-width:0}
+#t-read .km-map>div b{display:block;font-size:13.5px}
+</style>
+<p class="lead">Kubernetes was built to keep web services running, one replica at a time. A training job is a different animal: it needs all of its machines at once, it needs GPUs that Kubernetes does not natively understand, and a single lost process stops the whole run. This page shows, on a real cluster, what Kubernetes does with such a job by default, where that goes wrong, and which pieces (device plugins, DRA, Kueue, JobSet, PodGroups, operators) fill each gap.</p>
+<p class="small mute">Reading time about <span id="rd-time">50</span> minutes. Labels: <span class="meas">measured here</span> ran on this topic's kind cluster (Apple M1 Pro, Docker Desktop VM, shared machine; timings rough, orders and messages exact); <span class="pub">docs</span> or <span class="pub">source</span> read from the project's documentation or code at the pinned version; <span class="vend">vendor</span> a company describing its product; <span class="der">derived</span> computed here from those. Source is quoted at Kubernetes v1.37.0, Kueue v0.20.2, JobSet v0.13.0 and Kubeflow Trainer v2.3.0, with file and line. The parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} already shows the gang deadlock, Kueue admission and quota borrowing on the same cluster; this page goes underneath them.</p>
+<nav class="nav" id="rd-nav">
+<a href="#rd-s0">0 One screen</a><a href="#rd-s1">1 Control loop</a><a href="#rd-s2">2 Jobs</a><a href="#rd-s3">3 Scheduler</a><a href="#rd-s4">4 GPUs</a><a href="#rd-s5">5 Placement</a><a href="#rd-s6">6 Gangs</a><a href="#rd-s7">7 Kueue</a><a href="#rd-s8">8 JobSet</a><a href="#rd-s9">9 Operators</a><a href="#rd-s10">10 Storage</a><a href="#rd-mis">Mistakes</a><a href="#rd-iq">Interview</a>
+</nav>
+
+<section id="rd-s0">
+<h2>0. In one screen</h2>
+<p>The running example of this topic is a tiny GPT trained with DDP over 4 processes on 2 machines (the root's {{running example|n:3c65c17b0d0d81b5925bfd1d8665dd4b}}: 112,577 parameters, 200 steps, global loss 2.2638769149780273 at step 200 on every system). On Kubernetes each machine's share becomes a <dfn>pod</dfn> (one or more containers that are always placed together on one node), and the job becomes a stack of objects, each made by a different program. Here is what each layer adds, and what was measured for it on this page.</p>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Layer</th><th>What it adds for a training job</th><th>What it does not do</th><th>Measured here</th></tr></thead>
+<tbody>
+<tr><td data-h="Layer">Pod</td><td data-h="Adds">One process group on one node, with CPU, memory and GPU requests</td><td data-h="Does not">Restart elsewhere, know about the other pods</td><td data-h="Measured">bound 13 ms after creation, container started at 0.6 s <span class="meas">measured</span></td></tr>
+<tr><td data-h="Layer">Indexed Job + headless Service</td><td data-h="Adds">N pods with indexes 0..N-1, stable DNS names, retries, failure rules</td><td data-h="Does not">Start the pods together; treat a lost peer as one failure</td><td data-h="Measured">the running example ran unchanged; loss 2.2638769149780273</td></tr>
+<tr><td data-h="Layer">JobSet</td><td data-h="Adds">Several Jobs as one unit, its own headless Service, restart-everything failure policy</td><td data-h="Does not">Gang scheduling by itself</td><td data-h="Measured">an eviction restarted the run free of its restart budget and it resumed from step 50</td></tr>
+<tr><td data-h="Layer">Kueue</td><td data-h="Adds">Quota, queues, admission of the whole job at once, flavors, topology</td><td data-h="Does not">Place pods on nodes (the scheduler still does)</td><td data-h="Measured">flavor fallback, a topology refusal with quota free</td></tr>
+<tr><td data-h="Layer">PodGroup (native, beta, off)</td><td data-h="Adds">Gang scheduling inside the default scheduler</td><td data-h="Does not">Quota or queues</td><td data-h="Measured">the root's deadlock input ran job by job, no deadlock</td></tr>
+<tr><td data-h="Layer">Operator (Trainer v2 TrainJob)</td><td data-h="Adds">Framework knowledge: builds the JobSet, sets torchrun's variables</td><td data-h="Does not">Anything the layers below cannot</td><td data-h="Measured">the TrainJob built a JobSet with PET_* variables; same loss</td></tr>
+</tbody></table></div>
+<div class="co key"><div class="t">Three surprises this page measures</div>
+<p>(1) The default scheduler does not look at GPUs when it ranks nodes: it ranks by CPU and memory only, so it scatters small GPU jobs and can leave no node with 4 free GPUs (section 3). (2) A rank that exits with code 13 makes its pod exit with code 1, because torchrun is the container's main process, so a Job failure rule on code 13 never fires (section 2). (3) Kubernetes v1.37 ships native gang scheduling, but behind a feature gate that is off by default (section 6).</p></div>
+</section>
+
+<section id="rd-s1">
+<h2>1. The control loop: who does what</h2>
+<p><b>The problem.</b> A cluster has many machines and many programs that must agree on what should run where, while machines fail and people submit work. Kubernetes' answer is one shared database of desired and actual state, and many small programs that each watch part of it and act.</p>
+<p><b>How it works.</b> Everything is an <dfn>object</dfn> (a record such as a Job or a Pod) with a <dfn>spec</dfn> (what you want) and a <dfn>status</dfn> (what is true now). Objects live in <dfn>etcd</dfn>, a replicated key-value store, and only one program talks to etcd: the <dfn>API server</dfn>, which validates every write, runs <dfn>admission webhooks</dfn> (external programs that may change or refuse an object), stores it, and streams changes to anyone <dfn>watching</dfn>. A <dfn>controller</dfn> is a loop that watches some kinds of object and writes others so that actual state moves toward the spec; this is called <dfn>reconciling</dfn>. The <dfn>job controller</dfn> (inside kube-controller-manager) creates pods for Jobs; the <dfn>scheduler</dfn> watches pods with no node and writes a node name into each; the <dfn>kubelet</dfn>, an agent on every node, watches pods bound to its node, starts their containers through the container runtime and writes their status back. Nobody calls anybody: each program reads and writes objects. Every write bumps the object's <dfn>resourceVersion</dfn>, and every write is attributed to a <dfn>field manager</dfn> (kubectl, kube-controller-manager, kubelet), which is how the animation below knows who did what.</p>
+<div class="rd-card" id="km-life-card">
+<h4>The same training job at three levels, from the API server's point of view <span class="meas">measured</span></h4>
+<div class="seg" id="km-life-mode"><button data-m="job" class="on">Indexed Job by hand</button><button data-m="jobset">JobSet</button><button data-m="trainjob">Kubeflow TrainJob</button></div>
+<div class="km-svg" id="km-life-svg"></div>
+<div class="an-ctl" id="km-life-ctl"></div>
+<div class="an-cap" id="km-life-cap"></div>
+<div class="an-cnt" id="km-life-cnt"></div>
+<div class="km-objs" id="km-life-objs"></div>
+<p class="small mute">Every step is one change the watcher (<code>src/scripts/km_watch.py</code>, a Python client watching the namespace) received, with its arrival time after the first object was created. The three runs are the running example (2 pods x 2 ranks, 200 steps) submitted as an Indexed Job plus a headless Service, as a JobSet, and as a Kubeflow Trainer TrainJob, on 16 Oct 2026. The TrainJob's own creation is not in the stream (the watcher did not watch TrainJobs); its first step is the Trainer controller writing the JobSet.</p>
+</div>
+<p><b>What the run shows.</b> From <code>kubectl create</code> to both pods bound took 44 ms: the job controller created pod 0 after 21 ms, the scheduler bound it 13 ms later. The containers started at 0.61 s because the image was already on the nodes (a real CUDA training image, 3 GB compressed or more, is pulled first, which can take minutes and is a common reason a GPU pod sits in ContainerCreating; section 10). Training took 15 s, and the Job was marked Complete at 17.6 s. Each layer you add puts one more controller in the chain: the JobSet controller writes the Job, the Trainer controller writes the JobSet. None of them talks to the others; they only read and write objects.</p>
+<div class="pr"><div class="q">Predict. Which program writes the pod's <code>spec.nodeName</code>, the field that says where it runs?</div>
+<div class="opts"><button data-a="0">The kubelet of the chosen node</button><button data-a="1">The scheduler, through the pod's binding subresource</button><button data-a="0">The job controller, when it creates the pod</button></div>
+<div class="ans" hidden>The scheduler. It posts a Binding to the API server (<code>pods/binding</code>), which sets <code>spec.nodeName</code>; the kubelet only reacts to it. In the recorded run the pod's field managers are only <code>kube-controller-manager</code> (it created the pod) and <code>kubelet</code> (status): the binding write is not recorded as a field manager. A pod created with <code>nodeName</code> already set skips the scheduler entirely, which is how DaemonSets and static pods used to work and why a hand-set nodeName ignores taints and quotas.</div></div>
+<p><b>The cost.</b> Every object and every watch costs API server memory. On this cluster the control plane runs in 1.6 GB, and in the parent's Scheduling lab the API server restarted once at 1.27 GB under load. Installing Kubeflow Trainer's three custom resource definitions (2.4 MB of YAML, mostly embedded JobSet and pod schemas) raised the control plane's memory from 1.04 to 1.25 GiB <span class="meas">measured</span>. Kubernetes v1.37 is designed for at most 5,000 nodes, 110 pods per node, 150,000 pods and 300,000 containers ({{Considerations for large clusters|https://kubernetes.io/docs/setup/best-practices/cluster-large/}} <span class="pub">docs</span>, read 2026-10-16); training clusters hit the node and watch limits long before the pod limit, since they run about one pod per node.</p>
+<p><b>How to check it.</b> <code>kubectl get events -n NS --sort-by=.metadata.creationTimestamp</code> shows who did what; <code>kubectl get pod P -o yaml --show-managed-fields</code> shows the field managers; <code>kubectl get --raw /metrics</code> on the API server and the controllers' logs show the rest.</p>
+</section>

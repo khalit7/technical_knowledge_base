@@ -1,0 +1,38 @@
+<section id="rd-s3">
+<h2>3. The scheduler: filter, score, bind</h2>
+<p><b>The problem.</b> A pod with no node must be put on one that can run it, and among those, on a good one. "Good" for a web service means spread out; for training it usually means packed together, so that whole nodes stay free for the next big job.</p>
+<p><b>How it works.</b> kube-scheduler keeps a <dfn>scheduling queue</dfn> of unbound pods (sorted by priority, then age) and takes one pod per <dfn>scheduling cycle</dfn>. Each step of the cycle is an <dfn>extension point</dfn> where <dfn>plugins</dfn> (Go code compiled into the scheduler, configured per <dfn>profile</dfn>) run:</p>
+<ol class="tight">
+<li><b>PreEnqueue</b>: may keep a pod out of the queue entirely (scheduling gates, and in v1.37 the gang plugin).</li>
+<li><b>PreFilter, Filter</b>: every plugin can reject a node: not enough free GPUs (NodeResourcesFit), an untolerated taint (TaintToleration), a label mismatch (NodeAffinity), a volume on another node (VolumeBinding), a spread rule (PodTopologySpread). A node is <dfn>feasible</dfn> only if every Filter passes.</li>
+<li><b>PostFilter</b>: runs only if no node is feasible; the default is preemption (section 5).</li>
+<li><b>PreScore, Score, NormalizeScore</b>: each scoring plugin gives each feasible node 0 to 100; the scores are multiplied by the plugin's <dfn>weight</dfn> and summed.</li>
+<li><b>Reserve, Permit</b>: the chosen node's resources are reserved in the scheduler's cache; Permit can hold the pod (the gang plugin does).</li>
+<li><b>PreBind, Bind</b>: in a separate <dfn>binding cycle</dfn>, volumes are bound and the Binding is written, so the next pod's cycle does not wait for the API call.</li>
+</ol>
+<p>The default plugins and weights are in <code>pkg/scheduler/apis/config/v1/default_plugins.go</code> lines 32-57 at v1.37.0 <span class="pub">source</span>: TaintToleration 3, NodeAffinity 2, PodTopologySpread 2, InterPodAffinity 2, NodeResourcesFit 1, NodeResourcesBalancedAllocation 1, ImageLocality 1. The cycle itself is <code>schedulingCycle</code> and <code>schedulePod</code> in <code>pkg/scheduler/schedule_one.go</code> (lines 169 and 572); the highest total wins, ties are broken by a random number drawn per node (<code>framework/sorted_nodes.go</code> lines 61-64). On clusters of 100 nodes or more the scheduler stops looking after enough feasible nodes (<code>numFeasibleNodesToFind</code>, lines 866-892: 50% minus 1% per 125 nodes, at least 5%, at least 100 nodes), so on a 5,000-node cluster a pod is scored against 500 of them, not the best of all.</p>
+<pre class="rd-code">57  minFeasibleNodesToFind = 100
+...
+879 	if percentage == 0 {
+880 		percentage = int32(50) - numAllNodes/125
+881 		if percentage &lt; minFeasibleNodesPercentageToFind {
+882 			percentage = minFeasibleNodesPercentageToFind
+883 		}
+884 	}</pre>
+<p class="rd-codecap"><code>pkg/scheduler/schedule_one.go</code>, kubernetes v1.37.0.</p>
+<h3>The default scheduler does not see GPUs when it ranks nodes</h3>
+<p>NodeResourcesFit's default scoring strategy, <dfn>LeastAllocated</dfn>, prefers the node with the most free capacity, but it counts only the resources its strategy lists, and the default list is CPU and memory, weight 1 each (<code>apis/config/v1/defaults.go</code> lines 33-35). An extended resource such as a GPU is used to <i>filter</i> (a node with too few free GPUs is rejected) but never to <i>rank</i> unless you list it (<code>noderesources/resource_allocation.go</code> lines 176-182). The alternative strategy, <dfn>MostAllocated</dfn>, prefers the fullest node: bin packing.</p>
+<div class="rd-card" id="km-pack-card">
+<h4>The same six pods, default profile against a bin-packing profile <span class="meas">measured</span></h4>
+<div class="seg" id="km-pack-mode"><button data-m="e6spread" class="on">Default (LeastAllocated, cpu and memory)</button><button data-m="e6pack">MostAllocated, GPUs counted (weight 5)</button></div>
+<div class="km-svg" id="km-pack-svg"></div>
+<div class="an-ctl" id="km-pack-ctl"></div>
+<div class="an-cap" id="km-pack-cap"></div>
+<p class="small mute">Pods asking for 2, 1, 1, 2 and 2 fake GPUs, then one asking for 4, created one after another on 3 workers of 4 GPUs each. Both profiles ran in one kube-scheduler (two profiles, chosen per pod with <code>spec.schedulerName</code>; config in <code>src/k8s/km-sched-config.yaml</code>), with per-plugin scores logged by <code>--vmodule=schedule_one=10</code>. <code>src/recompute.py</code> recomputes every logged score from the node states with the ported formulas: <span id="km-pack-match">135 of 135</span> match. The step-by-step cycle, every plugin and every node, is in the {{Scheduling cycle|#t-kmcyc}} tab.</p>
+</div>
+<p><b>What happened.</b> Under the default profile the GPUs did not enter the score at all: every node scored 94 or 95 for NodeResourcesFit (a 100m pod on a 5-CPU node moves the score by one point), so pods went wherever CPU and memory were a hair freer, and to a random node among equals. After five pods every worker held some GPUs (4, 3 and 1 used) and the 4-GPU pod stayed Pending: <code>0/4 nodes are available: 1 node(s) had untolerated taint(s), 3 Insufficient example.com/gpu</code>, with 4 GPUs free in total. Under MostAllocated with GPUs weighted 5, pods 2 and 3 joined pod 1 on one worker (scores 55 and 73 against 19), pods 4 and 5 shared the second, and the 4-GPU pod got the empty third.</p>
+<div class="co"><div class="t">When it matters, and the cost</div><p>On a cluster that runs whole-node training jobs only, spreading does not matter. On a cluster that mixes 1- and 2-GPU jobs (notebooks, evaluation, small fine-tunes) with 8-GPU jobs, spreading fragments the nodes and the large jobs starve while the GPU allocation looks fine. Bin packing costs some resilience (one node failure kills more small jobs) and concentrates heat; the usual answer is separate node pools, or a scheduler (Volcano, KAI) or Kueue's topology placement that packs by design. Because the scheduler's config is a control-plane setting, a managed cluster may not let you change it; a second scheduler profile or a second scheduler binary is the usual route.</p></div>
+<div class="pr"><div class="q">Predict. You add <code>example.com/gpu</code> with weight 5 to the default LeastAllocated strategy instead. What happens to the 4-GPU pod?</div>
+<div class="opts"><button data-a="0">It fits: GPUs are now counted</button><button data-a="1">It is even more certain to stay Pending: LeastAllocated now actively spreads GPUs</button><button data-a="0">The scheduler refuses the config</button></div>
+<div class="ans" hidden>Spreads harder. LeastAllocated prefers the node with the most free GPUs, so each small pod goes to the emptiest worker and every worker ends up partly used. Counting GPUs only helps with a packing strategy (MostAllocated, or RequestedToCapacityRatio with a rising shape). This variant was not run here; it follows from the same formula (<code>least_allocated.go</code> lines 52-60).</div></div>
+</section>

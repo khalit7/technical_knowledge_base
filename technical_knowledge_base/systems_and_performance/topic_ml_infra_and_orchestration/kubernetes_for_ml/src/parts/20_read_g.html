@@ -1,0 +1,55 @@
+<section id="rd-s6">
+<h2>6. Gang scheduling: every pod or none</h2>
+<p><b>The problem.</b> The scheduler places one pod per cycle and knows nothing of the job it belongs to. Two jobs that each need the whole cluster can each get half, and wait forever for the other half. The parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} produced exactly that on this cluster (three 2-pod jobs, each pod a whole worker: three pods Running and doing nothing, three Pending) and fixed it with Kueue. A <dfn>gang</dfn> is a set of pods that must start together; <dfn>gang scheduling</dfn> binds all of them or none.</p>
+<h3>The options, October 2026</h3>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Option</th><th>Where the gang is decided</th><th>What else it brings</th><th>Status (dated)</th></tr></thead>
+<tbody>
+<tr><td data-h="Option">Kueue (+ JobSet or Job)</td><td data-h="Where">Admission: the whole workload's quota is reserved before any pod exists; the default scheduler places the pods</td><td data-h="Brings">Queues, quotas, cohorts, flavors, topology-aware placement, MultiKueue</td><td data-h="Status">v0.20.2 (2026-10-15), kubernetes-sigs; measured in the parent's lab and in section 7</td></tr>
+<tr><td data-h="Option">Native PodGroup</td><td data-h="Where">Inside kube-scheduler: PreEnqueue holds pods until the group's minCount exists, Permit holds bound pods until minCount are placed</td><td data-h="Brings">Group-level preemption and disruption mode; Workload objects; topology (alpha)</td><td data-h="Status">KEP-4671: alpha v1.35, gate GenericWorkload beta in v1.37 but <b>off by default</b> (<code>pkg/features/kube_features.go</code> lines 1622-1625); measured below</td></tr>
+<tr><td data-h="Option">Coscheduling plugin (scheduler-plugins)</td><td data-h="Where">A second scheduler build with a PodGroup CRD and a Permit plugin</td><td data-h="Brings">Little else</td><td data-h="Status">What OpenAI used on its 7,500-node cluster (OpenAI blog 2021-01-25) <span class="pub">operator</span>; not run here</td></tr>
+<tr><td data-h="Option">Volcano</td><td data-h="Where">Its own scheduler (pods set <code>schedulerName: volcano</code>), PodGroup with minMember</td><td data-h="Brings">Queues, fair share, its own Job CRD, binpack and other policies</td><td data-h="Status">v1.16.0 (2026-10-15), CNCF incubating, built on kube-batch (README) <span class="vend">project</span>; not run here</td></tr>
+<tr><td data-h="Option">KAI Scheduler (NVIDIA, from Run:ai)</td><td data-h="Where">Its own scheduler with hierarchical PodGroups</td><td data-h="Brings">Hierarchical queues, time-based fair share, GPU sharing, topology-aware scheduling, DRA</td><td data-h="Status">Apache-2.0 since 2025-04-01, v0.18.6 (2026-10-15) <span class="vend">vendor</span>; not run here</td></tr>
+<tr><td data-h="Option">YuniKorn</td><td data-h="Where">Its own scheduler with application-level gang placeholders</td><td data-h="Brings">Hierarchical queues (from the Hadoop world)</td><td data-h="Status">v1.10.0 (2026-10-06); not run here</td></tr>
+</tbody></table></div>
+<p class="small mute">Versions and dates from the topic's shared facts (release feeds read 2026-10-16); feature lists from each project's README.</p>
+<h3>Native gang scheduling, switched on for one run</h3>
+<p>Kubernetes v1.37 has the pieces built in: a <code>PodGroup</code> object (<code>scheduling.k8s.io/v1beta1</code>) with <code>schedulingPolicy.gang.minCount</code>, a pod field <code>spec.schedulingGroup.podGroupName</code> (it replaced <code>workloadRef</code> in v1.36, <code>staging/src/k8s.io/api/core/v1/types.go</code> lines 4697-4716), and a GangScheduling plugin. To try it, this page turned on the gate in the API server (plus <code>--runtime-config=scheduling.k8s.io/v1beta1=true</code>) and in the scheduler, ran the parent's deadlock input again with placeholder pods, and restored both manifests (<code>src/scripts/km_gang_reconf.sh</code>):</p>
+<pre class="rd-code">apiVersion: scheduling.k8s.io/v1beta1
+kind: PodGroup
+metadata: {name: km-a, namespace: km}
+spec:
+  schedulingPolicy:
+    gang: {minCount: 2}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: km-a-0, namespace: km, labels: {km-gang: km-a}}
+spec:
+  schedulingGroup: {podGroupName: km-a}
+  schedulingGates: [{name: km.example.com/release}]   # the run releases pods in the order a0 b0 c0 a1 b1 c1
+  ...
+    resources:
+      requests: {cpu: 100m, memory: 64Mi, example.com/gpu: "4"}</pre>
+<p class="rd-codecap"><code>src/k8s/gang-podgroup.sh</code> and <code>gang-pod.sh</code> (abridged); three such groups, km-a, km-b and km-c.</p>
+<div class="rd-card" id="km-gang-card">
+<h4>The parent's deadlock input, without and with a PodGroup <span class="meas">measured</span></h4>
+<div class="seg" id="km-gang-mode"><button data-m="nogang" class="on">No gang (default)</button><button data-m="gang">PodGroup, minCount 2</button></div>
+<div class="km-svg" id="km-gang-svg"></div>
+<div class="an-ctl" id="km-gang-ctl"></div>
+<div class="an-cap" id="km-gang-cap"></div>
+<p class="small mute">Three jobs of two pods, each pod holding a whole worker's 4 fake GPUs (12 in all, so 1.5 jobs fit), released one second apart in the order a0, b0, c0, a1, b1, c1. Pods sleep 30 s in the gang run (600 s in the other, which was stopped after 28 s). Snapshots in <code>src/runs/e11nogang.snap</code>, <code>e11gang.snap</code>; scheduler log in <code>e11gang.schedlog.txt</code>.</p>
+</div>
+<p>Without the gang, a0, b0 and c0 each took a worker and the other three waited: every job half placed, none able to run. With the PodGroups, a0 was held at PreEnqueue (<code>waiting for minCount pods from a gang to appear in scheduling queue</code>); when a1 arrived both were placed and released together (<code>Quorum is met for a gang. Allowing other pods from a gang waiting on permit</code>); gangs b and c were refused as a whole (<code>minCount (2) cannot be satisfied: 1 scheduled, 0 remaining</code>) and ran one after another as the GPUs freed up. A pod held at Permit gives up after 5 minutes:</p>
+<pre class="rd-code">40 	// permitTimeoutDuration defines how long the gang pods should
+41 	// wait at the permit stage for a quorum before being rejected.
+42 	permitTimeoutDuration = 5 * time.Minute
+...
+402	if scheduledPodsCount &lt; int(podGroup.Spec.SchedulingPolicy.Gang.MinCount) {
+...
+407		return fwk.NewStatus(fwk.Wait, "waiting for minCount pods from a gang to be scheduled"), permitTimeoutDuration</pre>
+<p class="rd-codecap"><code>pkg/scheduler/framework/plugins/gangscheduling/gangscheduling.go</code>, kubernetes v1.37.0.</p>
+<div class="co warn"><div class="t">Two things went wrong on the way, both worth knowing</div>
+<p>Restarting the API server restarted Kueue's controller too, and until it served again <i>every</i> pod creation in the cluster failed: <code>failed calling webhook "mpod.kb.io": failed to call webhook: Post "https://kueue-webhook-service.kueue-system.svc:443/mutate--v1-pod?timeout=10s": ... connection refused</code>. Kueue's pod webhook has <code>failurePolicy: Fail</code> for every namespace except kube-system and kueue-system, so Kueue is on the critical path of all pods, queued or not. And the PodGroups carry a finalizer (<code>scheduling.k8s.io/podgroup-protection</code>) that a kube-controller-manager controller removes; with the gate on only in the API server and scheduler, deleting them hung until the finalizer was removed by hand. Turning on a beta gate means turning it on in every component that has it.</p></div>
+<p><b>Which one to use.</b> Native gangs fix the deadlock but have no notion of quota or queues: a big job still waits behind whatever arrives first, and two teams still race. Kueue gives queues and quotas and works with the default scheduler today (and its admission can lag behind real placement: an admitted workload can still find a node broken, which <code>waitForPodsReady</code>, default timeout 30 minutes in v0.20 per <code>apis/config/v1beta2/defaults.go</code> line 48, handles by evicting and requeueing it). Volcano and KAI replace the scheduler and give both, at the cost of running a second scheduler you must trust with every GPU pod.</p>
+</section>

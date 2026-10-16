@@ -1,0 +1,63 @@
+<section id="rd-s7">
+<h2>7. Kueue in depth: quota, flavors, topology</h2>
+<p><b>The problem.</b> Several teams share a fixed pool of GPUs. Each needs a guaranteed share, idle shares should be usable by others, jobs should wait in an orderly queue rather than as Pending pods, and a 16-GPU job should get 16 GPUs that are close together.</p>
+<p><b>How it works.</b> Kueue is a controller plus webhooks. Its objects (all <code>kueue.x-k8s.io/v1beta2</code>; v0.20 no longer serves v1beta1):</p>
+<div class="km-map">
+<div style="--kc:var(--c1)"><b>ResourceFlavor</b>A kind of capacity, mapped to nodes by labels (and tolerations): "H100 in block 1", "spot A100". Optional <code>topologyName</code> for topology-aware placement.</div>
+<div style="--kc:var(--c2)"><b>ClusterQueue</b>A team's quota: for each flavor and resource a <code>nominalQuota</code> (plus <code>borrowingLimit</code>, <code>lendingLimit</code>), a queueing strategy, preemption rules, and the <code>cohort</code> it shares with.</div>
+<div style="--kc:var(--c3)"><b>LocalQueue</b>A namespace's door into a ClusterQueue. Jobs say <code>kueue.x-k8s.io/queue-name: &lt;localqueue&gt;</code>.</div>
+<div style="--kc:var(--c4)"><b>Workload</b>Kueue's record of one job: its pod sets (count and requests per pod), created by Kueue's integration for Jobs, JobSets, TrainJobs, RayJobs and others. Admission is a property of the Workload.</div>
+<div style="--kc:var(--c5)"><b>Cohort</b>A group of ClusterQueues that lend each other unused quota; cohorts can form a tree.</div>
+<div style="--kc:var(--c6)"><b>Topology</b>An ordered list of node labels (block, rack, host) for topology-aware scheduling.</div>
+</div>
+<p>When a labelled job is created, Kueue's webhook makes it start <dfn>suspended</dfn> (<code>spec.suspend: true</code>: the job controller creates no pods). Kueue's scheduler loop takes the head of each queue, tries to <dfn>assign flavors</dfn> (for each resource group, the flavors in order, checking the workload's total request against unused quota, borrowing and preemption possibilities), reserves the quota, runs any <dfn>admission checks</dfn> (for example a ProvisioningRequest that asks the cluster autoscaler for nodes first), and then admits: it writes the chosen flavors into the Workload, injects the flavors' node labels as a nodeSelector into the pod template, and unsuspends the job. From there the normal scheduler places pods. The parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} quotes the loop (<code>pkg/scheduler/scheduler.go</code> in Kueue) and shows queueing and cohort borrowing and reclaim; here are the two things it did not run.</p>
+<div class="km-pair">
+<div><b>Flavors in order <span class="meas">measured</span></b>A ClusterQueue with flavor km-b1 (8 GPUs of quota, nodes labelled block b1) listed before km-b2 (4 GPUs, block b2). Four jobs of 2 pods x 2 GPUs: the first two got km-b1, the third km-b2 (pods got <code>nodeSelector: mi.example.com/block: b2</code> injected), the fourth waited with <code>insufficient unused quota for example.com/gpu in flavor km-b1, 4 more needed, insufficient unused quota for example.com/gpu in flavor km-b2, 4 more needed</code>.</div>
+<div><b>Topology-aware scheduling <span class="meas">measured</span></b>A flavor with a Topology (block, then host). Three pods of 2 GPUs with <code>kueue.x-k8s.io/podset-required-topology: mi.example.com/block</code> were admitted inside block b1 (two pods on worker, one on worker2). Three pods of 4 GPUs, the same annotation, 12 GPUs of quota free: refused, <code>topology "km-topo" allows to fit only 2 out of 3 pod(s); all pods must fit in a single "mi.example.com/block" topology domain</code>. With <code>podset-preferred-topology</code> instead, admitted across both blocks.</div>
+</div>
+<p>The message comes from <code>pkg/cache/scheduler/tas_flavor_snapshot.go</code> line 2953 at Kueue v0.20.2 <span class="pub">source</span>. Topology-aware scheduling is beta and on by default since v0.14 (<code>pkg/features/kube_features.go</code> lines 975-978). Kueue then pins each pod with a nodeSelector on the host label (the pods above got <code>kubernetes.io/hostname: mi-kind-worker</code>), so the default scheduler only confirms the placement. Step through these admissions, quota bar by quota bar, in the {{Kueue admission|#t-kmq}} tab.</p>
+<h3>The rest of Kueue, briefly (described, not run here)</h3>
+<ul class="tight">
+<li><b>Flavor fungibility</b>: by default the search stops at the first flavor where the workload fits or fits by borrowing (<code>whenCanBorrow: MayStopSearch</code>), but tries the next flavor before preempting in the current one (<code>whenCanPreempt: TryNextFlavor</code>) (<code>apis/kueue/v1beta2/clusterqueue_types.go</code> lines 526-549).</li>
+<li><b>Preemption</b>: <code>withinClusterQueue</code> (by priority inside a team), <code>reclaimWithinCohort</code> (take back lent quota; the parent's lab measured it), <code>borrowWithinCohort</code> (preempt to borrow). Kueue preempts whole workloads, which is the right unit for training.</li>
+<li><b>Fair sharing</b>: in the Kueue configuration, share cohort capacity by weight rather than first come; and admission fair sharing orders a queue by each LocalQueue's recent usage ({{Kueue fair sharing|https://kueue.sigs.k8s.io/docs/concepts/fair_sharing/}} <span class="pub">docs</span>).</li>
+<li><b>waitForPodsReady</b>: evict and requeue an admitted workload whose pods are not all ready within a timeout (default 30 minutes in v0.20), closing the gap between "quota reserved" and "pods really running".</li>
+<li><b>MultiKueue</b>: one manager cluster dispatching workloads to several worker clusters.</li>
+</ul>
+<p><b>The cost.</b> Kueue reasons about quota, not nodes (except with topology): with 12 GPUs of quota and 12 GPUs in the cluster, an admitted job can still be unplaceable if a node is cordoned or fragmented. Keep quotas equal to what is really schedulable, and mind the webhook: as section 6 found, while Kueue is down no pod can be created anywhere it watches.</p>
+</section>
+
+<section id="rd-s8">
+<h2>8. JobSet in depth</h2>
+<p><b>The problem.</b> One training run is often several groups of pods (a driver and workers; parameter servers; a group per data-parallel replica), each an Indexed Job, which must share a network identity, succeed or fail as a whole, and be restarted together.</p>
+<p><b>How it works.</b> A <dfn>JobSet</dfn> (<code>jobset.x-k8s.io/v1alpha2</code>, kubernetes-sigs, v0.13.0) holds a list of <dfn>replicatedJobs</dfn>, each a Job template and a replica count. The controller creates Jobs named <code>&lt;jobset&gt;-&lt;replicatedJob&gt;-&lt;index&gt;</code>, a headless Service named after the JobSet, and sets each pod's hostname and subdomain so it resolves as <code>&lt;jobset&gt;-&lt;replicatedJob&gt;-&lt;jobIndex&gt;-&lt;podIndex&gt;.&lt;jobset&gt;</code>; inside the running example's pods <code>hostname -f</code> printed <code>km-e3a-node-0-0.km-e3a.km.svc.cluster.local</code> <span class="meas">measured</span>. It labels every pod with <code>jobset.sigs.k8s.io/jobset-name</code>, <code>replicatedjob-name</code>, <code>job-index</code>, <code>restart-attempt</code> and more, which is what failure handling and Kueue key on.</p>
+<ul class="tight">
+<li><b>failurePolicy</b>: <code>maxRestarts</code> (restart the whole JobSet up to N times), <code>restartStrategy</code> (Recreate, BlockingRecreate which waits for every old pod to be gone, InPlaceRestart which restarts healthy containers in place), and ordered <code>rules</code> matched on the failed Job's reason (<code>onJobFailureReasons</code>) with actions <code>FailJobSet</code>, <code>RestartJobSet</code>, <code>RestartJobSetAndIgnoreMaxRestarts</code>, <code>RestartJob</code>, <code>RestartJobAndIgnoreMaxRestarts</code> (<code>api/jobset/v1alpha2/jobset_types.go</code> lines 464-545 at v0.13.0 <span class="pub">source</span>). If no rule matches, RestartJobSet applies.</li>
+<li><b>successPolicy</b>: <code>operator: All</code> or <code>Any</code> over <code>targetReplicatedJobs</code>, so the JobSet completes when the driver completes.</li>
+<li><b>startupPolicy</b> (<code>InOrder</code>) or <code>dependsOn</code>: start the coordinator before the workers.</li>
+<li><b>Exclusive placement</b>: the annotation <code>alpha.jobset.sigs.k8s.io/exclusive-topology: &lt;label&gt;</code> puts each child Job alone in one topology domain (one Job per rack, say) through pod affinity and anti-affinity (line 49).</li>
+<li><b>Workload-aware scheduling</b>: v0.13 can describe the JobSet to the native Workload API (<code>spec.scheduling</code>, behind its own feature gate and the alpha CompositePodGroup gate; not run here).</li>
+</ul>
+<p>The policy that ran in section 2, the shape JobSet recommends for preemptible training:</p>
+<pre class="rd-code">spec:
+  failurePolicy:
+    maxRestarts: 0                        # a crash is not retried
+    rules:
+    - name: disruptedRestartFree
+      action: RestartJobSetAndIgnoreMaxRestarts
+      onJobFailureReasons: [PodFailurePolicy]
+  replicatedJobs:
+  - name: node
+    template:
+      spec:
+        backoffLimit: 0
+        podFailurePolicy:                 # an evicted or preempted pod fails its Job at once,
+          rules:                          # with reason PodFailurePolicy
+          - action: FailJob
+            onPodConditions:
+            - {type: DisruptionTarget}</pre>
+<p class="rd-codecap"><code>src/k8s/train-jobset.sh km-e3b policy</code> (abridged). Run e3b: one eviction, <code>restarts: 1</code>, resumed from step 50, completed. Run e3c: a crash, <code>jobset failed due to reaching max number of restarts (first failed job: km-e3c-node-0)</code>.</p>
+<div class="pr"><div class="q">Predict. In run e3b the evicted pod's Job failed with reason PodFailurePolicy. The other pod of the same Job then also exited 1 (its peer was gone). Does that second failure spend the restart budget?</div>
+<div class="opts"><button data-a="0">Yes, it is a separate failure with reason BackoffLimitExceeded</button><button data-a="1">No: the Job had already failed once, and the JobSet restarts whole Jobs, not pods</button></div>
+<div class="ans" hidden>No. A Job fails once; the first matching pod failure decides its reason. The JobSet sees one failed Job with reason PodFailurePolicy, matches the rule, deletes every Job and recreates them (status <code>restarts: 1</code>, no <code>restartsCountTowardsMax</code>). The order matters, though: the evicted pod reached Failed at 17.5 s and its peer at 18.2 s, so the Job's first failure was the disruption.</div></div>
+</section>

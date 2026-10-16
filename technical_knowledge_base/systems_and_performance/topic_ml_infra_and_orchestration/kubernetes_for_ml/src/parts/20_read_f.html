@@ -1,0 +1,30 @@
+<section id="rd-s5">
+<h2>5. Placement controls: affinity, taints, spread, priority and preemption</h2>
+<p><b>The problem.</b> GPU nodes are expensive and different from each other (H100 against A100, one network block against another). You want training pods only on GPU nodes, everything else kept off them, a job's pods close together, and important jobs able to take GPUs from unimportant ones.</p>
+<ul class="tight">
+<li><dfn>nodeSelector</dfn> and <dfn>node affinity</dfn>: the pod lists node labels it requires (<code>requiredDuringSchedulingIgnoredDuringExecution</code>, a Filter) or prefers (<code>preferred...</code>, a Score). Cloud providers label GPU nodes with the accelerator type; Kueue's flavors (section 7) work by adding a nodeSelector for you.</li>
+<li><dfn>Taints</dfn> and <dfn>tolerations</dfn>: a node's taint repels every pod that does not tolerate it. GPU node pools are usually tainted (for example <code>nvidia.com/gpu=present:NoSchedule</code>) so that only pods that tolerate it (training pods, the device plugin DaemonSet) land there. <code>NoExecute</code> also evicts running pods; the node lifecycle controller adds <code>node.kubernetes.io/unreachable</code> this way when a node goes silent (the root's {{Failure lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} measures it).</li>
+<li><dfn>topologySpreadConstraints</dfn>: keep the count of matching pods per <dfn>topology domain</dfn> (all nodes sharing a label value, such as a zone or this cluster's block <code>mi.example.com/block</code>) within <code>maxSkew</code> of each other.</li>
+<li><dfn>Pod affinity</dfn> and <dfn>anti-affinity</dfn>: place a pod near (or away from) pods with given labels in a domain. JobSet's exclusive placement (section 8) is built from these.</li>
+</ul>
+<h3>A spread rule meets a tainted node</h3>
+<p>Three 1-GPU pods with <code>maxSkew: 1</code> over the two blocks (b1 = worker and worker2, b2 = worker3), while worker3 carries a taint the pods do not tolerate (say it is reserved for inference). Should b2 count as a domain the pods must spread into?</p>
+<div class="rd-card" id="km-spread-card">
+<h4>nodeTaintsPolicy Ignore (the default) against Honor, same pods <span class="meas">measured</span></h4>
+<div class="seg" id="km-spread-mode"><button data-m="ignore" class="on">Ignore (default)</button><button data-m="honor">Honor</button></div>
+<div class="km-svg" id="km-spread-svg"></div>
+<div class="an-cap" id="km-spread-cap"></div>
+<p class="small mute"><code>src/k8s/spread-pod.sh</code>; taint <code>km.example.com/reserved=inference:NoSchedule</code> on worker3 during the runs, removed after.</p>
+</div>
+<p>With the default, the tainted block still counts as a domain with zero pods, so after one pod in b1 the second would make the skew 2 and is refused: two pods Pending with <code>2 node(s) didn't match pod topology spread constraints, 2 node(s) had untolerated taint(s)</code>. With <code>nodeTaintsPolicy: Honor</code> the tainted node is left out of the count and all three run in b1. The same trap exists for <code>nodeAffinityPolicy</code>, whose default is Honor.</p>
+<h3>Priority and preemption</h3>
+<p>A <dfn>PriorityClass</dfn> maps a name to an integer. Higher-priority pods go first in the scheduling queue, and when nothing fits, the default PostFilter plugin looks for a node where evicting lower-priority pods would make room (<dfn>preemption</dfn>). The victims get the <code>DisruptionTarget</code> condition (reason <code>PreemptionByScheduler</code>), receive SIGTERM and their grace period, and the preemptor waits with <code>status.nominatedNodeName</code> set until they are gone. <code>preemptionPolicy: Never</code> keeps the queue priority but never evicts.</p>
+<div class="rd-card" id="km-pre-card">
+<h4>Three low-priority jobs fill the cluster; two high-priority jobs arrive <span class="meas">measured</span></h4>
+<div class="km-svg" id="km-pre-svg"></div>
+<div class="an-ctl" id="km-pre-ctl"></div>
+<div class="an-cap" id="km-pre-cap"></div>
+<p class="small mute">PriorityClasses km-low (100), km-high (1000) and km-high-nopreempt (1000, preemptionPolicy Never) from <code>src/k8s/e5-priority.yaml</code>; every pod asks for a whole worker's 4 fake GPUs. Events in <code>src/runs/e5a.events.txt</code>.</p>
+</div>
+<p><b>Cost and when it matters.</b> Preemption is how a shared research cluster lets production training take GPUs back, but the scheduler preempts <i>pods</i>, not jobs: evicting one pod of a 64-pod training job kills all 64 (section 2), and the scheduler does not know that. It will also happily preempt a pod that is 3 minutes from a checkpoint. That is why training clusters move preemption up a level: Kueue preempts whole workloads by priority or to reclaim quota (the parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} shows the reclaim), and the native PodGroup has a <code>disruptionMode</code> (single or all) for exactly this. A PodDisruptionBudget limits voluntary evictions (drains), but not preemption by priority beyond a best effort.</p>
+</section>
