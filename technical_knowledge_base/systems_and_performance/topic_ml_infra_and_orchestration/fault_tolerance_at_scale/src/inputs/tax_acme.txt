@@ -1,0 +1,94 @@
+SOURCE
+Qinghao Hu, Zhisheng Ye, Zerui Wang, Guoteng Wang, Meng Zhang, Qiaoling Chen, Peng Sun, Dahua Lin, Xiaolin Wang,
+Yingwei Luo, Yonggang Wen, Tianwei Zhang (Shanghai AI Laboratory, NTU, Peking University, SenseTime, CUHK).
+"Characterization of Large Language Model Development in the Datacenter". NSDI 2024.
+arXiv 2403.07648, version read: v2 (3 Apr 2024; v1 12 Mar 2024). https://arxiv.org/abs/2403.07648
+Read 2026-10-16 from the arXiv PDF via pdftotext -layout.
+
+SCALE AND PERIOD
+- Datacenter "Acme", two clusters "Seren and Kalos, dedicated to LLM development and equipped with 4,704 A100 GPUs in
+  total". Traces "collected over a six-month period from March to August 2023".
+- Table 1: Seren 286 nodes, Kalos 302 nodes; per node 128 CPUs, 8 GPUs; Mem(GB) 1,024 (Seren) / 2,048 (Kalos);
+  Network 1x200Gb/s (Seren) / 5x200Gb/s (Kalos). CHECK: (286 + 302) x 8 = 4,704. OK.
+- Failure logs: "In Kalos, we gather logs from 32,500 tasks, which include 31,293 (96.3%) inference tasks, 647
+  (2.0%) pretraining tasks, and debugging tasks (1.7%). In Seren, we only collected logs from 675 pretraining tasks."
+  CHECK: 31,293/32,500 = 96.29%; 647/32,500 = 1.99%; remainder 560 = 1.72%. OK.
+
+UNIT OF COUNTING
+Failed jobs (occurrences of a failure reason extracted from runtime logs by a rule-based plus LLM diagnosis system,
+with manual checks). Columns: Num (occurrences), GPU Demand (avg, median), TF Time to Failure (mins, avg, median),
+GPU Time (mins, avg) and Total% (share of summed GPU time = TF x GPU Demand), TR Time to Restart (mins, avg,
+median), TR/TF%, Cluster (S = Seren, K = Kalos).
+"Note that these classifications may overlap, and the primary criterion for classifying a specific type of error
+is its most frequent occurrence."
+
+TABLE 3 (verbatim): "Job failure statistics. It is sorted based on Total% (i.e., the percentage of GPU time
+summation in different categories). Num: Number of Occurrence. TF: Time to Failure. TR: Time to Restart (i.e.,
+Restart Timestamp minus Failure Timestamp). GPU Time: TF x GPU Demand. S/K: Occurrence of errors in Seren/Kalos
+respectively."
+Category        Reason                 Num  GPUavg GPUmed  TFavg   TFmed   GPUTimeAvg Total%  TRavg  TRmed  TR/TF%   Cluster
+Infrastructure  NVLink Error            54   800    896    868.1   155.3   585683   30.25%   95.6    0.2   11.02%   S, K
+Infrastructure  CUDA Error              21   847   1024    923.2   586.0   785099   15.77%   78.3    2.0    8.48%   S, K
+Infrastructure  Node Failure            16   712    768   1288.8   535.8   934394   14.30%  102.8   21.5    7.98%   S
+Infrastructure  ECC Error               12   680    512   1303.4  1192.3   958404   11.00%    2.8    1.8    0.21%   S, K
+Infrastructure  Network Error           12   758    768    549.6   310.1   394821    4.53%  592.1    7.4  107.74%   S, K
+Infrastructure  Connection Error       147    29      1     51.9     0.5    24492    3.44%    0.8    0.0    1.51%   S, K
+Infrastructure  S3 Storage Error        10   422    256   2317.8   202.2   222151    2.12%    6.2    0.2    0.27%   S
+Infrastructure  NCCL Timeout Error       6   596    512    159.7    48.1    86856    0.50%   66.7   43.6   41.78%   K
+Infrastructure  NCCL Remote Error        3  1152   1024     50.5    22.6    52419    0.15%    0.0    0.7    0.09%   K
+Framework       Dataloader Killed        6   445    508   1580.6   961.4   764170    4.38%  115.1    0.9    7.28%   K
+Framework       Attribute Error         67   228      8     67.8     1.2    60914    3.90%    2.4    0.0    3.58%   S, K
+Framework       Out of Memory Error     14   572    640    323.8    14.5   245278    3.28%  122.7    1.2   37.89%   S, K
+Framework       Runtime Error           65   441    352     66.4     3.9    27667    1.72%   10.9    1.5   16.41%   S, K
+Framework       Assertion Error        105   413    256     41.7     3.0    12315    1.24%  185.9    1.6  445.87%   S, K
+Framework       Value Error             33   387    256      9.9     3.7     5049    0.16%   27.4    0.6  276.74%   S, K
+Framework       Zero Division Error      5   499    256     14.5    15.6     5363    0.03%    2.5    1.1   17.31%   S, K
+Framework       Model Loading Error    104     8      8      2.6     2.6       20    0.00%    0.0    0.0    0.00%   K
+Framework       Dataset Loading Error    5     1      1      1.6     1.6        1    0.00%    0.0    0.0    0.00%   K
+Script          File Not Found Error   568    21      1     14.2     0.4     5210    2.83%    0.4    0.0    2.58%   S, K
+Script          OS Error               266     8      1      9.6     0.8     1098    0.28%    0.3    0.0    3.17%   S, K
+Script          Type Error             620    18      4      0.9     0.3       97    0.06%    0.2    0.0   28.27%   S, K
+Script          Name Error              18   247     24      3.2     0.5      947    0.02%    2.9    2.4   90.92%   S, K
+Script          Permission Error         7   438    512      4.3     0.8     2131    0.01%    2.4    2.2   56.38%   S
+Script          Import Error           111    93      8      1.1     0.4       74    0.01%    0.7    0.0   63.68%   S, K
+Script          Key Error              260     7      0      3.0     1.6       55    0.01%    0.1    0.0    2.10%   S, K
+Script          Syntax Error            10   391    384      0.7     0.6      348    0.00%    1.7    1.7  261.73%   S, K
+Script          Argument Error           3   344    512      0.7     0.7      288    0.00%    2.7    0.7  408.47%   S
+Script          Called Process Error     4   256    256      0.2     0.2       52    0.00%   11.7   10.9 5714.29%   S
+Script          Index Error             23     6      1      1.6     0.9       21    0.00%    0.8    0.0   49.73%   S, K
+(Category grouping: the category label is printed once per block in the PDF; blocks are 9 / 9 / 11 rows,
+consistent with the label being vertically centred on each block.)
+
+ARITHMETIC CHECKS (mine)
+- Total failures (sum of Num) = 2,575. Infrastructure 281 (10.9%), Framework 404 (15.7%), Script 1,890 (73.4%).
+  Text: infrastructure failures "take over 82% GPU resources (GPU Time) with only 11% failed job quantity (Num)". OK.
+- Total% reproduces exactly as Num x GPUTimeAvg / sum(Num x GPUTimeAvg) for every row (sum = 104,561,289 GPU-min,
+  about 1.74M GPU-hours). Max row difference 0.01 points (Dataloader Killed 4.39 calc vs 4.38 printed).
+- Category Total%: Infrastructure 82.06%, Framework 14.71%, Script 3.22%; whole column sums to 99.99%. OK.
+- TR/TF% is approximately TRavg / TFavg: matches to within rounding for most rows; small rows deviate because the
+  printed averages are rounded (e.g. Type Error 0.2/0.9 = 22% vs 28.27% printed; Called Process Error 11.7/0.2 =
+  5850% vs 5714.29% printed; NCCL Remote Error TRavg printed 0.0 with TRmed 0.7, so TRavg is below 0.05 but above
+  zero). No row looks like a typo.
+- Row-level check that GPUTimeAvg is not simply GPUavg x TFavg: NVLink 800 x 868.1 = 694,480 vs 585,683 printed;
+  expected, since the mean of a product differs from the product of means.
+
+KEY QUOTES (verbatim)
+1. "They take over 82% GPU resources (GPU Time) with only 11% failed job quantity (Num). Most of these jobs are
+   long-term pretraining tasks that can experience hardware failures multiple times ... Note that NodeFailure
+   indicates uncategorized errors caused by unclear hardware issues."
+2. "Script errors typically stem from programming errors or user oversights. They constitute the majority of
+   failures and are often addressed by revising codes."
+3. "training 7B models in Kalos tend to result in GPU overheating, which can cause NVLinkError or ECCError ... We
+   observe that the overall temperature in the cluster server room increased by approximately 5 C when training
+   these models ... most of these jobs occurred in July 2023".
+Other:
+- "A significant number of ConnectionError and NetworkError incidents stem from these auxiliary services"
+  (metric reporting, logging, monitoring and alerting).
+- "In Kalos, only 6.7% of evaluation tasks encounter errors, and notably, there are no recorded instances of GPU or
+  NVLink failures."
+- Restart triggers: "(1) when an error occurs within the job, (2) when there are anomalies in training metrics such
+  as a loss spike, and (3) when the training process is stuck."
+- Detection: two-round NCCL allgather test on two-node worlds, then pair suspects with normal nodes, "thus
+  identifying the faulty nodes and then cordoning them off" (akin to DLRover).
+- "our failure diagnosis system significantly reduces manual intervention by around 90% ... Note this is not a
+  rigorous assessment since components of our system are still under improvement."

@@ -1,0 +1,24 @@
+SOURCE: Wan, Han, Sheng, Peng, Lin, Zhang, Lai, Yu, Zhang, Song, Liu, Wu. "ByteCheckpoint: A Unified Checkpointing System for Large Foundation Model Development". arXiv:2407.20143v4, 2 Apr 2025 (v1 July 2024; NSDI 2025). HKU + ByteDance.
+URL: https://arxiv.org/abs/2407.20143
+LABEL: vendor (ByteDance, own system). Read 2026-10-16.
+
+MECHANISM (my words): A parallelism-agnostic checkpoint representation (tensors decomposed into shards with global metadata) so a checkpoint saved at one TP/DP/PP layout can be loaded and resharded at another at load time. Saving is an asynchronous pipeline (device-to-host copy, serialize, dump, upload to HDFS) with work balanced across data-parallel replicas (each replica saves a share instead of rank 0 of DP saving all), and a plan/metadata cache so later checkpoints skip planning. Loading overlaps reads with communication (one reader then transfers to peer GPUs). Coordinator communication moved from NCCL to gRPC (then a tree) for stability at 8,960 GPUs.
+
+VERBATIM
+- Abstract: "Compared to existing open-source checkpointing systems [52, 58], ByteCheckpoint significantly reduces runtime checkpoint stalls, achieving an average reduction of 54.20x. For saving and loading times, ByteCheckpoint achieves improvements of up to 9.96x and 8.80x, respectively."
+- "scales ByteCheckpoint to support the training of a 405B LFM on 8,960 GPUs" ; "deployed on our industrial AI platform with tens of thousands of GPUs".
+- Motivation: "the average end-to-end time required to save checkpoints of a GPT 175B model, trained on 4096 GPUs, to HDFS can be 200 seconds. This duration substantially exceeds the time required for a single training iteration."
+- Eval method: "conducting training over 500 steps and saving checkpoints every 100 steps"; ETTR: "Following GEMINI [66], we assume a consistent occurrence of failures within each checkpointing interval (100 steps), calculating the average wasted time to derive the achieved ETTR."
+- Baselines: PyTorch DCP (commit c7338f4) for FSDP, Megatron Distributed Checkpoint MCP (commit 3fb5c51) for Megatron-LM; "Both baselines support asynchronous checkpointing and load-time checkpoint resharding for the model and optimizer, but not for dataloader states."
+- Hardware: vDiT "fine-tuned with the FSDP framework for video generation on a cluster of NVIDIA A100 80GB GPUs, while the tGPT model is trained for text generation with Megatron-LM [47] on NVIDIA H800 80GB GPUs."
+- Table 4 (T_Block = checkpoint stall s, T_Save, T_Load, T_Reshard s, ETTR %):
+  vDiT 4B FSDP 32 GPUs: DCP 16.25 / 86.82 / 50.12 / 74.89 / 38.60; ByteCheckpoint (GPU states) 0.54 (30.09x) / 27.47 (3.16x) / 11.69 (4.29x) / 16.01 (4.68x) / 46.22 (1.20x)
+  vDiT 4B FSDP 128 GPUs: DCP 61.37 / 236.34 / 105.74 / 91.01 / 41.62; BC 0.38 (161.50x) / 23.74 (9.96x) / 12.01 (8.80x) / 13.64 (6.67x) / 48.92 (1.18x)
+  tGPT 70B Megatron 2400 GPUs: MCP 4.73 / 28.97 / 69.87 / 126.30 / 34.61; BC GPU 0.39 (12.13x) / 13.11 (2.21x) / 49.48 (1.41x) / 62.10 (2.03x) / 40.18 (1.16x); BC full states 0.50 / 20.55 / 72.35 / 401.21 / 28.80
+  tGPT 70B Megatron 4800 GPUs: MCP 4.70 / 76.21 / 123.80 / 64.62 / 31.28; BC GPU 0.36 (13.06x) / 8.59 (8.87x) / 64.39 (2.00x) / 54.31 (1.19x) / 40.29 (1.29x); BC full 0.43 / 25.04 / 83.56 / 115.95 / 34.70
+- "This improvement reduces the average checkpoint stall time from minutes or seconds to sub-second durations".
+- Table 5 microbenchmark tGPT 13B (TP2 DP8 PP2): no optim 50.26 s; async 34.68 (1.45x); +workload balancing 20.28 (2.48x); +plan cache 19.97 (2.52x). tGPT 30B: 46.34; 25.56 (1.81x); 18.83 (2.46x); 18.56 (2.50x).
+
+CAVEATS
+- ETTR column is a synthetic metric (failure assumed every 100-step interval), so the absolute 30-48% values are not production ETTRs; use only as relative.
+- Text says stall reductions "ranging from 13.06x to 161.50x" while the intro says 12.13x to 161.50x; table shows 12.13x for 2400 GPUs (inconsistency in the paper text).

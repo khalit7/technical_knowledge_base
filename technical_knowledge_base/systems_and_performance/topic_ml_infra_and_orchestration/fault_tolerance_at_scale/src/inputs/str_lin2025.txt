@@ -1,0 +1,67 @@
+Jinkun Lin (NYU), Ziheng Jiang, Zuquan Song, Sida Zhao, Menghan Yu, ... Haibin Lin, Xin Liu (ByteDance
+Seed), Aurojit Panda, Jinyang Li (NYU). "Understanding Stragglers in Large Model Training Using What-if
+Analysis", arXiv:2505.05713v2 (12 May 2025; document date June 11, 2025). OSDI 2025 per the brief (venue
+not printed in the arXiv text I read: unconfirmed). https://arxiv.org/abs/2505.05713
+Project page: https://github.com/ByteDance-Seed/StragglerAnalysis   (PDF read 2026-10-16)
+
+Data: "traces collected from the LLM training cluster at ByteDance over a five-month period from January
+to May 2024". "we only use traces for jobs that use at least 128 GPUs ... This produces 3079 jobs for our
+analysis." "Of the 3079 jobs, 31.7% use >= 256 GPUs, 18.3% use >= 512 GPUs, and 3.6% use >= 5000 GPUs. In
+total, the analyzed jobs cover around half of the total GPU-hours among all LLM training jobs." Framework:
+customized Megatron-LM instrumented with NDTimeline: "By default, it samples 10% of the training steps".
+
+Method (what-if simulation)
+- Trace per profiled step the start/end of operations: forward-compute, backward-compute, forward/backward
+  PP send/recv, grads-reduce-scatter, params-all-gather (per microbatch, per rank).
+- Idealised durations (verbatim): "For the computation operation, we use the average value across the
+  group of elements to be equalized. For communication operations, we use median instead of average."
+  Reason: "computational straggling arises predominantly due to workload partitioning imbalance. Therefore,
+  taking the average makes sense as doing so amounts to workload re-balancing." Communication straggles
+  "due to external issues like switch/NIC flapping ... the affected operations tend to be very long, which
+  significantly skews the average value and makes median a better choice."
+- Replay on a dependency model: compute op starts when all dependencies finish; comm op ends at "the
+  maximum launch time among the group plus the corresponding transfer-duration".
+- Metrics (verbatim): "S = T / Tideal" (job slowdown); "St = Tideal^-t / Tideal" per operation type;
+  resource waste "(T - Tideal)/T = 1 - 1/S"; worker slowdown "Sw = Tideal^-w / Tideal" where Tideal^-w fixes
+  all operations except those on worker w. Traces with simulation error >= 5% are discarded.
+- Straggling job threshold: "straggling jobs, aka those with slowdown S >= 1.1."
+
+Key numbers (verbatim)
+"42.5% of the jobs are at least 10% slower due to stragglers. At the tail, stragglers can result in jobs
+wasting 45% of their allocated resources"
+"> 10% of the jobs waste at least 21.3% of the GPU-hours it is allocated, while ~ 1% jobs waste at least
+45.0% of its allocated GPUs. Across all our traces we found that 10.4% of the allocated GPU hours are
+wasted due to stragglers." (Fig. 3 CDF: p50 7.8%, p90 21.3%, p99 45.0% waste)
+Persistence: "Most steps incur similar slowdowns within a straggling job, suggesting that they are often
+not caused by transient environmental issues but are rather caused by persistent problems" (Fig. 4
+normalised per-step slowdown p50 1.00, p90 1.06, p99 1.26).
+"Contrary to the observation in FALCON [40] we find that most slowdowns are caused by computation
+operations, as opposed to communication. This is owing to our ample network bandwidth, the use of
+dedicated LLM-training clusters, and several in-house ..."
+"We did not notice a positive correlation between job size and its straggler-related slowdown"
+Worker faults: "worker problems contribute to more than 50% of the observed slowdown for only 1.7% of
+straggling jobs. This leads us to conclude that problematic workers are not the dominant factor".
+(Method: MW = (T - Tideal^W)/(T - Tideal) with W = the slowest 3% of workers; worker slowdown approximated
+by min of its DP-rank and PP-rank slowdowns, reducing simulations from DP x PP to DP + PP.)
+Also: jobs with S > 3 "were large jobs, where fewer than 3% of the workers were responsible for the
+problem".
+Root causes:
+- Pipeline stage imbalance: "forward-compute (backward-compute) of the last stage is 2.07 (1.41) times
+  slower than an average stage's computation." "for 39.3% of jobs, a majority of the job slowdown (i.e.,
+  MS >= 0.5) is because of the last pipeline stage." Manual re-partition gave "a speedup of 9.9%".
+- Sequence length imbalance (long context): "21.4% jobs are affected by sequence" length imbalance [line
+  wraps in the PDF; exact sentence not fully captured]; greedy re-balancing of microbatches by summed
+  sequence length gave "a 23.9% improvement in throughput" on a 32K-max-length job.
+- Python GC: planned GC "turns off Python's automatic GC mechanism, and instead manually schedules GC at a
+  user-specified interval ... on a job that uses 128 DP ranks, using this optimization so that GC is run
+  every 500 training steps results in a 12.6% improvement."
+- Uncommon: PyTorch allocator segment_alloc/segment_free churn; false kernel dependency.
+Online tool SMon (verbatim): "SMon estimates slowdown, per-step slowdown, and worker slowdown, and presents
+the results on a webpage. ... we present worker slowdowns using a heatmap, where each cell represents a
+worker with its x- and y-coordinate as its DP and PP rank". "jobs with worker issues, stage partitioning
+imbalance and sequence length variance have distinct patterns". "Within a month of its deployment, SMon
+has helped us identify and address several stragglers: it allowed us to locate faulty machines in three
+cases where machine problems were responsible for stragglers, it helped identify a case where sequence
+length variance was leading to large job slowdown, and a separate case where imbalanced compute
+partitioning across pipeline stages was to blame."
+Coverage caveat: after discarding traces, "total coverage of 38.2% jobs and 56.4% GPU hours."

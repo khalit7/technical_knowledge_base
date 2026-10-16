@@ -1,0 +1,144 @@
+SOURCE
+Borui Wan, Gaohong Liu, Zuquan Song, Jun Wang, Yun Zhang, Guangming Sheng, ... Chuan Wu, Yanghua Peng, Haibin Lin,
+Wencong Xiao, Xin Liu, Liang Xiang (The University of Hong Kong; ByteDance Seed).
+"Robust LLM Training Infrastructure at ByteDance" (the system is ByteRobust). SOSP '25, Seoul, 13--16 Oct 2025,
+doi 10.1145/3731569.3764838.
+arXiv 2509.16293, version read: v4 (20 Oct 2025; v1 19 Sep 2025, v2 30 Sep 2025, v3 10 Oct 2025).
+https://arxiv.org/abs/2509.16293
+Read 2026-10-16 from the arXiv PDF via pdftotext -layout.
+
+SCALE AND PERIOD
+- Table 1: "Statistics of training incidents collected over a three-month span, encompassing 778,135 LLM training
+  jobs." ("all LLM training jobs captured on our production platform over the last three months").
+- Table 2: "incidents in the large-scale training jobs (on >2000 GPUs) over the last month".
+- Deployment results: "a three-month job for training a dense model (Llama-like, 70+B), and a one-month job for
+  training an MoE model (200+B). These pretraining jobs were run on a GPU cluster comprising 9,600 Hopper GPUs."
+  Up to 1200 machines x 8 NVIDIA Hopper 80GB.
+- Abstract: "achieving 97% ETTR for a three-month training job on 9,600 GPUs." "deployed for over one year".
+
+UNIT OF COUNTING
+Incidents (any training interruption or anomaly, including deliberate manual restarts), by symptom.
+Three classes, verbatim: "(i) Explicit failures, which are characterized by clear diagnostic indicators, such as
+error messages in stdout or stderr logs or specific exit codes; (ii) Implicit failures, which often manifest as job
+hang-ups, performance degradation, or anomalous training trajectories, whose root causes are often elusive; and
+(iii) Manual restart, which refers to proactive interruptions of training for the purposes of algorithm and
+engineering improvement."
+
+TABLE 1 (verbatim)
+Category        Incident Symptom          Count    Percentage
+Explicit        CUDA Error                19968    36.1%
+Explicit        CPU Overload               6095    11.0%
+Explicit        CPU OOM                    5567    10.1%
+Explicit        Insufficient Disk Space    2755     5.0%
+Explicit        Infiniband Error           1599     2.9%
+Explicit        Filesystem Mount           1176     2.1%
+Explicit        HDFS Error                 1104     2.0%
+Explicit        Container Error             781     1.4%
+Explicit        OS Kernel Panic             203     0.4%
+Explicit        GPU Memory Error            188     0.3%
+Explicit        External Service Error      128     0.2%
+Explicit        GPU Unavailable              76     0.1%
+Explicit        Disk Fault                   47     0.1%
+Implicit        Job Hang                   5506     9.9%
+Implicit        MFU Decline                 442     0.8%
+Implicit        NaN value                   148     0.3%
+Manual Restart  Code/Data Adjustment       9582    17.3%
+
+ARITHMETIC CHECKS (mine)
+- Sum of all 17 counts = 55,365. Every printed percentage equals count / 55,365 rounded to 0.1 (e.g. CUDA
+  19968/55365 = 36.07%, Job Hang 9.94%, Manual 17.31%). Percentages sum to 100.0%. Consistent.
+- Class sums from the table: Explicit 39,687 (71.7%), Implicit 6,096 (11.0%), Manual 9,582 (17.3%).
+- MISMATCH with the text: "ByteRobust identifies 38,236 explicit failures, 5,948 implicit failures in the
+  three-month period". Implicit: 6,096 minus 5,948 = 148, exactly the NaN value row, so the text appears to exclude
+  NaN from the implicit total. Explicit: 39,687 minus 38,236 = 1,451, which matches no row or small combination of
+  rows (checked all subsets of up to 4 rows); unexplained. Manual restart 9,582 matches the text ("9582 manual
+  interruptions occurred").
+- Text: Hang is "covering over 10% of all incidents"; table shows Job Hang 9.9% (5506/55365 = 9.94%). Slight
+  mismatch unless "Hang" is meant to include more than the Job Hang row. Text also says "more than 10% of incidents
+  manifest as implicit failures": 6,096/55,365 = 11.0%, consistent.
+- Share among failures only (excluding manual restarts, my computation): 45,783 failures; CUDA Error 43.6%, Job Hang
+  12.0%, CPU Overload 13.3%, CPU OOM 12.2%.
+
+TABLE 2 (verbatim): Root cause of incidents (jobs on >2000 GPUs, last month)
+Symptom                 #Infrastructure   #User Code   #Total
+Job Hang                      21               5          26
+Illegal memory access         21              41          62
+NaN value                      3               1           4
+CHECK: rows sum correctly (21+5=26, 21+41=62, 3+1=4). Infrastructure 45 of 92 (48.9%), user code 47 of 92 (51.1%):
+my computation.
+Examples given: Job Hang from "NVIDIA IB Switch Unified Fabric Manager (UFM) faults (infrastructure issue) or
+mis-configurations of checkpoint resharding (user code issue)"; illegal memory access from "broken High Bandwidth
+Memory (HBM) or incorrect implementation of computation kernels in handling variable sequence lengths"; NaN from
+"problematic data, code bugs, or hardware-induced SDCs".
+
+TABLE 3 (verbatim): "The time to detect different infrastructure failures. T_timeout is the default timeout
+threshold of PyTorch-Distributed (~10 minutes). T_monitor is the time interval to monitor the MFU decline."
+Category  Root Cause         w/ Inspection (s)   w/o Inspection
+Network   NIC crash               30              T_timeout
+Network   Port Flapping           30              T_timeout
+Network   Switch Down             30 x 2          T_timeout
+GPU       Driver Hang             10              T_timeout
+GPU       High Temperature        10              T_monitor
+GPU       GPU Lost                10              T_timeout
+Host      OS Kernel Fault          2              T_timeout
+("We wait for two consecutive unresponsive switch events before raising an alert.") Note: sec 8.1.1 calls the
+baseline timeout "~30 minutes", while the Table 3 caption says T_timeout is ~10 minutes; sec 2 says NCCL hangs
+produce no logs "until timeout (i.e., 30 or 60 minutes for NCCL)". Inconsistent within the paper; reported as is.
+
+TABLE 4 (verbatim): "Distribution of resolved incidents across different mechanisms in two production jobs.
+Numbers represent incident counts, with percentages shown in parentheses." (dagger = not applicable)
+Job    Mechanism     Explicit      Implicit     Manual Restart
+Dense  AutoFT-ER     128 (73.1%)   -            -
+Dense  AutoFT-HU     -             -            20 (11.4%)
+Dense  Analyzer-ER   -             15 (8.6%)    -
+Dense  Rollback      -             12 (6.9%)    -
+MoE    AutoFT-ER      71 (56.8%)   -            -
+MoE    AutoFT-HU     -             -            31 (24.8%)
+MoE    Analyzer-ER   -              9 (7.2%)    -
+MoE    Rollback        1 (0.8%)    13 (10.4%)   -
+CHECK: Dense total 175: 128/175 = 73.14%, 20/175 = 11.43%, 15/175 = 8.57%, 12/175 = 6.86%. OK.
+MoE total 125: 71/125 = 56.8%, 31/125 = 24.8%, 9/125 = 7.2%, 1/125 = 0.8%, 13/125 = 10.4%. OK.
+Text "rollback ... accounting for 6.9% and 11.2%": MoE 0.8 + 10.4 = 11.2. OK. "the analyzer successfully resolved
+24 incidents": 15 + 9 = 24. OK.
+Mechanisms: AutoFT-ER = automated machine eviction then restart; AutoFT-HU = hot update; Analyzer-ER = aggregation
+analyzer (stack-trace clustering) then eviction and restart; Rollback = revert code to a previous stable version.
+
+TABLE 6 (verbatim): Incident resolution cost comparison (time from failure localization to successful restart vs
+selective stress testing baseline)
+Incident Symptoms      Ours Mean (s)  Ours Max (s)  Selective (s)
+CUDA Error                  93            600        518 (INF)
+Infiniband Error            60             60        288
+HDFS Error                  58             65        INF
+OS Kernel Panic            109            120        168
+GPU Memory Error            10             10        600
+NaN Value                 4289           7200        7200 (INF)
+GPU Unavailable             10             10        120
+Code/Data Adjustment        57             64        INF
+(spelling "Inifiband" in the original table corrected here.)
+CHECK: text claims "up to an 84.50% reduction for CUDA errors". (600 - 93)/600 = 84.50%, but 600 is the "Ours
+Max" value; against the printed Selective 518 s the reduction is (518 - 93)/518 = 82.0%. GPU Memory Error gives
+(600 - 10)/600 = 98.3%, larger than 84.5%. So the "84.50%" figure does not reproduce from Table 6 as printed; flag.
+
+OTHER TIMES (verbatim)
+- Explicit failures "typically exhibit short detection times (around 60s, via error messages or other log-based
+  indicators) and localization times (ranging from 2 minutes to 15 minutes)."
+- "we encountered a communication hang issue caused by CUDA errors ... which took us more than one and a half
+  hours for manual diagnosis."
+- SDC: "Through more than 8 hours of offline stress testing, we successfully identified the faulty GPU machines."
+- "ByteRobust maintained the cumulative ETTR at a plateau of up to 97% and kept the unproductive training time
+  within a maximum of 50 minutes for both jobs." (sliding-window ETTR over a one-hour window)
+- ETTR: "calculated as the ratio between the productive training time and the wall-clock time of a job".
+- "warm standby and hot update mechanisms achieve up to 10.87x and 11.04x respectively in recovery";
+  "every-step checkpointing with less than 0.9% overhead".
+- Fig. 2: "training an LLM in a 1000-GPU cluster over a 10-day training span, during which a total of 28 runs were
+  conducted (each run corresponds to a restart of the model training)".
+- Cites Llama 3: "Meta reports that hardware failures occur approximately every 2.78 hours during the training of
+  large models on 16,000 GPUs". (Note: 54 days x 24 / 466 total interruptions = 2.78 h; with only the 419
+  unexpected ones it is 3.09 h. So "hardware failures" here is really all interruptions.)
+
+KEY QUOTES
+1. "Prioritize rapid isolation, not precise localization ... over-evicting them rather than chasing exact root
+   causes."
+2. "when hang happens, the training job will not produce any logs until timeout (i.e., 30 or 60 minutes for NCCL)."
+3. "a single corrupted gradient from one node can contaminate the global parameter update across all participating
+   workers."

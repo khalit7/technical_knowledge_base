@@ -1,0 +1,72 @@
+SOURCE
+Meta AI, metaseq repository, projects/OPT/chronicles:
+- OPT175B_Logbook.pdf (114 pages; the final note calls it "148 pages of notes", page count differs, probably the
+  original document vs the PDF export).
+- Notes: 10_percent_update.md (Nov 17 2021), 27_percent_update.md (Dec 3 2021), 56_percent_update.md (Dec 16
+  2021), final_update.md (Jan 2022), by Susan Zhang, Stephen Roller, Naman Goyal, Sam Shleifer, Myle Ott (and
+  Anjali Sridhar for 56%).
+https://github.com/facebookresearch/metaseq/tree/main/projects/OPT/chronicles (main branch, read 2026-10-16).
+OPT paper sec 2.5 numbers already held by the caller (not re-read here).
+
+UNIT OF COUNTING
+None: the logbook is a free-text on-call diary in reverse chronological order. There is NO cause table and no
+category counts. Counts below are keyword hits in the PDF text (pdftotext), i.e. lines mentioning the term, not
+incidents; treat as a rough indicator of what the on-call dealt with.
+Keyword lines: NCCL 68; hang 69; ECC 43; restart 45; went down / bad node / replace 40; loss scale / grad norm /
+nan 55; CUDA error 12; IB / infiniband 16; lost GPU / missing GPU / unknown error 7; blob / azcopy / upload /
+download 285 (checkpoint transfer is the most discussed topic); XID 0; segfault 0; OOM 1.
+
+SCALE AND PERIOD (verbatim from the notes)
+- "roughly ~33 days of continuous training on 1024 80GB A100s (assuming no hardware issues, no numerical
+  instabilities, etc.)"; finished "at 12:46pm PST on January 6" 2022; 300B tokens. Lineage 12.xx started
+  "On November 11".
+- "These notes cover ~90 restarts over the course of training the lineage of this current model (experiments
+  12.xx)."
+
+KINDS OF FAILURE RECORDED (verbatim from notes and logbook)
+Hardware, GPU:
+- "the only restarts we've had to make were all related to hardware issues (missing GPUs on instances, training
+  randomly hanging after including a new node, ECC errors, partial checkpoint upload after hardware error, CUDA
+  errors, NCCL errors, etc.)" (10% note).
+- Logbook: "CRITICAL nvidia_smi | node-118: ecc high uncorrectables: DRAM Uncorrectable: 1335"; "Lost GPU on
+  node-58"; "RuntimeError: CUDA error: unspecified launch failure"; "RuntimeError: CUDA error: unknown error";
+  "CUBLAS_STATUS_EXECUTION_FAILED".
+Network:
+- "drained with reason Bad_infiniband"; "NCCL WARN NET/IB : Got completion with error 11"; "Found 3 hosts with bad
+  NCCL"; "Why was node-55 added to the cluster in an unhealthy state (slow NCCL)?".
+Node provisioning / cloud:
+- "The vast majority of restarts have been due to hardware failures and the lack of ability to provision a
+  sufficient number of 'buffer' nodes to replace a bad node with once it goes down with ECC errors. Replacement
+  through the cloud interface can take hours for a single machine, and we started finding that more often than not
+  we would end up getting the same bad machine again." (27% note)
+- "5 hosts going down all together on Dec 6 (back when we only had a buffer of 4 hosts)" (56% note).
+- "~2 machines go down every day" (final note).
+- "Omicron Sev": "the cloud provider's support team accidentally deleted our entire cluster on December 21 ... it
+  unfortunately came back with 16 machines that did not pass our infrastructure checks."
+Storage / checkpoint:
+- "issues with blob store when downloading 1.6TB of a single model checkpoint (992 files, each ~1.7GB) on restarts,
+  at which point the downloads themselves would start hanging nondeterministically". CHECK: 992 x 1.7 GB = 1.69 TB.
+  OK.
+Hangs (cause often unknown):
+- "it seems like the job genuinely hung in validation"; "There was some CUDA error around 1am that caused training
+  to hang".
+Numerical / training instability (not hardware; drove restarts in the 11.xx lineage and later):
+- "grad norm explosions / loss explosions / nans after a couple hundred updates after each restart"; "Loss scale
+  exploding"; LR lowered by 10%, later to 2/3 of GPT-3's.
+Operator / tooling errors:
+- "Due to user error, the wrong train.log file was specified, causing a false positive on the file not modified
+  detector." ; "We reached the part about NCCL tests and silently failed on fixmycloud, and crashing monitor.py."
+
+ARITHMETIC (mine)
+- "40+ restarts" between Nov 17 and Dec 3 2021 (16 days) = 2.5+ restarts/day.
+- "~2 machines go down every day" on 128 + buffer hosts (1024 GPUs / 8 = 128 hosts): about 1.6% of hosts per day,
+  i.e. per-host MTBF of roughly 64 days. Rough.
+- ~90 restarts over Nov 11 2021 to Jan 6 2022 (56 days) = about 1.6 restarts/day (one per ~15 h). This counts all
+  restarts in the 12.xx lineage, hardware and numerical.
+
+KEY QUOTES
+1. "It's been really rough for the team since the November 17th update. Since then, we've had 40+ restarts in the
+   175B experiment for a variety of hardware, infrastructure, or experimental stability issues."
+2. "these hardware issues can take the experiment down for hours at any time of the day."
+3. "we were able to automatically recover from 8 hardware failures between Christmas and New Years ... We have set a
+   January infrastructure goal of training at 175B scale for 14 days without human intervention".

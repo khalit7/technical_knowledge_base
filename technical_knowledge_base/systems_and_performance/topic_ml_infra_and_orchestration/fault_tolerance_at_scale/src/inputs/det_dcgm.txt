@@ -1,0 +1,84 @@
+NVIDIA DCGM: active diagnostics (dcgmi diag run levels) and background health watches
+Sources (read 2026-10-16):
+  https://docs.nvidia.com/datacenter/dcgm/latest/user-guide/dcgm-diagnostics.html
+  https://docs.nvidia.com/datacenter/dcgm/latest/user-guide/feature-overview.html
+"latest" docs version at read time not recorded on the page text I extracted (unconfirmed).
+
+1. Run levels (table header row, verbatim)
+Plugin | Test name (measured on Hopper GPU systems) |
+  r1 (Short) < 2.5 Seconds. |
+  r2 (Medium) < 2.5 mins on 4 GPU systems, < 10.5 mins on 8 GPU systems. |
+  r3 (Long) < 10 mins on 4 GPU systems, < 35 mins on 8 GPU systems. |
+  r4 (Extra Long) < 45 mins on 4 GPU systems, < 2.25 hours on 8 GPU systems.
+
+Which tests run at which level (table rows, verbatim cells):
+  Software          | software          | r1 Yes | r2 Yes | r3 Yes | r4 Yes
+  PCIe + NVLink     | pcie              |        | r2 Yes | r3 Yes | r4 Yes
+  GPU Memory        | memory            |        | r2 Yes | r3 Yes | r4 Yes
+  Memory Bandwidth  | memory_bandwidth  |        | r2 Yes | r3 Yes | r4 Yes
+  Diagnostics       | diagnostic        |        |        | r3 Yes | r4 Yes
+  Targeted Stress   | targeted_stress   |        |        | r3 Yes | r4 Yes
+  Targeted Power    | targeted_power    |        |        | r3 Yes | r4 Yes
+  NVBandwidth       | nvbandwidth       |        |        | r3 Yes | r4 Yes
+  NCCL Tests        | nccl_tests        |        |        | r3 Yes | r4 Yes
+  Memory Stress     | memtest           |        |        |        | r4 Yes
+  Input EDPp        | pulse             |        |        |        | r4 Yes
+
+CLI description of -r (verbatim): "Run a diagnostic. (Note: higher numbered tests include all beneath.):
+1 - Quick (System Validation 2 - Medium (Extended System Validation) 3 - Long (System HW Diagnostics)
+4 - Extended (Longer-running System HW Diagnostics)"
+
+2. What each plugin does (verbatim where quoted)
+- Software (deployment plugin): "The deployment plugin's purpose is to verify the compute environment is
+  ready to run CUDA applications." (driver, libraries, permissions, page retirement, etc.; details not
+  extracted)
+- PCIe + NVLink: "The PCIe plugin's purpose is to stress the communication from the host to the GPUs."
+- GPU Memory: "The GPU Memory Plugin is a hardware diagnostic test that validates GPU memory integrity and
+  functionality." L1 cache subtest default duration 1.0 s.
+- Memory Bandwidth: "This test performs memory bandwidth measurements using the STREAM benchmark's TRIAD
+  operation." "(default: 67,108,864 elements x 4 bytes x 3 arrays = 756MB per GPU allocated)" [the page
+  writes the multiplication with x; number as printed]
+- Diagnostic: "provide a high-level of throughput for five minutes (by default)." BUT parameter table
+  test_duration default = 180.0 (s). The page is internally inconsistent (5 min in prose vs 180 s).
+- Targeted Stress: test_duration default 30.0 s; "maintains a constant stress level on the GPU by
+  continuously queuing matrix operations."
+- Targeted Power: "drive a GPU towards TDP power usage and sustain that throughout the test."
+  test_duration default 120.0 s.
+- Memtest (r4): "Similar to memtest86, the DCGM memtest will exercise GPU memory with various test
+  patterns." "By default Test7 and Test10 alternate for a period of 10 minutes." test_duration 600.
+  Per-test runtimes e.g. Test0 "~3 seconds", Test6 "~155 seconds", Test9 "~244 seconds", Test10
+  "~6 seconds".
+- Pulse test (r4): "The pulse test is meant to fluctuate the power usage to create spikes in current flow
+  on the board." test_duration 60 ("Seconds to spend on an iteration. This is not the exact amount of
+  time the test will take.")
+- NVBandwidth: "NVBandwidth measures bandwidth for various memcpy patterns across different links."
+- NCCL Tests: "The NCCL Tests plugin typically completes in a few minutes, depending on:" (number of
+  GPUs, interconnect topology).
+- EUD: not a section on this page; appears only in error codes (DCGM_FR_EC_SOFTWARE_EUD,
+  DCGM_FR_EUD_TIMEOUT). ByteDance's ByteRobust runs "NVIDIA Extended Utility Diagnostics (EUD)" first on
+  NCCL errors (see sdc_byterobust2025.txt).
+Useful flags (verbatim): --fail-early "Enable early failure checks for the Targeted Power, Targeted
+Stress, and Diagnostic tests. When enabled, these tests check for a failure once every 5 seconds";
+-t/--timeout "Specify a timeout in seconds for the execution of the diagnostic. The default is
+unlimited."; NVVS_HANGDETECT_EXPIRY_SEC "Values must be at least 120 seconds and also be divisible by 60".
+
+3. Background health watches (feature-overview page)
+- Background checks: "This form of health check is based on passive, background monitoring of various
+  hardware and software components." "These are non-invasive monitoring operations that occur while jobs
+  are running, and can be queried at any time."
+- Active checks: "This form of health check is invasive, requiring exclusive access to the target GPUs."
+  "All of these are online diagnostics, meaning they run within the current environment."
+- Watch flags for dcgmi health -s: "p - PCIe watches", "m - Memory watches", "i - InfoROM watches",
+  "t - Thermal and power watches", "n - NVLink watches", "d - Driver watches", "x - ConnectX watches",
+  "a - All watches". Example: dcgmi health -g 1 -s mpi
+- Failure conditions examples (verbatim): PCIe "There were more than 8 PCIe replays in the last minute."
+  (DCGM_FR_PCI_REPLAY_RATE); Memory "There is one or more pending page retirement."
+  (DCGM_FR_PENDING_PAGE_RETIREMENTS); Memory "One or more volatile DBEs are reported"
+  (DCGM_FR_VOLATILE_DBE_DETECTED).
+- Policy: "DCGM provides a way for clients to configure automatic GPU behaviors in response to various
+  conditions." Example action: "A common action based policy is to configure DCGM to automatically retire
+  a memory page after an ECC DBE has occurred." (dcgmi policy -g 1 --set 1,1 -e); notification-only
+  example for PCIe (dcgmi policy -g 2 --set 0,0 -p).
+
+My note for the page: cluster practice is r1 (seconds) as a job prologue, r2 (minutes) between jobs or
+on suspicion, r3/r4 (tens of minutes to hours) only when a node is drained for repair.

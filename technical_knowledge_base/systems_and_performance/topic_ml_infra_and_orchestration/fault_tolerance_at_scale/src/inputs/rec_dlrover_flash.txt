@@ -1,0 +1,22 @@
+SOURCES (DLRover, Ant Group open source; vendor docs). Read 2026-10-16 from raw GitHub markdown, repo intelligent-machine-learning/dlrover, master.
+A. "Flash Checkpoint to Recover Large Model Training From Failure in Seconds" (README news: 2024/01). https://github.com/intelligent-machine-learning/dlrover/blob/master/docs/blogs/flash_checkpoint.md (last commit to file 2025-07-16)
+B. "DLRover Flash Checkpoint Saves the Megatron-LM Checkpoint in Seconds" (README news: 2024/02). https://github.com/intelligent-machine-learning/dlrover/blob/master/docs/blogs/megatron_flash_checkpoint.md
+C. README https://github.com/intelligent-machine-learning/dlrover
+LABEL: vendor (authors of DLRover, reporting their own and Ant Group production jobs).
+
+MECHANISM (my words): Training synchronously copies state from GPU memory into host shared memory (seconds over PCIe) and continues; a separate agent process persists from shared memory to storage asynchronously and less often. Because the copy lives in the agent's shared memory, it survives a training-process crash: the customised TorchElastic agent persists it "at break point" if needed and, if the node is healthy, restarts the training process, which loads the checkpoint straight from shared memory (no storage read). Hardware faults still need node replacement and a storage load.
+
+VERBATIM
+- A: "Flash Checkpoint reduces the time overhead by 10 times compared to storing on SSD, and about 100 times compared to storing on remote systems like NAS. When applied to the training of the 65B model with thousands of GPUs, the wasted time to checkpoints was reduced by about 5 times, where the persistence time was reduced by about 70 times, effectively increasing the goodput of training from 90% to 95%. The goodput is the time spent computing useful new steps over the elapsed time of the training job."
+- A: "In actual training jobs with thousands of cards, we found that about 75% of the faults could be recovered by restarting the training process. These faults mainly include NCCL anomalies or network jitter. Since the checkpoint data in the host's shared memory is not lost, the newly started training process can directly read the checkpoint data from shared memory".
+- A: "the PCIe 4.0 used by A100 can achieve a unidirectional bandwidth of up to 32GB/s and the copy can be completed in seconds."
+- A, GPT-2 xl experiment: "A100 * 2 on one node", 1.5B parameters, NAS 100MB/s, NVMe SSD 2GB/s. "The blocking time for DLRover Flash Checkpoint (FCP) asynchronous persistence is generally on the order of seconds. Compared to high-performance SSD storage, the blocking time is reduced by about 10 times. Compared to NAS remote file systems, FCP reduces the blocking time by nearly a hundredfold." Load: "recovery could be completed in the order of seconds by loading checkpoints directly from shared memory" (figure values not in text: unconfirmed).
+- A, GLM-65B: "FSDP distributed training job of GLM-65B on 1536 H800 GPUs ... Before the Flash Checkpoint was implemented, checkpoints were saved to CPFS every 250 steps, which was approximately every 1.5 hours, and each checkpoint operation blocked training for about 2 minutes. After the implementation, each checkpoint operation only blocks the training for 0.2 seconds, and the frequency of checkpointing has increased to once every 10 steps. However, the persistence to CPFS still occurs every 250 steps." "although the frequency of Flash Checkpoint has increased by a factor of 20, the cumulative time overhead has decreased by several dozen times. Meanwhile, the wasted time wasted due to failures has also been reduced by approximately 3 times."
+- B, Megatron-LM GPT-1.5B, "2 node and each node has 8 A100 GPUs", TP 8, PP 1, NAS 100MB/s:
+  no distributed optimizer, 18GB: Megatron save 151s, Flash save 0.5s, Megatron load 205s, Flash load 207s
+  distributed optimizer, 24GB: Megatron save 242s, Flash save 0.5s, Megatron load 242s, Flash load 156s
+  "The time of the first export by Flash Checkpoint is relatively longer, approximately 20s ... The above table excludes the duration of the first export."
+- C: "With fault tolerance, the goodput of GLM-65B training on thousands of GPUs increased from 69% to 95%." (whole fault-tolerance stack, not Flash Checkpoint alone).
+
+CAVEATS
+- Load-from-memory applies only to software faults on healthy nodes (about 75% in their jobs). In B, load from NAS is unchanged without the distributed optimizer (205 vs 207 s). The 90%->95% and 69%->95% goodput figures are two different baselines in two documents.

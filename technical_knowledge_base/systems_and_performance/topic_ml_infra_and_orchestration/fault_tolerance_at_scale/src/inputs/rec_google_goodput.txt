@@ -1,0 +1,60 @@
+SOURCES (Google, all vendor: Google Cloud selling AI Hypercomputer / GKE). Read 2026-10-16.
+A. "Introducing ML Productivity Goodput: a metric to measure AI system efficiency". Google Cloud blog, datePublished 2024-04-10, authors Vaibhav Singh, Daniel Herrington. https://cloud.google.com/blog/products/ai-machine-learning/goodput-metric-as-measure-of-ml-productivity
+B. github AI-Hypercomputer/ml-goodput-measurement README (main; latest news line "[August 14, 2026] Release v0.2.3"). https://github.com/AI-Hypercomputer/ml-goodput-measurement
+C. "Train AI for less: Improve ML Goodput with elastic training and optimized checkpointing". Google Cloud blog, datePublished 2025-05-22 (search results name the author as Deepak Patil; not checked on page). https://cloud.google.com/blog/products/ai-machine-learning/elastic-training-and-optimized-checkpointing-improve-ml-goodput
+D. "Save early and often with multi-tier checkpointing to optimize large AI training jobs". Google Cloud blog, datePublished 2025-06-16. https://cloud.google.com/blog/products/ai-machine-learning/using-multi-tier-checkpointing-for-large-ai-training-jobs
+(Also seen, not read: MLSys 2026 paper "ML Fleet Efficiency: Improving TPU Systems at Scale with ML Productivity Goodput", https://mlsys.org/virtual/2026/oral/3734)
+
+A. DEFINITIONS (verbatim)
+- "ML Productivity Goodput is actually composed of three Goodput metrics: Scheduling Goodput, Runtime Goodput, and Program Goodput."
+- "Scheduling Goodput measures the fraction of time that all the resources required to run the training job are available. In on-demand or preemptible consumption models, this factor is less than 100% because of potential stockouts. As such, we recommend you reserve your resources to optimize your Scheduling Goodput score."
+- "Runtime Goodput measures the time spent to make forward progress as a fraction of time when all training resources are available."
+- "Program Goodput measures the fraction of peak hardware performance that the training job can extract. Program Goodput is also referred to as Model Flop Utilization or effective model flop utilization, i.e., the model training throughput as a fraction of peak throughput of the system."
+- "The essence of Runtime Goodput is the number of useful training steps completed over a given window of time. Based on an assumed checkpointing interval, the time to reschedule the slice and the time to resume the training, we can estimate Runtime Goodput as follows:" [formula is an image; not reproduced] "three precise factors that we need to minimize in order to maximize the Runtime Goodput: 1) time since the last checkpoint when the failure occurs (tch); 2) time to resume the training (trm). Time to reschedule (tre) the slice is also a key factor, however it's accounted for under Scheduling Goodput."
+- Cost scaling: "mean time between failures (MTBF) of the overall system reduces linearly ... the overall cost of failure rises quadratically with the scale of the compute cluster."
+- Hot spares: "in order to minimize tre time to schedule resources when resuming from interruption, we recommend using "hot spares.""
+- Auto-checkpointing on SIGTERM (planned disruptions), in Orbax and MaxText.
+- Numbers: "With container preloading, we measured the image pull operation for a 16GB container to be about 29X faster than the baseline"; GKE "improve the job-scheduling throughput by 3X"; Program Goodput "up to 46%" cumulative boost (MaxText 128B, v5e-256, April 2024).
+
+B. BADPUT CATEGORIES (verbatim from README)
+- "Badput is the percentage of time spent by the job doing work that is not training to the total lifetime of the job. This includes time spent doing device initialization, training preparation, program startup, checkpoint loading, compilation or re-compilation, data loading, checkpoint saving, custom badput events, wasted progress and time lost due to disruptions."
+- class BadputType(enum.Enum): TPU_INITIALIZATION = 1; TRAINING_PREP = 2; PROGRAM_STARTUP = 3; DATA_LOADING_SYNC = 4; DATA_LOADING_ASYNC = 5; UNPRODUCTIVE_CHECKPOINT_SAVE_TIME = 6; UNPRODUCTIVE_CHECKPOINT_RESTORE_TIME = 7; WASTED_PROGRESS_FROM_DISRUPTION = 8; INFRASTRUCTURE_RECOVERY_FROM_DISRUPTION = 9; CUSTOM_BADPUT_EVENTS = 10; OTHER = 11
+- TPU_INITIALIZATION: "time spent on device discovery, slice initialization, device driver re-initialization and reset, security setup, initialization of pre-mapped buffers and more."
+- TRAINING_PREP: "time spent on the creation of checkpoint managers, checkpoint loading, running mesh and model optimizers and more."
+- PROGRAM_STARTUP: "time spent on framework specific function transformations (such as JAX tracing), compilation tasks, runtime initialization etc."
+- DATA_LOADING_ASYNC: "is accumulated overlapping with training steps and is non-blocking ... does not affect overall Goodput".
+- Checkpoint: "During asynchronous checkpointing, the model parameters or weights have to be transferred from the device memory to the host memory which is a blocking operation on the device ... The first blocking operation contributes to unproductive checkpoint time." "If auto checkpointing is used, the checkpoint save operation is initiated upon detection of a planned disruption signal. The save operation in type of checkpointing is synchronous resulting in time lost to Badput." Checkpoint badput "reported only when Orbax is used".
+- WASTED_PROGRESS_FROM_DISRUPTION: "time that was spent on productive training but lost after restart as well as time lost for the infrastructure to restart the workload."
+- INFRASTRUCTURE_RECOVERY_FROM_DISRUPTION: "the time taken by the infrastructure to restart the workload after a disruption."
+- After a disruption badput accrues in: Accelerator Initialization, Training Preparation, Program Startup, Wasted Progress due to Disruption, Infrastructure Recovery Time.
+- Monitoring exports Goodput, Badput and "Step Time Deviation". v0.2.0 (June 12, 2026) "Added support for Elastic Goodput Monitoring (autoscaling)".
+
+C. ELASTIC TRAINING + OPTIMIZED CHECKPOINTING (GPU, PyTorch, NVRx + DCP + NeMo on GKE)
+- Mechanism (verbatim): "A supervisor process receives failure, degradation, and straggler signals from a diagnostic service ... In case of correctable errors, the supervisor might request an in-job restart, potentially restoring from a local checkpoint. For uncorrectable hardware failures, a hot swap can replace the faulty node, potentially restoring from a peer checkpoint. If no spare resources are available, the system can scale down ... When a replacement node is available, training scales up automatically". Remediations: "GPU reset, node hot swap, and scaling down the data-parallel dimension".
+- "a 1% improvement in ML Goodput can translate to more than a million dollars in cost savings" (footnote: "Assuming A3 Ultra pricing for 20,000 GPUs with jobs spanning 8 weeks or longer").
+- "the best interval may range from several hours to mere minutes".
+- "In a recent internal case study with 1,024 A3 Mega GPU-accelerated instances (built on NVIDIA Hopper), workload ML Goodput improved from 80%+ to 90%+ using a combination of these techniques." Caption: "Case study experiment used an A3 Mega cluster with 1024 GPUs running ~40hr jobs with ~5 simulated interruptions per day". (Note: text says 1,024 instances, caption says 1024 GPUs; inconsistency in the source.)
+- Table (image, read visually):
+  Async Checkpointing Overhead (Reduced from 10s of seconds to ~1 second): +3-4% goodput
+  Frequent Checkpointing (computation time loss, MTC) Frequency reduced from O(hours) to ~20 mins: +2-3%
+  Interruption recovery (short loading time, GKE hotswap) (Reduced from 20mins to ~2mins): +1-2%
+  Spare Capacity Exhaustion (Elastic scale down/up) (Reduce stalled GPU hours to < 2 minutes): +1-2%
+
+D. MULTI-TIER CHECKPOINTING
+- "hardware failures become more frequent (~ few hours) and recovery from previously saved checkpoints becomes slower (up to 30 minutes)".
+- "increases the ML Goodput of large training jobs (e.g. by 6.59% in a 35K-chip workload on TPU v5p)".
+- Tiers: "checkpoints are stored in (1) each node's RAM, (2) in a different slice or superblock, and (3) in Cloud Storage."
+- "the checkpoint save scales sub-linearly to < 5 minutes ... and restore in under a minute across a cluster with thousands of nodes."
+- "In the past, Google Kubernetes Engine (GKE) customers could only write a checkpoint every 30 minutes (saving it to Cloud Storage) and had to wait up to 30 minutes to read the last saved checkpoint".
+- "checkpoint write latency does not increase with the number of nodes in a cluster -- it remains constant." (paraphrase of the dash punctuation)
+- Replicator picks a "near" peer (same slice/superblock, fast, correlated risk) and a "far" peer (different superblock); with data parallelism, identical replicas are paired so no copy is needed ("replication is instantaneous").
+- Cost example: "a week-long training job spanning 1K VMs that cost $88/hour (a3-highgpu-8g), a 6.5% increase in Goodput ... could result in almost $1M in infrastructure savings."
+
+CAVEATS: all vendor, internal case studies, no independent replication; C's improvements are per-feature goodput deltas in one simulated-interruption setup.
+
+E. PRECISE DEFINITIONS (Google, MLSys 2026): Wongpanich, Oguntebi, Baiocchi Paredes, Wang, Phothilimthana, Mitra, Zhou, Kumar, Janapa Reddi. "Machine Learning Fleet Efficiency: Improving TPU Systems at Scale with ML Productivity Goodput". https://proceedings.mlsys.org/paper_files/paper/2026/file/fbe2b2f74a2ece8070d8fb073717bda6-Paper-Conference.pdf (read 2026-10-16; vendor, Google fleet data)
+- "Scheduling Goodput: How often does an application have all necessary resources to make progress?" "The numerator of SG is calculated as the simultaneous uptime of all tasks in a distributed ML application that must be connected to make synchronous progress ... This is referred to as "allocated chip-time" or "all-allocated" time. The denominator is fleet capacity, expressed as chip-time."
+- "Runtime Goodput: Of the time that an application has all necessary resources, how often is it making progress?" "The numerator of RG is the productive chip-time of the application's progress that has been saved in checkpoints; work done between the last checkpoint and failure (or preemption) does not count as "productive" time and is therefore not included in RG. The denominator of RG is the allocated chip-time defined as the numerator of SG."
+- "Program Goodput: Of the time that an application is making progress, how close is it to the ideal roofline?" (they use a compute-based roofline over the whole program rather than per-op).
+- Abstract: "scheduling goodput exceeding 95% for all job sizes through careful preemption tuning, runtime improvements via framework modernization and asynchronous checkpointing".
+- Note the difference from the 2024 blog: here SG's denominator is fleet capacity (fleet view), while the blog defines it per job as the fraction of time all resources are available.

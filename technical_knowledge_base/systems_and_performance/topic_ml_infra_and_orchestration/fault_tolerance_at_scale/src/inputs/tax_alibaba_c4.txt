@@ -1,0 +1,100 @@
+SOURCE
+Jianbo Dong, Bin Luo, Jun Zhang, Pengcheng Zhang, Fei Feng, Yikai Zhu, Ang Liu, Zian Chen, Yi Shi, Hairong Jiao,
+Gang Lu, et al. (Alibaba Cloud).
+"Enhancing Large-Scale AI Training Efficiency: The C4 Solution for Real-Time Anomaly Detection and Communication
+Optimization". HPCA 2025. arXiv 2406.04594, version read: v2 (23 May 2025; v1 7 Jun 2024).
+https://arxiv.org/abs/2406.04594
+Read 2026-10-16 from the arXiv PDF via pdftotext; Tables I and III checked on rendered page images.
+
+SCALE AND PERIOD
+- Table I: "a representative job employing 4,096 GPUs", "40 crashes within one month", "running in a newly deployed
+  cluster".
+- Table III: "a representative job that demands 2400 GPUs and necessitates over a month to complete" (175B
+  parameters), before (Jun 2023) and after (Dec 2023) deploying C4D (the detection subsystem).
+  NOTE: two different jobs (4,096 vs 2,400 GPUs).
+
+ISSUE TAXONOMY (Fig. 1 verbatim, no numbers): "Issues that can adversely affect system utilization."
+1 Hardware failures: CUDA error, NVLink error, GPU offline, GPU downgrade, PCIe downgrade, dual-port NIC half-down,
+  etc.
+2 Link or switch failures
+3 Traffic collision in network
+4 Storage hang or slow
+5 Software issues: errors in users' code, CPU contention caused by other processes, e.g., python GC
+Footnote: "Other systematic faults, such as faults in distributed storage subsystem, would be handled by dedicated
+monitoring tools".
+
+UNIT OF COUNTING
+Table I: job crashes of one job (40 in one month). Table III: share of the job's wall time lost to errors.
+
+TABLE I (verbatim): "The distribution of crash causes recorded over a one-month from a representative job employing
+4,096 GPUs."
+Users' View     Root Causes        Proportion   Local
+NCCL Error      CUDA Error         12.5%        100%
+NCCL Error      ECC/NVLink Error   27.5%        100%
+NCCL Error      NCCL timeout       20%          75%
+NCCL Error      ACK timeout        27.5%        81.8%
+Network Error   Others             12.5%        40%
+CHECK (mine): with 40 crashes the proportions are 5, 11, 8, 11, 5 crashes (sum 40). OK.
+"Local" (confined to a node or device): 5 + 11 + 6 + 9 + 2 = 33 of 40 = 82.5%, matching the text "the majority of
+errors (approximately 82.5%) are confined to specific nodes or individual devices". OK. (81.8% = 9/11.)
+
+TABLE III (verbatim): Error-induced Downtime Statistics
+Error-induced Downtime in Jun, 2023
+  Post-Checkpoint          7.53%
+  Detection                3.41%
+  Diagnosis & Isolation   19.65%   [ECC/NVLink Error 8.34%, CUDA Error 4.19%, CCL Timeout 3%, ACK Timeout 1.8%,
+                                     Unknown 2.29%]
+  Re-Initialization        0.6%
+  Total                   31.19%
+Error-induced Downtime in Dec, 2023
+  Post-Checkpoint          0.23%
+  Detection                0.05%
+  Diagnosis & Isolation    0.73%   [ECC/NVLink Error 0.2%, CUDA Error 0.1%, CCL Timeout 0.23%, ACK Timeout 0.1%,
+                                     Unknown 0.1%]
+  Re-Initialization        0.15%
+  Total                    1.16%
+CHECK (mine): Jun 7.53 + 3.41 + 19.65 + 0.6 = 31.19. OK. Diagnosis sub-rows 8.34 + 4.19 + 3 + 1.8 + 2.29 = 19.62
+vs 19.65 printed (0.03 point gap, rounding or a typo). Dec 0.23 + 0.05 + 0.73 + 0.15 = 1.16. OK; sub-rows sum to
+0.73. OK. Text "approximately 30x reduction, from 31.19% down to just 1.16%": 31.19 / 1.16 = 26.9x.
+Implied ETTR-like productive share: 68.8% (Jun) and 98.8% (Dec), my computation.
+
+KEY QUOTES (verbatim)
+1. "the majority of them simply show themselves as 'NCCL Errors'. This is largely due to the synchronous nature of
+   distributed training tasks. For instance, a hardware issue in a GPU could lead to the crash of one of the worker
+   processes, causing its peer workers to fail to receive an acknowledgment ... this triggers an error code of 12
+   in the communication library."
+2. "In our experience, around 30% of our time was dedicated to error detection, system diagnosis, isolating
+   defective nodes, and restarting processes, leaving only 70% for actual computing tasks".
+3. "the majority of the downtime was due to extended periods of system diagnosis ... identifying the precise cause
+   of job failure could take hours or even days in the absence of our diagnostic tools. The second major
+   contributor to downtime was post-checkpoint overhead."
+Other: "our experience has shown that high-end GPU products tend to have higher error rates"; automatic detection
+expedites "the process from tens of minutes to mere seconds".
+
+==================================================================================================================
+ALSO: ALIBABA HPN (network failure rates; no cause table)
+Kun Qian, Yongqing Xi, Jiamin Cao, Jiaqi Gao, Yichi Xu, Yu Guan, Binzhang Fu, Xuemei Shi, Fangbo Zhu, Rui Miao,
+Chao Wang, Peng Wang, Pengcheng Zhang, Xianlong Zeng, Eddie Ruan, Zhiping Yao, Ennan Zhai, Dennis Cai (Alibaba
+Cloud). "Alibaba HPN: A Data Center Network for Large Language Model Training". ACM SIGCOMM 2024, Sydney, 4--8 Aug
+2024. Author PDF read 2026-10-16: https://ennanzhai.github.io/pub/sigcomm24-hpn.pdf
+
+NUMBERS (verbatim)
+- "In our operating clusters, as shown in Figure 5, 0.057% of NIC-ToR links fail each month, and about 0.051% of
+  ToR switches encounter critical errors and crashes. Under this high failure rate, a single LLM training job would
+  encounter 1-2 crashes each month. Furthermore, 5K-60K link flapping cases happen each day, introducing temporary
+  performance degradation as well."
+- Checkpoints "typically range from two to four hours, (even at these high intervals, the overhead introduced by
+  checkpointing is still around 5%)"; checkpoint "e.g., 30GB per GPU" and "high overhead (e.g., 100s)".
+- "Given that training costs are 20K dollars per hour for a training task utilizing 3K GPUs, a failure could lead to
+  a financial loss of 30K dollars." CHECK: 30K / 20K = 1.5 h of lost work per failure (consistent with half of a
+  roughly 3 h checkpoint interval). My inference.
+- "our operational single-chip switches outnumber multi-chip switches by 32.6x. On the contrary, the total number of
+  critical hardware failures in multi-chip switches is 3.77x higher than in single-chip switches." CHECK: per-switch
+  critical failure rate ratio = 3.77 x 32.6 = about 123x for multi-chip vs single-chip. My computation.
+- "over 40% of critical failures in our traditional data centers were caused by the abovementioned two categories of
+  issues introduced by stacked dual-ToR in the past three years." "70% of upgrades in our ToRs do not meet this
+  assumption of ISSU".
+- Sanity check of "1-2 crashes each month" (mine): HPN hosts have "8 GPUs" and "9 NICs, each with 2x200Gbps" (one,
+  NIC0, for the frontend), so a 3K-GPU job spans 375 hosts and about 3,000 backend NICs. With one NIC-ToR link per
+  NIC (traditional single-ToR), 3,000 x 0.00057 = 1.7 link failures per month; ToR crashes add a little. Consistent
+  with "1-2 crashes each month". (HPN's dual-ToR doubles the links but makes a single link failure non-fatal.)
