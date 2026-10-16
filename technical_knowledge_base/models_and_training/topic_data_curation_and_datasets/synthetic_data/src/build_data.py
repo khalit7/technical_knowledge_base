@@ -80,12 +80,23 @@ out['cosmo'] = cz
 
 # ---- rephrasing with Qwen3: CPU smoke test now, the 200-document run is pending ----
 sm = os.path.join(SY, 'rephrase_smoke.jsonl') if SY else None
-if sm and os.path.exists(sm):
-    out['rephrase_smoke'] = [json.loads(l) for l in open(sm)]
+full = os.path.join(SY, 'rephrase_qwen3_4b.jsonl') if SY else None
+SHOW = ['urn:uuid:7b011a1d', 'urn:uuid:19fcd8de']  # pages shown in the lab (first two of the fixed pick, checked for privacy)
+if full and os.path.exists(full):
+    rows = [json.loads(l) for l in open(full)]
+    out['rephrase_smoke'] = [r for r in rows if any(r['id'].startswith('<' + k) or r['id'].startswith(k) for k in SHOW)]
+    out['rephrase_rows_from'] = 'gpu200'
+    ex = {}
+    for r in rows:
+        e = ex.setdefault(r['style'], {'n': 0, 'cap450': 0, 'markdown': 0})
+        e['n'] += 1; e['cap450'] += (r.get('completion_tokens') or 0) >= 450
+        e['markdown'] += bool(re.search(r'\*\*|^#', r['output'], re.M))
+    out['rephrase_extra'] = dict(per_style=ex, wall_minutes=73, completion_tokens=sum(r.get('completion_tokens') or 0 for r in rows), note='llama-server, Qwen3-4B Q4_K_M, M1 Pro GPU, 4 parallel requests, 2026-10-16 01:26 to 02:39')
+elif sm and os.path.exists(sm):
+    out['rephrase_smoke'] = [json.loads(l) for l in open(sm)]; out['rephrase_rows_from'] = 'cpu_smoke'
 else:
-    out['rephrase_smoke'] = prev.get('rephrase_smoke')
+    out['rephrase_smoke'] = prev.get('rephrase_smoke'); out['rephrase_rows_from'] = prev.get('rephrase_rows_from', 'cpu_smoke'); out['rephrase_extra'] = prev.get('rephrase_extra')
 out['rephrase_stats'] = j(SY and os.path.join(SY, 'rephrase_stats.json')) or prev.get('rephrase_stats')
-out['collapse_gpt'] = j(SY and os.path.join(SY, 'collapse_gpt.json')) or prev.get('collapse_gpt')
 
 # ---- facts quoted in prose ----
 S = {s['key']: s for s in out.get('sets') or []}
@@ -146,9 +157,17 @@ if cz and 'avoid' in cz:
     F['av_not_n'] = str(n[0]); F['av_not_k'] = str(n[1]); F['av_not_pct'] = f'{100 * n[1] / n[0]:.1f}%'
 rs = out.get('rephrase_stats')
 if rs:
-    F['rp_docs'] = str(rs['docs'])
+    F['rp_docs'] = str(rs['docs']); pc1 = lambda x: f'{100 * x:.1f}%'
     for st, d in rs['styles'].items():
-        F[f'rp_{st}_len'] = f"{d['len_ratio']:.2f}"; F[f'rp_{st}_nov'] = pc(d['novel4']); F[f'rp_{st}_num'] = pc(d['num_kept'])
+        F[f'rp_{st}_len'] = f"{d['len_ratio']:.2f}"; F[f'rp_{st}_nov'] = pc1(d['novel4']); F[f'rp_{st}_num'] = pc1(d['num_kept'])
+        F[f'rp_{st}_names'] = pc1(d['names_kept']); F[f'rp_{st}_pre'] = pc1(d['preamble'])
+        if 'edu_ge3' in d: F[f'rp_{st}_edu3'] = pc1(d['edu_ge3'])
+    if rs.get('edu_source'): F['rp_src_edu3'] = pc1(rs['edu_source']['ge3'])
+    rx = out.get('rephrase_extra')
+    if rx:
+        for st, e in rx['per_style'].items(): F[f'rp_{st}_cap'] = str(e['cap450']); F[f'rp_{st}_md'] = str(e['markdown'])
+        F['rp_wall'] = str(rx['wall_minutes'])
+        if rx.get('completion_tokens'): F['rp_tok'] = f"{rx['completion_tokens']:,}"; F['rp_tph'] = f"{rx['completion_tokens'] / (rx['wall_minutes'] / 60) / 1e6:.2f}"
 os.makedirs(DATA, exist_ok=True)
 json.dump(out, open(os.path.join(DATA, 'syn_data.json'), 'w'), separators=(',', ':'), ensure_ascii=False)
 json.dump(F, open(os.path.join(DATA, 'facts.json'), 'w'), indent=0, ensure_ascii=False)

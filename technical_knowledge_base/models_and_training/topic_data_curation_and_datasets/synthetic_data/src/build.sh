@@ -16,10 +16,10 @@ cd "$(dirname "$0")"
   echo "<script>/* 99_js_tabs.js */"; cat parts/99_js_tabs.js; echo '</script>'
   echo '</div></body></html>'; } | perl -CSD -MJSON::PP -pe '
 BEGIN{local $/;open(my $fh,"<","data/facts.json") or die;$F=JSON::PP->new->utf8(0)->decode(<$fh>);}
-s/\@\@([a-z0-9_]+)\@\@/exists $F->{$1}?$F->{$1}:"\@\@$1\@\@"/ge;
+s/\@\@([A-Za-z0-9_]+)\@\@/exists $F->{$1}?$F->{$1}:"\@\@$1\@\@"/ge;
 s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a href=\"#\" data-tab=\"$1\">$t<\/a>"}else{$u=~s{^n:}{https:\/\/app.notion.com\/p\/};"<a href=\"$u\" target=\"_blank\" rel=\"noopener noreferrer\">$t<\/a>"}/ge;
 ' > ../index.html
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
-if grep -q '@@[a-z0-9_]*@@' ../index.html; then echo "UNFILLED FACT"; grep -o '@@[a-z0-9_]*@@' ../index.html | sort | uniq -c; fi
+if grep -q '@@[A-Za-z0-9_]*@@' ../index.html; then echo "UNFILLED FACT"; grep -o '@@[A-Za-z0-9_]*@@' ../index.html | sort | uniq -c; fi
 if grep -q '—' ../index.html; then echo "EM DASH FOUND"; grep -n -o '.\{30\}—.\{30\}' ../index.html | head; fi
 wc -c ../index.html

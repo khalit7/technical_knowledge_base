@@ -9,10 +9,10 @@ facts = json.load(open(os.path.join(H, 'data', 'facts.json'), encoding='utf-8'))
 fail = []
 m = re.search(r'window\.SY=(.*?);\n</script>', page, re.S)
 if not m or json.loads(m.group(1)) != data: fail.append('embedded data differs from data/syn_data.json')
-if re.search(r'@@[a-z0-9_]+@@', page): fail.append('unfilled facts: ' + ', '.join(sorted(set(re.findall(r'@@([a-z0-9_]+)@@', page)))))
+if re.search(r'@@[A-Za-z0-9_]+@@', page): fail.append('unfilled facts: ' + ', '.join(sorted(set(re.findall(r'@@([A-Za-z0-9_]+)@@', page)))))
 # which facts the parts actually use, and that each value appears in the page text
-parts = ''.join(open(os.path.join(H, 'parts', f), encoding='utf-8').read() for f in os.listdir(os.path.join(H, 'parts')) if f.endswith('.html'))
-used = sorted(set(re.findall(r'@@([a-z0-9_]+)@@', parts)))
+parts = ''.join(open(os.path.join(H, 'parts', f), encoding='utf-8').read() for f in os.listdir(os.path.join(H, 'parts')) if f.endswith(('.html', '.js')))
+used = sorted(set(re.findall(r'@@([A-Za-z0-9_]+)@@', parts)))
 for k in used:
     if k not in facts: fail.append('fact missing: ' + k)
 # independent recomputation from the embedded data
@@ -24,6 +24,8 @@ exp = {
     'cosmo_edu3_max': pc(max(s['edu_ge3'] for s in data['sets'] if s['key'].startswith('cosmo'))),
     'bg_pplR': f"{data['bigram']['modes']['replace'][-1]['test_ppl']:.1f}", 'bg_pplA': f"{data['bigram']['modes']['accumulate'][-1]['test_ppl']:.1f}",
     'cat_replace_med': f"{data['collapse_ref']['alive_at_G_50_seeds']['replace']['median']:.0f}",
+    'rp_qa_cap': str(data['rephrase_extra']['per_style']['qa']['cap450']),
+    'rp_medium_num': f"{100 * data['rephrase_stats']['styles']['medium']['num_kept']:.1f}%", 'rp_src_edu3': f"{100 * data['rephrase_stats']['edu_source']['ge3']:.1f}%",
     'av_told_pct': f"{100 * data['cosmo']['avoid']['told'][1] / data['cosmo']['avoid']['told'][0]:.1f}%",
 }
 for k, v in exp.items():
