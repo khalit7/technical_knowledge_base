@@ -77,7 +77,7 @@ P = [
  dict(id="track", label="Track experiments and register models",
       stack=["wandb", "mlflow", "registry"], avoid=["neptune", "determined"],
       why="Every run's config, metrics and checkpoints must be findable later; a registry gives versions and aliases for what gets deployed. Hosted W&B or self-hosted MLflow are the common choices; Neptune's shutdown shows why exports matter.",
-      hw={"onprem": "Self-hosted MLflow (or W&B self-managed) on a database plus object storage.", "k8s": "MLflow on the cluster or hosted W&B.", "cloud": "Hosted W&B or the cloud's managed MLflow.", "laptop": "Local MLflow (a file store)."}),
+      hw={"onprem": "Self-hosted MLflow (or W&B self-managed) on a database plus object storage.", "k8s": "MLflow on the cluster or hosted W&B.", "cloud": "Hosted W&B or the cloud's managed MLflow.", "laptop": "Local MLflow on its SQLite default (sqlite:///mlflow.db, the default since 3.7.0; 3.17 refuses the old ./mlruns file store unless MLFLOW_ALLOW_FILE_STORE=true)."}),
  dict(id="pipe", label="Schedule data, training and evaluation pipelines",
       stack=["airflow", "flyte", "metaflow", "kfp"], avoid=[],
       why="A workflow tool runs the steps around training on a schedule (ingest, filter, tokenise, train, evaluate, register) and submits the heavy steps to Slurm, Kubernetes or Ray. Pick by where you run and who writes the pipelines.",
