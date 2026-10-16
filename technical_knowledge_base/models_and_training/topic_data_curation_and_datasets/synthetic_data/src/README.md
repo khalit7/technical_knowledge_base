@@ -20,13 +20,11 @@ Child 6 of Topic: data-curation-and-datasets. Built 2026-10-14. `sh build.sh` wr
 | `cosmo_examples.py` | the 4 Cosmopedia rows shown, and the "Once upon a time" avoidance table | 5 s |
 | `collapse_categorical.py` | the categorical collapse reference run and 50-seed spread | 25 s |
 | `collapse_bigram.py` | bigram LM refit 10 generations on TinyStories, three workflows | 1 min |
-| `run_rephrase.py` | CPU smoke test: 2 running-example pages x WRAP's 4 styles, Qwen3-4B Q4_K_M via llama.cpp | 12 min |
-| `collapse_gpt.py` | CPU smoke test only (20 steps) | 3 min |
+| `run_rephrase.py` + `analyze_rephrase.py` | 200 running-example pages x WRAP's 4 styles, Qwen3-4B Q4_K_M via llama-server on the GPU (4 parallel requests), then CPU analysis with the FineWeb-Edu classifier (an earlier 2-page CPU smoke test checked the pipeline) | 73 min GPU + 1.5 min CPU |
 | `check_page.py` | embedded data equals `data/`, all facts filled, 10 facts recomputed independently | 1 s |
 
-## Pending GPU runs (`scripts/run_pending.sh`)
-1. Rephrase 200 running-example pages in 4 styles with Qwen3-4B on the GPU, then `analyze_rephrase.py` (CPU): 1.5 to 2 hours. Fills the Rephrasing lab's table (the dashed box disappears when `rephrase_stats.json` exists and `build_data.py` is rerun).
-2. Word-level GPT (3.66M parameters) on 2M TinyStories tokens, 5 iterations, replace against accumulate: 2 to 3 hours on MPS. Fills the Collapse lab's table.
+## GPU run (`scripts/run_pending.sh`)
+Job 1: rephrase 200 running-example pages in WRAP's 4 styles with Qwen3-4B (Q4_K_M, llama-server on the GPU, 4 parallel requests, `-cram 0`), then `analyze_rephrase.py` on CPU. Run 2026-10-16 under the bench lock (see the Rephrasing lab). A second job (a 3.66M-parameter GPT trained replace-vs-accumulate on TinyStories) was dropped on 2026-10-15 (Khalid: skip expensive runs that teach little); the Collapse lab cites Gerstgrasser et al.'s Table 2 and the two CPU toys instead.
 
 ## Departures from the child-page method
 None of substance: Reading, three labs, Further reading. The collapse simulation on the parent page (one-dimensional Gaussian) is linked, not rebuilt; this page uses a categorical model and a bigram language model instead.
