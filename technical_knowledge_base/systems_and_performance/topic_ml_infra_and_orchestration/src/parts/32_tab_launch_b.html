@@ -1,0 +1,42 @@
+<section id="la-s3">
+<h3>3. Same job, three schedulers: from submit to the first step</h3>
+<p>Start-up is a chain, and every link is paid again on every restart. Each run below was timed by small probes that only record the clock: around <code>sbatch</code> or <code>kubectl create</code>, at the start of each node's task, around torchrun's import and rendezvous, around each worker's <code>import torch</code> and <code>init_process_group</code>, and at the first training step (<code>src/launch/scripts/la_probe.py</code>, <code>la_torchrun.py</code>; on Ray a <code>worker_process_setup_hook</code> does the same). All containers share one clock (the Docker VM's), so differences between them are meaningful. Each boundary is the moment the <b>last</b> node or rank got there, because the job moves at the pace of its slowest member.</p>
+<div class="la-card" id="la-tl-card">
+<h4>Launch timeline, animated: one real run per system, drawn to the same time scale</h4>
+<div class="seg" id="la-tl-mode"><button data-m="all" class="on">All three</button><button data-m="slurm">Slurm</button><button data-m="k8s">Kubernetes</button><button data-m="ray">Ray</button></div>
+<div class="la-ctl"><label class="small">Run <select id="la-tl-run"></select></label><span class="small mute" id="la-tl-runnote"></span></div>
+<div class="la-svg" id="la-tl-svg"></div>
+<div class="la-ctl" id="la-tl-ctl"></div>
+<div class="la-cap" id="la-tl-cap"></div>
+<div class="la-leg" id="la-tl-leg"></div>
+</div>
+<div class="la-card">
+<h4>Every run, stage by stage <span class="la-meas">measured</span></h4>
+<div class="la-svg" id="la-st-svg"></div>
+<div class="la-out" id="la-st-out"></div>
+<p class="small mute" id="la-st-note"></p>
+</div>
+<div id="la-tl-text"></div>
+<div class="la-pr"><div class="q">Predict: on a real 512-GPU job, which of these stages grows the most compared with this laptop?</div>
+<div class="opts"><button data-a="0">import torch</button><button data-a="1">image pull and container start, and the rendezvous waiting for the slowest of 64 nodes</button><button data-a="0">the first training step</button></div>
+<div class="ans" hidden>Per-process costs (importing torch, building the model) stay roughly constant: every node does them in parallel. What grows is everything that waits for the slowest member: pulling a multi-gigabyte image on 64 nodes at once from one registry, and a rendezvous that cannot finish until the last node's agent arrives. That is why large clusters pre-pull or cache images on every node, and why one slow node delays everyone. Here the image was already on every node (the setup loaded it into each kind node and baked it into the Slurm and Ray images), so these runs contain no image pull at all; on a fresh node a 1 GB image pull would come first.</div></div>
+</section>
+
+<section id="la-s4">
+<h3>4. Rendezvous: how the processes find each other</h3>
+<p>The processes start at different moments on different machines and know only one thing in common: the meeting address. <dfn>Rendezvous</dfn> is the protocol that turns "some processes, somewhere" into "W processes that know each other's addresses and agree on their ranks". PyTorch builds it on the <dfn>TCPStore</dfn>, also called the c10d store: one small key-value server (a TCP socket with <code>set</code>, <code>get</code>, <code>add</code> and <code>wait</code> on keys) that every process connects to as a client.</p>
+<p>With torchrun there are two meetings, one per layer:</p>
+<ol>
+<li><b>Agents meet</b> (one torchrun per node). With <code>--rdzv-backend=c10d</code> (the Slurm script), every agent connects to a store at <code>--rdzv-endpoint</code>; the agent whose host name matches the endpoint hosts it. Each agent adds itself to a shared participant list; when the list reaches <code>--nnodes</code> the round is complete and each node gets its node rank. With the <code>static</code> backend (torchrun's default, used on Kubernetes here) there is no negotiation: <code>--node-rank</code> is given, node 0 hosts the store, and the others connect and wait.</li>
+<li><b>Workers meet</b> (one process per GPU). Each worker calls <code>init_process_group</code>. Its store is the agent's (torchrun tells it so with <code>TORCHELASTIC_USE_AGENT_STORE=True</code>), so it only connects as a client; then the communication backend (gloo here, NCCL on GPUs) uses the store to exchange the addresses it needs and connects every pair of ranks.</li>
+</ol>
+<div class="la-card" id="la-rz-card">
+<h4>Rendezvous, animated with real arrival times</h4>
+<div class="seg" id="la-rz-mode"><button data-m="ok" class="on">All nodes arrive</button><button data-m="miss">Node 1 never arrives</button></div>
+<div class="la-svg" id="la-rz-svg"></div>
+<div class="la-ctl" id="la-rz-ctl"></div>
+<div class="la-cap" id="la-rz-cap"></div>
+<p class="small mute" id="la-rz-note"></p>
+</div>
+<div id="la-rz-src"></div>
+</section>

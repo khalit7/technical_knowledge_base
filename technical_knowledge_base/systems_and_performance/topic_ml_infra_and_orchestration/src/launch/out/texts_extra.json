@@ -1,0 +1,84 @@
+{
+ "hangsum": "<h4>All broken launches at a glance</h4><div class=\"tw\"><table class=\"la-tbl\"><thead><tr><th>Case</th><th class=\"num\">First error after</th><th>What you see</th><th>Governed by</th></tr></thead><tbody><tr><td data-h=\"Case\"><b>Slurm: node missing</b></td><td data-h=\"First error after\" class=\"num\">602 s</td><td data-h=\"What you see\">nothing for 600 s, then a bare RendezvousTimeoutError</td><td data-h=\"Governed by\">torchrun c10d join timeout, 600 s</td></tr><tr><td data-h=\"Case\"><b>Kubernetes: pod missing</b></td><td data-h=\"First error after\" class=\"num\">903 s</td><td data-h=\"What you see\">nothing for 900 s, then \"1/2 clients joined\"</td><td data-h=\"Governed by\">torchrun static store timeout, 900 s (launcher default)</td></tr><tr><td data-h=\"Case\"><b>Ray: worker unplaceable</b></td><td data-h=\"First error after\" class=\"num\">60 s</td><td data-h=\"What you see\">\"worker group startup timed out\" every minute</td><td data-h=\"Governed by\">Ray Train worker-group start timeout, 60 s, then retried forever</td></tr><tr><td data-h=\"Case\"><b>Kubernetes: short host name</b></td><td data-h=\"First error after\" class=\"num\">902 s</td><td data-h=\"What you see\">pod 1: gai warnings; pod 0: \"1/2 clients joined\" after 900 s</td><td data-h=\"Governed by\">torchrun static store timeout, 900 s</td></tr><tr><td data-h=\"Case\"><b>Slurm: typo in address</b></td><td data-h=\"First error after\" class=\"num\">162 s</td><td data-h=\"What you see\">gai warnings, then \"timed out after 60000ms\"</td><td data-h=\"Governed by\">c10d store client read_timeout, 60 s (took longer)</td></tr><tr><td data-h=\"Case\"><b>Slurm: localhost</b></td><td data-h=\"First error after\" class=\"num\">601 s</td><td data-h=\"What you see\">nothing for 600 s, then RendezvousTimeoutError</td><td data-h=\"Governed by\">c10d join timeout, 600 s</td></tr><tr><td data-h=\"Case\"><b>Slurm: port collision</b></td><td data-h=\"First error after\" class=\"num\">601 s</td><td data-h=\"What you see\">\"Did the remote server shutdown or crash?\"</td><td data-h=\"Governed by\">the other job's join timeout, 600 s</td></tr><tr><td data-h=\"Case\"><b>Slurm: wrong WORLD_SIZE</b></td><td data-h=\"First error after\" class=\"num\">121 s</td><td data-h=\"What you see\">\"wait timeout after 120000ms, keys: /default_pg/0//cpu//0/0\"</td><td data-h=\"Governed by\">process-group timeout (120 s here; 30 min default)</td></tr><tr><td data-h=\"Case\"><b>Kubernetes: rank stuck</b></td><td data-h=\"First error after\" class=\"num\">60 s</td><td data-h=\"What you see\">send and recv timeouts, and a misleading \"remote worker crashing\"</td><td data-h=\"Governed by\">process-group timeout (60 s here; 30 min gloo, 10 min NCCL default)</td></tr></tbody></table></div><p class=\"small mute\">Each case ran once (the times are set by timeouts, so they repeat: two independent 600 s cases gave 601 and 602 s, two 900 s cases 902 and 903 s). Every waiting process held its CPUs and (fake) GPUs the whole time. On a real cluster, multiply by the allocation: a 64-node, 512-GPU job that loses one node before the rendezvous idles 512 &times; 10 min = 85 GPU-hours before torchrun says anything (calculation).</p>",
+ "tools": "<div class=\"la-card\"><h4>1. Where is each process right now? <code>py-spy dump</code></h4><p class=\"small\">py-spy reads a running Python process's stack from outside, without stopping it. In Kubernetes the pod has no permission to trace other processes (the VM's <code>ptrace_scope</code> is 1 and pods lack CAP_SYS_PTRACE), so it ran from the node, against the pod's process ID as the node sees it, 15 s after the stall began:</p><div class=\"la-two\"><div><pre>rank 3 (the stalled one)\n    train (train.py:166)\n    main (la_probe.py:67)\n    &lt;module&gt; (la_probe.py:81)</pre><div class=\"la-codecap\"><code>train.py:166</code> is <code>time.sleep(a.slow_ms / 1000)</code>: the injected stall.</div></div><div><pre>rank 0 (one of the waiting ones)\n    _pre_forward (torch/nn/parallel/distributed.py:1776)\n    forward (torch/nn/parallel/distributed.py:1887)\n    _call_impl (torch/nn/modules/module.py:1794)\n    _wrapped_call_impl (torch/nn/modules/module.py:1783)\n    train (train.py:154)\n    main (la_probe.py:67)\n    &lt;module&gt; (la_probe.py:81)</pre><div class=\"la-codecap\">Inside DDP's forward: step 2 begins by rebuilding gradient buckets, which broadcasts across ranks and waits for rank 3. Rank 2 was inside <code>backward</code> (<code>train.py:156</code>), also blocked on a collective.</div></div></div><p class=\"small\">On a real job you would run it on a handful of ranks (<code>py-spy dump --pid</code>, add <code>--native</code> for C++ frames): the outlier stack is the answer.</p></div><div class=\"la-card\"><h4>2. Who is behind? The flight recorder</h4><p class=\"small\">PyTorch keeps a ring buffer of each rank's last collectives (2,000 by default, <code>TORCH_FR_BUFFER_SIZE</code>), with a sequence number per process group; in torch 2.14 gloo records into it too (<a href=\"https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/FlightRecorder.hpp#L110\" target=\"_blank\" rel=\"noopener noreferrer\">FlightRecorder.hpp:110</a>). The probe dumped it with <code>torch._C._distributed_c10d._dump_fr_trace_json()</code> when a rank failed, and on <code>SIGUSR1</code> for the sleeping rank 3:</p><div class=\"tw\"><table class=\"la-tbl\"><thead><tr><th>Rank</th><th class=\"num\">Last collective</th><th>Its name</th><th>All recorded (sequence number, kind)</th></tr></thead><tbody><tr><td data-h=\"Rank\">rank 0</td><td data-h=\"Last collective\" class=\"num\">#7</td><td data-h=\"Its name\">gloo:broadcast</td><td data-h=\"All recorded\">#1 all_gather, #2 broadcast, #3 broadcast, #4 all_reduce, #5 all_reduce, #6 broadcast, #7 broadcast</td></tr><tr><td data-h=\"Rank\">rank 1</td><td data-h=\"Last collective\" class=\"num\">#6</td><td data-h=\"Its name\">gloo:broadcast</td><td data-h=\"All recorded\">#1 all_gather, #2 broadcast, #3 broadcast, #4 all_reduce, #5 all_reduce, #6 broadcast</td></tr><tr><td data-h=\"Rank\">rank 2</td><td data-h=\"Last collective\" class=\"num\">#8</td><td data-h=\"Its name\">gloo:all_reduce</td><td data-h=\"All recorded\">#1 all_gather, #2 broadcast, #3 broadcast, #4 all_reduce, #5 all_reduce, #6 broadcast, #7 broadcast, #8 all_reduce</td></tr><tr><td data-h=\"Rank\">rank 3</td><td data-h=\"Last collective\" class=\"num\">#5</td><td data-h=\"Its name\">gloo:all_reduce</td><td data-h=\"All recorded\">#1 all_gather, #2 broadcast, #3 broadcast, #4 all_reduce, #5 all_reduce</td></tr></tbody></table></div><p class=\"small\">Rank 3 stopped at #5 (the loss all-reduce of step 1); every other rank had issued #6 or later. The rank with the lowest sequence number is the one the others are waiting for. #1 to #3 are DDP's start-up (shape check, then broadcasting rank 0's weights), #4 the gradient all-reduce, #5 the running example's loss all-reduce, #6 onwards step 2. With NCCL the same dump is written automatically on a timeout when <code>TORCH_NCCL_DUMP_ON_TIMEOUT=1</code>; PyTorch ships a <code>torchfrtrace</code> analyser that compares the dumps of all ranks.</p></div><div class=\"la-card\"><h4>3. More logs: <code>TORCH_DISTRIBUTED_DEBUG</code> and <code>NCCL_DEBUG</code> <span class=\"la-doc\">documented</span></h4><p class=\"small\"><code>TORCH_DISTRIBUTED_DEBUG=INFO</code> or <code>DETAIL</code> makes DDP log its bucketing and unused parameters; <code>DETAIL</code> also wraps every collective with a check that all ranks call the same collective with the same shapes, and reports the mismatch instead of hanging, at a cost in speed (use it to reproduce, not in production). <code>NCCL_DEBUG=INFO</code> (section 6) shows which interface and transport each rank chose, which is where most GPU start-up hangs are found. <code>TORCH_CPP_LOG_LEVEL=INFO</code> shows the store's connect and retry messages seen in the cases above.</p></div>",
+ "dns": "<div class=\"la-card\"><h4>The headless Service, as it ran (Kubernetes run 1)</h4><div class=\"la-two\"><div><pre>{\n \"clusterIP\": \"None\",\n \"publishNotReadyAddresses\": true,\n \"selector\": {\n  \"jobset.sigs.k8s.io/jobset-name\": \"la-t1\"\n }\n}</pre><div class=\"la-codecap\">The Service JobSet created, named after the JobSet: no virtual IP (<code>clusterIP: None</code>), and it publishes pods that are not ready yet.</div></div><div><pre>pod spec (set by JobSet):\n  hostname:  la-t1-node-0-1\n  subdomain: la-t1\n\ngetent hosts la-t1-node-0-0.la-t1   (in pod 1)\n&lt;ip-1&gt;     la-t1-node-0-0.la-t1.mi.svc.cluster.local\nsearch mi.svc.cluster.local svc.cluster.local cluster.local</pre><div class=\"la-codecap\">Pod 1 resolved pod 0's name at its own start-up, 0.08 s before pod 0's torchrun had even begun: the name exists as soon as the pod has an address. <code>ndots:5</code> and the search list are why the short form <code>la-t1-node-0-0.la-t1</code> works inside the namespace.</div></div></div></div>",
+ "pgtext": "Measured here, with 4 ranks on 2 containers: <code>init_process_group</code> over gloo took a median 9 ms on Slurm, 26 ms on Kubernetes and 333 ms on Ray (<span class=\"la-meas\">measured</span> on Apple M1 Pro, Docker Desktop VM, shared machine; on Ray it includes waiting for the slowest worker to arrive, since Ray Train calls it in all workers at once). It is fast because every rank was already waiting at the store: the expensive part of start-up is getting every process to that point, and on GPUs, NCCL's own bootstrap and topology detection after it.",
+ "drills": [
+  {
+   "q": "Ten minutes after submission the job log shows only this. What happened?",
+   "log": "job 72 nodes c[1-2] rendezvous c1:29500\ntorch.distributed.elastic.rendezvous.api.RendezvousTimeoutError\nsrun: error: c1: task 0: Exited with exit code 1\nsrun: error: c2: task 1: Terminated",
+   "opts": [
+    [
+     "The rendezvous port 29500 is blocked by a firewall",
+     0
+    ],
+    [
+     "Node c2 never started its torchrun (or never reached the store), so c1 waited the full 600 s join timeout",
+     1
+    ],
+    [
+     "The model ran out of memory on c1",
+     0
+    ]
+   ],
+   "ans": "A port blocked by a firewall would show connection warnings on c2, which logged nothing at all. Nothing from c2 plus a join timeout on c1 means c2's agent never joined: look at c2's own task (here it was sleeping on purpose)."
+  },
+  {
+   "q": "Pod 1 of a JobSet logs this over and over. What is wrong?",
+   "log": "[c10d] The IPv6 network addresses of (la-badaddr-node-0-0, 29500) cannot be retrieved (gai error: -2 - Name or service not known).",
+   "opts": [
+    [
+     "Pod 0 has crashed",
+     0
+    ],
+    [
+     "The rendezvous address is the pod's short host name; it resolves only inside pod 0. Use the name under the headless Service (la-badaddr-node-0-0.la-badaddr)",
+     1
+    ],
+    [
+     "IPv6 is disabled in the cluster",
+     0
+    ]
+   ],
+   "ans": "gai error -2 is a name that does not resolve. The kubelet puts a pod's own short name in its /etc/hosts, so the name works in pod 0 and nowhere else; cluster DNS knows <code>&lt;hostname&gt;.&lt;subdomain&gt;</code>. The IPv6 wording is just the first address family tried."
+  },
+  {
+   "q": "Three ranks print this after exactly the process-group timeout. Which rank do you investigate?",
+   "log": "rank 0 (+60.0 s): RuntimeError: [/__w/pytorch/pytorch/third_party/gloo/gloo/transport/tcp/pair.cc:561] Connection closed by peer [<ip-5>]:11167. This is typically caused by a remote worker crashing. Check the logs of the remote worker before reporting an error. GLHF! \ud83c\udfd6\ufe0f\nrank 1 (+60.0 s): RuntimeError: [/__w/pytorch/pytorch/third_party/gloo/gloo/transport/tcp/unbound_buffer.cc:129] Timed out waiting 60000ms for send operation to complete\nrank 2 (+60.0 s): RuntimeError: [/__w/pytorch/pytorch/third_party/gloo/gloo/transport/tcp/unbound_buffer.cc:78] Timed out waiting 60000ms for recv operation to complete",
+   "opts": [
+    [
+     "Rank 0: it reports a crashed remote worker",
+     0
+    ],
+    [
+     "Rank 1 or 2: they timed out",
+     0
+    ],
+    [
+     "Rank 3: it is the only one that printed nothing; check where it is (py-spy) and the flight recorder's sequence numbers",
+     1
+    ]
+   ],
+   "ans": "Every message here is a symptom. The silent rank is the suspect: in this run py-spy showed it sleeping in <code>train.py:166</code> and the flight recorder showed it one collective behind all others."
+  },
+  {
+   "q": "Two ranks of a three-task srun job fail with this after 120 s. Cause?",
+   "log": "torch.distributed.DistStoreError: wait timeout after 120000ms, keys: /default_pg/0//cpu//0/0",
+   "opts": [
+    [
+     "WORLD_SIZE says 4 but only 3 processes exist: they wait for rank 3's address",
+     1
+    ],
+    [
+     "The store on rank 0 is overloaded",
+     0
+    ],
+    [
+     "gloo is not installed",
+     0
+    ]
+   ],
+   "ans": "The key is the store entry where gloo's rank 3 would post its address; nobody ever writes it. Read WORLD_SIZE from the launcher (<code>SLURM_NTASKS</code>) instead of hard-coding it."
+  }
+ ]
+}
