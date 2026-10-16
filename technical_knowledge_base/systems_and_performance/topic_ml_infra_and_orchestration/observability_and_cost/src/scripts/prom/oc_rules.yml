@@ -1,0 +1,46 @@
+# Recording and alerting rules for the running example (Observability and cost child page).
+# Thresholds are scaled to a job whose steps take about 0.13 s; on a real cluster scale them to the job's own step time.
+groups:
+- name: oc-training
+  interval: 5s
+  rules:
+  - record: oc:train_steps_per_second
+    expr: rate(oc_train_step{rank="0"}[30s])
+  - record: oc:train_tokens_per_second
+    expr: rate(oc_train_tokens_total[30s])
+  - record: oc:pod_cpu_cores
+    expr: sum by (pod) (rate(container_cpu_usage_seconds_total{container="trainer"}[40s]))
+  # pod-level cgroup (container=""): throttling is counted where the limit is hit; the slow-node test caps the pod cgroup
+  - record: oc:pod_throttled_ratio
+    expr: sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace="mi",container=""}[40s])) / sum by (pod) (rate(container_cpu_cfs_periods_total{namespace="mi",container=""}[40s]))
+  # 1. A hang: no step logged for 20 s by any rank of a run that has not ended
+  - alert: TrainingStalled
+    expr: (time() - max by (system, run) (oc_train_last_step_timestamp_seconds)) > 20 and on (system, run) oc_train_ended == 0
+    for: 10s
+    labels: {severity: page}
+    annotations: {summary: 'no training step for 20 s: hang, crash or a very slow step'}
+  # 2. A straggler or slow node: the job runs at under 60% of its own best rate in the last 3 minutes
+  - alert: TrainingSlowdown
+    expr: oc:train_steps_per_second < 0.6 * max_over_time(oc:train_steps_per_second[3m]) and on (system, run) oc_train_ended == 0
+    for: 10s
+    labels: {severity: ticket}
+    annotations: {summary: 'step rate fell below 60% of this run''s best'}
+  # 3. The node behind it: a training pod throttled more than half of its CPU periods (on GPUs: clock throttle reasons, XIDs)
+  - alert: PodThrottled
+    expr: oc:pod_throttled_ratio > 0.5
+    for: 10s
+    labels: {severity: ticket}
+  # 4. Quota held, nothing trains: GPUs admitted by Kueue while no run makes progress
+  - alert: GpusHeldNoProgress
+    expr: sum(oc_kueue_usage{resource="example.com/gpu"}) > 0 and on () (sum(oc:train_steps_per_second) or vector(0)) == 0
+    for: 20s
+    labels: {severity: page}
+  # 5. Work waits while GPUs are free: a pending workload with most GPU quota unused (another resource or shape binds)
+  - alert: PendingWithFreeGpus
+    expr: sum(oc_kueue_workloads{state="pending"}) > 0 and on () sum(oc_kueue_usage{resource="example.com/gpu"}) / sum(oc_kueue_quota{resource="example.com/gpu"}) < 0.5
+    for: 10s
+    labels: {severity: ticket}
+  - alert: SlurmPendingWithFreeGpus
+    expr: sum(oc_slurm_pending) > 0 and on () (sum(oc_slurm_gres_gpu{state="total"}) - sum(oc_slurm_gres_gpu{state="alloc"})) >= 4
+    for: 10s
+    labels: {severity: ticket}

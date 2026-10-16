@@ -1,0 +1,49 @@
+<section id="s-gap">
+<h2>4. The gap between "utilisation" and real work</h2>
+<p><b>The problem.</b> Three different numbers are all called GPU utilisation: the share of GPUs allocated to jobs, the share of time any kernel ran, and the share of SMs with work. Each is an upper bound on the next, and published fleets show how far apart they sit. Before the table, guess.</p>
+<div class="oc-pr"><div class="q">Predict: in the Shanghai AI Lab's two LLM-development clusters (4,704 A100s, March to August 2023), the median GPU utilisation (nvidia-smi's duty cycle) was 97% and 99%. What was the median DCGM SM activity on the same clusters?</div>
+<div class="opts"><button>about 95%</button><button>about 75%</button><button data-r="1">about 40%</button><button>about 5%</button></div>
+<div class="ans">"The median SM activity in both clusters is approximately 40%", against 97% and 99% median GPU utilisation ({{Hu et al., NSDI 2024|https://arxiv.org/html/2403.07648v2}}, operator). The duty cycle sees that a kernel is running; it cannot see that most SMs are idle or waiting inside it.</div></div>
+<div class="tw"><table class="oc-tbl"><thead><tr><th>Fleet</th><th>Period, size</th><th>Which "utilisation"</th><th>Reading</th></tr></thead><tbody id="oc-rd-util"></tbody></table></div>
+<p class="small">All operator papers (each team measured its own cluster), read 2026-10-16. Do not compare across rows without the third column: Meta's 83% is allocation, Philly's 52% is a duty cycle, PAI's 0.042 is SM usage per task instance. Acme is the one study that reports two kinds on the same clusters, which is why it is the one to quote. The same paper found evaluation jobs leave the GPU idle for 19% of their GPU time and spend 29.5% of their duration loading the model and preparing data before the first GPU work.</p>
+<p><b>Measured here: the same job, healthy and hung, on the three meters.</b> The local clusters have no GPUs, so the device meter is the training pods' CPU time (cAdvisor) for what was measured, and the GPU counters derived from their definitions for what a GPU would show. Step through both recordings side by side.</p>
+<div class="card" id="oc-rd-hb">
+<div class="oc-seg" id="oc-rd-hb-m"><button data-m="hang" class="on">Hung run</button><button data-m="base">Healthy run</button></div>
+<div class="oc-ctl" id="oc-rd-hb-ctl"></div>
+<div id="oc-rd-hb-svg" class="oc-svg"></div>
+<div class="oc-anc" id="oc-rd-hb-cap"></div>
+</div>
+<p><b>What transfers.</b> The CPU result is the reverse of the GPU one, and both come from how the collective waits. Gloo blocks in the kernel on a socket, so a waiting rank uses no CPU; NCCL keeps a kernel resident on the GPU, polling for data, so a waiting GPU reads 100% utilisation (NCCL's behaviour from its design; not run here). Either way, the device meter alone cannot tell a hang from work or from idleness. <b>How to check it:</b> put the step counter (meter 3) on the same dashboard as the device counters, and alert on it (section 9).</p>
+</section>
+
+<section id="s-mfu">
+<h2>5. MFU and HFU in the training loop</h2>
+<p><b>The problem.</b> The only counter of useful work is the job's own: tokens processed per second, turned into FLOPs and divided by the peak. <b>How it works:</b> model FLOPs per step = 6 x parameters x tokens in the step (plus an attention term at long context); MFU = model FLOPs per step / (step time x GPUs x peak FLOP/s). HFU uses the FLOPs the hardware actually ran, including activation recomputation, so it rises when you recompute and is not comparable across runs. The arithmetic, its conventions and published values are on {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}; here is how to log it, done on the running example.</p>
+<pre><span class="c"># in the training loop: time a step the way the hardware sees it</span>
+t0 = time.perf_counter()
+loss = model(x).loss; loss.backward(); opt.step(); opt.zero_grad()
+torch.cuda.synchronize()        <span class="c"># on a GPU: or the clock stops before the kernels finish</span>
+dt = time.perf_counter() - t0
+flops = 6 * n_params * tokens_per_step          <span class="c"># + 12 * layers * ctx * d_model * tokens at long context</span>
+mfu = flops / (dt * world_size * PEAK_FLOPS)    <span class="c"># PEAK: dense BF16 datasheet value, never the sparse one</span>
+log({"step": step, "tokens_per_s": tokens_per_step / dt, "mfu": mfu})</pre>
+<p><b>Measured here</b> (<code>src/scripts/oc_mfu.py</code>, one process, one thread, in the <code>mi-train:1</code> container capped at 1 CPU, 3 runs): the "peak" is a 1,024 x 1,024 fp32 matrix multiply on that core, because a container's CPU share has no datasheet. <span id="oc-rd-mfu"></span> <span class="oc-meas">measured</span> on Apple M1 Pro, Docker Desktop VM, shared machine.</p>
+<p><b>What transfers:</b> the method, and the fact that the convention changes the number (here attention adds about 15% to the FLOPs at context 64). <b>What does not:</b> the value; a 112,577-parameter model on one CPU core says nothing about an H100. Published values for real runs: Llama 3 405B 38% to 43% BF16 MFU ({{Llama 3, sec. 3.3.2|https://arxiv.org/html/2407.21783v3}}, operator); ByteDance MegaScale 55.2% on 12,288 GPUs for a 175B model ({{MegaScale|https://arxiv.org/html/2402.15627v1}}, operator of its own system).</p>
+<div class="co warn"><div class="t">Four ways to log a wrong MFU</div>
+Timing without synchronising (the CPU clock stops before the GPU finishes, MFU too high). Dividing by the 2:4-sparse peak (twice the dense one, MFU half what it should be). Counting padding tokens as tokens. Averaging over a window that includes evaluation, checkpoint saves or the first step's compilation, which then hides as "low MFU" instead of showing as badput.</div>
+</section>
+
+<section id="s-good">
+<h2>6. Goodput: three definitions, one run</h2>
+<p><b>The problem.</b> MFU measures the steps that ran; goodput measures how much of the time became progress you kept. Three groups published definitions, and they draw the box in different places:</p>
+<div class="tw"><table class="oc-tbl"><thead><tr><th>Who</th><th>Definition (quoted)</th><th>Counts as lost</th></tr></thead><tbody>
+<tr><td>Google, ML Productivity Goodput (blog 2024, vendor; MLSys 2026 paper, operator)</td><td>Product of three: Scheduling Goodput, "the fraction of time that all the resources required to run the training job are available"; Runtime Goodput, "the productive chip-time of the application's progress that has been saved in checkpoints" over allocated chip-time; Program Goodput, "the fraction of peak hardware performance" (MFU)</td><td>waiting for resources (in the paper, against fleet capacity), work since the last checkpoint, restarts, and everything below peak</td></tr>
+<tr><td>Meta, Effective Training Time Ratio (Kokolis et al., HPCA 2025, operator)</td><td>"the ratio of productive runtime to available wallclock time of a job run", where available time includes time "eligible to be scheduled but waiting in the queue"</td><td>queueing, catching up from the last checkpoint, restart overhead, checkpoint overhead; not MFU</td></tr>
+<tr><td>Meta, Llama 3 report (operator)</td><td>"effective training time", "higher than 90%" for the 405B run</td><td>not defined in the report beyond the name</td></tr>
+</tbody></table></div>
+<p class="small">Sources: {{Google Cloud blog, 2024-04-10|https://cloud.google.com/blog/products/ai-machine-learning/goodput-metric-as-measure-of-ml-productivity}}; {{ML Fleet Efficiency (arXiv 2502.06982)|https://arxiv.org/html/2502.06982}}; {{Kokolis et al.|https://arxiv.org/html/2410.21680}}; {{Llama 3|https://arxiv.org/html/2407.21783v3}}. Google's paper reports scheduling goodput above 95% for all job sizes; Meta reports ETTR 0.85 to 0.9 for its largest jobs. The sibling page Fault tolerance at scale works through recovery designs against these; its formulas are not repeated here.</p>
+<p><b>Measured here: the badput of two recorded runs</b>, from Kueue's Workload conditions (Admitted, Finished) and rank 0's log. Runtime goodput in Google's sense: seconds of progress saved in a checkpoint over seconds allocated.</p>
+<div class="tw"><table class="oc-tbl"><thead><tr><th>Run</th><th class="num">Allocated</th><th class="num">Startup</th><th class="num">Progress kept</th><th class="num">Progress lost</th><th class="num">After last step</th><th class="num">Runtime goodput</th></tr></thead><tbody id="oc-rd-gp"></tbody></table></div>
+<p class="small"><span class="oc-meas">measured</span>, seconds, 4 fake GPUs; Kueue's timestamps have one-second resolution. The hung run checkpointed at step 100 and froze at 150: the 50 steps in between are lost, and the 82 s after the freeze are the hang. Scheduling goodput is 100% for both (admitted the moment they were submitted). Program goodput cannot be measured without a GPU.</p>
+<p><b>When it matters:</b> Google's own example is that "a 1% improvement in ML Goodput can translate to more than a million dollars in cost savings" for 20,000 GPUs over 8 weeks (vendor). <b>How to check:</b> instrument the badput categories directly, as Google's open-source {{ml-goodput-measurement|https://github.com/AI-Hypercomputer/ml-goodput-measurement}} library does (device initialisation, program startup, data loading, checkpoint save and restore, wasted progress from disruptions), instead of inferring them afterwards.</p>
+</section>

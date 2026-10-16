@@ -1,0 +1,130 @@
+DCGM fields, nvidia-smi utilisation and dcgm-exporter defaults
+All read 2026-10-16. Quotes are verbatim from the pages named.
+
+======================================================================
+A. DCGM User Guide, Feature Overview, section "Profiling Metrics"  [docs]
+URL: https://docs.nvidia.com/datacenter/dcgm/latest/user-guide/feature-overview.html
+Page footer: "Last updated on 2026-06-17." (page example output shows DCGM Version 4.0.0)
+======================================================================
+
+Overhead and sampling:
+- "DCGM provides access to device-level metrics at low performance overhead in a continuous manner. This feature is supported in production starting with DCGM 1.7."
+- "By default, DCGM provides the metrics at a sample rate of 1Hz (every 1000ms). Users can query the metrics at any configurable frequency (minimum is 100ms) from DCGM (for example, see dcgmi dmon -d )."
+- No numeric overhead figure (percent) is stated on the page: not found.
+
+Definitions (metric name, definition, field):
+
+Graphics Engine Activity, PROF_GR_ENGINE_ACTIVE (ID: 1001):
+"The fraction of time any portion of the graphics or compute engines were active. The graphics engine is active if a graphics/compute context is bound and the graphics/compute pipe is busy. The value represents an average over a time interval and is not an instantaneous value."
+
+SM Activity, PROF_SM_ACTIVE (ID: 1002):
+"The fraction of time at least one warp was active on a multiprocessor, averaged over all multiprocessors. Note that "active" does not necessarily mean a warp is actively computing. For instance, warps waiting on memory requests are considered active. The value represents an average over a time interval and is not an instantaneous value. A value of 0.8 or greater is necessary, but not sufficient, for effective use of the GPU. A value less than 0.5 likely indicates ineffective GPU usage."
+Worked example: "Given a simplified GPU architectural view, if a GPU has N SMs then a kernel using N blocks that runs over the entire time interval will correspond to an activity of 1 (100%). A kernel using N/5 blocks that runs over the entire time interval will correspond to an activity of 0.2 (20%). A kernel using N blocks that runs over one fifth of the time interval, with the SMs otherwise idle, will also have an activity of 0.2 (20%). The value is insensitive to the number of threads per block (see DCGM_FI_PROF_SM_OCCUPANCY )."
+
+SM Occupancy, PROF_SM_OCCUPANCY (ID: 1003):
+"The fraction of resident warps on a multiprocessor, relative to the maximum number of concurrent warps supported on a multiprocessor. The value represents an average over a time interval and is not an instantaneous value. Higher occupancy does not necessarily indicate better GPU usage. For GPU memory bandwidth limited workloads (see DCGM_FI_PROF_DRAM_ACTIVE ), higher occupancy is indicative of more effective GPU usage. However if the workload is compute limited (i.e. not GPU memory bandwidth or latency limited), then higher occupancy does not necessarily correlate with more effective GPU usage."
+"Calculating occupancy is not simple and depends on factors such as the GPU properties, the number of threads per block, registers per thread, and shared memory per block."
+
+Tensor Activity, PROF_PIPE_TENSOR_ACTIVE (ID: 1004):
+"The fraction of cycles the tensor (HMMA / IMMA) pipe was active. The value represents an average over a time interval and is not an instantaneous value. Higher values indicate higher utilization of the Tensor Cores. An activity of 1 (100%) is equivalent to issuing a tensor instruction every other cycle for the entire time interval. An activity of 0.2 (20%) could indicate 20% of the SMs are at 100% utilization over the entire time period, 100% of the SMs are at 20% utilization over the entire time period, 100% of the SMs are at 100% utilization for 20% of the time period, or any combination in between (see DCGM_FI_PROF_SM_ACTIVE to help disambiguate these possibilities)."
+
+Memory BW Utilization, PROF_DRAM_ACTIVE (ID: 1005):
+"The fraction of cycles where data was sent to or received from device memory. ... An activity of 1 (100%) is equivalent to a DRAM instruction every cycle over the entire time interval (in practice a peak of ~0.8 (80%) is the maximum achievable). An activity of 0.2 (20%) indicates that 20% of the cycles are reading from or writing to device memory over the time interval."
+
+FP64 Engine Activity, PROF_PIPE_FP64_ACTIVE (ID: 1006):
+"The fraction of cycles the FP64 (double precision) pipe was active. ... An activity of 1 (100%) is equivalent to a FP64 instruction on every SM every fourth cycle on Volta over the entire time interval."
+
+FP32 Engine Activity, PROF_PIPE_FP32_ACTIVE (ID: 1007):
+"The fraction of cycles the FMA (FP32 (single precision), and integer) pipe was active. ... An activity of 1 (100%) is equivalent to a FP32 instruction every other cycle over the entire time interval."
+
+FP16 Engine Activity, PROF_PIPE_FP16_ACTIVE (ID: 1008):
+"The fraction of cycles the FP16 (half precision) pipe was active. ... An activity of 1 (100%) is equivalent to a FP16 instruction every other cycle over the entire time interval."
+
+PCIe Bandwidth, PROF_PCIE_[T|R]X_BYTES (ID: 1009 (TX); 1010 (RX)):
+"The rate of data transmitted / received over the PCIe bus, including both protocol headers and data payloads, in bytes per second. ... For example, if 1 GB of data is transferred over 1 second, the rate is 1 GB/s regardless of the data transferred at a constant rate or in bursts. The theoretical maximum PCIe Gen3 bandwidth is 985 MB/s per lane."
+
+NVLink Bandwidth, PROF_NVLINK_TX_BYTES (1011) and PROF_NVLINK_RX_BYTES (1012):
+"The rate of data transmitted / received over NVLink, not including protocol headers, in bytes per second. ... The theoretical maximum NVLink Gen2 bandwidth is 25 GB/s per link per direction."
+(Note: the doc says NVLink excludes headers; dcgm_fields.h comment for 1011/1012 says "including both header and payload". The two sources disagree.)
+
+Privileges:
+"Profiling of the GPU counters requires administrator privileges starting with Linux drivers 418.43 or later. ... When using profiling metrics from DCGM, ensure that nv-hostengine is started with superuser privileges."
+
+Multiplexing (section "Multiplexing of Profiling Counters"):
+"Some metrics require multiple passes to be collected and therefore all metrics cannot be collected together. Due to hardware limitations on the GPUs, only certain groups of metrics can be read together. For example, SM Activity | SM Occupancy cannot be collected together with Tensor Utilization on V100 but can be done on T4. To overcome these hardware limitations, DCGM supports automatic multiplexing of metrics by statistically sampling the requested metrics and performing the groupings internally."
+"A side-effect of multiplexing is that collection at higher frequencies will result in zeroes returned as DCGM attempts to group metrics together for collection."
+Example `dcgmi profile -l -i 0` on T4: A.1 = 1002 sm_active, 1003 sm_occupancy, 1004 tensor_active, 1007 fp32_active; A.2 = 1006 fp64_active; A.3 = 1008 fp16_active; B.0 = 1005 dram_active; C.0 = 1009/1010 pcie; D.0 = 1001 gr_engine_active; E.0 = 1011/1012 nvlink. "a metric from each letter group can be collected without multiplexing ... on T4 these metrics can be collected together without multiplexing: sm_active + sm_occupancy + tensor_active + fp32_active"
+
+Conflict with profilers (section "Concurrent Usage of NVIDIA Profiling Tools"):
+"collection of profiling metrics with DCGM will conflict with usage of other developer tools from NVIDIA such as Nsight Systems or Nsight Compute." Remedy: "dcgmi profile --pause" / "--resume" (APIs dcgmProfPause() and dcgmProfResume()); "When paused, DCGM will publish BLANK values for profiling metrics."
+
+MIG worked example (A100, two 3g.20gb instances, dcgmi dmon -e 1001,1004):
+"Because the MIG geometry in this example is 3g.20gb, the compute resources are = 2*42/98 or 85.71%." Output rows: "GPU 0 0.845 0.816", "GPU-I 0 0.986 0.952", "GPU-I 1 0.985 0.952". "Since each GPU instance is 98.6% active, the entire GPU = 0.8571*0.986 or 84.5% utilized. The same interpretation can be extended to Tensor Core utilization."
+
+Platform: "Profiling metrics are currently supported on datacenter products starting with the Volta architecture on Linux x86_64, Arm64 (aarch64) and POWER (ppc64le) platforms."
+
+======================================================================
+B. dcgm_fields.h, NVIDIA/DCGM at tag v4.6.1 (commit 64df9f894541e426e416131a9820cae97aa4dd81, commit date 2026-08-19)  [docs: source header]
+URL: https://raw.githubusercontent.com/NVIDIA/DCGM/v4.6.1/dcgmlib/dcgm_fields.h  (3993 lines)
+======================================================================
+
+RENAMING: in v4.6.1 the profiling fields carry new canonical names; the old names are aliases.
+Line 3602: "// Deprecated: renamed per DCGM Field Naming Standard (see dcgmlib/dcgm_field_naming.py)"
+Lines 3821--3825:
+  DCGM_FI_PROF_GR_ENGINE_ACTIVE   -> DCGM_FI_PROF_GR_ENGINE_UTIL_RATIO   // 1001
+  DCGM_FI_PROF_SM_ACTIVE          -> DCGM_FI_PROF_SM_UTIL_RATIO          // 1002
+  DCGM_FI_PROF_SM_OCCUPANCY       -> DCGM_FI_PROF_SM_OCCUPANCY_RATIO     // 1003
+  DCGM_FI_PROF_PIPE_TENSOR_ACTIVE -> DCGM_FI_PROF_TENSOR_UTIL_RATIO      // 1004
+  DCGM_FI_PROF_DRAM_ACTIVE        -> DCGM_FI_PROF_DRAM_UTIL_RATIO        // 1005
+Device-field aliases: line 3638 DCGM_FI_DEV_GPU_TEMP -> DCGM_FI_DEV_GPU_TEMP_CELSIUS (150); line 3642 DCGM_FI_DEV_POWER_USAGE -> DCGM_FI_DEV_BOARD_POWER_WATTS (155); line 3657 DCGM_FI_DEV_GPU_UTIL -> DCGM_FI_DEV_GPU_UTIL_RATIO (203); line 3659 DCGM_FI_DEV_XID_ERRORS -> DCGM_FI_DEV_XID_ERROR (230).
+
+Canonical definitions (header comments, verbatim):
+- line 2538, 1001 DCGM_FI_PROF_GR_ENGINE_UTIL_RATIO: "Ratio of time the graphics engine is active. The graphics engine is active if a graphics/compute context is bound and the graphics pipe or compute pipe is busy."
+- line 2544, 1002 DCGM_FI_PROF_SM_UTIL_RATIO: "The ratio of cycles an SM has at least 1 warp assigned (computed from the number of cycles and elapsed cycles)"
+- line 2551, 1003 DCGM_FI_PROF_SM_OCCUPANCY_RATIO: "The ratio of number of warps resident on an SM. (number of resident as a ratio of the theoretical maximum number of warps per elapsed cycle)"
+- line 2557, 1004 DCGM_FI_PROF_TENSOR_UTIL_RATIO: "The ratio of cycles the any tensor pipe is active (off the peak sustained elapsed cycles)"
+- line 2563, 1005 DCGM_FI_PROF_DRAM_UTIL_RATIO: "The ratio of cycles the device memory interface is active sending or receiving data."
+- line 2568, 1006 DCGM_FI_PROF_FP64_UTIL_RATIO: "Ratio of cycles the fp64 pipe is active."
+- line 2573, 1007 DCGM_FI_PROF_FP32_UTIL_RATIO: "Ratio of cycles the fp32 pipe is active."
+- line 2578, 1008 DCGM_FI_PROF_FP16_UTIL_RATIO: "Ratio of cycles the fp16 pipe is active. This does not include HMMA."
+- line 2586, 1009 DCGM_FI_PROF_PCIE_TX_BYTES (1010 RX at line 2594): "The number of bytes of active PCIe tx (transmit) data including both header and payload. Note that this is from the perspective of the GPU, so copying data from device to host (DtoH) would be reflected in this metric."
+- line 2600, 1011 DCGM_FI_PROF_NVLINK_TX_BYTES (1012 RX at line 2606): "The total number of bytes of active NvLink tx (transmit) data including both header and payload. Per-link fields are available below"
+- Further pipe fields: 1013 IMMA_UTIL_RATIO, 1014 HMMA_UTIL_RATIO, 1015 DFMA_UTIL_RATIO, 1016 INT_UTIL_RATIO (lines 2611--2626); per-link NVLink bytes from 1040 (line 2664).
+
+Device fields:
+- line 775, 203 DCGM_FI_DEV_GPU_UTIL_RATIO: comment is only "GPU Utilization"
+- line 780, 204 DCGM_FI_DEV_MEM_COPY_UTIL: comment is only "Memory Utilization"
+- line 639, 155 DCGM_FI_DEV_BOARD_POWER_WATTS: "Power usage for the device in Watts"
+- line 619, 150 DCGM_FI_DEV_GPU_TEMP_CELSIUS: "Current temperature readings for the device, in degrees C"
+- line 806, 230 DCGM_FI_DEV_XID_ERROR: "XID errors. The value is the specific XID error"
+- line 579, 112 DCGM_FI_DEV_CLOCKS_EVENT_REASONS: "Current clock event reasons (bitmask of DCGM_CLOCKS_EVENT_REASON_*)"; line 582--584: "Deprecated: Use DCGM_FI_DEV_CLOCKS_EVENT_REASONS instead" for DCGM_FI_DEV_CLOCK_THROTTLE_REASONS.
+- line 100: "DCGM_FI_DEV_CLOCKS_EVENT_REASONS is a bitmap of reported clock events These macros are masks for relevant clocks events, and are a 1:1 map to the NVML reasons documented in nvml.h." Bits include GPU_IDLE 0x1, CLOCKS_SETTING 0x2, SW_POWER_CAP 0x4 ("The clocks have been optimized to ensure not to exceed currently set power limits"), HW_SLOWDOWN 0x8 ("reducing the core clocks by a factor of 2 or more"), SYNC_BOOST 0x10, SW_THERMAL 0x20, HW_THERMAL 0x40 (masks at lines 106 onward).
+
+======================================================================
+C. nvidia-smi documentation, section "Utilization"  [docs]
+URL: https://docs.nvidia.com/deploy/nvidia-smi/index.html  (no page date shown)
+======================================================================
+"Utilization rates report how busy each GPU is over time, and can be used to determine how much an application is using the GPUs in the system. Note: On MIG-enabled GPUs, querying the utilization of encoder, decoder, jpeg, ofa, gpu, and memory is not currently supported."
+"Note: During driver initialization when ECC is enabled one can see high GPU and Memory Utilization readings. This is caused by ECC Memory Scrubbing mechanism that is performed during driver initialization."
+GPU: "Percent of time over the past sample period during which one or more kernels was executing on the GPU. The sample period may be between 1 second and 1/6 second depending on the product."
+Memory: "Percent of time over the past sample period during which global (device) memory was being read or written. The sample period may be between 1 second and 1/6 second depending on the product."
+(These are the quantities behind query fields utilization.gpu and utilization.memory; the --query-gpu field names themselves are listed by `nvidia-smi --help-query-gpu`, not on this page.)
+Takeaway for the page: utilization.gpu is "one or more kernels executing", so a single tiny kernel can show 100%; SM activity (1002) averages over all SMs.
+
+======================================================================
+D. dcgm-exporter 4.8.4  [docs]
+Release: tag 4.8.4, published 2026-09-18 (GitHub API releases/latest).
+README at tag (https://raw.githubusercontent.com/NVIDIA/dcgm-exporter/4.8.4/README.md) is now a short pointer page; the user docs moved to docs.nvidia.com. Facts below are from:
+- Command reference: https://docs.nvidia.com/datacenter/dcgm/latest/reference/command-line-reference/dcgm-exporter.html ("Last updated on 2026-09-10")
+- Install guide: https://docs.nvidia.com/datacenter/dcgm/latest/installation/install-dcgm-exporter.html ("Last updated on 2026-09-10")
+======================================================================
+- "-c , --collect-interval <milliseconds>  DCGM_EXPORTER_INTERVAL  30000  Set the default DCGM collection interval." Install guide: "--collect-interval sets the default DCGM watch cadence requested by the exporter, in milliseconds; the default is 30000." YAML can set per-watch-group intervals (example "fast-thermals" at 5s for DCGM_FI_DEV_GPU_TEMP_CELSIUS and DCGM_FI_DEV_BOARD_POWER_WATTS).
+- "Each HTTP scrape reads the latest cached sample; the exporter does not have a separate periodic capture or file-storage interval."
+- "-f , --collectors <path>  DCGM_EXPORTER_COLLECTORS  /etc/dcgm-exporter/default-counters.csv  Select a three-column collector CSV."
+- "The default listener is :9400 ." metrics at /metrics.
+- Privileges: container example uses "--cap-add SYS_ADMIN"; "This command exposes every GPU and allows DCGM profiling fields such as DCGM_FI_PROF_* ."
+- Kubernetes: "-k , --kubernetes  DCGM_EXPORTER_KUBERNETES  false  Map metrics to Kubernetes pods." Install guide table: "--kubernetes  Adds pod, namespace, and container labels from the kubelet pod-resources socket." Optional "--kubernetes-enable-pod-labels" (default false) and "--kubernetes-enable-pod-uid" (default false); "--kubernetes-pod-label-allowlist-regex". "The Helm chart deploys one exporter pod on each selected GPU node and enables Kubernetes pod mapping." Caution: "Enable only the metadata required by queries and alerts because each unique label set creates another Prometheus time series."
+
+etc/default-counters.csv at tag 4.8.4 (https://raw.githubusercontent.com/NVIDIA/dcgm-exporter/4.8.4/etc/default-counters.csv, 126 lines):
+Counted myself: 26 uncommented, non-empty lines (25 metrics plus 1 label row, DCGM_FI_DRIVER_VERSION). Enabled: SM_CLOCK, MEM_CLOCK, MEMORY_TEMP, GPU_TEMP, POWER_USAGE, TOTAL_ENERGY_CONSUMPTION, PCIE_REPLAY_COUNTER, GPU_UTIL, MEM_COPY_UTIL, ENC_UTIL, DEC_UTIL, XID_ERRORS, FB_FREE, FB_USED, FB_RESERVED, NVLINK_BANDWIDTH_TOTAL, VGPU_LICENSE_STATUS, UNCORRECTABLE_REMAPPED_ROWS, CORRECTABLE_REMAPPED_ROWS, ROW_REMAP_FAILURE (all DCGM_FI_DEV_*), DCGM_FI_DRIVER_VERSION (label), and DCGM_FI_PROF_GR_ENGINE_ACTIVE, PIPE_TENSOR_ACTIVE, DRAM_ACTIVE, PCIE_TX_BYTES, PCIE_RX_BYTES.
+Notably COMMENTED OUT by default (lines 105--106): "# DCGM_FI_PROF_SM_ACTIVE, gauge, The ratio of cycles an SM has at least 1 warp assigned." and "# DCGM_FI_PROF_SM_OCCUPANCY, gauge, The ratio of number of warps resident on an SM." So the default exporter does not ship SM activity; you must enable it. Clock event reasons (CLOCK_THROTTLE_REASONS) is also not in the enabled set.

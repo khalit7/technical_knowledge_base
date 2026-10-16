@@ -1,0 +1,78 @@
+<section id="rd-s8">
+<h2>8. Checkpoint formats, seen as files and byte ranges</h2>
+<p>What a checkpoint contains (weights, optimiser state, step; 12.31 bytes per parameter for the running example) is on the parent's {{Storage lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}}. Here the question is what the storage sees: how many files or objects, how big, and which byte ranges a reader must fetch. Measured on the Storage lab's 25,319,489-parameter GPT (FSDP2 over 4 ranks, AdamW, three steps; <code>src/runs/ckpt_formats.py</code>, native on the Mac, torch 2.14.1) <span class="meas">measured</span>.</p>
+<h3>PyTorch Distributed Checkpoint (DCP): one file per rank, plus a map</h3>
+<p>DCP "produces multiple files per checkpoint, with at least one per rank" and "handles load-time resharding which enables saving in one cluster topology and loading into another" ({{DCP docs, 2.14|https://docs.pytorch.org/docs/stable/distributed.checkpoint.html}}). Our 4-rank save:</p>
+<div class="tw" id="sd-dcpfiles"></div>
+<p>The <code>.metadata</code> file is the map: for each of the <span id="sd-dcp-n"></span> entries (102 weight tensors, 204 Adam moments, 102 step counters), the global shape, and for each of its chunks the offsets in the global tensor and the file, byte offset and length where it lives. FSDP2 shards every tensor along its first dimension, so <code>tok.weight</code> (65 x 512) is four chunks of 17, 17, 17 and 14 rows:</p>
+<div class="tw" id="sd-dcpchunks"></div>
+<p class="small">Each chunk is stored as a small <code>torch.save</code> record, so 384 x 512 fp32 values (786,432 bytes) take 788,009 bytes on disk. File 0 is smaller than the others because DCP's de-duplication gave the replicated entries to the ranks with less to write (the parent's lab quotes the code).</p>
+
+<div class="rd-card" id="sd-rs-card">
+<h4>Resharding is a set of byte-range reads: the same checkpoint loaded by 4, 2 and 3 ranks</h4>
+<p class="small">Every read DCP issued was recorded (a <code>FileSystemReader</code> subclass logging file, offset and length before reading) <span class="meas">measured</span>. Top: the four files on disk, to scale. Below: the new ranks; each step shows what one rank read from each file.</p>
+<div class="seg" id="sd-rs-mode"><button data-m="4" class="on">Load into 4 ranks (same layout)</button><button data-m="2">Into 2 ranks</button><button data-m="3">Into 3 ranks</button></div>
+<div class="rd-svg" id="sd-rs-svg"></div>
+<div class="an-cap" id="sd-rs-cap"></div>
+<div class="an-cnt" id="sd-rs-cnt"></div>
+<div class="an-ctl" id="sd-rs-ctl"></div>
+</div>
+<p><b>Why 3 ranks read 1.5 times the checkpoint.</b> A new rank that owns rows 0 to 21 of a tensor saved in chunks of 17 needs part of the second chunk, and DCP's file reader fetches whole stored chunks, then copies the slice it needs:</p>
+<div class="sd-src"><div class="f">torch/distributed/checkpoint/filesystem.py, lines 869-884, PyTorch v2.14.1</div>
+<pre class="rd-code">    def read_data(self, plan: LoadPlan, planner: LoadPlanner) -&gt; Future[None]:
+        # group requests by file
+        per_file: dict[str, list[ReadItem]] = {}
+        for read_item in plan.items:
+            item_md: _StorageInfo = self.storage_data[read_item.storage_index]
+            path = item_md.relative_path
+            per_file.setdefault(path, []).append(read_item)
+
+        for relative_path, reqs in per_file.items():
+            new_path = self.fs.concat_path(self.path, relative_path)
+            with self.fs.create_stream(new_path, "rb") as stream:
+                # TODO sort by offset and cache the reading
+                for req in reqs:
+                    item_md = self.storage_data[req.storage_index]
+                    file_slice = self._slice_file(stream, item_md)</pre>
+<p class="small"><code>item_md</code> is the stored chunk's <code>(relative_path, offset, length)</code>; <code>_slice_file</code> (line 860) views exactly that range, so the whole chunk is read even when the new rank needs a few rows of it. Resharding to a divisor of the old world size (4 to 2) reads each byte once; to a non-divisor (4 to 3) the overlapping chunks are read by two ranks each. On a parallel file system that is 50% more restore traffic; on an object store, 50% more GET bytes.</p></div>
+
+<h3>safetensors: a header that maps every tensor to a byte range</h3>
+<p>The format is "8 bytes: N, an unsigned little-endian 64-bit integer, containing the size of the header", then N bytes of JSON giving each tensor's "dtype", "shape" and "data_offsets" relative to the data buffer, then the bytes; the header is capped at 100 MB ({{safetensors README|https://github.com/huggingface/safetensors}}). Our model's weights, saved by rank 0 <span class="meas">measured</span>:</p>
+<pre class="rd-code" id="sd-sthdr"></pre>
+<p>Because the header gives every tensor's range, a reader can fetch one tensor without the rest. From the object store: three ranged GETs (the 8-byte length, the header, the tensor) moved <span id="sd-rg-b"></span> of a <span id="sd-rg-f"></span> file, in <span id="sd-rg-t"></span> against <span id="sd-rg-ft"></span> for the whole object <span class="meas">measured</span>, medians of 3. That is how inference servers and sharded loaders pull only their slice.</p>
+<p><b>Sharded safetensors</b> (the Hugging Face layout) split the tensors greedily into files under <code>max_shard_size</code> plus a <code>model.safetensors.index.json</code> whose <code>"weight_map"</code> names the file of every tensor. The default changed: "5GB" in transformers v4.57.0, "50GB" from v5.0.0 to v5.20.0 (released 2026-10-15) ({{modeling_utils.py at v5.20.0|https://github.com/huggingface/transformers/blob/v5.20.0/src/transformers/modeling_utils.py}}), so the same model saved by a newer library makes fewer, larger objects. Ours at a 25 MB limit: <span id="sd-shards"></span>.</p>
+<p><b>DCP can write safetensors itself.</b> <code>HuggingFaceStorageWriter(path, save_distributed=True, enable_consolidation=True)</code> wrote one safetensors shard per rank under <code>sharded/</code>, then consolidated them into one full file and an index <span class="meas">measured</span>: <span id="sd-dcphf"></span>. The same code path is how training checkpoints become Hub-style exports without a gather on one rank.</p>
+<div class="tw sd-tw"><table class="rd-cmp">
+<thead><tr><th>Format</th><th>Objects per checkpoint</th><th>Partial read</th><th>Reshard on load</th><th>Use for</th></tr></thead>
+<tbody>
+<tr><td><code>torch.save</code>, one file</td><td data-h="Objects">1</td><td data-h="Partial">no: the zip's directory is at the end and the pickle needs the whole thing</td><td data-h="Reshard">only by loading everything on one process</td><td data-h="Use">small DDP models (the running example)</td></tr>
+<tr><td>DCP</td><td data-h="Objects">ranks (times writer threads) + 1</td><td data-h="Partial">yes, per stored chunk</td><td data-h="Reshard">yes, any world size; whole chunks are read</td><td data-h="Use">training checkpoints at scale</td></tr>
+<tr><td>safetensors (sharded)</td><td data-h="Objects">total size / max_shard_size + 1 index</td><td data-h="Partial">yes, per tensor, from one header read</td><td data-h="Reshard">the reader slices tensors itself</td><td data-h="Use">weights for inference and fine-tuning; exports</td></tr>
+</tbody></table></div>
+<p class="small">Other systems: ByteDance's ByteCheckpoint reports "an average reduction of 54.20x" in checkpoint stalls against DCP and Megatron's distributed checkpoint while training "a 405B LFM on 8,960 GPUs", partly by splitting files into fixed-size sub-files written by many threads, raising single-file HDFS uploads to "3 GB/s" from "under 100 MB/s" per client ({{ByteCheckpoint, NSDI 2025|https://arxiv.org/html/2407.20143}}) <span class="pub">authors</span>.</p>
+</section>
+
+<section id="rd-s9">
+<h2>9. Sizing storage for a cluster</h2>
+<p>Four separate questions; the {{Sizing calculator|#t-sdsize}} answers all four for any cluster. Cluster anatomy covers NVIDIA's per-SU reference numbers; this is the arithmetic behind any such table.</p>
+<ol class="sd-steps">
+<li><b>Write bandwidth, from the checkpoint.</b> Size = parameters x bytes per parameter (about 14 for bf16 with fp32 Adam; MLPerf Storage v2.0's own checkpoint table gives 912 GB for 70B and 5.29 TB for 405B, 13.0 and 13.1 bytes per parameter <span class="der">derived</span>, {{MLPerf Storage rules v2.0|https://github.com/mlcommons/storage/blob/v2.0/Submission_guidelines.md}}). With <b>synchronous</b> saves, bandwidth = size / the stall you accept. With <b>asynchronous</b> saves, the GPUs stop only for the copy to host memory and the storage only has to drain the checkpoint before the next one: bandwidth = size / interval.</li>
+<li><b>Read bandwidth, from data and from restarts.</b> Data: tokens per second x bytes per token, small for text. Restart: every rank reads the checkpoint at once, size / the restart time you accept, usually the larger number.</li>
+<li><b>Metadata rate, from start-up and small files.</b> Ranks x the operations each makes at start (section 4), and files per second for data in small files.</li>
+<li><b>Capacity</b> = datasets + checkpoints kept x size + scratch, and on a parallel file system bought as servers, capacity often follows from the bandwidth rather than the bytes.</li>
+</ol>
+<div class="pr"><div class="q">Predict. A 70B model on 1,024 GPUs checkpoints every 30 minutes (0.98 TB at 14 bytes per parameter). How much write bandwidth does storage need, synchronous with a 30 s stall against asynchronous?</div>
+<div class="opts"><button data-a="0">The same, about 33 GB/s either way</button><button data-a="1">About 33 GB/s synchronous, about 0.5 GB/s asynchronous</button><button data-a="0">About 0.5 GB/s either way</button></div>
+<div class="ans" hidden>0.98 TB / 30 s = 32.7 GB/s; 0.98 TB / 1,800 s = 0.54 GB/s <span class="der">derived</span>: sixty times less, because asynchronous saving lets the write take the whole interval. On FSx for Lustre at 125 MB/s per TiB, 32.7 GB/s means buying 261 TiB (about $38,800 a month at $0.145 per GB-month) to store about 10 TB of checkpoints <span class="der">derived</span>. Restarts are the catch: reading 0.98 TB back in 60 s still needs 16.3 GB/s, so size reads for recovery and writes for the drain.</div></div>
+</section>
+
+<section id="rd-s10">
+<h2>10. Checking a real system</h2>
+<ul class="tight">
+<li><b>What is it, and how full?</b> <code>mount | grep -E 'lustre|nfs|fuse'</code>; on Lustre <code>lfs df -h /mnt</code> lists every MDT and OST with its use (an imbalanced OST is a hot spot).</li>
+<li><b>How is this file laid out?</b> <code>lfs getstripe &lt;file&gt;</code> (count, size, which OSTs); set defaults on the checkpoint directory before the first save with <code>lfs setstripe</code>.</li>
+<li><b>How many metadata calls does my start-up make?</b> <code>strace -f -c -e trace=%file python -c 'import yourpkg'</code>, as in section 4, then multiply by ranks.</li>
+<li><b>What does the store really do?</b> Benchmark with the access pattern of the job: IOR for bandwidth and mdtest for metadata ({{hpc/ior|https://github.com/hpc/ior}}), MLPerf Storage's checkpointing workload, which writes and reads ten checkpoints with fsync and reads them back "by different hosts than wrote the data" ({{MLPerf Storage v2.0 rules|https://github.com/mlcommons/storage/blob/v2.0/Submission_guidelines.md}}); for object stores, time a parallel copy of one real shard set.</li>
+<li><b>During a job:</b> checkpoint write time per rank in the training log (the slowest rank is the stall), the store's own per-server metrics (FSx publishes per-MDT and per-OST CloudWatch metrics every minute), and 503 SlowDown counts from S3 clients.</li>
+</ul>
+</section>
