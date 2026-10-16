@@ -36,7 +36,6 @@ def first_user(x):
 
 
 def pair_sets():
-    S = {}
     for k in ("hh_helpful", "hh_harmless"):
         d = C.frame(k)
         rows = []
@@ -44,33 +43,32 @@ def pair_sets():
             pc, ac = C.hh_parse(c)
             pr, ar = C.hh_parse(r)
             rows.append(dict(prompt=pc, chosen=ac, rejected=ar, same_context=pc == pr))
-        S[k] = rows
-    S["ufb_h4"] = [dict(prompt=r["prompt"], chosen=r["chosen"], rejected=r["rejected"], sc=r["score_chosen"],
+        yield k, rows
+    yield 'ufb_h4', [dict(prompt=r["prompt"], chosen=r["chosen"], rejected=r["rejected"], sc=r["score_chosen"],
                         sr=r["score_rejected"]) for r in C.P.records("pref")]
     d = C.frame("ufb_argilla")
-    S["ufb_argilla"] = [dict(prompt=p, chosen=last_asst(c), rejected=last_asst(r), sc=float(a), sr=float(b),
+    yield 'ufb_argilla', [dict(prompt=p, chosen=last_asst(c), rejected=last_asst(r), sc=float(a), sr=float(b),
                              cm=str(cm), rm=str(rm), source=str(s))
                         for p, c, r, a, b, cm, rm, s in zip(d.prompt, d.chosen, d.rejected, d["chosen-rating"],
                                                             d["rejected-rating"], d["chosen-model"], d["rejected-model"],
                                                             d.source)]
     d = C.frame("tulu3_pref")
-    S["tulu3_pref"] = [dict(prompt=first_user(c), chosen=last_asst(c), rejected=last_asst(r), source=str(s))
+    yield 'tulu3_pref', [dict(prompt=first_user(c), chosen=last_asst(c), rejected=last_asst(r), source=str(s))
                        for c, r, s in zip(d.chosen, d.rejected, d.source)]
     d = C.frame("olmo2_pref")
-    S["olmo2_pref"] = [dict(prompt=first_user(c), chosen=last_asst(c), rejected=last_asst(r), source=str(s),
+    yield 'olmo2_pref', [dict(prompt=first_user(c), chosen=last_asst(c), rejected=last_asst(r), source=str(s),
                             sc=_f(a), sr=_f(b), cm=str(cm), rm=str(rm))
                        for c, r, s, a, b, cm, rm in zip(d.chosen, d.rejected, d.source, d.chosen_rating,
                                                         d.rejected_rating, d.chosen_model, d.rejected_model)]
     d = C.frame("dolci_dpo")
-    S["dolci_dpo"] = [dict(prompt=first_user(c), chosen=last_asst(c), rejected=last_asst(r), source=str(t),
+    yield 'dolci_dpo', [dict(prompt=first_user(c), chosen=last_asst(c), rejected=last_asst(r), source=str(t),
                            cm=str(cm), rm=str(rm))
                       for c, r, t, cm, rm in zip(d.chosen, d.rejected, d.preference_type, d.chosen_model, d.rejected_model)]
     d = C.frame("if_pref_personas")
-    S["if_personas"] = [dict(prompt=p, chosen=last_asst(c), rejected=last_asst(r), cm=str(cm), rm=str(rm),
+    yield 'if_personas', [dict(prompt=p, chosen=last_asst(c), rejected=last_asst(r), cm=str(cm), rm=str(rm),
                              constraints=list(k))
                         for p, c, r, cm, rm, k in zip(d.prompt, d.chosen, d.rejected, d.chonsen_model,
                                                       d.rejected_model, d.constraints)]
-    return S
 
 
 def _f(x):
@@ -135,6 +133,22 @@ def measure(rows):
     if any(r.get("cm") for r in rows):
         o["same_model"] = sum(1 for r in rows if r.get("cm") and r.get("cm") == r.get("rm"))
     return o, lc, lr
+
+
+def pair_examples(rows, lc, lr, k=16):
+    """A seeded sample of pairs for the Pair inspector: half random, half where the rejected answer is longer."""
+    rng = random.Random(2)
+    idx = list(range(len(rows)))
+    pick = rng.sample(idx, min(k // 2, len(idx)))
+    rl = [i for i in idx if lr[i] > lc[i] and i not in pick and len(rows[i]["prompt"]) < 1500]
+    pick += rng.sample(rl, min(k - len(pick), len(rl)))
+    out = []
+    for i in sorted(pick):
+        r = rows[i]
+        out.append(dict(prompt=r["prompt"][-700:], chosen=r["chosen"][:900], rejected=r["rejected"][:900],
+                        lc=int(lc[i]), lr=int(lr[i]), sc=r.get("sc"), sr=r.get("sr"), cm=r.get("cm"), rm=r.get("rm"),
+                        source=r.get("source")))
+    return out
 
 
 def ufb_raw():
@@ -274,9 +288,12 @@ def examples(prompts, pairs, k=6):
 
 def main():
     res = {"label": LABEL, "sets": {}, "rules": RULES}
-    S = pair_sets()
-    for k, rows in S.items():
+    import gc
+    for k, rows in pair_sets():
         o, lc, lr = measure(rows)
+        res.setdefault("examples", {})[k] = pair_examples(rows, lc, lr)
+        del rows
+        gc.collect()
         res["sets"][k] = o
         print(k, o["n"], round(o["chosen_longer_share"], 3), flush=True)
     prompts = ufb_raw()
