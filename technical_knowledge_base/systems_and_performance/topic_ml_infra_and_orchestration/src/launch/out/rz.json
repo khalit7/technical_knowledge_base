@@ -1,0 +1,141 @@
+{
+ "ok": {
+  "events": [
+   {
+    "t": 0.0,
+    "a": "n0",
+    "s": "up",
+    "cap": "srun starts one task per node. On node 0 (c1) the task execs torchrun, which starts by importing torch."
+   },
+   {
+    "t": 0.001,
+    "a": "n1",
+    "s": "up",
+    "cap": "Node 1 (c2) starts its torchrun too, at almost the same moment."
+   },
+   {
+    "t": 1.012,
+    "a": "s0",
+    "s": "up",
+    "cap": "Node 0's agent has imported torch. Its host name matches the endpoint <code>c1:29500</code>, so it starts the rendezvous store there and adds itself to the participant list: 1 of 2."
+   },
+   {
+    "t": 1.013,
+    "a": "n0",
+    "s": "wait",
+    "cap": "Node 0 waits, re-reading the shared state about once a second (the rendezvous polls with a 1 s delay)."
+   },
+   {
+    "t": 1.337,
+    "a": "n1",
+    "s": "join",
+    "cap": "Node 1's agent connects to <code>c1:29500</code> as a client and joins: 2 of 2 = <code>--nnodes</code>, so the round is complete (0.89 s after node 1 asked)."
+   },
+   {
+    "t": 2.222,
+    "a": "n0",
+    "s": "ok",
+    "cap": "Both agents know the result: node ranks 0 and 1, world size 4. The agent that is node rank 0 starts a second store, for the workers, on a free port (here <code>34161</code>) and publishes it as MASTER_ADDR/MASTER_PORT."
+   },
+   {
+    "t": 2.223,
+    "a": "w0",
+    "s": "up",
+    "cap": "The workers' store is up on node 0."
+   },
+   {
+    "t": 2.2239999999999998,
+    "a": "n1",
+    "s": "ok",
+    "cap": "Rendezvous done on both nodes."
+   },
+   {
+    "t": 2.236,
+    "a": [
+     "r0",
+     "r1",
+     "r2",
+     "r3"
+    ],
+    "s": "up",
+    "cap": "Each agent spawns its 2 workers; all 4 processes start within 0 ms and import torch and train.py."
+   },
+   {
+    "t": 3.351,
+    "a": [
+     "r0",
+     "r1",
+     "r2",
+     "r3"
+    ],
+    "s": "join",
+    "cap": "1.12 s later the imports are done and each rank calls init_process_group: it connects to the workers' store as a client (TORCHELASTIC_USE_AGENT_STORE=True) and posts its gloo address. All 4 within 5 ms."
+   },
+   {
+    "t": 3.362,
+    "a": [
+     "r0",
+     "r1",
+     "r2",
+     "r3"
+    ],
+    "s": "ok",
+    "cap": "Each rank reads the other three addresses and connects to them (gloo's full mesh): process group ready. Slowest rank: 11 ms inside init_process_group."
+   },
+   {
+    "t": 4.425,
+    "a": "r0",
+    "s": "ok",
+    "cap": "Data, model and the DDP wrapper (which broadcasts rank 0's weights), then the first step: done at 4.42 s after the first task started."
+   }
+  ],
+  "port0": ":29500",
+  "port1": ":34161",
+  "hosts": [
+   "c1",
+   "c2"
+  ],
+  "note": "Slurm run 1 of section 3, every time from the probes. The rendezvous store and the workers' store both live inside node 0's torchrun process."
+ },
+ "miss": {
+  "events": [
+   {
+    "t": 0.0,
+    "a": "n0",
+    "s": "up",
+    "cap": "srun starts the task on both nodes. Node 0's task execs torchrun; node 1's task runs <code>sleep 100000</code> instead (the knob <code>LA_POD1</code>): its torchrun never starts."
+   },
+   {
+    "t": 1.01,
+    "a": "s0",
+    "s": "up",
+    "cap": "Node 0's agent starts the rendezvous store on <code>c1:29500</code> and joins: 1 of 2."
+   },
+   {
+    "t": 1.011,
+    "a": "n0",
+    "s": "wait",
+    "cap": "Node 0 waits. Nothing is printed: no warning, no progress line. The job looks RUNNING in <code>squeue</code>, holding 2 nodes and 4 GPUs."
+   },
+   {
+    "t": 300.0,
+    "a": "n0",
+    "s": "wait",
+    "cap": "Five minutes in: still waiting, still silent. The only clue is what is missing: node 1 never logged anything."
+   },
+   {
+    "t": 602.063,
+    "a": "n0",
+    "s": "err",
+    "cap": "The 600 s join deadline passes. torchrun raises <code>RendezvousTimeoutError</code> (with an empty message) and exits 1; srun kills node 1's task."
+   }
+  ],
+  "port0": ":29500",
+  "port1": "",
+  "hosts": [
+   "c1",
+   "c2"
+  ],
+  "note": "Slurm missing-node run of section 7: node 0's real timestamps; node 1 never starts torchrun."
+ }
+}

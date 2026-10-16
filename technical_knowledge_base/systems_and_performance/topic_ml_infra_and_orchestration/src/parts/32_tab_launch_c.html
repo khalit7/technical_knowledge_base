@@ -1,0 +1,50 @@
+<section id="la-s5">
+<h3>5. The environment each system hands a process</h3>
+<p>Almost everything a training process learns about the job arrives as environment variables. Below are the real ones, dumped by the probe inside each rank (only the variables that concern launching; host names, addresses and paths scrubbed). Pick a system and a rank; rows that differ between ranks of the same run are highlighted.</p>
+<div class="la-card" id="la-env-card">
+<div class="seg" id="la-env-sys"><button data-m="slurm" class="on">Slurm</button><button data-m="k8s">Kubernetes</button><button data-m="ray">Ray</button></div>
+<div class="seg" id="la-env-rank"></div>
+<div class="la-env" id="la-env"></div>
+<p class="small mute" id="la-env-note"></p>
+</div>
+<div class="la-pr"><div class="q">Predict: the Slurm script passes <code>--rdzv-endpoint=c1:29500</code> to torchrun. Which <code>MASTER_PORT</code> do the training processes see?</div>
+<div class="opts"><button data-a="0">29500</button><button data-a="1">a different, random port</button><button data-a="0">none: it is not set with c10d rendezvous</button></div>
+<div class="ans" hidden id="la-env-ans">A random port. With the dynamic (<code>c10d</code>) backend, port 29500 belongs to the agents' rendezvous store. After the agents meet, the agent that became node rank 0 starts a second TCPStore on a free port (port 0, so the operating system picks one) and publishes its address and port through the rendezvous store; every agent passes them to its workers as <code>MASTER_ADDR</code> and <code>MASTER_PORT</code>. On Kubernetes, with the <code>static</code> backend, the workers see 29500 itself, because there the agents' store is the workers' store. A firewall rule that opens only 29500 therefore breaks the Slurm-style launch and not the static one.</div></div>
+<div class="la-src"><b>Read the source</b> (torch 2.14.1): where the random port comes from.
+<pre>if self._bootstrap_store_info is None or (
+    rank == 0 and self._shared_tcp_store_server is None
+):
+    server_port = 0
+    if rank == 0:
+        self._shared_tcp_store_server = self._create_tcp_store_server(
+            self._this_node.addr, server_port
+        )
+        server_port = self._shared_tcp_store_server.port</pre>
+<div class="f">{{torch/distributed/elastic/rendezvous/dynamic_rendezvous.py lines 1209-1217|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/elastic/rendezvous/dynamic_rendezvous.py#L1209-L1217}}; the address and port are then written to the store as <code>MASTER_ADDR</code>/<code>MASTER_PORT</code> by {{RendezvousStoreInfo.build, api.py lines 89-106|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/elastic/rendezvous/api.py#L89-L106}} and handed to each worker in {{local_elastic_agent.py lines 424-441|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/elastic/agent/server/local_elastic_agent.py#L424-L441}}. Setting <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code> turns the sharing off.</div></div>
+</section>
+
+<section id="la-s6">
+<h3>6. Building the process group: gloo here, NCCL on GPUs</h3>
+<p><code>init_process_group</code> creates the <dfn>process group</dfn>: the object collectives such as <code>all_reduce</code> run on. It needs a store (from the rendezvous) and a <dfn>backend</dfn>, the library that moves the bytes:</p>
+<ul class="tight">
+<li><b>gloo</b> (what ran here): each rank opens a listening socket, writes its address into the store, reads everyone else's, and connects to every other rank (a full mesh of TCP connections). Collectives then run over those sockets on the CPU.</li>
+<li><b>NCCL</b> (NVIDIA GPUs; described, not run): rank 0 creates a <dfn>unique id</dfn> (<code>ncclGetUniqueId</code>, which contains the address of a bootstrap socket), PyTorch passes it to every rank through the store, and each rank calls <code>ncclCommInitRank</code>. NCCL then runs its own bootstrap over sockets: ranks exchange their addresses and topology, detect NVLink, PCIe and network cards (InfiniBand or RoCE through verbs, or TCP sockets), and build rings and trees for each collective. Most "NCCL hangs at init" are this bootstrap choosing a network interface the other nodes cannot reach.</li>
+</ul>
+<div class="la-card">
+<h4>The environment variables worth knowing for NCCL start-up <span class="la-doc">documented</span></h4>
+<div class="tw"><table class="la-tbl"><thead><tr><th>Variable</th><th>What it does</th><th>When you touch it</th></tr></thead><tbody>
+<tr><td data-h="Variable"><code>NCCL_DEBUG</code></td><td data-h="Does">VERSION, WARN ("prints error messages when NCCL calls return an error code"), INFO ("prints debug information"), TRACE</td><td data-h="When">first thing on any hang or error: <code>NCCL_DEBUG=INFO</code></td></tr>
+<tr><td data-h="Variable"><code>NCCL_DEBUG_SUBSYS</code></td><td data-h="Does">filters INFO output by subsystem; default <code>INIT,BOOTSTRAP,ENV</code></td><td data-h="When">add <code>NET</code> or <code>GRAPH</code> to see interface and topology choices</td></tr>
+<tr><td data-h="Variable"><code>NCCL_DEBUG_FILE</code></td><td data-h="Does">writes the debug log to a file (default stdout)</td><td data-h="When">one file per rank on large jobs (<code>%h.%p</code> in the name)</td></tr>
+<tr><td data-h="Variable"><code>NCCL_SOCKET_IFNAME</code></td><td data-h="Does">which IP interfaces to use for bootstrap and socket traffic; <code>^docker</code> excludes; loopback and docker interfaces are not chosen unless nothing else exists</td><td data-h="When">the classic fix for an init hang on machines with several interfaces</td></tr>
+<tr><td data-h="Variable"><code>NCCL_IB_HCA</code></td><td data-h="Does">which RDMA adapters (InfiniBand or RoCE) to use</td><td data-h="When">nodes with several NICs, or to exclude a bad one</td></tr>
+<tr><td data-h="Variable"><code>NCCL_IB_DISABLE</code></td><td data-h="Does">set to 1 to stop using InfiniBand verbs (falls back to sockets)</td><td data-h="When">to test whether the RDMA fabric is the problem</td></tr>
+<tr><td data-h="Variable"><code>NCCL_P2P_DISABLE</code></td><td data-h="Does">set to 1 to stop direct GPU-to-GPU transfers (NVLink, PCIe)</td><td data-h="When">to isolate a P2P or IOMMU problem inside a node</td></tr>
+<tr><td data-h="Variable"><code>NCCL_NET_GDR_LEVEL</code></td><td data-h="Does">maximum distance between NIC and GPU for GPUDirect RDMA; automatic by default</td><td data-h="When">rarely; performance tuning</td></tr>
+<tr><td data-h="Variable"><code>NCCL_IB_TIMEOUT</code></td><td data-h="Does">InfiniBand verbs timeout; default 20 (since 2.23)</td><td data-h="When">flaky fabrics</td></tr>
+<tr><td data-h="Variable"><code>NCCL_TOPO_DUMP_FILE</code></td><td data-h="Does">writes the detected topology as XML</td><td data-h="When">checking that NCCL sees the NVLink and NIC layout you expect</td></tr>
+</tbody></table></div>
+<p class="small mute">Quoted from the {{NCCL user guide, Environment Variables|https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html}} (page for NCCL 2.32.3, read 16 October 2026). PyTorch adds its own NCCL watchdog switches (<code>TORCH_NCCL_ASYNC_ERROR_HANDLING</code>, which torchrun sets to 1 for every worker, <code>TORCH_NCCL_BLOCKING_WAIT</code>, <code>TORCH_NCCL_DUMP_ON_TIMEOUT</code>, <code>TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC</code>, <code>TORCH_NCCL_TRACE_BUFFER_SIZE</code>), declared in {{ProcessGroupNCCL.hpp lines 62-118|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/ProcessGroupNCCL.hpp#L62-L118}}.</p>
+</div>
+<p id="la-pg-text"></p>
+</section>

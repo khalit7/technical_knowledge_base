@@ -1,0 +1,51 @@
+# Launch lab: the running example's JobSet (src/data/k8s/train-jobset.yaml) with the launch probes.
+# Placeholders filled by la_k8s.sh: __NAME__ (JobSet name), __MASTER__ (rendezvous address), __ARGS__
+# (train.py arguments), __POD1__ (what pod index 1 runs before torchrun: empty normally, "sleep 100000;"
+# to make a rank that never arrives), __CPU__/__MEM__ (requests; the failure drills ask for less so two
+# can run side by side under the ClusterQueue quota). Torchrun's static rendezvous: pod 0 hosts the TCPStore.
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: __NAME__
+  namespace: mi
+  labels:
+    kueue.x-k8s.io/queue-name: mi-lq
+spec:
+  failurePolicy:
+    maxRestarts: 0
+  replicatedJobs:
+  - name: node
+    replicas: 1
+    template:
+      spec:
+        parallelism: 2
+        completions: 2
+        completionMode: Indexed
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: trainer
+              image: mi-train:1
+              imagePullPolicy: Never
+              env:
+              - {name: RUN, value: __NAME__}
+              command: ["sh", "-c"]
+              args:
+              - >-
+                export LA_TASK_TS=$(date +%s.%N) LA_OUT=/shared/la/runs/$RUN;
+                mkdir -p $LA_OUT;
+                (date +%s.%N; getent hosts __MASTER__; cat /etc/resolv.conf) > $LA_OUT/dns_$JOB_COMPLETION_INDEX.txt 2>&1;
+                if [ "$JOB_COMPLETION_INDEX" = 1 ]; then __POD1__ true; fi;
+                exec python /shared/la/la_torchrun.py --nnodes=2 --nproc-per-node=2 --node-rank=$JOB_COMPLETION_INDEX
+                --master-addr=__MASTER__ --master-port=29500 __RDZV__
+                /shared/la/la_probe.py --ckpt-dir=/shared/la/ckpt/$RUN --log-dir=$LA_OUT __ARGS__
+              resources:
+                requests: {cpu: "__CPU__", memory: __MEM__, example.com/gpu: "2"}
+                limits: {cpu: "2", memory: __MEM__, example.com/gpu: "2"}
+              volumeMounts:
+              - {name: shared, mountPath: /shared}
+            volumes:
+            - name: shared
+              hostPath: {path: /shared, type: Directory}
