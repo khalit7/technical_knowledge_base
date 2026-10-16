@@ -1,0 +1,76 @@
+# Kueue objects for the page's admission runs (Kueue v0.20.2: kueue.x-k8s.io/v1beta2 only).
+# Two ResourceFlavors that map quota to node groups (blocks b1 = worker, worker2; b2 = worker3), one
+# ClusterQueue that tries b1 first and falls back to b2, and a Topology plus a TAS flavor for the
+# topology-aware runs. Cohort km-cohort is the page's own, apart from the root's mi-cohort and sc-cohort.
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata: {name: km-b1}
+spec:
+  nodeLabels: {mi.example.com/block: b1}
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata: {name: km-b2}
+spec:
+  nodeLabels: {mi.example.com/block: b2}
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata: {name: km-cq}
+spec:
+  cohortName: km-cohort
+  namespaceSelector: {}
+  queueingStrategy: BestEffortFIFO
+  resourceGroups:
+  - coveredResources: ["cpu", "memory", "example.com/gpu"]
+    flavors:
+    - name: km-b1
+      resources:
+      - {name: cpu, nominalQuota: 4}
+      - {name: memory, nominalQuota: 2Gi}
+      - {name: example.com/gpu, nominalQuota: 8}
+    - name: km-b2
+      resources:
+      - {name: cpu, nominalQuota: 2}
+      - {name: memory, nominalQuota: 1Gi}
+      - {name: example.com/gpu, nominalQuota: 4}
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata: {name: km-lq, namespace: km}
+spec: {clusterQueue: km-cq}
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: Topology
+metadata: {name: km-topo}
+spec:
+  levels:
+  - nodeLabel: mi.example.com/block
+  - nodeLabel: kubernetes.io/hostname
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata: {name: km-tas}
+spec:
+  nodeLabels: {km.example.com/tas: "true"}
+  topologyName: km-topo
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata: {name: km-cq-tas}
+spec:
+  cohortName: km-cohort
+  namespaceSelector: {}
+  resourceGroups:
+  - coveredResources: ["cpu", "memory", "example.com/gpu"]
+    flavors:
+    - name: km-tas
+      resources:
+      - {name: cpu, nominalQuota: 4}
+      - {name: memory, nominalQuota: 3Gi}
+      - {name: example.com/gpu, nominalQuota: 12}
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata: {name: km-lq-tas, namespace: km}
+spec: {clusterQueue: km-cq-tas}

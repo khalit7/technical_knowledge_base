@@ -1,0 +1,26 @@
+# A checkpoint volume from kind's default StorageClass (rancher.io/local-path: a folder on one node's disk,
+# volumeBindingMode WaitForFirstConsumer). The PVC stays Pending until a pod uses it; the volume is then
+# created on the node that pod was scheduled to, and every later pod that mounts it must go to that node.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: km-ckpt, namespace: km}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 100Mi}}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: km-writer, namespace: km}
+spec:
+  restartPolicy: Never
+  nodeSelector: {kubernetes.io/hostname: mi-kind-worker}
+  containers:
+  - name: w
+    image: mi-train:1
+    imagePullPolicy: Never
+    command: ["sh", "-c", "echo step_000050 > /ckpt/latest; ls -l /ckpt"]
+    resources: {requests: {cpu: 50m, memory: 32Mi}, limits: {memory: 64Mi}}
+    volumeMounts: [{name: ckpt, mountPath: /ckpt}]
+  volumes:
+  - name: ckpt
+    persistentVolumeClaim: {claimName: km-ckpt}

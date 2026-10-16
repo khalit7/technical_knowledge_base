@@ -1,0 +1,83 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  creationTimestamp: "2026-10-16T06:49:17Z"
+  generation: 1
+  name: km-tj
+  namespace: km
+  ownerReferences:
+  - apiVersion: trainer.kubeflow.org/v1alpha1
+    blockOwnerDeletion: true
+    controller: true
+    kind: TrainJob
+    name: km-tj
+    uid: b9716df5-369f-4a97-a42f-e61976f00ee1
+  resourceVersion: "55915"
+  uid: d521bc3f-c8a1-4e0b-be73-5127ed2dc02b
+spec:
+  network:
+    enableDNSHostnames: true
+    publishNotReadyAddresses: true
+  replicatedJobs:
+  - groupName: default
+    name: node
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          trainer.kubeflow.org/trainjob-ancestor-step: trainer
+      spec:
+        completionMode: Indexed
+        completions: 2
+        parallelism: 2
+        template:
+          metadata: {}
+          spec:
+            containers:
+            - command:
+              - torchrun
+              - /opt/mi/train.py
+              - --ckpt-dir=/tmp/ckpt
+              - --log-dir=/tmp/logs
+              env:
+              - name: PET_NNODES
+                value: "2"
+              - name: PET_NPROC_PER_NODE
+                value: "2"
+              - name: PET_NODE_RANK
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+              - name: PET_MASTER_ADDR
+                value: km-tj-node-0-0.km-tj
+              - name: PET_MASTER_PORT
+                value: "29500"
+              image: mi-train:1
+              name: node
+              ports:
+              - containerPort: 29500
+                protocol: TCP
+              resources:
+                limits:
+                  cpu: "2"
+                  example.com/gpu: "2"
+                  memory: 900Mi
+                requests:
+                  cpu: 500m
+                  example.com/gpu: "2"
+                  memory: 400Mi
+            restartPolicy: OnFailure
+  startupPolicy:
+    startupPolicyOrder: AnyOrder
+  successPolicy:
+    operator: All
+  suspend: false
+status:
+  replicatedJobsStatus:
+  - active: 1
+    failed: 0
+    name: node
+    ready: 1
+    succeeded: 0
+    suspended: 0
+  restarts: 0

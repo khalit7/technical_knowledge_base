@@ -1,0 +1,38 @@
+# A real device plugin: Kubernetes' own e2e sample (test/images/sample-device-plugin at v1.37.0, image 1.8.0).
+# It registers with the kubelet over /var/lib/kubelet/device-plugins/kubelet.sock, advertises two fake
+# devices (Dev-1, Dev-2) as the extended resource example.com/resource, and on Allocate tells the kubelet
+# to mount a file /tmp/<device> into the container. Pinned to one worker; the NVIDIA plugin is the same shape.
+apiVersion: v1
+kind: Pod
+metadata: {name: km-device-plugin, namespace: km}
+spec:
+  nodeName: mi-kind-worker3
+  terminationGracePeriodSeconds: 1
+  containers:
+  - name: plugin
+    image: registry.k8s.io/e2e-test-images/sample-device-plugin:1.8.0
+    imagePullPolicy: Never
+    resources: {requests: {cpu: 20m, memory: 16Mi}, limits: {memory: 64Mi}}
+    volumeMounts:
+    - {name: dp, mountPath: /var/lib/kubelet/device-plugins}
+    - {name: tmp, mountPath: /tmp}
+  volumes:
+  - name: dp
+    hostPath: {path: /var/lib/kubelet/device-plugins, type: Directory}
+  - name: tmp
+    hostPath: {path: /tmp, type: Directory}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: km-uses-device, namespace: km}
+spec:
+  restartPolicy: Never
+  terminationGracePeriodSeconds: 1
+  containers:
+  - name: main
+    image: mi-train:1
+    imagePullPolicy: Never
+    command: ["sh", "-c", "ls -l /tmp; sleep 30"]
+    resources:
+      requests: {cpu: 50m, memory: 32Mi, example.com/resource: "1"}
+      limits: {memory: 64Mi, example.com/resource: "1"}
