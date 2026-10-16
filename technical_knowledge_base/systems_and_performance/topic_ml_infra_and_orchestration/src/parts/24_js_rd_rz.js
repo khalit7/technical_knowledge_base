@@ -16,7 +16,7 @@
     ['Three connect','Ranks 1 and 2 connect. Nothing reports rank 3\'s absence: the store does not know who should come.'],
     ['Three check in','The counter stops at 3 of 4.'],
     ['Everyone waits','The three healthy ranks sit in the barrier, using no GPU and printing nothing. From outside, the job looks "running".'],
-    ['Still waiting','With env-style launch, a GPU job using NCCL would give up after 10 minutes by default; under torchrun\'s rendezvous, a node that never joins fails it after join_timeout, 600 s by default.'],
+    ['Still waiting','With env-style launch, a GPU job using NCCL would give up after 10 minutes by default. Under torchrun, a node that never joins fails the rendezvous first: after 600 s with the c10d backend (measured: 602 s), after 900 s with torchrun\'s default static backend (measured: 903 s).'],
     ['Timeout','On gloo the default is 30 minutes. The waiting ranks raise a timeout error and the job fails; every error line comes from the 3 healthy ranks, none from rank 3, the one to look for.']]};
   function draw(i){
     const miss=mode==='miss';

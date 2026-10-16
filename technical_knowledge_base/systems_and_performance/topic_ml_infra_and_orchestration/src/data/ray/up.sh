@@ -3,6 +3,8 @@
 # Ray Train's controller live here; nothing trains on it) and two worker nodes, each 2 CPUs and 2 FAKE
 # "fake_gpu" custom resources (Ray only counts them). Shared volume mi-ray-shared at /shared on all three.
 # Needs image mi-ray:1. Caps: head 1500m and 1 CPU, workers 1100m and 2 CPUs each (3.7 GB in all).
+# Ray fixes its memory-kill threshold (95% of the cap) when each raylet starts: docker update on a running
+# container does not move it. To resize, change --memory below and restart Ray (down.sh, then up.sh).
 # The head alone uses about 0.7 GB idle (GCS, dashboard, agents, client server, autoscaler monitor), plus about
 # 0.23 GB for the driver and 0.21 GB for Ray Train's controller. Two smaller heads failed: Ray's memory monitor
 # killed workers at 95% of the container limit (1.4 GB head with 2 ranks on it; 1.2 GB head with none). Both runs
