@@ -1,0 +1,81 @@
+<section id="s-prom">
+<h2>7. Prometheus and Grafana for a training cluster</h2>
+<p><b>The picture.</b> Every node runs exporters; one Prometheus (or a few, sharded) scrapes them all on an interval, stores the samples, evaluates recording and alerting rules, and sends firing alerts to Alertmanager; Grafana draws dashboards from Prometheus queries. How Prometheus stores data, PromQL, histograms and cardinality are taught on {{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}; what is specific to a training cluster is which exporters and which labels:</p>
+<div class="tw"><table class="oc-tbl"><thead><tr><th>Layer</th><th>Exporter on a real cluster</th><th>What ran here</th></tr></thead><tbody>
+<tr><td>GPUs</td><td>dcgm-exporter, one per GPU node (a DaemonSet under the GPU Operator), with <code>--kubernetes</code> to add pod, namespace and container labels</td><td>none (no GPUs)</td></tr>
+<tr><td>Containers, nodes</td><td>cAdvisor (in the kubelet), node-exporter; on Slurm, node-exporter plus job cgroups</td><td>cAdvisor through the API server's node proxy; each Slurm node container's cgroup <code>cpu.stat</code></td></tr>
+<tr><td>Scheduler</td><td>Kueue's metrics endpoint (HTTPS, port 8443), kube-state-metrics, kube-scheduler; Slurm 25.11+ <code>MetricsType=metrics/openmetrics</code> on slurmctld, or a community exporter</td><td>Kueue's endpoint (with a reader token), plus Kueue's ClusterQueue status; <code>squeue</code> and <code>scontrol</code> parsed by <code>oc_exporter.py</code> (Slurm 24.11 has no endpoint)</td></tr>
+<tr><td>The training job</td><td>the training loop exports step, tokens per second, loss, last checkpoint, per-rank step time (or pushes them)</td><td><code>oc_exporter.py</code> reading the per-rank JSON logs</td></tr>
+</tbody></table></div>
+<p>The scrape configuration that ran (abridged from <code>src/scripts/prom/prometheus.yml</code>):</p>
+<pre>global: {scrape_interval: 5s, evaluation_interval: 5s}   <span class="c"># defaults are 1m: a 1-minute job would be one point</span>
+scrape_configs:
+- job_name: cadvisor                    <span class="c"># kubelet's cAdvisor, one target per kind worker</span>
+  static_configs: [{targets: ['host.docker.internal:18001'], labels: {node: mi-kind-worker}}, ...]
+  relabel_configs:
+  - {source_labels: [node], target_label: __metrics_path__, replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor}
+  metric_relabel_configs:               <span class="c"># keep 4 metric names of the training namespace, drop the rest</span>
+  - {source_labels: [__name__], regex: 'container_(cpu_usage_seconds_total|memory_working_set_bytes|cpu_cfs_.*periods_total)', action: keep}
+  - {source_labels: [namespace], regex: mi, action: keep}
+- job_name: kueue
+  scheme: https
+  tls_config: {insecure_skip_verify: true}
+  authorization: {credentials_file: /etc/prometheus/kueue_token}   <span class="c"># a ServiceAccount bound to kueue-metrics-reader</span>
+  static_configs: [{targets: ['host.docker.internal:18443']}]</pre>
+<p><b>Two findings while wiring it.</b> First, Kueue's per-ClusterQueue usage and quota gauges (<code>kueue_cluster_queue_resource_usage</code>, <code>..._nominal_quota</code>) were absent: they need <code>enableClusterQueueResources: true</code>, which is commented out in the shipped configuration (the local cluster's config map shows <code># enableClusterQueueResources: true</code>), the same pattern as SM activity in dcgm-exporter. LocalQueue usage and pending counts were on. The exporter read the ClusterQueue's <code>.status.flavorsUsage</code> instead of reconfiguring the shared cluster. Second, the endpoints are mostly not about your jobs: Kueue's served 2,516 samples per scrape, 299 of them <code>kueue_*</code>; an idle kind worker's cAdvisor about 950.</p>
+<h3>What observability costs, sized</h3>
+<p>Prometheus's own capacity rule: "Prometheus stores an average of only 1-2 bytes per sample", and disk = retention x samples per second x bytes per sample ({{Prometheus storage docs|https://prometheus.io/docs/prometheus/latest/storage/}}; default retention 15 days, default scrape 1 minute). Measured here: {{Cluster dashboard|#t-dash}} lists each target; the whole local setup held about 1,500 series. For a real cluster, move the inputs:</p>
+<div class="card" id="oc-rd-ps">
+<div class="oc-calc">
+<label>GPUs <input type="number" id="oc-ps-gpu" value="1024" min="8" step="8"></label>
+<label>GPUs per node <input type="number" id="oc-ps-gpn" value="8" min="1" step="1"></label>
+<label>GPU series per GPU <input type="number" id="oc-ps-sg" value="25" min="1" step="1"><span class="src">25 = dcgm-exporter's default counters at 4.8.4</span></label>
+<label>Other series per node <input type="number" id="oc-ps-sn" value="950" min="0" step="50"><span class="src">950 = one idle kind worker's cAdvisor, measured; add node-exporter</span></label>
+<label>Scrape interval (s) <input type="number" id="oc-ps-int" value="30" min="1" step="1"><span class="src">30 s matches dcgm-exporter's default collect interval</span></label>
+<label>Retention (days) <input type="number" id="oc-ps-ret" value="15" min="1" step="1"><span class="src">Prometheus default</span></label>
+</div>
+<div class="grid" id="oc-ps-out"></div>
+<p class="small mute" id="oc-ps-note"></p>
+</div>
+<p>Two lessons in the defaults: per-node container metrics, not GPU metrics, dominate the series count, and every label added to a GPU series (job name, user, pod) multiplies the series by the number of values it takes over the retention window. Keep job identity on a handful of job-level series, not on every per-GPU counter.</p>
+</section>
+
+<section id="s-logs">
+<h2>8. Logs and traces of a training job</h2>
+<p><b>The problem.</b> Metrics are numbers on a fixed interval; when a 4,096-rank job dies, you need what each rank was doing and in which order. <b>How it works</b> on the running example: every rank writes one JSON object per line (<code>ev</code>, <code>rank</code>, <code>step</code>, <code>loss</code>, <code>gloss</code>, <code>ts</code>, <code>rss_mb</code>), rank 0 also writes checkpoints, and the launcher's environment goes in the first line. That is what the exporter on this page turned into metrics, and what let section 6 rebuild the badput.</p>
+<ul>
+<li><b>Per-rank, structured, timestamped.</b> Rank 0's log alone hides the straggler and the rank that crashed first; one line per rank per N steps is cheap (here 47 lines for rank 0 over 400 steps, checkpoints included).</li>
+<li><b>Correlate by job and attempt.</b> Put the scheduler's job id and the restart count in every line (the running example records <code>SLURM_JOB_ID</code>, <code>JOB_COMPLETION_INDEX</code>, <code>TORCHELASTIC_RESTART_COUNT</code>), so the logs of a requeued job do not mix with its earlier attempt.</li>
+<li><b>Traces for the step itself</b> come from profilers, not from the log: the PyTorch profiler or Nsight Systems for a few steps on demand ({{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}}, {{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}}), and for collectives the NCCL flight recorder, which keeps the last collectives of each rank in memory and dumps them on a timeout (sibling page Launching distributed training).</li>
+<li><b>Mind the volume.</b> At 1,000 ranks, one line per step at 1 step per second is 86 million lines a day. Log every N steps, and keep per-step detail in metrics or a profiler window.</li>
+</ul>
+</section>
+
+<section id="s-alert">
+<h2>9. Alerting on hangs and stragglers</h2>
+<p><b>The problem.</b> The defaults detect a hang late. A collective that never completes ends at the process-group timeout: 10 minutes for NCCL and 30 minutes for gloo in torch 2.14.1 (sibling page Fault tolerance at scale, from <code>ProcessGroupNCCL.hpp</code> and <code>Backend.hpp</code>). For all that time every GPU of the job is held. A straggler is never detected by default at all: the job just runs slower.</p>
+<p><b>How it works:</b> alert on the training job's own progress, and use device counters to find the cause. The rules that ran (<code>src/scripts/prom/oc_rules.yml</code>):</p>
+<pre><span class="c"># a hang: no step logged for 20 s by a run that has not ended (scale 20 s to a few step times)</span>
+- alert: TrainingStalled
+  expr: (time() - max by (system, run) (oc_train_last_step_timestamp_seconds)) > 20
+        and on (system, run) oc_train_ended == 0
+  for: 10s
+<span class="c"># a straggler or slow node: under 60% of this run's own best rate in the last 3 minutes</span>
+- alert: TrainingSlowdown
+  expr: oc:train_steps_per_second < 0.6 * max_over_time(oc:train_steps_per_second[3m])
+        and on (system, run) oc_train_ended == 0
+  for: 10s
+<span class="c"># the node behind it (on GPUs: clock event reasons, Xid, NVLink errors)</span>
+- alert: PodThrottled
+  expr: oc:pod_throttled_ratio > 0.5
+  for: 10s
+<span class="c"># quota held and nothing trains</span>
+- alert: GpusHeldNoProgress
+  expr: sum(oc_kueue_usage{resource="example.com/gpu"}) > 0
+        and on () (sum(oc:train_steps_per_second) or vector(0)) == 0
+  for: 20s</pre>
+<div class="tw"><table class="oc-tbl"><thead><tr><th>Event (recorded)</th><th>Alert</th><th class="num">Seconds after the event</th><th>Default that would have acted</th></tr></thead><tbody id="oc-rd-al"></tbody></table></div>
+<p class="small"><span class="oc-meas">measured</span>; from the ALERTS series at 5-second resolution. Time to page is at most threshold + <code>for</code> + scrape interval + evaluation interval (20 + 10 + 5 + 5 s here, 33 s measured).</p>
+<p><b>The cost of the threshold.</b> GpusHeldNoProgress went pending at the start of every job here: quota admitted, no step yet (startup took about 7 s). Its 20-second <code>for:</code> is what kept it from firing. On a real job startup takes minutes (image pull, data, compile, checkpoint load), so a progress alert needs a grace period after start, or it pages at every launch; and a stall threshold shorter than the longest legitimate pause (a checkpoint save, an evaluation) pages on healthy jobs. Set both from the job's own step and checkpoint times.</p>
+<p><b>Stragglers.</b> The slow-node test is worth replaying on the {{Cluster dashboard|#t-dash}}: after the pod holding ranks 2 and 3 was capped at 0.2 CPU, the healthy pod's CPU fell to the same 0.17 cores, because synchronous training makes everyone wait for the slowest. Utilisation could not name the slow node; the throttling counter of its cgroup could. On GPUs the equivalents are the clock event reasons, power and temperature per GPU, and per-rank timing of the same work: NVIDIA's NVRx straggler detector scores each rank's section and kernel times against the best rank (the sibling page Fault tolerance at scale replays it), and ByteDance's MegaScale reports finding about 0.5% straggler machines with CUDA-event timers ({{MegaScale sec. 5.1|https://arxiv.org/html/2402.15627v1}}, operator).</p>
+</section>

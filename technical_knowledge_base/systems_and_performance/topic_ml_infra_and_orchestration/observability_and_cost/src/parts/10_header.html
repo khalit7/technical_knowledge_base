@@ -1,0 +1,54 @@
+<h1>Observability and cost: GPU metrics, goodput, utilisation and capacity planning</h1>
+<div class="sub">What to measure on a training cluster and what each number does and does not mean: GPU counters against real work, MFU in the training loop, goodput by three definitions, Prometheus on the topic's local clusters with real alerts for hangs and slow nodes, scheduling efficiency, chargeback, and capacity planning down to buy against rent. Data as of October 2026.</div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-met" aria-selected="false">Metrics explainer</button><button role="tab" data-t="t-dash" aria-selected="false">Cluster dashboard</button><button role="tab" data-t="t-cap" aria-selected="false">Capacity planner</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<style>
+pre{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;font-size:12px;line-height:1.45;margin:8px 0;max-width:100%;white-space:pre}
+pre .c{color:var(--mute)}pre b{color:var(--acc);font-weight:600}
+.oc-cap{font-size:12.5px;color:var(--mute);margin:-2px 0 10px}
+.oc-meas,.oc-pub,.oc-der,.oc-src,.oc-nr,.oc-ours,.oc-ven{display:inline-block;font-size:11px;font-weight:600;border-radius:99px;padding:0 7px;border:1px solid currentColor;margin-right:4px;vertical-align:1px;line-height:1.6}
+.oc-meas{color:var(--good)}.oc-pub{color:var(--c1)}.oc-der{color:var(--c5)}.oc-src{color:var(--c4)}.oc-nr{color:var(--mute)}.oc-ours{color:var(--c3)}.oc-ven{color:var(--c2)}
+.oc-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;min-width:0}
+.oc-card h4{margin:0 0 4px;font-size:14.5px}
+.oc-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+.oc-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+.oc-ctl select{padding:3px 6px;max-width:100%}.oc-ctl label{max-width:100%;min-width:0}.oc-ctl label select{max-width:calc(100vw - 140px)}
+.oc-anc{min-height:4.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px;overflow-wrap:anywhere}
+.oc-seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+.oc-seg button{font-size:12.5px;padding:3px 10px}
+.oc-seg button.on{background:var(--acc2);border-color:var(--acc);color:var(--ink);font-weight:600}
+.oc-pr{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;background:var(--soft)}
+.oc-pr .q{font-weight:600;color:var(--ink);font-size:14px;margin-bottom:4px}
+.oc-pr .opts{display:flex;flex-wrap:wrap;gap:6px}.oc-pr .opts button{font-size:13px;text-align:left;white-space:normal}
+.oc-pr .opts button.right{border-color:var(--good);background:var(--open2)}.oc-pr .opts button.wrong{border-color:var(--bad);opacity:.7}
+.oc-pr .ans{display:none;font-size:13.5px;margin-top:6px}.oc-pr.done .ans{display:block}
+.oc-k{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em;background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:0 4px;overflow-wrap:anywhere}
+.oc-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+.oc-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.oc-num{font-variant-numeric:tabular-nums}
+.oc-err{background:var(--soft);border-left:3px solid var(--bad);padding:6px 10px;border-radius:0 6px 6px 0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}
+.oc-srcq{border-left:3px solid var(--c4);background:var(--soft);padding:6px 10px;border-radius:0 6px 6px 0;margin:10px 0;font-size:13px;min-width:0}
+.oc-srcq pre{background:var(--bg);margin:6px 0 2px}
+.oc-srcq .f{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--mute);overflow-wrap:anywhere}
+.oc-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.oc-two>div{min-width:0}
+.oc-svg{margin:6px 0;overflow:hidden}
+.oc-tbl td,.oc-tbl th{font-size:12.5px}
+.oc-tbl td.ok{color:var(--good);font-weight:600}.oc-tbl td.bad{color:var(--bad);font-weight:600}
+.oc-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:6px;margin:8px 0}
+.oc-chk{border:1px solid var(--line);border-left:3px solid var(--c5);border-radius:0 8px 8px 0;padding:7px 11px;margin:10px 0;font-size:13px;background:var(--soft)}
+p code,li code,td code,.co code,.oc-cap code,.oc-anc code,.b code{overflow-wrap:anywhere}
+
+.oc-tbl td,.oc-tbl th{text-align:left}.oc-tbl td.num,.oc-tbl th.num{text-align:right;font-variant-numeric:tabular-nums}
+.oc-res{font-size:13px;border-left:3px solid var(--c5);background:var(--soft);padding:6px 10px;border-radius:0 6px 6px 0;margin:8px 0}
+.oc-calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px 14px;margin:8px 0}
+.oc-calc label{font-size:13px;display:block;min-width:0}
+.oc-calc select,.oc-calc input{max-width:100%;width:100%;box-sizing:border-box}
+.oc-calc .src{font-size:11.5px;color:var(--mute);line-height:1.35}
+.oc-panel{border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin:8px 0;min-width:0}
+.oc-panel h4{margin:0 0 2px;font-size:13.5px}.oc-panel .q{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--mute);overflow-wrap:anywhere}
+.oc-alert{display:inline-block;font-size:11.5px;border-radius:4px;padding:0 6px;margin:2px 3px 2px 0;border:1px solid var(--line)}
+.oc-alert.fire{border-color:var(--bad);color:var(--bad);font-weight:600}.oc-alert.pend{border-color:var(--c5);color:var(--c5)}
+.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}.qa>div{padding:0 12px 9px;font-size:13.5px}
+</style>

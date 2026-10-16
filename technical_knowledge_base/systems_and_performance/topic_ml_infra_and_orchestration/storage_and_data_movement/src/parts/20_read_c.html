@@ -1,0 +1,53 @@
+<section id="rd-s3">
+<h2>3. The other designs: where the metadata lives, and who places the bytes</h2>
+<p>Every parallel file system answers the same two questions differently: <b>who owns the names</b> (a dedicated metadata tier, or every server), and <b>who decides where a byte goes</b> (a layout handed out once, or a placement every server can compute). That choice decides how it behaves under a metadata storm and when a server fails.</p>
+<div class="tw sd-tw"><table class="rd-cmp">
+<thead><tr><th>System</th><th>Metadata</th><th>Data placement</th><th>Published scale</th></tr></thead>
+<tbody>
+<tr><td>Lustre</td><td data-h="Metadata">dedicated MDS/MDT; more with DNE</td><td data-h="Placement">layout (objects on OSTs) chosen at create, RAID 0 by stripe size</td><td data-h="Scale">Argonne Polaris: "Lustre: 100 PB @ 650GB/s" ({{Argonne at SNIA SDC, 2025-09-17|https://www.snia.org/sites/default/files/2025-10/SNIA-SDC25-Zheng-Beyond-Throughput-Benchmarking-Storage.pdf}}) <span class="indep">independent</span></td></tr>
+<tr><td>IBM Storage Scale (GPFS)</td><td data-h="Metadata">no metadata server: metadata on the shared disks; a token manager grants locks and "There is one metanode per open file", which alone writes its metadata ({{IBM docs 5.2.3|https://www.ibm.com/docs/en/storage-scale/5.2.3?topic=functions-metanode}})</td><td data-h="Placement">"Files are striped across all disks in the file system" in round-robin blocks ({{GPFS paper, FAST 2002|https://static.usenix.org/events/fast02/full_papers/schmuck/schmuck_html/index.html}}); default block size today 4 MiB</td><td data-h="Scale">"several thousand disks in the largest GPFS installations" (2002) <span class="pub">authors</span></td></tr>
+<tr><td>WEKA (WekaFS, now NeuralMesh)</td><td data-h="Metadata">spread over every server: "distributing both data and metadata across the entire system" ({{WEKA docs|https://docs.weka.io/weka-system-overview/about}})</td><td data-h="Placement">user-space processes on NVMe servers; cold data tiered to an object store</td><td data-h="Scale">"a single cluster can deliver up to 18,300,000 IOPs" ({{WEKA, 2024-03-18|https://www.weka.io/news/weka-unveils-powerful-ai-native-appliance-for-nvidia-dgx-superpod}}) <span class="vend">vendor</span></td></tr>
+<tr><td>VAST Data</td><td data-h="Metadata">stateless protocol servers (CNodes) over shared flash that holds all metadata</td><td data-h="Placement">"disaggregates (separates) the storage media from the CPUs" ({{VAST glossary|https://vastdata.com/glossary}}): every CNode reaches every SSD over NVMe-oF</td><td data-h="Scale">no dated primary throughput figure found <span class="unc">unconfirmed</span></td></tr>
+<tr><td>DAOS</td><td data-h="Metadata">user-space object store with POSIX emulation on top</td><td data-h="Placement">storage-class memory and NVMe, "full OS bypass" ({{DAOS docs|https://docs.daos.io/latest/overview/architecture/}})</td><td data-h="Scale">Aurora: "DAOS: 220PB @ 30 TB/s" (Argonne, 2025-09-17, link above) <span class="indep">independent</span></td></tr>
+<tr><td>DeepSeek 3FS</td><td data-h="Metadata">"stateless metadata services backed by a transactional key-value store (e.g., FoundationDB)"</td><td data-h="Placement">files split into equal chunks striped over replication chains (CRAQ); the client computes chunk locations from the layout, like Lustre; FUSE client plus a native zero-copy client ({{3FS README and design notes|https://github.com/deepseek-ai/3FS}}, released February 2025)</td><td data-h="Scale">"approximately 6.6 TiB/s" of aggregate reads from 180 storage nodes, each "2×200Gbps InfiniBand NICs and sixteen 14TiB NVMe SSDs" <span class="pub">authors</span>: about 80% of the nodes' 9 TB/s of network line rate <span class="der">derived</span> (180 x 2 x 25 GB/s)</td></tr>
+<tr><td>Meta Tectonic</td><td data-h="Metadata">"stateless metadata services that construct the filesystem logic over the key-value store" (ZippyDB)</td><td data-h="Placement">a flat Chunk Store; append-only files ({{Tectonic, FAST 2021|https://www.usenix.org/conference/fast21/presentation/pan}})</td><td data-h="Scale">Llama 3: "240 PB of storage out of 7,500 servers", "2 TB/s" sustained, "7 TB/s" peak ({{Llama 3, section 3.3.1|https://arxiv.org/html/2407.21783v3}}) <span class="pub">authors</span></td></tr>
+</tbody></table></div>
+<p class="small">Two families. Lustre and 3FS keep a separate metadata tier and hand the client a layout, so data I/O never touches it; GPFS, WEKA and VAST spread metadata over the same servers as data, so there is no single metadata bottleneck to size, at the price of distributed locking. Tectonic and 3FS both put metadata in a transactional key-value store behind stateless servers, which is how they scale the namespace. The 3FS headline matches Fire-Flyer 2's "8 TB/s" quoted on the parent page only loosely (6.6 TiB/s is 7.3 TB/s <span class="der">derived</span>): the paper and the README describe different measurements.</p>
+</section>
+
+<section id="rd-s4">
+<h2>4. Metadata: the small-file and start-up storms</h2>
+<p><b>The problem.</b> Bandwidth scales with storage servers; metadata does not, or not as fast. A Lustre file system with hundreds of OSTs may have one or a handful of MDTs, and every create, open, <code>stat</code> and failed lookup goes to them. Small files make every byte cost a metadata operation; thousands of ranks starting at once make every rank's start-up cost thousands. Amazon sells this capacity separately: an FSx for Lustre file system of 1,200 GiB includes 1,500 metadata IOPS, and each metadata IOPS serves 2 file creates, opens or closes per second, 1 delete, or 0.1 directory creates ({{FSx performance guide|https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html}}) <span class="vend">vendor</span>: 3,000 opens per second for the whole file system <span class="der">derived</span>.</p>
+<h3>Measured: the same four operations on four stores</h3>
+<p>16 processes, each in its own directory, create empty files, <code>stat</code> them, look up names that do not exist, and delete them, in lock step <span class="meas">measured</span> (medians of 3; <code>src/runs/meta_real.py</code>). Operations per second, all processes together:</p>
+<div class="tw sd-tw" id="sd-mreal"></div>
+<p>Three things to read off it. A local file system does hundreds of thousands of operations a second, a network one a few thousand: the gap is the round trip, not the disk. The host folder shared into the VM answers <code>stat</code> of an existing file from its cache, as fast as local disk, but every lookup of a <b>missing</b> name crosses to the host (the "miss" column): network file systems cache what exists far better than what does not. And the object store pays a full HTTP request for everything, even a HEAD.</p>
+<h3>The start-up storm: what <code>import torch</code> asks the file system</h3>
+<p>Python finds a module by trying names on every directory of <code>sys.path</code> in turn, so an import is mostly lookups, many of them of files that do not exist. Counted with <code>strace -f -c -e trace=%file,getdents64</code> in a container with torch 2.14.1+cpu and Python 3.11 <span class="meas">measured</span> (3 runs each, identical counts):</p>
+<div class="tw" id="sd-imp"></div>
+<pre class="rd-code">$ strace -f -c -e trace=%file,getdents64 python3 -c 'import torch'
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 85.07    0.295915          18     16196       583 newfstatat
+ 11.79    0.041013          30      1341        66 openat
+  2.67    0.009272          29       316           getdents64
+  0.41    0.001414          11       123           getcwd
+  0.07    0.000230         230         1           execve
+  0.00    0.000004           4         1         1 faccessat
+  0.00    0.000000           0         5         2 readlinkat
+------ ----------- ----------- --------- --------- ----------------
+100.00    0.347848          19     17983       652 total</pre>
+<p class="rd-codecap">Run 1 of 3, verbatim. "errors" are failed calls, almost all ENOENT (no such file): the misses.</p>
+<div class="pr"><div class="q">Predict. 16,384 ranks (Llama 3 405B's scale) start at the same second and each runs <code>import torch</code> from a Python environment on the shared file system. Suppose only the 652 failed lookups per rank reach the metadata servers (everything else cached). At 3,000 metadata operations per second, how long is the start-up stall?</div>
+<div class="opts"><button data-a="0">Under a second</button><button data-a="0">About a minute</button><button data-a="1">About an hour</button></div>
+<div class="ans" hidden>16,384 x 652 = 10.7 million lookups; at 3,000 a second that is 3,561 s, about an hour <span class="der">derived</span>, before a single step. With all 17,983 calls reaching the server it would be 27 hours. Real metadata servers are faster than this FSx entry size and clients cache more, so the real number depends on the system, but the shape is why large clusters never run Python from the shared file system: the environment lives in the container image on each node's local disk (squashfs images through enroot and pyxis on Slurm, image layers on Kubernetes), or is unpacked to local NVMe at job start. The {{Metadata storm|#t-sdmeta}} tab computes this for any cluster and store.</div></div>
+<h3>The fixes, in the order to try them</h3>
+<ul class="tight">
+<li><b>Keep code and environments off shared storage</b>: container images or a packed environment copied to local disk once per node.</li>
+<li><b>Pack data into big shards</b> (tens to hundreds of MB): one open per shard instead of per sample. Formats are on {{Storage and loading at scale|n:3f95c17b0d0d81398782efcb29d950d4}}.</li>
+<li><b>One file per rank for checkpoints, not one per tensor</b>: DCP writes one <code>.distcp</code> file per rank plus one <code>.metadata</code> (section 8).</li>
+<li><b>Big output directories</b>: spread over MDTs with a DNE striped directory, or hash into subdirectories; never <code>ls -l</code> or <code>find</code> over millions of entries on a busy file system (each entry is a <code>stat</code>).</li>
+<li><b>Small files that must exist</b>: Data on MDT, so each costs one server.</li>
+<li><b>More metadata servers</b> (DNE on Lustre, more metadata IOPS on FSx) when the workload truly needs them: on the toy, a second metadata server took 16 clients from 1,603 to 2,635 operations per second <span class="meas">measured</span>.</li>
+</ul>
+</section>
