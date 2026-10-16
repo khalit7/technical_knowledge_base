@@ -1,0 +1,96 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  creationTimestamp: "2026-10-16T01:48:22Z"
+  generation: 2
+  labels:
+    kueue.x-k8s.io/queue-name: mi-lq
+  name: mi-train
+  namespace: mi
+  resourceVersion: "4473"
+  uid: 016481d6-9110-48f7-8e57-5cce9116c83a
+spec:
+  failurePolicy:
+    maxRestarts: 0
+    restartStrategy: Recreate
+  network:
+    enableDNSHostnames: true
+    publishNotReadyAddresses: true
+  replicatedJobs:
+  - groupName: default
+    name: node
+    replicas: 1
+    template:
+      metadata: {}
+      spec:
+        backoffLimit: 0
+        completionMode: Indexed
+        completions: 2
+        parallelism: 2
+        template:
+          metadata:
+            annotations:
+              kueue.x-k8s.io/workload: jobset-mi-train-63335
+            labels:
+              kueue.x-k8s.io/cluster-queue-name: mi-cq
+              kueue.x-k8s.io/local-queue-name: mi-lq
+              kueue.x-k8s.io/podset: node
+          spec:
+            containers:
+            - args:
+              - exec torchrun --nnodes=2 --nproc-per-node=2 --node-rank=$JOB_COMPLETION_INDEX
+                --master-addr=mi-train-node-0-0.mi-train --master-port=29500 /opt/mi/train.py
+                --ckpt-dir=/shared/ckpt/$RUN --log-dir=/shared/logs/$RUN
+              command:
+              - sh
+              - -c
+              env:
+              - name: RUN
+                value: ex-k8s
+              image: mi-train:1
+              imagePullPolicy: Never
+              name: trainer
+              resources:
+                limits:
+                  cpu: "2"
+                  example.com/gpu: "2"
+                  memory: 900Mi
+                requests:
+                  cpu: "1"
+                  example.com/gpu: "2"
+                  memory: 900Mi
+              volumeMounts:
+              - mountPath: /shared
+                name: shared
+            restartPolicy: Never
+            volumes:
+            - hostPath:
+                path: /shared
+                type: Directory
+              name: shared
+  startupPolicy:
+    startupPolicyOrder: AnyOrder
+  successPolicy:
+    operator: All
+  suspend: false
+status:
+  conditions:
+  - lastTransitionTime: "2026-10-16T01:48:22Z"
+    message: jobset is resumed
+    reason: ResumeJobs
+    status: "False"
+    type: Suspended
+  - lastTransitionTime: "2026-10-16T01:48:40Z"
+    message: jobset completed successfully
+    reason: AllJobsCompleted
+    status: "True"
+    type: Completed
+  replicatedJobsStatus:
+  - active: 0
+    failed: 0
+    name: node
+    ready: 0
+    succeeded: 1
+    suspended: 0
+  restarts: 0
+  terminalState: Completed
