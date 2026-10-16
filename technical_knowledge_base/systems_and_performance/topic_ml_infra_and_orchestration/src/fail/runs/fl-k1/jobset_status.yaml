@@ -1,0 +1,99 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  creationTimestamp: "2026-10-16T04:31:44Z"
+  generation: 2
+  labels:
+    kueue.x-k8s.io/queue-name: mi-lq
+  name: fl-k1
+  namespace: mi
+  resourceVersion: "30574"
+  uid: 82f05240-ff3a-4c7a-a66b-2404482ac177
+spec:
+  failurePolicy:
+    maxRestarts: 0
+    restartStrategy: Recreate
+  network:
+    enableDNSHostnames: true
+    publishNotReadyAddresses: true
+  replicatedJobs:
+  - groupName: default
+    name: node
+    replicas: 1
+    template:
+      metadata: {}
+      spec:
+        backoffLimit: 0
+        completionMode: Indexed
+        completions: 2
+        parallelism: 2
+        template:
+          metadata:
+            annotations:
+              kueue.x-k8s.io/workload: jobset-fl-k1-723fd
+            labels:
+              kueue.x-k8s.io/cluster-queue-name: mi-cq
+              kueue.x-k8s.io/local-queue-name: mi-lq
+              kueue.x-k8s.io/podset: node
+          spec:
+            containers:
+            - args:
+              - exec torchrun --nnodes=2 --nproc-per-node=2 --node-rank=$JOB_COMPLETION_INDEX
+                --master-addr=fl-k1-node-0-0.fl-k1 --master-port=29500 /shared/fl/fl_wrap.py
+                --ckpt-dir=/shared/ckpt/$RUN --log-dir=/shared/logs/$RUN --steps 200
+                --step-sleep-ms 150 --crash-rank 3 --crash-step 120
+              command:
+              - sh
+              - -c
+              env:
+              - name: RUN
+                value: fl-k1
+              image: mi-train:1
+              imagePullPolicy: Never
+              name: trainer
+              resources:
+                limits:
+                  cpu: "2"
+                  example.com/gpu: "2"
+                  memory: 900Mi
+                requests:
+                  cpu: "1"
+                  example.com/gpu: "2"
+                  memory: 900Mi
+              volumeMounts:
+              - mountPath: /shared
+                name: shared
+            restartPolicy: Never
+            terminationGracePeriodSeconds: 5
+            volumes:
+            - hostPath:
+                path: /shared
+                type: Directory
+              name: shared
+  startupPolicy:
+    startupPolicyOrder: AnyOrder
+  successPolicy:
+    operator: All
+  suspend: false
+status:
+  conditions:
+  - lastTransitionTime: "2026-10-16T04:31:44Z"
+    message: jobset is resumed
+    reason: ResumeJobs
+    status: "False"
+    type: Suspended
+  - lastTransitionTime: "2026-10-16T04:32:27Z"
+    message: 'jobset failed due to reaching max number of restarts (first failed job:
+      fl-k1-node-0)'
+    reason: ReachedMaxRestarts
+    status: "True"
+    type: Failed
+  replicatedJobsStatus:
+  - active: 0
+    failed: 1
+    name: node
+    ready: 0
+    succeeded: 0
+    suspended: 0
+  restarts: 0
+  terminalState: Failed
