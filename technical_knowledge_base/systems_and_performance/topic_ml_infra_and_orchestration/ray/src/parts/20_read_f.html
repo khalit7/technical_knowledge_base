@@ -1,0 +1,29 @@
+<section id="s-tune">
+<h2>Ray Tune, briefly</h2>
+<p>Ray Tune runs many training trials with different hyperparameters: <code>Tuner(trainable, param_space={...}, tune_config=TuneConfig(num_samples=N, scheduler=ASHAScheduler()))</code>. Each trial is a Ray actor (or a whole Ray Train run); a <b>search algorithm</b> proposes configurations (random, grid, Bayesian through Optuna and others) and a <b>trial scheduler</b> stops bad trials early (ASHA, successive halving) or mutates good ones (Population Based Training). It is the right tool for many small or medium trials on a shared cluster; for one large pretraining run there is nothing to tune in parallel. {{Ray Tune docs|https://docs.ray.io/en/latest/tune/index.html}}. <span class="ry-nr">not run here</span>: a sweep of the running example would only repeat the task and actor mechanics above, and the evaluation of hyperparameter search belongs to the training topic.</p>
+</section>
+
+<section id="s-kuberay">
+<h2>KubeRay: Ray on Kubernetes</h2>
+<p>In production a Ray cluster usually lives on Kubernetes through the <b>KubeRay</b> operator (v1.7.1, released 2026-09-21). It adds three custom resources:</p>
+<ul class="tight">
+<li><b>RayCluster</b>: a head pod and worker groups (each a pod template and a replica range); the operator creates the pods and, with autoscaling on, a Ray autoscaler sidecar asks for more worker pods when tasks wait for resources and removes idle ones.</li>
+<li><b>RayJob</b>: a RayCluster plus an entrypoint (your driver script); the cluster is created for the job and deleted after it. This is what Kueue admits as one workload, so team quotas and gang admission come from Kueue while Ray schedules inside.</li>
+<li><b>RayService</b>: a RayCluster running Ray Serve, with zero-downtime upgrades.</li>
+</ul>
+<p>GCS fault tolerance on KubeRay needs a Redis (the <code>gcsFaultToleranceOptions</code> field, KubeRay 1.3.0 and later). GPUs come from the Kubernetes device plugin as <code>nvidia.com/gpu</code> in the pod spec; Ray reads them as its <code>GPU</code> resource. The sibling page "Kubernetes for ML: scheduling, device plugins, gang scheduling and operators" covers operators, device plugins and Kueue. {{KubeRay docs|https://docs.ray.io/en/latest/cluster/kubernetes/index.html}}. <span class="ry-nr">not run here</span>: KubeRay plus a Ray cluster on the topic's kind cluster would add about 3 GB of containers to a laptop already near its budget; the root's Tool map lists KubeRay's status.</p>
+</section>
+
+<section id="s-when">
+<h2>When Ray is the right layer</h2>
+<p>The honest comparison, for training work (the root's Reading tab has the cluster-level one):</p>
+<div class="tw"><table>
+<tr><th>Your job looks like</th><th>Good fit</th><th>Why</th></tr>
+<tr><td>One big SPMD training run (every rank runs the same program): pretraining, large SFT</td><td>Slurm + torchrun, or Kubernetes + JobSet</td><td>No dynamic tasks to schedule; Ray Train adds a controller and a head to run and size, for a launcher you already have. Ray Train still works (it ran the running example here), and is convenient if the rest of your stack is Ray.</td></tr>
+<tr><td>Many cooperating programs of different shapes: RL post-training (policy trainer, rollout inference engines, reward models, a reference model), agents with environments</td><td>Ray, usually on Kubernetes via KubeRay</td><td>Each piece is an actor with its own resources; placement groups colocate or separate them; a single Python driver orchestrates the loop. This is why the open RL stacks are built on it.</td></tr>
+<tr><td>Heterogeneous data processing feeding training or batch inference</td><td>Ray Data</td><td>Streaming between CPU and GPU stages with backpressure, on one cluster.</td></tr>
+<tr><td>Hyperparameter sweeps of small and medium runs</td><td>Ray Tune, or a scheduler's job arrays</td><td>Tune adds early stopping and search; Slurm arrays are simpler if every trial is independent.</td></tr>
+</table></div>
+<p><b>Evidence on who uses it.</b> verl, the open version of ByteDance's HybridFlow ({{Sheng et al., arXiv 2409.19256|https://arxiv.org/abs/2409.19256}}, EuroSys 2025), uses Ray for its driver ("The centralized single controller is built on top of Ray", section 7) and argues for a hybrid of a "single controller" (one driver directing everything, Ray's model) and "multi-controller" SPMD inside each model's workers. OpenRLHF's README: "OpenRLHF leverages Ray for efficient distributed scheduling. It separates the Actor, Reward, Reference, and Critic models across different GPUs" ({{OpenRLHF on GitHub|https://github.com/OpenRLHF/OpenRLHF}}, read 2026-10-16). Ray joined the PyTorch Foundation on 2025-10-22. The RL algorithms themselves are on the {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}} page; distributed PyTorch (DDP, FSDP2, c10d) on {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}}.</p>
+</section>
+
