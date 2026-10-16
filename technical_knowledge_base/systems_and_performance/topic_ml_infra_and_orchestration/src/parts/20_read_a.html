@@ -1,0 +1,46 @@
+<section id="rd-s1">
+<h2>1. What a training cluster is</h2>
+<p>A <dfn>node</dfn> is one server. A GPU training node typically holds 8 GPUs, two CPUs, local NVMe disks and one network card per GPU; Meta trained Llama 3 405B on servers of eight GPUs and two CPUs, up to 16K H100s in all <span class="pub">published</span> ({{Llama 3 &sect;3.3.1|https://arxiv.org/html/2407.21783v3#S3.SS3.SSS1}}). A <dfn>cluster</dfn> is many such nodes plus four things that turn them into one machine:</p>
+<div class="rd-card"><h4>The parts of a cluster, and which network each byte travels on</h4>
+<div class="rd-svg" id="rd-anat"></div>
+<div class="leg"><span style="--sw:var(--c1)">GPU</span><span style="--sw:var(--c4)">scale-up link inside a node (NVLink)</span><span style="--sw:var(--c2)">scale-out fabric between nodes (InfiniBand or RoCE)</span><span style="--sw:var(--c3)">front-end and storage network (Ethernet)</span></div>
+<p class="small mute">Schematic, not to scale. The gradient all-reduce of a data-parallel step runs on the purple links inside a node and the orange fabric between nodes; data loading, checkpoints, logins and the scheduler's own messages use the green network.</p>
+</div>
+<ul class="tight">
+<li><b>Two networks for GPUs.</b> Inside a node, GPUs talk over <dfn>NVLink</dfn> (the "scale-up" domain); between nodes, over a <dfn>scale-out fabric</dfn>, InfiniBand or Ethernet with RDMA (RoCE), usually one 400 Gb/s card per GPU. Per direction, an H100's NVLink is about 9 times one such card (450 against 50 GB/s), which is why tensor parallelism stays inside a node and data parallelism crosses nodes. The {{interconnects page|n:3c65c17b0d0d81808563fd41fb163af0}} owns these numbers and the network topologies (fat trees, rails).</li>
+<li><b>A front-end network</b> (ordinary Ethernet) for logins, the scheduler, container images, data and checkpoints, unless storage has its own fabric.</li>
+<li><b>Shared storage</b> that every node sees: a parallel file system or object storage (section 6).</li>
+<li><b>Control machines:</b> a <dfn>login node</dfn> where users edit and submit, and the <dfn>controller</dfn> (Slurm's <code>slurmctld</code>, Kubernetes' API server and scheduler, Ray's head node) that tracks every node and job.</li>
+</ul>
+<p>Two units recur everywhere. A <dfn>GPU-hour</dfn> is one GPU for one hour, the unit of both cost and quota. A <dfn>rank</dfn> is one training process, normally one per GPU; a job on 128 nodes of 8 GPUs has 1,024 ranks.</p>
+<div class="deepnote"><b>Go deeper (optional):</b> the child page <b>Cluster anatomy</b> (being written) for node and network design, and Topic: hardware for {{GPUs|n:3c65c17b0d0d810682aae39bd614ec64}} and {{networks|n:3c65c17b0d0d81808563fd41fb163af0}}.</div>
+</section>
+
+<section id="rd-s2">
+<h2>2. How a job gets machines: schedulers</h2>
+<p><b>The problem.</b> There are more jobs than GPUs, and a distributed job is useless until it holds all its GPUs at once. A <dfn>scheduler</dfn> (also called a <dfn>workload manager</dfn> or <dfn>batch system</dfn>) keeps a <dfn>queue</dfn> of pending jobs, each with a request (8 nodes of 8 GPUs for 12 hours), and a <dfn>policy</dfn> that decides which job starts next and on which nodes. Every scheduler in this topic combines the same handful of ideas:</p>
+<ul class="tight">
+<li><b>FIFO with priorities.</b> First in, first out, ordered by a priority number. Simple, but one big job at the head blocks everything behind it (<dfn>head-of-line blocking</dfn>) while nodes sit idle waiting for enough of them to free up.</li>
+<li><b>Backfill.</b> Let a later, smaller job run in those idle nodes <i>if it will finish before the big job could have started anyway</i>. The scheduler can only know that from each job's <dfn>time limit</dfn>, which is why every Slurm job asks for one (<code>--time</code>). <dfn>EASY backfill</dfn> protects only the first waiting job's reserved start; <dfn>conservative backfill</dfn> protects every waiting job.</li>
+<li><b>Fairshare.</b> Each team has a share of the cluster; a team that used more than its share recently gets lower priority, with past usage decaying (a half-life of days to weeks), so heavy users sink and light users rise.</li>
+<li><b>Preemption.</b> A higher-priority job can evict a running one, which is killed or requeued; it only costs little if the evicted job checkpoints (section 5).</li>
+<li><b>Gang scheduling</b> (all-or-nothing). Start every process of a job together or none of them. Without it, two jobs can each grab half the cluster and wait forever for the rest. OpenAI hit exactly that on Kubernetes: "Kubernetes might schedule only half of each experiment's pods, leading to a deadlock where neither experiment can make progress", fixed with a gang-scheduling plugin <span class="pub">published</span> ({{OpenAI, Jan 2021|https://openai.com/index/scaling-kubernetes-to-7500-nodes/}}).</li>
+<li><b>Topology-aware placement.</b> Put a job's nodes under as few network switches as possible, because collectives across distant switches are slower.</li>
+<li><b>Quotas and borrowing.</b> Teams own a guaranteed amount; idle quota can be lent to others and reclaimed (by preemption) when its owner needs it.</li>
+</ul>
+<div class="rd-card" id="rd-bf-card">
+<h4>The same queue before and after backfill</h4>
+<p class="small">Eight nodes, eight jobs submitted together in the order A to H; the bar's height is the nodes a job holds, its length the time it runs. Job B wants 6 nodes and must wait for A. Watch what FIFO does with the 4 idle nodes, then switch to backfill.</p>
+<div class="seg" id="rd-bf-mode"><button data-m="fifo" class="on">FIFO (no backfill)</button><button data-m="easy">EASY backfill</button></div>
+<div class="rd-svg" id="rd-bf-svg"></div>
+<div class="an-ctl" id="rd-bf-ctl"></div>
+<div class="an-cap" id="rd-bf-cap"></div>
+<div class="an-cnt" id="rd-bf-cnt"></div>
+<p class="small mute"><span class="sim">simulated</span> by the page's 40-line scheduler (rechecked in <code>src/read/recompute.py</code>), on an illustrative workload; time units are arbitrary. <span class="rd-todo">TODO (sched lab): add the same queue's real schedule from Slurm (<code>sacct</code> start and end times) under FIFO and backfill, and say whether the two agree.</span></p>
+</div>
+<p>Backfill's gain here: everything finishes at <span id="rd-bf-m2">15</span> instead of <span id="rd-bf-m1">17</span>, utilisation rises from <span id="rd-bf-u1">71%</span> to <span id="rd-bf-u2">81%</span>, the mean wait falls from <span id="rd-bf-w1">8.3</span> to <span id="rd-bf-w2">3.5</span>, and B still starts at the same moment. The cost is a dependency on honest time limits: a job that asks for 3 times what it needs looks too long to fit in any gap and is not backfilled.</p>
+<div class="pr" id="rd-pr1"><div class="q">Predict: your 2-node job asks for 24 hours but needs 1. The cluster has 2 idle nodes for the next 3 hours, held for a big job after that. Under backfill, does yours start now?</div>
+<div class="opts"><button data-a="0">Yes: it fits in the idle nodes</button><button data-a="1">No: the scheduler believes it runs 24 hours, past the big job's reserved start</button><button data-a="0">Only under FIFO</button></div>
+<div class="ans" hidden>No. The scheduler plans with your time limit, not your real runtime, so a 24-hour request cannot fit a 3-hour gap. Asking for 2 hours would have started it now. This is the most common reason a small job "waits forever" on a busy Slurm cluster.</div></div>
+<div class="deepnote"><b>Go deeper (optional):</b> the {{Scheduling lab|#t-sched}} runs one workload through real Slurm (FIFO, backfill, fairshare), real Kubernetes (default scheduler against Kueue, including the partial-allocation deadlock and its fix) and Ray placement groups, with a fairshare calculator. Child pages: <b>Slurm</b> and <b>Kubernetes for ML</b> (being written).</div>
+</section>
