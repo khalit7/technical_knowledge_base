@@ -1,0 +1,75 @@
+Replay / recomputation tools in open-source training stacks, plus one recent SDC mitigation paper
+
+A. Megatron-LM (Megatron Core) rerun state machine
+Source: https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/rerun_state_machine.py
+  (main branch, last commit touching the file 3e95097b4a9a on 2026-10-14; read 2026-10-16)
+Docs: https://docs.nvidia.com/megatron-core/developer-guide/0.19.2/apidocs/core/core.rerun_state_machine.html
+Verbatim:
+"""DISCLAIMER: THIS IS AN EXPERIMENTAL FEATURE.
+The rerun state machine implementation in this file is alpha-level code to help with attribution of
+unexpected results (e.g. NaN, spiky loss, etc.). This code has not been tested at scale so should not be
+assumed to be accurate. Nodes flagged by this code as potentially faulty should be subjected to standard
+diagnostic test suites for a definitive diagnosis."""
+# Exit code returned when job needs to be restarted to disambiguate the results.
+EXIT_CODE_RESUME_TO_DISAMBIGUATE: int = 16
+# Exit code returned when job failed on result validation.
+EXIT_CODE_FAILED_ON_RESULT_VALIDATION: int = 17
+class RerunDiagnostic: "CORRECT_RESULT: the result was the expected result given the input.
+  TRANSIENT_ERROR: the result could not be reproduced on the same GPU.
+  PERSISTENT_ERROR: the result could be reproduced on the same GPU, but not on a different GPU."
+class RerunMode: DISABLED = "disabled", VALIDATE_RESULTS = "validate_results",
+  REPORT_DETERMINISM_STATS = "report_determinism_stats"
+States: NOT_RUNNING_YET, INITIAL_RUN, RERUNNING_IN_PLACE ("State during the second run of the
+  should_rerun_forward_and_backward (1+ validation has failed)"), WILL_RERUN_FROM_CHECKPOINT ("when the 1st
+  re-run yielded the same result than on the initial run"), RERUNNING_FROM_CHECKPOINT,
+  RERUNNING_AGAIN_FROM_CHECKPOINT ("State when the re-run from checkpoint was rescheduled on the same
+  potentially faulty GPU.")
+Caveats (verbatim): "A core assumption of the rerun state machine is that execution (flow control) of the
+iteration is deterministic w.r.t. the state captured by the rerun state ... On the other hand, computations
+are NOT required to be deterministic, i.e. results may vary slightly across re-runs of the iteration."
+"The re-run logic is currently only able to re-run the current step. It may be that an unexpected result
+(e.g. spiky loss) is the result of a calculation that happened at a previous iteration. The current
+implementation will not catch such issues."
+Spiky-value check (verbatim docstring): "Some calculation errors manifest themselves as results with
+unexpectedly large exponents, e.g. spiky loss or grads. This method keeps track of a value over time and
+flags it if it exceeds a certain threshold expressed as a multiple factor of the max value observed."
+"threshold: ... e.g. 10 means > 10x max absolute value observed." "num_samples: the sample size used to
+estimate the max value. Default is 100 value samples."
+Error injection for testing: RerunErrorInjector(error_injection_rate=..., error_injection_type=...).
+CLI (megatron/training/arguments.py on main): "--no-check-for-nan-in-loss-and-grad" (NaN check on by
+default), "--check-for-large-grads", "--result-rejected-tracker-filename"; the rerun group is built from
+RerunStateMachineConfig (flag names for mode not extracted: unconfirmed).
+Algorithm in words (my summary from the states): validation fails (NaN / spike) -> re-run the same
+iteration in place on the same GPUs. Different result -> TRANSIENT_ERROR. Same result -> checkpoint and
+exit 16 so the scheduler restarts the job on different GPUs; re-run there: if it reproduces, it is the data
+or the model (CORRECT_RESULT, i.e. a real loss spike); if not, PERSISTENT_ERROR on the original GPU.
+
+B. torchtitan DebugConfig (torchtitan/config/configs.py on main, last commit to job_config path checked
+2026-02-23; read 2026-10-16). Verbatim:
+    deterministic: bool = False
+    """Use deterministic algorithms wherever possible, may be slower"""
+    detect_anomaly: bool = False
+    """Enable torch.autograd anomaly detection to help track down NaN/Inf gradients.
+    Note: incurs significant overhead; for debugging only."""
+    batch_invariant: bool = False
+    """Enable batch-invariant mode to use batch-invariant ops in model
+    forward and deterministic NCCL collective reduction order"""
+    seed: int | None = None
+No SDC-specific replay feature found in torchtitan (searched configs.py only: partial search).
+
+C. Xia, Xu, Yun, Lin, Liu, Li, Zhuo (Zhejiang University; Huawei). "TrainSDC: Characterizing and
+Mitigating Silent Data Corruption in Large Language Model Training", arXiv:2608.30769v1, 31 Aug 2026.
+https://arxiv.org/abs/2608.30769  (fault-injection study, not production data)
+Verbatim: "forward-pass vulnerability is highly location dependent, with faults on the Q/K path producing
+persistent training deviations, whereas backward-pass vulnerability is largely governed by gradient
+exponent distributions rather than computation locations." "we propose TrainSDC, a characterization-guided
+protection framework consisting of Q/K-path recomputation, residual-gain monitoring, and exponent-aware
+gradient scaling. Experiments on Llama 3.2-1B and Qwen3-0.6B show that TrainSDC maintains training behavior
+close to fault-free execution under both sparse and dense fault injection while introducing only
+1.65%-6.76% runtime overhead."
+
+D. Not found / not checked: a Meta or NVIDIA paper specifically on GPU SDC detection in training fleets
+("Harbor" not found). Other 2026 arXiv titles seen in search but not read: "LLM-PRISM: Characterizing
+Silent Data Corruption from Permanent GPU Faults in LLM Training" (arXiv:2604.10390), "The Anatomy of
+Silent Data Corruption: GPU Error Pattern Study and Modeling Guidance" (arXiv:2605.04213), "Exploring
+Silent Data Corruption as a Reliability Challenge in LLM Training" (arXiv:2604.00726).

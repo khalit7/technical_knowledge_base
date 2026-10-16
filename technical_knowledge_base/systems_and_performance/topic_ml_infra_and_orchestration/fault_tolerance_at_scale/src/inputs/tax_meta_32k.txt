@@ -1,0 +1,73 @@
+SOURCE
+Omkar Salpekar, Rohan Varma, Kenny Yu, Vladimir Ivanov, Yang Wang, Ahmed Sharif, Min Si, Shawn Xu, Feng Tian,
+Shengbao Zheng, Tristan Rice, Ankush Garg, Shangfu Peng, Shreyas Siravara, Wenyin Fu, Rodrigo de Castro, Adithya
+Gangidi, Andrey Obraztsov, Sharan Narang, Sergey Edunov, Maxim Naumov, Chunqiang Tang, Mathew Oldham (Meta
+Platforms; Thinking Machines Labs; Ohio State; Genesis Molecular AI).
+"Training LLMs with Fault Tolerant HSDP on 100,000 GPUs". arXiv 2602.00277, version read: v1 (30 Jan 2026).
+https://arxiv.org/abs/2602.00277
+Read 2026-10-16 from the arXiv PDF via pdftotext -layout (sec 2.2 "Hardware Reliability", Table 1).
+(Found while searching for other cause tables; it is the successor to Llama 3 Table 5 from the same company.)
+
+SCALE AND PERIOD
+- "failure data from a recurring training job with about 32K GPUs" (H100 class; the 100K experiments use "98K H100
+  GPUs"). Period of Table 1 not stated (unconfirmed). Inferred from the rate below: 678 / (4,000 servers x
+  2.3/1000/day) = about 74 days, assuming 8 GPUs per server. My inference.
+- "It achieved between 95%-97% effective training time".
+
+UNIT OF COUNTING
+Unexpected interruptions of one recurring training job (same unit as Llama 3 Table 5).
+
+TABLE 1 (verbatim): Classification of unexpected interruptions during LLM pre-training on 32K GPUs.
+Component                          Count    %
+GPU HBM3 Memory                     155    22.9%
+PCIe Device                         122    18.0%
+NCCL Watchdog Timeouts               61     9.0%
+Faulty GPU Compute                   50     7.4%
+Software Bug                         48     7.1%
+Host Maintenance                     42     6.2%
+Kernel Fault                         39     5.8%
+System Reboot                        38     5.6%
+Numerics/Silent Data Corruption      37     5.5%
+Network Switch/Cable                 36     5.3%
+SSD                                  30     4.4%
+GPU SRAM Memory                       8     1.2%
+Unknown                               7     1.0%
+System Memory                         2     0.3%
+System Cooling                        2     0.3%
+GPU Thermal Interface + Sensor        1     0.2%
+
+ARITHMETIC CHECKS (mine)
+- Counts sum to 678. Every percentage equals count / 678 rounded to 0.1 (HBM3 22.86, PCIe 17.99, Faulty GPU 7.37,
+  Thermal 0.15 printed 0.2). Column sums to 100.2% (rounding). Consistent; unlike Llama 3 Table 5 there is no
+  mismatched row.
+- "78% of interruptions were due to hardware-related failures": not reproducible exactly from the rows since the
+  paper does not say which rows count as hardware. Clear hardware rows (HBM3, PCIe, Faulty GPU Compute,
+  Switch/Cable, SSD, SRAM, System Memory, Cooling, Thermal) = 406 = 59.9%; adding Host Maintenance and System Reboot
+  = 486 = 71.7%; adding Kernel Fault as well = 525 = 77.4% (closest to 78%). So the 78% likely includes host
+  maintenance, reboots and kernel faults. Flag as interpretation.
+- Rate: "On average, training experienced 2.3 interruptions per 1,000 servers per day." 32K GPUs = 4,000 servers
+  -> 9.2 interruptions/day, one every ~2.6 h.
+- MISMATCH: the paper also says "our production data show that, with 100K GPUs, there is a failure every 18
+  minutes". At 2.3 per 1,000 servers per day, 100K GPUs (12,500 servers) gives 28.75/day = one per 50 min, not 18.
+  18 min implies about 6.4 per 1,000 servers per day (80/day), which matches Meta RSC-1's 6.50 per 1,000 node-days
+  (Kokolis et al.): 12,500 x 6.5/1000 = 81/day = one per 17.7 min. Neither source says so; my observation.
+- Effective training time arithmetic: "out of these 18 minutes, 10 minutes will be spent on failing over and
+  restarting ... only 8 minutes for effective training. This results in an effective training time of 8/18 = 44%".
+  8/18 = 44.4%. OK. With FT-HSDP stall 3 min: 15/18 = 83%; paper says "from 44% to 80%" (presumably other
+  overheads; not explained). Flag minor.
+
+KEY QUOTES (verbatim)
+1. "'Faulty GPU Compute' used to be the top cause, but is now reduced to the fourth (7.4%), thanks to our prior
+   effort to address specific failure modes and the aggressive isolation of misbehaving GPUs. As GPU compute issues
+   declined, High Bandwidth Memory (HBM) issues rose to become the top issue in our current version."
+2. "An increasing number of failures with SSD devices were due to a fatal NVMe firmware bug. This resulted in SSDs
+   entering read-only mode with critical I/O errors. The other category of PCIe device issues involved GPUs, which
+   reported uncorrectable errors, elevated correctable errors, and parity mismatch issues."
+3. "training interruptions caused by numerical issues, such as Not-a-Number (NaN) errors or silent data corruption
+   (SDC) detected through model evaluations, often required manual investigation ... The 37 interruptions in this
+   category were traced to seven hosts, with root-cause investigations lasting from several hours to multiple days.
+   In one SDC case, we traced the issue to 32 consecutive parameters (out of 2T total) in a single expert of a
+   specific layer that abruptly spiked by over 1e7." [dashes replaced]
+Also: kernel faults, lockups and spurious hangs "were typically transient and resolved by rebooting the affected
+servers"; "synchronous recovery takes up to 10 minutes at 100K GPUs"; FT-HSDP cuts stall "from 10 minutes to 3
+minutes".

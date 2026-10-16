@@ -1,0 +1,70 @@
+Borui Wan, Gaohong Liu, Zuquan Song, ... Chuan Wu, ... Wencong Xiao, Xin Liu, Liang Xiang
+(The University of Hong Kong; ByteDance Seed). "Robust LLM Training Infrastructure at ByteDance"
+(system name ByteRobust). SOSP '25, October 13-16, 2025, Seoul. arXiv:2509.16293.
+https://arxiv.org/abs/2509.16293   (PDF read 2026-10-16)
+Covers SDC localisation, hang localisation and fail-slow (straggler) handling; relevant to both B and C.
+
+Abstract (verbatim): "ByteRobust identifies 38,236 explicit failures, 5,948 implicit failures in the
+three-month period". Deployed "for over one year"; experiments "on 16,384 GPUs".
+Incident distribution (Table 1, verbatim caption: "Statistics of training incidents collected over a
+three-month span, encompassing 778,135 LLM training jobs."; rows read from the PDF text layer):
+  Explicit: CUDA Error 19968 (36.1%), CPU Overload 6095 (11.0%), CPU OOM 5567 (10.1%), Insufficient Disk
+  Space 2755 (5.0%), Infiniband Error 1599 (2.9%), Filesystem Mount 1176 (2.1%), HDFS Error 1104 (2.0%),
+  Container Error 781 (1.4%), OS Kernel Panic 203 (0.4%), GPU Memory Error 188 (0.3%), External Service
+  Error 128 (0.2%), GPU Unavailable 76 (0.1%), Disk Fault 47 (0.1%)
+  [a few rows may sit between Filesystem Mount and HDFS in the table layout; unconfirmed]
+  Implicit: Job Hang 5506 (9.9%), MFU Decline 442 (0.8%), NaN value 148 (0.3%)
+  Manual Restart: Code/Data Adjustment 9582 (17.3%)
+Verbatim: "explicit failures ... typically exhibit short detection times (around 60s, via error messages
+or other log-based indicators) and localization times (ranging from 2 minutes to 15 minutes). In addition,
+more than 10% of incidents manifest as implicit failures and are difficult to detect or pinpoint their
+sources."
+SDC (verbatim): "SDC on GPU hardware has emerged as a critical challenge in LLM training. It appears as
+stochastic faults, such as abrupt loss divergence or NaN values, and often makes stop-time diagnostics
+unable to reproduce within a short period of time. We uncovered a data-type-dependent computation error
+rooted in GPU SDC, characterized by non-deterministic behavior that hindered reliable reproduction. Through
+more than 8 hours of offline stress testing, we successfully identified the faulty GPU machines."
+"a single corrupted gradient from one node can contaminate the global parameter update across all
+participating workers."
+Hang timeout context (verbatim): "when hang happens, the training job will not produce any logs until
+timeout (i.e., 30 or 60 minutes for NCCL)."
+
+Real-time signals (verbatim): training metrics via wandb, "considering significant changes in them as the
+faulty signals, e.g., 5x increase in loss/gradient norms, NaN values." "On spotting performance anomalies,
+e.g., zero RDMA traffic within 10 minutes or low TensorCore utilization, the aggregation analysis is
+triggered for machine isolation". [the PDF writes "5×"]
+
+Stop-time hierarchy: Diagnose (EUD first, then intra-machine all-to-all, then inter-machine all-gather with
+neighbours) then Reattempt ("the diagnoser assumes that the failures are caused by transient faults such
+as temporary link flapping") then Rollback of user code then Dual-Phase Replay.
+
+NaN loss diagnosis (verbatim): "standard GPU and network tests are conducted first, including EUD and NCCL
+tests. If all these tests are passed, a bit-wise alignment test is run: each machine initiates a reference
+model whose structure matches that of the target training job ... It loads predefined weights, employs a
+specific parallelism configuration (e.g., TP=2, PP=2, DP=2 or EP=2, PP=2, DP=2), and executes one
+training step on fixed input to ensure reproducibility. The outputs from all machines are collected and
+analyzed to verify bit-wise accuracy. Machines that yield incorrect results are promptly isolated and
+removed."
+
+Dual-Phase Replay (Algorithm 1), for unknown faults such as SDC (verbatim):
+"we introduce a dual-phase, dimension-aware replay that keeps the original TP/PP sizes fixed while varying
+only the DP sizes" "We partition machines into horizontal and vertical groups, reduce the model layers, and
+replay the job on each group with a reduced DP size ... The intersection of the faulty horizontal and
+vertical groups pinpoints the failed machine". Phase 1: group by floor(x_i / m) and find faulty group a by
+replay; Phase 2: group by x_i mod n and find faulty group b; solve floor(x_i/m) = a and x_i mod n = b.
+"In practice, we set m = k * PP_size, n = DP_size/k where k in N+, and m <= n for a unique solution."
+Example: z = 24 machines, m = 4, n = 6: "by replaying the training job twice and identifying the faulty
+group in each phase, SDC machine #13 is isolated correctly." [13 is in H3 (12-15) and V1 (13 mod 6 = 1)]
+"In our experience, each SDC incident typically involves only a single faulty machine".
+Lesson (verbatim): "across 19 large-scale LLM training jobs (>= 9,600 GPUs), we find that direct machine
+eviction via real-time checks resolved 32.52% of failures, reattempts recovered 22.70%, and rollbacks
+handled another 9.20%. Only 1.23% of failures required dual-phase replay."
+
+Hang / fail-slow localisation by stack aggregation (verbatim): "ByteRobust parses the process trees in each
+training pod to identify training-related processes ... Next, stack-traces from these identified processes
+are aggregated into multiple groups via string matching to differentiate abnormal sources. The dominant
+groups are deemed healthy ..., while the remaining groups are classified as outliers ... Finally, we find
+the shared parallel groups for those outliers and isolate the corresponding machines."
+"For fail-slow incidents (i.e., MFU decline), ByteRobust repeats aggregation every 10 seconds, flagging the
+parallel group with the most outliers at each round. The parallel group with the highest cumulative flag
+count across 5 rounds is marked as the degrader for over-eviction."

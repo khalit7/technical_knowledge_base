@@ -1,0 +1,86 @@
+Straggler detection in tools and other sources
+
+A. NVIDIA Resiliency Extension (nvidia-resiliency-ext, "NVRx"), straggler detection
+Version: v0.7.0 (GitHub release 2026-09-16; docs header "nvidia-resiliency-ext 0.7.0 documentation").
+Docs: https://nvidia.github.io/nvidia-resiliency-ext/straggler_det/usage_guide.html
+Code at tag v0.7.0: src/nvidia_resiliency_ext/attribution/straggler/{straggler.py, reporting.py}
+(the module now lives under "attribution/"); PTL callback src/nvidia_resiliency_ext/ptl_resiliency/
+straggler_det_callback.py (marked deprecated: "InJob PyTorch Lightning integration is deprecated and will
+be removed in a future release."). Read 2026-10-16.
+
+What is measured per rank:
+- "detection sections" (context manager Detector.detection_section(name, profile_cuda=...), or
+  Detector.wrap_callables(callable_ids=[CallableId(cls, method_name)])): CPU wall-clock time of each
+  section entry; and, when profile_cuda is on, the duration of every CUDA kernel launched inside, captured
+  with CUPTI (straggler.py: "the section will be profiled with CUPTI. All kernel profiling results are
+  collected by the CUPTI extension."; CuptiManager(statsMaxLenPerKernel=8 * 1024)).
+- Sections are expected to do similar work on every rank (docs suggest wrapping the model forward).
+Scores (reporting.py docstring, verbatim): "Relative performance scores (0...1) that compare the
+performance of the current rank to the best performing rank." "All performance scores can be interpreted
+as a ratio of: current performance/reference performance." "If the relative performance score is 0.5, it
+means that the current rank is 2x slower than the best performing rank." "If the individual performance
+score is 0.5, it means that the current rank is 2x slower than its best performance."
+Section score (verbatim comment): "for each section calculate ratio: reference median time / median time on
+this rank where "reference median time" can be: - min median time across all ranks (aka "workload min") -
+min median time observed on this rank (aka "rank historical min")"; code: score = reference[section] /
+summary[Statistic.MED].
+GPU score (verbatim comment): "for each kernel calculate ratio: reference median / median time on this rank
+... compute final result, as a weighted arithmetic average of all kernel scores, using total time spent in
+the kernel as a weight. Kernels thet were not executed on all ranks are skipped." [sic]
+Code: weight = summary[NUM] * summary[AVG].
+Thresholds (reporting.py identify_stragglers defaults, verbatim): gpu_rel_threshold: float = 0.75,
+section_rel_threshold: float = 0.75, gpu_indiv_threshold: float = 0.75, section_indiv_threshold: float =
+0.75. A rank is a straggler if its score < threshold. (The usage-guide PTL example uses 0.7.)
+Detector.initialize defaults (straggler.py:119-126, verbatim): scores_to_compute = "all",
+gather_on_rank0: bool = True, profiling_interval: int = 1, report_time_interval: float = 60.
+"profiling_interval (int, optional): Profile each `profiling_interval`-th section entry. Defaults to 1."
+"report_time_interval (float, optional): Interval in seconds for generate_report_if_interval_elapsed.
+Defaults to 60."
+Docs (usage_guide.rst at v0.7.0, verbatim): "CUDA kernel profiling imposes some small step time overhead
+that depends on the workload but generally is expected to be <1%." gather_on_rank0=False with individual scores only avoids inter-rank synchronisation.
+PTL callback args: report_time_interval, calc_relative_gpu_perf, calc_individual_gpu_perf,
+num_gpu_perf_scores_to_print, gpu_relative_perf_threshold, gpu_individual_perf_threshold,
+stop_if_detected ("Set to True, to terminate the workload if stragglers are detected"), enable_ptl_logging,
+profiling_interval = 1. Usage-guide example: report_time_interval=300.
+Interpretation: relative score catches a rank slower than the fleet now (bad GPU, thermal); individual score
+catches a rank slower than its own past (degradation over time) and needs no cross-rank gather.
+
+B. Llama 3 (arXiv:2407.21783, sec 3.3.4) straggler quote: see sdc_frontier_runs.txt. Method described only
+as "tools to prioritize potentially problematic communications from selected process groups. By
+investigating just a few top suspects, we were usually able to effectively identify the stragglers."
+
+C. Google Cloud, "Taming the stragglers: Maximize AI training performance with automated straggler
+detection", Elias Ahmed and Praveen Kumar, Google Cloud Blog, August 2025 (page shows August 12, 2025; a
+search snippet said Aug 11). https://cloud.google.com/blog/products/compute/stragglers-in-ai-a-guide-to-automated-straggler-detection
+Verbatim: "Our approach to straggler detection is built on the principle of causal analysis, understanding
+the system as an interconnected graph of time-sensitive interactions. It's an always-on service that
+passively monitors GPU clusters" "Step 1. Construct the Communication Graph: The service begins by passively
+observing network traffic to build a real-time map of how all the nodes in a workload are communicating."
+"Step 2. Trace the Slowdown to its Source: ... is a node slow because it is waiting for another
+underperforming node, or is it the original source of the slowdown?" "This automated approach reduces the
+search scope from thousands of nodes to a handful and cuts the search time from days to minutes."
+"Sometimes, a single straggler can cause a 60-70% drop in workload performance." Customer case: Magic,
+"across 8,000 GPUs", "severe performance degradation over a period of 40 hours". Product: Cluster Director
+health monitoring, "Suspected Straggler Instances" table. No thresholds or metrics published.
+(No TPU-specific "slow host detection" source found.)
+
+D. Meta Holistic Trace Analysis (HTA), https://hta.readthedocs.io/en/latest/ (read 2026-10-16)
+Features (verbatim names): Temporal Breakdown, Idle Time Breakdown, Kernel Breakdown ("Find kernels with the
+longest duration on each rank."), Kernel Duration Distribution ("Distribution of average time taken by
+longest kernels across different ranks."), Communication Computation Overlap, CUDA Kernel Launch
+Statistics, Augmented Counters, Frequent CUDA Kernel Patterns, Trace Diff, CUPTI Counter Analysis,
+Lightweight Critical Path Analysis. No feature is described as straggler detection; Kernel Duration
+Distribution across ranks is the closest (offline, from PyTorch profiler traces).
+
+E. ByteRobust (SOSP 2025) fail-slow handling by stack aggregation every 10 s over 5 rounds: see
+sdc_byterobust2025.txt.
+
+Comparison of per-rank signals (my summary):
+  MegaScale: CUDA-event time of fwd/bwd per rank, mean over steps, heat map, human decision.
+  ByteDance SMon (Lin 2025): traced op durations, what-if replay, per-worker slowdown Sw, heat map DP x PP,
+    alert on job slowdown; straggling job if S >= 1.1.
+  FALCON: iteration time from NCCL call periodicity (ACF >= 0.95), BOCD change point (p >= 0.9), verified if
+    > 10% change; then per-group transfer time > 1.1x median; then GEMM / P2P validation.
+  NVRx: median section/kernel time per rank vs best rank (relative) or own best (individual); flag < 0.75.
+  ByteRobust: stack-trace outlier groups, parallel group with most outliers over 5 rounds of 10 s.
+  Llama 3 / Google: communication-graph based ranking of suspects (details not published).

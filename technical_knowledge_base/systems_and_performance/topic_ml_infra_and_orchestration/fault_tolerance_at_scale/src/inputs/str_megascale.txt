@@ -1,0 +1,64 @@
+Ziheng Jiang, Haibin Lin, Yinmin Zhong, Qi Huang, Yangrui Chen, Zhi Zhang, ... (ByteDance, Peking University)
+"MegaScale: Scaling Large Language Model Training to More Than 10,000 GPUs", NSDI 2024; arXiv:2402.15627.
+https://arxiv.org/abs/2402.15627   (PDF read 2026-10-16)
+
+Robust training loop, sec 4.1 (verbatim)
+"a robust training daemon which sends heartbeat to the driver periodically. These heartbeats encapsulate
+various forms of information to enable real-time anomaly detection and issue early warnings (§4.2). When
+the driver process detects an abnormal status in a particular training process, or fails to receive a
+heartbeat from an executor within a predefined time window, it triggers the fault recovery procedure. The
+driver will suspend the ongoing training task across all executors and command them to run a series of
+self-check diagnostics (§4.3)." Faulty nodes' IPs go to Kubernetes, "which evicts the faulty nodes and
+replenishes the cluster with an equivalent amount of healthy ones which pass our diagnostic tests."
+Sec 4.2: "RDMA traffic metrics are also included ... Given the periodic nature of the training tasks, the
+network traffic characteristics for each step should exhibit similar patterns. Therefore, any significant
+decline or abnormal fluctuation in RDMA traffic is a signal of potential anomalies. Upon detecting such
+irregularities, the driver will issue alerts for manual investigation. If the traffic ceases entirely, the
+driver will automatically initiate the fault recovery procedure."
+Sec 4.3 diagnostics: intra-host loopback, RNIC-to-RNIC, "NCCL tests ... an all-to-all test among the GPUs
+within a single node ... each node also conducts an all-reduce test with neighboring machines under the
+same ToR switch".
+Recovery numbers (verbatim): "executing diagnostic tests is less than 10 minutes. Moreover, the system can
+catch up to the training progress prior to the crash within 15 minutes from the latest checkpoints,
+maintaining over 90% effective training time rate".
+
+Sec 5.1 Performance Diagnosis with CUDA Event Monitor (verbatim)
+"At the scale of tens of thousands of GPUs, we observe that, unlike in smaller-scale experiments, different
+runs exhibit varying computational efficiencies. Even with identical configurations, this inconsistency
+persist" "The MFU for various training tasks gradually declines over time." "no evident variations are
+detected under single GPU GEMM micro-benchmarks."
+"we develop a performance analysis tool that records the execution time of critical code segments on each
+machine rank during a run. In contrast to previous tools such as the torch profiler or the Megatron-LM
+timer, our tool times events based on the CUDA events method. This approach minimizes the need for CUDA
+synchronization, thus preventing performance degradation, allowing us to consistently run it in our
+production training jobs."
+"The first mode uses a heat map to show time consumption differences between machines from various
+dimensions ... We gather latency data of the computation phase (forward and backward) across devices and
+average the latency across steps. The aggregated data is visualized using a heat-map. The heat-map reveals
+that a minor fraction of machines (approximately 0.5%) exhibit substantially slower performance during
+training, thereby hindering overall training progress. The training efficiency is predominantly determined
+by the slowest machine's performance (i.e., stragglers), leading to inconsistencies in training efficiency
+across diverse runs, since machine scheduling within the cluster is stochastic. After excluding these
+outlier machines, the peak MFU across runs becomes consistent."
+Second mode: distributed trace timeline per DP/PP/TP group. Data path: "the timer data is wrote to a local
+file in a line-by-line format, a separate streamer process then synchronizes this log file with a Kafka
+queue in real-time" into an analytical database; "the overhead is negligible compared to the training
+time."
+
+Sec 6 experience (verbatim)
+"Computational stragglers. ... We noted that specific hosts took approximately 10% more time to execute the
+same forward computations compared to other ranks. This consistency across different experiments led us
+to conclude that the issue was not with the software but rather inherent to certain machines in the
+cluster. After isolating and removing these problematic hosts from the cluster, we observed an approximate
+0.7% improvement in MFU."
+"MFU decreasing": per-step forward/backward/optimizer time stable, step time rising; traced to the last
+collective, the DP gradient reduce-scatter; cause: "irregular garbage collection can introduce disturbances
+into the training procedure, and certain PyTorch operations can lead to performance fluctuations."
+"Frequent network interface flapping problem ... The first lesson we learn is the timeout threshold should
+be set explicitly to a larger value, otherwise the default value will make NCCL timeout very quickly and
+return a completion error before the network card up again."
+
+Detection algorithm (precise, from the text): per rank, CUDA-event durations of forward and backward
+compute segments; statistic: mean across steps per device; displayed as a heat map over ranks; decision:
+human reads the heat map (no automatic threshold stated). Outliers about 0.5% of machines; ~10% slower
+forward on specific hosts.

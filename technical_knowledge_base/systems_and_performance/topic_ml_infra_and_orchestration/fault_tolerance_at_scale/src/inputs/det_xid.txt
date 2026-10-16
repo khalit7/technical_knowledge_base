@@ -1,0 +1,118 @@
+NVIDIA Xid catalogue: entries most relevant to training
+Source: NVIDIA "XID Errors" docs, page "Analyzing Xid Errors with the Xid Catalog"
+  https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html   (read 2026-10-16)
+  PDF: https://docs.nvidia.com/deploy/xid-errors/pdf/XID_Errors.pdf
+Page note (verbatim): "For Ampere and newer GPUs (including PCIe form-factor GPUs), a catalog of possible
+Xid events is available in the graphs below."
+Columns: Code | Mnemonic | Description | Applies to A100/H100/B100/GB200 | Resolution Bucket (Immediate
+Action) | Resolution Bucket (Investigatory Action) | Xid 154 linkage | Trigger Conditions.
+Text below is copied from the table cells (whitespace normalised).
+
+Xid 13 | ROBUST_CHANNEL_GR_EXCEPTION / ROBUST_CHANNEL_GR_ERROR_SW_NOTIFY | Graphics Engine Exception |
+  YES YES YES YES | Immediate: RESTART_APP | Investigatory: WORKFLOW_XID_13
+  "This event is logged for general user application faults. Typically this is an out-of-bounds error
+  where the user has walked past the end of an array, but could also be an illegal instruction, illegal
+  register, or other case. In rare cases, it's possible for a hardware failure or system software bugs to
+  materialize as XID 13." Recommends cuda-gdb / Compute Sanitizer memcheck /
+  CUDA_DEVICE_WAITS_ON_EXCEPTION=1, then file a bug.
+Xid 31 | ROBUST_CHANNEL_FIFO_ERROR_MMU_ERR_FLT | GPU memory page fault | YES x4 | RESTART_APP |
+  WORKFLOW_XID_31
+  "This event is logged when a fault is reported by the MMU, such as when an illegal address access is made
+  by an applicable unit on the chip. Typically these are application-level bugs, but can also be driver
+  bugs or hardware bugs."
+Xid 43 | ROBUST_CHANNEL_RESETCHANNEL_VERIF_ERROR | GPU stopped processing | YES x4 | IGNORE |
+  CONTACT_SUPPORT
+  "This event is logged when a user application hits a software induced fault and must terminate. The GPU
+  remains in a healthy state. In most cases, this is not indicative of a driver bug but rather a user
+  application error."
+Xid 45 | ROBUST_CHANNEL_PREEMPTIVE_REMOVAL | "Preemptive cleanup, due to previous errors - Most likely to
+  see when running multiple cuda applications and hitting a DBE" | YES x4 | WORKFLOW_XID_45 |
+  "Solo: RESTART_FM Not Solo: IGNORE (follow other Xid)"
+  "This event is logged when the user application aborts and the kernel driver tears down the GPU
+  application running on the GPU. Control-C, GPU resets, sigkill are all examples ..."
+Xid 48 | ROBUST_CHANNEL_GPU_ECC_DBE | Double Bit ECC Error | YES x4 | WORKFLOW_XID_48 | WORKFLOW_XID_48 |
+  154 linkage: CUDA 12.7; GPU driver R565
+  "This event is logged when the GPU detects that an uncorrectable error occurs on the GPU. This is also
+  reported back to the user application. A GPU reset or node reboot is needed to clear this error."
+  WORKFLOW_XID_48: "Data Center Recovery Action Solo: RESET_GPU w/ 63 or 64: DRAIN_AND_RESET Investagatory
+  Action Solo: RUN_FIELDDIAG Not Solo: String in error would tell us what unit was impacted. FB: follow
+  Xid63/64 guidance All other SRAM: check SRAM Error Threshold flag ... If set RUN_FIELDDIAG" [sic]
+Xid 62 | PMU_HALT_ERROR | Internal micro-controller halt (newer drivers) | YES x4 | RESET_GPU |
+  CONTACT_SUPPORT
+Xid 63 | INFOROM_DRAM_RETIREMENT_EVENT | GPU memory remapping event | YES x4 | IGNORE | IGNORE
+  "These events are logged when the GPU handles ECC memory errors on the GPU. On GPUs that support row
+  remapping, starting with NVIDIA Ampere archtecture GPUs, these events provide details on row remapper
+  activity." [sic]
+Xid 64 | INFOROM_DRAM_RETIREMENT_FAILURE | GPU memory remapping failure | YES x4 | RESET_GPU |
+  CONTACT_SUPPORT (same trigger text as 63)
+Xid 74 | NVLINK_ERROR | NVLINK Error | A100 YES, H100 YES, B100 NO, GB200 NO | WORKFLOW_NVLINK_ERR |
+  CONTACT_SUPPORT
+  "This event is logged when the GPU detects that a problem with a connection from the GPU to another GPU
+  or NVSwitch over NVLink. A GPU reset or node reboot is needed to clear this error. This event may
+  indicate a hardware failure with the link itself, or may indicate a problem with the device at the
+  remote end of the link. For example, if a GPU fails, another GPU connected to it over NVLink may report
+  an Xid 74 simply because the link went down as a result."
+  (On Blackwell NVLink5 the equivalent family is Xid 144-150, WORKFLOW_NVLINK5_ERR.)
+Xid 79 | ROBUST_CHANNEL_GPU_HAS_FALLEN_OFF_THE_BUS | GPU has fallen off the bus | YES x4 | RESTART_BM |
+  CONTACT_SUPPORT
+  "This event is logged when the GPU driver attempts to access the GPU over its PCI Express connection and
+  finds that the GPU is not accessible. This event is often caused by hardware failures on the PCI
+  Express link causing the GPU to be inaccessible due to the link being brought down."
+Xid 92 | EXCESSIVE_SBE_INTERRUPTS | High single-bit ECC error rate | YES x4 | IGNORE | CONTACT_SUPPORT
+Xid 94 | ROBUST_CHANNEL_CONTAINED_ERROR | Contained memory error | YES x4 | RESTART_APP |
+  IGNORE (sympathetic)
+  "For Xid 94, these errors are contained to one application, and the application that encountered this
+  error must be restarted. All other applications running at the time of the Xid are unaffected. It is
+  recommended to reset the GPU when convenient."
+Xid 95 | ROBUST_CHANNEL_UNCONTAINED_ERROR | Uncontained memory error | YES x4 | RESET_GPU |
+  IGNORE (sympathetic)
+  "For Xid 95, these errors affect multiple applications, and the affected GPU must be reset before
+  applications can restart."
+Xid 109 | ROBUST_CHANNEL_CTXSW_TIMEOUT_ERROR | Context Switch Timeout Error | YES x4 | RESET_GPU |
+  CONTACT_SUPPORT
+Xid 119 | GSP_RPC_TIMEOUT | GSP RPC Timeout | YES x4 | RESET_GPU | INVESTIGATE_SW
+Xid 120 | GSP_ERROR | GSP Error | YES x4 | RESET_GPU | INVESTIGATE_SW
+  (119/120) "These events (119/120) may be logged when an error occurs in code running on the GSP core of
+  the GPU and/or a timeout occurs while waiting for the GSP core of the GPU to respond to an RPC message. A
+  GPU reset or node power cycle may be needed if the error persists."
+Xid 136 | ALI_TRAINING_FAIL | Link Training Failed | H100 only | RESET_GPU | INVESTIGATE_LINK_SI
+Xid 140 | UNRECOVERABLE_ECC_ERROR_ESCAPE | ECC Unrecovered Error | YES x4 | RESET_GPU | CONTACT_SUPPORT
+  "This event may occur when the GPU driver has observed uncorrectable errors in GPU memory, in such a way
+  as to interrupt the GPU driver's ability to mark the pages for dynamic page offlining or row remapping."
+Xid 143 | GPU_INIT_ERROR | GPU Initialization Error | H100, B100, GB200 | RESET_GPU | CONTACT_SUPPORT
+Xid 154 | GPU_RECOVERY_ACTION_CHANGED | GPU Recovery Action Changed | YES x4 | XID_154 |
+  "N/A Informational only regarding another Xid"
+  "Xid 154 will be seen in conjunction with other Xids and summarizes the recovery action required for
+  other Xids. The string will be similar to "Xid 154 GPU recovery action changed from 0x0 (None) to 0x2
+  (Node Reboot Required)" where the expected values of the text are: "None", "Drain P2P", "Drain and
+  Reset", "GPU Reset Required", "Node Reboot Required"."
+Xid 155 | NVLINK_SW_DEFINED_ERROR | NVLINK: SW Defined Error | B100, GB200 | RESET_GPU |
+  INVESTIGATE_SW_USER  "Link down events which are flagged as "intentional" (including transitions to
+  SLEEP) will trigger this Xid"
+
+Resolution buckets (Table 3, verbatim):
+  RESTART_APP: "The application should be restarted RESET_GPU or RESTART_BM is not deemed necessary."
+  RESET_GPU: "Refer to https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html for GPU Reset
+    capabilities & limitations RESTART_BM is not deemed necessary."
+  RESTART_BM: "Restart bare metal, system should be restarted"
+  IGNORE: "No Action required"
+  IGNORE (sympathetic): "This is a sympathetic error that is expected to be seen with other conditions.
+    Resolution for the other errors should be undertaken first."
+  CONTACT_SUPPORT: "Please contact your support organization for further investigation."
+  CHECK_APP/CUDA: "Issue likely caused by an application passing bad data or utilizing incorrect methods
+    in communications with GPU."
+  INVESTIGATE_SW: "There is a problem with either user or NVIDIA software that needs to be investigated
+    further."
+  XID_154: "Follow XID 154 reported guidance"
+  WORKFLOW_XID_13: "Repeat TPC and GPC, diff SMs: RUN_DCGMEUD (possible HW issue); if pass RUN_FIELDDIAGS
+    ... Solo, no burst: CHECK_APP/CUDA ..."
+  WORKFLOW_XID_31: "Multiple runs needed to establish pattern Repeat MMU faults to same GPU (via PCI-ID):
+    RUN_DCGMEUD (possible HW issue); if pass RUN_FIELDDIAGS Repeat MMU faults to diff GPU (via PCI-ID):
+    CHECK_APP/CUDA ..."
+
+Summary for the page (my grouping by action):
+  restart the job only: 13, 31, 43 (ignore), 94
+  reset the GPU: 48 solo, 62, 64, 95, 109, 119, 120, 136, 140, 143
+  reboot the node: 79 (RESTART_BM); Xid 154 may say "Node Reboot Required"
+  informational / sympathetic: 45, 63, 92, 154
+  link: 74 (decode registers), 144-150 on NVLink5

@@ -1,0 +1,49 @@
+Dixit, Pendharkar, Beadon, Mason, Chakravarthy, Muthiah, Sankar (Facebook, Inc.)
+"Silent Data Corruptions at Scale", arXiv:2102.11245, February 2021.
+https://arxiv.org/abs/2102.11245   (PDF read 2026-10-16)
+
+Abstract (verbatim excerpts)
+"SDCs are not captured by error reporting mechanisms within a Central Processing Unit (CPU) and hence are
+not traceable at the hardware level. However, the data corruptions propagate across the stack and manifest
+as application-level problems. These types of errors can result in data loss and can require months of
+debug engineering time."
+"In our large-scale infrastructure, we have run a vast library of silent error test scenarios across
+hundreds of thousands of machines in our fleet. This has resulted in hundreds of CPUs detected for these
+errors, showing that SDCs are a systemic issue across generations. We have monitored SDCs for a period
+longer than 18 months."
+
+Intro (verbatim)
+"For example, when you perform 2x3, the CPU may give a result of 5 instead of 6 silently under certain
+microarchitectural conditions, without an indication of the miscomputation in system event or error logs."
+"Moreover, CPU SDCs are evaluated to be a one in a million occurrence within fault injection studies. We
+observe that CPU SDCs are orders of magnitude higher than soft-error based FIT simulations."
+"We observe that these failures are reproducible and not transient."
+"Facebook infrastructure initiated investigations into silent data corruptions in 2018."
+
+The decompression case (verbatim)
+"Before a decompression is performed, file size is checked to see if the file size is greater than 0. A
+valid compressed file with contents would have a non-zero size."
+"The algorithm invoked the power function provided by the Scala library ... Interestingly, the Scala
+function returned a 0 size value for a file which was known to have a non-zero decompressed file size.
+Since the result of the file size computation is now 0, the file was not written into the decompressed
+output database."
+"Imagine the same computation being performed millions of times per day. This meant for some random
+scenarios, when the file size was non-zero, the decompression activity was never performed. As a result,
+the database had missing files."
+"Eventually the querying infrastructure reports critical data loss after decompression."
+"The host had clean system event logs and clean kernel logs. From a system health monitoring perspective,
+the machine showed no symptoms of failure."
+"upon single threading the workload, the failure was no longer sporadic but consistent for a certain
+subset of data values on one particular core of the machine."
+The key computation: Int(1.1^53) = 0 on Core 59, while Int(1.1^52) = 142 was correct. [In the PDF text
+layer the superscripts flatten to "Int (1.153 ) = 0" and "Int (1.152 ) = 142".] The reproducer loop
+"for x in {0..2}; do taskset -c 59 ./bitflip_repro.sh; done" over Int(1.1^{53}), Int(1.1^{68}),
+Int(1.1^{78}) printed "0, 0, 1692" each iteration ("2 of the computations produce faulty results
+repeatedly"). "In this example, core 59 is faulty."
+Correct value: the follow-up paper (Dixit et al. 2022, arXiv:2203.08989) states "a simple computation like
+(1.1) 53 resulted in the wrong answer (0 instead of 156.24)". [1.1^53 = 156.24, so Int = 156.]
+Debug path: Scala reproducer to Java to JIT-compiled Java bytecode to assembly (HotSpot +PrintAssembly),
+to find the faulty instruction.
+
+Takeaway for the page: an SDC looks healthy to every monitor (clean logs, no ECC/MCE), is data dependent
+and core specific, and its blast radius is whatever consumed the wrong value.

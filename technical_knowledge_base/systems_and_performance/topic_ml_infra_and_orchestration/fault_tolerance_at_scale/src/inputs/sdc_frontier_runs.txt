@@ -1,0 +1,66 @@
+SDC (and related reliability) statements from frontier training reports
+
+A. Gemini Team, Google. "Gemini: A Family of Highly Capable Multimodal Models", arXiv:2312.11805
+   (v1 Dec 2023; v5 9 May 2025 read 2026-10-16). https://arxiv.org/abs/2312.11805  Section 3 (Training
+   Infrastructure).
+Verbatim:
+"Scaling up the number of accelerators results in a proportionate decrease in the mean time between
+failure of hardware in the overall system."
+"TPUv4 accelerators are deployed in "SuperPods" of 4096 chips, each connected to a dedicated optical
+switch, which can dynamically reconfigure 4x4x4 chip cubes into arbitrary 3D torus topologies in around 10
+seconds ... For Gemini Ultra, we decided to retain a small number of cubes per superpod to allow for hot
+standbys and rolling maintenance."
+"Maintaining a high goodput at this scale would have been impossible using the conventional approach of
+periodic checkpointing of weights to persistent cluster storage. For Gemini models, we instead made use of
+redundant in-memory copies of the model state, and on any unplanned hardware failures, we rapidly recover
+directly from an intact model replica. ... As a result, the overall goodput for the largest-scale training
+job increased from 85% to 97%."
+"Although these are extremely rare, the scale of Gemini models means that we can expect SDC events to
+impact training every week or two. Rapidly detecting and removing faulty hardware required several new
+techniques that exploit deterministic replay to isolate incorrect computations, combined with proactive
+SDC scanners on idle machines and hot standbys. Our fully deterministic infrastructure allowed us to
+quickly identify root causes (including hardware failures) during the development leading up to the Ultra
+model, and this was a crucial ingredient towards stable training."
+Note: no further detail of the replay mechanism is given in the report.
+
+B. Llama Team, AI @ Meta. "The Llama 3 Herd of Models", arXiv:2407.21783 (July 2024).
+   https://arxiv.org/abs/2407.21783  Section 3.3.4 Reliability and Operational Challenges, Table 5.
+Verbatim:
+"for Llama 3, we achieved higher than 90% effective training time while supporting automated cluster
+maintenance, such as firmware and Linux kernel upgrades (Vigraham and Leonhardi, 2024), which resulted in
+at least one training interruption daily."
+"During a 54-day snapshot period of pre-training, we experienced a total of 466 job interruptions. Of
+these, 47 were planned interruptions ... The remaining 419 were unexpected interruptions"
+"Approximately 78% of the unexpected interruptions are attributed to confirmed hardware issues, such as GPU
+or host component failures, or suspected hardware-related issues like silent data corruption and
+unplanned individual host maintenance events. GPU issues are the largest category, accounting for 58.7% of
+all unexpected issues. Despite the large number of failures, significant manual intervention was required
+only three times during this period"
+Table 5 (component, category, count, %):
+  Faulty GPU, GPU, 148, 30.1% | GPU HBM3 Memory, GPU, 72, 17.2% | Software Bug, Dependency, 54, 12.9% |
+  Network Switch/Cable, Network, 35, 8.4% | Host Maintenance, Unplanned Maintenance, 32, 7.6% |
+  GPU SRAM Memory, GPU, 19, 4.5% | GPU System Processor, GPU, 17, 4.1% | NIC, Host, 7, 1.7% |
+  NCCL Watchdog Timeouts, Unknown, 7, 1.7% | Silent Data Corruption, GPU, 6, 1.4% |
+  GPU Thermal Interface + Sensor, GPU, 6, 1.4% | SSD, Host, 3, 0.7% | Power Supply, Host, 3, 0.7% |
+  Server Chassis, Host, 2, 0.5% | IO Expansion Board, Host, 2, 0.5% | Dependency, Dependency, 2, 0.5% |
+  CPU, Host, 2, 0.5% | System Memory, Host, 2, 0.5%
+  [My check: the counts sum to 419. Every row's % equals count/419 except Faulty GPU: 148/419 = 35.3%,
+   the table prints 30.1%. The text's "58.7%" for GPU issues is the sum of the printed GPU-row
+   percentages (30.1+17.2+4.5+4.1+1.4+1.4); by counts the GPU rows are 268/419 = 64.0%. Quote as
+   published and footnote the inconsistency.]
+Detection tooling (verbatim): "We extensively use PyTorch's built-in NCCL flight recorder (Ansel et al.,
+2024), a feature that captures collective metadata and stack traces into a ring buffer ... and also
+automatically dump tracing data on NCCLX watchdog or heartbeat timeout."
+"failures in either the remote GPU or NVLink connectivity often manifest as stalled load/store operations
+within CUDA kernels without returning a clear error code. NCCLX enhances the speed and accuracy of failure
+detection and localization through a tight co-design with PyTorch"
+Stragglers (verbatim): "Sometimes, hardware issues may cause still-functioning but slow stragglers that are
+hard to detect. Even a single straggler can slow down thousands of other GPUs, often appearing as
+functioning but slow communications. We developed tools to prioritize potentially problematic
+communications from selected process groups. By investigating just a few top suspects, we were usually
+able to effectively identify the stragglers."
+Environment (verbatim): "we noted a diurnal 1-2% throughput variation based on time-of-day. This
+fluctuation is the result of higher mid-day temperatures impacting GPU dynamic voltage and frequency
+scaling." Power: "instant fluctuations of power consumption across the data center on the order of tens of
+megawatts".
+Scale: 16K H100 GPUs (Llama 3 405B).
