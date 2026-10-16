@@ -68,4 +68,6 @@ for p in order:
         f.write(f'{p}\t{nbytes}\t{n}\t{hits}\t{time.time() - t1:.1f}\n')
     done.add(p)
     print(p.split('data-jsonl/')[1], nbytes, n, hits, round(time.time() - t1, 1), flush=True)
+    if LOCK:
+        time.sleep(20)  # other agents poll the lock every 5 s: give them a turn before the next file
 print('scanned', len(done), 'of', len(order), 'files', flush=True)
