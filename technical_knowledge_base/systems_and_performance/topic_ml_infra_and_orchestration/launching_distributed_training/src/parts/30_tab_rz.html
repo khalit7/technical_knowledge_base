@@ -1,0 +1,42 @@
+<div class="tab" id="t-ldrz" role="tabpanel" hidden>
+<style>
+#t-ldrz .ctl2{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-ldrz .ctl2 input[type=range]{flex:1 1 120px;min-width:0}
+#t-ldrz .an-cap{min-height:5.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-ldrz .an-cap .t{font-weight:600;font-size:14px}#t-ldrz .an-cap p{margin:2px 0;font-size:13.5px;overflow-wrap:anywhere}
+#t-ldrz .an-cap code{font-size:12px}
+#t-ldrz .rz-state{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:6px;margin:6px 0}
+#t-ldrz .rz-state .stat .v{font-size:15px}
+#t-ldrz .rz-svg{overflow:hidden;margin:6px 0}
+#t-ldrz .rz-log{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:6px 8px;background:var(--soft)}
+#t-ldrz .rz-log div{white-space:pre-wrap;overflow-wrap:anywhere;padding:1px 0}#t-ldrz .rz-log div.cur{background:var(--hl)}
+#t-ldrz .rz-log .w{display:inline-block;min-width:1.4em;font-weight:600}
+#t-ldrz .pr{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:12px 0;background:var(--soft)}
+#t-ldrz .pr .q{font-weight:600;font-size:14px}#t-ldrz .pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#t-ldrz .pr .opts button{font-size:13px;text-align:left;white-space:normal}#t-ldrz .pr .opts button.right{background:var(--open2);border-color:var(--good)}
+#t-ldrz .pr .opts button.wrong{border-color:var(--bad);color:var(--bad)}#t-ldrz .pr .ans{font-size:13.5px;border-left:3px solid var(--good);padding:2px 0 2px 10px}
+#t-ldrz .meas{font-size:11.5px;color:var(--good);font-weight:600}
+</style>
+<h2>Rendezvous lab: torchrun's state machine, replayed from a real run</h2>
+<p>Three torchrun agents, A, B and C, play three nodes (one container, one rank each, the running example, torch 2.14.1). A starts at 0 s, B at 3 s, C at 45 s; when the job has run 40 steps at world size 3, C and its rank are killed with SIGKILL. The same arrivals and the same kill run three ways: the <b>dynamic (c10d) rendezvous</b> with <code>--nnodes=2:3 --max-restarts=3</code> and <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code>; the same with torch's default store sharing; and the <b>static</b> rendezvous with <code>--nnodes=3</code>. Every step below is a line the agents logged: torch records each rendezvous action as an event but discards it by default (the handler is a NullHandler, {{handlers.py:14|L:events_null}}), so the runs used a 20-line wrapper, <code>src/scripts/ld_torchrun.py</code>, that only turns that log on and then calls torchrun's own <code>main()</code>. Heartbeats and retries after a lost compare-and-set ("stale state") are left out. State (round, participants, wait list, deadline) is rebuilt from the events by the rules of section 4 of the Reading tab.</p>
+<div class="seg" id="rz-mode"><button data-m="elastic" class="on">c10d, store not shared</button><button data-m="elastic_share">c10d, store shared (default)</button><button data-m="static">static</button></div>
+<div class="card" id="rz-card">
+<div class="rz-svg" id="rz-svg"></div><div class="small mute">Green bars: training, by the world size in rank 0's log; dots: logged events (red: failures, blue: rounds completed).</div>
+<div class="ctl2" id="rz-ctl"></div>
+<div class="an-cap" id="rz-cap"></div>
+<div class="rz-state" id="rz-state"></div>
+</div>
+<div class="small mute">Times from the agents' logs, seconds since agent A was started; <span class="meas">measured</span> on Apple M1 Pro, Docker Desktop VM, shared machine (rough to about a second; the defaults behind them, 30 s last call, 5 s × 3 heartbeats, 60 s store reads, are exact). Script: <code>src/scripts/ld_rdzv.sh elastic | elastic_share | static</code>.</div>
+<div class="pr"><div class="q">Predict before you play the static mode: C is killed at 54 s. What does the static rendezvous do?</div>
+<div class="opts"><button data-r="0">Re-forms the group with A and B, like c10d</button><button data-r="0">Waits 900 s for C to come back</button><button data-r="1">Nothing: A and B's workers fail and both agents exit 1 about a second later</button></div>
+<div class="ans" hidden>The static handler has no rounds, no wait list and here no restarts (<code>--max-restarts</code> default 0): A and B exited with code 1 within 1.3 s of the kill. With restarts allowed it would try to meet again at the same fixed world size of 3 and wait for C. Static is the right choice only when something above it (Slurm's requeue, a JobSet restart) replaces the node.</div></div>
+<h3>Every logged event of this run</h3>
+<div class="rz-log" id="rz-log"></div>
+<h3>What to take away</h3>
+<ul class="tight">
+<li><b>Joining a running elastic job costs a full restart</b> of every worker (here 2.3 s at toy scale, from noticing the new node to the rendezvous being done), and it is free in torchrun's accounting: membership changes do not use up <code>--max-restarts</code>.</li>
+<li><b>Losing a node costs heartbeat expiry plus a last call</b> (13 + 30 s here) before training resumes at the smaller size; neither shows up as an error in the logs, only as silence.</li>
+<li><b>Node ranks follow the sorted node descriptors</b>, not arrival order: here A, B, C happened to sort in arrival order (pids 11, 16, 31).</li>
+<li><b>With the default shared store the grow step deadlocked</b> and the whole job failed after the store's 60 s read timeout: the reason to set <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code> on torch 2.14.1.</li>
+</ul>
+</div>
