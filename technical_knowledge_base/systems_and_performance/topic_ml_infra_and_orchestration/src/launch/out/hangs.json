@@ -1,0 +1,110 @@
+[
+ {
+  "id": "sl-miss",
+  "sys": "slurm",
+  "short": "Slurm: node missing",
+  "label": "a node that never starts torchrun",
+  "what": "Node 1's task sleeps instead of starting torchrun (<code>LA_POD1='sleep 100000;'</code>), as if its node hung during set-up. Node 0's torchrun joins the c10d rendezvous at <code>c1:29500</code> and waits for a second participant.",
+  "timeout": "(the rendezvous join timeout, 600 s by default: <a href=\"https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/elastic/rendezvous/dynamic_rendezvous.py#L144\" target=\"_blank\" rel=\"noopener noreferrer\">dynamic_rendezvous.py:144</a>). For ten minutes the job log is empty; the last lines are:",
+  "t_err": 602.1,
+  "err": "job 72 nodes c[1-2] rendezvous c1:29500\n...  (nothing for ten minutes)\ntorch.distributed.elastic.rendezvous.api.RendezvousTimeoutError\nsrun: error: c1: task 0: Exited with exit code 1\nsrun: Terminating StepId=72.0\nsrun: error: c2: task 1: Terminated\nsrun: Force Terminated StepId=72.0\nsrun exit 143 at 1792126692.475974542",
+  "after": "The exception has no message at all. torchrun exits 1 on node 0; <code>srun --kill-on-bad-exit=1</code> then kills node 1's task. Slurm records the job step as FAILED (exit 1) and, because the batch script ends with an <code>echo</code>, the job itself as COMPLETED: check <code>sacct</code> steps, not just the job line.",
+  "src": "Raw log: <code>src/launch/raw_scrubbed/slurm/la-miss/job.out</code>."
+ },
+ {
+  "id": "k8s-miss",
+  "sys": "k8s",
+  "short": "Kubernetes: pod missing",
+  "label": "a pod that never starts torchrun",
+  "what": "Pod 1 sleeps instead of starting torchrun. Pod 0's torchrun (static rendezvous, <code>--node-rank=0</code>) starts the TCPStore and waits for both agents to connect.",
+  "timeout": "(not 600 s: torchrun's launcher sets the rendezvous <code>timeout</code> to 900 s when none is given, <a href=\"https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/launcher/api.py#L125-L130\" target=\"_blank\" rel=\"noopener noreferrer\">api.py:125-130</a>, which overrides the static backend's own 600 s default, <a href=\"https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/elastic/rendezvous/static_tcp_rendezvous.py#L28\" target=\"_blank\" rel=\"noopener noreferrer\">static_tcp_rendezvous.py:28</a>). The pod's log is empty until:",
+  "t_err": 903.2,
+  "err": "torch.distributed.DistStoreError: Timed out after 901 seconds waiting for clients. 1/2 clients joined.",
+  "after": "The message comes from the store server: 1 of the 2 expected agents (pod 0 itself) connected. Pod 0 exits 1, the Job deletes pod 1, hits <code>backoffLimit: 0</code> (\"Job has reached the specified backoff limit\") and the JobSet fails with ReachedMaxRestarts (\"jobset failed due to reaching max number of restarts\"), 30 s later while pod 1 is terminated. Kueue then releases the quota.",
+  "src": "Raw log and events: <code>src/launch/raw_scrubbed/k8s/la-miss/</code>."
+ },
+ {
+  "id": "ray-miss",
+  "sys": "ray",
+  "short": "Ray: worker unplaceable",
+  "label": "a worker that can never be placed",
+  "what": "Ray Train is asked for 5 workers of <code>{CPU: 1, fake_gpu: 1}</code> while the cluster has 4 fake GPUs: the fifth worker can never start, the Ray version of a node that never arrives. No process of the job has started yet; the controller is waiting for a placement group.",
+  "timeout": "(Ray Train's worker-group start timeout, <code>RAY_TRAIN_WORKER_GROUP_START_TIMEOUT_S</code>, 60 s by default: ray/train/v2/_internal/constants.py lines 43-44, raised in worker_group.py lines 300-305; the controller's lines carry no timestamp, so the time is the configured one). The controller prints:",
+  "t_err": 60.0,
+  "err": "(TrainController pid=2241) Requesting resources: {'CPU': 1, 'fake_gpu': 1} * 5\n(TrainController pid=2241) Attempting to start training worker group of size 5 with the following resources: [{'CPU': 1, 'fake_gpu': 1}] * 5\n(TrainController pid=2241) Error in control loop iteration: The worker group startup timed out after 60.0 seconds waiting for 5 workers. Potential causes include: (1) temporary insufficient cluster resources while waiting for autoscaling (ignore this warning in this case), (2) infeasible resource request where the provided `ScalingConfig` cannot be satisfied), and (3) transient network issues. Set the RAY_TRAIN_WORKER_GROUP_START_TIMEOUT_S environment variable to increase the timeout.",
+  "after": "Then it tries again, and again: 13 attempts and 12 timeouts, one a minute, in the 12 or so minutes before the driver was stopped by hand. With <code>FailureConfig(max_failures=0)</code> the job still never failed by itself: a startup timeout is treated as a scheduling problem to retry (the message's cause (1) is autoscaling), not as a training failure. On a fixed-size cluster, watch for this line rather than for the job to die.",
+  "src": "Raw log: <code>src/launch/raw_scrubbed/ray/la-miss/driver.out</code> (worker lines dropped)."
+ },
+ {
+  "id": "k8s-addr",
+  "sys": "k8s",
+  "short": "Kubernetes: short host name",
+  "label": "MASTER_ADDR without the Service name",
+  "what": "<code>--master-addr=la-badaddr-node-0-0</code> instead of <code>la-badaddr-node-0-0.la-badaddr</code>: the pod's short host name. In pod 0 it resolves (the kubelet writes the pod's own name into <code>/etc/hosts</code>); in pod 1 it does not, because cluster DNS only knows the name under the headless Service. <code>getent hosts</code> in each pod at start-up: pod 0 <code><ip-3>      la-badaddr-node-0-0.la-badaddr.mi.svc.cluster.local la-badaddr-node-0-0</code>; pod 1 printed nothing.",
+  "timeout": "(the same 900 s: pod 0 hosts the store and waits for 2 agents; pod 1 keeps retrying the name lookup, its client deadline also 900 s). Pod 1 logs a warning on every retry, with growing back-off:",
+  "t_err": 902.4,
+  "err": "[W1016 03:53:52.534458259 socket.cpp:764] [c10d] The IPv6 network addresses of (la-badaddr-node-0-0, 29500) cannot be retrieved (gai error: -2 - Name or service not known).\n[W1016 03:53:52.843814509 socket.cpp:764] [c10d] The IPv6 network addresses of (la-badaddr-node-0-0, 29500) cannot be retrieved (gai error: -2 - Name or service not known).\n[W1016 03:53:53.418840676 socket.cpp:764] [c10d] The IPv6 network addresses of (la-badaddr-node-0-0, 29500) cannot be retrieved (gai error: -2 - Name or service not known).\n...\ntorch.distributed.DistStoreError: Timed out after 901 seconds waiting for clients. 1/2 clients joined.",
+  "after": "Pod 0's final error is identical to the missing-pod case: from pod 0's log alone you cannot tell a missing node from an unreachable one. Pod 1's log tells you: a name that does not resolve there.",
+  "src": "Raw logs: <code>src/launch/raw_scrubbed/k8s/la-badaddr/</code>."
+ },
+ {
+  "id": "sl-typo",
+  "sys": "slurm",
+  "short": "Slurm: typo in address",
+  "label": "a rendezvous host that does not exist",
+  "what": "<code>--rdzv-endpoint=c9:29500</code>: no node is called c9. No agent hosts the store (none matches the name), so both try to connect as clients.",
+  "timeout": "(the c10d backend's store client timeout, <code>read_timeout</code> 60 s by default, <a href=\"https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/elastic/rendezvous/c10d_rendezvous_backend.py#L148\" target=\"_blank\" rel=\"noopener noreferrer\">c10d_rendezvous_backend.py:148</a>; yet the job took far longer than 60 s to fail: each name lookup and back-off sits between the deadline checks of the retry loop, <a href=\"https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/TCPStore.cpp#L308-L353\" target=\"_blank\" rel=\"noopener noreferrer\">TCPStore.cpp:308-353</a>). 25 warnings like the first ones, then:",
+  "t_err": 162.3,
+  "err": "[W1016 04:58:57.073181744 socket.cpp:764] [c10d] The IPv6 network addresses of (c9, 29500) cannot be retrieved (gai error: -2 - Name or service not known).\n[W1016 04:58:57.072938911 socket.cpp:764] [c10d] The IPv6 network addresses of (c9, 29500) cannot be retrieved (gai error: -2 - Name or service not known).\n...\n    raise RendezvousConnectionError(\ntorch.distributed.elastic.rendezvous.api.RendezvousConnectionError: The connection to the C10d store has failed. See inner exception for details.",
+  "after": "The message says 60000 ms; the wall clock said 162 s. Read the timestamps, not the number in the message.",
+  "src": "Raw log: <code>src/launch/raw_scrubbed/slurm/la-typo/job.out</code>."
+ },
+ {
+  "id": "sl-local",
+  "sys": "slurm",
+  "short": "Slurm: localhost",
+  "label": "MASTER_ADDR=localhost on two nodes",
+  "what": "<code>--rdzv-endpoint=localhost:29500</code>. On each node <code>localhost</code> is that node, so each torchrun decides it is the host (its name matches the endpoint), starts its own store, joins it, and waits for a second participant that is waiting in another store on the other node.",
+  "timeout": "(the 600 s join timeout again; nothing is logged before it):",
+  "t_err": 601.1,
+  "err": "torch.distributed.elastic.rendezvous.api.RendezvousTimeoutError\nsrun: error: c1: task 0: Exited with exit code 1\nsrun: error: c2: task 1: Terminated",
+  "after": "Two half-rendezvous, each complete in its own eyes except for the head count. The fix is a name every node resolves to the same machine: the first host of the allocation.",
+  "src": "Raw log: <code>src/launch/raw_scrubbed/slurm/la-local2/job.out</code>."
+ },
+ {
+  "id": "sl-coll",
+  "sys": "slurm",
+  "short": "Slurm: port collision",
+  "label": "localhost while another job holds port 29500",
+  "what": "The first localhost run shared nodes c1 and c2 with the missing-node run (both asked for 2 CPUs per node, so Slurm packed them together). On c1 the other job's torchrun already listened on port 29500. This job's c1 agent tried to host its store there, could not bind, and fell back to connecting as a client, silently joining the other job's store under its own rendezvous id (the fallback is in <a href=\"https://github.com/pytorch/pytorch/blob/v2.14.1/torch/distributed/elastic/rendezvous/c10d_rendezvous_backend.py#L154-L184\" target=\"_blank\" rel=\"noopener noreferrer\">c10d_rendezvous_backend.py:154-184</a>).",
+  "timeout": "(it waited the other job's full 600 s, then failed when that job's store went away):",
+  "t_err": 601.0,
+  "err": "torch.distributed.DistNetworkError: Failed to recv, got 0 bytes. Connection was likely closed. Did the remote server shutdown or crash?\n    raise RendezvousConnectionError(\ntorch.distributed.elastic.rendezvous.api.RendezvousConnectionError: The connection to the C10d store has failed. See inner exception for details.",
+  "after": "The message points at a crashed server; the real cause is two jobs on one node using the same port. Unique ports per job (or the scheduler's job id in the port), or one job per node, prevent it.",
+  "src": "Raw log: <code>src/launch/raw_scrubbed/slurm/la-local/job.out</code>."
+ },
+ {
+  "id": "sl-ws",
+  "sys": "slurm",
+  "short": "Slurm: wrong WORLD_SIZE",
+  "label": "WORLD_SIZE=4 with 3 processes",
+  "what": "No torchrun: <code>srun</code> starts 3 tasks and the script maps <code>RANK=$SLURM_PROCID</code>, but hard-codes <code>WORLD_SIZE=4</code> (<code>la_ws.sbatch</code>). All three call <code>init_process_group(env://)</code>; rank 0 hosts the store.",
+  "timeout": "(the process group timeout: 120 s in the running example, 30 minutes by default). Ranks 1 and 2 print:",
+  "t_err": 121.1,
+  "err": "[W1016 05:00:55.493658715 socket.cpp:494] [c10d] waitForInput: socket SocketImpl(fd=4, addr=[c2]:59438, remote=[c1]:29500) timed out after 120000ms\ntorch.distributed.DistStoreError: wait timeout after 120000ms, keys: /default_pg/0//cpu//0/0\n[W1016 05:00:55.518809673 socket.cpp:494] [c10d] waitForInput: socket SocketImpl(fd=4, addr=[c1]:49852, remote=[c1]:29500) timed out after 120000ms\ntorch.distributed.DistStoreError: wait timeout after 120000ms, keys: /default_pg/0//cpu//0/0",
+  "after": "The key they waited for, <code>/default_pg/0//cpu//0/0</code>, is gloo's address entry for a rank that does not exist. Rank 0 never errors: srun terminates it after the others exit.",
+  "src": "Raw log: <code>src/launch/raw_scrubbed/slurm/la-ws/job.out</code>."
+ },
+ {
+  "id": "k8s-stall",
+  "sys": "k8s",
+  "short": "Kubernetes: rank stuck",
+  "label": "one rank stalls after step 1",
+  "what": "All four ranks start and run step 1; then rank 3 stalls (<code>--slow-rank 3 --slow-ms 600000</code>). The others enter step 2 and wait for it inside DDP's collectives.",
+  "timeout": "(the process group timeout, <code>--timeout-s 60</code> here; 30 minutes by default for gloo, 10 for NCCL). Time measured from step 1. Each waiting rank reports something different:",
+  "t_err": 60.0,
+  "err": "rank 0 (+60.0 s): RuntimeError: [/__w/pytorch/pytorch/third_party/gloo/gloo/transport/tcp/pair.cc:561] Connection closed by peer [<ip-5>]:11167. This is typically caused by a remote worker crashing. Check the logs of the remote worker before reporting an error. GLHF! \ud83c\udfd6\ufe0f\nrank 1 (+60.0 s): RuntimeError: [/__w/pytorch/pytorch/third_party/gloo/gloo/transport/tcp/unbound_buffer.cc:129] Timed out waiting 60000ms for send operation to complete\nrank 2 (+60.0 s): RuntimeError: [/__w/pytorch/pytorch/third_party/gloo/gloo/transport/tcp/unbound_buffer.cc:78] Timed out waiting 60000ms for recv operation to complete",
+  "after": "All three timed out within a few milliseconds of each other, 60 s after step 1. Rank 0's message blames a crash of a remote worker: another rank's timeout had just closed its connections, so the message describes a consequence, not the cause. torchrun's summary on each pod names a \"Root Cause (first observed failure)\": rank 0 on pod 0 and rank 2 on pod 1. The stalled rank 3 appears only as \"exitcode: -15 (SIGTERM)\", killed by its agent. The real culprit is the rank that is behind, which the flight recorder below shows.",
+  "src": "Raw logs: <code>src/launch/raw_scrubbed/k8s/la-stall/</code>."
+ }
+]
