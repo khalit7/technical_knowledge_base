@@ -1,0 +1,20 @@
+<div class="tab" id="t-life" role="tabpanel" hidden>
+<h2>Job lifecycle: one job, every line the cluster logged</h2>
+<p>The running example (2 nodes, 2 ranks each, 200 steps) submitted twice to the lab cluster: once while another job held every GPU, once on an idle cluster. Each step of the animation is one real log line, from the controller (<code>slurmctld.log</code> at debug level with the Backfill flag), the compute nodes (<code>slurmd.log</code>), the prolog and epilog (a line each wrote), and the training processes' own logs. Time is drawn to scale, in seconds since <code>sbatch</code>. <span class="sl-meas">measured on Apple M1 Pro, Docker Desktop VM, shared machine</span></p>
+<div class="sl-card" id="sl-lf-card">
+<div class="sl-seg" id="sl-lf-mode"><button data-m="busy" class="on">busy cluster (job 79, behind a 12-GPU job)</button><button data-m="idle">idle cluster (job 125)</button></div>
+<div id="sl-lf-svg"></div><div class="sl-ctl" id="sl-lf-ctl"></div><div class="sl-anc" id="sl-lf-cap"></div>
+<pre id="sl-lf-raw" style="min-height:3em"></pre>
+<div class="out" id="sl-lf-cnt"></div>
+<p class="sl-cap">Lanes: the controller (submit, main scheduler, job end), the backfill scheduler, the two nodes (prolog, batch script, step launch, step end, epilog) and the training ranks. The band on top is the job's state (PENDING, then RUNNING), from the same events; <code>squeue</code>, polled every second during the busy run, agreed (<code>src/runs/raw1/life_poll.txt</code>). Logs in <code>src/runs/raw1</code> and <code>raw2</code>, IPs scrubbed.</p>
+</div>
+<h3>What to take from the two runs</h3>
+<div class="tw"><table><thead><tr><th></th><th class="num">busy (job 79)</th><th class="num">idle (job 125)</th></tr></thead><tbody id="sl-lf-tab"></tbody></table></div>
+<ul>
+<li><b>Pending is the only part that changed.</b> From allocation to the end of the epilog the two runs took 9.7 s and 9.4 s; the rest of the difference, 23 s, is all queue.</li>
+<li><b>The plan was pessimistic.</b> Backfill planned job 79 for 05:37:53 (the blocker's time limit) twelve times; the blocker ended at 05:37:18 and the main scheduler allocated job 79 22 ms later. On the idle cluster backfill started the job first, 0.44 s after submission (the main loop is rate-limited to every 0.5 s here by <code>sched_min_interval</code>).</li>
+<li><b>Slurm's own overhead is milliseconds;</b> Python is seconds. Allocation to prolog: 5 to 7 ms; prolog to batch script: 11 to 12 ms; script to step launch: 27 to 28 ms. The training processes began 2.2 to 2.3 s after the step launch (torchrun, imports, rendezvous) and trained for about 6.3 to 6.5 s.</li>
+<li><b>Same answer.</b> Both runs ended at global loss 2.2638769149780273, the topic's reference value.</li>
+</ul>
+<div class="deepnote"><b>Related.</b> The root's {{Launch lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} times the start of a job on Slurm, Kubernetes and Ray by stage; its {{Failure lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} shows the same log when a node dies mid-run (<code>requeue job JobId=48 due to failure of node c2</code>).</div>
+</div>

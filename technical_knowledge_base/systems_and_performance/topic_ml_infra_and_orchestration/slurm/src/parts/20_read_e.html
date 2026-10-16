@@ -1,0 +1,57 @@
+
+<section id="s-lim">
+<h2>5. Partitions, QOS and associations: who may use what</h2>
+<p><b>The problem.</b> A shared cluster needs rules beyond "first come, first served": one team may not take every GPU, debug jobs must start fast, a huge job may run only at night. Slurm has three places to put rules, and a pending job's reason names the one holding it.</p>
+<div class="grid">
+<div class="sp"><div class="n">Partition</div><p>A named set of nodes (a queue) with its own rules: <code>MaxTime</code>, <code>MaxNodes</code>, default time, who may submit, <code>PriorityJobFactor</code> (a priority bonus) and <code>PriorityTier</code> (an order between partitions, used for preemption). Partitions may overlap: here <code>batch</code>, <code>urgent</code> and this page's <code>sllow</code> all cover c[1-3]. In <code>slurm.conf</code>.</p></div>
+<div class="sp"><div class="n">Association</div><p>A (cluster, account, user) triple in the accounting database: alice in teama, bob in teamb. Accounts form a tree (root, teama, teamb), each with fairshare <b>shares</b> and optional limits such as <code>GrpTRES=gres/gpu=64</code> (the whole team at once) or <code>MaxJobs</code>. In slurmdbd, set with <code>sacctmgr</code>.</p></div>
+<div class="sp"><div class="n">QOS</div><p>"Quality of service": a named bundle of a priority, limits (<code>MaxTRESPerUser</code>, <code>MaxWall</code>, <code>GrpTRES</code>) and preemption rules that a job selects with <code>--qos</code>. Typical: <code>debug</code> (high priority, 1 node, 30 minutes), <code>normal</code>, <code>scavenger</code> (lowest priority, preemptible). In slurmdbd.</p></div>
+</div>
+<p>When several define the same limit, the first one found wins, in this order: partition QOS, job QOS, user association, account associations up the tree, root, partition ({{resource limits|https://slurm.schedmd.com/resource_limits.html}}). And none of it applies unless <code>AccountingStorageEnforce</code> includes <code>limits</code> and <code>qos</code>: the default is <code>none</code>, and this lab cluster runs with <code>none</code>, so for this page's runs it was switched on, with two QOS and one limit <span class="sl-meas">measured</span>:</p>
+<pre>$ sacctmgr -i add qos sl-high Priority=100
+$ sacctmgr -i add qos sl-small Priority=20 MaxTRESPerUser=gres/gpu=4
+$ sacctmgr -i modify user where name=alice,bob,carol set qos+=sl-high,sl-small
+$ sacctmgr -i modify user where name=carol set GrpTRES=gres/gpu=2
+$ sacctmgr show assoc format=account,user,grptres,qos
+   Account       User       GrpTRES                            QOS
+---------- ---------- ------------- ------------------------------
+      root                                                  normal
+     teama                                                  normal
+     teama      alice                      normal,sl-high,sl-small
+     teama      carol    gres/gpu=2        normal,sl-high,sl-small
+     teamb                                                  normal
+     teamb        bob                      normal,sl-high,sl-small</pre>
+<p>Then three jobs that break a rule each, submitted while every GPU was busy:</p>
+<pre>JOBID         NAME   USER PARTITI       QOS ST PRIORITY NODES CPUS NODELIST(REASON)
+   92    sl-g-qmax  alice   batch  sl-small PD     4733     2    8 (QOSMaxGRESPerUser)
+   93   sl-g-assoc  carol   batch    normal PD     6500     1    4 (AssocGrpGRES)
+   88     sl-g-ptl  alice   batch    normal PD     3750     1    1 (PartitionTimeLimit)</pre>
+<p class="sl-cap">squeue at 05:38:07 UTC, 16 Oct 2026, columns trimmed. Full gallery in the {{Why pending?|#t-why}} tab.</p>
+<p>All three were <b>accepted</b> and will <b>never start</b>: 8 GPUs exceed sl-small's 4 per user, 4 GPUs exceed carol's 2, and 120 minutes exceed batch's <code>MaxTime=60</code>. A job that breaks a limit on its own pends forever unless its QOS has the <code>DenyOnLimit</code> flag (then it is refused at submission), and a job over a partition's time limit is accepted unless <code>EnforcePartLimits</code> is set. Note carol's priority, 6500, the highest of the three: priority and limits are separate questions. <code>squeue --start</code> printed <code>N/A</code> for job 88 but a start time for 92 and 93, so do not read a start time as a promise that a job can run.</p>
+<p>Some requests are refused before they reach the queue, because no node could ever satisfy them <span class="sl-meas">measured</span>:</p>
+<pre id="sl-ex-err"></pre>
+<p class="sl-cap">16 Oct 2026. The controller's log names the cause the user does not see: <code>_pick_best_nodes: JobId=97 never runnable in partition batch</code>, <code>_build_node_list: No nodes satisfy JobId=99 requirements in partition batch</code>, <code>error: Invalid qos (nope)</code>.</p>
+</section>
+
+<section id="s-sched">
+<h2>6. The scheduler: a main loop and a backfill loop</h2>
+<p><b>The problem.</b> Thousands of pending jobs, a cluster that changes every second. Testing every job against every node on every change would be too slow, and starting jobs in strict priority order wastes nodes that a big job at the head cannot use yet. Slurm runs two loops inside the controller.</p>
+<div class="grid">
+<div class="sp"><div class="n">The main loop (fast, strict)</div><p>Runs on every event (a job submitted or ending, a node returning) and every <code>sched_interval</code> (60 s by default, <span class="q-ref" data-r="sched_int"></span>). It walks the pending jobs in priority order and starts each one that fits <i>now</i>. On an event it tests at most <code>default_queue_depth</code> jobs (100 by default). And the moment one job of a partition cannot start, it starts nothing else in that partition or on its nodes in that pass: strict priority order.</p></div>
+<div class="sp"><div class="n">The backfill loop (slower, planning)</div><p>Every <code>bf_interval</code> (30 s by default, 2 s here) it builds a timeline from every running job's <i>time limit</i>, gives each waiting job, in priority order, the earliest start where it fits (a reservation), and starts any lower-priority job that fits in a gap and ends before the reservations it would cross. Slurm's version reserves for every job it tests (conservative) and reserves whole nodes.</p></div>
+</div>
+<div class="sl-src-q">Source: the main loop stops a partition at its first blocked job</div><pre data-q="main_fail_part"></pre>
+<div class="sl-src-q">and on an event it tests a limited depth</div><pre data-q="main_depth"></pre>
+<p>That rule is where the two most common reasons come from: the first blocked job of a partition shows <code>Resources</code>, and every job behind it shows <code>Priority</code> ("a job ahead of me is waiting"). Backfill is the only way a job jumps that line, and it needs your time limit to do it. The root's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} runs the same eight-job queue under FIFO and backfill on this cluster and shows where Slurm's whole-node reservations depart from the textbook; this page does not repeat it.</p>
+<div class="co warn"><div class="t">A message that lies: "Nodes required for job are DOWN, DRAINED or reserved for jobs in higher priority partitions" <span class="sl-meas">measured</span></div>
+In the gallery run, job 91 in partition <code>sllow</code> (same nodes as batch, same tier) pended with exactly this reason although every node was up and nothing was drained. The cause is the rule above: when batch's top job could not start, the main loop removed batch's nodes from what was available for the rest of that pass, so <code>sllow</code> saw zero usable nodes and the code fills in its generic text:
+<pre data-q="nodes_down_msg"></pre>
+On clusters with overlapping partitions this reason usually means "a higher-priority job in another partition is waiting for these nodes", not that anything is broken. Check <code>sinfo</code> before calling the admins.</div>
+<p><b>How to look inside.</b> <code>sdiag</code> prints both loops' statistics. Over this page's 3.7 minutes of experiments <span class="sl-meas">measured</span>:</p>
+<div class="tw"><table><thead><tr><th></th><th class="num">cycles</th><th class="num">per minute</th><th class="num">mean cycle</th><th class="num">max cycle</th><th>other</th></tr></thead><tbody>
+<tr><td>main loop</td><td class="num">39</td><td class="num">13</td><td class="num">172 &micro;s</td><td class="num">945 &micro;s</td><td>never hit <code>default_queue_depth</code></td></tr>
+<tr><td>backfill</td><td class="num">65</td><td class="num"></td><td class="num">409 &micro;s</td><td class="num">939 &micro;s</td><td>9 jobs started by backfill, 2 of them heterogeneous-job components; mean depth 6 jobs</td></tr>
+</tbody></table></div>
+<p class="sl-cap"><code>sdiag</code> at 05:40:22 UTC, statistics since the reconfigure at 05:36:40 (<code>src/runs/raw1/acct.txt</code>). On a large cluster backfill cycles take seconds; when <code>Backfill exit</code> shows <code>Hit bf_max_job_test</code> or <code>Timeout (bf_max_time)</code>, jobs deep in the queue are never considered for backfill at all; the knobs are <code>bf_max_job_test</code>, <code>bf_max_job_user</code> (a cap per user so one user's thousand jobs do not fill the test budget), <code>bf_continue</code> and <code>bf_max_time</code>.</p>
+<p>The idle-cluster run shows the two loops racing: job 125 was submitted at 05:42:05.390 and started by <b>backfill</b> 444 ms later, not by the main loop, because this cluster's <code>sched_min_interval=500000</code> (0.5 s) keeps the main loop from running more than twice a second and the backfill cycle came first. Either loop may start any job; the log line says which (<code>sched: Allocate</code> for the main loop, <code>sched/backfill: _start_job</code> for backfill).</p>
+</section>

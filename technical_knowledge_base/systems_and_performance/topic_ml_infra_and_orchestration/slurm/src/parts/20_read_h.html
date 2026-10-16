@@ -1,0 +1,37 @@
+
+<section id="s-cont">
+<h2>12. Containers on Slurm <span class="sl-nr">described, not run here</span></h2>
+<p><b>The problem.</b> A training job needs an exact software stack (CUDA, NCCL, PyTorch, your code), while the nodes have one operating system image shared by everyone. Containers package the stack; the question is how to run one on a multi-user cluster where nobody gets root.</p>
+<div class="tw"><table><thead><tr><th>Way</th><th>How</th><th>Notes</th></tr></thead><tbody>
+<tr><td><b>Pyxis + enroot</b> (NVIDIA)</td><td><code>srun --container-image=nvcr.io#nvidia/pytorch:&lt;tag&gt; --container-mounts=/data:/data python train.py</code></td><td>Pyxis is "a SPANK plugin for the Slurm Workload Manager" (SPANK: Slurm's plugin interface for job options) that adds <code>--container-image</code>, <code>--container-mounts</code>, <code>--container-name</code> and others to srun; enroot imports a Docker image into a squashfs file and runs it without root; pyxis requires enroot 3.1.0 or later ({{pyxis README|https://github.com/NVIDIA/pyxis}}).</td></tr>
+<tr><td><b>Apptainer</b> (formerly Singularity)</td><td><code>srun apptainer exec --nv image.sif python train.py</code></td><td>one-file images (<code>.sif</code>), run as the user; <code>--nv</code> exposes the host's GPU devices and binds in its CUDA libraries ({{Apptainer GPU docs|https://apptainer.org/docs/user/main/gpu.html}}).</td></tr>
+<tr><td><b>Slurm's own OCI support</b></td><td><code>srun --container=/path/to/bundle ...</code>, configured by <code>oci.conf</code> (runc, crun, ...); <code>scrun</code> lets rootless Docker or Podman run jobs (Slurm 23.02 and later)</td><td>"The bundle must already exist on the requested path on the execution node" ({{containers docs|https://slurm.schedmd.com/containers.html}}).</td></tr>
+<tr><td>plain Docker</td><td>no</td><td>needs a root daemon; the Slurm docs list the security options and networking it must give up to be used through scrun.</td></tr>
+</tbody></table></div>
+<p><b>Why not run here.</b> This lab cluster is itself made of containers (the nodes' image already contains the running example and torch 2.14.1), so nesting a container runtime inside would show nothing a real GPU node does; the trade-offs that matter (image pull time on thousands of nodes, squashfs caching on local NVMe, the driver binding) need real nodes.</p>
+</section>
+
+<section id="s-k8s">
+<h2>13. Slurm on Kubernetes <span class="sl-nr">described, not run here</span></h2>
+<p><b>The problem.</b> Many organisations want one pool of GPUs for both batch training (which researchers like to drive with <code>sbatch</code>, fairshare and backfill) and long-running services (inference, notebooks, pipelines) that Kubernetes runs well. Splitting the GPUs between two clusters leaves one idle while the other queues. Two projects run Slurm inside Kubernetes:</p>
+<ul>
+<li><b>Slinky</b> (SchedMD's own): a Kubernetes operator that "contains a Kubernetes operator to deploy and manage certain components of Slurm clusters". Workers are <b>NodeSets</b>, "A set of homogeneous Slurm workers (compute nodes)", run as a StatefulSet or a DaemonSet of <code>slurmd</code> pods, each pod's status reflecting its Slurm node state; the controller is a pod too, with high availability through a ReadWriteMany volume. Its compatibility table lists releases 1.0 to 1.3, each needing Slurm 25.11 or later ({{slurm-operator README|https://github.com/SlinkyProject/slurm-operator}}); the latest release when this page was written was v1.2.3 (30 September 2026, root page's Tool map).</li>
+<li><b>SUNK</b> (CoreWeave): "Each Slurm compute node is a Pod running <code>slurmd</code>, placed one-to-one on a Kubernetes Node"; a SUNK Pod Scheduler places Kubernetes pods "through Slurm's own scheduling logic, on the same Nodes as Slurm jobs", and a Syncer "mirrors state between Slurm nodes and their Pods in both directions" ({{SUNK docs|https://docs.coreweave.com/products/sunk}}, <span class="sl-pub">vendor</span>).</li>
+<li>Managed Slurm in clouds: AWS SageMaker HyperPod launched with Slurm in November 2023 (root page's Tool map).</li>
+</ul>
+<p><b>What you get, and what it costs.</b> Slurm's semantics stay intact (an allocation is still all-or-nothing, fairshare and backfill still decide), while Kubernetes handles node lifecycle, images, monitoring and the services next to the jobs. The cost is two control planes that must agree about every node, a <code>slurmd</code> per node that now lives in a pod (its cgroups, devices and network are whatever the pod is given), and failure modes from both. Choosing between Slurm, Kubernetes with Kueue, and Ray is the root page's comparison; the sibling page <i>Kubernetes for ML</i> (kubernetes_for_ml) covers the Kubernetes side.</p>
+</section>
+
+<section id="s-run">
+<h2>14. The running example, line by line</h2>
+<p>The job file every Slurm run of this topic used (<code>src/data/slurm/train.sbatch</code> in the root), with what each line does:</p>
+<pre id="sl-sbatch"></pre>
+<p>Run on this cluster it gives the same global loss as on Kubernetes and Ray, 2.2638769149780273 at step 200, in both of this page's runs (jobs 79 and 125). For a real cluster the same file needs five more things, each a lesson of a section above:</p>
+<ol>
+<li><b>A realistic time limit and a signal before it:</b> <code>--time=</code> what the run needs plus a margin, <code>--signal=B:USR1@300</code> and a trap that checkpoints (section 8); long runs are chains of such jobs.</li>
+<li><b>Whole nodes:</b> <code>--exclusive</code>, <code>--gpus-per-node=8</code>, <code>--mem=0</code>, so no other job shares the node's network cards or memory bandwidth, and nothing is stranded (section 3).</li>
+<li><b>A health check before training:</b> in the site's prolog or as the first step (<code>srun --ntasks-per-node=1 check_gpus.sh</code>), so a bad node fails the job in seconds rather than hanging NCCL; the root's {{Failure lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} built a HealthCheckProgram that drains its node.</li>
+<li><b>Topology:</b> <code>--switches=1@00:30:00</code> or a block, where the site models it (section 3).</li>
+<li><b>Launcher settings:</b> NCCL and rendezvous variables and timeouts, which the sibling page <i>Launching distributed training</i> covers.</li>
+</ol>
+</section>
