@@ -1,0 +1,169 @@
+<section id="rd-s3">
+<h2>3. Slurm, Kubernetes and Ray</h2>
+<p>Three systems hand out machines for training today, and they come from three different worlds.</p>
+<ul class="tight">
+<li><b><dfn>Slurm</dfn></b> comes from supercomputing (HPC). You ask for an <dfn>allocation</dfn> (whole nodes, for a time limit) with a batch script (<code>sbatch</code>); when it starts, <code>srun</code> launches your processes on every node of it. A central daemon (<code>slurmctld</code>) runs the queue with priorities, backfill and fairshare built in; a daemon on each node (<code>slurmd</code>) starts and watches the processes. An allocation is all-or-nothing, so gang scheduling comes free. Containers are an add-on (Pyxis with Enroot, or Apptainer).</li>
+<li><b><dfn>Kubernetes</dfn></b> comes from running web services. Everything is a container in a <dfn>pod</dfn>; you declare the state you want in YAML and controllers keep making it true; the <code>kube-scheduler</code> places pods one at a time on nodes that advertise GPUs through a <dfn>device plugin</dfn> (<code>nvidia.com/gpu: 8</code>). It has no job queue, no fairshare and no gang scheduling of its own; for training you add <dfn>Kueue</dfn> (queues, team quotas, borrowing, and admitting a job only when all of it fits), <dfn>JobSet</dfn> (a group of pods treated as one job, with stable DNS names for rendezvous) or <dfn>Volcano</dfn>, and often the <dfn>Kubeflow Trainer</dfn> on top.</li>
+<li><b><dfn>Ray</dfn></b> comes from distributed Python. It is a runtime rather than a cluster scheduler: a head node keeps cluster state (the <dfn>GCS</dfn>, global control store), a <dfn>raylet</dfn> on each node schedules <dfn>tasks</dfn> (remote functions) and <dfn>actors</dfn> (remote objects with state), and a shared-memory object store moves data between them. <dfn>Ray Train</dfn> starts a group of worker actors and sets up PyTorch's process group for you; <dfn>placement groups</dfn> reserve bundles of GPUs together (PACK, SPREAD, STRICT_PACK). Ray usually runs on Kubernetes (through KubeRay) or on plain VMs, and leaves multi-team queues and quotas to the layer below (Kueue can admit Ray jobs: {{Kueue docs|https://kueue.sigs.k8s.io/docs/tasks/run/rayjobs/}}).</li>
+</ul>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th></th><th>Slurm</th><th>Kubernetes (+ Kueue, JobSet)</th><th>Ray</th></tr></thead>
+<tbody>
+<tr><td>Unit you submit</td><td data-h="Slurm">a batch script asking for nodes and a time limit</td><td data-h="Kubernetes">a YAML object (Job, JobSet, TrainJob) with a container image</td><td data-h="Ray">a Python script (a Ray job) on a running Ray cluster</td></tr>
+<tr><td>Gang scheduling</td><td data-h="Slurm">built in (an allocation)</td><td data-h="Kubernetes">not in the default scheduler; Kueue or Volcano add it</td><td data-h="Ray">placement groups reserve all bundles at once</td></tr>
+<tr><td>Queues, fairshare, quotas</td><td data-h="Slurm">built in (partitions, accounts, QOS, multifactor priority)</td><td data-h="Kubernetes">Kueue: ClusterQueues, cohorts that lend and borrow, preemption</td><td data-h="Ray">none across teams; from the layer below</td></tr>
+<tr><td>Environment</td><td data-h="Slurm">the node's software, or containers via an add-on</td><td data-h="Kubernetes">always containers</td><td data-h="Ray">a Python environment per job (runtime env), often in containers</td></tr>
+<tr><td>When a node dies</td><td data-h="Slurm">job killed; requeue if asked; node set to DRAIN or DOWN</td><td data-h="Kubernetes">pods fail; JobSet or Job restarts per its policy; node cordoned or tainted</td><td data-h="Ray">Ray Train restarts the worker group from the last checkpoint (if configured)</td></tr>
+<tr><td>Strongest at</td><td data-h="Slurm">big synchronous jobs on fixed bare-metal clusters, many users, simple mental model</td><td data-h="Kubernetes">one platform for training, serving and pipelines; cloud elasticity; ecosystem</td><td data-h="Ray">jobs that are many programs at once: RL with rollouts, data pipelines, hyperparameter search</td></tr>
+<tr><td>Weakest at</td><td data-h="Slurm">services, elasticity, container-native workflows</td><td data-h="Kubernetes">batch semantics need several add-ons; more moving parts to debug</td><td data-h="Ray">cluster-wide fairness and quotas; another runtime to operate</td></tr>
+</tbody></table></div>
+<div class="rd-card" id="rd-spec-card">
+<h4>The same training job, submitted three ways</h4>
+<div class="seg" id="rd-spec-mode"><button data-m="slurm" class="on">Slurm</button><button data-m="k8s">Kubernetes (JobSet)</button><button data-m="ray">Ray Train</button></div>
+<div data-spec="slurm"><!--CODE:slurm--><pre class="rd-code">#!/bin/bash
+# The running example on Slurm: 2 nodes x 2 ranks. One torchrun per node (srun starts them), c10d rendezvous
+# on the first node of the allocation. Submit as a lab user: su alice -c "sbatch /shared/jobs/train.sbatch"
+# Extra arguments go to train.py, e.g. sbatch train.sbatch --steps 400 --step-sleep-ms 50. RUN names the output dirs.
+#SBATCH --job-name=mi-train
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=2
+#SBATCH --gres=gpu:2
+#SBATCH --time=00:10:00
+#SBATCH --output=/shared/out/%x-%j.out
+#SBATCH --requeue
+set -euo pipefail
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n1)
+export MASTER_PORT=29500
+RUN=${RUN:-slurm-$SLURM_JOB_ID}
+echo "job $SLURM_JOB_ID nodes $SLURM_JOB_NODELIST master $MASTER_ADDR:$MASTER_PORT restart ${SLURM_RESTART_COUNT:-0}"
+srun --kill-on-bad-exit=1 torchrun --nnodes="$SLURM_NNODES" --nproc-per-node=2 \
+  --rdzv-backend=c10d --rdzv-endpoint="$MASTER_ADDR:$MASTER_PORT" --rdzv-id="$SLURM_JOB_ID" \
+  /opt/mi/train.py --ckpt-dir "/shared/ckpt/$RUN" --log-dir "/shared/logs/$RUN" "$@"</pre><pre class="rd-code rd-out">job 1 nodes c[1-2] master c1:29500 restart 0
+
+$ sacct (one line per job)
+JobID|JobName|User|Account|Partition|State|ExitCode|Submit|Eligible|Start|End|Elapsed|NodeList|AllocTRES|TotalCPU|MaxRSS|
+1|mi-train|alice|teama|batch|COMPLETED|0:0|2026-10-16T01:10:20|2026-10-16T01:10:20|2026-10-16T01:10:21|2026-10-16T01:10:31|00:00:10|c[1-2]|billing=5,cpu=4,gres/gpu=4,node=2|00:31.938||
+
+rank 0 at start: host c1, world 4, local_rank 0
+env {
+ "master_addr": "c1",
+ "master_port": "35789",
+ "group_rank": "0",
+ "local_world_size": "2",
+ "torchelastic_restart_count": "0",
+ "slurm_job_id": "1",
+ "slurm_procid": "0",
+ "slurm_nodeid": "0"
+}
+rank 0 at the end: step 200, global loss 2.2638769149780273</pre><p class="rd-codecap"><code>src/data/slurm/train.sbatch</code>, submitted with <code>sbatch</code> on Slurm 24.11.5 (the Debian 13 package; upstream is at 26.05.5) in containers (3 nodes, fake GPUs counted but not used). Output: the script's first line, <code>sacct</code>'s record, and what rank 0 logged. torchrun's c10d rendezvous met at port 29500, then gave the workers a fresh store port, hence <code>master_port</code> 35789.</p><!--/CODE:slurm--></div>
+<div data-spec="k8s" hidden><!--CODE:k8s--><pre class="rd-code"># The running example on Kubernetes: a JobSet with one replicated Job of 2 pods (Indexed), each pod one
+# "node" running torchrun with 2 ranks. Kueue admits the whole JobSet at once (gang) from LocalQueue mi-lq.
+# Rendezvous is static: pod index 0 hosts the c10d TCPStore; the others reach it through the headless
+# Service JobSet creates (DNS name &lt;jobset&gt;-&lt;replicatedJob&gt;-&lt;job index&gt;-&lt;pod index&gt;.&lt;jobset&gt;).
+# Submit: kubectl create -f train-jobset.yaml   (RUN names the output folders under /shared)
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: mi-train
+  namespace: mi
+  labels:
+    kueue.x-k8s.io/queue-name: mi-lq
+spec:
+  failurePolicy:
+    maxRestarts: 0
+  replicatedJobs:
+  - name: node
+    replicas: 1
+    template:
+      spec:
+        parallelism: 2
+        completions: 2
+        completionMode: Indexed
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: trainer
+              image: mi-train:1
+              imagePullPolicy: Never
+              env:
+              - {name: RUN, value: ex-k8s}
+              command: ["sh", "-c"]
+              args:
+              - &gt;-
+                exec torchrun --nnodes=2 --nproc-per-node=2 --node-rank=$JOB_COMPLETION_INDEX
+                --master-addr=mi-train-node-0-0.mi-train --master-port=29500
+                /opt/mi/train.py --ckpt-dir=/shared/ckpt/$RUN --log-dir=/shared/logs/$RUN
+              resources:
+                requests: {cpu: "1", memory: 900Mi, example.com/gpu: "2"}
+                limits: {cpu: "2", memory: 900Mi, example.com/gpu: "2"}
+              volumeMounts:
+              - {name: shared, mountPath: /shared}
+            volumes:
+            - name: shared
+              hostPath: {path: /shared, type: Directory}</pre><pre class="rd-code rd-out">$ kubectl get events (selected)
+TIME  KIND  NAME  REASON  MSG
+2026-10-16T01:48:22Z  Pod  mi-train-node-0-0-lvn7w  Scheduled  Successfully assigned mi/mi-train-node-0-0-lvn7w to mi-kind-worker3
+2026-10-16T01:48:22Z  JobSet  mi-train  Started  Admitted by clusterQueue mi-cq
+2026-10-16T01:48:22Z  Pod  mi-train-node-0-1-fp58v  Scheduled  Successfully assigned mi/mi-train-node-0-1-fp58v to mi-kind-worker2
+2026-10-16T01:48:22Z  Workload  jobset-mi-train-63335  QuotaReserved  Quota reserved in ClusterQueue mi-cq, wait time since queued was 0s
+2026-10-16T01:48:22Z  Workload  jobset-mi-train-63335  Admitted  Admitted by ClusterQueue mi-cq, wait time since reservation was 0s
+2026-10-16T01:48:40Z  JobSet  mi-train  AllJobsCompleted  jobset completed successfully
+
+rank 0 at start: host mi-train-node-0-0, world 4, local_rank 0
+env {
+ "master_addr": "mi-train-node-0-0.mi-train",
+ "master_port": "29500",
+ "group_rank": "0",
+ "local_world_size": "2",
+ "torchelastic_restart_count": "0",
+ "job_completion_index": "0"
+}
+rank 0 at the end: step 200, global loss 2.2638769149780273</pre><p class="rd-codecap"><code>src/data/k8s/train-jobset.yaml</code>, created with <code>kubectl create -f</code> on kind (Kubernetes v1.37.0) with JobSet v0.13.0 and Kueue v0.20.2. Kueue reserved quota and admitted the whole JobSet before any pod was scheduled; rank 0's <code>master_addr</code> is pod 0's DNS name through the headless service.</p><!--/CODE:k8s--></div>
+<div data-spec="ray" hidden><!--CODE:ray--><pre class="rd-code"># src/data/ray/ray_train.py, lines 44-55 of 60 (the rest parses arguments and calls train.py's train())
+    ray.init(address=args.address, log_to_driver=True)
+    trainer = TorchTrainer(
+        loop,
+        train_loop_config={"argv": argv, "train_dir": TRAIN_DIR},
+        torch_config=TorchConfig(backend="gloo"),
+        scaling_config=ScalingConfig(num_workers=args.workers, use_gpu=False,
+                                     resources_per_worker={"CPU": 1, "fake_gpu": 1},
+                                     placement_strategy=args.placement),
+        run_config=RunConfig(name=args.name, storage_path=args.storage,
+                             failure_config=FailureConfig(max_failures=args.max_failures)),
+    )
+    result = trainer.fit()</pre><pre class="rd-code rd-out">driver output (selected)
+(TrainController pid=656) Requesting resources: {'CPU': 1, 'fake_gpu': 1} * 4
+(RayTrainWorker pid=129, ip=&lt;ip-2&gt;) Setting up process group for: env:// [rank=0, world_size=4]
+(TrainController pid=656) - (ip=&lt;ip-2&gt;, pid=129) world_rank=0, local_rank=0, node_rank=0
+(TrainController pid=656) - (ip=&lt;ip-2&gt;, pid=128) world_rank=1, local_rank=1, node_rank=0
+(TrainController pid=656) - (ip=&lt;ip-3&gt;, pid=129) world_rank=2, local_rank=0, node_rank=1
+(TrainController pid=656) - (ip=&lt;ip-3&gt;, pid=128) world_rank=3, local_rank=1, node_rank=1
+
+rank 0 at start: host raynode0, world 4, local_rank 0
+env {
+ "master_addr": "&lt;ip-1&gt;",
+ "master_port": "42129",
+ "local_world_size": "2"
+}
+rank 0 at the end: step 200, global loss 2.2638769149780273</pre><p class="rd-codecap">Run with <code>python ray_train.py</code> on a Ray 2.59.0 cluster of three containers (head plus 2 workers). Ray Train placed 4 worker actors, set the environment itself and initialised the gloo process group (<code>env://</code>) before calling the training function.</p><!--/CODE:ray--></div>
+<p class="small">The training code is identical in all three, and so is the result: the global loss agreed <b>bit for bit at all 21 logged steps</b> on Slurm, Kubernetes and Ray (step 200: 2.2638769149780273) <span class="meas">measured</span> (<code>src/data/runs/compare.json</code>). Only who starts the processes and how they learn each other's address changed: <code>c1</code> from Slurm's node list, a pod DNS name from JobSet, an IP chosen by Ray. That difference is section 4.</p>
+</div>
+<h3>Who uses what (dated evidence)</h3>
+<p>There is no census of training clusters, so the honest evidence is what operators say about their own runs. The largest labs mostly run their own schedulers or heavily extended Kubernetes; Slurm dominates supercomputers and the GPU clouds that rent clusters for training; Ray sits on top as a runtime, notably for reinforcement learning.</p>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Who</th><th>What they run</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>Meta (Llama 3)</td><td data-h="What">MAST, Meta's own global training scheduler, which also decides which data centre a job runs in</td><td data-h="Source"><span class="pub">published</span> {{Llama 3, Jul 2024|https://arxiv.org/html/2407.21783v3#S3.SS3.SSS1}}; {{MAST, OSDI 2024|https://www.usenix.org/conference/osdi24/presentation/choudhury}}</td></tr>
+<tr><td>Google (Gemini)</td><td data-h="What">TPU SuperPods driven by JAX and Pathways, "a single Python process to orchestrate the entire training run"</td><td data-h="Source"><span class="pub">published</span> {{Gemini report &sect;3, Dec 2023|https://arxiv.org/abs/2312.11805}}</td></tr>
+<tr><td>OpenAI</td><td data-h="What">Kubernetes clusters of up to 7,500 nodes, one pod per node, MPI inside the job, a gang-scheduling plugin; and Ray, "to train our largest models"</td><td data-h="Source"><span class="pub">published</span> {{OpenAI, Jan 2021|https://openai.com/index/scaling-kubernetes-to-7500-nodes/}}; Ray quote from a 2022 talk as reported by Anyscale, which sells Ray <span class="vend">vendor</span> ({{Anyscale|https://www.anyscale.com/blog/ray-summit-2022-stories-large-language-models}})</td></tr>
+<tr><td>DeepSeek</td><td data-h="What">HAI Platform, its own time-sharing scheduler that interrupts jobs and resumes them from checkpoints</td><td data-h="Source"><span class="pub">published</span> {{Fire-Flyer AI-HPC, Aug 2024|https://arxiv.org/abs/2408.14158}}</td></tr>
+<tr><td>Ai2 (OLMo 2)</td><td data-h="What">Beaker, "a custom workload management system", containerised, across its own and Google Cloud clusters</td><td data-h="Source"><span class="pub">published</span> {{OLMo 2 &sect;6, Dec 2024|https://arxiv.org/abs/2501.00656}}</td></tr>
+<tr><td>Supercomputers</td><td data-h="What">Slurm on "more than half" of the top 10 and top 100 TOP500 systems; NVIDIA bought Slurm's developer SchedMD in December 2025 and says Slurm stays open source</td><td data-h="Source"><span class="vend">vendor</span> {{NVIDIA, Dec 2025|https://blogs.nvidia.com/blog/nvidia-acquires-schedmd/}}</td></tr>
+<tr><td>GPU clouds</td><td data-h="What">rated on both managed Slurm and managed Kubernetes, with separate checklists for each, including Slurm running on Kubernetes (Slinky)</td><td data-h="Source"><span class="indep">independent</span> {{SemiAnalysis ClusterMAX 2.0, Nov 2025|https://clustermax.semianalysis.com/}}</td></tr>
+<tr><td>RL frameworks</td><td data-h="What">OpenRLHF: "the first RLHF framework built on Ray + vLLM"; verl is the open version of HybridFlow, whose "centralized single controller is built on top of Ray"</td><td data-h="Source">project's own ({{OpenRLHF README|https://github.com/OpenRLHF/OpenRLHF}}; {{HybridFlow paper, EuroSys 2025|https://arxiv.org/html/2409.19256}}; {{verl|https://github.com/volcengine/verl}})</td></tr>
+</tbody></table></div>
+<div class="deepnote"><b>Go deeper (optional):</b> the {{Tool map|#t-map}} for every scheduler, launcher and platform with its status and dates; child pages <b>Slurm</b>, <b>Kubernetes for ML</b> and <b>Ray</b> (being written).</div>
+</section>

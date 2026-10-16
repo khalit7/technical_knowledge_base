@@ -1,0 +1,34 @@
+<section id="rd-s5">
+<h2>5. Failures and how runs survive them</h2>
+<p><b>The problem.</b> A synchronous training job is a chain as strong as its weakest GPU: when one GPU, cable, switch, host or process fails, every rank stops at the next collective. Parts fail rarely, but a big job holds many parts. Meta's Llama 3 405B pre-training had <b>419 unexpected interruptions in 54 days</b> on up to 16,384 H100s, about 78% of them confirmed or suspected hardware, yet kept "higher than 90% effective training time" <span class="pub">published</span> ({{Llama 3 &sect;3.3.4, Table 5|https://arxiv.org/html/2407.21783v3#S3.SS3.SSS4}}). That is one stop every <span id="rd-l3m">3.1</span> hours <span class="der">derived</span> (54 &times; 24 / 419).</p>
+<p><b>Why scale makes it worse.</b> If each GPU (with its share of host and network) fails independently, a job on N GPUs is interrupted N times as often, so the <dfn>mean time between failures</dfn> (MTBF) of a job falls as 1/N. At Llama 3's rate, a 1,000-GPU job would stop about every <span id="rd-m1k">51</span> hours and a 100,000-GPU job every <span id="rd-m100k">30</span> minutes <span class="der">derived</span> (assuming interruptions scale with GPU count, which is roughly but not exactly true: some causes are per job or per switch).</p>
+<p><b>How runs survive: checkpoint and restart.</b> Every so often all ranks save the model, optimiser and data-loader state (a <dfn>checkpoint</dfn>); after a failure the job restarts from the last one. You lose the work since that checkpoint plus the restart time, and you pay for writing checkpoints even when nothing fails. Too frequent wastes time writing, too rare wastes time redoing; Young's classic answer is an interval of about <b>&radic;(2 &middot; C &middot; M)</b>, with C the time to write one checkpoint and M the job's MTBF ({{Young 1974|https://doi.org/10.1145/361147.361115}}; refined by {{Daly 2006|https://doi.org/10.1016/j.future.2004.11.016}}). The {{hardware reliability page|n:3f05c17b0d0d8143851cfc3ae14c3c22}} derives it and shows where it breaks.</p>
+<div class="rd-card" id="rd-ck-card">
+<h4>The same run through the same two failures, with and without checkpoints</h4>
+<div class="seg" id="rd-ck-mode"><button data-m="none" class="on">No checkpoints</button><button data-m="ckpt">Checkpoint every 4 hours</button></div>
+<div class="rd-svg" id="rd-ck-svg"></div>
+<div class="an-ctl" id="rd-ck-ctl"></div>
+<div class="an-cap" id="rd-ck-cap"></div>
+<div class="an-cnt" id="rd-ck-cnt"></div>
+<p class="small mute"><span class="sim">illustrative</span>: a job needing 20 hours of work, failures at hours 9 and 17 of wall-clock time, restart 0.5 hours, checkpoint write 0.1 hours. <span class="rd-todo">TODO (failure lab): link the measured version: the running example killed mid-run on each system, steps lost, and whether the resumed loss curve matches bit for bit.</span></p>
+</div>
+<div class="rd-card" id="rd-mt-card">
+<h4>How often will my job stop, and how often should it checkpoint?</h4>
+<div class="rd-calc">
+<label>GPUs in the job <select id="rd-mt-n"><option>64</option><option>512</option><option selected>1000</option><option>4096</option><option>16384</option><option>100000</option></select></label>
+<label>Checkpoint write time C (blocking) <select id="rd-mt-c"><option value="5">5 s (async, to host memory)</option><option value="60" selected>1 minute</option><option value="300">5 minutes</option></select></label>
+<label>Restart time R (detect, replace node, relaunch, reload) <select id="rd-mt-r"><option value="120">2 minutes</option><option value="600" selected>10 minutes</option><option value="1800">30 minutes</option></select></label>
+</div>
+<div class="out" id="rd-mt-out"></div>
+<p class="small mute"><span class="der">derived</span>: MTBF = 3.09 h &times; 16,384 / N (Llama 3's rate); interval &tau; = &radic;(2CM); expected loss &asymp; C/&tau; + (&tau;/2 + R)/M, the first-order approximation, which overstates the loss once &tau; nears M. The {{Failure lab|#t-fail}} has the full goodput simulator.</p>
+</div>
+<p><b>The other defences</b>, each answering one part of the arithmetic above:</p>
+<ul class="tight">
+<li><b>Make checkpoints cheap.</b> Asynchronous checkpointing copies state to host memory in seconds and uploads it while training continues; DeepSeek checkpoints "typically every 5 minutes" at over 10 GiB/s per node, so a failure loses at most 5 minutes <span class="pub">published</span> ({{Fire-Flyer &sect;VII-A|https://arxiv.org/abs/2408.14158}}). Google went further for Gemini Ultra: no periodic checkpoints to storage, but "redundant in-memory copies of the model state", which raised the largest job's goodput "from 85% to 97%" <span class="pub">published</span> ({{Gemini &sect;3|https://arxiv.org/abs/2312.11805}}).</li>
+<li><b>Make restarts fast.</b> Keep <dfn>hot spares</dfn> (Gemini held back a few TPU cubes per SuperPod "for hot standbys and rolling maintenance"), cache container images on nodes, and restart only the failed part when the framework allows it.</li>
+<li><b>Keep bad nodes out.</b> A <dfn>health check</dfn> runs before or between jobs; a node that fails is <dfn>drained</dfn> (Slurm) or <dfn>cordoned</dfn> and <dfn>tainted</dfn> (Kubernetes) so nothing new lands on it. Ai2's Beaker runs a tensor multiplication before each workload and on failure "cordons the associated host and reschedules the workload" <span class="pub">published</span> ({{OLMo 2 &sect;6.3|https://arxiv.org/abs/2501.00656}}); OpenAI's nodes join Kubernetes with a "preflight" taint that only passing GPU tests remove.</li>
+<li><b>Shrink instead of stopping.</b> <dfn>Elastic training</dfn> (torchrun with a minimum and maximum node count) continues with fewer workers; it changes the global batch or the data order unless the code compensates, so most large pre-training runs restart at full size instead.</li>
+<li><b>Watch for slow, not just dead.</b> A <dfn>straggler</dfn> (a GPU running hot and throttled, a flapping link) slows every synchronous step to its pace without failing anything.</li>
+</ul>
+<div class="deepnote"><b>Go deeper (optional):</b> the {{Failure lab|#t-fail}} kills ranks, containers and pods on the three systems and shows what each does, with the goodput simulator and Llama 3's failure table. The run's side of the same story (effective training time, checkpoint pauses, recovery, stragglers, silent data corruption) is on {{Training Infrastructure|n:3c65c17b0d0d81c9b2cac997583bf572}}; hardware causes (Xid errors, ECC) on the {{hardware reliability page|n:3f05c17b0d0d8143851cfc3ae14c3c22}}. Child page: <b>Fault tolerance at scale</b> (being written).</div>
+</section>
