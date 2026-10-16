@@ -1,0 +1,102 @@
+<section id="sc-s5">
+<h2>5. Gang scheduling: all of a job or none of it</h2>
+<p><b>The problem.</b> A distributed training job is useless until every rank is running: rank 0 waits at the rendezvous for the others (the {{Launch lab|#t-launch}} shows it), and every GPU it holds meanwhile does nothing. A scheduler that places a job's pieces one by one can give a job part of what it needs. With two or more such jobs in a full cluster, each holds part and waits for the rest, which only the others could free: a <dfn>deadlock</dfn>. <dfn>Gang scheduling</dfn> starts all of a job's pieces together or none of them.</p>
+<p><b>Who has it.</b> In Slurm a job's allocation is one object: it gets all its nodes at once or stays pending, so gangs come free. Kubernetes' default scheduler places <b>pods</b>, one scheduling cycle per pod, and knows nothing of the job they belong to. Upstream is adding a native path (KEP-4671, "Gang Scheduling using Workload Object": alpha in v1.35, its <code>GenericWorkload</code> feature gate beta in v1.37), but the gate is off by default: the v1.37.0 <code>kube-scheduler --help</code> here lists <code>GenericWorkload=true|false (BETA - default=false)</code>. Until then gangs come from an add-on: <b>Kueue</b> (admits a whole workload against quota, then lets the pods be created), <b>Volcano</b> (its own scheduler, with a PodGroup and <code>minMember</code>), or the <b>coscheduling</b> plugin of scheduler-plugins. In Ray, a <b>placement group</b> reserves all its bundles atomically (section 7).</p>
+<div class="sc-card" id="sc-gang-card">
+<h4>The deadlock, then the fix, on real Kubernetes <span class="sc-meas">measured</span></h4>
+<p class="small">Three JobSets, sc-a, sc-b and sc-c, each the running example (2 pods, 2 ranks per pod) with each pod asking for a whole worker's 4 fake GPUs. Three workers, so the cluster holds exactly one and a half jobs. <b>Without Kueue</b>, each pod was created behind a scheduling gate and the gates were removed in the order a0, b0, c0, a1, b1, c1, one second apart: the order in which the default scheduler would see them if three job controllers created pods at the same moment. <b>With Kueue</b>, the same three JobSets were created together with a queue label and nothing else.</p>
+<div class="seg" id="sc-gang-mode"><button data-m="k1" class="on">Default scheduler (no gang)</button><button data-m="k2">Through Kueue (gang admission)</button></div>
+<div class="sc-svg" id="sc-gang-svg"></div>
+<div class="sc-ctl" id="sc-gang-ctl"></div>
+<div class="sc-cap" id="sc-gang-cap"></div>
+</div>
+<p><b>Without gang scheduling</b> the default scheduler did exactly its job, one pod at a time: a0, b0 and c0 each found a free worker and were bound; a1, b1 and c1 found none. Every job held half of what it needed. Four minutes later nothing had moved:</p>
+<pre>POD                   JOBSET   IDX   PHASE     NODE
+sc-a-node-0-0-r6w4d   sc-a     0     Running   mi-kind-worker
+sc-a-node-0-1-m4dw7   sc-a     1     Pending   &lt;none&gt;
+sc-b-node-0-0-zt5rp   sc-b     0     Running   mi-kind-worker3
+sc-b-node-0-1-gbk7d   sc-b     1     Pending   &lt;none&gt;
+sc-c-node-0-0-clkfd   sc-c     0     Running   mi-kind-worker2
+sc-c-node-0-1-6n8mc   sc-c     1     Pending   &lt;none&gt;
+
+Warning  FailedScheduling  default-scheduler  0/4 nodes are available: 1 node(s) had untolerated taint(s),
+  3 Insufficient example.com/gpu. preemption: 0/4 nodes are available: 1 Preemption is not helpful for
+  scheduling, 3 No preemption victims found for incoming pod.
+
+[c10d] The IPv6 network addresses of (sc-c-node-0-0.sc-c, 29500) cannot be retrieved
+  (gai error: -2 - Name or service not known).</pre>
+<p class="sc-codecap"><code>kubectl get pods</code> (columns trimmed), a pending pod's event, and the only log line any running pod printed (a warning from torchrun's store lookup), 16 Oct 2026. The three Running pods printed nothing else: torchrun waits silently for its second node. The <code>untolerated taint</code> node is the control plane.</p>
+<p>Nothing in this picture says "deadlock". The pods are Running, the scheduler reports ordinary insufficient resources, and preemption declines to help because all pods have the same priority. On a real cluster this shows up as GPUs allocated at 100% and utilisation near zero (the {{Cost lab|#t-cost}} measures that gap), and it lasts until a rendezvous timeout kills the waiting pods or someone deletes a job.</p>
+<p><b>With Kueue</b> the same three JobSets never touched a GPU until they could have all of it. Kueue's webhook created them suspended; it admitted sc-a (8 of the 12 GPUs of quota) in its first scheduling cycle and kept sc-b and sc-c in its queue with the message that tells you exactly why:</p>
+<pre>Workload  jobset-sc-b-105c3  WaitingForQuota  couldn't assign flavors to pod set node: insufficient unused quota
+          for example.com/gpu in flavor default-flavor, 4 more needed
+Workload  jobset-sc-b-105c3  QuotaReserved    Quota reserved in ClusterQueue mi-cq, wait time since queued was 243s
+Workload  jobset-sc-c-fa6c7  QuotaReserved    Quota reserved in ClusterQueue mi-cq, wait time since queued was 544s</pre>
+<p class="sc-codecap"><code>kubectl get events -n sc</code>, 16 Oct 2026 (lines wrapped). "4 more needed": 12 of quota minus sc-a's 8 leaves 4, and sc-b wants 8.</p>
+<p>The jobs ran one after the other and each trained to the same final global loss as the running example on Slurm and Ray, <code>2.2638769149780273</code>. The waits are long because the machine was heavily loaded by other work during this run (load average above 30 at times): each job's torchrun took about 30 to 37 s to rendezvous and initialise, trained for about 43 s, and the JobSet's completion was recorded about two minutes after the last step. Treat those seconds as rough; the order, and the absence of any half-allocated job, are the result.</p>
+<p><b>The cost of gang admission.</b> Kueue held 4 GPUs idle for the whole run: after sc-a took 8, nothing in the queue fit in the remaining 4. That is the price of all-or-nothing, and it is what backfill-style admission (a smaller workload behind, which <code>BestEffortFIFO</code> allows) and good job sizing recover.</p>
+<div class="sc-src"><b>Source: Kueue admits a workload in one step</b> <span class="f">pkg/scheduler/scheduler.go, kueue v0.20.2</span>
+<pre>332		// 1. Get the heads from the queues, including their desired clusterQueue.
+ ...
+342		// 2. Take a snapshot of the cache.
+ ...
+357		// 3. Calculate requirements (resource flavors, borrowing) for admitting workloads.
+358		phaseStartTime = s.clock.Now()
+359		entries, inadmissibleEntries := s.nominate(ctx, heads, snapshot)
+ ...
+365		// 5. Admit entries, ensuring that no more than one workload gets
+366		// admitted by a cohort (if borrowing).</pre>
+<p>A <dfn>Workload</dfn> is Kueue's record of a job: every pod set with its count and requests. The flavor assigner checks the <i>whole</i> workload's requests against the ClusterQueue's unused quota; if any resource falls short the answer is NoFit with the message the lab saw (<span class="mono small">pkg/scheduler/flavorassigner/flavorassigner.go:1000</span>):</p>
+<pre>1000		status.appendf("insufficient unused quota for %s in flavor %s, %s more needed",</pre>
+<p>Only an admitted workload is unsuspended, so its pods are created only when all of them are covered. Note what this checks: <b>quota</b>, not which node each pod will land on. If the quota says 12 GPUs but a node is broken or fragmented, an admitted job can still end up with some pods Pending. Kueue's <code>waitForPodsReady</code> setting closes that gap: a workload whose pods are not all ready within a timeout is evicted and requeued, releasing what it held.</p></div>
+<div class="sc-pr"><div class="q">Predict: in the deadlocked run, what does <code>kubectl get pods</code> show for the three pods that did get a node?</div>
+<div class="opts"><button data-a="0">CrashLoopBackOff</button><button data-a="1">Running, though no training happens: torchrun is waiting for its second node</button><button data-a="0">Pending, like the others</button></div>
+<div class="ans" hidden>Running. Kubernetes considers the pod healthy: its container started. Only the logs (torchrun waiting at the rendezvous) and the job's lack of progress show the problem, which is why partial allocations waste GPUs quietly. The real logs are below the animation.</div></div>
+</section>
+
+<section id="sc-s6">
+<h2>6. Quotas and borrowing</h2>
+<p><b>The problem.</b> Two teams each own half of a cluster. If team B is idle, should team A be allowed to use B's half? Yes, or the cluster sits half empty; but when B comes back, B must get its half quickly. <dfn>Quota</dfn> is a team's guaranteed amount; <dfn>borrowing</dfn> lets a team use another's unused quota; <dfn>reclaiming</dfn> takes it back by preempting the borrower.</p>
+<p><b>In Kueue.</b> A <dfn>ClusterQueue</dfn> holds a team's <code>nominalQuota</code> per resource; ClusterQueues in the same <dfn>cohort</dfn> lend unused quota to each other (up to an optional <code>borrowingLimit</code>); <code>preemption.reclaimWithinCohort</code> lets a queue preempt workloads of cohort members that are borrowing. Namespaces submit to a <dfn>LocalQueue</dfn> that points at a ClusterQueue. In Slurm the same ideas are QOS and association limits (<code>GrpTRES</code>) plus partition preemption; Slurm has no lending between limits, so idle capacity is used through a low-priority preemptible partition or QOS instead.</p>
+<div class="sc-card" id="sc-bor-card">
+<h4>Team A borrows, team B reclaims <span class="sc-meas">measured</span></h4>
+<p class="small">ClusterQueues sc-cq-a and sc-cq-b, 6 fake GPUs of quota each, in cohort sc-cohort, both with <code>reclaimWithinCohort: Any</code>. Team A submits three single-pod jobs of 4 GPUs (12 in all: its 6 plus 6 borrowed from B); 15 s later team B submits one job of 4 GPUs.</p>
+<div class="sc-svg" id="sc-bor-svg"></div>
+<div class="sc-ctl" id="sc-bor-ctl"></div>
+<div class="sc-cap" id="sc-bor-cap"></div>
+</div>
+<p><b>What happened.</b> Kueue admitted all three of team A's jobs within 4 s, the second and third by borrowing (<code>Flavors considered: main: default-flavor(Fit;borrow=1)</code>). Eight seconds after team B's job was created its pod was running: Kueue evicted team A's newest borrowing workload (<code>EvictedDueToPreempted ... due to reclamation within the cohort</code>), waited for its pod to stop (<code>WaitingForPreemptedWorkloads</code>), then admitted team B (<code>QuotaReserved ... wait time since queued was 6s</code>). When team B's job finished, team A's evicted job was readmitted by borrowing again, 54 s after it was queued. Borrowing kept every GPU busy, and reclaim gave B its share within seconds; the price was one evicted job, which a training job pays in work since its last checkpoint.</p>
+<pre>Workload  job-sc-a3-b09ed  EvictedDueToPreempted  Preempted to accommodate a workload (UID: 5d1fcdf5-...) due to
+          reclamation within the cohort; preemptor path: /sc-cohort/sc-cq-b; preemptee path: /sc-cohort/sc-cq-a
+Workload  job-sc-b1-1d26c  WaitingForPreemptedWorkloads  couldn't assign flavors to pod set main: insufficient unused
+          quota for example.com/gpu in flavor default-flavor, 4 more needed. Pending the preemption of 1 workload(s)
+Workload  job-sc-b1-1d26c  QuotaReserved  Quota reserved in ClusterQueue sc-cq-b, wait time since queued was 6s</pre>
+<p class="sc-codecap"><code>kubectl get events -n sc</code>, Kueue v0.20.2 on Kubernetes v1.37.0, 16 Oct 2026 (UIDs shortened, lines wrapped). The first attempt at this run failed for an instructive reason: with the control plane at its 1.27 GB memory cap, the API server restarted mid-run and every request failed (<code>TLS handshake timeout</code>, then <code>failed calling webhook "mjob.kb.io"</code> because Kueue's admission webhook could not be reached). Raising the control-plane container to 1.6 GB fixed it: a scheduler is only as available as the API server it writes to.</p>
+<div class="sc-src"><b>Source: whom reclaiming may preempt</b> <span class="f">pkg/scheduler/preemption/preemption.go, kueue v0.20.2</span>
+<pre>537		if cq.HasParent() &amp;&amp; cq.Preemption.ReclaimWithinCohort != kueue.PreemptionPolicyNever {
+538			for _, cohortCQ := range cq.Parent().Root().SubtreeClusterQueues() {
+539				if cq == cohortCQ || !cqIsBorrowing(cohortCQ, frsNeedPreemption) {
+540					// Can't reclaim quota from itself or ClusterQueues that are not borrowing.
+541					continue
+542				}</pre></div>
+</section>
+
+<section id="sc-s7">
+<h2>7. Placement and topology</h2>
+<p><b>The problem.</b> Which machines a job gets matters as much as how many. The gradient all-reduce of every step crosses the network between nodes; a job spread across distant switches pays more for each collective than one packed under one switch, and a job split across many partly used nodes leaves fragments nobody else can use. <dfn>Topology-aware placement</dfn> keeps a job's nodes close; <dfn>packing</dfn> fills nodes before opening new ones; <dfn>spreading</dfn> does the opposite (for fault tolerance, or memory bandwidth).</p>
+<div class="sc-card" id="sc-ray-card">
+<h4>Ray placement groups on the lab's Ray cluster <span class="sc-meas">measured</span></h4>
+<p class="small">Two worker nodes with 2 CPUs and 2 fake GPUs each. A <dfn>placement group</dfn> reserves a list of <dfn>bundles</dfn> (here each bundle is 1 CPU + 1 fake GPU, what one Ray Train worker asks for) with a strategy; Ray reserves all bundles together or none (its two-phase commit), and actors or tasks are then placed into the bundles.</p>
+<div id="sc-ray-out"></div>
+<p class="small"><b>Reading it.</b> PACK put the four bundles two per node (it prefers one node but settles); SPREAD alternated nodes. STRICT_PACK with four bundles needs one node with 4 fake GPUs and STRICT_SPREAD with four needs four nodes; neither exists, so both stayed <code>PENDING</code>, and Ray's autoscaler said so:</p>
+<pre>(autoscaler +3s) Error: No available node types can fulfill resource request defaultdict(&lt;class 'float'&gt;,
+  {'CPU': 4.0, 'fake_gpu': 4.0}). Add suitable node types to this cluster to resolve this issue.</pre>
+<p class="small">The last rows are the gang test: sc-gang-a took 3 of the 4 fake GPUs; sc-gang-b wanted 3 and stayed <code>PENDING</code> while <b>holding nothing</b> (the one free fake GPU stayed free); 0.7 s after sc-gang-a was removed, all three of B's bundles were reserved at once. Ray 2.59.0. The running example's Ray Train job asks for PACK, which is also Ray Train's default. Measured 16 Oct 2026; run by <code>src/sched/ray/ray_pg.py</code>.</p>
+</div>
+<div class="tw"><table class="sc-tbl"><thead><tr><th>Need</th><th>Slurm</th><th>Kubernetes</th><th>Ray</th></tr></thead><tbody>
+<tr><td data-h="Need">Keep a job under few switches</td><td data-h="Slurm"><code>TopologyPlugin=topology/tree</code> with <code>topology.conf</code> listing switches; <code>sbatch --switches=1@00:30:00</code> waits up to 30 minutes for a single-switch placement. 24.11 also has <code>topology/block</code> for NVL72-style blocks</td><td data-h="Kubernetes">Kueue Topology Aware Scheduling: a <code>Topology</code> object naming node labels (block, rack, host) and the annotation <code>kueue.x-k8s.io/podset-required-topology</code> or <code>-preferred-topology</code> on the pod template</td><td data-h="Ray">STRICT_PACK puts all bundles on one node; across nodes Ray knows nothing of switches (custom resources or node labels can stand in)</td></tr>
+<tr><td data-h="Need">Fill nodes before using new ones</td><td data-h="Slurm"><code>select/cons_tres</code> best-fit; whole-node jobs with <code>--exclusive</code></td><td data-h="Kubernetes">scheduler scoring <code>MostAllocated</code> (the default is <code>LeastAllocated</code>, which spreads)</td><td data-h="Ray">PACK (best effort) or STRICT_PACK</td></tr>
+<tr><td data-h="Need">One piece per node</td><td data-h="Slurm"><code>--ntasks-per-node=1</code>, <code>--nodes=N</code></td><td data-h="Kubernetes">pod anti-affinity, topology spread constraints; JobSet's exclusive placement annotation</td><td data-h="Ray">SPREAD (best effort) or STRICT_SPREAD</td></tr>
+</tbody></table></div>
+<p class="small mute">Topology placement was not run here: the lab clusters have no switches to respect (the kind workers carry block labels b1, b2 for a later child page). The table is from each project's documentation: {{Slurm topology guide|https://slurm.schedmd.com/topology.html}}, {{Kueue TAS|https://kueue.sigs.k8s.io/docs/concepts/topology_aware_scheduling/}}, {{Ray placement groups|https://docs.ray.io/en/latest/ray-core/scheduling/placement-group.html}}.</p>
+</section>

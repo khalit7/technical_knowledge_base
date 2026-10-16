@@ -1,0 +1,99 @@
+<section id="sc-s2">
+<h2>2. The same policies at scale <span class="sc-sim">simulated</span></h2>
+<p>Eight jobs show the mechanism; a real cluster has hundreds of jobs of very different sizes arriving all day. The simulator that predicted the Slurm runs above (checked against them, and its Python and JavaScript versions checked against each other by <code>src/sched/scripts/check_sim.mjs</code>) runs here on a synthetic workload: 300 jobs from 1 GPU up to a quarter of the cluster, runtimes from 10 minutes to a day, arriving at random so that the work offered is a chosen fraction of the cluster's capacity (the <dfn>offered load</dfn>). Each job's time limit is its runtime times a random factor up to the "limit padding" you choose, the way users round limits up.</p>
+<div class="sc-card" id="sc-sc-card">
+<h4>Policy switcher on a bigger cluster</h4>
+<div class="ctl">
+<label>Cluster size: <b id="sc-sc-cap-o">256</b> GPUs<input type="range" id="sc-sc-cap" min="6" max="10" step="1" value="8"></label>
+<label>Offered load: <b id="sc-sc-load-o">0.90</b><input type="range" id="sc-sc-load" min="0.5" max="1.3" step="0.05" value="0.9"></label>
+<label>Limit padding (limit / runtime, up to): <b id="sc-sc-pad-o">3.0x</b><input type="range" id="sc-sc-pad" min="1" max="6" step="0.5" value="3"></label>
+</div>
+<div class="sc-ctl"><button id="sc-sc-seed">New random workload</button><button id="sc-sc-reset">Reset</button></div>
+<div id="sc-sc-tab"></div>
+<div class="seg" id="sc-sc-view"><button data-m="fifo">Show FIFO</button><button data-m="easy">Show EASY</button><button data-m="conservative" class="on">Show conservative</button></div>
+<div class="sc-svg" id="sc-sc-svg"></div>
+<p class="small mute" id="sc-sc-note"></p>
+<p class="small mute">Illustrative workload, not a trace of any real cluster. The faint orange line is FIFO for comparison. Utilisation is measured from the first to the last submission, so the empty tail after the last job does not count.</p>
+</div>
+<p><b>What to look for.</b> FIFO leaves visible troughs in the busy-GPU line: each is a big job at the head of the queue waiting for room while small jobs that would fit sit behind it. Both backfills fill them, which cuts the mean wait by a large factor at loads near 1. EASY usually beats conservative on mean wait because it protects only one reservation, at the price of predictability: under EASY a job's promised start can slip, while under conservative backfill every waiting job keeps the start it was given (Slurm reports it in <code>squeue --start</code>). Raise the limit padding and the plan gets worse in a specific way: jobs that will end early look as if they will run long, so the scheduler leaves gaps it could have filled, or fills gaps with jobs that free up sooner than planned. The big-job column is where policies part ways: backfill helps small jobs most, and a big job's wait depends on reservations being honoured.</p>
+<div class="sc-pr"><div class="q">Predict: set the load to 1.2 (more work arrives than the cluster can do). What happens to the mean wait under every policy?</div>
+<div class="opts"><button data-a="0">It levels off: backfill absorbs the excess</button><button data-a="1">It grows with every arriving job: no policy can serve more work than the cluster has</button><button data-a="0">It falls, because the cluster is always full</button></div>
+<div class="ans" hidden>Above a load of 1 the queue grows without limit; a scheduler can only choose who waits. That is why real clusters add quotas and fairshare (next section): the question becomes who waits, not whether anyone does.</div></div>
+</section>
+
+<section id="sc-s3">
+<h2>3. Fairshare: who goes first when everyone is waiting</h2>
+<p><b>The problem.</b> Order by submit time and a team that queues 500 jobs on Monday owns the cluster until Wednesday. <dfn>Fairshare</dfn> orders by how much each user or team has used recently against how much they are entitled to.</p>
+<p><b>How it works in Slurm.</b> Each <dfn>account</dfn> (a team) and each user in it has <dfn>shares</dfn>, its entitled fraction. Every running job adds <dfn>usage</dfn>: its billed resources times seconds (here a fake GPU bills 1 and a CPU 0.25, <code>TRESBillingWeights</code>). Usage decays exponentially with a <dfn>half-life</dfn> (default 7 days; 10 minutes on this lab cluster so that it moves while you watch). From shares and usage Slurm computes a <dfn>fairshare factor</dfn> between 0 and 1, and the job's priority is a weighted sum of factors (the <dfn>multifactor</dfn> plugin): here 10,000 times fairshare plus 1,000 times age, with the other weights zero.</p>
+<div class="fm"><div class="eq">level_fs = S / U &nbsp;&nbsp;&nbsp; factor = rank / (number of users)</div>
+<dl><dt>S</dt><dd>the association's shares divided by the total shares of its siblings (teama among teama, teamb and the root user)</dd><dt>U</dt><dd>its decayed usage divided by its parent's usage; U = 0 gives level_fs = infinity</dd><dt>rank</dt><dd>users are ranked by walking the account tree, highest level_fs first at every level; ties share a rank</dd></dl></div>
+<p>That is <dfn>Fair Tree</dfn>, Slurm's default: the flag is set unless <code>PriorityFlags</code> turns it off (<span class="mono small">src/common/read_config.c:4843</span>: <code>conf->priority_flags = PRIORITY_FLAGS_FAIR_TREE;</code>). Its point is that a team's total usage is compared first: a user in a heavy team ranks below every user of a light team, however little that user ran personally. The older formula, still available with <code>PriorityFlags=NO_FAIR_TREE</code>, is <code>2^(&minus;U/S)</code> (<span class="mono small">priority_multifactor.c:1951</span>). Decay is applied every <code>PriorityCalcPeriod</code> as usage &times; <code>decay_factor</code><sup>seconds</sup>, with <code>decay_factor = 1 &minus; 0.693 / half-life</code> (<span class="mono small">priority_multifactor.c:1649</span>).</p>
+<div class="sc-src"><b>Source: Fair Tree's level value</b> <span class="f">src/plugins/priority/multifactor/fair_tree.c, slurm-24-11-5-1</span>
+<pre>181		U = assoc->usage->usage_efctv;
+182		S = assoc->usage->shares_norm;
+ ...
+202		if (S == 0L)
+203			assoc->usage->level_fs = 0L;
+204		else
+205			assoc->usage->level_fs = S / U;
+ ...
+372				assoc->usage->fs_factor =
+373					*rank / (double) g_user_assoc_count;</pre></div>
+<div class="sc-card" id="sc-w2-card">
+<h4>The experiment: a heavy team and a light team queue the same jobs <span class="sc-meas">measured</span></h4>
+<p class="small">All 12 fake GPUs. alice (teama) first runs a 12-GPU job for 3 minutes. While it runs, alice queues four 4-GPU, 2-minute jobs (a1 to a4), and two seconds later bob (teamb) queues four identical ones (b1 to b4). By submit time alice's jobs are first. The bars are what <code>sacct</code> recorded.</p>
+<div class="sc-svg" id="sc-w2-svg"></div>
+<p class="sc-leg"><span><i style="background:var(--c1)"></i>alice (teama)</span><span><i style="background:var(--c2)"></i>bob (teamb)</span></p>
+<p><b>What happened.</b> When the history job ended, the three 4-GPU slots went to <b>bob's</b> b1, b2 and b3, although alice's jobs were submitted three seconds earlier. Two minutes later the second wave was b4, a1 and a2; then a3 and a4. Slurm's own numbers 93 s after submission, while the history job still ran:</p>
+<pre>$ sprio
+ JOBID PARTITION  USER  ACCOUNT  PRIORITY  AGE  FAIRSHARE
+    31 batch     alice  teama        2570   70       2500
+    35 batch       bob  teamb       10065   65      10000
+$ sshare -a -l
+Account    User   RawShares  NormShares  RawUsage  EffectvUsage  FairShare  LevelFS
+ root      root           1    0.333333         0      0.000000   1.000000      inf
+ teama                    1    0.333333      5408      1.000000             0.333333
+  teama    alice          1    0.500000      5408      1.000000   0.250000  0.500000
+  teama    carol          1    0.500000         0      0.000000   0.500000      inf
+ teamb                    1    0.333333         0      0.000000                  inf
+  teamb    bob            1    1.000000         0      0.000000   1.000000      inf</pre>
+<p class="sc-codecap"><code>sprio -l</code> and <code>sshare -a -l</code> at 02:38:13 UTC, columns trimmed (one job per user shown; the other three of each had the same factors). Full output in <code>src/sched/runs/slurm/w2.snap</code>.</p>
+<p>Read it with the formula: teama has used everything (U = 1, S = 1/3, level_fs 0.33), teamb nothing (level_fs infinity), so bob ranks with the root user at the top (rank 4 of 4, factor 1.0) and alice, the heavy user in the heavy team, at the bottom (1 of 4, 0.25). carol, who ran nothing, still sits below bob (0.5) because her team is heavy. Ninety seconds later bob had used 74 units and his factor fell to 0.75 (rank 3: below the root user's infinite level_fs), still far above alice's 0.25, which is why b4 beat a1 in the second wave. Age (up to 1,000 here) never came close to the fairshare gap.</p>
+</div>
+<div class="sc-card" id="sc-fs-calc">
+<h4>Fairshare calculator (Slurm's Fair Tree)</h4>
+<p class="small">The lab's account tree: root, with the root user, teama (alice, carol) and teamb (bob). Usage is Slurm's <code>RawUsage</code> (billed units times seconds, decayed), as <code>sshare</code> prints it. The defaults are the measured values at 02:38:13 in the run above (alice 5408, carol and bob 0), and the calculator gives the factors Slurm printed then: alice 0.25, carol 0.5, bob 1.0. Set bob to 74, the value 90 s later, and bob drops to 0.75 while staying first, as <code>sshare</code> showed.</p>
+<div class="ctl">
+<label>teama shares: <b id="sc-fs-sa-o">1</b><input type="range" id="sc-fs-sa" min="0" max="5" step="1" value="1"></label>
+<label>teamb shares: <b id="sc-fs-sb-o">1</b><input type="range" id="sc-fs-sb" min="0" max="5" step="1" value="1"></label>
+<label>alice RawUsage: <b id="sc-fs-ua-o">5408</b><input type="range" id="sc-fs-ua" min="0" max="20000" step="2" value="5408"></label>
+<label>carol RawUsage: <b id="sc-fs-uc-o">0</b><input type="range" id="sc-fs-uc" min="0" max="20000" step="2" value="0"></label>
+<label>bob RawUsage: <b id="sc-fs-ub-o">0</b><input type="range" id="sc-fs-ub" min="0" max="20000" step="2" value="0"></label>
+<label>half-life: <b id="sc-fs-hl-o">10</b> min<input type="range" id="sc-fs-hl" min="1" max="60" step="1" value="10"></label>
+<label>minutes since that usage: <b id="sc-fs-el-o">0</b><input type="range" id="sc-fs-el" min="0" max="120" step="1" value="0"></label>
+</div>
+<div class="sc-ctl"><button id="sc-fs-reset">Reset</button></div>
+<div id="sc-fs-out"></div>
+<p class="small mute">The calculator reimplements <code>_calc_tree_fs</code> (sort siblings by level_fs, users before accounts on ties, depth first, tied users share a rank). Try: give carol some usage and watch alice and carol swap; give bob more usage than teama and teamb drops below both; set teamb's shares to 0 and bob ranks last whatever his usage.</p>
+</div>
+<p><b>When it matters.</b> Fairshare only reorders the queue; it never stops a running job (preemption, next, does that), and a heavy team still runs whenever nobody else is waiting. The half-life is the policy knob: short means "fair this afternoon", long (the 7-day default) means "fair this week", and a big run burns its team's priority for weeks afterwards. Check it with <code>sshare -a -l</code> (shares, usage, LevelFS, FairShare per association) and <code>sprio -l</code> (each pending job's priority split into factors).</p>
+</section>
+
+<section id="sc-s4">
+<h2>4. Preemption: taking GPUs back</h2>
+<p><b>The problem.</b> An urgent job (a deadline, a production evaluation, a quota owner returning) should not wait hours for a long training job to finish. <dfn>Preemption</dfn> stops a running job to free its resources. What happens to the victim is the <dfn>preempt mode</dfn>: <code>CANCEL</code> (killed), <code>REQUEUE</code> (killed and put back in the queue to start over, from its last checkpoint if it wrote one), <code>SUSPEND</code> (paused in memory; useless for GPUs whose memory stays full).</p>
+<p><b>The lab config.</b> <code>PreemptType=preempt/partition_prio</code> with <code>PreemptMode=REQUEUE</code>: jobs in partition <code>urgent</code> (<code>PriorityTier=10</code>) may requeue jobs in <code>batch</code> (tier 1) on the same nodes. bob runs a 12-GPU job in <code>batch</code>; 40 seconds later alice submits a 4-GPU job to <code>urgent</code>.</p>
+<div class="sc-card" id="sc-w3-card"><h4>What Slurm did <span class="sc-meas">measured</span></h4>
+<div class="sc-svg" id="sc-w3-svg"></div>
+<p class="sc-leg"><span><i style="background:var(--c2)"></i>bob, batch</span><span><i style="background:var(--c1)"></i>alice, urgent</span><span>red dashed line: alice submits</span></p>
+<pre>[2026-10-16T02:45:29.001] sched: Allocate JobId=39 NodeList=c[1-3] #CPUs=12 Partition=batch
+[2026-10-16T02:46:08.891] _slurm_rpc_submit_batch_job: JobId=40 InitPrio=2500 usec=2553
+[2026-10-16T02:46:09.001] preempted JobId=39 has been requeued to reclaim resources for JobId=40
+[2026-10-16T02:46:09.045] Requeuing JobId=39
+[2026-10-16T02:46:09.502] sched: Allocate JobId=40 NodeList=c1 #CPUs=4 Partition=urgent
+[2026-10-16T02:46:59.551] _job_complete: JobId=40 done
+[2026-10-16T02:48:17.569] sched/backfill: _start_job: Started JobId=39 in batch on c[1-3]</pre>
+<p class="sc-codecap"><code>slurmctld.log</code>, Slurm 24.11.5 (lines for jobs 39 and 40). <code>sacct -D</code> keeps both runs of job 39: the first <code>PREEMPTED</code> after 41 s, the second <code>COMPLETED</code>.</p>
+<p><b>What happened.</b> alice's urgent job started 1 s after submission: Slurm requeued all 12 GPUs of bob's job to get the 4 it needed. Then two things a newcomer does not expect. First, the other 8 GPUs sat idle: bob's job needs all 12, so it could not restart beside the urgent job. Second, bob's job did not restart when the urgent job ended at 02:46:59; it waited until 02:48:17 with reason <code>(BeginTime)</code>. A requeued job gets a begin time of now plus the credential lifetime plus one second (<span class="mono small">src/slurmctld/job_mgr.c:16389</span>, <code>begin_time = now + cred_lifetime + 1;</code>), so that the old run's credentials and I/O are gone before the new run starts: 121 s here (requeued at 02:46:09, eligible at 02:48:10; the next backfill pass started it). To run a 4-GPU job for 50 s, preemption cost bob 41 s of lost work, a 2-minute hold and 8 idle GPUs for 50 s.</p></div>
+<p><b>The cost.</b> Everything the victim computed since its last checkpoint is lost, plus its restart time, and it waits again in the queue. Preemption is therefore only as cheap as the victim's checkpoint interval: a training job that may be preempted should checkpoint often and resume automatically (<code>#SBATCH --requeue</code>, and a script that loads the latest checkpoint, as the running example does). The {{Failure lab|#t-fail}} measures the resume.</p>
+</section>
