@@ -4099,3 +4099,17 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | 6 | Cluster explorer: four designs, drill-down drawing of each level's composition, per-level bandwidth bars, side-by-side table | own tab | 1/2/2/2 | shows when counts do not multiply out (4 SU = 1,016 not 1,024; FF2 2 zones 9,600 vs 10,000) |
 | 7 | Message path: two routes animated together hop by hop through GPU, PCIe switch, NIC, leaf, spine, core; slowest hop, latency, 1 GB time; oversubscription control | own tab | 2/1/2/2 | before/after on the same message (inside a node vs across pods); PXN route |
 | 8 | Sizing calculator: GPUs to nodes, leaf/spine/core switches, cables, racks, MW, storage GB/s; presets with residuals | own tab | 2/2/2/2 | reproduces SuperPOD 4-SU (32 leaf, 16 spine, 1,024 leaf-spine cables) and Fire-Flyer 2's 800-port zone (40 leaf, 20 spine) independently; SuperPOD 3-SU spines differ (16 published, 12 computed), shown |
+
+### Slurm from zero: allocation, gang scheduling, fairshare and preemption (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_ml_infra_and_orchestration/slurm/src/viz_ideas.md`.
+
+| Visual | Where | Why | Data |
+|---|---|---|---|
+| Job lifecycle timeline, busy cluster against idle (before/after on the same job) | Job lifecycle tab | every state transition is a real log line; shows that only the queue differs and that Slurm's own overhead is milliseconds | slurmctld/slurmd logs at debug + Backfill flag, prolog/epilog lines, rank logs |
+| Four steps without and with --exact (before/after animation) | Reading 4 | the most common step surprise, measured; includes the -c implies --exact subtlety | sacct of jobs 129, 126, 130 |
+| Same queue 51 s later: stacked priority bars, two snapshots | Reading 7 | fairshare flip with nothing else changing | sprio -l, sshare at two times |
+| Multifactor calculator with all 22 measured rows | Priority calculator tab | reproduces sprio exactly, including a truncation case | sprio -n, scontrol show job; recompute.py |
+| Pending-reason decoder over all 218 reasons, limit-name grammar | Why pending? tab | reasons are the main debugging interface; 170 of 218 are limits that follow one grammar | job_state_reason.c, gallery run |
+| Arrays and dependencies Gantt | Reading 9 | eligibility vs start for chains, throttles, singleton, never-satisfied | sacct |
+| Clickable cluster map, job-state chips, predict-then-reveal boxes | Reading | orientation | setup |
