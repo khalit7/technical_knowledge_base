@@ -1,0 +1,47 @@
+
+<section id="vl-s3">
+<h2>3. How many tokens is an image?</h2>
+<p><b>The problem.</b> More image tokens let a model see finer detail (small text, a chart&#8217;s labels), but each one is a token the language model must attend over, in context and in time. A fixed low resolution (LLaVA-1.5&#8217;s one 336-pixel view) misses detail; full resolution at one token per 16-pixel patch would make a 2,048-pixel square 16,384 tokens <span class="vl-tag vl-der">derived: (2,048 / 16)&#178;</span>. Every VLM picks a point between the two.</p>
+<p><b>How SmolVLM does it.</b> Its image processor (transformers v5.20.1, <code>models/idefics3/image_processing_idefics3.py</code>) does three things: it scales the image so its long side equals <code>size.longest_edge</code> (2,048 by default, written N &#215; 512 below with N = 4), keeping the aspect ratio (lines 58&#8211;92); it rounds both sides <i>up</i> to whole 512-pixel tiles by resizing, not padding (<code>resize_for_vision_encoder</code>, lines 319&#8211;348); and it cuts the tiles and appends the whole image shrunk to 512 as a global view (<code>split_images</code>, lines 286&#8211;317). Each view becomes 64 tokens. The processor then writes one placeholder per token into the prompt, with a tag naming each tile&#8217;s row and column (<code>processing_idefics3.py</code> lines 216&#8211;243).</p>
+<div class="co warn"><div class="t">Three things the counting showed <span class="vl-tag vl-meas">measured</span></div>
+<ul class="tight">
+<li><b>Input resolution does not change the count.</b> A 64 &#215; 64 icon and a 3,000 &#215; 3,000 photo both become 17 views and 1,088 image tokens: small images are upscaled to 2,048 first. Only the aspect ratio and the N setting matter.</li>
+<li><b>Shapes are stretched to whole tiles.</b> A 1920 &#215; 1080 photo becomes 2,048 &#215; 1,152 and then 2,048 &#215; 1,536 (3 &#215; 4 tiles): height stretched by a third.</li>
+<li><b>N above 6 breaks the tile tags.</b> The vocabulary has <code>&lt;row_1_col_1&gt;</code> to <code>&lt;row_6_col_6&gt;</code> as single learned tokens; <code>&lt;row_7_col_1&gt;</code> is split into 9 ordinary text pieces (<code>&lt;</code>, <code>row</code>, <code>_</code>, <code>7</code>, ...). At N = 8 a square image takes 4,538 prompt tokens, of which 4,160 are image tokens and 378 are markers.</li>
+</ul></div>
+<div class="card">
+<h3 style="margin-top:0">Token-budget calculator</h3>
+<div class="vl-in">
+<label>Preset<br><select id="vl-bd-pre"></select></label>
+<label>Width (px)<br><input type="number" id="vl-bd-w" value="512" min="1" max="10000"></label>
+<label>Height (px)<br><input type="number" id="vl-bd-h" value="512" min="1" max="10000"></label>
+<label>Text tokens in the question<br><input type="number" id="vl-bd-q" value="15" min="0" max="8000"></label>
+</div>
+<div class="vl-ctl"><label style="flex:1 1 260px">Long side N &#215; 512, N = <input type="range" id="vl-bd-n" min="1" max="8" value="4" step="1" aria-label="N"></label><span class="small mute" id="vl-bd-nv"></span><label class="small"><input type="checkbox" id="vl-bd-split" checked> image splitting</label></div>
+<div class="out" id="vl-bd-out"></div>
+<canvas id="vl-bd-cv" role="img" aria-label="The resized image and its tile grid"></canvas>
+<ul class="vl-notes" id="vl-bd-notes"></ul>
+<p class="small mute" style="margin-bottom:2px">The same image in other VLMs <span class="vl-tag vl-der">derived from configs</span> (read by the {{Model map|#t-map}}; not run here):</p>
+<div class="bars" id="vl-bd-bars"></div>
+<p class="small mute">The calculator re-implements the processor&#8217;s arithmetic and reproduces all 36 counts measured with the real processor (the table below) by construction of the same rule, checked by <code>src/vlm/check_calc.mjs</code>. Qwen2-VL&#8217;s count is a rough guide: its processor also enforces minimum and maximum pixel limits, ignored here. SmolVLM&#8217;s 2.2B sibling uses 384-pixel tiles and 81 tokens per tile (729 patches / 3&#178;; see the Model map); this lab ran the 500M model, with 512-pixel tiles and 64 tokens per tile.</p>
+</div>
+<details class="mist"><summary>All 36 measured counts (the real processor, CPU)</summary><div class="b"><div class="tw" id="vl-bd-tab"></div><p class="small mute">Question &#8220;Describe this image in one sentence.&#8221;; prompt tokens include the chat template. Script <code>src/vlm/tokens.py</code>, output <code>out/tokens.json</code>.</p></div></details>
+<p><b>Predict, then reveal.</b> You send SmolVLM a 1080 &#215; 1920 phone screenshot. With the default setting, how many image tokens? <button id="vl-pr1-b">Reveal</button> <span id="vl-pr1" hidden>832: 1,920 &#8594; 2,048 on the long side, 1,080 &#8594; 1,152 &#8594; rounded up to 1,536, so 4 rows &#215; 3 columns = 12 tiles plus the global view = 13 &#215; 64 <span class="vl-tag vl-meas">measured</span>. Fewer than a 64-pixel icon&#8217;s 1,088, because the icon is square.</span></p>
+</section>
+
+<section id="vl-s4">
+<h2>4. The prompt the model actually reads</h2>
+<p><b>The chat template.</b> A chat model is trained on conversations written in one exact format, its <dfn>chat template</dfn>. For a VLM the template also says where the image goes. You write a message with an image and a question; <code>apply_chat_template</code> produces this string, with one <code>&lt;image&gt;</code> placeholder <span class="vl-tag vl-meas">measured</span>:</p>
+<pre id="vl-tmpl"></pre>
+<p>The processor then expands the one placeholder into the tile structure. Runs of <code>&lt;image&gt;</code> are written as <code>&lt;image&gt;x64</code> here; the real string repeats the token 64 times:</p>
+<pre id="vl-exp"></pre>
+<div id="vl-kinds" class="split"></div>
+<p><b>Where the vectors go.</b> Inside the model the prompt is embedded token by token, and then every <code>&lt;image&gt;</code> position is overwritten, in order, by the projected image vectors:</p>
+<pre class="vl-nowrap"><code># transformers v5.20.1, models/idefics3/modeling_idefics3.py lines 557-559 (inputs_merger)
+special_image_mask = special_image_mask.unsqueeze(-1).to(inputs_embeds.device)
+image_hidden_states = image_hidden_states.to(inputs_embeds.device, inputs_embeds.dtype)
+inputs_embeds = inputs_embeds.masked_scatter(special_image_mask, image_hidden_states)</code></pre>
+<p>So the language model never sees the placeholder&#8217;s own embedding: only its position. If the number of placeholders and the number of image vectors disagree (a hand-written prompt, a processor and model from different versions), the scatter misplaces vectors or fails; always build the prompt with the model&#8217;s own processor.</p>
+<p><b>Image tokens are not words.</b> <span class="vl-tag vl-meas">measured</span> <span id="vl-norms">The projected image vectors have a median length (L2 norm) of 101 (10th to 90th percentile 83 to 158); the language model&#8217;s own word embeddings have a median length of 3.5. The nearest vocabulary embedding to each of the 64 global-view image tokens has a median cosine similarity of 0.27, and the nearest &#8220;words&#8221; are meaningless: <code>&lt;|im_start|&gt;</code> for 32 of the 64, <code>&lt;|im_end|&gt;</code> for 12, then fragments such as <code>amine</code>. The language model has learned to read these vectors as a different kind of input; they are not disguised words.</span></p>
+<p class="small mute">The tile tags (<code>&lt;row_1_col_1&gt;</code> and so on) are single learned tokens. The SmolVLM paper found that plain-text position markers &#8220;caused early training plateaus&#8221; and that &#8220;learned positional tokens outperform raw text tokens for compact VLMs&#8221; (section 3.1, Finding 5) <span class="vl-tag vl-pub">published</span>; the 9-piece <code>&lt;row_7_col_1&gt;</code> above is exactly the raw-text case.</p>
+</section>
