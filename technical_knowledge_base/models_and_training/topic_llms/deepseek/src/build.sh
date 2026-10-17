@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/ (HTML parts in order, then the scripts, tabs last)
 cd "$(dirname "$0")"
 { cat parts/01_head.html parts/02_read_a.html parts/03_read_b.html parts/04_read_c.html parts/05_tabs.html parts/07_more.html

@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/: the head and CSS, the HTML parts in order, then the scripts, tabs last.
 # Links in the HTML parts are written {{text|url}}; url may be an alias (@name, below) or n:<notion id>.
 # They expand to <a href="url" target="_blank" rel="noopener noreferrer">text</a>.

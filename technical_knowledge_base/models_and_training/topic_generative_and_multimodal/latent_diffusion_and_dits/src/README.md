@@ -36,4 +36,4 @@ Prefix `ld` (ids, classes `ldp`, `ld-*`, data attributes `data-ld`); tab storage
 
 - No old page to cover (new page; Notion disconnected): `coverage.md` lists the brief's requirements and where each is.
 - Many counts for gated or very large models (SD3, FLUX.1, Qwen-Image 20B) come from instantiating configs on the meta device instead of running them; each count is checked against a public total, and the page says so.
-- Page size about 0.7 MB (images of the cross-attention runs as WebP data URIs and 8-bit maps), over the 300 KB guideline and under the topic's 1 MB limit.
+- Page size about 0.7 MB (images of the cross-attention runs as WebP data URIs and 8-bit maps), over the 300 KB guideline of the time (retired 2026-10-17) and under the topic's 1 MB limit.

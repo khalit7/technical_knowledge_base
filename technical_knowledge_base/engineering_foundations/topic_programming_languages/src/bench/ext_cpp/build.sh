@@ -1,4 +1,5 @@
 #!/bin/bash
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Build the pybind11 and nanobind extensions for $PY into $OUT (no CMake: plain clang++).
 # Compile times go to $OUT/pb_time.txt and $OUT/nb_time.txt.
 set -e

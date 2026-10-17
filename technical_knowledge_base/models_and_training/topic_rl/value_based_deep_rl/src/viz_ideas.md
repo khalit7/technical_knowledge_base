@@ -22,4 +22,4 @@ Existing visuals checked first: the parent root's Method atlas, Taxonomy and Mil
 | VB-14 | Dueling V/A decomposition widget | One example already in the text; nothing to move that teaches beyond it | | none | 4 | rejected |
 | VB-15 | NoisyNet weight-noise toy | No published figure to reproduce; the effect needs a full agent | | none | 4 | rejected |
 
-What the methodology lacked for this page: a rule for figures that are drawn as vector shapes. Decoding rectangle heights from the PDF is exact (unlike reading curves), and was validated against the figure's own highlighting; it is labelled "decoded from the figure". Proposed for the ideas log.
+What the methodology lacked for this page: a rule for figures that are drawn as vector shapes. Decoding rectangle heights from the PDF is exact (unlike reading curves), and was validated against the figure's own highlighting; it is labelled "decoded from the figure".

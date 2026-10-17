@@ -23,4 +23,6 @@ Then for the root and each child: `sh src/build.sh`; its quick data and UI check
 ---
 
 ## Sources distilled
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 The lead's prompts "ML infra: wire child-page links" and "Generative: wire links and root fixes" (2026-10-17); `links_todo.md` from the ML infra root fix pass (2026-10-16, 36 plain-text mentions).

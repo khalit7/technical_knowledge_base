@@ -2,7 +2,7 @@
 
 The old root and its seven children were fetched read only on 2026-10-05 and saved verbatim by `save_old.py` in `old/`. They were treated as unverified notes. This file lists their checkable claims with a status and where the new page carries them.
 
-Status: **verified** (checked against the primary source named, saved in `sources/` unless said otherwise), **corrected** (the old claim was wrong or stale; the correction is on the page), **unconfirmed** (not checked; not stated on the page as fact), **child** (correct or plausible, but depth that belongs to a future child page; kept here so the children can pick it up). A root page is an overview (methods/topic_pages.md, lesson of 2026-10-04), so most of the old pages' ladders, idiom lists and trap lists are marked child.
+Status: **verified** (checked against the primary source named, saved in `sources/` unless said otherwise), **corrected** (the old claim was wrong or stale; the correction is on the page), **unconfirmed** (not checked; not stated on the page as fact), **child** (correct or plausible, but depth that belongs to a future child page; kept here so the children can pick it up). A root page is an overview (`.claude/skills/explainer-page/page-kinds/topic-root.md`, lesson of 2026-10-04), so most of the old pages' ladders, idiom lists and trap lists are marked child.
 
 ## Old root (Topic: programming-languages)
 

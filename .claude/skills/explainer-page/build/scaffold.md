@@ -40,6 +40,8 @@ Never commit `__pycache__`, `.shots/` (screenshots), MP4s, PDFs or files over ab
 | `05z_errbox.js.html` | the error handler, emitted before the scripts by `build.sh` |
 | `99_js_tabs.js` | tab wiring, always the last script |
 
+**Keep the first line after the shebang of `build.sh`** (it is in the template and in every page): it puts the repo's `.venv` Python (3.12, `uv sync`; stdlib, PyYAML and numpy) first on PATH and sets `LC_ALL=en_US.UTF-8`. Float output differs in the last digit between Python versions and glob order depends on the locale, so without it a rebuild in another shell changes the page hash and `sync_status.py` asks for a republish. Data scripts that compare against printed numbers use exact decimals (`decimal.Decimal`, half-up), never float `round()`, for the same reason: see `technical_knowledge_base/reference/papers/mamba/src/recompute.py`. A page needing heavier libraries keeps them in its own environment and commits the outputs the build reads.
+
 **Name the first Reading part `20_read_a.html` (or keep a wrapper in `20_read.html`, which `build.sh` cats first explicitly), and list globs in byte order:** in this locale the shell sorts `20_read_b.html` before `20_read.html`. The template `build.sh` sorts with `LC_ALL=C`. Make sure every part closes every `div` it opens.
 
 The header's tab bar:
@@ -76,4 +78,6 @@ Paper pages also use `ax:` (arXiv HTML anchors), `tab:` and margin-label macros;
 Pick a short page prefix (`gm`, `mi`, `dc`) for the storage key and the topic's agent names, and a short prefix per tab (`lt`, `df`, `fw`, `vs`, `vl`, `mm`): the tab's part files (`32_js_df_*`), element ids (`df-cfg`), classes (`.df-box`), CSS scope (`#t-diff ...`), global namespaces (`window.DF`, `window.DFD`) and data attributes all carry it. With several agents on one page, each owns only its own part files and `src/<tab>/` folder; shared files (`01_head.html`, `21_js_rd_common.js`, `99_js_tabs.js`, `10_header.html`) belong to the lead.
 
 ## Sources distilled
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 `html_utils/templates/` (README.md, build.sh.example, 05z_errbox.js.html, 10_js_common.js), `html_utils/BRIEF_page_agent.md` (fail-safe build, 20_read_a naming, long runs), `html_utils/methods/topic_pages.md` (one subagent per tab, scoped CSS, prefixed ids), `html_utils/methods/papers.md` (paper build macros), `CLAUDE.md` (layout, git rules), the gm and mi briefs (scaffold, file ownership, link syntax), and the generative root's `src/build.sh` and parts.

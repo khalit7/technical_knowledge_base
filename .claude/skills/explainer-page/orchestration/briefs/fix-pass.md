@@ -30,4 +30,6 @@ Then rebuild (`sh src/build.sh`), run each touched tab's own checks (each `src/<
 ---
 
 ## Sources distilled
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 The lead's prompts "ML infra root: fix pass" (A to G, 2026-10-16), "ML infra root: last small fixes" (2026-10-16) and "Generative: wire links and root fixes" item 2 (2026-10-17); the ROOT FIX LIST entries in the JAX, ML infra and generative memory logs.

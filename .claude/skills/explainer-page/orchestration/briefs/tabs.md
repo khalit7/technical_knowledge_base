@@ -47,4 +47,6 @@ Real examples of the body (2026-10-17, generative topic): "the same image noised
 "You are the {{ROLE}} agent for the knowledge-base topic {{TOPIC_TITLE}}. Scratchpad: {{SCRATCH}} (call it $S; never write this path into the repo). Read $S/{{PREFIX}}_common.md in full (RESOURCE SAFETY overrides everything), then do the section `== {{PREFIX}}-{{KEY}}` of $S/{{PREFIX}}_tabs.md (skim the other sections). Your prefix: {{IDP}}. {{ONE OR TWO LINES specific to this launch: what to reuse, what is still running, when READY is expected}}. Report once, when done: what you built, runs, check results, reading time, and suggestions for other tabs and FACTS.md."
 
 ## Sources distilled
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 `gm_tabs`, `jx_tabs`, `dc_tabs`, `rag_tabs`, `pt_tabs` briefs (2026-10-12 to 2026-10-17) and the lead's launcher prompts for the generative setup and Reading agents (2026-10-17); memory logs of the RAG topic (map agent idling for READY) and data curation topic.

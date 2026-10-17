@@ -68,4 +68,6 @@ Never write the home path, the scratch path (it contains the login name), hostna
 - Agents do not commit, publish, or edit `pages.json`; the lead does, staging explicit paths only (never `git add -A` while other agents work).
 
 ## Sources distilled
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 `html_utils/checkpage.sh`, `tabshot.mjs`, `clipcheck.mjs`, `package.json`; the CHECKS sections of the child briefs (gm, dc, jx, pt, rag `*_child_common`) and gm_common, mi_common (privacy, scrubbing logs); `html_utils/BRIEF_page_agent.md` (headless shell, coverage.json); `html_utils/methods/papers.md` (check_page.mjs, 11 px); rag-topic memory (explicit staging), dc-topic memory (seed-file emails).

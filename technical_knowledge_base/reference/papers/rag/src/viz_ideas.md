@@ -4,7 +4,7 @@ The question the paper keeps returning to: **what does a retrieved document chan
 
 Scored on the Methodology's questions (`.claude/skills/explainer-page/visuals/choosing.md`): a parameter the reader moves; reproduces a published figure (counts double); computable from public data (counts double); shows what a sentence cannot; corrects a misconception; measures the central question; absent elsewhere; step-by-step animation against the method it replaced; minus build cost.
 
-## Built (ids P-rag.k, for the orchestrator to merge into the ideas log)
+## Built (ids P-rag.k)
 
 | # | Idea | What it shows, and what the reader does | Why it helps | Data and sources | Placement | Score |
 |---|---|---|---|---|---|---|

@@ -2,7 +2,7 @@
 
 The question the paper keeps returning to: **how much of a usable training environment can be recovered from a recorded agent run, and is it the environment or the teacher that makes the gain?** Visuals are scored 0 to 2 on: parameter the reader controls, reproduces a stated figure, computable from public data, shows what a sentence cannot, corrects a misconception, measures the central question, absent elsewhere; reproduction and computability count double; build cost subtracted; +1 for a step animation against the method it replaced.
 
-## Built (ids for the ideas log)
+## Built 
 
 | # | Idea | What it shows, and what the reader does | Data and sources | Placement | Score |
 |---|---|---|---|---|---|

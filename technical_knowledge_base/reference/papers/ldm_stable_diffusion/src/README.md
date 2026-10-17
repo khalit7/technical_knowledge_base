@@ -25,7 +25,7 @@
 - Samples are graded by a **deterministic checker** on a synthetic domain (shape, colour, position read from the pixels), in place of FID, which a toy cannot compute meaningfully.
 - No "What it takes to use this": the recipe is the standard one of every open image model; Then and now and a short note in "How much to believe" (code, licences) cover adoption.
 - Figures 6 and 7 are not rebuilt (images only); the f sweep uses the printed Tables 8, 13 and 14.
-- Weights are 8-bit, not the reference's 6-bit: at 6 bits the latent model's held-out score fell from 52% to 42% (`model/quant_report6.json`), at 8 bits it moved from 52% to 54% (`quant_report8.json`). The page is therefore about 381 KB, over the 300 KB guideline: the three shipped networks have 130,639 weights (197 KB as 8-bit base64); 6-bit would save 44 KB at that quality cost.
+- Weights are 8-bit, not the reference's 6-bit: at 6 bits the latent model's held-out score fell from 52% to 42% (`model/quant_report6.json`), at 8 bits it moved from 52% to 54% (`quant_report8.json`). The page is therefore about 381 KB, over the 300 KB guideline of the time (retired 2026-10-17): the three shipped networks have 130,639 weights (197 KB as 8-bit base64); 6-bit would save 44 KB at that quality cost.
 - The fixed-compute row (`dm_f4long`, 28,000 steps in about the pixel model's training time, as the paper's Figure 17 compares at fixed V100-days) is measured and shown in the Generate tab's results table and curve, but not shipped, to keep the page size down.
 
 ## Toy results (model/eval_report.json; 50 DDIM steps, held-out = the 12 prompt combinations never trained on, 8 samples each)

@@ -71,4 +71,6 @@ A new issue copies the machinery and writes new annotations.
 - **2026-09-28 issue**: the strip data carries no tags and first lines are cut at 150 characters, to keep the page small; the issue's own inline links (arXiv ids, repositories) are restored on their text by `relink()`.
 
 ---
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 Sources distilled: html_utils/methods/tech_news.md (whole method, rules, lesson); html_utils/interactive-html-ideas.md section 2 (news-issue rules); reference/tech_news/2026_09_28_tech_news/src/README.md (machinery).

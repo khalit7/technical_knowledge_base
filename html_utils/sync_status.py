@@ -11,6 +11,12 @@ The script also reports folders with an index.html that the manifest does not li
 whose folder is missing. Stdlib only.
 """
 import argparse, hashlib, json, subprocess, sys
+import os
+# Builds run python3 from the repo's uv environment (Python 3.12, `uv sync`), whatever the shell has first
+# on PATH: float output differs in the last digit between Python versions, which would change page hashes.
+_VENV = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".venv", "bin")
+if not os.path.exists(os.path.join(_VENV, "python3")): sys.exit("run `uv sync` at the repo root first: builds use .venv/bin/python3")
+BUILD_ENV = dict(os.environ, PATH=_VENV + os.pathsep + os.environ.get("PATH", ""))
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -47,7 +53,7 @@ def main():
         if e.get("status") != "html_only":
             continue
         if not a.no_build:
-            r = subprocess.run(["sh", "src/build.sh"], cwd=d, capture_output=True, text=True)
+            r = subprocess.run(["sh", "src/build.sh"], cwd=d, capture_output=True, text=True, env=BUILD_ENV)
             if r.returncode:
                 problems.append(f"build failed: {e['path']}: {r.stderr.strip()[-300:]}")
                 continue

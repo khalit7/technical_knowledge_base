@@ -58,4 +58,6 @@ Publishing is the `sync-KB-github` skill; the points that matter for migrations:
 - **Record**: run `python3 html_utils/page_finalize.py <folder>` after publishing. On a root it commits everything under the folder, including children's in-progress `src/`: publish the root before children start, or check what it swept.
 
 ---
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 Sources distilled: html_utils/BRIEF_page_agent.md (Step 0, the model); html_utils/methods/topic_pages.md Part A (folding, publishing a root with children); memory check-coverage-before-leaving-old, teach-dont-ask-scope and the rl, benchmarks, evaluation, ml-fundamentals, swe, rag, protocols, proglang, os, pytorch, jax, mi and gm topic logs; .claude/skills/sync-KB-github/SKILL.md; CLAUDE.md (Notion facts).

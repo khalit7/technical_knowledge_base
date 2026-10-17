@@ -55,6 +55,9 @@ Each lesson says what happened and the rule it produced. The rules are already f
 - **2026-10-14, zsh loops.** A scaffold loop over `$list` in zsh did not split words and created one wrongly named file. Rule: scaffold loops in `sh` or with explicit names.
 - **2026-10-17, page size.** Five labs with rich data pushed a root to 1.42 MB. Rule: set a per-lab data budget once the first labs land; keep fuller data in `src/<lab>/out/` for children to reuse.
 
+## Reproducible builds
+- **2026-10-18: a full rebuild flagged 31 published pages that nobody had changed.** Builds called whatever `python3` came first on PATH and globbed parts in the shell's locale. Pages built under macOS's Python 3.9 and `en_US.UTF-8` differed from rebuilds under the repo's Python 3.12 (whose float `sum()` is compensated) and a `C.UTF-8` shell: last-digit floats, reordered scripts, and in three papers a rounding check that flipped at an exact half (40.145, 52.95, 62.95). Rule: every `build.sh` pins the repo `.venv` Python and `LC_ALL=en_US.UTF-8` on its first line; checks against printed numbers use exact decimals, half-up. See [build/scaffold.md](build/scaffold.md).
+
 ## How to add a lesson
 1. Decide where it belongs: one page kind (add it to that file under `page-kinds/`, dated) or cross-cutting (here).
 2. Write it as: bold short name, date, what happened in one or two sentences with the real numbers, then "Rule:" and the rule. No em-dashes.
@@ -62,4 +65,6 @@ Each lesson says what happened and the rule it produced. The rules are already f
 4. If a running topic is affected, append the rule to its filled brief and message the running agents once.
 
 ## Sources distilled
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 Memory logs of the inference, RAG, data curation, JAX, ML infra and generative topics (2026-10-11 to 2026-10-17); feedback memories gpu-runs-one-agent, no-usage-caps, cheap-runs-over-expensive, manage-mac-resources, check-coverage-before-leaving-old, scratch-wiped-reboot, completeness-over-disk, teach-dont-ask-scope; the kb_briefs `lock.sh` and `guard.sh` headers; html_utils/BRIEF_page_agent.md "Rules learned on the training topic"; the papers method's Mamba lesson.

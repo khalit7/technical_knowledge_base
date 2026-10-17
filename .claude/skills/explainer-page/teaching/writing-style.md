@@ -55,4 +55,6 @@ Rules for every word that ends up on a page, in `src/` notes, in a README or in 
 - **Real people**: short excerpts of web text only, PII-scrubbed. Never a private individual's details or images.
 
 ---
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 Sources distilled: CLAUDE.md (Writing); html_utils/BRIEF_page_agent.md (sourcing, labels); html_utils/interactive-html-ideas.md section 2 (independently vs by construction, read from figure, dated readings); html_utils/methods/papers.md (closed details reading time); html_utils/methods/tech_news.md; kb_briefs gm/mi/jx/dc (labels, PRIVACY); memory benchmarks, swe, gm and os topic logs.

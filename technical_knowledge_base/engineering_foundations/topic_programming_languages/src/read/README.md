@@ -2,7 +2,7 @@
 
 Parts owned: `parts/20_read.html` (CSS, nav), `parts/20_read_a.html` .. `20_read_i.html` (sections), `parts/22_js_rd_data.js` (generated), `23_js_rd_util.js` (highlighter, four-language code panels, glossary, reading time), `24_js_rd_run.js` (how code runs), `25_js_rd_mem.js` (memory layout and llama.cpp excerpts), `26_js_rd_own.js` (dangling reference), `27_js_rd_conc.js` (shared counter), `28_js_rd_repos.js` (repository language chart), `parts/39_tab_more.html`. `21_js_rd_common.js` is shared and unchanged.
 
-Shape: the root is organised as a design space, philosophy first (coordinator's UPDATE of 2026-10-05): one screen, four founding values, then one short section per axis with Python as the reference column and a false-friends box, then choosing and the learning path, ending with a table tracing each axis to each founding value. Departs from methods/topic_pages.md Part A only in having fourteen short axis sections instead of three or four long ones, because a language comparison has more axes than a model comparison.
+Shape: the root is organised as a design space, philosophy first (coordinator's UPDATE of 2026-10-05): one screen, four founding values, then one short section per axis with Python as the reference column and a false-friends box, then choosing and the learning path, ending with a table tracing each axis to each founding value. Departs from `.claude/skills/explainer-page/page-kinds/topic-root.md` only in having fourteen short axis sections instead of three or four long ones, because a language comparison has more axes than a model comparison.
 
 ## Rebuild
 

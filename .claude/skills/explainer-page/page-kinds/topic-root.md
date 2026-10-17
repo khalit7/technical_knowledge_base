@@ -100,4 +100,6 @@ Details in [migrate-or-fold.md](migrate-or-fold.md) and the `sync-KB-github` ski
 - **2026-10-17** (generative): set lab data budgets early (page 1.42 MB after five labs). A Reading tab written before the labs needs a final pass that fills every TODO from recorded outputs and applies the corrections the children found (guidance interval, autoguidance, model names).
 
 ---
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 Sources distilled: html_utils/methods/topic_pages.md Part A (shape, data tabs, deeper dives, publishing, lessons); html_utils/methods/README.md; html_utils/BRIEF_page_agent.md (root model); memory rl, swe, benchmarks, evaluation, ml-fundamentals, training, inference, pytorch, rag, dc, jax, mi, gm, proglang, agents and gpu topic logs; kb_briefs gm/mi/jx/dc common and tabs (THE ROOT, lab and read briefs); the generative root's README and src/read/README.md.

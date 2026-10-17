@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/.
 # HTML: 01_head + 02_css (styles), 10_header (title and tab bar), 20_read_a..e (Reading tab), 30_tab_grade (Three graders, 400 trials),
 # 32_tab_match (Path matchers), 39_tab_more (Further reading).

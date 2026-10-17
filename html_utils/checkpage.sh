@@ -1,7 +1,7 @@
 #!/bin/sh
 # usage: sh html_utils/checkpage.sh <page folder>
 # Opens every tab of <page folder>/index.html in light at 920 px and dark at 390 px, checks for text cut off at 390 px (clipcheck.mjs), prints failures,
-# then one summary line. A page is publishable only with fail=0, emdash 0 and errbox 1.
+# then one summary line. A page is publishable only with fail=0, emdash 0, errbox 1 and clipped 0.
 # Screenshots land in <page folder>/.shots/ (gitignored) for you to look at.
 H=$(cd "$(dirname "$0")" && pwd)
 d="$1"; f="$d/index.html"; [ -f "$f" ] || { echo "no $f"; exit 1; }

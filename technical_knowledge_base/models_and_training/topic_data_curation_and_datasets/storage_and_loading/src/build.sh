@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/ (storage and loading child page, prefix sl).
 # HTML: 01_head, 02_css, 10_header, 20_read_*.html (Reading tab), 3*_tab_*.html (lab tabs and 39_tab_more.html, file-name order).
 # JS: data (generated from data/sl_data.json by recompute.py), then every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js last.

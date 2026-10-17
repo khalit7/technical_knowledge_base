@@ -2,7 +2,7 @@
 
 The question the paper keeps returning to: **does making attention depend only on the offset buy anything measurable, and does the evidence show it?** Visuals are scored 0 to 2 on the Methodology's questions (parameter to move, reproduces a published figure ×2, computable ×2, shows what a sentence cannot, corrects a misconception, measures the central question, absent from existing explainers and from the KB, animation), minus build cost. The LLM Architecture Gallery page already has the one-pair dial and the YaRN bands, so neither is rebuilt.
 
-## Built (rows for the ideas log, ids P-roformer.k)
+## Built (ids P-roformer.k)
 
 | # | Idea | What it shows, what the reader does | Score | Placement | Data and sources |
 |---|---|---|---|---|---|
