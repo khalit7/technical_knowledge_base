@@ -4113,3 +4113,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | Pending-reason decoder over all 218 reasons, limit-name grammar | Why pending? tab | reasons are the main debugging interface; 170 of 218 are limits that follow one grammar | job_state_reason.c, gallery run |
 | Arrays and dependencies Gantt | Reading 9 | eligibility vs start for chains, throttles, singleton, never-satisfied | sacct |
 | Clickable cluster map, job-state chips, predict-then-reveal boxes | Reading | orientation | setup |
+
+### Kubernetes for ML: scheduling, device plugins, gang scheduling and operators (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_ml_infra_and_orchestration/kubernetes_for_ml/src/viz_ideas.md`.
+
