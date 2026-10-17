@@ -14,6 +14,6 @@ Build: `sh build.sh` writes `../index.html` (parts in `parts/`, data injected fr
 | `inputs/` | `gate_data.json` (38 KB), 2023 price extracts, `writeups/` (21 team write-ups) and `methods/` (29 primary-source extracts), all fetched 2026-10-04 |
 | `viz_ideas.md` | Visual ideas built and rejected |
 
-Shape: Part B of `html_utils/methods/topic_pages.md` (Reading in the pipeline's own order, one tab per standalone visual, Further reading). One departure: a Case file tab of dated team write-ups, because the subject's evidence is mostly practitioner reports rather than papers, and placing them on the promotion path shows which stage caught or missed each problem.
+Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (Reading in the pipeline's own order, one tab per standalone visual, Further reading). One departure: a Case file tab of dated team write-ups, because the subject's evidence is mostly practitioner reports rather than papers, and placing them on the promotion path shows which stage caught or missed each problem.
 
 Parts: `20_read_a` (one screen), `20_read_b` (animation section), `20_read_c` (golden sets, gates in CI), `20_read_d` (budgets, online, shadow, A/B, monitoring, eval-driven development), `20_read_e` (moved, mistakes); `21_js_common.js` (decoding, paired statistics, gate rule), `22_js_gate_anim.js`, `23_js_frontier.js`; `31_*` Gate designer; `32_*` Case file; `39_tab_more.html`; `99_js_tabs.js` last.

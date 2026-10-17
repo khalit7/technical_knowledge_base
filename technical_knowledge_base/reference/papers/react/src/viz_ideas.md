@@ -2,7 +2,7 @@
 
 The question the paper keeps returning to: **what does a thought, an action that touches nothing, add to an agent that can already act, and what does it cost?** Every visual below shows that on the paper's own episodes or its own numbers.
 
-Scored on the Methodology's questions (`html_utils/interactive-html-ideas.md` section 2): a parameter the reader moves; reproduces a published figure (counts double); computable from public data (counts double); shows what a sentence cannot; corrects a misconception; measures the central question; absent elsewhere; step-by-step animation against the method it replaced; minus build cost.
+Scored on the Methodology's questions (`.claude/skills/explainer-page/visuals/choosing.md`): a parameter the reader moves; reproduces a published figure (counts double); computable from public data (counts double); shows what a sentence cannot; corrects a misconception; measures the central question; absent elsewhere; step-by-step animation against the method it replaced; minus build cost.
 
 ## Built (ids P-react.k, for the orchestrator to merge into the ideas log)
 

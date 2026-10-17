@@ -2,7 +2,7 @@
 
 The question the paper keeps returning to: **what does removing recurrence buy, and which of the pieces that replace it are load-bearing?** Every visual below either runs a piece of the mechanism on real numbers or rebuilds one of the paper's own tables.
 
-Scoring follows `html_utils/interactive-html-ideas.md` section 2 (0 to 2 each; reproduces and computable count double; build cost subtracted; plus one for "can be a step-by-step animation against the method it replaced"). Two criteria were added for paper pages (see `PAPER_METHOD.md`): **R** = runs the paper's own mechanism on real weights or real random numbers (not an illustration), **P** = supports a predict-then-reveal question.
+Scoring follows `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each; reproduces and computable count double; build cost subtracted; plus one for "can be a step-by-step animation against the method it replaced"). Two criteria were added for paper pages (see `PAPER_METHOD.md`): **R** = runs the paper's own mechanism on real weights or real random numbers (not an illustration), **P** = supports a predict-then-reveal question.
 
 ## Built
 

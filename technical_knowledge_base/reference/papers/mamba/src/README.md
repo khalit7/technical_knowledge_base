@@ -1,6 +1,6 @@
 # Mamba: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d8179984fc3a1fee4c36a, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from the paper-page method (`html_utils/methods/papers.md`) and the reference folder `attention_is_all_you_need_transformer/src/`, with RoFormer's `mk_paper.py` (verdict line) and `check_page.mjs`.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d8179984fc3a1fee4c36a, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from the paper-page method (`.claude/skills/explainer-page/page-kinds/paper.md`) and the reference folder `attention_is_all_you_need_transformer/src/`, with RoFormer's `mk_paper.py` (verdict line) and `check_page.mjs`.
 
 ## Tabs
 

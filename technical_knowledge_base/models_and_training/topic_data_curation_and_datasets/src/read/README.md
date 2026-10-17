@@ -6,7 +6,7 @@ Files here: `old/` the old Notion root and four children, verbatim (fetched read
 
 Reading time: about 50 minutes (10,148 words of prose and captions outside widgets at 200 words a minute, measured 2026-10-16) plus about 8 for the folded answers. Longer than the 15 to 20 minutes the RL lesson set for roots, because Khalid asked to be taught this topic from zero with all four goals and the labs' findings were folded in; the children hold the depth. Candidates to move to children: the tool table (Tool map), the storage list (Storage and loading), the post-training table and measured-samples paragraph (Post-training data), the extraction-defaults detail box (Extraction and filtering).
 
-Departures from `html_utils/methods/topic_pages.md` Part A: the topic has no "things compared" in the Topic: llms sense; the Reading tab follows the pipeline order (the axis is the stage), with one section per stage and the cross-cutting trade-off (per-token quality against unique tokens) carried through sections 5, 7, 8 and the calculator.
+Departures from `.claude/skills/explainer-page/page-kinds/topic-root.md`: the topic has no "things compared" in the Topic: llms sense; the Reading tab follows the pipeline order (the axis is the stage), with one section per stage and the cross-cutting trade-off (per-token quality against unique tokens) carried through sections 5, 7, 8 and the calculator.
 
 ## Child pages (built by the orchestrator; the list below was the Reading agent's first proposal)
 Mapping from the old four: corpora -> 1 and 8; curation pipeline -> 2, 3, 4; mixing -> 5; synthetic and post-training -> 6, 7.

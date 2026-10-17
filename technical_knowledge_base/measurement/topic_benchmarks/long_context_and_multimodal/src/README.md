@@ -2,7 +2,7 @@ Source of the interactive HTML on the Notion page "Long-context and multimodal b
 
 Build: `python3 mk_data.py && sh build.sh` writes `../index.html` (about 130 KB). Checks: `python3 recompute.py` (writes `recompute_out.json`), `node check_page.mjs` (every control at 390 dark and 920 light, JS against `recompute_out.json`, card screenshots into `../.shots/c-*.png`), `sh ../../../../../html_utils/checkpage.sh ..`, `python3 mk_coverage.py` (after build).
 
-Shape: Part B of `html_utils/methods/topic_pages.md` (a child page), with one departure: the page covers two families, so the Reading tab runs long context first, then multimodal, joined by the shortcut each generation of benchmark closed (literal match, blind answerability). About 23 minutes of reading because the page owns every benchmark of both families.
+Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (a child page), with one departure: the page covers two families, so the Reading tab runs long context first, then multimodal, joined by the shortcut each generation of benchmark closed (literal match, blind answerability). About 23 minutes of reading because the page owns every benchmark of both families.
 
 Files:
 - `parts/20_read_a..d.html` Reading (in one screen, long context, NIAH, lost in the middle, RULER, NoLiMa, beyond retrieval, 2026 frontier, advertised vs effective, multimodal, MMMU and MMMU-Pro, charts and documents, video, audio, use now, mistakes). `22_js_read.js`: needle pair, lost-in-the-middle chart, NoLiMa animation (Direct / one-hop / two-hop, with or without answer options), MMMU animation (blind test / MMMU-Pro steps), half-widths.

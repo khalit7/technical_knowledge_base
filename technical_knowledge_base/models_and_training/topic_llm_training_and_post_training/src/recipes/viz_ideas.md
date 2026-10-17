@@ -2,7 +2,7 @@
 
 The question this tab measures: across every recipe a lab has written down, how do the training stages compare, and which of them do labs stay quiet about?
 
-Scoring follows `html_utils/interactive-html-ideas.md` section 2: each question 0 to 2 (a parameter the reader controls; reproduces a stated figure, counted double; computable from public data, counted double; shows what a sentence cannot; corrects a misconception; measures the central question; absent elsewhere; can be animated as before/after), minus build cost.
+Scoring follows `.claude/skills/explainer-page/visuals/choosing.md`: each question 0 to 2 (a parameter the reader controls; reproduces a stated figure, counted double; computable from public data, counted double; shows what a sentence cannot; corrects a misconception; measures the central question; absent elsewhere; can be animated as before/after), minus build cost.
 
 | # | Idea | What it shows, what the reader does | Score | Data | Placement | Status |
 |---|---|---|---|---|---|---|

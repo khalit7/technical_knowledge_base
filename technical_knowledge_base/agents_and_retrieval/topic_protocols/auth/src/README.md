@@ -14,7 +14,7 @@
     sh ../../../../../html_utils/checkpage.sh <this page folder>   # from the repo root: fail=0, emdash 0, errbox 1, clipped 0
 
 ## Shape and why
-Child page method (Part B of `html_utils/methods/topic_pages.md`): Reading organised by the subject's own logic (words, the credential kinds from simplest to most bound, then delegation, then the agent era, then debugging and interviews), one tab per standalone visual. Departure: the reader asked to be taught from zero, so sections 1 to 3 cover basics a specialist page would skip; each section stands alone and opens with the problem it solves.
+Child page method (`.claude/skills/explainer-page/page-kinds/topic-child.md`): Reading organised by the subject's own logic (words, the credential kinds from simplest to most bound, then delegation, then the agent era, then debugging and interviews), one tab per standalone visual. Departure: the reader asked to be taught from zero, so sections 1 to 3 cover basics a specialist page would skip; each section stands alone and opens with the problem it solves.
 
 ## Parts
 | File | What |

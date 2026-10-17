@@ -1,6 +1,6 @@
 # ViT (An Image is Worth 16x16 Words): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d811fa231cfcde6c1954d, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built with `html_utils/methods/papers.md`; the reusable pieces come from `../../attention_is_all_you_need_transformer/src/`.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d811fa231cfcde6c1954d, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built with `.claude/skills/explainer-page/page-kinds/paper.md`; the reusable pieces come from `../../attention_is_all_you_need_transformer/src/`.
 
 ## Tabs
 

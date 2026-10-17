@@ -1,6 +1,6 @@
 # Bitune: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3ce5c17b0d0d8173af14ed0caa19d6db, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `html_utils/methods/papers.md` with the reference folder's shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs`, `mk_paper.py` with the verdict line, `check_page.mjs`, `mk_coverage.py` with this paper's own item list).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3ce5c17b0d0d8173af14ed0caa19d6db, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs`, `mk_paper.py` with the verdict line, `check_page.mjs`, `mk_coverage.py` with this paper's own item list).
 
 ## Tabs
 

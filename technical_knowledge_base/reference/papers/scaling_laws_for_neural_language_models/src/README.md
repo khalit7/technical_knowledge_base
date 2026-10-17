@@ -1,6 +1,6 @@
 # Scaling Laws for Neural Language Models (Kaplan et al. 2020): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81b08a1debb0c15cd252, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from `html_utils/methods/papers.md` and the reference folder `attention_is_all_you_need_transformer/`.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81b08a1debb0c15cd252, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` and the reference folder `attention_is_all_you_need_transformer/`.
 
 ## Tabs
 

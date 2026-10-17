@@ -23,12 +23,12 @@ uv sync --project .claude/skills/explainer-video/narration/voice_mac --managed-p
 uv sync --project .claude/skills/explainer-video/narration/voice_cuda                   # NVIDIA machine
 
 # 4. Smoke test (the first run downloads the Turbo model, a few GB, into the Hugging Face cache)
-N=.claude/skills/explainer-video/narration
-printf '1\tCapability rankings change every month.\n' > /tmp/one.tsv
-uv run --project $N/voice_mac python $N/narrate.py /tmp/one.tsv /tmp/voice      # or voice_cuda
-ffprobe -v error -show_entries format=duration -of csv=p=0 /tmp/voice/01-cb.wav
+N="$(git rev-parse --show-toplevel)/.claude/skills/explainer-video/narration"; T=$(mktemp -d)   # or the session scratch dir
+printf '1\tCapability rankings change every month.\n' > $T/one.tsv
+uv run --project $N/voice_mac python $N/narrate.py $T/one.tsv $T/voice      # or voice_cuda
+ffprobe -v error -show_entries format=duration -of csv=p=0 $T/voice/01-cb.wav
 ```
-The smoke test passes when it prints `01-cb.wav` and ffprobe reports a duration of a few seconds. Optionally run `python3 $N/check_takes.py /tmp/one.tsv /tmp/voice` from `/tmp` to test transcription too (it calls `npx hyperframes transcribe`, which downloads a small Whisper model on first use).
+The smoke test passes when it prints `01-cb.wav` and ffprobe reports a duration of a few seconds. Optionally run `python3 $N/check_takes.py $T/one.tsv $T/voice` from `/tmp` to test transcription too (it calls `npx hyperframes transcribe`, which downloads a small Whisper model on first use).
 
 ## Notes
 - **Mac: use a uv-managed Python (`--managed-python`).** A Homebrew Python can lack OpenSSL and then cannot download the model.

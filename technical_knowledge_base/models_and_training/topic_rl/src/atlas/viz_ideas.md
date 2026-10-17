@@ -1,6 +1,6 @@
 # Method atlas and Taxonomy: visual ideas (AT rows)
 
-Chosen with the Methodology (`html_utils/interactive-html-ideas.md`, section 2). The question the tabs serve: "across every RL method, what does each estimate in place of the expected return, what does it need, and which earlier problem did it fix?" The atlas is a data tab (topic_pages.md Part A): every cell sourced and dated, no splicing of versions (DQN 2013 and DQN 2015 are separate rows; RLOO's 2019 estimator and its 2024 RLHF use are kept in separate cells, each with its own source).
+Chosen with the Methodology (`.claude/skills/explainer-page/visuals/choosing.md`). The question the tabs serve: "across every RL method, what does each estimate in place of the expected return, what does it need, and which earlier problem did it fix?" The atlas is a data tab (topic_pages.md Part A): every cell sourced and dated, no splicing of versions (DQN 2013 and DQN 2015 are separate rows; RLOO's 2019 estimator and its 2024 RLHF use are kept in separate cells, each with its own source).
 
 Scores: R reproduces a source (x2), P computable from public data (x2), S shows what a sentence cannot, M corrects a misconception, Q measures the central question, N new to the page, A animation against a predecessor; build cost subtracted.
 

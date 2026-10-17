@@ -4,7 +4,7 @@ Question the tab makes measurable: the page's through-line, one target (the expe
 
 Khalid's choice (2026-10-03): classic tabular RL run live, seeded and deterministic, defaults reproducing the book's figures, said independently or by construction, and saying plainly where a figure does not reproduce; values never read off figure images.
 
-## Scores (Methodology, section 2 of `html_utils/interactive-html-ideas.md`)
+## Scores (Methodology, `.claude/skills/explainer-page/visuals/choosing.md`)
 
 Columns: parameter the reader moves; reproduces a stated figure (x2); computable from public data (x2); shows what a sentence cannot; corrects a misconception; measures the central question; absent from the page and the main explainers; step-by-step or before/after animation; build cost (subtracted).
 

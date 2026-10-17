@@ -2,7 +2,7 @@
 
 Central question: **"My training curve looks like this: what is most likely wrong, in which band of the training step, and how do I confirm it?"** Khalid chose a symptom-to-cause debugger across all the bands, with a loss-curve gallery, large-scale spike cases and at least one before/after animation.
 
-Scoring as in `html_utils/interactive-html-ideas.md` section 2 (0 to 2 each: quantity moves with a control; reproduces a stated figure; computable from public data; shows what a sentence cannot; corrects a misconception; measures the central question; absent elsewhere; animation point), reproduce and computable counted double, build cost subtracted.
+Scoring as in `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each: quantity moves with a control; reproduces a stated figure; computable from public data; shows what a sentence cannot; corrects a misconception; measures the central question; absent elsewhere; animation point), reproduce and computable counted double, build cost subtracted.
 
 | # | Idea | What it shows, what the reader does | Score | Data | Placement | Status |
 |---|---|---|---|---|---|---|

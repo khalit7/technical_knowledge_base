@@ -1,6 +1,6 @@
 # Visual ideas: The CUDA programming model
 
-Method: html_utils/interactive-html-ideas.md section 2. Needs of the text, in order: how threads find their data; which threads form a warp; what warp-level cooperation buys; why a barrier is needed (and what breaks without it); what launch configuration does to occupancy and to waves; what a launch costs. Scores are teaching value x evidence (1 to 5 each).
+Method: `.claude/skills/explainer-page/visuals/choosing.md`. Needs of the text, in order: how threads find their data; which threads form a warp; what warp-level cooperation buys; why a barrier is needed (and what breaks without it); what launch configuration does to occupancy and to waves; what a launch costs. Scores are teaching value x evidence (1 to 5 each).
 
 ## Built
 1. **Wave quantization, before/after (Reading s5), 25.** NVIDIA's own A100 example (108 SMs, 256 x 128 tiles, M = 2304): N = 1536 (108 tiles, one wave) against N = 1544 (117 tiles, two waves), SMs drawn to scale in count, time axis in tile units, counters (tiles, elapsed, SM utilisation, throughput relative). Data: docs.nvidia.com/deeplearning/performance/dl-performance-matrix-multiplication. Paired with a real measurement: the M1 Pro staircase (1 to 72 threadgroups of 1,024 threads, steps every 16), 3 runs.

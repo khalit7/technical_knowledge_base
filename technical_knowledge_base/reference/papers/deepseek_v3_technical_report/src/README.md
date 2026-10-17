@@ -1,6 +1,6 @@
 # DeepSeek-V3 Technical Report: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d815fb8dac9ba1e35ab81, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built on the paper-page method (`html_utils/methods/papers.md`) with the FlashAttention folder's copies of the shared pieces.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d815fb8dac9ba1e35ab81, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built on the paper-page method (`.claude/skills/explainer-page/page-kinds/paper.md`) with the FlashAttention folder's copies of the shared pieces.
 
 ## Tabs
 

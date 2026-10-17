@@ -6,4 +6,4 @@
 - `recompute.py` recomputes, independently of the page, every derived number (Table 5 reproduction, protocol-lab readings, win rates and Spearman, every calibration slice and the 200-draw coverage with the same mulberry32 draw) into `recompute.json`.
 - `check_page.mjs` (run from the repo root) clicks every control at 390 dark and 920 light, checks for errors, NaN, undefined, sideways scroll and small SVG text, and compares the page's numbers with `recompute.json`.
 - `inputs/source_excerpts.md`: verbatim excerpts of the 2026 papers the page leans on (Lee et al., RoPoLL, Norman et al.) and others.
-- Shape: Part B of `html_utils/methods/topic_pages.md` (Reading by the subject's logic, then labs, then Further reading). The parent's Judge bias lab and Judge atlas are linked, not rebuilt.
+- Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (Reading by the subject's logic, then labs, then Further reading). The parent's Judge bias lab and Judge atlas are linked, not rebuilt.

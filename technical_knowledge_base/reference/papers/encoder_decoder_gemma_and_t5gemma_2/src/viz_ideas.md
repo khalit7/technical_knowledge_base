@@ -1,6 +1,6 @@
 # Visualisation ideas: Encoder-Decoder Gemma and T5Gemma 2
 
-Scored on the Methodology in `html_utils/interactive-html-ideas.md` section 2 (teaches more than text, data exists and is checkable, cost). Rows to merge into the ideas log use ids `P-encoder_decoder_gemma_and_t5gemma_2.<k>`.
+Scored on the Methodology in `.claude/skills/explainer-page/visuals/choosing.md` (teaches more than text, data exists and is checkable, cost). Rows to merge into the ideas log use ids `P-encoder_decoder_gemma_and_t5gemma_2.<k>`.
 
 ## Built
 

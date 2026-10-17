@@ -1,6 +1,6 @@
 # Visualisation ideas: Observability (child of Topic: swe-and-system-design)
 
-Method: html_utils/interactive-html-ideas.md section 2. Scores are teaching value (T), uses real data (R), interaction earns its place (I), 1 to 5. Built ones first.
+Method: `.claude/skills/explainer-page/visuals/choosing.md`. Scores are teaching value (T), uses real data (R), interaction earns its place (I), 1 to 5. Built ones first.
 
 ## What the text needs to be understood
 1. That an average can move a little while the tail moves a lot (and the median not at all).

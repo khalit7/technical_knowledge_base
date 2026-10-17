@@ -14,7 +14,7 @@
 | `check_page.mjs` | Every control in both themes and widths, every animation mode stepped end to end, mid-play screenshots, text size, overflow. |
 | `inputs/` | Paper text, decoded figures, the AgentENV README head, the Hacker News item (API, 3 October 2026). |
 
-## Departures from `html_utils/methods/papers.md`
+## Departures from `.claude/skills/explainer-page/page-kinds/paper.md`
 
 - **Live ingredient: the paper's placement algorithm, simulated** ("Place a burst"), rather than a cost-model before/after. DSec is a systems paper, but its evaluated mechanisms (lazy loading, page-cache sharing, core scheduling) are kernel features whose cost models the paper does not give; the only algorithm it states exactly is power-of-k placement with a per-engine overlay and edge admission (§3.2, §7). The simulation runs that algorithm and three alternatives on the same burst, with the published scale (160 nodes, 32K bursts, 5,000 a second, 3,200 per node) and labelled illustrative inputs (k, engine count, refresh interval, starting load). It finds what the text does not say: small k already makes staleness harmless, and the overlay matters mainly at large k, less as engine instances grow.
 - **"Tables rebuilt" became "figures rebuilt"**: the paper has three small tables and thirteen figures, all shipped as vector PDFs, so the evidence lives in the figures. They are decoded, not read by eye, and every text claim is checked against them.

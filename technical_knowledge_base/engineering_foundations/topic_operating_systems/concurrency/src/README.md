@@ -13,7 +13,7 @@
 `inputs/source_lines.txt`: the source excerpts cited (Linux v5.10, glibc 2.36, CPython v3.11.2, libuv, mio, PyTorch v2.14.1, NCCL v2.32.3-1) with line numbers.
 
 ## Shape
-Follows Part B of `html_utils/methods/topic_pages.md` (child page). Sections follow OSTEP ch. 26 to 33, each with problem, mechanism, measured cost, where it bites in ML work, the command that shows it, and the fix. The futex section carries the before/after animation (one contended lock through spin, kernel-on-every-unlock, futex and adaptive designs, to scale with measured costs). The two labs are tabs because each needs room: the Interleaving lab is a scheduler you drive, the Event loop lab an animation plus a calculator.
+Follows `.claude/skills/explainer-page/page-kinds/topic-child.md` (child page). Sections follow OSTEP ch. 26 to 33, each with problem, mechanism, measured cost, where it bites in ML work, the command that shows it, and the fix. The futex section carries the before/after animation (one contended lock through spin, kernel-on-every-unlock, futex and adaptive designs, to scale with measured costs). The two labs are tabs because each needs room: the Interleaving lab is a scheduler you drive, the Event loop lab an animation plus a calculator.
 
 ## Caveats
 - The VM is shared with other agents' experiments: lock, ping-pong, GIL and io_uring timings are medians of 3 to 5 runs and the raw outputs show the spread. Cross-CPU wake-ups are expensive in this VM (an inter-processor interrupt through the hypervisor); the page says so.

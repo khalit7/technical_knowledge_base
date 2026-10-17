@@ -14,6 +14,6 @@ sh html_utils/checkpage.sh <root page folder>                         # from the
 
 ## Notes
 - `old/`: the old root and its four old children, saved verbatim from read-only Notion fetches on 2026-10-14. `coverage.md`: every claim of the old root with a verdict, and the claims of the old children that the root touches (the children own their full coverage).
-- Shape: the brief's eleven sections (0 one screen to 10 child pages), then mistakes and interview questions. Departure from the root method (Part A of `html_utils/methods/topic_pages.md`): the Reading tab is about 45 minutes rather than 15 to 20, because Khalid asked to be taught this topic from zero (every term defined, one running example, the cost and the check for each idea); the depth still lives on the children and the four lab tabs, each section ending with a link.
+- Shape: the brief's eleven sections (0 one screen to 10 child pages), then mistakes and interview questions. Departure from the root method (`.claude/skills/explainer-page/page-kinds/topic-root.md`): the Reading tab is about 45 minutes rather than 15 to 20, because Khalid asked to be taught this topic from zero (every term defined, one running example, the cost and the check for each idea); the depth still lives on the children and the four lab tabs, each section ending with a link.
 - Section 7 quotes the Agentic lab's deterministic `hops.json`; its generator results were still being produced when this tab was written.
 - `viz_ideas.md`: visuals built and rejected.

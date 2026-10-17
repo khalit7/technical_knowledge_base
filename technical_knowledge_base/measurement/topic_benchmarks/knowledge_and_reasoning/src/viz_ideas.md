@@ -2,7 +2,7 @@
 
 Question the page keeps returning to: what does a knowledge or reasoning score mean, given how the benchmark was built, how it is graded and how wrong its answer key is?
 
-Scored 0 to 2 per the Methodology (html_utils/interactive-html-ideas.md section 2); real data and reproducing a published figure count double; animation point added.
+Scored 0 to 2 per the Methodology (`.claude/skills/explainer-page/visuals/choosing.md`); real data and reproducing a published figure count double; animation point added.
 
 | # | Idea | Score | Placement | Status |
 |---|---|---|---|---|

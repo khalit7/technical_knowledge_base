@@ -1,6 +1,6 @@
 # Emergence World (Study 2): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e25c17b0d0d818fbffbc9e2ceab824b, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `html_utils/methods/papers.md` with the reference folder's pieces (`mk_paper.py` in the MOLE variant, `10_js_common.js`, `11_js_ui.js`, `90_js_tabs.js`, `05z_errbox.js.html`, the CSS, `check_page.mjs`, `save_live.py`, `extract_paper.py`, `mk_coverage.py` with this paper's own items).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e25c17b0d0d818fbffbc9e2ceab824b, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's pieces (`mk_paper.py` in the MOLE variant, `10_js_common.js`, `11_js_ui.js`, `90_js_tabs.js`, `05z_errbox.js.html`, the CSS, `check_page.mjs`, `save_live.py`, `extract_paper.py`, `mk_coverage.py` with this paper's own items).
 
 The page follows arXiv v1 (15 September 2026), the only version on 3 October 2026. The Notion text (`live.md`, fetched as of 21 September) is fully covered (`coverage.json`, 30 of 30 items verified against the built page).
 

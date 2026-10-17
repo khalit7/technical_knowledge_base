@@ -1,6 +1,6 @@
 # Google DeepMind: Gemini and Gemma, visualisation ideas (v3)
 
-Follows the Methodology in `interactive-html-ideas.txt`. Research by direct fetch (no web search used); every URL below was fetched on 1 October 2026.
+Follows the Methodology in `.claude/skills/explainer-page/visuals/choosing.md` (then `interactive-html-ideas.txt`). Research by direct fetch (no web search used); every URL below was fetched on 1 October 2026.
 
 ## 0. What already exists, and the through-line
 

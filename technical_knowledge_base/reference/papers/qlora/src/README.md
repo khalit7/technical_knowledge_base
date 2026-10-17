@@ -1,6 +1,6 @@
 # QLoRA: Efficient Finetuning of Quantized LLMs: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d815a8f4edc33f9583671, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built on the paper method (`html_utils/methods/papers.md`) from the reference folder's pieces, by way of the LoRA page's copies.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d815a8f4edc33f9583671, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built on the paper method (`.claude/skills/explainer-page/page-kinds/paper.md`) from the reference folder's pieces, by way of the LoRA page's copies.
 
 ## Tabs
 

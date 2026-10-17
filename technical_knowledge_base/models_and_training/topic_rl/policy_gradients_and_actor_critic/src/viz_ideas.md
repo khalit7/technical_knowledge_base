@@ -1,6 +1,6 @@
 # Visualisation ideas: Policy gradients and actor-critic
 
-Question the page makes measurable: what weights each action's log-probability (return, return minus a baseline, a critic's TD error, a GAE blend, a clipped ratio times an advantage, a critic's slope) and how far one batch may move the policy; what each choice costs in bias, variance and data. Scores follow `html_utils/interactive-html-ideas.md` section 2 (0 to 2 each; reproduction and computability x2; +1 animation; cost subtracted).
+Question the page makes measurable: what weights each action's log-probability (return, return minus a baseline, a critic's TD error, a GAE blend, a clipped ratio times an advantage, a critic's slope) and how far one batch may move the policy; what each choice costs in bias, variance and data. Scores follow `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each; reproduction and computability x2; +1 animation; cost subtracted).
 
 | # | Idea | Placement | Score | Reproduces | Decision |
 |---|---|---|---|---|---|

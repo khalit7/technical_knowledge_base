@@ -1,6 +1,6 @@
 # Visualisation ideas: Model-based RL and planning
 
-Chosen with the Methodology in `html_utils/interactive-html-ideas.md` section 2. Scores are teaching value (T, 1 to 5), data reality (R: real or exactly computed = 5, illustrative = 1), cost (C, 1 cheap to 5 expensive), and whether a sibling or the root already has it (dup).
+Chosen with the Methodology in `.claude/skills/explainer-page/visuals/choosing.md`. Scores are teaching value (T, 1 to 5), data reality (R: real or exactly computed = 5, illustrative = 1), cost (C, 1 cheap to 5 expensive), and whether a sibling or the root already has it (dup).
 
 ## What the text needs to be understood
 1. That planning is the same backup as learning, on simulated experience, and why it speeds learning (Dyna).

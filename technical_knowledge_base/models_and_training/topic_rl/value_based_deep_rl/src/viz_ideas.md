@@ -1,6 +1,6 @@
 # Visualisation ideas: Value-based deep RL
 
-The page's question: what goes wrong when Q-learning's table becomes a network, and which repair fixes which failure, with what evidence? A visual earns its place when it makes one failure or one repair measurable. Scores follow `html_utils/interactive-html-ideas.md` section 2 (0 to 2 per question; reproduction and computability count double; +1 for a before/after animation; build cost subtracted).
+The page's question: what goes wrong when Q-learning's table becomes a network, and which repair fixes which failure, with what evidence? A visual earns its place when it makes one failure or one repair measurable. Scores follow `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 per question; reproduction and computability count double; +1 for a before/after animation; build cost subtracted).
 
 Existing visuals checked first: the parent root's Method atlas, Taxonomy and Milestones tabs (Atari tables with protocols, the Agent57 misprint); the archived long root's triad widget and maximisation-bias slider (`src/for_children/reading_full/`); the sibling Model-free prediction and control's Maximisation bias tab (Example 6.7 live, E[max of N normals]); the old Deep RL embed's "overest" widget.
 

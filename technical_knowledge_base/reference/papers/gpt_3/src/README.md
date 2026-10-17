@@ -1,6 +1,6 @@
 # GPT-3 (Language Models are Few-Shot Learners): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d8193ac92c7648cfaca12, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). No child pages, databases or video. Built with `html_utils/methods/papers.md`, starting from the reference folder's pieces (via `../t5/src/`, which copies them).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d8193ac92c7648cfaca12, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). No child pages, databases or video. Built with `.claude/skills/explainer-page/page-kinds/paper.md`, starting from the reference folder's pieces (via `../t5/src/`, which copies them).
 
 ## Tabs
 

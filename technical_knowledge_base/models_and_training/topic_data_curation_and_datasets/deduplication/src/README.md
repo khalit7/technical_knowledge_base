@@ -29,7 +29,7 @@ float32 (2,037 s of embedding); its output `data/out/dp_d4_fw50k.json` is embedd
 
 ## Shape
 
-Child-page method (html_utils/methods/topic_pages.md Part B). The root's Dedup lab already ran every method once
+Child-page method (`.claude/skills/explainer-page/page-kinds/topic-child.md`). The root's Dedup lab already ran every method once
 (overlap table, 14-document before/after, S-curve sliders over 112-bit masks, suffix-array toy, Bloom toy, cost
 calculator); this page does not rebuild those and goes deeper: variance, the (b, r) rule, union-find replayed,
 SimHash, tokens vs bytes, scope growth, encoder sensitivity, D4, combinations in sequence, published evidence and costs.

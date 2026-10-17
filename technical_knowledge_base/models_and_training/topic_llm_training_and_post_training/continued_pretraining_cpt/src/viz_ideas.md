@@ -4,7 +4,7 @@ The question the page keeps returning to: **when you continue a finished base mo
 
 Existing visuals on the old page: none (text only). Neighbouring pages already own: the anneal and its toy (Pretraining), LoRA's learn-less-forget-less chart (PEFT), long-context extension (Positional Encodings), dollar figures for Thomson Reuters (parent Price list). Those are linked, not rebuilt.
 
-Scoring as in `html_utils/interactive-html-ideas.md` section 2 (0 to 2 each; reproduces and computable count double; animation point; build cost subtracted).
+Scoring as in `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each; reproduces and computable count double; animation point; build cost subtracted).
 
 | # | Idea | Moves | Reproduces | Computable | Beyond prose | Misconception | Central | Novel | Anim | Cost | Score | Placement | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|

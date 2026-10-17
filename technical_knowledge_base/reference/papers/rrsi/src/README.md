@@ -1,6 +1,6 @@
 # RRSI: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e95c17b0d0d81dbb1a5e660ed019c8a, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from `html_utils/methods/papers.md`, starting from the HarnessDev page's copy of the reference pieces (`11_js_ui.js`, `05z_errbox.js.html` and `90_js_tabs.js` are identical to the reference's).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e95c17b0d0d81dbb1a5e660ed019c8a, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md`, starting from the HarnessDev page's copy of the reference pieces (`11_js_ui.js`, `05z_errbox.js.html` and `90_js_tabs.js` are identical to the reference's).
 
 ## Tabs
 

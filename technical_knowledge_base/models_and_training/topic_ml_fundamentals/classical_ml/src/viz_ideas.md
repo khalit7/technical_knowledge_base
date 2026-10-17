@@ -2,7 +2,7 @@
 
 Question the page keeps returning to: how does each classical method decide, what does it assume, and when does it still win?
 
-Scored with the Methodology (interactive-html-ideas.md section 2): Param, Repro x2, Computable x2, Beyond a sentence, Misconception, Central, Absent elsewhere, Anim; cost subtracted.
+Scored with the Methodology (.claude/skills/explainer-page/visuals/choosing.md section 2): Param, Repro x2, Computable x2, Beyond a sentence, Misconception, Central, Absent elsewhere, Anim; cost subtracted.
 
 | # | Idea | Param | Repro x2 | Computable x2 | Beyond | Misconception | Central | Absent | Anim | Cost | Score | Decision |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|

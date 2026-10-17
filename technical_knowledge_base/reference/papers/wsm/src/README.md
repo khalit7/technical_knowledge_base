@@ -1,6 +1,6 @@
 # WSM: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c75c17b0d0d8105b452d2c1bc1d087a, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from the paper-page method (`html_utils/methods/papers.md`) and the reference folder `attention_is_all_you_need_transformer/src/` (with `mk_paper.py` and `check_page.mjs` taken from `deepseekmath/src/`, which add the verdict line and the live-run check).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c75c17b0d0d8105b452d2c1bc1d087a, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from the paper-page method (`.claude/skills/explainer-page/page-kinds/paper.md`) and the reference folder `attention_is_all_you_need_transformer/src/` (with `mk_paper.py` and `check_page.mjs` taken from `deepseekmath/src/`, which add the verdict line and the live-run check).
 
 ## Tabs
 

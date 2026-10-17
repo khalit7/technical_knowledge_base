@@ -20,7 +20,7 @@
   `model/` keeps the four float checkpoints (`ae4`, `dm_f4`, `dm_pix`, `dm_f4long`: export, check and eval load them), their logs, `eval_report.json`, `quant_report8.json` and `quant_report6.json`, `check_forward.json`; about 1 MB.
 - `parts/`: `13_js_read.js` (shared image helpers, the animation, explorer, Figure 3, f sweep, predict reveals), `22_js_model.js` (the toy in JS and the checker), `23_js_run.js`, `24_js_tables.js`, `25_js_then.js`; the rest copied from the DDPM page.
 
-## Departures from html_utils/methods/papers.md
+## Departures from .claude/skills/explainer-page/page-kinds/paper.md
 - The live ingredient is a **two-stage toy**: an autoencoder trained first, then diffusion models in its latent and in pixel space with matched parameters and steps, because the paper's claim is a comparison of spaces, not a component ablation. DDPM's own mechanism is not rebuilt; the DDPM page runs it and is linked.
 - Samples are graded by a **deterministic checker** on a synthetic domain (shape, colour, position read from the pixels), in place of FID, which a toy cannot compute meaningfully.
 - No "What it takes to use this": the recipe is the standard one of every open image model; Then and now and a short note in "How much to believe" (code, licences) cover adoption.

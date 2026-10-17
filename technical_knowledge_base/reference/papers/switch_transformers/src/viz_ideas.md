@@ -2,7 +2,7 @@
 
 The question the paper keeps returning to: **what does one expert per token cost and buy, and what keeps a sparse layer balanced and stable enough to scale?** Every visual below either runs the paper's router, loss or arithmetic on real numbers, or rebuilds one of its tables.
 
-Scoring follows `html_utils/interactive-html-ideas.md` section 2 (0 to 2 each; reproduces and computable count double; build cost subtracted; plus one for a step-by-step animation against the method it replaced), with the paper-page criteria R (runs the paper's own mechanism) and P (supports a predict-then-reveal question).
+Scoring follows `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each; reproduces and computable count double; build cost subtracted; plus one for a step-by-step animation against the method it replaced), with the paper-page criteria R (runs the paper's own mechanism) and P (supports a predict-then-reveal question).
 
 Constraint from the brief: Topic: llms already has a "Deeper: inside an MoE" tab (`models_and_training/topic_llms/src/parts/35_*`) with a router card, a capacity and dropping animation (32 tokens, top-2, three capacity factors, bias balancing), global-batch balancing, expert parallelism and config rebuilds. This page links to it and builds only what is specific to the paper.
 

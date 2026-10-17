@@ -20,7 +20,7 @@
 - `sh html_utils/checkpage.sh <folder>` from the repo root.
 
 ## Shape
-Part B of `html_utils/methods/topic_pages.md` (child page): Reading by the subject's own logic, one tab per standalone visual (a lab, a calculator, a coverage view), Further reading. Departure: the before/after animation compares two analyses of the same data rather than two mechanisms, because the subject is the analysis.
+`.claude/skills/explainer-page/page-kinds/topic-child.md` (child page): Reading by the subject's own logic, one tab per standalone visual (a lab, a calculator, a coverage view), Further reading. Departure: the before/after animation compares two analyses of the same data rather than two mechanisms, because the subject is the analysis.
 
 ## Coverage
 `coverage.json` maps every fact of the old Production page's statistics (handed off in `../../production_eval_engineering/src/handoff_statistics.md`) and the parent root's statistics mentions to where this page carries them, with the corrections.

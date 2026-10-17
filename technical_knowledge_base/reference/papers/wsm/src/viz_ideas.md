@@ -1,6 +1,6 @@
 # Visualisation ideas: WSM (decay-free LR schedule via checkpoint merging)
 
-The question the paper keeps returning to: does averaging a flat-LR run's checkpoints buy what a learning-rate decay buys, and how much better is it? Score: reproduce/computable count double; build cost subtracted (methodology in `html_utils/interactive-html-ideas.md` §2).
+The question the paper keeps returning to: does averaging a flat-LR run's checkpoints buy what a learning-rate decay buys, and how much better is it? Score: reproduce/computable count double; build cost subtracted (methodology in `.claude/skills/explainer-page/visuals/choosing.md`).
 
 | # | Idea | Placement | Score | Data | Status |
 |---|---|---|---|---|---|

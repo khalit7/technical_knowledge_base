@@ -17,7 +17,7 @@ Page parts in `parts/` (assembled by `build.sh` into `../index.html`): `20_read*
 - Vendor figures are typed in `code/build_data.py` with URLs; they are the values of the shared facts file used by the parent's Chip atlas (all fetched 2026-10-05).
 
 ## Choices and departures
-- Child-page method (Part B of `html_utils/methods/topic_pages.md`): Reading organised by the subject's own logic (cell, array, packaging, tiers, contents, offload, supply), then two tabs. Teaches from zero, as the 2026-10-04 lesson asks; the reading is about 30 minutes.
+- Child-page method (`.claude/skills/explainer-page/page-kinds/topic-child.md`): Reading organised by the subject's own logic (cell, array, packaging, tiers, contents, offload, supply), then two tabs. Teaches from zero, as the 2026-10-04 lesson asks; the reading is about 30 minutes.
 - No NVIDIA GPU: all measurements are on the M1 Pro and say so; the Memory lab says what transfers to NVIDIA and what does not. Independent NVIDIA measurements (Luo et al.) are kept apart from vendor specs.
 - The DRAM bank animation uses illustrative timings (labelled); its order of results does not depend on them.
 - Qwen3-Next's linear-attention state is counted at 2 bytes per value (an assumption, labelled).

@@ -2,7 +2,7 @@ Source of the interactive HTML on the Notion page "Loss functions" (child of Top
 
 Build: `python3 mk_data.py` (only when `inputs/` change), then `sh build.sh` writes `../index.html`.
 
-Shape: Part B of `html_utils/methods/topic_pages.md` (a child page). Reading follows the subject's own logic: in one screen (target and noise to loss table), terms and reductions, regression (losses as noise models, which number each loss picks, the outlier animation, leverage), MAPE / quantiles / counts / variances, the cross-entropy family, margins, losses on the logits (z-loss, soft-capping), between distributions (links), the adversarial loss, common mistakes. Tabs: Fit a line, Loss shapes, Further reading. The parent's loss explorer, entropy + KL bars, Training lab and imbalance runs are linked by tab name, not rebuilt.
+Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (a child page). Reading follows the subject's own logic: in one screen (target and noise to loss table), terms and reductions, regression (losses as noise models, which number each loss picks, the outlier animation, leverage), MAPE / quantiles / counts / variances, the cross-entropy family, margins, losses on the logits (z-loss, soft-capping), between distributions (links), the adversarial loss, common mistakes. Tabs: Fit a line, Loss shapes, Further reading. The parent's loss explorer, entropy + KL bars, Training lab and imbalance runs are linked by tab name, not rebuilt.
 
 Files:
 - `parts/`: HTML and one JS part per visual; `21_js_core.js` holds every formula, fit and minimiser (pure functions).

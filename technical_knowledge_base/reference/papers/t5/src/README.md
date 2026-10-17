@@ -1,6 +1,6 @@
 # T5 (Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3d45c17b0d0d81ec8ebfec02e953a7fd, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). No child pages, databases or video. Built with `html_utils/methods/papers.md`, starting from the reference folder `../attention_is_all_you_need_transformer/src/`.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3d45c17b0d0d81ec8ebfec02e953a7fd, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). No child pages, databases or video. Built with `.claude/skills/explainer-page/page-kinds/paper.md`, starting from the reference folder `../attention_is_all_you_need_transformer/src/`.
 
 ## Tabs
 

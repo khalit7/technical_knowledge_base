@@ -15,7 +15,7 @@
 | `parts/20_js_sim.js` | the three write rules, shared by the page and `check_sim.py` |
 | `inputs/paper_v1.txt` | the arXiv HTML as text (`extract_paper.py`), the only arXiv version |
 
-## Shape, and departures from html_utils/methods/papers.md
+## Shape, and departures from .claude/skills/explainer-page/page-kinds/paper.md
 
 - **Live ingredient: a simulation of the write rules, not a trained toy.** The paper is a method-on-top-of-a-model pilot with no code, weights or traces, so there is no trace to replay and a toy read adapter would test a toy. Its write side, though, is never trained (Sec. 5: random fixed projections), so it can be run exactly as the paper runs it. That simulation carries the page's main findings (decay far faster than LoCoMo's lags; attention-coupled rows collapse to one vector; slot ties waste 10x capacity).
 - **No "Then and now"**: a 2026 result paper with no later lineage yet.

@@ -2,7 +2,7 @@
 
 The question the paper keeps returning to: **where does KV cache memory go under contiguous allocation, and how many more requests fit once it is paged?** Every visual either runs the allocation rules on the paper's own numbers or rebuilds one of its figures from their vector graphics.
 
-Scoring follows `html_utils/interactive-html-ideas.md` section 2 (0 to 2 each; reproduces and computable count double; build cost subtracted; plus one for a step-by-step animation against the method it replaced), with the paper criteria R (runs the paper's own mechanism) and P (supports a predict-then-reveal question).
+Scoring follows `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each; reproduces and computable count double; build cost subtracted; plus one for a step-by-step animation against the method it replaced), with the paper criteria R (runs the paper's own mechanism) and P (supports a predict-then-reveal question).
 
 ## Built
 

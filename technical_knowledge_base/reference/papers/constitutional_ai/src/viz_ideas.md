@@ -1,6 +1,6 @@
 # Constitutional AI: visualisation ideas
 
-Methodology: `html_utils/interactive-html-ideas.md` section 2. Scores are teaching value, data honesty, effort (inverted) and fit, each out of 5. Kind of paper (papers.md): **method on top of a model** (an RL recipe), so the live ingredient is a **trace replay**, and here the paper released its own traces.
+Methodology: `.claude/skills/explainer-page/visuals/choosing.md`. Scores are teaching value, data honesty, effort (inverted) and fit, each out of 5. Kind of paper (papers.md): **method on top of a model** (an RL recipe), so the live ingredient is a **trace replay**, and here the paper released its own traces.
 
 ## What the text needs to be understood
 

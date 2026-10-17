@@ -16,7 +16,7 @@
 | `decode_figs.py` | the validation curves of Figures 5 and 6 from the vector PDFs (`inputs/fig_curves.json`) |
 | `inputs/paper_v1.txt`, `tables_v1.txt`, `anchors_v1.txt` | the arXiv HTML as text (`extract_paper.py`), v1 is the only version |
 
-## Shape, and departures from html_utils/methods/papers.md
+## Shape, and departures from .claude/skills/explainer-page/page-kinds/paper.md
 
 - **Live ingredient: a replay of the paper's memory traffic, not a trace replay.** papers.md suggests a trace replay for agent papers, but no traces, code or curator are released. The part of JitMem that has no LLM in it, which trajectory each task retrieves and when, is exactly what the paper's credit-assignment argument is about, and it can be run on the real ALFWorld test goals with the paper's own protocol. Only task success is a coin (labelled). The replay measures what the paper only asserts: a stored trajectory is first used about 20 tasks later, a quarter are never used, a used one feeds about 5 tasks of about 2 types.
 - **The Idea animation is the paper's own example (Figure 3)** run through both designs; its trajectory steps and the write-time artifact are illustrative and labelled.

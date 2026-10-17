@@ -2,7 +2,7 @@
 
 The question the tab answers: **what does each component of a training recipe actually change, and is the change real or one seed's luck?** Khalid chose the shape (2026-10-03): a small network trained live in the browser on a toy task, the reader swaps one component at a time and watches it against a baseline run side by side, with presets that each make one point, checked across seeds.
 
-Scores follow the methodology in `html_utils/interactive-html-ideas.md` section 2 (0 to 2 per question; reproduces and computable count double; build cost subtracted). "Reproduces" here means the preset's claim is measured on ten seeds with the page's own code and the stated count is re-checked by `check_presets.mjs`, since a toy reproduces mechanisms, not published numbers.
+Scores follow the methodology in `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 per question; reproduces and computable count double; build cost subtracted). "Reproduces" here means the preset's claim is measured on ten seeds with the page's own code and the stated count is re-checked by `check_presets.mjs`, since a toy reproduces mechanisms, not published numbers.
 
 ## Built
 

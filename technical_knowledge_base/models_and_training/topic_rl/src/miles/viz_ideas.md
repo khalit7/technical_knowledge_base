@@ -2,7 +2,7 @@
 
 Question the tab answers: what has RL actually achieved, at what cost, and how far can the headline benchmark numbers be trusted when compared?
 
-Scoring as in `html_utils/interactive-html-ideas.md` section 2 (reproduces a figure x2, computable from printed data x2, shows what a sentence cannot, corrects a misconception, measures the central question, animation point; minus build cost).
+Scoring as in `.claude/skills/explainer-page/visuals/choosing.md` (reproduces a figure x2, computable from printed data x2, shows what a sentence cannot, corrects a misconception, measures the central question, animation point; minus build cost).
 
 | # | Idea | What it shows | Score | Status |
 |---|---|---|---|---|

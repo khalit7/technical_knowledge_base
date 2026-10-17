@@ -1,6 +1,6 @@
 # Google DeepMind: Gemini and Gemma, visualisation ideas, round 2
 
-This follows the Methodology in `interactive-html-ideas.txt`, including the four Google additions: mark each reproduction as independent or by construction, show primary sources that contradict each other, put the index version beside every score, and ask which models a docs figure applies to. Web search was tried once and failed ("used its web search budget", 200 of 200), so every source was fetched directly on 1 October 2026. Every proposed default was recomputed in `scratchpad/checks.py` (results quoted below).
+This follows the Methodology in `.claude/skills/explainer-page/visuals/choosing.md` (then `interactive-html-ideas.txt`), including the four Google additions: mark each reproduction as independent or by construction, show primary sources that contradict each other, put the index version beside every score, and ask which models a docs figure applies to. Web search was tried once and failed ("used its web search budget", 200 of 200), so every source was fetched directly on 1 October 2026. Every proposed default was recomputed in `scratchpad/checks.py` (results quoted below).
 
 Status labels: **published** (a source states it), **derived** (our formula applied to published inputs), **illustrative** (an assumption we chose, labelled in the UI), **(verify)** (we could not read it in a primary source).
 

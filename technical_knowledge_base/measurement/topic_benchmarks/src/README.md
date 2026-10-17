@@ -2,7 +2,7 @@ Source of the interactive HTML on the Notion page "Topic: benchmarks".
 
 Build: `sh build.sh` writes `../index.html` from `parts/`.
 
-Shape (agreed with Khalid 2026-10-04): an intuitive root of about 15 to 20 minutes (the rule recorded in html_utils/methods/topic_pages.md Part A). The Reading tab combines both spines Khalid chose: how to read a benchmark number (lifecycle, then what a number leaves out: version, split, harness, sampling, answer key, contamination, index version, each with one real case) and the families in brief, each linking its child. "Benchmark methodology" is folded into the root. Tabs: Benchmark atlas (t-atlas), Saturation timeline (t-sat), Same model, many numbers (t-same), Further reading.
+Shape (agreed with Khalid 2026-10-04): an intuitive root of about 15 to 20 minutes (the rule recorded in `.claude/skills/explainer-page/page-kinds/topic-root.md`). The Reading tab combines both spines Khalid chose: how to read a benchmark number (lifecycle, then what a number leaves out: version, split, harness, sampling, answer key, contamination, index version, each with one real case) and the families in brief, each linking its child. "Benchmark methodology" is folded into the root. Tabs: Benchmark atlas (t-atlas), Saturation timeline (t-sat), Same model, many numbers (t-same), Further reading.
 
 Part ownership (parallel build): `20_read*`, `2x_js_*`, `39_tab_more*` Reading and Further reading (ids `rd-`); `32_*` atlas (`at-`); `33_*` saturation (`sa-`); `34_*` same model (`sm-`). CSS scoped under each tab id.
 

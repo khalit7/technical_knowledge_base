@@ -2,7 +2,7 @@
 
 The page's question: how much does an agent lose while finding out, and which ways of exploring lose least, from one-state bandits to sparse-reward MDPs?
 
-Scores follow `html_utils/interactive-html-ideas.md` section 2 (0 to 2 per question; reproduction and computability double; +1 for a before/after animation; build cost subtracted).
+Scores follow `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 per question; reproduction and computability double; +1 for a before/after animation; build cost subtracted).
 
 | # | Idea | What it shows | Reproduces | Score | Placement | Status |
 |---|---|---|---|---|---|---|

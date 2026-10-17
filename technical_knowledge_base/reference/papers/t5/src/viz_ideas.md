@@ -1,6 +1,6 @@
 # Visualisation ideas: T5
 
-The question the paper keeps returning to: **with everything else held fixed, what is each pretraining choice worth, and is the difference bigger than the noise?** Scoring follows `html_utils/interactive-html-ideas.md` section 2 plus the paper-page criteria R (runs the paper's own mechanism) and P (supports a predict question).
+The question the paper keeps returning to: **with everything else held fixed, what is each pretraining choice worth, and is the difference bigger than the noise?** Scoring follows `.claude/skills/explainer-page/visuals/choosing.md` plus the paper-page criteria R (runs the paper's own mechanism) and P (supports a predict question).
 
 ## Built
 

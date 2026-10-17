@@ -11,11 +11,10 @@ technical_knowledge_base/      the pages, in the same tree as Notion
   systems_and_performance/  agents_and_retrieval/  measurement/
   engineering_foundations/  reference/
   pages.json                   every page: path, Notion title and id, status, published hash
-html_utils/                    build checks, publish status, templates, ideas and methodology
-video_utils/                   Chatterbox Turbo narration for HyperFrames videos
-.claude/skills/                create-interactive-html, create-explainer-video, sync-KB-github, HyperFrames
+html_utils/                    build checks and publish status (runtime only)
+.claude/skills/                explainer-page, explainer-video, sync-KB-github, HyperFrames
 ```
 
 Migrated so far: Topic: llms and its 17 child pages. The other folders are placeholders until their pages are converted.
 
-Setup: `uv sync`; `cd html_utils && npm ci`; for videos see `video_utils/README.md`.
+Setup: `uv sync`; `cd html_utils && npm ci`; for videos see `.claude/skills/explainer-video/narration/install.md`.

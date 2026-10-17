@@ -2,7 +2,7 @@
 
 `sh build.sh` writes `../index.html` from `parts/` (same scheme as the root and siblings: 01_head, 10_header, 20_read_*.html, 3x_tab_*.html, every *.js in its own script, 99_js_tabs.js last). `python3 build_data.py` turns `inputs/*.json` into `parts/22_js_data.js`; `python3 recompute.py` writes `recompute_out.json`; `node src/check_page.mjs` (from the repo root) clicks every control at 390 dark and 920 light and compares the page's numbers with recompute_out.json.
 
-Shape: Part B of `html_utils/methods/topic_pages.md` (a child page): in one screen, then the mechanisms in order (columns, encodings, skipping, execution, the Parquet file), then the systems (DuckDB, ClickHouse, warehouses, lakehouse), then pipelines, ML and pro practice. Three standalone tabs (Parquet lab, Inside a Parquet file, Iceberg step by step). New page, so no `live.md`; `coverage.json` lists what this page owns from the root and its notes.
+Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (a child page): in one screen, then the mechanisms in order (columns, encodings, skipping, execution, the Parquet file), then the systems (DuckDB, ClickHouse, warehouses, lakehouse), then pipelines, ML and pro practice. Three standalone tabs (Parquet lab, Inside a Parquet file, Iceberg step by step). New page, so no `live.md`; `coverage.json` lists what this page owns from the root and its notes.
 
 ## Measurements (`measure/`, all run 2026-10-04 on an Apple M1 Pro, 16 GB, shared with other jobs; each under 20 minutes)
 Run from a scratch directory outside the repo with `AN_DATA=<dir>`; Postgres uses `AN_PORT` (default 54373) and refuses a port already in use.
