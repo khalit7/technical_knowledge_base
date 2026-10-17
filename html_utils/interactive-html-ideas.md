@@ -4347,3 +4347,22 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | 8 | Token generator lab: temperature x top-k x guidance grid (45 settings, same random draws), sweeps with click-to-see samples, one image written token by token with real top-5 probabilities and entropy | Own tab | 3+0+3+3 = 9 | samples.json/npz |
 | 9 | Token economics: a mixed request's tokens and cache (Gemini docs, Qwen3.5 rule, SmolVLM rule, Chameleon, Mimi), writing one image three ways (calls, FLOPs, time at your ms per call), speech real-time budget | Own tab | 3+2+3+2 = 10 | Qwen/SmolVLM rules checked against the VLM sibling's 24 + 6 recorded rows (checks/check_tok.mjs); Moshi 17 tokens per 80 ms |
 | 10 | Predict-then-reveal: speech steps (10 s of Mimi), Transfusion's parity FLOP ratio; mistakes with real errors (IndexError, wrong tokenizer FD) | Reading | | mistakes.json |
+
+### Video and audio generation (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/video_and_audio_generation/src/viz_ideas.md`.
+
+| # | Idea | Score (teaches / computable / reproduces / animation / absent elsewhere / cost) | Placement | Status |
+|---|---|---|---|---|
+| 1 | One clip through three compressors (image VAE per frame, Wan causal VAE, LTX 32x32x8), to scale, counters to tokens and pairs | 5/5/yes (Movie Gen, Mochi, LTX ratios in the table beside it)/yes, before-after/yes/low | Reading 1 | built |
+| 2 | Measured Wan VAE before/after viewer: original, reconstruction, difference x4, PSNR per frame for slow and fast pans | 5/real data/-/frame scrub/yes/medium (one CPU run) | Reading 1 | built; shows the first-frame-alone and period-4 structure |
+| 3 | Who one token sees: full against factorised attention on a moving disc, counters at Wan's real size | 4/5/-/yes, before-after/yes/low | Reading 2 | built |
+| 4 | Cost table and formula check against FlopCounterMode | 5/5/formula within 2.8% of the count/-/yes/low | Reading 4 | built |
+| 5 | Implied throughput of published speed claims (LTX 2 s on H100, Wan 103 s, 4 minutes on 4090) | 4/5/derived/-/yes/low | Reading 4 box | built |
+| 6 | Noise schedule over long video: whole clip, chunk after chunk, rising noise | 4/illustrative/-/toggle/partly (papers draw it)/low | Reading 5 | built, labelled illustration |
+| 7 | Waveform envelope and log-mel spectrogram of the running sentence with a player | 3/real/-/-/-/low | Reading 6 | built |
+| 8 | RVQ stage by stage: spectrogram filling in, residual share, error against bitrate, players; toggle to Opus at equal bitrate | 5/real/agrees with EnCodec's MUSHRA ordering/yes, before-after/yes/medium | Reading 7 | built |
+| 9 | Codebook order diagram (flatten, parallel, delay) | 4/exact/MusicGen's 1500 steps for 30 s/toggle/partly/low | Reading 8 | built |
+| 10 | Space-time patch calculator, all models by duration | 5/5/four published figures reproduced/-/yes/medium | own tab | built |
+| 11 | RVQ codec explorer with difference spectrograms and token-rate table | 5/real/bitrates of nine settings recomputed/-/yes/medium | own tab | built |
+| 12 | Model timeline from the Model map rows plus method papers | 3/data/-/-/partly (Model map has a timeline of all families)/low | own tab | built; adds method papers and what this page measured, links the Model map for licences |
