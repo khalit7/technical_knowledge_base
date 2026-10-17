@@ -1,6 +1,6 @@
 # Ray: tasks, actors, the object store and Ray Train
 
-Notion: to be created or reused (child of Topic: ml-infra-and-orchestration, 3c65c17b0d0d81b5925bfd1d8665dd4b) once the Notion connection is back.
+Notion: https://app.notion.com/p/3fc5c17b0d0d811cba13f3aeccf8724b (child of Topic: ml-infra-and-orchestration; a new page).
 
 Status: built as an HTML-only page on 2026-10-16 (`index.html`, built by `src/build.sh`); not yet published (Notion disconnected).
 

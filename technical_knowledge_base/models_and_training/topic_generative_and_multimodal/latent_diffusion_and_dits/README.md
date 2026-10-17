@@ -1,6 +1,6 @@
 # Latent diffusion and diffusion transformers
 
-Notion: to be created or reused (child of Topic: generative-and-multimodal, 3c65c17b0d0d817ab6ade318917bff55) once the Notion connection is back.
+Notion: https://app.notion.com/p/3fc5c17b0d0d814fbcb5e0c8df5289f3 (child of Topic: generative-and-multimodal; a new page).
 
 Status: HTML-only page built 2026-10-17, not yet published (Notion disconnected). `index.html` is the whole page, built from `src/` with `sh src/build.sh`; `src/README.md` lists the tabs, scripts, runs and checks.
 
