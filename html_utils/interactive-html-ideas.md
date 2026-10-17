@@ -4366,3 +4366,20 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | 10 | Space-time patch calculator, all models by duration | 5/5/four published figures reproduced/-/yes/medium | own tab | built |
 | 11 | RVQ codec explorer with difference spectrograms and token-rate table | 5/real/bitrates of nine settings recomputed/-/yes/medium | own tab | built |
 | 12 | Model timeline from the Model map rows plus method papers | 3/data/-/-/partly (Model map has a timeline of all families)/low | own tab | built; adds method papers and what this page measured, links the Model map for licences |
+
+### Evaluating generative models: FID, CLIPScore, preference and VLM benchmarks (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/evaluating_generative_models/src/viz_ideas.md`.
+
+| # | Idea | Placement | Score | Notes |
+|---|---|---|---|---|
+| ev1 | **FID in four steps, animated, one set against the same reference** (images, points in PC1/PC2 of real Inception features, fitted Gaussians as 2-sigma ellipses, mean term, covariance term, sum), with a toggle running the same steps for DDPM, VAE, half the classes, strong guidance and the real floor; counters are the full 2,048-d terms | Reading, section 2 | 13 | Before/after on the same reference; shows which term each failure moves. The 2-D projection is labelled as a picture only. |
+| ev2 | **FID against N for eight sets**, log N or 1/N axes, three draws per point, Chong and Forsyth's straight-line extrapolation | Reading, section 3 | 12 | Reproduces the setup's real-vs-real floor (2.54 at 10k; 1k and 500 within the setup's three draws). |
+| ev3 | **Precision against recall**, Inception or DINOv2 space | Reading, section 4 | 10 | Separates the two failures FID merges (guidance and the half set). |
+| ev4 | **Rank table across five metrics at 10k**, and per-N ranks in the comparator | Reading section 4, Metric comparator | 10 | Shows where metrics disagree. |
+| ev5 | **JPEG before/after animation** (PNG, JPEG, difference x 8, FID bars), quality toggle | Reading, section 5 | 11 | Same images; reproduces clean-fid's qualitative finding at toy scale. |
+| ev6 | **Same prompt and noise at four guidance scales** with CLIPScore, CLIP L/14 cosine, VQA P(yes) and element questions | Reading, section 6 | 11 | Before/after on the same input (no guidance vs guidance). |
+| ev7 | **Metric comparator tab**: five metrics x eight sets x six N, log/linear/gap views, rank table with rank at 10k | Own tab | 11 | Every recorded number. |
+| ev8 | **Pitfall lab tab**: eight cases with images and bars; clean-fid Table 1 redrawn (published) | Own tab | 10 | |
+| ev9 | **Which metric? chooser**: eight questions x sample budget | Own tab | 7 | Static recommendations, linked to the evidence. |
+| ev10 | Predict-then-reveal x 4 (half vs VAE, floor at 1k, guidance direction, the missing horse) | Reading | 8 | |
