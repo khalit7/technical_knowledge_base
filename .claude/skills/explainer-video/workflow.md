@@ -4,7 +4,7 @@ Conventions used below:
 - `<page>` is the page folder (for example `technical_knowledge_base/models_and_training/topic_llms`); the project is `<page>/video/`.
 - `R` is the repo root: `R="$(git rev-parse --show-toplevel)"`.
 - `N="$R/.claude/skills/explainer-video/narration"` (narration scripts and voice projects).
-- `FX="$R/.claude/skills/faceless-explainer"` (the vendored faceless-explainer skill; its scripts are in `$FX/scripts/`).
+- `FX="$R/.claude/skills/explainer-video/vendor/faceless-explainer"` (the vendored faceless-explainer skill; its scripts are in `$FX/scripts/`).
 - `VOICE` is `voice_mac` on an Apple Silicon Mac, `voice_cuda` on the NVIDIA machine.
 - Unless a step says otherwise, commands run from `<page>/video/`.
 
@@ -16,21 +16,21 @@ Read `<page>/index.html` in full (every tab: Reading, each lab, Further reading)
 If the video needs something the page does not say, stop and add it to the page first with the `explainer-page` skill (and rebuild and check the page). The video never leads the page.
 
 ## 2. Brief
-1. Load `/hyperframes` (it routes a text-to-video request to `/faceless-explainer`; see `hyperframes.md`). Keep the CLI current with `npx hyperframes@latest upgrade --project . --check` when resuming an old project.
+1. Read `$R/.claude/skills/explainer-video/vendor/hyperframes/SKILL.md` (the vendored HyperFrames skills are not separate slash commands here; they live in `vendor/` and are read by path; it routes a text-to-video request to `vendor/faceless-explainer/SKILL.md`, which you then follow; see `hyperframes.md`). Keep the CLI current with `npx hyperframes@latest upgrade --project . --check` when resuming an old project.
 2. Create the project from the repo root, only if `<page>/video/` does not exist yet (init refuses a non-empty folder):
    `npx hyperframes init <page>/video --non-interactive --example=blank --skill=faceless-explainer`
    This writes `hyperframes.json`, `package.json` (which pins `hyperframes@<version>` in its scripts), `meta.json`, `AGENTS.md`, `CLAUDE.md`. Keep them.
-3. Write `BRIEF.md` straight after init, in the shape of `$R/.claude/skills/hyperframes/references/brief-format.md`. Defaults for this knowledge base (the worked example's frontmatter is the model):
+3. Write `BRIEF.md` straight after init, in the shape of `$R/.claude/skills/explainer-video/vendor/hyperframes/references/brief-format.md`. Defaults for this knowledge base (the worked example's frontmatter is the model):
    - `workflow: faceless-explainer`, `flow: automation`, `storyboard: no`, `destination: desktop`, `aspect: 1920x1080`, `language: en`, `audience: "An MSc-level AI engineer (Khalid)"`, `angle:` concept, how-to, listicle or narrative, whichever the page's own shape suggests.
    - `message:` the one sentence the viewer should leave with.
-   - `length:` **yours to decide from the content**: as long as the page needs and no longer. The faceless route's sweet spot is 30 to 90 s with a cap near 3 minutes; beyond about three minutes HyperFrames routes to `/general-video` (set `workflow: general-video` and follow that skill, keeping every other step here).
+   - `length:` **yours to decide from the content**: as long as the page needs and no longer. The faceless route's sweet spot is 30 to 90 s with a cap near 3 minutes; beyond about three minutes HyperFrames routes to `general-video`, which is not vendored (never used so far): install it first as in `hyperframes.md` "Refreshing", then set `workflow: general-video` and follow it, keeping every other step here.
    - Notes: the source is the page text only; every fact must appear on the page; no em-dashes; the intent interview was done by the caller, ask Khalid nothing; narrated, no background music.
 4. Fill the synthetic capture by hand: `capture/extracted/visible-text.txt` (the page's visible text, verbatim, from `index.html`) and `capture/extracted/tokens.json` (`title`, `description`; empty `colors` and `fonts`). No `npx hyperframes capture`.
 5. `npx hyperframes auth status` only tells which engines HyperFrames would use; this workflow voices locally, so signed out is fine.
 
 ## 3. Design, script, storyboard
 Follow faceless-explainer Steps 2 to 4 (read the references they name):
-- **Design (`frame.md`).** Pick one preset from `$R/.claude/skills/hyperframes-creative/frame-presets/` that fits the topic, then `node "$FX/scripts/build-frame.mjs" --preset <name> --hyperframes .`. Proceed when it exits 0. The worked example used Broadside (ink-black and fire-orange registers, heavy lowercase display type, mono chrome).
+- **Design (`frame.md`).** Pick one preset from `$R/.claude/skills/explainer-video/vendor/hyperframes-creative/frame-presets/` that fits the topic, then `node "$FX/scripts/build-frame.mjs" --preset <name> --hyperframes .`. Proceed when it exits 0. The worked example used Broadside (ink-black and fire-orange registers, heavy lowercase display type, mono chrome).
 - **Script (`SCRIPT.md`).** One line per frame. Write for the ear: short sentences, one idea per sentence, numbers spoken as words a listener parses ("six hundred billion total, twenty-seven billion active"), acronyms the voice can say. Voice header: `**Voice:** Chatterbox Turbo default voice (local)`, plus a one-line voice direction (the example: "Calm, precise, peer to peer. An engineer briefing another engineer; no hype.").
 - **Storyboard (`STORYBOARD.md`).** Frontmatter `duration:` from the brief and `music: none`. For every frame: `scene`, `voiceover` (identical to the script line), `duration` (estimate for now), `transition_in`, `src`, `type`, `beat`, `blueprint` if one fits, `focal`, `roles`, `sfx`, `narrativeRole`, `keyMessage`, then a time-coded shot sequence (Scene 1, 2, ...) whose every reveal is tied to the words that say it ("on 'sixty-two point seven percent in the standard harness' bar one grows to 62.7%"). Add the `## Video direction` block. Search the catalog before inventing a named look: `npx hyperframes catalog --query "<look>" --json`.
 - **Teach.** Sequence by narrative, not page order: hook, the frame or mechanism, the evidence, the payoff, and a closing line the viewer can reuse. Prefer before and after of one input, a quantity that visibly changes, a callback to an earlier frame.
@@ -64,7 +64,7 @@ In faceless-explainer's order, every script run from its real path `"$FX/scripts
 5. `node "$FX/scripts/assemble-index.mjs" --storyboard ./STORYBOARD.md --hyperframes .`
 6. `node "$FX/scripts/transitions.mjs" inject --storyboard ./STORYBOARD.md --hyperframes .` and `node "$FX/scripts/transitions.mjs" verify --storyboard ./STORYBOARD.md --index ./index.html`
 
-**Real-path rule.** Always start these scripts as `node <repo>/.claude/skills/faceless-explainer/scripts/<name>.mjs`, the real folder. Never through a symlink (for example an `.agents/skills/...` path or a linked skills folder): a script started through a symlinked path can exit silently without doing its work. If `.agents/` appears after a skills update, run `scripts/vendor_skills.sh` (see `hyperframes.md`).
+**Real-path rule.** Always start these scripts as `node <repo>/.claude/skills/explainer-video/vendor/faceless-explainer/scripts/<name>.mjs`, the real folder. Never through a symlink (for example an `.agents/skills/...` path or a linked skills folder): a script started through a symlinked path can exit silently without doing its work. If `.agents/` appears after a skills update, run `scripts/vendor_skills.sh` (see `hyperframes.md`).
 
 ## 8. Check and render
 1. `npx hyperframes lint` and `npx hyperframes check`: no errors. Known false positives, do not chase them:

@@ -44,7 +44,8 @@ Then publish to Notion as `notion.md` says.
 | `narration/narrate.py` | Voices each line of `narration_lines.tsv` into `NN-cb.wav`; picks the installed backend. |
 | `narration/check_takes.py` | Transcribes each take, flags REDO lines, writes the `voices` of `audio_meta.json`. |
 | `narration/voice_mac/`, `narration/voice_cuda/` | uv projects (pyproject and lock) for the two backends; their `.venv` is never committed. |
-| `scripts/vendor_skills.sh` | Copies refreshed HyperFrames skills into `.claude/skills/` as real folders. |
+| `scripts/vendor_skills.sh` | Copies refreshed HyperFrames skills into `vendor/` as real folders and cleans up the CLI's symlinks. |
+| `vendor/` | The seven third-party HyperFrames skills this workflow uses (hyperframes, faceless-explainer, hyperframes-core, -cli, -animation, -creative, media-use), read by path. Do not edit. |
 
 ## Constraints
 - **No em-dashes** on screen, in captions, in the script or in any project file. Commas, colons, semicolons, parentheses; `--` for ranges.

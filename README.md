@@ -12,7 +12,7 @@ technical_knowledge_base/      the pages, in the same tree as Notion
   engineering_foundations/  reference/
   pages.json                   every page: path, Notion title and id, status, published hash
 html_utils/                    build checks and publish status (runtime only)
-.claude/skills/                explainer-page, explainer-video, sync-KB-github, HyperFrames
+.claude/skills/                explainer-page, explainer-video (HyperFrames vendored inside), sync-KB-github
 ```
 
 Migrated so far: Topic: llms and its 17 child pages. The other folders are placeholders until their pages are converted.
