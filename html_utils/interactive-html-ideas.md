@@ -4081,3 +4081,7 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/src/viz_ideas.md`.
 
+### Topic: jax-and-tpu (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_jax_and_tpu/src/viz_ideas.md`.
+
