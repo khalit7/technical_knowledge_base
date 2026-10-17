@@ -34,7 +34,7 @@ Departures from papers.md, and why: the live ingredient is the one the method's 
 
 ## Size
 
-`index.html` is about 307 KB (306,897 bytes), slightly over the 300 KB guide: the five toy models' weights and logs (`20_model_data.js`) take 121 KB, the rest of the page about 186 KB. Five models are needed because the page compares S6, S4 and attention on two tasks. `model/` holds about 0.9 MB (float checkpoints for `export`, the 6-bit `_q.pt` files that `check_forward.py`, `probe.py` and `extrap` load, logs and results).
+`index.html` is about 307 KB (306,897 bytes), slightly over the 300 KB guide of the time (retired 2026-10-17): the five toy models' weights and logs (`20_model_data.js`) take 121 KB, the rest of the page about 186 KB. Five models are needed because the page compares S6, S4 and attention on two tasks. `model/` holds about 0.9 MB (float checkpoints for `export`, the 6-bit `_q.pt` files that `check_forward.py`, `probe.py` and `extrap` load, logs and results).
 
 ## Audit (3 October 2026, second session)
 

@@ -4,6 +4,8 @@ Sources: tables.json (the paper's tables), inputs/mamba_configs.json and inputs/
 configurations), inputs/eval_sizes.json (benchmark split sizes), inputs/later_extracts.txt (later papers' numbers).
 """
 import json, math, os
+from decimal import Decimal as _D, ROUND_HALF_UP
+_q = lambda d, n: float(d.quantize(_D(1).scaleb(-n), ROUND_HALF_UP))  # exact, half-up: same result on every Python version
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 T = json.load(open(os.path.join(HERE, 'tables.json')))
@@ -18,8 +20,8 @@ t3 = T['t3']; cols = t3['cols']; rows = t3['rows']
 acc_idx = [2, 3, 4, 5, 6, 7]
 avg_ok = []
 for r in rows:
-    a = sum(f(r['v'][i]) for i in acc_idx) / 6
-    avg_ok.append([r['model'], round(a, 2), r['v'][8], abs(round(a, 1) - f(r['v'][8])) < 0.051])
+    a = sum(_D(r['v'][i]) for i in acc_idx) / 6
+    avg_ok.append([r['model'], _q(a, 2), r['v'][8], abs(_q(a, 1) - f(r['v'][8])) < 0.051])
 R['t3_avg_check'] = avg_ok
 best = []
 for b in sorted({r['bucket'] for r in rows}):
