@@ -1,0 +1,34 @@
+<nav class="nav" id="rd-nav"><a href="#ev-s0">In one screen</a><a href="#ev-s1">The problem</a><a href="#ev-s2">FID from zero</a><a href="#ev-s3">Sample count</a><a href="#ev-s4">Alternatives</a><a href="#ev-s5">Pitfalls</a><a href="#ev-s6">Prompt alignment</a><a href="#ev-s7">Human preference</a><a href="#ev-s8">VLM benchmarks</a><a href="#ev-s9">Video and audio</a><a href="#ev-mist">Mistakes</a><a href="#ev-iq">Interview</a></nav>
+
+<section id="ev-s0">
+<h2>In one screen</h2>
+<p class="lead">A generative model has no right answer to compare against, so it is judged by <b>comparing distributions</b>: does the set of images it makes look like a set of real images, in the eyes of some feature extractor? Every image metric on this page is a choice of three things: <b>which features</b> (Inception, DINOv2, CLIP, a domain classifier), <b>which distance</b> between the two clouds of feature vectors (Fr&eacute;chet distance between fitted Gaussians, a kernel distance, nearest-neighbour coverage), and <b>how many samples</b>. Text-to-image adds a fourth question, <b>did it draw what was asked</b>, which needs the prompt; and in the end people decide, by votes in arenas or through reward models trained on their votes.</p>
+<div class="tw"><table>
+<thead><tr><th>Metric</th><th>Features</th><th>Distance</th><th>Catches</th><th>Misses or misleads</th><th>Where on this page</th></tr></thead>
+<tbody>
+<tr><td><b>FID</b></td><td>Inception-v3 pool, 2,048-d (ImageNet classifier)</td><td>Fr&eacute;chet distance of two Gaussians</td><td>bad images and too little variety, in one number</td><td>biased upward at small N; moved by JPEG and resizing; ImageNet-class leakage; blind to the prompt</td><td>sections 2, 3, 5</td></tr>
+<tr><td><b>KID</b></td><td>Inception, 2,048-d</td><td>unbiased kernel MMD (cubic polynomial)</td><td>the same as FID, with honest error bars</td><td>the same features, so the same leakage and preprocessing traps</td><td>section 4</td></tr>
+<tr><td><b>Precision / recall</b></td><td>any (VGG-16 in the paper)</td><td>k-nearest-neighbour balls</td><td>separates fidelity (precision) from variety (recall)</td><td>sensitive to outliers and to k</td><td>section 4</td></tr>
+<tr><td><b>FD-DINOv2</b></td><td>DINOv2 ViT-L/14 (self-supervised)</td><td>Fr&eacute;chet distance</td><td>agrees with human judgments where Inception does not (Stein et al.)</td><td>still biased in N; a different scale from FID</td><td>section 4</td></tr>
+<tr><td><b>CMMD</b></td><td>CLIP ViT-L/14 at 336 px (B/32 for the sweep here)</td><td>Gaussian-kernel MMD</td><td>no Gaussian assumption; text-to-image era features</td><td>official code uses the biased estimator; CLIP's own blind spots</td><td>section 4</td></tr>
+<tr><td><b>CLIPScore</b></td><td>CLIP image and text</td><td>cosine to the prompt</td><td>gross prompt mismatch</td><td>counts, relations, text; a "bag of words"</td><td>section 6</td></tr>
+<tr><td><b>VQA-based</b> (TIFA, VQAScore, GenEval)</td><td>a VLM or detector answers questions</td><td>share of yes answers</td><td>missing objects, counts, colours, positions</td><td>only as good as the VLM; its own hallucinations</td><td>section 6</td></tr>
+<tr><td><b>Human preference</b></td><td>people (arenas), or reward models trained on their votes</td><td>pairwise wins, Elo / Bradley-Terry</td><td>what users actually prefer</td><td>style, self-selected prompts, reward hacking</td><td>section 7</td></tr>
+</tbody></table></div>
+<p>Everything measured here uses one running example (the topic's {{data setup|n:3c65c17b0d0d817ab6ade318917bff55}}): the 10,000 Fashion-MNIST test images are the reference, and eight sets of 10,000 images each are scored against them, from a perfect one to a bad one. They come from checkpoints the topic's labs and sibling pages already trained; nothing was trained for this page.</p>
+<div class="ev-sets" id="ev-sets"></div>
+<p class="small mute">Each strip: the first image of each class, left to right T-shirt, trouser, pullover, dress, coat, sandal, shirt, sneaker, bag, ankle boot (the VAE ignores labels, so its strip is ten random draws; the "half" set only has the first five classes). <span class="meas">measured on Apple M1 Pro (MPS)</span>; sampling times in the {{Metric comparator|#t-evcmp}} tab.</p>
+</section>
+
+<section id="ev-s1">
+<h2>1. The problem: scoring a model that has no right answer</h2>
+<p>A classifier is scored image by image: each prediction is right or wrong. A generator draws a new image from noise; there is no "correct" image for that noise. What we can ask is whether its <dfn>output distribution</dfn> (all the images it would make, with their frequencies) matches the <dfn>data distribution</dfn>. That splits into questions that one number cannot answer at once:</p>
+<ul class="tight">
+<li><b>Fidelity</b>: does each image look real? (a blurry VAE sample fails)</li>
+<li><b>Diversity or coverage</b>: does the model make everything the data has, in the right proportions? (a model that only draws trousers fails, however good its trousers)</li>
+<li><b>Alignment</b>: for a conditional model, does the image match its condition (the class label here, the prompt for text-to-image)?</li>
+<li><b>Preference</b>: would a person choose it? This mixes all of the above with taste.</li>
+</ul>
+<p>Images are compared in a <dfn>feature space</dfn>: a pretrained network maps each image to a vector, and similar-looking images land near each other. Raw pixels are a bad space for this (shift a shirt by two pixels and almost every pixel changes). Then each set of images becomes a cloud of points, and a metric is a distance between two clouds. The choice of network decides what "similar" means: Inception-v3 was trained to name 1,000 ImageNet classes, so it sees the world as ImageNet objects; DINOv2 learned without labels; CLIP learned from captions. That choice is why the same eight sets can be ranked differently by different metrics (section 4).</p>
+<div class="co key"><div class="t">The test every metric must pass first</div>Score real images against other real images from the same distribution. Whatever comes out is the metric's <b>floor</b>: the value that means "nothing is wrong" at that sample count. For FID on this data the floor is <span data-ev="floor:10000"></span> at 10,000 images and about <span data-ev="floor:1000"></span> at 1,000 (the topic setup's measurement, reproduced below). A model's score means something only next to its floor.</div>
+</section>
