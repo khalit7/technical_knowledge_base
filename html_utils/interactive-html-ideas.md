@@ -4192,3 +4192,16 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_ml_infra_and_orchestration/observability_and_cost/src/viz_ideas.md`.
 
+### ML platforms and workflows: pipelines, experiment tracking and model registry (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_ml_infra_and_orchestration/ml_platforms_and_workflows/src/viz_ideas.md`.
+
+| idea | where | score (teaches / measurable / absent elsewhere / cost) | data | why it earns its place |
+|---|---|---|---|---|
+| Rerun everything vs resume, same failed run, drawn to scale (before/after animation, play/pause/step/scrub/speed, counters) | Reading section 3 | 5/5/5/2 | Metaflow task durations of runs 1792142900051724 (failed) and 1792142936774695 (resumed) | The core value of a workflow engine, seen rather than told; the real failure (MLflow pt2 default) made it |
+| Cross-platform divergence chart, per step, log scale, toggle global vs rank-0 loss | Reading section 8 | 5/5/5/1 | xplat.json: 70 steps logged every step, native vs mi-train:1 | Shows that "same code, same seed, same version" is not "same bits", and that logging granularity hides it |
+| Lineage graph from the recorded ids and hashes (click to trace ancestors and descendants; presets for the resume trap, the hung run, the other-data version) | tab Lineage graph | 5/4/5/3 | mp_lab.json | Makes lineage a thing you click through, and shows the three real traps found |
+| Alias history stepper (before/after each registration) | tab Lineage graph | 4/4/4/1 | versions + replayed gate | The registry's one mutable thing, moving |
+| Reproduce-a-run walkthrough (six steps, any version) plus all loss curves | tab Reproduce a run | 4/4/5/2 | reproduce.py outputs, MLflow curves | The page's question answered end to end; version 1 and 6 show where it breaks |
+| Tool chooser with every fired rule listed | tab Tool chooser | 3/2/3/1 | rules from the Reading tab and the root Tool map | Turns section 4 into a decision with visible reasons; labelled opinion |
+| Inline tables from data: step table (median task times), run record, gate table, MLmodel file, model files, REST response | Reading | n/a | mp_lab.json | Real records instead of described ones |
