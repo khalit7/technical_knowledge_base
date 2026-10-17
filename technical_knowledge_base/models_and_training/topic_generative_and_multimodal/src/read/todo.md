@@ -12,6 +12,5 @@ All lab numbers were filled on 2026-10-17 from the labs' recorded outputs and ch
 Memory figures are MiB as recorded (`peak_mps_mb` is MiB).
 
 Still open:
-- Child-page links (Notion ids pending): Vision encoders is built (about 32 min); the others are being built.
 - `coverage.md`: the check against the old Notion root and children, when Notion returns.
 - Re-measure the reading time (`check_read.mjs`) after any change and update `#rd-time`, `#rd-time-qa` and `#rd-more-time`.

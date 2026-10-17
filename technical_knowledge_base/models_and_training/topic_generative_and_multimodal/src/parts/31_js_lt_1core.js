@@ -2,7 +2,7 @@
 window.LT=(function(){
   const D=window.LTD;
   if(!D||!D.tiny||!D.sd_vae||!D.sd_scale||!D.perc||!D.scatter){const t=document.getElementById('t-latent');
-    if(t){const n=document.createElement('p');n.className='co warn';n.textContent='Latent lab: recorded data still being generated; this tab is being built.';t.prepend(n)}return null}
+    if(t){const n=document.createElement('p');n.className='co warn';n.textContent='Latent lab: recorded data missing from this build; rerun the lab scripts and rebuild.';t.prepend(n)}return null}
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const $=id=>document.getElementById(id);

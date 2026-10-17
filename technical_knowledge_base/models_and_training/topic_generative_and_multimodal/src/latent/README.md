@@ -18,4 +18,4 @@ Pipeline (all scripts take `GM_SCRATCH`, the shared setup folder; Python is the 
 
 The data part is committed, so `src/build.sh` rebuilds the page without the scratch folder; rerunning the pipeline needs the shared setup (root `src/data/README.md`).
 
-Departures from the topic-page method: this is a lab tab on a root page, so it goes deeper than the root's Reading tab (which links here) but leaves derivations to the Math page and the child page Autoencoders and VAEs (being built). Sources and file:line references: `sources.md`. Visual ideas built and rejected: `viz_ideas.md`.
+Departures from the topic-page method: this is a lab tab on a root page, so it goes deeper than the root's Reading tab (which links here) but leaves derivations to the Math page and the child page Autoencoders and VAEs. Sources and file:line references: `sources.md`. Visual ideas built and rejected: `viz_ideas.md`.
