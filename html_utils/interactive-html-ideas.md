@@ -3974,3 +3974,21 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | PK12 | HBM vs SRAM IO animation of flash attention | none | | rejected: the FlashAttention paper page has it (linked) |
 | PK13 | Running tokamax kernels | none | | rejected: needs a GPU or TPU to select an implementation; read only |
 | PK14 | A real TPU roofline per kernel | none | | rejected: belongs to TPU programming and performance; no chip here |
+
+### Quality classifiers and data selection (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/quality_classifiers_and_data_selection/src/viz_ideas.md`.
+
+| # | Idea | Score | Placement | Data |
+|---|---|---|---|---|
+| QC1 | **One page, two reference sets, step by step** (before/after animation): tokens, word features, hashed bigrams, average, sigmoid and cut, coloured by each feature's real push; toggle DCLM / Wikipedia / GPT-3 approx on the same document; counters reconcile to the logit | 13 | Reading s2 | real weights, exact rebuild of fastText v0.9.2 (max error 1e-5) |
+| QC2 | Classifier replay tab: reference examples, top words both ways, logit strip of all 2,617 docs with the cut, token-coloured document, 6 classifiers x 16 documents | 12 | Own tab | vocab_*.json, explain/*.json |
+| QC3 | Threshold explorer: keep-rate slider for 17 scorers, precision/recall against a uniform random hand-labelled sample, overlap with every other scorer against the random baseline, Llama-grade P/R and AUC, jump to published cut | 13 | Own tab | ranks, labels, annot curves |
+| QC4 | Bias browser: keep rate or lift by WebOrganizer topic / format / country domain, click a cell to read the labelled documents; controlled-edit table (typography, case, bullets, spelling); Nemotron-CC paired rewrites | 12 | Own tab | WebOrganizer classifiers on run0, dialect.json, perturb.json, pairs |
+| QC5 | GPT-3 Pareto keep curve P = (2 - s)^-9 with the GPT-3-style classifier's run0 histogram | 9 | Reading s2 | derived; simulation check |
+| QC6 | DCLM Table 5 bars | 7 | Reading s3 | published table |
+| QC7 | Reference-set table (keep, overlaps, hand precision, Llama AUC) | 11 | Reading s3 | measured |
+| QC8 | DCLM's strongest words both ways | 9 | Reading s4 | vocab_dclm.json |
+| QC9 | Nemotron-CC ensemble confusion matrix against published levels | 11 | Reading s5 | rebuilt ensemble, 1,000 docs |
+| QC10 | Repetition calculator: keep share x pool against training tokens, effective data by Muennighoff's fit | 10 | Reading s10 | derived (R* = 15.39) |
+| QC11 | Predict-then-reveal x 3 (strongest word, DCLM cut on FineWeb, curly quotes) | 9 | Reading | measured |
