@@ -1,0 +1,24 @@
+<section id="lt-s1">
+<h2>1. Why generate in a latent space</h2>
+<p><b>The problem.</b> A 512 &times; 512 colour image is 786,432 numbers, and most of them encode detail the eye barely notices: the grain of a wall, the exact edge of a hair. A diffusion model runs its network 25 to 50 times for one image (the {{Diffusion lab|#t-diff}} measures this), so every step pays for every pixel. The LDM paper showed this with a rate-distortion plot of a pixel-space diffusion model: most of the bits go into imperceptible detail, the composition costs few ({{LDM paper page|n:3c65c17b0d0d81bb98adc0daf8462cb6}}).</p>
+<p><b>The idea.</b> Train an <dfn>autoencoder</dfn> once: an <dfn>encoder</dfn> network squeezes the image into a small <dfn>latent</dfn> (also called the <dfn>code</dfn>; the narrow point is the <dfn>bottleneck</dfn>), a <dfn>decoder</dfn> network rebuilds the image from it, and training minimises the <dfn>reconstruction loss</dfn>, the difference between input and output. Then generate latents instead of pixels and decode once at the end. Stable Diffusion 1.5 keeps 64 &times; 64 &times; 4 = 16,384 numbers per 512 &times; 512 image, 48 times fewer <span class="lt-lbl d">derived from the VAE config</span>.</p>
+<p><b>The cost.</b> A second network to train, and a ceiling: the generator can never produce detail the decoder cannot draw. Section 8 measures that ceiling for the SD decoder.</p>
+<p><b>Here.</b> The running example is Fashion-MNIST (grey 28 &times; 28 clothing, padded to 32 &times; 32 = 1,024 pixels; {{Reading tab|#t-read}} and the root's <code>src/data/README.md</code> describe it). Every tiny model below shares one encoder and one decoder from the topic's code (<code>src/data/nets.py</code>, <code>ConvAE</code>: two stride-2 convolutions take 32 &times; 32 to 64 channels at 8 &times; 8; two transposed convolutions take it back). They differ only in what sits in the middle: 2 or 16 plain numbers (autoencoder), a mean and a spread per number (VAE), or 64 integers picked from a codebook (VQ-VAE). Same data order, same seed, <span data-lt="tiny.runs.ae2.steps" data-f="0"></span> steps at batch 128 each (about <span data-lt="tiny.runs.ae2.train_seconds" data-f="0"></span> s each on the laptop's GPU).</p>
+</section>
+
+<section id="lt-s2">
+<h2>2. One image through each model</h2>
+<p>Pick an image and a model and watch it go through: input, encoder, the code in the bottleneck, decoder, output beside the input. Switch the model and the same image goes through the other one, drawn at the same scale, so you see what each kind of bottleneck keeps.</p>
+<div class="lt-box" id="lt-wk-card">
+<div class="seg" id="lt-wk-model" role="group" aria-label="Model"><button data-v="ae2" class="on" aria-pressed="true">Autoencoder, 2 numbers</button><button data-v="ae16" aria-pressed="false">Autoencoder, 16</button><button data-v="vae16_b1p0" aria-pressed="false">VAE, 16</button><button data-v="vq_restart" aria-pressed="false">VQ-VAE, 64 tokens</button><button data-v="sd" aria-pressed="false">SD 1.5 VAE (colour)</button></div>
+<div class="lt-chips" id="lt-wk-chips" role="group" aria-label="Test image"></div>
+<div class="lt-anctl" id="lt-wk-ctl"></div>
+<div class="lt-flow" id="lt-wk-flow"></div>
+<div class="lt-cap" id="lt-wk-cap" aria-live="polite"></div>
+<div class="lt-cnt" id="lt-wk-cnt"></div>
+<p class="lt-note">The 16 fixed test images of the topic (the first test image of each class, then the second of classes 0 to 5). Outputs are the trained models' real reconstructions; the encoder and decoder panels show sizes, not activations. In the SD view the latent's four channels are the real 64 &times; 64 maps of the cat photo (each stretched to its own black-to-white range).</p>
+</div>
+<div class="lt-pr"><div class="lt-q">Predict: which keeps more of the image, a code of 16 plain numbers or 64 tokens from a codebook of 128 entries?</div>
+<div class="lt-opts"><button>16 numbers: real-valued, so infinitely precise</button><button data-ok="1">64 tokens: more slots, even if each holds only 7 bits</button><button>About the same</button></div>
+<div class="lt-ans" hidden>Measured on the 10,000 test images: the 16-number autoencoder reaches <span data-lt="tiny.runs.ae16.test_psnr_db" data-f="1"></span> dB PSNR, the VQ-VAE with 64 tokens <span data-lt="tiny.runs.vq_restart.test_psnr_db" data-f="1"></span> dB (and the 2-number autoencoder <span data-lt="tiny.runs.ae2.test_psnr_db" data-f="1"></span> dB). A real number in a network is not infinitely precise in practice: the decoder can only use the precision training made it sensitive to, so spatial layout (64 positions, each with its own code) beats a few global numbers. That is one reason image tokenizers keep a grid. <span class="lt-lbl m">measured</span></div></div>
+</section>
