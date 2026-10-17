@@ -4383,3 +4383,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | ev8 | **Pitfall lab tab**: eight cases with images and bars; clean-fid Table 1 redrawn (published) | Own tab | 10 | |
 | ev9 | **Which metric? chooser**: eight questions x sample budget | Own tab | 7 | Static recommendations, linked to the evidence. |
 | ev10 | Predict-then-reveal x 4 (half vs VAE, floor at 1k, guidance direction, the missing horse) | Reading | 8 | |
+
+### Topic: generative-and-multimodal (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/src/viz_ideas.md`.
+
