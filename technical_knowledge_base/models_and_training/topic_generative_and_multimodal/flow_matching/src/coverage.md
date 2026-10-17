@@ -1,0 +1,5 @@
+# Coverage
+
+Old page not yet compared (Notion disconnected). This is a new child page of Topic: generative-and-multimodal; when the Notion connection is back, fetch any old "Flow matching" notes under the topic, save them to `src/live.md` and record here where each fact is carried or why it was dropped.
+
+Brief coverage (the approved scope for child 3), all carried in the Reading tab: conditional flow matching from zero (sections 1 and 2, with the root's Flow lab for the first layer), probability paths and the marginal vector field (1), why the conditional objective works (1, linking the Math page), OT paths against diffusion paths (4, 5), rectified flow and reflow, one and two further rounds on the toy and the tiny model (6), timestep sampling, logit-normal (8, Timestep explorer), ODE solvers and step counts (10, root section 3), distillation to one or few steps (7), stochastic interpolants and the link to diffusion (4, 9), flow matching in production (11). Labs: 2-D flow playground, tiny-model comparison at equal steps against the Diffusion lab (Steps ladder), timestep-sampling explorer.
