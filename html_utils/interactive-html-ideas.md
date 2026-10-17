@@ -4226,3 +4226,19 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | AV8 | Published tokenizer table (16 tokenizers, tokens, codes, bits, rFID) and a token calculator | Reading 8 | every input published (2), derived arithmetic (2) | papers |
 | AV9 | Tokenizer comparator: nine pretrained autoencoders on the same 16 images: shapes, PSNR, SSIM, LPIPS, per-image table, crops animated through every model, latent statistics and normalisation recipes | own tab | real models, same input (2), before/after crops (2), recipes read from configs (2) | roundtrip.py, metrics.py |
 | AV10 | Generator VAE config table (published and read from configs) | Reading 9 | configs (2) | configs |
+
+### Diffusion from zero: DDPM, samplers and guidance (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/diffusion_from_zero/src/viz_ideas.md`.
+
+| # | Visual | Where | Score | Notes |
+|---|---|---|---|---|
+| 1 | **Exact-score toy, animated: the same 160 noise values through DDIM (ODE) and DDPM (stochastic)** over the noisy density p_t, counters for step, sigma, committed share, distance to truth | Reading, section 1 | 15 | Before/after on one input (Khalid's preferred pattern). The toy has a closed-form denoiser, so it is a perfect model; JS port checked against gmm_toy.py to 3e-15. |
+| 2 | **Toy with a hedging knob** (tau, eta, steps): histogram against the true density, distance, mass between bumps | Reading, section 4 | 15 | Reproduces the tiny model's "DDIM plateaus, DDPM keeps improving" with a known cause; the page's explanation of the lab's surprising result. |
+| 3 | **Loss weighting on the lambda axis**: eps, x0, v, Min-SNR, EDM, normalised share of the loss | Reading, section 3 | 11 | Derived from formulas (Kingma and Gao 2023's framing); toggles the two schedules. |
+| 4 | **Sampler workbench tab**: 12 samplers x 1 to 1,000 steps on one checkpoint, strips, FD/accuracy/diversity against NFE, the 8,000-step model, timestep walks | Own tab | 14 | Reuses the lab's recordings for DDPM/DDIM/DPM/Euler and adds eight samplers; same noise and scoring. |
+| 5 | **Schedule designer tab**: preset or custom beta range, zero terminal SNR, offset noise, resolution shift; ln SNR chart, counters, the running example noised, and the per-image mean tiles (the brightness leak made visible) | Own tab | 13 | Defaults reproduce the lab's derived numbers independently (check_toy.mjs against recompute.py). |
+| 6 | **Guidance explorer tab**: SD 1.5 image sets (scale x rescale, interval, negative prompts, zero terminal SNR, few steps) with saturation; tiny-model accuracy-against-FD curves for CFG, rescale, interval, DDPM, autoguidance | Own tab | 13 | Accuracy against FD shows the trade-off as a curve rather than two separate charts. |
+| 7 | **CFG rescale before/after** and **LCM-LoRA against DPM-Solver++ at equal steps** | Reading, sections 5 and 6 | 12 | Real SD 1.5 images at 256 px. |
+| 8 | **Bug strips**: the same ten noises sampled correctly and with four real bugs | Reading, Mistakes | 11 | Real bad outputs, as the brief asks. |
+| 9 | Predict-then-reveal: ODE vs SDE with an exact model; the brightness of the mean; the hedging model | Reading | 10 | |
