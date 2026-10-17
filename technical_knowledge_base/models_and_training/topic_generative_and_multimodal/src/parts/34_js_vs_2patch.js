@@ -3,6 +3,9 @@
   const V=window.VS,D=V.D,$=V.$;if(!$('vs-pa'))return;
   const i8=s=>{const b=atob(s),a=new Int8Array(b.length);for(let i=0;i<b.length;i++)a[i]=(b.charCodeAt(i)<<24)>>24;return a};
   const M={};['clip','siglip'].forEach(w=>{const m=D.models[w];M[w]={m,pos:i8(m.pos),tok:i8(m.tok),att:i8(m.pool_att)}});
+  const TD=8;
+  // position cosines are stored as the upper triangle (row-major, diagonal included) of the symmetric n x n matrix
+  const PV=(w,i,j,n)=>{if(i>j){const t=i;i=j;j=t}return M[w].pos[i*n-i*(i-1)/2+(j-i)]};
   const NAME={clip:'CLIP ViT-B/32',siglip:'SigLIP 2 B/16'};
   const st={w:'clip',img:0,sel:null,tw:1,raf:0,prev:-1};
   const imgs=D.patch_uris.map(u=>{const im=new Image();im.src=u;im.onload=()=>A&&A.redraw();return im});
@@ -25,7 +28,7 @@
     case 1:return 'A square grid of '+ps+' &#215; '+ps+'-pixel patches: 224 / '+ps+' = '+g+' per side, so <b>'+n+' patches</b>. A smaller patch means more, finer tokens: SigLIP 2 B/16 cuts the same image into 4 times as many as CLIP B/32.';
     case 2:return 'The patches are laid out in reading order (left to right, top to bottom) as a sequence of '+n+', exactly as words are for a language model. The grid is gone: from here the transformer sees a list.';
     case 3:return 'Each patch is unrolled into one long vector of '+ps+' &#215; '+ps+' &#215; 3 = <b>'+V.comma(np)+' numbers</b> (the stripe below is the selected patch&#8217;s pixels, in order).';
-    case 4:return 'Every patch vector is multiplied by the same learned matrix of '+V.comma(m.check.width)+' &#215; '+V.comma(np)+' (the <dfn>patch embedding</dfn>, '+V.comma(m.check.patch_embedding_params)+' parameters'+(m.check.conv_has_bias?' with its bias':', no bias')+'), giving one '+m.check.width+'-number token per patch. Each column shows the first 16 of the 768 numbers of a real token (blue positive, orange negative).';
+    case 4:return 'Every patch vector is multiplied by the same learned matrix of '+V.comma(m.check.width)+' &#215; '+V.comma(np)+' (the <dfn>patch embedding</dfn>, '+V.comma(m.check.patch_embedding_params)+' parameters'+(m.check.conv_has_bias?' with its bias':', no bias')+'), giving one '+m.check.width+'-number token per patch. Each column shows the first 8 of the 768 numbers of a real token (blue positive, orange negative).';
     case 5:return 'A learned <dfn>position embedding</dfn> (one vector per slot) is added to each token so the model can tell where a patch was. Colour: cosine similarity of the selected patch&#8217;s position vector to every other slot, from the real '+(st.w==='clip'?'CLIP':'SigLIP 2')+' weights. Nobody told the model the grid is 2-D: slots in the same row or column and near neighbours ended up similar because it helped. Click or tap a patch.';
     case 6:return st.w==='clip'?'CLIP prepends one extra learned token, <dfn>[CLS]</dfn>, whose output will summarise the image: <b>50 tokens</b>. Every attention layer compares every token with every other: 50 &#215; 50 = <b>2,500 scores</b> per head.':'SigLIP 2 adds no [CLS] token: <b>196 tokens</b>, 196 &#215; 196 = <b>38,416 attention scores</b> per head per layer, 15 times CLIP B/32&#8217;s 2,500 for the same picture.';
     case 7:return (st.w==='clip'?'After 12 transformer layers the [CLS] output is normalised and projected to a <b>512</b>-number image embedding. Heat: how much [CLS] attends to each patch in the last layer (mean of 12 heads; uniform would be 2% each). On the DOG image its largest weight, 12%, is on the patch holding the word: the model is reading.':'After 12 layers an attention-pooling head (a learned query, the MAP head) averages the patch outputs into one <b>768</b>-number image embedding. Heat: the weight that query gives each patch (mean over heads; uniform would be 0.5% each). It puts 30% to 45% of its weight on the same four slots in every image here, whatever they show. That fits a known ViT habit of using a few low-information tokens for internal bookkeeping (Darcet et al. 2023, linked below); it is a reading of these weights, not a measured cause.')+' Attention weights are a hint, not an explanation of the decision.';}
@@ -52,8 +55,8 @@
     ctx.strokeStyle=line;ctx.strokeRect(0.5,0.5,L.S-1,L.S-1);
     if(i>=1){ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=1;
       for(let k=1;k<g;k++){ctx.beginPath();ctx.moveTo(k*cs,0);ctx.lineTo(k*cs,L.S);ctx.stroke();ctx.beginPath();ctx.moveTo(0,k*cs);ctx.lineTo(L.S,k*cs);ctx.stroke()}}
-    if(i===5){const P=M[st.w].pos;let lo=1e9,hi=-1e9;for(let j=0;j<n;j++)if(j!==st.sel){const v=P[st.sel*n+j];lo=Math.min(lo,v);hi=Math.max(hi,v)}
-      for(let j=0;j<n;j++){const v=j===st.sel?1:(P[st.sel*n+j]-lo)/Math.max(1,hi-lo);ctx.fillStyle=V.seq(v);ctx.globalAlpha=.85;ctx.fillRect((j%g)*cs,Math.floor(j/g)*cs,cs,cs)}ctx.globalAlpha=1;
+    if(i===5){let lo=1e9,hi=-1e9;for(let j=0;j<n;j++)if(j!==st.sel){const v=PV(st.w,st.sel,j,n);lo=Math.min(lo,v);hi=Math.max(hi,v)}
+      for(let j=0;j<n;j++){const v=j===st.sel?1:(PV(st.w,st.sel,j,n)-lo)/Math.max(1,hi-lo);ctx.fillStyle=V.seq(v);ctx.globalAlpha=.85;ctx.fillRect((j%g)*cs,Math.floor(j/g)*cs,cs,cs)}ctx.globalAlpha=1;
       st.posRange=[lo/100,hi/100]}
     if(i===7){const a=M[st.w].att,K=m.pool_keys.length;const row=D.keys.indexOf(D.patch_images[st.img]);const r=row<0?K-1:row;
       for(let j=0;j<n;j++){const v=Math.max(0,a[r*n+j])/127;ctx.fillStyle='rgba(194,112,58,'+(0.08+0.85*v).toFixed(3)+')';ctx.fillRect((j%g)*cs,Math.floor(j/g)*cs,cs,cs)}}
@@ -80,9 +83,9 @@
         const gx=(j%g)*cs,gy=Math.floor(j/g)*cs;
         const x=gx+(tx-gx)*tw,y=gy+(ty-gy)*tw,s=cs+(c-cs)*tw;
         if(ok&&i<4)ctx.drawImage(im,(j%g)*(224/g),Math.floor(j/g)*(224/g),224/g,224/g,x,y,s,s);
-        if(i>=4){const T=M[st.w].tok,sc=m.tok_scale;let mx=0;for(let d=0;d<16;d++)mx=Math.max(mx,Math.abs(T[(st.img*n+j)*16+d]));
-          const hh=(c+L.tokH)/16;for(let d=0;d<16;d++){ctx.fillStyle=V.div(T[(st.img*n+j)*16+d]/Math.max(1,mx));ctx.fillRect(tx,ty+d*hh,c,hh+.4)}
-          if(i===5){const P=M[st.w].pos,v=j===st.sel?1:(P[st.sel*n+j]/100-st.posRange[0])/Math.max(.01,st.posRange[1]-st.posRange[0]);ctx.fillStyle=V.seq(v);ctx.fillRect(tx,ty+c+L.tokH-4,c,4)}}
+        if(i>=4){const T=M[st.w].tok,sc=m.tok_scale;let mx=0;for(let d=0;d<TD;d++)mx=Math.max(mx,Math.abs(T[(st.img*n+j)*TD+d]));
+          const hh=(c+L.tokH)/TD;for(let d=0;d<TD;d++){ctx.fillStyle=V.div(T[(st.img*n+j)*TD+d]/Math.max(1,mx));ctx.fillRect(tx,ty+d*hh,c,hh+.4)}
+          if(i===5){const v=j===st.sel?1:(PV(st.w,st.sel,j,n)/100-st.posRange[0])/Math.max(.01,st.posRange[1]-st.posRange[0]);ctx.fillStyle=V.seq(v);ctx.fillRect(tx,ty+c+L.tokH-4,c,4)}}
         if(j===st.sel&&i>=3){ctx.strokeStyle=bad;ctx.lineWidth=2;ctx.strokeRect(tx-1,ty-1,c+2,(i>=4?c+L.tokH:c)+2);ctx.lineWidth=1}}
     }
     // counters

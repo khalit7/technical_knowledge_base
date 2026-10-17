@@ -11,12 +11,12 @@ Scores: 0 to 2 on quantity-with-a-parameter, reproduces-a-published-or-recorded-
 
 | # | Idea | Placement | Score | Status | Data |
 |---|---|---|---|---|---|
-| VS1 | **One image as patches, a sequence and tokens, animated, CLIP B/32 against SigLIP 2 B/16 on the same input** (8 steps: input, grid, sequence, flatten, project, positions, [CLS] or not, pool) with counters (patches, numbers per patch, tokens, attention scores) | Section 1 | 13 | built | analyse.py: real 224-px input, first 16 of 768 numbers of each real patch token, real position-embedding cosines (click a patch), last-layer [CLS] attention (CLIP) and MAP-probe attention (SigLIP 2) |
+| VS1 | **One image as patches, a sequence and tokens, animated, CLIP B/32 against SigLIP 2 B/16 on the same input** (8 steps: input, grid, sequence, flatten, project, positions, [CLS] or not, pool) with counters (patches, numbers per patch, tokens, attention scores) | Section 1 | 13 | built | analyse.py: real 224-px input, first 8 of 768 numbers of each real patch token, real position-embedding cosines (click a patch), last-layer [CLS] attention (CLIP) and MAP-probe attention (SigLIP 2) |
 | VS2 | **Patch embedding = unfold + one matrix**, checked against the model's Conv2d (max abs difference printed) | Section 1, code | 8 | built | analyse.py patch_check |
 | VS3 | **Real 16 x 16 similarity explorer**: cosine, row softmax, column softmax, sigmoid views with each model's learned scale and bias; click a cell | Section 3 | 11 | built | sim16 from analyse.py; reproduces the root smoke test's 15 of 16 |
 | VS4 | **Contrastive-loss calculator on real embeddings**: N, t, b, softmax or sigmoid; loss-against-scale curve with ln N line; per-pair loss bars | Section 3 | 10 | built | sim16; formulas from transformers modeling_clip.py:47, modeling_siglip.py:805/814 |
 | VS5 | **Why the sigmoid scales**: per-device logits and received embeddings for |B| and D, three accountings | Section 3 | 8 | built | derived from SigLIP section 3.3 (labelled derived) |
-| VS6 | **Zero-shot query** on 40 Fashion-MNIST test images, 2 wordings x 6 template choices, both models | Section 4 | 10 | built | zeroshot.py query_cos |
+| VS6 | **Zero-shot query** on 20 Fashion-MNIST test images (2 per class; zeroshot.json records 40), 2 wordings x 6 template choices, both models | Section 4 | 10 | built | zeroshot.py query_cos |
 | VS7 | **Prompt-set table and confusion matrix** on all 10,000 test images | Section 4 | 10 | built | zeroshot.py |
 | VS8 | **Zero-shot against linear probes (k = 1 to 500 per class, 5 draws) and a from-scratch CNN**, predict first | Section 4 | 11 | built | zeroshot.py, root smoke classifier |
 | VS9 | **Typographic attack before/after animation** (plain, CAT control, DOG, BIRD, CAR, small and large DOG), both models | Section 5 | 12 | built | make_probes.py + analyse.py; DOG reproduces the root smoke test's cosines |
