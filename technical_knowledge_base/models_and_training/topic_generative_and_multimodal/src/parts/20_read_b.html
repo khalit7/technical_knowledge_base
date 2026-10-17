@@ -1,0 +1,36 @@
+<section id="rd-s1">
+<h2>1. What a generative model is, and the five families</h2>
+<p><b>The problem.</b> A 28 &times; 28 greyscale image is a list of 784 numbers, a point in a 784-dimensional space. Almost every point in that space is static; the images that look like clothing occupy a tiny, oddly shaped region of it. We never get a formula for that region, only examples from it (the training set). We call the unknown rule that produced the examples the <dfn>data distribution</dfn>, written <i>p</i>(<i>x</i>). A generative model is a recipe for drawing new points from (an approximation of) that region. Some families can also <i>score</i> a given image, reporting how probable the model finds it (its <dfn>likelihood</dfn>); others can only sample. A <dfn>conditional</dfn> model draws from <i>p</i>(<i>x</i> | <i>c</i>), where the condition <i>c</i> is a class label or a text prompt.</p>
+<p>Every pixel depends on many others (a sleeve on the left implies one on the right); the five families are five ways to capture that, and differ mostly in <b>network calls per sample</b> and <b>training signal</b>.</p>
+
+<div class="rd-two">
+<div>
+<p><b>Autoregressive.</b> Write the image as a sequence and predict each element from the ones before it: <i>p</i>(<i>x</i>) = &prod; <i>p</i>(<i>x<sub>i</sub></i> | <i>x</i><sub>&lt;<i>i</i></sub>), the same chain rule a language model uses, trained with the same cross-entropy loss. Likelihood is exact. Early models predicted raw pixels and gave poor samples (Gated PixelCNN: FID 65.93 on CIFAR-10, {{DDPM Table 1|https://arxiv.org/html/2006.11239v2#S4.T1}}); later ones predict <dfn>image tokens</dfn> from a learned codebook (section 2): Parti treated text-to-image "as a sequence-to-sequence modeling problem" and scaled to 20B parameters ({{Yu et al. 2022|https://arxiv.org/abs/2206.10789}}). The cost is one network call per token, in order.</p>
+<p><b>VAE</b> (variational autoencoder, {{Kingma and Welling, Dec 2013|https://arxiv.org/abs/1312.6114}}). Encode an image to a short code kept close to a standard Gaussian, decode it back; a random Gaussian code then decodes to something sensible. One call per sample, but blurry (section 2).</p>
+</div>
+<div>
+<p><b>GAN</b> (generative adversarial network, {{Goodfellow et al., June 2014|https://arxiv.org/abs/1406.2661}}). A generator turns noise into an image; a discriminator tries to tell its images from real ones; "the training procedure for G is to maximize the probability of D making a mistake". Sharp images in one call, but no likelihood, notoriously unstable training, and <dfn>mode collapse</dfn>: the generator finds a few outputs that fool the judge and stops covering the rest of the data.</p>
+<p><b>Diffusion</b> ({{Ho et al., June 2020|https://arxiv.org/abs/2006.11239}}). Destroy training images by adding Gaussian noise in many small steps, and train a network to undo one step. To generate, start from pure noise and apply the network again and again. DDPM reached FID 3.17 on CIFAR-10, the best unconditional score in its table ({{DDPM page|n:3c65c17b0d0d811481e4e36333454f7a}}).</p>
+<p><b>Flow matching</b> ({{Lipman et al. 2022|https://arxiv.org/abs/2210.02747}}; rectified flow, {{Liu et al. 2022|https://arxiv.org/abs/2209.03003}}). Learn a velocity field that carries noise to data along nearly straight paths; generate by following it. Straighter paths need fewer steps.</p>
+</div>
+</div>
+
+<div class="rd-card" id="rd-gen-card">
+<h4>One image, made three ways: count the network calls</h4>
+<p class="small">The same Fashion-MNIST pullover produced by an autoregressive model (49 tokens of 4 &times; 4 pixels, one call each), a diffusion sampler (50 denoising steps) and a flow sampler (8 straight Euler steps). The frames show the path each sampler takes when its network already knows the answer (a model trained on this one image), so every frame is exact arithmetic, not a trained model's guess: real samples from trained models are in the {{Diffusion lab|#t-diff}} and {{Flow lab|#t-flow}}. The small chart plots how much of each frame is image and how much is noise: diffusion keeps the total variance fixed and travels on a curve, flow travels on a straight line.</p>
+<div class="seg" id="rd-gen-cfg"><button data-m="0" class="on">No guidance</button><button data-m="1">With classifier-free guidance (2 calls per step)</button></div>
+<div class="rd-gens">
+<div class="rd-gen" id="rd-gen-ar"><div class="h">Autoregressive</div><canvas width="28" height="28" aria-label="autoregressive frame"></canvas><div class="c"></div></div>
+<div class="rd-gen" id="rd-gen-df"><div class="h">Diffusion (DDIM, 50 steps)</div><canvas width="28" height="28" aria-label="diffusion frame"></canvas><div class="c"></div></div>
+<div class="rd-gen" id="rd-gen-fl"><div class="h">Flow (Euler, 8 steps)</div><canvas width="28" height="28" aria-label="flow frame"></canvas><div class="c"></div></div>
+<div class="rd-gen wide"><div class="h">Image vs noise in each frame</div><div class="rd-svg" id="rd-gen-path"></div></div>
+</div>
+<div class="an-ctl" id="rd-gen-ctl"></div>
+<div class="an-cap" id="rd-gen-cap"></div>
+</div>
+
+<div class="pr"><div class="q">Predict: a 512 &times; 512 image as Chameleon tokens (1,024 per image) or as 30 steps of a diffusion sampler with guidance. Which needs more sequential network calls?</div>
+<div class="opts"><button data-r="1">The autoregressive one, by about 17 times</button><button>About the same</button><button>The diffusion one</button></div>
+<div class="ans" hidden><span class="der">derived</span> Autoregressive: 1,024 calls, one per token, each waiting for the last (Chameleon encodes "a 512&times;512 image into 1024 discrete tokens from a codebook of size 8192", {{Chameleon Team 2024|https://arxiv.org/html/2405.09818v1}}). Diffusion: 30 steps &times; 2 (conditional and unconditional pass) = 60 calls, and diffusers runs the two passes of a step as one batch of 2 (<code>torch.cat([latents] * 2)</code>, {{pipeline_stable_diffusion.py line 1037, v0.41.0|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion.py#L1037}}), so 30 sequential rounds; 1,024 / 60 &asymp; 17. But each autoregressive call reuses a cache and processes one new token, while each diffusion call processes the whole image: counting calls alone is not counting compute (section 10).</div></div>
+<p class="deepnote">Go deeper (optional): why each family's loss is what it is (the ELBO, the diffusion bound, scores) is derived on {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}}, sections 1 to 18. The {{Model map|#t-map}} places every named model on a timeline by family.</p>
+</section>
