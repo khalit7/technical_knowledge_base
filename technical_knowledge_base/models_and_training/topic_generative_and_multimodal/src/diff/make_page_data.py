@@ -88,11 +88,11 @@ def main():
         d["cfg"].append({"s": r["scale"], "fd": r["fd"], "acc": r["acc"], "div": r["div"], "white": r["white_frac"]})
     K = 3                                      # images shown: dress, sandal, bag (the 4th, ankle boot, is left out for size)
     for n in ("1", "4", "20", "50"):
-        fr = list(range(1, int(n) + 1)) if n != "50" else list(range(2, 51, 2))     # 50 steps: every 2nd frame, for size
+        fr = {"1": [1], "4": [1, 2, 3, 4], "20": list(range(2, 21, 2)), "50": list(range(5, 51, 5))}[n]     # 20 and 50 steps: every 2nd / 5th frame, for size
         sel = lambda a: a[[s - 1 for s in fr], :K]
         d["traj"][n] = {"t": se["traj_t"][n], "frames": fr, "xt": sprite(sel(ste[f"traj_{n}_xt"]), K, 16),
                         "x0": sprite(sel(ste[f"traj_{n}_x0"]), K, 16)}
-    d["traj"]["d20"] = {"t": se["traj_t"]["20"], "frames": list(range(1, 21)), "xt": sprite(ste["traj_ddpm20_xt"][:, :K], K, 16)}
+    d["traj"]["d20"] = {"t": se["traj_t"]["20"], "frames": list(range(2, 21, 2)), "xt": sprite(ste["traj_ddpm20_xt"][1::2, :K], K, 16)}   # every 2nd
     d["traj"]["noise"] = sprite(ste["traj_noise"][:K], K, 16); d["traj"]["k"] = K
     imgs = {}
     for r in sd["steps"] + sd["cfg"]:
