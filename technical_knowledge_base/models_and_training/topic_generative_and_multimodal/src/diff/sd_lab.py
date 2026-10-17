@@ -4,7 +4,7 @@
 2. One prompt, one seed, many step counts: DPM-Solver++ (the shared default), DDIM as SD 1.5's config sets it up
    (timestep_spacing 'leading' + steps_offset 1), and DDIM with 'trailing' spacing.
 3. One prompt, one seed, guidance scale 0 (empty prompt) to 20, 25 DPM-Solver steps; plus the text prompt x07 at four scales.
-Writes out/sd_lab.json and 192-pixel WebP thumbnails in out/sd/ (full-size PNGs stay in GM_SCRATCH/df_sd/; steps_ddim_1.webp, pure noise, was re-encoded at quality 20 for size).
+Writes out/sd_lab.json and 192-pixel WebP thumbnails in out/sd/ (full-size PNGs stay in GM_SCRATCH/df_sd/; all thumbnails were later re-encoded at 160 pixels, WebP quality 50, by rethumb_sd.py, for page size).
 """
 import json, os, sys, time
 

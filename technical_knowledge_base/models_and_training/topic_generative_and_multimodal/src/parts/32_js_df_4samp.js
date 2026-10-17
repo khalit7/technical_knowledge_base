@@ -12,7 +12,7 @@
     let cap;
     if(i===0)cap='Start: '+K+' images of pure Gaussian noise, one per requested class. Nothing about the class is in them yet.';
     else{const nxt=s<n?d.t[s]:-1;
-      cap='Step '+s+' of '+n+': the network sees the image at t = '+t+' and predicts its noise; '+(isD?'DDPM moves to the posterior mean and adds fresh noise':'DDIM jumps')+' to '+(nxt>=0?'t = '+nxt:'the clean image')+'.'+(v==='x0'?' Shown: the model\'s guess of the clean image at this step.':'')+(s===n?' Done: '+n+' network evaluation'+(n>1?'s':'')+' per image.':'')+(n===50?' (Every second step is shown.)':'');
+      cap='Step '+s+' of '+n+': the network sees the image at t = '+t+' and predicts its noise; '+(isD?'DDPM moves to the posterior mean and adds fresh noise':'DDIM jumps')+' to '+(nxt>=0?'t = '+nxt:'the clean image')+'.'+(v==='x0'?' Shown: the model\'s guess of the clean image at this step.':'')+(s===n?' Done: '+n+' network evaluation'+(n>1?'s':'')+' per image.':'')+(d.frames.length<n?' (Every '+(n/d.frames.length)+(n/d.frames.length===2?'nd':'th')+' step is shown.)':'');
       if(n===1)cap+=' One step lands on the model\'s single guess: for this noise-predicting model, the noise estimate divided by &radic;&#257; = '+F.sqrtab_lin_999+', mostly amplified error (section 5).'}
     $('df-traj-cap').innerHTML=cap;
     $('df-traj-stats').innerHTML=DF.stat('timestep',i===0?'999 (start)':t,'')+DF.stat('signal kept',i===0?'0':'&radic;&#257; = '+Math.sqrt(AB[t]).toFixed(3),'at the step\'s input')+DF.stat('network evaluations',s+' of '+n,'per image')}

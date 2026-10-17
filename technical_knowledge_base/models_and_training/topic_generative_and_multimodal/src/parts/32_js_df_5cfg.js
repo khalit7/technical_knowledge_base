@@ -20,7 +20,7 @@
     tm=setInterval(()=>{if(!DF.visible()){clearInterval(tm);tm=0;return}i++;if(i>=G.length){clearInterval(tm);tm=0;return}sl.value=i;upd()},DF.RM?1500:900)});
   // SD galleries
   const SD=D.sd;
-  function gallery(el,cap,items,label,info){el.innerHTML=items.map((r,i)=>'<figure data-i="'+i+'"><img alt="'+DF.esc(label(r))+'" src="'+SD.img[r.key]+'" width="192" height="192"><figcaption>'+label(r)+'</figcaption></figure>').join('');
+  function gallery(el,cap,items,label,info){el.innerHTML=items.map((r,i)=>'<figure data-i="'+i+'"><img alt="'+DF.esc(label(r))+'" src="'+SD.img[r.key]+'" width="160" height="160"><figcaption>'+label(r)+'</figcaption></figure>').join('');
     const sel=i=>{el.querySelectorAll('figure').forEach((f,j)=>f.classList.toggle('on',j===i));cap.innerHTML=info(items[i])};
     el.addEventListener('click',e=>{const f=e.target.closest('figure');if(f)sel(+f.dataset.i)});sel(items.findIndex(r=>r.dflt)>=0?items.findIndex(r=>r.dflt):0)}
   const cf=SD.cfg.filter(r=>r.prompt==='g03'),x7=SD.cfg.filter(r=>r.prompt==='x07');
