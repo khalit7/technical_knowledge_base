@@ -1,0 +1,62 @@
+<section id="ev-s5">
+<h2>5. Pitfalls: the same images, a different FID</h2>
+<p>FID is a function of the pixels that reach Inception, so anything that touches pixels between the generator and the metric changes it: file format, resizing, the reference set, the code. The {{Pitfall lab|#t-evpit}} tab runs each one; the rule they share is <b>process both sets identically, with the same code, and say how</b>.</p>
+<div class="rd-card" id="ev-an2"><h4>Before and after: the real set, saved as JPEG</h4>
+<div class="seg" id="ev-an2-q"><button data-m="90">JPEG quality 90</button><button data-m="75" class="on">75 (PIL's default)</button><button data-m="50">50</button></div>
+<div class="rd-svg" id="ev-an2-svg"></div>
+<div class="an-cap" id="ev-an2-cap"></div>
+<div class="an-cnt" id="ev-an2-cnt"></div>
+<div class="an-ctl" id="ev-an2-ctl"></div>
+</div>
+<p>The real training images are the "model" here, so the true answer is "nothing is wrong". Saved as JPEG at PIL's default quality and read back, they look the same to a person, yet FID moves from <span data-ev="pit:real"></span> to <span data-ev="pit:real_jpeg75"></span>. Compress the reference set the same way and it comes back to <span data-ev="pit:real_jpeg75_vs_test_jpeg75"></span>. The clean-fid paper ({{Parmar, Zhang and Zhu 2022|https://arxiv.org/abs/2104.11222}}) found the same on FFHQ: JPEG-75 copies of real images score "a high score (21)", while StyleGAN2 scores "around 3"; and on LSUN Church, whose training images were stored as JPEG, compressing StyleGAN2's samples at quality 87 improved its FID from 4.00 to 3.48. Measured here on the topic's models (the reference compressed or not): <span data-ev="txt:jpeg_models"></span></p>
+<h3>Resizing</h3>
+<p>Inception wants 299 x 299. Downsampling with a fixed-width bilinear filter (what TensorFlow 1 and PyTorch's <code>F.interpolate</code> did) aliases: fine detail folds into false patterns. clean-fid measured that the same 1024-px FFHQ images resized by different libraries already differ by FID 4.34 (TensorFlow bilinear) and 7.43 (nearest) from the PIL-bicubic version, and that StyleGAN2's FID of 2.98 becomes 7.45 if only the generated images go through TensorFlow's or PyTorch's bilinear resize (Table 1). Their library offers <code>mode="clean"</code> (PIL bicubic) plus two legacy modes that reproduce the old numbers. Here the images are 28 px, so the resize is an upsampling and aliasing cannot occur; but resizing one set differently still moves FID: pre-resizing only the real set to 299 with PIL bicubic gives <span data-ev="pit:real_bic299"></span>, with nearest-neighbour <span data-ev="pit:real_near299"></span>; resizing both sets the same way gives <span data-ev="pit:real_bic299_vs_test_bic299"></span>.</p>
+<h3>The reference set, the features and the code</h3>
+<ul class="tight">
+<li><b>Reference set.</b> Training images or held-out images, how many, and which split: each gives a different number. ADM and EDM2 use statistics of the whole training set against 50,000 samples; this topic uses the 10,000 test images. Say which.</li>
+<li><b>ImageNet leakage.</b> {{Kynk&auml;&auml;nniemi et al. 2022|https://arxiv.org/abs/2203.06026}} resampled generated images so that Inception's top-1 class histogram matched the real data's: FID fell by about 10% with no visible change (FFHQ 5.30 to 4.70, Table 1), while FID computed in CLIP space barely moved (2.76 to 2.74). Matching all of Inception's "fringe" features cut FFHQ FID from 5.30 to 1.78. A generator (or a discriminator built on ImageNet features) can game FID without looking better.</li>
+<li><b>Implementation.</b> Inception weights ported from TensorFlow, the resize, float precision and the square-root method all differ between libraries. The topic's setup checked that MPS features differ from CPU features by at most 1.8e-5 over 200 images; differences between libraries are larger. Compute every number you compare with one tool.</li>
+</ul>
+<div class="co"><div class="t">What to write next to an FID</div>Features and weights (for example torch-fidelity 0.4.0, inception-v3-compat), resize (library and filter), file format of both sets, reference set and its size, number of generated samples, and the spread over seeds. Without these, two FIDs are not comparable.</div>
+</section>
+
+<section id="ev-s6">
+<h2>6. Prompt alignment: did it draw what was asked?</h2>
+<p>Distribution metrics ignore the prompt: a model that draws beautiful random scenes scores well. For text-to-image we also check each image against its prompt.</p>
+<h3>CLIPScore</h3>
+<p><dfn>CLIPScore</dfn> ({{Hessel et al. 2021|https://arxiv.org/abs/2104.08718}}) is CLIP's cosine similarity between the image and the text, CLIP-S = 2.5 &middot; max(cos, 0), with CLIP ViT-B/32 (the factor 2.5 stretches the usual 0 to 0.4 range of cosines; the paper scored captions, prefixed "A photo depicts"). Many text-to-image papers instead report 100 &middot; cos with a larger CLIP and call it "CLIP score": the same idea on a different scale. It needs no reference image, and it inherits CLIP's blind spots: CLIP's text side behaves much like a "bag of words" (the VQAScore authors' phrase), so counts, relations and text are weak, as the {{Vision lab|n:3c65c17b0d0d817ab6ade318917bff55}} showed with its typographic attack.</p>
+<h3>Question-answering checks</h3>
+<p>Instead of one similarity, ask questions. <b>TIFA</b> ({{Hu et al. 2023|https://arxiv.org/abs/2303.11897}}) turns the prompt into question-answer pairs with a language model and asks a VQA model about the image; with mPLUG it correlated with human faithfulness ratings at Spearman 0.60 against 0.33 for CLIPScore (Table 2). <b>DSG</b> ({{Cho et al. 2024|https://arxiv.org/abs/2310.18235}}) orders the questions in a dependency graph so that "is the motorcycle blue?" is skipped when there is no motorcycle. <b>VQAScore</b> ({{Lin et al. 2024|https://arxiv.org/abs/2404.01291}}) asks one question, "Does this figure show '{text}'? Please answer yes or no.", and uses the probability of "Yes"; on Winoground its group score was 46.0 against 7.8 for CLIPScore. <b>GenEval</b> ({{Ghosh et al. 2023|https://arxiv.org/abs/2310.11513}}) uses an object detector instead of a VLM for six tasks (single object, two objects, counting, colours, position, attribute binding): SD v1.5 scores 0.43 overall, SDXL 0.55, IF-XL 0.61, with position at most 0.15 (Table 2), and it agrees with human annotators on 83% of images against 88% between annotators.</p>
+<h3>Measured: Stable Diffusion 1.5 with and without guidance</h3>
+<p>The topic's eight shared prompts, two seeds, four guidance scales (s = 1 is no guidance: one U-Net pass per step; 7.5 is the default), 64 images in all. Each image gets CLIPScore with CLIP ViT-B/32 (Hessel's model) and the cosine from CLIP ViT-L/14 at 336 px, a VQAScore-style P(yes) and a TIFA-style share of three yes/no questions answered by SmolVLM-500M (the topic's VLM, not the papers' models). Move the scale for the same prompt and seed:</p>
+<div class="rd-card" id="ev-sd"><h4>Same prompt, same noise, four guidance scales</h4>
+<div class="seg" id="ev-sd-p"></div>
+<div class="seg" id="ev-sd-seed"><button data-m="0" class="on">seed 0</button><button data-m="1">seed 1</button></div>
+<div class="ev-sdgrid" id="ev-sd-grid"></div>
+<div class="ev-out" id="ev-sd-q"></div>
+<p class="small mute">SD 1.5 fp16, 512 x 512, 25 DPM-Solver steps, attention slicing; SmolVLM at 320 image tokens. <span class="meas">measured on Apple M1 Pro (MPS)</span>. Thumbnails reduced for the page.</p></div>
+<div class="tw"><table id="ev-sd-tab"></table></div>
+<p><span data-ev="txt:sd_read"></span></p>
+<div class="pr" id="ev-pr4" data-right="1"><div class="q">Predict: for "an astronaut riding a horse on the moon, digital art", which score notices that the horse is missing?</div>
+<div class="opts"><button data-a="0">CLIPScore</button><button data-a="1">The question "Is there a horse?"</button><button data-a="2">Neither</button></div>
+<div class="ans" hidden><span data-ev="txt:horse"></span></div></div>
+</section>
+
+<section id="ev-s7">
+<h2>7. Human preference: arenas and reward models</h2>
+<p>People are the final judge. <b>Arenas</b> show two anonymous models' images for the same prompt, collect a vote, and fit a Bradley-Terry (Elo-style) rating; the mechanics, confidence intervals and critiques (style, self-selected prompts, private variants) are on {{Human preference and arenas|n:3ef5c17b0d0d814db49ff3b5c9fc3034}}. The current text-to-image boards, as published:</p>
+<div class="rd-two">
+<div><b>LMArena (arena.ai) Text-to-Image</b>, board dated 7 Oct 2026 (Wayback capture of 8 Oct; the live page was blocked on 17 Oct): 6,604,125 votes, 82 models. 1 gpt-image-2.5-sunburst 1425&plusmn;7 (preliminary, 17,752 votes); 2 gpt-image-2.5-flare 1398&plusmn;7 (preliminary); 3 gpt-image-2 (medium) 1383&plusmn;4 (93,334 votes); 4 grok-imagine-image-2.0 (canvas) 1334&plusmn;12 (preliminary, 3,113 votes); 5 mai-image-2.6 1332&plusmn;5. <span class="small mute">({{source|https://web.archive.org/web/20261008115100/https://arena.ai/leaderboard/text-to-image}})</span></div>
+<div><b>Artificial Analysis Image Arena</b>, text to image, read 17 Oct 2026 from the page's data (no vote counts or date shown): GPT Image 2.5 Sunburst (max) 1220, GPT Image 2.5 Flare (max) 1207, GPT Image 2 (high) 1186, Nano Banana 2.1 1174, Grok Imagine Image 2.0 1167; FLUX.2 [dev] is pinned at 1000. <span class="small mute">({{source|https://artificialanalysis.ai/text-to-image}})</span></div>
+</div>
+<p class="small mute">The two boards use different anchors and voters, so their numbers are not on one scale: compare ranks, not values. Ratings with few votes ("preliminary") move.</p>
+<p><b>Reward models</b> learn to predict those votes, so they can score thousands of images (or serve as a reward for fine-tuning). Measured by the share of held-out human pairwise choices they predict:</p>
+<div class="tw"><table>
+<thead><tr><th>Model</th><th>Backbone</th><th>Training data</th><th>Accuracy on its own test set</th><th>Baselines in the same table</th></tr></thead>
+<tbody>
+<tr><td><b>PickScore</b> ({{Kirstain et al. 2023|https://arxiv.org/abs/2305.01569}})</td><td>CLIP-H, fine-tuned</td><td>Pick-a-Pic: real users' choices in a web app, 583,747 training examples</td><td class="num">70.5%</td><td>expert humans 68.0%, zero-shot CLIP-H 60.8%, aesthetics 56.8%</td></tr>
+<tr><td><b>HPS v2</b> ({{Wu et al. 2023|https://arxiv.org/abs/2306.09341}})</td><td>OpenCLIP ViT-H/14, fine-tuned</td><td>HPD v2: 798,090 choices</td><td class="num">83.3%</td><td>PickScore 79.8%, ImageReward 74.0%, CLIP ViT-H/14 65.1% (on HPD v2)</td></tr>
+<tr><td><b>ImageReward</b> ({{Xu et al. 2023|https://arxiv.org/abs/2304.05977}})</td><td>BLIP</td><td>136,892 expert comparisons over 8,878 prompts</td><td class="num">65.14%</td><td>CLIP score 54.82%, aesthetic 57.35%, BLIP 57.76%</td></tr>
+</tbody></table></div>
+<p>Each model wins on its own test set; on another's the gap shrinks (HPS v2 reaches 65.7% on ImageReward's test set, ImageReward 65.1%). And a reward model is a learned proxy: optimise an image generator against it and you get what it rewards, not what people want (the same failure {{Reward hacking|n:3c65c17b0d0d8196a6f1f29a817aa974}} describes for language models). PickScore's authors also report that model rankings from PickScore correlate 0.790 with the users' own Elo rankings. These numbers are the papers' (published, not run here: each model is about 1B parameters and teaches nothing a table does not).</p>
+</section>
