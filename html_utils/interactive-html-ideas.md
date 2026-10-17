@@ -4308,3 +4308,25 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | 11 | DINOv2 ViT-L or g token norms (the paper's outliers appear from ViT-L up) | 8 | none | rejected for now: 300M to 1.1B parameters for one figure the registers paper already prints; base-size results shown, published finding quoted |
 | 12 | Fine-tuning at a new resolution (FixRes style) | 6 | none | rejected: multi-hour run that teaches what the published papers state |
 | 13 | Semantic segmentation probe (ADE20K) | 6 | none | rejected: dataset licence and size; DINOv2 Table 10 and SigLIP 2 Table 2 quoted instead |
+
+### Vision-language models: how images become tokens (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/vision_language_models/src/viz_ideas.md`.
+
+| # | Idea | Score | Placement | Status |
+|---|---|---|---|---|
+| 1 | **Same image, five connectors** (animation, before/after): one image's patch grid through a linear/MLP projector (LLaVA-1.5), a Q-Former (BLIP-2), a Perceiver Resampler with gated cross-attention (Flamingo), pixel shuffle (SmolVLM) and a 2 x 2 merger at native resolution (Qwen); squares to scale (one square per token), counters for tokens in the context and where the image enters | 16 | Reading 1 | built |
+| 2 | **What the model saw** (own tab): four images (square, 3:2, portrait receipt, 3:2 photo) through SmolVLM at three settings and Qwen3.5 at four budgets: the exact pixels each model receives (decoded from pixel_values), the token grid on top, click a token for its region, its 1-D or (t, h, w) position, its encoder patch-norm ratio; the prompt as a strip to scale; a step animation SmolVLM tiling against Qwen native resolution on the same image | 17 | Own tab | built |
+| 3 | **M-RoPE position counter**: the position the next text token gets after an image of N tokens, 1-D against 3-D, measured from the model's own get_rope_index | 12 | Reading 2 (predict, then reveal) and the Saw tab | built |
+| 4 | **Legibility grid**: a 6-character code at 7 font sizes x 3 token budgets x 2 models, exact-match and character error rate | 14 | Reading 3 | built |
+| 5 | **Grounding boxes with a convention toggle**: Qwen3.5's boxes on 12 scenes drawn as read under 0-1000, as resized-image pixels and as original pixels, IoU per reading | 14 | Reading 4 | built |
+| 6 | **Video token arithmetic and the direction test**: frames to temporal patches, timestamps in the prompt (the real string), 8 clips and a one-frame control | 11 | Reading 5 | built |
+| 7 | **Token and cache budget** (own tab): image size, image count, video seconds and fps -> tokens, share of context and cache bytes for SmolVLM, Qwen3.5, LLaVA-1.5-7B, InternVL3-1B, with rules ported from the processors and checked against them; cache per token measured for the two models run here (hybrid linear attention keeps a fixed state) | 15 | Own tab | built |
+| 8 | **Token reduction without retraining**: accuracy on the 30 questions when image tokens are removed at random, by FastV's attention criterion, by 2 x 2 pooling, or by dropping the global view; prefill time per setting | 14 | Reading 7 and the budget tab | built |
+| 9 | **Hallucination probe** (own tab): P(yes) for 72 object questions per model and condition (image, grey image, no image, leading phrasing), threshold slider, confusion counts, the full table | 15 | Own tab, summary in Reading 6 | built |
+| 10 | **High-norm tokens inside the VLM's encoder**: SmolVLM's SigLIP-family tower against SigLIP 2 B/16 at 224 and 512 and Qwen3.5's tower, same statistic as the sibling page | 12 | Reading 1 | built |
+| 11 | **Was the encoder trained inside the VLM?** SmolVLM's vision weights against the public SigLIP base 512 checkpoint, relative change per block | 11 | Reading 6 (training) | built if the download fits |
+| 12 | Attention maps from answer tokens to image tokens | 7 | none | rejected (as in the root lab): noisy and easy to over-read; FastV's ranking uses the same attention in a measurable way instead |
+| 13 | Fine-tuning a projector on the running example | 6 | none | rejected: an alignment stage needs hundreds of thousands of captions to mean anything (root lab's reasoning; Khalid 2026-10-15) |
+| 14 | A 2B to 4B VLM (Qwen3-VL-2B, InternVL3-2B) | 7 | none | rejected: Qwen3.5-0.8B already teaches native resolution, 3-D positions, grounding, video and hybrid attention in 1.75 GB; a bigger one adds benchmark points the vendor tables already give |
+| 15 | Benchmark tables | 4 | none | rejected: owned by the Long-context and multimodal benchmarks page; the vendor's own numbers for the two models are quoted where a measurement here meets them |
