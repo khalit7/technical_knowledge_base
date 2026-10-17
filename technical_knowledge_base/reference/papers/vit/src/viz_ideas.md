@@ -1,4 +1,4 @@
-# ViT: visualisation ideas (ids P-vit.k, for the orchestrator to merge into the ideas log)
+# ViT: visualisation ideas (ids P-vit.k)
 
 Scores: teaches (0 to 3), sourced or real (0 to 3), cost (3 cheap to 0 expensive), fits the reader's question (0 to 3).
 
