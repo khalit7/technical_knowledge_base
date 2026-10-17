@@ -4265,3 +4265,26 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | 2-D flow playground: two panels, same noise, exact fields x paths x ODE/SDE x solvers, four RF rounds, three students, seven presets, step animation | 2/1/2/2/2/2 | tab |
 | Steps ladder: every tiny model and sampler of the topic at equal NFE (FD, accuracy, diversity), same-noise grid by class, before/after animation by NFE budget | 2/1/2/2/1/2 | tab |
 | Timestep explorer: SD3 densities with sliders and the toy's floor, recorded error-by-t curves per scheme, resolution shift calculator for real configs, SD3's ranking table | 2/2/2/2/1/2 | tab |
+
+### Latent diffusion and diffusion transformers (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/latent_diffusion_and_dits/src/viz_ideas.md`.
+
+| Idea | T | R | C | N | Where | Data |
+|---|---|---|---|---|---|---|
+| One latent through SD 1.5's U-Net, then through DiT-XL/2 (before/after on the same 64 x 64 x 4 input), boxes to scale, running parameter and FLOP counters | 5 | 5 | 3 | 5 | Reading section 2 | `out/extras.json` (per-stage FLOPs and parameters on meta tensors) |
+| Where parameters vs FLOPs vs time go in SD 1.5 (three views of the same network) | 5 | 5 | 4 | 5 | Reading section 2 | `out/arch.json`, `out/extras.json`, `out/sd_ld.json` (hooked profile) |
+| Same U-Net on latents and on pixels (log bars) | 4 | 5 | 5 | 4 | Reading section 1 | the counted quadratic for SD 1.5 |
+| Real tokens of a prompt (start, words, end, padding) and the real truncation warning | 4 | 5 | 5 | 5 | Reading section 3 | `out/text_enc.json` |
+| Cross-attention maps per word over the output, four prompts | 5 | 5 | 3 | 4 | Reading section 3 (mini) and the Cross-attention viewer tab | `out/sd_ld.json`, `out/xattn_*.npz` |
+| DiT conditioning variants as bars (Table 4) | 3 | 4 | 5 | 5 | Reading section 4 | `inputs/published.json` |
+| DiT's 12 models, Gflops vs FID, with the Gflops column reproduced by counting the authors' code | 5 | 5 | 4 | 5 | Reading section 4 | `inputs/published.json`, `out/extras.json` |
+| Tiny DiT vs tiny U-Net at equal compute, patch-size sweep, init ablation; same noise through every denoiser (strip) | 5 | 5 | 3 | 5 | Reading section 4 | `out/tiny_scores.json`, `out/tiny_strips.npz` |
+| Who attends to whom: cross-attention, concatenation, MMDiT, single stream as attention matrices with counters | 5 | 3 | 4 | 5 | Reading section 5 | drawn; entry counts by formula |
+| Parameter shares by kind of layer for eleven denoisers (stacked bars) | 5 | 5 | 4 | 5 | Reading section 6 | `out/arch.json` |
+| FLUX position ids for a small latent, head-dimension split | 3 | 4 | 5 | 5 | Reading section 7 | the pipeline's `_prepare_latent_image_ids` logic |
+| One prompt, one seed at 256 / 512 / 768 / 1024 (SD 1.5) | 5 | 5 | 4 | 5 | Reading section 8 | `out/sd/res_g04_*.webp` |
+| Cost of one 1024 image for every pipeline at its defaults | 4 | 5 | 5 | 4 | Reading section 9 | `out/flops.json`, pipeline defaults (`out/extras.json`) |
+| Measured U-Net time vs size against counted FLOPs (achieved TFLOP/s) | 4 | 5 | 4 | 5 | Reading section 9 | `out/sd_ld.json` |
+| Architecture explorer (two models side by side, all eleven in a table) | 4 | 5 | 3 | 4 | tab | `out/arch.json`, `out/flops.json` |
+| Tokens and FLOPs calculator with a chart of all eleven against size | 4 | 5 | 4 | 4 | tab | `out/flops.json` (exact fitted formula) |
