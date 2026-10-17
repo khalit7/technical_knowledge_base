@@ -1,0 +1,33 @@
+# Verified facts (key ld, 2026-10-17; also appended to the topic's shared FACTS file under "ld")
+
+## Counted on the meta device (no weights; diffusers 0.41.0, torch 2.14.1; out/arch.json, out/flops.json, out/extras.json)
+- Parameters: SD 1.5 U-Net 859,520,964 (= measured); SDXL U-Net 2,567,463,684; DiT-XL/2 (authors' code, 256) 675,129,632, (512) 676,014,368; PixArt-Sigma XL/2 610,856,096; Sana 1.6B 1,604,462,752; SD3 Medium 2,028,328,000; SD3.5 Large 8,056,627,520; FLUX.1 [dev] 11,901,408,320; FLUX.1 [schnell] 11,891,178,560; FLUX.2 [klein] 4B 3,875,544,576; Qwen-Image 20,430,401,088; Z-Image-Turbo 6,154,908,736.
+- Hub API public totals (2026-10-17): FLUX.1-dev 11,901,408,320 and FLUX.1-schnell 11,891,178,560 (equal to ours; the 10,229,760 difference is the guidance embedder); FLUX.2-klein-4B 3,875,544,576 (equal); SD3 Medium diffusers 2,084,951,104 = ours + 56,623,104 (= 192 x 192 x 1,536, the position table diffusers keeps as a persistent buffer, embeddings.py:331); SD3.5 Large 8,146,280,768 = ours + 89,653,248 (= 192 x 192 x 2,432).
+- SD3 configs rebuilt from the paper's depth rule (hidden 64 d, d heads): Medium d = 24, Large d = 38 with QK RMSNorm, pos_embed_max_size 192; FLUX.1 from BFL flux util.py @802fb47 (depth 19, single 38, hidden 3,072, 24 heads, axes [16, 56, 56]).
+- diffusers' DiT port (DiTTransformer2DModel from facebook/DiT-XL-2-256's config): 749,826,464 = 675,129,632 + 27 x 2,777,472 (timestep and class embedders copied into each of 28 blocks by scripts/convert_dit_to_diffusers.py:34) - 294,912 (the authors' frozen nn.Parameter position table, a buffer in diffusers).
+- Modulation share of parameters: DiT-XL/2 33.4% (225.8M); SD3 Medium 33.3%; SD3.5 Large 33.3% (2,686.3M); Qwen-Image 33.4% (6,815.9M); FLUX.1 27.3%; FLUX.2 klein 4.1% (160.4M, shared per stream); Z-Image 2.1%; PixArt-Sigma 1.3% (adaLN-single); Sana 1.9%; SD 1.5 3.0% (time_emb_proj); SDXL 0.7%. PixArt's "27%" reproduces: 225.8 / (675.1 + 148.8 cross-attention) = 27.4%.
+- SD 1.5 U-Net by kind: convolutions 564.4M (65.7%), self-attention incl. proj/norms 74.5M, cross-attention 44.0M, feed-forward 148.8M, time injection 25.8M, embeddings 2.1M. By stage at 512: down_blocks.0 10.5M / 109.6 GFLOP, up_blocks.1 258.3M / 151.5 GFLOP, up_blocks.3 18.8M / 197.6 GFLOP; total 803.3 GFLOP; the two 64 x 64 stages 38% of FLOPs with 3.4% of parameters.
+- FLOPs per pass at 1024 px, batch 1, pipeline default text length (2 FLOPs per MAC): SD 1.5 4.67 T; SDXL 6.76 T; DiT-XL/2 5.82 T; PixArt-Sigma 6.63 T; Sana 2.97 T; SD3 Medium 8.90 T; SD3.5 Large 31.12 T (28.95 T with 77 text tokens); FLUX.1 74.38 T; FLUX.2 klein 34.82 T; Qwen-Image 70.58 T (128 text tokens); Z-Image 56.58 T (128). Attention-score (bmm) share at 1024: SD 1.5 42%, Sana 2%, softmax transformers 15 to 37%.
+- SD 1.5 per pass: 0.803 TFLOP at 512 (bmm 15.7%), 4.674 T at 1024 (42%), 42.2 T at 2048 (74%); on a 512 x 512 pixel grid (same network) 545 T, 679 times the latent pass.
+- DiT Table 4 Gflops column reproduced by counting the authors' code: every one of the 12 models within 0.6% at exactly 2 FLOPs per MAC (XL/2 256: 237.24 GFLOP = 2 x 118.62; paper 118.64).
+- Pipeline defaults (diffusers 0.41.0 __call__): SD 1.5 50 steps / 7.5; SDXL 50 / 5.0; PixArt-Sigma 20 / 4.5; Sana 20 / 4.5; SD3 28 / 7.0 (T5 max_sequence_length 256); FLUX 28 / guidance 3.5 embedded, true_cfg 1.0; FLUX.2 klein 50 / 4.0 (card: 4 steps, 1.0); Qwen-Image 50 / true_cfg 4.0; Z-Image 50 / 5.0 (Turbo card: 9 steps, 8 forwards, 0.0); DiT 50 / 4.0.
+
+## Text encoder (SD 1.5, CPU float32; out/text_enc.json)
+- Tokens of g01: start (49406), 11 word pieces, end (49407), padded to 77 with 49407. A 97-token prompt triggers diffusers' warning (pipeline_stable_diffusion.py:413): "The following part of your input was truncated because CLIP can only handle sequences up to 77 tokens: [...]".
+- Causal encoder: the start token's output is identical for every prompt (cosine 1.000000, max abs difference 0.0); pooler_output equals the end token's last-layer output; padding positions' cosine to the end token falls from 1.00 to 0.80 at position 76.
+
+## Source lines
+- Every quoted line in inputs/source_lines.json (diffusers v0.41.0, DiT ed81ce2, latent-diffusion a506df5, BFL flux 802fb47), including unet_2d_condition.py:249/254 (the attention_head_dim naming comment), attention.py:1043 (attn2), unet_2d_blocks.py:2444 (skip concatenation), attention_processor.py:1480 (joint attention concatenation), transformer_flux.py:404 (single-stream concatenation of attention and MLP), embeddings.py:331/336 (persistent table, crop), pipeline_flux.py:73 (calculate_shift), 387 (text ids zeros), 508 (image ids), pipeline_stable_diffusion_xl.py:414 (penultimate layer), 734 (add_time_ids).
+
+## Published (read from arXiv HTML 2026-10-17; inputs/published.json)
+- DiT Table 4 (FID-50K, 400K steps, no guidance): XL/2 19.47, XL/4 43.01, XL/8 106.41, ...; conditioning: in-context 35.24, cross-attention 26.14, adaLN 25.21, adaLN-Zero 19.47; cross-attention "roughly a 15% overhead". Headline FID 2.27 used guidance on three of four latent channels (appendix; four-channel 1.375 gives 2.20).
+- SD3: drop rate 46.3% (sec. 5.3.3 text) vs 46.4% (appendix B.3); 0.464^3 = 0.0999 matches "10% of all steps". Without T5: win rates 50% aesthetics, 46% prompt adherence, 38% text.
+- PixArt-alpha: adaLN 27% of parameters; 833M -> 611M (26%).
+- SDXL: transformer blocks [0, 2, 10]; 2.6B U-Net; 817M text encoders; 39% of data below 256 px.
+- FLUX.1 Kontext (2506.15742 sec. 2): double then 38 single-stream blocks; fused blocks halve modulation; 3-D RoPE (t, h, w).
+
+## Measured on Apple M1 Pro (MPS) (src/out/*.json)
+- SD 1.5 fp16 slicing: U-Net pass batch 1 at 256/384/512/640/768/1024 px: 0.118/0.215/0.318/0.594/1.025/2.774 s (2.52 TFLOP/s effective at 512, 1.68 at 1024); guided pass (batch 2, 512) 0.609 s (matches the Diffusion lab's 0.610). Hooked: self-attention 42%, ResNets 22%, feed-forward 12%, cross-attention 8% of the pass.
+- Cross-attention mass (16x16 layers, all steps, conditional half): start token 88 to 91%, words 4.5 to 7.5%; g06 "horse" 0.49% vs "astronaut" 1.28%, "moon" 4.04%, its map on the astronaut's body; x08 drew four cats and no dog ("dogs" map on cats).
+- SD 1.5 g04 prompt seed 3: 1024 px gives four puppies, 768 one, 256 cropped. Peak MPS driver memory 9,633 MiB at 768/1024 (before the 0.45 watermark rule).
+- TinyDiT vs TinyUNet (Flow lab recipe, Euler 50, N 1,000, FD s=1 / s=1.5): TinyUNet 4,000 steps 48.86 / 23.75 (reproduces the Flow lab); DiT p4 4,000 193.9 / 73.3; DiT p4 6,473 (equal FLOPs) 119.0 / 38.1; p8 391.7 / 221.6; p2 95.9 / 29.6 (6,357 MiB peak); p4 without zero init 231.0 / 93.7. FLOPs per forward: TinyUNet 403.0M, DiT p8 61.5M, p4 249.0M, p2 1,211.6M.
