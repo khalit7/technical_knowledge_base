@@ -18,25 +18,27 @@ Khalid asks to sync, publish, push, or "update Notion". Run it after building or
 2. `python3 html_utils/sync_status.py`. Fix every `PROBLEM` line first (a failed build, a folder missing from `pages.json`).
 3. For each `PUBLISH` page:
    1. `sh html_utils/checkpage.sh <path>` must end `fail=0`, `emdash 0`, `errbox 1`. Do not publish a failing page.
-   2. **Upload:** Notion `create-file-upload` with `filename` `<folder name>.html` (content type inferred, `text/html`), then one multipart POST of `<path>/index.html` to the returned `upload_url` with every returned header: `curl -s -X POST "<upload_url>" -H "authorization: <value>" -F "file=@<path>/index.html;type=text/html"`. Note the `file-upload://<id>`.
+   2. **Upload:** Notion `create-file-upload` with `filename` `<folder name>.html` (content type inferred, `text/html`), then one multipart POST of `<path>/index.html` to the returned `upload_url` with every returned header: `curl -s -X POST "<upload_url>" -H "authorization: <value>" -F "file=@<path>/index.html;type=text/html;filename=<folder name>.html"`. Note the `file-upload://<id>`.
    3. **Fetch the Notion page** and compare it with what it should hold (embed, source line, video, child pages). If it has anything else (text someone added in Notion), stop and show Khalid: that is knowledge that belongs in the repository first.
    4. **Write it:**
       - No child pages or databases on the page: one `replace_content` with
         `<embed src="file-upload://<id>">Interactive: <title></embed>` then a new line:
         ``The interactive page above is this page: read its Reading tab first. Its source is in the technical_knowledge_base repository at `<path>/`.``
         (keep a `<video>` tag after the line if the page has one, in its stable `file://` form below).
-      - With child pages or databases: never `replace_content`. Use `update_content` to swap only the embed tag (matched by its stable form) and, if needed, the source line; leave every `<page>`, `<database>` and `<video>` tag untouched.
+      - With child pages or databases: never `replace_content`. Use `update_content` to swap only the embed tag (matched by its stable form) and, if needed, the source line; leave every `<page>`, `<database>` and `<video>` tag untouched. A root still holding old written text: `insert_content` the embed and source line at the start, then delete the old text in small chunks, keeping "# Video", its paragraph, the `<video>` tag, italic notes and every `<page>` tag.
+      - A reused old Notion page whose title changed: `update_properties` with the new title from `pages.json`.
+      - An old page with no new equivalent: never delete it yourself. Check coverage, report, and on Khalid's choice retitle it "TO DELETE: <title>"; he deletes it.
       - **Stable form for matching an existing embed or video:** a fetched tag shows a signed S3 address that changes on every fetch and never matches. Match `src="file://` followed by the URL-encoded JSON `{"source":"attachment:<id>:<filename>","permissionRecord":{"table":"block","id":"<block id>","spaceId":"13e79c56-ebab-4528-83aa-967a204b1f04"}}`, where `<id>` is the S3 folder just before the filename and the block id comes from the `#notion_record=block.<block id>.<space id>` fragment.
    5. Fetch again and confirm: the embed is first, the source line is right, children and video are intact.
    6. `python3 html_utils/sync_status.py --record <path>`.
 4. Run `python3 html_utils/sync_status.py --no-build` again: it must say Notion is up to date.
-5. Commit (`sync to notion YYYY-MM-DD: <pages>`), `git push`.
+5. `python3 html_utils/page_finalize.py <folders>` (papers: `paper_finalize.py <slugs>`) records and commits; stage explicit paths only (it commits the whole folder, so a root sweeps in its children's files: commit or stash work in progress first). `git push`.
 
 ## Videos
-MP4s are never committed (`.gitignore` blocks them). A page's HyperFrames project (script, storyboard, compositions, narration audio) lives in `<page>/video/`; the rendered MP4 is uploaded to Notion by the `create-explainer-video` skill and exists only there.
+MP4s are never committed (`.gitignore` blocks them). A page's HyperFrames project (script, storyboard, compositions, narration audio) lives in `<page>/video/`; the rendered MP4 is uploaded to Notion by the `explainer-video` skill and exists only there.
 
 ## Pages not migrated yet
-Folders whose `pages.json` status is `not_migrated` hold only a README: their content is still the old written page in Notion and the sync leaves them alone. Converting one is `create-interactive-html`.
+Folders whose `pages.json` status is `not_migrated` hold only a README: their content is still the old written page in Notion and the sync leaves them alone. Converting one is the `explainer-page` skill (`page-kinds/migrate-or-fold.md`).
 
 ## Report
 Pages published (with file-upload ids), pages skipped and why, anything found in Notion that was not in the repository, and the commit pushed.
