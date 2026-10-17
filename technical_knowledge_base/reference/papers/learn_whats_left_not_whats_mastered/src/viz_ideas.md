@@ -4,7 +4,7 @@ The question the paper keeps returning to: **where does the update go when one o
 
 Scores 0 to 2 on the methodology's questions (parameter to move, reproduces a published figure (x2), computable from public data (x2), shows what a sentence cannot, corrects a misconception, measures the central question, absent elsewhere, animatable before/after), minus build cost.
 
-## Built (rows for the ideas log, ids P-learn_whats_left_not_whats_mastered.k)
+## Built (ids P-learn_whats_left_not_whats_mastered.k)
 
 | # | Idea | What it shows, what the reader does | Why it helps | Data and sources | Placement | Score |
 |---|---|---|---|---|---|---|
