@@ -1,6 +1,6 @@
 # Anthropic: Claude family, visualisation ideas (v3)
 
-Follows the Methodology in `interactive-html-ideas.md` section 2. Research by direct fetch on 1 October 2026 (WebFetch and curl; no web search). Every number below was recomputed in `recompute.py`; its output is quoted.
+Follows the Methodology in `.claude/skills/explainer-page/visuals/choosing.md` section 2. Research by direct fetch on 1 October 2026 (WebFetch and curl; no web search). Every number below was recomputed in `recompute.py`; its output is quoted.
 
 ## 0. What exists, and the through-line
 

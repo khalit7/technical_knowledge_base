@@ -1,6 +1,6 @@
 # Training Compute-Optimal Large Language Models (Chinchilla, Hoffmann et al. 2022): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d8116b7ddffba5c599f3f, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from `html_utils/methods/papers.md`, with the shared pieces copied from the reference folder through the Scaling Laws page (`scaling_laws_for_neural_language_models/src/`, whose `mk_paper.py`, CSS and `11_js_ui.js` are the reference ones plus small additions).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d8116b7ddffba5c599f3f, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md`, with the shared pieces copied from the reference folder through the Scaling Laws page (`scaling_laws_for_neural_language_models/src/`, whose `mk_paper.py`, CSS and `11_js_ui.js` are the reference ones plus small additions).
 
 ## Tabs
 

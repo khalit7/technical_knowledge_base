@@ -9,7 +9,7 @@
   Rerun: `OMP_NUM_THREADS=2 STEPS=300000 uv run --with torch --with numpy python train.py <variant>` (one variant per run, in the background; about 20 to 40 minutes each), then `train.py eval`, `export.py 8`, `rd.py`, `check_forward.py`, `node check_forward.mjs`, `python3 recompute.py`.
 - `parts/`: HTML and JS parts; `13_js_read.js` (background sampler, forward process, the forward/reverse animation, predict reveals), `22_js_model.js` (the DDPM in JS), `23_js_run.js` (Sample tab), `24_js_tables.js`, `25_js_then.js`.
 
-## Departures from html_utils/methods/papers.md
+## Departures from .claude/skills/explainer-page/page-kinds/paper.md
 - No "What it takes to use this": a 2020 classic whose recipe is standard; Then and now covers what replaced each part.
 - The live ingredient is a training-recipe ablation more than an architecture: four toy models that differ only in parameterisation and objective (Table 2), not a model with a component removed. All four run live (1,000 real network evaluations per sample) because the sampling chain itself is the mechanism.
 - Weights are 8-bit, not 6-bit: at 6 bits the mu-predicting models broke down entirely (bound 7.9 to 16.9 bits/dim); 8-bit costs the eps model 0.005 bits/dim. Weights take 90 KB.

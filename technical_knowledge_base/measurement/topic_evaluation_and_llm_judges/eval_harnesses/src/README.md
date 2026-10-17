@@ -1,6 +1,6 @@
 # Source of the Eval harnesses page
 
-`sh build.sh` writes `../index.html` from `parts/`. Shape: topic-page child (Part B of `html_utils/methods/topic_pages.md`): Reading (in one screen, unit of work with the animation, scoring, each harness, app-level tools, reproducibility, sandboxes, which one, contributing, mistakes), two tabs (One task, every harness; Inside a run log), Further reading. Departure: the tabs show real files and real logs rather than a comparison of scores, because the parent's tab "Same model, many harnesses" owns the score spreads.
+`sh build.sh` writes `../index.html` from `parts/`. Shape: topic-page child (`.claude/skills/explainer-page/page-kinds/topic-child.md`): Reading (in one screen, unit of work with the animation, scoring, each harness, app-level tools, reproducibility, sandboxes, which one, contributing, mistakes), two tabs (One task, every harness; Inside a run log), Further reading. Departure: the tabs show real files and real logs rather than a comparison of scores, because the parent's tab "Same model, many harnesses" owns the score spreads.
 
 ## Pipeline
 1. `save_inputs.py <clones dir> <web dir>`: copies the exact lines shown from shallow clones of each repository (inspect_evals and promptfoo fetched from raw.githubusercontent.com at a pinned commit, recorded in a PIN file) into `inputs/`, with `sources.json` (repo, commit, date, path, lines, permalink). `inputs/versions.json`: PyPI and npm versions checked 4 Oct 2026.

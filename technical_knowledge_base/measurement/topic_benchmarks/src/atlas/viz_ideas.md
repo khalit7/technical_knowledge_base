@@ -1,6 +1,6 @@
 # Benchmark atlas (t-atlas): visual ideas, built and rejected
 
-The question this tab answers: across every benchmark the old page listed, which ones still tell frontier models apart, why (or why not), and what protects each from leaking into training data. Scored with the Methodology in `html_utils/interactive-html-ideas.md` section 2 (0 to 2 each: parameter the reader controls, reproduces a stated figure, computable from public data, shows what a sentence cannot, corrects a misconception, measures the central question, absent elsewhere; build cost subtracted; +1 for step-by-step animation against the method it replaced).
+The question this tab answers: across every benchmark the old page listed, which ones still tell frontier models apart, why (or why not), and what protects each from leaking into training data. Scored with the Methodology in `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each: parameter the reader controls, reproduces a stated figure, computable from public data, shows what a sentence cannot, corrects a misconception, measures the central question, absent elsewhere; build cost subtracted; +1 for step-by-step animation against the method it replaced).
 
 ## Built
 

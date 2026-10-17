@@ -3,7 +3,7 @@
 Child page of Topic: inference-and-serving. A new page (no old Notion text). Built 2026-10-08.
 
 ## Shape
-Child-page method (`html_utils/methods/topic_pages.md` Part B), taught from zero. Tabs: Reading (sections 0 to 9,
+Child-page method (`.claude/skills/explainer-page/page-kinds/topic-child.md`), taught from zero. Tabs: Reading (sections 0 to 9,
 mistakes, interview questions), Acceptance rule lab, Batch crossover lab, Drafters measured, Further reading.
 Departures: no "in production now" configs section of its own; engine knobs sit with the support matrix in Reading 8,
 because the knobs are what differ between engines.

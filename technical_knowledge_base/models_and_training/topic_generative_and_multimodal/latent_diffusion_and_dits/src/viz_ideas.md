@@ -1,6 +1,6 @@
 # Latent diffusion and diffusion transformers: visualisation ideas (2026-10-17)
 
-Method: html_utils/interactive-html-ideas.md section 2. Scored 1 to 5 on: teaches the mechanism (T), real data (R), cost to build (C, 5 = cheap), not already on the root, siblings or paper pages (N).
+Method: `.claude/skills/explainer-page/visuals/choosing.md`. Scored 1 to 5 on: teaches the mechanism (T), real data (R), cost to build (C, 5 = cheap), not already on the root, siblings or paper pages (N).
 
 ## Built
 

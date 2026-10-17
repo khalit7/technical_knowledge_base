@@ -14,4 +14,4 @@
 
 Rebuild: run the four `run_*.sh` (headers give the variables), copy their raw output into `runs/out/raw/`, then `python3 -I runs/summarise.py && python3 -I recompute.py && sh build.sh`.
 
-Shape: Part B of `html_utils/methods/topic_pages.md`, organised by the storage stack (one server, parallel file systems, other designs, metadata, object stores, caches, movement, formats, sizing, checking). Departures: no old page to cover; Lustre itself could not run (kernel client modules), so the striping and metadata mechanisms are shown on a toy built for the page, with the per-server limit stated as an input and locks stated as not modelled.
+Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md`, organised by the storage stack (one server, parallel file systems, other designs, metadata, object stores, caches, movement, formats, sizing, checking). Departures: no old page to cover; Lustre itself could not run (kernel client modules), so the striping and metadata mechanisms are shown on a toy built for the page, with the per-server limit stated as an input and locks stated as not modelled.

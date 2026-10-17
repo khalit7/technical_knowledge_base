@@ -1,6 +1,6 @@
 # Visualisation ideas: Storage engines and indexes
 
-Methodology followed: html_utils/interactive-html-ideas.md section 2. Score = teaches (0 to 3) + real data (0 to 2) + not already on the root or a sibling (0 to 2) + fits on a phone (0 to 1).
+Methodology followed: `.claude/skills/explainer-page/visuals/choosing.md`. Score = teaches (0 to 3) + real data (0 to 2) + not already on the root or a sibling (0 to 2) + fits on a phone (0 to 1).
 
 ## Built
 | # | Idea | Score | Placement | Data | Why it earns its place |

@@ -3,7 +3,7 @@
 `sh build.sh` writes `../index.html` from `parts/` and `inputs/page_data.json`.
 
 ## Shape
-Child-page method (Part B of `html_utils/methods/topic_pages.md`): Reading organised by the subject's own logic (one screen, the two halves with the before/after animation, retrieval metrics, a real run, generation metrics, frameworks, judging faithfulness, detection benchmarks, long context, building a test set, agentic RAG, mistakes), two standalone tabs (Score a real retrieval run, Hallucination spans) and Further reading.
+Child-page method (`.claude/skills/explainer-page/page-kinds/topic-child.md`): Reading organised by the subject's own logic (one screen, the two halves with the before/after animation, retrieval metrics, a real run, generation metrics, frameworks, judging faithfulness, detection benchmarks, long context, building a test set, agentic RAG, mistakes), two standalone tabs (Score a real retrieval run, Hallucination spans) and Further reading.
 
 ## Data (all real, all small extracts in `inputs/`)
 | Script | What it does | Inputs (scratch, not committed) |

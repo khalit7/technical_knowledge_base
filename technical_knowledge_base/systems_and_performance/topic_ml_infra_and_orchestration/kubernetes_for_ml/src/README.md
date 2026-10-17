@@ -1,6 +1,6 @@
 # Kubernetes for ML page: sources, scripts and runs
 
-Built 2026-10-16. Shape: Part B of `html_utils/methods/topic_pages.md` (child page), organised by the path of a job through Kubernetes (control loop, Jobs, scheduler, devices, placement, gangs, Kueue, JobSet, operators, storage). Departures: no old page to cover (`coverage.md`); the parent's Scheduling and Failure labs own the Kueue deadlock fix, borrowing, reclaim and node failures, so they are linked, not rebuilt.
+Built 2026-10-16. Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (child page), organised by the path of a job through Kubernetes (control loop, Jobs, scheduler, devices, placement, gangs, Kueue, JobSet, operators, storage). Departures: no old page to cover (`coverage.md`); the parent's Scheduling and Failure labs own the Kueue deadlock fix, borrowing, reclaim and node failures, so they are linked, not rebuilt.
 
 ## Rebuild
 ```

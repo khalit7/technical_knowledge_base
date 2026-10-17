@@ -1,6 +1,6 @@
 # Visual ideas: containers and isolation
 
-Method: html_utils/interactive-html-ideas.md section 2. What the text needs: (1) that a container is the same process with restrictions added one by one; (2) why PID 1 and the namespace kill rule lose checkpoints; (3) the difference between a wall and a brake on memory; (4) the cost of each namespace; (5) how a pod spec becomes cgroup files.
+Method: `.claude/skills/explainer-page/visuals/choosing.md`. What the text needs: (1) that a container is the same process with restrictions added one by one; (2) why PID 1 and the namespace kill rule lose checkpoints; (3) the difference between a wall and a brake on memory; (4) the cost of each namespace; (5) how a pod spec becomes cgroup files.
 
 ## Built
 | Idea | Score (teach, data, unique) | Where | Data |

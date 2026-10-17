@@ -1,6 +1,6 @@
 # Qwen3 Technical Report: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81a19006e6b096a6e14b, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from the paper-page method (`html_utils/methods/papers.md`) with the shared pieces copied from `llama_3_herd/src/` (themselves the reference folder's).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81a19006e6b096a6e14b, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from the paper-page method (`.claude/skills/explainer-page/page-kinds/paper.md`) with the shared pieces copied from `llama_3_herd/src/` (themselves the reference folder's).
 
 ## Tabs
 

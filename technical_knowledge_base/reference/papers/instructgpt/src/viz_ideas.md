@@ -2,7 +2,7 @@
 
 The question the paper keeps returning to: **how much does optimising a learned stand-in for human judgement buy, and what does it cost (in over-optimisation and in lost capability)?** Every visual below either runs that trade or checks the paper's own numbers for it.
 
-Scores follow the Methodology (interactive-html-ideas.md section 2): quantity the reader moves (0 to 2), reproduces a published figure (0 to 2, counts double), computable from public data (0 to 2, counts double), shows what a sentence cannot (0 to 2), corrects a misconception (0 to 2), measures the central question (0 to 2), absent from existing explainers (0 to 2), step animation against the method it replaced (0 to 1), minus build cost (0 to 3).
+Scores follow the Methodology (.claude/skills/explainer-page/visuals/choosing.md section 2): quantity the reader moves (0 to 2), reproduces a published figure (0 to 2, counts double), computable from public data (0 to 2, counts double), shows what a sentence cannot (0 to 2), corrects a misconception (0 to 2), measures the central question (0 to 2), absent from existing explainers (0 to 2), step animation against the method it replaced (0 to 1), minus build cost (0 to 3).
 
 ## Built
 

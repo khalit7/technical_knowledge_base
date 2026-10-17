@@ -7,7 +7,7 @@ those facts into the prose wherever a part says `[[KEY]]`, so prose numbers come
 dark and 920 px light, checks the embedded data, that the rule workbench reproduces run0, and prose numbers.
 
 Tabs: Reading, Extraction comparer, Language ID lab, Rule workbench, Label browser, Further reading.
-Shape: Part B of `html_utils/methods/topic_pages.md` (a child owns its details); the labs follow the subject's stages
+Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (a child owns its details); the labs follow the subject's stages
 (extract, identify language, apply rules, read what was dropped) rather than one lab per method.
 
 ## Measurement scripts (`scripts/`), run order

@@ -3,7 +3,7 @@
 Child page of Topic: rl (Notion 3c65c17b0d0d81898a0cd4c05c744969). Build: `sh build.sh` writes `../index.html` from `parts/`.
 
 ## Shape
-Part B of `html_utils/methods/topic_pages.md`: a Reading tab in the subject's own order (one-screen comparison table, model-free vocabulary, MC, TD, the n-step / TD(lambda) dial, control with exploring starts, epsilon-soft and GLIE, SARSA and Expected SARSA, Q-learning, maximisation bias, off-policy learning and importance sampling, DP against TD, when to use which, mistakes, where next, check yourself), then one tab per experiment and Further reading. Departure: five experiment tabs rather than one or two, because each reruns a different Sutton and Barto figure with its own controls and checks; Khalid's brief named them as tabs.
+`.claude/skills/explainer-page/page-kinds/topic-child.md`: a Reading tab in the subject's own order (one-screen comparison table, model-free vocabulary, MC, TD, the n-step / TD(lambda) dial, control with exploring starts, epsilon-soft and GLIE, SARSA and Expected SARSA, Q-learning, maximisation bias, off-policy learning and importance sampling, DP against TD, when to use which, mistakes, where next, check yourself), then one tab per experiment and Further reading. Departure: five experiment tabs rather than one or two, because each reruns a different Sutton and Barto figure with its own controls and checks; Khalid's brief named them as tabs.
 
 ## Files
 - `parts/01_head.html` root CSS + lab CSS (scoped `.lbx`) + Reading CSS from Topic: rl; `10_header.html` tabs.

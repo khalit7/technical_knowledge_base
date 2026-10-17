@@ -3,7 +3,7 @@
 Build: `sh build.sh` (runs `build_data.py`, which turns `data/*.json` and `inputs/cc/*` into `parts/22_pc_data.js` and `data/facts.json`; every `@@key@@` in the prose is filled from `facts.json` and the build fails loudly if one is missing).
 
 ## Shape
-A child page (Part B of `html_utils/methods/topic_pages.md`): Reading organised by the subject's own logic (Common Crawl from zero, how to read a corpus card, the lineage by generation, what each corpus kept from the running example's WARC file, how comparisons are made, the non-web domains, licences, measured samples, what to use, mistakes, interview questions), then three tabs: Lineage (every corpus, cards and a replay), Corpus comparer (the measured samples) and What to train on (a starting mix with an epochs check).
+A child page (`.claude/skills/explainer-page/page-kinds/topic-child.md`): Reading organised by the subject's own logic (Common Crawl from zero, how to read a corpus card, the lineage by generation, what each corpus kept from the running example's WARC file, how comparisons are made, the non-web domains, licences, measured samples, what to use, mistakes, interview questions), then three tabs: Lineage (every corpus, cards and a replay), Corpus comparer (the measured samples) and What to train on (a starting mix with an epochs check).
 
 ## Data, and how to rebuild it
 | File | Made by | From |

@@ -1,6 +1,6 @@
 # Visualisation ideas: Memory technology
 
-What the text needs to be understood: why a read's cost depends on the reads before it (rows, banks); where bandwidth and energy go; the cache ladder as numbers, not a diagram; how bus width and pin rate make bandwidth; capacity against bandwidth as tiers; what the KV cache does to memory on real architectures. Scored 0 to 2 per criterion as in `html_utils/interactive-html-ideas.md` section 2 (reproduces/computable count double; build cost subtracted; +1 for a before/after animation).
+What the text needs to be understood: why a read's cost depends on the reads before it (rows, banks); where bandwidth and energy go; the cache ladder as numbers, not a diagram; how bus width and pin rate make bandwidth; capacity against bandwidth as tiers; what the KV cache does to memory on real architectures. Scored 0 to 2 per criterion as in `.claude/skills/explainer-page/visuals/choosing.md` (reproduces/computable count double; build cost subtracted; +1 for a before/after animation).
 
 ## Built
 

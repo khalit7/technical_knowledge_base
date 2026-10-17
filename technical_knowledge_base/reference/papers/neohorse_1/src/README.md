@@ -1,6 +1,6 @@
 # NeoHorse-1: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3db5c17b0d0d81e3b105e033a359ad24, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from `html_utils/methods/papers.md`, starting from the HarnessDev page's copy of the reference pieces (`build.sh`, `mk_paper.py`, `check_page.mjs`, `svgparse.py`, the CSS and `10_js_common.js`, `11_js_ui.js`, `90_js_tabs.js`).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3db5c17b0d0d81e3b105e033a359ad24, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md`, starting from the HarnessDev page's copy of the reference pieces (`build.sh`, `mk_paper.py`, `check_page.mjs`, `svgparse.py`, the CSS and `10_js_common.js`, `11_js_ui.js`, `90_js_tabs.js`).
 
 ## Tabs
 

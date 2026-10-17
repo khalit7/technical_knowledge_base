@@ -1,6 +1,6 @@
 # Visualisation ideas: Model-free prediction and control
 
-Question the page makes measurable: what stands in for DP's expectation (MC return, TD target, n-step / lambda blend, SARSA's A', Q-learning's max, importance-weighted return), and what each choice costs in bias, variance and online reward. Scores follow `html_utils/interactive-html-ideas.md` section 2 (0-2 each; reproduction and computability x2; +1 animation; cost subtracted).
+Question the page makes measurable: what stands in for DP's expectation (MC return, TD target, n-step / lambda blend, SARSA's A', Q-learning's max, importance-weighted return), and what each choice costs in bias, variance and online reward. Scores follow `.claude/skills/explainer-page/visuals/choosing.md` (0-2 each; reproduction and computability x2; +1 animation; cost subtracted).
 
 | # | Idea | Placement | Score | Reproduces | Decision |
 |---|---|---|---|---|---|

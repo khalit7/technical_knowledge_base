@@ -16,7 +16,7 @@
 | `inputs/paper_v1.txt` | the arXiv HTML as text (`extract_paper.py`), the only arXiv version |
 | `inputs/code/` | the released run configurations, `memory_agent.py` (prompts) and `trigger.py` |
 
-## Shape, and departures from html_utils/methods/papers.md
+## Shape, and departures from .claude/skills/explainer-page/page-kinds/paper.md
 
 - **Live ingredient: a trace replay** (the agent kind in papers.md), built from the five example runs the authors released (baseline and memory run of the same Terminal-Bench task). Nothing is simulated; memory-agent tokens and costs are estimates from character counts (3.76 characters per token, calibrated on the actor's first prompt in all ten runs) at list prices, and are labelled as such.
 - **The Reading-tab animation** runs one real memory step (`sqlite-with-gcov`, trigger 4) through the full design and each Table 2 ablation; only the full design's content is real, the ablations' content is labelled illustrative.

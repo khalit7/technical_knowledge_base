@@ -13,7 +13,7 @@
 - `make_data.py` turns `raw/` into `parts/21_js_data.js` and `numbers.json`.
 
 ## Shape
-Child page method (Part B of `html_utils/methods/topic_pages.md`): Reading organised by the protocol's own logic (wire, keys, host keys, certificates, jump hosts, agent, multiplexing, tunnels, keepalives, files, post-quantum, security, cluster workflows, debugging, interview), one standalone lab tab, an error decoder tab for the debugging goal, Further reading. The old page is `../../src/read/old/ssh.md`; every fact is mapped in `coverage.json` (verified, corrected with a visible box, or measured in the lab).
+Child page method (`.claude/skills/explainer-page/page-kinds/topic-child.md`): Reading organised by the protocol's own logic (wire, keys, host keys, certificates, jump hosts, agent, multiplexing, tunnels, keepalives, files, post-quantum, security, cluster workflows, debugging, interview), one standalone lab tab, an error decoder tab for the debugging goal, Further reading. The old page is `../../src/read/old/ssh.md`; every fact is mapped in `coverage.json` (verified, corrected with a visible box, or measured in the lab).
 
 ## Sources
 `inputs/` holds extracts fetched on 2026-10-05: OpenSSH release notes 9.0 to 10.5, the OpenSSH post-quantum page, RFC 10042 sections 2.1 to 2.4, the head of Qualys's regreSSHion advisory.

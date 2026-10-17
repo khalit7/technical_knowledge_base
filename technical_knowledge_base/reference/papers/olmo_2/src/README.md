@@ -1,6 +1,6 @@
 # 2 OLMo 2 Furious (OLMo 2): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81fb9857fb956165ae1c, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from the paper-page method (`html_utils/methods/papers.md`), with the Llama 3 page's `build.sh`, `mk_paper.py`, `check_page.mjs` and CSS as the starting copies (themselves from the reference folder).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81fb9857fb956165ae1c, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from the paper-page method (`.claude/skills/explainer-page/page-kinds/paper.md`), with the Llama 3 page's `build.sh`, `mk_paper.py`, `check_page.mjs` and CSS as the starting copies (themselves from the reference folder).
 
 ## Tabs
 

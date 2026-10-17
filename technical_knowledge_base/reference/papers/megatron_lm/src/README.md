@@ -1,6 +1,6 @@
 # Megatron-LM: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from the paper method (`html_utils/methods/papers.md`) and the Attention Is All You Need reference folder.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built from the paper method (`.claude/skills/explainer-page/page-kinds/paper.md`) and the Attention Is All You Need reference folder.
 
 ## Tabs
 

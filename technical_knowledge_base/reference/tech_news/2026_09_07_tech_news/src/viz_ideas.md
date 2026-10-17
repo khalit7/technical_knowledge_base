@@ -24,7 +24,7 @@ Scoring as in the Methodology (0 to 2 each; reproduce and computable count doubl
 | - | Hugging Face upvotes chart for the week's papers | 0 | 0 | 2 | 0 | 0 | 0 | 1 | 0 | 0 | | notes | rejected: counts drift (Repo-To-Skill 521 in the issue, 406 on Oct 2); given as dated readings in notes |
 | - | Claude Code five-release strip | 0 | 0 | 2 | 0 | 1 | 1 | 1 | 0 | 0 | | note | rejected: five dated lines read as easily as drawn; the date and feature corrections are a note |
 
-## New idea rows (for html_utils/interactive-html-ideas.md, section 1)
+## New idea rows (for .claude/skills/explainer-page/visuals/choosing.md, section 1)
 
 | ID | Page | Idea | What it shows | Why | Data | Placement | Status |
 |---|---|---|---|---|---|---|---|

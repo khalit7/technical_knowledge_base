@@ -1,6 +1,6 @@
 # Flattening Every Memory Peak in Long-Context MoE Training: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e95c17b0d0d8148a1f3d412918234fc, a row of the Papers database listed as "Bounding the memory bottlenecks of large mixture-of-experts training"; its properties Paper, Takeaway, Topics and Year stay in Notion). The row has no child pages, databases or video. Built on the paper-page method (`html_utils/methods/papers.md`) from the Attention Is All You Need reference pieces (via the ZeRO page's copies).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e95c17b0d0d8148a1f3d412918234fc, a row of the Papers database listed as "Bounding the memory bottlenecks of large mixture-of-experts training"; its properties Paper, Takeaway, Topics and Year stay in Notion). The row has no child pages, databases or video. Built on the paper-page method (`.claude/skills/explainer-page/page-kinds/paper.md`) from the Attention Is All You Need reference pieces (via the ZeRO page's copies).
 
 ## Tabs
 

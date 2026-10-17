@@ -4,7 +4,7 @@ Build: `sh build.sh` (runs `runs/make_data.py`, which gathers `runs/out/*.json` 
 
 ## Shape and why
 
-Follows `html_utils/methods/topic_pages.md` Part B (child page): a Reading tab in the subject's own order (arrays, tracing, jaxprs, control flow, autodiff, custom rules, vmap, pytrees, keys, primitives, mistakes, interview questions, corrections to the old page), and four lab tabs for visuals that need room. It goes deeper than the root's Transforms lab and links it instead of repeating it (purity, side effects, recompile drills, per-example gradient timing and the toy tracer stay there).
+Follows `.claude/skills/explainer-page/page-kinds/topic-child.md` (child page): a Reading tab in the subject's own order (arrays, tracing, jaxprs, control flow, autodiff, custom rules, vmap, pytrees, keys, primitives, mistakes, interview questions, corrections to the old page), and four lab tabs for visuals that need room. It goes deeper than the root's Transforms lab and links it instead of repeating it (purity, side effects, recompile drills, per-example gradient timing and the toy tracer stay there).
 
 ## Parts
 

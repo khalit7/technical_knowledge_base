@@ -1,6 +1,6 @@
 # RocketEval: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3cd5c17b0d0d81ffa8e5f8fa5a5806c8, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `html_utils/methods/papers.md` with the reference folder's shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs`, `check_page.mjs`, `build.sh`), and `mk_paper.py` from the DeepSeekMath page (it has the verdict line).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3cd5c17b0d0d81ffa8e5f8fa5a5806c8, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `90_js_tabs`, `check_page.mjs`, `build.sh`), and `mk_paper.py` from the DeepSeekMath page (it has the verdict line).
 
 ## Tabs
 

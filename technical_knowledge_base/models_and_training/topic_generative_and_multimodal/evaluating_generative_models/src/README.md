@@ -3,7 +3,7 @@
 Child page 9 of Topic: generative-and-multimodal. `sh build.sh` writes `../index.html` from `parts/`.
 
 ## Shape
-Part B of `html_utils/methods/topic_pages.md` (a child page): Reading organised by the subject's own logic (in one screen, the problem, FID from zero, sample count, alternatives, pitfalls, prompt alignment, human preference, VLM benchmarks, video and audio, mistakes, interview questions), three tabs (Metric comparator, Pitfall lab, Which metric?), Further reading. No departure from the method. Departures from the papers' setups, each said on the page: FD-DINOv2 with ViT-B/14 (paper: L/14), CMMD sweep on CLIP B/32 (paper: L/14 at 336 px, checked on 1,000-image subsets), precision/recall in Inception and DINOv2 space (paper: VGG-16), VQA checks with SmolVLM-500M and hand-written questions.
+`.claude/skills/explainer-page/page-kinds/topic-child.md` (a child page): Reading organised by the subject's own logic (in one screen, the problem, FID from zero, sample count, alternatives, pitfalls, prompt alignment, human preference, VLM benchmarks, video and audio, mistakes, interview questions), three tabs (Metric comparator, Pitfall lab, Which metric?), Further reading. No departure from the method. Departures from the papers' setups, each said on the page: FD-DINOv2 with ViT-B/14 (paper: L/14), CMMD sweep on CLIP B/32 (paper: L/14 at 336 px, checked on 1,000-image subsets), precision/recall in Inception and DINOv2 space (paper: VGG-16), VQA checks with SmolVLM-500M and hand-written questions.
 
 ## Parts
 - `01_head.html`, `05z_errbox.js.html`, `21_js_rd_common.js`, `99_js_tabs.js` (storage key `ev-tab`): copied from the root.

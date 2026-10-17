@@ -3,7 +3,7 @@
 `sh build.sh` writes `../index.html` from `parts/`. `sh run_all.sh` re-records every measurement (Docker, image `kb-os-lab:1`, about 15 minutes), rebuilds the data and the page, and runs the checks.
 
 ## Shape
-A child page of Topic: operating-systems (method: `html_utils/methods/topic_pages.md`, Part B). Reading follows the subject's own order (the process, system calls, creation, exec, ending and PID 1, signals, descriptors, groups and limits, the training job, mistakes and questions), with the root's training job as the running example. Two standalone tabs: **Process lab** (descriptor-table stepper and process-tree simulator) and **Shutdown lab** (ten real start-up variants). It links the root's Syscall tracer, OS simulators and Debug lab rather than repeating them, and uses the root's numbers where they exist (syscall ladder, start-method timings).
+A child page of Topic: operating-systems (method: `.claude/skills/explainer-page/page-kinds/topic-child.md`). Reading follows the subject's own order (the process, system calls, creation, exec, ending and PID 1, signals, descriptors, groups and limits, the training job, mistakes and questions), with the root's training job as the running example. Two standalone tabs: **Process lab** (descriptor-table stepper and process-tree simulator) and **Shutdown lab** (ten real start-up variants). It links the root's Syscall tracer, OS simulators and Debug lab rather than repeating them, and uses the root's numbers where they exist (syscall ladder, start-method timings).
 
 ## Parts
 - `01_head.html` (shared CSS, copied from the root), `10_header.html`, `20_read_a.html` .. `20_read_k.html` (Reading; `_a` carries the Reading styles), `20_read_z.html` (closes the tab).

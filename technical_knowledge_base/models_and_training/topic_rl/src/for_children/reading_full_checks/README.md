@@ -1,6 +1,6 @@
 # Reading tab visuals: what was built, why, and what each reproduces
 
-The page's question: what stands in for the expectation in the Bellman equation, and what does that choice cost in bias, variance, data and compute? Each visual makes one step of that measurable, at the moment the text introduces it. Scores follow `html_utils/interactive-html-ideas.md` section 2 (0 to 2 per question; reproduction and computability count double; +1 for a before/after animation).
+The page's question: what stands in for the expectation in the Bellman equation, and what does that choice cost in bias, variance, data and compute? Each visual makes one step of that measurable, at the moment the text introduces it. Scores follow `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 per question; reproduction and computability count double; +1 for a before/after animation).
 
 | Visual (id) | Section | What it shows | Reproduces | Score |
 |---|---|---|---|---|

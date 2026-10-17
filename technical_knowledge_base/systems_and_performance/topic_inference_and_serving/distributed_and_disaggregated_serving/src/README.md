@@ -4,7 +4,7 @@ Child of Topic: inference-and-serving (built 2026-10-09/10). `sh build.sh` write
 (HTML: 01_head, 10_header, 20_read_*.html, 3x_tab_*.html; JS: every parts/*.js in its own script, 99_js_tabs.js last).
 Ids and classes use the `dd-` prefix in Reading, `pd-`, `ep-`, `m1-` in the tabs; the stored tab key is `dd-tab`.
 
-Shape: the child-page method (Part B of html_utils/methods/topic_pages.md): Reading in the subject's own order
+Shape: the child-page method (`.claude/skills/explainer-page/page-kinds/topic-child.md`): Reading in the subject's own order
 (why split, replicas, TP, PP, EP, prefill/decode split, when it pays, the serving layer, choosing and checking,
 mistakes, interview questions, corrections), three labs, Further reading. Running example: the parent's chat assistant
 (Llama 3.1 70B, FP8 weights, BF16 KV, H200, 2,000-token prompts, 300-token answers).

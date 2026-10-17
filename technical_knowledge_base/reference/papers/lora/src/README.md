@@ -1,6 +1,6 @@
 # LoRA: Low-Rank Adaptation of Large Language Models: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81018f15edd19fa5c28a, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built on the paper method (`html_utils/methods/papers.md`) from the Attention Is All You Need reference folder's pieces.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d81018f15edd19fa5c28a, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built on the paper method (`.claude/skills/explainer-page/page-kinds/paper.md`) from the Attention Is All You Need reference folder's pieces.
 
 ## Tabs
 

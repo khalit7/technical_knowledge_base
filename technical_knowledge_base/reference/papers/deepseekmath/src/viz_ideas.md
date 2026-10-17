@@ -1,6 +1,6 @@
 # Visualisation ideas: DeepSeekMath (GRPO)
 
-The question the paper keeps returning to: does dropping PPO's critic for a group baseline cost or gain anything, and what does each post-training method actually do to the gradient? Score: reproduce/computable count double; build cost subtracted (methodology in `html_utils/interactive-html-ideas.md` §2).
+The question the paper keeps returning to: does dropping PPO's critic for a group baseline cost or gain anything, and what does each post-training method actually do to the gradient? Score: reproduce/computable count double; build cost subtracted (methodology in `.claude/skills/explainer-page/visuals/choosing.md`).
 
 | # | Idea | Placement | Score | Data | Status |
 |---|---|---|---|---|---|

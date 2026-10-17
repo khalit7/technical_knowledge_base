@@ -11,7 +11,7 @@
 | The paper's tables, rebuilt | `t-tables` | Table 3 (printed or as differences), Appendix E's Mercury 2 estimate, Table 4 with recomputed columns, 37 checks of the paper's numbers, Figure 11's labels, Tables 1, 2, 5, 6, 7. |
 | Further reading | `t-more` | Generated from `paper.json`. |
 
-## Departures from `html_utils/methods/papers.md`
+## Departures from `.claude/skills/explainer-page/page-kinds/paper.md`
 
 - **No Then and now tab**: the report is two months old; its lineage (DDPM, BERT, T5, block diffusion) is linked instead.
 - **No Connections section in the Reading tab**: the connections are the Further reading cards (same text as the old page's Connections list), to keep the Reading tab shorter.

@@ -4,7 +4,7 @@ Build: `sh build.sh` writes `../index.html` from `parts/` (parts listed explicit
 
 ## Shape
 
-Part B of `html_utils/methods/topic_pages.md` (a child page). Reading follows the subject's own logic: in one screen (what each metric rewards and cannot see), then 1 threshold metrics, 2 ranking curves, 3 calibration, 4 multi-class averaging, 5 text overlap, 6 perplexity, 7 embedding scores and judges, 8 error bars, information quantities, common mistakes. Tabs: Reading, Threshold lab, Text metrics lab, Further reading. No child pages, databases or video on the Notion page.
+`.claude/skills/explainer-page/page-kinds/topic-child.md` (a child page). Reading follows the subject's own logic: in one screen (what each metric rewards and cannot see), then 1 threshold metrics, 2 ranking curves, 3 calibration, 4 multi-class averaging, 5 text overlap, 6 perplexity, 7 embedding scores and judges, 8 error bars, information quantities, common mistakes. Tabs: Reading, Threshold lab, Text metrics lab, Further reading. No child pages, databases or video on the Notion page.
 
 Not rebuilt, linked instead: the root's ROC against precision-recall prevalence widget (Reading, step 7) and its entropy / cross entropy / KL thread (thread 1); imbalanced-data training fixes (root tab "When training goes wrong", where the deleted Debugging training page went); LLM judges (Topic: evaluation-and-llm-judges, not migrated; RocketEval and Re-grading paper pages).
 

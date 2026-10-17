@@ -1,6 +1,6 @@
 # Visualisation ideas, Part 1 (In depth)
 
-Method: html_utils/interactive-html-ideas.md section 2. The reader writes Python daily but has gaps in the model underneath, so every visual shows a real run (recorded outputs, real object ids, real timestamps, real bytecode), and the favourite form, one input animated before/after, is used wherever a mechanism has a "with and without".
+Method: `.claude/skills/explainer-page/visuals/choosing.md`. The reader writes Python daily but has gaps in the model underneath, so every visual shows a real run (recorded outputs, real object ids, real timestamps, real bytecode), and the favourite form, one input animated before/after, is used wherever a mechanism has a "with and without".
 
 ## Built (ranked)
 

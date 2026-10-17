@@ -4,7 +4,7 @@ Notion: https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56, a child of To
 
 ## Shape
 
-Part B of `html_utils/methods/topic_pages.md` (a child page): Reading tab in the subject's own order (in one screen; the token MDP; RLHF with PPO in full; GRPO and RLOO; RLVR; a before/after animation on one real response; R1; the 2025 to 2026 corrections; off-policy corrections; teach or elicit; reward hacking specific to LLM RL; agents; infrastructure; which when; mistakes; checklist; the unverified box), three data tabs on real rollouts (Real rollouts, Verifier gallery, Rollout mismatch) and Further reading.
+`.claude/skills/explainer-page/page-kinds/topic-child.md` (a child page): Reading tab in the subject's own order (in one screen; the token MDP; RLHF with PPO in full; GRPO and RLOO; RLVR; a before/after animation on one real response; R1; the 2025 to 2026 corrections; off-policy corrections; teach or elicit; reward hacking specific to LLM RL; agents; infrastructure; which when; mistakes; checklist; the unverified box), three data tabs on real rollouts (Real rollouts, Verifier gallery, Rollout mismatch) and Further reading.
 
 Departure: the page's "real data" is generated for it. No public dataset gives per-token log-probabilities under several numerical set-ups with verifier verdicts and reward-model scores on the same responses, so `rollouts/` samples 160 responses from Qwen2.5-0.5B-Instruct on ten GSM8K test problems and records all of it. A 0.5B model and grade-school maths keep it small enough to run on a laptop; the page says where that limits what the numbers show (magnitudes of KL and mismatch, response lengths).
 

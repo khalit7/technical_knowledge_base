@@ -1,6 +1,6 @@
 # Agora: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e25c17b0d0d81399738c3e65f4bf900, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `html_utils/methods/papers.md` with the reference folder's pieces (`build.sh`, `mk_paper.py`, `10_js_common.js`, `11_js_ui.js`, `90_js_tabs.js`, the CSS, `check_page.mjs`, `save_live.py`, `extract_paper.py`).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3e25c17b0d0d81399738c3e65f4bf900, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the reference folder's pieces (`build.sh`, `mk_paper.py`, `10_js_common.js`, `11_js_ui.js`, `90_js_tabs.js`, the CSS, `check_page.mjs`, `save_live.py`, `extract_paper.py`).
 
 The page follows arXiv v4 (30 September 2026). The Notion text (`live.md`, fetched as of 21 September) was written from an earlier version.
 

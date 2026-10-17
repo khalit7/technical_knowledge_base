@@ -14,6 +14,6 @@
 - `live.md` is the old Notion page as fetched (copied from the root's `src/read/old/`); `coverage.json` maps each of its facts.
 - `viz_ideas.md`: visuals built and rejected.
 
-Shape: Part B of `html_utils/methods/topic_pages.md` (Reading by the subject's own logic, one tab per standalone visual). Departure: the Reading carries tables filled from recordings rather than charts, because the subject is message exchanges, not quantities; the one animation is in its own tab because it needs the width. No model is called anywhere; user consent and the user's "yes" are scripted and labelled.
+Shape: `.claude/skills/explainer-page/page-kinds/topic-child.md` (Reading by the subject's own logic, one tab per standalone visual). Departure: the Reading carries tables filled from recordings rather than charts, because the subject is message exchanges, not quantities; the one animation is in its own tab because it needs the width. No model is called anywhere; user consent and the user's "yes" are scripted and labelled.
 
 A planned "attack lab" (scripted agent against poisoned tools) was dropped during the build; the security section teaches those threats from primary sources and links the root's existing benign recording instead.

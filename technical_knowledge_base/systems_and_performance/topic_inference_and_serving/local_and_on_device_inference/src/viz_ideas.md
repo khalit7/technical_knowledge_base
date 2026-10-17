@@ -1,6 +1,6 @@
 # Visualisations: built and rejected (Local and on-device inference)
 
-Method: `html_utils/interactive-html-ideas.md` section 2. The reader is new to serving; every visual must teach one mechanism on real data from this laptop, or do the page's arithmetic for him. Scores: teaching value / real data / not already on a sibling (each 1-5).
+Method: `.claude/skills/explainer-page/visuals/choosing.md`. The reader is new to serving; every visual must teach one mechanism on real data from this laptop, or do the page's arithmetic for him. Scores: teaching value / real data / not already on a sibling (each 1-5).
 
 ## Built
 | Visual | Where | Score | Data | Why it earns its place |

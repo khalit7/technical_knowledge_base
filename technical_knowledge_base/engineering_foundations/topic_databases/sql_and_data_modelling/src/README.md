@@ -2,7 +2,7 @@
 
 Child of Topic: databases. `sh build.sh` writes `../index.html`. The page reuses the root's in-page engine (`../../src/parts/31_js_sql_a_engine.js`, sql.js 1.14.2 with its WebAssembly inlined) and the root's chat dataset (`../../src/sql/data.json`), adding one column, `messages.parent_id`.
 
-Shape: Reading (14 sections, each standalone, with 38 runnable boxes and 5 animations or interactive visuals), Exercises lab, ALTER TABLE measured, Further reading. Follows Part B of `html_utils/methods/topic_pages.md`; departs only in that most "visuals" are live queries, because the subject is a language.
+Shape: Reading (14 sections, each standalone, with 38 runnable boxes and 5 animations or interactive visuals), Exercises lab, ALTER TABLE measured, Further reading. Follows `.claude/skills/explainer-page/page-kinds/topic-child.md`; departs only in that most "visuals" are live queries, because the subject is a language.
 
 ## Files
 - `parts/`: page parts; `31_js_run.js` is a copy of the root's loader and runner with a fix (write statements starting with a comment reported 0 changed rows); `32_js_data.js` is generated.

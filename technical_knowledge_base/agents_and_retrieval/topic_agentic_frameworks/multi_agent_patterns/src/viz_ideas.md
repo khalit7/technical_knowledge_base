@@ -1,6 +1,6 @@
 # Visualisation ideas: Multi-agent patterns
 
-Method: html_utils/interactive-html-ideas.md section 2, and Part B of html_utils/methods/topic_pages.md. The page explains mechanisms that replaced or compete with each other (one loop against several; handoff against agent-as-tool; debate against voting), so each gets a before/after view on the same input, drawn from real recordings.
+Method: `.claude/skills/explainer-page/visuals/choosing.md`, and `.claude/skills/explainer-page/page-kinds/topic-child.md`. The page explains mechanisms that replaced or compete with each other (one loop against several; handoff against agent-as-tool; debate against voting), so each gets a before/after view on the same input, drawn from real recordings.
 
 ## What the text needs to be understood
 1. What "who decides" and "who sees what" mean for each pattern (shapes).

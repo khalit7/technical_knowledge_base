@@ -3,7 +3,7 @@
 Child page 3 of Topic: generative-and-multimodal (prefix `fm`, scratch key `fm`). Built 2026-10-17. `sh build.sh` writes `../index.html` from `parts/`.
 
 ## Shape
-Reading (14 sections: in one screen, the exact marginal field, the perfect model's few-step error, the perfect model copies, paths, couplings, reflow rounds, distillation, timestep sampling and shift, stochastic sampling, solvers and grids, production configs, mistakes, interview, sources), three labs (2-D flow playground, Steps ladder, Timestep explorer) and Further reading. It follows `html_utils/methods/topic_pages.md` Part B. The root's Flow lab owns the first layer (the objective, Euler/Heun/midpoint, flow against diffusion, one reflow round, conventions, guidance) and is linked by name, not rebuilt; this page reuses its toy networks, image checkpoints and recordings and goes one layer down. The Math page (section 18) owns the derivations.
+Reading (14 sections: in one screen, the exact marginal field, the perfect model's few-step error, the perfect model copies, paths, couplings, reflow rounds, distillation, timestep sampling and shift, stochastic sampling, solvers and grids, production configs, mistakes, interview, sources), three labs (2-D flow playground, Steps ladder, Timestep explorer) and Further reading. It follows `.claude/skills/explainer-page/page-kinds/topic-child.md`. The root's Flow lab owns the first layer (the objective, Euler/Heun/midpoint, flow against diffusion, one reflow round, conventions, guidance) and is linked by name, not rebuilt; this page reuses its toy networks, image checkpoints and recordings and goes one layer down. The Math page (section 18) owns the derivations.
 
 ## Runs (all in `runs/`, outputs in `out/`)
 | script | what | where |

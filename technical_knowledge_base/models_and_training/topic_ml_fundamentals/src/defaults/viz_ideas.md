@@ -4,7 +4,7 @@ The question this tab measures: for each building block of a training run, what 
 
 Khalid chose the shape (2026-10-03): one grid of what landmark models used for each building block, sourced from papers, official code and config.json files, with visuals beyond the grid chosen by the Methodology.
 
-Scoring follows `html_utils/interactive-html-ideas.md` section 2: each question 0 to 2 (a parameter the reader controls; reproduces a stated figure, counted double; computable from public data, counted double; shows what a sentence cannot; corrects a misconception; measures the central question; absent elsewhere; can be animated as a before/after), minus build cost (0 to 2).
+Scoring follows `.claude/skills/explainer-page/visuals/choosing.md`: each question 0 to 2 (a parameter the reader controls; reproduces a stated figure, counted double; computable from public data, counted double; shows what a sentence cannot; corrects a misconception; measures the central question; absent elsewhere; can be animated as a before/after), minus build cost (0 to 2).
 
 | # | Idea | What it shows, what the reader does | Score | Data | Placement | Status |
 |---|---|---|---|---|---|---|

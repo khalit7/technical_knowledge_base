@@ -2,7 +2,7 @@
 
 Question the Reading tab keeps returning to: how much can one benchmark number mean, given where the benchmark is in its life and what the number leaves out?
 
-Scored 0 to 2 per the Methodology (html_utils/interactive-html-ideas.md section 2); reproducing a figure and being computable count double; animation point added.
+Scored 0 to 2 per the Methodology (`.claude/skills/explainer-page/visuals/choosing.md`); reproducing a figure and being computable count double; animation point added.
 
 | # | Idea | Score | Placement | Status |
 |---|---|---|---|---|

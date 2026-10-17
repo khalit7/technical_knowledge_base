@@ -4,7 +4,7 @@ Build: `sh build.sh` (runs `runs/make_data.py`, which gathers `runs/out/*.json` 
 
 ## Shape and why
 
-Follows `html_utils/methods/topic_pages.md` Part B (child page): a Reading tab in the order a port is done (translate, defaults, weights, equivalence test, drift, a Hugging Face model, interop, when not to port, mistakes, interview questions) and three lab tabs. It goes deeper than the root's Training lab and links it instead of repeating it: the root's port panes, its seven pitfall runs and its 4,000-step twins are cited and reused (curves read from `../../src/train/out/`), not rebuilt or rerun.
+Follows `.claude/skills/explainer-page/page-kinds/topic-child.md` (child page): a Reading tab in the order a port is done (translate, defaults, weights, equivalence test, drift, a Hugging Face model, interop, when not to port, mistakes, interview questions) and three lab tabs. It goes deeper than the root's Training lab and links it instead of repeating it: the root's port panes, its seven pitfall runs and its 4,000-step twins are cited and reused (curves read from `../../src/train/out/`), not rebuilt or rerun.
 
 ## Parts
 

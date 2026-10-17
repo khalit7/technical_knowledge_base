@@ -1,6 +1,6 @@
 # Encoder-Decoder Gemma and T5Gemma 2: page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3d45c17b0d0d81a9a22ffaada508db5c, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built with `html_utils/methods/papers.md`, starting from the reference folder `../attention_is_all_you_need_transformer/src/`. One page covers two papers: Encoder-Decoder Gemma (arXiv 2504.06225v1, called T5Gemma at release) and T5Gemma 2 (arXiv 2512.14856v2).
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3d45c17b0d0d81a9a22ffaada508db5c, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The page has no child pages, databases or video. Built with `.claude/skills/explainer-page/page-kinds/paper.md`, starting from the reference folder `../attention_is_all_you_need_transformer/src/`. One page covers two papers: Encoder-Decoder Gemma (arXiv 2504.06225v1, called T5Gemma at release) and T5Gemma 2 (arXiv 2512.14856v2).
 
 ## Tabs
 

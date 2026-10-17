@@ -1,6 +1,6 @@
 # Training language models to follow instructions with human feedback (InstructGPT): page source
 
-`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d8180b958d8299996a063, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from the reference paper page (`../../attention_is_all_you_need_transformer/src/`), the Switch Transformers page's live-training pattern, and `html_utils/methods/papers.md`.
+`sh build.sh` writes `../index.html`, the whole body of the Notion row page (https://app.notion.com/p/3c65c17b0d0d8180b958d8299996a063, a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in Notion). The row page has no child pages, databases or video. Built from the reference paper page (`../../attention_is_all_you_need_transformer/src/`), the Switch Transformers page's live-training pattern, and `.claude/skills/explainer-page/page-kinds/paper.md`.
 
 ## Tabs
 
