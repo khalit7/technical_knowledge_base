@@ -1,6 +1,8 @@
 """Recompute every derived number on the LoRA page from the paper's own formulas and tables.
 Writes inputs/recompute.json (read by mk_paper.py into window.PAPER.rc). usage: python3 recompute.py"""
 import json, math, os
+from decimal import Decimal as _D, ROUND_HALF_UP
+_q = lambda d, n: float(d.quantize(_D(1).scaleb(-n), ROUND_HALF_UP))  # exact, half-up: same result on every Python version
 HERE = os.path.dirname(os.path.abspath(__file__))
 T = json.load(open(os.path.join(HERE, 'tables.json')))
 CFG = json.load(open(os.path.join(HERE, 'inputs', 'hf_configs.json')))
@@ -85,8 +87,8 @@ tasks = ['MNLI', 'SST-2', 'MRPC', 'CoLA', 'QNLI', 'QQP', 'RTE', 'STS-B']
 t2 = []
 for r in rowl:
     k = r[0]
-    vals = [num(x) for x in r[2:10]]
-    t2.append({'row': k, 'printed_avg': r[10], 'computed_avg': round(sum(vals) / 8, 2)})
+    vals = [_D(x.split('±')[0]) for x in r[2:10]]
+    t2.append({'row': k, 'printed_avg': r[10], 'computed_avg': _q(sum(vals) / 8, 2)})
 R['table2_avgs'] = t2
 bad = [x for x in t2 if abs(x['computed_avg'] - float(x['printed_avg'])) > 0.051]
 chk('Table 2 averages', 'Table 2', 'Avg. column', '%d of %d rows match to rounding' % (len(t2) - len(bad), len(t2)), 'mean of the eight task scores',
