@@ -1,6 +1,6 @@
 # Storage and data movement: parallel file systems, object storage and checkpoint I/O
 
-Notion: to be created or reused (child of Topic: ml-infra-and-orchestration, 3c65c17b0d0d81b5925bfd1d8665dd4b) once the Notion connection is back.
+Notion: https://app.notion.com/p/3fc5c17b0d0d818a94ced3fc7c3331fe (child of Topic: ml-infra-and-orchestration; a new page).
 
 HTML-only page, built 2026-10-16 (not yet published; Notion disconnected). `index.html` is the whole page; `src/` holds the build, the runs and their recorded outputs (see `src/README.md`).
 
