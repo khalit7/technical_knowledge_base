@@ -4187,3 +4187,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | 9 | Byte locator: Lustre's lov_stripe_number arithmetic with plain and PFL layouts | 9 | lov_offset.c at 2.17.0; manual and FSx PFL examples | Striping lab | built |
 | 10 | Sizing calculator: write, restore, data, metadata, capacity, FSx tiers and cost | 12 | derived; FSx and S3 prices from the root's snapshot; MLPerf Storage sizes | own tab | built; defaults agree with the root's calculator (same formula) |
 | 11 | Object-store semantics table with SeaweedFS's real responses | 9 | measured | Reading, section 5 | built |
+
+### Observability and cost: GPU metrics, goodput, utilisation and capacity planning (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_ml_infra_and_orchestration/observability_and_cost/src/viz_ideas.md`.
+
