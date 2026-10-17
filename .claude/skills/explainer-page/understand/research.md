@@ -19,6 +19,9 @@ Then write down, in one sentence, the question the subject keeps returning to (f
    - topic children own their details: link them by Notion id instead of repeating them.
 4. **List what exists**: the old page's visuals and outbound links. Its own sources are the first places to look; new ideas then do not repeat what is there.
 
+## Overlap with live pages in other topics
+Before planning a new topic, search `technical_knowledge_base/pages.json` (titles, paths) and the folder tree for pages that already teach part of it: another topic's child, a paper page, a lab tab. List them with what each owns. The default is to link them by id and not repeat them; folding one into the new topic or retitling it "TO DELETE: ..." is Khalid's decision (ask in the opening questions). Reuse their animations by linking, not rebuilding.
+
 ## Source order (most authoritative first)
 1. **Primary papers and technical reports.**
    - Read the arXiv HTML (`/html/`, not `/abs/`): read the **tables, not the prose**, and the appendix.

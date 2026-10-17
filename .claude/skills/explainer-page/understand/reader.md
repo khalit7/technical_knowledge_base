@@ -42,7 +42,10 @@ Ask these once, in one message, as short multiple-choice questions with a recomm
    - his Claude subscription through `claude -p` for agent traces;
    - news: short, verified and in context only.
 4. **Children.** How free you are with the old child pages: reuse, restructure, retitle, merge or retire (so far always "same freedom as before; propose with the root").
-5. **Review.** Review the root before it is published, or publish straight to Notion and review there; publish each child as it passes checks, or hold for review.
+5. **Placement and overlap.** Which section the root goes under (for example Systems and performance), and, when live pages in *other* topics already cover part of it (search `technical_knowledge_base/pages.json` titles and folder names first), what happens to them: link them from the new root (the default), fold one in and retitle the old one "TO DELETE: ...", or deepen the existing page instead of making a new root. See [../page-kinds/migrate-or-fold.md](../page-kinds/migrate-or-fold.md).
+6. **Review.** Review the root before it is published, or publish straight to Notion and review there; publish each child as it passes checks, or hold for review.
+
+"Mac local only" means: anything that runs on this Mac (CPU, and MPS one GPU job at a time under the bench lock), open models and public data, no paid APIs or keys. Choose the machine-mode block in [../orchestration/briefs/common.md](../orchestration/briefs/common.md) from it: GPU if any lab needs MPS, CPU only otherwise, containers only if he allowed Docker.
 
 Ask a topic-specific question only when the decision is genuinely his: a split into two roots (agentic harnesses and frameworks: "two roots, sharp split"), one page per language instead of eleven parts, whether Docker may run, which topic comes next.
 
