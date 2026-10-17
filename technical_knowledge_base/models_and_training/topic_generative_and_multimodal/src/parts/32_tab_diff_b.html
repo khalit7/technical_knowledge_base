@@ -1,0 +1,84 @@
+
+<section id="df-s4">
+<h2>4. Sampling: walking back from noise</h2>
+<p><b>The problem.</b> The trained network only answers &quot;given this noisy image at step t, what was the noise?&quot;. A <dfn>sampler</dfn> turns that answer into a path from pure noise to an image: a rule for where to go next and how many steps to take. Every sampler below uses the same trained weights; only the rule changes.</p>
+<ul class="tight">
+<li><b>DDPM, ancestral</b> ({{Ho et al. 2020|n:3c65c17b0d0d811481e4e36333454f7a}}): estimate the clean image x&#770;<sub>0</sub>, move to the average of where x<sub>t</sub> could have come from given x&#770;<sub>0</sub> (the posterior mean), then add fresh noise. Built for the 1,000 small steps it was trained on; the fresh noise means the same start gives a different image each run.</li>
+<li><b>DDIM</b> ({{Song, Meng and Ermon 2020|https://arxiv.org/abs/2010.02502}}): the same trained model, but no fresh noise: keep the predicted noise as the direction and jump straight to the previous noise level, x<sub>prev</sub> = &radic;&#257;<sub>prev</sub> x&#770;<sub>0</sub> + &radic;(1 &minus; &#257;<sub>prev</sub>) &epsilon;&#770;. Deterministic (same noise, same image) and valid for any number of steps, because it follows the probability-flow ODE that the {{math page, section 16|n:3f05c17b0d0d81aa9857eb5fa1bac530}} derives.</li>
+<li><b>DPM-Solver++ and Euler</b> ({{Lu et al. 2022|https://arxiv.org/abs/2211.01095}}; {{Karras et al. 2022|https://arxiv.org/abs/2206.00364}}): treat that ODE as an ODE and integrate it with better numerical methods. DPM-Solver++ (2M, the diffusers default, {{line 227|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/schedulers/scheduling_dpmsolver_multistep.py#L227}}) reuses the previous step's prediction to take second-order steps at no extra network cost; Euler is the first-order method in the noise-level parametrisation.</li>
+</ul>
+<p><b>DDIM, written out</b> (<code>src/diff/samplers.py</code>, the code that made the animation below). Run on the trained model for 10 steps from the same 16 noise images, it matches diffusers' <code>DDIMScheduler</code> (trailing spacing) to <span data-df="ddim_check"></span> (largest absolute difference in any pixel, float32 on MPS):</p>
+<pre class="df-code">def ddim(net, abar, x, y, n, s=1.0, pred="eps", trace=None):
+    ts = trailing(n)                                   # e.g. n = 4: 999, 749, 499, 249
+    for i, t in enumerate(ts):
+        ab = abar[t]
+        ab_prev = abar[ts[i + 1]] if i + 1 &lt; n else torch.ones_like(ab)
+        eps, x0 = to_eps_x0(guided(net, x, t, y, s), x, ab, pred)
+        x = ab_prev.sqrt() * x0 + (1 - ab_prev).sqrt() * eps       # jump to the previous noise level
+    return x</pre>
+<p class="df-src">diffusers v0.41.0 does the same in {{<code>scheduling_ddim.py</code> lines 456 and 491|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/schedulers/scheduling_ddim.py#L456}}; the DDPM step's posterior mean and variance are {{<code>scheduling_ddpm.py</code> lines 534 to 535 and 388|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/schedulers/scheduling_ddpm.py#L534}}, and the hand-written <code>ddpm()</code> beside <code>ddim()</code> follows them.</p>
+<div class="df-box" id="df-traj-card">
+<h4>The same noise through 1, 4, 20 and 50 steps</h4>
+<div class="df-ctl"><span class="seg" id="df-traj-n"><button data-m="1">1 step</button><button data-m="4">4</button><button data-m="20" class="on">20</button><button data-m="50">50</button><button data-m="d20">20, DDPM</button></span>
+<span class="seg" id="df-traj-v"><button data-m="xt" class="on">current image x<sub>t</sub></button><button data-m="x0">model's guess x&#770;<sub>0</sub></button></span></div>
+<div class="df-strip4" id="df-traj" style="grid-template-columns:repeat(3,minmax(0,1fr));max-width:330px"></div>
+<div class="df-an" id="df-traj-ctl"></div>
+<div class="df-cap" id="df-traj-cap"></div>
+<div class="df-cnt" id="df-traj-stats"></div>
+<p class="small mute">Three classes (dress, sandal, bag), the same three noise images in every mode; DDIM unless marked DDPM; no guidance (s = 1). Recorded frames from <code>sample_tiny.py</code>, shown at 16 grey levels.</p>
+</div>
+<p><b>What to notice.</b> Switch to the model's guess at 20 steps: over the first third of the steps x&#770;<sub>0</sub> turns from amplified noise into a rough, noisy outline of the final garment, and the remaining steps clean it up and add edges and texture; the 20-step and 50-step results are almost the same image, because DDIM follows one deterministic path from a given noise. Coarse structure is decided at high noise, detail at low noise, which is why skipping steps late hurts less than skipping them early. (At the very first step this noise-predicting model's guess is still mostly amplified noise, for the reason section 3 gives; a v-model's first guess is the blurred average, section 5.) The DDPM mode starts from the same noise but ends somewhere else: its fresh noise at every step makes it a different sample.</p>
+</section>
+
+<section id="df-s5">
+<h2>5. Steps against quality against time</h2>
+<p><b>The cost.</b> Every step is one network evaluation (two with guidance), so the step count is the price of an image. Here one evaluation of the tiny U-Net takes <span data-df="ms_1"></span> ms for one image and <span data-df="ms_1000"></span> ms for a batch of 1,000 on the M1 Pro's GPU; 1,000 DDPM steps for 1,000 images took <span data-df="sec_ddpm_1000"></span> s, DDIM at 20 steps <span data-df="sec_ddim_20"></span> s.</p>
+<div class="df-q" data-q="steps" data-right="0"><b>Predict, then reveal.</b> Same model, same noise, 10 steps each. Which scores better: DDPM's ancestral sampler or DDIM?
+<div class="opts"><button data-a="0">DDPM</button><button data-a="1">DDIM</button><button data-a="2">About the same</button></div><div class="ans" hidden>Here, DDPM: FD <span data-df="fd_ddpm_10"></span> against <span data-df="fd_ddim_10"></span> for DDIM, class accuracy <span data-df="acc_ddpm_10"></span> against <span data-df="acc_ddim_10"></span> <span class="meas">measured</span>. The textbook answer is DDIM: the DDIM paper reports its deterministic sampler far ahead at 10 to 100 steps on CIFAR-10, and that is why it exists. The difference is the model. Ours trained for <span data-df="train_min"></span> minutes and its noise predictions are still wrong in ways that pile up along a deterministic path; DDPM's fresh noise at every step lets later steps correct earlier mistakes ({{Karras et al. 2022|https://arxiv.org/abs/2206.00364}}, section 4, make this argument and add a tuned amount of noise to their own sampler). DDIM stops improving at <span data-df="fd_ddim_250"></span> by 250 steps; DDPM keeps going to <span data-df="fd_ddpm_1000"></span> at 1,000. A sampler ranking measured on one model does not transfer to another.</div></div>
+<div class="df-box" id="df-steps-card">
+<h4>1,000 samples per point, four samplers, the same trained model</h4>
+<div class="seg" id="df-steps-m"><button data-m="fd" class="on">FD (lower is better)</button><button data-m="acc">class accuracy</button><button data-m="div">diversity</button></div>
+<div class="df-leg" id="df-steps-leg"></div>
+<div class="df-plot" id="df-steps"></div>
+<p class="small" id="df-steps-cap"></p>
+<h4 style="margin-top:10px">Look at them: one sample per class, the same ten noise images everywhere</h4>
+<div class="df-ctl"><label>sampler <select id="df-st-s"><option value="ddpm">DDPM</option><option value="ddim" selected>DDIM</option><option value="dpm">DPM-Solver++ 2M</option></select></label>
+<label>steps <select id="df-st-n"><option>1</option><option>4</option><option selected>10</option><option>20</option><option>50</option><option>250</option><option>1000</option></select></label></div>
+<p class="small mute" style="margin:2px 0">Euler is not offered here: its samples and scores match DDIM's (chart above). Shown at 16 grey levels; scores use the full 8-bit samples.</p>
+<div class="df-cls" id="df-st-cls"></div>
+<div class="df-strip" id="df-st"></div>
+<p class="small" id="df-st-cap"></p>
+</div>
+<p><b>Noise or v at one step.</b> The &epsilon;-model's single DDIM step divides its noise error by &radic;&#257;<sub>999</sub> (section 3); the v-model, trained identically, has nothing to divide. One step is a bad idea for both, but only one of them fails by blowing up:</p>
+<div class="df-box" id="df-ev-card">
+<div id="df-ev"></div>
+<p class="small" id="df-ev-cap"></p>
+</div>
+</section>
+
+<section id="df-s6">
+<h2>6. Classifier-free guidance</h2>
+<p><b>The problem.</b> A conditional model asked for &quot;sandal&quot; produces something sandal-like, but its samples drift: some are ambiguous, some look like another class. We want a knob that trades variety for adherence to the condition, without training a separate classifier ({{Ho and Salimans 2022|https://arxiv.org/abs/2207.12598}}).</p>
+<p><b>How it works.</b> Train one network both with and without the label (the 10% dropout in section 3). At sampling, evaluate it both ways and extrapolate from the unconditional prediction past the conditional one:</p>
+<div class="fm"><div class="eq">&epsilon;&#770; = &epsilon;<sub>u</sub> + s &middot; (&epsilon;<sub>c</sub> &minus; &epsilon;<sub>u</sub>)</div>
+<dl><dt>&epsilon;<sub>c</sub>, &epsilon;<sub>u</sub></dt><dd>the prediction with the label (or prompt) and with the null label (or empty prompt)</dd><dt>s</dt><dd>the guidance scale: 0 is the unconditional model, 1 the plain conditional model, above 1 pushes further in the direction the condition points</dd></dl></div>
+<p>This is diffusers' convention, {{<code>pipeline_stable_diffusion.py</code> line 1055|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion.py#L1055}}. Two traps: the pipeline only runs the unconditional branch when the scale is above 1 ({{line 764|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion.py#L764}}), so <code>guidance_scale=0</code> there is the plain conditional model, not the unconditional one; and papers often write the same formula as &epsilon;<sub>c</sub> + w (&epsilon;<sub>c</sub> &minus; &epsilon;<sub>u</sub>), where w = s &minus; 1 (the shared <code>objectives.py</code> does). <b>The cost:</b> two evaluations per step, run as one batch of two (line 1037). The derivation, and a toy showing the lost diversity, are on the {{math page, section 17|n:3f05c17b0d0d81aa9857eb5fa1bac530}}.</p>
+<div class="df-box" id="df-cfg-card">
+<h4>Guidance on the tiny model: DDIM, 50 steps, the same noise at every scale</h4>
+<div class="df-ctl"><label>scale s <input type="range" id="df-cfg-s" min="0" max="7" value="1" step="1" aria-label="guidance scale"><b id="df-cfg-sv"></b></label><button id="df-cfg-play">&#9654; Sweep</button></div>
+<div class="df-cls" id="df-cfg-cls"></div>
+<div class="df-strip" id="df-cfg"></div>
+<div class="seg" id="df-cfg-m"><button data-m="acc" class="on">class accuracy</button><button data-m="div">diversity</button><button data-m="fd">FD</button><button data-m="white">white pixels</button></div>
+<div class="df-plot" id="df-cfgp"></div>
+<p class="small" id="df-cfg-cap"></p>
+</div>
+<div class="df-box" id="df-sdcfg-card">
+<h4>The same on Stable Diffusion v1.5: one prompt, one seed, 25 DPM-Solver++ steps</h4>
+<p class="small" style="margin:0 0 6px">&quot;<span data-df="prompt_g03"></span>&quot;, seed 0. Click an image to see its numbers.</p>
+<div class="df-sd" id="df-sdcfg"></div>
+<p class="small" id="df-sdcfg-cap"></p>
+<h4 style="margin-top:10px">Text rendering against guidance: &quot;<span data-df="prompt_x07"></span>&quot;</h4>
+<div class="df-sd" id="df-sdx07"></div>
+<p class="small" id="df-sdx07-cap"></p>
+</div>
+</section>
