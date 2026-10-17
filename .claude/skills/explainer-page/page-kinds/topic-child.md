@@ -92,4 +92,6 @@ The reader's question: **"how does this work, exactly, and what is the evidence?
 - **2026-10-17** (generative): two children measuring the same thing differently (SigLIP 2 outlier token positions) must reconcile before publishing; preprocessing is the usual cause.
 
 ---
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 Sources distilled: html_utils/methods/topic_pages.md Part B (ownership, shape, what makes a child good, lessons); html_utils/BRIEF_page_agent.md (Rules learned on the training topic); kb_briefs gm/mi/jx/dc/rag child briefs (state of the parent, siblings, scaffold, page quality, report); memory swe, benchmarks, rag, jax, gm, proglang and training topic logs; the diffusion_from_zero src/README.md.

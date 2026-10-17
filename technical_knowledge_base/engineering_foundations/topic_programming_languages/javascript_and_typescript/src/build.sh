@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/.
 # HTML: 01_head, then 1*.html (title, part bar, tab buttons per part), then every [2-9]*_tab_*.html in file-name order.
 # Parts own number ranges: start tab 20; part 1 30-39; part 2 40-49; part 3 50-59; page-wide 90-98.

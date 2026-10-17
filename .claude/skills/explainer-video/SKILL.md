@@ -45,6 +45,7 @@ Then publish to Notion as `notion.md` says.
 | `narration/check_takes.py` | Transcribes each take, flags REDO lines, writes the `voices` of `audio_meta.json`. |
 | `narration/voice_mac/`, `narration/voice_cuda/` | uv projects (pyproject and lock) for the two backends; their `.venv` is never committed. |
 | `scripts/vendor_skills.sh` | Copies refreshed HyperFrames skills into `vendor/` as real folders and cleans up the CLI's symlinks. |
+| `templates/project-CLAUDE.md` | Replaces the `AGENTS.md` and `CLAUDE.md` that `hyperframes init` writes into a page's `video/`. |
 | `vendor/` | The seven third-party HyperFrames skills this workflow uses (hyperframes, faceless-explainer, hyperframes-core, -cli, -animation, -creative, media-use), read by path. Do not edit. |
 
 ## Constraints
@@ -66,4 +67,6 @@ Report to Khalid:
 - where the video sits in Notion (fetched and confirmed under the embed), the `pages.json` change, and the commit.
 
 ## Sources distilled
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 `.claude/skills/create-explainer-video/SKILL.md`; `video_utils/README.md`, `narrate.py`, `check_takes.py`, `vendor_skills.sh`, both voice `pyproject.toml`; `CLAUDE.md` (Notion and video notes, writing rules, agent limits); `.claude/skills/sync-KB-github/SKILL.md` (Videos, stable `file://` form); the worked example at `topic_llms/video/`; the vendored `hyperframes`, `faceless-explainer` and `general-video` skills; memory notes on old videos and one GPU agent at a time.

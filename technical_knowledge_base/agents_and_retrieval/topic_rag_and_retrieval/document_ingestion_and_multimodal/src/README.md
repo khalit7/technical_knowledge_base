@@ -18,4 +18,4 @@ Shape: a child page of Topic: rag-and-retrieval (method `.claude/skills/explaine
 - Em dashes inside parser outputs are shown as en dashes (`build_data.py`), the knowledge base's house rule; MinerU's inline base64 images are replaced by `<!-- image -->`.
 
 ## Size
-The page is about 600 KB, over the usual 300 KB: it embeds real parser outputs (13 tools on 7 pages, cut at 2,500 characters), nine small page images and the ViDoRe thumbnails. Cutting them would remove the evidence the labs show.
+The page is about 600 KB, over the 300 KB guide of the time (retired 2026-10-17; now about 1 MB for a child page): it embeds real parser outputs (13 tools on 7 pages, cut at 2,500 characters), nine small page images and the ViDoRe thumbnails. Cutting them would remove the evidence the labs show.

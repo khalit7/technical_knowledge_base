@@ -1,6 +1,6 @@
 # Claude Code, taken apart: source
 
-Child of Topic: agentic-harnesses. Builds `../index.html` (about 362 KB: over the usual 300 KB because the page embeds 23 recordings for the Recordings tab and the gate model's data; accepted as on the parent).
+Child of Topic: agentic-harnesses. Builds `../index.html` (about 362 KB: over the 300 KB guide of the time (retired 2026-10-17; now about 1 MB for a child page) because the page embeds 23 recordings for the Recordings tab and the gate model's data; accepted as on the parent).
 
 ## Shape
 Part B (child page) of `.claude/skills/explainer-page/page-kinds/topic-child.md`: a Reading tab organised by mechanism in the order a session meets them (loop, tools, permissions, hooks, memory files, skills, subagents, plan mode, headless runs, settings, the SDK boundary), then the old page checked claim by claim, common mistakes and interview questions; one lab tab (Permission lab), one data tab (Recordings), Further reading. Departure: no "in production now" section, because the product's own docs and changelog are the production facts and section 10 carries them.

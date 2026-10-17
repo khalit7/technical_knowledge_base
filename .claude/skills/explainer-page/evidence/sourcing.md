@@ -39,4 +39,6 @@ Where a visual's defaults land on a published figure, the card says so in one li
 - Further reading entries are marked maker (written by the lab or company that builds it) or third-party, with an approximate time, links checked on a stated date.
 
 ## Sources distilled
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 `html_utils/interactive-html-ideas.md` section 2 (numbers treated with care, the Google and child-page rules, source order and search tactics), `html_utils/BRIEF_page_agent.md` (sourcing model), `html_utils/methods/papers.md` (tables rebuilt, does-not-reproduce box, figure decoding lessons), the gm, dc and jx briefs (published kept apart, "not run here", FACTS.md), and the generative root's Further reading part.

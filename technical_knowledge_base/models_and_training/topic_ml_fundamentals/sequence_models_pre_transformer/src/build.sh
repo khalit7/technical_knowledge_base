@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/ (the parent topic's slot scheme, parts listed explicitly).
 # HTML: 01_head, 10_header (title and tab bar), 20_read_a/b/c (Reading), 31_tab_vec (Word vectors), 39_tab_more (Further reading).
 # JS: 21_js_data.js (written by export_data.py) and every other *.js in file-name order, each in its own <script>, 99_js_tabs.js last.

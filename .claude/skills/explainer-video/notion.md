@@ -22,4 +22,6 @@ The MP4 exists only in Notion. The repository holds the project that makes it an
 - Publishing the page HTML itself stays with `sync-KB-github`; it keeps the `<video>` tag when it updates the embed.
 
 ## Sources distilled
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 `.claude/skills/create-explainer-video/SKILL.md` (Putting it in Notion); `CLAUDE.md` (Notion facts, video uploads, git rules); `.claude/skills/sync-KB-github/SKILL.md` (Videos, stable `file://` form, update_content rules); `technical_knowledge_base/pages.json` (the topic_llms video entry); memory notes on old root videos left for Khalid to delete.

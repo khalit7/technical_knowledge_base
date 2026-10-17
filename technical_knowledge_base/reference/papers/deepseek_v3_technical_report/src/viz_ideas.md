@@ -2,7 +2,7 @@
 
 The questions this page answers: **what is new in this report beyond V2, does its evidence support it, and is the bill real?** MLA, bias balancing, DualPipe and EPLB are already animated on the DeepSeek lab page and in Topic: llms ("Deeper: inside an MoE"), so they are linked, not rebuilt.
 
-Scoring follows `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each; reproduces and computable count double; build cost subtracted; plus one for a step-by-step animation against the method it replaced), with the paper-page criteria **R** (runs the paper's mechanism on real numbers) and **P** (supports a predict-then-reveal question). Rows to merge into the ideas log use ids P-deepseek_v3_technical_report.k.
+Scoring follows `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each; reproduces and computable count double; build cost subtracted; plus one for a step-by-step animation against the method it replaced), with the paper-page criteria **R** (runs the paper's mechanism on real numbers) and **P** (supports a predict-then-reveal question). Rows use ids P-deepseek_v3_technical_report.k.
 
 ## Built
 

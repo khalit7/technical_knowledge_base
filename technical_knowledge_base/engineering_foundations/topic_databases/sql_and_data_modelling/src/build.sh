@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/ (child page: SQL and data modelling).
 # HTML: 01_head, 10_header (title and tab bar), 20_read_*.html (20_read_a first) (Reading tab), then 3x_tab_*.html (one per tab, in file-name order).
 # JS: first the root page's in-page database engine, reused rather than copied (../../src/parts/31_js_sql_a_engine.js: sql.js 1.14.2

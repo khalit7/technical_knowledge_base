@@ -370,7 +370,7 @@ A second panel shows cost per effective PFLOP-hour = $/chip-hour / (peak x MFU),
 
 ### How the search went, in order
 
-1. **Step 0, done as written.** I stripped visual.html to text (scripts and styles removed, tags removed) and read all of it. I listed the built visuals and grepped the outbound hrefs (35 external). I read viz_ideas.md and its "what the methodology lacked" section, which is the Google addition in interactive-html-ideas.txt (lines 731 to 735).
+1. **Step 0, done as written.** I stripped visual.html to text (scripts and styles removed, tags removed) and read all of it. I listed the built visuals and grepped the outbound hrefs (35 external). I read viz_ideas.md and its "what the methodology lacked" section, which is the Google addition in the old interactive-html-ideas.txt (lines 731 to 735; its methodology now lives in `.claude/skills/explainer-page/visuals/choosing.md`).
 2. **WebSearch, tried once:** "Gemini context caching storage cost per hour break-even". It failed: "this session has used its web search budget (200 of 200)". No query patterns were tested.
 3. **Official docs first.** These were tried for numbers that become parameters: pricing (fetched three times with different prompts; one prompt returned only part of the table each time), caching, live-session, live-guide, tokens, google-search and changelog. The narrow prompts ("quote the rows for X") worked far better than "list every model".
 4. **Configs.**

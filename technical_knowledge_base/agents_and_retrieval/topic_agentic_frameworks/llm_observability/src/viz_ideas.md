@@ -24,4 +24,4 @@ What the text needs to be understood: what a span tree adds over log lines; what
 - Sampling decision time in the simulator: first span + decision_wait, or root arrival + 2 s when root-based; policy evaluated on spans seen by then; later spans follow the decision (as measured on 0.162.0 with the trace still in memory).
 
 ## What the methodology lacked here
-A pattern for "replay one recorded run through N instrumentations": recording model responses once and replaying them byte for byte made the comparison exact and cost no further model calls. Worth adding to the ideas log.
+A pattern for "replay one recorded run through N instrumentations": recording model responses once and replaying them byte for byte made the comparison exact and cost no further model calls.

@@ -11,13 +11,13 @@ description: Sync the Technical knowledge base from this repository (the source 
 Khalid asks to sync, publish, push, or "update Notion". Run it after building or changing pages. Nothing runs it automatically.
 
 ## State-derived
-`technical_knowledge_base/pages.json` lists every Notion page of the knowledge base (path, title, Notion id, status). For each page with `"status": "html_only"`, `published_sha256` is the hash of the `index.html` Notion holds now. `html_utils/sync_status.py` rebuilds every page and lists those whose hash differs: that list is the whole job. It does not depend on what changed since the last run, so a missed run is caught by the next one.
+`technical_knowledge_base/pages.json` lists every Notion page of the knowledge base (path, title, Notion id, status). For each page with `"status": "html_only"`, `published_sha256` is the hash of the `index.html` Notion holds now. `html_utils/sync_status.py` rebuilds every page and lists those whose hash differs: that list is the whole job. Every `build.sh` pins the repo's Python (`.venv`, 3.12, from `uv sync`) and the locale (`en_US.UTF-8`, which sets the order of globbed parts), so a rebuild gives the same bytes whichever shell runs it. It does not depend on what changed since the last run, so a missed run is caught by the next one.
 
 ## Steps
 1. `git pull`; check the working tree. Uncommitted changes to a page are fine if they are what is being published; anything unexpected, ask Khalid.
 2. `python3 html_utils/sync_status.py`. Fix every `PROBLEM` line first (a failed build, a folder missing from `pages.json`).
 3. For each `PUBLISH` page:
-   1. `sh html_utils/checkpage.sh <path>` must end `fail=0`, `emdash 0`, `errbox 1`. Do not publish a failing page.
+   1. `sh html_utils/checkpage.sh <path>` must end `fail=0`, `emdash 0`, `errbox 1`, `clipped 0`. Do not publish a failing page.
    2. **Upload:** Notion `create-file-upload` with `filename` `<folder name>.html` (content type inferred, `text/html`), then one multipart POST of `<path>/index.html` to the returned `upload_url` with every returned header: `curl -s -X POST "<upload_url>" -H "authorization: <value>" -F "file=@<path>/index.html;type=text/html;filename=<folder name>.html"`. Note the `file-upload://<id>`.
    3. **Fetch the Notion page** and compare it with what it should hold (embed, source line, video, child pages). If it has anything else (text someone added in Notion), stop and show Khalid: that is knowledge that belongs in the repository first.
    4. **Write it:**
@@ -30,9 +30,9 @@ Khalid asks to sync, publish, push, or "update Notion". Run it after building or
       - An old page with no new equivalent: never delete it yourself. Check coverage, report, and on Khalid's choice retitle it "TO DELETE: <title>"; he deletes it.
       - **Stable form for matching an existing embed or video:** a fetched tag shows a signed S3 address that changes on every fetch and never matches. Match `src="file://` followed by the URL-encoded JSON `{"source":"attachment:<id>:<filename>","permissionRecord":{"table":"block","id":"<block id>","spaceId":"13e79c56-ebab-4528-83aa-967a204b1f04"}}`, where `<id>` is the S3 folder just before the filename and the block id comes from the `#notion_record=block.<block id>.<space id>` fragment.
    5. Fetch again and confirm: the embed is first, the source line is right, children and video are intact.
-   6. `python3 html_utils/sync_status.py --record <path>`.
-4. Run `python3 html_utils/sync_status.py --no-build` again: it must say Notion is up to date.
-5. `python3 html_utils/page_finalize.py <folders>` (papers: `paper_finalize.py <slugs>`) records and commits; stage explicit paths only (it commits the whole folder, so a root sweeps in its children's files: commit or stash work in progress first). `git push`.
+   6. `python3 html_utils/page_finalize.py <path>` (papers: `paper_finalize.py <slug>`): marks it `html_only`, records the published hash and commits the folder with `pages.json`. It commits the whole folder, so a root sweeps in its children's files: commit or stash unrelated work in progress first.
+4. `python3 html_utils/sync_status.py --no-build`: it must say Notion is up to date.
+5. `git push`.
 
 ## Videos
 MP4s are never committed (`.gitignore` blocks them). A page's HyperFrames project (script, storyboard, compositions, narration audio) lives in `<page>/video/`; the rendered MP4 is uploaded to Notion by the `explainer-video` skill and exists only there.

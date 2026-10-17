@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/ (pattern of the root's src/build.sh and the sibling pretraining_corpora, 2026-10-14).
 # HTML: 01_head, 10_header (title and tab bar), 20_read_*.html (Reading tab, in file-name order), then 3x_tab_*.html (one per tab).
 # JS: data/dg_data.json as window.DG, then every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js last.

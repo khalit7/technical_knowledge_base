@@ -23,4 +23,4 @@ Research notes with quotes and URLs were gathered on 2026-10-06 from primary sou
 ## Departures from the brief
 - No local-model runs: the shared mlx_lm server died (generation thread) while batching other agents' long prompts; this agent did not own it and did not restart it.
 - OpenClaw and Hermes Agent were not installed or run: the permission policy refused installing them. Everything about them is from docs and source.
-- Data file is about 170 KB, so the page is about 296 KB, near the 300 KB guide.
+- Data file is about 170 KB, so the page is about 296 KB, near the 300 KB guide of the time (retired 2026-10-17).

@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/. Copy this file to <page folder>/src/build.sh; it needs no edits for the standard layout.
 # What to change for a new page: nothing here unless the layout differs. Set the <title> in parts/01_head.html,
 # the storage key in parts/99_js_tabs.js, and add a tex2mathml pass (below, commented) only if the page has LaTeX.

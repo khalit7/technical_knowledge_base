@@ -4,7 +4,7 @@ The question the paper keeps returning to: **when a coding agent scores well on 
 
 Scores: 0 to 2 on the Methodology's questions (reader-controlled quantity, reproduces a published figure, inputs public, shows what a sentence cannot, corrects a misconception, measures the central question, absent elsewhere), total out of 14.
 
-## Rows for the ideas log
+## Built
 
 | # | Idea | What it shows, and what the reader does | Data and sources | Placement | Score | Status |
 |---|---|---|---|---|---|---|

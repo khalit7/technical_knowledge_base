@@ -37,4 +37,4 @@ Prefix `va` (ids `va-*`; tab-local prefixes `pc-`, `rq-`, `tl-`), container clas
 
 - No old page to cover (new page; Notion disconnected): `coverage.md` lists the brief's requirements and where each is.
 - Overview depth, research-heavy: no video or audio generator was run (the brief: cheap demos only); the measured parts are the codecs, one video VAE and the counts.
-- Page size about 0.8 MB because of the audio players and spectrograms, over the 300 KB guideline and under the topic's 1 MB limit.
+- Page size about 0.8 MB because of the audio players and spectrograms, over the 300 KB guideline of the time (retired 2026-10-17) and under the topic's 1 MB limit.

@@ -48,4 +48,6 @@ When a run is worth doing but cannot happen now (the GPU queue is busy, the agen
 - Commit nothing over about 1 MB, no MP4s, no PDFs.
 
 ## Sources distilled
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 Memory: cheap-runs-over-expensive, completeness-over-disk, no-usage-caps, scratch-wiped-reboot, dc-topic-in-progress (the 2026-10-15 GPU queue cut), gm-topic-in-progress. Briefs: dc_common (pending boxes, timings against deterministic results), mi_common (timing labels), gm_common and jx_common (measured-on labels, what transfers, durability), dc_child_common (unfilled facts). `html_utils/methods/topic_pages.md` Part B (real data over illustrative, toys that complete something published).

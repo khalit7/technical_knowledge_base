@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/ (same macro rules as the parent page's build).
 # Run first when the inputs change: python3 recompute.py && python3 mk_data.py
 # HTML: 01_head, 10_header, the Reading parts in the order listed, then 3x_tab_*.html in file-name order.

@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/ (parts listed explicitly, so shell sort order never matters).
 # HTML: head and CSS, header and tab bar, Reading (a, b), Threshold lab, Text metrics lab, Further reading.
 # JS: every script in its own <script>, the tab wiring (99_js_tabs.js) last, after the hidden error box and handler.

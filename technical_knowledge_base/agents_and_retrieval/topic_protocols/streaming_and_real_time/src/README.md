@@ -23,7 +23,7 @@ Rerun the measurements: `WORK=<scratch> NGINX=<nginx 1.31.6> HNM=<html_utils/nod
 `inputs/` holds the Standard Webhooks spec and GitHub's validation doc as read on 5 October 2026, and the RFC 6455 text used as a long answer.
 
 ## Departures from the method
-Child-page shape as in methods/topic_pages.md Part B. Three before/after animations live inline in the Reading tab because each belongs to one section's argument; the two standalone visuals (Parser test, WebSocket bytes) got tabs. Simulated parts are labelled on the page: the relay models delay only; the webhook schedule is scaled down 60 times and truncated to four attempts; "think" stands for prefill.
+Child-page shape as in `.claude/skills/explainer-page/page-kinds/topic-child.md`. Three before/after animations live inline in the Reading tab because each belongs to one section's argument; the two standalone visuals (Parser test, WebSocket bytes) got tabs. Simulated parts are labelled on the page: the relay models delay only; the webhook schedule is scaled down 60 times and truncated to four attempts; "think" stands for prefill.
 
 ## Not run
 HTTP/2 and HTTP/3 versions of the SSE and cancellation measurements (EventSource over h2 would need the browser to trust the lab CA); RFC 8441/9220 WebSockets; WebTransport; real voice APIs (credentials). Packet captures (no root).

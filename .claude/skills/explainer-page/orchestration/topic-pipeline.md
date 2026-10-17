@@ -98,4 +98,6 @@ Keep one memory file per topic in Claude's project memory folder (`<prefix>-topi
 - **Many papers:** one agent per paper with [briefs/paper-agent.md](briefs/paper-agent.md), about four at a time; for each finished page re-run `checkpage.sh` and look at the screenshots, publish it, finalize it, commit. A paper whose `pages.json` status is `not_migrated` but whose folder has an `index.html` was built and not published; one with only a README has not started.
 
 ## Sources distilled
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+
 Memory logs of the generative, ML infra, JAX, RAG and data curation topics (2026-10-13 to 2026-10-17); feedback memories gpu-runs-one-agent, no-usage-caps, cheap-runs-over-expensive, manage-mac-resources, check-coverage-before-leaving-old, scratch-wiped-reboot, completeness-over-disk, teach-dont-ask-scope; the lead's agent prompts of 2026-10-16 and 2026-10-17 (fix pass, wiring, publish); html_utils/methods/papers.md "Running it for many papers"; CLAUDE.md; the sync-KB-github skill; html_utils/page_finalize.py.

@@ -6,7 +6,7 @@
 Reading (`20_read_*.html`, JS `23` to `26`), Pass diff viewer (`31_*`), Fusion explorer (`32_*`), Recompile detective (`33_*`), Profile reader (`34_*`), Further reading (`39_tab_more.html`). `22_js_xp_0data.js` is generated: never edit it. Storage key for the open tab: `xp-tab`.
 
 ## Shape
-A child-page shape (methods/topic_pages.md Part B): Reading organised by the pipeline's own order (lowering, PJRT, passes, fusion, layouts, buffers, remat) and then by what the user controls (caches, export, recompiles, profiling, flags), a comparison with torch.compile, mistakes and interview questions. Labs are the four the brief asked for. The root's Compiler lab owns the overview (five forms, MLP-block fusion, donation, remat policies, scan): linked, not rebuilt.
+A child-page shape (`.claude/skills/explainer-page/page-kinds/topic-child.md`): Reading organised by the pipeline's own order (lowering, PJRT, passes, fusion, layouts, buffers, remat) and then by what the user controls (caches, export, recompiles, profiling, flags), a comparison with torch.compile, mistakes and interview questions. Labs are the four the brief asked for. The root's Compiler lab owns the overview (five forms, MLP-block fusion, donation, remat policies, scan): linked, not rebuilt.
 
 ## Scripts (`lab/`, shared venv, CPU only, low priority)
 ```sh
@@ -37,4 +37,4 @@ node check_page.mjs ../../index.html   # every control at 390 dark and 920 light
 measured here (CPU, deterministic unless a time), read in source, Google docs, derived, not run here. Times: Apple M1 Pro CPU, shared machine (1-minute load 35 to 60), 4 threads, `nice -n 15`.
 
 ## Size
-About 0.55 MB, over the usual 300 KB: the embedded data (pass diffs, 783-fusion catalogue, breaker HLO, one step's trace) is about 375 KB and is the content of the labs.
+About 0.55 MB, over the 300 KB guide of the time (retired 2026-10-17; now about 1 MB for a child page): the embedded data (pass diffs, 783-fusion catalogue, breaker HLO, one step's trace) is about 375 KB and is the content of the labs.

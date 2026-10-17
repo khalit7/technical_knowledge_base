@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/.
 # HTML: 01_head, 10_header (title and tab bar), 20_read_*.html (Reading tab), then 3x_tab_*.html (one per tab, in file-name order).
 # Data: inputs/page_data.json (built by mk_data.py from the retrieval runs, RAGTruth and MS MARCO) becomes window.RDATA in its own <script>.
