@@ -1,0 +1,40 @@
+<section id="nm-s2">
+<h2>2. Two kinds of image token: one to read, one to write</h2>
+<p><b>The problem.</b> A transformer works on a sequence of vectors. Text gets there by looking each token id up in an embedding table. An image has no ids, so something must turn pixels into sequence positions, and the choice decides whether the model can ever write images.</p>
+<div class="rd-two">
+<div><p><b>Soft tokens</b> (continuous). A vision encoder (ViT, SigLIP) cuts the image into patches and outputs one vector per patch; a projector maps them to the model's width. Rich, semantic, good for answering questions about the image. But the model cannot output them: its output layer is a softmax over the vocabulary, and soft tokens are not in it. Every VLM and the encoder-free models read images this way. Cost: 1,088 positions for one image in SmolVLM-500M, 280 by default in Gemma 4 12B Unified.</p></div>
+<div><p><b>Discrete tokens</b> (codes). An image tokenizer (a VQ-VAE, VQGAN or FSQ autoencoder) maps each patch of a small latent grid to the index of its nearest codebook entry: an integer, exactly like a text token id. A decoder maps a grid of codes back to pixels. Now an image is a sequence of ids the model can predict with the same softmax and cross-entropy loss it uses for words. Cost: the tokenizer's reconstruction is lossy, and the model must write every code.</p></div>
+</div>
+<p>How the tokenizer is trained (straight-through gradients, dead codes, FSQ, VQGAN's losses) is the sibling page Autoencoders and VAEs; here it is a fixed part. The running example uses that page's best tiny tokenizer, an FSQ autoencoder with levels [8, 5, 5, 5] (8 &times; 5 &times; 5 &times; 5 = 1,000 codes): each 28 &times; 28 Fashion-MNIST image, padded to 32 &times; 32, becomes an 8 &times; 8 grid, so <b>64 tokens from 1,000 codes</b>. The Latent lab's 128-code VQ-VAE gives a second tokenizer of the same shape.</p>
+<div class="rd-card" id="nm-tv-card">
+<h4>One test image as 64 codes, and back</h4>
+<div class="seg" id="nm-tv-pick"></div>
+<div class="nm-cols">
+<div><canvas class="nm-canvas" id="nm-tv-orig" width="28" height="28" aria-label="original"></canvas><p class="small mute">Original (test set)</p></div>
+<div><div class="nm-tokgrid" id="nm-tv-grid"></div><p class="small mute">Its 64 FSQ codes (unshaded: code 472, the most common, background)</p></div>
+<div><canvas class="nm-canvas" id="nm-tv-fsq" width="28" height="28" aria-label="FSQ reconstruction"></canvas><p class="small mute">Decoded from the 64 codes (FSQ, 1,000 codes)</p></div>
+<div><canvas class="nm-canvas" id="nm-tv-vq" width="28" height="28" aria-label="VQ reconstruction"></canvas><p class="small mute">Decoded from the Latent lab's VQ (128 codes)</p></div>
+</div>
+<p class="small">Measured on the first 1,000 validation images (CPU): FD of the reconstructions <span data-nm="tok.fsq1000.recon_val1000_fd"></span> (FSQ-1000) and <span data-nm="tok.vq128.recon_val1000_fd"></span> (VQ-128), against <span data-nm="tok.floor_fd_val1000"></span> for the real images themselves; the classifier still recognises <span data-nm="tok.fsq1000.recon_val1000_acc" data-f="pct"></span> and <span data-nm="tok.vq128.recon_val1000_acc" data-f="pct"></span> of the reconstructions. <span class="meas">measured</span> These are the ceilings for any generator that writes these codes.</p>
+</div>
+<p><b>How many bits is an image?</b> With 1,000 codes, writing one code blindly costs log<sub>2</sub> 1,000 = 9.97 bits, so 64 codes cost <span data-nm="tok.fsq1000.bits_per_image_uniform" data-f="1"></span> bits. Codes are not equally common: their frequencies over the training set give <span data-nm="tok.fsq1000.unigram_entropy_bits" data-f="2"></span> bits per code, <span data-nm="tok.fsq1000.bits_per_image_unigram" data-f="1"></span> bits per image. An autoregressive model that predicts each code from the class and the codes before it needs, on held-out validation images, <b><span data-nm="nll_ar" data-f="1"></span> bits per image</b>: its exact negative log-likelihood, a number diffusion models cannot give cheaply. The maps show where those bits go.</p>
+<div class="nm-cols">
+<div><div id="nm-heat-a"></div><p class="small mute">Per position, no context: entropy of the codes seen at that position in training (bits; darker = more uncertain)</p></div>
+<div><div id="nm-heat-b"></div><p class="small mute">Per position, with context: the trained model's average cost on validation images (bits)</p></div>
+</div>
+<p>Corners and borders are almost free once the model has the class and the codes so far; the bits are spent along the garment's outline and texture. <span class="meas">measured</span></p>
+<p><b>Why not one kind for both jobs?</b> Janus tried it: with one VQ tokenizer for both reading and writing, its understanding score (POPE) was 60.1; with SigLIP features to read and VQ codes to write, 87.0 (Janus Table 5, {{arXiv 2410.13848v1|https://arxiv.org/html/2410.13848v1}}) <span class="vend">vendor</span>. Codes trained to reconstruct pixels keep what the pixels need (exact edges, colours), not what a question needs (what the object is). That is why Janus, BAGEL and most unified models keep two encodings (section 6).</p>
+<div class="tw"><table>
+<tr><th>Model</th><th>Image</th><th class="num">Positions per image</th><th>Kind</th><th>Source</th></tr>
+<tr><td>This page's tiny model</td><td>28 &times; 28 (padded to 32)</td><td class="num">64</td><td>FSQ codes, 1,000</td><td>measured</td></tr>
+<tr><td>Chameleon</td><td>512 &times; 512</td><td class="num">1,024</td><td>VQ codes, 8,192</td><td>paper, section 2.1</td></tr>
+<tr><td>Emu3</td><td>512 &times; 512</td><td class="num">4,096</td><td>VQ codes, 32,768</td><td>paper</td></tr>
+<tr><td>Janus (writing)</td><td>384 &times; 384</td><td class="num">576</td><td>VQ codes, 16,384</td><td>paper; 576 derived</td></tr>
+<tr><td>LlamaGen, Show-o</td><td>256 &times; 256</td><td class="num">256</td><td>VQ or LFQ codes</td><td>papers</td></tr>
+<tr><td>Transfusion</td><td>256 &times; 256</td><td class="num">256</td><td>continuous latent patches</td><td>paper, section 4.1</td></tr>
+<tr><td>SmolVLM-500M (reading)</td><td>any square</td><td class="num">1,088</td><td>soft tokens</td><td>measured (root VLM lab)</td></tr>
+<tr><td>Gemma 4 12B Unified (reading)</td><td>any</td><td class="num">280 (70 to 1,120)</td><td>soft tokens, no encoder</td><td>config and card</td></tr>
+<tr><td>Gemini API (reading)</td><td>up to 384 px; larger tiled at 768</td><td class="num">258 per tile</td><td>not disclosed</td><td>API docs (vendor)</td></tr>
+</table></div>
+<p class="small">The full published table of tokenizers, with codebook sizes and reconstruction FID, is on the sibling page Autoencoders and VAEs (its section 8); the arithmetic for whole requests is in {{Token economics|#t-nmtok}}.</p>
+</section>
