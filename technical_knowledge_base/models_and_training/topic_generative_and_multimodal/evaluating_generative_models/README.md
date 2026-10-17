@@ -1,5 +1,5 @@
 # Evaluating generative models: FID, CLIPScore, preference and VLM benchmarks
 
-Notion: to be created or reused (child of Topic: generative-and-multimodal, 3c65c17b0d0d817ab6ade318917bff55) once the Notion connection is back.
+Notion: https://app.notion.com/p/3fc5c17b0d0d81c890f4f62543312faa (child of Topic: generative-and-multimodal; a new page).
 
 Not migrated yet: a new page.
