@@ -1,0 +1,58 @@
+<div class="tab nmp" id="t-nmtok" role="tabpanel" hidden>
+<style>
+#t-nmtok .tk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px 12px;font-size:13px;margin:6px 0}
+#t-nmtok .tk-row label{display:flex;flex-direction:column;gap:2px;min-width:0}
+#t-nmtok .tk-row input[type=number],#t-nmtok .tk-row select{width:100%}
+#t-nmtok .tk-stack{display:flex;height:22px;border-radius:4px;overflow:hidden;margin:6px 0;background:var(--soft)}
+#t-nmtok .tk-stack span{display:block;height:100%}
+#t-nmtok .tk-tbl td,#t-nmtok .tk-tbl th{font-size:12.5px}
+#t-nmtok .tk-src{font-size:12px;color:var(--mute)}
+</style>
+<h2>Token economics: what a multimodal request costs in tokens, cache and sequential calls</h2>
+<p>Everything a native multimodal model reads or writes becomes positions in one sequence, so the bill is counted in tokens. This tab does the arithmetic for a whole request (images, audio, video and text in) and for one output (an image or a stretch of speech out). The reading-side rules for single VLMs, with tiles and cache, are on the sibling page Vision-language models (its Token and cache budget tab); this tab adds audio and video, the native and closed models, and the writing side, which a VLM does not have.</p>
+
+<div class="rd-card" id="tk-in">
+<h4>1. Reading in: one request's context</h4>
+<div class="tk-row">
+<label>How the model counts<select id="tk-prof"></select></label>
+<label>Images<input type="number" id="tk-ni" min="0" max="50" value="2"></label>
+<label>Image width (px)<input type="number" id="tk-w" min="16" max="8000" value="1024"></label>
+<label>Image height (px)<input type="number" id="tk-h" min="16" max="8000" value="768"></label>
+<label>Audio (seconds)<input type="number" id="tk-as" min="0" max="36000" value="60"></label>
+<label>Video (seconds)<input type="number" id="tk-vs" min="0" max="36000" value="30"></label>
+<label>Text tokens<input type="number" id="tk-tt" min="0" max="2000000" value="300"></label>
+<label>Cache per token<select id="tk-kv"></select></label>
+</div>
+<div class="tk-stack" id="tk-bar" aria-label="tokens by modality"></div>
+<div class="leg" id="tk-leg"></div>
+<div class="an-cnt" id="tk-out"></div>
+<p class="tk-src" id="tk-psrc"></p>
+</div>
+
+<div class="rd-card" id="tk-out2">
+<h4>2. Writing out: one image, by three generation styles</h4>
+<div class="tk-row">
+<label>Resolution (square, px)<input type="number" id="tk-r" min="64" max="4096" step="64" value="512"></label>
+<label>Autoregressive: tokenizer downsampling f<select id="tk-f"><option value="8">8 (Emu3, DALL-E)</option><option value="16" selected>16 (Chameleon, Janus, LlamaGen)</option><option value="32">32</option></select></label>
+<label>Autoregressive model (billion parameters)<input type="number" id="tk-par" min="0.1" max="400" step="0.1" value="7"></label>
+<label>Masked rounds (MaskGIT style)<input type="number" id="tk-ms" min="1" max="256" value="8"></label>
+<label>Diffusion transformer (billion parameters)<input type="number" id="tk-dpar" min="0.1" max="400" step="0.1" value="2.03"></label>
+<label>Diffusion steps<input type="number" id="tk-ds" min="1" max="1000" value="28"></label>
+<label>Classifier-free guidance<select id="tk-cfg"><option value="1">off (1 pass)</option><option value="2" selected>on (2 passes, batched)</option></select></label>
+<label>Time per sequential call (ms, your hardware)<input type="number" id="tk-ms1" min="0.1" max="10000" step="0.1" value="20"></label>
+</div>
+<div class="tw"><table class="tk-tbl" id="tk-gen"></table></div>
+<p class="tk-src">Derived: autoregressive tokens = (resolution / f)<sup>2</sup>, one call each; a masked model fills the same tokens in the chosen number of rounds, each round a full pass over all of them; the diffusion transformer works on (resolution / 16)<sup>2</sup> latent tokens (an 8 times VAE and 2 &times; 2 patches, the SD3 and FLUX layout). Compute = 2 FLOPs per parameter per token processed (attention and the tokenizer or VAE ignored), times 2 with guidance. Defaults: 7B, f = 16 at 512 px is Chameleon-7B's 1,024 tokens per image; the diffusion row defaults to SD3 Medium's 2.03B transformer (2,028,328,000 parameters counted on the sibling page Latent diffusion and diffusion transformers) and its pipeline default of 28 steps with guidance. The time per call is yours to set (20 ms is an illustrative value, not a measurement); a call of the diffusion model processes far more tokens than an autoregressive decode step, so equal milliseconds per call is optimistic for it. <span class="der">derived</span></p>
+</div>
+
+<div class="rd-card" id="tk-sp">
+<h4>3. Speech out: the real-time budget</h4>
+<div class="tk-row">
+<label>Speech to generate (seconds)<input type="number" id="tk-sps" min="1" max="3600" value="10"></label>
+<label>Codec<select id="tk-codec"><option value="mimi" selected>Mimi (Moshi): 12.5 frames/s, 8 codebooks</option><option value="enc">EnCodec 24 kHz at 6 kbps: 75 frames/s, 8 codebooks</option></select></label>
+<label>Generation layout<select id="tk-lay"><option value="depth" selected>one big step per frame, codebooks by a small depth model (Moshi)</option><option value="flat">every codebook token in the big model, one by one</option></select></label>
+</div>
+<div class="an-cnt" id="tk-spout"></div>
+<p class="tk-src">Frame rates and codebooks: Mimi 12.5 Hz with 8 codebooks of 2,048 (1.1 kbps) and EnCodec 75 Hz with 8 codebooks at 6 kbps, as measured and quoted on the sibling page Video and audio generation; Moshi models 17 streams per 80 ms step (1 text + 8 + 8) and states "a theoretical latency of 160ms, 200ms in practice" ({{D&eacute;fossez et al. 2024|https://arxiv.org/abs/2410.00037}}) <span class="vend">vendor</span>. Budget per big-model step = 1 / frame rate. <span class="der">derived</span></p>
+</div>
+</div>

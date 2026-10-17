@@ -1,0 +1,45 @@
+<section id="nm-s3">
+<h2>3. Writing an image one token at a time</h2>
+<p><b>How it works.</b> Put the image's codes in a fixed order (raster: left to right, top to bottom) and model them like words. The chain rule turns the probability of a whole image into a product of next-token probabilities:</p>
+<div class="fm"><div class="eq"><i>p</i>(<i>x</i><sub>1</sub>, &hellip;, <i>x</i><sub>64</sub> | <i>c</i>) = &prod;<sub><i>i</i></sub> <i>p</i>(<i>x<sub>i</sub></i> | <i>c</i>, <i>x</i><sub>1</sub>, &hellip;, <i>x</i><sub><i>i</i>&minus;1</sub>)</div>
+<dl><dt>x<sub>i</sub></dt><dd>the code at position <i>i</i> (one of 1,000 here)</dd><dt>c</dt><dd>the condition: a class here, a text prompt in a real model, both as tokens before the image</dd></dl></div>
+<p>Training is next-token cross-entropy with teacher forcing: the network sees the true codes 1 to <i>i</i> &minus; 1 and is scored on code <i>i</i>, for all 64 positions in one pass, under a causal mask. Generating is a loop: one call, one sampled code, append, repeat. The running example's model is a 6-layer transformer of width 192 (<span data-nm="tok.params_ar1000" data-f="int"></span> parameters), the class embedding as the first position (LlamaGen's layout), trained with the Diffusion lab's exact recipe (batch 128, AdamW 5 &times; 10<sup>-4</sup>, EMA 0.999, 10% of labels dropped for guidance) for <span data-nm="runs.ar_fsq1000.steps" data-f="int"></span> steps, <span data-nm="runs.ar_fsq1000.seconds" data-f="int"></span> s on the M1 Pro's GPU. The sampling loop that produced every number below, copied from <code>src/ar/tinyar.py</code> (<code>sample_ar</code>, without its recording lines):</p>
+<pre class="rd-code">for i in range(m.n_tok):
+    inp_tokens = out if (not use_cache or i == 0) else out[:, -1:]
+    if cfg not in (0, 1):
+        inp_tokens = torch.cat([inp_tokens, inp_tokens])
+    if use_cache:
+        lg = m(inp_tokens if i &gt; 0 else inp_tokens[:, :0], yy, caches=caches, start=0 if i == 0 else i)[:, -1]
+    else:
+        lg = m(inp_tokens, yy)[:, -1]
+    if cfg not in (0, 1):
+        lc, lu = lg.chunk(2); lg = lu + cfg * (lc - lu)
+    f = _filter(lg.float(), temperature, top_k)
+    if f is None:
+        nxt = lg.argmax(-1)
+        p = lg.float().softmax(-1)
+    else:
+        p = f.softmax(-1)
+        if u is not None:
+            nxt = _draw(p, u[:, i].to(dev))
+        else:
+            nxt = torch.multinomial(p.cpu(), 1, generator=gen).squeeze(1).to(dev)
+    out = torch.cat([out, nxt[:, None]], 1)</pre>
+<p class="small">Checks that ran: the cached and uncached loops give logits within 1.4 &times; 10<sup>-6</sup> and identical samples (CPU); one image at batch 1 takes <span data-nm="batch1.cache" data-f="2"></span> s with the cache and <span data-nm="batch1.nocache" data-f="2"></span> s without (MPS, median of 3): at 64 tokens recomputing the short prefix is cheaper than the cache's bookkeeping on this GPU; the cache pays off for the thousands of tokens of a real image or conversation, where recomputation grows with the square of the length. <span class="meas">measured</span></p>
+
+<h3>Three knobs, the same as for text</h3>
+<ul>
+<li><dfn>Temperature</dfn> <i>T</i> divides the logits before the softmax: below 1 sharpens toward the likeliest codes, above 1 flattens, 0 means always take the top code (<dfn>greedy</dfn>).</li>
+<li><dfn>Top-k</dfn> keeps only the <i>k</i> likeliest codes and renormalises.</li>
+<li><dfn>Classifier-free guidance</dfn> on logits: run the conditional and the null-class input together and use <i>l</i><sub>u</sub> + <i>s</i>(<i>l</i><sub>c</sub> &minus; <i>l</i><sub>u</sub>), with <i>s</i> = 1 the plain conditional model. LlamaGen states this form, &ell;<sub>g</sub> = &ell;<sub>u</sub> + <i>s</i>(&ell;<sub>c</sub> &minus; &ell;<sub>u</sub>), and its best ImageNet result uses <i>s</i> = 1.65 ({{arXiv 2406.06525v1|https://arxiv.org/html/2406.06525v1}}); transformers implements the same line for Janus as <code>scores_processed = uncond_logits + (cond_logits - uncond_logits) * self.guidance_scale</code> ({{logits_process.py line 2205, v5.20.1|https://github.com/huggingface/transformers/blob/v5.20.1/src/transformers/generation/logits_process.py#L2205}}), and Janus's generate falls back to 5 when no scale is given (<code>modeling_janus.py</code> line 1194).</li>
+</ul>
+<p>The same knobs for text, with real logits, are on {{Sampling and Decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}. For images the verdicts differ, as the measurements show.</p>
+<div class="pr"><div class="q">Predict: sample 100 pullovers from the tiny model with greedy decoding (temperature 0). How many different images do you get?</div>
+<div class="opts"><button>About 100: the codes differ a little each time</button><button>About 50</button><button data-r="1">One</button></div>
+<div class="ans" hidden><span class="meas">measured</span> <span data-nm="greedy.distinct_per_class" data-f="int"></span> per class. With the class as the only input and no randomness, every call sees the same prefix and picks the same code: greedy decoding is a deterministic function of the class. FD <span data-nm="greedy.fd" data-f="1"></span> against <span data-nm="t1.fd" data-f="1"></span> at temperature 1. For a factual text answer that is fine; for images it deletes the distribution.</div></div>
+<div class="rd-card"><h4>Temperature on the same random draws (top-k off, no guidance; 1,000 samples per row)</h4>
+<div class="tw"><table id="nm-temp-tbl"></table></div>
+<p class="small" id="nm-temp-note"></p></div>
+<p id="nm-s3-read"><b>What the measurements say.</b> On this model the best FD without guidance is at temperature 1, the temperature it was trained for: cooling to 0.7 makes every class look tidier (the classifier accuracy rises) but the samples cluster around the most typical shapes, diversity drops and FD gets worse; heating to 1.3 adds noise faster than variety. Top-k behaves like cooling: keeping only the 10 likeliest codes gives FD <span data-nm="topk10.fd" data-f="1"></span> against <span data-nm="t1.fd" data-f="1"></span> with all 1,000. Guidance helps most: the best scale, s = <span data-nm="best_cfg.s"></span>, brings FD to <span data-nm="best_cfg.fd" data-f="1"></span> with <span data-nm="best_cfg.acc" data-f="pct"></span> of samples recognised as the asked-for class; s = 0 (the unconditional model) gives FD <span data-nm="cfg0.fd" data-f="1"></span> and the right class only <span data-nm="cfg0.acc" data-f="pct"></span> of the time, chance level. <span class="meas">measured</span> The lesson that transfers: for image tokens, temperature and top-k trade diversity for typicality, and FD punishes the loss of diversity; guidance is the knob that buys fidelity, as it is for diffusion (the Diffusion lab's best was s = 2).</p>
+<p class="deepnote">Every combination of temperature, top-k and guidance, the sweeps over a wider range and one image written token by token with its real top-5 probabilities are in the {{Token generator lab|#t-nmgen}}.</p>
+</section>
