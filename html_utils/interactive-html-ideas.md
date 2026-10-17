@@ -3992,3 +3992,20 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | QC9 | Nemotron-CC ensemble confusion matrix against published levels | 11 | Reading s5 | rebuilt ensemble, 1,000 docs |
 | QC10 | Repetition calculator: keep share x pool against training tokens, effective data by Muennighoff's fit | 10 | Reading s10 | derived (R* = 15.39) |
 | QC11 | Predict-then-reveal x 3 (strongest word, DCLM cut on FineWeb, curly quotes) | 9 | Reading | measured |
+
+### Data mixing, curricula and continued-pretraining ratios (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/data_mixing/src/viz_ideas.md`.
+
+| # | Idea | Placement | Score | Data | Notes |
+|---|---|---|---|---|---|
+| 1 | Mixing-law fitter on RegMix's 1,088 released runs: linear and exponential law fitted in the browser, tested on 1M, 60M and 1B, recommended mixtures, coefficients | tab | 13 | sail-sg/regmix data/*.csv (MIT) | Reproduces Table 2 rho within 0.7 points independently; adds the Data Mixing Laws form RegMix did not fit (1B rho 98.76); exposes coefficient instability for tiny domains |
+| 2 | DoReMi step by step: Algorithm 1 ported, toy power-law losses, excess, update, average; before/after main model | tab | 10 | illustrative losses, paper's rule | Toy agrees with recompute.py; measured mode pending (GPU) |
+| 2b | Measured DoReMi run animated: per-step weights and running average over 4,000 proxy steps, excess strip, reference vs averaged weights and held-out losses | DoReMi tab and Reading s7 | 11 | this page's run on five running-example domains | Shows what the toy cannot: weights swinging to one domain, the slowly converging average, equalised final excess, web downweighted (reverse of the Pile result) |
+| 3 | Token-budget planner: pools, stages, weights to epochs and Muennighoff D'; same tokens in two orders animated | tab | 11 | OLMo 2 Tables 4/13, SmolLM3 configs, DeepSeekMath, published pool sizes | Presets reproduce Table 13 source % to rounding by construction |
+| 4 | Temperature and UniMax on The Pile's 22 real sizes with epochs per domain | Reading s1 | 10 | Pile Table 1 | UniMax N=3 reproduces the Pile's own Wikipedia weight (both cap at 3 epochs) |
+| 5 | Repetition curve D'(epochs) with marker and marginal value | Reading s2 | 9 | Muennighoff R*_D | Corrects the "few dozen repeats" claim |
+| 6 | Four weightings of The Pile (Table 1, DoReMi baseline, DoReMi 280M, repo 120M) | Reading s3a | 9 | DoReMi Table 1, repo configs | Exposes the document-count baseline |
+| 7 | Loader blend, random vs Megatron error-driven, animated before/after | Reading s4 | 8 | Megatron helpers.cpp 104 to 128 | |
+| 8 | SmolLM3 stage mixtures to scale from configs | Reading s5 | 8 | smollm configs | grouping is this page's |
+| 9 | Tables: RegMix refit, Aioli Table 2 coloured, SmolLM2 Table 3, OLMo 2 Table 13 with implied repeats | Reading | - | papers | |
