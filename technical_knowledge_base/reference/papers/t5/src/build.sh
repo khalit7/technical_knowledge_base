@@ -1,4 +1,5 @@
 #!/bin/sh
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Build ../index.html for a paper page. Fail-safe: every JS part in its own <script>, tab wiring last,
 # the hidden #jsErr box and global error handler before any script.
 # Link macros in the HTML parts:
