@@ -45,7 +45,7 @@ Rules for every word that ends up on a page, in `src/` notes, in a README or in 
 ## Reading time
 - **Measure it, do not guess**: use the build's word count or the check script, and state it in the page header.
 - **Closed `<details>` blocks** are counted and reported apart ("22 minutes, plus 7 in closed details").
-- **Budgets**: about 15 to 30 minutes for a root; children are longer and that is accepted. Say when a page runs over ([../page-kinds/topic-root.md](../page-kinds/topic-root.md)).
+- **Budgets**: about 15 to 30 minutes for a root; children about 25 to 45 minutes. Flag a root over 30 or a child over 45 ([../page-kinds/topic-root.md](../page-kinds/topic-root.md)).
 - **Keep cross-references current**: when a page's time changes, the times quoted for it in its siblings' and root's Further reading are updated at the wiring pass. Stale "19 min" mentions were left on the benchmarks children.
 
 ## Privacy in text
