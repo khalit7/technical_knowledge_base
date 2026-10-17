@@ -2,6 +2,8 @@
 inputs/figs.json. Writes inputs/recompute.json (read by mk_paper.py into window.PAPER.rc).
 usage: python3 recompute.py   (build.sh runs it)"""
 import json, math, os
+from decimal import Decimal as _D, ROUND_HALF_UP
+_q = lambda d, n: float(d.quantize(_D(1).scaleb(-n), ROUND_HALF_UP))  # exact, half-up: same result on every Python version
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 T = json.load(open(os.path.join(HERE, 'tables.json')))
@@ -51,8 +53,8 @@ def avg_check(tab, cols_idx, avg_idx):
     for r in T[tab]['rows']:
         vals = [r['v'][i] for i in cols_idx]
         if any(v in ('-', '–') for v in vals): continue
-        m = sum(f(v) for v in vals) / len(vals)
-        out.append({'name': r['name'], 'printed': r['v'][avg_idx], 'mean': round(m, 2), 'diff': round(m - f(r['v'][avg_idx]), 2)})
+        m = sum(_D(v) for v in vals) / len(vals)
+        out.append({'name': r['name'], 'printed': r['v'][avg_idx], 'mean': _q(m, 2), 'diff': _q(m - _D(r['v'][avg_idx]), 2)})
     return out
 
 
