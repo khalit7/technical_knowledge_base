@@ -1,0 +1,48 @@
+<section id="rd-s9">
+<h2>9. Evaluation: what the numbers measure and how they mislead</h2>
+<p><b>FID</b> (Fr&eacute;chet Inception Distance, {{Heusel et al. 2017|https://arxiv.org/abs/1706.08500}}) is the standard score for generated images. Pass a set of real images and a set of generated ones through Inception-v3, an ImageNet classifier, and keep one 2,048-number feature vector per image; fit a Gaussian (mean and covariance) to each set; report the distance between the two Gaussians, &#8214;&mu;<sub>r</sub> &minus; &mu;<sub>g</sub>&#8214;<sup>2</sup> + Tr(&Sigma;<sub>r</sub> + &Sigma;<sub>g</sub> &minus; 2(&Sigma;<sub>r</sub>&Sigma;<sub>g</sub>)<sup>1/2</sup>). Lower is better, and it penalises both bad images and too little variety. Its pitfalls are well documented:</p>
+<ul>
+<li><b>Sample count.</b> The estimate is biased: the same model scores worse with fewer samples, so FIDs are comparable only at the same count (50,000 is the convention). Jayasumana et al. list "inconsistent results when varying the sample size" among FID's faults ({{2023|https://arxiv.org/abs/2401.09603}}). <span data-rd="fid_n" class="rd-todo">TODO (setup or Diffusion lab): FID of one model at several sample counts, measured.</span></li>
+<li><b>Preprocessing.</b> Resizing and JPEG compression "can induce large variations"; aliased resizing corrupts the features, and "FID can actually improve if the generated images are also subsequently compressed" ({{Parmar, Zhang and Zhu 2021|https://arxiv.org/abs/2104.11222}}, the clean-fid paper).</li>
+<li><b>ImageNet leakage.</b> Inception's features are so tied to ImageNet classes that matching the class histogram of the real set lowers FID "without any real gain in image quality" ({{Kynk&auml;&auml;nniemi et al. 2022|https://arxiv.org/abs/2203.06026}}).</li>
+<li><b>Wrong features for modern content.</b> For text-to-image models FID "contradicts human raters"; CMMD, a kernel distance on CLIP embeddings, is one proposed fix ({{Jayasumana et al.|https://arxiv.org/abs/2401.09603}}).</li>
+<li><b>One number for two things.</b> Precision (are samples realistic?) and recall (is the data's variety covered?) separate fidelity from diversity ({{Kynk&auml;&auml;nniemi et al. 2019|https://arxiv.org/abs/1904.06991}}). Papers rarely give FID error bars; differences under about 0.5 between single runs are not evidence ({{LDM page|n:3c65c17b0d0d81bb98adc0daf8462cb6}}).</li>
+</ul>
+<p><b>Prompt alignment.</b> <dfn>CLIPScore</dfn> is the CLIP similarity between an image and its prompt ({{Hessel et al. 2021|https://arxiv.org/abs/2104.08718}}); it inherits CLIP's blindness to counts and relations (section 5). GenEval instead runs an object detector to check "object co-occurrence, position, count, and color" against the prompt ({{Ghosh et al. 2023|https://arxiv.org/abs/2310.11513}}). The kind of failure it catches: Stable Diffusion v1.5 asked for "an astronaut riding a horse on the moon" drew the astronaut on the moon and no horse <span class="meas">measured</span> (setup smoke test, seed 5), an image a global similarity score can still rate as close to its prompt. <b>Human preference</b> remains the final judge: pairwise votes on text-to-image and vision arenas, with the same caveats as text arenas (style, self-selected prompts, vendors testing private variants), are covered on {{Human preference and arenas|n:3ef5c17b0d0d814db49ff3b5c9fc3034}}.</p>
+<p><b>VLMs</b> are scored on question-answering benchmarks (MMMU, MathVista, ChartQA, DocVQA and others, on {{Long-context and multimodal benchmarks|n:3ef5c17b0d0d810bb4dfc98919c9be8a}}). Two traps are specific to them: many questions can be answered without looking at the image ({{Chen et al. 2024|https://arxiv.org/abs/2403.20330}}), so a text-only baseline belongs next to every score; and captioning or open answers hide hallucination unless absent objects are probed directly, as POPE does (section 6).</p>
+<div class="pr"><div class="q">Predict: two teams report FID 9.1 and 8.4 for their models. What do you need to know before believing the second is better?</div>
+<div class="opts"><button>Nothing: lower FID is better</button><button data-r="1">Same reference set, sample count, resizing and FID code; ideally several seeds</button><button>Only the resolution</button></div>
+<div class="ans" hidden>All of them. Sample count biases the score, resizing and compression "can induce large variations" (clean-fid), the reference set (training or held-out images, how many) changes it, and two implementations differ (the LDM paper reports 7.76 against 7.77 for the same samples). A 0.7 gap between single runs computed differently says nothing; recompute both with one tool on the same reference set, and look at precision and recall and at images.</div></div>
+<p class="deepnote">Go deeper (optional): child page Evaluating generative models (being built); measuring a VLM on {{Topic: evaluation-and-llm-judges|n:3c65c17b0d0d8181b351e1b8fc6a1546}} (statistics, judges, human evaluation).</p>
+</section>
+
+<section id="rd-s10">
+<h2>10. Choosing, and what an image costs</h2>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Job</th><th>Default choice in 2026</th><th>Why, and the trade</th></tr></thead>
+<tbody>
+<tr><td>Text-to-image, best quality</td><td>Latent flow or diffusion transformer, 20 to 50 steps with guidance</td><td>Best published quality; the bill is steps &times; 2 denoiser calls</td></tr>
+<tr><td>Text-to-image, interactive (under 1 s)</td><td>The same model distilled to 1 to 4 steps</td><td>10 to 50 times fewer calls; some loss of variety and detail</td></tr>
+<tr><td>Generate and edit images inside a chat</td><td>Native multimodal model, or an LLM driving a generator</td><td>One context for text and image; native designs are mostly closed or young</td></tr>
+<tr><td>Answer questions about images or documents</td><td>VLM: SigLIP-class encoder, projector, LLM, tiling for high resolution</td><td>Accuracy grows with image tokens; so do latency and context</td></tr>
+<tr><td>Classify or search images with text</td><td>CLIP or SigLIP embeddings, zero-shot</td><td>No training; weak on counts, relations and fine detail</td></tr>
+<tr><td>Speech, music, sound</td><td>Codec tokens with a language model, or latent diffusion</td><td>Tokens suit long structure and streaming; diffusion suits fixed-length clips</td></tr>
+<tr><td>A probability for each sample (compression, anomaly scores)</td><td>Autoregressive model or VAE</td><td>Exact likelihood or a bound; diffusion needs an ODE solve for it</td></tr>
+</tbody></table></div>
+<p class="small mute">Defaults follow from sections 1 to 8 and their sources; which named model fits each job, with its licence, is in the {{Model map|#t-map}}.</p>
+
+<div class="rd-card" id="rd-cost-card">
+<h4>What one text-to-image sample costs, counted</h4>
+<p class="small">Counts follow from the pipeline of section 4; only the seconds need a measurement. The denoiser runs on the latent: a U-Net on its grid, a DiT on its patches.</p>
+<div class="rd-calc">
+<label>Image side (pixels)<select id="rd-c-res"><option>256</option><option selected>512</option><option>768</option><option>1024</option></select></label>
+<label>Latent channels<select id="rd-c-ch"><option value="4" selected>4 (SD 1, SDXL)</option><option value="16">16 (SD3, FLUX.1)</option></select></label>
+<label>Steps<select id="rd-c-steps"><option>1</option><option>4</option><option>8</option><option>20</option><option>30</option><option selected>50</option></select></label>
+<label>Guidance<select id="rd-c-cfg"><option value="1" selected>CFG on (2 passes per step)</option><option value="0">off, or distilled into the model</option></select></label>
+<label>Seconds per denoiser pass (your measurement)<input type="number" id="rd-c-sec" min="0" step="0.001" placeholder="e.g. from the Diffusion lab"></label>
+</div>
+<div class="an-cnt" id="rd-c-out"></div>
+<p class="small" id="rd-c-note"></p>
+</div>
+<p class="deepnote">Go deeper (optional): the trade-offs per child page are listed at the end of this tab; serving costs in general (batching, quantisation, GPUs) are on {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}.</p>
+</section>
