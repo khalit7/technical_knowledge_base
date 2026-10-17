@@ -4205,3 +4205,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | Reproduce-a-run walkthrough (six steps, any version) plus all loss curves | tab Reproduce a run | 4/4/5/2 | reproduce.py outputs, MLflow curves | The page's question answered end to end; version 1 and 6 show where it breaks |
 | Tool chooser with every fired rule listed | tab Tool chooser | 3/2/3/1 | rules from the Reading tab and the root Tool map | Turns section 4 into a decision with visible reasons; labelled opinion |
 | Inline tables from data: step table (median task times), run record, gate table, MLmodel file, model files, REST response | Reading | n/a | mp_lab.json | Real records instead of described ones |
+
+### Topic: ml-infra-and-orchestration (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_ml_infra_and_orchestration/src/viz_ideas.md`.
+
