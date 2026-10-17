@@ -4076,3 +4076,8 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 | 13 | Tunix GRPO run on the running example | | needs a KV-cache model and tokenizer; would teach the RL page's content | rejected |
 | 14 | Levanter training run | | needs the Marin monorepo environment; Haliax demo covers named axes | rejected |
 | 15 | Checkpoint save/restore through MaxText | | Orbax owned by the training stack page | rejected |
+
+### Topic: data-curation-and-datasets (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/src/viz_ideas.md`.
+
