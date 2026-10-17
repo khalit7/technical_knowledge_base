@@ -50,5 +50,11 @@ Heavy means training, model load, generation, compile, container or cluster star
 - Big downloads one at a time under the `download` lock, recorded (URL, revision, sha256) so they can be restored.
 - Clean up regularly: delete your own intermediates when done, and the scratch of finished, published topics (old venvs, `uv cache prune`, large intermediates), rather than cutting new work.
 
+## Multi-process runs (torch.distributed, Ray, Dask)
+On the Mac, distributed training is taught with the gloo backend on CPU: several ranks on one machine. The whole launch counts as **one heavy job** for the agent cap; the 4-thread budget is for the launch, not per rank (`OMP_NUM_THREADS=1` per rank with at most 4 ranks, or 2 threads with 2 ranks), all under `nice -n 15`. Record the launcher PID and kill that process group only. Wall-clock timings from gloo on CPU do not transfer to NCCL on NVLink: measure counts, bytes, memory per rank and numerical equality; take speed from published numbers, labelled.
+
+## Paths
+Agents call the scripts through `{{TOOLS}}` in their briefs: the lead copies `scripts/guard.sh` and `scripts/lock.sh` into that scratch folder at topic start so every agent shares one lock folder. Calling them from the skill folder directly is the same script.
+
 ## Sources distilled
 Memory: manage-mac-resources, gpu-runs-one-agent, cheap-runs-over-expensive, completeness-over-disk, no-usage-caps, scratch-wiped-reboot, dc-topic-in-progress (thread and pkill incidents, fp16 lesson), gm-topic-in-progress (no_grad incident, lock fairness). Briefs: gm_common (RESOURCE SAFETY, HARD MEMORY CAP), gm_child_common (peak memory on one item), mi_common (CONTAINERS, CLUSTER SHARING), dc_common and jx_common (disk budgets, download lock). Scripts: `guard.sh` and `lock.sh` from the kb_briefs folder.
