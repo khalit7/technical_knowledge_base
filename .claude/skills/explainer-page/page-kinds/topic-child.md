@@ -63,7 +63,7 @@ The reader's question: **"how does this work, exactly, and what is the evidence?
 
 ## Size and time
 - **Page size**: about **1 MB**, images as small WebP data URIs; say why if more.
-- **Reading time**: usually 25 to 55 minutes, because a child owns its details. Measure it and state it; flag a very long one to Khalid in the report (jax_core: 55 min). Fold secondary material into closed `<details>` blocks counted apart.
+- **Reading time**: usually 25 to 45 minutes, because a child owns its details. Measure it and state it; flag anything over about 45 minutes to Khalid in the report (jax_core ran 55 and was flagged). Fold secondary material into closed `<details>` blocks counted apart.
 - **Children of one topic** run several at once ([../orchestration/topic-pipeline.md](../orchestration/topic-pipeline.md)). A child that depends on a sibling's results reads that sibling's handoff note (`handoff_<sibling>.md`), or waits for it.
 
 ## Scaffold notes
