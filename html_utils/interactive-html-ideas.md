@@ -4118,3 +4118,19 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_ml_infra_and_orchestration/kubernetes_for_ml/src/viz_ideas.md`.
 
+### Ray: tasks, actors, the object store and Ray Train (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_ml_infra_and_orchestration/ray/src/viz_ideas.md`.
+
+| Idea | Where | Score notes | Data |
+|---|---|---|---|
+| Eight 0.5 s tasks, submitted together vs ray.get in a loop (before/after on the same input, animated) | Reading, Tasks | corrects the most common Ray mistake; real start/end per task | `runs/core/tasks.jsonl` |
+| Cluster map with idle memory per container | Reading, in one screen | the reader's picture of what runs where | `mem.txt`, `ray_status.txt` |
+| Object locations stepper (inline vs store, copy on get, ray.put on the driver's node, 16 MB pull) | Reading, Objects | real `get_object_locations` output | `objects.jsonl` |
+| Spill chart: read-back time per object, spilled vs in memory | Reading, Spilling | shows spilling as slower, not failing; Ray's own counters | `spill.jsonl`, `spill_memory.txt` |
+| Head process memory bars | Reading, Architecture | corrects "the GCS is what uses memory": the dashboard is | `ps_mi-ray-head.txt` |
+| Fault-tolerance table (11 rows, all measured) | Reading, Fault tolerance | defaults from source, outcomes from runs | `fault.jsonl`, `lineage.*` |
+| Life of a task (big vs small result toggle), owner's table updating | Ownership lab | from the design, labelled; ties ownership to messages | Ownership paper, whitepaper |
+| Node-loss replay: six items, six fates, GCS log timeline | Ownership lab | the lab's centrepiece; before/after per item | `lineage*.txt/jsonl`, `lineage_gcs.txt` |
+| Ray Data block Gantt, three plans (fused, unfused, staged) | Ray Data pipeline | before/after on the same input; first-batch time | `data_*.log`, `ds.stats()` |
+| Train failure replay with "what you might expect" (illustrative) toggle | Train failure replay | shows the unregistered checkpoint finding | `runs/train/run1..3` |
