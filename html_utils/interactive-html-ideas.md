@@ -4242,3 +4242,26 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_
 | 7 | **CFG rescale before/after** and **LCM-LoRA against DPM-Solver++ at equal steps** | Reading, sections 5 and 6 | 12 | Real SD 1.5 images at 256 px. |
 | 8 | **Bug strips**: the same ten noises sampled correctly and with four real bugs | Reading, Mistakes | 11 | Real bad outputs, as the brief asks. |
 | 9 | Predict-then-reveal: ODE vs SDE with an exact model; the brightness of the mean; the hedging model | Reading | 10 | |
+
+### Flow matching and rectified flow (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/flow_matching/src/viz_ideas.md`.
+
+| idea | score | where |
+|---|---|---|
+| "Average the lines": a draggable point and a time slider; the 80 conditional lines through it weighted by posterior, their mean, the exact closed-form field and the trained network's arrow, each drawn to the predicted end point | 2/1/2/2/2/2 | Reading 1 |
+| Loss decomposition by t: total target, irreducible floor, network's distance from the exact field (log) | 1/1/2/2/2/2 | Reading 1 |
+| Exact field against trained networks by Euler steps (discretisation against learning error) | 1/0/2/2/2/2 | Reading 2 |
+| Exact empirical field of the training set against the trained network on the same noise, with nearest training images, 1/4/10/50 steps | 2/1/2/2/2/2 | Reading 3 |
+| Three exact paths table (straight, cosine VP, DDPM VP) with DDIM | 1/1/2/2/2/2 | Reading 4 |
+| Minibatch OT travel distance by batch size, 2-D against images (one chart) | 2/1/2/2/2/1 | Reading 5 |
+| OT-CFM trained at B = 1, 4, 16, 64, 256 (table) | 1/0/2/1/1/2 | Reading 5 |
+| Reflow rounds tables, toy (4 rounds) and images (3 rounds) | 1/1/2/1/2/2 | Reading 6 |
+| Distillation table, toy and images, beside Liu et al.'s row | 1/1/2/1/1/2 | Reading 7 |
+| Timestep scheme table by budget | 1/1/2/1/2/1 | Reading 8 |
+| SDE table (exact field) and the image model's ODE against SDE | 1/1/2/2/2/1 | Reading 9 |
+| Production table with configs read from the Hub | 0/2/2/1/1/1 | Reading 11 |
+| Real diffusers output: 4-step grids, the missing-mu ValueError | 0/2/2/2/2/1 | Reading 12 |
+| 2-D flow playground: two panels, same noise, exact fields x paths x ODE/SDE x solvers, four RF rounds, three students, seven presets, step animation | 2/1/2/2/2/2 | tab |
+| Steps ladder: every tiny model and sampler of the topic at equal NFE (FD, accuracy, diversity), same-noise grid by class, before/after animation by NFE budget | 2/1/2/2/1/2 | tab |
+| Timestep explorer: SD3 densities with sliders and the toy's floor, recorded error-by-t curves per scheme, resolution shift calculator for real configs, SD3's ranking table | 2/2/2/2/1/2 | tab |
