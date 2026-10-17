@@ -4210,3 +4210,19 @@ Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems
 
 Ranked ideas with scores, data and rejections: `technical_knowledge_base/systems_and_performance/topic_ml_infra_and_orchestration/src/viz_ideas.md`.
 
+### Autoencoders and VAEs: latents and image tokenizers (2026-10-17)
+
+Ranked ideas with scores, data and rejections: `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/autoencoders_and_vaes/src/viz_ideas.md`.
+
+| # | Idea | Where | Score (method questions) | Data |
+|---|---|---|---|---|
+| AV1 | ELBO-units table and strips: the same VAE with a per-pixel-mean reconstruction, and with Gaussian sigma 1 and 0.1, against the lab's reference; predict-then-reveal on the mean-reduction bug | Reading 2 | corrects a common misconception (2), measured (2), before/after on the same images (2) | e_* runs |
+| AV2 | Posterior collapse on images: a PixelCNN-decoder VAE trained four ways (plain, annealing, free bits, no code), table with the shuffle test | Reading 3 and its own tab | the mechanism measured (2), fixes compared on one model (2) | c_* runs |
+| AV3 | Collapse tab: KL curves with the annealing weight, decoding test images row by row from their own codes (an animation of the real recorded outputs), KL per dimension | tab Posterior collapse | step animation (2), shows what the KL number means (2) | collapse.json |
+| AV4 | Pixel loss vs + LPIPS vs + patch GAN on the same 8 images, a three-step before/after with PSNR, LPIPS, rFD counters | Reading 4 | before/after on one input (2), perception-distortion trade-off made visible (2) | g_* runs |
+| AV5 | VQ variants table (plain, restart, EMA, L2, K = 1,024) | Reading 5 | measured, equal budget (2) | quant.json |
+| AV6 | 2-D quantizer toy: VQ (plain, restarts), FSQ grid, LFQ quadrants, animated training steps with counters | tab Quantizer playground | step animation against the method replaced (2), shows why FSQ cannot collapse (2); illustrative | computed in the page |
+| AV7 | Eleven trained tokenizers: table, usage over training, sorted code frequencies (log), reconstructions, token map | tab Quantizer playground | measured (2), every quantizer on one axis (2) | quant.json |
+| AV8 | Published tokenizer table (16 tokenizers, tokens, codes, bits, rFID) and a token calculator | Reading 8 | every input published (2), derived arithmetic (2) | papers |
+| AV9 | Tokenizer comparator: nine pretrained autoencoders on the same 16 images: shapes, PSNR, SSIM, LPIPS, per-image table, crops animated through every model, latent statistics and normalisation recipes | own tab | real models, same input (2), before/after crops (2), recipes read from configs (2) | roundtrip.py, metrics.py |
+| AV10 | Generator VAE config table (published and read from configs) | Reading 9 | configs (2) | configs |
