@@ -34,17 +34,17 @@
      use:['reconstruction metrics on held-out images: PSNR, SSIM, LPIPS','rFID: FID of reconstructions against the originals (a distribution check on reconstructions)'],
      set:['same resolution and crop for every tokenizer; note LPIPS backbone and version'],
      rep:['codebook usage for discrete tokenizers','the generator\'s FID trained on top, since good reconstructions do not guarantee a learnable latent'],
-     ev:'The sibling page Autoencoders and VAEs: latents and image tokenizers (its tokenizer comparator measured PSNR, SSIM and LPIPS on 16 test images).'},
+     ev:'The sibling page <a href="https://app.notion.com/p/3c65c17b0d0d814da93bdb159b7c1e11" target="_blank" rel="noopener noreferrer">Autoencoders and VAEs: latents and image tokenizers</a> (its tokenizer comparator measured PSNR, SSIM and LPIPS on 16 test images).'},
     {id:'vlm',name:'How good is my vision-language model?',
      use:['benchmarks with answer keys chosen for the skill: MMMU (reasoning), OCRBench and DocVQA (reading), POPE (hallucination), MMStar (vision-indispensable)','CircularEval for multiple choice'],
      set:['a blind (text-only) baseline for every benchmark','yes-rate beside yes/no accuracy'],
      rep:['error bars over questions; the exact prompt and image resolution or token budget'],
-     ev:'Section 8; Long-context and multimodal benchmarks; the sibling page Vision-language models (POPE-style probe).'},
+     ev:'Section 8; Long-context and multimodal benchmarks; the sibling page <a href="https://app.notion.com/p/3fc5c17b0d0d81adbb7be5bc41c4d9d0" target="_blank" rel="noopener noreferrer">Vision-language models</a> (POPE-style probe).'},
     {id:'video',name:'Video or audio generation?',
      use:['video: VBench dimensions and human comparisons; FVD only with its content bias in mind','audio: FAD (VGGish or newer embeddings) plus listening tests'],
      set:['same frame rate, length and resize for both sets; for FAD, the same background set'],
      rep:['the feature model and its version (I3D, VideoMAE, VGGish, CLAP)'],
-     ev:'Section 9; the sibling page Video and audio generation.'}];
+     ev:'Section 9; the sibling page <a href="https://app.notion.com/p/3c65c17b0d0d8198bd7be111a3dc4c3a" target="_blank" rel="noopener noreferrer">Video and audio generation</a>.'}];
   const st={q:0,n:'m'};
   $('ev-k-q').innerHTML=Q.map((q,i)=>'<button data-m="'+i+'"'+(i?'':' class="on"')+'>'+q.name+'</button>').join('');
   const li=a=>'<ul>'+a.map(x=>'<li>'+x+'</li>').join('')+'</ul>';
