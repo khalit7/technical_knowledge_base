@@ -1,0 +1,43 @@
+<section id="at-s9">
+<h2>9. Drills, common mistakes, interview questions</h2>
+<h3>Predict, then reveal</h3>
+<div id="at-drills">
+<div class="at-pr"><div class="at-q">1. Llama 3.1 8B has 32 layers, 32 query heads and 8 KV heads of 128. How many bytes of KV cache does one token take in bf16?</div>
+<div class="at-opts"><button>512 KiB</button><button data-ok>128 KiB</button><button>16 KiB</button><button>4 KiB</button></div><a href="#" class="at-skip small">skip to the answer</a>
+<div class="at-ans" hidden>2 x 32 layers x 8 KV heads x 128 x 2 bytes = 131,072 bytes = <b>128 KiB</b>, so 16 GiB for one 131,072-token sequence <span class="at-lbl d">derived</span>. 512 KiB is what you get by using the 32 query heads, the most common slip (mistake 1 below); 16 KiB is one KV head per layer (MQA at this shape); 4 KiB is a single layer.</div></div>
+<div class="at-pr" id="at-d2"><div class="at-q">2. On the tiny GPT, MQA keeps one-eighth of MHA's cache. After the same 12.3M training tokens, how does its held-out loss compare with MHA's?</div>
+<div class="at-opts"><button data-k="much">Much worse (over 0.2 higher)</button><button data-k="some">Somewhat worse (0.03 to 0.2 higher)</button><button data-k="same">The same within 0.03</button><button data-k="better">Better</button></div><a href="#" class="at-skip small">skip to the answer</a>
+<div class="at-ans" hidden id="at-d2-ans"></div></div>
+<div class="at-pr" id="at-d3"><div class="at-q">3. A model trained with full attention on 256-token windows is served with a 32-token sliding cache. What happens to its loss at positions past the window, and what if the cache also keeps the very first token?</div>
+<div class="at-opts"><button data-k="small">A small rise, and keeping the first token makes little difference</button><button data-k="sink">Large rise; keeping the first token recovers most of it</button><button data-k="nohelp">Large rise; keeping the first token barely helps</button></div><a href="#" class="at-skip small">skip to the answer</a>
+<div class="at-ans" hidden id="at-d3-ans"></div></div>
+<div class="at-pr" id="at-d4"><div class="at-q">4. GQA-8 caches a quarter of MHA's bytes at Llama 3.1 8B's shape. If the decode step first copies K and V up to 32 heads (transformers' <code>repeat_kv</code>, the eager path), how does its attention time at 32k tokens compare with MHA's?</div>
+<div class="at-opts"><button data-k="quarter">About a quarter of MHA's</button><button data-k="same">About the same as MHA, or slower</button><button data-k="half">About half</button></div><a href="#" class="at-skip small">skip to the answer</a>
+<div class="at-ans" hidden id="at-d4-ans"></div></div>
+</div>
+
+<h3>Common mistakes</h3>
+<div id="at-mist"></div>
+
+<h3>Interview questions</h3>
+<details class="mist"><summary>Why does decoding need a KV cache, and why is a decode step memory-bound?</summary><div class="b">A token's keys and values at a layer never change in a causal decoder, so they are computed once and stored; without the cache, step <i>t</i> recomputes <i>t</i> projections per layer. With it, each step does a little arithmetic per byte read: each cached number (2 bytes in bf16) is multiplied and added once by each query head that shares it, so attention does about (query heads / KV heads) FLOPs per byte read: 1 for MHA, 4 for Llama 3's GQA, and batching does not raise it because every sequence has its own cache. A datacenter GPU needs hundreds of FLOPs per byte to be compute-bound ({{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}), so the step waits on memory. Section 5 measures it.</div></details>
+<details class="mist"><summary>Compute the KV cache of Llama 3.1 70B for one 128K-token request.</summary><div class="b" id="at-iq-70b"></div></details>
+<details class="mist"><summary>GQA, MQA or MLA: what does each give up?</summary><div class="b">GQA shares keys and values inside groups of query heads: a small quality cost, no new parts, every kernel supports it (DeepSeek's 7B ablation still shows GQA-8 below MHA on hard benchmarks, section 4). MQA is the extreme: the largest saving and the largest quality cost, and with tensor parallelism the single KV head is replicated on every GPU, so the per-GPU saving shrinks. MLA stores a compressed latent: the cache of a few KV heads with quality at or above MHA in DeepSeek's runs, paid for with extra projections, a decoupled RoPE key, custom kernels and, because the latent is shared by all heads, no way to split the cache across tensor-parallel ranks by head (derived from the design). GQA is the default when you want boring; MLA when the cache dominates the bill.</div></details>
+<details class="mist"><summary>Why does MLA need a separate RoPE key?</summary><div class="b">At decode, MLA folds the key up-projection into the query (absorption), so attention runs directly against the cached latent. RoPE rotates keys by a position-dependent matrix that would sit between the up-projection and the query, and a matrix that changes with position cannot be folded into a fixed one. So the position information gets its own small key (64 numbers in DeepSeek-V3), shared by all heads and cached beside the latent, while the latent part carries no rotation. The step-by-step version is on {{DeepSeek|n:3c65c17b0d0d81a2ae7ec6796947a235}}.</div></details>
+<details class="mist"><summary>Design: a model for 128K context that serves 32 sequences on one 80 GB GPU.</summary><div class="b" id="at-iq-design"></div></details>
+<details class="mist"><summary>Why did DeepSeek choose MLA, and what does it cost?</summary><div class="b" id="at-iq-ds"></div></details>
+<details class="mist"><summary>Sliding window or sparse attention for long context?</summary><div class="b">A window caps memory and reads but forgets: anything older than the window must be relayed through layers, which models often fail to learn, so designs keep some global layers (Gemma 3 1 in 6, gpt-oss 1 in 2). Sparse attention (NSA, DSA) keeps everything and reads a learned subset, so it can still retrieve one old token, but the cache is as large as before and the selector costs something at every step. Windows when memory is the limit, sparse attention when reads and long-range recall both matter, and often both together with GQA or MLA underneath.</div></details>
+<details class="mist"><summary>A model breaks when you serve it with a rolling cache. Why, and what is the fix?</summary><div class="b" id="at-iq-sink"></div></details>
+</section>
+
+<section id="at-s10">
+<h2>10. The code</h2>
+<p>Every number in this tab came from the scripts in <code>src/attn/</code> and the shared tiny GPT in <code>src/data/</code>. The cache is a few lines; the quotes from transformers are at the pinned v5.20.1, located by pattern (<code>src/attn/extract_code.py</code>).</p>
+<div id="at-code"></div>
+<details class="at-det"><summary>How the runs were made, and how to rerun them</summary>
+<div class="small">
+<p><b>Training</b> (MPS, under the shared bench lock, one run at a time): <code>train.py --preset &lt;p&gt; --set pos=rope --steps 1500</code> then <code>eval.py</code>, for <code>rope</code> (MHA), <code>gqa4</code>, <code>gqa2</code>, <code>mqa</code>, <code>mla</code>, <code>swa64</code>, <code>swa64_g3</code>, with seed 1 repeats of MHA, MQA and MLA. Queue script: <code>src/attn/run_train.sh</code>; results summarised into <code>src/attn/out/runs_summary.json</code> by <code>make_page_data.py</code>.</p>
+<p><b>Decode timing</b>: <code>src/attn/decode_bench.py</code> (MPS, about two minutes) writes <code>out/decode_bench.json</code>. <b>Serving with a sliding cache, sinks, the GQA expansion bug</b>: <code>src/attn/cpu_evals.py</code> (CPU, a few minutes) writes <code>out/cpu_evals.json</code>. <b>Error messages</b>: <code>src/attn/sdpa_errors.py</code>. <b>Page data</b>: <code>make_page_data.py</code> writes <code>parts/32_js_at_0data.js</code>; <code>check_data.py</code> checks the page against the recorded files.</p>
+</div></details>
+</section>
+</div>
