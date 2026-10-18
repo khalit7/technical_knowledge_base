@@ -14,7 +14,7 @@ Heavy means training, model load, generation, compile, container or cluster star
 - MPS work only while holding the `bench` lock, and every GPU command gated on a successful acquire:
   ```sh
   L=.claude/skills/explainer-page/scripts/lock.sh
-  sh $L acquire bench gm-df 3600 && { PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.45 python run.py; sh $L release bench gm-df; }
+  sh $L acquire bench gm-df 3600 && { PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.45 PYTORCH_MPS_LOW_WATERMARK_RATIO=0.35 python run.py; sh $L release bench gm-df; }
   ```
   Never chain work after an acquire that may have timed out (on 2026-10-16 a timed-out acquire followed by a teardown killed another lab's job).
 - Touch the lock at least every 10 minutes while running (`sh $L touch bench gm-df`, in the background); release the moment GPU work ends. Never hold it while idle or doing CPU work.
@@ -23,7 +23,7 @@ Heavy means training, model load, generation, compile, container or cluster star
 - **At most one GPU-bound agent at a time**; CPU-only and writing agents can run beside it. For a measured topic, consider one benchmark agent feeding writer agents.
 
 ## The hard memory cap for MPS
-- Every process that uses MPS starts with `PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.45` (PyTorch then refuses allocations beyond about 7 GB and raises an out-of-memory error instead of swapping the machine). If the cap is hit, make the run smaller; never raise the ratio.
+- Every process that uses MPS starts with `PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.45` and `PYTORCH_MPS_LOW_WATERMARK_RATIO=0.35` (torch 2.14 rejects the high ratio alone: "invalid low watermark ratio 1.4", 2026-10-18) (PyTorch then refuses allocations beyond about 7 GB and raises an out-of-memory error instead of swapping the machine). If the cap is hit, make the run smaller; never raise the ratio.
 - Every sampling or evaluation loop runs under `torch.no_grad()` or `torch.inference_mode()` (a sampling loop without it reached 20 GB of MPS memory and 15 GB of swap on 2026-10-17).
 - float16 or bfloat16 weights for anything over about 300M parameters (a float32 1.7B model thrashed swap for 75 minutes on 2026-10-15); chunked log-softmax for perplexity over long vocabularies.
 - Keep each process under about 6 GB: **check peak memory on one item first** and stop if it passes 6 GB (a Qwen-Image VAE float32 round trip peaked at 9.9 GB); use VAE tiling or slicing where a model offers it.
