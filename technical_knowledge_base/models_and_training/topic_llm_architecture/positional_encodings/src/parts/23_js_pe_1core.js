@@ -1,4 +1,5 @@
-// ---- RoPE maths shared by the visuals: line-by-line ports of transformers' modeling_rope_utils.py (src/inputs/code_extracts.py), identical to src/recompute.py ----
+// ---- Positional Encodings: RoPE maths shared by every visual (ports of transformers 5.20.1 modeling_rope_utils.py,
+// identical to src/recompute.py; src/code/hf_check.py checks the Python port against the library), plus page helpers ----
 window.ROPE=(function(){
   const baseInv=(base,dim)=>{const r=[];for(let i=0;i<dim/2;i++)r.push(1/Math.pow(base,2*i/dim));return r};
   // Position Interpolation: every frequency divided by s (positions m become m/s)
@@ -7,7 +8,6 @@ window.ROPE=(function(){
   const ntkBase=(p,s)=>p.base*Math.pow(s,p.dim/(p.dim-2));
   const ntk=(p,s)=>baseInv(ntkBase(p,s),p.dim);
   // Dynamic NTK as the YaRN paper defines it (section 3.3): the NTK-aware base with s = max(1, l'/L), l' the current length.
-  // (transformers' "dynamic" type uses s_eff = s*l'/L - (s - 1) instead; not drawn here)
   const dynBase=(p,s,len)=>ntkBase(p,Math.max(1,len/p.L));
   const dyn=(p,s,len)=>baseInv(dynBase(p,s,len),p.dim);
   // YaRN ("NTK-by-parts" ramp on pair index between beta_fast and beta_slow rotations, plus temperature)
@@ -37,3 +37,28 @@ window.T5B=function(rel,bidirectional,nb,maxd){nb=nb||32;maxd=maxd||128;let b=0;
   if(bidirectional){nb=nb/2|0;if(rel>0)b+=nb;rel=Math.abs(rel)}else rel=-Math.min(rel,0);
   const me=nb/2|0;if(rel<me)return b+rel;
   const large=me+Math.trunc(Math.log(rel/me)/Math.log(maxd/me)*(nb-me));return b+Math.min(large,nb-1)};
+// page helpers: number formats, colours, the measured runs by name, and the data-filled elements
+window.PE=(function(){
+  const D=window.PE_DATA||{};
+  const fmt=n=>Math.round(n).toLocaleString('en-US');
+  const f2=(n,d)=>(+n).toFixed(d==null?2:d);
+  const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#888';
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const past=(model,scaling)=>((D.past||{}).runs||[]).find(r=>r.model===model&&r.scaling===(scaling||'plain'));
+  const run=name=>(D.runs||[]).find(r=>r.name===name&&!r.pending);
+  const pend='<span class="pe-nl u">pending run</span>';
+  const ref=k=>(D.code&&D.code.refs[k])||null;
+  const lines=k=>{const r=ref(k);return r?r.first+' to '+r.last:'?'};
+  const file=k=>{const r=ref(k);return r?r.file.replace(/^transformers\//,'')+' lines '+r.first+' to '+r.last:'?'};
+  // render a code excerpt with its real line numbers; optional: drop a docstring
+  function code(el){const r=ref(el.dataset.peCode);if(!r)return;const L=r.text.split('\n'),n0=r.first,out=[];
+    let d0=-1,d1=-1;if(el.dataset.peSkipdoc){d0=L.findIndex(l=>l.includes('"""'));if(d0>=0)d1=L.findIndex((l,i)=>i>d0&&l.includes('"""'))}
+    L.forEach((l,i)=>{if(d1>0&&i>=d0&&i<=d1){if(i===d0)out.push('<span class="ln">'+String(n0+i).padStart(4)+'</span>  '+l.match(/^\s*/)[0]+'"""(docstring, lines '+(n0+d0)+' to '+(n0+d1)+')"""');return}
+      out.push('<span class="ln">'+String(n0+i).padStart(4)+'</span>  '+esc(l))});
+    el.innerHTML='<span class="ln">'+esc(r.file+' ('+r.version+')')+'</span>\n'+out.join('\n')}
+  // predict-then-reveal drills: o = {id, right (index), answer (html), why: [per option html]}
+  function drill(o){const el=document.getElementById(o.id);if(!el)return;const bs=[...el.querySelectorAll('.opts button')],ans=el.querySelector('.ans');
+    bs.forEach((b,i)=>b.addEventListener('click',()=>{bs.forEach((x,j)=>{x.classList.toggle('right',j===o.right);x.classList.toggle('wrong',j===i&&i!==o.right)});
+      ans.hidden=false;ans.innerHTML=(i===o.right?'<b>Right.</b> ':'<b>Not quite.</b> '+(o.why&&o.why[i]?o.why[i]+' ':''))+o.answer}))}
+  return {D,fmt,f2,css,esc,past,run,pend,ref,lines,file,code,drill};
+})();
