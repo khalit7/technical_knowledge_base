@@ -1,0 +1,64 @@
+
+<section id="in-s5">
+<h2>Massive activations and the growing residual stream</h2>
+<p><b>The problem.</b> In a pre-norm block (the norm sits before each sub-layer, {{Block lab|#t-block}}), every sub-layer adds its output to the residual stream and nothing ever rescales it. So the stream's size is free to grow with depth, and a model can use that freedom to make a few numbers enormous. Sun et al. (2024, {{Massive Activations in Large Language Models|https://arxiv.org/abs/2402.17762}}) found such "massive activations" across many LLMs, sometimes about 100,000 times the typical value (paraphrase of their abstract); they sit in a few fixed dimensions on a few tokens (often the first), stay nearly constant whatever the input, act like bias terms, and are what lets attention concentrate on those tokens. That is the mechanism behind the sinks of the previous section.</p>
+<div class="in-box" id="in-ma">
+<h4>Size of the residual stream after each layer</h4>
+<div class="in-ctl"><span class="seg" id="in-mam"><button data-m="smol" class="on">SmolLM2-135M</button><button data-m="qwen">Qwen3-0.6B</button><button data-m="tiny">tiny GPT: before / after training</button></span></div>
+<div id="in-masvg"></div>
+<div class="in-leg" id="in-maleg"></div>
+<p class="small mute" id="in-manote"></p>
+</div>
+<p><b>What we measured.</b> In SmolLM2, one dimension of the residual stream (dimension <span class="in-v" data-k="facts.smol_big_dim" data-f="0"></span> of 576) on the first token reaches <span class="in-v" data-k="facts.smol_big_max" data-f="0"></span> at layer 12 and stays above <span class="in-v" data-k="facts.smol_big_min" data-f="-2"></span> until the last block, while the median absolute value of an entry at that depth is about <span class="in-v" data-k="facts.smol_med12" data-f="1"></span>: a ratio of about <span class="in-v" data-k="facts.smol_ratio" data-f="-3"></span> to 1. Layer 12 is exactly where the sink switched on (section 4). In layers 3 to 9 the same dimension already reaches about <span class="in-v" data-k="facts.smol_big_early" data-f="0"></span>, on token 4, the first comma ("Once upon a time,"), while the weight on token 0 in those layers is still small (0.07 to 0.09): the big value moves to the first token at the layer where the sink appears. The tiny GPT, which never formed a sink, also has no massive activation: its largest entry after training is <span class="in-v" data-k="facts.tiny_max_after" data-f="1"></span>. Qwen3-0.6B: <span id="in-maqwen"></span></p>
+<p><b>Why an architect cares.</b></p>
+<ul class="tight">
+<li><b>Quantisation.</b> A single entry of 20,000 next to entries of about 1 wrecks a per-tensor int8 scale: Dettmers et al. ({{LLM.int8()|https://arxiv.org/abs/2208.07339}}, 2022) keep such outlier dimensions in 16 bits. See {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}.</li>
+<li><b>Number formats.</b> float16 tops out at 65,504; a stream that grows to tens of thousands is close. bfloat16 has the range (and less precision), which is one reason training moved to it ({{Numerical computing|n:3f05c17b0d0d81d6af0be4a9a2edba8d}}).</li>
+<li><b>The final norm.</b> Because the stream's scale drifts with depth, pre-norm models need a norm before the unembedding (<code>self.norm</code> at <code>modeling_llama.py</code> line 402). Post-norm models renormalise after every block instead and pay for it in stability ({{Block lab|#t-block}}).</li>
+<li><b>Designs.</b> Learned sinks (gpt-oss) and QK-norm (Qwen3, OLMo 2, Gemma 3) give heads other ways to say "nothing here", which may reduce the pressure to grow such values (unconfirmed for these models); Sun et al. trained GPT-2 with explicit attention biases and report that "massive activations disappear" (section 4.3; not run here).</li>
+</ul>
+<p><b>How to check</b>: hook the output of every decoder layer (a forward hook, as in <code>extract_pretrained.py</code>; the <code>hidden_states</code> output of a Hugging Face model applies the final norm to its last entry) and print the largest |<i>x</i>| per layer with its token and dimension.</p>
+</section>
+
+<section id="in-s6">
+<h2>The logit lens: what would the model say if it stopped here?</h2>
+<p><b>The idea</b> (nostalgebraist, 2020, {{interpreting GPT: the logit lens|https://www.lesswrong.com/posts/AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens}}). The residual stream is one shared space that every layer writes into and the unembedding finally reads. So apply the model's own final norm and unembedding to the stream after layer <i>k</i> and read off a next-token distribution. If the stream is a gradually refined prediction, the early guesses should drift towards the final one.</p>
+<div class="in-box" id="in-ll">
+<h4>SmolLM2's guess at every layer, token by token</h4>
+<p class="small">Rows are layers (0 = the embedding, 30 = the model's output); columns are positions in the running text. Each cell shows the top-1 predicted next token at that layer; green means the true next token got high probability. Drag to move through the text. <span class="in-lbl m">measured here (MPS)</span></p>
+<div class="in-ctl"><label style="flex:1 1 200px">Start position <input type="range" id="in-llpos" min="0" max="200" value="14"></label><span id="in-llposv" class="small"></span></div>
+<div class="in-strip" id="in-llstrip"></div>
+</div>
+<div class="in-box" id="in-lc">
+<h4>How good is each layer's guess?</h4>
+<div class="in-ctl"><span class="seg" id="in-lcm"><button data-m="agree" class="on">top-1 agrees with the final layer</button><button data-m="ce">loss on the true next token</button></span></div>
+<div id="in-lcsvg"></div>
+<div class="in-leg" id="in-lcleg"></div>
+<p class="small mute" id="in-lcnote"></p>
+</div>
+<p><b>What we measured.</b> <span id="in-llsum"></span></p>
+<p><b>When it matters and the caveat.</b> The lens is a cheap first look at where in depth a prediction forms, useful when deciding where to cut layers (early exit, layer pruning) or where to read features from. It is not exact: middle layers may encode the answer in directions the final unembedding does not read, which is why the tuned lens (Belrose et al., 2023, {{arXiv 2303.08112|https://arxiv.org/abs/2303.08112}}) learns a small map per layer (not run here). <b>How to check</b>: <code>model.lm_head(model.model.norm(h))</code> for each hooked <code>h</code>; the last layer must reproduce the model's logits exactly (ours: max difference <span class="in-v" data-k="facts.smol_lens_last" data-f="5"></span>).</p>
+</section>
+
+<section id="in-s7">
+<h2>Common mistakes, drills and interview questions</h2>
+<h3>Mistakes we made or saw on this tab</h3>
+<details class="mist"><summary>Asking for attention weights with SDPA or FlashAttention</summary><div class="b">transformers prints a warning and <code>outputs.attentions</code> is not a usable list of tensors (section 1). Load with <code>attn_implementation="eager"</code>, or switch with <code>model.set_attn_implementation("eager")</code>, and keep the sequence short: eager attention materialises every weight.</div></details>
+<details class="mist"><summary>Reading the last <code>hidden_states</code> entry as the raw residual stream</summary><div class="b">In Hugging Face models the last entry comes after the final norm, so its size is not comparable to the others, and applying the norm again in a logit lens normalises twice. Hook the decoder layers instead (section 5).</div></details>
+<details class="mist"><summary>Expecting induction heads in a small, briefly trained model</summary><div class="b">We did: the tiny GPT trained here for 12.3M tokens has none (section 3). Whether a mechanism exists is a question of training tokens as much as of architecture; Pythia-70M, same shape, needed far more. When an ablation of a tiny model "shows" that an architecture cannot copy, check the budget first.</div></details>
+<details class="mist"><summary>Evicting the first tokens from a sliding cache</summary><div class="b">The loss on SmolLM2 roughly doubles once the window slides past the start (section 4). Keep the sink tokens, or train with a sink.</div></details>
+<details class="mist"><summary>Calling every head with high weight on token 0 "broken"</summary><div class="b">The sink is a learned no-op, not a fault. Forbidding it raised the loss and broke generation (section 4).</div></details>
+<details class="mist"><summary>Quantising activations with one scale per tensor</summary><div class="b">One entry of about 20,000 (section 5) forces a scale that rounds every ordinary entry to zero in int8. Use per-token or per-channel scales, or keep outlier channels in 16 bits.</div></details>
+<h3>Predict, then reveal</h3>
+<div class="in-pr" id="in-pr2"></div>
+<div class="in-pr" id="in-pr3"></div>
+<h3>Interview questions</h3>
+<details class="mist"><summary>What is an attention sink, and why does it form?</summary><div class="b">Softmax weights sum to 1, so a head with nothing to read must still put its weight somewhere; models learn to dump it on the first token, which every query can see and whose vector they make distinctive (massive activations). In SmolLM2 the mean weight on token 0 jumps above 0.3 from layer 12, in the same layer where one dimension of the first token's residual reaches about 20,000.</div></details>
+<details class="mist"><summary>Why does a sliding-window KV cache fail, and what is the fix?</summary><div class="b">Once the first tokens leave the window, the heads lose their sink and spread weight over tokens they would have ignored. Keep the first few tokens' keys and values (StreamingLLM), or train with a learned sink (gpt-oss). Measured here: 1.62 full, 3.36 window only, 1.81 window plus sink (mean loss after the first 64 tokens).</div></details>
+<details class="mist"><summary>What is an induction head, and why does it need two layers?</summary><div class="b">[A][B] ... [A] → [B]. A previous-token head first writes "my predecessor was A" into position B's residual; a later head's query (current token A) matches that key and copies B. The second head can only match on information a first head has already moved, hence two layers.</div></details>
+<details class="mist"><summary>Design: you replace 3 of every 4 attention layers with SSM layers. What do you test first, and why?</summary><div class="b">Copying and retrieval from context, because that is what a fixed-size state cannot do and induction heads do: the repeated-random-tokens loss (first copy against second), a needle or name-recall test at the target length, and the loss on long documents by position. Check which attention layers held the induction heads in the original model, and keep attention where they were; keep the sink behaviour if the remaining attention layers use windows.</div></details>
+<details class="mist"><summary>Your int8 model's quality collapses but the weights quantise fine. Where do you look?</summary><div class="b">The activations: a few dimensions on a few tokens (often the first) are thousands of times larger than the rest. Print max |x| per layer with its token and dimension; use per-token or per-channel scales or mixed precision for the outlier channels.</div></details>
+<details class="mist"><summary>What does the logit lens tell you, and when does it mislead?</summary><div class="b">Where in depth the next-token prediction forms, using the model's own unembedding on intermediate states. It misleads where intermediate layers use directions the unembedding ignores (SmolLM2's middle layers give worse than uniform guesses although the model is fine); the tuned lens corrects that with a learned map per layer.</div></details>
+</section>
+<p class="small mute">Scripts and recorded outputs: <code>src/inside/</code> (<code>extract_pretrained.py</code>, <code>pythia_phase.py</code>, <code>train_snapshots.py</code>, <code>tiny_analysis.py</code>, <code>make_page_data.py</code>; outputs in <code>src/inside/out/</code>). Models: SmolLM2-135M revision 93efa2f097d58c2a74874c7e644dbc9b0cee75a2; Qwen3-0.6B revision c1899de289a04d12100db370d81485cdf75e47ca; Pythia-70M-deduped revisions listed in <code>src/inside/out/pythia_manifest.json</code>.</p>
+</div>
