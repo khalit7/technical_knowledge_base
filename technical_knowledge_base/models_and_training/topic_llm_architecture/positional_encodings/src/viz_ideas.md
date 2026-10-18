@@ -1,33 +1,46 @@
-# Positional Encodings: visualisation ideas
+# Positional Encodings: visualisation ideas (rebuild of 2026-10-18)
 
 Central question: how does a model know where a token is, and what happens to that knowledge past the length it was trained on?
 
-Existing visuals to avoid repeating (checked before scoring):
-- RoFormer page: eight-pair dials (shift both positions), the shift test on trained toy weights (RoPE against sinusoidal), Figure 2's decay rebuilt with actual scores, six trained toy models run past their length (with window and PI), and "Then and now", an 11-step morph of turns per pair from the 2017 sinusoid to Llama 4.
-- LLM Architecture Gallery: the one-pair RoPE dial and the YaRN bands for gpt-oss, DeepSeek V3 and Kimi K2 (9 / 9 / 14 for gpt-oss).
+Existing visuals checked before scoring (not rebuilt here, linked):
+- RoFormer page: eight-pair dials, the shift test on trained toy weights, Figure 2's decay rebuilt, six toy models run past their length, "Then and now" spectrum morph.
 - Attention Is All You Need page: PE heatmap and offset curve; a toy retrained without positions.
 - T5 page: the bucket chart from T5's own function.
-- Llama 3 page: the long-context stage in the training timeline.
+- Root (Topic: llm-architecture): Block lab, Attention lab, Config calculator, Inside a real model, Architecture map. None draws positions.
+- Long context sibling: KV memory, eviction, effective context. It measures the tiny GPT past 256 with RoPE scaling (same windows); this page reuses its windows and adds the other schemes, the offsets animation and the temperature split.
+- The Architecture Gallery rebuild (2026-10-18) moved the one-pair RoPE dial and the YaRN band chart here (its coverage.md, "moved to a sibling").
 
-Scoring as in the Methodology (0 to 2 each; "reproduces" and "computable" count double; +2 for a step-by-step before/after animation; minus build cost).
+Scoring as in visuals/choosing.md (0 to 2 each; "reproduces" and "computable" count double; +2 for a step-by-step before/after animation; minus build cost).
 
-| # | Idea | What it shows, what the reader does | Score | Placement | Data and formulas |
-|---|---|---|---|---|---|
-| PE1 | **What breaks past the trained length, before/after animation** | One real config (Llama 3.1, Qwen3, DeepSeek-V3 key, gpt-oss, Phi-3, Gemma 3 global) at 8 distances from L/4 to s·L; top panel plain RoPE, bottom the chosen extension (PI, NTK, dynamic NTK, YaRN, Llama 3, LongRoPE); 8 dials with the trained wedge and the current angle, a strip of all pairs, counters (unseen pairs, furthest beyond a wedge, fastest pair's speed, logit multiplier), caption per step | move 2 + reproduces 1×2 (Llama 3.1 band boundaries 2,048 / 8,192, YaRN ranges) + computable 2×2 + beyond a sentence 2 + corrects a misconception 2 (the old page's "high-frequency dims see unseen angles") + central 2 + absent 1 (RoFormer shows turns per pair, not angles against the trained wedge per method) + animation 2 − cost 2 = 17 | Reading, What breaks | configs in inputs/; ports of transformers' rope functions; unseen = (Δθ′ mod 2π) > Lθ for pairs with Lθ < 2π |
-| PE2 | **Six schemes on one query** | Positional part of the logit (or attention weights) against distance for sinusoidal, learned, T5 (real T5-base decoder biases), ALiBi, RoPE, NoPE; shift the pair, head, RoPE base, range | 2 + 1×2 (T5 bucket edges, ALiBi slopes) + 2×2 (T5 weights read from safetensors; formulas exact) + 2 + 1 (absolute schemes move under a shift) + 2 + 2 (no explainer puts all six on one query) + 0 − 1 = 14 | Reading, Six schemes | illustrative content vector (seeded, labelled); T5 bias tensor; finding: bucket 31 (offsets 113+) holds outlying values |
-| PE3 | **Stretch the spectrum** | θ/θ′ per pair against wavelength (or index) for PI, NTK, YaRN, Llama 3, LongRoPE long and short, on 7 configs, factor selectable, inspect a pair; the configs table with kept / blended / ×s counts, logit factor, s·L against max_position_embeddings | 2 + 2×2 (gpt-oss 9/9/14 = Gallery, independently; DeepSeek 163,840 and Phi-3 131,072 = configs; Qwen 131,072 = card by construction) + 2×2 + 2 + 1 + 2 + 1 (Gallery has YaRN only) + 0 − 1 = 15 | Own tab ("across all methods and configs") | same ports; temperatures (0.1 ln s + 1)², LongRoPE 1 + ln s / ln L |
-| PE4 | **Variants table with layer strips** | Partial, decoupled, multimodal RoPE and RoPE/NoPE interleaving, config fields verbatim, a strip of every layer drawn from no_rope_layers / sliding_window_pattern / layer_types | 0 + 1×2 + 2×2 + 1 + 1 (NoPE retrieval claim) + 1 + 2 + 0 − 0 = 11 | Reading, Variants | configs; HF Llama 4 config semantics (1 = uses RoPE) |
-| PE5 | Production recipes table | Pretraining length and base, long-context stage, positions, window for 7 models | 0 + 0 + 2×2 + 1 + 1 + 1 + 1 = 8 (a table, not a visual) | Reading, Recipes | papers, cards, blogs |
+## Built
 
-Rejected:
-- RoPE dial, eight-pair dials, Figure 2 decay, toy extrapolation models, spectrum morph: already on the RoFormer page or the Gallery (repeat).
-- YaRN bands per config as a separate visual: the Gallery has it; folded into PE3's table and reproduced there.
-- Perplexity against length curves for PI / NTK / YaRN: the numbers exist only as figures in the papers (the method forbids reading curves).
-- Needle-in-a-haystack simulator: nothing computable without a model.
-- CoPE counting demo: would need a trained model to mean anything; the mechanism is three lines of text.
-- A softmax-of-temperature chart for YaRN: one number per s; shown as values in the formula box and the table.
-- A learned-table visual from GPT-2's real wpe (1,024 × 768): 3 MB, and the point (the cap) needs no real weights; the learned rows are labelled illustrative.
+| # | Visual | Where | Score | Notes |
+|---|---|---|---|---|
+| PE1 | What breaks past the trained length (dials, plain RoPE against a method, 8 distances) | Reading, kept from the 2026-10-03 build | 17 | now starts on the tiny GPT preset, plus DeepSeek-V4-Pro; ids prefixed pe- |
+| PE2 | Six schemes, one query (exact logits; real T5-base biases) | Reading, kept | 14 | unchanged maths, renamed ids |
+| PE3 | Stretch the spectrum (per-pair slowdown, every method, configs table) | Own tab, kept and improved | 15 to 17 | added the tiny GPT (with its measured losses under the chart), DeepSeek-V4-Pro, Olmo 3, Mistral Large 3, Kimi K2, a "your own config" input, the census table of all 74 configs |
+| PE4 | Variants table with layer strips | Reading, kept and extended | 11 | added Qwen3.5 (linear layers), Gemma 4 (local/global, proportional), Kimi K3 (KDA/MLA, no RoPE) strips |
+| PE6 | The same story moved past 256: plain RoPE against a chosen method, 8 offsets, loss strip + dials + greedy text per step | Own tab "Past the trained length" | move 2 + reproduces 1x2 (lc numbers to 4 decimals) + computable 2x2 + beyond a sentence 2 + misconception 2 + central 2 + absent 2 + animation 2 - cost 2 = 18 | every frame is a recorded measurement of the same 256 tokens; the brief's before/after of the same prompt |
+| PE7 | Per-position loss to 2,048, every scheme and scaling | Past tab | 13 | same windows as long_context's past_len.py |
+| PE8 | Permutation test (token 255's change per block, shuffled prefix) | Reading, Why positions | 12 | shows the causal mask leaking order: NoPE block 1 exactly invariant |
+| PE9 | Position probe R2 per block per scheme | Reading, Why positions | 12 | where each scheme keeps absolute position |
+| PE10 | One-pair RoPE dial with the 0.5403 worked example | Reading, RoPE from zero | 9 | carried from the Gallery's 2026-10-02 build |
+| PE11 | YaRN bands (turns per pair, kept / ramp / interpolated) on 8 configs | Reading, Stretching RoPE | 12 | carried from the Gallery; gpt-oss 9/9/14 reproduced independently; tiny GPT, V4-Pro, Kimi K2 step, Mistral Large 3 added |
+| PE12 | Base census scatter (rope_theta against max context, 61 RoPE configs) | Reading, The base | 11 | from census.py; extremes 10,000 to 10^11 |
+| PE13 | Training curves of the five schemes, equal budgets, with second seeds and the sinusoidal scale fix | Reading, Measured here | 9 | table with greedy text; the unscaled sinusoid failure became a measured mistake |
 
-What the methodology lacked here:
-- A rule for periodic quantities: whether an angle is "seen" must be judged modulo a turn, and per-pair checks are a lower bound on what is new jointly. The first draft counted unseen pairs without the modulo and overstated them (29 instead of 24 for Llama 3.1 at 4×).
-- Reading real weights by byte range from a safetensors file (the header gives offsets) is a cheap way to use a few kilobytes of a large checkpoint; worth recording as a data source.
+## Rejected (and why)
+- RoPE eight-pair dials, Figure 2 decay, toy extrapolation models, spectrum morph: on the RoFormer page (repeat).
+- A learned-table visual from GPT-2's real wpe (1,024 x 768): 3 MB, and the point (the cap) needs no real weights; the IndexError is shown instead.
+- Perplexity-against-length curves for PI / NTK / YaRN from the papers: they exist only as figures (curves are never read); the tiny GPT measures the same thing honestly at toy scale.
+- Needle-in-a-haystack simulator: nothing computable without a model; the Long context sibling owns effective-context evaluation.
+- CoPE counting demo: would need a trained model and a counting task; the mechanism is three lines of text.
+- A softmax-of-temperature chart: one number per s; shown in the formula box, the YaRN bands card and the measured temperature split.
+- Attention maps of the tiny GPT past 256 (which tokens the last query attends to under each scheme): considered for PE6; dropped to keep the data part small, since the loss strip and the text already show the before/after and the Inside lab owns attention maps.
+- Running a pretrained model (SmolLM2, Qwen3-0.6B) past its window: 8K to 32K-token windows on CPU or MPS for hours, teaching little the toy does not (cheap-runs rule); published results are cited instead.
+- Dynamic NTK as its own measured row: in one forward pass over 2,048 tokens it equals NTK at s = 8 under the YaRN paper's definition (stated, not measured).
+
+## What the method lacked here (lessons)
+- Periodic quantities: whether an angle is "seen" must be judged modulo a turn (2026-10-03 lesson, kept).
+- A config field is not proof of use: Nemotron-H configs carry rope_theta but the modeling code never calls the rotation; count calls in the pinned source before quoting a hybrid's position scheme.
+- Partial RoPE has two incompatible meanings in transformers 5 (default respaces the spectrum, "proportional" truncates it): read rope_type, not just partial_rotary_factor.

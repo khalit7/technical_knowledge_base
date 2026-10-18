@@ -1,0 +1,45 @@
+<div class="tab" id="t-past" role="tabpanel" hidden>
+<style>
+#t-past .pe-pa-txt{font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border-radius:6px;padding:6px 9px;margin:4px 0 2px;white-space:pre-wrap;overflow-wrap:anywhere;min-height:3.2em}
+#t-past .pe-pa-txt .p{color:var(--mute)}
+#t-past .pe-pa-row{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;margin:4px 0}
+#t-past .pe-pa-k{font-size:12.5px;color:var(--mute)}
+</style>
+<h2>Past the trained length</h2>
+<div class="deepnote">Extends Reading's <a href="#" data-tab="t-read">What breaks past the trained length</a> with measurements. The tiny GPT was trained on windows of 256 tokens; here the same five models read text far longer than that, with RoPE scaling applied at inference and no fine-tuning. Everything is measured on Apple M1 Pro (CPU, 4 threads, inference only, deterministic), 2026-10-18, by src/past/past_eval.py.</div>
+
+<h3>The same story, moved past 256</h3>
+<p>One input: the running sequence (Roxy the rhinoceros, 256 tokens, never seen in training). It is read with other validation stories in front of it, so the same tokens start at position 0, 128, 256, ... up to 1,536. Each step moves it further. The top panel is plain RoPE; the bottom panel is the method you pick, on the same text at the same offset. The strip is Roxy's 256 tokens in 32 cells of 8, coloured by the model's loss on them (darker red is worse); the dials are the tiny GPT's 16 RoPE pairs at the furthest distance inside the window (red hands are angles the pair never reached in training); the box is the model's greedy continuation of Roxy's first 200 tokens at that offset.</p>
+<div class="card" id="pe-pa">
+<div class="pe-modes" id="pe-paM" role="group" aria-label="Method for the after panel"></div>
+<div class="pe-panelt">Before: plain RoPE</div><div id="pe-paA"></div>
+<div class="pe-panelt">After: <span id="pe-paBt"></span></div><div id="pe-paB"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="pe-paStep"></div><p id="pe-paCap"></p></div>
+<div class="an-cnt" id="pe-paCnt"></div>
+<div class="an-ctl" id="pe-paC"></div>
+<p class="small mute" id="pe-paNote"></p>
+</div>
+
+<h3>Loss at every position, every scheme</h3>
+<p>Mean held-out loss per 64-token bin on 24 windows of 2,048 tokens (the windows the {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}} sibling uses, so the RoPE numbers agree to the fourth decimal). The dashed line is the trained length.</p>
+<div class="card" id="pe-pc">
+<div class="pe-legs" id="pe-pcLeg"></div>
+<div id="pe-pcSvg" class="plot"></div>
+<div class="tw"><table class="pe-wide" id="pe-pcT"><thead><tr><th>Model</th><th>Scaling at inference</th><th class="num">0 to 255</th><th class="num">256 to 511</th><th class="num">512 to 1,023</th><th class="num">1,024 to 2,047</th></tr></thead><tbody></tbody></table></div>
+<p class="small mute" id="pe-pcCap"></p>
+</div>
+<div class="pe-pr" id="pe-dr4"><div class="q">Predict before reading the table: with no scaling and no fine-tuning, which scheme has the lowest loss at 1,024 to 2,047 tokens, 4 to 8 times its training length?</div>
+<div class="opts"><button data-a="0">RoPE</button><button data-a="1">ALiBi</button><button data-a="2">NoPE</button><button data-a="3">Sinusoidal</button></div>
+<div class="ans" hidden></div><a href="#pe-dr4-end" class="skip">skip</a><span id="pe-dr4-end"></span></div>
+
+<h3>Inference-time scaling against a little fine-tuning</h3>
+<div id="pe-ft"></div>
+
+<h3>What transfers, and what does not</h3>
+<ul>
+<li><b>Transfers:</b> which pairs go out of range and when (arithmetic, scale-free); that ALiBi, whose penalty has nothing to go out of range, stays flat while plain RoPE climbs; that NoPE and sinusoids are no safer (their attention and inputs past 256 are just as new); that interpolating every pair (PI) costs the most short-range quality, NTK-aware the least, and that by-parts scaling (YaRN) reaches furthest at a cost in between; that static scaling costs inputs inside the trained length.</li>
+<li><b>Does not transfer:</b> the size of each gap. A 5.8M-parameter model trained on 12.3M tokens of simple stories, with stories of about 230 tokens on average (122,021,463 tokens over 529,875 stories, root src/data), needs little long-range information, so a model that ignores distant tokens loses little here; on real long documents the far tokens matter and the gaps between schemes are different. The published long-context results (YaRN, PI, LongRoPE perplexity curves, needle tests) are the evidence for large models; they exist only as figures in their papers and are not reproduced here.</li>
+<li><b>Not run here:</b> fine-tuning each method at the new length (the recipes do this; two fine-tunes are the long_context sibling's, above), dynamic NTK (in one forward pass over 2,048 tokens it equals NTK-aware at <i>s</i> = 8 under the YaRN paper's definition, a calculation), LongRoPE (needs a factor search), and any pretrained model past its window (hours of CPU for little the toy does not already show).</li>
+</ul>
+<details><summary>The code that produced the offsets (src/past/past_eval.py, the function as run)</summary><pre class="pe-code" id="pe-paCode"></pre></details>
+</div>

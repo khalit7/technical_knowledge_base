@@ -1,6 +1,6 @@
 // ---- Reading: six schemes, one query (exact logits for one illustrative head; T5 biases are the real T5-base decoder's) ----
 (function(){
-  const $=id=>document.getElementById(id);if(!$('sc'))return;
+  const $=id=>document.getElementById(id);if(!$('pe-sc')||!window.PE_DATA)return;
   const D=window.PE_DATA,d=64,L=512,sq=Math.sqrt(d);
   // illustrative content vector: seeded Gaussian (mulberry32 + Box-Muller), the same for query and key (a repeated token)
   function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -31,7 +31,7 @@
     let z=0;for(const v of lg)z+=Math.exp(v-mx);
     for(let k=0;k<=n;k++)pts.push([k,Math.exp(lg[k]-mx)/z]);return pts}
   const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#888';
-  function draw(){const el=$('scSvg'),W=window.RD.width(el),Hh=W<520?250:300,ml=44,mr=10,mt=10,mb=34,pw=W-ml-mr,ph=Hh-mt-mb;
+  function draw(){const el=$('pe-scSvg'),W=window.RD.width(el),Hh=W<520?250:300,ml=44,mr=10,mt=10,mb=34,pw=W-ml-mr,ph=Hh-mt-mb;
     const X=k=>ml+k/S.R*pw;
     let Y,yt=[],ylab;
     if(S.view==='logit'){const lo=-12,hi=8;Y=v=>mt+(hi-Math.max(lo,Math.min(hi,v)))/(hi-lo)*ph;for(let v=lo;v<=hi;v+=4)yt.push([v,v>0?'+'+v:''+v]);ylab='added to the logit'}
@@ -55,19 +55,19 @@
     const lv=S.view==='logit',b=window.T5B(-S.R,false),slope=Math.pow(2,-S.head),k64=Math.min(64,S.R);
     const sinShift=Math.abs(contrib('sin',S.off+k64,k64)-contrib('sin',k64,k64));
     const lastL=L-1-S.off;
-    $('scOut').innerHTML=[
+    $('pe-scOut').innerHTML=[
       lv?window.RD.stat('Positions','key at '+S.off.toLocaleString('en-US'),'query at '+S.off.toLocaleString('en-US')+' + distance'):window.RD.stat('Query position',(S.R+S.off).toLocaleString('en-US'),'attends to keys 0 to '+(S.R+S.off).toLocaleString('en-US')),
       window.RD.stat('ALiBi head '+S.head,'slope 1/'+Math.pow(2,S.head),'penalty at '+S.R.toLocaleString('en-US')+': '+(-slope*S.R).toFixed(S.R*slope<10?2:0)),
       window.RD.stat('T5 bucket at '+S.R.toLocaleString('en-US'),String(b),'decoder head '+S.head+' bias '+D.t5dec[b][S.head-1].toFixed(2)),
       window.RD.stat('Sinusoidal at distance '+k64,S.off?(sinShift.toFixed(2)+' moved'):'shift the pair','change after a shift of '+S.off.toLocaleString('en-US')),
       window.RD.stat('Learned table',lv?(lastL>=0?'to distance '+lastL.toLocaleString('en-US'):'no row'):((S.R+S.off)>=L?'no row':'rows 0 to 511'),lv?'rows 0 to 511 only':(S.R+S.off>=L?'position '+(S.R+S.off).toLocaleString('en-US')+' has no embedding':'every key has a row'))].join('');
-    $('scLeg').innerHTML=SCH.map(([k,n,c])=>'<label class="chk"><input type="checkbox" data-k="'+k+'"'+(S.on[k]?' checked':'')+'> <i style="background:'+css(c)+'"></i>'+n+'</label>').join('');
+    $('pe-scLeg').innerHTML=SCH.map(([k,n,c])=>'<label class="pe-chk"><input type="checkbox" data-k="'+k+'"'+(S.on[k]?' checked':'')+'> <i style="background:'+css(c)+'"></i>'+n+'</label>').join('');
   }
-  $('scLeg').addEventListener('change',e=>{const k=e.target.dataset.k;if(k){S.on[k]=e.target.checked?1:0;draw()}});
-  $('scView').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.view=b.dataset.v;[...$('scView').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});draw()});
-  $('scRange').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.R=+b.dataset.r;[...$('scRange').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});draw()});
-  $('scOff').addEventListener('input',e=>{S.off=+e.target.value;$('scOffV').textContent=S.off.toLocaleString('en-US');draw()});
-  $('scHead').addEventListener('input',e=>{S.head=+e.target.value;$('scHeadV').textContent=S.head;draw()});
-  $('scBase').addEventListener('change',e=>{S.base=+e.target.value;draw()});
-  window.RD.onRender(draw);addEventListener('resize',()=>{if($('sc').offsetParent)draw()});draw();
+  $('pe-scLeg').addEventListener('change',e=>{const k=e.target.dataset.k;if(k){S.on[k]=e.target.checked?1:0;draw()}});
+  $('pe-scView').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.view=b.dataset.v;[...$('pe-scView').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});draw()});
+  $('pe-scRange').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.R=+b.dataset.r;[...$('pe-scRange').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});draw()});
+  $('pe-scOff').addEventListener('input',e=>{S.off=+e.target.value;$('pe-scOffV').textContent=S.off.toLocaleString('en-US');draw()});
+  $('pe-scHead').addEventListener('input',e=>{S.head=+e.target.value;$('pe-scHeadV').textContent=S.head;draw()});
+  $('pe-scBase').addEventListener('change',e=>{S.base=+e.target.value;draw()});
+  window.RD.onRender(draw);addEventListener('resize',()=>{if($('pe-sc').offsetParent)draw()});draw();
 })();

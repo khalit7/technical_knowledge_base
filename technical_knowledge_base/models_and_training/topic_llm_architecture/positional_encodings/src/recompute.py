@@ -91,6 +91,24 @@ presets = {
                  s=l4['rope_scaling']['factor'], method='llama3', low=l4['rope_scaling']['low_freq_factor'], high=l4['rope_scaling']['high_freq_factor'], maxpos=l4['max_position_embeddings']),
 }
 
+# 2026 configs, read from the root's committed config copies (fetched 2026-10-18)
+RC = os.path.normpath(os.path.join(H, '../../src/map/inputs/configs'))
+rc = lambda f: json.load(open(os.path.join(RC, f)))
+dv4 = rc('deepseek-ai__DeepSeek-V4-Pro.json'); ol3 = rc('allenai__Olmo-3-32B-Think.json'); ml3 = rc('mistralai__Mistral-Large-3-675B-Instruct-2512.json')
+kk2 = rc('moonshotai__Kimi-K2-Base.json')
+presets.update({
+  'tiny': dict(name='Tiny GPT (this topic)', base=10000.0, dim=32, L=256, s=8.0, method='yarn', maxpos=2048,
+               note='root src/data/tiny_gpt.py: head_dim 32, rope_theta 10,000, trained at 256; s = 8 to reach the 2,048-token evaluation'),
+  'dsv4': dict(name='DeepSeek-V4-Pro (decoupled key)', base=dv4['rope_theta'], dim=dv4['qk_rope_head_dim'], L=dv4['rope_scaling']['original_max_position_embeddings'],
+               s=dv4['rope_scaling']['factor'], method='yarn', beta_fast=dv4['rope_scaling']['beta_fast'], beta_slow=dv4['rope_scaling']['beta_slow'], maxpos=dv4['max_position_embeddings']),
+  'olmo3': dict(name='Olmo 3 32B', base=ol3['rope_theta'], dim=ol3['hidden_size'] // ol3['num_attention_heads'], L=ol3['rope_scaling']['original_max_position_embeddings'],
+                s=ol3['rope_scaling']['factor'], method='yarn', beta_fast=ol3['rope_scaling'].get('beta_fast', 32), beta_slow=ol3['rope_scaling'].get('beta_slow', 1), maxpos=ol3['max_position_embeddings']),
+  'mistral3': dict(name='Mistral Large 3 (decoupled key)', base=ml3['rope_theta'], dim=ml3['qk_rope_head_dim'], L=ml3['yarn']['original_max_position_embeddings'],
+                   s=ml3['yarn']['factor'], method='yarn', beta_fast=ml3['yarn']['beta'], beta_slow=ml3['yarn']['alpha'], maxpos=ml3['max_position_embeddings'], apply_scale=ml3['yarn']['apply_scale']),
+  'kimik2': dict(name='Kimi K2 (decoupled key)', base=kk2['rope_theta'], dim=kk2['qk_rope_head_dim'], L=kk2['rope_scaling']['original_max_position_embeddings'],
+                 s=kk2['rope_scaling']['factor'], method='yarn', beta_fast=kk2['rope_scaling']['beta_fast'], beta_slow=kk2['rope_scaling']['beta_slow'], maxpos=kk2['max_position_embeddings']),
+})
+
 def all_methods(p, s=None):
     s = s or p['s']; b, d, L = p['base'], p['dim'], p['L']
     m = {'plain': base_inv(b, d), 'pi': pi_inv(b, d, s)}
@@ -142,7 +160,7 @@ out['presets'] = P
 def bands(p):
     _, (lo, hi), ramp = yarn_inv(p['base'], p['dim'], p['s'], p['L'], p.get('beta_fast', 32), p.get('beta_slow', 1), p.get('truncate', True))
     return dict(kept=sum(1 for r in ramp if r == 0), ramp=sum(1 for r in ramp if 0 < r < 1), interp=sum(1 for r in ramp if r == 1), low=round(lo, 3), high=round(hi, 3))
-out['yarn_bands'] = {k: bands(presets[k]) for k in ('oss', 'dsv3', 'qwen3')}
+out['yarn_bands'] = {k: bands(presets[k]) for k in ('oss', 'dsv3', 'qwen3', 'tiny', 'dsv4', 'olmo3', 'mistral3', 'kimik2')}
 
 # DeepSeek temperature in the paper and the code: V2 config mscale 0.707 -> sqrt(t) = 0.0707 ln s + 1 (V2 paper); V3 mscale 1 -> 0.1 ln s + 1
 dv2 = cfg('deepseek_v2_config.json')['rope_scaling']
@@ -206,6 +224,13 @@ out['layers'] = dict(
   command_a=dict(n=cmd['num_hidden_layers'], pattern=cmd['sliding_window_pattern'], window=cmd['sliding_window']),
   gemma3=dict(n=g3['num_hidden_layers'], pattern=g3['sliding_window_pattern'], window=g3['sliding_window']),
   gptoss=dict(n=oss['num_hidden_layers'], types=oss['layer_types'], window=oss['sliding_window']))
+# 2026 layer patterns (root configs): Gemma 4 31B local/global, Qwen3.5-397B linear/full, Kimi K3 KDA/MLA (no RoPE anywhere)
+_g4 = rc('google__gemma-4-31B-it.json')['text_config']; _q35 = rc('Qwen__Qwen3.5-397B-A17B.json')['text_config']
+_k3 = rc('moonshotai__Kimi-K3.json')['text_config']
+out['layers']['gemma4'] = dict(n=_g4['num_hidden_layers'], types=_g4['layer_types'], window=_g4['sliding_window'])
+out['layers']['qwen35'] = dict(n=_q35['num_hidden_layers'], types=_q35['layer_types'])
+_kla = _k3.get('linear_attn_config') or {}
+out['layers']['kimik3'] = dict(n=_k3['num_hidden_layers'], full=_kla.get('full_attn_layers'), kda=_kla.get('kda_layers'))
 out['partial'] = dict(gptneox=cfg('gptneox20b_config.json')['rotary_pct'], phi2=cfg('phi2_config.json')['partial_rotary_factor'],
                       glm45=cfg('glm45_config.json')['partial_rotary_factor'], glm45_head=cfg('glm45_config.json')['head_dim'],
                       dsv3_rope=dv3['qk_rope_head_dim'], dsv3_nope=dv3['qk_nope_head_dim'],
@@ -214,6 +239,22 @@ out['partial'] = dict(gptneox=cfg('gptneox20b_config.json')['rotary_pct'], phi2=
 # Llama 4's NoPE-layer temperature: 1 + attn_scale * log(floor((pos+1)/floor_scale) + 1)
 out['llama4_temp'] = {str(p_): round(1 + l4['attn_scale'] * math.log(math.floor((p_ + 1) / l4['floor_scale']) + 1), 4) for p_ in (8191, 65535, 262143, 1048575, 10485759)}
 out['factor_x_original'] = {k: pp['L'] * pp['s'] for k, pp in presets.items()}
+
+# Partial RoPE two ways (transformers 5.20.1): the default type spreads the whole spectrum over the rotated dims
+# (base^(-2i/rot)); Gemma 4's "proportional" type keeps the full head's exponents (base^(-2i/head_dim)) for the first pairs and zeroes the rest
+g4 = rc('google__gemma-4-31B-it.json')['text_config']; q3n = rc('Qwen__Qwen3-Next-80B-A3B-Instruct.json')
+gfa = g4['rope_parameters']['full_attention']; ghd = g4['global_head_dim']
+g_rot = int(gfa['partial_rotary_factor'] * ghd // 2)
+g_inv = [1.0 / gfa['rope_theta'] ** (2 * i / ghd) for i in range(g_rot)]
+q_rot = int(q3n['head_dim'] * q3n['partial_rotary_factor'])
+q_inv = [1.0 / q3n['rope_theta'] ** (2 * i / q_rot) for i in range(q_rot // 2)]
+out['partial_two_ways'] = dict(
+  gemma4=dict(head_dim=ghd, pairs=ghd // 2, rotated=g_rot, theta=gfa['rope_theta'], wl_min=round(2 * math.pi / g_inv[0], 3), wl_max=round(2 * math.pi / g_inv[-1], 1),
+              local_theta=g4['rope_parameters']['sliding_attention']['rope_theta'], local_head_dim=g4['head_dim'], window=g4['sliding_window'],
+              n_layers=g4['num_hidden_layers'], n_global=sum(1 for t in g4['layer_types'] if t == 'full_attention')),
+  qwen3next=dict(head_dim=q3n['head_dim'], pairs=q3n['head_dim'] // 2, rotated=q_rot // 2, theta=q3n['rope_theta'], wl_min=round(2 * math.pi / q_inv[0], 3),
+                 wl_max=round(2 * math.pi / q_inv[-1]), full_attention_interval=q3n.get('full_attention_interval')))
+
 
 json.dump(out, open(os.path.join(I, 'recompute.json'), 'w'), indent=1)
 for k, v in out.items():
