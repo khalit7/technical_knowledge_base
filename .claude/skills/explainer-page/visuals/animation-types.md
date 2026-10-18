@@ -175,7 +175,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **Reference folders.**
 - `models_and_training/topic_llms/alibaba_qwen/src/parts/11_js_moe.js`: expert grid, Qwen3 against Qwen3-Next, to scale.
 - `models_and_training/topic_llms/deepseek/src/parts/18_js_mlx.js`: the cache bars inside the MLA explainer.
-- `models_and_training/topic_llms/llm_architecture_gallery/src/parts/`: layer strips and the attention ladder (one token through MHA, GQA, MQA, MLA, sliding window, Gated DeltaNet, KDA with MHA dashed behind each).
+- `models_and_training/topic_llm_architecture/llm_architecture_gallery/src/parts/`: layer strips and the attention ladder (one token through MHA, GQA, MQA, MLA, sliding window, Gated DeltaNet, KDA with MHA dashed behind each).
 
 ---
 
