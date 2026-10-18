@@ -1,0 +1,20 @@
+# Verified facts used on this page (also appended under "lc" in the topic's shared FACTS.md), 2026-10-18
+
+Published (read 2026-10-18):
+- Gemma 3 report (arXiv 2503.19786): "5 local layers for every global layer", local span 1,024; section 5.2: "global only" gives "a memory overhead of 60%" at 32K, "less than 15%" with "1:3 and sliding windows of 1024" (ratio written inconsistently in the source); ratio and window changes have "minimal impact on perplexity" ("even with 7-to-1"); section 5.3: pre-train with 32K sequences, RoPE scaling factor 8 to 128K; RoPE base 10K local, 1M global.
+- Gemma 2 report (arXiv 2408.00118) section 2: alternate local sliding window and global attention "in every other layer", window 4,096, global span 8,192, context 8,192. Table 10 (9B, window shrunk at inference): perplexity 1.63 (4,096), 1.63 (2,048), 1.64 (1,024).
+- KIVI (arXiv 2402.02750) abstract: keys per-channel, values per-token; 2-bit; "2.6x less peak memory (including model weight)", up to 4x batch, 2.35x to 3.47x throughput.
+- H2O (arXiv 2306.14048) abstract: heavy hitters; with 20% heavy hitters up to 29x throughput over DeepSpeed Zero-Inference and HF Accelerate, up to 3x over FlexGen (OPT-6.7B, OPT-30B).
+- CLA (arXiv 2405.12981) abstract: sharing KV heads between adjacent layers reduces the KV cache "by another 2x" beyond MQA "while maintaining nearly the same accuracy as unmodified MQA"; 1B and 3B from scratch.
+- MixAttention (arXiv 2409.15012v1): long-context ability needs "at least one standard attention KV cache that is computed in the deeper layers"; builds on Character.AI's 2024 blog (not reachable on 2026-10-18; its "20x" is not quoted here).
+- An et al. 2024 (arXiv 2410.18745) abstract: effective context "often fall short, typically not exceeding half of their training lengths"; cause "left-skewed frequency distribution of relative positions".
+- SmolLM2 paper (arXiv 2502.02737): 2K pretraining, extended to 8K with RoPE 130K for the 1.7B (section 4.6); does not say whether 135M/360M were extended. Model card eval table names "SmolLM2-135M-8k". Config: max_position_embeddings 8,192, RoPE base 100,000.
+- Configs (root src/data/configs): gpt-oss-120b sliding_window 128 alternating, initial_context_length 4,096, YaRN factor 32; Gemma 3 27B window 1,024 pattern 6, rope_local_base_freq 10,000, rope_theta 1e6, linear x8; Mistral 7B v0.1 window 4,096 all layers; Nemotron-H 8B 4 attention layers of 52; Qwen3-Next full_attention_interval 4. The unsloth Llama 4 Scout mirror has no_rope_layers empty (so the calculator treats it as all global; left out of the Memory wall).
+
+Measured here (Apple M1 Pro, CPU, fp32, 4 threads; deterministic):
+- My SmolLM2 attention (src/kv/smol.py) equals transformers 5.20.1's forward to 1.9e-4 on logits up to 41.9 (1,024 tokens).
+- SmolLM2-135M, 4,096 tokens, 30 pass-key prompts: full 97%; SnapKV 97/97/87/60% at 50/25/12.5/6.25%; SnapKV scored before the question 30/0/0/0%; H2O 17/13/0/0%; sink+recent 50/17/10/0%; local+global (every 6th layer global) 37% at 50%, 3% at 25%; int8 97%, int4 87% (KIVI 93%), int2 7% (KIVI 50%). Copy loss full 0.61, best eviction at 50% 1.42, int4 0.66. New-story loss full 2.07, H2O 12.5% 2.10, recent-only 50% 4.02, sink+recent 50% 2.08.
+- SmolLM2 keys: largest channel mean |k| 9.4x the median channel in the median head; values 2.7x.
+- Tiny GPT at_mha (RoPE, trained at 256), 2,048-token windows: plain 2.07 (0-255) to 3.82 (1,024-2,047); linear x4 2.74 / 3.15; linear x8 3.27 / 3.45; NTK x8 2.18 / 3.25; YaRN x8 2.29 / 2.43. Learned positions: "IndexError: learned positions stop at 256; got position 299".
+- Tiny GPT continued 300 steps at 1,024 tokens (MPS): PI x4 2.08 (0-255) / 2.03 (512-1,023) / 3.29 (1,024-2,047); plain RoPE 2.06 / 2.03 / 2.14. at_swa64 (window 64, RoPE, trained 256): 2.10 / 2.07 / 2.09: no position wall.
+- SmolLM2-135M pass-key, full cache, 20 prompts per length (5 depths x 4 seeds): 1,024 75%, 2,048 85%, 4,096 100%, 6,144 95%, 8,192 80% (misses only at 5% depth), 12,288 0%, 16,384 0% (broken text); max_position_embeddings 8,192, no rope_scaling. Misses at 1K/2K are the first digit only.
