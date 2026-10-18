@@ -1,0 +1,80 @@
+
+<section id="ag-s1">
+<h2>1. The gallery, and how this page rebuilt it</h2>
+<p><b>What it is.</b> The {{LLM Architecture Gallery|https://sebastianraschka.com/llm-architecture-gallery/}} is Sebastian Raschka's side-by-side reference of open-weight model architectures: a drawn diagram per model and a fact sheet with total and active parameters, decoder type, attention and layer mix, context length, licence, links to the config and the technical report, and one headline number, the <b>KV cache per token in bf16</b>. Its metadata is a single {{models.yml|https://github.com/rasbt/llm-architecture-gallery}} under Apache 2.0; this page uses it at commit <code>589d213</code> (4 October 2026, read 18 October 2026): 109 entries from GPT-2 XL to models released in October 2026. It is a third-party summary: useful because it is consistent, not because it is a primary source.</p>
+<p><b>Its convention for the headline number</b>, from its {{KV-cache notes|https://sebastianraschka.com/llm-architecture-gallery/kv-cache-calculations/}}: "the logical cache added by one token for one sequence", batch 1, 2 bytes per element, summed over every layer that appends to a growing cache. A sliding-window layer is counted at full cost ("It changes how long a token remains in the cache"), linear and state-space layers count 0 B and their fixed state is kept outside the number, and MLA counts its compressed latent, not expanded keys and values. The root page's {{Architecture map (on Topic: llm-architecture)|n:3fd5c17b0d0d8172b490dc9f9ac281df}} and this page use the same convention, so the three agree, and both add a second number with the windows credited.</p>
+<p><b>How this page rebuilt it.</b> For each entry the script downloads nothing at build time: it reads the saved <code>config.json</code> (public mirrors for gated Meta and Google repos), decodes one code per layer for the mixer, the FFN and the position scheme, and sums the cache layer by layer. Then it compares its own number with the gallery's.</p>
+<div class="ag-box ag-bchk" id="ag-repro"></div>
+<div id="ag-diffs"></div>
+<p class="small mute">Not rebuilt: four entries whose config is not public (three gated repos, one LoRA adapter with no config of its own), and the three DeepSeek V4 entries, whose compressed caches the per-layer formula does not express; for those the gallery's figure is shown, with the reconstruction in section 12.</p>
+</section>
+
+<section id="ag-s2">
+<h2>2. Reading a model card in thirty seconds</h2>
+<p>A model card answers five questions, and each answer predicts something different. Ask them in this order:</p>
+<ol>
+<li><b>Total and active parameters.</b> The total is the memory you must provision for the weights; the active count is what runs per token, so it sets latency and price. They are routinely conflated. Their ratio is the MoE sparsity.</li>
+<li><b>Attention type and layer mix.</b> Full attention, windows, linear layers or trained sparse attention, and in what proportion: how cost grows with context, which matters more than the advertised context length.</li>
+<li><b>KV cache per token, times context, times concurrent requests,</b> with the windows credited: whether long context fits, in GiB.</li>
+<li><b>Experts: routed, active, shared.</b> How much expert parallelism serving needs, and how much skewed traffic will hurt (the {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}} page owns why).</li>
+<li><b>Licence, and whether base weights shipped.</b> Base weights decide whether you can post-train at all.</li>
+</ol>
+<div class="grid">
+<div class="card"><h3 style="margin-top:0">gpt-oss-120b (August 2025)</h3>
+<ol class="small" style="padding-left:18px">
+<li>117B total, 5.1B active (OpenAI's {{model card|https://huggingface.co/openai/gpt-oss-120b}}, vendor): 4.4% runs per token, so it decodes like a 5B model and needs memory for 117B.</li>
+<li>36 layers alternating a 128-token sliding window and full attention, one to one: cost grows with context through 18 of 36 layers.</li>
+<li>8 KV heads of 64: 72 KiB per token on the card, 36 KiB per token effective at 131,072 tokens; one full-context request holds 4.5 GiB, so 16 such requests need 72 GiB of cache.</li>
+<li>128 routed experts, 4 active, no shared expert in the config.</li>
+<li>Apache 2.0; the card does not say whether a base checkpoint shipped.</li>
+</ol></div>
+<div class="card"><h3 style="margin-top:0">Kimi K3 (July 2026)</h3>
+<ol class="small" style="padding-left:18px">
+<li>2.8T total, 104B active (gallery line from Moonshot's card, vendor): 3.7% runs per token.</li>
+<li>93 layers: 69 Kimi Delta Attention layers (linear, fixed state) and 24 MLA layers that carry no positional encoding (<code>mla_use_nope</code>).</li>
+<li>Only the 24 MLA layers grow a cache: 24 × (512 + 64) × 2 = 27 KiB per token, 3.4 GiB at 131,072 tokens; the 69 linear layers add a fixed state of 1,572,864 numbers each, 414 MiB per sequence in FP32 (matrix state only).</li>
+<li>896 routed experts, 16 active, 2 shared; the first layer dense.</li>
+<li>"Kimi K3 License" (gallery); read it before planning to serve or post-train.</li>
+</ol></div>
+</div>
+<div class="ag-pr" data-ok="b"><div class="q">Predict: Gemma 3 27B's card says 496 KiB per token, and its context is 128K. What does one 131,072-token request actually hold in bf16?</div>
+<div class="opts"><button data-k="a">62 GiB</button><button data-k="b">About 10.4 GiB</button><button data-k="c">About 31 GiB</button></div>
+<p class="small"><a href="#" class="skip">Skip: show the answer</a></p>
+<div class="ans" hidden>About 10.4 GiB. 52 of its 62 layers are 1,024-token sliding windows, so they stop growing at 1,024 tokens (52 × 8 KiB × 1,024 = 416 MiB); only the 10 global layers grow: 10 × 8 KiB × 131,072 = 10 GiB. The card's 496 KiB times 131,072 is 62 GiB, six times too much. The {{Cache at context|#t-ctx}} tab animates the difference.</div></div>
+</section>
+
+<section id="ag-s3">
+<h2>3. Reading the config: the fields behind each strip</h2>
+<p>The card is a summary; the <code>config.json</code> is what the loading code reads, so when the two disagree the config wins for that checkpoint. Thirty fields describe the architecture, but each strip comes from a handful, and every lab spells them differently. The {{Decode a config|#t-dec}} tab shows, for any of the 105 models, exactly which fields this page read and what each one set.</p>
+<div class="tw"><table>
+<thead><tr><th>To know</th><th>Read</th><th>Watch for</th></tr></thead>
+<tbody>
+<tr><td>Layers and width</td><td><code>num_hidden_layers</code>, <code>hidden_size</code></td><td><code>n_layer</code> (GPT-2), <code>num_layers</code> (LongCat), <code>n_layers</code> and <code>dim</code> (Mistral's <code>params.json</code>)</td></tr>
+<tr><td>Cache per attention layer</td><td><code>num_key_value_heads</code> × <code>head_dim</code>, or <code>kv_lora_rank</code> + <code>qk_rope_head_dim</code> for MLA</td><td>KV heads under another name (<code>num_attention_groups</code> in Step); <code>head_dim</code> that is not <code>hidden_size / num_attention_heads</code> (Gemma, Qwen3)</td></tr>
+<tr><td>Which layers do what</td><td><code>layer_types</code></td><td>Eleven other spellings in this set: <code>hybrid_override_pattern</code> (Nemotron), <code>layers_block_type</code>, <code>attn_type_list</code> (MiniMax), <code>linear_attn_config.full_attn_layers</code> (Kimi, counted from 1), <code>hybrid_layer_pattern</code> (MiMo), <code>gqa_layers</code>, <code>local_layer_ids</code>, <code>sliding_window_pattern</code> (an integer, or the string <code>"interleave"</code> in Motif), <code>full_attention_interval</code>, <code>no_rope_layers</code> (Llama 4), <code>compress_ratios</code> (DeepSeek V4)</td></tr>
+<tr><td>Window</td><td><code>sliding_window</code></td><td><code>sliding_window_size</code>, <code>attention_chunk_size</code> (Llama 4 chunks), a window set but switched off by <code>use_sliding_window: false</code></td></tr>
+<tr><td>Experts</td><td><code>n_routed_experts</code>, <code>num_experts_per_tok</code>, <code>n_shared_experts</code>, <code>first_k_dense_replace</code></td><td><code>num_local_experts</code>, <code>moe_topk</code>, <code>moe_layer_freq</code> (a list), <code>mlp_only_layers</code>, <code>interleave_moe_layer_step</code></td></tr>
+<tr><td>Position</td><td><code>rope_theta</code>, <code>rope_scaling</code></td><td>Nested per layer type in <code>rope_parameters</code> (Gemma 4); per-layer lists of bases and rotary fractions (Step); <code>partial_rotary_factor</code></td></tr>
+<tr><td>Context</td><td>the model card</td><td><code>max_position_embeddings</code> is a limit in the code, not the trained context (MiniMax-M1's is 10,240,000; Qwen3's 40,960 against a 32,768 native context, per the root page)</td></tr>
+</tbody></table></div>
+<p><b>Traps met building this page</b>, each real:</p>
+<ul class="tight">
+<li><b>The config is not where you think.</b> Multimodal checkpoints nest the language model under <code>text_config</code> (Gemma 4, Qwen3.5, Kimi K3); DeepSeek V4.1-Flash stores its <code>text_config</code> as a Python-repr string, not JSON; DeepSeek V4-Pro stores <code>compress_ratios</code> as a string holding a list; Mistral Large 3 ships <code>params.json</code> with its own key names.</li>
+<li><b>A saved file that is not a config.</b> Gated repos answer a download without a token with an error body, and a script that does not check saves it as <code>config.json</code>. This page's own earlier build had nine such files (eight error bodies from gated repos and one "Entry not found"), among them <code>unsloth__Meta-Llama-3-8B.json</code> containing only <code>Invalid username or password.</code> and <code>google__gemma-3-27b-it.json</code> beginning <code>Access to model google/gemma-3-27b-it is restricted.</code> Those models were silently skipped; Llama 3 8B now comes from the public mirror <code>unsloth/llama-3-8b</code>.</li>
+<li><b>The list includes layers that are not in the stack.</b> Step 3.5 Flash's <code>layer_types</code> has 48 entries for 45 decoder layers: the last three are its multi-token-prediction layers.</li>
+<li><b>The config alone is not enough.</b> Gemma 4 E2B's config says <code>head_dim</code> 256, but transformers gives its global layers <code>global_head_dim</code> 512 and lets its last 20 layers reuse earlier caches; Motif 3 has <code>kv_lora_rank</code> like MLA, but its released code caches the expanded keys and values. Both are settled only by reading the modeling code (section 1's corrections).</li>
+</ul>
+<p>The decoding itself is a cascade of such cases. This is the start of the mixer branch of <code>src/gen_data.py</code> (the same branches as the root map's <code>build_map.py</code>), and the report line it wrote for Gemma 3 27B:</p>
+<div class="ag-code">    if t.get('hybrid_override_pattern'):
+        p = t['hybrid_override_pattern']
+        mix = ''.join({'M': 'L', '*': 'G', 'E': 'F', '-': 'F'}[c] for c in p)
+    ...
+    elif lt:
+        m = {'full_attention': 'G', 'attention': 'G', 'sliding_attention': 'S', 'linear_attention': 'L', ...}
+        mix = ''.join(m.get(x, '?') for x in lt[:L])
+    elif t.get('sliding_window_pattern'):
+        n = t['sliding_window_pattern']
+        mix = ''.join('G' if (i + 1) % n == 0 else 'S' for i in range(L))
+<span class="c"># src/out/report.txt</span>
+match    Gemma 3 27B                          calc    496.00 KiB  idx       -  gallery 496 KiB      kvw   85248.0  mix SSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSS ffn dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd pos RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR</div>
+</section>
