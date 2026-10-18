@@ -1,0 +1,554 @@
+{
+ "steps": [
+  {
+   "key": "config",
+   "shapes": [],
+   "out": [
+    "cfg = Config()  # V=4096 ctx=256 D=256 L=6 H=8",
+    "head size hd = D / H = 256 / 8 = 32",
+    "FFN hidden F = 4 D = 1024   (SwiGLU: 8/3 D rounded up to 32 = 704)"
+   ],
+   "code": {
+    "start": 19,
+    "lines": [
+     "# ==== STEP 1: the config. Every number the model needs, and the switches the ablations turn off.",
+     "@dataclass",
+     "class Config:",
+     "    vocab: int = 4096        # V: the running example's byte-level BPE",
+     "    ctx: int = 256           # T max: the training context",
+     "    d: int = 256             # D: width of the residual stream",
+     "    n_layer: int = 6         # L: blocks",
+     "    n_head: int = 8          # H: heads per attention layer, hd = D / H = 32",
+     "    ffn_mult: int = 4        # F = 4 D = 1,024",
+     "    swiglu: bool = False     # SwiGLU FFN instead of GELU (F = 8/3 D rounded up to 32: 704)",
+     "    # ablation switches: all True is the baseline",
+     "    pos: bool = True         # learned position table",
+     "    resid: bool = True       # x + sublayer(x); False: x = sublayer(x)",
+     "    norm: bool = True        # LayerNorm before each sublayer and before the head; False: no norm anywhere",
+     "    attn: bool = True        # the attention sublayer",
+     "    ffn: bool = True         # the feed-forward sublayer",
+     "",
+     "    @property",
+     "    def hd(self):",
+     "        return self.d // self.n_head",
+     "",
+     "    @property",
+     "    def f(self):",
+     "        return 32 * ((int(8 * self.d / 3) + 31) // 32) if self.swiglu else self.ffn_mult * self.d"
+    ]
+   }
+  },
+  {
+   "key": "embed",
+   "shapes": [
+    {
+     "name": "idx",
+     "shape": [
+      1,
+      256
+     ],
+     "note": "token ids of the running sequence"
+    },
+    {
+     "name": "emb.tok(idx)",
+     "shape": [
+      1,
+      256,
+      256
+     ],
+     "note": "one row of the (V, D) table per token"
+    },
+    {
+     "name": "emb.pos(arange(T))",
+     "shape": [
+      256,
+      256
+     ],
+     "note": "one row per position, broadcast over B"
+    },
+    {
+     "name": "x = tok + pos",
+     "shape": [
+      1,
+      256,
+      256
+     ],
+     "note": "the residual stream starts here"
+    }
+   ],
+   "out": [
+    "lookup equals one_hot(idx) @ W: max |difference| = 0.0e+00",
+    "token \" R\" (\"Roxy\" is 4 tokens: \" R\", \"o\", \"x\", \"y\") at positions 20 and 25: token vectors differ by 0.0; after adding positions, cosine 0.433",
+    "trained layer-1 head 0, no mask, 256 tokens shuffled: without positions the outputs are the same rows shuffled (largest change 5.6e-07 of the largest output); with positions added: 1.13"
+   ],
+   "roxy": [
+    20,
+    25,
+    46,
+    111,
+    141,
+    156,
+    211,
+    225,
+    249
+   ],
+   "perm": {
+    "nopos": 5.583844995271647e-07,
+    "pos": 1.131
+   },
+   "code": {
+    "start": 45,
+    "lines": [
+     "# ==== STEP 2: embedding. Token ids (B, T) become vectors (B, T, D): one row of a V x D table per token,",
+     "# plus one row of a ctx x D table per position.",
+     "class Embedding(nn.Module):",
+     "    def __init__(self, cfg):",
+     "        super().__init__()",
+     "        self.tok = nn.Embedding(cfg.vocab, cfg.d)                         # (V, D)",
+     "        self.pos = nn.Embedding(cfg.ctx, cfg.d) if cfg.pos else None      # (ctx, D)",
+     "",
+     "    def forward(self, idx, start=0):",
+     "        B, T = idx.shape",
+     "        x = self.tok(idx)                                                 # (B, T, D)",
+     "        if self.pos is not None:",
+     "            x = x + self.pos(torch.arange(start, start + T, device=idx.device))  # (T, D) broadcast over B",
+     "        return x"
+    ]
+   }
+  },
+  {
+   "key": "one_head",
+   "shapes": [
+    {
+     "name": "x",
+     "shape": [
+      256,
+      256
+     ],
+     "note": "one sequence, no batch dim yet"
+    },
+    {
+     "name": "q = x @ Wq",
+     "shape": [
+      256,
+      32
+     ],
+     "note": "the same for k and v: (T, hd)"
+    },
+    {
+     "name": "scores q @ k.T",
+     "shape": [
+      256,
+      256
+     ],
+     "note": "row i: token i against every token"
+    },
+    {
+     "name": "y = softmax(masked) @ v",
+     "shape": [
+      256,
+      32
+     ],
+     "note": "one hd-vector per token"
+    }
+   ],
+   "out": [
+    "rows of w sum to 1: max |sum - 1| = 2.4e-07",
+    "weights above the diagonal (the future): max = 0.0",
+    "change token 200: outputs at 0..199 move by 0.0, at 200..255 by up to 4.1e-04",
+    "q.k of random unit-variance vectors, hd=32: std 5.65 (sqrt(hd) = 5.66); divided by sqrt(hd): 1.00",
+    "hd=32, 256 keys: mean largest softmax weight 0.62 unscaled, 0.04 scaled",
+    "hd=128, 256 keys: mean largest softmax weight 0.84 unscaled, 0.04 scaled"
+   ],
+   "causal": {
+    "before": 0.0,
+    "after": 0.000414433
+   },
+   "scale": [
+    {
+     "hd": 32,
+     "raw": 0.623,
+     "scaled": 0.044
+    },
+    {
+     "hd": 128,
+     "raw": 0.838,
+     "scaled": 0.042
+    }
+   ],
+   "code": {
+    "start": 61,
+    "lines": [
+     "# ==== STEP 3: one attention head, by hand. Each token asks a question (q), offers a label (k) and a",
+     "# payload (v); scores q.k / sqrt(hd); the causal mask hides the future; softmax turns scores into weights.",
+     "def one_head(x, Wq, Wk, Wv):",
+     "    \"\"\"x (T, D); W* (D, hd). Returns (T, hd) and the (T, T) weights.\"\"\"",
+     "    T = x.shape[0]",
+     "    q, k, v = x @ Wq, x @ Wk, x @ Wv                                      # each (T, hd)",
+     "    s = q @ k.T / math.sqrt(q.shape[-1])                                  # (T, T): row i = token i's scores",
+     "    future = torch.triu(torch.ones(T, T, dtype=torch.bool, device=x.device), 1)",
+     "    s = s.masked_fill(future, float(\"-inf\"))                              # token i sees tokens 0..i only",
+     "    w = s.softmax(-1)                                                     # rows sum to 1",
+     "    return w @ v, w"
+    ]
+   }
+  },
+  {
+   "key": "multi_head",
+   "shapes": [
+    {
+     "name": "att.q(x)",
+     "shape": [
+      1,
+      256,
+      256
+     ],
+     "note": "(B, T, D): all 8 heads in one matmul"
+    },
+    {
+     "name": ".view(B, T, H, hd)",
+     "shape": [
+      1,
+      256,
+      8,
+      32
+     ],
+     "note": "split D = 8 x 32"
+    },
+    {
+     "name": ".transpose(1, 2)",
+     "shape": [
+      1,
+      8,
+      256,
+      32
+     ],
+     "note": "heads before T: 8 independent (T, hd) problems"
+    },
+    {
+     "name": "q @ k.transpose(-2, -1)",
+     "shape": [
+      1,
+      8,
+      256,
+      256
+     ],
+     "note": "8 score matrices"
+    },
+    {
+     "name": "merge: .transpose(1, 2).reshape(B, T, D)",
+     "shape": [
+      1,
+      256,
+      256
+     ],
+     "note": "heads side by side again"
+    },
+    {
+     "name": "att.o(y)",
+     "shape": [
+      1,
+      256,
+      256
+     ],
+     "note": "output projection mixes the heads"
+    }
+   ],
+   "out": [
+    "equals 8 separate one_head() calls, concatenated: max |difference| = 0.0e+00",
+    "equals F.scaled_dot_product_attention(is_causal=True): max |difference| = 1.5e-08",
+    "parameters: 4 x D x D = 262,144"
+   ],
+   "code": {
+    "start": 74,
+    "lines": [
+     "# ==== STEP 4: all heads at once. One (D, D) matrix per q, k, v; split D into H heads of hd, move heads",
+     "# before T so each head is a batch of (T, hd) matrices; attend; merge heads back; output projection.",
+     "class CausalSelfAttention(nn.Module):",
+     "    def __init__(self, cfg):",
+     "        super().__init__()",
+     "        D = cfg.d",
+     "        self.H, self.hd = cfg.n_head, cfg.hd",
+     "        self.q = nn.Linear(D, D, bias=False)                              # weight stored (out, in) = (D, D)",
+     "        self.k = nn.Linear(D, D, bias=False)",
+     "        self.v = nn.Linear(D, D, bias=False)",
+     "        self.o = nn.Linear(D, D, bias=False)",
+     "        self.o.is_residual_out = True",
+     "",
+     "    def forward(self, x, cache=None, manual=False):",
+     "        B, T, D = x.shape",
+     "        H, hd = self.H, self.hd",
+     "        q = self.q(x).view(B, T, H, hd).transpose(1, 2)                   # (B, H, T, hd)",
+     "        k = self.k(x).view(B, T, H, hd).transpose(1, 2)",
+     "        v = self.v(x).view(B, T, H, hd).transpose(1, 2)",
+     "        if cache is not None:                                             # decoding: keep every past k and v",
+     "            if \"k\" in cache:",
+     "                k, v = torch.cat([cache[\"k\"], k], 2), torch.cat([cache[\"v\"], v], 2)",
+     "            cache[\"k\"], cache[\"v\"] = k, v",
+     "        Tk = k.shape[2]",
+     "        if manual or (cache is not None and T != Tk):",
+     "            s = (q @ k.transpose(-2, -1)) / math.sqrt(hd)                 # (B, H, T, Tk)",
+     "            qpos = torch.arange(Tk - T, Tk, device=x.device)",
+     "            future = qpos[:, None] < torch.arange(Tk, device=x.device)[None, :]",
+     "            y = s.masked_fill(future, float(\"-inf\")).softmax(-1) @ v      # (B, H, T, hd)",
+     "        else:",
+     "            y = F.scaled_dot_product_attention(q, k, v, is_causal=True, scale=1 / math.sqrt(hd))",
+     "        y = y.transpose(1, 2).reshape(B, T, D)                            # merge heads: (B, T, D)",
+     "        return self.o(y)"
+    ]
+   }
+  },
+  {
+   "key": "ffn",
+   "shapes": [
+    {
+     "name": "ffn.up(x)",
+     "shape": [
+      1,
+      256,
+      1024
+     ],
+     "note": "4 x wider"
+    },
+    {
+     "name": "gelu(.)",
+     "shape": [
+      1,
+      256,
+      1024
+     ],
+     "note": "elementwise: shape unchanged"
+    },
+    {
+     "name": "ffn.down(.)",
+     "shape": [
+      1,
+      256,
+      256
+     ],
+     "note": "back to D"
+    }
+   ],
+   "out": [
+    "position-wise: ffn(x)[157] vs ffn(x[157] alone): max |difference| = 8.9e-08",
+    "parameters: 2 x D x F = 524,288; SwiGLU 3 x D x 704 = 540,672 (3.1% more)"
+   ],
+   "code": {
+    "start": 109,
+    "lines": [
+     "# ==== STEP 5: the feed-forward network. The same two-layer MLP applied to every token on its own:",
+     "# up to F = 4 D, a nonlinearity, back down to D. SwiGLU: a gated version with three matrices.",
+     "class FFN(nn.Module):",
+     "    def __init__(self, cfg):",
+     "        super().__init__()",
+     "        self.up = nn.Linear(cfg.d, cfg.f, bias=False)                     # (F, D)",
+     "        self.down = nn.Linear(cfg.f, cfg.d, bias=False)                   # (D, F)",
+     "        self.down.is_residual_out = True",
+     "",
+     "    def forward(self, x):",
+     "        return self.down(F.gelu(self.up(x), approximate=\"tanh\"))         # (B, T, F) inside, (B, T, D) out",
+     "",
+     "",
+     "class SwiGLU(nn.Module):",
+     "    def __init__(self, cfg):",
+     "        super().__init__()",
+     "        self.gate = nn.Linear(cfg.d, cfg.f, bias=False)",
+     "        self.up = nn.Linear(cfg.d, cfg.f, bias=False)",
+     "        self.down = nn.Linear(cfg.f, cfg.d, bias=False)",
+     "        self.down.is_residual_out = True",
+     "",
+     "    def forward(self, x):",
+     "        return self.down(F.silu(self.gate(x)) * self.up(x))"
+    ]
+   }
+  },
+  {
+   "key": "block",
+   "shapes": [
+    {
+     "name": "block(x)",
+     "shape": [
+      1,
+      256,
+      256
+     ],
+     "note": "same shape in and out: blocks stack"
+    }
+   ],
+   "out": [
+    "at initialisation |block(x) - x| / |x| = 1.15: embeddings start tiny (std 0.02) while LayerNorm hands each sublayer a unit-scale copy",
+    "parameters per block: 786,944 = attention 262,144 + FFN 524,288 + 2 LayerNorm gains 512"
+   ],
+   "rel": 1.1486,
+   "code": {
+    "start": 134,
+    "lines": [
+     "# ==== STEP 6: the block. Pre-norm residual: normalise a copy, run the sublayer, ADD its output to the",
+     "# stream. The stream x itself is never normalised in place, so every block only writes a correction.",
+     "class Block(nn.Module):",
+     "    def __init__(self, cfg):",
+     "        super().__init__()",
+     "        self.cfg = cfg",
+     "        if cfg.attn:",
+     "            self.attn = CausalSelfAttention(cfg)",
+     "        if cfg.ffn:",
+     "            self.ffn = SwiGLU(cfg) if cfg.swiglu else FFN(cfg)",
+     "        self.n1 = nn.LayerNorm(cfg.d, bias=False) if (cfg.norm and cfg.attn) else nn.Identity()",
+     "        self.n2 = nn.LayerNorm(cfg.d, bias=False) if (cfg.norm and cfg.ffn) else nn.Identity()",
+     "",
+     "    def forward(self, x, cache=None, manual=False):",
+     "        if self.cfg.attn:",
+     "            a = self.attn(self.n1(x), cache, manual)",
+     "            x = x + a if self.cfg.resid else a",
+     "        if self.cfg.ffn:",
+     "            f = self.ffn(self.n2(x))",
+     "            x = x + f if self.cfg.resid else f",
+     "        return x"
+    ]
+   }
+  },
+  {
+   "key": "model",
+   "shapes": [
+    {
+     "name": "model(idx[:, :-1])",
+     "shape": [
+      1,
+      255,
+      4096
+     ],
+     "note": "one score per vocabulary entry, at every input position"
+    }
+   ],
+   "out": [
+    "parameters: 5,836,032 (tiny_gpt baseline: 5,836,032)",
+    "lm_head.weight is emb.tok.weight: True; summing state_dict() instead counts it twice: 6,884,608",
+    "seed 0 initial weights vs tiny_gpt.py seed 0: max |difference| = 0.0",
+    "trained tiny GPT (ref_baseline_s1500) loaded into this file: logits differ by 0.0"
+   ],
+   "n_params": 5836032,
+   "n_state_dict": 6884608,
+   "code": {
+    "start": 157,
+    "lines": [
+     "# ==== STEP 7: the whole model. Embed, L blocks, a final norm, and the unembedding: a D x V matrix that",
+     "# turns the last residual vector into one score (logit) per vocabulary entry. Tied: it IS the embedding table.",
+     "class GPT(nn.Module):",
+     "    def __init__(self, cfg):",
+     "        super().__init__()",
+     "        self.cfg = cfg",
+     "        self.emb = Embedding(cfg)",
+     "        self.blocks = nn.ModuleList(Block(cfg) for _ in range(cfg.n_layer))",
+     "        self.ln_f = nn.LayerNorm(cfg.d, bias=False) if cfg.norm else nn.Identity()",
+     "        self.lm_head = nn.Linear(cfg.d, cfg.vocab, bias=False)            # (V, D)",
+     "        self.apply(self._init)",
+     "        self.lm_head.weight = self.emb.tok.weight                         # weight tying",
+     "",
+     "    def _init(self, m):                                                   # GPT-2 initialisation",
+     "        if isinstance(m, nn.Linear):",
+     "            std = 0.02 / math.sqrt(2 * self.cfg.n_layer) if getattr(m, \"is_residual_out\", False) else 0.02",
+     "            nn.init.normal_(m.weight, 0.0, std)",
+     "        elif isinstance(m, nn.Embedding):",
+     "            nn.init.normal_(m.weight, 0.0, 0.02)"
+    ]
+   }
+  },
+  {
+   "key": "loss",
+   "shapes": [
+    {
+     "name": "logits",
+     "shape": [
+      1,
+      255,
+      4096
+     ],
+     "note": "predictions made at positions 0..254"
+    },
+    {
+     "name": "targets = idx[:, 1:]",
+     "shape": [
+      1,
+      255
+     ],
+     "note": "the next token at each position"
+    }
+   ],
+   "out": [
+    "untrained loss on the running sequence: 8.360; uniform guess ln V = ln 4096 = 8.318",
+    "trained (1,500 steps): 1.956 nats per token, perplexity 7.1",
+    "untrained logits: std 0.320, so softmax is near uniform (largest probability 0.00216)"
+   ],
+   "loss0": 8.3602,
+   "loss_trained": 1.9563,
+   "code": {
+    "start": 177,
+    "lines": [
+     "    # ==== STEP 8: the loss. Position t predicts token t+1: targets are the inputs shifted by one.",
+     "    def forward(self, idx, targets=None, cache=None, manual=False):",
+     "        start = cache[0].get(\"len\", 0) if cache else 0",
+     "        if cache is not None and not cache:",
+     "            cache.extend({} for _ in self.blocks)",
+     "        x = self.emb(idx, start)                                          # (B, T, D)",
+     "        for i, b in enumerate(self.blocks):",
+     "            x = b(x, cache[i] if cache is not None else None, manual)    # (B, T, D) in and out",
+     "        if cache is not None:",
+     "            for c in cache:",
+     "                c[\"len\"] = start + idx.shape[1]",
+     "        logits = self.lm_head(self.ln_f(x))                               # (B, T, V)",
+     "        loss = None",
+     "        if targets is not None:",
+     "            loss = F.cross_entropy(logits.float().view(-1, logits.shape[-1]), targets.reshape(-1))",
+     "        return logits, loss, logits.new_zeros(()), None                   # same signature as tiny_gpt.GPT"
+    ]
+   }
+  },
+  {
+   "key": "sample",
+   "shapes": [
+    {
+     "name": "cache[0]['k'] after 40 tokens",
+     "shape": [
+      1,
+      8,
+      40,
+      32
+     ],
+     "note": "(B, H, tokens so far, hd), per layer"
+    }
+   ],
+   "out": [
+    "decoding tokens 30..39 one at a time with the cache vs one full forward: max |difference| = 1.3e-05",
+    "greedy: Roxy was a little rhinoceros. He was very happy and loved to play with his friends. One day, he saw a big, scary dog. The dog was scared and wanted to",
+    "T 0.8, seed 0: Roxy was a little rhinoceros. He had a big smile and loved to sleep all day. One day, he saw some good friends. He was watching the animals bouncy and not"
+   ],
+   "code": {
+    "start": 194,
+    "lines": [
+     "    # ==== STEP 9: sampling. Feed the prompt once, then one token at a time, reusing cached k and v.",
+     "    @torch.no_grad()",
+     "    def generate(self, idx, n_new, temperature=0.0, top_k=None, generator=None):",
+     "        cache = []",
+     "        logits, *_ = self(idx, cache=cache)",
+     "        out = idx",
+     "        for _ in range(n_new):",
+     "            lg = logits[:, -1].float()",
+     "            if temperature <= 0:",
+     "                nxt = lg.argmax(-1, keepdim=True)                         # greedy",
+     "            else:",
+     "                lg = lg / temperature",
+     "                if top_k:",
+     "                    v, _ = lg.topk(top_k)",
+     "                    lg[lg < v[:, -1:]] = float(\"-inf\")",
+     "                nxt = torch.multinomial(lg.softmax(-1), 1, generator=generator)",
+     "            out = torch.cat([out, nxt], 1)",
+     "            if out.shape[1] >= self.cfg.ctx:                             # learned positions stop at ctx",
+     "                break",
+     "            logits, *_ = self(nxt, cache=cache)",
+     "        return out"
+    ]
+   }
+  }
+ ],
+ "file_lines": 230
+}
