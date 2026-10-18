@@ -1,0 +1,164 @@
+
+<section id="cc-s-code"><h2>The code</h2>
+<p>The formulas live once, in <code>src/calc/calc.py</code> (standard library only); <code>parts/33_js_cc_1core.js</code> is a line-by-line port. Below: the parameter functions as they ran, the validation output, and the check that the page's JavaScript gives the same numbers as the Python on every config at five context lengths.</p>
+<details class="cc-det"><summary>calc.py: mixer_params, ffn_params and params (from line 236)</summary>
+<div class="cc-code">def mixer_params(m, d):
+    &quot;&quot;&quot;Parameters of one sequence mixer, split into (matmul weights, other: biases, norms, small vectors).&quot;&quot;&quot;
+    if m is None: return 0, 0
+    t = m[&#x27;t&#x27;]
+    if t == &#x27;attn&#x27;:
+        q = d * m[&#x27;nh&#x27;] * m[&#x27;hd&#x27;] * (2 if m[&#x27;gate&#x27;] else 1)
+        kv = 2 * d * m[&#x27;nkv&#x27;] * m[&#x27;hd&#x27;]
+        o = m[&#x27;nh&#x27;] * m[&#x27;hdv&#x27;] * d
+        oth = (m[&#x27;nh&#x27;] * m[&#x27;hd&#x27;] * (2 if m[&#x27;gate&#x27;] else 1) + 2 * m[&#x27;nkv&#x27;] * m[&#x27;hd&#x27;] if m[&#x27;bqkv&#x27;] else 0) + \
+              (d if m[&#x27;bo&#x27;] else 0) + m[&#x27;qk&#x27;] + (m[&#x27;nh&#x27;] if m[&#x27;sinks&#x27;] else 0)
+        return q + kv + o, oth
+    if t == &#x27;mla&#x27;:
+        nh = m[&#x27;nh&#x27;]; qh = m[&#x27;nope&#x27;] + m[&#x27;rope&#x27;]
+        if m[&#x27;ql&#x27;]:
+            q = d * m[&#x27;ql&#x27;] + m[&#x27;ql&#x27;] * nh * qh; oth = m[&#x27;ql&#x27;]
+        else:
+            q = d * nh * qh; oth = 0
+        kv = d * (m[&#x27;kvl&#x27;] + m[&#x27;rope&#x27;]) + m[&#x27;kvl&#x27;] * nh * (m[&#x27;nope&#x27;] + m[&#x27;v&#x27;])
+        oth += m[&#x27;kvl&#x27;]
+        o = nh * m[&#x27;v&#x27;] * d
+        mm = q + kv + o
+        if m[&#x27;inh&#x27;]:
+            mm += (m[&#x27;ql&#x27;] or d) * m[&#x27;inh&#x27;] * m[&#x27;ihd&#x27;] + d * m[&#x27;ihd&#x27;] + d * m[&#x27;inh&#x27;]
+            oth += 2 * m[&#x27;ihd&#x27;]
+        return mm, oth
+    if t == &#x27;mamba2&#x27;:
+        di = m[&#x27;nh&#x27;] * m[&#x27;hd&#x27;]; gs = 2 * m[&#x27;ng&#x27;] * m[&#x27;ds&#x27;]
+        inp = d * (2 * di + gs + m[&#x27;nh&#x27;]); out = di * d
+        conv_dim = di + gs
+        oth = conv_dim * m[&#x27;k&#x27;] + (conv_dim if m[&#x27;cb&#x27;] else 0) + 3 * m[&#x27;nh&#x27;] + (di if m[&#x27;norm&#x27;] else 0)
+        if m[&#x27;pb&#x27;]: oth += 2 * di + gs + m[&#x27;nh&#x27;] + d
+        return inp + out, oth
+    if t == &#x27;mamba1&#x27;:
+        di = m[&#x27;di&#x27;]; ds = m[&#x27;ds&#x27;]; r = m[&#x27;dtr&#x27;]
+        mm = d * 2 * di + di * (r + 2 * ds) + r * di + di * d
+        oth = di * m[&#x27;k&#x27;] + (di if m[&#x27;cb&#x27;] else 0) + di + di * ds + di
+        if m[&#x27;pb&#x27;]: oth += 2 * di + d
+        if m[&#x27;xn&#x27;]: oth += r + 2 * ds  # Jamba&#x27;s dt, B and C RMSNorms
+        return mm, oth
+    if t == &#x27;gdn&#x27;:
+        kd = m[&#x27;nk&#x27;] * m[&#x27;dk&#x27;]; vd = m[&#x27;nv&#x27;] * m[&#x27;dv&#x27;]
+        mm = d * (2 * kd + 2 * vd) + d * 2 * m[&#x27;nv&#x27;] + vd * d
+        oth = (2 * kd + vd) * m[&#x27;k&#x27;] + 2 * m[&#x27;nv&#x27;] + m[&#x27;dv&#x27;]
+        return mm, oth
+    raise ValueError(t)
+
+
+def ffn_params(f, d):
+    &quot;&quot;&quot;Returns dict: dense matmul, dense other, routed experts (all), shared, router (matmul), other.&quot;&quot;&quot;
+    r = {&#x27;dense&#x27;: 0, &#x27;dense_o&#x27;: 0, &#x27;routed&#x27;: 0, &#x27;routed_o&#x27;: 0, &#x27;shared&#x27;: 0, &#x27;router&#x27;: 0, &#x27;moe_o&#x27;: 0}
+    if f is None: return r
+    if f[&#x27;t&#x27;] == &#x27;glu&#x27;:
+        r[&#x27;dense&#x27;] = 3 * d * f[&#x27;ff&#x27;]; r[&#x27;dense_o&#x27;] = (2 * f[&#x27;ff&#x27;] + d) if f[&#x27;bias&#x27;] else 0
+    elif f[&#x27;t&#x27;] == &#x27;mlp&#x27;:
+        r[&#x27;dense&#x27;] = 2 * d * f[&#x27;ff&#x27;]; r[&#x27;dense_o&#x27;] = (f[&#x27;ff&#x27;] + d) if f[&#x27;bias&#x27;] else 0
+    else:
+        E = f[&#x27;E&#x27;]
+        r[&#x27;routed&#x27;] = E * 3 * d * f[&#x27;ff&#x27;]
+        r[&#x27;routed_o&#x27;] = E * (2 * f[&#x27;ff&#x27;] + d) if f[&#x27;ebias&#x27;] else 0
+        r[&#x27;shared&#x27;] = 3 * d * f[&#x27;sff&#x27;] + (d if f[&#x27;sgate&#x27;] else 0)
+        r[&#x27;router&#x27;] = d * E
+        r[&#x27;moe_o&#x27;] = (E if f[&#x27;rbias&#x27;] else 0) + (E if f[&#x27;cbias&#x27;] else 0)
+    return r
+
+
+def params(spec):
+    d = spec[&#x27;d&#x27;]; V = spec[&#x27;V&#x27;]
+    b = {&#x27;embedding&#x27;: V * d + spec.get(&#x27;pos_embed&#x27;, 0), &#x27;unembedding&#x27;: 0 if spec[&#x27;tied&#x27;] else V * d,
+         &#x27;attention&#x27;: 0, &#x27;ssm&#x27;: 0, &#x27;ffn_dense&#x27;: 0, &#x27;moe_routed&#x27;: 0, &#x27;moe_shared&#x27;: 0, &#x27;router&#x27;: 0,
+         &#x27;norms&#x27;: spec.get(&#x27;final_norm&#x27;, d) * (2 if spec.get(&#x27;norm_bias&#x27;) else 1), &#x27;biases_other&#x27;: 0}
+    act = {&#x27;routed&#x27;: 0}; mm = 0  # matmul weights a token touches
+    for lay in spec[&#x27;layers&#x27;]:
+        b[&#x27;norms&#x27;] += lay[&#x27;norms&#x27;]
+        for key in (&#x27;mix&#x27;, &#x27;mix2&#x27;):
+            m = lay.get(key)
+            if m is None: continue
+            w, o = mixer_params(m, d)
+            if m[&#x27;t&#x27;] in (&#x27;attn&#x27;, &#x27;mla&#x27;): b[&#x27;attention&#x27;] += w + o
+            else: b[&#x27;ssm&#x27;] += w + o
+            mm += w
+        f = ffn_params(lay[&#x27;ffn&#x27;], d)
+        b[&#x27;ffn_dense&#x27;] += f[&#x27;dense&#x27;] + f[&#x27;dense_o&#x27;]
+        b[&#x27;moe_routed&#x27;] += f[&#x27;routed&#x27;] + f[&#x27;routed_o&#x27;]
+        b[&#x27;moe_shared&#x27;] += f[&#x27;shared&#x27;]
+        b[&#x27;router&#x27;] += f[&#x27;router&#x27;] + f[&#x27;moe_o&#x27;]
+        mm += f[&#x27;dense&#x27;] + f[&#x27;shared&#x27;] + f[&#x27;router&#x27;]
+        if lay[&#x27;ffn&#x27;] and lay[&#x27;ffn&#x27;][&#x27;t&#x27;] == &#x27;moe&#x27;:
+            per = (f[&#x27;routed&#x27;] + f[&#x27;routed_o&#x27;]) / lay[&#x27;ffn&#x27;][&#x27;E&#x27;]
+            act[&#x27;routed&#x27;] += per * lay[&#x27;ffn&#x27;][&#x27;k&#x27;]
+            mm += 3 * d * lay[&#x27;ffn&#x27;][&#x27;ff&#x27;] * lay[&#x27;ffn&#x27;][&#x27;k&#x27;]
+    total = sum(b.values())
+    active = total - b[&#x27;moe_routed&#x27;] + act[&#x27;routed&#x27;]
+    mm += V * d  # LM head matmul (also when tied)
+    mtp = 0
+    if spec.get(&#x27;mtp&#x27;):
+        # one extra decoder layer like the last layer, plus a 2d x d projection and three norms (DeepSeek: eh_proj,
+        # enorm, hnorm, shared_head.norm; Qwen3-Next: fc, two pre-fc norms, norm); DeepSeek and GLM also store a copy
+        # of the embedding and the head inside the MTP layer
+        last = spec[&#x27;layers&#x27;][-1]
+        w, o = mixer_params(last[&#x27;mix&#x27;], d); f = ffn_params(last[&#x27;ffn&#x27;], d)
+        one = w + o + sum(f.values()) + last[&#x27;norms&#x27;] + 2 * d * d + 3 * d
+        mtp = spec[&#x27;mtp&#x27;] * (one + (2 * V * d if spec.get(&#x27;mtp_copy&#x27;) else 0))
+    active = int(round(active))
+    return {&#x27;breakdown&#x27;: b, &#x27;total&#x27;: int(total), &#x27;active&#x27;: active,
+            &#x27;active_no_emb&#x27;: active - b[&#x27;embedding&#x27;],
+            &#x27;active_no_emb_head&#x27;: active - b[&#x27;embedding&#x27;] - b[&#x27;unembedding&#x27;],
+            &#x27;matmul_active&#x27;: int(round(mm)), &#x27;mtp&#x27;: int(mtp)}
+</div></details>
+<details class="cc-det"><summary>python3 validate.py (run 2026-10-18)</summary>
+<div class="cc-code cc-out">deepseek-v2            calc  235,741,434,880  +mtp              0  +vision            0  +-                  0  hub  235,741,434,880  residual 0
+deepseek-v3.2-exp      calc  671,877,944,064  +mtp 13,477,385,728  +vision            0  +scales    41,591,584  hub  685,396,921,376  residual 0
+deepseek-v3.2          calc  671,877,944,064  +mtp 13,477,385,728  +vision            0  +-                  0  hub  685,355,329,792  residual 0
+deepseek-v3            calc  671,026,419,200  +mtp 13,463,426,304  +vision            0  +scales    41,540,496  hub  684,531,386,000  residual 0
+falcon-h1-7b           calc    7,585,648,736  +mtp              0  +vision            0  +-                  0  hub    7,585,648,736  residual 0
+gemma-2-9b             calc    9,241,705,984  +mtp              0  +vision            0  +-                  0  hub    9,241,705,984  residual 0
+gemma-3-1b             calc      999,885,952  +mtp              0  +vision            0  +-                  0  hub      999,885,952  residual 0
+gemma-3-27b            calc   27,009,346,304  +mtp              0  +vision  423,060,336  +-                  0  hub   27,432,406,640  residual 0
+gemma-7b               calc    8,537,680,896  +mtp              0  +vision            0  +-                  0  hub    8,537,680,896  residual 0
+glm-4.5-air            calc  106,852,251,264  +mtp  3,616,573,568  +vision            0  +-                  0  hub  110,468,824,832  residual 0
+glm-4.5                calc  352,797,829,024  +mtp  5,539,962,272  +vision            0  +-                  0  hub  358,337,791,296  residual 0
+gpt-oss-120b           calc  116,829,156,672  +mtp              0  +vision            0  +-                  0  hub  116,829,156,672  residual 0
+gpt-oss-20b            calc   20,914,757,184  +mtp              0  +vision            0  +-                  0  hub   20,914,757,184  residual 0
+gpt2-xl                calc    1,557,611,200  +mtp              0  +vision            0  +buffers   50,331,648  hub    1,607,942,848  residual 0
+gpt2                   calc      124,439,808  +mtp              0  +vision            0  +buffers   12,582,912  hub      137,022,720  residual 0
+granite-4.0-h-small    calc   32,207,337,984  +mtp              0  +vision            0  +-                  0  hub   32,207,337,984  residual 0
+jamba-v0.1             calc   51,570,323,328  +mtp              0  +vision            0  +-                  0  hub   51,570,323,328  residual 0
+kimi-k2                calc 1,026,408,232,448  +mtp              0  +vision            0  +buffers        3,416  hub 1,026,408,235,864  residual 0
+llama-1-7b             calc    6,738,415,616  +mtp              0  +vision            0  +buffers        2,048  hub    6,738,417,664  residual 0
+llama-2-7b             calc    6,738,415,616  +mtp              0  +vision            0  +buffers        2,048  hub    6,738,417,664  residual 0
+llama-3-8b             calc    8,030,261,248  +mtp              0  +vision            0  +-                  0  hub    8,030,261,248  residual 0
+llama-3.1-405b         calc  405,853,388,800  +mtp              0  +vision            0  +-                  0  hub  405,853,388,800  residual 0
+llama-3.1-70b          calc   70,553,706,496  +mtp              0  +vision            0  +-                  0  hub   70,553,706,496  residual 0
+llama-3.1-8b           calc    8,030,261,248  +mtp              0  +vision            0  +-                  0  hub    8,030,261,248  residual 0
+llama-4-maverick       calc  400,711,848,960  +mtp              0  +vision  871,932,416  +-                  0  hub  401,583,781,376  residual 0
+llama-4-scout          calc  107,769,861,120  +mtp              0  +vision  871,932,416  +-                  0  hub  108,641,793,536  residual 0
+mamba-2.8b             calc    2,768,345,600  +mtp              0  +vision            0  +-                  0  hub    2,768,345,600  residual 0
+mamba2-2.7b            calc    2,702,599,680  +mtp              0  +vision            0  +-                  0  hub              n/a  residual n/a
+minimax-m2             calc  228,689,764,864  +mtp              0  +vision            0  +-                  0  hub  228,689,764,864  residual 0
+mistral-7b-v0.1        calc    7,241,732,096  +mtp              0  +vision            0  +-                  0  hub    7,241,732,096  residual 0
+mistral-small-3.1-24b  calc   23,572,403,200  +mtp              0  +vision  438,958,080  +-                  0  hub   24,011,361,280  residual 0
+mixtral-8x7b           calc   46,702,792,704  +mtp              0  +vision            0  +-                  0  hub   46,702,792,704  residual 0
+nemotron-h-8b          calc    8,100,852,736  +mtp              0  +vision            0  +-                  0  hub    8,100,852,736  residual 0
+olmo-2-7b              calc    7,298,617,344  +mtp              0  +vision            0  +-                  0  hub    7,298,617,344  residual 0
+olmo-3-7b              calc    7,298,011,136  +mtp              0  +vision            0  +-                  0  hub    7,298,011,136  residual 0
+phi-4                  calc   14,659,507,200  +mtp              0  +vision            0  +-                  0  hub   14,659,507,200  residual 0
+qwen2-7b               calc    7,615,616,512  +mtp              0  +vision            0  +-                  0  hub    7,615,616,512  residual 0
+qwen2.5-7b             calc    7,615,616,512  +mtp              0  +vision            0  +-                  0  hub    7,615,616,512  residual 0
+qwen3-0.6b             calc      596,049,920  +mtp              0  +vision            0  +dup      155,582,464  hub      751,632,384  residual 0
+qwen3-235b-a22b        calc  235,093,634,560  +mtp              0  +vision            0  +-                  0  hub  235,093,634,560  residual 0
+qwen3-30b-a3b          calc   30,532,122,624  +mtp              0  +vision            0  +-                  0  hub   30,532,122,624  residual 0
+qwen3-32b              calc   32,762,123,264  +mtp              0  +vision            0  +-                  0  hub   32,762,123,264  residual 0
+qwen3-8b               calc    8,190,735,360  +mtp              0  +vision            0  +-                  0  hub    8,190,735,360  residual 0
+qwen3-next-80b-a3b     calc   79,674,391,296  +mtp  1,650,471,424  +vision            0  +-                  0  hub   81,324,862,720  residual 0
+smollm2-135m           calc      134,515,008  +mtp              0  +vision            0  +-                  0  hub      134,515,008  residual 0
+unexplained residuals: 0</div>
+<p class="cc-codecap">Columns: calculated main model, MTP layers shipped in the checkpoint, vision tower, other stored tensors (buffers, FP8 scales, a duplicated head), the Hub's count, and the residual.</p></details>
+<details class="cc-det"><summary>node check_js_equals_py.mjs (run 2026-10-18)</summary>
+<div class="cc-code cc-out">45 configs, 2745 numbers compared, 0 differences</div></details>
+</section>
+</div>
