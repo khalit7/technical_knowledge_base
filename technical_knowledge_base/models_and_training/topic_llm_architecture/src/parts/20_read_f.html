@@ -1,0 +1,35 @@
+<section id="rd-s8">
+<h2>8. Depth, width, and the arithmetic that ties it together</h2>
+<p>Three numbers answer most questions about a model, and all three come from its config in a minute: parameters, FLOPs per token, and KV bytes per token (section 3).</p>
+<div class="fm"><div class="eq">N &asymp; L &times; (attention + FFN) + 2Vd</div><div class="eq">FLOPs per token &asymp; 2N + 4 L T H d<sub>h</sub></div>
+<dl><dt>attention</dt><dd>2d&sup2; for Q and output, plus 2 d H<sub>kv</sub> d<sub>h</sub> for K and V (4d&sup2; with full MHA)</dd>
+<dt>FFN</dt><dd>3 d d<sub>ff</sub> for SwiGLU (2 d d<sub>ff</sub> for a plain MLP; 8d&sup2; at d<sub>ff</sub> = 4d, hence the classic 12 L d&sup2;)</dd>
+<dt>2Vd</dt><dd>embedding and unembedding (Vd once if tied)</dd>
+<dt>4 L T H d<sub>h</sub></dt><dd>the attention term of the forward pass for one token attending to T earlier tokens: scores Q K<sup>&#8868;</sup> and the weighted sum with V, 2 FLOPs per multiply-add each</dd></dl></div>
+<p><b>Worked: Llama 3.1 8B.</b> 32 blocks of 218.1M (section 2) = 6.98B, plus two 525.3M embedding tables and a final norm = 8.03B parameters, the published size (<span class="der">derived</span>, matches the 8.03B on its model page). Forward FLOPs per token: 2N = 15.0 GFLOP. The attention term at T = 131,072: 4 &times; 32 &times; 131,072 &times; 4,096 = 68.7 GFLOP, more than four times the weights' share. The two are equal at T &asymp; 28,600 tokens: below that a token's cost is set by the parameter count, above it by the context (<span class="der">derived</span>). Training costs about three times the forward, the 6N rule of section 2 (plus three times the attention term).</p>
+<div class="tw"><table class="rd-cmp rd-narrow">
+<thead><tr><th>Model</th><th>Width d</th><th>Depth L</th><th>d / L</th></tr></thead>
+<tbody>
+<tr><td>SmolLM2-135M</td><td>576</td><td>30</td><td>19</td></tr>
+<tr><td>Llama 3.1 8B</td><td>4,096</td><td>32</td><td>128</td></tr>
+<tr><td>Llama 3.1 70B</td><td>8,192</td><td>80</td><td>102</td></tr>
+<tr><td>Llama 3.1 405B</td><td>16,384</td><td>126</td><td>130</td></tr>
+<tr><td>DeepSeek-V3</td><td>7,168</td><td>61</td><td>118</td></tr>
+</tbody></table></div>
+<p class="small">From each model's <code>config.json</code> (hidden_size, num_hidden_layers); <span data-rd="cfg_check" class="rd-todo">TODO 9: recheck every config value on this page against src/data/configs/ (setup).</span></p>
+<p><b>Depth against width.</b> At a fixed parameter count, shape matters less than one might think: {{Kaplan et al. 2020|https://arxiv.org/abs/2001.08361}} found that "other architectural details such as network width or depth have minimal effects within a wide range" (abstract). It matters for speed: each layer is a sequential step, so a deeper model of the same size has more latency per token and less to parallelise per step. Small models are the exception that go deep and thin: Meta's MobileLLM reports that at under a billion parameters depth beats width ({{Liu et al. 2024|https://arxiv.org/abs/2402.14905}}, <span class="vend">vendor</span>), and SmolLM2-135M is 30 layers of 576. Checked on every saved config: <span data-rd="calc_resid" class="rd-todo">TODO 10 (Config calculator): parameter-count residuals against published sizes for every config in src/data/configs/, and the largest one explained.</span></p>
+<p class="deepnote">Go deeper (optional): the {{Config calculator|#t-calc}} does all of this for any config, with a context slider; {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} turns FLOPs and bytes into seconds on real hardware; {{Scaling Laws|n:3c65c17b0d0d81b08a1debb0c15cd252}} and {{Chinchilla|n:3c65c17b0d0d8116b7ddffba5c599f3f}} for how parameters and data trade.</p>
+</section>
+
+<section id="rd-s9">
+<h2>9. Long context: four walls</h2>
+<p>A model "supports 128K tokens" only if it clears four separate limits, each with its own remedy:</p>
+<ol>
+<li><b>Memory</b>: the KV cache grows linearly with context (40 GiB per 128K request for Llama 3.1 70B, section 3). Remedies: fewer KV heads (GQA, MQA), compressed caches (MLA), windowed layers, FP8 caches, layers without a cache (section 10).</li>
+<li><b>Compute</b>: prefill attention grows with the square of the prompt length; past about 29K tokens it is most of Llama 3.1 8B's work (section 8). Remedies: sliding windows, trained sparse attention, linear layers.</li>
+<li><b>Position</b>: rotation angles past the trained length were never seen (section 5). Remedy: RoPE scaling plus a long-context training phase.</li>
+<li><b>Use</b>: a model can fit and run 128K tokens and still fail to use them. RULER found that of models claiming 32K or more, "only half of them can maintain satisfactory performance at the length of 32K" ({{Hsieh et al. 2024|https://arxiv.org/abs/2404.06654}}, <span class="indep">third-party</span>); information in the middle of a long prompt is used worse than at its ends ({{Liu et al. 2023|https://arxiv.org/abs/2307.03172}}). The claimed context is a ceiling, the <dfn>effective context</dfn> is measured.</li>
+</ol>
+<p>How to check: compute the cache at the target context and concurrency (wall 1), time a prefill at that length (wall 2), read <code>rope_scaling</code> and <code>max_position_embeddings</code> (wall 3), and run a long-context benchmark at the length you need, not the length on the card (wall 4).</p>
+<p class="deepnote">Go deeper (optional): {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}} owns cache growth and compression, local and global layouts and effective context; {{Long-context and multimodal benchmarks|n:3ef5c17b0d0d810bb4dfc98919c9be8a}} owns how it is measured.</p>
+</section>

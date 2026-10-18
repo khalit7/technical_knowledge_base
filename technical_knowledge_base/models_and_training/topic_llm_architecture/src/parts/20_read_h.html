@@ -1,0 +1,41 @@
+<section id="rd-s12">
+<h2>12. Reading a model's config in 30 seconds</h2>
+<p>A Hugging Face <code>config.json</code> is the architecture in about thirty fields. Read it with five questions, here on Llama 3.1 8B (excerpt, field order kept; {{full file|https://huggingface.co/unsloth/Meta-Llama-3.1-8B/raw/main/config.json}}):</p>
+<div class="rd-doc">"head_dim": <span class="k">128</span>,
+"hidden_act": <span class="p">"silu"</span>,
+"hidden_size": <span class="k">4096</span>,
+"intermediate_size": <span class="p">14336</span>,
+"max_position_embeddings": <span class="tag">131072</span>,
+"num_attention_heads": <span class="k">32</span>,
+"num_hidden_layers": <span class="k">32</span>,
+"num_key_value_heads": <span class="k">8</span>,
+"rms_norm_eps": 1e-05,
+"rope_scaling": {<span class="tag">"factor": 8.0, "high_freq_factor": 4.0, "low_freq_factor": 1.0, "original_max_position_embeddings": 8192, "rope_type": "llama3"</span>},
+"rope_theta": <span class="tag">500000.0</span>,
+"tie_word_embeddings": false,
+"torch_dtype": "bfloat16",
+"vocab_size": 128256</div>
+<ol>
+<li><b>Shape</b>: <code>num_hidden_layers</code> &times; <code>hidden_size</code>: 32 &times; 4,096.</li>
+<li><b>Attention and cache</b>: <code>num_attention_heads</code> against <code>num_key_value_heads</code>: 32 against 8 is GQA with groups of 4; with <code>head_dim</code> 128 that is 2 &times; 32 &times; 8 &times; 128 &times; 2 = 128 KiB per token in BF16. Other variants announce themselves: <code>kv_lora_rank</code> and <code>qk_rope_head_dim</code> mean MLA, <code>sliding_window</code> or <code>layer_types</code> mean windowed layers, linear-layer fields mean a hybrid.</li>
+<li><b>FFN</b>: <code>intermediate_size</code> 14,336 with <code>silu</code> means SwiGLU at 3.5d. MoE adds <code>num_experts</code> or <code>n_routed_experts</code>, <code>num_experts_per_tok</code> and a separate expert width (<code>moe_intermediate_size</code>).</li>
+<li><b>Position and context</b>: <code>rope_theta</code>, <code>rope_scaling</code> and <code>max_position_embeddings</code>: trained at 8,192 and stretched 8 times to 131,072.</li>
+<li><b>Size</b>: <code>vocab_size</code> and <code>tie_word_embeddings</code> for the embedding share, then section 8's formula: 8.03B.</li>
+</ol>
+<p>Never derive <code>head_dim</code> as <code>hidden_size / num_attention_heads</code> when the field exists: Gemma 3 27B has hidden size 5,376 and 32 heads but head_dim 128, not 168 ({{config|https://huggingface.co/google/gemma-3-27b-pt/blob/main/config.json}}), and Qwen3-0.6B has 1,024 and 16 heads with head_dim 128 ({{config|https://huggingface.co/Qwen/Qwen3-0.6B/blob/main/config.json}}).</p>
+<p class="deepnote">Go deeper (optional): paste any config into the {{Config calculator|#t-calc}}; the {{Architecture map|#t-map}} lays these fields side by side for the models of the lineage; the {{LLM architecture gallery|n:3c65c17b0d0d81be8a07f2562fa2030a}} rebuilds them for many more.</p>
+</section>
+
+<section id="rd-s13">
+<h2>13. Choosing: which design for which constraint</h2>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Constraint</th><th>Choose</th><th>Why, and what you give up</th></tr></thead>
+<tbody>
+<tr><td>Short contexts, high throughput, standard serving stacks</td><td>Dense or MoE with GQA, SwiGLU, RoPE, pre-norm RMSNorm</td><td>Mature kernels everywhere; the cache is small at short context anyway</td></tr>
+<tr><td>Long contexts at high concurrency</td><td>MLA, or GQA with few KV heads; FP8 cache; windowed layers mixed with global ones</td><td>Shrinks what each token keeps or how long; costs kernel complexity (MLA) or far recall through fewer layers (windows)</td></tr>
+<tr><td>Very long streams, fixed memory</td><td>Hybrid: mostly SSM or linear layers, one attention layer in 4 to 8</td><td>Near-constant memory; exact recall rests on the few attention layers</td></tr>
+<tr><td>More quality at the same latency, memory available</td><td>MoE with many small experts and a shared expert</td><td>Active parameters set latency; total parameters set memory, and balancing must be engineered</td></tr>
+<tr><td>Small device, little memory</td><td>Small dense model, deep and thin, tied embeddings, GQA</td><td>MoE does not help when every expert must fit in memory</td></tr>
+<tr><td>Stable training at scale</td><td>Pre-norm RMSNorm plus QK-norm</td><td>Two extra norms per layer, almost free</td></tr>
+</tbody></table></div>
+</section>

@@ -1,4 +1,4 @@
-// ---- Reading tab (Topic: evaluation-and-llm-judges): shared helpers, copied from Topic: benchmarks and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab (Topic: llm-architecture): shared helpers, copied from Topic: benchmarks and the step-animation controller (play, pause, step, scrub, speed) ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
 // plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
 window.RD=(function(){

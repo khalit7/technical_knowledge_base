@@ -1,0 +1,15 @@
+# Facts verified for the Reading and Further reading tabs (also appended to the topic's shared FACTS.md under "rd")
+
+- GQA abstract: uptraining with "5% of original pre-training compute"; "uptrained GQA achieves quality close to multi-head attention with comparable speed to MQA". https://arxiv.org/abs/2305.13245 (read 2026-10-18)
+- DeepSeek-V2 abstract: 236B total, 21B active; MLA "reduces the KV cache by 93.3% and boosts the maximum generation throughput to 5.76 times" (against DeepSeek 67B). https://arxiv.org/abs/2405.04434 (2026-10-18)
+- RULER abstract: of models claiming 32K+ context, "only half of them can maintain satisfactory performance at the length of 32K". https://arxiv.org/abs/2404.06654 (2026-10-18)
+- StreamingLLM abstract: attention sink; "up to 4 million tokens and more"; up to 22.2x speedup over sliding-window recomputation. https://arxiv.org/abs/2309.17453 (2026-10-18)
+- Kaplan et al. abstract: "Other architectural details such as network width or depth have minimal effects within a wide range." https://arxiv.org/abs/2001.08361 (2026-10-18)
+- Jelassi et al. 2024 abstract: "a two layer transformer can copy strings of exponential length while" GSSMs "are fundamentally limited by their fixed-size latent state"; transformers "dramatically outperform state space models at copying and retrieving information from context". https://arxiv.org/abs/2402.01032 (2026-10-18)
+- Jamba: attention-to-Mamba ratio 1:7 (section 3.1); about 52B total, 12B active; KV cache 4GB at 256K in 16-bit (Table 1, section 5.1). https://arxiv.org/html/2403.19887 (2026-10-18)
+- Nemotron-H abstract: "replace the majority of self-attention layers ... with Mamba layers"; 8B and 56B/47B; "up to 3x faster at inference". https://arxiv.org/abs/2504.03624 (2026-10-18)
+- Llama 3.1 8B config (unsloth mirror of meta-llama): head_dim 128, hidden 4096, intermediate 14336, 32 layers, 32 heads, 8 KV heads, rope_theta 500000, rope_scaling llama3 factor 8 original 8192, max_position 131072, untied, vocab 128256. https://huggingface.co/unsloth/Meta-Llama-3.1-8B/raw/main/config.json (2026-10-18)
+- Gemma 3 27B config (unsloth/gemma-3-27b-pt): head_dim 128, hidden 5376, 32 heads, 16 KV heads, 62 layers, sliding_window 1024, sliding_window_pattern 6. (2026-10-18)
+- Qwen3-0.6B config: head_dim 128, hidden 1024, 16 heads, 8 KV heads, 28 layers. (2026-10-18)
+- Qwen3-Next-80B-A3B-Instruct config: 48 layers, hidden 2048, 16 heads, 2 KV heads, head_dim 256, full_attention_interval 4, linear_num_value_heads 32, linear_key_head_dim 128, linear_value_head_dim 128, linear_num_key_heads 16, 512 experts, 10 per token, partial_rotary_factor 0.25, rope_theta 1e7. (2026-10-18)
+- Derived (derive.py): Llama 3.1 8B 8,030,261,248 parameters; Llama 3.1 70B 70,553,706,496; DeepSeek-V3 MLA 70,272 B per token, MHA at same shape 3,997,696 B.
