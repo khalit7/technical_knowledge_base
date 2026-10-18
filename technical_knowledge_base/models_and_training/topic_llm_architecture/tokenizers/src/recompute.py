@@ -25,13 +25,14 @@ R['petrov'] = {k: v['match'] for k, v in pc.items()}
 R['burmese'] = {'words': len(ex['langs']['mya_Mymr']['text'].split()), 'bytes': len(ex['langs']['mya_Mymr']['text'].encode()), 'gpt2': len(ex['langs']['mya_Mymr']['gpt2']), 'o200k': len(ex['langs']['mya_Mymr']['o200k'])}
 R['overlap'] = ov['shared']; R['voc_rows'] = len(cf['rows']) - 1 + 3
 json.dump(R, open('inputs/recompute.json', 'w'), indent=1)
-# the page must quote these
+# the page must quote these (2026-10-18: the safetensors-based shares of Llama 3.2 1B and DeepSeek-V3, the timeline count and the
+# Qwen3.5/Qwen3 overlap with added tokens were replaced by the Config calculator's shares, 41 models and 131,586 ordinary entries; see check_data.py)
 need = [f"{R['cl100k']['median']}", f"{R['o200k']['median']}", f"{R['cl100k']['over3']} languages pay more than 3 times", f"{R['o200k']['over3']} with o200k", f"{R['gemma3']['over3']} with Gemma 3",
         f"{R['gpt2']['total_M']}M tokens (GPT-2)", f"{R['o200k']['total_M']}M (GPT-4o)", f"{R['gemma3']['total_M']}M (Gemma 3)",
         f"{R['tamil']['llama3']} with Llama 3 to {R['tamil']['gemma3']} with Gemma 3", f"{R['gemma3_270m']['emb_M']}M", f"{R['gemma3_270m']['total_M']}M", f"{R['gemma3_270m']['rest_M']}M",
-        f"spends {round(R['llama32_1b_share_pct'])}%", f"DeepSeek-V3 {R['dsv3_share_pct']}%", f"a {round(100*R['llama2_to_3_flores_gain'])}% gain", f"a {round(100*R['llama3_paper_gain'])}% gain",
-        f"{R['burmese']['bytes']} bytes", f"{R['burmese']['gpt2']} GPT-2 tokens", f"against {R['burmese']['o200k']} for GPT-4o", f"{R['voc_rows']} models",
-        f"{R['overlap']['gemma4_gemma3']:,}", f"{R['overlap']['qwen35_qwen3']:,}", '4.28 and 4.91', 'between 4.82 and 4.96']
+        f"a {round(100*R['llama2_to_3_flores_gain'])}% gain", f"a {round(100*R['llama3_paper_gain'])}% gain",
+        f"{R['burmese']['bytes']} bytes", f"{R['burmese']['gpt2']} GPT-2 tokens", f"against {R['burmese']['o200k']} for GPT-4o",
+        f"{R['overlap']['gemma4_gemma3']:,}", '4.28 and 4.91', 'between 4.82 and 4.96']
 text = re.sub(r'<[^>]+>', ' ', html); text = re.sub(r'\s+', ' ', text)
 miss = [n for n in need if n not in text]
 print(json.dumps({k: R[k] for k in ['cl100k', 'o200k', 'gemma3_270m', 'g4o_exact', 'petrov']}, indent=0))

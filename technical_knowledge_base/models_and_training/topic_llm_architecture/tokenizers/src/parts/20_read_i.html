@@ -1,0 +1,37 @@
+<section id="rd-fail">
+<h2>Failure modes, with real outputs</h2>
+<p>The model never sees characters, only ids, so anything that depends on the characters inside a token, on where a token boundary falls, or on a token it rarely saw in training has to be learned indirectly, and often is not. First the mechanism on ten real tokenizers, then what real models do.</p>
+<div class="card" id="tk-fail">
+<div class="cases" id="tk-failCase"></div>
+<div id="tk-failText"></div>
+<div id="tk-failRows"></div>
+<div class="co" id="tk-failNote" style="margin-top:8px"></div>
+</div>
+
+<h3>A prompt that ends in a space</h3>
+<p>Byte-level tokenizers glue a space to the <i>following</i> word (" Paris" is one token), so a prompt ending in a bare space ends on a lone space token, which in training text is almost never followed by a word token. The model has to recover from a boundary it rarely saw. Before and after, same model, same prompt, one trailing space:</p>
+<div class="card" id="tk-space">
+<div class="seg" id="tk-spModel"><button data-m="smollm2" class="on">SmolLM2-135M</button><button data-m="tiny">the tiny GPT (running example)</button></div>
+<div class="tk-two" id="tk-spView"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro (CPU)</span> <code>src/probe/space_letters.py</code>: next-token probabilities after the last prompt token, and 12 greedy tokens. SmolLM2-135M revision 93efa2f0 in fp32; the tiny GPT is the root's ref_baseline_s1500 checkpoint. What transfers: every byte-level tokenizer behaves this way (the space joins the next word); large models recover more often, which is why APIs and chat templates strip or control trailing whitespace. Libraries offer "token healing" (back up one token and constrain the next to start with the removed text) for this exact problem.</p>
+</div>
+
+<h3>Letters inside tokens</h3>
+<p>" strawberry" is one token in nine of the ten tokenizers of the {{Same text|#t-lang}} tab. Counting its r's means knowing the spelling of token 73700 (cl100k), which the model can only have memorised from rare text that spells words out. Writing the word with spaces between letters turns it into one token per letter, so the letters become visible. Whether the model can then count them is a separate question, and the measurement below separates the two.</p>
+<div class="card" id="tk-letters">
+<div class="tk-stats" id="tk-ltStats"></div>
+<div class="tw" id="tk-ltRows"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro (CPU)</span> <code>src/probe/letters.py</code>: Qwen3-1.7B (revision 70d244cc, bf16, greedy, 4 new tokens), three worked examples then "How many times does the letter "r" appear in "strawberry"?", once with the word as written and once spelled "s t r a w b e r r y". Pieces = how Qwen3's tokenizer cuts the word. A first attempt asked Qwen3-0.6B through its chat template for "a number only"; it answered with explanations ("The letter "r" appears **once**...") that 24 new tokens cut off, a format failure kept in <code>out/space_letters.json</code> and replaced by this few-shot version.</p>
+</div>
+<p>The result is the honest kind: Qwen3-1.7B is right on 13 of 24 written normally and 14 of 24 spelled out. Spelling out makes the letters visible but barely helps a 1.7B model count them, and "strawberry" is wrong (2) both ways. So tokenization explains why the question is hard for a model that never sees letters, but removing that obstacle does not make a small model a reliable counter; reasoning models get it by spelling the word out and counting step by step in their output.</p>
+
+<h3>Glitch tokens: entries the model never trained</h3>
+<p>A vocabulary is trained once and a model is trained afterwards, often on different data. Entries that are in the vocabulary but nearly absent from the model's training data get almost no gradient as inputs, and as outputs they are only ever pushed down. {{Land and Bartolo 2024|https://arxiv.org/abs/2405.05417}} call these "tokens present in the tokenizer vocabulary but that are nearly or entirely absent during model training" and found them "across a diverse set of models"; GPT-2's " SolidGoldMagikarp" (id 43453, in the gallery above) is the famous one. The running example has its own, measured:</p>
+<div class="card" id="tk-glitch">
+<div class="tk-svg" id="tk-glPlot"></div>
+<div class="tk-stats" id="tk-glStats"></div>
+<div id="tk-glProbe"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro (CPU)</span> <code>src/bpe/freq_glitch.py</code>: how often each of the 4,096 ids occurs in the 122M training tokens (train.bin), and the norm of each row of the trained tiny GPT's tied embedding (ref_baseline_s1500). Continuations are greedy, 25 tokens, after "Once upon a time, there was a little" plus one token.</p>
+</div>
+<p>132 of the 4,096 entries never occur in the 122M training tokens, of two kinds: 122 byte tokens for bytes TinyStories almost never contains (<code>@</code>, <code>^</code> and most non-ASCII bytes), and 10 <b>intermediate merges</b> such as " underst", " butterf" and "aghet", tokens the trainer created on the way to " understand", " butterfly" and "aghetti" that every later encoding merges further, so they never survive as final tokens. All of them ended training pointing the same way (their rows have cosine similarity 0.996 with each other, against 0.024 among the 200 commonest tokens) and with norms more than twice the typical row, because the only gradient they ever got was "do not predict me". Fed one of them, the model loses the thread. How to check a real model: count each id in a sample of its training data if you have it; otherwise look for embedding or output rows that cluster together or have unusual norms, then confirm by prompting the model to repeat the token, the indicators Land and Bartolo combine.</p>
+</section>

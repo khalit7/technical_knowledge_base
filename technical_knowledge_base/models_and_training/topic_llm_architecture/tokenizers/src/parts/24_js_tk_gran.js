@@ -3,7 +3,7 @@
   const {pieces,esc,te,chips}=TKV, EX=TD.ex;
   const LANGS=[['eng_Latn','English'],['fra_Latn','French'],['rus_Cyrl','Russian'],['zho_Hans','Chinese'],['hin_Deva','Hindi'],['tam_Taml','Tamil'],['mya_Mymr','Burmese']];
   let cur='eng_Latn',open='o200k';
-  const box=document.getElementById('granLang'),rowsEl=document.getElementById('granRows'),txt=document.getElementById('granText');
+  const box=document.getElementById('tk-granLang'),rowsEl=document.getElementById('tk-granRows'),txt=document.getElementById('tk-granText');
   box.innerHTML=LANGS.map(([c,n])=>'<button data-c="'+c+'"'+(c===cur?' class="on"':'')+'>'+n+'</button>').join('');
   box.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;cur=b.dataset.c;box.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));draw()});
   function segs(text,kind){
