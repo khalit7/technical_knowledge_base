@@ -1,0 +1,49 @@
+<div class="tab" id="t-mask" role="tabpanel" hidden>
+<style>
+#t-mask .mk-toks span{cursor:pointer}#t-mask .mk-toks span.q{outline:2px solid var(--bad);outline-offset:1px}
+#t-mask .mk-toks span.see{background:var(--acc2);border-color:var(--acc)}#t-mask .mk-toks span.cross{background:var(--closed2);border-color:var(--c4)}
+#t-mask .mk-toks span.no{opacity:.35}#t-mask .mk-toks span.sc{box-shadow:inset 0 -3px 0 var(--good)}
+#t-mask .mk-row{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:6px 0;font-size:13px}
+#t-mask .mk-row label{display:flex;align-items:center;gap:6px;min-width:0;flex:1 1 220px}
+</style>
+<h2>Mask lab</h2>
+<p>The running sequence's first 24 tokens under each family's mask. Click any token to make it the query: highlighted tokens are the keys it may read; the green underline marks the positions the family's objective scores. The counters say what the mask lets you cache. Section 1 of the Reading tab explains the four masks; the {{T5 paper page|n:3d45c17b0d0d81ec8ebfec02e953a7fd}} animates the same three patterns on T5's own examples.</p>
+<div class="fo-card" id="mk-card">
+<div class="fo-seg" id="mk-seg"><button data-m="causal" class="on">causal</button><button data-m="bidir">bidirectional</button><button data-m="prefix">prefix LM</button><button data-m="encdec">encoder-decoder</button></div>
+<div class="mk-row"><label id="mk-plab">split after token <b id="mk-pv">8</b> <input type="range" id="mk-p" min="1" max="23" value="8" aria-label="prefix or encoder length"></label></div>
+<div class="fo-toks mk-toks" id="mk-toks"></div>
+<div class="fo-leg"><span style="--sw:var(--acc2)">readable (self-attention)</span><span style="--sw:var(--closed2)">readable through cross-attention</span><span style="--sw:var(--good)">scored by the objective (underline)</span></div>
+<div class="fo-cap" id="mk-cap"></div>
+<div class="fo-cnt" id="mk-cnt"></div>
+</div>
+
+<h3>The same checkpoint under four masks: measured</h3>
+<p>The reference tiny GPT was trained causally. Only the mask changes below; the weights, the 20 held-out windows and the targets (next token) are the same. Loss per position, averaged over the 640 windows, in the first and second half of each window:</p>
+<div class="fo-card" id="mk-sw-card"><div class="fo-svg" id="mk-sw-svg"></div><div class="fo-cap" id="mk-sw-cap"></div></div>
+<p class="small"><span class="meas">measured</span> on Apple M1 Pro (CPU), <code>src/lab/masks.py</code>, 2026-10-18. Prefix LM split at 128.</p>
+
+<h3>What a leak does to attention, layer by layer</h3>
+<p>Average attention weight each query puts on the key one position to its right (the answer, when the target is the next token), on the running sequence, both models under the bidirectional mask:</p>
+<div class="fo-card" id="mk-at-card"><div class="fo-svg" id="mk-at-svg"></div></div>
+<p class="small">Before: the reference checkpoint (trained causally) run with the mask removed. After: the same checkpoint after 150 steps of next-token training with the mask removed (Reading section 3). The copying is learned almost entirely in layer 1: one head's worth of shortcut is enough.</p>
+
+<h3>The code that ran</h3>
+<p>The topic's tiny GPT builds an additive mask in <code>attn_bias</code> (root <code>src/data/tiny_gpt.py</code>). This page swaps in a version with a mode switch, without editing the shared file (<code>src/lab/fo_common.py</code>):</p>
+<pre class="fo-code">MASK = {"mode": "causal", "prefix": 0}
+
+def attn_bias(cfg, layer_idx, q_pos, k_pos, device, slopes=None):
+    diff = q_pos[:, None] - k_pos[None, :]
+    if MASK["mode"] == "causal":
+        keep = diff &gt;= 0
+    elif MASK["mode"] == "bidir":
+        keep = torch.ones_like(diff, dtype=torch.bool)
+    elif MASK["mode"] == "prefix":
+        keep = (diff &gt;= 0) | (k_pos[None, :] &lt; MASK["prefix"])
+    return torch.zeros(keep.shape, device=device).masked_fill(~keep, float("-inf"))[None]
+
+def enable_masks():
+    tiny_gpt.attn_bias = attn_bias
+    tiny_gpt.is_local = lambda cfg, li: True   # forces the explicit softmax path (SDPA would apply is_causal)</pre>
+<pre class="fo-code fo-out" id="mk-out"></pre>
+<p class="fo-codecap">Output of <code>masks.py</code> (scrubbed of timings), Apple M1 Pro, CPU, torch 2.14.1. The <code>is_local</code> override matters: the tiny GPT's fast path calls <code>F.scaled_dot_product_attention(..., is_causal=True)</code> and would ignore any custom mask.</p>
+</div>
