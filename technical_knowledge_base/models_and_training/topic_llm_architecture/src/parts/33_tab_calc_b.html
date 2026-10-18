@@ -1,0 +1,36 @@
+
+<section id="cc-s-fm"><h2>The formulas, with this model's numbers</h2>
+<p>Every count below is a product of config fields, written once in <code>src/calc/calc.py</code> and ported line for line to this page. Each block lists the formula, then the same formula with the chosen model's values, then the count for all layers of that kind. Weight matrices dominate; biases and norm gains are listed so the total is exact, not because they matter for cost.</p>
+<div id="cc-fm"></div>
+<div class="co"><div class="t">FLOPs: the 2N rule and the attention term</div>
+Forward FLOPs per token = 2 &times; (every weight a token multiplies through, the LM head included, the input embedding lookup excluded) + the attention term. The attention term is, per attention layer, 2 &times; <i>n<sub>h</sub></i> &times; (query-key dimension + value dimension) FLOPs for every cached position the token reads: one multiply-add per dimension for the score <i>q&middot;k</i>, one per dimension for the weighted sum of values. It does not depend on <i>n<sub>kv</sub></i>: grouped-query attention (GQA) shrinks the cache, not the attention FLOPs. Training costs about 3&times; the forward pass (backward is about twice forward), which gives the familiar 6<i>N</i> per token. This is the same counting as Kaplan et al. 2020 (Table 1: <i>C</i><sub>forward</sub> &asymp; 2<i>N</i> + 2<i>n</i><sub>layer</sub><i>n</i><sub>ctx</sub><i>d</i><sub>attn</sub>, {{arXiv 2001.08361|https://arxiv.org/abs/2001.08361}}), whose context term is ours averaged over a causal prefill.</div>
+</section>
+
+<section id="cc-s-ctx"><h2>Context length: where attention and the cache overtake the weights</h2>
+<p>At short context a token's cost is its weights: 2 FLOPs per active parameter, and the whole weight set read once per decode step. Both attention costs grow linearly with the context: the FLOPs to score every cached position, and the bytes of the cache itself, multiplied by the batch. Somewhere they pass the weights. Where depends on the attention design, and that is what the variants on the {{Attention lab|#t-attn}} are for. Press play to sweep the same model from a short prompt to its longest context; switch the attention to see the same model as if it had been built with full multi-head attention (MHA, one key/value head per query head) or multi-query attention (MQA, one key/value head for all).</p>
+<div class="cc-box" id="cc-ctxcard">
+<div class="cc-pick">
+<label>Attention as <select id="cc-var" aria-label="Attention variant"><option value="cfg">configured</option><option value="mha">MHA (n_kv = n_h)</option><option value="mqa">MQA (n_kv = 1)</option></select></label>
+<label>Compare with <select id="cc-cmp" aria-label="Compare with"></select></label>
+</div>
+<div class="cc-anctl" id="cc-anctl"></div>
+<div class="cc-two">
+<div><div class="cc-chlab">Forward FLOPs per decoded token</div><div id="cc-ch1" class="cc-chart"></div></div>
+<div><div class="cc-chlab">Memory for the batch: weights and cache (axis in decimal units, 1 GB = 10<sup>9</sup> bytes)</div><div id="cc-ch2" class="cc-chart"></div></div>
+</div>
+<div id="cc-ctxcap" class="cc-cap"></div>
+<div id="cc-ctxstats" class="cc-stats"></div>
+</div>
+<div class="co warn"><div class="t">What these curves leave out</div>Decode FLOPs assume attention over the whole cache in the plain (non-tiled) form; FlashAttention changes the memory traffic, not the FLOPs. MLA is counted in the absorbed form for decode (each head scores the 576-wide cache directly: DeepSeek-V3's {{inference/model.py|https://github.com/deepseek-ai/DeepSeek-V3/blob/9b4e9788e4a3a731f7567338ed15d3ec549ce03b/inference/model.py}} sets <code>attn_impl = "absorb"</code> by default at line 17 and computes the scores against <code>kv_cache</code> and <code>pe_cache</code> at lines 486 to 487, read 2026-10-18), which is why DeepSeek-V3's attention FLOPs per position are large while its cache is small. Sliding-window and chunked layers read at most their window. Recurrent layers (Mamba, Gated DeltaNet) are counted in their step-by-step form, with their fixed state taken as FP32. Weight bytes per step at batch 1 count only the experts one token uses; at larger batches, see the next section.</div>
+</section>
+
+<section id="cc-s-moe"><h2>Dense vs MoE at equal active parameters</h2>
+<p>Take the chosen model and build its <b>dense twin</b>: every MoE layer replaced by one dense feed-forward block whose width is what a token actually uses (<i>k</i> routed experts plus the shared ones). The twin has the same active parameters and the same FLOPs per token. Step through what changes when the twin's feed-forward is cut into experts and more experts are added. For a dense model, the twin is the model itself and its MoE version splits each feed-forward block into 8 experts with 2 active (the Mixtral pattern).</p>
+<div class="cc-box" id="cc-moecard">
+<div class="cc-anctl" id="cc-moectl"></div>
+<div id="cc-moebars" class="cc-chart"></div>
+<div class="cc-chlab" id="cc-gridlab"></div>
+<div id="cc-moegrid" class="cc-grid"></div>
+<div id="cc-moecap" class="cc-cap"></div>
+</div>
+</section>
