@@ -1,20 +1,26 @@
-Source of the interactive HTML on the Notion page "Tokenizers" (child of Topic: llm-training-and-post-training).
+Source of the interactive HTML on the Notion page "Tokenizers" (child of Topic: llm-architecture). Rebuilt 2026-10-18 from the 2026-10-03 build (floor: every section, card and tab kept; see `coverage.md`).
 
-Build: `sh build.sh` runs `export_data.py` (writes `parts/21_js_data.js` from `inputs/`), then writes `../index.html` from `parts/` (01_head, 10_header, 20_read_*.html for the Reading tab with 20_read_a first, 3x_tab_*.html, every *.js in its own script, 99_js_tabs.js last; links as {{text|url}}, n:<notion id> or #t-<tab>), and fills in the reading time and the best-resources total.
+## Build
+`sh build.sh` runs `export_data.py` (writes `parts/22_js_tk_0data.js` from `inputs/`: ten tokenizers, FLORES counts, examples, timeline) and `make_page_data.py` (writes `parts/22_js_tk_2new.js`, `window.TKN`, from `out/` and the root's `src/data/tokenizer.json`), then concatenates `parts/` into `../index.html` (01_head, 10_header, 20_read_*.html for the Reading tab, 3x_tab_*.html, every *.js in its own script, 99_js_tabs.js last; links `{{text|url}}`, `n:<notion id>`, `#t-<tab>`), and fills the reading time (Reading tab words at 230 per minute, closed `<details>` counted apart) and the best-resources total.
 
-Tabs: Reading (in one screen, words/characters/bytes/subwords with the granularity bars, the algorithms, the three-algorithm trainer animation, encoding and pre-tokenizer digit rules, what 2026 models use, the language tax, failure modes on ten real tokenizers, special tokens, beyond subwords with BLT's patches, training your own, common mistakes), Same text, ten tokenizers, Vocabulary size, Further reading.
+## Tabs and parts
+- Reading (`20_read_a` to `20_read_z`; JS `24` to `29`): in one screen; what a tokenizer does (stepped pipeline animation on a running-story sentence, real code and output); units (granularity bars); BPE from zero on the running example (trainer.rs quoted, first merges, nine-size sweep table); WordPiece, Unigram, SentencePiece and the three-algorithm trainer animation (before/after on one editable text); encoding (word.rs and byte_level.rs quoted); vocabulary size (Config calculator table, padding quote); 2026 tokenizers table; numbers and code (digit rules, chunk view, the arithmetic before/after on real models); the language tax; failure modes (gallery on ten tokenizers, trailing space before/after, letter counting, glitch tokens of the running example); special tokens (injection and double-BOS snippets); beyond subwords (BLT patch animation); training your own; mistakes; interview questions. Three predict-then-reveal drills.
+- Grow a vocabulary (`31_*`, prefix `tk-grow`): the 3,839 merges replayed on the running sequence (animation and slider, JS encoder equal to the library at 13 checkpoints, `check_grow.mjs`), the cost curves of nine trained sizes, a string inspector with training counts and embedding norms.
+- Same text, ten tokenizers (`32_*`) and Vocabulary size (`33_*`): from the 2026-10-03 build; the embedding-share chart now reads the root Config calculator, the timeline gained eight 2026 models.
+- Further reading (`39_tab_more.html`).
 
-Shape: no method file covers deep-dive child pages; built from the brief. The page follows the old page's order (design space, algorithms, current models, practical notes) because that is the reader's path from "what is a token" to "what does my choice cost". The mechanism (training) gets the before/after animation inline; the two "across all X" questions (all languages, all models) get their own tabs.
+## Scripts and recorded outputs (all small; large intermediates in scratch)
+- `bpe/inspect_bpe.py` -> `out/bpe_inspect.json` (merges, running sequence, the same texts under 8 tokenizers); `bpe/bpe_sweep.py` -> `out/bpe_sweep.json` (nine retrained sizes; 4,096 equals the committed file); `bpe/freq_glitch.py` -> `out/freq_glitch.json` (id counts in train.bin, embedding norms of ref_baseline_s1500, probe continuations); `bpe/grow_check.py` -> `out/grow_check.json`.
+- `probe/arith.py` -> `out/arith_olmo.json`, `out/arith_qwen.json`; `probe/space_letters.py` -> `out/space_letters.json`. CPU, bf16 or fp32, inference_mode, greedy.
+- `tok2026/fetch.py` (tokenizer files only, revisions in `tok2026/fetched.json`), `tok2026/analyze.py` -> `out/tok2026.json`.
+- `vocab/calc_embed.py` -> `out/calc_embed.json` (reads the root's `src/calc/out/py_results.json`).
+- `code/quotes.py` -> `out/quotes.json` (source excerpts located by pattern: tokenizers v0.23.3 commit 30127707, transformers 5.20.1, the root's tiny_gpt.py); `code/snippets.py` -> `out/snippets.json` (the code blocks on the page, run, stdout kept).
+- From the 2026-10-03 build: `tok_data.py`, `ref_algos.py`, `vocab_data.py`, `overlap.py`, `recompute.py`, `export_data.py`, `save_live.py`, `mk_coverage.py`, `live.md`, `coverage.json`.
+- Checks: `check_algos.mjs` (trainers, 36/36), `check_grow.mjs` (26/26), `check_controls.mjs` (every control, 390 dark and 920 light), `check_data.py` (page data equals out/, prose numbers equal data), `mk_coverage.py` (61/61).
 
-Files:
-- `live.md`: the old Notion text, verbatim (fetched 2026-10-03; Notion's copy dated 2026-09-20), copied from the session transcript by `save_live.py`. `mk_coverage.py` writes `coverage.json` (61 facts of live.md, where the page carries them, all found in the built page; 7 corrected).
-- `tok_data.py` (uv, with tokenizers, tiktoken, huggingface_hub; needs FLORES-200 and Petrov et al.'s CSVs, see its header): token counts for 204 languages x 10 tokenizers (`inputs/flores_counts.json`), the Petrov check (`inputs/petrov_check.json`: 204/204 for five columns), example tokenizations and the GPT-4o table (`inputs/examples.json`, from `inputs/gpt4o_sentences.tsv`).
-- `ref_algos.py` (uv) -> `inputs/ref_algos.json`: the library's BpeTrainer and the HF course's WordPiece and Unigram code on four corpora; `check_algos.mjs` (node) runs `parts/22_js_algos.js` against it: 36/36 identical.
-- `vocab_data.py` (stdlib) -> `inputs/configs.json`: vocab_size, width, tying, parameters and repository dates from Hugging Face (Mistral Large 3's repository name 404'd and is left out). `overlap.py` (uv) -> `inputs/vocab_overlap.json`: entry counts and shared entries between tokenizer generations.
-- `recompute.py` (stdlib) -> `inputs/recompute.json`: every derived number the text quotes, and a check that the built page carries each (24/24).
-- `check_page.mjs` (node, from the page folder): every control in light 920 and dark 390, scanning for NaN, undefined, Infinity, null and errors, checks the trainer's step counts, the course's first WordPiece merge, the 18/20 GPT-4o line and the Gemma 3 270M calculator default; screenshots `el-*.png` in `.shots/`.
-- `viz_ideas.md`: candidates scored, chosen and rejected.
+## Environment
+The topic's shared venv (Python 3.12, tokenizers 0.23.3, transformers 5.20.1, torch 2.14.1), `HF_HUB_OFFLINE=1` for model probes; models and tokenizer files in the Hugging Face cache. Runs: Apple M1 Pro, CPU, 4 threads, nice 15 (no GPU used).
 
-Mirrors used where the official repository is gated: NousResearch (Llama 2, Llama 3), unsloth (Llama 3.2, Llama 4, Gemma 1 and 3). Not stored here: tokenizer files (Hugging Face cache), FLORES-200 (25 MB).
-
-Checks (3 October 2026): `sh html_utils/checkpage.sh <folder>`: fail=0, emdash 0, errbox 1, clipped 0, 4 tabs. `node src/check_page.mjs`: 658 actions, 0 problems. `node src/check_algos.mjs`: 36 match, 0 mismatch.
+## Departures from the page-kind shape
+- Ids are prefixed `tk-`; the class names of the 2026-10-03 parts (`tk`, `tks`, `trow`, ...) are kept unprefixed because the page has one owner and they are shared by several tabs.
+- The Reading tab keeps the old page's order inside a from-zero frame (what a tokenizer does, then units, BPE, the other algorithms), because the reader's path is "what is a token" to "what does my choice cost".

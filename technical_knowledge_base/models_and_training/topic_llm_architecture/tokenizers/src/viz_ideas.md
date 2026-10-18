@@ -40,3 +40,26 @@ Scores: 0 to 2 on each Methodology question (parameter the reader controls; repr
 
 - A rule for **measurement visuals on real artefacts** (tokenizer files) rather than formulas: here the "reproduces a published figure" test was met by re-running a published measurement (Petrov's table, OpenAI's table) on the same inputs, which worked better than any formula recompute. Worth a line: when a paper publishes its inputs and outputs, reproduce the table exactly first, then extend it.
 - A rule for **reference implementations that disagree with the library**: WordPiece training in the HF library is BPE; the course is the only runnable reference. Say which reference each check uses.
+
+## Added in the 2026-10-18 rebuild (on the running example)
+
+| # | Idea | Score | Placement | Data | Reproduces |
+|---|---|---|---|---|---|
+| 13 | **One sentence through the tokenizer, stage by stage** (text, bytes, pre-tokens, merges per chunk with ranks, ids, embedding rows, decode), stepped with captions and counters | 12 | Reading, What a tokenizer does | `make_page_data.py` replays the real merges; asserted equal to the library's ids | the library's ids for the sentence (by assertion) |
+| 14 | **Replay the 3,839 merges on the running sequence** (before/after: raw bytes to 4,096 entries; slider, play, jump to 512, 1,024, 2,048) with counters for tokens, embedding and output FLOPs | 15 | Tab Grow a vocabulary | committed tokenizer.json; JS encoder | the library at 13 merge counts, 26/26 (`check_grow.mjs`) |
+| 15 | **Cost of nine trained vocabulary sizes**: characters per token and the tiny GPT's FLOPs (blocks vs output layer, a U with its minimum at 2,048) with a marker following the slider | 13 | Tab Grow a vocabulary; table in Reading | `bpe_sweep.py` (measured counts) plus a stated FLOPs formula | n/a; 4,096 equals the committed file byte for byte |
+| 16 | **Glitch tokens of the running example**: training count against embedding norm for all 4,096 ids, unseen ids in red, with real continuations after an unseen token | 13 | Reading, Failure modes | `freq_glitch.py` | n/a (measurement); matches Land and Bartolo's description |
+| 17 | **Arithmetic before/after**: the same 100 additions written plainly and with commas, on a 3-digit-chunk tokenizer (OLMo 2 1B) and a single-digit control (Qwen3-1.7B), digits coloured right/wrong | 14 | Reading, Numbers and code | `probe/arith.py` | direction of Singh and Strouse 2024 (GPT-3.5/4), on open models |
+| 18 | **Trailing space before/after**: top-5 next tokens and greedy text with and without one space, SmolLM2-135M and the tiny GPT | 11 | Reading, Failure modes | `probe/space_letters.py` | n/a |
+| 19 | **Letter counting, word vs spelled out** (Qwen3-0.6B, 24 words) | 10 | Reading, Failure modes | same | n/a |
+| 20 | **Digit chunks under three rules** for any sum | 9 | Reading, Numbers and code | computed from the rules (checked on 12345678 against every file) | n/a |
+| 21 | **Embedding share three ways** (total, active, output-layer share of decode FLOPs) over the Config calculator's 45 configs | 13 | Tab Vocabulary size (replaces the safetensors-based bars) | root `src/calc/out/py_results.json` | residual 0 against the Hub (the calculator's own validation) |
+
+Rejected in this rebuild:
+
+| Idea | Why |
+|---|---|
+| Loss per character of the tiny GPT at each vocabulary size | Needs a GPU training run per size and re-tokenised data (the agent was CPU-only while three GPU labs ran); Tao et al. 2024 cited instead, listed as pending in the report. |
+| A second merge animation for WordPiece or Unigram on TinyStories | The three-algorithm trainer already shows both on one text; repeating it at scale adds no mechanism. |
+| Re-running the 204-language FLORES counts with tokenizers 0.23.3 | Deterministic counts already verified exactly against Petrov et al.; spot checks with 0.23.3 agree. |
+| Animating the KV cache cost of extra tokens | Owned by the root's Attention lab and the Long context child; linked. |

@@ -11,15 +11,15 @@
   ];
   CASES[4].note=CASES[4].note.replace('@@ALIGN@@','<a href="https://app.notion.com/p/3c65c17b0d0d81d5bed7e608d4061c7a" target="_blank" rel="noopener noreferrer">Alignment</a>');
   let cur='letters';
-  const cb=document.getElementById('failCase');
+  const cb=document.getElementById('tk-failCase');
   cb.innerHTML=CASES.map(c=>'<button data-k="'+c.k+'"'+(c.k===cur?' class="on"':'')+'>'+c.n+'</button>').join('');
   cb.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;cur=b.dataset.k;cb.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));draw()});
   function draw(){const c=CASES.find(x=>x.k===cur);let h='';
     c.t.forEach(key=>{const f=F[key];h+='<div class="panelt">Text: <code>'+esc(f.text).replace(/ $/,'<span class="ws">␣</span>')+'</code></div>';
       TK.forEach(k=>{const p=pieces(f.text,f.t[k]);const showIds=(key==='magikarp'||key==='petertodd')&&k==='gpt2'||(key.startsWith('space')&&k==='o200k');
         h+='<div class="trow"><div class="nm">'+SHORT[k]+'</div><div>'+chips(p)+(showIds?'<span class="small mute">ids '+f.ids[k].join(', ')+'</span>':'')+'</div><div class="n">'+p.length+'</div></div>'})});
-    document.getElementById('failRows').innerHTML=h;document.getElementById('failText').innerHTML='';
-    document.getElementById('failNote').innerHTML=c.note}
+    document.getElementById('tk-failRows').innerHTML=h;document.getElementById('tk-failText').innerHTML='';
+    document.getElementById('tk-failNote').innerHTML=c.note}
   draw();
 
   // six languages, five tokenizers: premium over the whole FLORES-200 dev + devtest
@@ -31,5 +31,5 @@
   let h='<div class="hmleg">'+KS.map(([k,n,col])=>'<span><i style="display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;background:'+col+'"></i>'+n+'</span>').join('')+'</div><div class="bars">';
   LS.forEach(([c,n])=>{h+='<div class="band" style="text-transform:none;font-size:12.5px">'+n+'</div>';
     KS.forEach(([k,kn,col])=>{const p=prem(c,k);h+='<div class="row"><span class="nm">'+kn+'</span><span class="track"><span class="fill" style="width:'+(100*p/max).toFixed(1)+'%;background:'+col+'"></span></span><span class="val">'+p.toFixed(2)+'×</span></div>'})});
-  document.getElementById('taxBars').innerHTML=h+'</div><p class="small mute">Premium = tokens for the language ÷ tokens for English over the same 2,009 translated sentences, per tokenizer (1.00× is parity with English).</p>';
+  document.getElementById('tk-taxBars').innerHTML=h+'</div><p class="small mute">Premium = tokens for the language ÷ tokens for English over the same 2,009 translated sentences, per tokenizer (1.00× is parity with English).</p>';
 })();

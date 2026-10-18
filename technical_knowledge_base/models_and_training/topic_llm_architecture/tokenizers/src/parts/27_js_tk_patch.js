@@ -9,7 +9,7 @@
     mono:'D|aenerys Targar|yen|is|in|Game|of Thrones|,|a|fantasy|epic|by|George R.R. Martin|.'
   };
   function align(fig){const out=[];let pos=0;
-    for(const p of fig.split('|')){let st=pos;while(S[pos]===' ')pos++;if(S.slice(pos,pos+p.length)!==p)throw new Error('patch transcription does not align at "'+p+'"');pos+=p.length;out.push(S.slice(st,pos))}
+    for(const p of fig.split('|')){let st=pos;while(S[pos]===' ')pos++;if(S.slice(pos,pos+p.length)!==p)throw new Error('tk-patch transcription does not align at "'+p+'"');pos+=p.length;out.push(S.slice(st,pos))}
     if(pos!==S.length)throw new Error('patches do not cover the sentence');return out}
   const bytes=Array.from(te.encode(S),b=>String.fromCharCode(b));
   const strided=[];for(let i=0;i<S.length;i+=4)strided.push(S.slice(i,i+4));
@@ -21,8 +21,8 @@
     ['Space patching',align(FIG.space),'new patch after a space-like byte; transcribed'],
     ['Entropy, global threshold',align(FIG.ent),'new patch where the small model\'s next-byte entropy is high; transcribed'],
     ['Entropy + monotonicity',align(FIG.mono),'new patch where entropy rises relative to the previous byte; transcribed']];
-  const box=document.getElementById('patchRows'),mb=document.getElementById('patchMode');
-  mb.innerHTML='<span class="an-ctl" id="patchCtl" style="width:100%"></span>';
+  const box=document.getElementById('tk-patchRows'),mb=document.getElementById('tk-patchMode');
+  mb.innerHTML='<span class="an-ctl" id="tk-patchCtl" style="width:100%"></span>';
   const show=s=>esc(s).replace(/ /g,'<span class="ws">␣</span>');
   function draw(i){let h='';
     ROWS.forEach(([n,p,s],k)=>{if(k>i)return;const cur=k===i;
@@ -30,5 +30,5 @@
         (cur&&k>0?'<div class="tks">'+p.map((x,j)=>'<span class="tk '+(j%2?'b':'a')+'">'+show(x)+'</span>').join('')+'</div>':'')+'</div><div class="n">'+p.length+'</div></div>'});
     const p=ROWS[i][1];
     box.innerHTML='<div class="an-cnt">'+stat('Steps for the large model',p.length,ROWS[i][0])+stat('Mean bytes per step',(te.encode(S).length/p.length).toFixed(2),te.encode(S).length+' bytes in all')+stat('Saving against bytes',(100*(1-p.length/bytes.length)).toFixed(0)+'%')+'</div>'+h}
-  RD.anim({card:'patch',ctl:'patchCtl',n:ROWS.length,draw,ms:1800,label:'Patching scheme'});
+  RD.anim({card:'tk-patch',ctl:'tk-patchCtl',n:ROWS.length,draw,ms:1800,label:'Patching scheme'});
 })();

@@ -1,8 +1,8 @@
-// Runs parts/22_js_algos.js in Node and compares it with inputs/ref_algos.json (the library and the course's reference code).
+// Runs parts/23_js_tk_algos.js in Node and compares it with inputs/ref_algos.json (the library and the course's reference code).
 // Run from src/:  node check_algos.mjs
 import fs from 'fs';
 globalThis.window = globalThis;
-eval(fs.readFileSync('parts/22_js_algos.js', 'utf8'));
+eval(fs.readFileSync('parts/23_js_tk_algos.js', 'utf8'));
 const A = globalThis.TOKALG, R = JSON.parse(fs.readFileSync('inputs/ref_algos.json', 'utf8'));
 let ok = 0, bad = 0; const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 function t(name, a, b) { if (eq(a, b)) ok++; else { bad++; console.log('MISMATCH', name, '\n  js :', JSON.stringify(a).slice(0, 400), '\n  ref:', JSON.stringify(b).slice(0, 400)); } }
