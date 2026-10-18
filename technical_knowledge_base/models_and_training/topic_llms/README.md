@@ -11,7 +11,7 @@ The page also carries a narrated video (not in this repository; its HyperFrames 
 - `anthropic_claude_family/`: Anthropic: Claude family
 - `deepseek/`: DeepSeek
 - `google_deepmind_gemini_and_gemma/`: Google DeepMind: Gemini and Gemma
-- `llm_architecture_gallery/`: LLM Architecture Gallery (rasbt) and the architectural deltas that matter
+- (moved 2026-10-18) the Architecture Gallery is now a child of Topic: llm-architecture: `../topic_llm_architecture/llm_architecture_gallery/`
 - `meta_llama_and_msl/`: Meta: Llama and Meta Superintelligence Labs
 - `minimax/`: MiniMax
 - `mistral_ai/`: Mistral AI
