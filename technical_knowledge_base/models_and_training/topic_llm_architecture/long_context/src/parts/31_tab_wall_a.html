@@ -1,0 +1,71 @@
+<div class="tab" id="t-wall" role="tabpanel" hidden>
+<style>
+#t-wall .wl-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:8px 14px;margin:8px 0}
+#t-wall .wl-ctl label{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--mute);min-width:0}
+#t-wall .wl-ctl select,#t-wall .wl-ctl input[type=range]{width:100%;min-width:0}
+#t-wall .wl-ctl .v{color:var(--ink);font-weight:600}
+#t-wall .wl-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;min-width:0}
+#t-wall .wl-box h4{margin:0 0 6px;font-size:14.5px}
+#t-wall .wl-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:8px 0}
+#t-wall .wl-stats .stat .v{font-size:15px}
+#t-wall .wl-lev{border-left:3px solid var(--acc);padding-left:10px}
+#t-wall .wl-note{font-size:12.5px;color:var(--mute);margin:4px 0}
+#t-wall .wl-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-wall .wl-leg span:before{content:"";display:inline-block;width:18px;height:0;border-top:2.5px solid currentColor;vertical-align:middle;margin-right:5px}
+#t-wall .wl-leg .d:before{border-top-style:dashed}
+#t-wall .der{font-size:11.5px;color:var(--c5);font-weight:600}#t-wall .vend{font-size:11.5px;color:var(--c4);font-weight:600}
+#t-wall .wl-chk{font-size:12.5px;border:1px dashed var(--line);border-radius:8px;padding:6px 10px;margin:8px 0}
+#t-wall details.qa{border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:6px 0}#t-wall details.qa summary{cursor:pointer;font-weight:600;font-size:13.5px}
+#t-wall .pr{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0}
+#t-wall .pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}#t-wall .pr .opts button.right{border-color:var(--good);color:var(--good)}#t-wall .pr .opts button.wrong{border-color:var(--bad);color:var(--bad)}
+#t-wall .pr .ans{display:none;font-size:13.5px}#t-wall .pr.done .ans{display:block}
+</style>
+<section>
+<p class="lead">How far can one model go in context and concurrency on given hardware, and which design lever moves which wall? Pick a real model and its GPUs, then switch on the levers this page explains (fewer KV heads, local layers, a smaller cache dtype, eviction) and watch the same model's wall move. Everything is computed in the page with the root's {{Config calculator|n:3fd5c17b0d0d8172b490dc9f9ac281df}} code (its window.CC, reused unchanged) from each model's real config.json. <span class="der">derived</span> Reading time about <span id="wl-time">6</span> minutes with the controls.</p>
+<p class="wl-note">Two neighbours size the plain cache: the root's Attention lab has a KV-cache calculator for any config, context and batch, and {{Memory technology|n:3f05c17b0d0d818ab063e327e3d7009f}} (its KV cache across models tab) grows one conversation on thirteen architectures. This tab asks the design question instead: the same model, redesigned.</p>
+
+<div class="wl-box">
+<h4>1. The model and the hardware</h4>
+<div class="wl-ctl">
+<label>Model<select id="wl-model"></select></label>
+<label>GPU memory each<select id="wl-gpu"><option value="24">24 GB</option><option value="80" selected>80 GB</option><option value="141">141 GB</option><option value="192">192 GB</option></select></label>
+<label>GPUs<select id="wl-ngpu"><option>1</option><option>2</option><option>4</option><option selected>8</option></select></label>
+<label>Weights stored in<select id="wl-wdt"><option value="2" selected>bf16 (2 bytes)</option><option value="1">fp8 (1 byte)</option><option value="0.5">4-bit (0.5 byte)</option></select></label>
+<label>Context: <span class="v" id="wl-ctxv"></span><input type="range" id="wl-ctx" min="10" max="20" step="1" value="17" aria-label="Context length"></label>
+<label>Concurrent sequences: <span class="v" id="wl-bv"></span><input type="range" id="wl-b" min="0" max="8" step="1" value="5" aria-label="Concurrent sequences"></label>
+</div>
+<p class="wl-note" id="wl-mnote"></p>
+</div>
+
+<div class="wl-box wl-lev">
+<h4>2. The levers (applied to the same model)</h4>
+<div class="wl-ctl">
+<label>KV heads per attention layer<select id="wl-kvh"><option value="cfg" selected>as in the config</option><option value="mha">one per query head (MHA)</option><option value="1">one (MQA)</option></select></label>
+<label>Layer layout<select id="wl-lay"><option value="cfg" selected>as in the config</option><option value="global">every layer global</option><option value="1">1 local : 1 global</option><option value="3">3 local : 1 global</option><option value="5">5 local : 1 global</option><option value="7">7 local : 1 global</option><option value="all">every layer local</option></select></label>
+<label>Window of local layers<select id="wl-win"><option>128</option><option>512</option><option selected>1024</option><option>4096</option><option>8192</option></select></label>
+<label>Cache dtype<select id="wl-kdt"><option value="2" selected>bf16 (2 bytes)</option><option value="1">fp8 (1 byte)</option><option value="0.5625">int4 + scales (0.5625)</option></select></label>
+<label>Entries kept after eviction<select id="wl-keep"><option value="1" selected>all (no eviction)</option><option value="0.5">50%</option><option value="0.25">25%</option><option value="0.125">12.5%</option></select></label>
+</div>
+<p class="wl-note" id="wl-lnote"></p>
+</div>
+
+<div class="wl-box" id="wl-card">
+<h4>3. Before and after: memory at this context and concurrency</h4>
+<div id="wl-bars"></div>
+<div class="wl-stats" id="wl-stats"></div>
+</div>
+
+<div class="wl-box">
+<h4>4. The wall: how many sequences fit at each context</h4>
+<div class="wl-leg"><span class="d" style="color:var(--mute)">as in the config</span><span style="color:var(--acc)">with the levers</span><span style="color:var(--c4)">your context</span></div>
+<div id="wl-chart"></div>
+<p class="wl-note">Usable memory per GPU is taken as 92% of capacity, vLLM's default gpu_memory_utilization (read in vLLM v0.31.0 source on {{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}}); weights are split evenly across the GPUs; activations and engine workspace live in the other 8%. Recurrent layers (Mamba-2, Gated DeltaNet) add a constant state per sequence, in fp32 as the calculator assumes. Eviction is counted as if every dropped entry were freed: that is the algorithmic saving; a paged engine reclaims only whole blocks, which per-head policies rarely empty (measured on Batching, KV cache and scheduling).</p>
+</div>
+
+<div class="wl-box">
+<h4>5. The compute wall: what each lever does to prefill</h4>
+<div class="wl-stats" id="wl-flops"></div>
+<p class="wl-note" id="wl-fnote"></p>
+</div>
+<div class="wl-chk" id="wl-check"></div>
+

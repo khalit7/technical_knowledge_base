@@ -1,0 +1,19 @@
+<div class="ev-box">
+<h4>5. What this means, what transfers, how to check</h4>
+<ul class="small">
+<li><b>Perplexity is the wrong test for a compressed cache.</b> H2O at 12.5% raises the new-story loss from <span data-lc="ev_full_new">2.07</span> to <span data-lc="ev_h2o125_new">2.10</span> and answers <span data-lc="ev_h2o125_pk">0</span>% of pass-key questions (full cache <span data-lc="ev_full_pk">97</span>%). Test with retrieval and copying at your real length, as {{Long-context and multimodal benchmarks|n:3ef5c17b0d0d810bb4dfc98919c9be8a}} explains for models in general.</li>
+<li><b>Question-aware selection works only if the question is there.</b> SnapKV keeps <span data-lc="ev_snap25_pk">97</span>% at a quarter of the cache when the question is in its observation window, and <span data-lc="ev_snapdoc25_pk">0</span>% when the cache was compressed before the question arrived. Multi-turn chats, agents and prefix caches compress before the question: they need a question-agnostic method or no eviction.</li>
+<li><b>Fewer bits beat fewer entries at equal memory here.</b> KIVI-style int4 at 31% of the bytes answers <span data-lc="ev_k4_pk">93</span>% and keeps copying (loss <span data-lc="ev_k4_copy">0.66</span> against <span data-lc="ev_full_copy">0.61</span>); no eviction policy at 25% keeps copying. At 2 bits, per-channel keys matter: <span data-lc="ev_k2_pk">50</span>% against <span data-lc="ev_q2_pk">7</span>% for per-token rounding, the effect KIVI's authors report (keys have outlier channels, so one scale per token wastes its range).</li>
+<li><b>Never drop the first tokens.</b> The recent-only window sends the new-story loss to <span data-lc="ev_rec50_new">4.02</span> at 50%; keeping 4 sink tokens brings it back to <span data-lc="ev_sr50_new">2.08</span>, the same lesson as the root's Inside a real model sink demo.</li>
+</ul>
+<p class="small"><b>What transfers</b>: the ranking of policies on each task, the gap between perplexity and retrieval, the role of the question and of sinks, and the per-channel effect at 2 bits; these are mechanisms. <b>What does not</b>: a 135M model at 4,096 tokens is far from a 70B model at 128K, where caches are larger, more redundant and eviction is usually gentler; absolute percentages will differ. Thirty prompts give a resolution of about 3 percentage points (one prompt). Memory is counted as entries kept; a paged engine reclaims only blocks that every head emptied ({{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}} measured that per-head selections free almost none).</p>
+<details class="mist"><summary>The code that ran (src/kv/smol.py, lines 102 to 104) and its check</summary><div class="b">
+<p class="small">SmolLM2's attention is written out by hand so eviction can be a mask over the cached entries, per layer and KV head; masking an entry is exactly removing it. The continuation tokens attend to the surviving prompt entries and causally to each other:</p>
+<pre>kp = keep[li].repeat_interleave(g, 0)                       # (nh, T)
+mask = torch.cat([kp[:, None, :].expand(nh, n, T), causal[None].expand(nh, n, n)], -1)
+o = F.scaled_dot_product_attention(q[None], Kall[None], Vall[None], attn_mask=mask[None])[0]</pre>
+<p class="small">Check against transformers 5.20.1's own forward on 1,024 tokens (prefill 900, continue 124, full cache): largest logit difference <span data-lc="ev_check">1.9e-04</span> on logits up to 41.9 in size (<code>src/kv/out/check.json</code>). Runs: <code>python run_kv.py evict</code> (about 10 minutes on 4 CPU threads).</p>
+</div></details>
+</div>
+</section>
+</div>

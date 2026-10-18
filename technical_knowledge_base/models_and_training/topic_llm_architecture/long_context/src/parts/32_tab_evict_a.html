@@ -1,0 +1,48 @@
+<div class="tab" id="t-evict" role="tabpanel" hidden>
+<style>
+#t-evict .ev-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;min-width:0}
+#t-evict .ev-box h4{margin:0 0 6px;font-size:14.5px}
+#t-evict .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-evict .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-evict .an-play{min-width:6.4em}
+#t-evict .an-cap{min-height:6.5em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+#t-evict .an-cap .t{font-weight:600;font-size:14px}#t-evict .an-cap p{margin:2px 0;font-size:13.5px}
+#t-evict .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}#t-evict .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
+#t-evict .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-evict .ev-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:6px;margin:6px 0}
+#t-evict .ev-cnt .stat .v{font-size:15px}
+#t-evict canvas{display:block;max-width:100%}
+#t-evict .ev-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-evict .ev-leg i{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:4px}
+#t-evict .meas{font-size:11.5px;color:var(--good);font-weight:600}#t-evict .vend{font-size:11.5px;color:var(--c4);font-weight:600}
+#t-evict .small{font-size:12.5px}#t-evict .mute{color:var(--mute)}
+#t-evict pre{font:12px/1.45 ui-monospace,Menlo,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;white-space:pre}
+#t-evict .pr{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0}
+#t-evict .pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}#t-evict .pr .opts button.right{border-color:var(--good);color:var(--good)}#t-evict .pr .opts button.wrong{border-color:var(--bad);color:var(--bad)}
+#t-evict .pr .ans{display:none;font-size:13.5px}#t-evict .pr.done .ans{display:block}
+#t-evict td.num{text-align:right}
+</style>
+<section>
+<p class="lead">One trained model, one 4,096-token prompt, and seven ways to keep only part of its KV cache, against two ways to keep all of it in fewer bits. Every number here is a forward pass of SmolLM2-135M on this machine <span class="meas">measured on Apple M1 Pro (CPU), fp32, 4 threads</span>, deterministic. Reading time about <span id="ev-time">10</span> minutes with the animation.</p>
+<p class="small">{{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}} already ran H2O, SnapKV and random eviction on Qwen3-0.6B at about 1,000 tokens and showed which savings a paged engine can actually reclaim. This lab goes where that one did not: four times the context, the policies an architecture builds in (a window, local and global layers), quantisation on the same memory axis, a question that arrives after compression, and which heads must keep a fact for the model to use it.</p>
+
+<div class="ev-box">
+<h4>1. The test</h4>
+<p class="small"><b>Prompt.</b> TinyStories validation stories (CDLA-Sharing-1.0) concatenated to 4,096 SmolLM2 tokens, half SmolLM2's 8,192 maximum. <b>Three tasks</b>, each scored with the full cache and under every policy:</p>
+<ul class="small">
+<li><b>Pass-key</b> (<span data-lc="ev_n_pk">30</span> prompts: needle depths 10%, 30%, 50%, 70%, 90% of the prompt, 6 seeds): one planted sentence, "The secret number is 66226. Remember it.", and at the end "Question: What is the secret number? Answer: The secret number is". Correct means all five digits right under greedy decoding.</li>
+<li><b>Copy</b> (6 prompts): one story planted at a depth, then repeated after the prompt; the loss on its first 128 tokens is low only if the earlier copy can still be read (the model's induction heads copy it).</li>
+<li><b>New story</b> (6 prompts): the continuation is an unseen story, so the old context hardly helps: this is what perplexity-style evaluations measure.</li>
+</ul>
+<p class="small"><b>Protocol.</b> Prefill the whole prompt with full attention (as an engine does), then compress the cache, then score only the continuation tokens against what survived: <dfn>prefill-then-compress</dfn>, the setting of SnapKV and of the Batching page's run. Each policy keeps the same share of entries in every layer and KV head (SmolLM2 has 30 layers of 3 KV heads: 90 caches); quantised caches keep every entry in fewer bits.</p>
+<div class="tw"><table class="small"><thead><tr><th>Policy</th><th>Keeps</th><th>Source</th></tr></thead><tbody>
+<tr><td>recent</td><td>the most recent tokens only: a sliding window applied to a model trained without one</td><td>baseline</td></tr>
+<tr><td>sink + recent</td><td>the first 4 tokens plus the most recent (StreamingLLM)</td><td>{{Xiao et al. 2023|https://arxiv.org/abs/2309.17453}}</td></tr>
+<tr><td>random</td><td>a random subset per head, plus the first 4 tokens and the question: the cheap control</td><td>control</td></tr>
+<tr><td>H2O</td><td>half the budget for the tokens with the most accumulated attention ("heavy hitters"), half for the most recent</td><td>{{Zhang et al. 2023|https://arxiv.org/abs/2306.14048}}</td></tr>
+<tr><td>SnapKV</td><td>per head, the tokens most attended by the last 32 prompt tokens (the question is inside that window), pooled over 7 positions</td><td>{{Li et al. 2024|https://arxiv.org/abs/2404.14469}}</td></tr>
+<tr><td>SnapKV, before the question</td><td>the same, scored from the 32 tokens before the question: the cache was compressed when the document arrived and the question came later (a second turn, a cached system prompt)</td><td>this page</td></tr>
+<tr><td>local + global</td><td>every sixth layer keeps everything; the other 25 keep the first 4 tokens and a window sized so the total matches the budget (Gemma 3's 5:1 layout imposed after training)</td><td>this page</td></tr>
+<tr><td>int8, int4, int2</td><td>every entry, rounded to 8, 4 or 2 bits in groups of 32 numbers per token with an fp16 scale and zero per group</td><td>per-token quantisation</td></tr>
+<tr><td>KIVI int4, int2</td><td>the same, but keys grouped per channel over 32 tokens (values per token)</td><td>{{Liu et al. 2024 (KIVI)|https://arxiv.org/abs/2402.02750}}</td></tr>
+</tbody></table></div>
+</div>
