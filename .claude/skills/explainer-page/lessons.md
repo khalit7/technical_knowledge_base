@@ -55,6 +55,9 @@ Each lesson says what happened and the rule it produced. The rules are already f
 - **2026-10-14, zsh loops.** A scaffold loop over `$list` in zsh did not split words and created one wrongly named file. Rule: scaffold loops in `sh` or with explicit names.
 - **2026-10-17, page size.** Five labs with rich data pushed a root to 1.42 MB. Rule: set a per-lab data budget once the first labs land; keep fuller data in `src/<lab>/out/` for children to reuse.
 
+## Detached queues
+- **2026-10-18: editing a running shell queue broke it.** `sh` reads a script as it runs, so an agent that edited `queue_mps.sh` mid-run made the shell read garbage from the new bytes. Rule: never edit a queue script while it runs; write a new file and start that.
+
 ## Reproducible builds
 - **2026-10-18: a full rebuild flagged 31 published pages that nobody had changed.** Builds called whatever `python3` came first on PATH and globbed parts in the shell's locale. Pages built under macOS's Python 3.9 and `en_US.UTF-8` differed from rebuilds under the repo's Python 3.12 (whose float `sum()` is compensated) and a `C.UTF-8` shell: last-digit floats, reordered scripts, and in three papers a rounding check that flipped at an exact half (40.145, 52.95, 62.95). Rule: every `build.sh` pins the repo `.venv` Python and `LC_ALL=en_US.UTF-8` on its first line; checks against printed numbers use exact decimals, half-up. See [build/scaffold.md](build/scaffold.md).
 
