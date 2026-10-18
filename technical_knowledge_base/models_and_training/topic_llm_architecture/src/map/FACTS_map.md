@@ -1,0 +1,12 @@
+# Facts verified by the map agent (2026-10-18), mirrored into the topic's shared FACTS.md
+- Gemma 7B total parameters 8.54B: Gemma paper Table 2, 786,825,216 embedding + 7,751,248,896 non-embedding (arXiv 2403.08295 v4 HTML, read 2026-10-18).
+- LLaMA 65B is 65.2B: LLaMA paper Table 2 (arXiv 2302.13971).
+- Qwen3 32B: 32.8B parameters, 32,768 native context, 131,072 with YaRN; config max_position_embeddings 40,960 (model card and config, read 2026-10-18).
+- MiniMax-M1: 456B total, 45.9B active, 1M native context (model card); config max_position_embeddings 10,240,000; config postnorm true; 7 lightning : 1 softmax attention (attn_type_list).
+- gpt-oss-120b: 117B total, 5.1B active; MXFP4 MoE weights let it run on one 80 GB GPU (model card).
+- Granite 4.0-H Small: 32B total, 9B active (model card table); NoPE (config position_embedding_type "nope" and card table); shared input/output embeddings.
+- Kimi K3: 2.8T total, 104B active, 93 layers (model card table).
+- Llama 4 Maverick: 400B total, 17B active, 1M context, release date April 5, 2025 (model card).
+- Mistral Large 3: 675B total, 41B active (model card; it also states 673B and 39B for the language model alone plus a 2.5B vision encoder).
+- DeepSeek-V3 config num_key_value_heads 128 with kv_lora_rank 512 and qk_rope_head_dim 64: MLA cache 576 numbers per layer per token, 68.6 KiB per token in bf16 over 61 layers.
+- KV per token (bf16, full cost) agrees with the gallery child page for all 25 models both pages share; Gemma 3 27B at 131,072 tokens: 62 GiB at full cost, 10.41 GiB with its 1,024 windows credited.
