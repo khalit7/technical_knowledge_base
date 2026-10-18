@@ -72,7 +72,7 @@ def main():
                     "refs": [{k: r[k] for k in ("key", "what", "line", "end", "text")} for r in cr["refs"]]},
            "uni": j("unigram.json"), "pair": {"pre": PRE, "post": POST}}
     s = "// written by src/block/make_page_data.py from src/block/out/; do not edit by hand\nwindow.BLD=" + json.dumps(BLD, separators=(",", ":")) + ";\n"
-    assert "—" not in s
+    assert "\u2014" not in s
     open(PART, "w").write(s)
     print(PART, len(s), "bytes")
 
