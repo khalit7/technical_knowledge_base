@@ -25,3 +25,6 @@ Child of Topic: agentic-frameworks. A new page (the Notion page held only a "bei
 - The OpenRouter shares apply the documented inverse-square rule to input prices over all listed endpoints; the docs do not say which price or how many candidates, and the page says so.
 - Grading of the router experiment is lenient on units ("2500 grams" counts for 2500); Haiku's raw grade before that was 39 of 48.
 - No Langfuse/OTel here: tracing belongs to the LLM observability sibling.
+
+## Overlap fix (2026-10-19)
+This page owns the gateway, fallbacks, rate limits and budgets. Moved here from ML system design (whose sections 3 to 5 are now one paragraph each with links): the gateway's duties in order and the "Gateways in production" box (Uber GenAI Gateway, Envoy AI Gateway / Agent Router two tiers, Huyen, Kong and Portkey, cost and when not to run one) in section 1; fallback planning in section 3; RFC 6585, the two-customer token example, OpenAI's reservation, Envoy's charge-after with overshoot and its policy, concurrent-stream caps in section 5; rate limit, quota and capacity refusals (Anthropic 529) and the price-table caveat in section 6; tier, context and policy rules (prices, Huyen's intent classifier, Anthropic's August 2025 routing bug) in section 10. `check_page.py` carries a needle for each moved quote.

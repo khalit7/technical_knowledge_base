@@ -16,19 +16,10 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     if (r.nan || r.side) { problems++; console.log('PROBLEM', scheme, width, where, JSON.stringify(r)) } };
   const shot = async (sel, name) => { const el = await p.$(sel); if (el) { await el.scrollIntoView(); await el.screenshot({ path: path.join(out, name + '-' + scheme + '-' + width + '.png') }) } };
   await shot('#rd-arch', 'arch');
-  // autoscale animation: each policy, step to a few points
-  for (const m of ['cpu', 'rps', 'queue', 'warm']) {
-    await p.click(`#rd-as-seg button[data-m=${m}]`);
-    for (const i of [0, 12, 30, 80]) { await p.$eval('#rd-as-ctl-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i); await bad('as ' + m + ' ' + i) }
-    await p.$eval('#rd-as-ctl-s', e => { e.value = 20; e.dispatchEvent(new Event('input')) });
-    await shot('#rd-as-card', 'as-' + m);
-  }
-  await p.click('#rd-as-ctl-f'); await p.click('#rd-as-ctl-b'); await p.click('#rd-as-ctl-p'); await new Promise(r => setTimeout(r, 300)); await p.click('#rd-as-ctl-p');
-  await p.select('#rd-as-ctl-v', '2');
   for (const m of ['before', 'after']) { await p.click(`#rd-pc-seg button[data-m=${m}]`);
     for (const i of [0, 3, 5]) { await p.$eval('#rd-pc-ctl-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i); await bad('pc ' + m + ' ' + i) }
     await shot('#rd-pc-card', 'pc-' + m) }
-  // gateway lab
+  // cost-quality lab (tab id t-gw)
   await p.click('button[data-t=t-gw]'); await new Promise(r => setTimeout(r, 200));
   for (const pr of ['naive', 'tuned', 'semantic', 'outage_nofb', 'outage_fb', 'selfhost']) { await p.click(`#gw-pre button[data-p=${pr}]`); await bad('gw ' + pr); if (pr === 'tuned' || pr === 'outage_fb') await shot('#t-gw', 'gw-' + pr) }
   for (const id of ['rps', 'easy', 'acc', 'exact', 'prefix', 'semhit', 'semfalse', 'outage', 'det']) {

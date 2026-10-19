@@ -4,11 +4,7 @@ Also prints the derived figures quoted in the Reading tab."""
 import json, random
 import models as m
 
-out = {'scale': {}, 'scale_summary': {}, 'gw': {}, 'gw_random': []}
-for md in m.MODES:
-    rows = m.scale(md)
-    out['scale'][md] = rows
-    out['scale_summary'][md] = m.scale_summary(rows)
+out = {'gw': {}, 'gw_random': []}
 out['gw']['default'] = m.gateway()
 for k, v in m.GW_PRESETS.items():
     p = dict(m.GW); p.update(v)
@@ -28,9 +24,6 @@ print('interview example:', out['interview'])
 out['cost_compare'] = m.cost_per_request_compare()
 out['self_cost_per_m_out'] = m.self_cost_per_out_token() * 1e6
 json.dump(out, open('recompute_out.json', 'w'), indent=0)
-print('scale summaries:')
-for k, v in out['scale_summary'].items():
-    print(' ', k, v)
 print('gateway:')
 for k, v in out['gw'].items():
     print(' ', k, v['per_k'], v['monthly'], v['ttft'], v['full'], v['err'], v['wrong'])
