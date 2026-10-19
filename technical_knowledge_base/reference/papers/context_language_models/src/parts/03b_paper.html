@@ -1,0 +1,48 @@
+<section id="s-cost"><h2>What an edit costs: prefix-reuse FLOPs</h2>
+[[A3|§4.1, Appendix C]]
+<p><b>Why edits are not free.</b> Serving engines keep the keys and values (the KV cache) of earlier prompts and reuse them when a new prompt starts with the same tokens. The reuse stops at the first token that differs, because each token's key and value depend on everything before it and on its position ({{Appendix B|ax:A2}}; the {{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}} page shows the lookup). Appending keeps the whole previous prompt as a cached prefix. Editing turn 3 of 20 throws away the cache of turns 3 to 20, and they are <b>re-prefilled</b>, recomputed from scratch, on the next call.</p>
+<p>So the paper does not count tokens; it counts the compute a prefix-caching server would actually do over a whole trajectory, <b>prefix-reuse FLOPs</b> ({{Eq. 3|ax:S4.E3}}): the prefill of everything from the first mismatch onward, plus the decoding of every generated token. {{Appendix C|ax:A3}} gives the full model. At turn t the prompt has P<sub>t</sub> tokens, the longest prefix of whole messages seen in an earlier prompt has R<sub>t</sub>, the model generates G<sub>t</sub>:</p>
+<div class="fm"><div class="eqb"><div class="eq">F<sub>t</sub> = C<sub>token</sub>(U<sub>t</sub> + G<sub>t</sub>) + C<sub>attn</sub>[ ½(P<sub>t</sub>² − R<sub>t</sub>²) + G<sub>t</sub>P<sub>t</sub> + ½G<sub>t</sub>² ],  U<sub>t</sub> = P<sub>t</sub> − R<sub>t</sub></div></div></div>
+<p>C<sub>token</sub> is the cost of pushing one token through every weight matrix ({{Eq. 7|ax:A3.E7}}), C<sub>attn</sub> the cost of one query-key pair in the full-attention layers ({{Eq. 8|ax:A3.E8}}); the bracket counts prefill attention, then decode attention ({{Eq. 9|ax:A3.E9}}). For <b>Qwen3.6-27B</b>, a hybrid with 16 full-attention layers and 48 Gated DeltaNet (linear-attention) layers (see {{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}}), the paper prints C<sub>token</sub> = 48.70 × 10⁹ FLOPs (MLP 34.23, attention projections 3.36, Gated DeltaNet projections 11.12) and C<sub>attn</sub> = 3.93 × 10⁵. <span id="cConst"></span></p>
+<div class="pred" id="pq1" data-ans="1">
+<div class="q">One Qwen3.6-27B turn: a 20,000-token prompt, a 500-token reply. If the agent only appended, 18,000 tokens are cached. If it edited the middle of its context, 10,000 are. How many times the append-only turn's compute does the edited turn cost?</div>
+<div class="opts"><button>About 1.5 times</button><button>About 4 times</button><button>About 8 times</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>About 4.1 times: 5.74 × 10¹⁴ FLOPs against 1.41 × 10¹⁴, and an edit at the very start (nothing cached) costs 10.81 × 10¹⁴, 7.7 times. These are the paper's own illustrative lengths ({{Figure 16|ax:A3.F16}}), recomputed here from Eq. 7 to 9:</p>
+<div id="q1Bars" class="plot"></div>
+<p class="small">The middle edit re-prefills 10,000 tokens instead of 2,000; that is most of the gap. Attention adds a little on top because each re-prefilled token attends over everything before it. Try other lengths in the calculator on the {{Replay tab|tab:t-run:rp-calc}}.</p>
+</div></div>
+<p><b>How to read the cost numbers.</b> These are <i>calculated</i> FLOPs from token counts, not measured GPU time; embeddings, the output layer, the recurrent-state update and normalisation are left out ({{Appendix C|ax:A3}}). They assume an ideal prefix cache. The one measured comparison in the paper, from a real SGLang server, came out at 10.98 PFLOPs per BrowseComp-Plus question for CLM ({{Figure 11|ax:S5.F11}}), against 5.90 calculated for the run of {{Figure 5|ax:S5.F5}}: a different run, but a hint that real servers reuse less than the ideal (the paper blames SGLang's hybrid-model caching, {{Figure 15|ax:A2.F15}}). The released metric, <code>kv_cache_flops.py</code>, uses the same two constants (2 × 24.3532 × 10⁹ and 4 × 16 × 6,144 per pair) but prefers the server's own cached-token counts when they are logged, and approximates decode attention by an average over turns.</p>
+</section>
+
+<section id="s-learn"><h2>Learning context management, in context or in weights</h2>
+[[S4.SS2|§4.2]]
+<p>Once context management is something the model <i>does</i>, it can be taught like any other skill. Three levels:</p>
+<p><b>1. Tell it.</b> Add an instruction or skill document s to the context: c<sub>t+1</sub> = f<sub>θ</sub><sup>CLM</sup>(c<sub>t</sub>; s) ({{Eq. 4|ax:S4.E4}}).</p>
+<p><b>2. Evolve the instruction.</b> Search for the s that maximises expected reward, s* = argmax<sub>s</sub> E[R(τ(x; s))] ({{Eq. 5|ax:S4.E5}}), with a prompt-evolution loop: four proposer models read at least ten rollouts each and write rewrites; a candidate runs on 6 training instances, then 12 more if it matches the frontier, then on a development split of 102 instances per task; the final skill is scored once on a held-out test split of 102 instances with three seeds ({{Appendix E|ax:A5}}). In <i>assisted</i> evolution the agent is Qwen3.6-27B and Claude Fable 5.1 proposes; in <i>self</i>-evolution Opus 5 does both.</p>
+<p><b>3. Train it.</b> Because edits change the input between calls, an edited trajectory is not one long sequence. <b>Stepwise GRPO</b> samples a group of whole trajectories per prompt, computes the usual group-relative advantage from each trajectory's outcome (see {{DeepSeekMath|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}}), and gives that advantage to every model call inside the trajectory. Outcome alone is weak supervision for editing (a successful run can contain wasteful edits), and rewarding edits or deleted tokens invites reward hacking. So the paper adds a <b>success-gated efficiency advantage</b> ({{Eq. 6|ax:S4.E6}}): among the successful trajectories of a group, with mean cost c̄,</p>
+<div class="fm"><div class="eqb"><div class="eq">A<sub>i</sub><sup>eff</sup> = clip((c̄ − c<sub>i</sub>) / c̄, −1, 1) if i succeeded, else 0;   A<sub>i</sub> = A<sub>i</sub><sup>out</sup> + w<sub>eff</sub> A<sub>i</sub><sup>eff</sup></div></div></div>
+<p>where c<sub>i</sub> is trajectory i's prefix-reuse FLOPs. With fewer than two successes nobody gets an efficiency term. Cheap failures earn nothing, so the model cannot win by deleting its way to a short, wrong answer. Click the rollouts below to flip success and failure; costs are illustrative, w<sub>eff</sub> = 0.25 as in the paper's run ({{Appendix E|ax:A5}}).</p>
+<div class="card" id="grpo">
+<div class="gr8" id="grpoB" role="group" aria-label="Rollouts: click to flip success"></div>
+<div id="grpoSvg" class="plot"></div>
+<p class="small mute" id="grpoNote"></p>
+</div>
+<p class="small">The paper's RL run: Qwen3.5-9B on 3,040 OpenResearcher deep-research prompts, 8 prompts × 32 rollouts per step for 70 steps, learning rate 10⁻⁶, KL coefficient 0.01, a binary reward from GPT-5.4-nano with the DeepSearchQA rubric, plus penalties for failed tool calls and malformed output (CLM only); 16 H200s for the policy and 48 for rollouts ({{Appendix E|ax:A5}}).</p>
+</section>
+
+<section id="s-scr"><h2>Suffix Cache Reuse</h2>
+[[S4.SS3|§4.3, Appendix B]]
+<p>The cost model above is what CLMs pay on a standard server. <b>Suffix Cache Reuse</b> (SCR) cuts it. When a context [A B C] becomes [A B′ C], standard prefix caching re-prefills B′ and C; SCR diffs the new prompt against the session's previous one, keeps the cached keys and values of surviving spans such as C, re-rotates their position encodings to the new offsets, and prefills only B′ and new text ({{Figure 4|ax:S4.F4}}, {{Figure 12|ax:A2.F12}}). It relocates at most K spans per edit, the longest first (K = 6 in the paper), and falls back to normal prefill if it cannot get cache slots.</p>
+<p>It is an <b>approximation</b>: C's cached states were computed while B, not B′, came before it. The paper's sensitivity sweep over K from 1 to 64 on 64 questions found no accuracy loss ({{Figure 13|ax:A2.F13}}). On the hybrid model only the 16 full-attention layers can relocate per-token entries; the 48 linear-attention layers carry one recurrent state, so SCR snapshots that state from before the edit and continues from it: B′ is not run through the linear layers' recurrence, though it still reaches later linear layers through the full-attention layers' outputs.</p>
+<div class="pred" id="pq2" data-ans="2">
+<div class="q">On BrowseComp-Plus, SCR reuses 7.8% of all prompt tokens beyond what plain prefix caching already hits. How much of that 7.8 comes from the model's own context edits?</div>
+<div class="opts"><button>Nearly all of it</button><button>About two thirds</button><button>About a third</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden>
+<p>About a third: 2.5 points. The other 5.3 come from <b>reasoning stripping</b>: Qwen3.6's chat template deletes the reasoning block of earlier turns, which breaks the prefix for every reasoning model even with no CLM at all ({{Figure 14|ax:A2.F14}}).</p>
+<div id="q2Bars" class="plot"></div>
+<p class="small">So SCR is a general serving fix more than a CLM-specific one, which the paper says itself. On turns that followed an edit, prefilled tokens fall from 75.8% to 41.8%; much of the rest is unchanged <i>prefix</i> that SGLang fails to reuse on hybrid models ({{Figure 15|ax:A2.F15}}).</p>
+</div></div>
+</section>

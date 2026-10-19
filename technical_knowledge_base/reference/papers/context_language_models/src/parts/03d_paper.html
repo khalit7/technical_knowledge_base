@@ -1,0 +1,50 @@
+<section id="s-why"><h2>Why it matters <span class="vtag">beyond the paper</span></h2>
+<ul class="lst">
+<li><b>Context management moves from code to behaviour.</b> In production harnesses the policy is code: Claude Code compacts at a threshold, and the Claude API's server-side compaction summarises when the prompt passes a trigger, 150,000 input tokens by default (the {{Context engineering|n:3f15c17b0d0d811292cee46514370431}} page, citing the {{compaction docs|https://platform.claude.com/docs/en/build-with-claude/compaction}}). A CLM makes the policy something a prompt can steer and RL can train, and the paper's §6 frames harnesses as procedures that could later be distilled into weights ({{§6|ax:S6}}).</li>
+<li><b>Serving has to stop assuming append-only.</b> Prefix caching is built for transcripts that only grow. Any agent that edits or strips its history (and every reasoning model whose template drops old thinking) pays to re-prefill the tail; SCR, released as patches for SGLang and vLLM, is one answer ({{suffix_cache_reuse|https://github.com/facebookresearch/context-language-models/tree/main/suffix_cache_reuse}}, read 19 October 2026).</li>
+<li><b>It shipped into harnesses on day one.</b> The README lists a CLM package for the Pi harness (<code>pi install npm:@lolipopshock/pi-clm</code>) and a community OpenCode port, opencode-clm, not maintained by the authors ({{README|https://github.com/facebookresearch/context-language-models}}, read 19 October 2026).</li>
+<li><b>A new attack surface.</b> An editable context is one more place an injected instruction can persist across turns; §6 cites an OpenAI report of a model writing unauthorised instructions into its own compaction summary ({{§6|ax:S6}}; see {{Agent security|n:3f15c17b0d0d81ad9fb7d1dd74217335}}).</li>
+</ul>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul class="lst">
+<li><b>Owning page</b>: {{Context engineering|n:3f15c17b0d0d811292cee46514370431}}, whose "Six designs" section ends with this paper as design 6; its Compaction lab replays real Claude Code compactions call by call, so this page's replay focuses on what only this paper adds: the cost of an edit under prefix caching, and SCR.</li>
+<li><b>Different mechanism, similar name</b>: {{Latent Context Language Models|n:3d45c17b0d0d81eb90a8d70a5ce84d19}} compresses context into latent vectors with a trained encoder; it shortens the input before the decoder, while a CLM rewrites its own text.</li>
+<li><b>The serving side</b>: {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}} (why a cache hit is a prefix) and {{SGLang|n:3c65c17b0d0d81e691e4ce9f9b5d1fad}} (the radix tree SCR patches).</li>
+<li><b>The training side</b>: {{DeepSeekMath|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}} (GRPO) and {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}.</li>
+<li><b>Memory outside the context</b>: {{Agent memory layers|n:3f15c17b0d0d8170a200ce4476385ff5}}; Appendix A's distinction is by role, not storage: the context file is the next call's input, any other file is external memory.</li>
+</ul>
+</section>
+
+<section id="s-trust"><h2>How much of this to believe</h2>
+<p><b>What holds up.</b></p>
+<ul class="lst">
+<li><b>The accounting.</b> Every constant and every bar of the paper's FLOPs example reproduces from Eq. 7 to 9 (<span id="trustN"></span>), the released metric uses the same constants, and every percentage in the abstract follows from the numbers in the figures and tables (the {{Tables tab|tab:t-tables}} shows each check).</li>
+<li><b>The BrowseComp-Plus gap is outside the noise.</b> 59.4% against 53.3% on 830 questions is a 6.1-point gap with a standard error of about <span id="seGap"></span> points if the runs were independent (about <span id="zGap"></span> standard errors; paired by question it would be tighter).</li>
+<li><b>Like-for-like on the base model.</b> Every zero-shot method uses the same model, budget and backbone, and the baselines run from released code. ContextBench gives every method a hand-written skill of comparable detail, so a baseline is not failing for want of instructions ({{Table 4|ax:A4.T4}}). These are design choices in the paper's favour.</li>
+<li><b>Limits the authors state.</b> Gains depend on model ability (Appendix F), subagents add little on EdgeBench, SCR's savings come mostly from reasoning stripping, and safety is open. That candour counts for the paper.</li>
+</ul>
+<p><b>What to discount.</b></p>
+<ul class="lst">
+<li><b>CLM gets help the baselines do not.</b> On BrowseComp-Plus, CLM's editing turns do not count toward the 100-turn limit, and when a request would overflow CLM alone rolls back and retries, up to six times ({{Appendix E|ax:A5}}). It also gets an editing reminder before the budget; the released BrowseComp-Plus configuration goes further, with nudges at 25%, 50% and 75% of the budget, an urgent nudge every turn past 90%, and a system prompt that teaches the prefix-cache cost model ("an edit forces everything after it to be re-read") ({{bcp.yaml|https://github.com/facebookresearch/context-language-models/blob/main/clm/clm_harness/configs/bcp.yaml}}, {{prompts.yaml|https://github.com/facebookresearch/context-language-models/blob/main/clm/clm_harness/clm_agent/prompts.yaml}}). Part of the win may be the harness around the CLM, not the CLM.</li>
+<li><b>One run per setting, no error bars</b> on the main results (Figures 5 and 8, Tables 1 and 2); only the ContextBench pilot (four seeds a level), the steering study (bootstrap intervals) and the K sweep report uncertainty. TerminalBench 2.1 has 89 tasks, so one task is 1.1 points and the standard error near 53% is about 5.3 points: the TerminalBench and TBLite rankings are within noise. Table 1 is one best-of-run per method; Software World is one swarm per method, and its "65% greater speedup" is 4.4% against 2.6%.</li>
+<li><b>The RL headline compares CLM with itself.</b> +47.6% is against CLM's untrained start; against the summary harness trained the same way the gap is 0.4 points (standard error about 2.4), and the two arms had different budgets, turn counts and reward terms. The FLOPs saving (38.8%) is the solid part.</li>
+<li><b>A result that changes sign across setups.</b> Untrained Qwen3.5-9B on BrowseComp-Plus: 39.9% for CLM and 37.7% for summarisation in {{Figure 19|ax:A6.F19}}, but 28.8% and 34.7% in {{Table 2|ax:S5.T2}} (the RL evaluation, 28K budget, 80 turns). In one setup CLM leads by 2.2 points, in the other it trails by 5.9. And in Figure 19 Self-Compact beats both, at a fraction of the cost.</li>
+<li><b>Settings that disagree.</b> The main text gives BrowseComp-Plus a 32K limit; Appendix E a 23,560-token budget; the released configuration 28,672 tokens and a step budget of which "100, 500 and 2000 were all used". Figure 5's caption says a 100-turn cap; Appendix E gives TerminalBench 2.1 64 turns. EdgeBench subagents: "up to five" in §5.1.2, "up to six" in Appendix E.</li>
+<li><b>Calculated, not measured, compute.</b> The FLOPs are theoretical counts under an ideal prefix cache. The one measured server run cost about 1.9 times the calculated figure (a different run).</li>
+<li><b>The authors built and graded the diagnostic.</b> ContextBench is the authors' own benchmark, with skills they wrote for every method; CLM is near perfect on it. Fair as a diagnostic, weak as a headline.</li>
+</ul>
+<p><b>Verdict.</b> The design is simple, general and released, and the cost accounting is right. On the 27B model the BrowseComp-Plus gain is real at the 2 to 3 standard-error level; the rest of the accuracy claims are single runs on small suites with CLM-only harness help, and on the 9B model zero-shot CLM is not the best method. Use it when the model is strong; expect the dependable gain to be compute, not accuracy.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<ul class="lst">
+<li><b>Code</b>: {{facebookresearch/context-language-models|https://github.com/facebookresearch/context-language-models}}, CC BY-NC 4.0, so non-commercial use only. It has the harness on Harbor (<code>clm-harbor run -a clm-minimal</code>), the BrowseComp-Plus and EdgeBench configurations, the FLOPs metric, the evolution loop, RL patches for the slime trainer, ContextBench runners, and SCR for SGLang and vLLM (read at commit 4831982, 13 October 2026).</li>
+<li><b>Zero-shot needs only a capable model and Bash.</b> Any OpenAI-compatible endpoint works; the paper's models were Qwen3.6-27B on vLLM, Claude 4.6 Sonnet, GPT-5.4 and GPT-5.6-Sol. A 9B model did not benefit zero-shot.</li>
+<li><b>Training is expensive</b>: the RL run used 64 H200s (16 for the policy, 48 for rollouts) for 70 steps of 256 trajectories each.</li>
+<li><b>Serving</b>: on a standard prefix cache, keep edits late and batched (the released prompt says so); SCR reclaims most of the re-prefill but is an approximation of exact attention.</li>
+<li><b>Pays off</b> on long horizons where a fixed summary loses facts (ContextBench) or a threshold fires at the wrong moment. <b>Buys little</b> when the task fits the window, or when the model is too weak to judge what to keep.</li>
+</ul>
+</section>
+</section>

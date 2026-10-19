@@ -1,0 +1,41 @@
+<section class="tab" id="t-read" role="tabpanel">
+@@CARD@@
+<div class="co"><div class="t">Not the same paper as "Latent Context Language Models"</div><p class="small">This knowledge base also has {{End-to-End Context Compression at Scale (Latent Context Language Models)|n:3d45c17b0d0d81eb90a8d70a5ce84d19}}, a June 2026 paper whose encoder compresses the context into latent vectors before the decoder reads it: a new architecture, trained on 350B tokens. The paper on this page changes no architecture: an ordinary model is given its own text context as a file and rewrites it with Bash. Different authors, different mechanism, different claims.</p></div>
+<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-cost">What an edit costs</a><a href="#s-learn">Learning it</a><a href="#s-scr">Suffix Cache Reuse</a><a href="#s-res">Results</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a><a href="#s-trust">How much to believe</a><a href="#s-use">Using it</a></nav>
+
+<section id="s-prob"><h2>Problem</h2>
+[[S1|§1, §2, §3]]
+<p>An agent's <b>context</b> is everything the model reads on its next call: the system prompt, the task, and the transcript of every thought, command and tool result so far. A deep-research agent on BrowseComp-Plus gets 10 search snippets of 512 tokens per search and documents of up to 8,192 tokens ({{Appendix E|ax:A5}}), so a 32K window fills after a handful of turns. A plain language model only ever <b>appends</b> to its context ({{Eq. 1|ax:S4.E1}}):</p>
+<div class="fm"><div class="eqb"><div class="eq">c<sub>t+1</sub> = c<sub>t</sub> ⊕ f<sub>θ</sub><sup>LM</sup>(c<sub>t</sub>)</div></div></div>
+<p>where c<sub>t</sub> is the context at turn t and ⊕ is concatenation. Something else must decide what to drop. Today that is the <b>harness</b>, the program around the model that runs the loop (see {{Context engineering|n:3f15c17b0d0d811292cee46514370431}} for the designs in production). The paper sorts prior work into two families ({{§2|ax:S2}}, {{Appendix A|ax:A1}}):</p>
+<ul class="tight">
+<li><b>Harness-defined</b>: fixed rules. Codex and Cursor summarise everything when the context passes a length threshold; Terminus2 does the same; MEM1 rewrites its state every turn. The model writes the summary, but the harness picks when and how.</li>
+<li><b>Action-based</b>: the model triggers human-designed tools. Self-Compact and AutoCompact let it decide <i>when</i> to compact; Context-as-a-Tool, ACM (offload and retrieve), Context Folding (branch and fold) and Sculptor (hide fragments) widen the menu. The menu is still fixed.</li>
+</ul>
+<p>Recursive Language Models (RLMs) are the nearest neighbour: they put a long input in a REPL variable the model reads on demand, but the live context stays read-only and keeps growing ({{§2|ax:S2}}).</p>
+<p><b>A diagnostic first.</b> To separate context management from reasoning and knowledge, the authors built <b>ContextBench</b>, four synthetic tasks whose input arrives one operation per message, so nothing can be filtered on the way in ({{§3|ax:S3}}, {{Table 3|ax:A4.T3}}):</p>
+<ul class="tight">
+<li><b>Needle Retention</b>: about 4K-token chunks of 2 to 8 "needle" lines and 140 filler lines; keep the needles verbatim, delete the filler.</li>
+<li><b>Sudoku Sketchpad</b>: a 16×16 board kept in the context while moves stream in, one per turn; reproduce every version exactly.</li>
+<li><b>KV Store</b>: batches of 100 SET operations with 24-word values, then 24 GET queries.</li>
+<li><b>Log Triage</b>: batches of 14 to 54 service log lines, then 24 lookup and count queries.</li>
+</ul>
+<p>The limit is fixed at 32,768 tokens (2,048 reserved for the reply) and the <b>context pressure</b>, total input over that limit, rises to 24× ({{Appendix D|ax:A4}}). With GPT-5.4, no existing method is perfect even here: summaries lose or invent needles and board cells, methods without in-place editing must rewrite the whole board for each move, and coding tools can copy a batch to disk but cannot remove it from the live context ({{Figure 2|ax:S3.F2}}). The decoded curves are on the {{Tables tab|tab:t-tables:tb-f2}}: on KV Store, Base falls to 0 from about 0.8× pressure and Context Folding from about 1.5×; CLM stays at 1.0 on three tasks and 0.97 to 1.0 on Log Triage.</p>
+</section>
+
+<section id="s-idea"><h2>Idea: the context as a file</h2>
+[[S4.SS1|§4.1]]
+<p>A <b>Context Language Model</b> (CLM) produces its next context directly ({{Eq. 2|ax:S4.E2}}):</p>
+<div class="fm"><div class="eqb"><div class="eq">c<sub>t+1</sub> = f<sub>θ</sub><sup>CLM</sup>(c<sub>t</sub>)</div></div></div>
+<p>where f can be any function the model chooses: the model is allowed to make "unrestricted updates" to its context ({{abstract|https://arxiv.org/abs/2609.37725}}). Every harness rule and every context tool above is a special case, which is why the paper says Eq. 2 "subsumes" them. The difference is who writes the function: the harness author, or the model.</p>
+<p><b>How it is built.</b> The live context is mirrored to a file whose path is in the system prompt. The model edits it with ordinary Bash or Python, and each edit is synchronised back into what the server sees on the next call; if the model does not edit, its output is appended as usual ({{§4.1|ax:S4.SS1}}). In the released harness the file is <code>/tmp/.live_ctx/LIVE_CTX_MAIN.txt</code>, turns are delimited by <code>[[CTX_TURN i role=...]]</code> headers, and the system prompt shows a one-line <code>re.sub</code> that collapses a turn into a note ({{clm_agent/prompts.yaml|https://github.com/facebookresearch/context-language-models/blob/main/clm/clm_harness/clm_agent/prompts.yaml}}). Several agents are several files: a swarm starts with several context files, and a subagent is created or ended by creating or deleting one.</p>
+<p><b>What the models did with it</b>, zero-shot ({{Figure 3|ax:S4.F3}}):</p>
+<ul class="tight">
+<li>an orchestrator kept an in-context scoreboard of its subagents and updated it with 163 in-place edits while the context stayed at 6 to 8K tokens;</li>
+<li>it invented a new chat role, <code>role=notes</code>, for its own working notes;</li>
+<li>it wrote loops that replace stale search results with one line ("Searched: ... No relevant results.");</li>
+<li>it defined a helper, <code>compact_turns</code>, and called it 37 times to fold old results into a reference to a progress note;</li>
+<li>and it reproduced what good summaries do: 21K tokens compressed to answer-relevant facts, or a ledger of untried ideas kept for later.</li>
+</ul>
+<p class="small mute">These are hand-picked examples from the zero-shot runs of §5.1, not frequencies. How often each behaviour occurs is not reported.</p>
+</section>
