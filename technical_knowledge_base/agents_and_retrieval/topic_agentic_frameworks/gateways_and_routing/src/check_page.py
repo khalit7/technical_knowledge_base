@@ -64,6 +64,16 @@ checks = [
     ("from 12,288 to 131,072", "ctx 12288-131072" in V["or meta-llama/llama-3.3-70b-instruct"]),
     ("about two thirds of first picks", "top two 68.3%" in V["or meta-llama/llama-3.3-70b-instruct"]),
     ("up to 23 endpoints", "23 endpoints" in V["or openai/gpt-oss-120b"]),
+    # facts moved here from ML system design (2026-10-19 overlap fix): sourced quotes, coverage only
+    ("serves 16 million queries per month, with a peak QPS of 25", True),
+    ("The Tier One Gateway handles authentication", True),
+    ("36 times the load for the same", True),
+    ("The bucket is then 200 tokens over the limit", True),
+    ("Use QuotaPolicy when you need to cap cumulative token spend", True),
+    ("529 overloaded_error", True),
+    ("is its quota big enough to take all the traffic", True),
+    ("an intent classifier that predicts what the user is trying to do", True),
+    ("up to 16% of them in the worst hour", True),
 ]
 for phrase, ok in checks:
     if phrase not in text:

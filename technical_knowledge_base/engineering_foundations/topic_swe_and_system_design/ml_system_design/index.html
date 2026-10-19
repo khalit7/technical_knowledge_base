@@ -104,9 +104,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 pre.code{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font:12.5px/1.45 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;max-width:100%;margin:8px 0;white-space:pre}
 </style></head><body><div class="w">
 <h1>ML system design: LLM and ML services</h1>
-<div class="sub">You have served a model behind an API. This page builds from there to running model services in production at scale: what makes them unlike ordinary web services, the LLM gateway, routing and fallbacks, token rate limits, autoscaling GPUs, caching, rollouts, failure ladders, the metrics that matter, classic ML serving, and the ML system design interview. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design</a>; sources linked inline; data as of October 2026.</div>
+<div class="sub">You have served a model behind an API. This page builds from there to running model services in production at scale: what makes them unlike ordinary web services, where the gateway, routing, token limits and autoscaling fit (each taught in depth on <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a> and <a href="https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62" target="_blank" rel="noopener noreferrer">LLM serving in production</a>), multi-tenancy, the realtime, streaming and batch paths, caching, rollouts, failure ladders, the metrics that matter, classic ML serving, and the ML system design interview. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Topic: swe-and-system-design</a>; sources linked inline; data as of October 2026.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-gw" aria-selected="false">Gateway lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-gw" aria-selected="false">Cost-quality lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -157,7 +157,7 @@ pre.code{background:var(--soft);border:1px solid var(--line);border-radius:8px;p
 
 <section id="rd-one">
 <h2>In one screen</h2>
-<p class="small mute"><b>How to skim:</b> read this screen and the table below; each numbered section then opens with the problem it solves (red box) and closes with "What it costs" and when not to use it, so the first and last box of any section give its gist in a minute. About 50 minutes to read (the configuration listings skim faster), plus two animations and the Gateway lab. Sections stand alone: skim this screen, then jump to the one you need. Every term is explained where it first appears and collected in the <a href="#rd-gloss">Glossary</a>.</p>
+<p class="small mute"><b>How to skim:</b> read this screen and the table below; each numbered section then opens with the problem it solves (red box) and closes with "What it costs" and when not to use it, so the first and last box of any section give its gist in a minute. About 40 minutes to read, plus one animation and the Cost-quality lab. Sections stand alone: skim this screen, then jump to the one you need. Every term is explained where it first appears and collected in the <a href="#rd-gloss">Glossary</a>.</p>
 <p class="lead"><b>You have already put a model behind an API: a web framework, a <code>POST /predict</code> route, the model loaded in memory, an answer returned.</b> That is the right start. This page is what changes when that endpoint is a large language model (LLM) serving many customers: each request costs about a thousand times more than an ordinary web request, runs for seconds, streams, gives different answers each time, and needs GPUs that come in large, slow-to-start blocks. Most of the design of an LLM service is a response to those five facts.</p>
 <p><b>The running example</b> is the parent topic's: a chat assistant with ten million registered users, one million of them active on a given day, ten messages each, about 1,000 input and 400 output tokens per message. <b>Assumption used throughout this page:</b> these are the parent page's <a href="https://app.notion.com/p/3c65c17b0d0d81048ae0dd14ac399b4d" target="_blank" rel="noopener noreferrer">Scale simulator</a> defaults (1,000 input / 400 output tokens per reply), kept here so the numbers line up; the parent's Reading estimate in Step 6 rounds the reply to 500 tokens. That averages 116 messages a second and about 230 in the busy hour (peak factor 2, illustrative). The parent page drew its GPU layer as two boxes, "model router" and "GPU pools". This page opens those boxes.</p>
 <div class="card"><b>The model layer of the chat assistant, opened up</b>
@@ -226,121 +226,17 @@ pre.code{background:var(--soft);border:1px solid var(--line);border-radius:8px;p
 <section id="rd-gw">
 <h2>3. The LLM gateway: one front door for every model call</h2>
 <div class="wall"><div class="t">The problem appears</div>The first feature calls a model API directly from the app with a key in an environment variable. By the fifth feature there are five copies of retry logic, three provider keys in three services, no idea which team spent $40,000 last month, no way to switch providers during an outage, and a customer's personal data going to a vendor nobody approved.</div>
-<p>An <dfn id="d-gateway">LLM gateway</dfn> is a service that every model call in the company passes through. Your code calls the gateway with one API shape (almost always OpenAI's chat completions format); the gateway calls the actual model. It is the parent topic's load balancer and API gateway idea, specialised for model traffic. In the order a request meets them, its jobs are:</p>
-<ol>
-<li><b>Authenticate</b>: who is calling (a team, a service, a customer), from a gateway-issued key, so provider keys live in one place.</li>
-<li><b>Authorise</b>: may this caller use this model? (Some data may go only to approved vendors or to self-hosted models.)</li>
-<li><b>Check limits and budget</b>: tokens per minute and money per month (section 5).</li>
-<li><b>Transform and guard</b>: redact personal data, apply input guardrails (<a href="https://app.notion.com/p/3c65c17b0d0d819bbfa5dffa9246c297" target="_blank" rel="noopener noreferrer">Guardrails</a>).</li>
-<li><b>Look up caches</b> (section 9).</li>
-<li><b>Route</b>: pick the model and the deployment (section 4).</li>
-<li><b>Call, with a timeout</b>, retry or fall back on failure (sections 4 and 11).</li>
-<li><b>Stream the reply back</b> unbuffered.</li>
-<li><b>Meter</b>: write one usage event (caller, model, input, cached and output tokens, cost, latency) for billing and dashboards (section 12).</li>
-</ol>
-<h3>What it looks like in production</h3>
-<p><b>Uber</b> built its GenAI Gateway as "a Go service that acts as an encompassing layer around the clients for third-party vendors", and "a pivotal design decision was to mirror the HTTP/JSON interface of the OpenAI API". It includes "a PII redactor that anonymizes sensitive information within requests before forwarding them to third-party vendors" (PII: personally identifiable information), and audit logs used for "cost attribution, security audit purposes, quality evaluation". In mid-2024 it was "used by close to 30 customer teams and serves 16 million queries per month, with a peak QPS of 25" (<a href="https://www.uber.com/blog/genai-gateway/" target="_blank" rel="noopener noreferrer">Uber Engineering, 11 Jul 2024</a>). Note how small 25 queries a second is: the gateway exists for control, not for throughput. <b>Bloomberg</b> and Tetrate started Envoy AI Gateway because "traditional rate-limiting based on number of requests doesn't work for controlling usage of LLM providers" (<a href="https://github.com/theagentrouter/agent-router/blob/v1.1.0/site/blog/2024/2024-10-18-introducing-envoy-ai-gw.md" target="_blank" rel="noopener noreferrer">Envoy AI Gateway announcement, 18 Oct 2024</a>). Chip Huyen's <i>AI Engineering</i> (O'Reilly, 2025) puts "Add Model Router and Gateway" as step 3 of its five-step platform architecture, after enhancing context and adding guardrails and before caches (<a href="https://github.com/chiphuyen/aie-book/blob/main/ToC.md" target="_blank" rel="noopener noreferrer">book table of contents</a>, chapter 10).</p>
-<p><b>Open-source gateways</b> you can run today:</p>
-<ul>
-<li><b>LiteLLM</b> (Python; v1.104.0, 3 Oct 2026): a library and a proxy server with model lists, retries, fallbacks, per-key budgets and rate limits, caching and spend tracking. A real proxy config, from its reliability docs (model names as the docs show them):
-<pre class="code">model_list:
-  - model_name: zephyr-beta            # self-hosted, behind its own URL
-    litellm_params:
-      model: huggingface/HuggingFaceH4/zephyr-7b-beta
-      api_base: http://0.0.0.0:8001
-  - model_name: gpt-5.6-luna
-    litellm_params:
-      model: gpt-5.6-luna
-      api_key: &lt;my-openai-key&gt;
-  - model_name: gpt-5.6-terra
-    litellm_params:
-      model: gpt-5.6-terra
-      api_key: &lt;my-openai-key&gt;
-
-litellm_settings:
-  num_retries: 3
-  request_timeout: 10
-  fallbacks: [{"zephyr-beta": ["gpt-5.6-luna"]}]
-  context_window_fallbacks: [{"gpt-5.6-luna": ["gpt-5.6-terra"]}]
-  content_policy_fallbacks: [{"gpt-5.6-luna": ["gpt-5.6-terra"]}]
-  allowed_fails: 3
-  cooldown_time: 30</pre>
-<span class="small mute">(<a href="https://docs.litellm.ai/docs/proxy/reliability" target="_blank" rel="noopener noreferrer">LiteLLM docs, Proxy reliability</a>, read 2026-10-04.) Three kinds of fallback: on any failure after retries, on a prompt too long for the model (mapped across providers to one error type), and on a content-policy refusal. <code>allowed_fails</code> and <code>cooldown_time</code> take a failing deployment out of rotation for a while; the docs example sets them to 3 failures and 30 seconds; if you leave them out, the v1.104.0 source defaults to 3 failures and 5 seconds (<a href="https://github.com/BerriAI/litellm/blob/v1.104.0/litellm/constants.py" target="_blank" rel="noopener noreferrer">constants.py at v1.104.0</a>).</span></li>
-<li><b>Envoy AI Gateway</b>, renamed Agent Router (v1.1.0, 21 Aug 2026), built on the Envoy proxy and Kubernetes Gateway API. Its README describes a two-tier pattern: "The Tier One Gateway handles authentication, top-level routing, and global rate limiting", and a tier-two gateway in front of self-hosted models picks the endpoint (<a href="https://github.com/theagentrouter/agent-router/blob/v1.1.0/README.md" target="_blank" rel="noopener noreferrer">README at v1.1.0</a>).</li>
-<li>Kong AI Gateway and Portkey are other options the old version of this page named (not checked here). Managed equivalents exist in each cloud.</li>
-</ul>
-<div class="card"><b>Measured: what a fallback really does (LiteLLM 1.104.0, run locally)</b>
-<p class="small">We ran LiteLLM's <code>Router</code> on a laptop with mocked providers (no network; script <code>src/litellm_fallback.py</code>, output <code>src/inputs/litellm_fallback_run.json</code>, 2026-10-04). Router settings: one retry, a fallback from <code>chat-big</code> to <code>chat-fallback</code>, and a context-window fallback from <code>chat-small</code> to <code>chat-long</code>.</p>
-<div class="tw"><table><thead><tr><th>Primary returns</th><th>What the router did</th><th class="num">Time</th></tr></thead><tbody>
-<tr><td>429 rate limit (provider overloaded)</td><td>called the primary, failed; waited and retried, failed; called the fallback provider, succeeded. Cost recorded from the fallback's price.</td><td class="num">2.9 s</td></tr>
-<tr><td>prompt too long for the model</td><td>no retry (a retry cannot fix a long prompt); went straight to the long-context model</td><td class="num">0.02 s</td></tr>
-</tbody></table></div>
-<p class="small mute">Two lessons. A retry before a fallback costs seconds of TTFT, almost all of it backoff, so the order "retry, then fall back" is a latency decision. And spend is computed from a price table shipped with the library: in 1.104.0's bundled copy the newest Claude model is Sonnet 4.5 at $3 and $15 per million tokens, so cost accounting is only as current as that table (LiteLLM can fetch it at start-up, or take your own prices).</p></div>
-<div class="cost"><div class="t">What a gateway costs</div>One more network hop (milliseconds, small against seconds of generation), one more service that must not go down (run several copies behind a load balancer, keep it stateless, keep its own dependencies like Redis for counters off the critical path when they fail), and the risk that it buffers streams or caps connection times. It also concentrates power: whoever owns it decides which models the company may use, which is usually the point.</div>
-<p><b>When not to build one:</b> a single product calling a single provider, owned by one team. A client library with retries and a usage log is enough until a second model, a second team or a budget question appears.</p>
+<p>An <dfn id="d-gateway">LLM gateway</dfn> is the service every model call in the company passes through: your code speaks one API shape (almost always OpenAI's chat completions format) and the gateway authenticates the caller, checks limits and budget (section 5), redacts personal data and applies input rails (<a href="https://app.notion.com/p/3c65c17b0d0d819bbfa5dffa9246c297" target="_blank" rel="noopener noreferrer">Guardrails</a>), looks up caches (section 9), routes (section 4), calls with a timeout, retries or falls back, streams the reply back unbuffered, and writes one usage event per call for cost and dashboards (section 12). It is the parent topic's load balancer and API gateway idea specialised for model traffic, and it exists for control, not throughput: Uber's served a peak of 25 queries a second. How one works inside, read from LiteLLM's source and recorded call by call (deployment choice, retries, cooldowns and fallbacks, production examples, what it costs and when not to run one), is <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>. The system designer's decisions are around it: who owns it, which models it allows for which data and tenants (section 6), whether it fails open or closed when its own counters are unreachable, and how its usage events feed cost and quality monitoring (section 12).</p>
 </section>
 
 <section id="rd-route">
 <h2>4. Routing, fallbacks and model tiers</h2>
-<p>A <dfn id="d-router">router</dfn> decides, for each request, which model and which copy of it serves the request. Routing happens at two levels that are easy to confuse.</p>
-<h3>Level 1: which model (the gateway's decision)</h3>
-<ul>
-<li><b>Tier routing.</b> Send easy requests to a small, cheap model and hard ones to a large model. Prices differ by a factor of 2 to 40 between tiers of the same vendor (Claude 4.5 Haiku at $1/$5 per million input/output tokens, Sonnet 5.5 at $2/$10, Opus 5.5 at $4/$20; GPT-6 Luna at $0.10/$0.50; knowledge base price snapshot of 2026-10-01). The router is usually a rule ("summaries go small") or a small classifier; Huyen describes "an intent classifier that predicts what the user is trying to do" so "simpler queries" go "to cheaper models" (<a href="https://huyenchip.com/2024/07/25/genai-platform.html" target="_blank" rel="noopener noreferrer">Building A Generative AI Platform, 25 Jul 2024</a>). The cost: a misrouted hard question gets a worse answer, which no error counter sees. Measure the router as a classifier, on labelled traffic.</li>
-<li><b>Context routing.</b> Long prompts go to models or pools configured for long context. Getting this wrong is exactly Anthropic's August 2025 bug (section 1).</li>
-<li><b>Policy routing.</b> Tenant pinning (a customer contracted for one vendor), region and data-residency rules, and "self-hosted only" for sensitive data.</li>
-<li><b>Fallbacks.</b> When the chosen model fails: another deployment of the same model, the same model at another provider (Claude is also sold through AWS Bedrock and Google Vertex AI; open models through many), or a different model. Fallbacks must be planned like a backup generator: is the fallback's quota big enough to take all the traffic, does it understand the same prompt and tool format, and does it have the same safety behaviour? A fallback provider also starts with a cold prompt cache (section 9), so it costs more per request at first.</li>
-</ul>
-<h3>Level 2: which replica (inside a self-hosted pool)</h3>
-<p>Below the gateway, a pool of identical replicas still needs a load balancer, and round robin is a poor one for LLMs: requests differ wildly in size, and a replica that already holds a conversation's prefix in its KV cache can skip most of its prefill. LLM-aware load balancers score each replica on its queue, its KV cache use and how much of the prompt it already has cached. Examples, all open source:</p>
-<ul>
-<li>The vLLM production stack router (Helm chart vllm-stack-0.1.13, 29 Sep 2026) offers <code>roundrobin</code>, <code>session</code>, <code>prefixaware</code>, <code>kvaware</code>, <code>loadaware</code> and others; its load-aware rule is "score(i) = matched_tokens(i) / prompt_tokens - beta * relative_load(i)", so "a warm-but-saturated instance can lose to a cold-but-idle one" (<a href="https://github.com/vllm-project/production-stack/blob/vllm-stack-0.1.13/src/vllm_router/routers/routing_logic.py" target="_blank" rel="noopener noreferrer">routing_logic.py at vllm-stack-0.1.13</a>).</li>
-<li>Kubernetes' Gateway API Inference Extension (v1.6.2) replaces a plain Kubernetes Service with an <code>InferencePool</code>, "an extensible request scheduling algorithm that is kv-cache and request cost aware" (<a href="https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/v1.6.2/README.md" target="_blank" rel="noopener noreferrer">README at v1.6.2</a>); its endpoint picker now lives in llm-d, whose scorers include KV cache utilisation ("score = 1 - kvCacheUsagePercent"), queue depth and prefix-cache match (<a href="https://github.com/llm-d/llm-d/blob/v0.10.0/docs/architecture/core/router/epp/scheduling.md" target="_blank" rel="noopener noreferrer">llm-d scheduling docs, v0.10.0</a>). llm-d reports "3x higher output throughput and 2x faster TTFT with prefix-cache-aware routing vs round-robin" on its benchmark (vendor claim, Llama 3.1 70B on 4 MI300X).</li>
-<li>Character.AI routes all messages of one dialogue to the same server ("sticky sessions") so its cached KV state is reused between turns (parent topic's Case files, "20,000 LLM queries a second").</li>
-</ul>
-<p>Stickiness has a price: it concentrates load and it concentrates harm. In Anthropic's postmortem, "some users were affected more severely, as our routing is 'sticky'": a user routed to a bad server kept going back to it. How these engines and schedulers work inside belongs to <a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a>; the system designer's job is to know that the replica-level balancer must see queue and cache state, and to pick one that does.</p>
-<div class="cost"><div class="t">What routing costs</div>A tier router saves money in proportion to the share of easy traffic and loses quality in proportion to its mistakes; the <a href="#" data-tab="t-gw">Gateway lab</a> lets you put numbers on both. Fallbacks add latency (detection plus retries, 2.9 s in the LiteLLM run above) and need standing capacity elsewhere. Sticky and cache-aware routing raise throughput and make load uneven. <b>When not to:</b> one model that is cheap enough and good enough needs no tier router; a pool of two replicas does not need a KV-aware scheduler.</div>
-<div class="deepnote"><b>Try it.</b> The <a href="#" data-tab="t-gw">Gateway lab</a> puts a router, two tiers, caches and a fallback provider in front of the chat assistant's traffic, and shows cost per thousand requests, latency, errors and wrong answers as you change them.</div>
+<p>A <dfn id="d-router">router</dfn> decides which model and which copy of it serves each request, at two levels that are easy to confuse. <b>Which model</b> is the gateway's decision: tier routing (easy requests to a small model; prices differ 2 to 40 times between tiers of one vendor), context routing (long prompts to long-context pools; getting it wrong was Anthropic's August 2025 bug, section 1), policy routing (tenant pinning, data residency, self-hosted only) and fallbacks, which must be planned like a backup generator (enough quota for all the traffic, the same prompt and tool format, the same safety behaviour, a cold prompt cache). All of it, with recorded fallback chains and a learned-router experiment, is on <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>, sections 3 and 10. <b>Which replica</b> is a second load balancer inside a self-hosted pool, and it must see each replica's queue and prefix cache rather than go round robin; prefix-aware and sticky routing, measured on real replicas, are on <a href="https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62" target="_blank" rel="noopener noreferrer">LLM serving in production</a>, section 1. What stays with the system designer: a misrouted hard question is a worse answer that no error counter sees, so a tier router is measured as a classifier on labelled traffic, and a fallback needs standing capacity somewhere else. The <a href="#" data-tab="t-gw">Cost-quality lab</a> puts numbers on both.</p>
 </section>
 
 <section id="rd-limit">
 <h2>5. Rate limits and quotas, counted in tokens</h2>
-<div class="wall"><div class="t">The problem appears</div>The chat assistant opens an API to business customers with a limit of 60 requests a minute each. Customer A sends 60 short chats a minute: 60 &times; 1,400 = 84,000 tokens. Customer B sends 60 requests a minute, each with a 50,000-token contract to summarise: 3 million tokens, 36 times A's load for the same "60 requests". B fills the GPUs and A's users wait.</div>
-<p>A <dfn id="d-ratelimit">rate limit</dfn> caps how fast a caller may consume a resource; past it the server answers <code>429 Too Many Requests</code>, which "MAY include a Retry-After header indicating how long to wait" (<a href="https://www.rfc-editor.org/rfc/rfc6585#section-4" target="_blank" rel="noopener noreferrer">RFC 6585 &sect;4</a>; the header's format is in <a href="https://www.rfc-editor.org/rfc/rfc9110#section-10.2.3" target="_blank" rel="noopener noreferrer">RFC 9110 &sect;10.2.3</a>). The parent topic introduced the <dfn id="d-bucket">token bucket</dfn>: each caller has a bucket that refills at a steady rate up to a maximum, and each request takes from it, so short bursts pass and the average is capped. For LLMs the fix is to put <i>model tokens</i> in the bucket, not requests. That is what the providers do:</p>
-<ul>
-<li><b>Anthropic</b>: "The API uses the token bucket algorithm to do rate limiting. This means that your capacity is continuously replenished up to your maximum limit, rather than being reset at fixed intervals", with separate limits for requests per minute (RPM), input tokens per minute (ITPM) and output tokens per minute (OTPM), per model. "For most Claude models, only uncached input tokens count toward your ITPM rate limits", so caching raises effective capacity: "With a 2,000,000 ITPM limit and an 80% cache hit rate, you could effectively process 10,000,000 total input tokens per minute" (<a href="https://platform.claude.com/docs/en/api/rate-limits" target="_blank" rel="noopener noreferrer">Anthropic rate limits</a>, read 2026-10-04).</li>
-<li><b>OpenAI</b> limits RPM, requests per day, TPM and tokens per day, per organisation and project, and reports what is left in <code>x-ratelimit-remaining-tokens</code> and related headers (<a href="https://developers.openai.com/api/docs/guides/rate-limits" target="_blank" rel="noopener noreferrer">OpenAI rate limits</a>).</li>
-</ul>
-<h3>The hard part: output tokens are unknown at admission</h3>
-<p>When a request arrives you know its input tokens but not its output. Three real answers:</p>
-<ol>
-<li><b>Reserve the worst case, refund later.</b> OpenAI: "Your rate limit is calculated as the maximum of <code>max_tokens</code> and the estimated number of tokens based on the character count." A careless <code>max_tokens</code> of 32,000 on every call burns limit that is never used.</li>
-<li><b>Count output as it is produced.</b> Anthropic: "OTPM rate limits are evaluated in real time as output tokens are produced, counting only the actual tokens generated. The max_tokens parameter does not factor into OTPM rate limit calculations."</li>
-<li><b>Charge after the response.</b> Envoy AI Gateway (Agent Router) v1.1.0: "Token usage is charged after the response completes", and "If the existing charged usage is over the limit, the request is rejected with a 429 status code". The price is overshoot: it "does not interrupt an already admitted stream", so with a 1,000-token hourly limit one admitted request "can stream 1,200 tokens successfully. The bucket is then 200 tokens over the limit" (<a href="https://github.com/theagentrouter/agent-router/blob/v1.1.0/site/docs/capabilities/traffic/usage-based-ratelimiting.md" target="_blank" rel="noopener noreferrer">usage-based rate limiting docs, v1.1.0</a>).</li>
-</ol>
-<p>The Envoy policy that limits each tenant to a token budget per model, trimmed from the same page: the request itself costs 0 and the response costs its total tokens, read from metadata the gateway fills in.</p>
-<pre class="code">rateLimit:
-  type: Global
-  global:
-    rules:
-      - clientSelectors:
-          - headers:
-              - name: x-tenant-id      # one bucket per distinct tenant
-                type: Distinct
-              - name: x-ai-eg-model    # ... per model
-                type: Exact
-                value: gpt-4
-        limit:
-          requests: 1000               # here: 1000 total tokens per hour
-          unit: Hour
-        cost:
-          request:  {from: Number, number: 0}
-          response:
-            from: Metadata
-            metadata: {namespace: io.envoy.ai_gateway, key: llm_total_token}</pre>
-<p>Alongside token limits, cap <b>concurrent streams</b> per tenant: a stream holds a batch slot for seconds (section 1), and fifty open streams from one tenant are fifty slots nobody else can use, whatever the token count.</p>
-<h3>Rate limits are not quotas</h3>
-<p>A rate limit protects capacity right now; a <dfn id="d-quota">quota</dfn> (or budget) caps total use over a billing period, usually in money. Envoy's docs separate them the same way: "Use QuotaPolicy when you need to cap cumulative token spend, and usage-based rate limiting (this page) when you need to control request velocity." LiteLLM sets budgets on keys, users and teams with <code>max_budget</code> (US dollars) and <code>budget_duration</code> such as <code>30d</code>, and rejects calls past it with errors like "ExceededTokenBudget" (<a href="https://docs.litellm.ai/docs/proxy/users" target="_blank" rel="noopener noreferrer">LiteLLM docs, budgets and rate limits</a>). Tell callers which one they hit: Anthropic returns 429 with a <code>retry-after</code> header for a rate limit, 429 with <i>no</i> retry-after when the monthly spend cap is reached (retrying cannot help), and a different code, <code>529 overloaded_error</code>, when "the API experiences high traffic across all users" (<a href="https://platform.claude.com/docs/en/api/errors" target="_blank" rel="noopener noreferrer">Anthropic errors</a>). Your own gateway should keep the same three cases apart: you are over your limit; you are out of budget; we are out of capacity.</p>
-<div class="cost"><div class="t">What token limits cost</div>A shared counter (usually Redis) that every gateway copy updates on every request; a decision about what happens when that counter is unreachable (fail open and risk overload, or fail closed and refuse everyone); and limits that customers find harder to reason about than "60 requests a minute". <b>When not to:</b> an internal tool with a handful of users and a monthly budget alert needs no per-tenant token buckets.</div>
+<p>Two business customers each limited to 60 requests a minute can differ 36 times in load (60 short chats against 60 summaries of a 50,000-token contract), so limits for LLM traffic count tokens. A <dfn id="d-ratelimit">rate limit</dfn> caps how fast a caller consumes capacity, answering <code>429 Too Many Requests</code> past it, usually with a <dfn id="d-bucket">token bucket</dfn>: a refilling allowance that lets short bursts through and caps the average (the mechanism, animated beside the other algorithms, is on <a href="https://app.notion.com/p/3ef5c17b0d0d8152b8dececf34196174" target="_blank" rel="noopener noreferrer">Reliability engineering</a>). A <dfn id="d-quota">quota</dfn> or budget caps total use over a period, usually in money. The hard part is that output tokens are unknown at admission: limiters reserve the worst case, count output as it streams, or charge after the response and accept overshoot. Those three answers, Anthropic's and OpenAI's limits, Envoy's per-tenant policy, budgets under concurrency, and the three refusals to keep apart (over your limit, out of budget, out of capacity) are on <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>, sections 5 and 6. Two decisions stay here: cap concurrent streams per tenant as well as tokens, because a stream holds a batch slot for seconds (section 6), and decide what happens when the shared counter is unreachable (fail open and risk overload, or fail closed and refuse everyone). <b>When not to:</b> an internal tool with a handful of users and a monthly budget alert needs no per-tenant token buckets.</p>
 </section>
 
 <section id="rd-tenant">
@@ -374,78 +270,14 @@ litellm_settings:
 <tr><td>On overload</td><td>shed or degrade (section 11)</td><td>queue briefly, then shed</td><td>wait</td></tr>
 </tbody></table></div>
 <p><b>Batch through providers</b> costs half. OpenAI's Batch API gives a "50% cost discount compared to synchronous APIs" and each batch "completes within 24 hours (and often more quickly)", with its own higher rate limits (<a href="https://developers.openai.com/api/docs/guides/batch" target="_blank" rel="noopener noreferrer">OpenAI Batch API</a>). Anthropic's Message Batches: "All usage is charged at 50% of the standard API prices", "most batches finishing in less than 1 hour", a batch holds up to 100,000 requests or 256 MB, unfinished requests expire after 24 hours and are not billed, and the discount stacks with prompt caching (<a href="https://platform.claude.com/docs/en/build-with-claude/batch-processing" target="_blank" rel="noopener noreferrer">Anthropic batch processing</a>). Between realtime and batch there are now speed tiers on the same API: OpenAI's Flex processing trades "slower response times and occasional resource unavailability" for batch prices, and returns a 429 it does not charge for when capacity is short; its premium tier, renamed from Priority processing to Fast mode on 30 July 2026, charges more per token for up to 2.5 times the speed (<a href="https://developers.openai.com/api/docs/guides/flex-processing" target="_blank" rel="noopener noreferrer">Flex processing</a>, <a href="https://developers.openai.com/api/docs/guides/fast-mode" target="_blank" rel="noopener noreferrer">Fast mode</a>).</p>
-<p><b>Batch on your own GPUs</b> means using the trough. The parent topic's estimate showed that a fleet sized for the busy hour sits more than half idle overnight; a batch lane that fills that idle capacity at low priority, and is pushed aside the moment chat traffic needs the slots, turns idle GPU-hours into useful work. That needs a priority scheduler in the engine or router (the vLLM production stack router has a <code>priority</code> option, section 4) and batch jobs that tolerate being paused. The batch lane is also the natural home for preemptible <dfn id="d-spot">spot</dfn> GPUs (section 8).</p>
+<p><b>Batch on your own GPUs</b> means using the trough. The parent topic's estimate showed that a fleet sized for the busy hour sits more than half idle overnight; a batch lane that fills that idle capacity at low priority, and is pushed aside the moment chat traffic needs the slots, turns idle GPU-hours into useful work. That needs a priority scheduler in the engine or router (the vLLM production stack router has a <code>priority</code> option; replica routers are compared on <a href="https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62" target="_blank" rel="noopener noreferrer">LLM serving in production</a>) and batch jobs that tolerate being paused. The batch lane is also the natural home for preemptible <dfn id="d-spot">spot</dfn> GPUs (section 8).</p>
 <p><b>Long jobs behind a person</b> (generate a report, run an agent for ten minutes) use the parent topic's asynchronous pattern: accept the job, return <code>202 Accepted</code> with a job id, put it on a queue, and let the client poll or receive a callback. Anthropic itself advises "the streaming Messages API or Message Batches API for long-running requests, especially those over 10 minutes". Delivery guarantees, retries and dead-letter queues for that pattern belong to the sibling page <a href="https://app.notion.com/p/3ef5c17b0d0d81aebf91df927f215b6e" target="_blank" rel="noopener noreferrer">Queues, streams and async work</a>.</p>
 <div class="cost"><div class="t">What splitting costs</div>Two or three code paths instead of one, and results that arrive later. A batch lane on shared GPUs needs preemption that really works; a batch job that cannot be paused will hold slots during the morning ramp. <b>When not to:</b> if under a tenth of your tokens can wait, the second path is not worth its code.</div>
 </section>
 
 <section id="rd-scale">
 <h2>8. Autoscaling GPUs</h2>
-<p><dfn id="d-autoscale">Autoscaling</dfn> adds replicas when load rises and removes them when it falls. On Kubernetes, the system most model services run on, the built-in Horizontal Pod Autoscaler (HPA) does it with one formula: "desiredReplicas = ceil[currentReplicas * (currentMetricValue / desiredMetricValue)]", checked every 15 seconds by default, ignoring changes within a 10% tolerance, adding at most "4 pods or a 100% of the currently running replicas" per 15 seconds, and waiting 300 seconds before scaling down so a short dip does not throw capacity away (<a href="https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/" target="_blank" rel="noopener noreferrer">Kubernetes docs, Horizontal Pod Autoscaling</a>). With several metrics it computes a replica count for each and takes the largest. The whole question is <b>which metric</b>.</p>
-<h3>Why the web-service signals fail on GPUs</h3>
-<ul>
-<li><b>CPU utilisation</b>, the default for web servers, barely moves: the CPU of a GPU server mostly tokenises text and schedules the GPU. Google's GKE guide: "For inference workloads running on GPUs, we don't recommend CPU and memory utilization as the only indicators". The parent topic's Slack case shows the same trap on ordinary servers: threads waiting on a congested network used less CPU, so the autoscaler removed servers during the overload (Case files, "The first Monday of the year: autoscaling made it worse").</li>
-<li><b>GPU utilisation</b> "Measures the duty cycle, which is the amount of time that the GPU is active" but "Does not measure how much work is being done while the GPU is active". <b>GPU memory</b> is worse: engines like vLLM reserve almost all GPU memory at start, so the metric "only works for scaling up, and won't scale down when traffic decreases" (<a href="https://cloud.google.com/kubernetes-engine/docs/best-practices/machine-learning/inference/autoscaling" target="_blank" rel="noopener noreferrer">GKE, Best practices for autoscaling LLM inference workloads with GPUs</a>, updated 2026-10-02).</li>
-<li><b>Requests per second</b> ignores request size (section 1). NVIDIA's Dynamo documentation puts it plainly: "Latency depends on request content, not just request count. A single request with a 32K-token prompt consumes orders of magnitude more compute than a short one" (<a href="https://github.com/ai-dynamo/dynamo/blob/v1.5.0/docs/fern/pages/developer-guide/knowledge-base/modular-components/planner/overview.md" target="_blank" rel="noopener noreferrer">Dynamo Planner overview, v1.5.0</a>).</li>
-</ul>
-<h3>The signals that work</h3>
-<ul>
-<li><b>Queue depth</b> (<code>vllm:num_requests_waiting</code>): requests that have arrived but have no batch slot. GKE: "Queue size directly correlates to request latency" and is "largely workload-agnostic, because queue size is independent of request size, model, or hardware"; continuous batching keeps the queue near zero while there is room, so "use the growth point as a signal to initiate scale-up", starting with a threshold "between 3-5" per replica.</li>
-<li><b>Batch size</b> (<code>vllm:num_requests_running</code>): for tighter latency, since it reacts before a queue forms; harder to tune because the right value depends on request sizes.</li>
-<li><b>KV cache use</b> (<code>vllm:kv_cache_usage_perc</code>): how full the conversation memory is; near 100% the engine must refuse or evict. llm-d's recommended KEDA setup scales on both waiting requests (threshold 20) and KV cache use (threshold 0.95) per prefill or decode role (<a href="https://github.com/llm-d/llm-d-autoscaling/blob/3c06c8814bcde4f7da0c7b4fadeed015e135a9de/README.md" target="_blank" rel="noopener noreferrer">llm-d-autoscaling blueprint at 3c06c88</a>); GKE's page does not mention KV cache.</li>
-<li><b>Tokens in flight</b> or a latency target: Dynamo's planner can "Target specific TTFT/ITL SLA values" and runs a predictive loop (default every 180 s) for the daily curve under a reactive one (every 5 s) for surprises.</li>
-</ul>
-<p>Real configuration. KServe (v0.21.0) hands autoscaling to KEDA, an add-on that feeds outside metrics such as Prometheus queries to the HPA. Its documented example scales a vLLM server on running requests, two per replica:</p>
-<pre class="code">apiVersion: serving.kserve.io/v1beta1
-kind: InferenceService
-metadata:
-  name: huggingface-qwen
-  annotations:
-    serving.kserve.io/deploymentMode: "Standard"
-    serving.kserve.io/autoscalerClass: "keda"
-spec:
-  predictor:
-    model:
-      modelFormat: {name: huggingface}
-      storageUri: "hf://Qwen/Qwen2.5-0.5B-Instruct"
-      resources: {limits: {nvidia.com/gpu: "1"}}
-    minReplicas: 1
-    maxReplicas: 5
-    autoScaling:
-      metrics:
-        - type: External
-          external:
-            metric:
-              backend: "prometheus"
-              serverAddress: "http://prometheus.istio-system.svc.cluster.local:9090"
-              query: vllm:num_requests_running
-            target: {type: Value, value: "2"}</pre>
-<p class="small mute">Trimmed from <a href="https://kserve.github.io/website/docs/model-serving/generative-inference/autoscaling" target="_blank" rel="noopener noreferrer">KServe docs, LLM autoscaling with KEDA</a> (source at kserve/website 71c8b22): "if our LLM receives 6 concurrent requests with our target of 2 requests per pod, the system will scale to 3 replicas". The vLLM production stack's KEDA tutorial does the same on <code>vllm:num_requests_waiting</code> with a threshold of 5 (<a href="https://github.com/vllm-project/production-stack/blob/014d070e6f7611978d321bdb05cbe9a934b614e7/tutorials/20-keda-autoscaling.md" target="_blank" rel="noopener noreferrer">tutorial 20, at 014d070</a>). KEDA's defaults: it polls every 30 s, and its 300 s <code>cooldownPeriod</code> applies only to scaling to zero (<a href="https://keda.sh/docs/2.21/reference/scaledobject-spec/" target="_blank" rel="noopener noreferrer">KEDA 2.21 ScaledObject spec</a>).</p>
-
-<div class="card" id="rd-as-card">
-<b>Animation: the same burst of chat traffic, four autoscaling policies</b>
-<p class="small">One GPU pool serving Llama 3.3 70B (replicas of two H100s, 4,418 output tokens a second each). At minute 5 requests double and replies grow from 400 to 600 tokens, for 20 minutes. Pick a policy and watch capacity (top) and time to first token (bottom).</p>
-<div class="seg" id="rd-as-seg"><button data-m="cpu" class="on">Before: CPU 60%</button><button data-m="rps">Before: requests/s</button><button data-m="queue">After: queue + KV cache</button><button data-m="warm">After + warm pool</button></div>
-<div class="rd-svg" id="rd-as-svg"></div>
-<div class="an-cap" id="rd-as-cap" aria-live="polite"></div>
-<div class="an-cnt" id="rd-as-cnt"></div>
-<div class="an-ctl" id="rd-as-ctl"></div>
-<div class="tw" id="rd-as-sum"></div>
-<p class="small mute">A fluid model, one-second steps, with Kubernetes' HPA defaults (15 s sync, 10% tolerance, scale-up at most max(100%, 4 pods) per 15 s, 300 s scale-down window). Published inputs: 2,209 tokens/s per H100 (TensorRT-LLM, the parent's shared figure), $3.99 per GPU-hour. <span class="ill">Illustrative</span>: the traffic, the CPU curve (25% + 10% &times; GPU busy share), the 3-minute cold start and the 20-second warm start, the 90 ms prefill, and KV cache use modelled as the share of the replica's capacity in use. Time to first token is prefill plus the wait implied by the queue (first in, first out); real clients would time out long before the worst values. Checked against <code>src/models.py</code> by <code>src/recompute.py</code> and <code>check_js.mjs</code> (7,348 numbers, no differences).</p>
-</div>
-<p>Read the summary table under the animation. Scaling on CPU never fires; scaling on requests gets the direction right but sizes the pool for the old request size and lets a queue build for the whole burst; scaling on the queue and KV cache gets the size right but spends the first minutes of the burst waiting for cold replicas; the warm pool removes that wait. The warm pool's price is not in its GPU-hours column: those standby GPUs must exist somewhere, either paid for idle or running preemptible batch work (section 7) that gives way.</p>
-<h3>Cold starts, and what pros do about them</h3>
-<p>A GPU replica's start is a chain, and each link has a fix:</p>
-<div class="tw"><table><thead><tr><th>Link</th><th>Published number</th><th>Fix</th></tr></thead><tbody>
-<tr><td>Get a GPU machine</td><td>"Spinning up a GPU worker takes minutes, not seconds" (Dynamo docs)</td><td>keep spare nodes, or predict demand (Dynamo's predictive loop, schedules for the daily curve)</td></tr>
-<tr><td>Pull the container image</td><td>24 s to 1.5 s with GKE image streaming, on Google's sample web app (<a href="https://cloud.google.com/kubernetes-engine/docs/how-to/image-streaming" target="_blank" rel="noopener noreferrer">GKE image streaming</a>)</td><td>image streaming, images preloaded on node boot disks</td></tr>
-<tr><td>Load the weights</td><td>Llama 3 8B (15 GB) on an A10G: 47.99 s with the standard Hugging Face loader, 4.88 s from S3 with the Run:ai Model Streamer (<a href="https://developer.nvidia.com/blog/reducing-cold-start-latency-for-llm-inference-with-nvidia-runai-model-streamer/" target="_blank" rel="noopener noreferrer">NVIDIA, 16 Sep 2025</a>)</td><td>parallel streaming loaders (<code>vllm serve --load-format runai_streamer</code>), weights cached on local NVMe (KServe LocalModelCache)</td></tr>
-<tr><td>Start the engine</td><td>the same run took 23.18 s to be ready although weights loaded in 4.88 s: memory allocator, CUDA graph capture, kernel compilation</td><td>keep the process alive: vLLM sleep mode "Offloads model weights to CPU RAM and discards KV cache", and waking is "18-200x faster than full reload" (<a href="https://vllm.ai/blog/2025-10-26-sleep-mode" target="_blank" rel="noopener noreferrer">vLLM blog, 26 Oct 2025</a>); GPU memory snapshots (Modal: a small vLLM model's start from 45 s to 5 s, <a href="https://modal.com/blog/gpu-mem-snapshots" target="_blank" rel="noopener noreferrer">Modal, 30 Jul 2025</a>)</td></tr>
-</tbody></table></div>
-<p>The other side of cold starts is <dfn id="d-headroom">headroom</dfn>: capacity kept above current demand to absorb a spike while new replicas start. If a replica takes 3 minutes to start and traffic can grow 20% in 3 minutes, you need about 20% headroom at all times. It is a dial between cost and latency, not a planning failure. <b>Scale to zero</b> (no replicas when idle; KEDA and Knative support it) saves the most and makes the first user after a quiet period wait the whole cold start: fine for an internal tool, wrong for a chat product.</p>
-<h3>Spot GPUs</h3>
-<p><dfn id="d-spot2">Spot</dfn> (preemptible) capacity is spare cloud capacity sold at a discount that can be taken back with little warning: two minutes on AWS (<a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-instance-termination-notices.html" target="_blank" rel="noopener noreferrer">EC2 Spot interruption notices</a>), 0 seconds by default or 120 seconds if configured on Google Cloud, which advertises "up to 91% discounts" (<a href="https://cloud.google.com/compute/docs/instances/spot" target="_blank" rel="noopener noreferrer">GCP Spot VMs</a>), and "up to 30 seconds" on Azure (<a href="https://learn.microsoft.com/en-us/azure/virtual-machines/spot-vms" target="_blank" rel="noopener noreferrer">Azure Spot VMs</a>). Two minutes is less than a cold start, so spot suits the batch lane first. For live serving, research systems mix spot across regions with on-demand fallback: SkyServe "reduces cost by 43% on average" against on-demand replicas (<a href="https://arxiv.org/abs/2411.01438" target="_blank" rel="noopener noreferrer">SkyServe, EuroSys 2025</a>), and SpotServe reports "saving 54% monetary cost compared with only using on-demand instances" (<a href="https://arxiv.org/abs/2311.15566" target="_blank" rel="noopener noreferrer">SpotServe, ASPLOS 2024</a>).</p>
-<div class="cost"><div class="t">What autoscaling costs</div>Metrics plumbing that must keep working (an autoscaler reading a renamed metric sees zero, section 2), tuning of thresholds per model and hardware, and headroom you pay for. It can also amplify trouble: an autoscaler that adds replicas while a shared dependency is the real bottleneck makes things worse (Slack). <b>When not to:</b> steady traffic on a fixed fleet, or a fleet so small that one replica is the minimum anyway; then fixed capacity plus load shedding (section 11) is simpler.</div>
+<p><dfn id="d-autoscale">Autoscaling</dfn> adds replicas when load rises and removes them when it falls, and on GPUs the web-service habits fail: CPU utilisation barely moves, GPU utilisation reads near 100% at a tenth of capacity, GPU memory is reserved at start, and requests per second ignores request size (section 1). Queue depth and KV cache use work. A replica takes minutes to start, so a pool keeps <dfn id="d-headroom">headroom</dfn>: if traffic can grow 20% during one cold start, keep about 20% spare. <dfn id="d-spot2">Spot</dfn> GPUs, reclaimable with seconds to two minutes of warning, belong first in the batch lane (section 7). The signals, real KServe, KEDA and llm-d thresholds, the cold-start chain and its fixes, spot numbers, and an Autoscaling lab that runs two autoscalers on one spike are on <a href="https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62" target="_blank" rel="noopener noreferrer">LLM serving in production</a>, sections 2 and 3. For the design: set the TTFT target, size headroom from the measured cold start, give batch work the idle trough, and keep the metrics plumbing working (an autoscaler reading a renamed metric sees zero, section 2). <b>When not to:</b> steady traffic on a fixed fleet, or a fleet so small that one replica is the minimum anyway; then fixed capacity plus load shedding (section 11) is simpler.</p>
 </section>
 
 <section id="rd-cache">
@@ -468,7 +300,7 @@ spec:
 <div class="an-ctl" id="rd-pc-ctl"></div>
 <p class="small mute">Prices: Claude Sonnet 5.5, $2 per million input tokens, $2.50 cache write (5-minute), $0.20 cache read, $10 output (<a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noopener noreferrer">Anthropic prompt caching</a>, read 2026-10-04). Over six turns the "after" layout costs $0.0391 against $0.0655 (input alone: $0.0151 against $0.0415, 64% less), and the model processes 4,780 input tokens instead of 20,730. <span class="ill">Illustrative</span> token counts; checked in <code>src/recompute.py</code>. Real caveats: a cache entry lives 5 minutes unless used (or 1 hour at a higher write price), there is a minimum cacheable length (512 to 4,096 tokens by model on Anthropic), and an entry "only becomes available after the first response begins", so parallel requests sent at once all miss.</p>
 </div>
-<p>Two production details decide whether prefix caching pays. First, <b>the request must reach a machine that has the prefix</b>: provider caches live on individual machines (OpenAI: traffic "above 15 requests per minute" on one prefix "can lead to overflow routing"; a <code>prompt_cache_key</code> helps it route), and for self-hosted pools this is the job of the prefix-aware router in section 4 and of Character.AI's sticky sessions, which reached a "95% cache rate" (parent's Case files). Second, <b>prompts must be append-only</b>: anything that changes per request (time, user name, retrieved documents, a shuffled tool list) goes after everything that does not.</p>
+<p>Two production details decide whether prefix caching pays. First, <b>the request must reach a machine that has the prefix</b>: provider caches live on individual machines (OpenAI: traffic "above 15 requests per minute" on one prefix "can lead to overflow routing"; a <code>prompt_cache_key</code> helps it route), and for self-hosted pools this is the job of a prefix-aware router (<a href="https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62" target="_blank" rel="noopener noreferrer">LLM serving in production</a>, section 1) and of Character.AI's sticky sessions, which reached a "95% cache rate" (parent's Case files). Second, <b>prompts must be append-only</b>: anything that changes per request (time, user name, retrieved documents, a shuffled tool list) goes after everything that does not.</p>
 <div class="cost"><div class="t">What caches cost</div>Memory and a lookup on every request; invalidation when a model or prompt version changes (put both in the key); per-tenant scoping (section 6), which lowers hit rates; and, for semantic caches, wrong answers. <b>When not to:</b> answers that depend on the user, on time or on live data must not come from a response or semantic cache; prefix caching is almost always worth it.</div>
 </section>
 
@@ -499,7 +331,7 @@ spec:
 <tr><td>Guardrail trips</td><td>classifier score</td><td>safe refusal text (<a href="https://app.notion.com/p/3c65c17b0d0d819bbfa5dffa9246c297" target="_blank" rel="noopener noreferrer">Guardrails</a>)</td></tr>
 <tr><td>Silent quality loss</td><td>only quality monitoring: judges on samples, user feedback</td><td>roll back to the pinned previous version (section 10)</td></tr>
 </tbody></table></div>
-<p><b>Never queue without a bound in front of a GPU.</b> The autoscaling animation's CPU policy shows why: a queue that grows faster than it drains turns overload into minutes of waiting for everyone, and clients that time out and retry add more load. A bounded queue that refuses early keeps the requests it accepts fast. Google's SRE book recommends a client-side version too: each client tracks its requests and the backend's accepts, and keeps sending until "requests is K times as large as accepts", with "We generally prefer the 2x multiplier" (<a href="https://sre.google/sre-book/handling-overload/" target="_blank" rel="noopener noreferrer">SRE book, ch. 21</a>).</p>
+<p><b>Never queue without a bound in front of a GPU.</b> Without one, a queue that grows faster than it drains turns overload into minutes of waiting for everyone, and clients that time out and retry add more load. A bounded queue that refuses early keeps the requests it accepts fast. Google's SRE book recommends a client-side version too: each client tracks its requests and the backend's accepts, and keeps sending until "requests is K times as large as accepts", with "We generally prefer the 2x multiplier" (<a href="https://sre.google/sre-book/handling-overload/" target="_blank" rel="noopener noreferrer">SRE book, ch. 21</a>).</p>
 <h3>A degradation ladder, decided before the incident</h3>
 <p>Degrading means serving a worse answer instead of none: "responses that are not as accurate as or that contain less data than normal responses, but that are easier to compute" (SRE book, ch. 21). For the chat assistant, from best to worst:</p>
 <div class="flow"><div><b>1. Full service</b>large model, full context, retrieval on</div><i>&rarr;</i><div><b>2. Second provider</b>same quality, higher cost or latency</div><i>&rarr;</i><div><b>3. Smaller model</b>cheaper tier for everyone, or for free users</div><i>&rarr;</i><div><b>4. Less work</b>shorter context, retrieval off, lower <code>max_tokens</code></div><i>&rarr;</i><div><b>5. Cached or canned answer</b>for known questions</div><i>&rarr;</i><div><b>6. Honest error</b>with a retry time</div></div>
@@ -591,7 +423,7 @@ feature_vector = store.get_online_features(
 <details class="mist"><summary>Huge <code>max_tokens</code> by default</summary><div class="b">Where limits reserve <code>max_tokens</code> (OpenAI), it burns rate limit that is never used; everywhere it allows runaway cost. Set it per feature.</div></details>
 <details class="mist"><summary>Monitoring errors but not quality</summary><div class="b">Model failures are often fluent and 200 OK. Sample and score production traffic continuously (section 12).</div></details>
 <details class="mist"><summary>Dashboards and autoscalers on renamed metrics</summary><div class="b">vLLM renamed <code>gpu_cache_usage_perc</code> and <code>time_per_output_token_seconds</code>; queries on old names return nothing after an upgrade. Alert on missing metrics (section 2).</div></details>
-<details class="mist"><summary>A fallback that has never carried full traffic</summary><div class="b">Its quota, prompt format, tool-call format and cold cache are untested until the outage. Test failover on a schedule (section 4).</div></details>
+<details class="mist"><summary>A fallback that has never carried full traffic</summary><div class="b">Its quota, prompt format, tool-call format and cold cache are untested until the outage. Test failover on a schedule (section 4; the checklist is on <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>, section 3).</div></details>
 <details class="mist"><summary>Different feature or prompt code in training and serving</summary><div class="b">Training-serving skew. Log what the model saw at serving time and train or evaluate on that (section 13).</div></details>
 </section>
 
@@ -647,8 +479,8 @@ feature_vector = store.get_online_features(
 #t-gw .stat .v.up{color:var(--bad)}#t-gw .stat .v.dn{color:var(--good)}
 #t-gw .note{font-size:12.5px;color:var(--mute)}
 </style>
-<h2 style="margin-top:14px">Gateway lab</h2>
-<p>Put a gateway in front of the chat assistant's traffic and decide what it does: route between a small and a large model, answer from caches, fall back when a provider fails. The lab shows what each request costs, how long it takes, how many fail, and how many get a worse or wrong answer, against a naive, healthy baseline: the same traffic sent to the large model, no caching, no outage. Every number is an expectation per request (no randomness).</p>
+<h2 style="margin-top:14px">Cost-quality lab</h2>
+<p>A design lab for the decision a system designer owns: how much quality to trade for cost. Put the chat assistant's traffic through a small and a large model, caches and a fallback provider, and see what each request costs, how long it takes, how many fail, and how many get a worse or wrong answer, against a naive, healthy baseline: the same traffic sent to the large model, no caching, no outage. Every number is an expectation per request (no randomness). How a real gateway retries, cools down and falls back, recorded call by call, is on <a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a>.</p>
 <p class="try"><b>Try:</b> start from <i>Naive</i>, then <i>Router + prefix cache</i>: cost halves and a few percent of answers get worse (hard questions misrouted to the small model). Then <i>Provider outage, no fallback</i> against <i>with fallback</i>: the fallback turns 40% errors into slower, pricier answers. Then push the semantic cache's hit rate up and watch wrong answers climb.</p>
 <div class="chips" id="gw-pre">
 <button data-p="naive">Naive: one large model</button><button data-p="tuned" class="on">Router + prefix cache</button><button data-p="semantic">+ aggressive semantic cache</button><button data-p="outage_nofb">Provider outage, no fallback</button><button data-p="outage_fb">Provider outage, with fallback</button><button data-p="selfhost">Small tier self-hosted</button>
@@ -691,7 +523,7 @@ feature_vector = store.get_online_features(
 
 <h3>On this page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-gw">Gateway lab</a></div><p>Routing, model tiers, caches and fallbacks in front of the chat assistant's traffic: cost, latency, errors and wrong answers. <span class="rt">About 10 min to explore. When: after sections 3, 4 and 9.</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-gw">Cost-quality lab</a></div><p>A design lab: model tiers, router accuracy, caches and a fallback provider in front of the chat assistant's traffic, traded as cost against latency, errors and wrong answers. <span class="rt">About 10 min to explore. When: after sections 4 and 9.</span></p></div>
 </div>
 
 <h3>The parent topic</h3>
@@ -715,6 +547,8 @@ feature_vector = store.get_online_features(
 
 <h3>Related topics and pages</h3>
 <div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f15c17b0d0d81e4a964c129a3e520ae" target="_blank" rel="noopener noreferrer">Gateways and routing</a></div><p>The owner of sections 3 to 5: a LiteLLM gateway read from source and recorded call by call: deployment choice, retries, cooldowns and fallbacks, token rate limits and budgets, OpenRouter, learned routers. <span class="rt">About 38 min.</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f35c17b0d0d818aa406da1f7a784c62" target="_blank" rel="noopener noreferrer">LLM serving in production</a></div><p>The owner of section 4's replica routing and section 8: prefix-aware routing on real replicas, autoscaling signals and thresholds, cold starts, an Autoscaling lab. <span class="rt">About 36 min, plus its labs.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a></div><p>The engine layer: continuous batching, PagedAttention, speculative decoding, prefill and decode disaggregation, KV-aware scheduling in depth. <span class="rt">Not yet migrated. When: after sections 2, 4 and 8.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b39ad9e96193d21adc" target="_blank" rel="noopener noreferrer">Production eval engineering</a></div><p>Gates, golden sets, shadow deployments, canaries and A/B tests with their statistics: the depth behind section 10. <span class="rt">Time on its page. When: before your first model rollout.</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d819bbfa5dffa9246c297" target="_blank" rel="noopener noreferrer">Guardrails</a></div><p>Input, tool and output rails at runtime: the gateway's "transform and guard" step.</p></div>
@@ -742,7 +576,7 @@ feature_vector = store.get_online_features(
 </div>
 </section>
 </div>
-<div class="foot">Built from <code>src/</code> in the knowledge base repository (<code>sh src/build.sh</code>). Every number on this page is either linked to its source, derived with its formula shown, or labelled <span class="ill">illustrative</span>. The page's two models (the autoscaling animation and the Gateway lab) are checked against a Python copy, <code>src/models.py</code>, by <code>src/recompute.py</code>.</div>
+<div class="foot">Built from <code>src/</code> in the knowledge base repository (<code>sh src/build.sh</code>). Every number on this page is either linked to its source, derived with its formula shown, or labelled <span class="ill">illustrative</span>. The page's models (the Cost-quality lab and the prefix-cache animation) are checked against a Python copy, <code>src/models.py</code>, by <code>src/recompute.py</code>.</div>
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
@@ -809,134 +643,6 @@ RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button'
   const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
   const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
   Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
-</script>
-<script>/* 22_js_scale_model.js */
-// ---- Autoscaling model (Reading, "Autoscaling GPUs"): the same burst under four policies. Same formulas as src/models.py scale() ----
-window.MSD_SCALE=(function(){
-  const GPU_TPS=2209,GPUS=2,REP_TPS=GPU_TPS*GPUS,GPU_PRICE_H=3.99,PREFILL_S=0.09;
-  const P={a0:30,a1:60,L0:400,L1:600,t_up:300,ramp:180,t_down:1500,horizon:2400,r0:4,rmax:16,rmin:4,sync:15,down_window:300,tol:0.1,
-    cold:180,warm:20,cpu_base:25,cpu_slope:10,cpu_target:60,rps_target:0.75*REP_TPS/400,kv_target:0.75,wait_target:4};
-  function traffic(t,p){let f;
-    if(t<p.t_up)f=0;else if(t<p.t_up+p.ramp)f=(t-p.t_up)/p.ramp;else if(t<p.t_down)f=1;else if(t<p.t_down+p.ramp)f=1-(t-p.t_down)/p.ramp;else f=0;
-    return [p.a0+(p.a1-p.a0)*f,p.L0+(p.L1-p.L0)*f]}
-  const r=(x,n)=>{const m=Math.pow(10,n);return Math.round(x*m)/m};
-  function run(mode,p){p=p||P;
-    let ready=p.r0,pend=[],hist=[],backlog=0,breq=0,gpu_s=0,util=0,metric=0;const out=[];
-    const cold=mode==='warm'?p.warm:p.cold;
-    const pendSum=()=>pend.reduce((s,q)=>s+q[1],0);
-    for(let t=0;t<=p.horizon;t++){
-      for(const q of pend)if(q[0]<=t)ready+=q[1];
-      pend=pend.filter(q=>q[0]>t);
-      const [a,L]=traffic(t,p);
-      const cap=ready*REP_TPS,work=a*L+backlog,served=Math.min(work,cap);
-      util=served/cap;backlog=work-served;breq=backlog/L;
-      const ttft=PREFILL_S+backlog/cap;
-      gpu_s+=(ready+pendSum())*GPUS;
-      if(t%p.sync===0&&t>0){
-        const total=ready+pendSum();let prop;
-        if(mode==='cpu'){metric=p.cpu_base+p.cpu_slope*util;const ratio=metric/p.cpu_target;prop=Math.abs(ratio-1)>p.tol?Math.ceil(ready*ratio):total}
-        else if(mode==='rps'){metric=a/ready;const ratio=metric/p.rps_target;prop=Math.abs(ratio-1)>p.tol?Math.ceil(ready*ratio):total}
-        else{const kr=util/p.kv_target;metric=breq/ready;const wr=metric/p.wait_target;
-          const c1=Math.abs(kr-1)>p.tol?Math.ceil(ready*kr):total;
-          const c2=(Math.abs(wr-1)>p.tol&&metric>0)?Math.ceil(ready*wr):0;prop=Math.max(c1,c2)}
-        prop=Math.max(p.rmin,Math.min(p.rmax,prop));
-        prop=Math.min(prop,total+Math.max(total,4));
-        hist.push([t,prop]);hist=hist.filter(d=>d[0]>t-p.down_window);
-        if(prop>total){pend.push([t+cold,prop-total])}
-        else if(prop<total){const target=Math.max(...hist.map(d=>d[1]));
-          if(target<total){let drop=total-target;
-            while(drop>0&&pend.length){const last=pend[pend.length-1];const k=Math.min(drop,last[1]);last[1]-=k;drop-=k;if(last[1]===0)pend.pop()}
-            ready-=drop}}
-      }
-      if(t%15===0)out.push({t,a:r(a,4),L:r(L,4),ready,total:ready+pendSum(),util:r(util,6),wait_req:r(breq,4),ttft:r(ttft,6),metric:r(metric,6),gpu_h:r(gpu_s/3600,6)});
-    }
-    return out}
-  function summary(rows,slo){slo=slo||2;
-    let worst=0,over=0,mx=0;rows.forEach(x=>{worst=Math.max(worst,x.ttft);if(x.ttft>slo)over+=15;mx=Math.max(mx,x.total)});
-    const g=rows[rows.length-1].gpu_h;
-    return {worst_ttft:r(worst,4),minutes_over_slo:r(over/60,4),gpu_h:g,gpu_cost:r(g*GPU_PRICE_H,4),max_rep:mx}}
-  return {P,run,summary,REP_TPS,GPU_PRICE_H,PREFILL_S,MODES:['cpu','rps','queue','warm']};
-})();
-</script>
-<script>/* 23_js_rd_scale.js */
-// ---- Reading, Autoscaling GPUs: the same burst against four policies (before/after animation) ----
-(function(){
-  const card=document.getElementById('rd-as-card');if(!card)return;
-  const S=window.MSD_SCALE,svgEl=document.getElementById('rd-as-svg'),cap=document.getElementById('rd-as-cap'),cnt=document.getElementById('rd-as-cnt');
-  const runs={};S.MODES.forEach(m=>runs[m]=S.run(m));
-  let mode='cpu';
-  const STEP=2;// rows are every 15 s; one animation step = 30 s
-  const N=Math.floor((runs.cpu.length-1)/STEP)+1;
-  const NAME={cpu:'CPU utilisation, target 60%',rps:'requests per second per replica',queue:'waiting requests and KV cache use',warm:'waiting requests and KV cache use, warm pool'};
-  const fmtT=s=>{const m=Math.floor(s/60),x=s%60;return m+':'+(x<10?'0':'')+x};
-  const fmtS=v=>v<1?Math.round(v*1000)+' ms':v<100?v.toFixed(1)+' s':v<6000?Math.round(v)+' s':'>100 min';
-  function caption(i){const row=runs[mode][i*STEP],t=row.t,P=S.P;
-    const ph=t<P.t_up?0:t<P.t_up+P.ramp?1:t<P.t_down?2:t<P.t_down+P.ramp?3:4;
-    const base=['Before the burst: 30 requests a second, 400-token replies. Four replicas (one 8-GPU server) run at about two thirds of their token capacity; time to first token is the prefill alone, about 90 ms.',
-      'The burst arrives: requests double to 60 a second over three minutes and replies grow to 600 tokens, so the token demand triples (12,000 to 36,000 tokens a second).',
-      'The burst holds at 36,000 output tokens a second.',
-      'The burst fades over three minutes.',
-      'Back to normal traffic. Replicas leave only after the 5-minute scale-down window, so a short dip does not throw capacity away.'][ph];
-    let m='';
-    if(mode==='cpu')m=ph===0?'The policy watches CPU. A GPU server\'s CPU mostly tokenises text and schedules the GPU, so it sits near 30% however busy the GPU is.':
-      ph<=2?'CPU reads '+row.metric.toFixed(0)+'% against a 60% target: the autoscaler sees an idle service and adds nothing. The queue grows without limit and every new user waits longer than the last.':
-      'The burst is over but the backlog built during it still has to drain at the same capacity: users keep waiting long after the traffic is back to normal.';
-    else if(mode==='rps')m=ph===0?'The policy watches requests per second per replica, with a target sized for 400-token replies (8.3 requests a second per replica).':
-      ph<=2?'Requests doubled, so it asks for twice the replicas (8). But each request now costs 1.5 times the tokens: 8 replicas give 35,344 tokens a second against 36,000 demanded. The backlog that built while they started (3 minutes in this model) never drains, and creeps up for the whole burst. Counting requests cannot see request size.':
-      'Only when the burst fades does capacity exceed demand and the backlog drain.';
-    else m=ph===0?'The policy watches what the GPU is short of: requests waiting in the engine\'s queue (target 4 per replica) and KV cache use (target 75%). Kubernetes takes the larger of the two recommendations.':
-      ph===1?(mode==='queue'?'The queue fills within seconds and the autoscaler asks for more replicas at once. But a new GPU replica takes 3 minutes (in this model) to get a machine, pull the image, load 73 GB of weights and warm up, so users wait while it starts.':
-        'Same signals, but the new replicas start in 20 seconds: the GPUs are already provisioned, the image is pulled and the weights sit in host memory. The queue never builds.'):
-      ph===2?(row.ready<row.total?'Replicas asked for are still starting ('+row.ready+' of '+row.total+' serving); the queue keeps growing until they arrive.':row.wait_req>1?'The new replicas are serving and draining the queue that built up while they started; the autoscaler overshot to '+row.total+' replicas because the queue term asked for more, and will settle lower once it is empty.':'Enough replicas are serving and the queue is empty. KV cache use settles near its 75% target.'):
-      'Demand falls; the autoscaler removes replicas after the scale-down window.';
-    cap.innerHTML='<div class="t">'+fmtT(t)+' &middot; '+NAME[mode]+'</div><p>'+base+'</p><p>'+m+'</p>'}
-  function counters(i){const rows=runs[mode],row=rows[i*STEP];let worst=0;for(let k=0;k<=i*STEP;k++)worst=Math.max(worst,rows[k].ttft);
-    const sig=mode==='cpu'?row.metric.toFixed(0)+'% CPU':mode==='rps'?row.metric.toFixed(1)+' req/s per replica':(row.util*100).toFixed(0)+'% KV, '+(row.wait_req/row.ready).toFixed(1)+' waiting/replica';
-    cnt.innerHTML=RD.stat('Replicas serving / asked for',row.ready+' / '+row.total,(row.ready*2)+' GPUs serving')+
-      RD.stat('Requests waiting',Math.round(row.wait_req).toLocaleString('en-US'),'')+
-      RD.stat('Time to first token now',fmtS(row.ttft),'worst so far '+fmtS(worst))+
-      RD.stat('Signal the policy reads',sig,'')+
-      RD.stat('GPU-hours so far',row.gpu_h.toFixed(1),'$'+(row.gpu_h*S.GPU_PRICE_H).toFixed(0)+' at $3.99/GPU-hour')}
-  function draw(i){const rows=runs[mode],upto=i*STEP;
-    const W=Math.max(280,Math.min(860,RD.width(svgEl))),fs=W<420?10:11,L=W<420?34:44,R=8,H1=120,H2=110,G=34,top=16;
-    const T=rows[rows.length-1].t,x=t=>L+(W-L-R)*t/T;
-    const ymax=16*S.REP_TPS;const y1=v=>top+H1-H1*v/ymax;
-    const lo=Math.log10(0.05),hi=Math.log10(2000),y2top=top+H1+G;
-    const y2=v=>y2top+H2-H2*(Math.log10(Math.max(0.05,Math.min(2000,v)))-lo)/(hi-lo);
-    let b='';
-    // panel 1 grid
-    [0,20000,40000,60000].forEach(v=>{b+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y1(v)+'" y2="'+y1(v)+'" stroke="var(--line)"/>'+RD.t(L-4,y1(v)+3.5,v?(v/1000)+'k':'0',{fs:fs-1,a:'end',fill:'var(--mute)'})});
-    b+=RD.t(L,top-5,W<520?'Tokens/s: demand (shaded), capacity (line)':'Output tokens per second: demand (shaded) and capacity serving (line)',{fs:fs,fill:'var(--mute)'});
-    // demand area, full horizon, faint; drawn part stronger
-    let pa='M'+x(0)+','+y1(0);rows.forEach(r=>{pa+='L'+x(r.t)+','+y1(r.a*r.L)});pa+='L'+x(T)+','+y1(0)+'Z';
-    b+='<path d="'+pa+'" fill="var(--c2)" opacity=".12"/>';
-    let pd='M'+x(0)+','+y1(0);for(let k=0;k<=upto;k++)pd+='L'+x(rows[k].t)+','+y1(rows[k].a*rows[k].L);pd+='L'+x(rows[upto].t)+','+y1(0)+'Z';
-    b+='<path d="'+pd+'" fill="var(--c2)" opacity=".35"/>';
-    let pc='',pt='';for(let k=0;k<=upto;k++){const r=rows[k];pc+=(k?'L':'M')+x(r.t)+','+y1(r.ready*S.REP_TPS);pt+=(k?'L':'M')+x(r.t)+','+y1(r.total*S.REP_TPS)}
-    b+='<path d="'+pt+'" fill="none" stroke="var(--c1)" stroke-width="1.2" stroke-dasharray="4 3"/>';
-    b+='<path d="'+pc+'" fill="none" stroke="var(--c1)" stroke-width="2"/>';
-    // panel 2: TTFT, log scale
-    b+=RD.t(L,y2top-6,W<520?'Time to first token (log); dashed: 2 s':'Time to first token (log scale); dashed line: a 2 s target',{fs:fs,fill:'var(--mute)'});
-    [0.1,1,10,100,1000].forEach(v=>{b+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y2(v)+'" y2="'+y2(v)+'" stroke="var(--line)"/>'+RD.t(L-4,y2(v)+3.5,v<1?'0.1s':v+'s',{fs:fs-1,a:'end',fill:'var(--mute)'})});
-    b+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y2(2)+'" y2="'+y2(2)+'" stroke="var(--bad)" stroke-dasharray="5 4"/>';
-    let p2='';for(let k=0;k<=upto;k++){const r=rows[k];p2+=(k?'L':'M')+x(r.t)+','+y2(r.ttft)}
-    b+='<path d="'+p2+'" fill="none" stroke="var(--c4)" stroke-width="2"/>';
-    if(rows[upto].ttft>2000)b+=RD.t(x(rows[upto].t)-4,y2(2000)+12,'off the chart',{fs:fs-1,a:'end',fill:'var(--bad)'});
-    // time axis
-    const yb=y2top+H2;[0,600,1200,1800,2400].forEach(t=>{b+=RD.t(x(t),yb+13,(t/60)+' min',{fs:fs-1,a:t===0?'start':t===2400?'end':'middle',fill:'var(--mute)'})});
-    b+='<line x1="'+x(rows[upto].t)+'" x2="'+x(rows[upto].t)+'" y1="'+top+'" y2="'+yb+'" stroke="var(--ink)" stroke-width="1" opacity=".5"/>';
-    svgEl.innerHTML=RD.svg(W,yb+18,b,'Demand and capacity in tokens per second, and time to first token, over 40 minutes under the selected autoscaling policy');
-    caption(i);counters(i)}
-  const A=RD.anim({card:'rd-as-card',ctl:'rd-as-ctl',n:N,draw,ms:420,label:'Time step'});
-  RD.seg(document.getElementById('rd-as-seg'),m=>{mode=m;A.reset(N);A.play()});
-  RD.onResize(()=>A.redraw());
-  // summary table under the animation: all four policies
-  const tb=document.getElementById('rd-as-sum');
-  if(tb){let h='<table><thead><tr><th>Policy</th><th class="num">Worst TTFT</th><th class="num">Min over 2 s</th><th class="num">Max replicas</th><th class="num">GPU-hours</th></tr></thead><tbody>';
-    const lab={cpu:'Before: CPU 60%',rps:'Before: requests/s',queue:'After: queue + KV cache',warm:'After + warm pool'};
-    S.MODES.forEach(m=>{const s=S.summary(runs[m]);h+='<tr><td>'+lab[m]+'</td><td class="num">'+fmtS(s.worst_ttft)+'</td><td class="num">'+s.minutes_over_slo.toFixed(1)+'</td><td class="num">'+s.max_rep+'</td><td class="num">'+s.gpu_h.toFixed(1)+'</td></tr>'});
-    tb.innerHTML=h+'</tbody></table>'}
-})();
 </script>
 <script>/* 24_js_rd_prefix.js */
 // ---- Reading, Caching: one conversation, prompt laid out two ways (prefix caching before/after) ----
