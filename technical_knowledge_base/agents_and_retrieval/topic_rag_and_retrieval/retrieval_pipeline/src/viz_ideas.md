@@ -14,7 +14,7 @@ Scores: computable from public data (x2), reproduces a source or the root (x2), 
 | 3 | Fusion lab: real BM25 and Qwen3 top-20 lists, two methods A and B with knobs, rows animate from A's order to B's; plus every method's sweep with the held-out choice ringed | own tab | 12 | fusion_deep.py | The root has an RRF-only calculator; this adds the whole family and the honest-vs-leaked tuning view. |
 | 4 | Query-rewrite lab: original list against each rewrite's list (HyDE, HyDE + claim, multi-query, step-back), animated, with the generated text; decomposition examples | own tab | 11 | root qtrans_gen.json + qgen.py | Claims chosen where a rewrite moved the relevant abstract most: stated on the tab. |
 | 5 | BM25 term-by-term table on a real claim (relevant at rank 3 behind a review that repeats "statin") | Reading 2.1 | 10 | bm25_example.py; scores equal the recorded run | Shows saturation and the vocabulary gap in one table. |
-| 6 | Saturation and length-normalisation explorer (k1, b sliders) | Reading 2.1 | 8 | formula | |
+| 6 | Saturation and length-normalisation explorer (k1, b sliders) | Reading 2.1 | 8 | formula | Removed 2026-10-19 (overlap fix): Search and vector databases owns the BM25 formula and its saturation curve and calculator; 2.1 links it and keeps the measured claim. |
 | 7 | k1 x b grid, test vs tuning split, default outlined and tuned ringed | Reading 2.2 | 11 | bm25_sweep.py | Shows the leak: best-on-test 0.688 vs tuned 0.678 vs default 0.679. |
 | 8 | Margin quintile bars (what RRF discards) | Reading 4.2 | 9 | fusion_deep.py | |
 | 9 | Fusion family table, tuned on held-out splits, both datasets | Reading 4.4 | 10 | fusion_deep.py | Reproduces the root's RRF/min-max/z-score numbers exactly. |

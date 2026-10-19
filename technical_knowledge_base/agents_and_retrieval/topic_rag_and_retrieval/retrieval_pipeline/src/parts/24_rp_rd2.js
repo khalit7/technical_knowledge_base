@@ -8,18 +8,6 @@
     X.tokens.map((t,i)=>{const a=X.docs[0].terms[i];return '<tr><td><code>'+E(t)+'</code></td><td class="num">'+a.df+'</td><td class="num">'+a.idf.toFixed(2)+'</td>'+X.docs.map(d=>{const z=d.terms[i];return '<td class="num">'+z.tf+' &#8594; '+z.contrib.toFixed(2)+'</td>'}).join('')+'</tr>'}).join('')+
     '<tr class="hl"><td colspan="3">score (rank in BM25\'s list)</td>'+X.docs.map(d=>'<td class="num">'+d.score.toFixed(2)+' (rank '+d.rank+')</td>').join('')+'</tr></tbody></table>'+
     '<p class="small mute">'+X.docs.map(d=>(d.relevant?'Relevant: ':'Not relevant: ')+'&ldquo;'+E(d.title)+'&rdquo;').join('; ')+'. Scores equal the recorded bm25s run ('+X.docs.map(d=>d.recorded_score.toFixed(3)).join(', ')+'). <span class="meas">measured</span></p>';
-  // saturation explorer
-  function sat(){const el=$('rp-bmsat-chart');const k1=+$('rp-bmsat-k1').value,b=+$('rp-bmsat-b').value;$('rp-bmsat-k1v').textContent=k1.toFixed(1);$('rp-bmsat-bv').textContent=b.toFixed(2);
-    const w=Math.min(860,RP.W(el)),h=210,m={l:36,r:12,t:10,b:30};const X_=tf=>m.l+(w-m.l-m.r)*tf/15,Y=v=>m.t+(h-m.t-m.b)*(1-v);
-    const f=(tf,r)=>tf===0?0:tf/(tf+k1*(1-b+b*r));let g='';
-    [0,.25,.5,.75,1].forEach(v=>{g+='<line x1="'+m.l+'" x2="'+(w-m.r)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RP.t(m.l-4,Y(v)+4,v.toFixed(2),{a:'end',fs:10,fill:'var(--mute)'})});
-    for(let tf=0;tf<=15;tf+=3)g+=RP.t(X_(tf),h-m.b+14,String(tf),{a:'middle',fs:10,fill:'var(--mute)'});
-    g+=RP.t((m.l+w)/2,h-4,'occurrences of the term in the document (tf)',{a:'middle',fs:10.5,fill:'var(--mute)'});
-    [[1,'var(--c1)'],[3,'var(--c2)']].forEach(([r,c])=>{const pts=[];for(let tf=0;tf<=15;tf+=0.25)pts.push(X_(tf)+','+Y(f(Math.floor(tf*4)/4,r)));
-      g+='<polyline fill="none" stroke="'+c+'" stroke-width="2" points="'+pts.join(' ')+'"/>';for(let tf=1;tf<=15;tf++)g+='<circle cx="'+X_(tf)+'" cy="'+Y(f(tf,r))+'" r="2.5" fill="'+c+'"/>'});
-    g+=RP.t(w-m.r,Y(f(15,1))-6,'tf 1: '+f(1,1).toFixed(2)+', tf 7: '+f(7,1).toFixed(2),{a:'end',fs:10.5});
-    el.innerHTML=RP.svg(w,h,g,'BM25 term-frequency saturation')}
-  ['rp-bmsat-k1','rp-bmsat-b'].forEach(id=>$(id).addEventListener('input',sat));
   // 2.2 k1 x b grid
   const B=D.bm25||{};const hs={ds:'scifact',sp:'test'};
   function heat(){const R=B[hs.ds];if(!R)return;const K1=[0.2,0.4,0.6,0.9,1.2,1.5,2,3,5],BS=[0,0.2,0.4,0.6,0.75,0.9,1];
@@ -59,5 +47,5 @@
   if(T){const names=['bm25 only','dense only','rrf k60','z-score a0.6','weighted rrf'];
     $('rp-ftr').innerHTML='<table class="rp-t"><thead><tr><th>first stage (SciFact, Qwen3-Embedding + BM25)</th><th class="num">before reranking</th><th class="num">rerank top 10</th><th class="num">top 20</th><th class="num">top 30</th></tr></thead><tbody>'+
       names.map(n=>'<tr><td>'+n+'</td><td class="num">'+f3(T[n+'|10'].before.ndcg10)+'</td>'+[10,20,30].map(K=>'<td class="num">'+f3(T[n+'|'+K].after.ndcg10)+'</td>').join('')+'</tr>').join('')+'</tbody></table><p class="small mute">nDCG@10, 300 test claims; Qwen3-Reranker-0.6B scores recorded by the setup and the root lab (no unscored pairs). <span class="meas">measured</span></p>'}
-  RD.onRender(()=>{sat();margin()});RD.onResize(()=>{sat();margin()});
+  RD.onRender(()=>{margin()});RD.onResize(()=>{margin()});
 })();

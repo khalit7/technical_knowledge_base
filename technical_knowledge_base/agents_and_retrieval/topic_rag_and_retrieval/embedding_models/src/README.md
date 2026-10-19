@@ -8,7 +8,7 @@ Shape: a child page of Topic: rag-and-retrieval (method `.claude/skills/explaine
 
 ## Parts
 - `01_head.html` (the root's CSS, own title), `05z_errbox.js.html`, `10_header.html`, `21_js_rd_common.js` (root's animation controller), `99_js_tabs.js` (storage key `emb-tab`).
-- Reading: `20_read_a.html` (styles, nav, sections 0 and 1) to `20_read_d.html` (10 to 15), `20_read_z.html` (footer, closes the tab). JS: `23_emb_lib.js` (charts, bars, intervals), `24_emb_rd.js` (pooling animation, code quotes, push widget, false negatives, predict boxes), `25_emb_rd2.js` (fine-tune results, prefixes, lengths, domain shift, MTEB, subsampling).
+- Reading: `20_read_a.html` (styles, nav, sections 0 and 1) to `20_read_d.html` (10 to 15), `20_read_z.html` (footer, closes the tab). JS: `23_emb_lib.js` (charts, bars, intervals), `24_emb_rd.js` (pooling animation, code quotes, false negatives, predict boxes), `25_emb_rd2.js` (fine-tune results, prefixes, lengths, domain shift, MTEB, subsampling).
 - Labs: `31_tab_train.html` + `31_emb_tl.js` (Training lab); `32_tab_choose.html` + `32_emb_ch.js` (Model chooser). Further reading: `39_tab_more.html`.
 - `22_emb_data.js`: generated, do not edit.
 

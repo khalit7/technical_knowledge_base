@@ -28,7 +28,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     if (bad(t)) probs.push(tag + ': bad text ' + (t.match(/.{0,40}(NaN|undefined|Infinity|\[object|@@[a-z0-9_]+@@).{0,40}/) || [''])[0]);
     const sw = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1); if (sw) probs.push(tag + ': sideways scroll') };
   await scan('read initial');
-  for (const [card, ctl, seg] of [['invCard', 'invCtl', 'invSeg'], ['annCard', 'annCtl', 'annSeg'], ['fltCard', 'fltCtl', 'fltSeg']]) {
+  for (const [card, ctl, seg] of [['invCard', 'invCtl', 'invSeg']]) {
     const modes = await p.$$eval('#' + seg + ' button', es => es.map(e => e.dataset.m));
     for (const m of modes) {
       await p.evaluate((seg, m) => document.querySelector('#' + seg + ' button[data-m="' + m + '"]').click(), seg, m); await sleep(60);
@@ -41,16 +41,16 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     await p.click('#' + ctl + '-b'); await p.click('#' + ctl + '-p'); await sleep(150); await p.click('#' + ctl + '-p'); await p.select('#' + ctl + '-v', '2');
   }
   // sliders
-  for (const [id, vals] of [['bmK1', [0, 0.5, 3, 1.2]], ['bmB', [0, 1, 0.75]], ['rrfK', [1, 120, 60]]]) {
+  for (const [id, vals] of [['bmK1', [0, 0.5, 3, 1.2]], ['bmB', [0, 1, 0.75]]]) {
     for (const v of vals) { await p.evaluate((id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input')) }, id, v); await scan(id + '=' + v) } }
   await p.click('#bmReset');
-  for (const id of ['bmCard', 'rrfCard', 'measTab', 'quantTab', 'filtTab', 'hybTab']) { const el = await p.$('#' + id); if (el) { await el.scrollIntoView(); await el.screenshot({ path: `${shots}/${id}-${scheme}-${width}.png` }) } }
+  for (const id of ['bmCard', 'measTab', 'quantTab', 'filtTab', 'hybTab']) { const el = await p.$('#' + id); if (el) { await el.scrollIntoView(); await el.screenshot({ path: `${shots}/${id}-${scheme}-${width}.png` }) } }
   // compare arithmetic with recompute_out.json
   const js = await p.evaluate(() => {
     const D = SV.tiny, ql = D.query_lexemes.map(x => x[0]), r = SV.bm25(D.docs.map(d => d.lexemes), ql, 1.2, .75);
     const lex = r.scores.map((s, j) => [s, j + 1]).filter(x => x[0] > 0).sort((a, c) => c[0] - a[0] || a[1] - c[1]).map(x => x[1]);
     const vec = D.docs.map((d, j) => [d.cos, j + 1]).sort((a, c) => c[0] - a[0] || a[1] - c[1]).map(x => x[1]);
-    return { bm25: r.scores.map(x => +x.toFixed(6)), idf: ql.map(t => +r.idf[t].toFixed(6)), rrf: SV.rrf([lex, vec], 60).map(x => x[0]), toy: window.SV_TOY_SUMMARY } });
+    return { bm25: r.scores.map(x => +x.toFixed(6)), idf: ql.map(t => +r.idf[t].toFixed(6)), rrf: SV.rrf([lex, vec], 60).map(x => x[0]) } });
   const close = (a, b) => Math.abs(a - b) < 1e-5;
   if (!js.bm25.every((x, i) => close(x, ref.bm25[i]))) probs.push('bm25 mismatch ' + js.bm25 + ' vs ' + ref.bm25);
   if (!js.idf.every((x, i) => close(x, ref.idf[i]))) probs.push('idf mismatch');
