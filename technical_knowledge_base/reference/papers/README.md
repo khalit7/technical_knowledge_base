@@ -67,3 +67,6 @@ Not an HTML page: in Notion it is a one-line description followed by the Papers 
 - `rrsi/`: RRSI: Regularized Recursive Self-Improvement of Agent Harnesses
 - `schrodingers_code_repository/`: Schrödinger's Code Repository: Have LLMs Learned SWE-bench or Memorized It?
 - `moe_training_memory_bottlenecks/`: Bounding the memory bottlenecks of large mixture-of-experts training
+- `on_policy_or_off_policy_learning/`: On-Policy or Off-Policy Learning? A Systematic Study of Distillation Dynamics
+- `context_language_models/`: Context Language Models
+- `sharpening_tax/`: Sharpening Tax in Post-Training
