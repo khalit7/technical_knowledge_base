@@ -30,8 +30,25 @@
 <div id="dt-chart" class="ft-svg"></div>
 <div class="ft-anc" id="dt-cap"></div>
 </div>
+<h3>A hang, measured: what the logs say and what they do not</h3>
+<p>A frozen rank is worse than a dead one: nothing exits, no exit code reaches anybody, and every other rank sits in an all-reduce doing nothing. The {{root page|n:3c65c17b0d0d81b5925bfd1d8665dd4b}}'s lab made one on its Slurm cluster: <code>SIGSTOP</code> to rank 3's process after step 120 (it stays alive and holds its sockets open), with the process-group timeout set to 30 s <span class="ft-meas">measured</span>.</p>
+<div class="ft-err">[rank0]: RuntimeError: [.../gloo/transport/tcp/unbound_buffer.cc:129] Timed out waiting 30000ms for send operation to complete
+[rank1]: RuntimeError: [.../gloo/transport/tcp/unbound_buffer.cc:78] Timed out waiting 30000ms for recv operation to complete
+...
+Root Cause (first observed failure):
+[0]:
+  host      : c1
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 1972)</div>
+<p class="ft-cap"><span class="ft-meas">measured</span>: job 51 (root page, <code>src/fail/runs/fl-hang/job51.out</code>, trimmed). The three healthy ranks errored <span id="fl-hg-s">30.8</span> s after the freeze, and the job failed.</p>
+<div class="ft-pr">
+<div class="q">Predict: which rank does torchrun's "Root Cause (first observed failure)" name?</div>
+<div class="opts"><button>Rank 3, the frozen one</button><button data-r="1">A healthy rank</button><button>None: a hang has no root cause line</button></div>
+<div class="ans">A healthy one: rank 0 on c1. "First observed failure" means the first process to exit with an error, and in a hang that is a victim that timed out first; the frozen rank never errors, it only received SIGTERM during clean-up. In a hang, read the timeout messages for which rank everyone was waiting on (the one that did not time out), and get stacks from the stuck processes (<code>py-spy dump</code>, the {{Launch lab's hang drills|#t-launch}}) or PyTorch's flight recorder, which in torch 2.14.1 records gloo collectives too (the {{Launch lab|#t-launch}} dumped it from a stalled rank on CPUs and found that rank one collective behind).</div>
+</div>
+<p>The two NCCL messages that end a hang on GPUs are different events in PyTorch 2.14.1: <code>Watchdog caught collective operation timeout: ... ran for ... milliseconds before timing out.</code> means a collective exceeded its timeout; <code>ProcessGroupNCCL's watchdog got stuck for ... seconds without making progress in monitoring enqueued collectives.</code> means the watchdog thread itself hung and the heartbeat monitor (the 8-minute row above) ended it (<code>ProcessGroupNCCL.cpp</code> lines 735-739 and 1954 @ v2.14.1) <span class="ft-src">source</span>.</p>
 <h3>Health checks: catching bad machines before and between jobs</h3>
-<p>Timeouts catch a failure after it has stopped a job. Health checks try to catch the machine before it is given one. Three moments matter: <b>before a node joins</b> (burn-in; OpenAI's nodes join Kubernetes with a "preflight" taint that only passing GPU tests remove, per the root page), <b>before or between jobs</b> (Ai2's Beaker multiplies two tensors on every GPU before each workload and cordons the host on failure; Slurm's <code>HealthCheckProgram</code>, which must drain the node itself, measured in the root's Failure lab), and <b>after a failure</b>, to decide whether the machine goes back into the pool.</p>
+<p>Timeouts catch a failure after it has stopped a job. Health checks try to catch the machine before it is given one. Three moments matter: <b>before a node joins</b> (burn-in; OpenAI's nodes join Kubernetes with a "preflight" taint that only passing GPU tests remove, per the root page), <b>before or between jobs</b> (Ai2's Beaker multiplies two tensors on every GPU before each workload and cordons the host on failure; Slurm's <code>HealthCheckProgram</code>, which must drain the node itself, measured at the end of this section), and <b>after a failure</b>, to decide whether the machine goes back into the pool.</p>
 <div class="tw"><table class="ft-tbl"><thead><tr><th>NVIDIA DCGM diagnostic</th><th>Runs</th><th>Time (Hopper, per the docs)</th></tr></thead><tbody>
 <tr><td><code>dcgmi diag -r 1</code></td><td>software and deployment checks</td><td>"&lt; 2.5 Seconds"</td></tr>
 <tr><td><code>-r 2</code></td><td>+ PCIe and NVLink, memory, memory bandwidth</td><td>"&lt; 2.5 mins on 4 GPU systems, &lt; 10.5 mins on 8 GPU systems"</td></tr>
@@ -41,4 +58,47 @@
 <p class="ft-cap">Source: {{DCGM diagnostics documentation|https://docs.nvidia.com/datacenter/dcgm/latest/user-guide/dcgm-diagnostics.html}}, read 2026-10-16 <span class="ft-ven">vendor</span>. "Higher numbered tests include all beneath"; active diagnostics need exclusive use of the GPUs, while DCGM's health watches (<code>dcgmi health</code>: PCIe, memory, InfoROM, thermal and power, NVLink, driver) are passive and run beside jobs. Not run here: there are no GPUs on this machine.</p>
 <p>The cost structure decides where each check goes: level 1 fits before every job, level 2 between jobs or after a failure, levels 3 and 4 in burn-in or when a node keeps failing. NVIDIA's Xid catalogue pairs each driver error with an action, and the action is the useful part for automation: Xid 13 and 31 (an out-of-bounds access, a page fault: "Typically these are application-level bugs") say restart the application, not the node; Xid 48 (double-bit ECC) a GPU reset; Xid 79 ("GPU has fallen off the bus") a reboot of the machine; Xid 74 (NVLink) needs care, because "if a GPU fails, another GPU connected to it over NVLink may report an Xid 74 simply because the link went down" ({{Xid catalogue|https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html}} <span class="ft-ven">vendor</span>). The hardware side of these errors is on the {{hardware reliability page|n:3f05c17b0d0d8143851cfc3ae14c3c22}}. A drain or taint after a failed check is what keeps the next restart from landing on the same bad machine, the trap OPT-175B's logbook records when its cloud replacement returned the same bad host.</p>
 
+<h4>Measured on the lab clusters: drain, cordon, a health check, and the Kubernetes trap</h4>
+<p>Restarting onto the same broken machine just fails again, so every system has a way to say "schedule nothing new here". On Slurm a node is <dfn>drained</dfn>: running jobs finish, nothing new starts. On Kubernetes it is <dfn>cordoned</dfn> (marked unschedulable) or <dfn>tainted</dfn> (a taint repels every pod that does not tolerate it; a <code>NoExecute</code> taint also evicts running ones). The root page's lab tried each on its clusters <span class="ft-meas">measured</span>:</p>
+<div class="ft-two">
+<div>
+<pre>$ scontrol update nodename=c2 state=drain reason="fl: failed GPU burn-in"
+$ sinfo -N
+NODELIST STATE REASON
+c1 idle none
+c2 drained fl: failed GPU burn-in
+c3 idle none
+$ squeue
+JOBI PARTITION     NAME   USER    STATE  NODES NODELIST(REASON)
+  58     batch fl-train  alice  PENDING      3 (Nodes required for job are DOWN, DRAINED or reserved for jobs in higher priority partitions)
+  57     batch fl-train  alice  RUNNING      2 c[1,3]</pre>
+<p class="ft-cap"><span class="ft-meas">measured</span> on the Slurm cluster (root page, <code>src/fail/runs/fl-drain/drain.txt</code>): the 2-node job ran around the drained node, the 3-node job waited with that reason.</p>
+</div>
+<div>
+<pre>$ kubectl cordon mi-kind-worker3
+$ kubectl get nodes
+NAME                    STATUS                     ROLES
+mi-kind-control-plane   Ready                      control-plane
+mi-kind-worker          Ready                      &lt;none&gt;
+mi-kind-worker2         Ready                      &lt;none&gt;
+mi-kind-worker3         Ready,SchedulingDisabled   &lt;none&gt;
+$ kubectl get node mi-kind-worker3 -o jsonpath={.spec.taints}
+[{"effect":"NoSchedule","key":"node.kubernetes.io/unschedulable",...}]</pre>
+<p class="ft-cap"><span class="ft-meas">measured</span> on kind (root page, <code>src/fail/runs/fl-cordon/cordon.txt</code>): cordon is itself a taint; a JobSet submitted next landed on worker and worker2.</p>
+</div>
+</div>
+<p><b>A health check that drains its own node.</b> Slurm runs <code>HealthCheckProgram</code> on every node every <code>HealthCheckInterval</code> seconds, as root, and ignores its exit code: the script must drain the node itself. This one checks that the node's four (fake) GPU devices exist; a real one runs <code>nvidia-smi</code> or <code>dcgmi diag</code>, scans the kernel log for Xid errors, and checks ECC counters, NVLink and InfiniBand ports.</p>
+<pre>#!/bin/sh
+NODE=$(hostname)
+missing=""
+for i in 0 1 2 3; do [ -e /dev/mi_gpu$i ] || missing="$missing mi_gpu$i"; done
+if [ -n "$missing" ]; then
+  scontrol update nodename="$NODE" state=drain reason="healthcheck: missing$missing"
+  exit 1
+fi
+exit 0</pre>
+<p class="ft-cap"><code>src/fail/scripts/fl_healthcheck.sh</code>, with <code>HealthCheckProgram=/shared/jobs/fl/fl_healthcheck.sh</code>, <code>HealthCheckInterval=10</code>, <code>HealthCheckNodeState=ANY</code> added to <code>slurm.conf</code> for the test, then removed. Moving one device file away drained the node within <span id="fl-hc-v">1.4 to 7.3</span> s in four tries <span class="ft-meas">measured</span>: anywhere up to one interval, depending on where in the cycle the fault lands.</p>
+<p><b>The Kubernetes trap measured in section 2.</b> A node that goes silent becomes NotReady after 50 s and gets the taint <code>node.kubernetes.io/unreachable:NoExecute</code>; pods tolerate it for 300 s by default, then are marked for deletion. But a pod is only gone when its kubelet confirms it, and a dead kubelet never does, so the pod stays <code>Terminating</code> and anything waiting for it waits forever. The fix is to tell the cluster the node is really down:</p>
+<pre>kubectl taint node mi-kind-worker2 node.kubernetes.io/out-of-service=nodeshutdown:NoExecute</pre>
+<p class="ft-cap"><span class="ft-meas">measured</span>: 2 s after this taint the stuck pod was force-deleted, the JobSet restarted on two healthy workers and the run resumed from step 100 (root page, <code>src/fail/runs/fl-k3</code>). Remove the taint once the node is repaired. Clusters automate this with a node-health controller rather than a person.</p>
 </section>

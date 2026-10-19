@@ -42,6 +42,12 @@ for root, dirs, files in os.walk(PAGE):
         for mm in pat.finditer(s):
             if mm.group(0) in ("19.5.1.1", "19.3.1.2", "0.0.0.0"): continue  # manual section numbers and the bind-all address
             hits.append((os.path.relpath(p, PAGE), mm.group(0)))
+# the root Storage lab's charts drawn here since 2026-10-19 read the root's recorded data unchanged (single source)
+_m = re.search(r"window\.IO_D=(\{.*?\});\n", html, re.S)
+_ref = json.load(open(os.path.join(SRC, "..", "..", "src", "io", "out", "io_data.json"))); _ref["anatomy"].pop("entry_names_sample", None)
+ok(_m is not None and json.loads(_m.group(1)) == _ref, "page embeds the root's src/io/out/io_data.json exactly (window.IO_D)")
+for _id in ("io-tiers-card", "io-anat-bar", "io-scale-rows", "io-lay-card", "io-as-card", "io-pf-card", "io-errs"):
+    ok('id="' + _id + '"' in html, "moved chart present: " + _id)
 ok(not hits, "privacy grep clean " + str(hits[:8]))
 big = [(fn, os.path.getsize(os.path.join(r, fn))) for r, _, fs in os.walk(PAGE) for fn in fs if os.path.getsize(os.path.join(r, fn)) > 1_000_000 and ".shots" not in r]
 ok(not big, "no file over 1 MB " + str(big))

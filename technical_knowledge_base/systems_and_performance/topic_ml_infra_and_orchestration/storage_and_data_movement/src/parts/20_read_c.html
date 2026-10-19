@@ -50,4 +50,14 @@
 <li><b>Small files that must exist</b>: Data on MDT, so each costs one server.</li>
 <li><b>More metadata servers</b> (DNE on Lustre, more metadata IOPS on FSx) when the workload truly needs them: on the toy, a second metadata server took 16 clients from 1,603 to 2,635 operations per second <span class="meas">measured</span>.</li>
 </ul>
+<div class="io-moved">
+<h3>Measured: the same bytes as big files and as small ones, and prefetch</h3>
+<p>In the root page's Storage lab <span class="meas">measured</span>: reading training data is the easy pattern: sequential, predictable, and small next to the compute for text (the {{throughput calculator on Storage and loading|n:3f95c17b0d0d81398782efcb29d950d4}} shows Llama 3 405B needed about 11 MB/s of token ids for the whole job). Two things still go wrong, and both are about <b>requests</b>, not bytes. Measured with 64 MiB of the running example's token ids, stored as 16 files of 4 MiB or as 16,384 files of 4 KiB (the same bytes), on a Docker volume and on the S3 store, from one container <span class="io-tag io-measured">measured</span>:</p>
+<div class="io-card"><div class="tw"><table class="io-tbl"><thead><tr><th>Same 64 MiB as</th><th>Store</th><th class="num">Write</th><th class="num">Read, 1 at a time</th><th class="num">Read, 16 threads</th></tr></thead><tbody id="io-dr-rows"></tbody></table></div>
+<p class="small" id="io-dr-text"></p></div>
+<p><b>The small-files problem.</b> Each file costs an open, a metadata lookup and a close; each object costs an HTTP request. At 4 KiB per file those fixed costs are the whole bill. On a parallel file system they land on the metadata servers, which are far fewer than the storage servers: FSx for Lustre, for example, includes 1,500 metadata IOPS at 1.2 TiB and serves 2 file create/open/close operations per metadata IOPS <span class="io-tag io-vendor">vendor</span> ({{AWS|https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html}}), so a thousand nodes each opening millions of tiny files saturate it long before the disks are busy. The cure is the one {{Storage and loading|n:3f95c17b0d0d81398782efcb29d950d4}} teaches: pack samples into shards of tens to hundreds of megabytes. Checkpoints obey the same rule: DCP writes one file per rank, not one per tensor.</p>
+<p><b>Prefetch.</b> A loader that fetches the next shard only when it needs it adds the fetch to every step; one that keeps the next shards in flight hides it, as long as fetching is faster than computing. A loop that needs one 4 MiB shard per step and computes for 100 ms (a sleep standing in for the GPU):</p>
+<div class="io-card" id="io-pf-card"><div class="seg" id="io-pf-st"><button data-m="s3" class="on">S3 store</button><button data-m="local">Docker volume</button></div>
+<div id="io-pf-svg" class="io-svg"></div><p class="small" id="io-pf-text"></p></div>
+</div>
 </section>
