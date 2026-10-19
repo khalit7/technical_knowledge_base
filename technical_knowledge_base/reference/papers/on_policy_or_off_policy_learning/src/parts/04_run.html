@@ -1,0 +1,57 @@
+<section class="tab" id="t-run" role="tabpanel" hidden>
+<h2>Move the rollout policy</h2>
+<p>The paper's Section 5 in miniature, computed live. A teacher and a small student answer 12 prompts; every answer is two tokens, a <b>route</b> (5 choices) and then an <b>answer</b> (5 choices), and for each prompt and route one answer is correct. The teacher prefers two routes per prompt and knows the answers; the student starts with a habit, one route the teacher seldom takes. The loss is the paper's ({{Eq. 1|ax:S3.E1}}: exact token-level KL over the whole vocabulary at both positions), the rollouts come from the paper's π<sub>λ</sub> with its safeguards ({{Appendix D.5|ax:A4.SS5}}), and training is Adam with the gradient clipped at 1.0, 32 rollouts per step, 150 steps, as in {{Table 3|ax:A4.SS3}}. The teacher's logits are divided by 0.5 and the student's by 1.0, as in the paper.</p>
+<p class="small mute">Two students: <b>direct logits</b> (one free number per prefix and token, 360 in all; its logit Jacobian is the identity, so Theorem C.1's <i>B</i> is exactly 1) and a <b>shared network</b> (one hidden layer of 6 tanh units, 184 parameters, which cannot memorise all 60 answers and so has to compromise, as a real student must). Every number below is computed in your browser by the same code that produced the recorded sweep; the engine is checked against PyTorch ({{the check|tab:t-run:runCheck}}). Illustrative task: nothing here is a measurement of a language model.</p>
+
+<h3 id="runSpec">1. Slide λ: who writes the rollouts, and how much the update moves</h3>
+<div class="card" id="sl">
+<div class="ctl"><label>λ <b id="slV"></b><input type="range" id="slL" min="-2" max="2" step="0.1" value="-1"></label><label class="small">prompt <select id="slP"></select></label><div class="seg" id="slM" role="group" aria-label="Student"><button class="on" data-m="table" aria-pressed="true">direct logits</button><button data-m="mlp" aria-pressed="false">shared network</button></div></div>
+<div id="slSvg"></div>
+<p class="small" id="slCap"></p>
+<div id="slG"></div>
+<div class="an-cnt" id="slCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Top: the first-token distributions at the start of training for the chosen prompt. Bottom: the exact expected update (the semi-gradient of Appendix C, averaged over every prompt and route under π<sub>λ</sub>) minus the purely off-policy update at λ = −1 (the length of the difference). The boxes give the total-variation distance between the sequence distributions the two rollout policies produce and, for the direct-logit student, the paper's bounds: 2√2 × distance for forward KL ({{Theorem C.1|ax:A3.SS2}}) and 2<i>R</i> × distance for reverse KL ({{Corollary C.3|ax:A3.SS4}}), with <i>R</i> the largest log-ratio spread at any prefix. Both updates stay far inside their bounds.</p>
+</div>
+<div class="pred" id="pr-bound" data-ans="0"><div class="q">On the direct-logit student, going from teacher-written (λ = −1) to student-written rollouts (λ = +1) moves forward KL's expected update by 0.085, well under its bound of 2.4. Reverse KL's bound is 14.0, six times looser. How far does reverse KL's update actually move?</div>
+<div class="opts"><button>Only a little more: about 0.10</button><button>Several times more, near its bound</button><button>Less than forward KL's</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>Only a little more. With 5 tokens, the student's and teacher's log-probabilities differ by at most about 8 nats here, and few visited prefixes put real student mass on a token the teacher rules out, so reverse KL's update moves 0.104, about a fifth more than forward KL's and far below its bound (the shared network gives 0.27 against 0.34). Theorem C.2 is a worst case: it needs a prefix like the one in {{the paper tab's gradient card|tab:t-read:gr}}. Slide λ above and watch the two bottom curves.</p></div></div>
+
+<h3 id="runTrain">2. Train along the spectrum</h3>
+<div class="card" id="tr">
+<div class="ctl"><div class="seg" id="trM" role="group" aria-label="Measure"><button class="on" data-m="pass1" aria-pressed="true">pass@1</button><button data-m="distinct10" aria-pressed="false">distinct correct routes in 10 samples</button></div>
+<div class="seg" id="trL" role="group" aria-label="Learning rate"><button class="on" data-m="0.02" aria-pressed="true">lr 0.02</button><button data-m="0.1" aria-pressed="false">lr 0.1</button></div>
+<div class="seg" id="trS" role="group" aria-label="Student"><button class="on" data-m="mlp" aria-pressed="true">shared network</button><button data-m="table" aria-pressed="false">direct logits</button></div></div>
+<div id="trSvg"></div>
+<p class="small" id="trCap"></p>
+<div class="ctl"><button id="trGo">Rerun this sweep in your browser</button><span class="small" id="trOut"></span></div>
+<p class="small mute" style="margin:6px 0 0">Means over three seeds (whiskers one SEM), each run 150 steps of 32 rollouts, evaluated exactly (every route and answer enumerated) at temperature 1. Dotted: the teacher (green) and the untrained student (grey). The recorded sweep comes from <code>src/toy_sweep.mjs</code>; the button recomputes the selected panel and compares.</p>
+</div>
+<div class="co"><div class="t">Reproduces, and does not reproduce</div>
+<ul class="chk">
+<li><span class="vd ok">reproduces</span> Forward KL is insensitive to the rollout policy: on the shared network its pass@1 moves by <b id="trFr"></b> points across all nine λ at lr 0.02, against the paper's 5.2.</li>
+<li><span class="vd ok">reproduces</span> Forward KL keeps more ways to be right: more distinct correct routes than reverse KL at every λ and both learning rates, the direction of the paper's pass@10 result.</li>
+<li><span class="vd no">does not reproduce</span> Reverse KL's sensitivity: on the toy it is just as flat as forward KL (range <b id="trRr"></b> points at lr 0.02) and is the more accurate direction, as on the {{Distillation page's toy|n:3c65c17b0d0d81efa2a8c3b3b623eb09}}. The paper's 31-point gap needs prefixes with extreme log-ratios; here the log-ratio spread is about 8 nats and the batch gradient norm never reaches the clipping threshold (about 0.7 at the first step, under 0.25 after step 25), so clipping changes nothing and was not shown. The task was not retuned to force the effect ({{design log|tab:t-run:runCheck}}).</li>
+</ul></div>
+
+<h3 id="runBA">3. One prompt, before and after</h3>
+<div class="card" id="ba">
+<div class="an-top"><div class="seg" id="baM" role="group" aria-label="Training"><button class="on" data-m="f-1" aria-pressed="true">forward KL, teacher writes</button><button data-m="f1" aria-pressed="false">forward KL, student writes</button><button data-m="r-1" aria-pressed="false">reverse KL, teacher writes</button><button data-m="r1" aria-pressed="false">reverse KL, student writes</button></div></div>
+<div class="ctl" style="margin-top:6px"><label class="small">prompt <select id="baP"></select></label><span class="small mute">shared network, lr 0.1, seed 42</span></div>
+<div id="baSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="baBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="baPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="baFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="baScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the checkpoints">
+<label class="small">Speed <select id="baSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="baStep"></div><p id="baCap"></p></div>
+<div class="an-cnt" id="baCnt"></div>
+<p class="small mute" style="margin:6px 0 0">Each bar is the student's probability of taking a route; its dark part is the probability of then answering correctly, so the dark parts add up to this prompt's pass@1. Outlined boxes: the teacher's route probabilities. Same scale in all four modes; checkpoints every 10 steps, trained live when the card first draws.</p>
+</div>
+
+<h3 id="runCheck">4. What the toy shows, what it cannot, and how it was checked</h3>
+<div class="card"><div id="chkOut"></div>
+<ul>
+<li><b>Shows:</b> the paper's loss, rollout spectrum and safeguards running exactly; forward KL's bounded sensitivity to the rollout policy (Theorem C.1) holding on a real student; the coverage trade between the two directions.</li>
+<li><b>Cannot show:</b> anything that depends on scale. Five tokens cannot produce the extreme log-ratios that make reverse KL fragile in a 1B model, two-token answers cannot drift the way 1,000-token traces do, and the toy has no "general ability" to forget, so forgetting and sparsity are not modelled.</li>
+<li><b>Design log:</b> a first version with direct logits only showed nothing at all (every setting reached the teacher's 0.85, because Adam moves every visited logit at the learning rate however small its gradient). It was replaced once, before its results were seen, by the shared network; the learning rates and everything else were fixed in advance. Both are kept and shown. The log is <code>src/inputs/toy_design_log.txt</code>.</li>
+</ul></div>
+</section>
