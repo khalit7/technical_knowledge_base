@@ -4,7 +4,7 @@ Checked 2026-10-05 against the old pages as fetched read-only from Notion by the
 
 | # | Old page | Old claim | Verdict | What is true on 2026-10-05 | Source |
 |---|---|---|---|---|---|
-| 1 | Python: staying current | "Python 3.15 is due 2026-10-01" | outdated | A third release candidate was added (3.15.0rc3, 2026-10-02); final now expected 2026-10-09 | [PEP 790](https://peps.python.org/pep-0790/) |
+| 1 | Python: staying current | "Python 3.15 is due 2026-10-01" | outdated | A third release candidate was added (3.15.0rc3, 2026-10-02); 3.15.0 was released on 2026-10-09 | [PEP 790](https://peps.python.org/pep-0790/), [python.org](https://www.python.org/downloads/release/python-3150/) |
 | 2 | Python: staying current | "mypy is legacy-maintenance only" | wrong | mypy is in an active 2.x series: 2.3.0 (2026-07-13), 2.3.1 (2026-08-15), 2.4.0 (2026-10-01) | [PyPI](https://pypi.org/project/mypy/2.4.0/), [releases](https://github.com/python/mypy/releases) |
 | 3 | Python: staying current | "ty (Astral, Rust) hit beta in 2026" | wrong | Astral announced ty's beta on 2025-12-16; it is still 0.0.x (0.0.84, 2026-09-24) and its README still says beta | [Astral blog](https://astral.sh/blog), [ty README](https://github.com/astral-sh/ty) |
 | 4 | Python: zero to expert | "`uv init myproj`, `uv add requests`, `uv run main.py`" | outdated | With uv 0.12.23, `uv init` with no flags makes a packaged project under `src/` with a console script and the `uv_build` backend; there is no `main.py` to run (`uv run <project-name>` instead). Measured in walk/py.txt | `uv init --help`; walk/py.txt |
