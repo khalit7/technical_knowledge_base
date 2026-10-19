@@ -3,7 +3,7 @@
 `sh build.sh` runs `build_data.py` (inputs to `parts/22_js_data.js` and `facts.json`) and writes `../index.html` from `parts/` (same scheme as the root Topic: databases and the sibling pages: `01_head`, `10_header`, `20_read_*.html` for the Reading tab, `3x_tab_*.html` one per tab, every `*.js` in its own `<script>`, `99_js_tabs.js` last). Links are written `{{text|url}}` (`n:<notion id>` or `#t-<tab>`); measured numbers in the prose are written `@@key@@` and filled from `facts.json`, so prose and data cannot disagree.
 
 ## Parts
-- Reading: `20_read_a` (one screen, section 1) to `20_read_g` (operations, production, mistakes, numbers, glossary). JS: `21_js_common.js` (animation controller, copied from the root), `22_js_data.js` (generated), `22b_js_bm25.js` (BM25 and RRF arithmetic), `23_js_toy.js` (the 2D toy: real HNSW build and search, k-means IVF, filters), `24_js_rd_inv.js` (inverted index animation), `25_js_rd_bm25.js` (BM25 calculator and RRF widget), `26_js_rd_tables.js` (measured tables, ts_debug, glossary), `31_js_rd_ann.js` (one query four ways), `32_js_rd_filt.js` (filtered search animation).
+- Reading: `20_read_a` (one screen, section 1) to `20_read_g` (operations, production, mistakes, numbers, glossary). JS: `21_js_common.js` (animation controller, copied from the root), `22_js_data.js` (generated), `22b_js_bm25.js` (BM25 and RRF arithmetic), `24_js_rd_inv.js` (inverted index animation), `25_js_rd_bm25.js` (BM25 calculator), `26_js_rd_tables.js` (measured tables, ts_debug, glossary).
 - ANN lab: `34_tab_ann.html`, `41_js_ann.js`. Retrievers side by side: `35_tab_side.html`, `45_js_side.js`. Further reading: `39_tab_more.html`.
 
 ## Data and checks
@@ -18,5 +18,8 @@ All from a scratch folder; nothing installed system-wide; each step under 15 min
 3. `SV_WORK=<scratch>/work uv run --no-project --python 3.12 --with sentence-transformers --with numpy python measure/embed.py <beir folder> scifact,quora` (about 2.5 minutes on the M1 GPU through MPS).
 4. `SV_PG=... SV_WORK=... uv run --no-project --python 3.12 --with 'psycopg[binary]' --with pgvector --with numpy python measure/m1_ann.py`, then `m2_fts.py`, then `m3_tiny.py` (add `--with sentence-transformers`). Each stage saves as it goes; rerunning skips finished stages unless `FORCE=1`.
 
+## Ownership (overlap fix, 2026-10-19)
+ANN internals (IVF, PQ, HNSW, DiskANN, ScaNN, quantisation, filtered-search strategies) belong to Vector indexes from the inside (3f85c17b0d0d81f29707c130b2ebcfb1); Reading 9, 11 and 12 are pgvector-specific summaries that link it, and the 2D toy animations (one query four ways, filtered search) were removed. Fusion belongs to The retrieval pipeline (3c65c17b0d0d819899fde889e1e8b782); Reading 13 keeps a one-line RRF and the measured Postgres hybrid, and the six-question RRF widget was removed. This page owns the inverted index and BM25 from zero (Reading 3 and 4), pgvector, and choosing a database.
+
 ## Departures from the method
-Two tabs: the ANN lab (measured curves and a calculator) and Retrievers side by side (a gallery of real labelled questions) answer different questions. The toy animations use two dimensions so a graph can be drawn; they are labelled illustrative and every real number sits beside them. No dedicated vector database was run locally; the page says the only head-to-head numbers are vendor-run.
+Two tabs: the ANN lab (measured curves and a calculator) and Retrievers side by side (a gallery of real labelled questions) answer different questions. No dedicated vector database was run locally; the page says the only head-to-head numbers are vendor-run.

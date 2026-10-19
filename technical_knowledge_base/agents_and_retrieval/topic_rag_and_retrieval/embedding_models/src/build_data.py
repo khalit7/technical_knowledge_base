@@ -2,8 +2,9 @@
 written in the prose as @@key@@, filled in by build.sh), so prose and data cannot disagree.
 A result whose GPU run has not been made yet is written as a visible "pending run" marker, never guessed; the list of
 pending keys is printed and stored in facts.json under _pending.
-Also reads two committed outputs of the parent page: ../../src/vec/out/contrastive.json (the training batch) and
-../../src/vec/out/models.json (cost records of the setup's models).
+Also reads a committed output of the parent page: ../../src/vec/out/models.json (cost records of the setup's models).
+(The parent's contrastive.json fed the "who gets pushed" widget, removed 2026-10-19: the Contrastive and
+self-supervised learning page owns InfoNCE's gradient split; check_data.py still checks its batch-size sweep.)
 usage: python3 build_data.py"""
 import json
 import os
@@ -112,8 +113,6 @@ EMB["fn"] = dict(bars=[["positive ranked first (bge-small)", mi["pos_rank_bge"][
                        ["same, Qwen3-Embedding", mi["above_pos_qwen3"]],
                        ["both models", mi["above_pos_both"]]],
                  examples=[e for i, e in enumerate(mi["examples"]) if e["neg"] not in [x["neg"] for x in mi["examples"][:i]]][:3])
-cb = R("contrastive.json")
-EMB["push"] = dict(batch=cb["batch"], cos=cb["models"]["bge-small"]["cos"], hard=cb["models"]["bge-small"]["hard"])
 # ---------------------------------------------------------------- choose, domain shift, subsample
 ch = D("choose.json")
 S = ch["sets"]

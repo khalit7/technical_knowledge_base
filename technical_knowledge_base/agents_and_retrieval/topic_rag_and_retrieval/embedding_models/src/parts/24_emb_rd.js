@@ -1,4 +1,4 @@
-// ---- Reading tab, part 1: the pooling animation, code quotes, pooling table, the push widget, false negatives ----
+// ---- Reading tab, part 1: the pooling animation, code quotes, pooling table, false negatives ----
 (function(){
   const E=window.EMB,esc=RD.esc;
   // ---------- code blocks with line numbers
@@ -52,24 +52,6 @@
     RD.seg(document.getElementById('emb-pa-model'),v=>{model=v;an.redraw()});
     RD.seg(document.getElementById('emb-pa-pool'),v=>{mode=v;an.redraw()});
     RD.onResize(()=>an.redraw())})();
-
-  // ---------- who gets pushed (softmax weights over negatives)
-  (function(){const card=document.getElementById('emb-push-card');if(!card)return;
-    const P=E.push,sel=document.getElementById('emb-push-row'),tr=document.getElementById('emb-push-t'),tv=document.getElementById('emb-push-tv');
-    P.batch.forEach((b,i)=>{const o=document.createElement('option');o.value=i;o.textContent=(i+1)+'. '+b.claim.slice(0,60);sel.appendChild(o)});
-    let hard=0;const taus=[];for(let k=0;k<=40;k++)taus.push(+(0.01*Math.pow(10,k*Math.log10(100)/40)).toFixed(4));
-    tr.value=String(taus.findIndex(t=>Math.abs(t-0.05)<0.004));
-    function draw(){const r=+sel.value,t=taus[+tr.value];tv.textContent=t<0.1?t.toFixed(3):t.toFixed(2);
-      const row=P.cos[r],names=P.batch.map(b=>b.pos_title||'');let c=row.map((v,j)=>({nm:(j===r?'positive: ':'')+names[j],v,pos:j===r}));
-      if(hard)c.push({nm:'hard: '+P.hard[r].title,v:P.hard[r].cos,hard:1});
-      const mx=Math.max(...c.map(x=>x.v/t));const ex=c.map(x=>Math.exp(x.v/t-mx));const Z=ex.reduce((a,b)=>a+b,0);
-      const pPos=ex[r]/Z,negZ=Z-ex[r];
-      const cut=t=>t.length>44?t.slice(0,43)+'…':t;const rows=c.map((x,j)=>({name:cut(x.nm),v:x.pos?pPos:ex[j]/negZ,color:x.pos?'var(--good)':x.hard?'var(--bad)':'var(--acc)',txt:x.pos?(pPos*100).toFixed(0)+'%':(100*ex[j]/negZ).toFixed(0)+'% · '+x.v.toFixed(2),hl:x.pos||x.hard}));
-      EL.bars(document.getElementById('emb-push-svg'),rows,{max:1});
-      const loss=-Math.log(pPos);const top=Math.max(...c.map((x,j)=>x.pos?0:ex[j]/negZ));
-      document.getElementById('emb-push-ctr').innerHTML='<span>loss for this row <b>'+loss.toFixed(3)+'</b></span><span>largest share of the push <b>'+(100*top).toFixed(0)+'%</b></span><span>&tau; <b>'+tv.textContent+'</b></span><span class="small">first bar: the softmax probability of the positive; others: share of the gradient on the negatives, then the cosine</span>'}
-    sel.addEventListener('change',draw);tr.addEventListener('input',draw);
-    RD.seg(document.getElementById('emb-push-hard'),v=>{hard=+v;draw()});RD.onRender(draw);draw()})();
 
   // ---------- false negatives: bars and examples
   (function(){const el=document.getElementById('emb-fn-bars');if(!el)return;

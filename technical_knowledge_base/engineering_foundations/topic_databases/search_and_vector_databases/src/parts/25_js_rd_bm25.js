@@ -27,19 +27,3 @@
   document.getElementById('bmReset').addEventListener('click',()=>{k1el.value=1.2;bel.value=.75;draw()});
   RD.onRender(draw);RD.onResize(draw);draw();
 })();
-// ---- Reading: reciprocal rank fusion of the BM25 ranking and the vector ranking on the same six questions ----
-(function(){
-  const D=window.SV&&SV.tiny;if(!D||!document.getElementById('rrfCard'))return;
-  const ql=D.query_lexemes.map(x=>x[0]),docs=D.docs,esc=RD.esc,kel=document.getElementById('rrfK');
-  function draw(){const k=+kel.value;document.getElementById('rrfKv').textContent=k;
-    const r=SV.bm25(docs.map(d=>d.lexemes),ql,1.2,.75);
-    const lex=r.scores.map((s,j)=>[s,j+1]).filter(x=>x[0]>0).sort((a,c)=>c[0]-a[0]||a[1]-c[1]).map(x=>x[1]);
-    const vec=docs.map((d,j)=>[d.cos,j+1]).sort((a,c)=>c[0]-a[0]||a[1]-c[1]).map(x=>x[1]);
-    const f=SV.rrf([lex,vec],k);
-    const rk=(L,d)=>{const i=L.indexOf(d);return i<0?null:i+1};
-    let h='<table class="mini"><tr><th>Fused rank</th><th>Question</th><th>BM25 rank</th><th>Vector rank (cosine)</th><th>RRF score</th></tr>';
-    f.forEach(([d,s],i)=>{const a=rk(lex,d),b=rk(vec,d);h+='<tr'+(i===0?' class="hl"':'')+'><td class="num">'+(i+1)+'</td><td style="white-space:normal;min-width:12em">'+esc(docs[d-1].text)+'</td><td class="num">'+(a||'not matched')+'</td><td class="num">'+b+' ('+docs[d-1].cos.toFixed(3)+')</td><td class="num">'+
-      (a?'1/('+k+'+'+a+')':'0')+' + 1/('+k+'+'+b+') = '+s.toFixed(5)+'</td></tr>'});
-    document.getElementById('rrfTab').innerHTML=h+'</table>'}
-  kel.addEventListener('input',draw);RD.onRender(draw);draw();
-})();

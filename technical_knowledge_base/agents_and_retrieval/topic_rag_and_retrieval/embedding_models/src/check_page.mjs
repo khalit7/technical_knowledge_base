@@ -10,7 +10,7 @@ const [file, shots] = process.argv.slice(2); fs.mkdirSync(shots, { recursive: tr
 const b = await puppeteer.launch({ headless: 'shell' });
 let bad = 0;
 const TABS = ['t-read', 't-embtrain', 't-embchoose', 't-more'];
-const PIECES = ['emb-pa-card', 'emb-push-card', 'emb-fn-bars', 'emb-fn-ex', 'emb-ft-card', 'emb-pf-svg', 'emb-ln-svg', 'emb-ds-svg', 'emb-mt-svg', 'emb-sub-svg', 'emb-pool-tab', 'emb-code-pool', 'emb-tl-body', 'emb-ch-svg', 'emb-ch-tab', 'emb-ch-verdict'];
+const PIECES = ['emb-pa-card', 'emb-fn-bars', 'emb-fn-ex', 'emb-ft-card', 'emb-pf-svg', 'emb-ln-svg', 'emb-ds-svg', 'emb-mt-svg', 'emb-sub-svg', 'emb-pool-tab', 'emb-code-pool', 'emb-tl-body', 'emb-ch-svg', 'emb-ch-tab', 'emb-ch-verdict'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
