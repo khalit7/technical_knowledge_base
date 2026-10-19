@@ -40,3 +40,6 @@ RL lesson: the reader asked to be taught from zero toward four goals (running a 
 so each section keeps the problem, mechanism, cost, when it matters and how to check it. Candidates to move to children
 if Khalid wants it shorter: the engine table's detail (to "Serving engine internals"), section 8 and the benchmarking list
 of section 9 (to "LLM serving in production"). Section 11 and Further reading link all eight children (built 2026-10-08 to 2026-10-11) with their titles and Reading times; each "Go deeper" note links the child that owns its subject, naming the tab where one exists.
+
+## 2026-10-19: Sampling and Decoding joins as the ninth child
+Sampling and Decoding (Notion id unchanged) moved here from Topic: llm-training-and-post-training on 2026-10-19; its folder is now `sampling_and_decoding/`. Section 11 and Further reading list it with the other children (nine now), with its measured Reading time (3,619 words / 230 = about 16 min); its old "Knowledge base pages" card is gone. The Reading links it where decoding is discussed: section 0's neighbours note (now "this topic's child"), section 1's sentence on picking a token and its Go deeper note, section 6's Go deeper note (the distributions the acceptance rule preserves) and section 8's structured output (the mask and its distortion). The page itself does not mention the move.
