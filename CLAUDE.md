@@ -17,7 +17,7 @@ A migrated page folder holds `index.html` (the whole Notion page, built), `READM
 - `explainer-page`: teach a subject as an interactive page: a new topic (root plus children) from a few lines of what Khalid wants to learn, a child page, a paper, a tech-news issue, or a rebuild or migration.
 - `explainer-video`: a narrated video of a page (HyperFrames + Chatterbox Turbo).
 - `sync-KB-github`: publish every changed page to Notion, then commit and push.
-- `update-KB`: the periodic update. Reads the last-updated date from Notion (Source freshness, row "Technical KB"), researches everything since, writes that window's tech-news issue, integrates durable knowledge into the owning pages, adds papers, publishes, and moves the date forward.
+- `update-kb`: the periodic update. Reads the last-updated date from Notion (Source freshness, row "Technical KB"), researches everything since, writes that window's tech-news issue, integrates durable knowledge into the owning pages, adds papers, publishes, and moves the date forward.
 
 No knowledge-base skills live in Notion any more (deleted 2026-10-19); Notion's Instructions page and the weekly Monday routine point here.
 

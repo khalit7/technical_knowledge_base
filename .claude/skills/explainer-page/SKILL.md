@@ -15,7 +15,7 @@ The repository is the source of truth; Notion only displays it. Every page is on
 | A new topic and a few lines on what Khalid wants to learn | [understand/reader.md](understand/reader.md) (ask the opening questions), then research and curriculum | [page-kinds/topic-root.md](page-kinds/topic-root.md) + children [page-kinds/topic-child.md](page-kinds/topic-child.md), run with [orchestration/topic-pipeline.md](orchestration/topic-pipeline.md) |
 | One new child page under an existing root | read the root and siblings, then research | [page-kinds/topic-child.md](page-kinds/topic-child.md) |
 | A paper (title, arXiv link or PDF) | [understand/research.md](understand/research.md) (read the paper and its tables) | [page-kinds/paper.md](page-kinds/paper.md) |
-| A tech-news issue (written by the `update-KB` skill's periodic pass) | sources of the window | [page-kinds/tech-news.md](page-kinds/tech-news.md) |
+| A tech-news issue (written by the `update-kb` skill's periodic pass) | sources of the window | [page-kinds/tech-news.md](page-kinds/tech-news.md) |
 | An existing written Notion page or an old topic | [page-kinds/migrate-or-fold.md](page-kinds/migrate-or-fold.md) (coverage floor, unmatched children) | the kind it becomes |
 
 ## The flow
