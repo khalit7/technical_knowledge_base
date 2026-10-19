@@ -19,7 +19,7 @@ Worked example: `technical_knowledge_base/models_and_training/topic_llm_landscap
 - An existing video must be remade because the page changed (rebuild from step 1 or from the changed frames).
 - An existing video must be re-voiced (new voice backend, fixed pronunciations, changed lines): step 9 of the workflow.
 
-Not for: building or changing the page itself (`explainer-page`), publishing pages (`sync-KB-github`).
+Not for: building or changing the page itself (`explainer-page`), publishing pages (`sync-kb-github`).
 
 ## Steps (full detail in `workflow.md`)
 1. Absorb the page until you could teach it.
@@ -69,4 +69,4 @@ Report to Khalid:
 ## Sources distilled
 (History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
-`.claude/skills/create-explainer-video/SKILL.md`; `video_utils/README.md`, `narrate.py`, `check_takes.py`, `vendor_skills.sh`, both voice `pyproject.toml`; `CLAUDE.md` (Notion and video notes, writing rules, agent limits); `.claude/skills/sync-KB-github/SKILL.md` (Videos, stable `file://` form); the worked example at `topic_llm_landscape/video/`; the vendored `hyperframes`, `faceless-explainer` and `general-video` skills; memory notes on old videos and one GPU agent at a time.
+`.claude/skills/create-explainer-video/SKILL.md`; `video_utils/README.md`, `narrate.py`, `check_takes.py`, `vendor_skills.sh`, both voice `pyproject.toml`; `CLAUDE.md` (Notion and video notes, writing rules, agent limits); `.claude/skills/sync-kb-github/SKILL.md` (Videos, stable `file://` form); the worked example at `topic_llm_landscape/video/`; the vendored `hyperframes`, `faceless-explainer` and `general-video` skills; memory notes on old videos and one GPU agent at a time.

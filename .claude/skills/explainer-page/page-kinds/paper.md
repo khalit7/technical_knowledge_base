@@ -147,7 +147,7 @@ Short papers with nothing to run take about 2 hours.
 ## Many papers at once
 1. **Assign**: give each paper to one subagent with the paper brief ([../orchestration/briefs/paper-agent.md](../orchestration/briefs/paper-agent.md)): title, Notion id and folder; about four at a time.
 2. **Check each finished page**: rerun `checkpage.sh` and look at the screenshots.
-3. **Publish it** with the `sync-KB-github` steps. The row page has no children, so `replace_content` with the embed and the source line is right.
+3. **Publish it** with the `sync-kb-github` steps. The row page has no children, so `replace_content` with the embed and the source line is right.
 4. **Record**: run `python3 html_utils/paper_finalize.py <slug>` (status `html_only`, published hash, commit), then push.
 
 Progress is in `pages.json`. A paper with status `not_migrated` whose folder already has an `index.html` was built and not yet published; one with only a README has not started.

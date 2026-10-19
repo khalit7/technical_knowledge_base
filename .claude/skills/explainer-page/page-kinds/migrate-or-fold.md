@@ -46,7 +46,7 @@ Map every old page of the topic (the root and every old child) to the new plan b
 - **Registering it**: add it to `pages.json` with its folder ([../orchestration/topic-pipeline.md](../orchestration/topic-pipeline.md)).
 
 ## Publishing migrated pages
-Publishing is the `sync-KB-github` skill; the points that matter for migrations:
+Publishing is the `sync-kb-github` skill; the points that matter for migrations:
 - **A page without children or databases**: one `replace_content` with the embed and the source line.
 - **A page with child pages or databases** (every root): never `replace_content`.
   1. Insert the embed and source line at the start with `update_content`.
@@ -60,4 +60,4 @@ Publishing is the `sync-KB-github` skill; the points that matter for migrations:
 ---
 (History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
-Sources distilled: html_utils/BRIEF_page_agent.md (Step 0, the model); html_utils/methods/topic_pages.md Part A (folding, publishing a root with children); memory check-coverage-before-leaving-old, teach-dont-ask-scope and the rl, benchmarks, evaluation, ml-fundamentals, swe, rag, protocols, proglang, os, pytorch, jax, mi and gm topic logs; .claude/skills/sync-KB-github/SKILL.md; CLAUDE.md (Notion facts).
+Sources distilled: html_utils/BRIEF_page_agent.md (Step 0, the model); html_utils/methods/topic_pages.md Part A (folding, publishing a root with children); memory check-coverage-before-leaving-old, teach-dont-ask-scope and the rl, benchmarks, evaluation, ml-fundamentals, swe, rag, protocols, proglang, os, pytorch, jax, mi and gm topic logs; .claude/skills/sync-kb-github/SKILL.md; CLAUDE.md (Notion facts).

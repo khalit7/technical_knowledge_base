@@ -1,9 +1,9 @@
 ---
-name: sync-KB-github
+name: sync-kb-github
 description: Sync the Technical knowledge base from this repository (the source of truth) to Notion and GitHub. Rebuild every HTML-only page, upload each one whose index.html differs from what Notion holds, then commit and push. Videos are never stored in the repository. Use when Khalid asks to sync, publish or push the knowledge base.
 ---
 
-# sync-KB-github
+# sync-kb-github
 
 **This repository is the source of truth; Notion only displays it.** A migrated page in Notion holds exactly: one HTML block (this repo's `index.html`), one line naming its source folder here, and, where it has them, its video and its child pages. The sync makes Notion match the repository and pushes the repository to GitHub. It never copies anything from Notion into the repository.
 

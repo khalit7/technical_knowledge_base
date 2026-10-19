@@ -2,7 +2,7 @@
 
 Notion: https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df
 
-`index.html` is the whole Notion page (one interactive HTML block). It is built from `src/` with `sh src/build.sh` and published with the `sync-KB-github` skill.
+`index.html` is the whole Notion page (one interactive HTML block). It is built from `src/` with `sh src/build.sh` and published with the `sync-kb-github` skill.
 
 Split out of Topic: llms on 2026-10-18: this topic owns how an LLM is built (the decoder block, attention variants, position, tokenizers, mixture of experts, normalisation and the residual stream, long context, state-space and hybrid models, families and objectives); Topic: llm-landscape owns the labs, models, benchmarks and prices.
 
