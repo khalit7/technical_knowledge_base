@@ -1,6 +1,6 @@
 // ---- Storage lab: numbers in the "In one screen" box, filled from the recorded data (window.IO_D) ----
 // (The tier bars, checkpoint anatomy, write layouts, async animation and data-reading charts moved out on 2026-10-19
-//  to src/for_children/storage_lab_cut/; their results are summarised in the tab's section 2 table.)
+//  to src/for_children/storage_lab_cut/ (removed once absorbed, 2026-10-19; in git history); their results are summarised in the tab's section 2 table.)
 (function(){
   const H=window.IO_H,D=window.IO_D;if(!H||!D||!H.$('t-io'))return;const $=H.$;
   const fS=s=>s>=1?s.toFixed(s>=10?1:2)+' s':(s*1e3).toFixed(s>=0.1?0:1)+' ms';
