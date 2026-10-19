@@ -65,7 +65,7 @@
   if(E){$('sdr-ex').innerHTML='<thead><tr><th>Rule</th><th class="num">chi-square</th><th class="num">df</th><th class="num">p-value</th><th class="num">guesses kept per step</th><th>verdict</th></tr></thead><tbody>'+
       Object.keys(vlab).filter(v=>E.variants[v]).map(v=>{const x=E.variants[v];return '<tr><td>'+vlab[v]+'</td><td class="num">'+SD.fmt(x.chi2,1)+'</td><td class="num">'+x.df+'</td><td class="num">'+(x.p<1e-6?'&lt; 10<sup>&minus;6</sup>':SD.fmt(x.p,2))+'</td><td class="num">'+(v==='target'?'n/a':SD.fmt(x.acc,2))+'</td><td>'+(x.p<0.01?'<b style="color:var(--bad)">not exact</b>':'consistent with exact')+'</td></tr>'}).join('')+'</tbody>';
     let cv='bug_resample_p';
-    const exdraw=()=>{const x=E.variants[cv],el=$('sdr-exsvg'),W=Math.max(280,Math.min(860,SD.width(el))),lab=Math.min(170,W*0.38),bw=W-lab-70,rh=20,H=x.top.length*rh+6;
+    const exdraw=()=>{const x=E.variants[cv],el=$('sdr-exsvg'),W=Math.max(280,Math.min(860,SD.width(el))),lab=Math.min(170,W*0.38),bw=W-lab-84,rh=20,H=x.top.length*rh+6;
       const mx=Math.max(...x.top.map(r=>Math.max(r[1],r[2])));let s='';
       x.top.forEach((r,i)=>{const y=i*rh+3;s+='<text x="'+(lab-6)+'" y="'+(y+13)+'" text-anchor="end" font-size="11">'+SD.esc(r[0].slice(0,Math.floor(lab/6.2)))+'</text>'+
         '<rect x="'+lab+'" y="'+(y+2)+'" width="'+(bw*r[2]/mx).toFixed(1)+'" height="7" fill="var(--c1)"/><rect x="'+lab+'" y="'+(y+10)+'" width="'+(bw*r[1]/mx).toFixed(1)+'" height="7" fill="'+(x.p<0.01?'var(--bad)':'var(--good)')+'"/>'+

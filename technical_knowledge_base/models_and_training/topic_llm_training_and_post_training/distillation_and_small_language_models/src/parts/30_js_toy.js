@@ -29,7 +29,7 @@
     let s='';
     for(let k=0;k<=4;k++){const v=ymax*k/4;s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Yp(v)+'" y2="'+Yp(v)+'" stroke="var(--line)"/><text x="'+(l-4)+'" y="'+(Yp(v)+4)+'" text-anchor="end" font-size="10.5" fill="var(--mute)">'+(mi<=2?Math.round(v*100)+'%':v.toFixed(mi===3?1:2))+'</text>'}
     if(logX){for(let e=Math.ceil(Math.log10(xmin));e<=Math.floor(Math.log10(xmax));e++)s+='<text x="'+X(Math.pow(10,e))+'" y="'+(H-18)+'" text-anchor="middle" font-size="10.5" fill="var(--mute)">1e'+e+'</text>'}
-    else{[0,.25,.5,.75,1].forEach(f=>s+='<text x="'+X(xmax*f)+'" y="'+(H-18)+'" text-anchor="middle" font-size="10.5" fill="var(--mute)">'+PF.comma(xmax*f)+'</text>')}
+    else{[0,.25,.5,.75,1].forEach(f=>s+='<text x="'+X(xmax*f)+'" y="'+(H-18)+'" text-anchor="'+(f===1?'end':'middle')+'" font-size="10.5" fill="var(--mute)">'+PF.comma(xmax*f)+'</text>')}
     s+='<text x="'+(l+pw/2)+'" y="'+(H-3)+'" text-anchor="middle" font-size="10.5" fill="var(--mute)">'+(logX?'model FLOPs, cumulative':'training step')+'</text>';
     if(mi===1||mi===3){const tv=mi===1?tc.succ:tc.distinct;s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Yp(tv)+'" y2="'+Yp(tv)+'" stroke="var(--ink)" stroke-dasharray="4 4"/><text x="'+(W-r)+'" y="'+(Yp(tv)-4)+'" text-anchor="end" font-size="10.5">teacher</text>'}
     shown.forEach(m=>{const runs=Object.values(Y.curves[m]),c='var('+TOYM.col[m]+')';
