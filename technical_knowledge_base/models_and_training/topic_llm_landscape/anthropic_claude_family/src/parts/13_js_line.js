@@ -16,7 +16,7 @@
    ['2025-08-05','o','Claude Opus 4.1','Coding upgrade of Opus 4 (74.5% on SWE-bench Verified). Retired on the Claude API on 5 August 2026.','$15 / $75','{{Anthropic|@n41}}'],
    ['2025-08-12','a','1M context beta','Sonnet 4 accepts 1M tokens of context in beta.','','{{Anthropic|@n1m}}'],
    ['2025-09-29','s','Claude Sonnet 4.5','With the memory tool and context editing for long agent sessions.','$3 / $15','{{Anthropic|@ns45}}'],
-   ['2025-10-15','h','Claude Haiku 4.5','First Haiku with extended thinking and computer use; the current Haiku.','$1 / $5','{{Anthropic|@nh45}}'],
+   ['2025-10-15','h','Claude Haiku 4.5','First Haiku with extended thinking and computer use.','$1 / $5','{{Anthropic|@nh45}}'],
    ['2025-11-24','o','Claude Opus 4.5','Opus price cut to a third; the effort parameter arrives: medium effort matches Sonnet 4.5\'s best SWE-bench Verified score with 76% fewer output tokens.','$5 / $25','{{Anthropic|@no45}}'],
    ['2026-02-05','o','Claude Opus 4.6','Adaptive thinking with effort low to max; budget_tokens deprecated; 1M context (beta at launch, standard price today).','$5 / $25','{{Anthropic|@no46}}'],
    ['2026-02-17','s','Claude Sonnet 4.6','Coding and computer-use gains; the last model on the old tokenizer.','$3 / $15','{{Anthropic|@ns46}}'],
@@ -28,13 +28,15 @@
    ['2026-07-24','o','Claude Opus 5','"Close to the frontier intelligence of Claude Fable 5 at half the price", six weeks after Fable 5.','$5 / $25','{{Anthropic|@no5}}'],
    ['2026-08-31','a','Prefix check on by default','Preserved thinking\'s prefix check is enforced by default for accounts created from this date.','','{{preserved thinking|@pres}}'],
    ['2026-09-01','m','Fable 5.1 and Mythos 5.1','Long-horizon gains (Terminal-Bench 4.0 42.0% to 55.8%); cache reads cut 75% to $0.25; preserved thinking; Enterprise Frontier Safeguards.','$10 / $50','{{Anthropic|@fab51}}'],
-   ['2026-09-22','o','Claude Opus 5.5','Beats Fable 5.1 on every row of Anthropic\'s table, three weeks later, at 40% of its price; thinking always on; default effort medium. Haiku 5.5 promised "in the coming weeks".','$4 / $20','{{Anthropic|@op55}}'],
+   ['2026-09-22','o','Claude Opus 5.5','Beats Fable 5.1 on every row of Anthropic\'s table, three weeks later, at 40% of its price; thinking always on; default effort medium.','$4 / $20','{{Anthropic|@op55}}'],
    ['2026-09-28','s','Claude Sonnet 5.5','Close to Opus 5.5 at half the price; between_tools replaces disabled thinking; thinking blocks bound to the account.','$2 / $10','{{Anthropic|@so55}}'],
-   ['2026-09-30','a','Sonnet 4.5 deprecated','Retires 30 November 2026, 61 days later; replacement Sonnet 5.5.','','{{model deprecations|@depr}}']
+   ['2026-09-30','a','Sonnet 4.5 deprecated','Retires 30 November 2026, 61 days later; replacement Sonnet 5.5.','','{{model deprecations|@depr}}'],
+   ['2026-10-06','m','Cyber Verification Program tiers','Defense, Red Team and Specialized tiers, each with Opus 5.5, Sonnet 5.5 and Mythos 5.1; Project Glasswing folded into Specialized.','','{{Anthropic|@cvp}}'],
+   ['2026-10-07','h','Claude Haiku 5.5','1M context and adaptive thinking; two price tiers split at 100K input tokens, 90% below Haiku 4.5 under it and 50% above. Same post: Sonnet 5.5 cache reads halved to $0.10.','$0.10 / $0.50','{{Anthropic|@nh55}}']
   ].map(([d,k,n,t,pr,src],i)=>({d:new Date(d+'T00:00:00Z'),k,n,t,pr,src,id:'ln'+i}));
   let range='all',filt='all';const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const dlab=e=>e.d.getUTCDate()+' '+mon[e.d.getUTCMonth()]+' '+e.d.getUTCFullYear();
-  const SH=n=>n.replace(/^Claude /,'').replace(' and Claude Instant','').replace(' Opus, Sonnet, Haiku','').replace('Opus 4 and Sonnet 4','4 (Opus, Sonnet)').replace(' and Mythos 5.1','').replace(' and Mythos 5','');
+  const SH=n=>n.replace(/^Claude /,'').replace(' and Claude Instant','').replace(' Opus, Sonnet, Haiku','').replace('Opus 4 and Sonnet 4','4 (Opus, Sonnet)').replace(' and Mythos 5.1','').replace('Cyber Verification Program tiers','CVP tiers').replace(' and Mythos 5','');
   function draw(){
     const narrow=$('lnSvg').clientWidth<560,W=narrow?560:880,pl=narrow?62:84,pr=14;
     const t0=range==='all'?Date.UTC(2023,1,1):Date.UTC(2026,0,1),t1=Date.UTC(2026,9,20),T26=Date.UTC(2026,0,1),split=range==='all'?0.45:0;
@@ -48,8 +50,8 @@
     const placed={};
     ev.sort((a,b)=>a.d-b.d).forEach(e=>{const li=lanes.indexOf(e.k);if(li<0)return;const y=top+li*LH+LH/2,xx=x(+e.d),lab=SH(e.n),lw=lab.length*5.6+6;
       const P=placed[e.k]=placed[e.k]||{up:[],dn:[]};let side=P.up.length<=P.dn.length?'up':'dn';
-      const fits=arr=>!arr.some(([a,b])=>xx<b&&xx+lw>a);if(!fits(P[side])&&fits(P[side==='up'?'dn':'up']))side=side==='up'?'dn':'up';
-      const end=xx+lw>W-4;P[side].push(end?[xx-lw,xx]:[xx,xx+lw]);const ty=side==='up'?y-8:y+16;
+      const end=xx+lw>W-4,sp=end?[xx-lw,xx]:[xx,xx+lw];const fits=arr=>!arr.some(([a,b])=>sp[0]<b&&sp[1]>a);if(!fits(P[side])&&fits(P[side==='up'?'dn':'up']))side=side==='up'?'dn':'up';
+      P[side].push(sp);const ty=side==='up'?y-8:y+16;
       s+='<g class="lnd" data-id="'+e.id+'" style="cursor:pointer"><circle cx="'+xx+'" cy="'+y+'" r="5.5" fill="'+LC[e.k]+'"/><text x="'+(xx+(end?-3:3))+'" y="'+ty+'" font-size="10.5"'+(end?' text-anchor="end"':'')+'>'+lab+'</text><title>'+dlab(e)+': '+e.n+'</title></g>'});
     $('lnSvg').innerHTML='<div class="tw">'+svgEl(W,H,s,'Claude releases and API changes on a time axis').replace('<svg ','<svg style="min-width:'+(narrow?520:600)+'px" ')+'</div>';
     $('lnSvg').querySelectorAll('.lnd').forEach(g=>g.addEventListener('click',()=>{const c=$(g.dataset.id);if(!c)return;document.querySelectorAll('.tl-item').forEach(x=>x.classList.toggle('sel',x===c));c.scrollIntoView({block:'center',behavior:'smooth'})}));

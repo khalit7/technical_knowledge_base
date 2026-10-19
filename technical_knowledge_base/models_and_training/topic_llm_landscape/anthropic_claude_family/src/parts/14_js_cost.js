@@ -6,12 +6,14 @@
   function bill(p,P,T,N,O,o){
     const tokF=o.tok&&p.old?1/1.3:1; // same text: the old tokenizer counts about 30% fewer tokens
     P*=tokF;N*=tokF;O*=tokF;
-    const bm=o.batch?0.5:1,wm=o.h1?2:1.25,i=p.i*bm,oo=p.o*bm,c=p.c*bm,w=wm*p.i*bm;let r={write:0,read:0,inp:0,out:0,full:null};
-    if(mode==='none'){r.inp=T*(P+N)*i;r.out=T*O*oo;
+    const bm=o.batch?0.5:1,wm=o.h1?2:1.25;let r={write:0,read:0,inp:0,out:0,full:null};
+    // per-request rates: a tiered model (Haiku 5.5) bills the whole request at the higher tier once its input passes the threshold
+    const R=ctx=>{const q=TIER(p,ctx);return {i:q.i*bm,oo:q.o*bm,c:q.c*bm,w:wm*q.i*bm}};
+    if(mode==='none'){const q=R(P+N);r.inp=T*(P+N)*q.i;r.out=T*O*q.oo;
       if(P+N>p.win)r.full=1}
-    else if(mode==='fixed'){r.write=o.warm?0:P*w;r.read=T*P*c;r.inp=T*N*i;r.out=T*O*oo;if(P+N>p.win)r.full=1}
-    else{for(let t=1;t<=T;t++){const ctx=P+(t-1)*(N+O)+N;if(ctx>p.win&&r.full==null)r.full=t;
-        if(t===1){if(o.warm){r.read+=P*c;r.write+=N*w}else r.write+=(P+N)*w}else{r.read+=(P+(t-2)*(N+O)+N)*c;r.write+=(O+N)*w}r.out+=O*oo}}
+    else if(mode==='fixed'){const q=R(P+N);r.write=o.warm?0:P*q.w;r.read=T*P*q.c;r.inp=T*N*q.i;r.out=T*O*q.oo;if(P+N>p.win)r.full=1}
+    else{for(let t=1;t<=T;t++){const ctx=P+(t-1)*(N+O)+N,q=R(ctx);if(ctx>p.win&&r.full==null)r.full=t;
+        if(t===1){if(o.warm){r.read+=P*q.c;r.write+=N*q.w}else r.write+=(P+N)*q.w}else{r.read+=(P+(t-2)*(N+O)+N)*q.c;r.write+=(O+N)*q.w}r.out+=O*q.oo}}
     Object.keys(r).forEach(k=>{if(k!=='full')r[k]/=1e6});r.total=r.write+r.read+r.inp+r.out;return r}
   function preset(m){const set=(id,v)=>{$(id).value=v};
     if(m==='page'){set('scP',100000);set('scT',50);set('scN',5000);set('scO',2000);$('scWarm').checked=false;mode='fixed'}
@@ -38,7 +40,7 @@
       '<b>No caching.</b> Every turn bills P + N at the input price and O at the output price: C = T ((P + N) i + O o) / 10<sup>6</sup>.';
     const isPage=P===100000&&T===50&&N===5000&&O===2000&&!o.h1&&!o.batch&&!o.warm&&!o.tok,isMan=P===40000&&T===1&&N===10000&&O===15000&&o.warm&&!o.h1&&!o.batch&&!o.tok;
     let rep='';
-    if(mode==='fixed'&&isPage)rep='Defaults reproduce the page\'s worked example (by construction: same formula and prices): Fable 5.1 $10.00, Fable 5 $13.75, Opus 5.5 $4.50, Opus 5 $6.875, Sonnet 5.5 $2.75, Haiku 4.5 $1.375. The 27.3% Fable saving is close to, but not the same thing as, Anthropic\'s "around 25%", which Anthropic measured on four weeks of real August 2026 usage ({{Anthropic|@fab51}}).';
+    if(mode==='fixed'&&isPage)rep='Defaults reproduce the page\'s worked example (by construction: same formula and prices): Fable 5.1 $10.00, Fable 5 $13.75, Opus 5.5 $4.50, Opus 5 $6.875, Sonnet 5.5 $2.25, Haiku 5.5 $0.6875 (every request is over 100K tokens, so at its higher tier), Haiku 4.5 $1.375. The 27.3% Fable saving is close to, but not the same thing as, Anthropic\'s "around 25%", which Anthropic measured on four weeks of real August 2026 usage ({{Anthropic|@fab51}}).';
     else if(mode==='fixed'&&isMan)rep='Reproduces the pricing page\'s Claude Managed Agents example for Opus 5 (by construction): $0.445 of tokens; the page adds $0.08 of session runtime for $0.525 ({{pricing|@pricing}}).';
     else if(mode==='none'&&isPage)rep='Reproduces the page\'s "Fable 5.1 with no caching" line: $57.50, almost six times the cached $10.00.';
     else rep='Anthropic\'s Fable 5.1 chart: typical workloads 100 to 75 (cache reads a third of the Fable 5 bill), highly agentic 100 to 55 (cache reads 60% of it). Your mix: cache reads '+(100*share).toFixed(0)+'% of the Fable 5 bill, saving '+(100*sv).toFixed(0)+'%.';
