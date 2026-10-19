@@ -40,7 +40,7 @@
 
 // ---- Lineage: timeline dots and parameter bars ----
 (function(){
-  const E=[['L-llm','2023-11-29','LLM',67],['L-v2','2024-05-06','V2',236],['L-v3','2024-12-26','V3',671],['L-r1','2025-01-20','R1',671],['L-v31','2025-08-21','V3.1',0],['L-v32','2025-09-29','V3.2-Exp',0],['L-v4','2026-04-24','V4',1600],['L-vis','2026-08-21','V4 vision',0],['L-v41','2026-09-10','V4.1-Flash',552]];
+  const E=[['L-llm','2023-11-29','LLM',67],['L-v2','2024-05-06','V2',236],['L-v3','2024-12-26','V3',671],['L-r1','2025-01-20','R1',671],['L-v31','2025-08-21','V3.1',0],['L-v32','2025-09-29','V3.2-Exp',0],['L-v4','2026-04-24','V4',1600],['L-vis','2026-08-21','V4 vision',0],['L-v41','2026-09-10','V4.1-Flash',552],['L-v41b','2026-10-17','1017',0]];
   document.querySelectorAll('.pb').forEach(el=>{const t=+el.dataset.t,a=+el.dataset.a,a2=el.dataset.a2,n=el.dataset.n,max=1600;
     el.innerHTML=(n?'<div class="small" style="font-weight:600;margin-top:4px">'+n+'</div>':'')+'<div class="pbar"><span>Total</span><span class="track"><span class="fill" style="width:'+(100*t/max).toFixed(1)+'%;background:var(--dim)"></span></span><span>'+(t>=1000?(t/1000)+'T':t+'B')+'</span></div><div class="pbar"><span>Active</span><span class="track"><span class="fill" style="width:'+Math.max(0.6,100*a/max).toFixed(1)+'%;background:var(--acc)"></span></span><span>'+(a2?a2+'B prefill, '+a+'B decode':a+'B')+' ('+(t/a).toFixed(0)+'×)</span></div>'});
   function draw(){
