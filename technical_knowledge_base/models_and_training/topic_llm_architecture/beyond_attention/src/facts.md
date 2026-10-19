@@ -1,0 +1,11 @@
+# Verified facts (beyond_attention, 2026-10-19)
+Published quotes with URLs: inputs/research_quotes.md. Measured here (Apple M1 Pro):
+- Equal budget (1,500 steps x 8,192 tokens, TinyStories, held-out 100 windows / running-sequence loss): ba_ssm 2.152 / 2.024 (seed 1 2.146 / 2.126); ba_hybrid (ssasss, NoPE) 2.089 / 1.688; ba_hybrid2 (ssassa) 2.082 / 1.629; at_mha 2.160 / 1.741 (seed 1 2.175 / 1.859); pe_nope 2.389 / 2.036. SSM 6,650,336 params, 14k tok/s (MPS) vs attention 5,770,496, 33.5k tok/s.
+- ba_ssm dual form vs recurrence: max |logit diff| 1.9e-5 (CPU fp32). SSM head half-lives 1.1 to 910 tokens, median 7.1; 22 of 96 heads >= 64 tokens; head 0 longest in 5 of 6 layers. Most variable head of layer 1 forgets hardest at " R" (the start of " Roxy").
+- Name recall after 64 filler tokens (control minus mentioned, nats per later name piece): at_mha 2.91, pe_nope 1.53, ba_ssm 0.18, ba_hybrid 5.48, ba_hybrid2 5.60.
+- Pythia-160M vs Mamba-130M (CPU fp32, transformers 5.20.1, 12 lists / 20 books per point): copy at 32 words 93% / 85%, 256 90% / 29%, 1,000 86% / 7%; phone book 40 entries 35% / 5%, 200 entries 5% / 0%. 1,000-token forward 0.23 s / 2.68 s (Mamba on the torch fallback).
+- MQAR toy (2 layers, d 128, 8,000 steps): only SSM-then-attention learned 8 pairs (98.7%); attention-only stalled at 34.8%, SSM 34.6%; nothing learned 32 or 64 pairs. Does not reproduce Zoology / Mamba-2 attention results at this budget.
+- Calculated (CC + KDA/Qwen3.5 additions; KV bf16, state fp32): KV = state at Jamba v0.1 1,064; Nemotron-H 8B 6,324; Granite 4.0-H Small 9,439; Falcon-H1 34B 2,078; Qwen3-Next 3,216; Qwen3.5-397B 6,360; Kimi Linear 48B 5,567; Kimi K3 16,806; Nemotron 3 Super 21,080 tokens. States: Mamba 2.8B 23.75 MiB, Mamba-2 2.7B 163.94 MiB, Kimi K3 443.1 MiB, Qwen3.5-397B 186.3 MiB, Nemotron 3 Super 164.7 MiB. Tiny ssm state 235,776 B fp32 = 38 tokens of baseline KV.
+- Decay mask by subtracting cumsums, T=2048: max error 0.22 (bf16) vs 0.0017 with segment sum; fp32 3.7e-6 vs 5.8e-8.
+- transformers 5.20.1: modeling_jamba.py and modeling_nemotron_h.py define apply_rotary_pos_emb, 0 calls; Qwen3-Next decay per head (line 552), Kimi KDA decay per key channel (line 452).
+- S4 arXiv: prose Path-X 88% / LRA 80.48 vs Table 4 96.35 / 86.09 (quote the table). Qwen3-Next "10x" is vs dense Qwen3-32B; Mamba-2 "2-8x" is kernel vs Mamba-1 scan.
