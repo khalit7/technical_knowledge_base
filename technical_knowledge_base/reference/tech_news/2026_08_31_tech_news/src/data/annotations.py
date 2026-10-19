@@ -41,7 +41,7 @@ sections = [
 feeds = {'harness': ['Topic: agentic-harnesses', '3c65c17b0d0d81d881a8fe98b4cff7bb'], 'protocols': ['Topic: protocols', '3c65c17b0d0d81ec9355f4eecd6eed02'],
  'hardware': ['Topic: hardware', '3c65c17b0d0d8118beeefaed56da6f8e'], 'serving': ['Topic: inference-and-serving', '3c65c17b0d0d81c08b3bc95ff45c7b13'],
  'bench': ['Topic: benchmarks', '3c65c17b0d0d811fb43fece56e40041a'], 'genmm': ['Topic: generative-and-multimodal', '3c65c17b0d0d817ab6ade318917bff55'],
- 'llms': ['Topic: llms', '3c65c17b0d0d812d9e00f6ec89965286'], 'glm': ['Zhipu: GLM', '3c65c17b0d0d81a88a84c2ca84b4daf4'],
+ 'llms': ['Topic: llm-landscape', '3c65c17b0d0d812d9e00f6ec89965286'], 'glm': ['Zhipu: GLM', '3c65c17b0d0d81a88a84c2ca84b4daf4'],
  'qwen': ['Alibaba: Qwen', '3c65c17b0d0d81fd8c36ce06672bb235'], 'deepseek': ['DeepSeek', '3c65c17b0d0d81a2ae7ec6796947a235'],
  'openai': ['OpenAI: GPT family', '3c65c17b0d0d814abf90d5b9e567d72f'], 'anthropic': ['Anthropic: Claude family', '3c65c17b0d0d814cb979d0eabca59a45'],
  'other': ['Other notable providers', '3c65c17b0d0d8154ba44e521a4ed8749'], 'papers': ['Papers', '3c65c17b0d0d81549dbedb27e8f2a26f'],

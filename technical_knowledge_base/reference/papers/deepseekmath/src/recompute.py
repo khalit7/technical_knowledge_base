@@ -61,7 +61,7 @@ R['mem_saving'] = 1 - R['mem_grpo_gb'] / R['mem_ppo_gb']
 R['gae_first_token_weight'] = {str(L): {str(l): l ** (L - 1) for l in (0.95, 0.99, 1.0)} for L in (3, 1024, 8192)}
 # --- zero-signal groups: a question solved with probability p gives a group with all-equal rewards with probability p^G + (1 - p)^G
 R['zero_signal'] = {str(G): {str(p): p ** G + (1 - p) ** G for p in (0.05, 0.5, 0.9, 0.95)} for G in (4, 8, 16, 64)}
-# --- worked GRPO example at G = 4, one correct (matches the Topic: llms widget): population std as there; the toy uses the unbiased std
+# --- worked GRPO example at G = 4, one correct (matches the Topic: llm-landscape widget): population std as there; the toy uses the unbiased std
 r = [1, 0, 0, 0]; mu = sum(r) / 4; sdp = math.sqrt(sum((x - mu) ** 2 for x in r) / 4); sdu = math.sqrt(sum((x - mu) ** 2 for x in r) / 3)
 R['grpo_example'] = {'pop_std': [(x - mu) / sdp for x in r], 'unbiased_std': [(x - mu) / sdu for x in r]}
 json.dump(R, open('inputs/recompute.json', 'w'), indent=1)

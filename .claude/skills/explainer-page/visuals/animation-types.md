@@ -12,7 +12,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 **When to use it.** Whenever a page explains a mechanism that replaced an earlier one, or a process that unfolds in steps. Khalid asks for it by name; root pages carry at least one per axis where a mechanism replaced another, and each lab tab at least one where it fits.
 
-**Anatomy of the reference (the DeepSeek MLA explainer, Khalid's favourite).** `models_and_training/topic_llms/deepseek/src/parts/18_js_mlx.js`, in the Reading tab's MLA section.
+**Anatomy of the reference (the DeepSeek MLA explainer, Khalid's favourite).** `models_and_training/topic_llm_landscape/deepseek/src/parts/18_js_mlx.js`, in the Reading tab's MLA section.
 - **One input, two methods.** One token through one attention layer under MLA (compress to a 512-number latent, add the 64-number decoupled RoPE key, cache 576 numbers, rebuild heads in prefill, absorb in decode), and a toggle that runs the same token through standard multi-head attention.
 - **Drawn to scale.** One square is 64 numbers, so 576 against 32,768 numbers cached per token per layer is visible as area, not just stated. The scale is printed on the card.
 - **A caption for every step** (in HTML beside the drawing): what happens and why it matters, with the formula and the number at that step. Seven steps each way.
@@ -26,7 +26,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 - `models_and_training/topic_generative_and_multimodal/src/parts/24_js_rd_gen.js`: one real Fashion-MNIST image made three ways (autoregressive tokens, DDIM steps, Euler flow steps), every frame exact arithmetic on the real image and one seeded noise draw.
 - `models_and_training/topic_generative_and_multimodal/src/parts/33_tab_flow_b.html` with `33_js_fw_3img.js`: one noise, ten steps, flow against diffusion.
 - `systems_and_performance/topic_ml_infra_and_orchestration/src/parts/34_js_io_3anim.js`: the same 60 training steps with no checkpoints, synchronous and asynchronous checkpoints, from measured step times.
-- `models_and_training/topic_llms/anthropic_claude_family/src/parts/12_js_sim.js`: the same 16-turn agent session with and without prompt caching, one square per 1,000 tokens, cost counters.
+- `models_and_training/topic_llm_landscape/anthropic_claude_family/src/parts/12_js_sim.js`: the same 16-turn agent session with and without prompt caching, one square per 1,000 tokens, cost counters.
 - `systems_and_performance/topic_ml_infra_and_orchestration/fault_tolerance_at_scale/src/parts/32_js_ft_rec.js`: one failure under two recovery designs on one clock.
 - Shared controller to reuse: `RD.anim` in [../build/templates/21_js_rd_common.js](../build/templates/21_js_rd_common.js).
 
@@ -57,7 +57,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 **Reference folders.**
 - `models_and_training/topic_generative_and_multimodal/src/parts/34_js_vs_2patch.js`: one image as patches, sequence and tokens under CLIP B/32 and SigLIP 2 B/16.
-- `models_and_training/topic_llms/deepseek/src/parts/11_js_mla.js`: the MLA prefill and decode switch that preceded the animation.
+- `models_and_training/topic_llm_landscape/deepseek/src/parts/11_js_mla.js`: the MLA prefill and decode switch that preceded the animation.
 
 ---
 
@@ -86,7 +86,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **Reference folders.**
 - `systems_and_performance/topic_ml_infra_and_orchestration/src/parts/31_js_sc_3w1.js` and `31_js_sc_4w23.js` (Scheduling lab): the same eight-job queue on real Slurm under FIFO and backfill, then fairshare and preemption.
 - `systems_and_performance/topic_ml_infra_and_orchestration/fault_tolerance_at_scale/src/parts/33_js_ft_str.js`: straggler Gantt, compute against wait per rank per step, from measured runs.
-- `models_and_training/topic_llms/deepseek/src/parts/20_js_pipe.js`: pipeline schedules (1F1B, ZB1P, DualPipe) as a rank by time grid.
+- `models_and_training/topic_llm_landscape/deepseek/src/parts/20_js_pipe.js`: pipeline schedules (1F1B, ZB1P, DualPipe) as a rank by time grid.
 
 ---
 
@@ -131,7 +131,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 - `models_and_training/topic_llm_training_and_post_training/src/parts/34_tab_scale.html` and `34_js_scale2_calc.js` (Scaling calculator): residual over published per preset, the lab's own MFU or a stated 40%.
 - `models_and_training/topic_generative_and_multimodal/src/parts/35_js_vl_3budget.js`: SmolVLM's processor arithmetic, checked against the real processor.
 - `systems_and_performance/topic_ml_infra_and_orchestration/src/parts/33_js_fl_7goodput.js`: exact expected goodput with Young and Daly marked and a seeded simulation check.
-- `models_and_training/topic_llms/deepseek/src/parts/15_js_cache.js`: KV memory of every attention design rebuilt from its configuration, landing on the lab's numbers.
+- `models_and_training/topic_llm_landscape/deepseek/src/parts/15_js_cache.js`: KV memory of every attention design rebuilt from its configuration, landing on the lab's numbers.
 
 ---
 
@@ -144,7 +144,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **What makes it good.** Every cell sourced and dated, filters that change the picture, a sensible starting selection, and derived columns computed from the data with their formula. Categorical facts are read verbatim, never paraphrased into thresholds.
 
 **Reference folders.**
-- `models_and_training/topic_llms/deepseek/src/parts/24_js_cfg.js`: nine models' configs side by side with derived KV per token.
+- `models_and_training/topic_llm_landscape/deepseek/src/parts/24_js_cfg.js`: nine models' configs side by side with derived KV per token.
 - `models_and_training/topic_generative_and_multimodal/src/parts/36_js_mm_4pick.js` (Model map): which model for which job, filtered by licence need and a weights-only memory estimate.
 - `models_and_training/topic_generative_and_multimodal/src/parts/34_js_vs_3sim.js`: similarity-matrix explorer under cosine and softmax views.
 
@@ -173,8 +173,8 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **What makes it good.** The unit is printed (one square is 64 numbers), both sides share it, and log scales are never used for areas. Layer strips show every layer of the real config.
 
 **Reference folders.**
-- `models_and_training/topic_llms/alibaba_qwen/src/parts/11_js_moe.js`: expert grid, Qwen3 against Qwen3-Next, to scale.
-- `models_and_training/topic_llms/deepseek/src/parts/18_js_mlx.js`: the cache bars inside the MLA explainer.
+- `models_and_training/topic_llm_landscape/alibaba_qwen/src/parts/11_js_moe.js`: expert grid, Qwen3 against Qwen3-Next, to scale.
+- `models_and_training/topic_llm_landscape/deepseek/src/parts/18_js_mlx.js`: the cache bars inside the MLA explainer.
 - `models_and_training/topic_llm_architecture/llm_architecture_gallery/src/parts/`: layer strips and the attention ladder (one token through MHA, GQA, MQA, MLA, sliding window, Gated DeltaNet, KDA with MHA dashed behind each).
 
 ---
@@ -199,7 +199,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 **What makes it good.** Every mark is a sourced, dated row; filters by kind; a year sweep or time-lapse with counters when the order matters; caveats on any derived "first".
 
-**Reference folders.** `models_and_training/topic_generative_and_multimodal/src/parts/36_js_mm_2time.js` (Model map timeline with a year sweep); `models_and_training/topic_llms/src/parts/30_js_time_c_tl.js` (release timeline by lab).
+**Reference folders.** `models_and_training/topic_generative_and_multimodal/src/parts/36_js_mm_2time.js` (Model map timeline with a year sweep); `models_and_training/topic_llm_landscape/src/parts/30_js_time_c_tl.js` (release timeline by lab).
 
 ---
 

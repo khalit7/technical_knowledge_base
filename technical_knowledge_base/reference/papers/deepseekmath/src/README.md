@@ -18,7 +18,7 @@
 - **The toy disagrees with the paper in places, shown, not tuned away**: Online RFT ends ahead of GRPO and PPO (94.4% against 93.1% and 93.1%, three seeds), DPO collapses at every learning rate, and Pass@64 rises slightly after RL. A held-out split was tried first and abandoned because every method, SFT included, lowered held-out accuracy (`heldout_trial.mjs`, `inputs/heldout_trial.json`); the toy therefore cannot test the paper's out-of-domain gains, and says so.
 - **Figures decoded from vector SVGs** (ReAct, InstructGPT and DPO lessons): Figures 5 to 7 print no numbers. Decoding showed GRPO's lead over Online RFT is within one standard error, PS over OS is larger on GSM8K than on MATH (the old summary said the reverse), and Pass@64 falls slightly after RL.
 - **The corpus pipeline is an illustrative simulation**, labelled as such: the paper releases no per-round counts, so only its stated mechanism (a classifier that recalls pages like its seed; domains above 10% recalled) is modelled; the paper's own numbers are printed beside it.
-- **The GRPO arithmetic for any G is not rebuilt**: the Topic: llms "Deeper: test-time compute" tab already has that calculator; the page links it. The PPO toy and the DPO frontier live on the InstructGPT and DPO pages and are linked.
+- **The GRPO arithmetic for any G is not rebuilt**: the Topic: llm-landscape "Deeper: test-time compute" tab already has that calculator; the page links it. The PPO toy and the DPO frontier live on the InstructGPT and DPO pages and are linked.
 - **Reading length** about 24 minutes against the old page's 14 (the build's count includes the hidden predict reveals and captions): the page owns the corpus, the base model, GRPO and the evidence judgement.
 
 ## Files

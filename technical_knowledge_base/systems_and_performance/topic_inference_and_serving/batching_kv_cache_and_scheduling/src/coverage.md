@@ -40,5 +40,5 @@ to another page, which owns it). All checks 2026-10-08. "R s3" means Reading sec
 | Speculative decoding families, DFlash2, DSpark, adaptive budgets (vLLM v0.28.0) | Speculative decoding child |
 | P/D disaggregation (DistServe, Mooncake, Dynamo, llm-d, TensorRT-LLM), NIXL/RDMA | Distributed and disaggregated serving child |
 | Quantised serving menu (FP8, AWQ, GPTQ, NVFP4/MXFP4, GGUF) | Quantization and Precision; Local and on-device inference; Model formats |
-| MQA/GQA/MLA and sliding windows | parent root section 2; Topic: llms architecture pages |
+| MQA/GQA/MLA and sliding windows | parent root section 2; Topic: llm-landscape architecture pages |
 | Best-resources list (kipply, Anyscale, PagedAttention, DistServe, Sarathi-Serve, EAGLE-3) | kept where in scope (Further reading); kipply and Anyscale are on the parent |

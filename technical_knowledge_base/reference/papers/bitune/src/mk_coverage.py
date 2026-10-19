@@ -16,7 +16,7 @@ C = [
  ('Published at EMNLP 2025 (main track, pages 9510-9536)', R + ', byline and card', ['EMNLP 2025', 'pages 9510 to 9536']),
  ('Added to the KB 2026-09-01 from a blog entry', R + ', byline', ['Added to this knowledge base on 2026-09-01 from a blog entry']),
  ('Links: arXiv, ACL Anthology, project page', 'byline, card, Further reading', ['https://arxiv.org/abs/2405.14862', 'https://aclanthology.org/2025.emnlp-main.481/', 'https://dkopi.github.io/bitune/']),
- ('Topics: llms, llm-training-and-post-training', R + ', byline; Connections; Further reading', ['Topics: llms, llm-training-and-post-training', '3c65c17b0d0d812d9e00f6ec89965286', '3c65c17b0d0d81b6876ee72b7056793b']),
+ ('Topics: llms, llm-training-and-post-training', R + ', byline; Connections; Further reading', ['Topics: llm-architecture, llm-training-and-post-training', '3fd5c17b0d0d8172b490dc9f9ac281df', '3c65c17b0d0d81b6876ee72b7056793b']),
  # problem
  ('Decoder-only LLMs use masked causal attention everywhere, including over the prompt', R + ', Problem', ['Decoder-only models apply the causal mask everywhere, prompt included']),
  ('The mask exists for autoregressive generation: a token must not see the future', R + ', Problem', ['The mask exists for generation: a token being predicted must not see the future']),
@@ -48,7 +48,7 @@ C = [
  ('Read it for the diagnosis more than the recipe', R + ', Why it matters', ['Read it for the diagnosis more than the recipe']),
  # connections
  ('The same observation drives encoder repurposing: LLM2Vec, NV-Embed, the bidirectional-encoder half of Encoder-Decoder Gemma', 'Connections; Why it matters; Further reading', ['the bidirectional encoder half of', '3d45c17b0d0d81a9a22ffaada508db5c', 'https://arxiv.org/abs/2504.06225']),
- ('Attention masking and prefix-LM variants: see the llms topic', 'Connections', ['Attention masking and prefix-LM variants', '3c65c17b0d0d812d9e00f6ec89965286']),
+ ('Attention masking and prefix-LM variants: see the llms topic', 'Connections', ['Attention masking and prefix-LM variants', '3fd5c17b0d0d8172b490dc9f9ac281df']),
  ('Adjacent in this batch: LLM Modules and Trained Persistent Memory; all three attach trainable structure to a frozen pretrained model', 'Connections; Further reading', ['3ce5c17b0d0d810191d0ebcffc54f608', '3ce5c17b0d0d81978137dd8f8cab1c74', 'All three attach trainable structure to a frozen pretrained model rather than retraining it']),
  ('Database property Takeaway', 'stays in the database; the headline card carries an updated one-line takeaway', ['The causal mask is required by generation, not by prompt processing']),
 ]

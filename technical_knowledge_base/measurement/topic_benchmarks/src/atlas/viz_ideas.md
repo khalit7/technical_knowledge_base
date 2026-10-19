@@ -6,7 +6,7 @@ The question this tab answers: across every benchmark the old page listed, which
 
 | # | Idea | Score | Placement | Data |
 |---|---|---|---|---|
-| A1 | **The grid**: 94 rows (benchmarks and benchmark versions), sortable, filterable by status, family, defence, grading, owner, corrections, text search; detail panel per row with every source, the old page's status cell verbatim and the correction | 12 | tab, top | `rows_*.py`, `rows_fix.py`, Epoch hub CSVs and the Topic: llms grid copied by script (`EP(...)`, `GRID(...)`), arXiv API |
+| A1 | **The grid**: 94 rows (benchmarks and benchmark versions), sortable, filterable by status, family, defence, grading, owner, corrections, text search; detail panel per row with every source, the old page's status cell verbatim and the correction | 12 | tab, top | `rows_*.py`, `rows_fix.py`, Epoch hub CSVs and the Topic: llm-landscape grid copied by script (`EP(...)`, `GRID(...)`), arXiv API |
 | A2 | **Corrections list**: every old-page claim that changed, with the source that changed it (66 at build time) | 11 | collapsible box above the grid | `corr` fields |
 | A3 | **Side by side** (2 or 3 rows) with differing fields shaded, presets for the cases where splicing is the trap (three OSWorld versions, Terminal-Bench versions, SWE-bench lineage, three answers to contamination, knowledge ladder, FrontierMath tiers) and a "do not put these on one axis" warning when the rows are related versions | 10 | below the grid | same |
 | A4 | **Family x status map**: one chip per benchmark in its family row and status column, dimmed by the grid's filters | 9 | own section | same |
@@ -21,7 +21,7 @@ What A6 teaches that a sentence cannot: a static set built from public artifacts
 |---|---|
 | Frontier score against time, per benchmark | Owned by the Saturation timeline tab (t-sat); this tab gives one dated reading per row and the row ids it can reuse (`data/atlas.json`). |
 | One axis of "frontier score" across benchmarks | Units differ (%, Elo, RHAE, minutes, mean reward); the rule is never to put different kinds of figure on one axis. |
-| Models x benchmarks heatmap | Topic: llms, Benchmarks tab already has it; linked instead. |
+| Models x benchmarks heatmap | Topic: llm-landscape, Benchmarks tab already has it; linked instead. |
 | Same model under different harnesses | Owned by the "Same model, many numbers" tab (t-same). |
 | Treemap of families by item count | Item counts are not comparable (tasks, questions, environments, generated on demand); it would rank by size, which says nothing about usefulness. |
 | Contamination animation with an invented "exposure probability" curve | Would be a modelled quantity with nothing to check it against; the animation shows only "public before the cutoff", which is a date comparison. |

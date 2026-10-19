@@ -23,7 +23,7 @@ Existing visuals elsewhere (not repeated here): ROC against precision-recall as 
 | EM13 | Live BERTScore on the reader's own text | 2 | 2 | 0 | 1 | 1 | 1 | 2 | 0 | -3 | n/a | rejected: roberta-large (355M) cannot run in a sandboxed page; presets precomputed instead |
 | EM14 | METEOR WordNet stage in JS | 1 | 1 | 1 | 0 | 0 | 0 | 2 | 0 | -3 | 1 | rejected: WordNet is megabytes; NLTK's values shown for presets, with the stem-then-synonym quirk explained |
 | EM15 | ECE bin-count sensitivity slider | 2 | 0 | 2 | 1 | 1 | 0 | 2 | 0 | -1 | 7 | rejected for now: one sentence says ECE depends on binning; would crowd the calibration card |
-| EM16 | pass@k unbiased estimator | 2 | 2 | 2 | 1 | 1 | 0 | 0 | 0 | -1 | 6 | rejected: belongs to benchmarks / test-time compute pages (Topic: llms R3) |
+| EM16 | pass@k unbiased estimator | 2 | 2 | 2 | 1 | 1 | 0 | 0 | 0 | -1 | 6 | rejected: belongs to benchmarks / test-time compute pages (Topic: llm-landscape R3) |
 
 ## Data and formulas
 

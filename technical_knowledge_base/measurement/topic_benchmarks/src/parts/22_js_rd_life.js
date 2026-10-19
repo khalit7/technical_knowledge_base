@@ -11,7 +11,7 @@ window.RD_LIFE=(function(){
     o1:A('OpenAI, 12 Sep 2024','https://openai.com/index/learning-to-reason-with-llms/'),
     redux:A('MMLU-Redux','https://arxiv.org/abs/2406.04127'),
     tbs:A('Terminal-Bench-Science announcement','https://www.terminal-bench-science.ai/announcement'),
-    llms:A('Topic: llms, Benchmarks tab','https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286')
+    llms:A('Topic: llm-landscape, Benchmarks tab','https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286')
   };
   const D={
     then:{name:'MMLU',pts:[['2020-09-07',43.9,'GPT-3 175B'],['2022-03-29',67.5,'Chinchilla'],['2023-03-14',86.4,'GPT-4'],['2024-09-12',92.3,'o1']],

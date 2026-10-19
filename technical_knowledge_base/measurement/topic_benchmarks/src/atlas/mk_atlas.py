@@ -2,8 +2,8 @@
 
 Run from anywhere: python3 src/atlas/mk_atlas.py
 Inputs (all in src/atlas/inputs/): arxiv_verified.json (arXiv API titles, dates, abstracts), epoch_frontier.json
-(Epoch hub top rows), old_table.json (old page master table, verbatim); plus the Topic: llms grid
-(models_and_training/topic_llms/src/data/bench_grid.json). Evidence marked EP(...) or GRID(...) is copied from
+(Epoch hub top rows), old_table.json (old page master table, verbatim); plus the Topic: llm-landscape grid
+(models_and_training/topic_llm_landscape/src/data/bench_grid.json). Evidence marked EP(...) or GRID(...) is copied from
 those files, never retyped. Fails loudly on unknown enum values, missing sources or quotes not found in their source.
 """
 import json, pathlib, re, sys
@@ -19,7 +19,7 @@ ROOT_DATA = SRC / 'data'
 ax = json.load(open(HERE / 'inputs' / 'arxiv_verified.json'))
 ep = json.load(open(HERE / 'inputs' / 'epoch_frontier.json'))['files']
 old = json.load(open(HERE / 'inputs' / 'old_table.json'))['rows']
-grid = json.load(open(KB / 'models_and_training' / 'topic_llms' / 'src' / 'data' / 'bench_grid.json'))
+grid = json.load(open(KB / 'models_and_training' / 'topic_llm_landscape' / 'src' / 'data' / 'bench_grid.json'))
 fulltext_checks = {}
 ftp = HERE / 'inputs' / 'quote_checks.json'
 if ftp.exists():
@@ -144,7 +144,7 @@ def grid_ev(d):
     key = lib.AA(r['slug']) if 'artificialanalysis' in c['url'] else None
     if key is None:
         key = 'g:' + d['b']
-        lib.S(key, b['by'] + ', ' + b['name'] + ' (read for the Topic: llms grid)', c['url'], c['date'], 'leaderboard', read=c['date'])
+        lib.S(key, b['by'] + ', ' + b['name'] + ' (read for the Topic: llm-landscape grid)', c['url'], c['date'], 'leaderboard', read=c['date'])
     e = {'v': c['v'], 'u': b['unit'], 'm': r['m'] + ' (' + r['e'] + ')', 'd': c['date'], 'dk': 'read', 'set': d.get('set') or (b['name'] + ', ' + str(c.get('ver'))),
          'k': 'ind', 's': key, 'run': b['by'], 'via': 'grid'}
     n = ' '.join(x for x in [d.get('note'), c.get('note')] if x)

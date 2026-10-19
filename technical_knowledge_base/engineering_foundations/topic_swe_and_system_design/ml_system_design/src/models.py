@@ -134,7 +134,7 @@ def scale_summary(rows, slo=2.0):
 
 
 # ---------------------------------------------------------------- gateway lab
-# Prices in USD per million tokens, read 2026-10-01 (KB shared snapshot: models_and_training/topic_llms/src/data/aa_snapshot.json)
+# Prices in USD per million tokens, read 2026-10-01 (KB shared snapshot: models_and_training/topic_llm_landscape/src/data/aa_snapshot.json)
 TIERS = {
     'sonnet': dict(name='Claude Sonnet 5.5 (API)', pin=2.0, pout=10.0, pcache=0.2, ttft=0.8, tps=60.0),
     'gpt61sol': dict(name='GPT-6.1 Sol (API)', pin=2.0, pout=10.0, pcache=0.1, ttft=0.8, tps=60.0),

@@ -58,7 +58,7 @@ F = [
  ('self-attention within encoder and decoder plus cross-attention', 'cross-attention from decoder to encoder', 'Reading, Where the lineage ends', ''),
  ('full parallelism over sequence length', 'every position is computed at once', 'Reading, Where the lineage ends', ''),
  ('link: Attention Is All You Need', 'Attention Is All You Need', 'Reading and Further reading', ''),
- ('link: Topic: llms', 'Topic: llms', 'Reading, Where the lineage ends', ''),
+ ('link: Topic: llms', 'Topic: llm-landscape', 'Reading, Where the lineage ends', ''),
  ('link: Topic: llm-training-and-post-training', 'Topic: llm-training-and-post-training', 'Reading, Where the lineage ends', ''),
  ('Postscript (2024-26): recurrence partly returned as state-space models (Mamba) and hybrids', 'Postscript: recurrence returns', 'Reading, Where the lineage ends', 'date corrected: Mamba is December 2023'),
  ('RNN-like O(1)-per-token inference with modern training parallelism', 'Constant memory and compute per generated token', 'Reading, Where the lineage ends', ''),

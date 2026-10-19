@@ -1,7 +1,7 @@
 # Workflow: from a page to a rendered video
 
 Conventions used below:
-- `<page>` is the page folder (for example `technical_knowledge_base/models_and_training/topic_llms`); the project is `<page>/video/`.
+- `<page>` is the page folder (for example `technical_knowledge_base/models_and_training/topic_llm_landscape`); the project is `<page>/video/`.
 - `R` is the repo root: `R="$(git rev-parse --show-toplevel)"`.
 - `N="$R/.claude/skills/explainer-video/narration"` (narration scripts and voice projects).
 - `FX="$R/.claude/skills/explainer-video/vendor/faceless-explainer"` (the vendored faceless-explainer skill; its scripts are in `$FX/scripts/`).
@@ -97,7 +97,7 @@ Use when the frames are right but the narration changes (new backend, fixed line
 5. Set each frame's duration and its clip durations in `index.html` (and `STORYBOARD.md`) to the new lengths; `audio.mjs sync-durations` handles the storyboard.
 6. Rebuild captions (`captions.mjs build`), re-run assemble and transitions if durations moved, then step 8 in full.
 
-## Lessons from the worked example (`topic_llms/video/`)
+## Lessons from the worked example (`topic_llm_landscape/video/`)
 - One concept angle beats coverage: the page maps 20 labs, the video teaches the frame the page uses to read them (shared skeleton, then two bets) and lands a benchmark caveat as the payoff of that same frame.
 - Eight frames of 5 to 20 s each made about 90 s; each frame has one focal element and a time-coded scene list tied to words.
 - Qualifiers are part of the visual: two bars labelled by harness, a bracket naming the gap, a small mono footnote for the secondary numbers.
@@ -108,4 +108,4 @@ Use when the frames are right but the narration changes (new backend, fixed line
 ## Sources distilled
 (History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
-`.claude/skills/create-explainer-video/SKILL.md` (steps 1 to 9); `video_utils/README.md`, `narrate.py`, `check_takes.py`; the vendored `faceless-explainer/SKILL.md` (steps, scripts, known false positive), `hyperframes/SKILL.md` and its faceless route; the worked example `topic_llms/video/` (`BRIEF.md`, `SCRIPT.md`, `STORYBOARD.md`, `narration_lines.tsv`, `audio_meta.json`, `compositions/frames/*.html` voice warp blocks, `package.json`); `CLAUDE.md` (subagent limits, writing rules); memory note on one GPU-bound agent at a time.
+`.claude/skills/create-explainer-video/SKILL.md` (steps 1 to 9); `video_utils/README.md`, `narrate.py`, `check_takes.py`; the vendored `faceless-explainer/SKILL.md` (steps, scripts, known false positive), `hyperframes/SKILL.md` and its faceless route; the worked example `topic_llm_landscape/video/` (`BRIEF.md`, `SCRIPT.md`, `STORYBOARD.md`, `narration_lines.tsv`, `audio_meta.json`, `compositions/frames/*.html` voice warp blocks, `package.json`); `CLAUDE.md` (subagent limits, writing rules); memory note on one GPU-bound agent at a time.

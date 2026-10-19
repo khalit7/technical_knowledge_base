@@ -45,7 +45,7 @@ Many pages at once (a topic, a batch of papers): [orchestration/topic-pipeline.m
 
 ## Reference pages in this repo
 - Root built by a team with labs and children: `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/` (children inside it).
-- Before/after animation Khalid likes most: `technical_knowledge_base/models_and_training/topic_llms/deepseek/` (the MLA explainer).
+- Before/after animation Khalid likes most: `technical_knowledge_base/models_and_training/topic_llm_landscape/deepseek/` (the MLA explainer).
 - Paper: `technical_knowledge_base/reference/papers/ddpm/`, `.../clip/`.
 - Each page's `src/README.md` says how it was built and `src/viz_ideas.md` lists the visuals built and rejected.
 

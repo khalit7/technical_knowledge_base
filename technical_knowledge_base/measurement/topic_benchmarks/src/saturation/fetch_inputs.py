@@ -62,12 +62,12 @@ for r in csv.DictReader(open(src / 'epoch' / 'model_metadata.csv', encoding='utf
     if r['model_version'] in used: names[r['model_version']] = {'name': r['display_name'] or r['model_group'], 'group': r['model_group'], 'date': r['date']}
 (out / 'epoch_model_names.json').write_text(json.dumps(names, ensure_ascii=False, separators=(',', ':')))
 print('names', len(names), 'of', len(used))
-# Terminal-Bench-Science 0.1 and Terminal-Bench 4.0 cells collected for Topic: llms (read 2026-10-01): AA runs and lab figures
-bg = json.load(open(pathlib.Path(__file__).resolve().parents[4] / 'models_and_training/topic_llms/src/data/bench_grid.json'))
+# Terminal-Bench-Science 0.1 and Terminal-Bench 4.0 cells collected for Topic: llm-landscape (read 2026-10-01): AA runs and lab figures
+bg = json.load(open(pathlib.Path(__file__).resolve().parents[4] / 'models_and_training/topic_llm_landscape/src/data/bench_grid.json'))
 cells = []
 for r in bg['rows']:
     for b in ('tbs', 'tb4'):
         for e in r['cells'].get(b) or []:
             cells.append({'bench': b, 'model': r['m'], 'effort': r['e'], 'release': r['release'], **{k: e.get(k) for k in ('v', 'kind', 'by', 'url', 'ver', 'date', 'cfg', 'q', 'note')}})
-(out / 'aa_tbs_tb4.json').write_text(json.dumps({'source': 'technical_knowledge_base/models_and_training/topic_llms/src/data/bench_grid.json (read 2026-10-01): Artificial Analysis per-model pages and the labs\' own tables', 'cells': cells}, ensure_ascii=False, indent=0))
+(out / 'aa_tbs_tb4.json').write_text(json.dumps({'source': 'technical_knowledge_base/models_and_training/topic_llm_landscape/src/data/bench_grid.json (read 2026-10-01): Artificial Analysis per-model pages and the labs\' own tables', 'cells': cells}, ensure_ascii=False, indent=0))
 print('aa cells', len(cells))
