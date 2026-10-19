@@ -46,7 +46,7 @@
     const up=t=>t.cr>th,share=T.filter(up).length/n,acc=T.reduce((a,t)=>a+(up(t)?t.hok:t.lok),0),cost=T.reduce((a,t)=>a+(up(t)?t.hc:0),0);
     const el=document.getElementById('ro-curve'),W=RD.width(el),L=40,R=W-12,Tp=10,Bt=160,X=f=>L+(R-L)*f,ymin=34,Y=v=>Bt-(Bt-Tp)*(v-ymin)/(n-ymin);let s='';
     for(let v=ymin;v<=n;v+=2)s+='<line x1="'+L+'" x2="'+R+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(L-5,Y(v)+3,v,{a:'end',fs:10,fill:'var(--mute)'});
-    [0,.25,.5,.75,1].forEach(f=>s+=RD.t(X(f),Bt+14,Math.round(f*100)+'%',{a:'middle',fs:10,fill:'var(--mute)'}));
+    [0,.25,.5,.75,1].forEach(f=>s+=RD.t(X(f),Bt+14,Math.round(f*100)+'%',{a:f===1?'end':f===0?'start':'middle',fs:10,fill:'var(--mute)'}));
     s+='<line x1="'+X(0)+'" y1="'+Y(weak)+'" x2="'+X(1)+'" y2="'+Y(strong)+'" stroke="var(--mute)" stroke-dasharray="4 4"/><polyline fill="none" stroke="var(--good)" points="'+X(0)+','+Y(weak)+' '+X(orc/n)+','+Y(weak+orc)+' '+X(1)+','+Y(strong)+'"/>';
     const pts=TH.map(h=>{const sh=T.filter(t=>t.cr>h).length/n;return [sh,T.reduce((a,t)=>a+(t.cr>h?t.hok:t.lok),0)]});
     s+='<polyline fill="none" stroke="var(--c4)" stroke-width="1.5" points="'+pts.map(p=>X(p[0])+','+Y(p[1])).join(' ')+'"/>';
