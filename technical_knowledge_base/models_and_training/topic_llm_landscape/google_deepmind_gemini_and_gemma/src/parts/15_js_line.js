@@ -26,18 +26,20 @@
     ['2026-09-02','g','3.8 Flash and Flash Cyber','"Works harder": 40.9 at $1.24 per task; Cyber through Fairwind only.','{{Google|@b38}}'],
     ['2026-09-15','g','3.8 Live, Live Extended Thinking','Voice agents; Extended Thinking reasons and speaks at once; 97 languages.','{{Google|@blive}}'],
     ['2026-09-18','x','2.5 restricted','Gemini 2.5 served only to projects that already used it.','{{release notes|@log}}'],
-    ['2026-09-30','g','Gemini 4 Argon','Gated frontier model, 1M output; $2 / $10 introductory; 52.6 on the index.','{{Google|@bargon}}']
+    ['2026-09-30','g','Gemini 4 Argon','Frontier model, 1M output, gated to cyber defenders through Fairwind first; $2 / $10 introductory; 52.6 on the index.','{{Google|@bargon}}'],
+    ['2026-10-06','o','EmbeddingGemma 2','740M, Gemma 4 architecture: text, image, audio, video and code in one 768-dimension space; 8K context; Apache 2.0.','{{Google|@eg2}}'],
+    ['2026-10-13','g','Argon generally available','Paid API, AI Studio, Antigravity, Enterprise; $2 / $10 to 30 November, then $4 / $20; first on the Vals Index at 68.90%.','{{VentureBeat|@vbargon}}']
   ].map(([d,k,n,t,src],i)=>({d:new Date(d+'T00:00:00Z'),ds:d,k,n,t,src,id:'ln'+i}));
   let range='all';
   const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const MONTH_ONLY=/^(T5Gemma|T5Gemma 2|Deep Think, IMO gold|Gemini 2.0 Flash Thinking)$/;
   const dlab=e=>{const dd=e.d;return (MONTH_ONLY.test(e.n)?'':dd.getUTCDate()+' ')+mon[dd.getUTCMonth()]+' '+dd.getUTCFullYear()};
   function draw(){
-    const t0=range==='all'?Date.UTC(2023,9,1):Date.UTC(2026,0,1),t1=Date.UTC(2026,9,15);
+    const t0=range==='all'?Date.UTC(2023,9,1):Date.UTC(2026,0,1),t1=Date.UTC(2026,9,22);
     const ev=E.filter(e=>+e.d>=t0);
     const W=880,pl=20,pr=20,T26=Date.UTC(2026,0,1),split=range==='all'?0.5:0;
     const x=t=>{const w=W-pl-pr;if(range!=='all')return pl+w*(t-t0)/(t1-t0);return t<T26?pl+w*split*(t-t0)/(T26-t0):pl+w*(split+(1-split)*(t-T26)/(t1-T26))};
-    const SH={'3.8 Live, Live Extended Thinking':'3.8 Live','3.8 Flash and Flash Cyber':'3.8 Flash','3.6 Flash, 3.5 Flash-Lite':'3.6 Flash','Gemini 2.0 Flash Thinking':'2.0 Thinking','3 Pro Preview shut down':'3 Pro shut down','Deep Think, IMO gold':'Deep Think IMO','Gemma 4 12B Unified':'Gemma 4 12B','3.1 Flash-Lite (GA)':'3.1 Flash-Lite','2.5 restricted':'2.5 restricted'};
+    const SH={'Argon generally available':'Argon GA','3.8 Live, Live Extended Thinking':'3.8 Live','3.8 Flash and Flash Cyber':'3.8 Flash','3.6 Flash, 3.5 Flash-Lite':'3.6 Flash','Gemini 2.0 Flash Thinking':'2.0 Thinking','3 Pro Preview shut down':'3 Pro shut down','Deep Think, IMO gold':'Deep Think IMO','Gemma 4 12B Unified':'Gemma 4 12B','3.1 Flash-Lite (GA)':'3.1 Flash-Lite','2.5 restricted':'2.5 restricted'};
     const sn=e=>(SH[e.n]||e.n).replace(/ \(.*\)/,'').replace(/^Gemini /,'');
     // place each label in the first row where its estimated extent does not overlap
     const rows={up:[],dn:[]},pos=[];
