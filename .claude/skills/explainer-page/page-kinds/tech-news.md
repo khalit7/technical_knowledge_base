@@ -29,7 +29,7 @@ The reader's questions: **"what happened, what connects it, and did it hold?"** 
 - **Further reading**: the knowledge base pages the items feed, the previous and next issues, the parent Tech news page, and the best resources, each with a time estimate.
 
 ## Content as data
-- **`live.md`**: the verbatim Notion fetch, extracted by script from the saved tool result (never retyped).
+- **`live.md`**: the verbatim Notion fetch, extracted by script from the saved tool result (never retyped). A new issue written by the `update-KB` skill has no Notion original: its text is written into `src/issue.md`, which plays the same role (the issue's own words; later checks go in boxes beside it).
 - **`mk_items.py`** parses it into `data/items.json`.
 - **`data/annotations.json`** holds:
   - the issue window and strip axis, glance texts, and section leads;
