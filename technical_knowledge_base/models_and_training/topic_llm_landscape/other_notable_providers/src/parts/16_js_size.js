@@ -11,7 +11,7 @@
       const lg=Math.log10,ly=v=>pt+(H-pt-pb)*(1-(lg(v)-lg(1.5))/(lg(9000)-lg(1.5)));
       [[2,'2B'],[10,'10B'],[100,'100B'],[1000,'1T']].forEach(([v,l])=>{s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+ly(v)+'" y2="'+ly(v)+'" stroke="var(--line)"/><text x="'+(pl-5)+'" y="'+(ly(v)+4)+'" font-size="10.5" text-anchor="end" fill="var(--mute)">'+l+'</text>'});
       ['2024-07-01','2025-01-01','2025-07-01','2026-01-01','2026-07-01'].forEach(d=>{const x=lx(Date.parse(d));s+='<line x1="'+x+'" x2="'+x+'" y1="'+pt+'" y2="'+(H-pb)+'" stroke="var(--line)"/><text x="'+x+'" y="'+(H-pb+15)+'" font-size="10.5" text-anchor="middle" fill="var(--mute)">'+(d.slice(5,7)==='01'?'Jan ':'Jul ')+d.slice(0,4)+'</text>'});
-      const sx=lx(Date.parse('2026-09-01'));s+='<rect x="'+sx+'" y="'+pt+'" width="'+(lx(Date.parse('2026-10-01'))-sx)+'" height="'+(H-pt-pb)+'" fill="var(--hl)" opacity=".55"/><text x="'+(sx-3)+'" y="'+(H-pb-6)+'" font-size="10" text-anchor="end" fill="var(--mute)">September 2026</text>';
+      const sx=lx(Date.parse('2026-09-01'));s+='<rect x="'+sx+'" y="'+pt+'" width="'+(lx(Date.parse('2026-10-20'))-sx)+'" height="'+(H-pt-pb)+'" fill="var(--hl)" opacity=".55"/><text x="'+(sx-3)+'" y="'+(H-pb-6)+'" font-size="10" text-anchor="end" fill="var(--mute)">September and October 2026</text>';
       s+='<text x="12" y="'+((pt+H-pb)/2)+'" font-size="11" text-anchor="middle" fill="var(--mute)" transform="rotate(-90 12 '+((pt+H-pb)/2)+')">total parameters (log)</text>';
       s+='<text x="'+((pl+W-pr)/2)+'" y="'+(H-4)+'" font-size="11" text-anchor="middle" fill="var(--mute)">release date; dot area = active parameters</text>';
       f={x:m=>lx(Date.parse(m.d.length===7?m.d+'-15':m.d)),y:m=>ly(m.tot),r:m=>Math.max(3,Math.sqrt(m.act)*1.15*(narrow?.8:1))};

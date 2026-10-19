@@ -15,7 +15,7 @@
     ['Hy3 (Tencent)',295,21,null],
     ['MiMo-V2.6-Flash (Xiaomi)',309,15,null],
     ['K2 Horizon 375B (IFM)',375,23,null],
-    ['Step 5 Preview (StepFun, weights not yet out)',600,27,null],
+    ['Step 5 Preview (StepFun)',600,27,null],
     ['Hy4 preview (Tencent)',770,49,'Tencent: about 1.56 TB of weights on Hugging Face',16],
     ['MiMo-V2.6-Pro (Xiaomi)',1020,42,null]];
   const HW=[['RTX 5090',32],['H100',80],['2 × H100',160],['B200',180],['8 × H100',640],['8 × B200',1440]];
