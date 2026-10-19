@@ -25,7 +25,7 @@
     F.filter(x=>on.has(x.k)).forEach(x=>{const rs=Object.values(FIRST[x.k]).sort((a,b)=>a.ts-b.ts);let p='M'+X(T0)+','+Y(0),dots='';
       rs.forEach((r,j)=>{p+=' H'+X(r.ts)+' V'+Y(j+1);dots+='<circle data-i="'+r.i+'" cx="'+X(r.ts)+'" cy="'+Y(j+1)+'" r="3.6" fill="'+x.c+'" style="cursor:pointer"><title>'+x.n+': '+esc(r.l)+' first, with '+esc(r.m)+' ('+r.d+'); '+(j+1)+' labs</title></circle>'});
       p+=' H'+X(T1);s+='<path d="'+p+'" fill="none" stroke="'+x.c+'" stroke-width="2"/>'+dots;
-      ends.push({y:Y(rs.length),c:x.c,n:x.n+' '+rs.length,how:x.n+': '+rs.length+' of '+NL+' labs by 30 September 2026'})});
+      ends.push({y:Y(rs.length),c:x.c,n:x.n+' '+rs.length,how:x.n+': '+rs.length+' of '+NL+' labs by 19 October 2026'})});
     s+=endLabels(ends,W-pr+6);
     $('fsPlot').innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="min-width:600px" role="img" aria-label="Number of labs that had shipped each feature, by date">'+s+'</svg>';
     $('fsPlot').querySelectorAll('circle[data-i]').forEach(c=>c.addEventListener('click',()=>show(+c.dataset.i)))}
