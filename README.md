@@ -11,9 +11,9 @@ technical_knowledge_base/      the pages, in the same tree as Notion
   engineering_foundations/  reference/
   pages.json                   every page: path, Notion title and id, status, published hash
 html_utils/                    build checks and publish status (runtime only)
-.claude/skills/                explainer-page, explainer-video (HyperFrames vendored inside), sync-KB-github, update-kb
+.claude/skills/                explainer-page, explainer-video (HyperFrames vendored inside), sync-kb-github, update-kb
 ```
 
-Every page is migrated: 24 topic roots with their child pages, 63 paper pages and the tech-news issues (292 interactive pages). The Papers and Tech news parents are not HTML pages: in Notion each is a one-line description plus its database or child pages. The knowledge base is kept current by the `update-kb` skill (a periodic pass from the date recorded in Notion) and published by `sync-KB-github`.
+Every page is migrated: 24 topic roots with their child pages, 63 paper pages and the tech-news issues (292 interactive pages). The Papers and Tech news parents are not HTML pages: in Notion each is a one-line description plus its database or child pages. The knowledge base is kept current by the `update-kb` skill (a periodic pass from the date recorded in Notion) and published by `sync-kb-github`.
 
 Setup: `uv sync`; `cd html_utils && npm ci`; for videos see `.claude/skills/explainer-video/narration/install.md`.

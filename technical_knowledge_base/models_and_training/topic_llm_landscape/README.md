@@ -4,7 +4,7 @@ Notion: https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286
 
 Renamed from "Topic: llms" on 2026-10-18 (folder `topic_llms/` became `topic_llm_landscape/`; same Notion id). It owns the labs, their models, benchmarks, prices, release history and test-time compute; how an LLM is built moved to Topic: llm-architecture (`../topic_llm_architecture/`).
 
-`index.html` is the whole Notion page (one interactive HTML block). It is built from `src/` with `sh src/build.sh` and published with the `sync-KB-github` skill.
+`index.html` is the whole Notion page (one interactive HTML block). It is built from `src/` with `sh src/build.sh` and published with the `sync-kb-github` skill.
 
 The page also carries a narrated video (not in this repository; its HyperFrames project is in `video/`) and the child pages below, one folder each.
 

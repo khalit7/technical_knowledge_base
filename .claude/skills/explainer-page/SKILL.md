@@ -7,7 +7,7 @@ description: Build an interactive explainer page for Khalid's Technical knowledg
 
 **Golden rule: understand the topic well enough to teach it before building anything.** A page is a teacher, not a summary. If you cannot explain the problem, the mechanism, the cost, when it matters and how to check it, with a running example and the numbers traced to sources, you are not ready to write a tab or brief an agent.
 
-The repository is the source of truth; Notion only displays it. Every page is one interactive `index.html` built from `src/` in its folder under `technical_knowledge_base/`, then published by the `sync-KB-github` skill. Videos are the `explainer-video` skill.
+The repository is the source of truth; Notion only displays it. Every page is one interactive `index.html` built from `src/` in its folder under `technical_knowledge_base/`, then published by the `sync-kb-github` skill. Videos are the `explainer-video` skill.
 
 ## Inputs this skill handles
 | Input | Start with | Page kind |
@@ -26,7 +26,7 @@ The repository is the source of truth; Notion only displays it. Every page is on
 5. **Choose the visuals.** [visuals/choosing.md](visuals/choosing.md), the catalogue [visuals/animation-types.md](visuals/animation-types.md) (before/after on the same input first), and [visuals/mechanics.md](visuals/mechanics.md).
 6. **Write to teach.** [teaching/page-quality.md](teaching/page-quality.md) and [teaching/writing-style.md](teaching/writing-style.md).
 7. **Build and check.** [build/scaffold.md](build/scaffold.md), [build/templates/](build/templates/), [build/checks.md](build/checks.md).
-8. **Publish and record.** The `sync-KB-github` skill, then `python3 html_utils/page_finalize.py <folder>` (papers: `paper_finalize.py <slug>`), `git push`, `python3 html_utils/sync_status.py --no-build`. Present pages to Khalid before publishing unless he has said to publish.
+8. **Publish and record.** The `sync-kb-github` skill, then `python3 html_utils/page_finalize.py <folder>` (papers: `paper_finalize.py <slug>`), `git push`, `python3 html_utils/sync_status.py --no-build`. Present pages to Khalid before publishing unless he has said to publish.
 9. **Keep the lessons.** Add a dated lesson to the page-kind file or [lessons.md](lessons.md) when something new is learned; add a new page kind when Khalid approves a new shape.
 
 Many pages at once (a topic, a batch of papers): [orchestration/topic-pipeline.md](orchestration/topic-pipeline.md) and the fill-in briefs in [orchestration/briefs/](orchestration/briefs/).

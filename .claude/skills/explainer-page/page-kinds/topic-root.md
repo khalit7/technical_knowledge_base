@@ -82,7 +82,7 @@ A root has child pages, so it is **never** published with `replace_content`:
 - keep every `<page>` tag, the video block and its heading;
 - fetch afterwards to confirm.
 
-Details in [migrate-or-fold.md](migrate-or-fold.md) and the `sync-KB-github` skill. The old narrated video describes the old page: leave it, and tell Khalid it is his to delete.
+Details in [migrate-or-fold.md](migrate-or-fold.md) and the `sync-kb-github` skill. The old narrated video describes the old page: leave it, and tell Khalid it is his to delete.
 
 ## Lessons (dated)
 - **2026-10-01**: build folded-in tabs in parallel and write the Reading tab last, by one hand, from their drafts; give the build script per-tab slots.
