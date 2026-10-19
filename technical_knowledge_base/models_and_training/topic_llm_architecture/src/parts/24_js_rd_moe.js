@@ -1,10 +1,11 @@
 // ---- Reading section 6: the same batch of 8 tokens through a dense FFN and an MoE layer (8 experts, top 2, capacity factor 1.25) ----
-// Router logits are illustrative: a fixed seeded draw (mulberry32, seed 26) until a recorded run replaces them (window.RDL.moe_route).
+// Router probabilities: recorded from the tiny GPT's moe8top2 run (block 2, first 8 tokens of the running sequence; Mixture of experts child,
+// router_probs_8tok.json) via window.RDL.moe_route. The seeded draw below (mulberry32, seed 26) is only a fallback if that data is missing.
 (function(){
   const $=id=>document.getElementById(id);
   if(!window.RD||!$('rd-moe'))return;
   const TOK=['Once','upon','a','time',',','a','little','girl'];
-  const E=8,K=2,CF=1.25,CAP=Math.floor(CF*TOK.length*K/E);
+  const E=8,K=2,CF=1.25,CAP=Math.ceil(CF*TOK.length*K/E); // rounded up, as tiny_gpt.py does (math.ceil)
   function mb(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
   const r=mb(26);
   const P=TOK.map(()=>{const lg=[...Array(E)].map(()=>(r()-.5)*4);const m=Math.max(...lg);const ex=lg.map(x=>Math.exp(x-m));const s=ex.reduce((a,b)=>a+b,0);return ex.map(x=>x/s)});
@@ -20,7 +21,7 @@
     moe:[['A batch of 8 tokens reaches the FFN sublayer','Each token is a vector of d numbers from the residual stream. Below sit 8 experts, each an FFN the size of the dense model\'s one FFN (the Mixtral 8x7B layout).'],
       ['The router scores every expert for every token','A linear layer (d &times; 8 weights) gives 8 logits per token; a softmax turns them into the strips under each token (darker is higher). This costs almost nothing next to an expert.'],
       ['Each token keeps its top 2','Only the two highest-scoring experts run for a token; their scores are renormalised to weight the two outputs. 16 assignments for 8 tokens.'],
-      ['Dispatch, with a capacity per expert','Each expert takes at most capacity factor &times; tokens &times; k / experts = 1.25 &times; 8 &times; 2 / 8 = 2.5, so 2 tokens. Assignments over the limit are dropped (dashed red): that token gets less, or no, FFN output in this layer. '+(nDrop?nDrop+(nDrop>1?' assignments are':' assignment is')+' dropped here. ':'')+(idle?idle+(idle>1?' experts receive':' expert receives')+' nothing and '+(idle>1?'their':'its')+' weights sit idle.':'')],
+      ['Dispatch, with a capacity per expert','Each expert takes at most capacity factor &times; tokens &times; k / experts = 1.25 &times; 8 &times; 2 / 8 = 2.5, rounded up to '+CAP+' tokens (some implementations round down, to 2). Assignments over the limit are dropped (dashed red): that token gets less, or no, FFN output in this layer. '+(nDrop?nDrop+(nDrop>1?' assignments are':' assignment is')+' dropped here. ':'')+(idle?idle+(idle>1?' experts receive':' expert receives')+' nothing and '+(idle>1?'their':'its')+' weights sit idle.':'')],
       ['The experts run on the tokens they kept','Each token pays for 2 expert FFNs, twice the dense FFN, while the layer stores 8. Busy experts set the step time: the slowest expert waits for its full load.'],
       ['Outputs are weighted and added back','Each token adds the weighted sum of its kept experts\' outputs to the residual stream. A balancing loss or a per-expert bias pushes the router towards equal loads in training, so fewer assignments are dropped.']],
     dense:[['The same batch of 8 tokens reaches the FFN sublayer','One FFN, drawn at the same scale as one expert.'],
@@ -75,7 +76,7 @@
       b+=RD.t(W-pad,yc-3,'capacity '+CAP,{a:'end',fs:11,fill:'var(--bad)'});
     }
     if(dense&&i>=2){b+=RD.t(W/2,yL+hL/2,'8 tokens, 1 FFN each',{a:'middle',fs:11,fill:'var(--mute)'})}
-    svgEl.innerHTML=RD.svg(W,H,b,dense?'Dense FFN: every token through one FFN':'MoE: router picks 2 of 8 experts per token, with capacity 2');
+    svgEl.innerHTML=RD.svg(W,H,b,dense?'Dense FFN: every token through one FFN':'MoE: router picks 2 of 8 experts per token, with capacity '+CAP);
     const c=CAPS[mode][i];cap.innerHTML='<div class="t">Step '+(i+1)+' of '+CAPS[mode].length+': '+c[0]+'</div><p>'+c[1]+'</p>';
     const last=i===CAPS[mode].length-1;
     cnt.innerHTML=dense?

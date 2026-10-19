@@ -22,6 +22,6 @@ for l in open(f"{S}/la/setup/pub.tsv"):
     'published_label':tot+(' / '+act+' active' if act!='-' else ''),'published_source':src,
     'safetensors_total':s.get('st_total'),'safetensors_by_dtype':s.get('st_by_dtype'),'safetensors_source':f"https://huggingface.co/api/models/{s.get('repo')}?expand[]=safetensors" if s else None,
     'license':s.get('license_name') or s.get('license'),'hf_created':(s.get('created') or '')[:10],'note':note})
-json.dump({'what':'config.json of real models (config only, no weights) for the calculator, the attention lab and the architecture map. Published counts are vendor claims from the source named; safetensors_total is the Hugging Face API count of stored tensors (includes vision towers, MTP heads, FP8 scale tensors; for MXFP4 or bnb repos it counts packed bytes, not parameters).',
+json.dump({'what':'config.json of real models (config only, no weights) for the calculator, the attention lab and the architecture map. Published counts are vendor claims from the source named; safetensors_total is the Hugging Face API count of stored tensors (includes vision towers, MTP heads, FP8 scale tensors; for the MXFP4 experts of gpt-oss it counts each value as one parameter, not packed bytes, as the exact match of the Config calculator shows, checked 2026-10-19).',
   'fetched':'2026-10-18','models':out},open(f"{R}/configs/manifest.json",'w'),indent=1)
 print(len(out))

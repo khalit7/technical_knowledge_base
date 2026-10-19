@@ -77,9 +77,50 @@ out['fmt'] = {k: fmt_bytes(v) for k, v in out['variants_per_token_bytes'].items(
 out['fmt128k'] = {k: fmt_bytes(v) for k, v in out['variants_at_128k_bytes'].items()}
 json.dump(out, open(os.path.join(H, 'derived.json'), 'w'), indent=1)
 def check_configs():
-    """Compare CFG with the saved config.json files, when src/data/configs/ exists."""
+    """Compare CFG and the other config values the page quotes with src/data/configs/ and with the Config
+    calculator (src/calc/calc.py, the Python twin of window.CC). Raises on any difference."""
+    import sys
     D = os.path.join(H, '..', 'data', 'configs')
-    if not os.path.isdir(D): print('src/data/configs not there yet'); return
-    print(sorted(os.listdir(D)))
+    def C(k):
+        j = json.load(open(os.path.join(D, k + '.json'))); return j.get('text_config') or j
+    n = 0
+    def eq(a, b, what):
+        nonlocal n
+        assert a == b, '%s: page %r config %r' % (what, a, b); n += 1
+    for key, f in [('llama31_8b', 'llama-3.1-8b'), ('llama31_70b', 'llama-3.1-70b')]:
+        c, x = C(f), CFG[key]
+        for a, b in [('L', 'num_hidden_layers'), ('d', 'hidden_size'), ('H', 'num_attention_heads'), ('kv', 'num_key_value_heads'),
+                     ('ff', 'intermediate_size'), ('V', 'vocab_size'), ('tied', 'tie_word_embeddings')]:
+            eq(x[a], c[b], key + '.' + a)
+        eq(x['dh'], c.get('head_dim') or c['hidden_size'] // c['num_attention_heads'], key + '.dh')
+    c, x = C('deepseek-v3'), CFG['dsv3']
+    for a, b in [('L', 'num_hidden_layers'), ('d', 'hidden_size'), ('H', 'num_attention_heads'), ('dc', 'kv_lora_rank'), ('dr', 'qk_rope_head_dim'),
+                 ('dense_layers', 'first_k_dense_replace'), ('ff', 'intermediate_size'), ('moe_ff', 'moe_intermediate_size'),
+                 ('E', 'n_routed_experts'), ('k', 'num_experts_per_tok'), ('shared', 'n_shared_experts'), ('V', 'vocab_size')]:
+        eq(x[a], c[b], 'dsv3.' + a)
+    c, x = C('gemma-3-27b'), CFG['gemma3_27b']
+    p = c['sliding_window_pattern']; glob = sum(1 for i in range(c['num_hidden_layers']) if (i + 1) % p == 0)
+    eq((x['L'], x['glob'], x['local'], x['kv'], x['dh'], x['W']),
+       (c['num_hidden_layers'], glob, c['num_hidden_layers'] - glob, c['num_key_value_heads'], c['head_dim'], c['sliding_window']), 'gemma3_27b')
+    c, x = C('gpt-oss-120b'), CFG['gptoss_120b']; lt = c['layer_types']
+    eq((x['L'], x['local'], x['glob'], x['kv'], x['dh'], x['W']),
+       (c['num_hidden_layers'], lt.count('sliding_attention'), lt.count('full_attention'), c['num_key_value_heads'], c['head_dim'], c['sliding_window']), 'gptoss_120b')
+    eq((c['rope_scaling']['factor'], c['rope_scaling']['original_max_position_embeddings'], c['max_position_embeddings']), (32.0, 4096, 131072), 'gpt-oss YaRN')
+    c, x = C('qwen3-next-80b-a3b'), CFG['qwen3next_80b']
+    eq((x['L'], x['attn'], x['kv'], x['dh']), (c['num_hidden_layers'], c['num_hidden_layers'] // c['full_attention_interval'], c['num_key_value_heads'], c['head_dim']), 'qwen3next')
+    # section 8 shape table and other quoted fields
+    for f, d, L in [('smollm2-135m', 576, 30), ('llama-3.1-8b', 4096, 32), ('llama-3.1-70b', 8192, 80), ('llama-3.1-405b', 16384, 126), ('deepseek-v3', 7168, 61)]:
+        eq((d, L), (C(f)['hidden_size'], C(f)['num_hidden_layers']), f + ' shape')
+    s = C('smollm2-135m'); eq((s['vocab_size'], s['tie_word_embeddings'], s['num_attention_heads'], s['num_key_value_heads']), (49152, True, 9, 3), 'smollm2')
+    eq(C('llama-3.1-8b')['rope_scaling']['original_max_position_embeddings'], 8192, 'llama3.1 rope orig')
+    eq((C('mixtral-8x7b')['num_local_experts'], C('mixtral-8x7b')['num_experts_per_tok']), (8, 2), 'mixtral')
+    q = C('qwen3-235b-a22b'); eq((q['num_experts'], q['num_experts_per_tok']), (128, 8), 'qwen3-235b')
+    # parameter counts against the Config calculator (window.CC's Python twin)
+    sys.path.insert(0, os.path.join(H, '..', 'calc')); import calc
+    for key, f in [('l8b', 'llama-3.1-8b'), ('l70b', 'llama-3.1-70b')]:
+        tot = calc.params(calc.normalise(json.load(open(os.path.join(D, f + '.json')))))['total']
+        want = out[key]['total'] if key == 'l8b' else out[key]['params']
+        eq(want, tot, key + ' params vs calc.py')
+    print('check_configs: %d config values agree with src/data/configs and calc.py' % n)
 if __name__ == '__main__':
     print(json.dumps(out, indent=1)); check_configs()
