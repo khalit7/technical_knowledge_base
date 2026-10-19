@@ -9,7 +9,7 @@ byp = {x['path']: x for x in d['pages']}
 for a in paths:
     if a not in byp: sys.exit('not in pages.json: ' + a)
     byp[a].update(status='html_only', html='index.html')
-open(p, 'w').write(json.dumps(d, indent=2) + '\n')
+open(p, 'w', encoding='utf-8').write(json.dumps(d, indent=2, ensure_ascii=False) + '\n')
 for a in paths: subprocess.run(['python3', 'html_utils/sync_status.py', '--record', a], check=True)
 subprocess.run(['git', 'add', p] + paths, check=True)
 titles = [byp[a]['title'] for a in paths]

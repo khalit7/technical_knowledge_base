@@ -40,7 +40,7 @@ def main():
         if not e:
             sys.exit(f"not in pages.json: {a.record}")
         e["published_sha256"] = sha(REPO / e["path"] / "index.html")
-        MANIFEST.write_text(json.dumps(m, indent=2) + "\n")
+        MANIFEST.write_text(json.dumps(m, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print("recorded", e["path"])
         return
 
