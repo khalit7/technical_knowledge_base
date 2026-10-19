@@ -34,8 +34,9 @@
    ['2026-06-23','v','Mistral OCR 4','p','Document understanding on the API; replaced by OCR 4.1 on 16 July.','{{Mistral|@ocr4}}'],
    ['2026-07-02','x','Leanstral 1.5','a','587 of 672 PutnamBench problems, by Mistral\'s report; Apache 2.0.','{{Mistral|@lean15}}'],
    ['2026-07-08','x','Robostral Navigate','u','8B camera-and-language navigation model, trained in simulation; 76.6% success on unseen R2R-CE environments, by Mistral\'s report. No licence named.','{{Mistral|@robo}}'],
-   ['2026-07-15','g','Next flagship (early access)','u','Partner early access to an open-weight model expected to be considerably larger than Large 3; no public name, size or licence by the end of September. Date shown is mid-July: the month is sourced, the day is not.','{{Tech Times|@tt}}'],
-   ['2026-08-04','x','Shieldstral 1.0','a','Policy-adaptive guard model, text and image, 32k context, public preview.','{{Mistral|@shieldn}}']
+   ['2026-07-15','g','Next flagship (early access)','u','Partner early access to an open-weight model expected to be considerably larger than Large 3; released as Large 4 in October. Date shown is mid-July: the month is sourced, the day is not.','{{Tech Times|@tt}}'],
+   ['2026-08-04','x','Shieldstral 1.0','a','Policy-adaptive guard model, text and image, 32k context, public preview.','{{Mistral|@shieldn}}'],
+   ['2026-10-06','g','Mistral Large 4','p','"Le Chonk": 1T total, 52B active MoE, multimodal; public API preview at $1.36 / $4.18; weights promised, licence not named. 38 on Intelligence Index v4.3.','{{Mistral|@l4}}']
   ].map(([d,k,n,l,t,src],i)=>({d:new Date(d+'T00:00:00Z'),k,n,l,t,src,id:'ln'+i}));
   const ABS=[['Magistral','Mistral Small 4'],['Devstral','Mistral Small 4'],['Magistral','Mistral Medium 3.5'],['Devstral 2','Mistral Medium 3.5'],['Pixtral 12B','Mistral Large 3']];
   let range='all',filt='all';const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -43,7 +44,7 @@
   const SH=n=>n.replace('Mistral ','').replace(' (early access)',' (early access)');
   function draw(){
     const narrow=$('lnSvg').clientWidth<560,W=narrow?600:880,pl=narrow?74:92,pr=16;
-    const t0=range==='all'?Date.UTC(2023,7,1):Date.UTC(2025,0,1),t1=Date.UTC(2026,9,15);
+    const t0=range==='all'?Date.UTC(2023,7,1):Date.UTC(2025,0,1),t1=Date.UTC(2026,9,22);
     const T26=Date.UTC(2026,0,1),sp=range==='all'?0.6:0.45;const x=t=>{const w=W-pl-pr;return t<T26?pl+w*sp*(t-t0)/(T26-t0):pl+w*(sp+(1-sp)*(t-T26)/(t1-T26))};
     const keep=e=>+e.d>=t0&&(filt==='all'||(filt==='open'?(e.l==='a'||e.l==='m'||e.l==='r'):e.l==='p'));
     const lanes=['g','c','r','v','s','e','x'],LH=58,top=16,H=top+lanes.length*LH+24;let s='';

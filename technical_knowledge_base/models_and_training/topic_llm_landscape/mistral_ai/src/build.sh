@@ -19,7 +19,7 @@ small3=>$mn."mistral-small-3", small31=>$mn."mistral-small-3-1", med3=>$mn."mist
 voxt2=>$mn."voxtral-transcribe-2", vtts=>$mn."voxtral-tts", lean=>$mn."leanstral", lean15=>$mn."leanstral-1-5", ocr4=>$mn."ocr-4", robo=>$mn."robostral-navigate",
 shieldn=>$mn."shieldstral", compute=>$mn."mistral-compute", raise=>$mn."mistral-ai-raises-1-7-b-to-accelerate-technological-progress-with-ai",
 vibe=>$mn."vibe-agent", forge=>$mn."forge", region=>$mn."regional-inference-open-models-new-compute", emmi=>$mn."accelerate-ai-native-industry",
-munich=>$mn."hallo-deutschland", moz=>$mn."mistral-x-mozilla/", news=>"https://mistral.ai/news",
+munich=>$mn."hallo-deutschland", moz=>$mn."mistral-x-mozilla/", news=>"https://mistral.ai/news", l4=>"https://mistral.ai/news/mistral-large-4", aal4=>"https://artificialanalysis.ai/models/mistral-large-4", valstb=>"https://www.vals.ai/benchmarks/terminal-bench-4",
 tc=>"https://techcrunch.com/2026/09/08/mistral-raises-e3b-as-sovereign-ai-becomes-big-business/",
 gig=>"https://gigazine.net/gsc_news/en/20260917-firefox-ai-mozilla-mistral/",
 models=>"https://docs.mistral.ai/models/overview", shield=>$dc."shieldstral-1-0", m35doc=>$dc."mistral-medium-3-5-26-04", l3doc=>$dc."mistral-large-3-25-12",
