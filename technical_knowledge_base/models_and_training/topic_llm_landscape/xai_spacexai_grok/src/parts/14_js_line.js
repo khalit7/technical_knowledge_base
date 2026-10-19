@@ -3,10 +3,10 @@ const U={wg:'https://en.wikipedia.org/wiki/Grok_(chatbot)',wsx:'https://en.wikip
  verge:'https://www.theverge.com/ai-artificial-intelligence/925469/xai-is-becoming-spacexai',bi:'https://www.businessinsider.com/xai-rebrand-spacexai-new-logo-x-handle-spacex-2026-7',
  sa46:'https://siliconangle.com/2026/08/12/spacexai-releases-flagship-grok-4-6-model-advanced-reasoning-capabilities/',mtp45:'https://www.marktechpost.com/2026/07/08/spacexai-releases-grok-4-5/',
  g1os:'https://x.ai/news/grok-os',g3:'https://x.ai/news/grok-3',g4:'https://x.ai/news/grok-4',g47:'https://x.ai/news/grok-4-7',g2:'https://huggingface.co/xai-org/grok-2',
- xdrn:'https://docs.x.ai/developers/release-notes',xdret:'https://docs.x.ai/developers/migration/may-15-retirement',adv:'https://adversa.ai/blog/cryptographic-context-injection-grok-data-theft/',aa47:'https://artificialanalysis.ai/articles/benchmarking-grok-4-7'};
+ xdrn:'https://docs.x.ai/developers/release-notes',xdret:'https://docs.x.ai/developers/migration/may-15-retirement',adv:'https://adversa.ai/blog/cryptographic-context-injection-grok-data-theft/',aa47:'https://artificialanalysis.ai/articles/benchmarking-grok-4-7',gv3:'https://x.ai/news/grok-voice-3'};
 (function(){
   if(!$('lnSvg'))return;
-  const LANES=[['corp','Company'],['comp','Compute'],['flag','Flagship'],['fast','Fast, coding, agents'],['open','Open weights']];
+  const LANES=[['corp','Company'],['comp','Compute'],['flag','Flagship'],['fast','Fast, agents, voice'],['open','Open weights']];
   // d: ISO date; a: true when only the month is known; h: hollow (a passed target)
   const E=[
    ['corp','2023-03-09',0,'xAI incorporated','Founded by Elon Musk and 11 researchers; announced on 12 July 2023.','wsx'],
@@ -48,7 +48,8 @@ const U={wg:'https://en.wikipedia.org/wiki/Grok_(chatbot)',wsx:'https://en.wikip
    ['flag','2026-08-12',0,'Grok 4.6','500K context, $2 / $6; index 61 on the pre-v4.2 scale, 44.3 on v4.3.','sa46'],
    ['corp','2026-08-14',0,'Cursor acquired','$60B all-stock acquisition closes; Cursor joins SpaceXAI.','wsx'],
    ['corp','2026-08-20',0,'Injection disclosed','Adversa publishes after 78 days without a fix: 40% of 20 attempts on Grok 4.5 Fast.','adv'],
-   ['flag','2026-09-21',0,'Grok 4.7','Larger base, longer RL, native Grok Bot harness; Terminal-Bench 4.0 38.0% (xAI) or 33% (Artificial Analysis, Grok Build).','g47']
+   ['flag','2026-09-21',0,'Grok 4.7','Larger base, longer RL, native Grok Bot harness; Terminal-Bench 4.0 38.0% (xAI) or 33% (Artificial Analysis, Grok Build).','g47'],
+   ['fast','2026-10-14',0,'Grok Voice 3.0','Speech-to-speech for the Voice Agent API at $0.08 a minute; first on Artificial Analysis\'s Speech-to-Speech Index at 86.9 (Grok Voice 2.0: 81.3).','gv3']
   ].map(r=>({l:r[0],d:r[1],a:r[2],t:r[3],x:r[4],s:r[5],h:!!r[6]}));
   const MO=['January','February','March','April','May','June','July','August','September','October','November','December'];
   const dstr=e=>{const [y,m,d]=e.d.split('-').map(Number);return e.a?MO[m-1]+' '+y:d+' '+MO[m-1]+' '+y};
