@@ -1,19 +1,23 @@
-// ---- Shared price list (pricing page, read 1 Oct 2026): input, output, cache read; $/MTok. old: previous tokenizer ----
+// ---- Shared price list (pricing page and models overview, read 19 Oct 2026): input, output, cache read; $/MTok. old: previous tokenizer; hi: the rates for requests whose input exceeds hi.over tokens (Haiku 5.5) ----
 const PRICES=[
   {n:'Fable 5.1',i:10,o:50,c:0.25,win:1e6,old:false,cur:true},
   {n:'Fable 5',i:10,o:50,c:1.00,win:1e6,old:false},
   {n:'Opus 5.5',i:4,o:20,c:0.20,win:1e6,old:false,cur:true},
   {n:'Opus 5 (and 4.5 to 4.8)',s:'Opus 5',i:5,o:25,c:0.50,win:1e6,old:false},
-  {n:'Sonnet 5.5 (and Sonnet 5)',s:'Sonnet 5.5',i:2,o:10,c:0.20,win:1e6,old:false,cur:true},
+  {n:'Sonnet 5.5',i:2,o:10,c:0.10,win:1e6,old:false,cur:true},
+  {n:'Sonnet 5',i:2,o:10,c:0.20,win:1e6,old:false},
   {n:'Sonnet 4.6 and 4.5',s:'Sonnet 4.6',i:3,o:15,c:0.30,win:1e6,old:true},
-  {n:'Haiku 4.5',i:1,o:5,c:0.10,win:2e5,old:true,cur:true},
+  {n:'Haiku 5.5',i:0.10,o:0.50,c:0.01,win:1e6,old:false,cur:true,hi:{over:1e5,i:0.50,o:2.50,c:0.05}},
+  {n:'Haiku 4.5',i:1,o:5,c:0.10,win:2e5,old:true},
   {n:'Opus 4.1 (retired on the Claude API)',s:'Opus 4.1',i:15,o:75,c:1.50,win:2e5,old:true}
 ];
 const PBY=n=>PRICES.find(p=>(p.s||p.n)===n||p.n===n);
+// rates that apply to one request holding ctx input tokens (Haiku 5.5 switches to its higher tier above 100K)
+const TIER=(p,ctx)=>p.hi&&ctx>p.hi.over?Object.assign({},p,p.hi):p;
 
 // ---- Price ladder bars beside the lineup table ----
 (function(){
-  const rows=['Haiku 4.5','Sonnet 5.5','Opus 5.5','Fable 5.1'].map(PBY),cols=[['i','Input','var(--c1)'],['o','Output','var(--c4)'],['c','Cache read','var(--good)']];
+  const rows=['Haiku 5.5','Sonnet 5.5','Opus 5.5','Fable 5.1'].map(PBY),cols=[['i','Input','var(--c1)'],['o','Output','var(--c4)'],['c','Cache read','var(--good)']];
   let s='';cols.forEach(([k,lab,col])=>{const mx=Math.max(...rows.map(r=>r[k]));s+='<div class="band">'+lab+' per 1M tokens</div>';
     rows.forEach(r=>{s+='<div class="row"><span class="nm">'+(r.s||r.n)+'</span><span class="track"><span class="fill" style="width:'+(100*r[k]/mx).toFixed(1)+'%;background:'+col+'"></span></span><span class="val">'+usd(r[k],2)+'</span></div>'})});
   $('ladder').innerHTML=s;
@@ -21,7 +25,7 @@ const PBY=n=>PRICES.find(p=>(p.s||p.n)===n||p.n===n);
 
 // ---- AA mini stats ----
 (function(){
-  $('aaMini').innerHTML=stat('Opus 5.5 (max)','57.6','$5.98 per task, top of v4.3')+stat('Fable 5.1 (max)','53.4','$7.63 per task')+stat('Opus 5.5 (medium, default)','51.2','$1.34 per task')+stat('GPT-6 Astra (max)','52.7','$3.26 per task')+stat('Opus 5 (max)','50.8','$5.86 per task');
+  $('aaMini').innerHTML=stat('Opus 5.5 (max)','57.6','$5.98 per task, top of v4.3')+stat('Fable 5.1 (max)','53.4','$7.63 per task')+stat('Opus 5.5 (medium, default)','51.2','$1.34 per task')+stat('GPT-6 Astra (max)','52.7','$3.26 per task')+stat('Opus 5 (max)','50.8','$5.86 per task')+stat('Haiku 5.5 (max)','43','$0.21 per task (read 19 Oct)');
 })();
 
 // ---- Benchmark ledger: three Anthropic tables in one grid ----
@@ -133,12 +137,12 @@ const PBY=n=>PRICES.find(p=>(p.s||p.n)===n||p.n===n);
 })();
 
 // ---- Worked example: computed from the page's formula ----
-function sessFixed(p,P,T,N,O){const w=1.25*p.i;return {write:P*w/1e6,read:T*P*p.c/1e6,inp:T*N*p.i/1e6,out:T*O*p.o/1e6}}
+function sessFixed(p,P,T,N,O){p=TIER(p,P+N);const w=1.25*p.i;return {write:P*w/1e6,read:T*P*p.c/1e6,inp:T*N*p.i/1e6,out:T*O*p.o/1e6}}
 (function(){
-  const P=1e5,T=50,N=5e3,O=2e3,rows=[['Fable 5.1',PBY('Fable 5.1')],['Fable 5',PBY('Fable 5')],['Opus 5.5',PBY('Opus 5.5')],['Opus 5',PBY('Opus 5')],['Sonnet 5.5',PBY('Sonnet 5.5')],['Haiku 4.5',PBY('Haiku 4.5')]];
+  const P=1e5,T=50,N=5e3,O=2e3,rows=[['Fable 5.1',PBY('Fable 5.1')],['Fable 5',PBY('Fable 5')],['Opus 5.5',PBY('Opus 5.5')],['Opus 5',PBY('Opus 5')],['Sonnet 5.5',PBY('Sonnet 5.5')],['Haiku 5.5 (over-100K rates)',PBY('Haiku 5.5')],['Haiku 4.5 (legacy)',PBY('Haiku 4.5')]];
   let h='<tr><th>Model</th><th class="num">w, c, i, o</th><th class="num">Cache write</th><th class="num">Per turn</th><th class="num">Session C</th></tr>';
   const tot=x=>x.write+x.read+x.inp+x.out;
-  rows.forEach(([n,p])=>{const x=sessFixed(p,P,T,N,O),pt=(x.read+x.inp+x.out)/T;h+='<tr><td>'+n+'</td><td class="num">'+[1.25*p.i,p.c,p.i,p.o].map(v=>fmt(v,2)).join(', ')+'</td><td class="num">'+usd(x.write,3)+'</td><td class="num">'+usd(pt,3)+'</td><td class="num"><b>'+usd(tot(x),3)+'</b></td></tr>'});
+  rows.forEach(([n,p])=>{const x=sessFixed(p,P,T,N,O),pt=(x.read+x.inp+x.out)/T,q=TIER(p,P+N);h+='<tr><td>'+n+'</td><td class="num">'+[1.25*q.i,q.c,q.i,q.o].map(v=>fmt(v,2)).join(', ')+'</td><td class="num">'+usd(x.write,3)+'</td><td class="num">'+usd(pt,3)+'</td><td class="num"><b>'+usd(tot(x),3)+'</b></td></tr>'});
   const f=PBY('Fable 5.1'),nc=T*((P+N)*f.i+O*f.o)/1e6;
   h+='<tr><td>Fable 5.1, no caching</td><td class="num">i = 10, o = 50</td><td class="num">none</td><td class="num">'+usd(nc/T,3)+'</td><td class="num"><b>'+usd(nc,2)+'</b></td></tr>';
   $('weTab').innerHTML=h;
