@@ -21,7 +21,7 @@
       const wv=f(k,md.win,o);b='M'+F.lx(md.win).toFixed(1)+','+F.ly(wv).toFixed(1)+b.replace(/^M/,'L');
       s+='<path d="'+a+'" fill="none" stroke="'+md.c+'" stroke-width="2.4"'+(md.hyp?' stroke-dasharray="5 3"':'')+'/><path d="'+b+'" fill="none" stroke="'+md.c+'" stroke-width="1.6" opacity=".35" stroke-dasharray="2 3"/>';
       s+='<circle cx="'+F.lx(md.win)+'" cy="'+F.ly(wv)+'" r="3" fill="'+md.c+'"/>';
-      ends.push({y:F.ly(f(k,4194304,o)),n:md.n,c:md.c,how:md.n+': window '+fmt(md.win)+' tokens'})});
+      ends.push({y:F.ly(f(k,4194304,o)),n:(W<500&&md.s)||md.n,c:md.c,how:md.n+': window '+fmt(md.win)+' tokens'})});
     s+='<line x1="'+F.lx(n)+'" x2="'+F.lx(n)+'" y1="12" y2="'+(H-38)+'" stroke="var(--ink)" stroke-dasharray="2 3"/>';
     keys.forEach(k=>{s+='<circle cx="'+F.lx(n)+'" cy="'+F.ly(f(k,n,o))+'" r="4" fill="var(--bg)" stroke="'+MODELS[k].c+'" stroke-width="2"/>'});
     s+=endLabels(ends,W-(W<500?96:122),14);

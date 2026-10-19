@@ -43,7 +43,7 @@
     const rows=[['M3',I+O<=1000000?cost(m3p):null,'var(--acc)',hi?'whole call at the above-512K rate':'standard rate'],
       ['M2.7',I+O<=204800?cost([0.3,1.2,0.06]):null,'var(--c2)','204,800-token window'],
       ['M2.7-highspeed',I+O<=204800?cost([0.6,2.4,0.12]):null,'var(--c4)','twice M2.7'],
-      ['M3.1-Flash-Preview',null,'var(--mute)','not sold per token']];
+      ['M3.1 Flash',I+O<=1000000?cost([0.15,0.6,0.015]):null,'var(--c5)','1M window, one rate']];
     const mx=Math.max(...rows.map(r=>r[1]||0));
     $('rqBars').innerHTML=rows.map(r=>'<div class="row"><span class="nm" title="'+r[3]+'">'+r[0]+'</span><span class="track">'+(r[1]!=null?'<span class="fill" style="width:'+(100*r[1]/mx).toFixed(1)+'%;background:'+r[2]+'"></span>':'')+'</span><span class="val">'+(r[1]!=null?'$'+r[1].toFixed(r[1]<0.1?4:3):(r[0].startsWith('M3.1')?'no price':'too long'))+'</span></div>').join('');
     $('rqCap').innerHTML='Cost of one call = (uncached input × input price + cached input × cache-read price + output × output price) / 10<sup>6</sup>. M3: $0.30 / $1.20, cache read $0.06, up to 512K input; $0.60 / $2.40, $0.12 above. M2.7: $0.30 / $1.20, $0.06 cache read (cache writes, $0.375, not counted). Windows count input plus output. Source: '+A('https://platform.minimax.io/docs/guides/pricing-paygo','MiniMax pricing')+'.'}

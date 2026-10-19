@@ -1,7 +1,7 @@
 // ---- Shared attention model: per decoded token, per layer and summed (all from config.json files) ----
 const KB=128, KSEL=16, SELT=KSEL*KB; // MSA block size and blocks kept per group (M3 config)
 const MODELS={
- h01:{n:'MiniMax-01 hybrid',c:'var(--c3)',win:1048576,layers:80},
+ h01:{n:'MiniMax-01 hybrid',s:'MiniMax-01',c:'var(--c3)',win:1048576,layers:80},
  s01:{n:'01 if all softmax',c:'var(--mute)',win:1048576,layers:80,hyp:true},
  m2:{n:'M2',c:'var(--c2)',win:196608,layers:62},
  m3:{n:'M3',c:'var(--acc)',win:1048576,layers:60}
