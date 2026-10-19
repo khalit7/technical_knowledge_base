@@ -31,14 +31,16 @@
     ['2026-09-22','u','GPT-6 Sol, GPT-6 Luna','Half the GPT-5.6 prices: $2/$10 and $0.10/$0.50. OpenAI\'s figures for Sol: 68.8% on DeepSWE v1.1 at max effort; 33.2% on AutomationBench 1.0.6 at xhigh for $0.27 a task (Claude Opus 5 26.9% at max, 11.1 times the cost per task); 60.5% on OSWorld 2.0 at xhigh; 56.4% on Agents\' Last Exam; about half as many mistakes as GPT-5.6 Sol on an internal factuality evaluation. Luna: 66.6% on DeepSWE v1.1, at a task cost 93% below the compared Opus 5 configuration and 96% below Fable 5.','not disclosed','{{VentureBeat|@vb6}}'],
     ['2026-09-26','x','Training and tool use paused','After an agent escaped through DNS and another leaked a GitHub token.','','{{The Decoder|@decoder}}'],
     ['2026-09-28','x','GPT-6.1 Astra withheld; AISI report','Scope and honesty regressions; Astra ran more unsanctioned attacks than GPT-5.6 Sol in simulation.','','{{The Hacker News|@thn}}'],
-    ['2026-09-29','u','GPT-6.1 Sol','Near Astra on DeepSWE and OSWorld at a fifth of the price; Ultrafast launched for Astra.','not disclosed','{{VentureBeat|@vb61}}']
+    ['2026-09-29','u','GPT-6.1 Sol','Near Astra on DeepSWE and OSWorld at a fifth of the price, at $2/$10 with cached input $0.10; Ultrafast launched for Astra.','not disclosed','{{VentureBeat|@vb61}}'],
+    ['2026-10-06','p','Decisions API (beta)','POST /v1/decisions on GPT-6 Luna only: typed answers for routing and classification at $0.10 per 1M input tokens, no output charge.','','{{Decisions guide|@dec}}'],
+    ['2026-10-07','p','GPT-6 in ChatGPT Chat','Sol for paid plans, Luna for Free and Go (from 8 October), with Intelligent UI; Work and Codex unchanged.','','{{ghacks|@gh6}}']
   ].map(([d,k,n,t,sz,src],i)=>({d:Date.parse(d+'T00:00:00Z'),ds:d,k,n,t,sz,src,id:'ln'+i}));
-  const BETS=[['2018-06-01','2022-01-01','pretraining scale'],['2022-01-01','2024-09-01','post-training'],['2024-09-01','2025-08-01','inference compute'],['2025-08-01','2026-07-01','router'],['2026-07-01','2026-09-02','tiers'],['2026-09-02','2026-10-15','inside the network, behind the API']].map(([a,b,n])=>[Date.parse(a),Date.parse(b),n]);
+  const BETS=[['2018-06-01','2022-01-01','pretraining scale'],['2022-01-01','2024-09-01','post-training'],['2024-09-01','2025-08-01','inference compute'],['2025-08-01','2026-07-01','router'],['2026-07-01','2026-09-02','tiers'],['2026-09-02','2026-10-20','inside the network, behind the API']].map(([a,b,n])=>[Date.parse(a),Date.parse(b),n]);
   const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const dl=e=>{const d=new Date(e.d);return d.getUTCDate()+' '+mon[d.getUTCMonth()]+' '+d.getUTCFullYear()};
   let range='all';
   function draw(){
-    const t0=range==='all'?Date.UTC(2018,3,1):Date.UTC(2026,5,15),t1=Date.UTC(2026,9,10),T25=Date.UTC(2025,0,1);
+    const t0=range==='all'?Date.UTC(2018,3,1):Date.UTC(2026,5,15),t1=Date.UTC(2026,9,20),T25=Date.UTC(2025,0,1);
     const W=900,pl=128,pr=14,w=W-pl-pr;
     const x=t=>range!=='all'?pl+w*(t-t0)/(t1-t0):(t<T25?pl+w*.42*(t-t0)/(T25-t0):pl+w*(.42+.58*(t-T25)/(t1-T25)));
     const ev=E.filter(e=>e.d>=t0).sort((a,b)=>a.d-b.d);
