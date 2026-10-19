@@ -1,6 +1,6 @@
 # HyperFrames: what this workflow uses
 
-HyperFrames renders video from HTML: each frame is an HTML composition with a seekable GSAP timeline registered in `window.__timelines`, and the CLI (`npx hyperframes@<pinned version>`, run through the project's `package.json` scripts) previews, checks, snapshots and renders it with its own headless Chrome. Its skills are third-party, vendored as real folders under `.claude/skills/` and recorded in `skills-lock.json` at the repo root. Do not edit them; refresh them as below.
+HyperFrames renders video from HTML: each frame is an HTML composition with a seekable GSAP timeline registered in `window.__timelines`, and the CLI (`npx hyperframes@<pinned version>`, run through the project's `package.json` scripts) previews, checks, snapshots and renders it with its own headless Chrome. Its skills are third-party, vendored as real folders under `.claude/skills/explainer-video/vendor/` and recorded in `skills-lock.json` at the repo root (written by the HyperFrames CLI; its hashes are the CLI's own folder hashes, so refresh it only through the CLI, never by hand). Do not edit them; refresh them as below.
 
 ## Skills used, and how
 | Skill | Role here |
@@ -35,7 +35,7 @@ Not used: `audio.mjs --script ...` (TTS with HeyGen or Kokoro; replaced by `narr
 ## Refreshing the vendored skills
 1. From the repo root: `npx hyperframes skills update faceless-explainer` (or another skill name; a bare `npx hyperframes skills update` refreshes the core set plus everything installed). The CLI installs into `.agents/skills/` and symlinks them from `.claude/skills/`; it may also bring back skills we removed.
 2. Then `sh .claude/skills/explainer-video/scripts/vendor_skills.sh`: it copies the seven kept skills (and any you name as arguments, for example `general-video`) as real folders into `vendor/`, removes the symlinks the CLI left in `.claude/skills/` and removes `.agents/` (symlinks break on Windows checkouts and through some script launchers). `.agents/` is gitignored in any case.
-3. Review the diff (`git diff --stat .claude/skills skills-lock.json`; `.claude/skills/` must again hold only explainer-page, explainer-video and sync-KB-github), skim the faceless-explainer SKILL for changed steps or script flags, and update `workflow.md` here if they moved.
+3. Review the diff (`git diff --stat .claude/skills skills-lock.json`; `.claude/skills/` must again hold only explainer-page, explainer-video, sync-KB-github and update-kb; `skills-lock.json` must list exactly the folders in `vendor/`, so delete the entries the CLI added for skills you did not keep), skim the faceless-explainer SKILL for changed steps or script flags, and update `workflow.md` here if they moved.
 4. Existing projects keep their pinned CLI version in `package.json`; bump it only when you rebuild that video (`npx hyperframes@latest upgrade --project . --check`).
 
 ## Sources distilled
