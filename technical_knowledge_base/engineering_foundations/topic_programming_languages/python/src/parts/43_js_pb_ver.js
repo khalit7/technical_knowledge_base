@@ -42,7 +42,7 @@
   drill();
 
   // release lines
-  const LIFE=[['3.11','2022-10-24','2027-10','security'],['3.12','2023-10-02','2028-10','security'],['3.13','2024-10-07','2029-10','security'],['3.14','2025-10-07','2030-10','bugfix'],['3.15','2026-10-09','2031-10','prerelease (rc3)'],['3.16','2027-10-06','2032-10','in development']];
+  const LIFE=[['3.11','2022-10-24','2027-10','security'],['3.12','2023-10-02','2028-10','security'],['3.13','2024-10-07','2029-10','security'],['3.14','2025-10-07','2030-10','bugfix'],['3.15','2026-10-09','2031-10','bugfix'],['3.16','2027-10-06','2032-10','in development']];
   const d=s=>{const p=s.split('-');return +p[0]+((+p[1]-1)+((+p[2]||1)-1)/30)/12};
   function life(){
     const el=$('vx-life'),w=PBU.width(el),L0=44,R=10,y0=6,rh=22,X0=2022.5,X1=2033,X=v=>L0+(w-L0-R)*(v-X0)/(X1-X0);
@@ -50,8 +50,8 @@
       s+='<text x="0" y="'+(y+14)+'" font-size="12" font-weight="600">'+r[0]+'</text><rect x="'+a+'" y="'+(y+3)+'" width="'+Math.max(1,b2-a)+'" height="14" fill="var(--c3)" opacity=".8"></rect><rect x="'+b2+'" y="'+(y+3)+'" width="'+Math.max(1,b-b2)+'" height="14" fill="var(--c5)" opacity=".55"></rect>';
       if(b-a>130)s+='<text x="'+(a+4)+'" y="'+(y+14)+'" font-size="10.5" fill="var(--bg)">'+r[3]+'</text>'});
     const yA=y0+LIFE.length*rh;for(let v=2023;v<=2032;v++){const x=X(v);s+='<line x1="'+x+'" x2="'+x+'" y1="'+yA+'" y2="'+(yA+4)+'" stroke="var(--mute)"></line>'+(w>500||v%2?'<text x="'+x+'" y="'+(yA+15)+'" font-size="10.5" text-anchor="middle" fill="var(--mute)">'+v+'</text>':'')}
-    const xt=X(d('2026-10-05'));s+='<line x1="'+xt+'" x2="'+xt+'" y1="0" y2="'+yA+'" stroke="var(--bad)" stroke-width="1.5"></line>';
-    el.innerHTML=RD.svg(w,yA+20,s,'Python release lines from first release to end of life')+'<div class="pb-legend"><span><i style="background:var(--c3)"></i>bug fixes: two years from 3.13 on, 18 months before (PEP 602)</span><span><i style="background:var(--c5);opacity:.55"></i>security fixes to end of life</span><span><i style="background:var(--bad)"></i>2026-10-05</span><span>Label: status on the devguide today</span></div>';
+    const xt=X(d('2026-10-09'));s+='<line x1="'+xt+'" x2="'+xt+'" y1="0" y2="'+yA+'" stroke="var(--bad)" stroke-width="1.5"></line>';
+    el.innerHTML=RD.svg(w,yA+20,s,'Python release lines from first release to end of life')+'<div class="pb-legend"><span><i style="background:var(--c3)"></i>bug fixes: two years from 3.13 on, 18 months before (PEP 602)</span><span><i style="background:var(--c5);opacity:.55"></i>security fixes to end of life</span><span><i style="background:var(--bad)"></i>3.15.0 released, 2026-10-09</span><span>Label: status on the devguide, October 2026</span></div>';
   }
   PBU.onTab('t-pb-ver',life);
   let rz=0;addEventListener('resize',()=>{const t=$('t-pb-ver');if(!t||t.hidden)return;clearTimeout(rz);rz=setTimeout(life,60)});
