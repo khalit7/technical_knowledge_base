@@ -35,7 +35,7 @@
   function s3(){
     const R=S.sjf.rows,rates=[...new Set(R.map(r=>r.rate))],g=(p,k)=>rates.map(rt=>R.find(r=>r.rate===rt&&r.pol===p)[k]);
     lineChart($('sc3-plot'),rates,[{c:'var(--c1)',v:g('fcfs','ttft_mean')},{c:'var(--c2)',v:g('sjf','ttft_mean')},{c:'var(--c4)',v:g('fcfs','ttft_p99'),d:'4 3'},{c:'var(--c5)',v:g('sjf','ttft_p99'),d:'4 3'}],
-      {ymin:0.01,ymax:40,ticks:[0.01,0.1,1,10],xl:v=>v+'/s',xt:'arrival rate (requests per second); the server saturates near 40',label:'sjf against fcfs'});
+      {ymin:0.01,ymax:40,ticks:[0.01,0.1,1,10],xl:v=>v+'/s',xt:'arrival rate (requests/s); saturates near 40',label:'sjf against fcfs'});
     let h='<thead><tr><th class="num">Rate</th><th>Policy</th><th class="num">TTFT mean</th><th class="num">TTFT p99</th><th class="num">E2E mean</th><th class="num">E2E p99</th><th class="num">p99 E2E, answers of 500+</th><th class="num">Output tok/s</th></tr></thead><tbody>';
     R.forEach(r=>{h+='<tr><td class="num">'+r.rate+'/s</td><td>'+r.pol.toUpperCase()+'</td><td class="num">'+ms(r.ttft_mean)+'</td><td class="num">'+ms(r.ttft_p99)+'</td><td class="num">'+ms(r.e2e_mean)+'</td><td class="num">'+ms(r.e2e_p99)+'</td><td class="num">'+ms(r.long_e2e_p99)+'</td><td class="num">'+fN(Math.round(r.tps))+'</td></tr>'});
     $('sc3-tbl').innerHTML=h+'</tbody>';
