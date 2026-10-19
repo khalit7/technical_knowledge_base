@@ -30,6 +30,7 @@ S('arc2json', 'ARC Prize leaderboard data, ARC-AGI-2 (v2.json, generated 2026-10
 S('arc3json', 'ARC Prize leaderboard data, ARC-AGI-3 (v3.json, generated 2026-09-30)', 'https://arcprize.org/media/data/leaderboard/v3.json', '2026-09-30', 'leaderboard', read=R4)
 S('arc3launch', 'ARC Prize, ARC-AGI-3 launch post', 'https://arcprize.org/blog/arc-agi-3-launch', '2026-03-25', 'blog')
 S('arc3tr', 'ARC Prize, ARC-AGI-3 technical report (PDF)', 'https://arcprize.org/media/ARC_AGI_3_Technical_Report.pdf', '2026-03', 'paper')
+S('arcargon', 'ARC Prize, Gemini 4 Argon verified scorecard', 'https://arcprize.org/results/google-gemini-4-argon', '2026-10-13', 'leaderboard', read='2026-10-19')
 S('arcastra', 'ARC Prize, GPT-6 Astra on ARC-AGI-3: two harnesses', 'https://arcprize.org/blog/astra', '2026-09-03', 'blog')
 S('arco3', 'ARC Prize, OpenAI o3 breakthrough on ARC-AGI-1', 'https://arcprize.org/blog/oai-o3-pub-breakthrough', '2024-12-20', 'blog')
 S('arc1page', 'ARC Prize, ARC-AGI-1 page', 'https://arcprize.org/arc-agi/1/', R4, 'page', read=R4)
@@ -103,15 +104,15 @@ EV('simplebench', E(88.4, '%', 'Claude Opus 5.5', '2026-09-24', 'private set, AV
 CORR('simplebench', C('"Active, informal"', 'Models now beat the human baseline: Claude Opus 5.5 88.4%, Fable 5.1 86.6%, GPT-6 Astra Pro 86.5% against 83.7% for people.', 'sbdata'))
 
 U('arc_agi_1', it=I('400 training and 400 public evaluation tasks, plus semi-private and private sets', 'arc1page'))
-BY['arc_agi_1']['ev'] = [E(98.5, '%', 'eight model and effort entries tied (GPT-6 Astra, Claude Fable 5, Claude Opus 5.5, GPT-6.1 Sol, Gemini 3.8 Flash)', '2026-10-01', 'semi-private set, ARC Prize verified, pass@2; human panel 98%', 'ind', 'arc1json', note='The cheapest 98.5% is GPT-6.1 Sol (high) at $0.059 per task.'),
+BY['arc_agi_1']['ev'] = [E(98.5, '%', 'ten model and effort entries tied (GPT-6 Astra, Claude Fable 5, Claude Opus 5.5, GPT-6.1 Sol, Gemini 3.8 Flash; Gemini 4 Argon high and medium, verified 13 Oct 2026)', '2026-10-13', 'semi-private set, ARC Prize verified, pass@2; human panel 98%', 'ind', 'arc1json', note='The cheapest 98.5% is GPT-6.1 Sol (high) at $0.059 per task. Argon entries from its scorecard (arcprize.org/results/google-gemini-4-argon).'),
                          E(75.7, '%', 'o3 preview (low compute)', '2024-12-20', 'semi-private, within the $10k budget rule; 87.5% at 172 times the compute, outside the rules', 'ind', 'arco3'),
                          E(44, '%', '8-layer transformer trained from scratch (67 cents, 1.5 h on one RTX 5090)', '2026', 'PUBLIC evaluation set with test-time training: not comparable with semi-private scores', 'ind', 'mvakde')]
-U('arc_agi_1', why='Eight entries tie at 98.5%, above the 98% human panel: only cost per task still separates them.')
-CORR('arc_agi_1', C('"Solved at frontier (o3, late 2024)"', 'o3 reached 75.7% within the budget rules (87.5% at 172 times the compute), below the 98% human panel. ARC-AGI-1 was solved in 2026: eight entries at 98.5% on the semi-private set.', 'arco3'),
+U('arc_agi_1', why='Ten entries tie at 98.5%, above the 98% human panel: only cost per task still separates them.')
+CORR('arc_agi_1', C('"Solved at frontier (o3, late 2024)"', 'o3 reached 75.7% within the budget rules (87.5% at 172 times the compute), below the 98% human panel. ARC-AGI-1 was solved in 2026: ten entries at 98.5% on the semi-private set.', 'arco3'),
      C('"44% from a small transformer ... (Sep 2026)"', 'The 44% is on the public evaluation set with test-time training, so it does not compare with leaderboard (semi-private) scores; the post\'s date could not be confirmed.', 'mvakde'))
 
 U('arc_agi_2', it=I('120 public evaluation, 120 semi-private and 120 private tasks', 'arc2page', n=120),
-  why='95% on the semi-private set, with twelve entries at or above 90%: the remaining separation is mostly cost per task. The human panel scores 100%.')
+  why='95% on the semi-private set, with thirteen entries at or above 90% (the latest Gemini 4 Argon (high) at 91.3%, verified 13 Oct 2026): the remaining separation is mostly cost per task. The human panel scores 100%.')
 BY['arc_agi_2']['ev'] = [E(95.0, '%', 'GPT-6 Astra (max)', '2026-10-01', 'semi-private set, ARC Prize verified, pass@2, $1.12 per task', 'ind', 'arc2json'),
                          E(94.2, '%', 'GPT-6.1 Sol (max)', '2026-10-01', 'semi-private, $0.25 per task', 'ind', 'arc2json'),
                          E(93.3, '%', 'Claude Opus 5.5 (high)', '2026-10-01', 'semi-private, $0.41 per task', 'ind', 'arc2json')]
@@ -119,14 +120,15 @@ CORR('arc_agi_2', C('"Rapidly saturating through 2026 (high-60s to low-90s depen
 
 U('arc_agi_3', it=I('135 environments: 25 public demo, 55 semi-private (tested through APIs), 55 fully private (competition)', 'arc3tr', n=135),
   met='RHAE (relative human action efficiency): per level, (human median actions / AI actions) squared, normalised per environment; 100% means human-level efficiency',
-  why='Under the Standard harness the best model scores 62.7% against people\'s 100%; the same model with its provider\'s adapter scores 99.95%, so the harness decides the reading.')
+  why='Under the Standard harness the best model scores 62.7% against people\'s 100%; with their providers\' adapters GPT-6 Astra (99.95%), Gemini 4 Argon (97.5%) and GPT-6.1 Sol (96.2%) all exceed 96%, so the harness decides the reading.')
 BY['arc_agi_3']['ev'] = [E(62.71, '%', 'GPT-6 Astra (max)', '2026-09-30', 'semi-private, Standard harness (carries model-chosen notes forward); total run cost $26,097.50', 'ind', 'arc3json'),
                          E(99.95, '%', 'GPT-6 Astra, Provider Adapter (high)', '2026-09-30', 'semi-private, Provider Adapter harness (keeps reasoning state, compacts long conversations); total run cost $18,816.63', 'ind', 'arc3json'),
-                         E(30.16, '%', 'Claude Opus 5 (high)', '2026-09-30', 'semi-private, Standard harness; best non-OpenAI entry, no Opus 5.5 entry yet', 'ind', 'arc3json'),
+                         E(49.8, '%', 'Gemini 4 Argon (low)', '2026-10-13', 'semi-private, Standard harness; best entry from outside OpenAI (ahead of Claude Opus 5\'s 30.16%); API issues left the run incomplete (42 of 55 games ran, the rest scored at partial credit) and no high-effort standard score is published; no Claude Opus 5.5 entry', 'ind', 'arcargon'),
+                         E(97.5, '%', 'Gemini 4 Argon, Provider Adapter (low)', '2026-10-13', 'semi-private, Provider Adapter harness; 97.3% at medium and high', 'ind', 'arcargon'),
                          E(0.51, '%', 'best frontier AI at launch', '2026-03-25', 'launch announcement', 'ind', 'arc3launch', q='Frontier AI scores 0.51%')]
 ISS('arc_agi_3', X('Domain-specific research harnesses (such as Prime Agent\'s 95.5%, best of three runs on the easier public set) go on a self-reported community board, not the official one.', 'primepage'),
     X('The semi-private set is tested through external APIs, which the technical report says carries a small risk of leakage.', 'arc3tr'))
-CORR('arc_agi_3', C('"bare or default-harness SOTA ~30%"', 'Stale: on the Standard harness GPT-6 Astra scores 62.7% and GPT-6.1 Sol 52.7%; 30.2% is Claude Opus 5\'s.', 'arc3json'),
+CORR('arc_agi_3', C('"bare or default-harness SOTA ~30%"', 'Stale: on the Standard harness GPT-6 Astra scores 62.7%, GPT-6.1 Sol 52.7% and Gemini 4 Argon 49.8% (incomplete run); 30.2% is Claude Opus 5\'s.', 'arc3json'),
      C('"95.5% (Prime Agent) ... with a research harness"', 'Best of three runs (95.0, 95.2, 95.5) on the public set, which ARC Prize calls intentionally easier; not on the official leaderboard.', 'primepage'),
      C('"$26,098 ... $18,817"', 'Confirmed, and these are total costs for the run, not per task.', 'arcastra'))
 
@@ -388,6 +390,7 @@ S('mcpu', 'MCP-Universe leaderboard', 'https://mcp-universe.github.io/', '2026-0
 S('mcpmark', 'MCPMark leaderboard (updated 15 December 2025)', 'https://mcpmark.ai/leaderboard', '2025-12-15', 'leaderboard', read=R4)
 S('metryaml', 'METR time horizons data (benchmark_results_1_1.yaml)', 'https://metr.org/assets/benchmark_results_1_1.yaml', '2026-05-08', 'leaderboard', read=R4)
 S('metrpage', 'METR time horizons page', 'https://metr.org/time-horizons/', '2026-05-08', 'page', read=R4)
+S('metrrefit', 'Nguyen and Fithian, On the estimation and validity of AI time horizons', 'https://arxiv.org/abs/2610.12466', '2026-10-08', 'paper')
 S('gdpvalblog', 'OpenAI, GDPval', 'https://openai.com/index/gdpval/', '2025-09-25', 'vendor')
 S('valslegal', 'Vals AI, Legal Research Bench leaderboard', 'https://www.vals.ai/benchmarks/legal_research', R4, 'leaderboard', read=R4)
 S('bfclcsv', 'BFCL leaderboard data (data_overall.csv, updated 12 April 2026)', 'https://gorilla.cs.berkeley.edu/data_overall.csv', '2026-04-12', 'leaderboard', read=R4)
@@ -443,11 +446,13 @@ BY['tb2']['ev'] = [E(84.7, '%', 'NexAU-AHE agent + GPT-5.5', '2026-05-14', 'Term
                    E(91.9, '%', 'GPT-5.6 Sol Ultra (four parallel agents)', '2026-07', 'Terminal-Bench 2.1, OpenAI\'s table', 'lab', 'oai56')]
 ISS('tb2', X('2.1 fixed 28 of 89 tasks and most pairs score higher on it (Opus 4.6 in Claude Code +12.1 points), so 2.0 and 2.1 are different scales.', 'tb21news'))
 CORR('tb2', C('"2.0 ... reached ~92% (GPT-5.6-class) by Aug 2026"', 'Mislabelled: the 92% figures are lab numbers on 2.1 (GPT-5.6 Sol Ultra with four parallel agents 91.9%; Cognition\'s self-reported 92.8%). The official 2.0 top is 84.7%, the 2.1 top 83.8%.', 'oai56'))
-U('tb4', why='The official board\'s top is 58.2% (GPT-6 Astra in Codex); the version reset gave it headroom again.')
+S('valstb4', 'Vals AI, Terminal-Bench 4.0 leaderboard (mini-swe-agent harness)', 'https://www.vals.ai/benchmarks/terminal-bench-4', '2026-10-18', 'leaderboard', read='2026-10-19')
+U('tb4', why='The official board\'s top is 58.2% (GPT-6 Astra in Codex); on Vals AI\'s fixed minimal harness the top is 65.2% (Claude Opus 5.5). The version reset gave it headroom again.')
 BY['tb4']['ev'] = [E(58.18, '%', 'Codex + GPT-6 Astra (max)', '2026-09-03', 'official Terminal-Bench 4.0 board, 5 trials per task (plus or minus 2.79), board updated 21 September 2026', 'ind', 'tbench'),
                    E(57.88, '%', 'Claude Code + Claude Fable 5.1', '2026-09-01', 'official board (plus or minus 3.76)', 'ind', 'tbench')] + [e for e in BY['tb4']['ev']] + [
-                   E(66.4, '%', 'Claude Opus 5.5 (xhigh)', '2026-09-22', 'Anthropic\'s own setup; Opus 5.5 not yet on the official board', 'lab', 'anthr55')]
-CORR('tb4', C('"Claude Opus 5.5 66.4%, GPT-6 Astra 57.9%, Claude Fable 5.1 55.8%, Claude Opus 5 52.3%, Grok 4.7 38.0%"', 'These are lab figures from Anthropic\'s Opus 5.5 table (Astra\'s as reported by OpenAI). The official board reads Astra 58.18%, Fable 5.1 57.88%, Opus 5 53.94% (xhigh), Grok 4.7 37.6%; Opus 5.5 is not on it yet.', 'tbench'))
+                   E(65.15, '%', 'Claude Opus 5.5 in mini-swe-agent', '2026-10-18', 'Vals AI board, every model in one minimal harness (one bash tool), average of 3 pass@1 runs, no partial credit; a separate board from tbench.ai, where Sonnet 5.5 64.14%, GPT-6 Astra 59.60%, GPT-6.1 Sol 55.05% at $1.72 per test', 'ind', 'valstb4'),
+                   E(66.4, '%', 'Claude Opus 5.5 (xhigh)', '2026-09-22', 'Anthropic\'s own setup; Opus 5.5 not on the official board at the 4 October reading', 'lab', 'anthr55')]
+CORR('tb4', C('"Claude Opus 5.5 66.4%, GPT-6 Astra 57.9%, Claude Fable 5.1 55.8%, Claude Opus 5 52.3%, Grok 4.7 38.0%"', 'These are lab figures from Anthropic\'s Opus 5.5 table (Astra\'s as reported by OpenAI). The official board reads Astra 58.18%, Fable 5.1 57.88%, Opus 5 53.94% (xhigh), Grok 4.7 37.6%; Opus 5.5 was not on it at the 4 October reading.', 'tbench'))
 U('tb_science', why='Launched at 30% (27 August 2026); the official board now reads 68.1%. Unsaturated, but the fastest-falling headline on the page.')
 BY['tb_science']['ev'] = [E(68.1, '%', 'Codex + GPT-6 Astra (max)', '2026-09-03', 'official board, 3 trials per task (plus or minus 3.2)', 'ind', 'tbsciboard'),
                           E(63.3, '%', 'Claude Code + Claude Opus 5.5 (max)', '2026-09-22', 'official board (plus or minus 3.3)', 'ind', 'tbsciboard'),
@@ -508,8 +513,9 @@ U('mcp_evals', st='retired', why='Both public boards stopped in late 2025 (no 20
 EV('mcp_evals', E(44.59, '%', 'Gemini 3 Pro Preview', '2026-08-23', 'MCP-Universe overall success rate', 'ind', 'mcpu'),
    E(57.5, '%', 'GPT-5.2 (high)', '2025-12-15', 'MCPMark pass@1 (pass^4 44.9%)', 'ind', 'mcpmark'))
 CORR('mcp_evals', C('"Active, young"', 'Dormant: MCPMark last updated December 2025, MCP-Universe tops are 2025 models; vendors moved to MCP Atlas.', 'mcpmark'))
-U('metr_horizon', st='saturating', why='The best measured 50% horizon (about 17 hours) is beyond the 16 hours METR calls reliable for its task suite, and no Opus 5.x, Fable or GPT-6 measurement exists yet.')
+U('metr_horizon', st='saturating', why='The best measured 50% horizon (about 17 hours) is beyond the 16 hours METR calls reliable for its task suite, and no Opus 5.x, Fable or GPT-6 measurement was published; METR\'s page has said it is no longer actively updated since 8 September 2026.')
 BY['metr_horizon']['ev'] = [E(1045, 'minutes (50% horizon)', 'Claude Mythos Preview (early)', '2026-05-08', 'METR-Horizon v1.1, 95% interval 509 to 3,304 minutes; 80% horizon 186 minutes', 'ind', 'metryaml')]
+ISS('metr_horizon', X('The fit assumes AI difficulty is linear in log human time; a spline and item-response re-fit of the same 228 tasks finds the conversion nearly flat from 2 to 30 minutes, so equal multipliers are not equally hard.', 'metrrefit'))
 CORR('metr_horizon', C('"the doubling every ~7 months metric"', 'METR\'s current v1.1 file gives a doubling time of 128.7 days (about 4.2 months) from 2023 on, and 187.8 days (about 6.2 months) over the whole stitched series.', 'metryaml'))
 U('gdpval', st='saturating', it=I('1,320 tasks across 44 occupations; 220-task gold subset public', AX('2510.04374'), n=1320, q='a gold subset of 220 tasks'),
   why='Several models win or tie against professionals more than 80% of the time; later cards moved to GDPval-AA.')

@@ -99,7 +99,8 @@ cases.append(dict(
     notes=[
       'The adapter runs were about 3.66 times faster by recorded elapsed time and used 49% fewer tokens across the 167 game-reasoning pairs; human participants cost about $12.78 per attempted game ([[ARC Prize|https://arcprize.org/blog/astra]]).',
       'ARC Prize\'s reading: the standard harness asks what a system does under neutral conditions; the adapter asks whether a model can exploit its own provider\'s features. Both are labelled on the leaderboard, never merged.',
-      'The same two-harness pattern holds for GPT-6.1 Sol on the same leaderboard: 52.7% standard against 96.2% adapter at max effort ([[v3.json|https://arcprize.org/media/data/leaderboard/v3.json]]).'],
+      'The same two-harness pattern holds for GPT-6.1 Sol on the same leaderboard: 52.7% standard against 96.2% adapter at max effort ([[v3.json|https://arcprize.org/media/data/leaderboard/v3.json]]), and for Gemini 4 Argon: 49.8% standard against 97.5% adapter at low effort, verified 13 October 2026 ([[Argon scorecard|https://arcprize.org/results/google-gemini-4-argon]]). Three labs, one gap.',
+      'Argon\'s standard column also shows coverage as a condition: API issues stopped the runs early (42 of 55 games at low, 46 at medium, 19 at high), unfinished games keep their partial credit, and no high-effort standard score is published. So 49.8% is not the score of a complete run.'],
     corrections=['The old page set 62.7% against 99.9%. Those are different effort settings: 62.7% is the standard harness at max effort, 99.9% the adapter at high effort. At equal effort the pairs are 62.7% against 98.6% (max) and 54.8% against 99.9% (high); the costs quoted ($26,098 and $18,817) belong to the max-standard and high-adapter runs respectively.']))
 
 # ===== 2. ARC-AGI-3, Claude Opus 5: official harness against a research harness =====

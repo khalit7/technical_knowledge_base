@@ -35,7 +35,7 @@ window.PK=(function(){
       const H0=Math.max(H,top+rows*(cw+3)+10);
       for(let j=0;j<nT;j++){const x=(j%per0)*(4*cw+6),y=top+Math.floor(j/per0)*(cw+3);
         for(let q=0;q<4;q++)b+='<rect x="'+(x+q*cw)+'" y="'+y+'" width="'+(cw-1)+'" height="'+(cw-1)+'" fill="'+(T[j][q]==='1'?'var(--good)':'var(--bad)')+'"/>'}
-      b+=RD.t(0,16,nT+' tasks &times; 4 trials, in file order (green: reward 1, orange: 0)',{fs:12,fill:'var(--mute)'});
+      if(W<420){b+=RD.t(0,12,nT+' tasks &times; 4 trials, in file order',{fs:11,fill:'var(--mute)'})+RD.t(0,26,'green: reward 1, orange: 0',{fs:11,fill:'var(--mute)'})}else b+=RD.t(0,16,nT+' tasks &times; 4 trials, in file order (green: reward 1, orange: 0)',{fs:12,fill:'var(--mute)'});
       fig.innerHTML=RD.svg(W,H0,b,'Raw trials');
     }else{
       for(let c=0;c<5;c++){

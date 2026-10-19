@@ -52,8 +52,8 @@
       const exact=[1,2,3,4].map(k=>[X(k),Y(PK.metric(s,k,'hat'))]);
       b+='<polyline fill="none" stroke="'+cols[i%8]+'" stroke-dasharray="4 3" points="'+pts.map(p=>p.join(',')).join(' ')+'"/>'+
         '<polyline fill="none" stroke="'+cols[i%8]+'" stroke-width="2" points="'+exact.map(p=>p.join(',')).join(' ')+'"/>'+
-        0;labs.push([pts[K-1][1],E(PK.label(s)).slice(0,18),cols[i%8]])});
-    labs.sort((a,b)=>a[0]-b[0]);let last=-1e9;labs.forEach(l=>{const yy=Math.max(l[0],last+11);last=yy;b+=RD.t(W-R+4,yy+4,l[1],{fs:10,fill:l[2]})});
+        0;labs.push([pts[K-1][1],E(PK.label(s).slice(0,17)),cols[i%8]])});
+    labs.sort((a,b)=>a[0]-b[0]);let last=-1e9;labs.forEach(l=>{const yy=Math.max(l[0],last+11);last=yy;b+=RD.t(W-R+4,yy+4,l[1],{fs:W<420?9:10,fill:l[2]})});
     b+=RD.t(X(4)+4,T+10,'exact up to k = 4; dashed: plug-in',{fs:10.5,fill:'var(--mute)'});
     root.querySelector('#pk-plug').innerHTML=RD.svg(W,H,b,'Plug-in pass^k');
   }
