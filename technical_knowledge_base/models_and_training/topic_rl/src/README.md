@@ -13,3 +13,5 @@ Part ownership (parallel build): `20_read*`, `2x_js_*` and `39_tab_more*` Readin
 Outline: one screen; what RL is; the loop, state and return; the one idea (Bellman equation, spine table, the one-episode animation); the families (exploration, planning, learning from samples, deep value methods, policy gradients to PPO, model-based and search, offline and imitation, RL for LLMs), each with a Go deeper note; which family when (decision tree and table); common mistakes.
 
 Files: `parts/20_read.html`, `20_read_b.html`; JS `21_js_rd_engine.js` (the widget's computations), `22_js_rd_common.js` (animation controller), `26_js_rd_one.js` (one episode, every target), `29_js_rd_tree.js` (decision tree); `39_tab_more.html`. Checks: `python3 read/recompute.py && node read/check_engine.mjs`, `node check_read.mjs`. Coverage: `coverage.md`, `coverage_rl_foundations.md` (each fact in the root, a root tab, or moved to a named child and archived).
+
+Cut material: `src/for_children/` (the material moved out of this root for its children) was deleted on 2026-10-19 after every child had absorbed it; comments and coverage files that cite it refer to git history before that date.
