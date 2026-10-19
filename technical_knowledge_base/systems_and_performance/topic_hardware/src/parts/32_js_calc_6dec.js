@@ -12,7 +12,7 @@
     let s='',y=4;
     // bytes to read, to scale (max over both batches at this context)
     const r64=run(64),bmax=Math.max(r.wread+r.kvread,r64.wread+r64.kvread),bx=v=>v/bmax*iw;
-    s+='<text x="0" y="'+(y+10)+'" font-size="11" style="fill:var(--mute)">bytes this step must read from HBM (same scale for batch 1 and 64)</text>';y+=16;
+    s+='<text x="0" y="'+(y+10)+'" font-size="11" style="fill:var(--mute)">HBM bytes read this step (batch 1 and 64, same scale)</text>';y+=16;
     s+='<text x="'+(lx-6)+'" y="'+(y+15)+'" font-size="11" text-anchor="end">HBM</text>';
     const ww=bx(r.wread),kw=bx(r.kvread);
     s+='<rect x="'+lx+'" y="'+y+'" width="'+ww+'" height="22" style="fill:var(--c1);opacity:.25"/><rect x="'+lx+'" y="'+y+'" width="'+(ww*prog)+'" height="22" style="fill:var(--c1)"/>';

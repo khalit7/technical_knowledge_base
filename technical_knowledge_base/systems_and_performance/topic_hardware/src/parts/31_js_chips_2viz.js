@@ -180,7 +180,7 @@
     'RTX PRO 6000 Blackwell release date: not in the fetched datasheet.',
     'Cerebras WSE-3 dense FLOPS: only a sparse figure (125 PF) is published.'];
   document.getElementById('chip-unconfl').innerHTML='<ul class="tight">'+UNC.map(u=>'<li>'+esc(u)+'</li>').join('')+'</ul><p class="small mute">The same list, with what was tried, is in the page source (src/chips/unconfirmed.md).</p>';
-  document.getElementById('chip-srcl').innerHTML=Object.keys(D.src).filter(k=>D.src[k].u.charAt(0)!=='#').map(k=>'<li>'+X.srcA(k)+'</li>').join('')+'<li>Model sizes: '+D.models.map(m=>'<a href="'+esc(m.src)+'" target="_blank" rel="noopener noreferrer">'+esc(m.name)+'</a>').join(', ')+'</li><li>All fetched 2026-10-05.</li>';
+  document.getElementById('chip-srcl').innerHTML=Object.keys(D.src).filter(k=>D.src[k].u.charAt(0)!=='#').map(k=>'<li>'+X.srcA(k)+'</li>').join('')+'<li>Model sizes: '+D.models.map(m=>'<a href="'+esc(m.src)+'" target="_blank" rel="noopener noreferrer">'+esc(m.name)+'</a>').join(', ')+'</li><li>All fetched 2026-10-05, except the MI455X shipping date (fetched 2026-10-19).</li>';
 
   function redraw(){const tab=document.getElementById('t-chips');if(!tab||tab.hidden)return;peelA.redraw();timeline();ridgeChart();capChart();measChart()}
   window.CHIPVIZ={redraw};

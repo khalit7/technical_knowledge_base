@@ -12,7 +12,6 @@ Kept off the table, or shown only with a label. "Tried" says where it was looked
 | Rubin bandwidth and NVLink per GPU | NVIDIA disagrees with itself: 22 TB/s and 3.6 TB/s (HGX page, Rubin blog) vs 19.2 TB/s and 3 TB/s (Vera Rubin NVL72 page). Atlas uses 22 and 3.6 and shows the rack check gap (+13%, +20%) | |
 | MI455X process node; whether AMD's 40 / 20 / 5 PF are dense | AMD gives "up to" figures without density; its footnotes compare them with Rubin's "NVFP4 Dense". Read as dense, labelled | AMD MI400 page, Helios page, Helios PDFs |
 | MI455X bandwidth | 23.3 TB/s on most AMD pages, 19.6 TB/s in the Helios tray specification. Atlas uses 23.3 | |
-| MI455X release date | AMD: "volume deployments expected in 2H 2026"; the timeline places it at July 2026 (the date of AMD's PDF) only to draw it | |
 | TPU process nodes and per-chip power | Google does not publish them. Ironwood pod "spanning nearly 10 MW" is the only power figure (Google blog, Apr 9 2025) | v5e, v5p, v6e, TPU7x docs; Ironwood blog |
 | TPU7x memory unit | Docs table says 192 GiB, prose says 192 GB; atlas uses 192 GiB = 206 GB | |
 | Trainium2 GA date (Dec 2024) | AWS's announcement blog URL returned 404; date on the timeline is unconfirmed | aws.amazon.com/blogs/aws/amazon-ec2-trn2-instances-...-are-now-available/ |
