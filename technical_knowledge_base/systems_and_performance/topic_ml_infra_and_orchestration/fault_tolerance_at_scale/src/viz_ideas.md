@@ -28,3 +28,4 @@ Central question: for each kind of failure, how long until someone notices, whic
 
 ## What the methodology lacked
 A rule for cross-report taxonomies: keep each report's rows verbatim, make the mapping explicit and labelled as ours, never pool across counting units, and offer the GPU-time weighting where printed.
+- 2026-10-19: built from the root Failure lab (moved here): with/without-checkpoint progress, bit-for-bit tables, Slurm straggler pacing and probe, elastic shrink/grow and spare, goodput against the interval. Rejected: a second copy of Table 5 and of the measured-run accounting (already on this page).

@@ -109,9 +109,10 @@ out["sdc"] = sdc
 # ---- the root Failure lab (read only): measured recovery times reused by the Recovery designs tab
 fl = json.load(open(os.path.join(ROOT_FAIL, "fl_data.json")))
 flr = json.load(open(os.path.join(ROOT_FAIL, "fl_recompute.json")))
-out["fl"] = {"scen": [{k: s[k] for k in ("id", "sys", "fail", "title", "detect_s", "resume_s", "steps_redone", "outcome")} for s in fl["scen"]],
-             "l3": fl["l3"], "opt": fl["opt"], "rates": flr["rates"], "t5": flr["t5"], "replay": flr["replay"],
-             "probe": fl["probe"], "strag": fl["strag"]}
+# The root Failure lab's recorded data, whole (since 2026-10-19 this page also draws the lab's checkpoint, bit-for-bit,
+# straggler, elastic and goodput charts that moved here from the root); the root's files stay the single source.
+out["fl"] = dict(fl)
+out["fl"].update({"rates": flr["rates"], "t5": flr["t5"], "replay": flr["replay"]})
 
 # ---- published data curated from the extracts
 for k in ("tax", "rec"):

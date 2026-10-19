@@ -1,6 +1,20 @@
 <section id="s-strag">
 <h2>8. Stragglers: how common, and how production systems find them</h2>
 <p class="lead">A straggler costs no restart and raises no alarm, so it is easy to underestimate. The one large published study says it is the common case: in ByteDance's clusters, "42.5% of the jobs are at least 10% slower" than they would be without stragglers, and "10.4% of the allocated GPU hours are wasted" <span class="ft-pub">published</span> (Lin et al., {{arXiv 2505.05713v2|https://arxiv.org/abs/2505.05713}}, five months of 2024, 3,079 jobs of 128 GPUs or more).</p>
+<h3>The simplest case, measured on Slurm: one slow rank sets the pace</h3>
+<p>The root page's lab made rank 3 sleep 50 ms or 200 ms after every step of the running example (2 nodes x 2 ranks) <span class="ft-meas">measured</span>; the {{Straggler replay|#t-str}} tab then plants harder patterns and tries detection rules.</p>
+<div class="ft-card" id="fl-st-card">
+<h4>One slow rank sets the pace of all four</h4>
+<div class="ft-seg" id="fl-st-mode" role="group" aria-label="Slow rank delay"><button data-m="0" class="on">No straggler</button><button data-m="1">Rank 3 +50 ms</button><button data-m="2">Rank 3 +200 ms</button></div>
+<div class="ft-svg" id="fl-st-svg"></div>
+<div class="ft-ctl" id="fl-st-ctl"></div>
+<div class="ft-anc" id="fl-st-cap" aria-live="polite"></div>
+<p class="small mute"><span class="ft-meas">measured</span>: step time per rank from logged timestamps, steps 10 to 100 (runs <code>fl-strag0</code>, <code>fl-strag50</code>, <code>fl-strag200</code> on Slurm, 2 nodes x 2 ranks). The split of each step into compute and waiting is drawn from the measured totals and the probe below <span class="ft-ours">illustrative split</span>.</p>
+</div>
+<p>Every rank reports the same step time (<span id="fl-st-v">22.1, 70.5 and 221.8</span> ms), so a step-time log cannot tell you who is slow. Time spent <i>inside</i> the gradient all-reduce can. We wrapped <code>loss.backward()</code> (which contains DDP's all-reduce) with a timer on every rank:</p>
+<div class="ft-svg" id="fl-pb-svg"></div>
+<p class="ft-cap"><span class="ft-meas">measured</span>: median <code>backward()</code> time per rank, steps 11 to 100 (runs <code>fl-probe0</code>, <code>fl-probe50</code>; probe in the root page's <code>src/fail/scripts/fl_wrap.py</code>, <code>FL_PROBE=1</code>).</p>
+<p>With rank 3 sleeping 50 ms, ranks 0 to 2 spent about 62.6 ms in backward and rank 3 only 12.2 ms: it arrives last, so it never waits. That is the inversion every detector below works around.</p>
 <h3>What the studies found</h3>
 <div class="tw"><table class="ft-tbl"><thead><tr><th>Source</th><th>Scale</th><th>Finding</th></tr></thead><tbody>
 <tr><td>MegaScale (ByteDance, {{NSDI 2024 sec. 5.1|https://arxiv.org/abs/2402.15627}})</td><td>production LLM jobs</td><td>CUDA-event timing of every rank's forward and backward, averaged over steps and drawn as a heat map: "approximately 0.5%" of machines were "substantially slower" (about 10% more time on the forward); removing them gave "approximately 0.7% improvement in MFU". A person reads the heat map; no threshold is given.</td></tr>

@@ -22,6 +22,13 @@ ok(emb == json.load(open(os.path.join(SRC, "ft_data.json"))), "embedded data dif
 before = open(os.path.join(SRC, "ft_data.json")).read()
 subprocess.run([sys.executable, os.path.join(SRC, "scripts", "make_data.py")], check=True, capture_output=True)
 ok(open(os.path.join(SRC, "ft_data.json")).read() == before, "make_data.py does not reproduce ft_data.json")
+# 1b. the root Failure lab's charts drawn here (since 2026-10-19) read the root's recorded data unchanged: single source
+_rf = json.load(open(os.path.join(SRC, "..", "..", "src", "fail", "fl_data.json")))
+_rr = json.load(open(os.path.join(SRC, "..", "..", "src", "fail", "fl_recompute.json")))
+ok(all(emb["fl"][k] == v for k, v in _rf.items() if k != "replay") and emb["fl"]["replay"] == _rr["replay"] == _rf["replay"],
+   "embedded root Failure lab data differs from ../src/fail/fl_data.json")
+for _id in ("fl-ck-card", "fl-bx-tbl", "fl-ex-tbl", "fl-st-card", "fl-pb-svg", "fl-el-card", "fl-gp-card"):
+    ok('id="' + _id + '"' in html, "moved chart missing: " + _id)
 # runs embedded exactly
 for n in ("strag_none", "strag_mix", "strag_mix2"):
     r = json.load(open(os.path.join(SRC, "runs", n + ".json")))
