@@ -114,7 +114,7 @@ CELLS_B = {
           {"n": "debugpy", "what": "The debug adapter behind VS Code's Python debugger.", "v": "pypi:debugpy", "cmd": "F5 in VS Code"},
           {"n": "py-spy", "what": "A sampling profiler in Rust that attaches to a running process without changing it.", "v": "pypi:py-spy", "cmd": "py-spy top --pid 1234"},
           {"n": "Scalene", "what": "A CPU, memory and GPU profiler that separates time in Python from time in native code.", "v": "pypi:scalene", "cmd": "scalene main.py", "alt": True},
-          {"n": "profiling.sampling (Tachyon)", "what": "Python 3.15's built-in sampling profiler (PEP 799); attach by PID or run a script.", "v": {"version": "Python 3.15 (rc3)", "date": "2026-10-02", "url": "https://docs.python.org/3.15/whatsnew/3.15.html", "src": "docs.python.org"}, "cmd": "python -m profiling.sampling run main.py", "alt": True},
+          {"n": "profiling.sampling (Tachyon)", "what": "Python 3.15's built-in sampling profiler (PEP 799); attach by PID or run a script.", "v": {"version": "Python 3.15.0", "date": "2026-10-09", "url": "https://docs.python.org/3.15/whatsnew/3.15.html", "src": "docs.python.org"}, "cmd": "python -m profiling.sampling run main.py", "alt": True},
          ]},
   "cpp": {"sum": "gdb on Linux, lldb on macOS; perf (Linux) or Instruments (macOS) for profiles.",
           "tools": [

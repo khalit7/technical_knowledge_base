@@ -85,7 +85,7 @@ window.SIMLAB=(function(){
     if(raised.length)note+='<tr><td colspan="8" class="small mute">Without chunked prefill a whole prompt must fit in one step, so the per-step token budget was raised to '+U.n0(Math.max(...raised))+' (the longest prompt), as vLLM requires.</td></tr>';
     $('sim-cmp').innerHTML=head+row('Current',cur,null,cmp?'sim-base':'')+(cmp?row(cmpLabel,cmp,cur):'')+note+'</tbody>'}
   // the engine over time: bins of steps (engine 0, or the decode engine when disaggregated)
-  function timeline(){const el=$('sim-tl'),w=U.width(el),h=w<480?150:180,pl=40,pr=34,pt=8,pb=20;
+  function timeline(){const el=$('sim-tl'),w=U.width(el),h=w<480?150:180,pl=40,pr=38,pt=8,pb=20;
     const runs=[cur].concat(cmp?[cmp]:[]);let T=0;for(const r of runs){for(const s of r.log)if(s.t+s.dt>T)T=s.t+s.dt}
     const nb=Math.max(20,Math.floor((w-pl-pr)/4));let body='';const lane=(h-pt-pb)/runs.length;
     runs.forEach((r,ri)=>{const cfg=r.cfg,eng=cfg.disagg?null:0;

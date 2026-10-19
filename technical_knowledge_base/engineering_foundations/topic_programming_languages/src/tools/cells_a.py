@@ -6,8 +6,8 @@ CELLS_A = {
  "install": {
   "py": {"sum": "Let uv download standalone CPython builds per project; leave the system Python alone.",
          "tools": [
-          {"n": "uv python", "what": "uv downloads and manages CPython builds (from python-build-standalone) per user, and pins one per project with .python-version.", "v": "gh:astral-sh/uv", "cmd": "uv python install 3.14"},
-          {"n": "CPython", "what": "The reference interpreter itself; 3.14 is the current bugfix line and 3.15.0 is due 2026-10-09.", "v": {"version": "3.14.8", "date": "2026-09-30", "url": "https://www.python.org/downloads/release/python-3148/", "src": "python.org"}, "cmd": "python3.14 --version"},
+          {"n": "uv python", "what": "uv downloads and manages CPython builds (from python-build-standalone) per user, and pins one per project with .python-version. Since uv 0.13.0 (2026-10-09) an unpinned install gets 3.15; `uv python pin 3.14` stays on 3.14.", "v": "gh:astral-sh/uv", "cmd": "uv python install 3.14"},
+          {"n": "CPython", "what": "The reference interpreter itself; 3.15 is the newest feature line (3.15.0, 2026-10-09) and 3.14 (3.14.8, 2026-09-30) is in bug fixes.", "v": {"version": "3.15.0", "date": "2026-10-09", "url": "https://www.python.org/downloads/release/python-3150/", "src": "python.org"}, "cmd": "python3.15 --version"},
           {"n": "pyenv", "what": "The older shell-based version manager that compiles Python from source.", "v": "gh:pyenv/pyenv", "cmd": "pyenv install 3.14", "alt": True},
          ],
          "warn": "Two interpreters can sit on one machine (system, Homebrew, uv); `which python` tells you which one a bare `python` runs."},
