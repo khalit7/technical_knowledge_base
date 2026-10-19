@@ -1,9 +1,9 @@
 ---
-name: update-KB
+name: update-kb
 description: Run the periodic update of the Technical knowledge base from this repository. Read the last-updated date from Notion's Source freshness row "Technical KB", research everything that happened since (releases, papers, results, industry moves, newsletters), write that window's tech-news issue, integrate the durable knowledge into the pages that own it, add the papers that earn a page, publish, and move the freshness date forward. Use when Khalid asks to update the knowledge base, run the weekly or periodic KB pass, or catch it up.
 ---
 
-# update-KB
+# update-kb
 
 The repository is the source of truth; Notion only displays it. This skill is the periodic pass that keeps the knowledge base current. It replaces the old Notion skills (update-KB, the knowledge-base half of "Run the weekly Monday update", create-interactive-html, create-explainer-video and the Notion-to-GitHub mirror), which were deleted on 2026-10-19. Everything they knew that still applies is in this folder.
 
@@ -29,6 +29,16 @@ Every page is still built with the `explainer-page` skill and published with `sy
    - **Paper page**: a paper central to a topic gets a row in the Papers database and its own page; a less central one is only linked in the issue.
    - **New topic or child page**: only when no existing page fits and the body of durable knowledge justifies it, never because one or two items lack a home. Propose it to Khalid in the report rather than building it in this run.
    - **Dropped**, with the reason.
+
+   Common items and the pages they always touch (find each page's folder and id in `pages.json`; this is a floor, not a limit):
+
+   | Item | Owner (gets the depth) | Also check and fix |
+   |---|---|---|
+   | A new or updated model from a lab with its own page (OpenAI, Anthropic, Google DeepMind, Meta, DeepSeek, Qwen, Mistral, Moonshot, MiniMax, xAI, Zhipu, Ai2) | that lab's child page under Topic: llm-landscape (current family, sizes, context, pricing, licence, scores with harness) | Topic: llm-landscape root: its map, comparison tables and "state of play" claims; Other notable providers if it names the lab |
+   | A model from a lab without its own page | Other notable providers (under llm-landscape) | the llm-landscape root; propose a new provider page in the report if the lab now matters enough |
+   | A model that introduces an architectural change (attention, MoE, positional scheme, hybrid, objective) | the matching Topic: llm-architecture child (attention variants, mixture of experts, long context, beyond attention, families and objectives, ...) and the LLM Architecture Gallery | the llm-architecture root; the lab's llm-landscape page names the change and links to it |
+   | New benchmark scores or a new benchmark version | the matching Topic: benchmarks child (knowledge and reasoning, math, coding, agentic, long context and multimodal, arenas, safety) | the benchmarks root; any llm-landscape page quoting the old figure |
+   | Serving, training, hardware, agents, retrieval, tooling news | the child page that owns the mechanism in that topic | that topic's root, and any page with a superlative or comparison the news changes |
 4. **Write the tech-news issue** as a new page: folder `technical_knowledge_base/reference/tech_news/YYYY_MM_DD_tech_news/` (the window's end date), built with the `explainer-page` skill, page kind [tech-news](../explainer-page/page-kinds/tech-news.md). The issue text is written fresh into `src/issue.md` (it plays the role `live.md` plays for an older issue: the issue's own words, which later re-checks never overwrite). Copy the machinery from the newest issue. Shape: the 3 to 5 most important stories first, then sections as warranted; concise, factual, linked, no hype. Each item names the knowledge-base page it feeds.
 5. **Integrate the durable knowledge** into the owning pages' `src/parts`, following [editorial-rules.md](editorial-rules.md): rewrite the passage so the page reads as if it had always been true, then walk up and fix what the change invalidates (root map and tables, summary claims, comparisons, reading times, Further reading). Rebuild each changed page and run `sh html_utils/checkpage.sh <folder>` (must end `fail=0, emdash 0, errbox 1, clipped 0`). If the page has a video, the video now lags the page: add one line beside the header line that names the video, saying what the video does not cover and the date the page moved past it; remove it when the video is remade. Never remake videos in this run.
 6. **Papers.** For each paper routed to a page: create its row in the Papers database (`collection://d440058d-ec1c-4b72-b141-046d5d969389`, properties `Paper`, `Year` with venue where relevant, `Topics` from the existing options, `Takeaway` in one sentence that agrees with the page) with the body "Being built in the technical_knowledge_base repository.", add its `pages.json` entry (`path` under `reference/papers/`, exact `title`, `id`, `parent` "Papers", `section` "Reference", `status` `not_migrated`) and its line in `reference/papers/README.md`, then build it with page kind [paper](../explainer-page/page-kinds/paper.md).

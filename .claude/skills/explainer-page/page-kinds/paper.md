@@ -12,7 +12,7 @@ Approved on Attention Is All You Need (2026-10-02); used for all 63 rows of the 
 - **An existing row** (title, Notion id, folder from `technical_knowledge_base/pages.json`, entries with `"parent": "Papers"`):
   - fetch the row page read-only and save it verbatim to `src/live.md` with a script (`save_live.py`), never retyped;
   - the page replaces the row's body only. The database properties (Paper, Takeaway, Topics, Year) stay in Notion and are not edited. Use the Takeaway on the headline card, and flag a wrong Takeaway to Khalid rather than editing it.
-- **A new paper Khalid names** (title, arXiv link or PDF): the row must exist in the Papers database first. Ask him to create it, or whether to create it (its properties are his). The periodic `update-KB` pass creates rows itself for papers central to a topic (its step 6). There is no old body, so coverage runs against the paper's own claims.
+- **A new paper Khalid names** (title, arXiv link or PDF): the row must exist in the Papers database first. Ask him to create it, or whether to create it (its properties are his). The periodic `update-kb` pass creates rows itself for papers central to a topic (its step 6). There is no old body, so coverage runs against the paper's own claims.
 - **Either way**: fetch the paper itself (arXiv HTML where it exists, else the PDF text or the publisher page) and read it until you could teach it ([../understand/research.md](../understand/research.md)). Keep small extracts in `src/inputs/`, never PDFs or files over about 1 MB.
 
 ## Why papers need their own method
