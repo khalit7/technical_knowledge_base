@@ -12,3 +12,4 @@ Child pages in this repository (one folder each):
 - `2026_09_14_tech_news/`: 2026-09-14: tech news
 - `2026_09_21_tech_news/`: 2026-09-21: tech news
 - `2026_09_28_tech_news/`: 2026-09-28: tech news
+- `2026_10_19_tech_news/`: 2026-10-19: tech news
