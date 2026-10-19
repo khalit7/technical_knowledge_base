@@ -1,0 +1,39 @@
+<section class="tab" id="t-toy" role="tabpanel" hidden>
+<h2>Train with PTGS</h2>
+<p>PTGS's evidence is RL on a 7B model, which nobody can rerun in a browser. The authors also released a small CPU toy built to show the mechanism ({{examples/ptgs_toy.py|https://github.com/changdaeoh/sharpening-tax}}). This tab runs this page's own port of it, so you can watch the sampler act on one batch and then train it yourself. It is a toy for the mechanism: it cannot say how large the effect is on a real agent.</p>
+<p><b>The toy.</b> 96 tasks, each a chain of 4 decisions with 6 choices; a rollout succeeds only if all 4 are right. Tasks come in 8 clusters that share a usual answer, but 30% of individual decisions are exceptions that only the task's own 24 features can encode. The policy is linear (one weight per decision, choice and feature) and starts biased toward each cluster's usual answer, which gives a base-model-like spread: easy usual tasks, very hard multi-exception ones. Training is the paper's loop at small size: 200 steps, 8 consecutive tasks per step (a fixed pool cycled, so prompts recur and the per-prompt posterior means something), groups of 8 rollouts, a group-relative advantage (success minus the group mean), learning rate 6.0 (tuned by the authors on the fixed-temperature arm, not on PTGS). Evaluation: 128 attempts per task at <i>T</i> = 1 with PTGS off. The mechanism the authors built in: an exception that never succeeds in a group gets no gradient, so it drifts toward never solved, which is the polarisation the tax measures.</p>
+
+<h3>One batch, two samplers</h3>
+<p>Eight prompts from the middle of a real PTGS training run (seed 0, step <span id="ptSnapStep"></span>, picked by a fixed rule: the batch with the most even mix of prompts solved often and almost never). Both modes use the same policy weights and the same prompts; only the temperature rule differs. Success probabilities are exact (the product of the right choice's probability at each decision), on a log scale because the hard ones are tiny.</p>
+<div class="card" id="pt">
+<div class="an-top"><div class="seg" id="ptM" role="group" aria-label="Sampler"><button data-m="fixed" aria-pressed="false">Fixed temperature (T = 1)</button><button class="on" data-m="ptgs" aria-pressed="true">PTGS (τ = 1.5)</button></div></div>
+<div id="ptSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="ptBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="ptPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="ptFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="ptScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="ptSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="ptStep"></div><p id="ptCap"></p></div>
+<div class="an-cnt" id="ptCnt"></div>
+</div>
+
+<h3>Trained: four arms, ten seeds</h3>
+<p>The authors' four arms: <b>base</b> (the starting policy, untrained), <b>fixed</b> (every group at <i>T</i> = 1), <b>global T</b> (every group at one hotter temperature, matched to PTGS's mean temperature on a seed-0 probe run: <span id="tyGT"></span>) and <b>PTGS</b> (τ = 1.5, γ = 0.95, target 0.25 rising to 0.5). The global-T arm is the control that separates "hotter" from "hotter where it fails".</p>
+<div class="card"><div id="tySvg"></div><div id="tyTab"></div><p class="small mute" id="tyNote" style="margin:4px 0 0"></p></div>
+<h3>During training</h3>
+<p>The group statistics behind the result, averaged over the ten seeds and smoothed over 9 steps (as the paper's {{Figure 41|ax:A6.SS2}} does): the share of groups with at least one success (what PPO needs), the share of mixed groups (what GRPO needs), the mean sampling temperature and the mean entropy of the decision distributions.</p>
+<div class="card"><div class="seg" id="trM" role="group" aria-label="Statistic"><button class="on" data-m="any" aria-pressed="true">groups with a success</button><button data-m="mixed" aria-pressed="false">mixed groups</button><button data-m="temp" aria-pressed="false">mean temperature</button><button data-m="ent" aria-pressed="false">entropy</button></div><div id="trSvg2"></div><p class="small mute" id="trNote2" style="margin:4px 0 0"></p></div>
+
+<h3>Train it yourself</h3>
+<p>Pick a seed (each seed draws a new task pool) and PTGS's spread τ, and train the fixed, global-T and PTGS arms in your browser (about a second). With τ = 1.5 the result must equal the ten-seed sweep above for that seed, run for run; the line under the table says whether it does.</p>
+<div class="card" id="tyLive"><div class="ctl"><label>Seed <select id="tySeed"></select></label><label>τ = <b id="tyTauV"></b><input type="range" id="tyTau" min="1" max="2" step="0.1" value="1.5"></label><button id="tyGo">Train three arms</button></div><div id="tyLiveSvg"></div><div id="tyLiveOut" class="small"></div></div>
+
+<h3>What the toy shows, and what it cannot</h3>
+<ul>
+<li><b>Reproduces in direction</b>: PTGS beats both fixed and heat-matched global temperature on pass@1 and pass@128 (<span id="tyWin"></span>), and keeps more groups with a success than either during training, and more mixed groups than fixed (global T, sampling everything hotter, has about as many mixed groups late in training). The authors' own toy, run unmodified with 5 seeds, gives the same ordering (table below).</li>
+<li><b>The tax barely moves</b>: Tax<sub>S</sub>(128) falls only from <span id="tyTax"></span>, much less than pass@128 rises, because PTGS's policy also reaches fewer tasks with certainty: its consistency pass<sup>128</sup> is the lowest of the trained arms. That matches the paper's own FrozenLake row (consistency 42.5 against 50.9), and the paper's tax reductions inside the noise.</li>
+<li><b>Hotter is not the point</b>: the global-T arm gets as much heat as PTGS in total, spread evenly, and <span id="tyHot"></span> So what helps is <i>where</i> the heat goes.</li>
+<li><b>What it cannot test</b>: anything about scale, language, multi-turn interaction or a learned critic (the toy has no PPO critic: its update is the group-relative one, closer to GRPO). The learning rate was tuned for the fixed arm, which favours fixed, not PTGS. Whether PTGS's gains survive at 7B or beyond is the paper's question, not this toy's.</li>
+</ul>
+<div class="tw"><table class="t3" id="tyA"><thead><tr><th>arm (authors' toy, 5 seeds)</th><th class="num">pass@1</th><th class="num">pass@128</th><th class="num">pass<sup>128</sup></th><th class="num">Tax<sub>S</sub>(128)</th></tr></thead><tbody></tbody></table></div>
+<p class="small mute" id="tyChk"></p>
+<p class="small mute" id="tySens"></p>
+</section>
