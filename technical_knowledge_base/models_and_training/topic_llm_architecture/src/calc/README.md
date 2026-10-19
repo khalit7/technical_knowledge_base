@@ -37,6 +37,15 @@ node technical_knowledge_base/models_and_training/topic_llm_architecture/src/cal
 - Sliding and chunked layers cap at their window (Llama 4 chunked attention treated as a window of 8192).
 - Recurrent mixers (Mamba, Mamba-2, Gated DeltaNet) counted in step form, state in FP32: approximate.
 - MoE bytes read at batch B assume uniform routing (illustrative).
+- Refused with a reason (2026-10-19, `UNSUPPORTED` in calc.py and the JS port): `glm_moe_dsa` (GLM-5), `deepseek_v4`,
+  `kimi_linear` (Kimi Linear, Kimi K3), `gemma4`/`gemma4_text` (global head_dim 512, own KV heads, K = V), and Nemotron
+  patterns with `E` (Nemotron 3 latent MoE). The generic path misread them (GLM-5 as MHA); none is in `src/data/configs`,
+  so no number on the page came from them. Porting needs their parameter layout validated against Hub counts first.
+- Nemotron-H: the pattern comes from `hybrid_override_pattern`, or from `layers_block_type` (newer configs; codes as in
+  transformers v5.20.1 `_pattern_to_list`); an unknown layer code raises instead of being skipped.
+- Llama 4 Scout (unsloth copy) has `no_rope_layers: []`: treated as all-global (a note says so). transformers v5.20.1
+  fills an empty list with its default, a NoPE global layer every 4th layer and chunked attention elsewhere
+  (`configuration_llama4.py` lines 180 to 183), which would lower Scout's long-context cache and FLOPs.
 
 ## Departures from the brief
 None of substance. The "dense vs MoE at equal active parameters" comparison builds a dense twin from the chosen model

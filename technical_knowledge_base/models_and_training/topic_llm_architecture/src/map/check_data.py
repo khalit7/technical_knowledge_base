@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Check the built page embeds exactly src/map/out data, that prose numbers in the map parts match the data,
-and that KV per token agrees with the Architecture Gallery child page for every model both pages share.
+and that KV per token agrees with the Architecture Gallery child page (its src/out/gallery.json) for every model both pages share.
 Run from anywhere: python3 src/map/check_data.py (repo .venv)."""
 import json, os, re, sys
 
@@ -58,14 +58,12 @@ for text, ok in claims:
     if not ok:
         bad.append('claim does not match data: ' + text)
 # Agreement with the gallery child page (its own recalculation from its own config copies)
-gp = os.path.join(ROOT, 'llm_architecture_gallery', 'src', 'parts', '15a_gal_data.js')
+gp = os.path.join(ROOT, 'llm_architecture_gallery', 'src', 'out', 'gallery.json')  # rows with repo and kv (gen_data.py)
 n = 0
-if os.path.exists(gp):
-    G = json.loads(re.search(r'const GAL=(.*);', open(gp).read(), re.S).group(1))
-    gk = {}
-    for g in G:
-        if g.get('kv') and g.get('cfg'):
-            gk[g['cfg'].split('huggingface.co/')[1].split('/blob')[0].lower()] = g['kv']
+if not os.path.exists(gp):
+    bad.append('gallery data not found: ' + gp)
+else:
+    gk = {g['repo'].lower(): g['kv'] for g in json.load(open(gp)) if g.get('kv') and g.get('repo')}
     for r in rows:
         if r.get('cfgu') and r.get('kv'):
             repo = r['cfgu'].split('huggingface.co/')[1].split('/blob')[0].lower()

@@ -3,6 +3,13 @@
 window.CC=(function(){
   const g=(c,keys,def)=>{for(const k of keys){if(c[k]!==undefined&&c[k]!==null)return c[k]}return def};
   const has=(c,k)=>c[k]!==undefined&&c[k]!==null;
+  // Families the generic path would misread are refused with a reason (calc.py UNSUPPORTED, 2026-10-19)
+  const UNSUPPORTED={glm_moe_dsa:'model_type glm_moe_dsa (GLM-5: MLA with a DSA indexer) is not modelled here; the generic path would read its 64 KV heads as multi-head attention',
+    deepseek_v4:'model_type deepseek_v4 (DeepSeek-V4: compressed sparse attention, hyper-connections, hash-routed layers) is not modelled here',
+    kimi_linear:'model_type kimi_linear (Kimi Linear, Kimi K3: KDA linear layers beside MLA layers) is not modelled here',
+    gemma4:'model_type gemma4 (Gemma 4: global layers with head_dim 512, their own KV heads and K = V) is not modelled here',
+    gemma4_text:'model_type gemma4_text (Gemma 4: global layers with head_dim 512, their own KV heads and K = V) is not modelled here'};
+  const NEMOTRON_CODES={linear_attention:'M',mamba:'M',full_attention:'*',attention:'*',mlp:'-',moe:'E'};
   function normalise(cfg){
     const top=cfg,c=cfg.text_config||cfg;
     const mt=c.model_type||top.model_type||'';
@@ -33,6 +40,7 @@ window.CC=(function(){
       Object.assign(s,{d,V,tied:c.tie_word_embeddings!==undefined?c.tie_word_embeddings:true,final_norm:d});
       s.layers=Array(L).fill({mix,ffn:null,norms:d});return s;
     }
+    if(Object.prototype.hasOwnProperty.call(UNSUPPORTED,mt))throw new Error(UNSUPPORTED[mt]);
     const d=c.hidden_size,L=c.num_hidden_layers,V=c.vocab_size;
     const nh=c.num_attention_heads,nkv=g(c,['num_key_value_heads'],nh);
     const hd=g(c,['head_dim','attention_head_dim'],nh?Math.floor(d/nh):0);
@@ -53,7 +61,8 @@ window.CC=(function(){
     if(mt==='llama4_text'){
       const nrl=c.no_rope_layers||[];const ch=c.attention_chunk_size||0;lt=[];
       for(let i=0;i<L;i++)lt.push((nrl.length&&nrl[i]&&ch)?'sliding_attention':'full_attention');
-      win=ch;if(ch)s.notes.push('chunked attention ('+ch+') treated as a window of '+ch+' for cache and FLOPs');
+      win=ch;if(ch&&nrl.length)s.notes.push('chunked attention ('+ch+') treated as a window of '+ch+' for cache and FLOPs');
+      if(ch&&!nrl.length)s.notes.push('no_rope_layers is empty in this config, so every layer is treated as global attention; transformers v5.20.1 fills an empty list with its default (a NoPE global layer every 4th layer, chunked attention of '+ch+' on the others), which would lower long-context cache and FLOPs');
     }
     function attn(i){
       let w=0;
@@ -78,10 +87,15 @@ window.CC=(function(){
     if(mt==='nemotron_h'){
       const m2={t:'mamba2',nh:c.mamba_num_heads,hd:c.mamba_head_dim,ds:c.ssm_state_size,ng:c.n_groups,k:c.conv_kernel,
         cb:c.use_conv_bias!==undefined?c.use_conv_bias:true,pb:c.mamba_proj_bias||false,norm:true};
-      for(const ch of c.hybrid_override_pattern){
+      let pat=c.hybrid_override_pattern;
+      if(!pat&&c.layers_block_type){pat=c.layers_block_type.map(x=>NEMOTRON_CODES[x]||'?').join('');s.notes.push('layer pattern read from layers_block_type')}
+      if(!pat)throw new Error('nemotron_h config has neither hybrid_override_pattern nor layers_block_type');
+      if(pat.includes('E'))throw new Error('Nemotron MoE layers (E in the pattern, the latent MoE of Nemotron 3) are not modelled here');
+      for(const ch of pat){
         if(ch==='M')layers.push({mix:m2,ffn:null,norms:d});
         else if(ch==='*')layers.push({mix:full(),ffn:null,norms:d});
         else if(ch==='-')layers.push({mix:null,ffn:{t:'mlp',ff,bias:!!c.mlp_bias},norms:d});
+        else throw new Error('unknown Nemotron layer code '+JSON.stringify(ch));
       }
       s.layers=layers;return s;
     }

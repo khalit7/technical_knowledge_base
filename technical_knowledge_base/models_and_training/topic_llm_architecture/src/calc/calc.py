@@ -18,6 +18,22 @@ import json, math, sys
 
 GLU_ACTS = {'silu', 'swish', 'gelu_pytorch_tanh', 'gelu', 'gelu_new', 'swiglu', 'geglu'}
 
+# Families whose layout the generic transformer path would misread: refused with a reason rather than miscounted
+# (2026-10-19; none of them is in src/data/configs, so nothing on the page was ever computed from them).
+UNSUPPORTED = {
+    'glm_moe_dsa': 'model_type glm_moe_dsa (GLM-5: MLA with a DSA indexer) is not modelled here; '
+                   'the generic path would read its 64 KV heads as multi-head attention',
+    'deepseek_v4': 'model_type deepseek_v4 (DeepSeek-V4: compressed sparse attention, hyper-connections, '
+                   'hash-routed layers) is not modelled here',
+    'kimi_linear': 'model_type kimi_linear (Kimi Linear, Kimi K3: KDA linear layers beside MLA layers) '
+                   'is not modelled here',
+    'gemma4': 'model_type gemma4 (Gemma 4: global layers with head_dim 512, their own KV heads and K = V) '
+              'is not modelled here',
+    'gemma4_text': 'model_type gemma4_text (Gemma 4: global layers with head_dim 512, their own KV heads and K = V) '
+                   'is not modelled here',
+}
+NEMOTRON_CODES = {'linear_attention': 'M', 'mamba': 'M', 'full_attention': '*', 'attention': '*', 'mlp': '-', 'moe': 'E'}
+
 
 def _g(c, *keys, default=None):
     for k in keys:
@@ -64,6 +80,8 @@ def normalise(cfg):
         s['layers'] = [{'mix': mix, 'ffn': None, 'norms': d}] * L
         return s
 
+    if mt in UNSUPPORTED:
+        raise ValueError(UNSUPPORTED[mt])
     d = c['hidden_size']; L = c['num_hidden_layers']; V = c['vocab_size']
     nh = c.get('num_attention_heads'); nkv = _g(c, 'num_key_value_heads', default=nh)
     hd = _g(c, 'head_dim', 'attention_head_dim', default=(d // nh if nh else 0))
@@ -95,7 +113,12 @@ def normalise(cfg):
         ch = c.get('attention_chunk_size') or 0
         lt = ['sliding_attention' if (nrl and nrl[i] and ch) else 'full_attention' for i in range(L)]
         win = ch
-        if ch: s['notes'].append('chunked attention (%d) treated as a window of %d for cache and FLOPs' % (ch, ch))
+        if ch and nrl: s['notes'].append('chunked attention (%d) treated as a window of %d for cache and FLOPs' % (ch, ch))
+        if ch and not nrl:
+            s['notes'].append('no_rope_layers is empty in this config, so every layer is treated as global attention; '
+                              'transformers v5.20.1 fills an empty list with its default (a NoPE global layer every '
+                              '4th layer, chunked attention of %d on the others), which would lower long-context '
+                              'cache and FLOPs' % ch)
 
     def attn(i):
         w = 0
@@ -130,7 +153,14 @@ def normalise(cfg):
         return s
 
     if mt == 'nemotron_h':
-        pat = c['hybrid_override_pattern']
+        pat = c.get('hybrid_override_pattern')
+        if not pat and c.get('layers_block_type'):  # newer Nemotron configs spell the pattern as a list
+            pat = ''.join(NEMOTRON_CODES.get(x, '?') for x in c['layers_block_type'])
+            s['notes'].append('layer pattern read from layers_block_type')
+        if not pat:
+            raise ValueError('nemotron_h config has neither hybrid_override_pattern nor layers_block_type')
+        if 'E' in pat:
+            raise ValueError('Nemotron MoE layers (E in the pattern, the latent MoE of Nemotron 3) are not modelled here')
         m2 = {'t': 'mamba2', 'nh': c['mamba_num_heads'], 'hd': c['mamba_head_dim'], 'ds': c['ssm_state_size'],
               'ng': c['n_groups'], 'k': c['conv_kernel'], 'cb': c.get('use_conv_bias', True),
               'pb': c.get('mamba_proj_bias', False), 'norm': True}
@@ -138,6 +168,7 @@ def normalise(cfg):
             if ch == 'M': layers.append({'mix': m2, 'ffn': None, 'norms': d})
             elif ch == '*': layers.append({'mix': attn(0) | {'win': 0}, 'ffn': None, 'norms': d})
             elif ch == '-': layers.append({'mix': None, 'ffn': {'t': 'mlp', 'ff': ff, 'bias': bool(c.get('mlp_bias'))}, 'norms': d})
+            else: raise ValueError('unknown Nemotron layer code %r' % ch)
         s['layers'] = layers
         return s
 

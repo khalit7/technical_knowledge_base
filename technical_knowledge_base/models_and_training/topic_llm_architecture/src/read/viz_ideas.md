@@ -12,3 +12,6 @@ Rejected:
 - KV-cache calculator in Reading: the Attention lab and Config calculator own it.
 - RoPE past the trained length animation: the Positional Encodings child owns it; a root section stays short.
 - Parameter breakdown bar for Llama 3.1 8B: the Config calculator draws it for any model.
+
+## 2026-10-19 (root fix pass)
+- Section 6 MoE animation now uses recorded router probabilities (moe8top2, block 2, first 8 tokens, from the Mixture of experts child) instead of a seeded draw; capacity rounded up (3), as tiny_gpt.py does. Kept the Mixtral-scale expert boxes and said in the caption that the tiny GPT's experts are half-size.
