@@ -1,0 +1,56 @@
+<div class="tab" id="t-keys" role="tabpanel" hidden>
+<style>
+#t-keys .ky-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px 16px;margin:8px 0}
+#t-keys .ky-ctl label{font-size:13px;display:block;min-width:0}
+#t-keys .ky-seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+#t-keys .ky-seg button{font-size:12.5px;padding:3px 10px}
+#t-keys .ky-seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
+#t-keys .ky-txt{line-height:1.9;font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;overflow-wrap:anywhere}
+#t-keys .ky-t{display:inline;padding:1px 0;border-radius:3px;white-space:pre-wrap}
+#t-keys .ky-t.rd{box-shadow:inset 0 -2px 0 var(--acc)}
+#t-keys .ky-t.off{color:var(--dim)}
+#t-keys .ky-t.q{outline:2px solid var(--bad);outline-offset:1px}
+#t-keys .ky-t.fut{color:var(--dim);opacity:.5}
+#t-keys .ky-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:8px 0}
+#t-keys .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-keys .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-keys .an-play{min-width:6.4em}
+#t-keys .an-cap{min-height:4.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
+#t-keys .ky-strip{display:grid;gap:2px;margin:6px 0}
+#t-keys .ky-strip .r{display:grid;grid-template-columns:4.6em minmax(0,1fr);gap:6px;align-items:center;font-size:11.5px}
+#t-keys .ky-strip .c{height:12px;display:flex;border-radius:2px;overflow:hidden;background:var(--soft)}
+#t-keys .ky-strip .c i{flex:1 1 0;min-width:0}
+#t-keys .meas{font-size:11.5px;color:var(--good);font-weight:600}
+#t-keys .der{font-size:11.5px;color:var(--c5);font-weight:600}
+#t-keys .ill{font-size:11.5px;color:var(--bad);font-weight:600}
+#t-keys .leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-keys .tw table{min-width:560px}
+</style>
+<h2 style="margin-top:14px">Which keys are read: one query under every variant</h2>
+<p class="lead">The text is the topic's running sequence (Roxy and the icy hill) as SmolLM2-135M tokenizes it. Pick a query token and a layer: the shading is SmolLM2's real attention from that query, and the underline marks what each variant lets the query read. The counters say how much of the real attention the variant keeps.</p>
+<p class="small"><span class="meas">measured on Apple M1 Pro (CPU)</span>: SmolLM2-135M revision 93efa2f0, fp32, eager attention, 226 tokens, no BOS (its tokenizer adds none). Weights are stored at 64 levels of each row's maximum. The sparse rows use the real weights to choose what to keep, an <b>oracle</b>: a real indexer (DSA) or compressed-branch score (NSA) only approximates that choice, so the "kept" numbers are an upper bound for those methods. SmolLM2 was trained with full attention; nothing here is SmolLM2 running a variant, only which of its own weights a variant would let through.</p>
+<div class="ky-seg" id="ky-var">
+<button data-m="full" class="on">Full causal</button><button data-m="win">Sliding window</button><button data-m="sink">Sink + window</button><button data-m="dsa">Top-k tokens (DSA-like)</button><button data-m="nsa">Blocks + window (NSA-like)</button>
+</div>
+<div class="ky-ctl">
+<label>Query token <select id="ky-q"></select></label>
+<label>Layer <select id="ky-l"></select></label>
+<label>Heads <select id="ky-h"><option value="mean">mean of the 9 heads</option><option value="head">the most concentrated head</option></select></label>
+<label>Window or k: <b id="ky-kv">32</b><input type="range" id="ky-k" min="0" max="4" step="1" value="2" aria-label="Window size or number of keys"></label>
+</div>
+<div class="leg"><span>shade: real attention weight (square-root scale, so small weights show)</span><span>underline: read by the variant</span><span>red outline: the query</span><span>grey: skipped</span></div>
+<div class="ky-txt" id="ky-txt"></div>
+<div class="ky-out" id="ky-out"></div>
+<div class="co" id="ky-note"></div>
+<h3>Stacked windows: how far back the last token can see, layer by layer</h3>
+<p>A sliding window limits one layer, not the model: layer 2 reads layer 1's outputs, which already mixed in their own windows, so the reach grows by W minus 1 per layer. The same query, the same window, two stacks: every layer local (Mistral 7B v0.1's design), and two local layers then one global (the tiny GPT's <code>swa64_g3</code> pattern; Gemma 3 uses five then one). <span class="der">calculation</span> of reachability (which positions can influence the query through some path), not of attention weights.</p>
+<div class="ky-ctl"><label>Window W: <b id="ky-wv">16</b><input type="range" id="ky-w" min="0" max="3" step="1" value="0" aria-label="Window for the stack"></label></div>
+<div class="ky-strip" id="ky-strip"></div>
+<div class="an-ctl" id="ky-ctl"></div>
+<div class="an-cap" id="ky-cap"></div>
+<h3>The premise of sparse attention, over 1,024 tokens</h3>
+<p class="small"><span class="meas">measured on Apple M1 Pro (CPU)</span>: SmolLM2-135M on 1,024 tokens of TinyStories validation text, queries at positions 256 to 1,023, averaged over heads and queries; and the Attention lab's tiny GPT (at_mha) on the 256-token running sequence, queries 64 to 255. Share of each query's attention captured by its own top k keys (oracle), with and without position 0, by the top 4 blocks, by the last 64 keys, and by the last 64 plus position 0.</p>
+<div class="ky-seg" id="ky-mod"><button data-m="smollm2" class="on">SmolLM2-135M, 1,024 tokens</button><button data-m="tiny_at_mha">tiny GPT, 256 tokens</button></div>
+<div class="tw"><table id="ky-tab"></table></div>
+<div class="co"><div class="t">What it shows</div><p id="ky-say"></p></div>
+</div>
