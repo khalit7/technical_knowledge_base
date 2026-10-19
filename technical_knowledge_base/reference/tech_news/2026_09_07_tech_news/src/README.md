@@ -17,5 +17,5 @@ Nine tabs, as on the approved 2026-08-24 issue: **At a glance** (`t-read`, open 
 ## Files
 - `recompute.py`: every derived number (ARC-AGI-3 gaps at matched effort, the 48% scope figure, cache-read shares, Gemini's price change, GLM-5.3-Flash's cache ratios from both config.json files, RPM speed-ups, Mercor's relative gain, Fermat's unused theorems, the GPU shares, the money multiples, the index deltas between v4.1.1 and v4.3, the routing session), with asserts on the published ones.
 - `coverage.json`: all 54 items, 288 numbers and 61 links (51 trailing sources, 10 inline) found in the built page; nothing dropped; corrections and follow-ups listed.
-- `viz_ideas.md`: candidates, scores, rejections (three were already built on the OpenAI, Topic: llms and Zhipu pages) and the new idea rows N0907.1 to N0907.3.
+- `viz_ideas.md`: candidates, scores, rejections (three were already built on the OpenAI, Topic: llm-landscape and Zhipu pages) and the new idea rows N0907.1 to N0907.3.
 - `inputs/`: source text read on 2026-10-02 (pages that refused direct reads came from Wayback captures of September 2026), both GLM config.json files, `fetch_meta.json`.

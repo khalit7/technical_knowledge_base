@@ -63,7 +63,7 @@ C = [
  ('Llama 3: base 500k plus staged long-context extension', 'Connections; Further reading', ['3c65c17b0d0d81aca58ccb9d720b474e', 'staged long-context extension']),
  ('DeepSeek-V3: MLA decoupled RoPE keys', 'Connections; Further reading', ['3c65c17b0d0d815fb8dac9ba1e35ab81', 'reconciles RoPE with latent KV compression']),
  ('Mixtral: representative RoPE open-weight architecture', 'Connections; Further reading', ['3c65c17b0d0d81eba72af0ac91ddc6b3', 'representative RoPE-based open-weight architecture']),
- ('Topics: llm-training-and-post-training (positional encodings, long-context), llms (architecture gallery)', 'Connections; Further reading, Topics', ['3c65c17b0d0d81b6876ee72b7056793b', '3c65c17b0d0d812d9e00f6ec89965286']),
+ ('Topics: llm-training-and-post-training (positional encodings, long-context), llms (architecture gallery)', 'Connections; Further reading, Topics', ['3c65c17b0d0d81b6876ee72b7056793b', '3fd5c17b0d0d8172b490dc9f9ac281df']),
  ('Database property Takeaway', 'stays in the database; also shown in the headline card', ['Rotate each query/key 2D pair by a position-proportional angle']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)

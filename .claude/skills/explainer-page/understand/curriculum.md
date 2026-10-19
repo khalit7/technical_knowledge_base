@@ -36,7 +36,7 @@ Examples that worked:
 ## Root breadth, child depth
 - **The root owns** the comparison, every cross-cutting concept needed to read it, and data that spans all children: atlases, maps, benchmarks, prices.
 - **A child owns** one specific thing in depth: a lab, a family, a stage, a technique, a tool.
-- **A concept that explains an axis is not a child page**; it lives in the root. Khalid folded Mixture-of-Experts, reasoning models and release history into Topic: llms for this reason. When the children are stages or techniques, keep them as children and compare them on the root.
+- **A concept that explains an axis is not a child page**; it lives in the root. Khalid folded Mixture-of-Experts, reasoning models and release history into Topic: llms (now Topic: llm-landscape) for this reason. When a mechanism grows into a subject of its own it can move again: on 2026-10-18 the MoE tab became the Mixture of experts child of the new Topic: llm-architecture. When the children are stages or techniques, keep them as children and compare them on the root.
 - **Neighbouring topics own their subjects**: list the live pages that own them (from `pages.json`) in the plan and in every brief, and link instead of repeating. Draw the line when two topics touch; for evaluation and benchmarks the line was "how do I measure my system" against "what is measured and how to read a score".
 
 ## Labs: what to build and measure

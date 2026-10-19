@@ -28,7 +28,7 @@ The weekly Monday update (`update-KB`) still runs from Notion and has not been a
 
 ## Khalid's preferences
 - **Ask, don't assume**, when a decision is his.
-- **Animations** for explanations, often: before/after of the same input, like the DeepSeek MLA explainer (`technical_knowledge_base/models_and_training/topic_llms/deepseek/`).
+- **Animations** for explanations, often: before/after of the same input, like the DeepSeek MLA explainer (`technical_knowledge_base/models_and_training/topic_llm_landscape/deepseek/`).
 - Root `Topic: *` pages are short comparisons plus definitions; details live on child pages.
 - Do not launch a multi-agent Workflow without his explicit opt-in; plain subagents are fine, about four at a time.
 

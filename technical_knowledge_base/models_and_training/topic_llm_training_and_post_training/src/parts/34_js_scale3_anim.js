@@ -78,7 +78,7 @@ function draw(m,k,e){
     stat('Serving, FLOPs per token',show(4,sci(x.inf)),'2N','aI',x.inf)+
     stat('Training compute against a same-loss optimum',show(4,x.extra<0.0005?'equal':'+'+pct(x.extra,0)),show(4,m==='over'?'pays back after '+sci(x.breakeven)+' tokens':m==='kap'?'and costlier to serve: dominated':'by definition'),'aX',x.extra);
 }
-// ---- step-animation engine (the Topic: llms pattern): play, pause, step, scrub, speed; runs only on screen in the visible tab ----
+// ---- step-animation engine (the Topic: llm-landscape pattern): play, pause, step, scrub, speed; runs only on screen in the visible tab ----
 const card=$('sc-an'),P='sc-an',RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
 const st={m:'chin',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0},N=5,dur=k=>[2600,3000,2400,3200,3600][k];
 function paint(){const e=RM?1:cl(st.t);try{draw(st.m,st.k,e)}catch(err){window.__jsErr&&window.__jsErr('t-scale anim: '+err.message)}

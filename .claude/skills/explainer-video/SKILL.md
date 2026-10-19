@@ -7,12 +7,12 @@ description: Make a narrated explainer video of a Technical knowledge base page 
 
 Turn one knowledge base page into a narrated explainer video: visuals with HyperFrames, narration with Chatterbox Turbo (its default voice), burned-in captions. The project lives in the page's folder at `<page>/video/` and is committed; the rendered MP4 goes to Notion only and is never committed.
 
-Worked example: `technical_knowledge_base/models_and_training/topic_llms/video/` ("Topic: llms: the two bets that separate the labs", 8 frames, about 90 s, first voiced with Kokoro and later re-voiced with Chatterbox by timeline warp).
+Worked example: `technical_knowledge_base/models_and_training/topic_llm_landscape/video/` ("Topic: llms: the two bets that separate the labs", 8 frames, about 90 s, first voiced with Kokoro and later re-voiced with Chatterbox by timeline warp).
 
 ## Principle
 **The video is a derived snapshot of the page.** It may explain more slowly than the page, but it never claims more than the page's `index.html` says. A fact the video needs and the page lacks goes into the page first (through the `explainer-page` skill), then into the video. Every number, name and claim in the script is checked against `index.html` before any audio is generated, and again on the snapshots before rendering.
 
-**The video must teach, not list.** The same teaching standard as the page applies: one angle the viewer can carry away (the topic_llms video teaches a reading habit, "two bets", rather than a tour of twenty labs), one idea per frame, a running example where the page has one, and animations that show the mechanism, preferably a before and after of the same input. A frame that only puts bullet points on screen while the voice reads them is a failure; so is a frame whose reveal arrives before or after the word that names it.
+**The video must teach, not list.** The same teaching standard as the page applies: one angle the viewer can carry away (the topic_llm_landscape video teaches a reading habit, "two bets", rather than a tour of twenty labs), one idea per frame, a running example where the page has one, and animations that show the mechanism, preferably a before and after of the same input. A frame that only puts bullet points on screen while the voice reads them is a failure; so is a frame whose reveal arrives before or after the word that names it.
 
 ## When to use
 - Khalid asks for a video of a page, an explainer video, or a short video version of a topic.
@@ -69,4 +69,4 @@ Report to Khalid:
 ## Sources distilled
 (History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
-`.claude/skills/create-explainer-video/SKILL.md`; `video_utils/README.md`, `narrate.py`, `check_takes.py`, `vendor_skills.sh`, both voice `pyproject.toml`; `CLAUDE.md` (Notion and video notes, writing rules, agent limits); `.claude/skills/sync-KB-github/SKILL.md` (Videos, stable `file://` form); the worked example at `topic_llms/video/`; the vendored `hyperframes`, `faceless-explainer` and `general-video` skills; memory notes on old videos and one GPU agent at a time.
+`.claude/skills/create-explainer-video/SKILL.md`; `video_utils/README.md`, `narrate.py`, `check_takes.py`, `vendor_skills.sh`, both voice `pyproject.toml`; `CLAUDE.md` (Notion and video notes, writing rules, agent limits); `.claude/skills/sync-KB-github/SKILL.md` (Videos, stable `file://` form); the worked example at `topic_llm_landscape/video/`; the vendored `hyperframes`, `faceless-explainer` and `general-video` skills; memory notes on old videos and one GPU agent at a time.

@@ -12,4 +12,4 @@ Central question: which design choices did each model make, and what does each c
 | 6 | Per-layer strips and attention ladder for every model | | | | rejected: owned by the LLM Architecture Gallery child; a compact strip sits in the detail card only |
 | 7 | KV-per-token over time scatter | | | | rejected: labels collide at 390 px and the gallery has it; the sweep counters carry the trend |
 | 8 | Parameter breakdown per model (embedding, attention, FFN) | | | | rejected here: owned by the Config calculator tab |
-| 9 | Benchmark score or price column | | | | rejected: owned by Topic: llms |
+| 9 | Benchmark score or price column | | | | rejected: owned by Topic: llm-landscape |

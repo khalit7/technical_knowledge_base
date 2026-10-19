@@ -23,7 +23,7 @@ Scoring follows `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 each
 
 ## Rejected
 
-- **A toy MoE trained with and without the bias rule**: Topic: llms already animates the control loop and balancing scope; a toy would not reproduce Table 5's small benchmark gains, and the report's own §4.5.3 already answers the interesting question.
+- **A toy MoE trained with and without the bias rule**: Topic: llm-landscape already animates the control loop and balancing scope; a toy would not reproduce Table 5's small benchmark gains, and the report's own §4.5.3 already answers the interesting question.
 - **Rebuilding the MLA animation or the DualPipe simulator**: they exist on the DeepSeek lab page; linked instead.
 - **A training-bill tab across generations or labs**: Khalid removed such tabs from the DeepSeek page; this tab is about this one claim only.
 - **FP8 training of a toy model to measure the 0.25%**: at toy scale FP8 loss gaps are dominated by noise and would not test the paper's claim at 16B to 230B.

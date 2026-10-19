@@ -70,7 +70,7 @@ def R(**k):
 EPOCH = 'https://epoch.ai/benchmarks'
 EPOCH_ZIP = 'https://epoch.ai/data/benchmark_data.zip'
 S('ep', 'Epoch AI, Benchmarking hub data (benchmark_data.zip, CC BY 4.0)', EPOCH_ZIP, '2026-10-04', 'data', read='2026-10-04')
-S('grid', 'Topic: llms, Benchmarks tab data (Artificial Analysis, ARC Prize, Epoch, LMArena, Datacurve readings)', 'https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286', '2026-10-01', 'kb', read='2026-10-01')
+S('grid', 'Topic: llm-landscape, Benchmarks tab data (Artificial Analysis, ARC Prize, Epoch, LMArena, Datacurve readings)', 'https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286', '2026-10-01', 'kb', read='2026-10-01')
 S('oldpage', 'Topic: benchmarks, old Notion page (master table)', 'https://app.notion.com/p/3c65c17b0d0d811fb43fece56e40041a', '2026-10-01', 'kb')
 S('kr', 'Knowledge and reasoning benchmarks (child page, old text)', 'https://app.notion.com/p/3c65c17b0d0d810f8574da3ffb860be5', '2026-09-22', 'kb')
 S('ag', 'Agentic benchmarks (child page, old text)', 'https://app.notion.com/p/3c65c17b0d0d811fb926d7b91ef8234e', '2026-09-22', 'kb')
@@ -86,7 +86,7 @@ def AX(aid):
 
 def AA(slug, read='2026-10-01'):
     key = 'aa:' + slug
-    S(key, 'Artificial Analysis, model page ' + slug + ' (per-evaluation scores; read for the Topic: llms grid)', 'https://artificialanalysis.ai/models/' + slug, read, 'leaderboard', read=read)
+    S(key, 'Artificial Analysis, model page ' + slug + ' (per-evaluation scores; read for the Topic: llm-landscape grid)', 'https://artificialanalysis.ai/models/' + slug, read, 'leaderboard', read=read)
     return key
 
 
@@ -101,7 +101,7 @@ def EP(f, mv, setting, note=None, name=None):
 
 
 def GRID(bid, setting=None, note=None):
-    """Evidence copied from the Topic: llms grid's best independent cell for benchmark id bid (resolved by mk_atlas.py)."""
+    """Evidence copied from the Topic: llm-landscape grid's best independent cell for benchmark id bid (resolved by mk_atlas.py)."""
     d = {'from': 'grid', 'b': bid}
     if setting:
         d['set'] = setting

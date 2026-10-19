@@ -4,7 +4,7 @@ The depth on one specific thing (a lab or model family, a stage, a technique, a 
 
 Reference children:
 - `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/diffusion_from_zero/`: reuses the root lab's checkpoint, adds three labs;
-- `.../topic_llms/deepseek/`: the MLA before/after explainer;
+- `.../topic_llm_landscape/deepseek/`: the MLA before/after explainer;
 - `.../topic_llm_training_and_post_training/distributed_training/`: one training step under nine parallelism schemes.
 
 ## What it is for

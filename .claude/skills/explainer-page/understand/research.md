@@ -9,7 +9,7 @@ Do not plan a page, write a brief or draw a visual until you can, for every buil
 - answer the interview questions you plan to put on the page, including one design question;
 - say where the field disagrees, which claims are vendor claims, and which numbers have been measured independently.
 
-Then write down, in one sentence, the question the subject keeps returning to (for Topic: llms, "where the test-time budget goes and what a model costs to serve"). The teaching plan and the visuals serve that question ([curriculum.md](curriculum.md), [../visuals/choosing.md](../visuals/choosing.md)).
+Then write down, in one sentence, the question the subject keeps returning to (for Topic: llm-landscape, "where the test-time budget goes and what a model costs to serve"). The teaching plan and the visuals serve that question ([curriculum.md](curriculum.md), [../visuals/choosing.md](../visuals/choosing.md)).
 
 ## Start from what exists
 1. **Save the old page verbatim.** If the subject already has a Notion page, save it to `src/live.md` (or `src/read/old/` for a root and its children) with a script, never retyped ([../page-kinds/migrate-or-fold.md](../page-kinds/migrate-or-fold.md)).

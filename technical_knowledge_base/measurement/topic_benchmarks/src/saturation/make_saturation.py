@@ -92,11 +92,11 @@ src('oaastra', 'OpenAI, GPT-6 Astra', 'https://openai.com/index/gpt-6-astra/')
 src('mtp', 'MarkTechPost on Grok 4.7 (xAI figures)', 'https://www.marktechpost.com/2026/09/21/spacexai-releases-grok-4-7/')
 src('tbs', 'Terminal-Bench-Science 0.1 announcement (27 Aug 2026)', 'https://www.tbench.ai/news/terminal-bench-science-0-1')
 src('tbsgh', 'terminal-bench-science v0.1.0 release (26 Aug 2026)', 'https://github.com/harbor-framework/terminal-bench-science/releases/tag/v0.1.0')
-src('aa', 'Artificial Analysis model pages (read 1 Oct 2026 for Topic: llms)', 'https://artificialanalysis.ai/evaluations/terminal-bench-science')
+src('aa', 'Artificial Analysis model pages (read 1 Oct 2026 for Topic: llm-landscape)', 'https://artificialanalysis.ai/evaluations/terminal-bench-science')
 src('anthfable51', 'Anthropic, Claude Fable and Mythos 5.1', 'https://www.anthropic.com/claude-fable-and-mythos-5-1')
 src('anthopus55', 'Anthropic, Claude Opus 5.5 system card', 'https://www-cdn.anthropic.com/fc1b44717c85dc068bc6ba5024219938094694bd/Claude%20Opus%205.5%20System%20Card.pdf')
 src('argon', 'Google, Gemini 4 Argon announcement table (image, transcribed)', 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-4-argon/')
-src('llmsbench', 'Topic: llms, Benchmarks tab', 'https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286')
+src('llmsbench', 'Topic: llm-landscape, Benchmarks tab', 'https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286')
 
 def P(d, v, m, k, s, n=None, **kw):
     p = {'d': d, 'v': round(float(v), 2), 'm': m, 'k': k, 's': s}

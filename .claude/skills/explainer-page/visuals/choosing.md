@@ -4,7 +4,7 @@ How to decide which visuals a page gets, where each goes, and how their numbers 
 
 ## 1. Start from the content, not from a catalogue
 - Read the page's subject and everything it leans on until you could teach it. A chart chosen before that is decoration.
-- Write down, in one sentence, the question the subject keeps returning to (for Topic: llms: where the test-time budget goes and what a model costs to serve; for DeepSeek: what it costs to train and serve). A visual is worth building when it makes that question measurable.
+- Write down, in one sentence, the question the subject keeps returning to (for Topic: llm-landscape: where the test-time budget goes and what a model costs to serve; for DeepSeek: what it costs to train and serve). A visual is worth building when it makes that question measurable.
 - List the page's existing visuals and outbound links first (and the root's, the siblings' and the paper pages' when building a child), so new ideas do not repeat what exists and the page's own sources become the first places to look.
 - Only then open [animation-types.md](animation-types.md) to pick a form.
 

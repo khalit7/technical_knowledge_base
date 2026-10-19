@@ -7,7 +7,7 @@ C = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('HP_CACHE', os.path.exp
 PART = sys.argv[2] if len(sys.argv) > 2 else 'all'
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'inputs')
-AA = os.path.join(HERE, '../../../../models_and_training/topic_llms/src/data/aa_snapshot.json')
+AA = os.path.join(HERE, '../../../../models_and_training/topic_llm_landscape/src/data/aa_snapshot.json')
 os.makedirs(OUT, exist_ok=True)
 def lb(c):
     return pd.read_parquet(os.path.join(C, 'lb_%s.parquet' % c))
@@ -76,7 +76,7 @@ if PART in ('pvc', 'all'):
         rows.append({'aa': a['aa_short_name'] if a.get('aa_short_name') else a['model'], 'm': m, 'lab': a['lab'], 'same': same,
                      'idx': a['aa_index'], 'r': round(float(s.loc[m].rating), 1), 'lo': round(float(s.loc[m].rating_lower), 1), 'hi': round(float(s.loc[m].rating_upper), 1),
                      'hp': round(float(s2.loc[m].rating), 1) if m in s2.index else None})
-    dump('pref_vs_cap.json', {'aa': 'Artificial Analysis Intelligence Index v4.3, snapshot 2026-10-01 (topic_llms/src/data/aa_snapshot.json)',
+    dump('pref_vs_cap.json', {'aa': 'Artificial Analysis Intelligence Index v4.3, snapshot 2026-10-01 (topic_llm_landscape/src/data/aa_snapshot.json)',
                               'arena': 'Arena text, style control, overall and hard prompts, published 2026-10-02', 'rows': rows})
 
 # ---- 2024 public votes: reproduce LMArena's published ratings, with and without style control ----

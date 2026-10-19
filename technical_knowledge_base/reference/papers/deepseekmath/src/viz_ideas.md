@@ -16,7 +16,7 @@ The question the paper keeps returning to: does dropping PPO's critic for a grou
 | P-deepseekmath.10 | **Then and now: GRPO's objective term by term** (R1, DAPO, Dr. GRPO, Tang and Munos, GSPO), each with what the toy can see | Own tab | 1+0+4+1+1+1+1+1-1 = 9 | `inputs/later_extracts.txt` | built |
 | P-deepseekmath.11 | Tables 1 to 10 explorer (sort, difference from baseline) and 20 claims checked | Tables tab | 1+2+4+1+2+1+1-1 = 11 | `mk_tables.py`, `recompute.py` | built |
 | P-deepseekmath.12 | Table 1, Table 5 and data-mix bars; arXiv bars in the reveal | Reading | 0+2+4+1+0+1+0-0 = 8 | tables.json | built |
-| P-deepseekmath.13 | Group advantage calculator for any G | | | | rejected: already on Topic: llms (Deeper: test-time compute), linked |
+| P-deepseekmath.13 | Group advantage calculator for any G | | | | rejected: already on Topic: llm-landscape (Deeper: test-time compute), linked |
 | P-deepseekmath.14 | Figure 3 (corpus curves) redrawn | | | | rejected: raster PNG in the paper; reading curves is not allowed |
 | P-deepseekmath.15 | Held-out questions in the toy (the paper's out-of-domain gains) | | | | rejected after trying: every method lowered held-out accuracy at this scale (`heldout_trial.mjs`); said on the page |
 | P-deepseekmath.16 | Iterative RL and a learned reward model in the toy | | | | rejected: with a rule reward there is nothing to retrain; a learned toy RM would add a hackable channel the comparison is meant to remove |

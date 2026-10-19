@@ -72,7 +72,7 @@ C = [
  ('Scaling laws: dense results Switch extends with a fourth axis', R + ', Connections; Further reading', ['3c65c17b0d0d81b08a1debb0c15cd252', 'extends with a fourth axis']),
  ('Megatron-LM: tensor model parallelism combined with expert and data parallelism in section 5', R + ', Connections; Parallelism', ['3c65c17b0d0d8133ae92fbe90a1f308e', 'combines with expert and data parallelism in §5']),
  ('Attention Is All You Need: the Transformer whose FFN sub-block the Switch layer replaces', R + ', Connections; Further reading', ['3c65c17b0d0d81999af7f16f8ed8ee9e', 'whose FFN sub-block the Switch layer replaces']),
- ('Topics: llm-training-and-post-training (expert parallelism, distributed training, distillation); llms (MoE architecture lineage)', R + ', Connections; Further reading, Topics', ['3c65c17b0d0d81b6876ee72b7056793b', '3c65c17b0d0d812d9e00f6ec89965286', 'expert parallelism, distributed training, distillation', 'MoE architecture lineage']),
+ ('Topics: llm-training-and-post-training (expert parallelism, distributed training, distillation); llms (MoE architecture lineage)', R + ', Connections; Further reading, Topics', ['3c65c17b0d0d81b6876ee72b7056793b', '3c65c17b0d0d812d9e00f6ec89965286', 'expert parallelism, distributed training, distillation', 'the open MoE models compared']),
  ('Database property Takeaway', 'stays in the database; also shown in the headline card', ['Simplified MoE to top-1 routing with a single balancing loss and selective fp32']),
 ]
 norm = lambda s: re.sub(r'\s+', ' ', s)

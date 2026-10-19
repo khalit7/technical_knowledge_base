@@ -5,7 +5,7 @@ The root page of a topic: an intuitive overview, the comparisons and the definit
 Reference roots:
 - `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/`: from zero, five labs, a model map, nine children;
 - `.../systems_and_performance/topic_jax_and_tpu/` and `.../topic_ml_infra_and_orchestration/`;
-- `.../models_and_training/topic_llms/`: labs as children;
+- `.../models_and_training/topic_llm_landscape/`: labs as children;
 - `.../topic_llm_training_and_post_training/`: stages as children, with a stage x axis grid.
 
 ## What it is for

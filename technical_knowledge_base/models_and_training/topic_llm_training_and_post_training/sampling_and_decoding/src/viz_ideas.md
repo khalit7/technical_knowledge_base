@@ -2,7 +2,7 @@
 
 Central question: how does the rule that picks a token from the next-token distribution change the text, and what does each rule keep or throw away? A visual earns its place when it makes "which tokens survive, and with what probability" measurable on a real distribution.
 
-Existing visuals elsewhere (not repeated here): speculative decoding calculator reproducing Leviathan Table 4 (Google DeepMind page, G18); AR against speculative against block diffusion animation (2026-08-24 tech news, N3); pass@k, majority vote, best-of-n and a sampling lab (Topic: llms, Deeper: test-time compute, R3); greedy decoding of a toy Transformer (Attention Is All You Need, PT1; its beam tree was rejected there because greedy was exact on that toy).
+Existing visuals elsewhere (not repeated here): speculative decoding calculator reproducing Leviathan Table 4 (Google DeepMind page, G18); AR against speculative against block diffusion animation (2026-08-24 tech news, N3); pass@k, majority vote, best-of-n and a sampling lab (Topic: llm-landscape, Deeper: test-time compute, R3); greedy decoding of a toy Transformer (Attention Is All You Need, PT1; its beam tree was rejected there because greedy was exact on that toy).
 
 ## Scoring (0 to 2 each; reproduces and computable count double; build cost subtracted; +1 for a step-by-step before/after animation)
 
@@ -14,7 +14,7 @@ Existing visuals elsewhere (not repeated here): speculative decoding calculator 
 | SD4 | Beam search tree against greedy, real GPT-2 log-probabilities, plus 80-token runs | 1 | 1 (x2) | 2 (x2) | 2 | 2 | 1 | 2 | 1 | -1 | 13 | built, Reading |
 | SD5 | Constrained decoding: JSON grammar masking the vocabulary step by step, unconstrained against constrained, real Qwen steps | 1 | 1 (x2) | 2 (x2) | 2 | 2 (constraints are free) | 2 | 2 | 1 | -1 | 14 | built, Reading |
 | SD6 | Speculative decoding animation with acceptance rule and expected speed-up | 2 | 2 (x2) | 2 (x2) | 2 | 1 | 0 (owned by Topic: inference-and-serving) | 0 (G18, N3) | 1 | -1 | 9 | rejected: belongs to inference-and-serving and is built twice already; formula and links kept in text |
-| SD7 | Self-consistency / best-of-n curves | 2 | 2 | 2 | 2 | 1 | 0 | 0 (Topic: llms R3) | 0 | -1 | 7 | rejected: owned by Topic: llms Deeper: test-time compute |
+| SD7 | Self-consistency / best-of-n curves | 2 | 2 | 2 | 2 | 1 | 0 | 0 (Topic: llm-landscape R3) | 0 | -1 | 7 | rejected: owned by Topic: llm-landscape Deeper: test-time compute |
 | SD8 | Mirostat, XTC, DRY, top-a in the lab | 1 | 0 | 1 | 1 | 0 | 1 | 2 | 0 | -2 | 4 | rejected: niche; mirostat and DRY need a generated sequence, not one distribution; kept as a table |
 | SD9 | Live model in the page | 2 | 2 | 0 | 2 | 1 | 2 | 2 | 0 | -3 | n/a | rejected: no network and a 0.5B model is far beyond the page size |
 | SD10 | Temperature-only slider on a toy distribution | 2 | 0 | 2 | 1 | 0 | 1 | 0 | 0 | 0 | 4 | rejected: subsumed by SD1 and SD2 on real data |

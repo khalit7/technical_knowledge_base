@@ -7,7 +7,7 @@ Every point in `data/saturation.json` names its source id; this file gives, per 
 - **ARC Prize**, `https://arcprize.org/media/data/leaderboard/v1.json`, `v2.json` (generated 2026-10-01T18:51Z), `v3.json` (2026-09-30T13:12Z). Leaderboard page: "ARC-AGI-3 results use either the Standard harness (carries forward model-selected notes throughout the environment) or the Provider Adapter harness (preserves reasoning state and compacts longer conversations so the model can reuse prior work)."
 - **MathArena**, `https://matharena.ai/competition_tables/aime--aime_2025` and `aime--aime_2026`. The warning icon's tooltip: "Model was released after competition release."
 - **EvalPlus**, `https://evalplus.github.io/results.json` (base HumanEval column, greedy pass@1).
-- **Artificial Analysis** Terminal-Bench-Science 0.1 and Terminal-Bench 4.0 cells, as collected for Topic: llms (`models_and_training/topic_llms/src/data/bench_grid.json`, read 1 Oct 2026).
+- **Artificial Analysis** Terminal-Bench-Science 0.1 and Terminal-Bench 4.0 cells, as collected for Topic: llm-landscape (`models_and_training/topic_llm_landscape/src/data/bench_grid.json`, read 1 Oct 2026).
 
 ## ImageNet (ILSVRC)
 - Results pages `https://image-net.org/challenges/LSVRC/<year>/results`. Top-5 classification error of the winning provided-data entry: 2010 NEC-UIUC 0.28191 ("flat_opt.txt 0.28191"), 2011 XRCE 0.25770, 2012 SuperVision 0.16422 ("Using only supplied training data"; 0.15315 "Using extra training data from ImageNet Fall 2011 release"), 2013 Clarifai 0.11743 ("Average of multiple models on original training data"; 0.11197 with outside data, dark grey), 2014 GoogLeNet 0.06656, 2015 MSRA 0.03567, 2016 Trimps-Soushen 0.02991, 2017 WMW 0.02251.
@@ -95,7 +95,7 @@ Every point in `data/saturation.json` names its source id; this file gives, per 
 - 3.0: "Our first release contains 74 tasks across 7 domains. The best models achieve ~34% on Terminal-Bench 3.0."; chart "GPT-5.6 Sol (Codex) 34.4% Fable 5 (Claude Code) 33.8%"; "Many Terminal-Bench tasks have become saturated".
 - 4.0: "We removed 8 tasks: for saturation (2), refusals (2), public solutions (2), and unresolved quality or platform-compatibility issues (2). We considered a task "saturated" when all classes within all families of the latest generation of models solve it 5/5 times."; "We fixed 19 tasks"; "In the short term, this might be confusing as the community is used to major version updates being "sequels"."
 - Terminal-Bench-Science 0.1 announcement: "Claude Opus 5 with Claude Code achieves the highest resolution rate at 30.0%", then GPT-5.6 Sol with Codex 22.4%, Claude Fable 5 with Claude Code 21.4%; 70 tasks.
-- Anthropic, Claude Fable and Mythos 5.1: "Terminal-Bench-Science 0.1 from 24.7% to 52.6%". Anthropic, Opus 5.5 system card: "Astra ahead at 64.6% against Opus 5.5's 58.7%, with Opus 5 at 29.0%". Google's Gemini 4 Argon table (image, transcribed for Topic: llms): Astra 68.1, Fable 5.1 52.6, Opus 5.5 63.3.
+- Anthropic, Claude Fable and Mythos 5.1: "Terminal-Bench-Science 0.1 from 24.7% to 52.6%". Anthropic, Opus 5.5 system card: "Astra ahead at 64.6% against Opus 5.5's 58.7%, with Opus 5 at 29.0%". Google's Gemini 4 Argon table (image, transcribed for Topic: llm-landscape): Astra 68.1, Fable 5.1 52.6, Opus 5.5 63.3.
 - Terminal-Bench 2.0 rows: Epoch AI hub (leaderboard copies, with run dates and agents).
 
 ## Corrections to the old page

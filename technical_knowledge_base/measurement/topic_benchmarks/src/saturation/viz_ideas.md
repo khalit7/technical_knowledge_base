@@ -17,7 +17,7 @@ Scores 0 to 2 per the Methodology (quantity the reader moves; reproduces a publi
 | 9 | Kaplan-Meier survival curve of "unsaturated" benchmarks | 6 | none | rejected for now: correct for censoring but hard to read for this audience; the open benchmarks are listed by name instead |
 | 10 | One combined line per benchmark (max over versions) | 2 | none | rejected: splices versions; only the replay uses the best listed reading, labelled as such |
 | 11 | MMLU against Terminal-Bench-Science, animated | n/a | Reading tab | owned by the Reading tab; not repeated |
-| 12 | Current models on fixed benchmarks | n/a | Topic: llms, Benchmarks tab | linked, not repeated |
+| 12 | Current models on fixed benchmarks | n/a | Topic: llm-landscape, Benchmarks tab | linked, not repeated |
 
 ## Data decisions
 - Records only per series; launch-day point always kept. Dates: model release (Epoch's convention) for tracker runs, paper or results date otherwise; tracker run dates kept in the point details.
