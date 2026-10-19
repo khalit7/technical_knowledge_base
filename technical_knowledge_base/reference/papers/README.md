@@ -2,9 +2,7 @@
 
 Notion: https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f
 
-Not migrated yet: this page is still in the old written form in Notion.
-
-The Papers page holds a database, one row per paper. Each row's page body becomes an interactive HTML page (method: `.claude/skills/explainer-page/page-kinds/paper.md`); the database properties stay in Notion. One folder per row:
+Not an HTML page: in Notion it is a one-line description followed by the Papers database, one row per paper. Each row's page body becomes an interactive HTML page (method: `.claude/skills/explainer-page/page-kinds/paper.md`); the database properties stay in Notion. One folder per row:
 
 - `attention_is_all_you_need_transformer/`: Attention Is All You Need (Transformer)
 - `bert/`: BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding
