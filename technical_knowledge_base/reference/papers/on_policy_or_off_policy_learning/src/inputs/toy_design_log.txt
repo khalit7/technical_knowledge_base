@@ -1,0 +1,51 @@
+Toy design log (written before the first sweep, 2026-10-19)
+
+Task. 12 prompts. Each answer is two tokens: a route (5 choices) then an answer (5 choices). For every
+(prompt, route) one answer is correct. The teacher (logits / 0.5) prefers two routes per prompt and knows the
+correct answer on every route, more sharply on its own two. The student (logits / 1.0) starts with a habit:
+one route the teacher seldom takes, where it knows the answer a little (+0.8 on the correct logit).
+Parameters: the student's logits directly (12 x 5 route logits, 12 x 5 x 5 answer logits; 360 numbers), so the
+logit Jacobian is the identity and Theorem C.1's B is 1.
+
+Training: exactly the paper's loss (Eq. 1, full-vocabulary token KL at both positions, averaged over the two
+positions), rollouts from pi_lambda (Appendix D.5 with alpha 0.2 and c = 2 log 3), 32 rollouts per step,
+150 steps, Adam (0.9, 0.999, 1e-8), 10 warm-up steps, global clipping at 1.0, 3 seeds.
+Learning rates fixed in advance: 0.02 (low) and 0.1 (high). Lambda grid as the paper: -2 to 2 in steps of 0.5.
+
+What should differ, decided before running:
+ 1. Forward KL accuracy should vary little across lambda (the bounded gradient of Theorem C.1).
+ 2. Reverse KL should do worse with teacher-favoured rollouts (lambda < 0) than with student-favoured ones:
+    on teacher prefixes it never trains the answers on the student's habit route, and its route gradient
+    pushes little mass onto routes the student gives almost no probability (the pi_S weighting of Eq. 5).
+ 3. Forward KL should keep both teacher routes (more distinct correct routes in 10 samples); reverse KL fewer.
+ 4. Without clipping, reverse KL should suffer more than forward KL.
+Points 2 and 3 follow from the mechanism the paper proposes; the toy shows that mechanism, it does not test
+whether it is the cause in Llama models. If a point fails, the page says so; the task is not retuned.
+
+Run 1 (directly parameterised logits), result: nothing differs. Every setting ends at the same place
+(pass@1 0.69 to 0.77 at lr 0.02, 0.85 at lr 0.1 for both directions and every lambda; teacher 0.85), clipping
+changes nothing. Reason, unrelated to the claim: with one free logit per (prefix, token) the student can
+represent the teacher exactly, and Adam rescales every coordinate's step to about the learning rate, so a
+tiny reverse-KL gradient on a token the student ignores still moves that logit at full speed, and 150 steps
+visit every prefix often enough. Real students share parameters across prefixes and tokens, which is where a
+rollout policy's weighting and a vanishing per-token gradient can matter.
+
+Change made once (2026-10-19), before looking at any result of it: the student becomes a small network with
+shared parameters: input one-hot(prompt) + one-hot(route or start), one tanh hidden layer of 6 units, a route
+head and an answer head (184 parameters). It cannot memorise all 60 correct answers, so it must compromise,
+and the rollout policy decides where. Its starting point is the run-1 student (fitted to the run-1 student's
+distributions by forward KL over all prefixes, 400 Adam steps, lr 0.05, seed 7). Everything else unchanged,
+including the learning rates 0.02 and 0.1, which were not retuned.
+
+Run 2 (shared-parameter student, the page's toy), result, 3 seeds per point, pass@1 at temperature 1:
+ 1. Forward KL varies little with lambda: 0.60 to 0.65 at lr 0.02, 0.75 to 0.79 at lr 0.1. Reproduces.
+ 2. Reverse KL is just as flat: 0.68 to 0.69 at lr 0.02, 0.83 to 0.86 at lr 0.1. Does NOT reproduce the
+    paper's sensitivity; reverse KL is also the more accurate direction here, as on the knowledge base's
+    distillation page toy.
+ 3. Forward KL keeps more distinct correct routes in 10 samples: 1.78 to 1.83 against 1.62 to 1.69 at
+    lr 0.02 (teacher 2.12). Reproduces the direction of the coverage result.
+ 4. Clipping changes nothing: the batch gradient norm stays under 1 (about 0.7 at step 1, under 0.25 after
+    step 25), whereas the paper's norms exceed 1 at every logged step (Figure 7). Not testable at this scale.
+Diagnosis recorded for the page: the toy's student-teacher log-ratio range at the start is about 8.3 nats over
+5 tokens; an LLM's 128k-token vocabulary with a teacher at temperature 0.5 leaves far more extreme ratios
+(the paper's own diagnostic, Corollary C.3). No further changes were made to the task.
