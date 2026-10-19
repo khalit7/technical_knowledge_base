@@ -1,0 +1,198 @@
+=== A4.T3  https://arxiv.org/html/2609.37725v1#A4.T3
+
+
+Task	
+
+Input stream
+
+Queries
+
+Metric
+
+Needle Retention	
+
+ $\sim$ 4K-token chunks, each with 2–8 needle lines and 140 filler lines
+
+none
+
+needle lines retained verbatim in the final context
+
+Sudoku Sketchpad	
+
+one move per turn on a $16{\times}16$ board
+
+current board after each move
+
+board versions reproduced exactly
+
+KV Store	
+
+batches of 100 SET operations with random 24-word values
+
+24 GET queries
+
+exact-value accuracy
+
+Log Triage	
+
+batches of 14–54 service log lines
+
+24 lookup and count queries
+
+exact-answer accuracy
+
+Table 3: The four ContextBench tasks. All metrics are computed from the agent’s context; answers held only in files are not credited.
+
+
+=== A4.T4  https://arxiv.org/html/2609.37725v1#A4.T4
+
+
+Method	
+
+Excerpt of the KV Store skill
+
+CLM	
+
+Mechanism: Your context is mirrored to a file you can edit; changing that file changes what you are holding.
+Each batch: On the SAME turn you read a SET-BATCH, move the whole block out of your context and onto disk with this one command [a python3 heredoc that moves the block to /tmp/ctx_offload/ and leaves one placeholder line].
+Each GET: Recover the value with grep -h ’SET <key> =’ /tmp/ctx_offload/* and then print the ANSWER block.
+Check: No note, or a token count that did not drop, means the batch is still in your context.
+
+ACM	
+
+Mechanism: manage_context takes everything since your previous manage_context call … and replaces it with one message [summary_id: N] <summary>.
+Each batch: Read the gauge after every batch; when it is above 22,000, call manage_context on your very next turn, before you release another batch.
+Each GET: Spend one turn on query_memory(N, “the SET line for key K00084, verbatim”) with N the summary whose range covers the key.
+Check: What confirms a compression is the [summary_id: N] message and a [context: ~N/M tokens] readout lower than the turn before.
+
+RLM	
+
+Mechanism: The REPL namespace persists: every variable and function you define survives from one operation to the next. That persistence is your store.
+Each batch: On the first operation define the store and the handler once; on every later operation only call them [a dictionary filled by a regular expression over the SET lines].
+Each GET: A GET is answered by placing the ANSWER block in answer["content"].
+Check: print(out) shows stored N keys so far growing by one batch per SET operation.
+
+Context Folding	
+
+Mechanism: A branch begins from a copy of a context that already holds every batch and cannot delete anything from MAIN, so MAIN is as full after it as before.
+Each batch: On a SET-BATCH, run one command in MAIN and nothing else: echo READY_FOR_NEXT_OP. Do not open a branch.
+Each GET: Answer in MAIN … by finding the SET <key> = line in the batch in front of you and printing its value.
+Check: The [context: ~N/M tokens] readout should rise by the size of each batch and by almost nothing else.
+
+Self-Compact	
+
+Mechanism: Compression happens only when C1=Y, C2=Y, C3=Y, N1=N. Then your whole history is replaced by … your summary.
+Each batch: On the SAME turn a SET-BATCH arrives, copy the whole block … to its own file. Answer [the probe] so that compression fires as soon as everything you have seen is on disk.
+Each GET: grep -h "ˆSET K00084 = " /tmp/store/*.txt, then print the value in an ANSWER block.
+Check: What confirms a store is the count grep -c prints back, equal to 100.
+
+Summary	
+
+Mechanism: At three quarters of the budget (about 24.6K of 32,768 tokens) … everything except the system prompt and this task message is then replaced by one message.
+Each batch: On the SAME turn a SET-BATCH arrives, copy the whole block … to its own file. Write the summary as a pointer, not an inventory.
+Each GET: grep -h "ˆSET K00084 = " /tmp/store/*.txt, then print the value in an ANSWER block.
+Check: What confirms the store is the grep -c count coming back as 100.
+
+Base	
+
+Mechanism: Every operation arrives as a message in this conversation and stays in your context for the rest of the run; there is no command, tool or edit that takes it back out.
+Each batch: On a SET-BATCH, run one command and nothing else. Do not copy batches to disk.
+Each GET: Find the SET <key> = line in the batch that is sitting in your context and print its value verbatim.
+Check: The [context: ~N/M tokens] readout should rise by the size of each batch and by almost nothing else.
+
+Table 4: Excerpts of each method’s KV Store skill. Every skill gives the same four kinds of guidance for its own mechanism: how the mechanism works, what to do with each batch, how to answer a query, and how to confirm that a step worked. Blue marks the concrete instruction for using the method’s own tools; … marks omitted text and square brackets paraphrase code.
+
+
+=== A5.T5  https://arxiv.org/html/2609.37725v1#A5.T5
+
+
+Task	
+Category	
+Language	
+
+What the verifier scores
+
+Start: files / LOC	
+
+ad_placement_optimization	
+Combinatorial optimization	
+C++	
+
+solution score over judge cases
+
+1 / 20	
+
+apple_incremental_game	
+Combinatorial optimization	
+Python	
+
+solution score over judge cases
+
+3 / 101	
+
+graph_node_classification	
+Science & ML	
+Python	
+
+held-out accuracy (CPU-only judge)
+
+2 / 418	
+
+grid_turing_robot	
+Combinatorial optimization	
+Python	
+
+solution score (lower is better)
+
+3 / 440	
+
+juliet_vulnerability_analyzer	
+Software engineering	
+Python	
+
+hidden evaluator on the Juliet suite
+
+1 / 9	
+
+openrct2_theme_park_ai	
+Games & simulators	
+JavaScript plugin	
+
+park value in a headless OpenRCT2 run
+
+6 / 5,950	
+
+schemathesis_datagen_pipeline	
+Software engineering	
+Python	
+
+fraction of the test suite passing
+
+416 / 112,663	
+
+triangulation_coloring_optimization	
+Combinatorial optimization	
+Python	
+
+coloring “ugliness” (lower is better)
+
+5 / 431	
+
+vehicle_routing_time_windows	
+Combinatorial optimization	
+C/C++	
+
+CVRPTW solution quality
+
+3 / 513	
+
+wesnoth_tactical_ai	
+Games & simulators	
+Python	
+
+headless Wesnoth matches
+
+0 / 0	
+
+Table 5: EdgeBench-10 tasks. Scores are rescaled to 0–100 by the EdgeBench judge. Start: files and lines of code in the working directory before any edit.
+
