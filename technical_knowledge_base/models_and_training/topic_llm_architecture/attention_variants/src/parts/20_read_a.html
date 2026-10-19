@@ -1,0 +1,62 @@
+<div class="tab" id="t-read" role="tabpanel">
+<style>
+#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
+#t-read .an-cap{min-height:5.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:13.5px}
+#t-read .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr));gap:6px;margin:6px 0}
+#t-read .meas{font-size:11.5px;color:var(--good);font-weight:600}
+#t-read .vend{font-size:11.5px;color:var(--c4);font-weight:600}
+#t-read .indep{font-size:11.5px;color:var(--c6);font-weight:600}
+#t-read .der{font-size:11.5px;color:var(--c5);font-weight:600}
+#t-read .unc{font-size:11.5px;color:var(--bad);font-weight:600}
+#t-read .nrh{font-size:11.5px;color:var(--mute);font-weight:600}
+#t-read dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
+#t-read .pr{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:12px 0;background:var(--soft)}
+#t-read .pr .q{font-weight:600;font-size:14px;color:var(--ink)}
+#t-read .pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#t-read .pr .opts button{font-size:13px;text-align:left;white-space:normal}
+#t-read .pr .opts button.right{border-color:var(--good);color:var(--good);font-weight:600}
+#t-read .pr .opts button.wrong{border-color:var(--bad);color:var(--bad)}
+#t-read .pr .ans{font-size:13.5px;border-left:3px solid var(--good);padding:2px 0 2px 10px}
+#t-read details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}
+#t-read details.qa summary{cursor:pointer;padding:6px 12px;font-size:14px}
+#t-read details.qa>div{padding:0 12px 8px;font-size:13.5px}
+#t-read .tw table{min-width:560px}#t-read .tw table.nar{min-width:0}
+#t-read code{overflow-wrap:anywhere;word-break:break-word}
+#t-read pre{background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.45;overflow-x:auto;margin:6px 0}
+#t-read .an-cap p,#t-read .ans,#t-read .mist .b,#t-read details.qa>div,#t-read td{overflow-wrap:anywhere}
+#t-read .rd-svg{width:100%;overflow:hidden;margin:6px 0}
+#t-read .rd-svg svg text{font-size:11px;fill:var(--ink)}
+#t-read .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-read .av-row{display:flex;flex-wrap:wrap;gap:2px;margin:6px 0;align-items:flex-end;min-height:64px}
+#t-read .av-row i{display:block;flex:1 1 0;min-width:0;background:var(--c1);border-radius:1px 1px 0 0}
+#t-read .av-row i.sk{background:var(--bad)}
+#t-read .small{font-size:12.5px}
+</style>
+<nav class="nav" id="rd-nav"><a href="#s0">In one screen</a><a href="#s1">The problem</a><a href="#s2">Sharing K and V</a><a href="#s3">MLA</a><a href="#s4">Windows</a><a href="#s5">Sparse</a><a href="#s6">Sinks and gates</a><a href="#s7">Differential</a><a href="#s8">In production</a><a href="#s9">Code</a><a href="#s10">Mistakes</a><a href="#s11">Interview</a></nav>
+<p class="small">Reading time: about <span id="rd-time">39</span> minutes, plus about 5 in closed details (measured by <code>src/reading_time.mjs</code> at 200 words a minute). The page assumes the root's Attention lab: what a KV cache is, why it exists, and the same 16 tokens drawn through MHA, GQA, MQA and MLA. This page derives each design, checks the derivations numerically on trained models, and goes past the lab into windows, sparse attention, sinks and gates.</p>
+
+<section id="s0"><h2>0. In one screen</h2>
+<p>Every decoder layer keeps something per past token so the next token can attend to it. The variants differ in <b>what</b> each token leaves behind, <b>how many</b> past tokens are kept, and <b>how many</b> are read per step. Per layer, per token, for the tiny GPT of the running example (d<sub>model</sub> 256, 8 heads of 32) and for a real model:</p>
+<div class="tw"><table>
+<thead><tr><th>Design</th><th>Each token stores, per layer</th><th class="num">Tiny GPT numbers</th><th>Real example (bf16, all layers)</th><th>Quality evidence</th></tr></thead>
+<tbody>
+<tr><td><b>MHA</b> multi-head attention</td><td>a key and a value per head: 2 &middot; H &middot; d<sub>h</sub></td><td class="num">512</td><td>Llama 2 7B: 512 KiB per token</td><td>the reference</td></tr>
+<tr><td><b>GQA</b> grouped-query</td><td>a key and a value per KV head: 2 &middot; H<sub>kv</sub> &middot; d<sub>h</sub></td><td class="num">128 (2 KV heads)</td><td>Llama 3.1 8B (8 KV heads): 128 KiB</td><td>tiny GPT: within seed spread of MHA <span class="meas">measured</span>; 7B, 1.33T tokens: MMLU 41.2 vs MHA 45.2 <span class="vend">DeepSeek-V2 Table 8</span></td></tr>
+<tr><td><b>MQA</b> multi-query</td><td>one key and one value: 2 &middot; d<sub>h</sub></td><td class="num">64</td><td>Llama 3.1 8B as MQA: 16 KiB (what-if)</td><td>tiny GPT: same; 7B: MMLU 37.9 <span class="vend">same table</span></td></tr>
+<tr><td><b>MLA</b> multi-head latent</td><td>a latent c and a shared RoPE key: d<sub>c</sub> + d<sub>r</sub></td><td class="num">64 + 16 = 80</td><td>DeepSeek-V3: 68.6 KiB</td><td>MoE 16B and 250B: better than MHA <span class="vend">DeepSeek-V2 Table 9</span>; tiny GPT: about 0.09 worse <span class="meas">measured</span>, investigated in section 3</td></tr>
+<tr><td><b>Sliding window</b> W</td><td>as MHA/GQA, but only the last W tokens are kept</td><td class="num">512, for 64 tokens</td><td>Mistral 7B v0.1 (W 4,096): 0.50 GiB at 128K instead of 16 GiB</td><td>tiny GPT: window 64 within noise of full; smaller windows cost more (section 4)</td></tr>
+<tr><td><b>Local : global</b></td><td>local layers keep W tokens, global layers keep all</td><td class="num">mixed</td><td>Gemma 3 27B (5 : 1, W 1,024); gpt-oss (1 : 1, W 128)</td><td>Gemma 3: "minimal impact on perplexity" <span class="vend">report</span></td></tr>
+<tr><td><b>Sparse</b> (NSA, DSA)</td><td>everything kept (plus an indexer key for DSA); each step reads the top k</td><td class="num">n/a</td><td>DeepSeek-V3.2: 83.9 KiB held, attention reads 2,048 entries</td><td>V3.2 at parity with V3.1-Terminus <span class="vend">DeepSeek</span>; NSA above full attention on its benchmarks <span class="vend">authors</span></td></tr>
+<tr><td><b>Sink</b>, <b>gate</b></td><td>no extra cache: a learned logit per head (gpt-oss), or a sigmoid gate on each head's output (Qwen3-Next)</td><td class="num">0</td><td>gpt-oss-120b; Qwen3-Next, Qwen3.5</td><td>gate: 15B MoE perplexity 6.026 to 5.761, first-token attention 46.7% to 4.8% <span class="vend">Qwen team</span></td></tr>
+</tbody></table></div>
+<p class="small">The real-model columns are <span class="der">calculations</span> from each <code>config.json</code> with the root's Config calculator's formulas (bf16, windows credited); the {{Cache ladder|#t-ladder}} tab puts eleven of them on one axis with what each decoded token reads.</p>
+</section>
+
+<section id="s1"><h2>1. The problem, the notation, the running example</h2>
+<p><b>The problem.</b> When a decoder generates token t, every layer computes a query q<sub>t</sub> and compares it with the keys of all earlier tokens; the earlier keys and values do not change, so they are stored: the <dfn>KV cache</dfn>. Decoding one token reads the whole cache once and does about two multiply-adds per number read. That ratio, about 1 FLOP per byte in bf16 for MHA, is far below what a GPU can do per byte of memory (an H100 does about 295), so decode attention waits on memory: <b>cache bytes are decode time</b>, and at long context or large batch they are also the memory that limits how many requests fit. The root's {{Attention lab (on Topic: llm-architecture)|n:3fd5c17b0d0d8172b490dc9f9ac281df}} draws the cache and measures it (one MPS layer at Llama 3.1 8B's shape, 32K tokens, batch 4: MHA 17.49 ms, GQA-8 5.97 ms, MQA 1.54 ms); this page asks <i>why</i> each smaller cache works, and what each one gives up.</p>
+<p><b>Notation.</b> One layer, input x<sub>t</sub> (d<sub>model</sub> numbers, already normalised), H query heads of size d<sub>h</sub>. Head h computes q<sup>h</sup><sub>t</sub> = W<sub>Q</sub><sup>h</sup> x<sub>t</sub>, k<sup>h</sup><sub>j</sub> = W<sub>K</sub><sup>h</sup> x<sub>j</sub>, v<sup>h</sup><sub>j</sub> = W<sub>V</sub><sup>h</sup> x<sub>j</sub>, weights a<sup>h</sup><sub>tj</sub> = softmax<sub>j</sub>(q<sup>h</sup><sub>t</sub> &middot; k<sup>h</sup><sub>j</sub> / &radic;d<sub>h</sub>) over j &le; t, output o<sup>h</sup><sub>t</sub> = &Sigma;<sub>j</sub> a<sup>h</sup><sub>tj</sub> v<sup>h</sup><sub>j</sub>, then the heads are concatenated and multiplied by W<sub>O</sub>. With RoPE, q and k are rotated by their positions before the dot product, so the score depends on j &minus; t.</p>
+<p><b>The running example.</b> The topic's tiny GPT (6 layers, d<sub>model</sub> 256, 8 heads of 32, context 256, RoPE) trained on TinyStories for 1,500 steps of 8,192 tokens, with the same seed and batches for every variant, so two runs differ only in their attention. The root's Attention lab trained MHA, GQA-4, GQA-2, MQA, MLA, a 64-token window and a 2 local : 1 global interleave; this page reuses those checkpoints and adds eight runs (MLA with a bigger latent and a wider RoPE key, a learned sink, an output gate, windows of 16, 32 and 128, and a 16-token interleave). Held-out loss is the mean next-token cross-entropy on fixed validation windows; differences under about 0.016 are inside the spread between two seeds of the same model (MHA 2.160 and 2.175 on 100 windows). Real-model behaviour comes from SmolLM2-135M (30 layers, 9 query heads and 3 KV heads of 64), inference only.</p>
+</section>
