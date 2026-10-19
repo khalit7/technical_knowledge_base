@@ -1,16 +1,35 @@
-<section id="io-s2">
-<h2>2. What is in a checkpoint</h2>
-<p>A <dfn>checkpoint</dfn> is everything needed to continue training as if nothing had happened: the weights, the optimiser's state, the step number, and anything else that carries state (random number generators, the data loader's position, the learning-rate schedule). Leave any of it out and a resumed run differs from an uninterrupted one. The running example needs only three things, because its batches depend only on (seed, step) and it uses no randomness after initialisation; this is why its resume is bit-exact.</p>
-<p>Here is train.py's own checkpoint opened up (<code>torch.save</code> writes a zip archive: one entry per tensor, plus a pickle describing the structure):</p>
-<div class="io-card"><div id="io-anat-bar" class="io-svg"></div><div class="io-leg" id="io-anat-leg"></div>
-<p class="small" id="io-anat-text"></p></div>
-<p><b>Why optimiser state dominates.</b> AdamW keeps two numbers per parameter, a running mean of the gradient and of its square, each in fp32: 8 bytes, on top of the 4-byte fp32 weight. Mixed-precision training adds the bf16 copy the GPU computes with:</p>
-<div class="fm"><div class="eq">bytes per parameter = weights + master copy + 2 moments</div>
-<dl><dt>fp32 training (this run)</dt><dd>4 + 0 + 8 = 12, plus the pickle and zip overhead here: 12.31 measured</dd>
-<dt>bf16 mixed precision</dt><dd>2 (bf16 weights) + 4 (fp32 master) + 8 = <b>14</b>, the common case (the Reading tab's figure; layouts vary: some frameworks save only the fp32 master and rebuild bf16 weights, 12)</dd>
-<dt>weights for inference</dt><dd>2 (bf16 only): a "checkpoint" exported for serving is 7 times smaller and cannot resume training</dd></dl></div>
-<div class="tw"><table class="io-tbl">
-<thead><tr><th>Model</th><th class="num">Parameters</th><th class="num">Training checkpoint at 14 B</th><th class="num">Per GPU, fully sharded</th><th class="num">Inference weights at 2 B</th></tr></thead>
-<tbody id="io-scale-rows"></tbody></table></div>
-<p class="small mute">All rows <span class="io-tag io-derived">derived</span>: size = parameters x bytes per parameter; per GPU = size / GPUs (64 and 1,024 GPUs for the 8B and 70B rows are illustrative choices), assuming the optimiser state is sharded over every GPU (as with FSDP or ZeRO-3 across all data-parallel ranks). Llama 3 405B trained on up to 16,384 GPUs ({{Llama 3 &sect;3.3|https://arxiv.org/html/2407.21783v3#S3.SS3}}); the paper says its checkpoint writes range "from 1 MB to 4 GB per GPU", and 346 MB per GPU falls inside that range: a consistency check, not a reproduction. DeepSeek-V3 has 671B parameters and trained on 2,048 H800 GPUs ({{DeepSeek-V3 report|https://arxiv.org/abs/2412.19437}}); its real per-GPU layout (expert parallelism, FP8) differs, so its row shows only the arithmetic.</p>
+<section id="io-s5">
+<h2>3. Checkpoint-time calculator: from this laptop to 16,384 GPUs</h2>
+<p>At scale the measurement turns into arithmetic. Three numbers decide how long a checkpoint stops training: its size, the slowest pipe it must squeeze through (one node's link for a consolidated write; all the nodes' links or the storage system's aggregate bandwidth, whichever is smaller, for a sharded one), and, for asynchronous checkpointing, the copy of each GPU's shard to host memory. Everything below is <span class="io-tag io-derived">derived</span> from the inputs; each tier's number says where it comes from.</p>
+<div class="io-card io-calc" id="io-calc">
+<div class="seg" id="io-c-pre"><button data-m="ex">Running example</button><button data-m="b8">8B, 64 GPUs</button><button data-m="b70">70B, 1,024 GPUs</button><button data-m="b405" class="on">405B, 16,384 GPUs</button><button data-m="b671">671B, 2,048 GPUs</button></div>
+<div class="ctl">
+<label>Parameters: <b id="io-c-n-v"></b><input type="range" id="io-c-n" min="5" max="12.2" step="0.01" aria-label="Parameters (log scale)"></label>
+<label>GPUs: <b id="io-c-g-v"></b><input type="range" id="io-c-g" min="1" max="17" step="1" aria-label="GPUs (powers of two)"></label>
+<label>GPUs per node: <b id="io-c-gpn-v"></b><input type="range" id="io-c-gpn" min="1" max="8" step="1" aria-label="GPUs per node"></label>
+<label>Each node's link to storage, GB/s: <b id="io-c-link-v"></b><input type="range" id="io-c-link" min="1" max="100" step="1" value="50" aria-label="Per-node link to storage, GB/s"></label>
+<label>Copy to host memory per GPU, GB/s: <b id="io-c-pcie-v"></b><input type="range" id="io-c-pcie" min="5" max="64" step="1" value="63" aria-label="GPU to host copy bandwidth, GB/s"></label>
+<label>Checkpoint every (minutes): <b id="io-c-ivl-v"></b><input type="range" id="io-c-ivl" min="1" max="240" step="1" value="30" aria-label="Checkpoint interval in minutes"></label>
+<label>Target write time, s: <b id="io-c-target-v"></b><input type="range" id="io-c-target" min="5" max="600" step="5" value="60" aria-label="Target write time in seconds"></label>
+<label>Storage system <select id="io-c-tier" aria-label="Storage system"><option value="nfs">One NFS server, 100 GbE (12.5 GB/s)</option><option value="fsx">FSx for Lustre P-1000, 100 TiB (100 GB/s)</option><option value="tect">Meta Tectonic, Llama 3 (2 TB/s)</option><option value="obj">Object store, node links only</option><option value="custom">Custom</option></select></label>
+<label id="io-c-aggw" hidden>Custom aggregate, GB/s: <b id="io-c-agg-v"></b><input type="range" id="io-c-agg" min="1" max="10000" step="1" value="500" aria-label="Custom aggregate bandwidth, GB/s"></label>
+</div>
+<div class="seg" id="io-c-b"><button data-m="2">2 B/param: weights only</button><button data-m="12.31">12.3: fp32 + AdamW (measured here)</button><button data-m="14" class="on">14: bf16 + fp32 master + AdamW</button></div>
+<div class="small mute" id="io-c-tnote"></div>
+<div class="io-out">
+<div class="stat"><div class="k">Checkpoint size</div><div class="v" id="io-c-size"></div><div class="d" id="io-c-size-d"></div></div>
+<div class="stat"><div class="k">Each GPU's shard</div><div class="v" id="io-c-shard"></div><div class="d" id="io-c-shard-d"></div></div>
+<div class="stat"><div class="k">Sharded write pipe</div><div class="v" id="io-c-pipe"></div><div class="d" id="io-c-pipe-d"></div></div>
+<div class="stat"><div class="k">Bandwidth for the target</div><div class="v" id="io-c-need"></div><div class="d" id="io-c-need-d"></div></div>
+</div>
+<div class="bars" id="io-c-bars"></div>
+<p class="small" id="io-c-ov"></p>
+<p class="small" id="io-c-cap"></p>
+</div>
+<div class="fm"><div class="eq">t<sub>consolidated</sub> = S / min(link, B) &nbsp; t<sub>sharded</sub> = S / min(B, nodes &times; link) &nbsp; t<sub>async stop</sub> = (S / GPUs) / copy</div>
+<dl><dt>S</dt><dd>checkpoint size = parameters x bytes per parameter</dd><dt>B</dt><dd>the storage system's aggregate write bandwidth</dd><dt>link</dt><dd>one node's network bandwidth to storage (default 50 GB/s, one 400 Gb/s port; a DGX B200 has two)</dd><dt>copy</dt><dd>GPU to host memory per GPU (default 63 GB/s, PCIe Gen5 x16 nominal; real copies reach less)</dd></dl></div>
+<p class="small mute">Defaults check: 405B at 14 bytes on 16,384 GPUs gives 5.67 TB, 346 MB per GPU (inside Llama 3's stated 1 MB to 4 GB per GPU) and 2.8 s at Tectonic's 2 TB/s sustained. Simplifications, said plainly: no metadata or file-creation cost, no gather time for the consolidated write, perfect parallelism, and a store that sustains its rated bandwidth under a burst (Meta built Tectonic's 7 TB/s peak for exactly this). The formulas are recomputed in <code>src/io/recompute.py</code>.</p>
 </section>
+
+<div class="deepnote"><b>Go deeper (optional):</b> the child page <b>{{Storage and data movement: parallel file systems, object storage and checkpoint I/O|n:3fc5c17b0d0d818a94ced3fc7c3331fe}}</b>: its <b>Striping lab</b> measures Lustre-style striping on a toy parallel file system, <b>Metadata storm</b> shows many small-file operations overloading a metadata server, and <b>Sizing calculator</b> sizes storage for a checkpoint burst (the reverse of the calculator above). Asynchronous and in-memory checkpoints, and restore traps, on {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}}; formats, shards and data loaders on {{Storage and loading at scale|n:3f95c17b0d0d81398782efcb29d950d4}}. Code that ran is in <code>src/io/</code>; the sections cut from this tab on 2026-10-19 are kept in <code>src/for_children/storage_lab_cut/</code>.</div>
+</div>
