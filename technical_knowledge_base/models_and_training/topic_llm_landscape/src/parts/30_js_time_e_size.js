@@ -69,7 +69,7 @@
     let pm=0;R.filter(r=>r.o&&r.ts<qEnd(q-1)).forEach(r=>{if(r.t>pm)pm=r.t});
     const newRec=inQs.filter(r=>r.t>pm).sort((a,b)=>b.t-a.t)[0];
     const lo=qEnd(q-4),hi=Math.min(qEnd(q),tc+1),ta=R.filter(r=>r.o&&r.ts>=lo&&r.ts<hi).map(act),tm=med(ta),moes=op.filter(r=>r.moe);
-    $('spStep').textContent=RH.qName(q)+(st.v<SC?'':' (end of the table, 30 September 2026)')+(RH.active()?', filtered: '+RH.fText().replace(/&quot;/g,'"'):'');
+    $('spStep').textContent=RH.qName(q)+(st.v<SC?'':' (end of the table, 19 October 2026)')+(RH.active()?', filtered: '+RH.fText().replace(/&quot;/g,'"'):'');
     $('spCap').innerHTML=inQ.length+' release'+(inQ.length===1?'':'s')+' '+(RH.active()?'matching':'in the table')+' this quarter'+(st.v<SC&&qEnd(q)>tc?' so far':'')+', '+inQs.length+' open with a published size'+
       (inQs.length?': '+inQs.slice(0,6).map(r=>esc(r.m)+' ('+esc(r.sz)+')').join(', ')+(inQs.length>6?' and '+(inQs.length-6)+' more':''):'')+'. '+
       (newRec?'<b>New open record: '+esc(newRec.m)+' at '+RH.fB(newRec.t)+'</b>'+(newRec.moe?', computing each token with '+RH.fB(newRec.a):', dense')+'.':(rec?'Largest open total stays '+esc(rec.m)+' ('+RH.fB(rec.t)+').':''));
