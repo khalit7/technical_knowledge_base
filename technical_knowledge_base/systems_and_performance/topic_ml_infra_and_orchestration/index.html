@@ -459,7 +459,7 @@ rank 0 at the end: step 200, global loss 2.2638769149780273</pre><p class="rd-co
 <label>Restart time R (detect, replace node, relaunch, reload) <select id="rd-mt-r"><option value="120">2 minutes</option><option value="600" selected>10 minutes</option><option value="1800">30 minutes</option></select></label>
 </div>
 <div class="out" id="rd-mt-out"></div>
-<p class="small mute"><span class="der">derived</span>: MTBF = 3.09 h &times; 16,384 / N (Llama 3's rate); interval &tau; = &radic;(2CM); expected loss &asymp; C/&tau; + (&tau;/2 + R)/M, the first-order approximation, which overstates the loss once &tau; nears M. The <a href="#" data-tab="t-fail">Failure lab</a> has the full goodput simulator.</p>
+<p class="small mute"><span class="der">derived</span>: MTBF = 3.09 h &times; 16,384 / N (Llama 3's rate); interval &tau; = &radic;(2CM); expected loss &asymp; C/&tau; + (&tau;/2 + R)/M, the first-order approximation, which overstates the loss once &tau; nears M. The full goodput model, for any job size and eight recovery designs, is the Recovery designs tab of <a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a>; the exact interval is the Checkpoint simulator of <a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling, reliability</a>.</p>
 </div>
 <p><b>The other defences</b>, each answering one part of the arithmetic above:</p>
 <ul class="tight">
@@ -469,7 +469,7 @@ rank 0 at the end: step 200, global loss 2.2638769149780273</pre><p class="rd-co
 <li><b>Shrink instead of stopping.</b> <dfn>Elastic training</dfn> (torchrun with a minimum and maximum node count) continues with fewer workers; it changes the global batch or the data order unless the code compensates, so most large pre-training runs restart at full size instead.</li>
 <li><b>Watch for slow, not just dead.</b> A <dfn>straggler</dfn> (a GPU running hot and throttled, a flapping link) slows every synchronous step to its pace without failing anything.</li>
 </ul>
-<div class="deepnote"><b>Go deeper (optional):</b> the <a href="#" data-tab="t-fail">Failure lab</a> kills ranks, containers and pods on the three systems and shows what each does, with the goodput simulator and Llama 3's failure table. The run's side of the same story (effective training time, checkpoint pauses, recovery, stragglers, silent data corruption) is on <a href="https://app.notion.com/p/3c65c17b0d0d81c9b2cac997583bf572" target="_blank" rel="noopener noreferrer">Training Infrastructure</a>; hardware causes (Xid errors, ECC) on the <a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">hardware reliability page</a>. Child page: <b><a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a></b> (its Failure taxonomies, Recovery designs and Straggler replay tabs).</div>
+<div class="deepnote"><b>Go deeper (optional):</b> the <a href="#" data-tab="t-fail">Failure lab</a> kills ranks, containers and pods on the three systems and compares what each does. Child page: <b><a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a></b> owns the subject: published failure tables, detection, recovery designs, silent data corruption, stragglers and goodput accounting (its Failure taxonomies, Recovery designs and Straggler replay tabs). The checkpoint-interval maths and hardware causes (Xid errors, ECC) are on the <a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">hardware reliability page</a>; the stack of a training run, summarised from the training side, is in <a href="https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b" target="_blank" rel="noopener noreferrer">Topic: llm-training-and-post-training</a>, Machinery, "Running the job".</div>
 </section>
 <section id="rd-s6">
 <h2>6. Storage: where data and checkpoints live</h2>
@@ -483,7 +483,7 @@ rank 0 at the end: step 200, global loss 2.2638769149780273</pre><p class="rd-co
 </ul>
 <p>Three habits follow. <b>Shard</b>: every rank writes only its own piece, in parallel (PyTorch's Distributed Checkpoint), instead of gathering one file on rank 0. <b>Stage</b>: copy to host RAM or local NVMe in seconds, then upload in the background (asynchronous checkpointing). <b>Keep files big</b>: millions of small files overload a parallel file system's metadata servers long before its bandwidth runs out.</p>
 <p><b>The running example, measured.</b> Its checkpoint is 1.39 MB (1,386,049 bytes: fp32 weights plus AdamW's two moments, 12.3 bytes per parameter). In the recorded cluster runs it took a median 4.3 ms to write to a Docker volume (Slurm) and 155 ms to the host folder that kind shares into the VM, 36 times slower for the same file. A 304 MB checkpoint, written with <code>fsync</code>, took 0.20 s on the Mac's own SSD, 0.39 s on a Docker volume, 2.61 s to an S3-compatible store (SeaweedFS) from a container and 7.31 s to the shared host folder; on that slow folder, asynchronous checkpointing cut the time training stood still per checkpoint from 1.81 s to 78 ms <span class="meas">measured</span> on Apple M1 Pro, Docker Desktop VM / native, shared machine (medians of 4 to 5; the <a href="#" data-tab="t-io">Storage lab</a> has every tier).</p>
-<div class="deepnote"><b>Go deeper (optional):</b> the <a href="#" data-tab="t-io">Storage lab</a> (checkpoint-burst animation, checkpoint-time calculator by tier, measured writes). File systems from the kernel side (page cache, fsync) live on <a href="https://app.notion.com/p/3f05c17b0d0d8141be7acc1313570cbf" target="_blank" rel="noopener noreferrer">Storage and file systems</a>. Child page: <b><a href="https://app.notion.com/p/3fc5c17b0d0d818a94ced3fc7c3331fe" target="_blank" rel="noopener noreferrer">Storage and data movement</a></b> (its Striping lab, Metadata storm and Sizing calculator tabs).</div>
+<div class="deepnote"><b>Go deeper (optional):</b> the <a href="#" data-tab="t-io">Storage lab</a> (the tiers compared, every measured result in one table, the checkpoint-time calculator). File systems from the kernel side (page cache, fsync) live on <a href="https://app.notion.com/p/3f05c17b0d0d8141be7acc1313570cbf" target="_blank" rel="noopener noreferrer">Storage and file systems</a>. Child page: <b><a href="https://app.notion.com/p/3fc5c17b0d0d818a94ced3fc7c3331fe" target="_blank" rel="noopener noreferrer">Storage and data movement</a></b> (its Striping lab, Metadata storm and Sizing calculator tabs).</div>
 </section>
 
 <section id="rd-s7">
@@ -1313,25 +1313,24 @@ Warning  FailedScheduling  default-scheduler  0/4 nodes are available: 1 node(s)
 @media (max-width:520px){#t-fail .fl-mx{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)}#t-fail .fl-mx .rh{grid-column:1/-1;padding:6px 2px 0}#t-fail .fl-mx .h0{display:none}}
 </style>
 <h2 style="margin-top:14px">Failure lab: kill a rank, a node, a pod, and watch what each system does</h2>
-<p class="lead">A training job on many machines is only as alive as its least healthy part. This lab breaks the running example on purpose, on all three local clusters, and records what happens: who notices, how fast, what the scheduler decides, where the run resumes, how much work is redone, and whether the loss comes back bit for bit.</p>
-<p>Every timing on this tab is <span class="fl-meas">measured</span> on an Apple M1 Pro, Docker Desktop VM, shared machine, with the tiny 4-rank running example (a real cluster takes minutes where this takes seconds to start). Orders of events, error messages, which checkpoint a run resumed from and the losses are exact. Published figures are marked <span class="fl-pub">published</span>, arithmetic on them <span class="fl-der">calculation</span>, and interpretations that are ours rather than a source's <span class="fl-ours">our reading</span>.</p>
-<div class="deepnote"><b>Already covered elsewhere, linked rather than repeated:</b> the run's side of failures (effective training time, checkpoint pauses, recovery, stragglers, silent data corruption) is on <a href="https://app.notion.com/p/3c65c17b0d0d81c9b2cac997583bf572" target="_blank" rel="noopener noreferrer">Training Infrastructure</a>; the Young/Daly checkpoint interval derived in full, with a checkpoint simulator and the hardware causes (Xid errors, ECC, thermals), is on the hardware topic's <a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">reliability page</a>; the one-paragraph overview is in <a href="#" data-tab="t-read">Reading, section 5</a>. This tab goes where they do not: what Slurm, Kubernetes and Ray actually do when a piece of a job dies.</div>
-<nav class="fl-nav" aria-label="Failure lab sections"><a href="#fl-s1">1 What fails</a><a href="#fl-s2">2 Kill it: three systems</a><a href="#fl-s3">3 With and without checkpoints</a><a href="#fl-s4">4 Bit for bit?</a><a href="#fl-s5">5 Hangs</a><a href="#fl-s6">6 Stragglers</a><a href="#fl-s7">7 Keeping bad nodes out</a><a href="#fl-s8">8 Elastic and spares</a><a href="#fl-s9">9 Goodput</a><a href="#fl-s10">10 Mistakes and interviews</a></nav>
+<p class="lead">A training job on many machines is only as alive as its least healthy part. This lab broke the running example on purpose on all three local clusters and recorded what each scheduler did: who noticed, how fast, what it decided, and where the run resumed. That comparison is the root's subject; why things fail at scale, every recovery design and how to account for the time lost are the child page <a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a>'s.</p>
+<p>Every timing on this tab is <span class="fl-meas">measured</span> on an Apple M1 Pro, Docker Desktop VM, shared machine, with the tiny 4-rank running example (a real cluster takes minutes where this takes seconds to start). Orders of events, error messages, which checkpoint a run resumed from and the losses are exact. Published figures are marked <span class="fl-pub">published</span>, arithmetic on them <span class="fl-der">calculation</span>.</p>
+<div class="deepnote"><b>Who owns what.</b> Failure statistics (Llama 3's Table 5 and ten other tables), detection by layer, recovery designs from requeue to replica groups, silent data corruption, stragglers and goodput accounting: <a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a> (its Failure taxonomies, Recovery designs and Straggler replay tabs). The checkpoint-interval maths and the hardware's error reporting (Xid, ECC): <a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling, reliability</a> (its Checkpoint simulator tab). Rendezvous, restarts and hangs at start-up: <a href="https://app.notion.com/p/3fc5c17b0d0d81b3a8a5c58224bff9fa" target="_blank" rel="noopener noreferrer">Launching distributed training</a>. The one-paragraph overview is <a href="#" data-tab="t-read">Reading, section 5</a>.</div>
+<nav class="fl-nav" aria-label="Failure lab sections"><a href="#fl-s1">1 The words</a><a href="#fl-s2">2 Kill it: three systems</a><a href="#fl-s3">3 What else the lab measured</a></nav>
 
 <section id="fl-s1">
-<h3>1. What fails at scale, from the one table everyone quotes</h3>
-<p><b>The problem.</b> In <dfn>synchronous data-parallel training</dfn> every rank (one process, usually one GPU) computes gradients on its share of the batch, then all ranks sum them in an <dfn>all-reduce</dfn> before anyone takes the next step. So every step waits for every rank: if one GPU, host, cable or process fails, all the others stop at the next collective. Llama 3's paper puts it plainly: "a single GPU failure may require a restart of the entire job" <span class="fl-pub">published</span>.</p>
-<p>Meta published the best-known failure record: during a <b>54-day</b> snapshot of Llama 3 405B pre-training on up to <b>16,384 H100</b> GPUs there were <b>466</b> job interruptions, <b>47</b> planned (firmware upgrades, configuration or dataset updates) and <b>419</b> unexpected, broken down by cause in Table 5 (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3.SSS4" target="_blank" rel="noopener noreferrer">Llama 3, section 3.3.4</a>) <span class="fl-pub">published</span>. Here is the table, every row as printed:</p>
-<div class="fl-card" id="fl-l3-card">
-<h4>Llama 3 405B: 419 unexpected interruptions by root cause</h4>
-<div class="seg" id="fl-l3-mode" role="group" aria-label="Group by"><button data-m="row" class="on">Every row</button><button data-m="cat">Paper's categories</button></div>
-<div class="fl-svg" id="fl-l3-svg"></div>
-<p class="small mute">Bars are interruption counts; the percentage shown is the count divided by 419, recomputed. Source: Table 5 of <a href="https://arxiv.org/html/2407.21783v3#S3.SS3.SSS4" target="_blank" rel="noopener noreferrer">arXiv 2407.21783v3</a>, read 2026-10-16 (extract in <code>src/fail/inputs/</code>).</p>
-</div>
-<div class="fl-chk"><b>Table check</b> <span class="fl-der">calculation</span>. The 18 counts add up to 419, as the text says. One printed percentage is wrong: "Faulty GPU 148, 30.1%", but 148 / 419 = <b>35.3%</b>; every other row matches its count, and the printed percentages add up to only 94.9%. The text's "GPU issues are the largest category, accounting for 58.7%" is the sum of the printed GPU-row percentages, so it inherits the slip: by counts the six GPU rows hold 268 interruptions, <b>64.0%</b>. The text's "approximately 78%" attributed to confirmed or suspected hardware cannot be rebuilt exactly from any grouping of rows: its own definition (GPU and host components plus unplanned host maintenance) gives 321, 76.6%; adding network switches and cables gives 85.0%.</div>
-<p><b>Why scale makes it worse.</b> Divide 419 interruptions by 16,384 GPUs and 54 days: about one unexpected interruption per GPU every <span id="fl-l3-yr">5.8</span> years <span class="fl-der">calculation</span>. Each GPU is reliable; the job is not, because it fails when any of its parts does. If failures are independent, a job on N GPUs fails N times as often, so Llama 3's job stopped about every 3.1 hours. The <a href="#" data-tab="t-read">Reading tab's calculator</a> turns any cluster size into a job MTBF and a checkpoint interval.</p>
-<p>A second public record, smaller and older: Meta's OPT-175B ran on <b>992</b> 80GB A100s and "hardware failures contributed to at least 35 manual restarts and the cycling of over 100 hosts over the course of 2 months", plus an estimated "70+ automatic restarts" (<a href="https://arxiv.org/html/2205.01068v4#S2.SS5" target="_blank" rel="noopener noreferrer">OPT, section 2.5</a>) <span class="fl-pub">published</span>. Per GPU that is at least <span id="fl-opt-rate">1.8e-3</span> restarts per GPU-day against Llama 3's <span id="fl-l3-rate">4.7e-4</span> interruptions per GPU-day, roughly <span id="fl-opt-x">3.7</span> times as often <span class="fl-der">calculation</span>; the two count different things (restarts against interruptions, "2 months" taken as 60 days) on different hardware two years apart, so read it as "the order of magnitude is stable", not as a trend.</p>
-<p>Three shapes recur in both records, and they are the three this lab breaks on purpose: <b>a process dies</b> (a GPU error, an uncorrectable memory error or a software bug makes a rank exit), <b>a machine is lost</b> (power supply, chassis, host maintenance), and <b>something hangs</b>: Llama 3 notes that failures "in either the remote GPU or NVLink connectivity often manifest as stalled load/store operations within CUDA kernels without returning a clear error code" <span class="fl-pub">published</span>, and 7 of its interruptions are NCCL watchdog timeouts.</p>
+<h3>1. The words, and why scale makes failure routine</h3>
+<p>In <dfn>synchronous data-parallel training</dfn> every rank (one process, usually one GPU) computes gradients on its share of the batch, then all ranks sum them in an <dfn>all-reduce</dfn> before anyone takes the next step, so one failed GPU, host, cable or process stops all the others at the next collective. A job on N GPUs fails about N times as often as one GPU: Llama 3 405B, on up to 16,384 H100s, had 419 unexpected interruptions in 54 days, one every 3.1 hours (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3.SSS4" target="_blank" rel="noopener noreferrer">Llama 3, section 3.3.4</a>) <span class="fl-pub">published</span>, about one per GPU every <span id="fl-l3-yr">5.8</span> years <span class="fl-der">calculation</span>. Its Table 5, row by row with its misprint, is on <a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a>'s Failure taxonomies tab.</p>
+<div class="tw"><table class="fl-tbl"><thead><tr><th>Term</th><th>What it means here</th><th>Depth</th></tr></thead><tbody>
+<tr><td><dfn>Fail-stop</dfn></td><td>A rank exits with an error; its sockets close and its peers error at once.</td><td>Fault tolerance, section 3</td></tr>
+<tr><td><dfn>Lost machine</dfn></td><td>Every process on a host vanishes; if the host is frozen rather than off, its sockets stay open and only heartbeats reveal it.</td><td>Fault tolerance, section 3</td></tr>
+<tr><td><dfn>Hang</dfn></td><td>Every rank waits in a collective that never completes; only a <dfn>collective timeout</dfn> ends it (PyTorch 2.14: 30 minutes for gloo, 10 for NCCL).</td><td>Fault tolerance, section 4; Launching distributed training</td></tr>
+<tr><td><dfn>Straggler</dfn></td><td>A rank that keeps working, slowly; every synchronous step runs at its pace and nothing fails.</td><td>Fault tolerance, section 8 and Straggler replay</td></tr>
+<tr><td><dfn>Heartbeat timeout</dfn></td><td>How long a scheduler waits before declaring a machine dead: Slurm's <code>SlurmdTimeout</code> (300 s by default, 30 s here), Kubernetes' node-monitor grace period (50 s), Ray's health checks (30 s measured).</td><td>Fault tolerance, section 4</td></tr>
+<tr><td><dfn>Retry policy</dfn></td><td>Whether a failed job restarts by itself: Slurm's <code>--requeue</code> (node failure and preemption only), torchrun's <code>--max-restarts</code>, JobSet's <code>failurePolicy.maxRestarts</code>, Ray Train's <code>FailureConfig(max_failures)</code>.</td><td><a href="https://app.notion.com/p/3c65c17b0d0d81889c32cd050bbbadd3" target="_blank" rel="noopener noreferrer">Slurm</a>, <a href="https://app.notion.com/p/3c65c17b0d0d81cf9417de52108cfbce" target="_blank" rel="noopener noreferrer">Kubernetes for ML</a>, <a href="https://app.notion.com/p/3fc5c17b0d0d811cba13f3aeccf8724b" target="_blank" rel="noopener noreferrer">Ray</a></td></tr>
+<tr><td><dfn>Drain, cordon, taint</dfn></td><td>"Schedule nothing new here": Slurm drains a node; Kubernetes cordons it or taints it (a <code>NoExecute</code> taint also evicts running pods). A health check is the program that decides.</td><td>Fault tolerance, section 4</td></tr>
+<tr><td><dfn>Checkpoint</dfn> and <dfn>goodput</dfn></td><td>Everything needed to continue as if nothing happened (weights, optimiser state, step, data position); goodput is the share of wall-clock time that became kept progress.</td><td>Fault tolerance, sections 6 and 9; the <a href="#" data-tab="t-io">Storage lab</a></td></tr>
+</tbody></table></div>
 </section>
 
 <section id="fl-s2">
@@ -1357,10 +1356,10 @@ Warning  FailedScheduling  default-scheduler  0/4 nodes are available: 1 node(s)
 <p><b>What the twelve runs show.</b></p>
 <ul class="tight">
 <li><b>A crash is seen in well under a second everywhere</b>; what differs is the decision. Slurm marks the job FAILED and does nothing more: its <code>--requeue</code> covers node failure and preemption, not a program that exited with an error. A JobSet fails unless <code>failurePolicy.maxRestarts</code> is above 0, and Ray Train unless <code>FailureConfig(max_failures)</code> is; the running example sets both to 0 (as is common in templates), so all three systems stopped. With retries allowed, JobSet recreated every pod and resumed in <span id="fl-k2r">10.3</span> s, Ray Train started a new worker group and resumed in <span id="fl-r2r">10.2</span> s.</li>
-<li><b>Retries inside a Slurm job are the launcher's job</b>: <code>torchrun --max-restarts=2</code>. With PyTorch 2.14.1's defaults on two machines the restart <b>failed twice in a row, in two separate jobs</b> (<code>Gloo connectFullMesh failed ... Connection refused</code>): the restarted ranks dialled addresses from the previous attempt. Setting <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code> gives each restart a fresh store, and the same crash then resumed in <span id="fl-m2r">3.4</span> s. The source explains the trap (below, section 8).</li>
+<li><b>Retries inside a Slurm job are the launcher's job</b>: <code>torchrun --max-restarts=2</code>. With PyTorch 2.14.1's defaults on two machines the restart <b>failed twice in a row, in two separate jobs</b> (<code>Gloo connectFullMesh failed ... Connection refused</code>): the restarted ranks dialled addresses from the previous attempt. Setting <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code> gives each restart a fresh store, and the same crash then resumed in <span id="fl-m2r">3.4</span> s. The <a href="https://app.notion.com/p/3fc5c17b0d0d81b3a8a5c58224bff9fa" target="_blank" rel="noopener noreferrer">Launching distributed training</a> child page isolates the trap in the source.</li>
 <li><b>A crash that happens every time eats the retry budget</b>: the poison-step run crashed at step 120 on all three attempts, redoing steps 100 to 120 each time, then failed. Retries cure transient faults, not bugs or a bad batch.</li>
-<li><b>Losing a machine takes a heartbeat timeout to notice</b>, then each system diverges. Slurm set the node DOWN after <span id="fl-snd">32.1</span> s, requeued the job automatically, held it for about two minutes (a requeued job gets a new eligible time) and restarted it on the spare node c3: resumed after <span id="fl-snr">166</span> s with no person involved. Ray declared the node dead after 30 s and then <b>waited</b>: its worker group needs four slots and only two existed, so it resumed only when the node came back. Kubernetes with a silent node was the worst case: the surviving pod failed on the gloo timeout, the JobSet asked for a restart, and the Job then waited for the pod on the dead node to finish terminating, which a frozen kubelet never confirms. The default 300 s eviction did not help; it took an operator's <code>out-of-service</code> taint (section 7) at 445 s.</li>
-<li><b>Every resumed run restarted from step 100 and redid 20 steps</b>: checkpoints every 50 steps, failure after step 120. The cost of a failure is the work since the last checkpoint plus the time to detect and restart; section 3 shows both on one picture, section 9 turns it into goodput.</li>
+<li><b>Losing a machine takes a heartbeat timeout to notice</b>, then each system diverges. Slurm set the node DOWN after <span id="fl-snd">32.1</span> s, requeued the job automatically, held it for about two minutes (a requeued job gets a new eligible time) and restarted it on the spare node c3: resumed after <span id="fl-snr">166</span> s with no person involved. Ray declared the node dead after 30 s and then <b>waited</b>: its worker group needs four slots and only two existed, so it resumed only when the node came back. Kubernetes with a silent node was the worst case: the surviving pod failed on the gloo timeout, the JobSet asked for a restart, and the Job then waited for the pod on the dead node to finish terminating, which a frozen kubelet never confirms. The default 300 s eviction did not help; it took an operator's <code>out-of-service</code> taint (section 3) at 445 s.</li>
+<li><b>Every resumed run restarted from step 100 and redid 20 steps</b>: checkpoints every 50 steps, failure after step 120. The cost of a failure is the work since the last checkpoint plus the time to detect and restart; section 3 checks that accounting on three runs, and <a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a> turns it into goodput.</li>
 </ul>
 <div class="fl-pr">
 <div class="q">Predict: a node dies on Slurm, the job was submitted with <code>--requeue</code>, a spare node is idle. How long before the job runs again, here with <code>SlurmdTimeout=30</code>?</div>
@@ -1370,192 +1369,18 @@ Warning  FailedScheduling  default-scheduler  0/4 nodes are available: 1 node(s)
 </section>
 
 <section id="fl-s3">
-<h3>3. The same crash with and without checkpoints</h3>
-<p>A <dfn>checkpoint</dfn> is everything needed to continue as if nothing happened: model weights, optimiser state, the step counter, and whatever decides the next batch. The running example writes one every 50 steps (1.39 MB, atomically: write a temporary file, then rename) and, on start, loads the newest one if it exists. Below are two real Slurm runs with the same crash after step 120, one with checkpoints and one with <code>--ckpt-every 0</code>, against the uninterrupted run; the second attempt in each case is the job resubmitted by hand.</p>
-<div class="fl-card" id="fl-ck-card">
-<h4>Progress against wall-clock time: before and after checkpointing</h4>
-<div class="seg" id="fl-ck-mode" role="group" aria-label="Run"><button data-m="without" class="on">No checkpoints</button><button data-m="with">Checkpoint every 50 steps</button></div>
-<div class="fl-svg" id="fl-ck-svg"></div>
-<div class="fl-ctl" id="fl-ck-ctl"></div>
-<div class="fl-cap" id="fl-ck-cap" aria-live="polite"></div>
-<div class="fl-out" id="fl-ck-out"></div>
-<p class="small mute"><span class="fl-meas">measured</span>: rank 0's logged steps (every 10) against seconds since attempt 1 started; 200 steps with <code>--step-sleep-ms 150</code> so the run lasts long enough to watch. Runs <code>fl-base</code>, <code>fl-crash</code> (jobs 42 and 43), <code>fl-nockpt</code> (jobs 49 and 50).</p>
-</div>
-</section>
-
-<section id="fl-s4">
-<h3>4. Did the loss come back bit for bit?</h3>
-<p>A resumed run should continue the same training trajectory, not a nearby one. The running example is built for that: the batch of step s depends only on the seed and s, there is no dropout, kernels are forced deterministic, and the checkpoint holds the optimiser state. So we compared the global loss of every resumed run with the uninterrupted run at every logged step after the resume.</p>
-<div class="fl-card" id="fl-bx-card">
-<h4>Resumed runs against the uninterrupted run (global loss, 4 ranks)</h4>
-<div class="tw"><table class="fl-tbl" id="fl-bx-tbl"></table></div>
-<p class="small mute"><span class="fl-meas">measured</span>: the reference is the setup's uninterrupted run (<code>src/data/runs/slurm</code>). Steps 110 to 200 are compared; "1 ulp" means one float32 rounding step (2.4e-7 at a loss near 2.4).</p>
-</div>
-<p><b>Almost, and the "almost" is instructive.</b> All seven resumed runs, on three schedulers, agree with each other exactly, and with the uninterrupted run at 8 of 10 logged steps including the last one; at steps 110 and 180 they differ in the last bit. A difference that is identical everywhere is not noise; it is a deterministic change in the arithmetic. We found it with three more runs in one container:</p>
-<div class="tw"><table class="fl-tbl" id="fl-ex-tbl"></table></div>
-<p><b>Why.</b> DDP does not all-reduce gradients one tensor at a time: it packs them into flat <dfn>buckets</dfn>, and after the first iteration of every process it rebuilds the buckets in the order gradients actually became ready (PyTorch's <code>DistributedDataParallel._pre_forward</code> calls <code>reducer._rebuild_buckets()</code>, "called only once during whole training period"). A restarted process takes its first step with the initial layout, the uninterrupted run with the rebuilt one. The layout changes which slice of the flat buffer each piece of the all-reduce handles, and so the order in which the four ranks' values are added for a given gradient element <span class="fl-ours">our reading of the mechanism; the experiment shows the cause</span>. Floating-point addition is not associative, so (a+b)+(c+d) and ((a+b)+c)+d can differ in the last bit; with two ranks there is only a+b = b+a, which is exact, and that is why the setup's 2-rank resume check passed. Switch the rebuild off in both runs and the 4-rank resume is exact.</p>
-<p><b>Why it matters, and when it does not.</b> A one-ulp change is far below anything that affects training. But "bit for bit" is a powerful debugging tool (a resumed run that matches proves the checkpoint holds everything), and on GPUs nondeterministic kernels and different collective algorithms usually take it away anyway. Then test resume the practical way: the loss at the first logged steps after resuming must match the original run to the precision you expect, with no jump. A jump means something was not saved: the optimiser state (a fresh AdamW takes large first steps), the learning-rate schedule step, the data loader's position (the run sees data again or skips it), or the random-number generators (dropout masks, sampling).</p>
-</section>
-
-<section id="fl-s5">
-<h3>5. Hangs: the failure that does not crash</h3>
-<p>A frozen rank is worse than a dead one: nothing exits, no exit code reaches anybody, the GPUs of every other rank sit in an all-reduce doing nothing. To make one, we sent <code>SIGSTOP</code> to rank 3's process after step 120 (it stays alive and holds its sockets open) with the process-group timeout set to 30 s.</p>
-<div class="fl-err">[rank0]: RuntimeError: [.../gloo/transport/tcp/unbound_buffer.cc:129] Timed out waiting 30000ms for send operation to complete
-[rank1]: RuntimeError: [.../gloo/transport/tcp/unbound_buffer.cc:78] Timed out waiting 30000ms for recv operation to complete
-...
-Root Cause (first observed failure):
-[0]:
-  host      : c1
-  rank      : 0 (local_rank: 0)
-  exitcode  : 1 (pid: 1972)</div>
-<p class="fl-codecap"><span class="fl-meas">measured</span>: job 51 (<code>runs/fl-hang/job51.out</code>, trimmed). The three healthy ranks errored <span id="fl-hg-s">30.8</span> s after the freeze, and the job failed.</p>
-<div class="fl-pr">
-<div class="q">Predict: which rank does torchrun's "Root Cause (first observed failure)" name?</div>
-<div class="opts"><button>Rank 3, the frozen one</button><button data-a="1">A healthy rank</button><button>None: a hang has no root cause line</button></div>
-<div class="ans" hidden>A healthy one: rank 0 on c1. "First observed failure" means the first process to exit with an error, and in a hang that is a victim that timed out first; the frozen rank never errors, it only received SIGTERM during clean-up. In a hang, read the timeout messages for which rank everyone was waiting on (the one that did not time out), and get stacks from the stuck processes (<code>py-spy dump</code>, the <a href="#" data-tab="t-launch">Launch lab's hang drills</a>) or PyTorch's flight recorder, which in torch 2.14.1 records gloo collectives too (the <a href="#" data-tab="t-launch">Launch lab</a> dumped it from a stalled rank on CPUs and found that rank one collective behind).</div>
-</div>
-<p><b>The timeout is a trade-off you own.</b> Detection time equals the collective timeout. PyTorch's defaults in 2.14 are 30 minutes for gloo and 10 minutes for NCCL, so with defaults a frozen GPU costs every other GPU in the job up to 10 minutes of nothing before anyone acts. Too short, and legitimate pauses kill healthy runs: a slow checkpoint save, an evaluation on rank 0 while the others wait at a barrier, a long first compilation. Large runs therefore add their own watchdogs: Llama 3 used PyTorch's NCCL flight recorder, "a feature that captures collective metadata and stack traces into a ring buffer", and dumped it automatically "on NCCLX watchdog or heartbeat timeout" <span class="fl-pub">published</span> (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3.SSS4" target="_blank" rel="noopener noreferrer">section 3.3.4</a>). In stock PyTorch 2.14.1 the two NCCL messages are different events: <code>Watchdog caught collective operation timeout: ... ran for ... milliseconds before timing out.</code> (a collective exceeded its timeout) and <code>ProcessGroupNCCL's watchdog got stuck for ... seconds without making progress in monitoring enqueued collectives.</code> (the watchdog thread itself hung; the heartbeat monitor waits 480 s by default), <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp#L1954" target="_blank" rel="noopener noreferrer">ProcessGroupNCCL.cpp lines 735-739 and 1954</a>.</p>
-</section>
-
-<section id="fl-s6">
-<h3>6. Stragglers: slow is not dead</h3>
-<p>A <dfn>straggler</dfn> is a rank that keeps working, slowly: a GPU throttling on heat, a flapping link, a noisy neighbour. Nothing fails, so no scheduler acts, but because every step waits for every rank, the whole job runs at the straggler's pace. We made rank 3 sleep 50 ms or 200 ms after every step.</p>
-<div class="fl-card" id="fl-st-card">
-<h4>One slow rank sets the pace of all four</h4>
-<div class="seg" id="fl-st-mode" role="group" aria-label="Slow rank delay"><button data-m="0" class="on">No straggler</button><button data-m="1">Rank 3 +50 ms</button><button data-m="2">Rank 3 +200 ms</button></div>
-<div class="fl-svg" id="fl-st-svg"></div>
-<div class="fl-ctl" id="fl-st-ctl"></div>
-<div class="fl-cap" id="fl-st-cap" aria-live="polite"></div>
-<p class="small mute"><span class="fl-meas">measured</span>: step time per rank from logged timestamps, steps 10 to 100 (runs <code>fl-strag0</code>, <code>fl-strag50</code>, <code>fl-strag200</code> on Slurm, 2 nodes x 2 ranks). The split of each step into compute and waiting is drawn from the measured totals and the probe below <span class="fl-ours">illustrative split</span>.</p>
-</div>
-<p>Every rank reports the same step time (<span id="fl-st-v">22.1, 70.5 and 221.8</span> ms), so a step-time log cannot tell you who is slow. Time spent <i>inside</i> the gradient all-reduce can. We wrapped <code>loss.backward()</code> (which contains DDP's all-reduce) with a timer on every rank:</p>
-<div class="fl-svg" id="fl-pb-svg"></div>
-<p class="fl-codecap"><span class="fl-meas">measured</span>: median <code>backward()</code> time per rank, steps 11 to 100 (runs <code>fl-probe0</code>, <code>fl-probe50</code>; probe in <code>src/fail/scripts/fl_wrap.py</code>, <code>FL_PROBE=1</code>).</p>
-<p><b>The slow rank is the one that waits least.</b> With rank 3 sleeping 50 ms, ranks 0 to 2 spent about 62.6 ms in backward and rank 3 only 12.2 ms: it arrives last, so it never waits. Monitoring that flags the rank with the longest collective time finds the victims, not the culprit. Fleet tools compare per-rank compute time before the collective, or collective durations from the flight recorder, across all ranks. The cost side (how much a 1% straggler costs a 16,000-GPU run) is on <a href="https://app.notion.com/p/3c65c17b0d0d81c9b2cac997583bf572" target="_blank" rel="noopener noreferrer">Training Infrastructure</a>.</p>
-</section>
-
-<section id="fl-s7">
-<h3>7. Keeping bad nodes out: drain, cordon, taints, health checks</h3>
-<p>Restarting onto the same broken machine just fails again, so every system has a way to say "schedule nothing new here". On Slurm a node is <dfn>drained</dfn>: running jobs finish, nothing new starts. On Kubernetes it is <dfn>cordoned</dfn> (marked unschedulable) or <dfn>tainted</dfn> (a taint repels every pod that does not tolerate it; a <code>NoExecute</code> taint also evicts running ones). A <dfn>health check</dfn> is the program that decides, run before jobs, between them, or on a timer.</p>
-<div class="fl-two">
-<div>
-<pre>$ scontrol update nodename=c2 state=drain reason="fl: failed GPU burn-in"
-$ sinfo -N
-NODELIST STATE REASON
-c1 idle none
-c2 drained fl: failed GPU burn-in
-c3 idle none
-$ squeue
-JOBI PARTITION     NAME   USER    STATE  NODES NODELIST(REASON)
-  58     batch fl-train  alice  PENDING      3 (Nodes required for job are DOWN, DRAINED or reserved for jobs in higher priority partitions)
-  57     batch fl-train  alice  RUNNING      2 c[1,3]</pre>
-<p class="fl-codecap"><span class="fl-meas">measured</span> on the Slurm cluster (<code>runs/fl-drain/drain.txt</code>): the 2-node job ran around the drained node, the 3-node job waited with that reason.</p>
-</div>
-<div>
-<pre>$ kubectl cordon mi-kind-worker3
-$ kubectl get nodes
-NAME                    STATUS                     ROLES
-mi-kind-control-plane   Ready                      control-plane
-mi-kind-worker          Ready                      &lt;none&gt;
-mi-kind-worker2         Ready                      &lt;none&gt;
-mi-kind-worker3         Ready,SchedulingDisabled   &lt;none&gt;
-$ kubectl get node mi-kind-worker3 -o jsonpath={.spec.taints}
-[{"effect":"NoSchedule","key":"node.kubernetes.io/unschedulable",...}]</pre>
-<p class="fl-codecap"><span class="fl-meas">measured</span> on kind (<code>runs/fl-cordon/cordon.txt</code>): cordon is itself a taint; a JobSet submitted next landed on worker and worker2.</p>
-</div>
-</div>
-<p><b>A health check that drains its own node.</b> Slurm runs <code>HealthCheckProgram</code> on every node every <code>HealthCheckInterval</code> seconds, as root, and ignores its exit code: the script must drain the node itself. This one checks that the node's four (fake) GPU devices exist; a real one runs <code>nvidia-smi</code> or <code>dcgmi diag</code>, scans the kernel log for Xid errors, and checks ECC counters, NVLink and InfiniBand ports.</p>
-<pre>#!/bin/sh
-NODE=$(hostname)
-missing=""
-for i in 0 1 2 3; do [ -e /dev/mi_gpu$i ] || missing="$missing mi_gpu$i"; done
-if [ -n "$missing" ]; then
-  scontrol update nodename="$NODE" state=drain reason="healthcheck: missing$missing"
-  exit 1
-fi
-exit 0</pre>
-<p class="fl-codecap"><code>src/fail/scripts/fl_healthcheck.sh</code>, with <code>HealthCheckProgram=/shared/jobs/fl/fl_healthcheck.sh</code>, <code>HealthCheckInterval=10</code>, <code>HealthCheckNodeState=ANY</code> added to <code>slurm.conf</code> for the test, then removed. Moving one device file away drained the node within <span id="fl-hc-v">1.4 to 7.3</span> s in four tries <span class="fl-meas">measured</span>: anywhere up to one interval, depending on where in the cycle the fault lands.</p>
-<p><b>The Kubernetes trap measured in section 2.</b> A node that goes silent becomes NotReady after 50 s and gets the taint <code>node.kubernetes.io/unreachable:NoExecute</code>; pods tolerate it for 300 s by default, then are marked for deletion. But a pod is only gone when its kubelet confirms it, and a dead kubelet never does, so the pod stays <code>Terminating</code> and anything waiting for it waits forever. The fix is to tell the cluster the node is really down:</p>
-<pre>kubectl taint node mi-kind-worker2 node.kubernetes.io/out-of-service=nodeshutdown:NoExecute</pre>
-<p class="fl-codecap"><span class="fl-meas">measured</span>: 2 s after this taint the stuck pod was force-deleted, the JobSet restarted on two healthy workers and the run resumed from step 100 (<code>runs/fl-k3</code>). Remove the taint once the node is repaired. Clusters automate this with a node-health controller rather than a person.</p>
-</section>
-
-<section id="fl-s8">
-<h3>8. Elastic training and hot spares, measured with torchrun</h3>
-<p><dfn>Elastic training</dfn> lets a job continue with fewer machines instead of stopping: <code>torchrun --nnodes=1:2</code> accepts any number of nodes between 1 and 2. Each node runs an <dfn>agent</dfn>; the agents meet at a <dfn>rendezvous</dfn> (here the c10d backend: a small key-value store that one of the agents hosts) to agree who is in the job, then start the workers. When a worker fails, every agent stops its workers, meets again with whoever is still there, and restarts them all from the latest checkpoint with the new world size.</p>
-<div class="fl-card" id="fl-el-card">
-<h4>Lose one of two nodes, then add one back</h4>
-<div class="seg" id="fl-el-mode" role="group" aria-label="Run"><button data-m="el" class="on">No spare: shrink, then grow</button><button data-m="sp">Spare agent waiting</button></div>
-<div class="fl-svg" id="fl-el-svg"></div>
-<div class="fl-ctl" id="fl-el-ctl"></div>
-<div class="fl-cap" id="fl-el-cap" aria-live="polite"></div>
-<p class="small mute"><span class="fl-meas">measured</span> in one container capped at 2 CPUs and 2.2 GB: two torchrun agents (A, B) of 2 ranks each, c10d rendezvous on localhost, 400 steps, checkpoints every 50; B and its ranks are killed with SIGKILL (<code>src/fail/scripts/fl_elastic.sh</code>, <code>fl_spare.sh</code>; runs <code>el3</code>, <code>el4</code>).</p>
-</div>
-<p><b>Where the 44 seconds go.</b> Agent A saw its ranks fail 1.5 s after the kill. It then waited for the rendezvous to forget B, whose keep-alive stops counting after 5 s x 3 attempts, and for the <dfn>last call</dfn>: once the minimum number of nodes is present the rendezvous still waits 30 s for more before closing. With a spare already waiting, the job was full again at once and only paid detection and restart: 18.1 s.</p>
-<div class="fl-src"><div class="f">torch/distributed/elastic/rendezvous/dynamic_rendezvous.py @ v2.14.1, lines 144-147 and 1430, 1435</div>
-<pre>        "join": timedelta(seconds=600),
-        "last_call": timedelta(seconds=30),
-        "close": timedelta(seconds=30),
-        "heartbeat": timedelta(seconds=5),
-...
-        keep_alive_interval = params.get_as_int("keep_alive_interval", 5)
-        keep_alive_max_attempt = params.get_as_int("keep_alive_max_attempt", 3)</pre></div>
-<p><b>Three things the runs taught.</b></p>
-<ul class="tight">
-<li><b>The agent that hosts the store is a single point of failure.</b> In our first attempt the killed agent happened to be the one hosting the c10d store, and the survivor died with <code>RendezvousConnectionError: The connection to the C10d store has failed</code>. Which agent hosts it is decided by whose host name matches the endpoint and who binds first (<code>c10d_rendezvous_backend.py</code> lines 145 and 165: "Process ... hosts the TCP store for the C10d rendezvous backend"). Put the endpoint on the most stable machine, or use an external etcd rendezvous.</li>
-<li><b>Restarts reuse the rendezvous store by default, and that broke multi-node restarts here.</b> Since PyTorch shares the rendezvous TCP store with the workers, the store server is created once and reused across rounds (<code>dynamic_rendezvous.py</code> lines 1209-1218; and in <code>torch/distributed/rendezvous.py</code> line 205 the comment "We create a new TCPStore for every retry so no need to add prefix for each attempt"). Our 2-node Slurm restarts then failed to connect; <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code> (read at lines 1146 and 1194) fixed them, and the elastic runs here used it. The mechanism, isolated on the child page <b><a href="https://app.notion.com/p/3fc5c17b0d0d81b3a8a5c58224bff9fa" target="_blank" rel="noopener noreferrer">Launching distributed training</a></b> (torch 2.14.1, gloo): the rank-0 agent keeps one workers' store for every round, while the workers' side assumes a fresh store per attempt (the rendezvous.py:205 comment above), so attempt 1 found attempt 0's keys still there, including both stale gloo address keys, and dialled dead addresses. Which rank loses is a race: in one run rank 1 got "Connection refused" and rank 0 timed out after 300 s; in the other, rank 0 was refused and rank 1 lost the store. Growing an elastic job deadlocks too: rank 0 does not republish the bootstrap info when the store already exists (<code>dynamic_rendezvous.py</code> line 1209), so the new node waits for <code>MASTER_ADDR</code> until the 60 s store timeout ("wait timeout after 60000ms, keys: .../MASTER_ADDR"). With the variable set, each attempt gets a new store on a new port, and on that page's run the restart resumed 4.3 s after the crash. Test your own restart path before relying on it.</li>
-<li><b>Shrinking counts as a restart; growing does not.</b> The restart counter went to 1 when B was lost and stayed at 1 when C joined: "membership changes do not count as retries" (<code>elastic/agent/server/api.py</code> line 958). And the shrunk run is not the same computation: the global batch stays 32 sequences, but each of 2 ranks now averages 16 rows instead of 8, so the sums happen in a different order and the loss differs in the last bits at <span id="fl-el-nd">7</span> of the <span id="fl-el-nt">15</span> logged steps run at world size 2 (by up to <span id="fl-el-mx">4.8e-7</span>) against an uninterrupted 4-rank run <span class="fl-meas">measured</span>. With a batch that does not divide evenly, or a data loader that shards by rank, it would also change which data each step sees.</li>
-</ul>
-<p>Most large pre-training runs do not shrink: a smaller world changes the batch per GPU, the parallelism layout and the learning-rate schedule's assumptions. They restart at full size on spare capacity instead: for Gemini Ultra, Google decided "to retain a small number of cubes per superpod to allow for hot standbys and rolling maintenance" (<a href="https://arxiv.org/abs/2312.11805" target="_blank" rel="noopener noreferrer">Gemini 1.0, section 3</a>) <span class="fl-pub">published</span>. The spare run above is that pattern at toy scale.</p>
-</section>
-
-<section id="fl-s9">
-<h3>9. Goodput: how often to checkpoint, given how your scheduler recovers</h3>
-<p><dfn>Goodput</dfn> is "the time spent computing useful new steps over the elapsed time of the training job" (Gemini's definition, <a href="https://arxiv.org/abs/2312.11805" target="_blank" rel="noopener noreferrer">Gemini 1.0, section 3</a>). <dfn>Throughput</dfn> counts every step computed, including the ones redone after a failure; goodput counts each step once. Three things eat into it: time spent writing checkpoints (C each time), work redone since the last checkpoint after each failure, and the recovery time R (detect, reschedule, start, reload). Checkpoint often and you pay C often; rarely, and each failure costs more rework. Young's classic answer for the interval of work between checkpoints is &tau; &asymp; &radic;(2CM), with M the job's mean time between failures; Daly refined it to &radic;(2C(M+R)) + C when R is not small. The <a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">reliability page</a> derives both and simulates them; here the new input is R, the thing this lab measured, and the point is how much the recovery path matters next to the checkpoint interval.</p>
-<div class="fl-card" id="fl-gp-card">
-<h4>Goodput calculator</h4>
-<div class="ctl">
-<label>GPUs in the job: <b id="fl-gp-nv"></b><input type="range" id="fl-gp-n" min="0" max="8" step="1" value="5" aria-label="GPUs in the job"></label>
-<label>Checkpoint write, blocking (C): <b id="fl-gp-cv"></b><input type="range" id="fl-gp-c" min="0" max="100" step="1" value="50" aria-label="Checkpoint write time"></label>
-<label>Recovery per failure (R): <b id="fl-gp-rv"></b><input type="range" id="fl-gp-r" min="0" max="100" step="1" value="60" aria-label="Recovery time"></label>
-<label>Interval between checkpoints (&tau;): <b id="fl-gp-tv"></b><input type="range" id="fl-gp-t" min="0" max="100" step="1" value="55" aria-label="Checkpoint interval"></label>
-</div>
-<div class="seg" id="fl-gp-rate" role="group" aria-label="Failure rate"><button data-m="l3" class="on">Llama 3 rate</button><button data-m="opt">OPT rate (rough)</button></div>
-<div class="small mute" style="margin:2px 0">Recovery presets, <span class="fl-meas">measured</span> here on the tiny job (a real job adds minutes of start-up and checkpoint loading):</div>
-<div class="chips" id="fl-gp-rp"></div>
-<div class="fl-svg" id="fl-gp-svg"></div>
-<div class="fl-ctl"><button id="fl-gp-opt">Set &tau; to the optimum</button><button id="fl-gp-mc">Check with a simulation</button><span class="small mute" id="fl-gp-mcv"></span></div>
-<div class="fl-out" id="fl-gp-out"></div>
-<p class="small mute"><span class="fl-der">calculation</span>: failures arrive at random (exponential) with job MTBF M = 1 / (N x per-GPU rate); per-GPU rates from Llama 3 (419 / (16,384 x 54 days)) or OPT (at least 105 restarts / (992 x 60 days)). Goodput = &tau; / (M e<sup>R/M</sup> (e<sup>(&tau;+C)/M</sup> &minus; 1)), the exact expected value when failures can also strike during checkpoints and recovery (Daly 2006; the same model as the reliability page with all downtime lumped into R). The simulation replays 3,000 random failures with a fixed seed and must land on the curve.</p>
-</div>
-<div class="fl-card">
-<h4>Does the accounting hold on the measured runs?</h4>
-<p class="small">The model's bookkeeping is: wall-clock = work + rework since the last checkpoint + recovery. Applied to the three Slurm runs of section 3 (same job, step time from the uninterrupted run):</p>
-<div class="tw"><table class="fl-tbl" id="fl-rp-tbl"></table></div>
-<p class="small mute"><span class="fl-meas">measured</span> wall-clock from rank 0's logs (start of attempt 1 to the end of the run); <span class="fl-der">predicted</span> = uninterrupted wall-clock + steps redone x measured step time + measured recovery (crash to first resumed step), computed in <code>src/fail/scripts/fl_recompute.py</code>.</p>
-</div>
-<p><b>Reading the calculator.</b> At Llama 3's failure rate a 16,384-GPU job fails every 3.1 hours. With a 1-minute blocking checkpoint and 10 minutes to recover, the best interval is about <span id="fl-gp-h1">19</span> minutes of work and goodput is about <span id="fl-gp-h2">85</span>% <span class="fl-der">calculation</span>. Cutting recovery from 10 minutes to 1 raises it to about <span id="fl-gp-h3">89</span>%, more than the whole difference between a 10-minute and a 40-minute interval (84% and 83% against the optimum of 85%). Near the optimum the curve is flat; recovery time is not. That is why Gemini kept model replicas in memory and spare cubes, why DeepSeek checkpoints "typically every 5 minutes" asynchronously (see the <a href="#" data-tab="t-read">Reading tab</a>), and why the measured differences in section 2 (seconds for an in-job restart, 2.5 minutes for a Slurm requeue, a person for a silent Kubernetes node) matter more at 16,000 GPUs than at 4.</p>
-</section>
-
-<section id="fl-s10">
-<h3>10. Common mistakes and interview questions</h3>
-<details class="mist"><summary>Shipping a job spec with no retries</summary><div class="b"><code>failurePolicy.maxRestarts: 0</code> (JobSet), <code>FailureConfig(max_failures=0)</code> (Ray Train) and plain <code>torchrun</code> (default <code>--max-restarts=0</code>) all turn one crashed rank into a dead run: measured on all three in section 2. Slurm never retries a job that failed by itself; resubmit it from a wrapper or let torchrun restart inside the allocation.</div></details>
-<details class="mist"><summary>Trusting a restart path you have never exercised</summary><div class="b">Our 2-node <code>torchrun --max-restarts=2</code> restarts failed with <code>Gloo connectFullMesh failed with ... timed out connecting: SO_ERROR: Connection refused</code> until <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code> was set. Kill a rank in a test job before the real run needs the restart.</div></details>
-<details class="mist"><summary>Reading torchrun's "Root Cause" as the culprit in a hang</summary><div class="b">It names the first process that exited with an error, which in a hang is a healthy rank that timed out (section 5). The <a href="#" data-tab="t-launch">Launch lab</a> saw the same on Kubernetes: each pod's summary named a waiting rank (rank 0 on pod 0, rank 2 on pod 1) while the stalled rank 3 appeared only as <code>exitcode: -15 (SIGTERM)</code>, killed by its own agent. Find the rank everyone waited for, and dump its stack.</div></details>
-<details class="mist"><summary>Assuming a restart resumes from the newest checkpoint on disk</summary><div class="b">With Ray Train's own checkpoint API it may not. The <b><a href="https://app.notion.com/p/3fc5c17b0d0d811cba13f3aeccf8724b" target="_blank" rel="noopener noreferrer">Ray</a></b> child page crashed rank 3 at step 120 with checkpoints every 50 steps: in 3 of 3 runs the new worker group restored step <b>50</b>, although every worker had reported step 100 and its files were already in storage. Ray Train v2 registers a checkpoint only when the controller holds that report from <i>every</i> worker (<code>report_handler.py</code> in Ray 2.59.0: the method at line 40 says "Wait for all workers to report training results", and line 63, <code>if not all(self._training_report_queues): return</code>, skips any poll in which one worker's report is missing); the crashed rank's report never left its process. 70 steps were redone instead of 20, and the step-100 directory stayed behind as an orphan that <code>num_to_keep</code> did not delete. Log which checkpoint a restart loaded, and compare it with the newest on disk.</div></details>
-<details class="mist"><summary>Leaving the timeouts at their defaults without knowing them</summary><div class="b">Slurm notices a dead node after <code>SlurmdTimeout</code> (300 s default), a hung NCCL collective errors after 10 minutes (PyTorch 2.14), Kubernetes evicts pods from an unreachable node after 300 s. Each is idle time on every GPU of the job, per failure. Choose them; keep them above your longest legitimate pause (checkpoint save, evaluation).</div></details>
-<details class="mist"><summary>Assuming Kubernetes recovers from a dead node by itself</summary><div class="b">A pod on a node whose kubelet is gone stays <code>Terminating</code>; a Job waiting for it never fails over (measured: stuck for over 7 minutes until the <code>node.kubernetes.io/out-of-service</code> taint). Automate the taint with a node-health controller.</div></details>
-<details class="mist"><summary>A health check that only exits non-zero</summary><div class="b">Slurm ignores the exit code of <code>HealthCheckProgram</code>; the script must run <code>scontrol update ... state=drain</code> itself (section 7).</div></details>
-<details class="mist"><summary>Hunting a straggler by the longest all-reduce</summary><div class="b">The rank with the longest wait is a victim; the slow rank waits least (12 ms against 63 ms, section 6).</div></details>
-<details class="mist"><summary>Hosting the elastic rendezvous on any node</summary><div class="b">With the c10d backend one agent hosts the store; lose that node and every agent dies with <code>RendezvousConnectionError</code> (section 8).</div></details>
-<p style="margin-top:14px"><b>Interview questions</b> (short answers; expand)</p>
-<details class="qa"><summary>A 2,048-GPU job at Llama 3's failure rate, checkpoints take 30 s to write. How often does it fail and how often should it checkpoint?</summary><div>MTBF scales as 1/N: 3.09 h x 16,384 / 2,048 = about 24.7 h. Young: &tau; = &radic;(2 x 30 s x 89,100 s) = about 2,310 s, roughly every 39 minutes of work; checkpoint overhead C/&tau; is about 1.3% and expected rework &tau;/2M about 1.3% <span class="fl-der">calculation</span>. Then say what would change it: async checkpointing shrinks C, slow recovery adds R/M per failure.</div></details>
-<details class="qa"><summary>A node dies mid-run. What happens on Slurm, on Kubernetes with JobSet, on Ray Train?</summary><div>Peers error at once or at the collective timeout. Slurm notices after SlurmdTimeout, sets the node DOWN, requeues a <code>--requeue</code> job (held about 2 minutes) onto healthy nodes. Kubernetes marks the node NotReady after 50 s; with JobSet maxRestarts above 0 the JobSet recreates its pods, but a pod on a dead kubelet blocks that until the node is tainted out of service. Ray marks the node dead after its health checks (30 s here) and Ray Train restarts the worker group if max_failures allows, but only once enough resources exist: without a spare it waits.</div></details>
-<details class="qa"><summary>A job is stuck at step 40,000: no error, GPUs at 0% except one. What do you do?</summary><div>It is a hang: everyone waits in a collective for one rank. Dump stacks of all ranks (py-spy, or the NCCL flight recorder dump), find the rank not in the collective, check its node (Xid errors in the kernel log, ECC, NVLink, the NIC), drain it, restart from the last checkpoint. Afterwards, shorten the collective timeout or add a watchdog so this costs minutes, not hours.</div></details>
-<details class="qa"><summary>Your resumed run's loss differs from the original in the 7th digit. Bug?</summary><div>Probably not, if it is a last-bit difference with no jump: the reduction order changed (here DDP rebuilds its buckets after a process's first step; on GPUs, nondeterministic kernels). A jump at the resume step is a bug: optimiser state, LR schedule step, data position or RNG state was not restored.</div></details>
-<details class="qa"><summary>Design failure handling for a 1,000-GPU training platform.</summary><div>Prevent: burn-in and periodic health checks that drain or taint bad nodes automatically. Detect: per-job heartbeats, collective timeouts of minutes not tens of minutes, flight recorder, per-rank step-time telemetry for stragglers. Recover: job-level retries with a fresh rendezvous, spare nodes so a restart never waits, asynchronous checkpoints sized by &tau; &asymp; &radic;(2CM) (at 1,000 GPUs and Llama 3's rate, M is about 51 h), checkpoint load path tested. Measure goodput as the platform's headline number, and break each failure's cost into detection, waiting, start-up and rework.</div></details>
-<div class="deepnote"><b>Go deeper (optional):</b> the child page <b><a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale: failures, checkpoint/restart and elastic training</a></b> (its Failure taxonomies tab puts Llama 3's table beside Meta's 2026 32K-GPU table and others, Recovery designs runs this lab's goodput model on more designs, Straggler replay measures detection); Ray Train's restore behaviour on <b><a href="https://app.notion.com/p/3fc5c17b0d0d811cba13f3aeccf8724b" target="_blank" rel="noopener noreferrer">Ray: tasks, actors, the object store and Ray Train</a></b> (Train failure replay); Kubernetes failure policies on <b><a href="https://app.notion.com/p/3c65c17b0d0d81cf9417de52108cfbce" target="_blank" rel="noopener noreferrer">Kubernetes for ML</a></b>.</div>
-<p class="small mute" style="margin-top:14px"><b>Files.</b> Everything that ran is in <code>src/fail/</code>: the wrapper <code>scripts/fl_wrap.py</code> (crash once, straggler probe, DDP rebuild switch), <code>fl_train.sbatch</code>, <code>fl-jobset.yaml</code>, <code>fl_ray.py</code>, <code>fl_elastic.sh</code>, <code>fl_spare.sh</code>, <code>fl_healthcheck.sh</code>; scrubbed logs of every run in <code>runs/</code>; <code>fl_make_data.py</code> builds the data this tab embeds. Source read at pinned versions: PyTorch v2.14.1 (<code>torch/distributed</code>), Slurm 24.11.5, Kubernetes v1.37.0 (<code>--help</code> of the control-plane binaries), Ray 2.59.0 logs.</p>
+<h3>3. What else the lab measured, in one table</h3>
+<p>Each experiment below was run on the same clusters; the result is kept here in one line because the child pages cite it, and the page named in the last column teaches the subject in depth. Raw logs are in <code>src/fail/runs/</code>.</p>
+<div class="tw"><table class="fl-tbl"><thead><tr><th>Experiment</th><th>Result <span class="fl-meas">measured</span></th><th>Taught on</th></tr></thead><tbody>
+<tr><td>The same crash with and without checkpoints (Slurm, 200 steps)</td><td>Wall-clock = work + steps redone &times; step time + recovery predicted the three runs within 3.5%, 5.1% and 1.2% (crash with checkpoints every 50 steps: 20 steps redone; without: 120; node killed and requeued: recovery 166 s)</td><td>Fault tolerance, section 9 (goodput accounting)</td></tr>
+<tr><td>Did the loss come back bit for bit?</td><td>Seven resumed 4-rank runs on three schedulers agreed with each other exactly, and with the uninterrupted run at 8 of 10 logged steps; at 2 they differed by one float32 rounding step (2.4e-7). Cause: DDP rebuilds its gradient buckets after a process's first step, changing the summation order; with the rebuild off the resume is exact</td><td>Fault tolerance, section 6 (restore traps)</td></tr>
+<tr><td>A frozen rank (SIGSTOP, gloo timeout 30 s)</td><td>The three healthy ranks errored after <span id="fl-hg-s">30.8</span> s and the job failed; torchrun's "Root Cause (first observed failure)" named a healthy rank that timed out first, not the frozen one</td><td>Fault tolerance, sections 3 and 4; <a href="https://app.notion.com/p/3fc5c17b0d0d81b3a8a5c58224bff9fa" target="_blank" rel="noopener noreferrer">Launching distributed training</a> (hang drills)</td></tr>
+<tr><td>One slow rank (rank 3 sleeping 0, 50 or 200 ms per step)</td><td>Every rank reported the same step time (<span id="fl-st-v">22.1, 70.5 and 221.8</span> ms); the slow rank waited least in backward (12.2 ms against 62.6 ms for the others), so ranking ranks by collective time names the victims</td><td>Fault tolerance, section 8 and Straggler replay</td></tr>
+<tr><td>Keeping bad nodes out</td><td>A drained Slurm node was skipped (a 3-node job waited with "Nodes required for job are DOWN, DRAINED ..."); a cordoned kind node got no new pods; a <code>HealthCheckProgram</code> that drains its own node (Slurm ignores the exit code) drained it <span id="fl-hc-v">1.4 to 7.3</span> s after the fault; a frozen kubelet left its pod Terminating until the <code>node.kubernetes.io/out-of-service</code> taint, after which the JobSet restarted in 2 s</td><td>Fault tolerance, section 4; <a href="https://app.notion.com/p/3c65c17b0d0d81889c32cd050bbbadd3" target="_blank" rel="noopener noreferrer">Slurm</a>; <a href="https://app.notion.com/p/3c65c17b0d0d81cf9417de52108cfbce" target="_blank" rel="noopener noreferrer">Kubernetes for ML</a></td></tr>
+<tr><td>Elastic torchrun (<code>--nnodes=1:2</code>) and a hot spare</td><td>Losing one of two agents: running again at world size 2 after 44 s (keep-alive 5 s &times; 3, then a 30 s last call); with a spare agent waiting, full size again after 18.1 s. Killing the agent that hosts the c10d store killed the whole job. The shrunk run differed in the last bits at <span id="fl-el-nd">7</span> of <span id="fl-el-nt">15</span> logged steps</td><td>Fault tolerance, section 5; <a href="https://app.notion.com/p/3fc5c17b0d0d81b3a8a5c58224bff9fa" target="_blank" rel="noopener noreferrer">Launching distributed training</a></td></tr>
+<tr><td>Goodput against the checkpoint interval</td><td>At Llama 3's rate a 16,384-GPU job fails every 3.1 hours; with a 1-minute blocking checkpoint and 10 minutes to recover, the best interval is about <span id="fl-gp-h1">19</span> minutes of work and goodput about <span id="fl-gp-h2">85</span>%; cutting recovery to 1 minute gives about <span id="fl-gp-h3">89</span>% <span class="fl-der">calculation</span></td><td>Fault tolerance, Recovery designs tab (the same model, more designs); Power, cooling, reliability, Checkpoint simulator</td></tr>
+</tbody></table></div>
+<div class="deepnote"><b>Go deeper (optional):</b> the child page <a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale: failures, checkpoint/restart and elastic training</a>: its <b>Failure taxonomies</b> tab (Llama 3's Table 5 beside ten other published tables), <b>Recovery designs</b> tab (time lost per failure for eight designs and this lab's goodput model for any job size) and <b>Straggler replay</b> tab (detection rules on real per-rank timings). The checkpoint interval derived from zero: <a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling, reliability</a>, <b>Checkpoint simulator</b> tab. Ray Train's restore behaviour: <a href="https://app.notion.com/p/3fc5c17b0d0d811cba13f3aeccf8724b" target="_blank" rel="noopener noreferrer">Ray</a> (Train failure replay); Kubernetes failure policies: <a href="https://app.notion.com/p/3c65c17b0d0d81cf9417de52108cfbce" target="_blank" rel="noopener noreferrer">Kubernetes for ML</a>. Everything that ran is in <code>src/fail/</code>; the sections cut from this tab on 2026-10-19 are kept in <code>src/for_children/fail_lab_cut/</code>.</div>
 </section>
 </div>
 <div class="tab" id="t-io" role="tabpanel" hidden>
@@ -1611,7 +1436,7 @@ exit 0</pre>
 @media (max-width:520px){#t-io .bars .row{grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 4.8em;font-size:12px}}
 </style>
 <h2 style="margin-top:14px">Storage lab: where data and checkpoints live</h2>
-<p class="lead">A training job touches storage in two very different ways. It <b>reads</b> its data as a steady stream, which is easy to hide behind compute. And every so often it <b>writes a checkpoint</b>: every rank at the same moment, while the GPUs wait. This lab measures both with the running example on this Mac, then scales the arithmetic up to real model sizes. The question it keeps returning to: <b>how long does training stand still to save itself, and what does it take to make that short?</b></p>
+<p class="lead">A training job touches storage in two very different ways. It <b>reads</b> its data as a steady stream, which is easy to hide behind compute. And every so often it <b>writes a checkpoint</b>: every rank at the same moment, while the GPUs wait. This lab measured both with the running example on this Mac; at root depth it keeps the tiers compared, the measured results in one table, and one calculator that scales the arithmetic up to real model sizes. How parallel file systems and object stores work inside, and how to size one, is the child page <a href="https://app.notion.com/p/3fc5c17b0d0d818a94ced3fc7c3331fe" target="_blank" rel="noopener noreferrer">Storage and data movement</a>. The question it keeps returning to: <b>how long does training stand still to save itself, and what does it take to make that short?</b></p>
 <div class="co key"><div class="t">In one screen</div>
 <ul class="tight">
 <li><b>A checkpoint is mostly optimiser state.</b> The running example's 1,386,049-byte file is 32.5% weights and 65.0% AdamW moments: 12.3 bytes per parameter. With mixed precision it is about 14, so a 405B model's checkpoint is about 5.7 TB <span class="io-tag io-derived">derived</span>.</li>
@@ -1619,7 +1444,7 @@ exit 0</pre>
 <li><b>Shard and go asynchronous.</b> Every rank writes its own piece (sharded), and copies it to memory first so training continues while it uploads (asynchronous). On the slow folder, async cut the time training stood still per checkpoint from <span id="io-n-sync"></span> to <span id="io-n-async"></span> <span class="io-tag io-measured">measured</span>.</li>
 <li><b>At scale it is bandwidth arithmetic:</b> size / aggregate write bandwidth. A parallel file system sells bandwidth as capacity, so you size it for the checkpoint burst, not for the bytes stored.</li>
 </ul></div>
-<div class="io-nav" aria-label="Sections of the Storage lab"><a href="#io-s1">Tiers</a><a href="#io-s2">Checkpoint anatomy</a><a href="#io-s3">The burst</a><a href="#io-s4">Async</a><a href="#io-s5">Calculator</a><a href="#io-s6">Reading data</a><a href="#io-s7">Restore</a><a href="#io-s8">Mistakes</a><a href="#io-s9">Interview</a><a href="#io-s10">Method</a></div>
+<div class="io-nav" aria-label="Sections of the Storage lab"><a href="#io-s1">Tiers</a><a href="#io-s2">What the lab measured</a><a href="#io-s5">Calculator</a></div>
 <p class="small mute">Labels: <span class="io-tag io-measured">measured</span> here, on an Apple M1 Pro with Docker Desktop's Linux VM, on a shared machine, so timings are rough (medians of repeated runs, ranges shown); <span class="io-tag io-published">published</span> by an operator about its own system; <span class="io-tag io-vendor">vendor</span> specification or documentation; <span class="io-tag io-derived">derived</span> by calculation, formula shown. Formats, shards and data loaders are not repeated here: they live on <a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">Storage and loading at scale</a>.</p>
 
 <section id="io-s1">
@@ -1642,93 +1467,23 @@ exit 0</pre>
 <tr><td><b>Object storage</b></td><td>scales with parallel requests: 3,500 PUT and 5,500 GET per second per key prefix; GCS "up to 1 GB/s per VM" at Ai2 <span class="io-tag io-vendor">vendor</span> <span class="io-tag io-published">published</span> (<a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance-design-patterns.html" target="_blank" rel="noopener noreferrer">AWS</a>, OLMo 2)</td><td>"tens of milliseconds" median for small requests; S3 Express One Zone single-digit ms</td><td>S3 Standard $0.023 per GB-month, $0.005 per 1,000 PUTs, $0.0004 per 1,000 GETs; Express One Zone $0.11 per GB-month</td><td>yes</td><td>yes (replicated)</td></tr>
 </tbody></table></div>
 <p class="small mute">Prices: AWS Price List API for S3 (published 2026-10-15) and the FSx for Lustre pricing page's worked examples, read 2026-10-16; other regions and providers differ. Vendor speeds are specification sheets, not measurements.</p>
-
-<h3>The same checkpoint on six local stand-ins</h3>
-<p>Nothing on a laptop behaves like a 2 TB/s file system, but the <i>order</i> of the tiers and the reasons for it reproduce. The running example's checkpoint, and the same GPT made wider (d 256, 4 layers: 3.2M parameters; d 512, 8 layers: 25.3M), each written with <code>torch.save</code>, flushed to the device with <code>fsync</code>, renamed into place, then read back after dropping it from the page cache:</p>
-<ul class="tight small">
-<li><b>Mac SSD, native</b>: the laptop's own disk (stands for local NVMe). <code>fsync</code> on macOS does not flush the drive's cache; <code>F_FULLFSYNC</code> does, and is used here.</li>
-<li><b>Container layer</b> and <b>Docker volume</b>: a file system on the Linux VM's virtual disk (what the Slurm and Ray clusters mount as <code>/shared</code>).</li>
-<li><b>Host folder shared into the VM</b>: every operation crosses from the VM to macOS and back (what the kind cluster mounts as <code>/shared</code>): a network file system in miniature.</li>
-<li><b>S3 from a container</b> and <b>S3 from the Mac</b>: an S3-compatible store (SeaweedFS 4.48) in one container. MinIO was the plan, but its repository is archived and its images could no longer be pulled on 2026-10-16 (Docker Hub: "pull access denied", quay.io: "unauthorized"). From the Mac, requests also cross Docker Desktop's port forwarding.</li>
-</ul>
-<div class="io-card" id="io-tiers-card">
-<div class="seg" id="io-tiers-op"><button data-m="write" class="on">Write (save + fsync + rename)</button><button data-m="read">Read (cold) + load</button></div>
-<div class="seg" id="io-tiers-sz"><button data-m="ex">1.39 MB (running example)</button><button data-m="m">38.6 MB</button><button data-m="l" class="on">304 MB</button></div>
-<div class="bars" id="io-tiers-bars"></div>
-<p class="small mute" id="io-tiers-note"></p>
-</div>
-<p id="io-tiers-text"></p>
-<div class="io-pr"><div class="q">Predict: which local target is slowest for the 304 MB checkpoint: the object store or the shared host folder?</div>
-<div class="opts"><button data-a="0">The object store: HTTP, multipart uploads, a separate server</button><button data-a="1">The shared folder: it looks like a local path</button></div>
-<div class="ans" hidden id="io-pr1-ans"></div></div>
 </section>
+
 <section id="io-s2">
-<h2>2. What is in a checkpoint</h2>
-<p>A <dfn>checkpoint</dfn> is everything needed to continue training as if nothing had happened: the weights, the optimiser's state, the step number, and anything else that carries state (random number generators, the data loader's position, the learning-rate schedule). Leave any of it out and a resumed run differs from an uninterrupted one. The running example needs only three things, because its batches depend only on (seed, step) and it uses no randomness after initialisation; this is why its resume is bit-exact.</p>
-<p>Here is train.py's own checkpoint opened up (<code>torch.save</code> writes a zip archive: one entry per tensor, plus a pickle describing the structure):</p>
-<div class="io-card"><div id="io-anat-bar" class="io-svg"></div><div class="io-leg" id="io-anat-leg"></div>
-<p class="small" id="io-anat-text"></p></div>
-<p><b>Why optimiser state dominates.</b> AdamW keeps two numbers per parameter, a running mean of the gradient and of its square, each in fp32: 8 bytes, on top of the 4-byte fp32 weight. Mixed-precision training adds the bf16 copy the GPU computes with:</p>
-<div class="fm"><div class="eq">bytes per parameter = weights + master copy + 2 moments</div>
-<dl><dt>fp32 training (this run)</dt><dd>4 + 0 + 8 = 12, plus the pickle and zip overhead here: 12.31 measured</dd>
-<dt>bf16 mixed precision</dt><dd>2 (bf16 weights) + 4 (fp32 master) + 8 = <b>14</b>, the common case (the Reading tab's figure; layouts vary: some frameworks save only the fp32 master and rebuild bf16 weights, 12)</dd>
-<dt>weights for inference</dt><dd>2 (bf16 only): a "checkpoint" exported for serving is 7 times smaller and cannot resume training</dd></dl></div>
-<div class="tw"><table class="io-tbl">
-<thead><tr><th>Model</th><th class="num">Parameters</th><th class="num">Training checkpoint at 14 B</th><th class="num">Per GPU, fully sharded</th><th class="num">Inference weights at 2 B</th></tr></thead>
-<tbody id="io-scale-rows"></tbody></table></div>
-<p class="small mute">All rows <span class="io-tag io-derived">derived</span>: size = parameters x bytes per parameter; per GPU = size / GPUs (64 and 1,024 GPUs for the 8B and 70B rows are illustrative choices), assuming the optimiser state is sharded over every GPU (as with FSDP or ZeRO-3 across all data-parallel ranks). Llama 3 405B trained on up to 16,384 GPUs (<a href="https://arxiv.org/html/2407.21783v3#S3.SS3" target="_blank" rel="noopener noreferrer">Llama 3 &sect;3.3</a>); the paper says its checkpoint writes range "from 1 MB to 4 GB per GPU", and 346 MB per GPU falls inside that range: a consistency check, not a reproduction. DeepSeek-V3 has 671B parameters and trained on 2,048 H800 GPUs (<a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener noreferrer">DeepSeek-V3 report</a>); its real per-GPU layout (expert parallelism, FP8) differs, so its row shows only the arithmetic.</p>
-</section>
-<section id="io-s3">
-<h2>3. The burst: every rank writes at once</h2>
-<p>Training is synchronous: at the checkpoint step, every rank reaches the save at the same moment, and the storage system sees all of them arrive together. Whatever the aggregate write bandwidth is, they share it. Who writes what then decides both the bytes and the time:</p>
-<ul class="tight">
-<li><b>Rank 0 writes everything</b> (train.py's way, fine for DDP, where every rank holds a full copy): one writer, one link.</li>
-<li><b>Every rank writes everything</b>: the forgotten <code>if rank == 0</code>. Same file content, written N times.</li>
-<li><b>Consolidated (gather, then one file)</b>: with a sharded model (FSDP, ZeRO-3), the pieces are first sent to rank 0 over the network, then rank 0 writes one file. Needs the whole state in rank 0's memory.</li>
-<li><b>Sharded (PyTorch Distributed Checkpoint, DCP)</b>: every rank writes its own piece to its own file, in parallel, plus a small <code>.metadata</code> file mapping pieces to tensors. No gather, no single writer.</li>
-</ul>
-<p>Measured with 4 ranks in one container (2 CPUs, gloo) and the 3.2M-parameter GPT (38.6 MB of state), three repetitions each, on the slow shared folder and on a Docker volume <span class="io-tag io-measured">measured</span>:</p>
-<div class="io-card" id="io-lay-card">
-<div class="seg" id="io-lay-tgt"><button data-m="slow_bind" class="on">Slow shared folder</button><button data-m="slow_vol">Docker volume</button></div>
-<div id="io-lay-svg" class="io-svg"></div>
-<div class="io-leg"><span><i style="background:var(--c4)"></i>gathering pieces to rank 0</span><span><i style="background:var(--c1)"></i>writing (and fsync)</span><span><i style="background:var(--soft);border:1px solid var(--line)"></i>waiting for the others</span></div>
-<p class="small" id="io-lay-text"></p>
-</div>
-<p><b>What this shows, and what it cannot.</b> Bytes on a shared pipe cost time: writing four copies took about three times as long as one. But sharding did <i>not</i> make the write faster here, because all four ranks share one container, one virtual disk and one file-sharing channel: there is only one pipe. On a cluster every node has its own network link to storage (a DGX B200 has two BlueField-3 storage ports at up to 400 Gb/s each, <a href="https://docs.nvidia.com/dgx/dgxb200-user-guide/introduction-to-dgxb200.html" target="_blank" rel="noopener noreferrer">NVIDIA</a>), so N nodes writing their shards use N links at once, while a consolidated write squeezes the whole state through one. The <a href="#io-s5">calculator</a> below does that arithmetic. What the local run does show is the hidden cost of consolidating: on the fast volume, gathering 38.6 MB to rank 0 took longer than writing it.</p>
-<div class="io-src"><div class="f">torch/distributed/checkpoint/_dedup_save_plans.py, lines 20-21 and 43-48, PyTorch v2.14.1</div>
-<pre>    Removes duplicate entries from appearing on multiple SavePlans. For each duplicate across
-    a set of SavePlans, only the smallest SavePlan in terms of planned storage keeps the entry.
-...
-        if save_to_lowest_rank:
-            select_plan_idx = min(plan_indices)
-        else:
-            select_plan_idx = min(
-                plan_indices, key=lambda plan_idx: plan_to_size[plan_idx]
-            )</pre>
-This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes about one copy, spread over all ranks: each tensor that every rank holds is assigned to whichever rank has the least to write so far. The default planner calls it from <code>default_planner.py</code> line 137.</div>
-</section>
-
-<section id="io-s4">
-<h2>4. Asynchronous checkpointing: stop for the copy, not for the write</h2>
-<p>A synchronous checkpoint stops training for the whole write. An <dfn>asynchronous checkpoint</dfn> splits it in two: first <b>stage</b> the state into host memory (from GPU memory, a PCIe copy of each rank's shard), then let training continue while a background thread writes the staged copy to storage. Training stands still only for the copy. The cost: a second copy of the state in host RAM, and the write must finish before the next checkpoint starts.</p>
-<p>The same 60 training steps of the 3.2M-parameter GPT (4 ranks, a checkpoint every 15 steps, DCP), run three times: without checkpoints, with <code>dcp.save</code>, and with <code>dcp.async_save</code>. Step times are each step's slowest rank <span class="io-tag io-measured">measured</span>:</p>
-<div class="io-card" id="io-as-card">
-<div class="seg" id="io-as-tgt"><button data-m="slow_bind" class="on">Slow shared folder (container)</button><button data-m="slow_vol">Docker volume (container)</button><button data-m="native">Mac SSD (native, 25.3M parameters)</button></div>
-<div id="io-as-svg" class="io-svg"></div>
-<div class="io-leg"><span><i style="background:var(--c3)"></i>training step</span><span><i style="background:var(--c2)"></i>training stopped for the checkpoint</span><span><i style="background:var(--c1);opacity:.35"></i>background write (drawn with the synchronous write's measured time)</span></div>
-<div class="io-ctl" id="io-as-ctl"></div>
-<div class="io-cap" id="io-as-cap"></div>
-<div class="io-out" id="io-as-out"></div>
-</div>
-<p id="io-as-text"></p>
-<p><b>Published, at scale:</b> PyTorch and IBM report that asynchronous DCP cut the time a 7B model's training stood still per checkpoint from 148.8 s to 6.3 s on average, the 6.3 s being the copy to CPU memory <span class="io-tag io-published">published</span> (<a href="https://pytorch.org/blog/reducing-checkpointing-times/" target="_blank" rel="noopener noreferrer">PyTorch blog, November 2024</a>). Gemini went further and kept redundant copies of model state in other hosts' memory, raising its largest job's goodput from 85% to 97% (<a href="https://arxiv.org/abs/2312.11805" target="_blank" rel="noopener noreferrer">Gemini 1.0 report, section 3</a>).</p>
-<div class="co warn"><div class="t">The async trap we hit: give the background writer its own process group</div>
-<p class="small">DCP's save runs collectives (it gathers every rank's plan and agrees the file is complete). <code>async_save</code> runs them in a background thread; if that thread uses the same process group as training, two threads issue collectives on one channel at once. Our first attempt (4 ranks, gloo, native) <b>hung</b>: every rank at 0% CPU after the first checkpoint, nothing printed for over four minutes. A rerun <b>crashed</b> 3 s after the checkpoint, two ranks aborting with:</p>
-<div class="io-err">gloo::EnforceNotMet: [enforce fail at .../third_party/gloo/gloo/transport/uv/pair.cc:253] op.nread == op.preamble.nbytes</div>
-<p class="small">The fix is one line, the one the PyTorch blog recommends: create a group once, <code>ck_pg = dist.new_group(backend="gloo")</code>, and pass <code>process_group=ck_pg</code> to <code>async_save</code>. All runs above use it.</p></div>
+<h2>2. What the lab measured, in one table</h2>
+<p>All rows <span class="io-tag io-measured">measured</span> with the running example or the same GPT made wider (3.2M and 25.3M parameters), 4 ranks with gloo, medians of repeated runs; raw records in <code>src/io/out/</code>. Each row names the page that teaches the subject in depth.</p>
+<div class="tw"><table class="io-tbl"><thead><tr><th>Question</th><th>Result</th><th>Taught on</th></tr></thead><tbody>
+<tr><td>What is in a checkpoint?</td><td>The running example's 1,386,049-byte <code>torch.save</code> file: 32.5% fp32 weights, 65.0% AdamW moments, the rest pickle and zip headers: 12.31 bytes per parameter. Mixed precision adds the bf16 copy (about 14 bytes per parameter, so about 5.7 TB for 405B <span class="io-tag io-derived">derived</span>)</td><td><a href="https://app.notion.com/p/3fc5c17b0d0d818a94ced3fc7c3331fe" target="_blank" rel="noopener noreferrer">Storage and data movement</a>, section 8 (formats as files and byte ranges)</td></tr>
+<tr><td>Does the tier matter?</td><td>A 304 MB checkpoint: 0.39 s to a Docker volume, 2.6 s to an S3-compatible store (SeaweedFS) in a container, 7.3 s to a host folder shared into the VM. The same shared folder made kind's checkpoints 36 times slower than Slurm's</td><td>Storage and data movement, sections 1 to 5</td></tr>
+<tr><td>Who writes what at a checkpoint (3.2M parameters, slow shared folder)</td><td>Rank 0 alone 0.98 s; every rank writing the full state 2.95 s for 4 times the bytes; FSDP gathered to rank 0 then one file 1.51 s (0.43 s of it gathering); FSDP with PyTorch DCP, one shard per rank, 1.67 s. On one shared pipe sharding is not faster; on a cluster each node brings its own link</td><td>Storage and data movement, section 8; <a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a> (DCP)</td></tr>
+<tr><td>Asynchronous checkpointing</td><td>Time training stood still per checkpoint: 1.81 s synchronous against 78 ms with <code>dcp.async_save</code> on the slow folder. The first attempt hung (and a rerun crashed with <code>op.nread == op.preamble.nbytes</code>) until the background save got its own process group</td><td><a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a>, section 5 (asynchronous checkpoints)</td></tr>
+<tr><td>Small files</td><td>The same 64 MiB as 16,384 files of 4 KiB read at 26 MB/s from a Docker volume against 1,774 MB/s as 16 files of 4 MiB, and at 2.9 MB/s from the S3 store: each file or object pays a fixed cost</td><td>Storage and data movement, section 4 and Metadata storm</td></tr>
+<tr><td>Prefetch</td><td>A loop needing one 4 MiB shard per 100 ms step stalled 147 ms in all on the S3 store fetching on demand, and 8 ms with two shards in flight</td><td><a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">Storage and loading at scale</a></td></tr>
+<tr><td>Restore</td><td>A 4-rank DCP checkpoint loaded into 2 ranks, 3 ranks and one process, tensor for tensor identical. A truncated <code>torch.save</code> file fails with "PytorchStreamReader failed reading zip archive"; a missing DCP shard with <code>CheckpointException</code>; a changed model with "size mismatch"</td><td>Fault tolerance at scale, section 6 (restore traps)</td></tr>
+</tbody></table></div>
 </section>
 <section id="io-s5">
-<h2>5. Checkpoint-time calculator: from this laptop to 16,384 GPUs</h2>
+<h2>3. Checkpoint-time calculator: from this laptop to 16,384 GPUs</h2>
 <p>At scale the measurement turns into arithmetic. Three numbers decide how long a checkpoint stops training: its size, the slowest pipe it must squeeze through (one node's link for a consolidated write; all the nodes' links or the storage system's aggregate bandwidth, whichever is smaller, for a sharded one), and, for asynchronous checkpointing, the copy of each GPU's shard to host memory. Everything below is <span class="io-tag io-derived">derived</span> from the inputs; each tier's number says where it comes from.</p>
 <div class="io-card io-calc" id="io-calc">
 <div class="seg" id="io-c-pre"><button data-m="ex">Running example</button><button data-m="b8">8B, 64 GPUs</button><button data-m="b70">70B, 1,024 GPUs</button><button data-m="b405" class="on">405B, 16,384 GPUs</button><button data-m="b671">671B, 2,048 GPUs</button></div>
@@ -1760,57 +1515,7 @@ This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes
 <p class="small mute">Defaults check: 405B at 14 bytes on 16,384 GPUs gives 5.67 TB, 346 MB per GPU (inside Llama 3's stated 1 MB to 4 GB per GPU) and 2.8 s at Tectonic's 2 TB/s sustained. Simplifications, said plainly: no metadata or file-creation cost, no gather time for the consolidated write, perfect parallelism, and a store that sustains its rated bandwidth under a burst (Meta built Tectonic's 7 TB/s peak for exactly this). The formulas are recomputed in <code>src/io/recompute.py</code>.</p>
 </section>
 
-<section id="io-s6">
-<h2>6. Reading data: big files, prefetch, and the small-files problem</h2>
-<p>Reading training data is the easy pattern: sequential, predictable, and small next to the compute for text (the <a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">throughput calculator on Storage and loading</a> shows Llama 3 405B needed about 11 MB/s of token ids for the whole job). Two things still go wrong, and both are about <b>requests</b>, not bytes. Measured with 64 MiB of the running example's token ids, stored as 16 files of 4 MiB or as 16,384 files of 4 KiB (the same bytes), on a Docker volume and on the S3 store, from one container <span class="io-tag io-measured">measured</span>:</p>
-<div class="io-card"><div class="tw"><table class="io-tbl"><thead><tr><th>Same 64 MiB as</th><th>Store</th><th class="num">Write</th><th class="num">Read, 1 at a time</th><th class="num">Read, 16 threads</th></tr></thead><tbody id="io-dr-rows"></tbody></table></div>
-<p class="small" id="io-dr-text"></p></div>
-<p><b>The small-files problem.</b> Each file costs an open, a metadata lookup and a close; each object costs an HTTP request. At 4 KiB per file those fixed costs are the whole bill. On a parallel file system they land on the metadata servers, which are far fewer than the storage servers: FSx for Lustre, for example, includes 1,500 metadata IOPS at 1.2 TiB and serves 2 file create/open/close operations per metadata IOPS <span class="io-tag io-vendor">vendor</span> (<a href="https://docs.aws.amazon.com/fsx/latest/LustreGuide/performance.html" target="_blank" rel="noopener noreferrer">AWS</a>), so a thousand nodes each opening millions of tiny files saturate it long before the disks are busy. The cure is the one <a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">Storage and loading</a> teaches: pack samples into shards of tens to hundreds of megabytes. Checkpoints obey the same rule: DCP writes one file per rank, not one per tensor.</p>
-<p><b>Prefetch.</b> A loader that fetches the next shard only when it needs it adds the fetch to every step; one that keeps the next shards in flight hides it, as long as fetching is faster than computing. A loop that needs one 4 MiB shard per step and computes for 100 ms (a sleep standing in for the GPU):</p>
-<div class="io-card" id="io-pf-card"><div class="seg" id="io-pf-st"><button data-m="s3" class="on">S3 store</button><button data-m="local">Docker volume</button></div>
-<div id="io-pf-svg" class="io-svg"></div><p class="small" id="io-pf-text"></p></div>
-</section>
-
-<section id="io-s7">
-<h2>7. Restoring: when a checkpoint will not load</h2>
-<p>A checkpoint is only as good as its restore, and restores fail in a few recognisable ways. Each of these is a real message from this lab (torch 2.14.1):</p>
-<div id="io-errs"></div>
-<p><b>Resharding works.</b> The 4-rank DCP checkpoint loaded into 2 ranks and into 3 ranks, and into a single process with no process group at all, each time tensor for tensor identical to the full state <span class="io-tag io-measured">measured</span>. DCP's <code>.metadata</code> records which byte ranges of which tensor live in which file, so any number of ranks can ask for the pieces they now own. A consolidated <code>torch.save</code> file can also be loaded anywhere, but only by first reading the whole thing into one process.</p>
-<p><b>Is the resume exact?</b> The running example resumes bit-exactly (the setup checked it: global loss at steps 150 and 200 identical to an uninterrupted run), because its checkpoint holds everything that carries state. The <a href="#" data-tab="t-fail">Failure lab</a> kills real runs on all three clusters and checks loss continuity after restart.</p>
-</section>
-
-<section id="io-s8">
-<h2>8. Common mistakes</h2>
-<details class="qa"><summary>Writing the checkpoint in place, or renaming without fsync</summary><div>A crash mid-write leaves a half file, and the next start loads it: "PytorchStreamReader failed reading zip archive: failed finding central directory" (above). train.py writes <code>step_N.pt.tmp</code>, renames it, then updates <code>latest</code>: a reader never sees a partial file. But it does not call <code>fsync</code> before the rename, so after a power loss (not a process crash) the renamed file can still be empty on some file systems. Write, fsync the file, rename, fsync the directory; on macOS, <code>F_FULLFSYNC</code>. Object stores give atomicity for free: an object appears only when its upload completes.</div></details>
-<details class="qa"><summary>Every rank saves the full state</summary><div>The forgotten <code>if rank == 0</code> in DDP: N copies of the same bytes, at the same moment, on the same storage. Here, 4 times the bytes took 3 times as long on a shared pipe. Use rank 0 for small DDP models, DCP for anything sharded.</div></details>
-<details class="qa"><summary>Consolidating a sharded model to one file every time</summary><div>Gathering the full state onto one rank needs that rank to hold all of it in memory and pushes it through one node's link. Save sharded during training; consolidate once, offline, when exporting.</div></details>
-<details class="qa"><summary>Running async checkpointing on the training process group</summary><div>Two threads issuing collectives on one group: a hang or a crash ("op.nread == op.preamble.nbytes" with gloo here). Give <code>async_save</code> its own group.</div></details>
-<details class="qa"><summary>Starting the next async checkpoint before the last one finished</summary><div>If the upload takes longer than the interval, checkpoints pile up in host memory. Wait on the previous future before staging the next (dist_ckpt.py does), and size the interval so the upload fits.</div></details>
-<details class="qa"><summary>Trusting that a path is local</summary><div>On kind, <code>/shared</code> looks like any directory and was 36 times slower than Slurm's volume for the same 1.39 MB file. Measure a mount with the real write (size, fsync, rename) before putting checkpoints on it.</div></details>
-<details class="qa"><summary>Millions of small files on a parallel file system</summary><div>Metadata servers, not disks, become the limit; the whole cluster slows down, not only your job. Shard data and keep checkpoint files per rank, not per tensor.</div></details>
-<details class="qa"><summary>Keeping every checkpoint, or only the last one</summary><div>Every checkpoint of a 405B run is 5.7 TB; keeping all of them is expensive. Keeping only the latest means one corrupted or bad checkpoint (a loss spike saved right before a crash) leaves nothing to fall back on. Keep the last few, plus periodic milestones, and delete the rest automatically.</div></details>
-</section>
-
-<section id="io-s9">
-<h2>9. Interview questions</h2>
-<details class="qa"><summary>How big is the checkpoint of a 70B model trained with AdamW in mixed precision, and how long does it take to write?</summary><div>About 14 bytes per parameter (bf16 weights 2, fp32 master 4, two fp32 moments 8): 0.98 TB. Time = size / the slowest pipe: at 100 GB/s of aggregate storage bandwidth, about 10 s if sharded across enough nodes that their links are not the limit; through one node's 50 GB/s link (consolidated), about 20 s plus the gather.</div></details>
-<details class="qa"><summary>Your 1,024-GPU job spends 8% of its time checkpointing. What do you do?</summary><div>First measure where the time goes: gather, serialisation, or storage bandwidth. Then: shard (DCP) so every node writes in parallel; go asynchronous so training stops only for the GPU to host copy; check the storage system's aggregate bandwidth against size / target time and buy bandwidth if it is the limit; and choose the interval from the failure rate (the Young/Daly optimum in the <a href="#" data-tab="t-fail">Failure lab</a>), not by habit.</div></details>
-<details class="qa"><summary>Why can't you just checkpoint to local NVMe?</summary><div>You can, and should, as a first stage: it is fast and parallel. But a checkpoint on a node that dies is gone or unreachable, and the restarted job usually lands on different nodes. So copy it onward (to the parallel file system or object storage) in the background, or replicate it to peers' memory or disks as Gemini did.</div></details>
-<details class="qa"><summary>Lustre or S3 for checkpoints?</summary><div>A parallel file system gives the highest burst bandwidth and POSIX semantics (rename, partial reads), but it is priced by capacity and its bandwidth comes with capacity. Object storage is cheap and scales with parallel requests, with tens of milliseconds per request and whole-object writes. Common answer: write to the parallel file system or local NVMe on the critical path, then copy to object storage for durability and retention.</div></details>
-<details class="qa"><summary>A job resumed from a checkpoint and the loss jumped. What do you check?</summary><div>Whether the checkpoint holds everything that carries state: optimiser moments (a fresh AdamW restarts its estimates), the learning-rate schedule's step, data loader position (the data seen again or skipped), and RNG states. Then whether the world size or parallel layout changed and the load resharded correctly; then whether you loaded the latest complete checkpoint and not a partial one.</div></details>
-</section>
-
-<section id="io-s10">
-<h2>10. Method and sources</h2>
-<ul class="tight small">
-<li>Code that ran (all in <code>src/io/</code>): <code>ckpt_anatomy.py</code>, <code>ckpt_io.py</code> and <code>s3_io.py</code> driven by <code>run_tiers.sh</code>; <code>dist_ckpt.py</code> driven by <code>run_dist.sh</code> (native) and <code>run_dist_slow.sh</code> (container); <code>errors.py</code>; <code>data_read.py</code> driven by <code>run_data.sh</code>; <code>summarise.py</code> and <code>make_data_js.py</code> turn the raw records (<code>src/io/out/raw/</code>) into the page's data; <code>recompute.py</code> checks the calculator.</li>
-<li>Software: torch 2.14.1 (macOS wheel natively, 2.14.1+cpu in the running example's image), boto3 1.43.114, SeaweedFS 4.48 (image digest in <code>src/io/README.md</code>), Docker Desktop engine 20.10.17. Distributed runs: gloo, one thread per rank.</li>
-<li>Machine: Apple M1 Pro, 16 GB, shared with other jobs; Docker Desktop's Linux VM (5 CPUs, 9.7 GiB). Containers capped (2 CPUs, at most 2 GB; the store at 1 GB after a 512 MB cap was killed by the kernel's out-of-memory killer mid-upload of the 304 MB checkpoint). Timings are rough; repeat counts and ranges are in the data.</li>
-<li>Published and vendor numbers, read 2026-10-16: Llama 3 (arXiv 2407.21783, &sect;3.3), Gemini 1.0 report (arXiv 2312.11805, &sect;3), OLMo 2 (arXiv 2501.00656, &sect;6), DeepSeek-V3 report (arXiv 2412.19437), PyTorch blog on asynchronous checkpointing (November 2024), AWS S3 performance and price list (2026-10-15), AWS FSx for Lustre performance and pricing, NVIDIA DGX B200 user guide, Micron 9550 product page.</li>
-<li>Source quoted: PyTorch v2.14.1, <code>torch/distributed/checkpoint/_dedup_save_plans.py</code> and <code>state_dict_saver.py</code> (async_save stages to CPU memory by default, then saves in a separate thread: docstring lines 233-234).</li>
-</ul>
-<div class="deepnote"><b>Go deeper (optional):</b> the child page <b><a href="https://app.notion.com/p/3fc5c17b0d0d818a94ced3fc7c3331fe" target="_blank" rel="noopener noreferrer">Storage and data movement: parallel file systems, object storage and checkpoint I/O</a></b> (its Striping lab measures Lustre-style striping on a toy parallel file system, Metadata storm shows many small-file operations overloading a metadata server, Sizing calculator sizes storage for a checkpoint burst); restore traps and checkpoint frequency on <b><a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a></b>.</div>
-</section>
+<div class="deepnote"><b>Go deeper (optional):</b> the child page <b><a href="https://app.notion.com/p/3fc5c17b0d0d818a94ced3fc7c3331fe" target="_blank" rel="noopener noreferrer">Storage and data movement: parallel file systems, object storage and checkpoint I/O</a></b>: its <b>Striping lab</b> measures Lustre-style striping on a toy parallel file system, <b>Metadata storm</b> shows many small-file operations overloading a metadata server, and <b>Sizing calculator</b> sizes storage for a checkpoint burst (the reverse of the calculator above). Asynchronous and in-memory checkpoints, and restore traps, on <a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a>; formats, shards and data loaders on <a href="https://app.notion.com/p/3f95c17b0d0d81398782efcb29d950d4" target="_blank" rel="noopener noreferrer">Storage and loading at scale</a>. Code that ran is in <code>src/io/</code>; the sections cut from this tab on 2026-10-19 are kept in <code>src/for_children/storage_lab_cut/</code>.</div>
 </div>
 <div class="tab" id="t-cost" role="tabpanel" hidden>
 <style>
@@ -1874,7 +1579,7 @@ This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes
 <dt><dfn>GPU-hour</dfn></dt><dd>One GPU held for one hour. A cloud bill, a reservation and a scheduler's accounting (<code>sacct</code>'s <code>AllocTRES</code> times <code>Elapsed</code>) all count this, not work done. 1,024 GPUs for a day is 24,576 GPU-hours.</dd>
 <dt><dfn>Allocated vs used</dfn></dt><dd>The scheduler <i>allocates</i> GPUs to a job from its start to its end. Whether a kernel ran on them is a separate question that only the GPU's own counters answer.</dd>
 <dt><dfn>Scheduling efficiency</dfn></dt><dd>Allocated GPU-hours divided by the GPU-hours the cluster could have given out over the same period. What is left over is <dfn>idle</dfn> (no job wanted it) or <dfn>fragmentation</dfn> (jobs wanted GPUs but the free ones were in the wrong shape: 4 free GPUs spread over 4 nodes cannot run a job that needs 4 on one node).</dd>
-<dt><dfn>Goodput</dfn></dt><dd>The share of wall-clock time that becomes kept training progress, after failures, restarts and checkpoint pauses. The <a href="#" data-tab="t-fail">Failure lab</a> derives it and its optimum checkpoint interval; this tab only prices it.</dd>
+<dt><dfn>Goodput</dfn></dt><dd>The share of wall-clock time that becomes kept training progress, after failures, restarts and checkpoint pauses. <a href="https://app.notion.com/p/3fc5c17b0d0d815786d1c1dddb311a9b" target="_blank" rel="noopener noreferrer">Fault tolerance at scale</a> accounts for it and <a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling, reliability</a> derives its optimum checkpoint interval; this tab only prices it.</dd>
 <dt><dfn>MFU</dfn> and <dfn>HFU</dfn></dt><dd>Model FLOPs Utilisation: the FLOPs the model needs per step (about 6 per parameter per token) divided by what the GPUs could do at peak in that time. Hardware FLOPs Utilisation also counts recomputed work, so it is never below MFU. Both are explained, with published values and a calculator, on <a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a> (Topic: hardware); here MFU is the last loss in the chain.</dd>
 </dl>
 </section>
@@ -1924,7 +1629,7 @@ This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes
 <div class="co-leg" id="co-f-leg"></div>
 <p class="co-cap" id="co-f-cap">Select a bar for its story.</p>
 </div>
-<p>The pattern scales. A crash costs <b>the work since the last checkpoint plus the restart</b>, so the checkpoint interval is a cost knob (the <a href="#" data-tab="t-fail">Failure lab</a> finds its optimum). A lost node costs <b>detection plus requeue delay</b>: here Slurm noticed after <span data-co="nodedet"></span> (<code>SlurmdTimeout=30</code>) and then waited <span data-co="nodegap"></span> before starting the requeued job (a requeued job's earliest start is pushed back by the credential lifetime, the <a href="#" data-tab="t-sched">Scheduling lab</a> found in <code>job_mgr.c</code>). A hang is the worst kind: it holds every GPU <b>until a timeout fires</b> (<span data-co="hangdet"></span> here, because the lab set a short one; PyTorch's default process-group timeout is 30 minutes, NCCL's 10) and produces nothing. And one slow rank makes <b>all</b> ranks slow: synchronous training runs at the pace of the slowest, so a straggler multiplies cost by the number of GPUs waiting for it.</p>
+<p>The pattern scales. A crash costs <b>the work since the last checkpoint plus the restart</b>, so the checkpoint interval is a cost knob (<a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling, reliability</a>'s Checkpoint simulator finds its optimum). A lost node costs <b>detection plus requeue delay</b>: here Slurm noticed after <span data-co="nodedet"></span> (<code>SlurmdTimeout=30</code>) and then waited <span data-co="nodegap"></span> before starting the requeued job (a requeued job's earliest start is pushed back by the credential lifetime, the <a href="#" data-tab="t-sched">Scheduling lab</a> found in <code>job_mgr.c</code>). A hang is the worst kind: it holds every GPU <b>until a timeout fires</b> (<span data-co="hangdet"></span> here, because the lab set a short one; PyTorch's default process-group timeout is 30 minutes, NCCL's 10) and produces nothing. And one slow rank makes <b>all</b> ranks slow: synchronous training runs at the pace of the slowest, so a straggler multiplies cost by the number of GPUs waiting for it.</p>
 </section>
 <section id="co-prices">
 <h3>What a GPU-hour costs <span class="co-tag co-p">published</span></h3>
@@ -1951,7 +1656,7 @@ This is why DCP on a <i>replicated</i> DDP model ("DDP, DCP" above) still writes
 <label>Interruptions per 1,000 GPU-days<input type="number" id="co-c-fr" min="0" step="0.01"><span class="src" id="co-c-fr-s"></span></label>
 <label>Checkpoint stall (s)<input type="number" id="co-c-ck" min="0" step="5"><span class="src"><span class="co-tag co-a">assumption</span> time training stops per save; async saving shrinks it (<a href="#" data-tab="t-io">Storage lab</a>)</span></label>
 <label>Restart time (min)<input type="number" id="co-c-rs" min="0" step="1"><span class="src"><span class="co-tag co-a">assumption</span> detect, replace node, reschedule, reload</span></label>
-<label>Checkpoint interval (min)<input type="number" id="co-c-iv" min="1" step="1"><span class="src"><button id="co-c-yd" class="small">Use Young/Daly optimum</button> &radic;(2 &times; stall &times; MTBF), derived on the <a href="#" data-tab="t-fail">Failure lab</a></span></label>
+<label>Checkpoint interval (min)<input type="number" id="co-c-iv" min="1" step="1"><span class="src"><button id="co-c-yd" class="small">Use Young/Daly optimum</button> &radic;(2 &times; stall &times; MTBF), derived on <a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling, reliability</a></span></label>
 <label>Reserved but not running this job (%)<input type="number" id="co-c-idle" min="0" max="90" step="1"><span class="src"><span class="co-tag co-a">assumption</span> queue gaps, fragmentation, maintenance; the Slurm FIFO queue above left 29% idle</span></label>
 <label>Deadline for capacity planning (days)<input type="number" id="co-c-dl" min="1" step="1"></label>
 </div>
@@ -2151,8 +1856,8 @@ Since 2024 the owners changed more than the tools: NVIDIA bought Run:ai and Sche
 <div class="grid">
 <div class="sp"><div class="n"><a href="#" data-tab="t-sched">Scheduling lab</a></div><p>One workload through real Slurm (FIFO, backfill, fairshare), Kubernetes (default scheduler against Kueue, the gang deadlock) and Ray placement groups; a simulator for bigger clusters.</p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-launch">Launch lab</a></div><p>Submit to first step on each system, stage by stage; the environment each one sets; every common hang, induced, with its real symptom.</p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-fail">Failure lab</a></div><p>Killing ranks, containers and pods mid-run; restart from checkpoint and loss continuity; stragglers; the goodput simulator; published failure data.</p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-io">Storage lab</a></div><p>Checkpoint size and write time by tier, sharded against consolidated, sync against async; the checkpoint-time calculator.</p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-fail">Failure lab</a></div><p>Killing ranks, containers and pods mid-run on Slurm, Kubernetes and Ray, replayed from the logs; every other measured result in one table.</p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-io">Storage lab</a></div><p>The storage tiers compared; measured checkpoint, async and data-reading results in one table; the checkpoint-time calculator.</p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-cost">Cost lab</a></div><p>The run-cost calculator, the utilisation waterfall, what "100% GPU utilisation" means.</p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-map">Tool map</a></div><p>Every scheduler, launcher, storage system and platform with status, dates, licence and a verdict.</p></div>
 </div>
@@ -2172,7 +1877,7 @@ Since 2024 the owners changed more than the tools: NVIDIA bought Run:ai and Sche
 
 <h3>Neighbouring knowledge-base pages</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c9b2cac997583bf572" target="_blank" rel="noopener noreferrer">Training Infrastructure</a> <span class="rt">20 min</span></div><p>The training run's view of failures: effective training time, checkpoint pauses, recovery, stragglers, silent data corruption.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b" target="_blank" rel="noopener noreferrer">Topic: llm-training-and-post-training</a> <span class="rt">27 min</span></div><p>The training side: the stages a cluster runs, and in its Machinery section ("Running the job") the stack of a big run bottom to top, the 2026 frameworks and a checklist.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> <span class="rt">24 min</span></div><p>Data, tensor, pipeline and expert parallelism: what the ranks launched here actually do.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a> <span class="rt">39 min</span></div><p>c10d, DDP, FSDP2, DTensor, distributed checkpoints, torchrun from PyTorch's side.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a> <span class="rt">37 min</span></div><p>NVLink, InfiniBand and RoCE, fabrics and rails, why the network picks your parallelism.</p></div>
@@ -3308,30 +3013,11 @@ window.FL_H=(function(){
   return {RM,esc,$,onRender,width,svg,t,rect,line,seg,anim,drills,fmt,tabVisible};
 })();
 </script>
-<script>/* 33_js_fl_2cause.js */
-// ---- Failure lab: Llama 3 Table 5 bars, and the prose numbers filled from the recorded data ----
+<script>/* 33_js_fl_2nums.js */
+// ---- Failure lab: numbers in the prose and the summary table, filled from the recorded data; predict-then-reveal ----
+// (The Table 5 chart that used to live here moved out on 2026-10-19 with the sections cut to src/for_children/fail_lab_cut/.)
 (function(){
-  const H=window.FL_H,D=window.FL_DATA;if(!H||!D)return;const $=H.$,esc=H.esc;
-  const CAT={'GPU':'var(--c1)','Dependency':'var(--c4)','Network':'var(--c6)','Unplanned Maintenance':'var(--c5)','Host':'var(--c2)','Unknown':'var(--mute)'};
-  let mode='row';
-  function draw(){
-    const el=$('fl-l3-svg');if(!el)return;const rows=D.l3.rows,tot=D.l3.unexpected;
-    let items;
-    if(mode==='row'){items=rows.map(r=>({n:r[0],c:r[1],k:r[2],p:r[3]})).sort((a,b)=>b.k-a.k)}
-    else{const m={};rows.forEach(r=>{m[r[1]]=m[r[1]]||{n:r[1],c:r[1],k:0,p:0};m[r[1]].k+=r[2];m[r[1]].p+=r[3]});items=Object.values(m).sort((a,b)=>b.k-a.k)}
-    const mx=items[0].k;
-    let h='<div class="bars">';
-    items.forEach(it=>{
-      const pct=100*it.k/tot,bad=mode==='row'&&Math.abs(Math.round(pct*10)/10-it.p)>0.05;
-      const note=bad?' <span class="fl-der" title="printed in the paper">printed '+it.p.toFixed(1)+'%</span>':'';
-      h+='<div class="row'+(bad?' hl':'')+'"><span class="nm" title="'+esc(it.n)+'">'+esc(it.n)+'</span><span class="track"><span class="fill" style="width:'+(100*it.k/mx).toFixed(1)+'%;background:'+CAT[it.c]+'"></span></span><span class="val">'+it.k+' ('+pct.toFixed(1)+'%)</span></div>'+(note?'<div class="small" style="margin:-2px 0 4px;text-align:right">'+note+' in Table 5</div>':'');
-    });
-    h+='</div>';
-    if(mode==='row'){h+='<div class="fl-leg">'+Object.keys(CAT).map(k=>'<span><i style="background:'+CAT[k]+'"></i>'+esc(k)+'</span>').join('')+'</div>'}
-    el.innerHTML=h;
-  }
-  H.seg($('fl-l3-mode'),m=>{mode=m;draw()});
-  H.onRender(draw);draw();
+  const H=window.FL_H,D=window.FL_DATA;if(!H||!D||!H.$('t-fail'))return;const $=H.$;
   // prose numbers from the data
   const set=(id,v)=>{const e=$(id);if(e)e.textContent=v};
   const r=D.calc&&D.calc.rates;
@@ -3344,6 +3030,7 @@ window.FL_H=(function(){
   const w2=D.elastic.cmp.filter(c=>c[1]===2);const nd=w2.filter(c=>c[2]!==c[3]);
   set('fl-el-nd',nd.length);set('fl-el-nt',w2.length);set('fl-el-mx',Math.max(...w2.map(c=>Math.abs(c[2]-c[3]))).toExponential(1));
   const hl=D.calc&&D.calc.headline_16k;if(hl){set('fl-gp-h1',Math.round(hl.opt_min));set('fl-gp-h2',Math.round(100*hl.goodput_opt));set('fl-gp-h3',Math.round(100*hl.goodput_opt_R60))}
+  H.drills($('t-fail'));
 })();
 </script>
 <script>/* 33_js_fl_3matrix.js */
@@ -3408,199 +3095,6 @@ window.FL_H=(function(){
   const A=H.anim({card:'fl-mx-card',ctl:'fl-tl-ctl',n:S[cur].events.length,draw,ms:1500,label:'Event'});
 })();
 </script>
-<script>/* 33_js_fl_4ckpt.js */
-// ---- Failure lab: the same crash with and without checkpoints (animated), and the bit-for-bit tables ----
-(function(){
-  const H=window.FL_H,D=window.FL_DATA;if(!H||!D)return;const $=H.$,esc=H.esc;
-  const C=D.ckpt;let mode='without';const N=60;
-  const segs=run=>{const out=[];let cur=[];run.pts.forEach(p=>{if(cur.length&&p[1]<cur[cur.length-1][1]){out.push(cur);cur=[]}cur.push(p)});if(cur.length)out.push(cur);return out};
-  function draw(i){
-    const el=$('fl-ck-svg');if(!el)return;const run=C[mode],base=C.base;
-    const tmax=Math.max(C['with'].end_t,C['without'].end_t)*1.03;const W=H.width(el),h=230,L=40,R=12,T=12,B=30;
-    const X=t=>L+(W-L-R)*t/tmax,Y=s=>T+(h-T-B)*(1-s/200);
-    const tnow=tmax*i/(N-1);
-    let b='';
-    [0,50,100,150,200].forEach(s=>{b+=H.line(L,Y(s),W-R,Y(s),'var(--line)');b+=H.t(L-6,Y(s)+4,String(s),{a:'end',fs:10,fill:'var(--mute)'})});
-    for(let t=0;t<=tmax;t+=10){const x=X(t);b+=H.t(x,h-12,t+' s',{a:'middle',fs:10,fill:'var(--mute)'})}
-    b+=H.t(L,T-2+0,'step',{fs:10,fill:'var(--mute)'});
-    const poly=(pts,col,o)=>pts.length>1?'<polyline fill="none" stroke="'+col+'" stroke-width="'+((o&&o.sw)||2)+'"'+(o&&o.dash?' stroke-dasharray="'+o.dash+'"':'')+' points="'+pts.map(p=>X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)).join(' ')+'"/>':'';
-    b+=poly(base.pts,'var(--mute)',{dash:'4 3',sw:1.5});
-    b+=H.t(X(base.end_t)-4,Y(200)-4,'no failure',{a:'end',fs:10,fill:'var(--mute)'});
-    const sg=segs(run);let done=0,lastStep=0,redone=0;
-    sg.forEach((s,k)=>{const vis=s.filter(p=>p[0]<=tnow);if(vis.length){b+=poly(vis,k===0?'var(--acc)':'var(--good)',{sw:2.5});lastStep=vis[vis.length-1][1]}});
-    if(run.crash_t!=null&&tnow>=run.crash_t){const cy=Y(120);b+='<circle cx="'+X(run.crash_t).toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="6" fill="var(--bad)"/>';b+=H.t(X(run.crash_t),cy-10,'crash',{a:'middle',fs:11,w:600,fill:'var(--bad)'})}
-    if(sg.length>1&&tnow>=sg[1][0][0]){const r=sg[1][0];b+=H.line(X(run.crash_t),Y(120),X(r[0]),Y(r[1]),'var(--bad)',{dash:'3 3'});redone=120-r[1]}
-    if(tnow>=run.end_t){b+='<circle cx="'+X(run.end_t).toFixed(1)+'" cy="'+Y(200).toFixed(1)+'" r="5" fill="var(--good)"/>'}
-    b+=H.line(X(tnow),T,X(tnow),h-B,'var(--acc)',{op:.35});
-    el.innerHTML=H.svg(W,h,b,'Training progress against time, '+(mode==='with'?'with':'without')+' checkpoints');
-    let cap;
-    if(tnow<run.crash_t)cap='Attempt 1 runs normally: 4 ranks on c1 and c2'+(mode==='with'?', writing a checkpoint at steps 50 and 100.':', no checkpoints.');
-    else if(sg.length>1&&tnow<sg[1][0][0])cap='Rank 3 exits with code 13 after step 120; the job fails within a second, and it is resubmitted by hand.';
-    else if(tnow<run.end_t)cap=mode==='with'?'Attempt 2 loads step_000100.pt: only steps 100 to 120 are redone.':'Attempt 2 finds no checkpoint and starts again from step 0: all 120 steps are redone.';
-    else cap='Done. '+(mode==='with'?'Finished '+(run.end_t-base.end_t).toFixed(1)+' s after the uninterrupted run.':'Finished '+(run.end_t-base.end_t).toFixed(1)+' s after the uninterrupted run; the gap grows with how long the run had gone before the crash.');
-    $('fl-ck-cap').textContent=cap;
-    $('fl-ck-out').innerHTML=[['Wall-clock',tnow.toFixed(1)+' s'],['Step reached',String(lastStep)],['Steps redone',String(redone)],['Total time',tnow>=run.end_t?run.end_t.toFixed(1)+' s':'running']].map(([k,v])=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>').join('');
-  }
-  const A=H.anim({card:'fl-ck-card',ctl:'fl-ck-ctl',n:N,draw,ms:220,label:'Time'});
-  H.seg($('fl-ck-mode'),m=>{mode=m;A.go(0)});
-  // bit-for-bit tables
-  const sysName={slurm:'Slurm',k8s:'Kubernetes',ray:'Ray Train'};
-  const bx=$('fl-bx-tbl');
-  if(bx){let h='<thead><tr><th>Run</th><th>System</th><th class="num">Resumed from</th><th class="num">Steps compared</th><th class="num">Identical</th><th>Differ at</th><th class="num">Max difference</th></tr></thead><tbody>';
-    D.scen.filter(s=>s.cont).forEach(s=>{const c=s.cont;h+='<tr><td>'+esc(s.title.replace(/^[^:]*: /,''))+'</td><td>'+sysName[s.sys]+'</td><td class="num">'+c.resumed_from+'</td><td class="num">'+c.compared+'</td><td class="num">'+c.identical+'</td><td>'+(c.differ_at.length?'steps '+c.differ_at.join(', '):'none')+'</td><td class="num">'+(c.max_abs_diff?c.max_abs_diff.toExponential(1):'0')+'</td></tr>'});
-    bx.innerHTML=h+'</tbody>'}
-  const ex=$('fl-ex-tbl');
-  if(ex){let h='<thead><tr><th>4 or 2 ranks, uninterrupted against 100 + 100 steps</th><th class="num">Steps compared</th><th>Differ at</th><th>Exact?</th></tr></thead><tbody>';
-    D.exact.forEach(e=>{const ok=!e.differ_at.length;h+='<tr><td>'+esc(e.label)+'</td><td class="num">'+e.compared+'</td><td>'+(ok?'none':'steps '+e.differ_at.join(', '))+'</td><td class="'+(ok?'ok':'bad')+'">'+(ok?'yes':'no')+'</td></tr>'});
-    ex.innerHTML=h+'</tbody>'}
-})();
-</script>
-<script>/* 33_js_fl_5strag.js */
-// ---- Failure lab: straggler animation (measured step times) and the backward-time probe ----
-(function(){
-  const H=window.FL_H,D=window.FL_DATA;if(!H||!D)return;const $=H.$;
-  let m=0;const STEPS=3,FR=36;
-  const stepMs=()=>D.strag.step_ms[m][0],base=D.strag.step_ms[0][0];
-  function draw(i){
-    const el=$('fl-st-svg');if(!el)return;const W=H.width(el),L=58,R=10,T=8,lane=26,h=T+4*lane+30;
-    const span=STEPS*D.strag.step_ms[2][0];// common scale: three steps of the slowest case
-    const X=ms=>L+(W-L-R)*ms/span;const st=stepMs(),tnow=STEPS*st*i/(FR-1);
-    let b='';
-    for(let r=0;r<4;r++){const y=T+r*lane;b+=H.t(L-8,y+16,'rank '+r,{a:'end',fs:11,w:r===3&&m>0?600:400,fill:r===3&&m>0?'var(--bad)':undefined});
-      for(let k=0;k<STEPS;k++){const t0=k*st;
-        const comp=Math.min(base,st);const busy=r===3?st:comp;// rank 3: compute then its own delay; others: compute then wait
-        const segs=r===3?[[t0,t0+comp,'var(--acc)'],[t0+comp,t0+st,'var(--bad)']]:[[t0,t0+comp,'var(--acc)'],[t0+comp,t0+st,'var(--dim)']];
-        segs.forEach(([a,c,col])=>{if(a>=tnow)return;const e=Math.min(c,tnow);if(e>a)b+=H.rect(X(a),y+4,X(e)-X(a),lane-8,col,{rx:2})});
-        if(t0+st<=tnow)b+=H.line(X(t0+st),y+2,X(t0+st),y+lane-2,'var(--ink)',{op:.5});
-      }}
-    const ax=T+4*lane+4;b+=H.line(L,ax,W-R,ax,'var(--line)');
-    for(let ms=0;ms<=span;ms+=100){const x=X(ms);b+=H.line(x,ax,x,ax+4,'var(--mute)');b+=H.t(x,ax+16,ms+' ms',{a:'middle',fs:10,fill:'var(--mute)'})}
-    el.innerHTML=H.svg(W,h,b,'Four ranks over three steps');
-    const done=Math.min(STEPS,Math.floor(tnow/st+1e-9));
-    $('fl-st-cap').innerHTML=(m===0?'All four ranks compute for about '+base.toFixed(1)+' ms, meet in the all-reduce, and move on together.':'Rank 3 computes, then sleeps '+D.strag.slow_ms[m]+' ms (red). Ranks 0 to 2 finish their compute and wait in the all-reduce (grey) for rank 3: every rank\'s step now takes '+st.toFixed(1)+' ms.')+' <b>Steps done: '+done+'</b> at '+tnow.toFixed(0)+' ms.';
-  }
-  const A=H.anim({card:'fl-st-card',ctl:'fl-st-ctl',n:FR,draw,ms:110,label:'Time'});
-  H.seg($('fl-st-mode'),v=>{m=+v;A.go(0)});
-  function probe(){
-    const el=$('fl-pb-svg');if(!el)return;const P=D.probe;const mx=Math.max(...P.backward_median_ms.flat());
-    let h='<div class="bars">';
-    P.slow_ms.forEach((s,k)=>{h+='<div class="small" style="margin:6px 0 2px;font-weight:600">'+(s?'Rank 3 sleeps '+s+' ms per step':'No straggler')+'</div>';
-      P.backward_median_ms[k].forEach((v,r)=>{const hl=s&&r===3;h+='<div class="row'+(hl?' hl':'')+'"><span class="nm">rank '+r+(hl?' (slow)':'')+'</span><span class="track"><span class="fill" style="width:'+(100*v/mx).toFixed(1)+'%;background:'+(hl?'var(--bad)':'var(--acc)')+'"></span></span><span class="val">'+v.toFixed(1)+' ms</span></div>'})});
-    el.innerHTML=h+'</div>';
-  }
-  probe();H.onRender(probe);
-})();
-</script>
-<script>/* 33_js_fl_6elastic.js */
-// ---- Failure lab: elastic torchrun, shrink and grow, against a run with a spare agent (measured) ----
-(function(){
-  const H=window.FL_H,D=window.FL_DATA;if(!H||!D||!D.elastic)return;const $=H.$;
-  let mode='el';const N=70;
-  const run=()=>mode==='el'?D.elastic:D.spare;
-  function events(r){
-    const E=[];const mk=r.marks,st=r.starts;
-    E.push([st[0][0],'Agents A and B meet at the rendezvous; 4 ranks start (world size 4).']);
-    E.push([mk.kill_B,'Agent B and its two ranks are killed with SIGKILL after step '+(mode==='el'?120:150)+'.']);
-    if(mode==='sp')E.splice(1,0,[mk.start_C,'Agent C starts while the job is full (2 of 2 nodes): it waits as a spare, and training is not disturbed.']);
-    st.slice(1).forEach(s=>E.push([s[0],'Workers restart with world size '+s[1]+' from step_'+String(s[2]).padStart(6,'0')+'.pt, '+(s[0]-mk.kill_B<0?'':((mode==='el'&&s[1]===4)?(s[0]-mk.start_C).toFixed(1)+' s after C started':(s[0]-mk.kill_B).toFixed(1)+' s after the kill'))+' (restart count '+s[3]+').']));
-    if(mode==='el')E.splice(3,0,[mk.start_C,'Agent C starts: a new node is waiting, so the agents restart the workers to let it in.']);
-    return E.sort((a,b)=>a[0]-b[0]);
-  }
-  function draw(i){
-    const el=$('fl-el-svg');if(!el)return;const r=run();const W=H.width(el),h=250,L=40,R=12,T=12,B=56;
-    const tmax=Math.max(...r.pts.map(p=>p[0]))*1.03,X=t=>L+(W-L-R)*t/tmax,Y=s=>T+(h-T-B)*(1-s/400);
-    const tnow=tmax*i/(N-1);let b='';
-    [0,100,200,300,400].forEach(s=>{b+=H.line(L,Y(s),W-R,Y(s),'var(--line)');b+=H.t(L-6,Y(s)+4,String(s),{a:'end',fs:10,fill:'var(--mute)'})});
-    b+=H.t(L,T-2,'step',{fs:10,fill:'var(--mute)'});
-    // segments split at restarts
-    const seg=[];let cur=[];r.pts.forEach(p=>{if(cur.length&&(p[1]<cur[cur.length-1][1]||p[2]!==cur[cur.length-1][2]||p[0]-cur[cur.length-1][0]>6)){seg.push(cur);cur=[]}cur.push(p)});seg.push(cur);
-    seg.forEach(s=>{const v=s.filter(p=>p[0]<=tnow);if(v.length>1)b+='<polyline fill="none" stroke="'+(v[0][2]===2?'var(--c5)':'var(--acc)')+'" stroke-width="2.5" points="'+v.map(p=>X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)).join(' ')+'"/>'});
-    // world size band
-    const by=h-B+10,bh=14;b+=H.t(L-6,by+11,'world',{a:'end',fs:10,fill:'var(--mute)'});
-    const st=r.starts,ends=mode==='el'?[r.marks.kill_B,r.marks.start_C,tmax]:[r.marks.kill_B,tmax];
-    for(let k=0;k<st.length;k++){const a=st[k][0],stop=ends[k];
-      const a2=Math.min(a,tnow),e2=Math.min(stop,tnow);if(e2>a2)b+=H.rect(X(a2),by,X(e2)-X(a2),bh,st[k][1]===2?'var(--c5)':'var(--acc)',{rx:2});
-      if(e2>a2&&X(e2)-X(a2)>22)b+=H.t((X(a2)+X(e2))/2,by+11,String(st[k][1]),{a:'middle',fs:10,fill:'var(--bg)',w:600});
-      if(k+1<st.length){const g0=Math.min(stop,tnow),g1=Math.min(st[k+1][0],tnow);if(g1>g0){b+=H.rect(X(g0),by,X(g1)-X(g0),bh,'var(--bad)',{rx:2,op:.35});if(X(g1)-X(g0)>40)b+=H.t((X(g0)+X(g1))/2,by+11,(st[k+1][0]-stop).toFixed(1)+' s',{a:'middle',fs:10,w:600,fill:'var(--bad)'})}}}
-    for(let t=0;t<=tmax;t+=20)b+=H.t(X(t),h-10,t+' s',{a:'middle',fs:10,fill:'var(--mute)'});
-    const mk=r.marks;[['kill_B','B killed','var(--bad)'],['start_C','C starts','var(--good)']].forEach(([k,lab,col])=>{if(mk[k]!=null&&tnow>=mk[k]){b+=H.line(X(mk[k]),T,X(mk[k]),h-B,col,{dash:'3 3'});b+=H.t(X(mk[k])+3,T+10+(k==='start_C'?14:0),lab,{fs:10,w:600,fill:col})}});
-    b+=H.line(X(tnow),T,X(tnow),h-B,'var(--acc)',{op:.3});
-    el.innerHTML=H.svg(W,h,b,'Elastic run: steps and world size against time');
-    const E=events(r).filter(e=>e[0]<=tnow);const last=E.length?E[E.length-1]:[0,'Starting.'];
-    $('fl-el-cap').innerHTML='<b>'+tnow.toFixed(1)+' s.</b> '+last[1];
-  }
-  const A=H.anim({card:'fl-el-card',ctl:'fl-el-ctl',n:N,draw,ms:180,label:'Time'});
-  H.seg($('fl-el-mode'),v=>{mode=v;A.go(0)});
-})();
-</script>
-<script>/* 33_js_fl_7goodput.js */
-// ---- Failure lab: goodput calculator (exact expected goodput, Young and Daly marked, seeded simulation check) ----
-(function(){
-  const H=window.FL_H,D=window.FL_DATA;if(!H||!D||!D.calc)return;const $=H.$,esc=H.esc;
-  const NS=[8,64,512,1024,4096,16384,65536,100000,131072];
-  const RATE={l3:D.calc.rates.l3_per_gpu_day,opt:D.calc.rates.opt_per_gpu_day};
-  const S={};D.scen.forEach(s=>S[s.id]=s);
-  const PRE=[['torchrun restart in the job',S['s-maxr2'].resume_s],['JobSet restart',S['k-crash2'].resume_s],['Ray Train restart',S['r-crash2'].resume_s],
-    ['Slurm requeue after node loss',S['s-node'].resume_s],['silent Kubernetes node, with a person',S['k-node'].resume_s],['10 minutes (illustrative, at scale)',600]];
-  const st={n:5,rate:'l3',C:60,R:600,tau:null};
-  const logmap=(v,a,b)=>a*Math.pow(b/a,v/100),inv=(x,a,b)=>100*Math.log(x/a)/Math.log(b/a);
-  const C_MIN=1,C_MAX=1800,R_MIN=1,R_MAX=7200;
-  const M=()=>86400/(NS[st.n]*RATE[st.rate]);
-  const gp=(tau,C,R,m)=>tau/(m*Math.exp(R/m)*Math.expm1((tau+C)/m));
-  const tauRange=()=>{const m=M();return [Math.max(5,st.C/4),Math.min(30*86400,Math.max(4*m,3600))]};
-  function best(){const m=M();let a=Math.log(1e-2),b=Math.log(50*m);const g=(Math.sqrt(5)-1)/2;
-    for(let k=0;k<200;k++){const c=b-g*(b-a),d=a+g*(b-a);if(gp(Math.exp(c),st.C,st.R,m)>gp(Math.exp(d),st.C,st.R,m))b=d;else a=c}return Math.exp((a+b)/2)}
-  const young=()=>Math.sqrt(2*st.C*M()),daly=()=>Math.sqrt(2*st.C*(M()+st.R))+st.C;
-  const dur=s=>s<90?s.toFixed(s<10?1:0)+' s':s<5400?(s/60).toFixed(s<600?1:0)+' min':s<172800?(s/3600).toFixed(1)+' h':(s/86400).toFixed(1)+' days';
-  let mc=null;
-  function sim(){// seeded renewal simulation of the same model
-    let x=12345;const rnd=()=>{x|=0;x=x+0x6D2B79F5|0;let t=Math.imul(x^x>>>15,1|x);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
-    const m=M(),tau=st.tau,C=st.C,R=st.R;let time=0,work=0,fails=0;const ex=()=>-m*Math.log(1-rnd());
-    let guard=0;while(fails<3000&&guard<5e6){guard++;let f=ex();
-      if(f>=tau+C){time+=tau+C;work+=tau;continue}
-      time+=f;fails++;// failure during the segment: lose it, then recover (recovery itself can be hit)
-      for(;;){const g=ex();if(g>=R){time+=R;break}time+=g;fails++}}
-    return {g:work/time,fails,tau};
-  }
-  function draw(){
-    const el=$('fl-gp-svg');if(!el)return;if(st.tau==null)st.tau=best();
-    const m=M(),[t0,t1]=tauRange();st.tau=Math.min(t1,Math.max(t0,st.tau));
-    $('fl-gp-nv').textContent=NS[st.n].toLocaleString('en-US');$('fl-gp-cv').textContent=dur(st.C);$('fl-gp-rv').textContent=dur(st.R);$('fl-gp-tv').textContent=dur(st.tau);
-    $('fl-gp-c').value=Math.round(inv(st.C,C_MIN,C_MAX));$('fl-gp-r').value=Math.round(inv(st.R,R_MIN,R_MAX));$('fl-gp-t').value=Math.round(inv(st.tau,t0,t1));
-    const W=H.width(el),h=220,L=40,R=12,T=12,B=30;const lx=t=>L+(W-L-R)*Math.log(t/t0)/Math.log(t1/t0),Y=g=>T+(h-T-B)*(1-g);
-    let b='';[0,0.25,0.5,0.75,1].forEach(g=>{b+=H.line(L,Y(g),W-R,Y(g),'var(--line)');b+=H.t(L-6,Y(g)+4,Math.round(g*100)+'%',{a:'end',fs:10,fill:'var(--mute)'})});
-    const ticks=[10,60,600,3600,6*3600,86400,7*86400].filter(t=>t>=t0&&t<=t1);let last=-99;
-    ticks.forEach(t=>{const x=lx(t);if(x-last<40)return;last=x;b+=H.line(x,h-B,x,h-B+4,'var(--mute)');b+=H.t(x,h-12,dur(t),{a:'middle',fs:10,fill:'var(--mute)'})});
-    let pts=[];for(let k=0;k<=160;k++){const t=t0*Math.pow(t1/t0,k/160);pts.push([lx(t),Y(Math.max(0,gp(t,st.C,st.R,m)))])}
-    b+='<polyline fill="none" stroke="var(--acc)" stroke-width="2.5" points="'+pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')+'"/>';
-    const bt=best(),mark=(t,lab,col,dy)=>{if(t<t0||t>t1)return;const x=lx(t);b+=H.line(x,T,x,h-B,col,{dash:'3 3'});const anc=x>W*0.75?'end':'start';b+=H.t(x+(anc==='end'?-3:3),T+10+dy,lab,{a:anc,fs:10,w:600,fill:col})};
-    mark(young(),'Young','var(--c4)',0);mark(daly(),'Daly','var(--c5)',13);mark(bt,'optimum','var(--good)',26);
-    const g=gp(st.tau,st.C,st.R,m);b+='<circle cx="'+lx(st.tau).toFixed(1)+'" cy="'+Y(g).toFixed(1)+'" r="6" fill="var(--acc)" stroke="var(--bg)" stroke-width="2"/>';
-    if(mc&&Math.abs(mc.tau-st.tau)<1e-9)b+='<rect x="'+(lx(mc.tau)-5).toFixed(1)+'" y="'+(Y(mc.g)-5).toFixed(1)+'" width="10" height="10" fill="none" stroke="var(--bad)" stroke-width="2"/>';
-    el.innerHTML=H.svg(W,h,b,'Goodput against checkpoint interval');
-    const gb=gp(bt,st.C,st.R,m);
-    $('fl-gp-out').innerHTML=[['Job MTBF M',dur(m)],['Young &radic;(2CM)',dur(young())],['Daly &radic;(2C(M+R))+C',dur(daly())],['Optimum',dur(bt)+', '+(100*gb).toFixed(1)+'%'],['Goodput at your &tau;',(100*g).toFixed(1)+'%'],['Failures per day',(86400/m).toFixed(m<86400?1:2)]]
-      .map(([k,v])=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>').join('');
-    $('fl-gp-mcv').textContent=mc&&Math.abs(mc.tau-st.tau)<1e-9?'simulated '+(100*mc.g).toFixed(1)+'% over '+mc.fails.toLocaleString('en-US')+' failures, formula '+(100*g).toFixed(1)+'% (red square)':'';
-    document.querySelectorAll('#fl-gp-rp button').forEach(bn=>bn.classList.toggle('on',Math.abs(+bn.dataset.r-st.R)<1e-6));
-  }
-  $('fl-gp-rp').innerHTML=PRE.map(([l,r])=>'<button data-r="'+r+'">'+esc(l)+': '+dur(r)+'</button>').join('');
-  $('fl-gp-rp').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.R=+b.dataset.r;mc=null;draw()});
-  $('fl-gp-n').addEventListener('input',e=>{st.n=+e.target.value;mc=null;draw()});
-  $('fl-gp-c').addEventListener('input',e=>{st.C=logmap(+e.target.value,C_MIN,C_MAX);mc=null;draw()});
-  $('fl-gp-r').addEventListener('input',e=>{st.R=logmap(+e.target.value,R_MIN,R_MAX);mc=null;draw()});
-  $('fl-gp-t').addEventListener('input',e=>{const [a,b]=tauRange();st.tau=logmap(+e.target.value,a,b);mc=null;draw()});
-  $('fl-gp-opt').addEventListener('click',()=>{st.tau=best();mc=null;draw()});
-  $('fl-gp-mc').addEventListener('click',()=>{mc=sim();draw()});
-  H.seg($('fl-gp-rate'),v=>{st.rate=v;st.tau=null;mc=null;draw()});
-  H.onRender(draw);draw();
-  // replay table
-  const rp=$('fl-rp-tbl');if(rp&&D.replay){let h='<thead><tr><th>Run</th><th class="num">Steps redone</th><th class="num">Recovery</th><th class="num">Predicted</th><th class="num">Measured</th><th class="num">Error</th></tr></thead><tbody>';
-    h+='<tr><td>uninterrupted (step '+D.replay.step_ms.toFixed(1)+' ms)</td><td class="num">0</td><td class="num">0</td><td class="num">'+D.replay.base_s.toFixed(1)+' s</td><td class="num">'+D.replay.base_s.toFixed(1)+' s</td><td class="num"></td></tr>';
-    D.replay.rows.forEach(r=>{h+='<tr><td>'+esc(r.label)+'</td><td class="num">'+r.redone+'</td><td class="num">'+r.R_s.toFixed(1)+' s</td><td class="num">'+r.predicted_s.toFixed(1)+' s</td><td class="num">'+r.measured_s.toFixed(1)+' s</td><td class="num">'+(r.err_pct>0?'+':'')+r.err_pct.toFixed(1)+'%</td></tr>'});
-    rp.innerHTML=h+'</tbody>'}
-})();
-</script>
 <script>/* 34_js_io_0data.js */
 // ---- Storage lab: recorded measurements (generated by src/io/make_data_js.py from src/io/out/io_data.json; do not edit) ----
 window.IO_D={"anatomy":{"params":112577,"file_bytes":1386049,"zip_entries":126,"tensor_entries":120,"model_fp32_bytes":450308,"adamw_moments_bytes":900616,"adamw_step_tensors_bytes":120,"tensor_payload_bytes":1351044,"pickle_bytes":10347,"zip_overhead_bytes":24607,"other_entries_bytes":51,"bytes_per_param":12.312,"torch":"2.14.1"},"tiers":{"host_ssd":{"ex":{"bytes":1386049,"params":112577,"n":5,"write_s":0.00976,"read_s":0.00456,"write_min":0.00793,"write_max":0.01502,"read_min":0.0044,"read_max":0.00461,"write_MBps":142.0,"read_MBps":304.0},"m":{"bytes":38574433,"params":3209281,"n":5,"write_s":0.03035,"read_s":0.0148,"write_min":0.02637,"write_max":0.03271,"read_min":0.01337,"read_max":0.01603,"write_MBps":1271.0,"read_MBps":2606.4},"l":{"bytes":303952225,"params":25319489,"n":5,"write_s":0.19642,"read_s":0.13525,"write_min":0.13199,"write_max":0.22513,"read_min":0.07738,"read_max":0.22816,"write_MBps":1547.5,"read_MBps":2247.3}},"ctr_layer":{"ex":{"bytes":1386049,"params":112577,"n":5,"write_s":0.00536,"read_s":0.008,"write_min":0.00519,"write_max":0.0082,"read_min":0.00656,"read_max":0.00905,"write_MBps":258.6,"read_MBps":173.3},"m":{"bytes":38574433,"params":3209281,"n":5,"write_s":0.05841,"read_s":0.04006,"write_min":0.05696,"write_max":0.06576,"read_min":0.03549,"read_max":0.07242,"write_MBps":660.4,"read_MBps":962.9},"l":{"bytes":303952225,"params":25319489,"n":5,"write_s":0.40601,"read_s":0.26991,"write_min":0.35005,"write_max":0.44839,"read_min":0.19968,"read_max":0.5688,"write_MBps":748.6,"read_MBps":1126.1}},"ctr_volume":{"ex":{"bytes":1386049,"params":112577,"n":5,"write_s":0.00656,"read_s":0.00914,"write_min":0.00601,"write_max":0.00955,"read_min":0.00837,"read_max":0.01025,"write_MBps":211.3,"read_MBps":151.6},"m":{"bytes":38574433,"params":3209281,"n":5,"write_s":0.05954,"read_s":0.03566,"write_min":0.04963,"write_max":0.07301,"read_min":0.03284,"read_max":0.04249,"write_MBps":647.9,"read_MBps":1081.7},"l":{"bytes":303952225,"params":25319489,"n":5,"write_s":0.38724,"read_s":0.19422,"write_min":0.32237,"write_max":0.40167,"read_min":0.18402,"read_max":0.29641,"write_MBps":784.9,"read_MBps":1565.0}},"ctr_hostdir":{"ex":{"bytes":1386049,"params":112577,"n":5,"write_s":0.13966,"read_s":0.06012,"write_min":0.12771,"write_max":0.14133,"read_min":0.05452,"read_max":0.08376,"write_MBps":9.9,"read_MBps":23.1},"m":{"bytes":38574433,"params":3209281,"n":5,"write_s":1.21863,"read_s":1.11785,"write_min":1.20256,"write_max":1.2379,"read_min":1.04771,"read_max":1.21398,"write_MBps":31.7,"read_MBps":34.5},"l":{"bytes":303952225,"params":25319489,"n":5,"write_s":7.30939,"read_s":9.83877,"write_min":6.8465,"write_max":7.72338,"read_min":8.7437,"read_max":10.30971,"write_MBps":41.6,"read_MBps":30.9}},"ctr_s3":{"ex":{"bytes":1384591,"params":112577,"n":5,"write_s":0.02553,"read_s":0.01414,"write_min":0.01862,"write_max":0.03856,"read_min":0.01241,"read_max":0.02293,"write_MBps":54.2,"read_MBps":97.9},"m":{"bytes":38572303,"params":3209281,"n":5,"write_s":0.30293,"read_s":0.08378,"write_min":0.2472,"write_max":0.36153,"read_min":0.06966,"read_max":0.0927,"write_MBps":127.3,"read_MBps":460.4},"l":{"bytes":303948751,"params":25319489,"n":5,"write_s":2.61083,"read_s":1.51219,"write_min":2.25945,"write_max":4.64297,"read_min":0.87014,"read_max":2.37944,"write_MBps":116.4,"read_MBps":201.0}},"host_s3":{"ex":{"bytes":1384591,"params":112577,"n":5,"write_s":0.09768,"read_s":0.06713,"write_min":0.08476,"write_max":0.10257,"read_min":0.06227,"read_max":0.0773,"write_MBps":14.2,"read_MBps":20.6},"m":{"bytes":38572303,"params":3209281,"n":5,"write_s":1.34795,"read_s":0.78846,"write_min":1.26272,"write_max":1.37074,"read_min":0.77195,"read_max":0.81246,"write_MBps":28.6,"read_MBps":48.9},"l":{"bytes":303948751,"params":25319489,"n":5,"write_s":9.47335,"read_s":5.8375,"write_min":9.38159,"write_max":10.0461,"read_min":5.76389,"read_max":5.96763,"write_MBps":32.1,"read_MBps":52.1}}},"layouts":{"ddp_rank0":{"n":3,"params":25319489,"world":4,"wall_s":0.2365,"wall_all":[0.3003,0.2365,0.2226],"rank_s":[0.2357,0.0,0.0,0.0],"gather_s":[0.0,0.0,0.0,0.0],"files":{"rank0.pt":303929107},"total_bytes":303929107},"ddp_every":{"n":3,"params":25319489,"world":4,"wall_s":0.2808,"wall_all":[0.7007,0.2808,0.2785],"rank_s":[0.28,0.2742,0.2781,0.2716],"gather_s":[0.0,0.0,0.0,0.0],"files":{"rank0.pt":303929107,"rank1.pt":303929107,"rank2.pt":303929107,"rank3.pt":303929107},"total_bytes":1215716428},"fsdp_full":{"n":3,"params":25319489,"world":4,"wall_s":0.5485,"wall_all":[0.5864,0.5318,0.5485],"rank_s":[0.5479,0.4069,0.4068,0.4068],"gather_s":[0.4076,0.4069,0.4068,0.4068],"files":{"full.pt":303966261},"total_bytes":303966261},"fsdp_dcp":{"n":3,"params":25319489,"world":4,"wall_s":0.2197,"wall_all":[0.2715,0.2197,0.1916],"rank_s":[0.2189,0.219,0.219,0.2189],"gather_s":[0.003,0.0029,0.0028,0.0029],"files":{".metadata":268946,"__0_0.distcp":76450242,"__1_0.distcp":76508904,"__2_0.distcp":76508904,"__3_0.distcp":76474344},"total_bytes":306211340},"ddp_dcp":{"n":3,"params":25319489,"world":4,"wall_s":0.1585,"wall_all":[0.1585,0.1496,0.272],"rank_s":[0.1579,0.1584,0.1585,0.1579],"gather_s":[0.0025,0.0025,0.0025,0.0025],"files":{".metadata":123310,"__0_0.distcp":75437192,"__1_0.distcp":75357840,"__2_0.distcp":76856242,"__3_0.distcp":76843626},"total_bytes":304618210}},"train":{"none":{"every":15,"steps":[[1,0.756,0.0],[2,0.6819,0.0],[3,0.6211,0.0],[4,0.6197,0.0],[5,0.6402,0.0],[6,0.726,0.0],[7,0.6675,0.0],[8,0.6471,0.0],[9,0.6417,0.0],[10,0.622,0.0],[11,0.6476,0.0],[12,0.6805,0.0],[13,0.6983,0.0],[14,0.6889,0.0],[15,0.6588,0.0],[16,0.6854,0.0],[17,0.656,0.0],[18,0.6569,0.0],[19,0.6752,0.0],[20,0.7821,0.0],[21,0.6613,0.0],[22,0.6389,0.0],[23,0.674,0.0],[24,0.6539,0.0],[25,0.6522,0.0],[26,0.6998,0.0],[27,0.6492,0.0],[28,0.6814,0.0],[29,0.6621,0.0],[30,0.6718,0.0],[31,0.7363,0.0],[32,0.6955,0.0],[33,0.7245,0.0],[34,0.6771,0.0],[35,0.6935,0.0],[36,0.7022,0.0],[37,0.6314,0.0],[38,0.66,0.0],[39,0.6349,0.0],[40,0.6389,0.0],[41,0.6319,0.0],[42,0.6254,0.0],[43,0.6576,0.0],[44,0.6433,0.0],[45,0.6661,0.0],[46,0.6768,0.0],[47,0.6901,0.0],[48,0.6433,0.0],[49,0.6719,0.0],[50,0.6493,0.0],[51,0.6355,0.0],[52,0.634,0.0],[53,0.6432,0.0],[54,0.6294,0.0],[55,0.652,0.0],[56,0.6853,0.0],[57,0.6692,0.0],[58,0.682,0.0],[59,0.6541,0.0],[60,0.6543,0.0]],"files":{},"loss_last":2.92188,"total_s":39.986},"sync":{"every":15,"steps":[[1,0.9379,0.0],[2,0.717,0.0],[3,0.7179,0.0],[4,0.6933,0.0],[5,0.7301,0.0],[6,0.6718,0.0],[7,0.7541,0.0],[8,0.7928,0.0],[9,0.7816,0.0],[10,0.7021,0.0],[11,0.7603,0.0],[12,0.6946,0.0],[13,0.7298,0.0],[14,0.7828,0.0],[15,1.3857,0.6114],[16,0.9267,0.0],[17,0.8714,0.0],[18,0.7605,0.0],[19,0.7635,0.0],[20,0.6989,0.0],[21,0.7125,0.0],[22,0.8037,0.0],[23,0.6845,0.0],[24,0.7476,0.0],[25,0.7203,0.0],[26,0.7349,0.0],[27,0.7251,0.0],[28,0.6833,0.0],[29,0.6823,0.0],[30,1.055,0.4045],[31,0.7281,0.0],[32,0.6692,0.0],[33,0.6892,0.0],[34,0.6702,0.0],[35,0.6754,0.0],[36,0.6575,0.0],[37,0.7215,0.0],[38,0.6723,0.0],[39,0.6509,0.0],[40,0.6662,0.0],[41,0.7329,0.0],[42,0.6617,0.0],[43,0.6617,0.0],[44,0.6653,0.0],[45,0.9353,0.2594],[46,0.7003,0.0],[47,0.6719,0.0],[48,0.6673,0.0],[49,0.6789,0.0],[50,0.6732,0.0],[51,0.7251,0.0],[52,0.7185,0.0],[53,0.7548,0.0],[54,0.7095,0.0],[55,0.6956,0.0],[56,0.6832,0.0],[57,0.6648,0.0],[58,0.6932,0.0],[59,0.6598,0.0],[60,1.1388,0.4846]],"files":{".metadata":268951,"__0_0.distcp":76450242,"__1_0.distcp":76508904,"__2_0.distcp":76508904,"__3_0.distcp":76474344},"loss_last":2.92188,"total_s":44.714},"async":{"every":15,"steps":[[1,0.9939,0.0],[2,0.7671,0.0],[3,0.7218,0.0],[4,0.7478,0.0],[5,0.7259,0.0],[6,0.7495,0.0],[7,0.6772,0.0],[8,0.7024,0.0],[9,0.7463,0.0],[10,0.7352,0.0],[11,0.7294,0.0],[12,0.8492,0.0],[13,0.7674,0.0],[14,0.7825,0.0],[15,0.8005,0.0654],[16,1.0984,0.0],[17,0.7753,0.0],[18,0.7314,0.0],[19,0.7604,0.0],[20,0.7441,0.0],[21,0.6388,0.0],[22,0.6923,0.0],[23,0.6575,0.0],[24,0.6721,0.0],[25,0.7345,0.0],[26,0.6791,0.0],[27,0.6695,0.0],[28,0.6627,0.0],[29,0.6733,0.0],[30,0.6878,0.0308],[31,1.048,0.0],[32,0.6986,0.0],[33,0.6735,0.0],[34,0.6943,0.0],[35,0.678,0.0],[36,0.6801,0.0],[37,0.677,0.0],[38,0.6778,0.0],[39,0.6658,0.0],[40,0.6543,0.0],[41,0.6988,0.0],[42,0.7673,0.0],[43,0.6814,0.0],[44,0.6694,0.0],[45,0.69,0.0379],[46,0.8081,0.0],[47,0.7126,0.0],[48,0.6957,0.0],[49,0.7731,0.0],[50,0.7413,0.0],[51,0.7381,0.0],[52,0.7338,0.0],[53,0.7894,0.0],[54,0.7292,0.0],[55,0.7351,0.0],[56,0.7185,0.0],[57,0.7388,0.0],[58,0.7917,0.0],[59,0.6843,0.0],[60,0.8666,0.0313]],"files":{".metadata":268953,"__0_0.distcp":76450242,"__1_0.distcp":76508904,"__2_0.distcp":76508904,"__3_0.distcp":76474344},"loss_last":2.92188,"total_s":44.284}},"slow_bind":{"layouts":{"ddp_rank0":{"wall_s":0.9795,"wall_all":[1.0201,0.9675,0.9795],"rank_s":[0.9782,0.0,0.0,0.0],"gather_s":[0.0,0.0,0.0,0.0],"total_bytes":38562259,"nfiles":1,"params":3209281},"ddp_every":{"wall_s":2.9478,"wall_all":[2.9807,2.9189,2.9478],"rank_s":[2.941,2.9171,2.8924,2.8822],"gather_s":[0.0,0.0,0.0,0.0],"total_bytes":154249036,"nfiles":4,"params":3209281},"fsdp_full":{"wall_s":1.5104,"wall_all":[1.5104,1.6249,1.3768],"rank_s":[1.5096,0.4312,0.4327,0.4311],"gather_s":[0.4282,0.4312,0.4327,0.4311],"total_bytes":38580789,"nfiles":1,"params":3209281},"fsdp_dcp":{"wall_s":1.6718,"wall_all":[2.1693,1.6545,1.6718],"rank_s":[1.6608,1.6688,1.6735,1.6643],"gather_s":[0.006,0.0024,0.0026,0.0037],"total_bytes":39777179,"nfiles":5,"params":3209281},"ddp_dcp":{"wall_s":1.0786,"wall_all":[1.2391,1.0695,1.0786],"rank_s":[1.0676,1.0703,1.0741,1.0773],"gather_s":[0.0022,0.0035,0.0029,0.0032],"total_bytes":38933647,"nfiles":5,"params":3209281}},"train":{"none":{"every":15,"steps":[[1,0.8024,0.0],[2,0.5381,0.0],[3,0.5951,0.0],[4,0.7006,0.0],[5,0.6024,0.0],[6,0.656,0.0],[7,0.5994,0.0],[8,0.63,0.0],[9,0.5931,0.0],[10,0.5989,0.0],[11,0.6227,0.0],[12,0.6226,0.0],[13,0.623,0.0],[14,0.5925,0.0],[15,0.6007,0.0],[16,0.5969,0.0],[17,0.597,0.0],[18,0.5375,0.0],[19,0.668,0.0],[20,0.6011,0.0],[21,0.5346,0.0],[22,0.607,0.0],[23,0.582,0.0],[24,0.5954,0.0],[25,0.5853,0.0],[26,0.6154,0.0],[27,0.5972,0.0],[28,0.5967,0.0],[29,0.6089,0.0],[30,0.5867,0.0],[31,0.6117,0.0],[32,0.5903,0.0],[33,0.6597,0.0],[34,0.5979,0.0],[35,0.5485,0.0],[36,0.6812,0.0],[37,0.5891,0.0],[38,0.5983,0.0],[39,0.6007,0.0],[40,0.6054,0.0],[41,0.5975,0.0],[42,0.6039,0.0],[43,0.5871,0.0],[44,0.6009,0.0],[45,0.5967,0.0],[46,0.6,0.0],[47,0.6137,0.0],[48,0.5861,0.0],[49,0.5949,0.0],[50,0.6019,0.0],[51,0.6034,0.0],[52,0.6187,0.0],[53,0.6629,0.0],[54,0.5975,0.0],[55,0.6205,0.0],[56,0.5875,0.0],[57,0.6021,0.0],[58,0.6206,0.0],[59,0.5991,0.0],[60,0.579,0.0]],"loss_last":2.45829,"total_s":36.444,"files":{}},"sync":{"every":15,"steps":[[1,0.7996,0.0],[2,0.586,0.0],[3,0.6142,0.0],[4,0.6003,0.0],[5,0.584,0.0],[6,0.5926,0.0],[7,0.6066,0.0],[8,0.5843,0.0],[9,0.5891,0.0],[10,0.5989,0.0],[11,0.5923,0.0],[12,0.5431,0.0],[13,0.5845,0.0],[14,0.6114,0.0],[15,2.4777,1.8822],[16,0.5923,0.0],[17,0.6093,0.0],[18,0.6102,0.0],[19,0.5996,0.0],[20,0.5895,0.0],[21,0.6309,0.0],[22,0.586,0.0],[23,0.5883,0.0],[24,0.5997,0.0],[25,0.6284,0.0],[26,0.6285,0.0],[27,0.6055,0.0],[28,0.668,0.0],[29,0.737,0.0],[30,2.7143,1.7754],[31,1.3665,0.0],[32,0.793,0.0],[33,0.6654,0.0],[34,1.258,0.0],[35,0.9187,0.0],[36,0.6716,0.0],[37,0.5963,0.0],[38,0.6041,0.0],[39,0.6206,0.0],[40,0.67,0.0],[41,0.6048,0.0],[42,0.6072,0.0],[43,0.6163,0.0],[44,0.6355,0.0],[45,2.2462,1.6932],[46,0.5747,0.0],[47,0.6095,0.0],[48,0.6665,0.0],[49,0.6119,0.0],[50,0.6087,0.0],[51,0.654,0.0],[52,0.6207,0.0],[53,0.6064,0.0],[54,0.6308,0.0],[55,0.6432,0.0],[56,0.626,0.0],[57,0.6343,0.0],[58,0.6574,0.0],[59,0.6073,0.0],[60,2.4304,1.836]],"loss_last":2.45829,"total_s":46.408,"files":{".metadata":142550,"__0_0.distcp":9887922,"__1_0.distcp":9921352,"__2_0.distcp":9921352,"__3_0.distcp":9904008}},"async":{"every":15,"steps":[[1,0.8899,0.0],[2,0.5331,0.0],[3,0.6604,0.0],[4,0.7042,0.0],[5,0.5982,0.0],[6,0.5866,0.0],[7,0.6004,0.0],[8,0.6125,0.0],[9,0.6381,0.0],[10,0.5887,0.0],[11,0.68,0.0],[12,0.5904,0.0],[13,0.6078,0.0],[14,0.6793,0.0],[15,0.7052,0.0875],[16,1.1064,0.0],[17,1.1099,0.0],[18,0.6786,0.0],[19,0.6017,0.0],[20,0.6161,0.0],[21,0.5913,0.0],[22,0.5978,0.0],[23,0.6107,0.0],[24,0.6561,0.0],[25,0.5451,0.0],[26,0.659,0.0],[27,0.6221,0.0],[28,0.5971,0.0],[29,0.6259,0.0],[30,1.1541,0.1015],[31,1.2878,0.0],[32,1.0338,0.0],[33,0.6787,0.0],[34,0.7233,0.0],[35,0.6598,0.0],[36,0.6086,0.0],[37,0.6175,0.0],[38,0.6012,0.0],[39,0.6781,0.0],[40,0.6116,0.0],[41,0.6975,0.0],[42,0.618,0.0],[43,0.6089,0.0],[44,0.6412,0.0],[45,0.6369,0.0683],[46,1.2941,0.0],[47,0.8965,0.0],[48,0.6101,0.0],[49,0.5909,0.0],[50,0.6102,0.0],[51,0.6108,0.0],[52,0.6056,0.0],[53,0.6198,0.0],[54,0.6009,0.0],[55,0.6832,0.0],[56,0.6144,0.0],[57,0.6086,0.0],[58,0.6513,0.0],[59,0.552,0.0],[60,0.6754,0.0644]],"loss_last":2.45829,"total_s":41.373,"files":{".metadata":142552,"__0_0.distcp":9887922,"__1_0.distcp":9921352,"__2_0.distcp":9921352,"__3_0.distcp":9904008}}}},"slow_vol":{"layouts":{"ddp_rank0":{"wall_s":0.0559,"wall_all":[0.0559,0.0613,0.0511],"rank_s":[0.0551,0.0,0.0,0.0],"gather_s":[0.0,0.0,0.0,0.0],"total_bytes":38562259,"nfiles":1,"params":3209281},"ddp_every":{"wall_s":0.1367,"wall_all":[0.1601,0.1256,0.1367],"rank_s":[0.1355,0.1354,0.1354,0.1312],"gather_s":[0.0,0.0,0.0,0.0],"total_bytes":154249036,"nfiles":4,"params":3209281},"fsdp_full":{"wall_s":0.5558,"wall_all":[0.8272,0.5461,0.5558],"rank_s":[0.5543,0.5039,0.5035,0.504],"gather_s":[0.5044,0.5039,0.5035,0.504],"total_bytes":38580789,"nfiles":1,"params":3209281},"fsdp_dcp":{"wall_s":0.1495,"wall_all":[0.4228,0.1495,0.1269],"rank_s":[0.1458,0.1487,0.1486,0.1484],"gather_s":[0.0026,0.0023,0.003,0.0023],"total_bytes":39777178,"nfiles":5,"params":3209281},"ddp_dcp":{"wall_s":0.0621,"wall_all":[0.1281,0.0621,0.0606],"rank_s":[0.0596,0.0612,0.0613,0.0614],"gather_s":[0.0018,0.0019,0.0018,0.0018],"total_bytes":38933646,"nfiles":5,"params":3209281}},"train":{"none":{"every":15,"steps":[[1,1.1351,0.0],[2,0.6622,0.0],[3,0.6559,0.0],[4,0.5929,0.0],[5,0.5901,0.0],[6,0.6046,0.0],[7,0.6154,0.0],[8,0.5807,0.0],[9,0.6059,0.0],[10,0.6266,0.0],[11,0.5779,0.0],[12,0.5882,0.0],[13,0.6092,0.0],[14,0.5927,0.0],[15,0.5918,0.0],[16,0.6248,0.0],[17,0.6027,0.0],[18,0.5855,0.0],[19,0.5878,0.0],[20,0.6099,0.0],[21,0.6007,0.0],[22,0.6,0.0],[23,0.5828,0.0],[24,0.6194,0.0],[25,0.595,0.0],[26,0.5814,0.0],[27,0.6172,0.0],[28,0.6199,0.0],[29,0.5732,0.0],[30,0.5879,0.0],[31,0.6485,0.0],[32,0.6667,0.0],[33,0.5998,0.0],[34,0.6755,0.0],[35,0.6055,0.0],[36,0.595,0.0],[37,0.5928,0.0],[38,0.6067,0.0],[39,0.599,0.0],[40,0.5965,0.0],[41,0.6113,0.0],[42,0.5965,0.0],[43,0.5864,0.0],[44,0.5972,0.0],[45,0.5994,0.0],[46,0.6173,0.0],[47,0.5823,0.0],[48,0.614,0.0],[49,0.5785,0.0],[50,0.603,0.0],[51,0.6003,0.0],[52,0.6066,0.0],[53,0.5901,0.0],[54,0.5954,0.0],[55,0.5954,0.0],[56,0.6023,0.0],[57,0.5985,0.0],[58,0.6003,0.0],[59,0.6074,0.0],[60,0.617,0.0]],"loss_last":2.45829,"total_s":36.803,"files":{}},"sync":{"every":15,"steps":[[1,0.7769,0.0],[2,0.5754,0.0],[3,0.5315,0.0],[4,0.593,0.0],[5,0.5896,0.0],[6,0.5867,0.0],[7,0.5377,0.0],[8,0.6124,0.0],[9,0.5875,0.0],[10,0.5325,0.0],[11,0.6103,0.0],[12,0.5904,0.0],[13,0.5931,0.0],[14,0.5818,0.0],[15,0.9214,0.2952],[16,0.5849,0.0],[17,0.5856,0.0],[18,0.6095,0.0],[19,0.5792,0.0],[20,0.5352,0.0],[21,0.5909,0.0],[22,0.5988,0.0],[23,0.5955,0.0],[24,0.5919,0.0],[25,0.6,0.0],[26,0.6052,0.0],[27,0.5845,0.0],[28,0.5997,0.0],[29,0.62,0.0],[30,0.7185,0.1385],[31,0.5776,0.0],[32,0.5849,0.0],[33,0.6041,0.0],[34,0.5968,0.0],[35,0.5906,0.0],[36,0.6141,0.0],[37,0.5946,0.0],[38,0.5945,0.0],[39,0.5873,0.0],[40,0.6079,0.0],[41,0.5914,0.0],[42,0.5974,0.0],[43,0.5853,0.0],[44,0.6114,0.0],[45,0.7345,0.1434],[46,0.5691,0.0],[47,0.6116,0.0],[48,0.587,0.0],[49,0.5941,0.0],[50,0.6012,0.0],[51,0.609,0.0],[52,0.5911,0.0],[53,0.6027,0.0],[54,0.6739,0.0],[55,0.605,0.0],[56,0.6167,0.0],[57,0.6127,0.0],[58,0.5963,0.0],[59,0.5941,0.0],[60,0.7939,0.2052]],"loss_last":2.45829,"total_s":36.55,"files":{".metadata":142549,"__0_0.distcp":9887922,"__1_0.distcp":9921352,"__2_0.distcp":9921352,"__3_0.distcp":9904008}},"async":{"every":15,"steps":[[1,0.7621,0.0],[2,0.5271,0.0],[3,0.5921,0.0],[4,0.6099,0.0],[5,0.5988,0.0],[6,0.6103,0.0],[7,0.5747,0.0],[8,0.5838,0.0],[9,0.5956,0.0],[10,0.5997,0.0],[11,0.5423,0.0],[12,0.5904,0.0],[13,0.5981,0.0],[14,0.6027,0.0],[15,0.6736,0.0848],[16,0.8266,0.0],[17,0.5974,0.0],[18,0.5919,0.0],[19,0.6074,0.0],[20,0.5885,0.0],[21,0.6036,0.0],[22,0.6046,0.0],[23,0.5877,0.0],[24,0.6135,0.0],[25,0.5922,0.0],[26,0.5948,0.0],[27,0.5978,0.0],[28,0.6014,0.0],[29,0.5906,0.0],[30,0.6652,0.0664],[31,0.7378,0.0],[32,0.5878,0.0],[33,0.6119,0.0],[34,0.594,0.0],[35,0.6032,0.0],[36,0.594,0.0],[37,0.6037,0.0],[38,0.6215,0.0],[39,0.5783,0.0],[40,0.6626,0.0],[41,0.5945,0.0],[42,0.6132,0.0],[43,0.6354,0.0],[44,0.5955,0.0],[45,0.6813,0.0751],[46,0.7024,0.0],[47,0.6022,0.0],[48,0.5871,0.0],[49,0.6107,0.0],[50,0.5913,0.0],[51,0.6025,0.0],[52,0.6134,0.0],[53,0.5838,0.0],[54,0.6015,0.0],[55,0.5814,0.0],[56,0.6061,0.0],[57,0.5983,0.0],[58,0.5962,0.0],[59,0.5948,0.0],[60,0.6833,0.0729]],"loss_last":2.45829,"total_s":36.794,"files":{".metadata":142551,"__0_0.distcp":9887922,"__1_0.distcp":9921352,"__2_0.distcp":9921352,"__3_0.distcp":9904008}}}},"reshard":[{"world":2,"os":"Darwin","torch":"2.14.1","mode":"reshard","saved_by_ranks":4,"loaded_by_ranks":2,"load_s":0.2045,"tensors":102,"identical_to_full":true},{"world":3,"os":"Darwin","torch":"2.14.1","mode":"reshard","saved_by_ranks":4,"loaded_by_ranks":3,"load_s":0.2483,"tensors":102,"identical_to_full":true}],"errors":{"truncated":{"bytes_written":50656919,"of":101313839,"error":"RuntimeError: PytorchStreamReader failed reading zip archive: failed finding central directory. This is an internal miniz error. If you are seeing this error, there is a high likelihood that your checkpoint file is corrupted. This can happen if the checkpoint was not saved properly, was transferred incorrectly, or the file was modified after saving."},"missing":{"files_before":[".metadata","__0_0.distcp","__1_0.distcp","__2_0.distcp","__3_0.distcp"],"removed":"__1_0.distcp","error":"CheckpointException: CheckpointException ranks:dict_keys([0])","inner":"FileNotFoundError: [Errno 2] No such file or directory: '<ckpt>/__1_0.distcp'"},"one_rank":{"tensors":102,"identical":true,"files":{".metadata":268934,"__0_0.distcp":76450242,"__1_0.distcp":76508904,"__2_0.distcp":76508904,"__3_0.distcp":76474344}},"shape":{"error":"RuntimeError: Error(s) in loading state_dict for GPT:","next":"size mismatch for tok.weight: copying a param with shape torch.Size([65, 512]) from checkpoint, the shape in current model is torch.Size([65, 256]).","lines":102},"torch":"2.14.1"},"data_write":[{"test":"write","layout":"big","files":16,"file_bytes":4194304,"local_s":0.091,"s3_16threads_s":1.346},{"test":"write","layout":"small","files":16384,"file_bytes":4096,"local_s":0.504,"s3_16threads_s":23.141}],"read_all":{"big|local|1":{"s":0.0378,"MBps":1773.9,"files":16,"bytes":67108864,"n":3},"big|local|16":{"s":0.0173,"MBps":3880.6,"files":16,"bytes":67108864,"n":3},"big|s3|1":{"s":0.1208,"MBps":555.7,"files":16,"bytes":67108864,"n":3},"big|s3|16":{"s":0.0619,"MBps":1084.5,"files":16,"bytes":67108864,"n":3},"small|local|1":{"s":2.5646,"MBps":26.2,"files":16384,"bytes":67108864,"n":3},"small|local|16":{"s":2.9029,"MBps":23.1,"files":16384,"bytes":67108864,"n":3},"small|s3|1":{"s":23.5222,"MBps":2.9,"files":16384,"bytes":67108864,"n":3},"small|s3|16":{"s":17.7377,"MBps":3.8,"files":16384,"bytes":67108864,"n":3}},"prefetch":{"local|none":{"total_s":1.662,"stall_s":0.049,"step_ms":100,"steps":16,"wait_ms":[2.6,3.0,3.4,3.3,3.0,3.2,3.0,3.0,2.8,2.9,3.1,3.1,2.8,2.3,2.9,2.8]},"local|prefetch2":{"total_s":1.616,"stall_s":0.003,"step_ms":100,"steps":16,"wait_ms":[3.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]},"s3|none":{"total_s":1.756,"stall_s":0.147,"step_ms":100,"steps":16,"wait_ms":[9.2,9.9,8.8,8.4,8.9,8.7,8.2,9.6,8.8,8.9,8.6,8.6,9.8,8.6,8.2,10.7]},"s3|prefetch2":{"total_s":1.63,"stall_s":0.008,"step_ms":100,"steps":16,"wait_ms":[7.9,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]}},"clusters":{"slurm":{"where":"Docker volume at /shared","secs":[0.0051,0.0041,0.0044,0.0039],"bytes":1386049,"median_s":0.00425},"k8s":{"where":"host folder at /shared (hostPath)","secs":[0.1576,0.1529,0.1321,0.1565],"bytes":1386049,"median_s":0.1547},"ray":{"where":"Docker volume at /shared","secs":[0.0105,0.0042,0.0043,0.0054],"bytes":1386049,"median_s":0.00485}}};
@@ -3662,128 +3156,21 @@ window.IO_H=(function(){
   return {RM,esc,$,onRender,width,svg,t,rect,line,seg,anim,drills,fmt,tabVisible};
 })();
 </script>
-<script>/* 34_js_io_2main.js */
-// ---- Storage lab: measured tiers, checkpoint anatomy, scale table, write layouts, numbers in the prose ----
+<script>/* 34_js_io_2nums.js */
+// ---- Storage lab: numbers in the "In one screen" box, filled from the recorded data (window.IO_D) ----
+// (The tier bars, checkpoint anatomy, write layouts, async animation and data-reading charts moved out on 2026-10-19
+//  to src/for_children/storage_lab_cut/; their results are summarised in the tab's section 2 table.)
 (function(){
   const H=window.IO_H,D=window.IO_D;if(!H||!D||!H.$('t-io'))return;const $=H.$;
   const fS=s=>s>=1?s.toFixed(s>=10?1:2)+' s':(s*1e3).toFixed(s>=0.1?0:1)+' ms';
-  const fMB=b=>(b/1e6).toFixed(b>=1e8?0:b>=1e7?1:2)+' MB';
   const set=(id,v)=>{const e=$(id);if(e)e.innerHTML=v};
   const T=D.tiers;
-  const NAMES={host_ssd:'Mac SSD, native',ctr_layer:'Container layer',ctr_volume:'Docker volume',ctr_hostdir:'Host folder shared into the VM',ctr_s3:'S3 store, from a container',host_s3:'S3 store, from the Mac'};
-  const COL={host_ssd:'var(--c3)',ctr_layer:'var(--c6)',ctr_volume:'var(--c1)',ctr_hostdir:'var(--c2)',ctr_s3:'var(--c4)',host_s3:'var(--c5)'};
-  // numbers quoted in the prose
   const lv=T.ctr_volume.l.write_s,lb=T.ctr_hostdir.l.write_s;
   set('io-n-l-vol',fS(lv));set('io-n-l-bind',fS(lb));set('io-n-l-ratio',Math.round(lb/lv)+' times');
   set('io-n-k8s-ratio',Math.round(D.clusters.k8s.median_s/D.clusters.slurm.median_s)+' times');
   const blk=(tr)=>{const b=tr.steps.filter(s=>s[2]>0).map(s=>s[2]).sort((x,y)=>x-y);return (b[1]+b[2])/2};// median of 4
   set('io-n-sync',fS(blk(D.slow_bind.train.sync)));set('io-n-async',fS(blk(D.slow_bind.train.async)));
-  window.IO_BLK=blk;
-
-  // --- tiers bars ---
-  let op='write',sz='l';
-  function tiers(){
-    const keys=Object.keys(NAMES).filter(k=>T[k]&&T[k][sz]);
-    const v=keys.map(k=>T[k][sz][op+'_s']);
-    const lo=Math.log10(Math.min(...v))-0.35,hi=Math.log10(Math.max(...v))+0.05;
-    $('io-tiers-bars').innerHTML=keys.map((k,i)=>{const r=T[k][sz],w=Math.max(2,(Math.log10(v[i])-lo)/(hi-lo)*100);
-      return '<div class="row"><span class="nm">'+NAMES[k]+'</span><span class="track"><span class="fill" style="width:'+w.toFixed(1)+'%;background:'+COL[k]+'"></span></span><span class="val">'+fS(v[i])+'</span></div>'}).join('');
-    const r0=T[keys[0]][sz];
-    set('io-tiers-note','Median of '+r0.n+' runs each; bar length on a log scale. Throughput: '+keys.map(k=>NAMES[k]+' '+T[k][sz][op+'_MBps']+' MB/s').join(', ')+
-      '. Size '+fMB(r0.bytes)+' ('+r0.params.toLocaleString('en-US')+' parameters; the S3 copies are a few hundred bytes smaller because torch.save names the archive differently when writing to memory). Range of '+(op==='write'?'writes':'reads')+' for the slowest target: '+fS(T[keys[v.indexOf(Math.max(...v))]][sz][op+'_min'])+' to '+fS(T[keys[v.indexOf(Math.max(...v))]][sz][op+'_max'])+'. Measured on Apple M1 Pro, Docker Desktop VM / native, shared machine.');
-  }
-  H.seg($('io-tiers-op'),m=>{op=m;tiers()});H.seg($('io-tiers-sz'),m=>{sz=m;tiers()});tiers();
-  const C=D.clusters;
-  set('io-tiers-text','<b>Reading it.</b> The Docker volume, the container layer and the Mac SSD are all a local disk underneath, and land within a factor of two or three of each other. The <b>shared host folder</b> is the slowest by far ('+T.ctr_hostdir.l.write_MBps+' MB/s writing 304 MB, against '+T.ctr_volume.l.write_MBps+' MB/s for the volume) because every write crosses the VM boundary as a separate request: the same shape as a network file system, where each operation is a round trip. The <b>S3 store</b>, though it speaks HTTP, writes '+T.ctr_s3.l.write_MBps+' MB/s from inside the VM, since boto3 uploads 8 MiB parts on 10 threads in parallel; from the Mac it falls to '+T.host_s3.l.write_MBps+' MB/s through Docker Desktop’s port forwarding. The running example’s own checkpoints in the setup’s recorded runs (train.py, no fsync) show the same split: median <b>'+fS(C.slurm.median_s)+'</b> on Slurm and '+fS(C.ray.median_s)+' on Ray, both a Docker volume, against <b>'+fS(C.k8s.median_s)+'</b> on Kubernetes, whose <code>/shared</code> is a host folder.');
-  set('io-pr1-ans','The shared folder: '+fS(T.ctr_hostdir.l.write_s)+' to write and '+fS(T.ctr_hostdir.l.read_s)+' to read, against '+fS(T.ctr_s3.l.write_s)+' and '+fS(T.ctr_s3.l.read_s)+' for S3 from the same container. A path that looks local can hide a network round trip per operation; the object store moves big parts in parallel. The lesson carries to clusters: measure the mount, do not trust the path.');
-
-  // --- anatomy ---
-  const A=D.anatomy;
-  const parts=[['Weights (fp32)',A.model_fp32_bytes,'var(--c1)'],['AdamW moments (2 x fp32)',A.adamw_moments_bytes,'var(--c2)'],
-    ['Pickle (structure)',A.pickle_bytes,'var(--c4)'],['Zip headers and alignment',A.zip_overhead_bytes+A.other_entries_bytes+A.adamw_step_tensors_bytes,'var(--c5)']];
-  function anat(){
-    const el=$('io-anat-bar'),W=H.width(el),h=34;let x=0,b='';
-    parts.forEach(p=>{const w=p[1]/A.file_bytes*W;b+=H.rect(x,0,w,h,p[2],{rx:0});if(w>46)b+=H.t(x+w/2,21,(100*p[1]/A.file_bytes).toFixed(1)+'%',{a:'middle',fill:'var(--bg)',fs:12,w:600});x+=w});
-    el.innerHTML=H.svg(W,h,b,'Checkpoint bytes by kind');
-  }
-  $('io-anat-leg').innerHTML=parts.map(p=>'<span><i style="background:'+p[2]+'"></i>'+p[0]+': '+p[1].toLocaleString('en-US')+' B</span>').join('');
-  set('io-anat-text','<b>'+A.file_bytes.toLocaleString('en-US')+' bytes</b> for '+A.params.toLocaleString('en-US')+' parameters: '+A.bytes_per_param+' bytes per parameter <span class="io-tag io-measured">measured</span>. '+A.zip_entries+' zip entries, '+A.tensor_entries+' of them tensors (30 weight tensors, and for each an exp_avg, an exp_avg_sq and a 4-byte step counter). The moments are exactly twice the weights ('+A.adamw_moments_bytes.toLocaleString('en-US')+' = 2 x '+A.model_fp32_bytes.toLocaleString('en-US')+'). The zip headers and 64-byte alignment padding are '+(100*(A.zip_overhead_bytes)/A.file_bytes).toFixed(1)+'%: noticeable only because the tensors are tiny.');
-  H.onRender(anat);anat();
-
-  // --- scale table (derived) ---
-  const MOD=[['Running example',112577,4],['8B model',8e9,64],['70B model',70e9,1024],['Llama 3 405B',405e9,16384],['DeepSeek-V3',671e9,2048]];
-  const fB=b=>b>=1e12?(b/1e12).toFixed(2)+' TB':b>=1e9?(b/1e9).toFixed(1)+' GB':b>=1e6?(b/1e6).toFixed(2)+' MB':(b/1e3).toFixed(0)+' kB';
-  $('io-scale-rows').innerHTML=MOD.map(m=>'<tr><td>'+m[0]+'</td><td class="num">'+(m[1]>=1e9?(m[1]/1e9).toFixed(m[1]<1e10?2:1)+'B':m[1].toLocaleString('en-US'))+'</td><td class="num">'+fB(14*m[1])+'</td><td class="num">'+fB(14*m[1]/m[2])+' <span class="mute">/ '+m[2].toLocaleString('en-US')+'</span></td><td class="num">'+fB(2*m[1])+'</td></tr>').join('');
-
-  // --- write layouts (4 ranks) ---
-  const LN={ddp_rank0:'DDP, rank 0 writes',ddp_every:'DDP, every rank writes',fsdp_full:'FSDP, gather to rank 0, one file',fsdp_dcp:'FSDP, DCP: each rank its shard',ddp_dcp:'DDP, DCP: de-duplicated'};
-  let tgt='slow_bind';
-  function lay(){
-    const L=D[tgt].layouts,keys=Object.keys(LN).filter(k=>L[k]);const el=$('io-lay-svg'),W=H.width(el);
-    const mx=Math.max(...keys.map(k=>L[k].wall_s));const lab=16,lane=7,gap=3,blockH=lab+4*(lane+gap)+10;const x0=0,x1=W-58;let b='';
-    keys.forEach((k,i)=>{const y=i*blockH,r=L[k];
-      b+=H.t(0,y+12,LN[k]+'  ·  '+fMB(r.total_bytes)+' in '+r.nfiles+' file'+(r.nfiles>1?'s':''),{fs:11.5,w:600});
-      for(let q=0;q<4;q++){const yy=y+lab+q*(lane+gap),g=r.gather_s[q],w=r.rank_s[q];
-        b+=H.rect(x0,yy,(r.wall_s/mx)*(x1-x0),lane,'var(--soft)',{stroke:'var(--line)',rx:1});
-        if(g>0.002)b+=H.rect(x0,yy,(g/mx)*(x1-x0),lane,'var(--c4)',{rx:1});
-        if(w-g>0.0005)b+=H.rect(x0+(g/mx)*(x1-x0),yy,((w-g)/mx)*(x1-x0),lane,'var(--c1)',{rx:1});}
-      b+=H.t(x1+4,y+lab+2*(lane+gap)+3,fS(r.wall_s),{fs:11.5,w:600});});
-    el.innerHTML=H.svg(W,keys.length*blockH,b,'Checkpoint write time per rank for five layouts');
-    const e=L.ddp_every,r0=L.ddp_rank0,fc=L.fsdp_full,fd=L.fsdp_dcp;
-    set('io-lay-text','Four lanes per layout, one per rank, median of 3 runs. Every rank writing: '+fMB(e.total_bytes)+' in '+fS(e.wall_s)+', against '+fMB(r0.total_bytes)+' in '+fS(r0.wall_s)+' for rank 0 alone ('+(e.wall_s/r0.wall_s).toFixed(1)+' times the time for 4 times the bytes). FSDP consolidated: '+fS(fc.gather_s[0])+' of gathering, then rank 0 writes ('+fS(fc.wall_s)+' in all); FSDP sharded: '+fS(fd.wall_s)+', the ranks writing at once. '+(tgt==='slow_bind'?'On this single slow pipe, sharding does not beat consolidating: the four ranks share it.':'On the fast volume, gathering is the larger part of the consolidated save, and sharding wins.'));
-  }
-  H.seg($('io-lay-tgt'),m=>{tgt=m;lay()});H.onRender(lay);lay();
   H.drills($('t-io'));
-})();
-</script>
-<script>/* 34_js_io_3anim.js */
-// ---- Storage lab: the same 60 steps without checkpoints, with synchronous and with asynchronous checkpoints (measured step times) ----
-(function(){
-  const H=window.IO_H,D=window.IO_D;if(!H||!D||!H.$('io-as-card'))return;const $=H.$;
-  const fS=s=>s>=1?s.toFixed(2)+' s':(s*1e3).toFixed(0)+' ms';
-  const ROWS=[['none','No checkpoints'],['sync','Synchronous dcp.save'],['async','Asynchronous dcp.async_save']];
-  const NF=61;let tgt='slow_bind';
-  const src=()=>tgt==='native'?D.train:D[tgt].train;
-  function prep(){
-    const S=src(),R={};
-    ROWS.forEach(([k])=>{let t=0;const ev=[];S[k].steps.forEach(([s,w,b])=>{ev.push({s,t0:t,tb:t+Math.max(0,w-b),t1:t+w,b});t+=w});R[k]={ev,total:t}});
-    // background writes of the async run, drawn with the sync run's write time at the same checkpoint
-    const sb=S.sync.steps.filter(x=>x[2]>0);R.async.bg=R.async.ev.filter(e=>e.b>0).map((e,i)=>({t0:e.t1,t1:e.t1+(sb[i]?sb[i][2]:0)}));
-    R.max=Math.max(...ROWS.map(([k])=>R[k].total));return R;
-  }
-  let R=prep();
-  function draw(i){
-    const el=$('io-as-svg'),W=H.width(el),t=R.max*i/(NF-1);const lab=15,rh=18,gap=14,top=4,axis=18;
-    const X=v=>v/R.max*(W-2);let b='';
-    ROWS.forEach(([k,name],r)=>{const y=top+r*(lab+rh+gap);b+=H.t(0,y+11,name,{fs:11.5,w:600});const yy=y+lab;
-      b+=H.rect(0,yy,W-2,rh,'var(--soft)',{rx:2});
-      R[k].ev.forEach(e=>{if(e.t0>=t)return;const a=Math.min(e.tb,t);b+=H.rect(X(e.t0),yy,Math.max(0.6,X(a)-X(e.t0)-0.4),rh,'var(--c3)',{rx:0});
-        if(e.b>0&&e.tb<t)b+=H.rect(X(e.tb),yy,Math.max(1.5,X(Math.min(e.t1,t))-X(e.tb)),rh,'var(--c2)',{rx:0});});
-      if(k==='async')R.async.bg.forEach(g=>{if(g.t0>=t)return;b+=H.rect(X(g.t0),yy+rh+2,X(Math.min(g.t1,t))-X(g.t0),5,'var(--c1)',{rx:1,op:0.35})});
-    });
-    const ya=top+3*(lab+rh+gap)-4;b+=H.line(0,ya,W-2,ya,'var(--line)');
-    for(let s=0;s<=R.max;s+=R.max>30?10:5){b+=H.line(X(s),ya,X(s),ya+4,'var(--mute)');b+=H.t(Math.min(W-14,X(s)),ya+15,s+' s',{a:s===0?'start':'middle',fs:10.5,fill:'var(--mute)'})}
-    b+=H.line(X(t),top,X(t),ya,'var(--ink)',{dash:'3 3',op:0.6});
-    el.innerHTML=H.svg(W,ya+axis,b,'Timelines of three training runs');
-    // counters and caption
-    const st=ROWS.map(([k])=>{const ev=R[k].ev;const done=ev.filter(e=>e.t1<=t).length;const blk=ev.filter(e=>e.b>0&&e.tb<t).reduce((s,e)=>s+Math.min(e.t1,t)-e.tb,0);
-      const inb=ev.find(e=>e.b>0&&e.tb<=t&&t<e.t1);return {done,blk,inb}});
-    $('io-as-out').innerHTML=ROWS.map(([k,name],r)=>'<div class="stat"><div class="k">'+name+'</div><div class="v">'+st[r].done+' / 60 steps</div><div class="d">stopped for checkpoints: '+fS(st[r].blk)+'</div></div>').join('');
-    let cap='t = '+t.toFixed(1)+' s. ';
-    if(i===0)cap+='Three runs of the same 60 steps, same seed, same data. Press play: the synchronous run will stop at steps 15, 30, 45 and 60 for the whole write; the asynchronous one only for the copy to memory.';
-    else if(st[1].inb)cap+='The synchronous run is stopped at step '+st[1].inb.s+': every rank waits until its shard is on storage ('+fS(st[1].inb.b)+' for this checkpoint).';
-    else if(st[2].inb)cap+='The asynchronous run is copying its shards to memory at step '+st[2].inb.s+' ('+fS(st[2].inb.b)+'); the write then runs in a background thread.';
-    else if(i===NF-1)cap+='Done. Final loss '+src().sync.loss_last+' in all three runs: checkpointing changes the timeline, never the arithmetic. Totals: '+ROWS.map(([k,n])=>n.toLowerCase()+' '+R[k].total.toFixed(1)+' s').join(', ')+'.';
-    else cap+=(R.async.bg.some(g=>g.t0<=t&&t<g.t1)?'The asynchronous run trains while its checkpoint is written in the background (thin band). ':'')+'All three runs are training.';
-    $('io-as-cap').textContent=cap;
-  }
-  const A=H.anim({card:'io-as-card',ctl:'io-as-ctl',n:NF,ms:260,label:'Time through the three runs',draw});
-  function text(){
-    const S=src(),bl=window.IO_BLK;const sy=bl(S.sync),as=bl(S.async);
-    const norm=k=>{const w=S[k].steps.filter(x=>x[2]===0).map(x=>x[1]).sort((a,b)=>a-b);return w[w.length>>1]};
-    $('io-as-text').innerHTML='<b>What it measured</b> ('+(tgt==='native'?'Mac SSD, native, 25.3M parameters':tgt==='slow_bind'?'slow shared folder, 3.2M parameters':'Docker volume, 3.2M parameters')+', '+(Object.values(S.sync.files).reduce((a,b)=>a+b,0)/1e6).toFixed(1)+' MB of DCP files per checkpoint'+'): training stood still for a median <b>'+fS(sy)+'</b> per synchronous checkpoint and <b>'+fS(as)+'</b> per asynchronous one, '+(sy/as).toFixed(0)+' times less. The cost moved elsewhere: the median ordinary step was '+fS(norm('none'))+' without checkpoints, '+fS(norm('sync'))+' with synchronous ones and '+fS(norm('async'))+' with asynchronous ones, because here the background writer competes with training for the same CPUs. On GPU nodes it competes for host CPU and PCIe instead, much less. Whole-run totals ('+S.none.total_s+' s, '+S.sync.total_s+' s, '+S.async.total_s+' s) move by a few seconds between repeats on this shared machine; the per-checkpoint stop is the clean measurement.';
-  }
-  H.seg($('io-as-tgt'),m=>{tgt=m;R=prep();text();A.redraw()});text();
 })();
 </script>
 <script>/* 34_js_io_4calc.js */
@@ -3854,45 +3241,6 @@ window.IO_H=(function(){
   $('io-c-tier').addEventListener('change',e=>{st.tier=e.target.value;draw()});
   window.IO_CALC={calc,st,preset};
   preset('b405');H.onRender(draw);
-})();
-</script>
-<script>/* 34_js_io_5data.js */
-// ---- Storage lab: data reading (big vs small files, prefetch) and restore errors ----
-(function(){
-  const H=window.IO_H,D=window.IO_D;if(!H||!D||!H.$('io-dr-rows'))return;const $=H.$;
-  const fS=s=>s>=1?s.toFixed(s>=10?1:2)+' s':(s*1e3).toFixed(s>=0.01?0:1)+' ms';
-  const RA=D.read_all,W=D.data_write;
-  const wr=l=>W.find(x=>x.layout===l)||{};
-  const rows=[['big','local','16 files of 4 MiB','Docker volume'],['big','s3','16 files of 4 MiB','S3 store'],['small','local','16,384 files of 4 KiB','Docker volume'],['small','s3','16,384 files of 4 KiB','S3 store']];
-  const g=(l,s,t)=>RA[l+'|'+s+'|'+t]||{};
-  $('io-dr-rows').innerHTML=rows.map(([l,s,a,b])=>'<tr><td>'+a+'</td><td>'+b+'</td><td class="num">'+fS(s==='local'?wr(l).local_s:wr(l).s3_16threads_s)+(s==='s3'?' <span class="mute">(16 threads)</span>':'')+'</td><td class="num">'+fS(g(l,s,1).s)+' <span class="mute">'+g(l,s,1).MBps+' MB/s</span></td><td class="num">'+fS(g(l,s,16).s)+' <span class="mute">'+g(l,s,16).MBps+' MB/s</span></td></tr>').join('');
-  const sl=g('small','s3',1),bl=g('big','s3',1),sloc=g('small','local',1),bloc=g('big','local',1);
-  $('io-dr-text').innerHTML='Medians of '+(sl.n||0)+' runs; the local reads start with the files dropped from the page cache. Same bytes, very different bills: on the S3 store the small files took <b>'+(sl.s/bl.s).toFixed(0)+' times</b> as long to read as the big ones ('+(sl.s/sl.files*1e3).toFixed(2)+' ms per request, one at a time), and '+(wr('small').s3_16threads_s/wr('big').s3_16threads_s).toFixed(0)+' times as long to write; on the volume, '+(sloc.s/bloc.s).toFixed(0)+' times as long to read. Sixteen threads help the store a little and the volume not at all: the per-file cost here is Python and the kernel, not a disk. Measured on Apple M1 Pro, Docker Desktop VM, shared machine.';
-
-  // prefetch: per-step wait for the shard, without and with prefetch
-  const P=D.prefetch;let st='s3';
-  function pf(){
-    const a=P[st+'|none'],b=P[st+'|prefetch2'];if(!a||!b)return;const el=$('io-pf-svg'),Wd=H.width(el);
-    const n=a.wait_ms.length,mx=Math.max(...a.wait_ms,...b.wait_ms,1);const lh=60,top=14;let s='';
-    [[a,'No prefetch','var(--c2)'],[b,'Prefetch 2 shards','var(--c3)']].forEach(([r,name,c],k)=>{const y0=top+k*(lh+30);
-      s+=H.t(0,y0-2,name+': waited '+fS(r.stall_s),{fs:11.5,w:600});
-      const bw=(Wd-4)/n;r.wait_ms.forEach((v,i)=>{const h=v/mx*lh;s+=H.rect(2+i*bw,y0+lh-h+4,Math.max(1,bw-2),h,c,{rx:1})});
-      s+=H.line(2,y0+lh+4,Wd-2,y0+lh+4,'var(--line)');});
-    el.innerHTML=H.svg(Wd,top+2*(lh+30)-10,s,'Wait for data at each step');
-    $('io-pf-text').innerHTML='Over '+n+' steps the runs took '+fS(a.total_s)+' without prefetch and '+fS(b.total_s)+' with it. Each bar is one step’s wait for its shard (median of 3 runs; tallest bar '+mx.toFixed(1)+' ms). Without prefetch, every step pays the fetch; with two shards in flight, only the first step does, because a fetch ('+fS(a.stall_s/n)+' on average) is shorter than the 100 ms of compute. The store here is a container away; a real object store’s tens of milliseconds per request make the first case worse and the second no different, until fetching a shard takes longer than computing on it, and then only more parallel fetches or a local cache help.';
-  }
-  H.seg($('io-pf-st'),m=>{st=m;pf()});H.onRender(pf);pf();
-
-  // restore errors
-  const E=D.errors;if(E&&E.truncated){
-    const esc=H.esc;
-    $('io-errs').innerHTML=
-      '<p><b>1. A file cut off mid-write</b> (half of a '+(E.truncated.of/1e6).toFixed(0)+' MB <code>torch.save</code> file, as a crash during a non-atomic write leaves it):</p><div class="io-err">'+esc(E.truncated.error)+'</div>'+
-      '<p><b>2. One rank’s shard missing</b> from a 4-rank DCP checkpoint (<code>'+E.missing.removed+'</code> deleted, as a failed rank or a partial copy leaves it). DCP reports which rank failed, and the rank’s own error underneath:</p><div class="io-err">'+esc(E.missing.error)+'\n'+esc(E.missing.inner)+'</div>'+
-      '<p><b>3. The wrong model shape</b> (the 512-wide checkpoint loaded into a 256-wide model): one line per mismatched tensor, '+E.shape.lines+' lines in all, starting:</p><div class="io-err">'+esc(E.shape.error)+'\n'+esc(E.shape.next)+'</div>';
-  }
-  const RS=D.reshard||[];
-  window.IO_RS=RS;
 })();
 </script>
 <script>/* 35_js_co_0data.js */

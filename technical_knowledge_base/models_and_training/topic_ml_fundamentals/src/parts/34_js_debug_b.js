@@ -284,7 +284,7 @@ window.DG = window.DG || {};
         {b: 'code', t: 'Hardware and silent data corruption',
           w: 'A flipped bit can corrupt values without crashing.',
           ch: 'Deterministic replay of the step on another machine.',
-          fx: 'See {{Training Infrastructure|n:3c65c17b0d0d81c9b2cac997583bf572}} (silent data corruption, Llama 3\'s interruptions).'}
+          fx: 'See {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}} (silent data corruption measured, Llama 3\'s interruptions).'}
       ]},
     {id: 'van', n: 'Gradients vanish', run: ['vanish_sigmoid', 'vanish_fix_relu_he'],
       lead: 'Early-layer gradients near 0: a deep network learns slowly or not at all, and the loss looks flat or plateaued.',

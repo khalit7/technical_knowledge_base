@@ -51,7 +51,7 @@
 @media (max-width:520px){#t-io .bars .row{grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 4.8em;font-size:12px}}
 </style>
 <h2 style="margin-top:14px">Storage lab: where data and checkpoints live</h2>
-<p class="lead">A training job touches storage in two very different ways. It <b>reads</b> its data as a steady stream, which is easy to hide behind compute. And every so often it <b>writes a checkpoint</b>: every rank at the same moment, while the GPUs wait. This lab measures both with the running example on this Mac, then scales the arithmetic up to real model sizes. The question it keeps returning to: <b>how long does training stand still to save itself, and what does it take to make that short?</b></p>
+<p class="lead">A training job touches storage in two very different ways. It <b>reads</b> its data as a steady stream, which is easy to hide behind compute. And every so often it <b>writes a checkpoint</b>: every rank at the same moment, while the GPUs wait. This lab measured both with the running example on this Mac; at root depth it keeps the tiers compared, the measured results in one table, and one calculator that scales the arithmetic up to real model sizes. How parallel file systems and object stores work inside, and how to size one, is the child page {{Storage and data movement|n:3fc5c17b0d0d818a94ced3fc7c3331fe}}. The question it keeps returning to: <b>how long does training stand still to save itself, and what does it take to make that short?</b></p>
 <div class="co key"><div class="t">In one screen</div>
 <ul class="tight">
 <li><b>A checkpoint is mostly optimiser state.</b> The running example's 1,386,049-byte file is 32.5% weights and 65.0% AdamW moments: 12.3 bytes per parameter. With mixed precision it is about 14, so a 405B model's checkpoint is about 5.7 TB <span class="io-tag io-derived">derived</span>.</li>
@@ -59,7 +59,7 @@
 <li><b>Shard and go asynchronous.</b> Every rank writes its own piece (sharded), and copies it to memory first so training continues while it uploads (asynchronous). On the slow folder, async cut the time training stood still per checkpoint from <span id="io-n-sync"></span> to <span id="io-n-async"></span> <span class="io-tag io-measured">measured</span>.</li>
 <li><b>At scale it is bandwidth arithmetic:</b> size / aggregate write bandwidth. A parallel file system sells bandwidth as capacity, so you size it for the checkpoint burst, not for the bytes stored.</li>
 </ul></div>
-<div class="io-nav" aria-label="Sections of the Storage lab"><a href="#io-s1">Tiers</a><a href="#io-s2">Checkpoint anatomy</a><a href="#io-s3">The burst</a><a href="#io-s4">Async</a><a href="#io-s5">Calculator</a><a href="#io-s6">Reading data</a><a href="#io-s7">Restore</a><a href="#io-s8">Mistakes</a><a href="#io-s9">Interview</a><a href="#io-s10">Method</a></div>
+<div class="io-nav" aria-label="Sections of the Storage lab"><a href="#io-s1">Tiers</a><a href="#io-s2">What the lab measured</a><a href="#io-s5">Calculator</a></div>
 <p class="small mute">Labels: <span class="io-tag io-measured">measured</span> here, on an Apple M1 Pro with Docker Desktop's Linux VM, on a shared machine, so timings are rough (medians of repeated runs, ranges shown); <span class="io-tag io-published">published</span> by an operator about its own system; <span class="io-tag io-vendor">vendor</span> specification or documentation; <span class="io-tag io-derived">derived</span> by calculation, formula shown. Formats, shards and data loaders are not repeated here: they live on {{Storage and loading at scale|n:3f95c17b0d0d81398782efcb29d950d4}}.</p>
 
 <section id="io-s1">
@@ -82,23 +82,18 @@
 <tr><td><b>Object storage</b></td><td>scales with parallel requests: 3,500 PUT and 5,500 GET per second per key prefix; GCS "up to 1 GB/s per VM" at Ai2 <span class="io-tag io-vendor">vendor</span> <span class="io-tag io-published">published</span> ({{AWS|https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance-design-patterns.html}}, OLMo 2)</td><td>"tens of milliseconds" median for small requests; S3 Express One Zone single-digit ms</td><td>S3 Standard $0.023 per GB-month, $0.005 per 1,000 PUTs, $0.0004 per 1,000 GETs; Express One Zone $0.11 per GB-month</td><td>yes</td><td>yes (replicated)</td></tr>
 </tbody></table></div>
 <p class="small mute">Prices: AWS Price List API for S3 (published 2026-10-15) and the FSx for Lustre pricing page's worked examples, read 2026-10-16; other regions and providers differ. Vendor speeds are specification sheets, not measurements.</p>
+</section>
 
-<h3>The same checkpoint on six local stand-ins</h3>
-<p>Nothing on a laptop behaves like a 2 TB/s file system, but the <i>order</i> of the tiers and the reasons for it reproduce. The running example's checkpoint, and the same GPT made wider (d 256, 4 layers: 3.2M parameters; d 512, 8 layers: 25.3M), each written with <code>torch.save</code>, flushed to the device with <code>fsync</code>, renamed into place, then read back after dropping it from the page cache:</p>
-<ul class="tight small">
-<li><b>Mac SSD, native</b>: the laptop's own disk (stands for local NVMe). <code>fsync</code> on macOS does not flush the drive's cache; <code>F_FULLFSYNC</code> does, and is used here.</li>
-<li><b>Container layer</b> and <b>Docker volume</b>: a file system on the Linux VM's virtual disk (what the Slurm and Ray clusters mount as <code>/shared</code>).</li>
-<li><b>Host folder shared into the VM</b>: every operation crosses from the VM to macOS and back (what the kind cluster mounts as <code>/shared</code>): a network file system in miniature.</li>
-<li><b>S3 from a container</b> and <b>S3 from the Mac</b>: an S3-compatible store (SeaweedFS 4.48) in one container. MinIO was the plan, but its repository is archived and its images could no longer be pulled on 2026-10-16 (Docker Hub: "pull access denied", quay.io: "unauthorized"). From the Mac, requests also cross Docker Desktop's port forwarding.</li>
-</ul>
-<div class="io-card" id="io-tiers-card">
-<div class="seg" id="io-tiers-op"><button data-m="write" class="on">Write (save + fsync + rename)</button><button data-m="read">Read (cold) + load</button></div>
-<div class="seg" id="io-tiers-sz"><button data-m="ex">1.39 MB (running example)</button><button data-m="m">38.6 MB</button><button data-m="l" class="on">304 MB</button></div>
-<div class="bars" id="io-tiers-bars"></div>
-<p class="small mute" id="io-tiers-note"></p>
-</div>
-<p id="io-tiers-text"></p>
-<div class="io-pr"><div class="q">Predict: which local target is slowest for the 304 MB checkpoint: the object store or the shared host folder?</div>
-<div class="opts"><button data-a="0">The object store: HTTP, multipart uploads, a separate server</button><button data-a="1">The shared folder: it looks like a local path</button></div>
-<div class="ans" hidden id="io-pr1-ans"></div></div>
+<section id="io-s2">
+<h2>2. What the lab measured, in one table</h2>
+<p>All rows <span class="io-tag io-measured">measured</span> with the running example or the same GPT made wider (3.2M and 25.3M parameters), 4 ranks with gloo, medians of repeated runs; raw records in <code>src/io/out/</code>. Each row names the page that teaches the subject in depth.</p>
+<div class="tw"><table class="io-tbl"><thead><tr><th>Question</th><th>Result</th><th>Taught on</th></tr></thead><tbody>
+<tr><td>What is in a checkpoint?</td><td>The running example's 1,386,049-byte <code>torch.save</code> file: 32.5% fp32 weights, 65.0% AdamW moments, the rest pickle and zip headers: 12.31 bytes per parameter. Mixed precision adds the bf16 copy (about 14 bytes per parameter, so about 5.7 TB for 405B <span class="io-tag io-derived">derived</span>)</td><td>{{Storage and data movement|n:3fc5c17b0d0d818a94ced3fc7c3331fe}}, section 8 (formats as files and byte ranges)</td></tr>
+<tr><td>Does the tier matter?</td><td>A 304 MB checkpoint: 0.39 s to a Docker volume, 2.6 s to an S3-compatible store (SeaweedFS) in a container, 7.3 s to a host folder shared into the VM. The same shared folder made kind's checkpoints 36 times slower than Slurm's</td><td>Storage and data movement, sections 1 to 5</td></tr>
+<tr><td>Who writes what at a checkpoint (3.2M parameters, slow shared folder)</td><td>Rank 0 alone 0.98 s; every rank writing the full state 2.95 s for 4 times the bytes; FSDP gathered to rank 0 then one file 1.51 s (0.43 s of it gathering); FSDP with PyTorch DCP, one shard per rank, 1.67 s. On one shared pipe sharding is not faster; on a cluster each node brings its own link</td><td>Storage and data movement, section 8; {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}} (DCP)</td></tr>
+<tr><td>Asynchronous checkpointing</td><td>Time training stood still per checkpoint: 1.81 s synchronous against 78 ms with <code>dcp.async_save</code> on the slow folder. The first attempt hung (and a rerun crashed with <code>op.nread == op.preamble.nbytes</code>) until the background save got its own process group</td><td>{{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}}, section 5 (asynchronous checkpoints)</td></tr>
+<tr><td>Small files</td><td>The same 64 MiB as 16,384 files of 4 KiB read at 26 MB/s from a Docker volume against 1,774 MB/s as 16 files of 4 MiB, and at 2.9 MB/s from the S3 store: each file or object pays a fixed cost</td><td>Storage and data movement, section 4 and Metadata storm</td></tr>
+<tr><td>Prefetch</td><td>A loop needing one 4 MiB shard per 100 ms step stalled 147 ms in all on the S3 store fetching on demand, and 8 ms with two shards in flight</td><td>{{Storage and loading at scale|n:3f95c17b0d0d81398782efcb29d950d4}}</td></tr>
+<tr><td>Restore</td><td>A 4-rank DCP checkpoint loaded into 2 ranks, 3 ranks and one process, tensor for tensor identical. A truncated <code>torch.save</code> file fails with "PytorchStreamReader failed reading zip archive"; a missing DCP shard with <code>CheckpointException</code>; a changed model with "size mismatch"</td><td>Fault tolerance at scale, section 6 (restore traps)</td></tr>
+</tbody></table></div>
 </section>

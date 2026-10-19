@@ -222,12 +222,12 @@ C = [
   srcs=[("Anthropic: Previewing the Model Hardware Standard (27 August 2026)", "https://www.anthropic.com/news/model-hardware-standard-research-preview")],
   versions=[("2026-08", "Model Hardware Standard research preview", "https://www.anthropic.com/news/model-hardware-standard-research-preview")]),
 
- # GPU fabric: one line each, linking out (Distributed Training, Training Infrastructure, Topic: hardware)
+ # GPU fabric: one line each, linking out (Distributed Training, Interconnects and scaling, Topic: hardware)
  dict(id="rdma", name="RDMA", full="Remote direct memory access", group="fabric", brief=True, year=None, body="InfiniBand Trade Association (verbs); vendors",
   plain="One machine's network card reads and writes another machine's memory directly, without the kernel's network stack copying the data on either side: the reason training traffic avoids TCP when it can.",
   runs_on=[], uses=[], srcs=[("NCCL documentation: environment variables (IB and socket transports)", "https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html")]),
  dict(id="roce", name="RoCEv2", full="RDMA over Converged Ethernet, version 2", group="fabric", brief=True, year=2014, body="InfiniBand Trade Association",
-  plain="RDMA carried in UDP datagrams to port 4791 over routed Ethernet and IP, so RDMA can use ordinary data-centre switches; fabric tuning is on the Training Infrastructure page.",
+  plain="RDMA carried in UDP datagrams to port 4791 over routed Ethernet and IP, so RDMA can use ordinary data-centre switches; fabric tuning is on the Interconnects and scaling page.",
   runs_on=["udp"], uses=["rdma"],
   srcs=[("IANA: 4791/udp IP Routable RoCE, InfiniBand Trade Association, 2014-10-17", "https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml?search=4791")]),
  dict(id="ib", name="InfiniBand", full="InfiniBand", group="fabric", brief=True, year=None, body="InfiniBand Trade Association",
@@ -241,5 +241,5 @@ C = [
 ]
 
 FABRIC_LINKS = [("Distributed Training", "3c65c17b0d0d8103a916c4824abbd82e"),
-                ("Training Infrastructure", "3c65c17b0d0d81c9b2cac997583bf572"),
+                ("Interconnects and scaling", "3c65c17b0d0d81808563fd41fb163af0"),
                 ("Topic: hardware", "3c65c17b0d0d8118beeefaed56da6f8e")]
