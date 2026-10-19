@@ -30,3 +30,5 @@ Each script: `CA_SCRATCH=$PWD CA_REDIS=<path to redis-server> uv run --no-projec
 - Redis's memory limit includes per-key overhead, so runs hold about 2% fewer keys than the nominal size; the simulations use the nominal size.
 - Memoize only appeared with hash and merge joins disabled: the planner preferred a slower hash join. The page shows all three plans and says why it forced them.
 - Size about 265 KB.
+
+Overlap fix (19 October 2026): section 10 no longer teaches the KV cache and prefix caching from zero (the KV calculator was removed, with its checks in `check_ui.mjs` and `recompute.py`; `kv.json` stays in the data but is unused); it points to Topic: inference-and-serving section 2 and Batching, KV cache and scheduling section 3. Section 11 keeps the price table (rules columns dropped), the break-even formula and calculator, and points to Context engineering section 2 for the provider rules. Section 12 links RAG in production for semantic caching in retrieval.

@@ -1,19 +1,4 @@
-// ---- Reading: collective cost (ring factors from nccl-tests) and pipeline bubbles (Narayanan; Qi et al.; DeepSeek-V3 Table 2) ----
-(function(){
-  const $=id=>document.getElementById(id);
-  if(!$('cc'))return;
-  const F={ar:[n=>2*(n-1)/n,'2(n − 1)/n'],rs:[n=>(n-1)/n,'(n − 1)/n'],ag:[n=>(n-1)/n,'(n − 1)/n'],a2a:[n=>(n-1)/n,'(n − 1)/n'],p2p:[n=>1,'1']};
-  const NM={ar:'all-reduce',rs:'reduce-scatter',ag:'all-gather',a2a:'all-to-all',p2p:'send / receive'};
-  function draw(){const k=$('ccK').value,n=+$('ccN').value,S=+$('ccS').value,bw=+$('ccL').value;$('ccNv').textContent=n;
-    const f=F[k][0](n),sent=S*f,t=sent/bw;
-    const tNV=sent/450,tIB=sent/50;
-    const ms=x=>x<1?(1000*x).toFixed(x<0.01?2:1)+' ms':x.toFixed(2)+' s';
-    $('ccO').innerHTML=RD.stat('Sent per GPU',(sent<1?(1000*sent).toFixed(0)+' MB':sent.toFixed(2)+' GB'),F[k][1]+' × buffer = '+f.toFixed(3)+' ×')+
-      RD.stat('Time at this link',ms(t),'bytes ÷ '+bw+' GB/s, a lower bound')+
-      RD.stat('Same bytes, NVLink against InfiniBand',ms(tNV)+' / '+ms(tIB),'450 against 50 GB/s: 9 times');
-    $('ccNote').innerHTML='<i class="nl d">derived</i> Per GPU, for a ring '+NM[k]+' of a '+S+' GB buffer over '+n+' GPUs. Peak link bandwidths (NVIDIA H100 datasheet; DeepSeek-V3 §3.2.2 for the H800\'s 160 against 50 GB/s, a ratio of '+(160/50).toFixed(1)+'); measured bus bandwidth is lower, and small messages are dominated by latency, which this ignores. As <i>n</i> grows the factor tends to 2 (all-reduce) or 1: adding GPUs to a ring hardly changes bytes per GPU, only the slowest hop matters.'}
-  ['ccK','ccN','ccS','ccL'].forEach(id=>$(id).addEventListener('input',draw));RD.onRender(draw);draw();
-})();
+// ---- Reading: pipeline bubbles (Narayanan; Qi et al.; DeepSeek-V3 Table 2); the collective-cost calculator was removed on 2026-10-19 (Interconnects owns it) ----
 (function(){
   const $=id=>document.getElementById(id);
   if(!$('pb'))return;

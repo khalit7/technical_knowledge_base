@@ -45,3 +45,5 @@ vLLM checks need a Python with torch and vLLM's requirements, `PYTHONPATH=<vllm 
 ## Departures from the method
 Labs are precomputed in Python from checked code rather than reimplemented in JavaScript (see `viz_ideas.md`). The
 Reading runs about 45 minutes: a child page owns its details.
+
+Overlap fix (19 October 2026): section 8 no longer describes StreamingLLM, H2O, SnapKV or KV quantisation; their mechanics are owned by "Long context" (Topic: llm-architecture, 3fd5c17b0d0d81059ee1ce20c0326dc5), which cites this page's q8_0/q4_0 measurement and realisable-saving test. Kept here: the measured cache quantisation, the newer scorers Long context does not cover (KVzip, Expected Attention and KVPress, latent context compression), the two questions and the KV compression experiment.
