@@ -1,5 +1,5 @@
 // ---- Failure lab: numbers in the prose and the summary table, filled from the recorded data; predict-then-reveal ----
-// (The Table 5 chart that used to live here moved out on 2026-10-19 with the sections cut to src/for_children/fail_lab_cut/.)
+// (The Table 5 chart that used to live here moved out on 2026-10-19 with the sections cut to src/for_children/fail_lab_cut/ (removed once absorbed, 2026-10-19; in git history).)
 (function(){
   const H=window.FL_H,D=window.FL_DATA;if(!H||!D||!H.$('t-fail'))return;const $=H.$;
   // prose numbers from the data
