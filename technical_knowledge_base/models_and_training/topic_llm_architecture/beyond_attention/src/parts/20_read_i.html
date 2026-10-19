@@ -1,0 +1,89 @@
+<section id="s11"><h2>11. The code, at pinned versions</h2>
+<p>Located by pattern with <code>src/code/quotes.py</code> in transformers 5.20.1 and the topic's <code>src/data/tiny_gpt.py</code>, so the line numbers are checked, not typed.</p>
+<p><b>The tiny GPT's SSM, in one sentence of maths.</b> <span class="small mute">(src/data/tiny_gpt.py, lines 293 to 297)</span> a<sub>t</sub> = exp(dt<sub>t</sub> A<sub>h</sub>) is one decay per head per step (Mamba-2's scalar A).</p>
+<pre>Per head h (P channels, state size N), with a scalar decay a_t = exp(dt_t * A_h) that depends on the input:
+    state_t = a_t * state_{t-1} + dt_t * x_t B_t^T      (P x N)
+    y_t     = state_t C_t + D_h * x_t
+Training uses the equivalent &quot;dual&quot; quadratic form y = (L o C B^T) (dt x), L[i,j] = prod_{j&lt;k&lt;=i} a_k, which is
+exact and fast at T &lt;= 1-2k; decoding uses the recurrence with a constant-size state (no KV cache).</pre>
+<p><b>Training: the dual (quadratic) form.</b> <span class="small mute">(src/data/tiny_gpt.py, lines 351 to 356)</span> <code>seg</code> is the log of L, the decay mask; <code>G</code> is L &#8857; C B<sup>&#8868;</sup>, an attention-like (heads, T, T) matrix.</p>
+<pre>cs = torch.cumsum(la, 1).transpose(1, 2)                        # (B,nh,T)
+seg = cs[..., :, None] - cs[..., None, :]                       # (B,nh,Ti,Tj) = sum_{j&lt;k&lt;=i} log a_k
+causal = torch.ones(T, T, dtype=torch.bool, device=x.device).tril()
+L = torch.exp(seg.masked_fill(~causal, float(&quot;-inf&quot;)))           # decay from j to i, 0 above the diagonal
+G = (Cm @ Bm.transpose(1, 2))[:, None] * L                      # (B,nh,Ti,Tj): like an attention matrix
+y = (G @ (xh * dt[..., None]).transpose(1, 2)).transpose(1, 2)  # (B,T,nh,P)</pre>
+<p><b>Decoding: the same layer as a recurrence.</b> <span class="small mute">(src/data/tiny_gpt.py, lines 346 to 347)</span> One state of (heads, P, N) = (16, 32, 16) per layer, whatever the context.</p>
+<pre>st = torch.exp(la[:, t])[..., None, None] * st + (dt[:, t, :, None, None] * xh[:, t, :, :, None]) * Bm[:, t, None, None, :]
+ys.append((st @ Cm[:, t, None, :, None]).squeeze(-1))       # (B,nh,P)</pre>
+<p><b>transformers' Mamba-2 reference path builds the same mask</b> <span class="small mute">(transformers/models/mamba2/modeling_mamba2.py, line 301)</span> within each chunk ...</p>
+<pre>L = torch.exp(segment_sum(A))</pre>
+<p><b>... with a segment sum instead of a difference of cumulative sums</b> <span class="small mute">(transformers/models/mamba2/modeling_mamba2.py, lines 73 to 90)</span> (why: section 12, second mistake).</p>
+<pre>def segment_sum(input_tensor):
+    &quot;&quot;&quot;
+    More stable segment sum calculation. Uses cumulative sums and masking instead of direct subtractions.
+    &quot;&quot;&quot;
+    chunk_size = input_tensor.size(-1)
+    # 1. expand input tensor to have an additional dimension and repeat along that dimension
+    # [..., chunk_size] -&gt; [..., chunk_size, chunk_size]
+    input_tensor = input_tensor[..., None].expand(*input_tensor.size(), chunk_size)
+    # 2. create a lower triangular mask with the diagonal set to 0 to 0 out elements above diag
+    mask = torch.tril(torch.ones(chunk_size, chunk_size, device=input_tensor.device, dtype=torch.bool), diagonal=-1)
+    input_tensor = input_tensor.masked_fill(~mask, 0)
+    # 3. compute actual cumsum
+    tensor_segsum = torch.cumsum(input_tensor, dim=-2)
+
+    # 4. apply mask to keep only the lower triangular part of the cumulative sum result (incl diagonal this time)
+    mask = torch.tril(torch.ones(chunk_size, chunk_size, device=input_tensor.device, dtype=torch.bool), diagonal=0)
+    tensor_segsum = tensor_segsum.masked_fill(~mask, -torch.inf)
+    return tensor_segsum</pre>
+<p><b>Gated DeltaNet, one token (Qwen3-Next).</b> <span class="small mute">(transformers/models/qwen3_next/modeling_qwen3_next.py, lines 552 to 560)</span> Decay the state, read what the key holds (<code>kv_mem</code>), write &beta; times the error, read with the query.</p>
+<pre>decay_t = decay[:, :, i].exp()[..., None, None]
+last_recurrent_state = last_recurrent_state * decay_t
+# Update the recurrent state with the current token
+beta_t = beta[:, :, i].unsqueeze(-1)
+kv_mem = (last_recurrent_state * k_t.unsqueeze(-1)).sum(dim=-2)
+delta = (v_t - kv_mem) * beta_t
+last_recurrent_state = last_recurrent_state + k_t.unsqueeze(-1) * delta.unsqueeze(-2)
+# And use it to compute the attention output for the current token
+core_attn_out[:, :, i] = (last_recurrent_state * q_t.unsqueeze(-1)).sum(dim=-2)</pre>
+<p><b>Kimi Delta Attention, one token (Kimi Linear).</b> <span class="small mute">(transformers/models/kimi_linear/modeling_kimi_linear.py, lines 452 to 460)</span> The same delta step; the decay <code>g_i</code> has one value per key channel instead of one per head.</p>
+<pre>g_i = g[:, i][..., None].exp()
+b_i = beta[:, i][..., None]
+
+last_recurrent_state = last_recurrent_state * g_i
+kv_mem = (last_recurrent_state * k_i[..., None]).sum(dim=-2)
+delta = (v_i - kv_mem) * b_i
+
+last_recurrent_state = last_recurrent_state + k_i.unsqueeze(-1) * delta.unsqueeze(-2)
+core_attn_out[:, i] = (last_recurrent_state * q_i.unsqueeze(-1)).sum(dim=-2)</pre>
+<p><b>RWKV-4's WKV, one token (CPU fallback).</b> <span class="small mute">(transformers/models/rwkv/modeling_rwkv.py, lines 185 to 197)</span> A numerator and a denominator carried as decayed running sums, with a running maximum for safe exponentials.</p>
+<pre>max_for_output = torch.maximum(max_state, current_key + time_first)
+e1 = torch.exp(max_state - max_for_output)
+e2 = torch.exp(current_key + time_first - max_for_output)
+numerator = e1 * num_state + e2 * current_value
+denominator = e1 * den_state + e2
+output[:, current_index] = (numerator / denominator).to(output.dtype)
+
+# Update state for next iteration
+max_for_state = torch.maximum(max_state + time_decay, current_key)
+e1 = torch.exp(max_state + time_decay - max_for_state)
+e2 = torch.exp(current_key - max_for_state)
+num_state = e1 * num_state + e2 * current_value
+den_state = e1 * den_state + e2</pre>
+<p><b>Mamba-1's sequential fallback.</b> <span class="small mute">(transformers/models/mamba/modeling_mamba.py, lines 259 to 267)</span> What runs when the CUDA scan kernel is missing: a Python loop over positions.</p>
+<pre>scan_outputs = []
+for index in range(seq_len):
+    # State calculation
+    ssm_state = discrete_A[:, :, index] * ssm_state + deltaB_u[:, :, index]
+
+    # Subsequent output
+    scan_output = torch.matmul(ssm_state.to(input_dtype), C[:, index, :].unsqueeze(-1))
+    scan_outputs.append(scan_output[:, :, 0])
+scan_output = torch.stack(scan_outputs, dim=-1)</pre>
+<p><b>The two small checks quoted in sections 2 and 12</b> (<code>src/code/demos.py</code>, CPU, output pasted):</p>
+<pre>linear attention, T=64, d=16: max |parallel - recurrent| = 4.44e-16
+state size: 272 numbers, whatever T is; a KV cache here holds 2048 numbers
+torch.float32   T=2048: subtract cumsums, max error 3.680e-06; segment sum, max error 5.794e-08
+torch.bfloat16  T=2048: subtract cumsums, max error 2.195e-01; segment sum, max error 1.721e-03</pre>
+</section>

@@ -1,0 +1,77 @@
+{
+ "transformers": "5.20.1",
+ "quotes": {
+  "tiny_ssm_doc": {
+   "file": "src/data/tiny_gpt.py",
+   "first": 293,
+   "last": 297,
+   "text": "    Per head h (P channels, state size N), with a scalar decay a_t = exp(dt_t * A_h) that depends on the input:\n        state_t = a_t * state_{t-1} + dt_t * x_t B_t^T      (P x N)\n        y_t     = state_t C_t + D_h * x_t\n    Training uses the equivalent \"dual\" quadratic form y = (L o C B^T) (dt x), L[i,j] = prod_{j<k<=i} a_k, which is\n    exact and fast at T <= 1-2k; decoding uses the recurrence with a constant-size state (no KV cache)."
+  },
+  "tiny_ssm_dual": {
+   "file": "src/data/tiny_gpt.py",
+   "first": 351,
+   "last": 356,
+   "text": "            cs = torch.cumsum(la, 1).transpose(1, 2)                        # (B,nh,T)\n            seg = cs[..., :, None] - cs[..., None, :]                       # (B,nh,Ti,Tj) = sum_{j<k<=i} log a_k\n            causal = torch.ones(T, T, dtype=torch.bool, device=x.device).tril()\n            L = torch.exp(seg.masked_fill(~causal, float(\"-inf\")))           # decay from j to i, 0 above the diagonal\n            G = (Cm @ Bm.transpose(1, 2))[:, None] * L                      # (B,nh,Ti,Tj): like an attention matrix\n            y = (G @ (xh * dt[..., None]).transpose(1, 2)).transpose(1, 2)  # (B,T,nh,P)"
+  },
+  "tiny_ssm_rec": {
+   "file": "src/data/tiny_gpt.py",
+   "first": 346,
+   "last": 347,
+   "text": "                st = torch.exp(la[:, t])[..., None, None] * st + (dt[:, t, :, None, None] * xh[:, t, :, :, None]) * Bm[:, t, None, None, :]\n                ys.append((st @ Cm[:, t, None, :, None]).squeeze(-1))       # (B,nh,P)"
+  },
+  "mamba2_segsum": {
+   "file": "transformers/models/mamba2/modeling_mamba2.py",
+   "first": 73,
+   "last": 90,
+   "text": "def segment_sum(input_tensor):\n    \"\"\"\n    More stable segment sum calculation. Uses cumulative sums and masking instead of direct subtractions.\n    \"\"\"\n    chunk_size = input_tensor.size(-1)\n    # 1. expand input tensor to have an additional dimension and repeat along that dimension\n    # [..., chunk_size] -> [..., chunk_size, chunk_size]\n    input_tensor = input_tensor[..., None].expand(*input_tensor.size(), chunk_size)\n    # 2. create a lower triangular mask with the diagonal set to 0 to 0 out elements above diag\n    mask = torch.tril(torch.ones(chunk_size, chunk_size, device=input_tensor.device, dtype=torch.bool), diagonal=-1)\n    input_tensor = input_tensor.masked_fill(~mask, 0)\n    # 3. compute actual cumsum\n    tensor_segsum = torch.cumsum(input_tensor, dim=-2)\n\n    # 4. apply mask to keep only the lower triangular part of the cumulative sum result (incl diagonal this time)\n    mask = torch.tril(torch.ones(chunk_size, chunk_size, device=input_tensor.device, dtype=torch.bool), diagonal=0)\n    tensor_segsum = tensor_segsum.masked_fill(~mask, -torch.inf)\n    return tensor_segsum"
+  },
+  "mamba2_L": {
+   "file": "transformers/models/mamba2/modeling_mamba2.py",
+   "first": 301,
+   "last": 301,
+   "text": "    L = torch.exp(segment_sum(A))"
+  },
+  "gdn_loop": {
+   "file": "transformers/models/qwen3_next/modeling_qwen3_next.py",
+   "first": 552,
+   "last": 560,
+   "text": "        decay_t = decay[:, :, i].exp()[..., None, None]\n        last_recurrent_state = last_recurrent_state * decay_t\n        # Update the recurrent state with the current token\n        beta_t = beta[:, :, i].unsqueeze(-1)\n        kv_mem = (last_recurrent_state * k_t.unsqueeze(-1)).sum(dim=-2)\n        delta = (v_t - kv_mem) * beta_t\n        last_recurrent_state = last_recurrent_state + k_t.unsqueeze(-1) * delta.unsqueeze(-2)\n        # And use it to compute the attention output for the current token\n        core_attn_out[:, :, i] = (last_recurrent_state * q_t.unsqueeze(-1)).sum(dim=-2)"
+  },
+  "kda_loop": {
+   "file": "transformers/models/kimi_linear/modeling_kimi_linear.py",
+   "first": 452,
+   "last": 460,
+   "text": "        g_i = g[:, i][..., None].exp()\n        b_i = beta[:, i][..., None]\n\n        last_recurrent_state = last_recurrent_state * g_i\n        kv_mem = (last_recurrent_state * k_i[..., None]).sum(dim=-2)\n        delta = (v_i - kv_mem) * b_i\n\n        last_recurrent_state = last_recurrent_state + k_i.unsqueeze(-1) * delta.unsqueeze(-2)\n        core_attn_out[:, i] = (last_recurrent_state * q_i.unsqueeze(-1)).sum(dim=-2)"
+  },
+  "rwkv_wkv": {
+   "file": "transformers/models/rwkv/modeling_rwkv.py",
+   "first": 185,
+   "last": 197,
+   "text": "        max_for_output = torch.maximum(max_state, current_key + time_first)\n        e1 = torch.exp(max_state - max_for_output)\n        e2 = torch.exp(current_key + time_first - max_for_output)\n        numerator = e1 * num_state + e2 * current_value\n        denominator = e1 * den_state + e2\n        output[:, current_index] = (numerator / denominator).to(output.dtype)\n\n        # Update state for next iteration\n        max_for_state = torch.maximum(max_state + time_decay, current_key)\n        e1 = torch.exp(max_state + time_decay - max_for_state)\n        e2 = torch.exp(current_key - max_for_state)\n        num_state = e1 * num_state + e2 * current_value\n        den_state = e1 * den_state + e2"
+  },
+  "mamba1_loop": {
+   "file": "transformers/models/mamba/modeling_mamba.py",
+   "first": 259,
+   "last": 267,
+   "text": "        scan_outputs = []\n        for index in range(seq_len):\n            # State calculation\n            ssm_state = discrete_A[:, :, index] * ssm_state + deltaB_u[:, :, index]\n\n            # Subsequent output\n            scan_output = torch.matmul(ssm_state.to(input_dtype), C[:, index, :].unsqueeze(-1))\n            scan_outputs.append(scan_output[:, :, 0])\n        scan_output = torch.stack(scan_outputs, dim=-1)"
+  }
+ },
+ "rotary_calls": {
+  "models/jamba/modeling_jamba.py": {
+   "definitions": 1,
+   "calls": 0
+  },
+  "models/nemotron_h/modeling_nemotron_h.py": {
+   "definitions": 1,
+   "calls": 0
+  },
+  "models/granitemoehybrid/modeling_granitemoehybrid.py": {
+   "definitions": 1,
+   "calls": 1
+  },
+  "models/falcon_h1/modeling_falcon_h1.py": {
+   "definitions": 1,
+   "calls": 1
+  }
+ }
+}
