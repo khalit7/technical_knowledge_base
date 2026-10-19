@@ -55,7 +55,7 @@ C = [
  ("EP: distribute MoE experts across GPUs; tokens routed via all-to-all", "Reading, Expert parallelism; animation EP", "all-to-all dispatch"),
  ("EP: attention/dense parts replicated or sharded by other means", "Reading, Expert parallelism", "stay replicated (data parallel) or are split another way"),
  ("EP origin: Switch Transformers (corrected: GShard 2020 first; Switch simplified routing and studied the combinations)", "Reading, Expert parallelism, Lineage", "GShard"),
- ("EP modern practice: DeepSeek-V3, fine-grained experts, node-limited routing to cap all-to-all cost", "Reading, Expert parallelism", "at most 4 nodes"),
+ ("EP modern practice: DeepSeek-V3, fine-grained experts, node-limited routing to cap all-to-all cost", "Reading, Expert parallelism (summary; the layout is worked through on Mixture of experts section 7, 3fd5c17b0d0d81fda06bf955af7c2b58, since 2026-10-19)", "each token capped at 4 nodes"),
  ("EP modern practice: Qwen3-MoE", "Reading, Expert parallelism (config sourced; pretraining layout unconfirmed)", "Qwen3-235B-A22B"),
  ("CP shards the sequence dimension of activations for long-context training; attention memory grows with sequence length", "Reading, Context parallelism", "sequence dimension"),
  ("CP family: Ring Attention, KV blocks around a ring, overlapping compute and comms", "Reading, Context parallelism", "Ring Attention"),

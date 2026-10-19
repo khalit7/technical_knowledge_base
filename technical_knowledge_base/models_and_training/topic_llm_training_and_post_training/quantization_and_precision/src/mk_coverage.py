@@ -6,6 +6,16 @@ H = open(os.path.join(HERE, '..', 'index.html')).read()
 T = html.unescape(re.sub(r'<[^>]+>', ' ', H)); T = re.sub(r'\s+', ' ', T)
 E = []
 def c(fact, where, probe, status='kept'): E.append(dict(fact=fact, where=where, probe=probe, status=status))
+# Overlap fix 2026-10-19: facts whose owner is another page are probed in that page's built index.html
+KB = os.path.join(HERE, '..', '..', '..', '..')
+def _txt(rel):
+    h = open(os.path.join(KB, rel, 'index.html')).read(); t = html.unescape(re.sub(r'<[^>]+>', ' ', h)); return re.sub(r'\s+', ' ', t)
+OWN = {'NC': ('engineering_foundations/topic_math/numerical_computing', 'Numerical computing for ML'),
+       'LO': ('systems_and_performance/topic_inference_and_serving/local_and_on_device_inference', 'Local and on-device inference')}
+OT = {k: _txt(v[0]) for k, v in OWN.items()}
+MOVED = {}
+def moved(old_probe, owner, new_probe, section, note=''):
+    MOVED[old_probe] = (owner, new_probe, section, note)
 R = 'Reading'
 # resources
 c('Grootendorst Visual Guide to Quantization, ~40 min', 'Further reading', 'A Visual Guide to Quantization')
@@ -103,7 +113,45 @@ c('Low-precision RL: MXFP8 rollouts+training, NVFP4 rollouts with bf16 training 
 c('Inference default stack 2026: bf16 -> fp8 W8A8 -> NVFP4/int4 weight-only; MoE experts aggressive', R + ', 4-bit frontier; At a glance', 'Inference default stack, 2026')
 c('Links: Topic inference-and-serving (kernels, KV-cache quantization); Topic hardware', R + ', 4-bit frontier; Further reading', 'Topic: hardware')
 c('Read time 21 min + 6h 25m resources', 'not carried', '', 'dropped: Notion header metadata; Further reading lists each resource with its time')
+# where each cut fact now lives (overlap fix, 2026-10-19)
+moved('Master weights, optimiser state, reductions', 'NC', 'master weights, optimiser state and accumulators', 'section 4')
+moved("Ampere's default for fp32 matmuls", 'NC', 'same precision as FP16', 'section 4', 'refined there: PyTorch 2.14.1 leaves TF32 off for matmuls by default')
+moved('Precision-rich, range-poor', 'NC', 'That is why it needs loss scaling', 'section 4')
+moved('the training default', 'NC', 'It is the default training dtype in 2026', 'section 4')
+moved('The variant tag carries the information', 'self', 'a nominal bit count and a variant tag', 'Reading a name, GGUF in one paragraph')
+moved('trivially fast to decode', 'LO', 'Legacy types are worse per bit', 'section 4', 'Q8_0 survives; legacy types measured worse per bit, faster on some GPUs')
+moved('which is the whole trick', 'self', 'whose sub-block scales are themselves quantised', 'Reading a name')
+moved('is not a different block format', 'self', 'not a block format', 'Reading a name')
+moved('exactly half of a 32-layer model', 'LO', 'use_more_bits', 'section 3')
+moved('is uniformly', 'LO', 'is uniformly Q4_K', 'section 3 (correction carried)')
+moved('the most quantisation-sensitive', 'LO', 'more bits where errors hurt most', 'section 3')
+moved('importance-matrix family', 'LO', 'lattice codebook', 'section 3')
+moved('Two overheads sit between the name and the file size', 'self', 'never the nominal number', 'Reading a name')
+moved('near 3.2', 'LO', 'Quant ladder', 'section 4 and Quant ladder tab', 'whole-file bits per weight now measured on Qwen3-1.7B and 4B')
+moved('measured on Llama-3.1-8B', 'LO', 'Quant ladder', 'section 4 and Quant ladder tab', 'replaced by files made and measured on Qwen3')
+moved('strongly model-dependent', 'LO', 'Newer, more heavily trained models suffer more', 'section 4, lesson "Small models suffer more"')
+for p in ['3.16 (2.625)', '4.00 (3.4375', '4.67', '4.89', '5.70', '6.56', '8.50', '2.38 (2.06)', '3.76', '4.46']:
+    moved(p, 'LO', 'Quant ladder', 'section 4 and Quant ladder tab', 'per-type ladder measured as KL divergence; help-string perplexities for Q2_K, Q4_K_M, Q6_K, Q8_0 carried')
+moved('Obsolete: about the size of', 'LO', 'Legacy types are worse per bit', 'section 4')
+moved('Do not convert into it hoping for free quality', 'self', 'gpt-oss ships only its MoE weights', 'Reading a name, dual 5090s; MXFP4 checkpoints row')
+moved('The only way to fit a 70B+ in 24 GB', 'LO', 'below the cliff', 'section 4')
+moved('sum of squared activations feeding each column', 'LO', 'average squared activation', 'section 3, Importance matrices')
+moved('hand-tuned per-tensor allocation', 'LO', 'Unsloth', 'section 3')
+moved('quietly loses capability off it', 'LO', 'quietly degrade', 'section 3, Importance matrices')
+moved('0.61 GB per billion', 'LO', "rule of thumb, checked", 'section 4')
+moved('broken reasoning chains and format drift', 'self', 'fall off a cliff below about 3 bits', 'Reading a name')
+moved('100B-class MoEs run acceptably at 4-bit on 64 GB', 'self', 'MoE experts tolerate much harder quantisation', 'Reading a name, dual 5090s')
+moved('Ollama, llama.cpp, and local serving', 'self', 'Local and on-device inference: llama.cpp, Ollama, MLX', 'Reading a name; Further reading', 'page retitled')
+for e in E:
+    if e['probe'] in MOVED:
+        o, np_, sec, note = MOVED[e['probe']]
+        if o == 'self': e['where'] = R + ', ' + sec; e['probe'] = np_
+        else:
+            e['where'] = 'moved to ' + OWN[o][1] + ', ' + sec; e['owner'] = OWN[o][0]; e['owner_probe'] = np_; e['probe'] = ''
+            if e['status'] == 'kept': e['status'] = 'moved' + (': ' + note if note else '')
+            elif note: e['status'] += '; moved: ' + note
+            if np_ not in OT[o]: print('MISSING in owner', o, np_)
 missing = [e for e in E if e['probe'] and e['probe'] not in T and e['probe'] not in H]
 for e in missing: print('MISSING', e['probe'])
-json.dump(dict(source='src/live.md (Notion, fetched 2026-10-03)', entries=E, counts=dict(total=len(E), kept=sum(e['status'] == 'kept' for e in E), corrected=sum(e['status'] != 'kept' and not e['status'].startswith('dropped') for e in E), dropped=sum(e['status'].startswith('dropped') for e in E))), open(os.path.join(HERE, 'coverage.json'), 'w'), indent=1, ensure_ascii=False)
+json.dump(dict(source='src/live.md (Notion, fetched 2026-10-03)', entries=E, counts=dict(total=len(E), kept=sum(e['status'] == 'kept' for e in E), corrected=sum(e['status'] != 'kept' and not e['status'].startswith(('dropped', 'moved')) for e in E), dropped=sum(e['status'].startswith('dropped') for e in E), moved=sum('moved' in e['status'] for e in E))), open(os.path.join(HERE, 'coverage.json'), 'w'), indent=1, ensure_ascii=False)
 print(len(E), 'entries;', len(missing), 'missing')

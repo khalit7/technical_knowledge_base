@@ -56,10 +56,6 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (const w of ['wiki6h', 'zipf0.7', 'zipf0.9', 'zipf1.1', 'wiki']) { await clickSeg('#rd-ev-work', w); await shot('#rd-ev-card', 'ev-' + w); }
   await bad('ev');
   if (width === 920) { nums.ev_find = await txt('#rd-ev-find'); nums.cw_tbl = await txt('#rd-cw-tbl'); }
-  // section 10: KV calculator
-  const nm = await p.$$eval('#rd-kv-model option', o => o.length);
-  for (let m = 0; m < nm; m++) for (const c of [0, 3, 5, 7]) { await setV('rd-kv-model', m); await setV('rd-kv-ctx', c); if (width === 920) nums['kv_' + m + '_' + c] = await txt('#rd-kv-out'); }
-  await setV('rd-kv-n', 64); await setV('rd-kv-n', 8); await setV('rd-kv-model', 0); await setV('rd-kv-ctx', 5); await shot('#rd-kv-card', 'kv'); await bad('kv');
   // section 11: break-even calculator
   const pm = await p.$$eval('#rd-be-model option', o => o.length);
   for (let m = 0; m < pm; m++) for (const t of [0, 3, 6]) for (const n of [1, 2, 10, 50]) { await setV('rd-be-model', m); await setV('rd-be-tok', t); await setV('rd-be-n', n); if (width === 920 && n === 2 && t === 3) nums['be_' + m] = await txt('#rd-be-out'); }

@@ -39,12 +39,6 @@ for i, m in enumerate(pr['models']):
         ok('saving at 2 uses ' + m['m'], float(got.group(1)) if got else -float(re.search(r'costs ([0-9.]+)% more', txt).group(1)), sv)
 ok('Anthropic Sonnet 5.5 break-even (old page said 1.3 reads)', round(1 + 0.25 / 0.9, 2), 1.28)
 ok('81% of input bill removed', round(0.9 * (1 - 0.1), 2), 0.81)
-# KV per token
-for i, m in enumerate(kv['models']):
-    per = m.get('per_token_override') or 2 * m['layers'] * m['kvh'] * m['hd'] * m['bytes']
-    got = num(re.search(r'= ([0-9,]+) B|^Per token\s+([0-9,]+) B', P['kv_%d_0' % i], re.M).group(0).split('=')[-1])
-    ok('KV bytes per token ' + m['m'][:30], got, per)
-ok('Llama 3.1 70B, 128K tokens in GiB', num(re.search(r'One conversation\s+([0-9.]+) GiB', P['kv_0_5']).group(1)), 40.0)
 # race table
 for s, r in race['strategies'].items():
     ok('race stale ' + s, r['stale'], r['stale'])

@@ -1,28 +1,15 @@
-// ---- Sections 10 to 12: KV cache calculator, provider prompt-caching table and break-even, semantic-cache curves ----
+// ---- Sections 11 and 12: provider prompt-caching prices and break-even, semantic-cache curves (the KV cache calculator moved out on 2026-10-19: Topic: inference-and-serving owns it) ----
 (function(){
   const a=(t,u)=>'<a href="'+u+'" target="_blank" rel="noopener noreferrer">'+t+'</a>';
   const KV=CA.kv,PR=CA.prices;
-  // ---------- KV cache ----------
-  const CTX=[1024,4096,8192,32768,65536,131072,262144,1048576];
-  const ms=document.getElementById('rd-kv-model');
-  if(ms){ms.innerHTML=KV.models.map((m,i)=>'<option value="'+i+'">'+m.m+'</option>').join('');
-    const bytesFor=(m,ctx)=>{const per=m.per_token_override||2*m.layers*m.kvh*m.hd*m.bytes;let t=per*ctx;if(m.window_layers)t+=m.window_layers*2*m.kvh*m.hd*m.bytes*Math.min(ctx,m.window);return {per,t}};
-    const fmtB=b=>b>=1073741824?(b/1073741824).toFixed(b>=1e11?0:1)+' GiB':b>=1048576?(b/1048576).toFixed(1)+' MiB':(b/1024).toFixed(1)+' KiB';
-    function kv(){const m=KV.models[+ms.value],ctx=CTX[+document.getElementById('rd-kv-ctx').value],n=+document.getElementById('rd-kv-n').value;
-      document.getElementById('rd-kv-ctxv').textContent=ctx.toLocaleString('en-US');document.getElementById('rd-kv-nv').textContent=n;
-      const r=bytesFor(m,ctx),tot=r.t*n,h100=80e9;
-      document.getElementById('rd-kv-out').innerHTML=RD.stat('Per token',m.per_token_override?r.per.toLocaleString('en-US')+' B':'2 × '+m.layers+' × '+m.kvh+' × '+m.hd+' × '+m.bytes+' = '+r.per.toLocaleString('en-US')+' B',fmtB(r.per)+(m.window_layers?' (full-attention layers only)':''))+
-        RD.stat('One conversation',fmtB(r.t),ctx.toLocaleString('en-US')+' tokens')+RD.stat(n+' at once',fmtB(tot),(tot/h100*100).toFixed(tot/h100<0.1?1:0)+'% of one 80 GB H100');
-      document.getElementById('rd-kv-src').innerHTML='Config: '+a('config.json',m.src)+' ('+m.kind+'). '+KV.note.split(';')[0]+'.'+(m.per_token_override?' MLA: 576 numbers × 61 layers × 2 bytes, as on the DeepSeek page.':'');}
-    ['rd-kv-model','rd-kv-ctx','rd-kv-n'].forEach(id=>document.getElementById(id).addEventListener('input',kv));kv();}
   // ---------- provider table ----------
   const pt=document.getElementById('rd-pc-tbl');
   if(pt){const f=v=>v==null?'-':'$'+(v<0.1?v.toFixed(3):v.toFixed(2));
-    pt.innerHTML='<tr><th>Provider</th><th>How you turn it on</th><th>Lifetime</th><th>Model</th><th class="num">Input</th><th class="num">Cache write</th><th class="num">Cache read</th><th class="num">Read / input</th><th class="num">Minimum</th></tr>'+
+    pt.innerHTML='<tr><th>Provider</th><th>Model</th><th class="num">Input</th><th class="num">Cache write</th><th class="num">Cache read</th><th class="num">Read / input</th></tr>'+
       PR.models.map(m=>{const p=PR.providers.find(q=>q.p===m.p);const first=PR.models.find(q=>q.p===m.p)===m;const n=PR.models.filter(q=>q.p===m.p).length;
-        return '<tr>'+(first?'<td rowspan="'+n+'"><b>'+a(m.p,p.src)+'</b></td><td rowspan="'+n+'" class="small">'+p.how+'</td><td rowspan="'+n+'" class="small">'+p.ttl+'</td>':'')+
-        '<td>'+m.m+'</td><td class="num">'+f(m.in)+'</td><td class="num">'+(m.w===m.in?'no surcharge':f(m.w)+(m.w1h?'<br><span class="small mute">1 h: '+f(m.w1h)+'</span>':''))+(m.store?'<br><span class="small mute">+ '+f(m.store)+' per M tokens per hour stored</span>':'')+'</td><td class="num">'+f(m.r)+'</td><td class="num">'+String(+(m.r/m.in).toFixed(3))+'&times;'+(m.p==='Google Gemini'?'<sup>d</sup>':'')+'</td><td class="num">'+(m.min?m.min.toLocaleString('en-US'):'varies')+'</td></tr>'}).join('')+
-      '<tr><td colspan="9" class="small mute">Dollars per million tokens, standard tier, read '+PR.date+'. <sup>d</sup> Gemini publishes prices, not a multiplier: the ratio is derived. '+Object.values(PR.notes).join(' ')+'</td></tr>';}
+        return '<tr>'+(first?'<td rowspan="'+n+'"><b>'+a(m.p,p.src)+'</b></td>':'')+
+        '<td>'+m.m+'</td><td class="num">'+f(m.in)+'</td><td class="num">'+(m.w===m.in?'no surcharge':f(m.w)+(m.w1h?'<br><span class="small mute">1 h: '+f(m.w1h)+'</span>':''))+(m.store?'<br><span class="small mute">+ '+f(m.store)+' per M tokens per hour stored</span>':'')+'</td><td class="num">'+f(m.r)+'</td><td class="num">'+String(+(m.r/m.in).toFixed(3))+'&times;'+(m.p==='Google Gemini'?'<sup>d</sup>':'')+'</td></tr>'}).join('')+
+      '<tr><td colspan="6" class="small mute">Dollars per million tokens, standard tier, read '+PR.date+'. <sup>d</sup> Gemini publishes prices, not a multiplier: the ratio is derived. '+Object.values(PR.notes).join(' ')+'</td></tr>';}
   // ---------- break-even calculator ----------
   const TOK=[1024,2048,4096,10000,20000,50000,100000];
   const bm=document.getElementById('rd-be-model');

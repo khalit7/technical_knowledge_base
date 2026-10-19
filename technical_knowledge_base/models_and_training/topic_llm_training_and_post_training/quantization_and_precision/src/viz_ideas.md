@@ -34,3 +34,4 @@ Scoring (Methodology, section 2): R reproduces a published figure (x2), C comput
 
 ## What the methodology lacked here
 A rule for "measured here" numbers from a real model run offline: they are neither published nor derived. Used a fourth label ("measured here") and kept every script and input.
+- 2026-10-19 overlap fix: the GGUF block-layout widget (rd-nm) and the perplexity knee chart (rd-kn) were removed; the local and on-device inference page decodes real blocks and measures a KL-divergence ladder instead.

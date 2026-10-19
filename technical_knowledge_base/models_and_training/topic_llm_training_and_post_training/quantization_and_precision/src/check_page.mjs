@@ -37,12 +37,6 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   }
   await clk('#rd-mgM button[data-i="1"]'); await p.$eval('#rd-mgC-s', e => { e.value = 4; e.dispatchEvent(new Event('input')) });
   await (await p.$('#rd-mg')).screenshot({ path: `${out}/x-migrate-${scheme}.png` });
-  // names
-  const n = await p.$$eval('#rd-nmS option', o => o.length);
-  for (let i = 0; i < n; i++) { await p.select('#rd-nmS', String(i)); await scan('#rd-nm', 'names ' + i) }
-  await p.select('#rd-nmS', '4');
-  await (await p.$('#rd-nm')).screenshot({ path: `${out}/x-names-${scheme}.png` });
-  await (await p.$('#rd-kn')).screenshot({ path: `${out}/x-knee-${scheme}.png` });
   await (await p.$('#rd-fr')).screenshot({ path: `${out}/x-ranges-${scheme}.png` });
   // bit explorer
   await clk('button[data-t=t-bits]');

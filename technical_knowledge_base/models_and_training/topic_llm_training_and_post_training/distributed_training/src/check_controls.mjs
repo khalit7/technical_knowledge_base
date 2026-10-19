@@ -41,11 +41,6 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     }
   }
   for (const c of ['ZeRO-3', 'TP']) { await p.select('#anCmp', c); await scan('#anCnt', 'compare ' + c) }
-  // collectives calculator
-  for (const k of ['ar', 'rs', 'ag', 'a2a', 'p2p']) for (const n of ['2', '8', '1024']) for (const L of ['450', '160', '50', '25']) {
-    await p.select('#ccK', k); await p.$eval('#ccN', (e, n) => { e.value = n; e.dispatchEvent(new Event('input')) }, n);
-    await p.select('#ccL', L); await scan('#cc', 'cc ' + k + n + L);
-  }
   // bubble table
   for (const [P, M, V] of [['2', '1', '1'], ['8', '20', '2'], ['32', '64', '4'], ['32', '1', '1']]) {
     for (const [id, v] of [['pbP', P], ['pbM', M], ['pbV', V]]) await p.$eval('#' + id, (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v);

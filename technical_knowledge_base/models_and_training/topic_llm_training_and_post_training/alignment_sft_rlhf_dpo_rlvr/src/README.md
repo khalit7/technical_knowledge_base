@@ -7,3 +7,5 @@ Data: `mk_lengths.py` (network; `uv run --no-project --with tokenizers python mk
 Shape: built from the brief, no method file for deep-dive child pages. Reading tab by stage (pipeline, SFT, packing, reward models, RL in brief, the DPO family, online or offline, RLVR, mistakes), one tab (Method family tree), Further reading. Departure from the candidate list: no RLVR/GRPO-variant animation, because RL for LLMs owns those algorithms and the DeepSeekMath page already animates and trains them (see `viz_ideas.md`).
 
 Parts: `20_read_a/b/c.html` Reading; `30_tab_tree.html` + `30_js_tree.js`; `39_tab_more.html`; JS `21_js_common.js` (the parent's RD.anim controller, copied), `22_js_fill.js`, `23_js_mask.js`, `24_js_pack.js`, `25_js_pair.js`, `99_js_tabs.js`.
+
+Overlap fix (19 October 2026): section 6's "Open problems" and infrastructure paragraph are now one pointer to RL for LLMs (3c65c17b0d0d818c9bcff7177325fe56), sections 4, 7, 9, 11 and 12. RL for LLMs used to point back here for rubric rewards, Cui et al.'s entropy law and GiGPO's numbers; those were moved there first.
