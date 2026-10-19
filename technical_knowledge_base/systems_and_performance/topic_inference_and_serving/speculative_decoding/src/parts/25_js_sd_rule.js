@@ -10,7 +10,7 @@
       draws.push({x,u,ratio,lev,levOut,t,sac,sacOut:t})}}
   function draw(step){const f=P[pi].full,el=document.getElementById('sd-rule-svg');
     const W=Math.max(280,Math.min(860,SD.width(el))),show=f.slice(0,8),cur=step>0?draws[step-1]:null;
-    const rowH=24,top=18,lab=Math.min(110,W*0.26),bw=W-lab-60,H=top+show.length*rowH+8;
+    const rowH=24,top=18,lab=Math.min(110,W*0.26),bw=W-lab-72,H=top+show.length*rowH+8;
     const mx=Math.max(...show.map(r=>Math.max(r[1],r[2])));
     let s='<text x="'+lab+'" y="12" font-size="10.5" fill="var(--c1)">target p</text><text x="'+(lab+70)+'" y="12" font-size="10.5" fill="var(--c2)">draft q</text><text x="'+(lab+130)+'" y="12" font-size="10.5" fill="var(--good)">overlap min(p, q)</text>';
     show.forEach((r,i)=>{const y=top+i*rowH,wp=bw*r[1]/mx,wq=bw*r[2]/mx,wm=bw*Math.min(r[1],r[2])/mx,hl=cur&&(f.indexOf(r)===cur.x||(mode==='lev'?f.indexOf(r)===cur.levOut:f.indexOf(r)===cur.t));
