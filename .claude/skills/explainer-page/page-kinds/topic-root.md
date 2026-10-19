@@ -45,7 +45,7 @@ The reader's question: **"what is this field, how do its parts compare, and on w
   | ml infra | 28 min |
   | generative | 30 min |
 
-  Cut material goes to `src/for_children/` as input for the children, never deleted.
+  Cut material goes to `src/for_children/` as input for the children. Once every child that needs it has absorbed it (and no build or coverage script reads it), delete it: git keeps the record (ML-infra root, 2026-10-19).
 
 ## Tabs
 - **Labs** (three to six): one subject of the spine each, on the running example, with at least one before/after animation on the same input. They are measured where measuring teaches ([../evidence/local-runs.md](../evidence/local-runs.md)).
