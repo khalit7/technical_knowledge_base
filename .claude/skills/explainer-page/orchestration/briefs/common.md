@@ -93,6 +93,6 @@ REPORT (your final message; once, not repeated while you wait): what you built (
 ---
 
 ## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
 `gm_common`, `mi_common`, `jx_common`, `dc_common`, `rag_common`, `inf_common` and `pt_common` briefs (2026-10-11 to 2026-10-17), including the RESOURCE SAFETY, HARD MEMORY CAP, CONTAINERS and CLUSTER SHARING sections; html_utils/BRIEF_page_agent.md "Rules learned on the training topic"; feedback memories no-usage-caps, cheap-runs-over-expensive, manage-mac-resources, gpu-runs-one-agent, scratch-wiped-reboot, completeness-over-disk.

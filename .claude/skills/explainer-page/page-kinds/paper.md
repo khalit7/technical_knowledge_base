@@ -197,6 +197,6 @@ Progress is in `pages.json`. A paper with status `not_migrated` whose folder alr
 - **(DDPM, CLIP, from their src/README.md)**: when 6-bit weights break a model (DDPM's mu-predicting variants), ship 8-bit and report what it costs. When the argument is about the objective, the toy trains several objectives on one encoder; results that do not reproduce (CLIP's 4x, prompt engineering's gains) are shown as such, not retuned.
 
 ---
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
 Sources distilled: html_utils/methods/papers.md (whole method, time budget, all lessons); html_utils/BRIEF_paper_agent.md (step 0, connections, live ingredient limits, coverage list, what to keep, long-running commands, checks, reply); html_utils/methods/README.md; memory papers-migration-in-progress, methods-are-suggestions; reference/papers/ddpm and clip src/README.md (departures). Superseded and changed here: the 300 KB limit (now about 1 MB per paper page), 2 threads (now 4 at nice 15), merging viz rows into the deleted ideas log (they stay in src/viz_ideas.md).

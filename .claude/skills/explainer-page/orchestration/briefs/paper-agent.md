@@ -47,6 +47,6 @@ REPORT (once): the tabs and Reading outline; the verdict and its main reasons; t
 Re-run `checkpage.sh` and look at the screenshots; publish with the `sync-kb-github` steps (a row page has no children: `replace_content` with the embed and the source line); `python3 html_utils/paper_finalize.py <slug>` (marks it `html_only`, records the hash, commits); `git push`. Add any new dated lesson to `page-kinds/paper.md`.
 
 ## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
 html_utils/BRIEF_paper_agent.md; html_utils/BRIEF_page_agent.md (Step 0, the model, reply format, rules learned on the training topic); html_utils/methods/papers.md "Running it for many papers"; html_utils/paper_finalize.py; the papers-migration memory (63 pages, 2026-10-02 to 2026-10-03).

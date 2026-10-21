@@ -106,6 +106,6 @@ Use when the frames are right but the narration changes (new backend, fixed line
 - What is committed: `BRIEF.md`, `SCRIPT.md`, `STORYBOARD.md`, `frame.md`, `narration_lines.tsv`, `compositions/`, `index.html`, `assets/` (fonts, sfx, `voice/NN-cb.wav`, a few MB), `audio_meta.json`, `caption_groups.json`, `capture/extracted/`, `.media/`, `hyperframes.json`, `package.json`, `meta.json`, `AGENTS.md`, `CLAUDE.md`. Not committed: `renders/`, `snapshots/`, `.hyperframes/`, any MP4.
 
 ## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
 `.claude/skills/create-explainer-video/SKILL.md` (steps 1 to 9); `video_utils/README.md`, `narrate.py`, `check_takes.py`; the vendored `faceless-explainer/SKILL.md` (steps, scripts, known false positive), `hyperframes/SKILL.md` and its faceless route; the worked example `topic_llm_landscape/video/` (`BRIEF.md`, `SCRIPT.md`, `STORYBOARD.md`, `narration_lines.tsv`, `audio_meta.json`, `compositions/frames/*.html` voice warp blocks, `package.json`); `CLAUDE.md` (subagent limits, writing rules); memory note on one GPU-bound agent at a time.

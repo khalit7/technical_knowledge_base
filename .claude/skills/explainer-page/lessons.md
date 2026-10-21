@@ -68,6 +68,6 @@ Each lesson says what happened and the rule it produced. The rules are already f
 4. If a running topic is affected, append the rule to its filled brief and message the running agents once.
 
 ## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
 Memory logs of the inference, RAG, data curation, JAX, ML infra and generative topics (2026-10-11 to 2026-10-17); feedback memories gpu-runs-one-agent, no-usage-caps, cheap-runs-over-expensive, manage-mac-resources, check-coverage-before-leaving-old, scratch-wiped-reboot, completeness-over-disk, teach-dont-ask-scope; the kb_briefs `lock.sh` and `guard.sh` headers; html_utils/BRIEF_page_agent.md "Rules learned on the training topic"; the papers method's Mamba lesson.
