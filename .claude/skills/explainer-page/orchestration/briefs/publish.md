@@ -37,6 +37,6 @@ Report (once): each page published (title, upload ok, retitled or not, commit), 
 ---
 
 ## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
 The lead's prompts "Publish ML infra to Notion" and "Publish generative to Notion" (2026-10-17); the sync-kb-github skill (upload, stable `file://` form, root-with-children rule); the JAX and RAG root publishes (insert embed, helper deleting old text keeping video and page tags, 2026-10-15); html_utils/page_finalize.py.

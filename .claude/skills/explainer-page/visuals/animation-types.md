@@ -214,6 +214,6 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 - A toy tuned until it agrees with the paper: show the honest toy result instead.
 
 ## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
 `html_utils/interactive-html-ideas.md` (section 1 ideas table: T, D, A, O, G, Q, M, Z, Mi, K, Mx, X, OL, P, E, R, H, Ga rows; paper P rows; sampled per-page blocks for the training, fault-tolerance and flow-matching pages and the rejection reasons; section 2 animation paragraph), `html_utils/BRIEF_page_agent.md`, `html_utils/methods/topic_pages.md` and `papers.md` (live ingredient by kind of paper), the briefs in `~/kb_briefs` (gm_common, gm_child_common), and the parts files named above.

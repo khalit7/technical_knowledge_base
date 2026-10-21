@@ -72,6 +72,6 @@ Ask a topic-specific question only when the decision is genuinely his: a split i
 - **Agents.** About four at a time. A multi-agent Workflow only with his explicit opt-in ([../orchestration/topic-pipeline.md](../orchestration/topic-pipeline.md)).
 
 ---
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
 Sources distilled: memory teach-dont-ask-scope, methods-are-suggestions, no-usage-caps, completeness-over-disk, cheap-runs-over-expensive, manage-mac-resources, gpu-runs-one-agent, and the swe, databases, math, os, proglang, protocols, inference, pytorch, rag, dc, jax, mi, gm, agents and gpu topic logs; kb_briefs THE READER sections (gm, mi, jx, dc); html_utils/methods/topic_pages.md (2026-10-04 lessons); CLAUDE.md.

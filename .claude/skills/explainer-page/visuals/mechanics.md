@@ -55,6 +55,6 @@ Step captions, explanations, legends with more than a word or two, and long axis
 The old 300 KB limit is retired. Going over a budget is acceptable when the content needs it: say so in the report; trim encodings (quantise, thumbnail, round to the printed precision) before cutting knowledge. When several tabs share a page, give each a share early (the generative root asked two labs to trim from 360 to 250 KB and 270 to 180 KB).
 
 ## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
 `.claude/skills/create-interactive-html/SKILL.md` (constraints), `html_utils/BRIEF_page_agent.md` (fail-safe build, animation manners), `html_utils/methods/topic_pages.md` (2026-10-02 lesson, in-parallel tab rules), `html_utils/methods/papers.md` (measured-width charts, 11 px check), `html_utils/checkpage.sh` and `clipcheck.mjs`, the gm, mi and dc briefs (prefixes, TAB_RENDER, size budgets), the gm-topic memory (page size trims), and `models_and_training/topic_generative_and_multimodal/src/parts/` (01_head.html, 21_js_rd_common.js, 99_js_tabs.js).

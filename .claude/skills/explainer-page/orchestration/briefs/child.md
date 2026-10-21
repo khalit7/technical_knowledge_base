@@ -51,6 +51,6 @@ DATED RULES (append as incidents happen; examples from 2026-10-17):
 "You build ONE child page of the knowledge base. Read {{SCRATCH}}/{{PREFIX}}_child_common.md in full and follow it, including its last lines (dated rules). RESOURCE SAFETY in {{PREFIX}}_common.md overrides everything. Your page is child {{K}}, {{SLUG}}: "{{EXACT_TITLE}}" (folder {{ROOT_FOLDER}}{{SLUG}}/). Your prefix: {{P}}; scratch key {{P}}. Reuse: {{SPECIFIC REUSE: which lab and sibling recordings, checkpoints and facts}}. Link {{NEIGHBOUR PAGE}} by id. Measure: {{THE TWO OR THREE RUNS THAT MATTER}}. Never write the scratchpad path into the repo."
 
 ## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
 `gm_child_common`, `jx_child_common`, `mi_child_common`, `dc_child_common`, `rag_child_common`, `inf_child_common`, `pt_child_common` briefs (2026-10-12 to 2026-10-17); the lead's child launcher prompts of 2026-10-17; html_utils/BRIEF_page_agent.md "Rules learned on the training topic" (read the parent root first, link its tabs rather than rebuild them).

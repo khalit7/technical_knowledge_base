@@ -97,6 +97,6 @@ When several agents build one topic, they share one `FACTS.md` in the topic's sc
 - `src/viz_ideas.md`: candidate visuals with scores, data sources and formulas, and rejections ([../visuals/choosing.md](../visuals/choosing.md)).
 
 ---
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 9ee6d1ea, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
+(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
 Sources distilled: html_utils/interactive-html-ideas.md section 2 (sources, search tactics, number rules); html_utils/BRIEF_page_agent.md (Step 0, research beyond the old page); html_utils/BRIEF_paper_agent.md (coverage list); html_utils/methods/topic_pages.md Part B; memory check-coverage-before-leaving-old, teach-dont-ask-scope, scratch-wiped-reboot and the gm, mi, jax, swe topic logs; kb_briefs gm/mi/jx/dc common and child briefs (FACTS.md, pinned source, published vs measured).
