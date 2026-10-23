@@ -21,7 +21,7 @@ for (const d of dirs) {
     const tabs = await p.$$eval('button[data-t]', bs => [...new Set(bs.map(b => b.dataset.t))]);
     const res = { page: d, bytes: fs.statSync(f).size, tabs: [] };
     for (const t of (tabs.length ? tabs : [null])) {
-      if (t) { await p.click(`button[data-t=${t}]`); await new Promise(r => setTimeout(r, 350)); }
+      if (t) { await p.$eval(`button[data-t="${t}"]`, b => b.click()); await new Promise(r => setTimeout(r, 350)); }  // DOM click: part bars hide some tab buttons
       res.tabs.push(await p.evaluate((t) => {
         const root = t ? document.getElementById(t) : document.body;
         if (!root) return { tab: t, missing: true };
@@ -44,7 +44,7 @@ for (const d of dirs) {
         }
         const ctl = root.querySelectorAll('input[type=range],select').length
           + [...root.querySelectorAll('button')].filter(x => !x.dataset.t).length;
-        const title = t ? (document.querySelector(`button[data-t=${t}]`)?.textContent || t).trim() : 'page';
+        const title = t ? (document.querySelector(`button[data-t="${t}"]`)?.textContent || t).trim() : 'page';
         return { tab: t, title, core, depth, h2: root.querySelectorAll('h2').length, vis, ctl };
       }, t));
     }
