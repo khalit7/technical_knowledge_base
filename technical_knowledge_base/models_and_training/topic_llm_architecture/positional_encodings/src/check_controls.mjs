@@ -19,7 +19,7 @@ try {
     await p.goto('file://' + page_, { waitUntil: 'load' });
     if (rm) { // nothing may autoplay under reduced motion: scroll the animations into view and check the step stays at 0
       for (const id of ['pe-br', 'pe-pa']) {
-        if (id === 'pe-pa') await p.click('button[data-t=t-past]'); else await p.click('button[data-t=t-read]');
+        await p.click('button[data-t=t-read]');
         await p.$eval('#' + id, el => el.scrollIntoView()); await new Promise(r => setTimeout(r, 3500));
         const v = await p.$eval('#' + id + ' .an-ctl input[type=range]', e => e.value); if (v !== '0') { errs.push(id + ' autoplayed under reduced motion (step ' + v + ')') }
       }
