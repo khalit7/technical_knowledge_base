@@ -4,6 +4,7 @@ const R=JSON.parse(fs.readFileSync('recompute.json','utf8'));
 globalThis.window=globalThis;globalThis.document={getElementById:()=>null};
 eval(fs.readFileSync('parts/30_js_calc_core.js','utf8'));
 eval(fs.readFileSync('parts/22_js_anim.js','utf8').split('(function(){\n  const $=id')[0]);
+eval(fs.readFileSync('parts/25_js_zero.js','utf8').split('(function(){\n  const $=id')[0]);
 let bad=0;const close=(a,b,tag)=>{const ok=Math.abs(a-b)<=1e-6*Math.max(1,Math.abs(b));if(!ok){bad++;console.log('MISMATCH',tag,a,b)}};
 for(const [k,p] of Object.entries(window.LAY.PRESETS)){const j=window.LAY.layout(p),py=R.presets[k];
   for(const f of ['N','states','A','total','tokens','t_comp'])close(j[f],py[f],k+'.'+f);
@@ -15,3 +16,7 @@ for(const m of ['DP','ZeRO-1','ZeRO-2','ZeRO-3','HSDP','TP','PP','CP','EP']){con
 close(A.numbers('EP',1).nv/GB,R.anim.sent_long.EP,'ep long sent');close(A.numbers('PP',1).nv/GB,R.anim.sent_long.PP,'pp long sent');
 close(A.numbers('EP',1).A[0]/GB,R.anim.ep_long_gpu0_acts,'ep long acts');close(A.numbers('DP',1).A[0]/GB,R.anim.long.acts/GB,'dp long acts');
 console.log(bad?bad+' mismatches':'all match: '+Object.keys(window.LAY.PRESETS).length+' presets, 9 animation modes, long-sequence checks');
+// ZeRO slider in Reading (window.DTZ) against ZeRO Table 1 as recomputed
+{const Z=window.DTZ,T=R.checks.zero_table1;for(const n of [1,4,16,64,256,1024]){const row=T['7.5B@'+n];
+  [1,2,3].forEach((z,i)=>{const b=Z.stage(z,n),v=(b[0]+b[1]+b[2])*Z.P/1e9;if(Math.abs(v-row[i])>0.0051){bad++;console.log('MISMATCH zero slider',z,n,v,row[i])}})}
+ console.log(bad?bad+' mismatches after ZeRO slider':'ZeRO slider matches Table 1 at 6 degrees')}

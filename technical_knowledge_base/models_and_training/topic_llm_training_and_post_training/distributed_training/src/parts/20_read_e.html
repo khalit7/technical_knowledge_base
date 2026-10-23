@@ -1,0 +1,71 @@
+
+<section id="rd-comp">
+<h2>9. Composing them: 4D and 5D parallelism</h2>
+<p>Real runs stack the splits on a mesh of GPUs. The standard order, outermost to innermost: <b>DP (FSDP or HSDP) × PP × CP × TP (+SP)</b>, with EP as a further axis for MoE layers. Llama 3 orders its groups [TP, CP, PP, DP] from innermost to outermost because "the innermost parallelism requires the highest network bandwidth and lowest latency, and hence is usually constrained to within the same server", while DP tolerates latency by prefetching weights and reducing gradients asynchronously (§3.3.2).</p>
+<div class="fig" id="mesh"><h4>The chattiest axis sits inside the server: bytes and seconds per GPU per step, axis by axis</h4>
+<div class="seg" id="meshSeg"><button data-m="l405_8k_16k" class="on">Llama 3 405B, 16,384 H100s</button><button data-m="dsv3">DeepSeek-V3, 2,048 H800s</button></div>
+<div class="sv" id="meshSvg"></div>
+<p class="small" id="meshCap"></p>
+<p class="small mute">From the {{Layout calculator|#t-calc}}'s presets <i class="nl d">derived</i>: Llama 3 405B at TP 8 × PP 16 × DP 128 sends 236.8 GB per GPU per step over NVLink for TP (0.53 s), 18.9 GB over the network for DP (0.38 s) and 1.07 GB for PP (0.02 s), against 6.15 s of compute at 41% MFU; DeepSeek-V3's 64-way EP sends 704 GB over InfiniBand (14.1 s) against 20.4 s of compute. Peak bandwidths, no overlap credited.</p>
+</div>
+<div class="tw"><table>
+<thead><tr><th>Run</th><th class="num">GPUs</th><th class="num">TP</th><th class="num">CP</th><th class="num">PP</th><th class="num">EP</th><th class="num">DP</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Llama 3 405B, 8K, first stage</td><td class="num">8,192</td><td class="num">8</td><td class="num">1</td><td class="num">16</td><td class="num">1</td><td class="num">64</td><td>16M tokens per batch; 43% BF16 MFU</td></tr>
+<tr><td>Llama 3 405B, 8K</td><td class="num">16,384</td><td class="num">8</td><td class="num">1</td><td class="num">16</td><td class="num">1</td><td class="num">128</td><td>41%; FSDP shards optimiser state and gradients but keeps weights gathered after forward</td></tr>
+<tr><td>Llama 3 405B, 128K</td><td class="num">16,384</td><td class="num">8</td><td class="num">16</td><td class="num">16</td><td class="num">1</td><td class="num">8</td><td>38%</td></tr>
+<tr><td>DeepSeek-V3 671B</td><td class="num">2,048</td><td class="num">1</td><td class="num">1</td><td class="num">16</td><td class="num">64</td><td class="num">128</td><td>ZeRO-1 data parallel; DualPipe; "without using costly tensor parallelism"</td></tr>
+</tbody></table></div>
+<p class="small mute">Sources: {{Llama 3 Table 4|n:3c65c17b0d0d81aca58ccb9d720b474e}} (the 41% row computes to 40.4%, 400 / 989.5, a rounding the Llama 3 page also flags); {{DeepSeek-V3|n:3c65c17b0d0d815fb8dac9ba1e35ab81}} §3.2, DP = 2,048 / 16 <i class="nl d">derived</i>, with the 64-way EP carved out of each stage's 128 data-parallel GPUs. The Megatron-LM page's {{Then and now|n:3c65c17b0d0d8133ae92fbe90a1f308e}} tab lays out more runs from 2019 to 2026, and the Llama 3 page maps every rank of its mesh.</p>
+<p><b>Rules of thumb</b>, from the Ultra-Scale Playbook's 4,100 benchmarked runs on up to 512 GPUs (<a href="https://nanotron-ultrascale-playbook.static.hf.space/index.html" target="_blank" rel="noopener noreferrer">step 1, "Fitting a training step in memory"</a>):</p>
+<ul class="tight">
+<li><b>Fit the model first.</b> Under 10B parameters one technique is enough, "tensor parallelism or ZeRO-3/DP with full recompute across 8 GPUs". From 10B to 100B: TP = 8 with PP, TP = 8 with ZeRO-3, or ZeRO-3 alone. At 512+ GPUs pure ZeRO-3 starts to lose efficiency to communication cost; at 1,024+ a recommended setup is TP = 8 with ZeRO-2 and PP. Add CP across nodes for very long sequences, and EP across nodes for MoE.</li>
+<li><b>Keep the bandwidth-hungry axes (TP, EP dispatch) inside NVLink domains</b>; PP and DP gradient sync can cross InfiniBand.</li>
+<li><b>Then reach the target global batch</b> (step 2) by scaling DP or gradient accumulation, or CP for long sequences.</li>
+<li><b>Then optimise throughput</b> (step 3): scale TP up to about the server size, increase DP with ZeRO-3 while keeping the batch, move to PP when DP communication becomes the bottleneck, and tune the micro-batch. Short of GPUs: full activation recomputation and more gradient accumulation.</li>
+</ul>
+<div class="co corr"><div class="t">Correction</div>The old page's first rule read "FSDP alone up to tens of billions of parameters on H100 nodes; add TP when a layer no longer fits; add PP across nodes for 100B+". The Playbook's own thresholds are lower and different in kind: one technique under 10B, three combinations from 10B to 100B, and the switch away from pure ZeRO-3 is set by GPU count (512+), not by model size.</div>
+<p class="small impl"><b>Implemented in:</b> {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}} section 10 (the torchtitan order); {{Sharding and scale (JAX)|n:3c65c17b0d0d8125b084e6720cc66b3d}} (choosing a mesh); {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}} section 9 (why the network picks your parallelism); {{Launching distributed training|n:3fc5c17b0d0d81b3a8a5c58224bff9fa}}; {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}} (checkpoint, restart, goodput).</p>
+</section>
+
+<section id="rd-ac">
+<h2>10. Activation checkpointing</h2>
+<p>Instead of storing every activation for backward, store a few and recompute the rest. One 8,192-token sequence through Llama 3 8B, no tensor parallelism:</p>
+<div class="fig"><h4>Selective recomputation removes nine tenths of the activations for 2 to 3% more compute</h4>
+<div class="zrow"><span>Store all</span><span class="sbar"><span style="width:100%;background:var(--c3)"></span></span><span class="v">380 GB</span></div>
+<div class="zrow"><span>Selective</span><span class="sbar"><span style="width:9.6%;background:var(--c3)"></span></span><span class="v">36.5 GB</span></div>
+<div class="zrow"><span>Full</span><span class="sbar"><span style="width:0.87%;background:var(--c3)"></span></span><span class="v">3.3 GB</span></div>
+<p class="small mute">Per layer <i>sbh</i>(34 + 5<i>as</i>/<i>h</i>) bytes when the attention scores are stored, 34<i>sbh</i> when the attention core is recomputed (selective, or FlashAttention), 2<i>sbh</i> plus one layer's working set with full recomputation (Korthikanti et al. 2022), times 32 layers at <i>s</i> = 8,192, <i>h</i> = 4,096, <i>a</i> = 32 <i class="nl d">derived</i>, a GPT-style estimate (Llama's SwiGLU and GQA change the constants).</p>
+</div>
+<p><b>Full</b> recomputation (keep only each layer's input) costs 30 to 40% more execution time (36% measured); <b>selective</b> recomputation of only the attention core, the large but cheap part, cuts activation memory about 5 times for 2.7% (GPT-3) or 1.6% (MT-NLG) extra FLOPs (<a href="https://arxiv.org/abs/2205.05198" target="_blank" rel="noopener noreferrer">Korthikanti et al. 2022</a>; the Playbook quotes 70% less activation memory for 2.7% compute). {{FlashAttention|n:3c65c17b0d0d81e4a3e8e7a2c4771381}} already recomputes attention in its backward pass instead of storing the score matrix, which is why selective checkpointing pairs naturally with it. Llama 3 trained 8K sequences with no activation checkpointing at all, after deallocating stage inputs and outputs it no longer needed (§3.3.2).</p>
+<div class="co corr"><div class="t">Correction</div>The old page said activation checkpointing "(full or selective) trades about 30% compute". That figure is full recomputation's (30 to 40%); selective recomputation costs about 2 to 3%.</div>
+</section>
+
+<section id="rd-fw">
+<h2>11. Frameworks (2026)</h2>
+<ul class="tight">
+<li><b><a href="https://github.com/pytorch/torchtitan" target="_blank" rel="noopener noreferrer">torchtitan</a></b>: PyTorch's native reference for pretraining, composing FSDP2, TP (including async TP), PP (including zero-bubble schedules), CP, activation checkpointing, <code>torch.compile</code> and low-precision training. The 2026 survey's advice is to "use torchtitan as a pattern source, not as a dependency".</li>
+<li><b><a href="https://github.com/NVIDIA/Megatron-LM" target="_blank" rel="noopener noreferrer">Megatron-Core</a> / NeMo</b>: NVIDIA's production stack and the most mature TP and PP kernels, with expert parallelism and a distributed optimiser; the survey calls it "the ceiling for NVIDIA training".</li>
+<li><b><a href="https://github.com/deepspeedai/DeepSpeed" target="_blank" rel="noopener noreferrer">DeepSpeed</a></b>: still relevant for ZeRO-Offload and ZeRO-Infinity and for its Hugging Face Trainer integration. <b><a href="https://github.com/huggingface/nanotron" target="_blank" rel="noopener noreferrer">nanotron</a></b>: Hugging Face's lightweight pretraining library, the Ultra-Scale Playbook's companion.</li>
+</ul>
+<p>FSDP2 with HSDP covers the great majority of fine-tuning and pretraining below about 70B; full 4D parallelism is needed only at frontier scale. Schedulers, checkpoint cadence and fault tolerance at 16,000 GPUs are summarised in the parent's Machinery section ("Running the job", {{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}}) and owned by {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}}; number formats for training (FP8, MXFP4) on {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}.</p>
+<details class="dp"><summary>torchtitan's full feature list and its paper's speed-ups <span class="mute">(depth)</span></summary><div class="b">
+<p>FSDP2 with per-parameter sharding, tensor parallel (including async TP), pipeline parallel (including zero-bubble schedules), context parallel, DDP and HSDP, per-op selective and full activation checkpointing, <code>torch.compile</code>, low-precision training (MXFP8 and NVFP4 today; the paper's Float8), Distributed Checkpoint with async saves, torchft fault tolerance (README). Its paper reports 65.08% speed-up on Llama 3.1 8B at 128 GPUs (1D), 12.59% on 70B at 256 GPUs (2D) and 30% on 405B at 512 GPUs (3D) over its own baselines <i class="nl r">reported</i>.</p>
+</div></details>
+</section>
+
+<section id="rd-depth">
+<h2>12. Depth</h2>
+<details class="dp"><summary>Four mistakes the sections above do not already show <span class="mute">(depth)</span></summary><div class="b">
+<ul class="tight">
+<li><b>"Context parallelism (or expert parallelism) shrinks the weights."</b> Neither does by itself: CP cuts activations; EP spreads experts but each GPU still holds a dense model's worth of state (both steps above stay at 128.5 GB). They are combined with FSDP, ZeRO-1 or TP for the weights.</li>
+<li><b>"Sequence parallelism and context parallelism are the same thing."</b> Megatron's sequence parallelism splits only the regions tensor parallelism leaves replicated (norms, dropout) and lives inside the TP group. Context parallelism splits attention itself across its own group and can be used without TP.</li>
+<li><b>"Tensor parallelism across servers is just slower."</b> It is much slower: four latency-bound collectives per layer per micro-batch, on the critical path. The Playbook measured about 43% degradation crossing nodes, against 14% for pipeline parallelism over the same boundary.</li>
+<li><b>"16 bytes per parameter is a law."</b> It is the ZeRO paper's convention for bf16 with fp32 Adam. FP32 gradients make it 18 to 20, bf16 moments 14, an 8-bit optimiser less; activations come on top.</li>
+</ul>
+</div></details>
+<details class="dp"><summary>How the step-throughs count <span class="mute">(provenance)</span></summary><div class="b">
+<p>All counts are for Llama 3 8B in bf16 with fp32 Adam (16 bytes per parameter), 4 GPUs on NVLink (HSDP: two servers joined by InfiniBand). Bytes are per GPU and sent, not received, from the ring formulas; activations use Korthikanti et al.'s 34<i>sbh</i> per layer, a GPT-style estimate, and in the EP step its 15 : 19 split between attention and MLP <i class="nl i">illustrative</i>. Bars are to scale with a full bar = 280 GB. With one 32K sequence, DP and ZeRO leave three GPUs idle, PP idles 75% of the time, and only TP and CP split the sequence's 146 GB of activations. Every number is recomputed in <code>src/recompute.py</code>, and <code>src/check_calc.mjs</code> confirms the page's JavaScript gives the same numbers.</p>
+</div></details>
+</section>
+</div>

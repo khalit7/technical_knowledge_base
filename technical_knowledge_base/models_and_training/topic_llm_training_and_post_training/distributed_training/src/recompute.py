@@ -174,6 +174,25 @@ def bubbles(p, m, v, F=1.0, B=2.0, Wt=1.0):
             'zbh1': (p - 1) * (F + B - 2 * Wt) / ideal,   # DeepSeek Table 2's ZB1P row, B = full backward
             'dualpipe': (p / 2 - 1) * ((F + B) + B - 3 * Wt) / ideal}
 out['bubbles_default'] = bubbles(8, 20, 2)
+# ---------- Reading figures added 2026-10-23 (memory bar, activation checkpointing, DP hiding threshold, mesh captions) ----------
+sbh = 8192 * 1 * h                                  # one 8,192-token sequence, Llama 3 8B
+rd = {}
+rd['mem'] = dict(w=2 * P / GB, g=2 * P / GB, o=12 * P / GB, acts=34 * sbh * L / GB, full_bar=180)
+rd['mem']['pct'] = {k: 100 * rd['mem'][k] / 180 for k in ['w', 'g', 'o', 'acts']}
+rd['mem']['pct']['line80'] = 100 * 80 / 180
+nh = md['nh']
+rd['ckpt'] = dict(store_all=(34 + 5 * nh * 8192 / h) * sbh * L / GB,        # Korthikanti: sbh(34 + 5as/h) per layer, t = 1
+                  selective=34 * sbh * L / GB,                               # attention core recomputed (or FlashAttention)
+                  full=(2 * sbh * L + 34 * sbh) / GB)                        # 2sbh per layer kept, plus one layer's working set
+rd['ckpt']['pct'] = {k: 100 * rd['ckpt'][k] / rd['ckpt']['store_all'] for k in ['store_all', 'selective', 'full']}
+I = 0.40 * 989.5e12 / 50e9                          # FLOPs per byte: H100 at 40% of BF16 peak over a 400 Gb/s card (Interconnects section 9)
+rd['dp_hide'] = dict(I=I, dp_tokens=2 * I / 3, fsdp_tokens=I, llama405_tokens_per_replica=16777216 / (16384 // (8 * 16)))
+pl, pd_ = out['presets']['l405_8k_16k'], out['presets']['dsv3']
+rd['mesh'] = dict(l405=dict(TP=pl['comm']['TP'], DP=pl['comm']['DP'], PP=pl['comm']['PP'], tTP=pl['t']['TP'], tDP=pl['t']['DP'], tPP=pl['t']['PP'], tcomp=pl['t_comp'],
+                            tp_over_dp=pl['comm']['TP'] / pl['comm']['DP'], comm_share=(pl['t']['TP'] + pl['t']['DP'] + pl['t']['PP']) / pl['t_comp']),
+                  dsv3=dict(EP=pd_['comm']['EP'], tEP=pd_['t']['EP'], tcomp=pd_['t_comp']))
+rd['zero_n64'] = zt['7.5B@64']
+out['reading'] = rd
 json.dump(out, open('recompute.json', 'w'), indent=1, default=float)
 
 if __name__ == '__main__':
@@ -188,3 +207,4 @@ if __name__ == '__main__':
     print('anim', {k: out['anim'][k] for k in ['P', 'act_layer', 'seq_acts', 'x', 'moe_twin_P', 'non_ffn', 'long', 'bubble_pp']})
     print('bubbles', out['bubbles_default'])
     print('params', {k: v['P'] for k, v in M.items()})
+    print('reading', json.dumps(out['reading'], indent=1, default=float))

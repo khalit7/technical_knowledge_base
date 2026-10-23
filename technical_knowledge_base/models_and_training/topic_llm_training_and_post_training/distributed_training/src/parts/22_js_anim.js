@@ -35,10 +35,22 @@ window.ANIM=(function(){
 })();
 (function(){
   const $=id=>document.getElementById(id);
-  if(!$('an'))return;
+  const cards=[...document.querySelectorAll('.dt-an')];
+  if(!cards.length)return;
   const A=window.ANIM,GB=1e9,n=4;
-  const MODES=['DP','ZeRO-1','ZeRO-2','ZeRO-3','HSDP','TP','PP','EP','CP'];
-  let mode='DP',B=4;
+  window.DTAN={};
+  cards.forEach(c=>{try{window.DTAN[c.id]=mount(c)}catch(e){window.__jsErr&&window.__jsErr(c.id+': '+e.message)}});
+  // one step-through per section: data-modes lists the splits it can show, data-init the first, data-cmp the counters' baseline
+  function mount(card){
+  const px=card.id,MODES=card.dataset.modes.split(',');
+  let mode=card.dataset.init||MODES[0],B=4;
+  const cmp0=card.dataset.cmp||'DP';
+  card.innerHTML=(MODES.length>1?'<div class="modes" id="'+px+'M" role="group" aria-label="Split"></div>':'')+
+    '<div class="an-top"><label>Batch <select id="'+px+'B"><option value="4">4 sequences × 8,192 tokens</option><option value="1">1 sequence × 32,768 tokens</option></select></label>'+
+    '<label>Compare counters with <select id="'+px+'Cmp">'+['DP','ZeRO-3','TP'].map(m=>'<option value="'+m+'"'+(m===cmp0?' selected':'')+'>'+m+(m==='DP'?' (the baseline)':'')+'</option>').join('')+'</select></label></div>'+
+    '<div id="'+px+'Svg" class="plot" aria-live="off"></div>'+
+    '<div class="leg"><span><i style="background:var(--c1)"></i>weights</span><span><i style="background:var(--c5)"></i>gradients</span><span><i style="background:var(--c4)"></i>optimiser state</span><span><i style="background:var(--c3)"></i>activations</span><span><i style="background:var(--bad)"></i>80 GB line</span><span><i style="border:1.5px solid var(--acc);background:none"></i>forward</span><span><i style="border:1.5px solid var(--c2);background:none"></i>backward</span><span><i style="background:var(--c6)"></i>NVLink</span>'+(MODES.indexOf('HSDP')>=0?'<span><i style="background:var(--ib)"></i>InfiniBand</span>':'')+'</div>'+
+    '<div class="an-cap" id="'+px+'Cap" aria-live="polite"></div><div class="an-cnt" id="'+px+'Cnt"></div><div class="an-ctl" id="'+px+'C"></div>';
   const gb=v=>(v/GB>=100?(v/GB).toFixed(0):(v/GB).toFixed(1))+' GB';
   const gb1=v=>(v/GB).toFixed(v/GB<1?2:1)+' GB';
   // ---------- 1F1B schedule for the PP mode (F = 1, B = 2 time units), list-scheduled ----------
@@ -57,37 +69,37 @@ window.ANIM=(function(){
     const own=one?'one 32,768-token sequence':'four 8,192-token sequences';
     const S=[];const add=(t,p,o)=>S.push(Object.assign({t,p,ph:null,row:null,coll:null,nv:0,ib:0,cn:0,act:0},o||{}));
     if(mode==='DP'){
-      add('Setup: four full copies',one?'Every GPU holds the whole model, its gradients and its optimizer state: 16 bytes per parameter, 128.5 GB, more than an 80 GB H100 holds. With one sequence there is nothing to give GPUs 1 to 3: data parallelism cannot cut a sequence.':'Every GPU holds the whole model, its gradients and its optimizer state: 16 bytes per parameter, 128.5 GB, more than an 80 GB H100 holds; this is the memory ceiling the other splits remove. Each GPU gets its own sequence.');
+      add('Setup: four full copies',one?'Every GPU holds the whole model, its gradients and its optimiser state: 16 bytes per parameter, 128.5 GB, more than an 80 GB H100 holds. With one sequence there is nothing to give GPUs 1 to 3: data parallelism cannot cut a sequence.':'Every GPU holds the whole model, its gradients and its optimiser state: 16 bytes per parameter, 128.5 GB, more than an 80 GB H100 holds; this is the memory ceiling the other splits remove. Each GPU gets its own sequence.');
       add('Forward','Each GPU runs its own data through all 32 layers and keeps the activations for backward. No communication.',{ph:'f',row:'all',act:1});
       add('Backward, with the all-reduce starting','Gradients appear from the last layer back. DDP groups them into buckets of 25 MiB and starts an all-reduce on each bucket as soon as it is ready, overlapping communication with the rest of backward.',{ph:'b',row:'all',coll:'ar',nv:N.nv/2,act:0.5});
       add('All-reduce finishes','Every GPU now holds the average gradient. A ring all-reduce sends 2(n − 1)/n of the buffer per GPU: 1.5 × 16.1 GB = 24.1 GB each, whatever the number of GPUs.',{coll:'ar',nv:N.nv/2,cn:1});
-      add('Optimizer step','Every GPU applies the same update to its own copy, so the four copies stay identical. Four times the optimizer work and memory for one result: the redundancy ZeRO removes.',{ph:'o'});
+      add('Optimiser step','Every GPU applies the same update to its own copy, so the four copies stay identical. Four times the optimiser work and memory for one result: the redundancy ZeRO removes.',{ph:'o'});
     } else if(mode==='ZeRO-1'||mode==='ZeRO-2'){const z2=mode==='ZeRO-2';
-      add('Setup: '+(z2?'optimizer state and gradients sharded':'optimizer state sharded'),(z2?'Weights stay whole; each GPU keeps a quarter of the gradients and of the optimizer state: 2 + 14/4 = 5.5 bytes per parameter, 44.2 GB.':'Weights and gradients stay whole; each GPU keeps a quarter of the 12 bytes of fp32 master weights and Adam moments: 2 + 2 + 12/4 = 7 bytes per parameter, 56.2 GB.')+(one?' With one sequence, GPUs 1 to 3 still idle.':''));
+      add('Setup: '+(z2?'optimiser state and gradients sharded':'optimiser state sharded'),(z2?'Weights stay whole; each GPU keeps a quarter of the gradients and of the optimiser state: 2 + 14/4 = 5.5 bytes per parameter, 44.2 GB.':'Weights and gradients stay whole; each GPU keeps a quarter of the 12 bytes of fp32 master weights and Adam moments: 2 + 2 + 12/4 = 7 bytes per parameter, 56.2 GB.')+(one?' With one sequence, GPUs 1 to 3 still idle.':''));
       add('Forward','As in DP: each GPU runs its own data through the whole model.',{ph:'f',row:'all',act:1});
       if(z2)add('Backward with reduce-scatter','Each bucket is reduce-scattered as soon as it is ready: GPU i receives the summed gradients for its quarter only and frees the rest. (n − 1)/n × 16.1 GB = 12.0 GB sent per GPU.',{ph:'b',row:'all',coll:'rs',nv:N.nv/2,cn:1,act:0.5});
       else{add('Backward','Full gradients are computed and held on every GPU.',{ph:'b',row:'all',act:0.5});
         add('Reduce-scatter of the gradients','Instead of an all-reduce, each GPU receives the sum only for its own quarter: (n − 1)/n × 16.1 GB = 12.0 GB sent per GPU, half an all-reduce.',{coll:'rs',nv:N.nv/2,cn:1});}
-      add('Optimizer step on a quarter','Each GPU updates only its quarter of the fp32 master weights with its quarter of the Adam state.',{ph:'o'});
+      add('Optimiser step on a quarter','Each GPU updates only its quarter of the fp32 master weights with its quarter of the Adam state.',{ph:'o'});
       add('All-gather of the updated weights','Each GPU broadcasts its updated bf16 quarter; another 12.0 GB. Reduce-scatter plus all-gather is exactly an all-reduce, so ZeRO-1 and 2 cost the same 24.1 GB as DP while holding 56.2 or 44.2 GB instead of 128.5.',{coll:'ag',nv:N.nv/2,cn:1});
     } else if(mode==='ZeRO-3'){
-      add('Setup: everything sharded','Each GPU holds a quarter of every layer\'s weights, gradients and optimizer state: 16/4 = 4 bytes per parameter, 32.1 GB. This is FSDP\'s default (FULL_SHARD).'+(one?' The sharding works with one sequence, but GPUs 1 to 3 still have no data to compute on.':''));
+      add('Setup: everything sharded','Each GPU holds a quarter of every layer\'s weights, gradients and optimiser state: 16/4 = 4 bytes per parameter, 32.1 GB. This is FSDP\'s default (FULL_SHARD).'+(one?' The sharding works with one sequence, but GPUs 1 to 3 still have no data to compute on.':''));
       add('Forward, layer by layer','Before each layer runs, its quarters are all-gathered into a full copy (dashed, shown on one row), used, and freed. One layer\'s full weights exist at a time. 32 all-gathers, (n − 1)/n × 16.1 GB = 12.0 GB sent per GPU.',{ph:'f',row:'all',coll:'ag',nv:N.nv/3,cn:32,act:1,gather:2});
       add('Backward: gather again, then reduce-scatter','Each layer is all-gathered again for backward (12.0 GB), and its gradients are reduce-scattered straight away so each GPU keeps only its quarter (12.0 GB).',{ph:'b',row:'all',coll:'rs',nv:2*N.nv/3,cn:64,act:0.5,gather:5});
-      add('Optimizer step, no final gather','Each GPU updates its own quarter. The weights stay sharded until the next forward gathers them. Total 36.1 GB per GPU: 1.5 times DP, the price of holding a quarter of the weights.',{ph:'o'});
+      add('Optimiser step, no final gather','Each GPU updates its own quarter. The weights stay sharded until the next forward gathers them. Total 36.1 GB per GPU: 1.5 times DP, the price of holding a quarter of the weights.',{ph:'o'});
     } else if(mode==='HSDP'){
       add('Setup: shard inside the server, replicate across','Two servers of two GPUs. Inside each server the model is sharded in halves (8 bytes per parameter, 64.2 GB); the two servers are replicas of each other. A 2-D device mesh: shard on one axis, replicate on the other.'+(one?' With one sequence, only server A has data.':''));
       add('Forward: all-gather over NVLink','Each layer is gathered from its two halves inside the server (dashed, one row shown): (2 − 1)/2 × 16.1 GB = 8.0 GB per GPU, all on NVLink.',{ph:'f',row:'all',coll:'ring2',nv:N.nv/3,cn:32,act:1,gather:2});
       add('Backward: gather and reduce-scatter over NVLink','Gather again for backward, then reduce-scatter the gradients inside the server: 16.1 GB more on NVLink.',{ph:'b',row:'all',coll:'ring2',nv:2*N.nv/3,cn:64,act:0.5,gather:5});
       add('All-reduce across servers','Only now does traffic cross InfiniBand: each GPU all-reduces its half of the gradients with its twin in the other server, 8.0 GB. Plain ZeRO-3 over all four GPUs would push its whole 36.1 GB through a ring that crosses the servers.',{coll:'pair',ib:N.ib,cn:1});
-      add('Optimizer step','Each GPU updates its half; the twins stay identical. A failed server leaves a complete replica behind, which is what fault-tolerant HSDP (torchft) builds on.',{ph:'o'});
+      add('Optimiser step','Each GPU updates its half; the twins stay identical. A failed server leaves a complete replica behind, which is what fault-tolerant HSDP (torchft) builds on.',{ph:'o'});
     } else if(mode==='TP'){
       add('Setup: every matrix cut in four','Each GPU holds a quarter of every weight matrix: query, key and value heads and the first feed-forward matrices by columns, the attention output and second feed-forward matrix by rows. 4 bytes per parameter, 32.1 GB. The four GPUs act as one model replica, so the whole batch, '+own+', goes through all four.');
       add('Layer 1, attention','Column-parallel QKV gives each GPU 8 of the 32 heads, so attention runs locally. The row-parallel output projection leaves a partial sum on each GPU: one all-reduce of the batch\'s hidden states, '+gb1(2*3/4*A.X)+' per GPU. With sequence parallelism this is a reduce-scatter plus an all-gather of the same size, and LayerNorm activations are split by tokens.',{ph:'f',row:0,coll:'ar',nv:2*3/4*A.X,cn:1,act:0.03});
       add('Layer 1, feed-forward','Column-parallel W1 and W3, the SwiGLU applied locally (the reason for the column-then-row pairing: no sync in between), row-parallel W2, then the second all-reduce.',{ph:'f',row:0,coll:'ar',nv:2*3/4*A.X,cn:1,act:0.06});
       add('Layers 2 to 32','Two all-reduces per layer: 64 in the forward pass, 25.8 GB per GPU.',{ph:'f',row:'all',coll:'ar',nv:62*1.5*A.X,cn:62,act:1});
       add('Backward','The mirror image: two all-reduces of input gradients per layer, 64 more, 25.8 GB. Each GPU computes the weight gradients for its own slices only.',{ph:'b',row:'all',coll:'ar',nv:64*1.5*A.X,cn:64,act:0.5});
-      add('Optimizer step, no gradient sync','There is one replica, so nothing to average. Total 51.5 GB per GPU, more than any other mode, in 128 small, latency-bound pieces inside every layer: tensor parallelism only works on NVLink.',{ph:'o'});
+      add('Optimiser step, no gradient sync','There is one replica, so nothing to average. Total 51.5 GB per GPU, more than any other mode, in 128 small, latency-bound pieces inside every layer: tensor parallelism only works on NVLink.',{ph:'o'});
     } else if(mode==='PP'){const m=one?1:4,G=sched(n,m),T=G.T,mb=A.X/m;
       const cut=[0,G.st[n-1][0].s+1,one?T*0.6:G.st[0].filter(o=>o.k==='F').slice(-1)[0].s+1,T];
       const sent=t=>{let s=0;for(let i=0;i<n;i++)for(const o of G.st[i]){if(o.s+o.d>t)continue;if((o.k==='F'&&i<n-1)||(o.k==='B'&&i>0))s+=mb}return s/(2*(n-1))*2};
@@ -95,7 +107,7 @@ window.ANIM=(function(){
       add('Warm-up','Micro-batch 1 enters stage 1, then its activations are sent to stage 2, and so on. The later stages wait: the start of the bubble.',{ph:'f',coll:'p2p',nv:sent(cut[1]),cn:n-1,gantt:cut[1],act:0.5});
       add(one?'Forward reaches the end, backward starts':'Steady state: one forward, one backward','1F1B: once the last stage starts backward, each stage alternates a forward and a backward, so it never holds more than p micro-batches of activations (GPipe holds all m). Gradients flow back by send and receive.',{ph:'b',coll:'p2p',nv:sent(cut[2])-sent(cut[1]),cn:one?2:8,gantt:cut[2],act:1});
       add('Cool-down','The pipeline drains; the first stage waits for the last gradients. Idle share of the timeline: (p − 1)/(m + p − 1) = '+(100*N.idle).toFixed(0)+'%; in Megatron\'s terms the bubble is (p − 1)/m = '+(100*N.bubble).toFixed(0)+'% of the ideal time.',{ph:'b',coll:'p2p',nv:sent(cut[3])-sent(cut[2]),cn:(2*(n-1)*m)-(n-1)-(one?2:8),gantt:cut[3],act:0});
-      add('Optimizer step','Each stage updates its own layers; nothing to average. The traffic was tiny, '+gb1(N.nv)+' per GPU at most, one activation per micro-batch per boundary: pipeline parallelism is the split to put on slow links.',{ph:'o',gantt:cut[3]});
+      add('Optimiser step','Each stage updates its own layers; nothing to average. The traffic was tiny, '+gb1(N.nv)+' per GPU at most, one activation per micro-batch per boundary: pipeline parallelism is the split to put on slow links.',{ph:'o',gantt:cut[3]});
     } else if(mode==='EP'){const one1=one;
       add('Setup: the MoE twin, one expert per GPU','Every feed-forward block is now four experts; GPU i holds expert i of every layer and a full copy of attention, embeddings and norms. 128.5 GB per GPU, the same as dense DP, while the model holds 24.9B parameters: experts add parameters without adding memory per GPU. '+(one1?'The one sequence sits on GPU 0.':'Each GPU holds its own sequence.'));
       add('Layer 1: attention and the router','Attention runs where the tokens are. The router picks one expert per token; with balanced routing three quarters of each GPU\'s tokens belong to experts on other GPUs.',{ph:'f',row:0,act:0.03});
@@ -104,7 +116,7 @@ window.ANIM=(function(){
       add('Layers 2 to 32','Two all-to-alls per MoE layer: 64 in the forward pass.',{ph:'f',row:'all',coll:'a2a',nv:(one1?31:62)*0.75*(one1?A.X:A.x8),cn:62,act:1});
       add('Backward','The same route in reverse: 64 more all-to-alls carry gradients to the experts and back.',{ph:'b',row:'all',coll:'a2a',nv:(one1?32:64)*0.75*(one1?A.X:A.x8),cn:64,act:0.5});
       add('All-reduce of the shared parts','Attention, embeddings and norms are replicated, so their gradients (2.39B parameters) are all-reduced as in DP: 7.2 GB per GPU. Expert gradients stay where their expert lives.',{coll:'ar',nv:2*3/4*2*A.nonFFN,cn:1});
-      add('Optimizer step','Each GPU updates its experts and its copy of the shared parts. Total '+gb1(N.nv)+' per GPU; at DeepSeek-V3\'s scale the all-to-alls cross servers, which is why it limits each token to 4 nodes.',{ph:'o'});
+      add('Optimiser step','Each GPU updates its experts and its copy of the shared parts. Total '+gb1(N.nv)+' per GPU; at DeepSeek-V3\'s scale the all-to-alls cross servers, which is why it limits each token to 4 nodes.',{ph:'o'});
     } else if(mode==='CP'){
       add('Setup: every sequence cut in eight','Each sequence is cut into 2 × 4 = 8 chunks and GPU i keeps chunks i and 7 − i, so every GPU gets one early and one late chunk and the causal mask gives each the same work (Llama 3\'s load balancing). Weights are whole on every GPU: 128.5 GB. Context parallelism cuts activations, not weights; in practice it is combined with FSDP or TP.');
       add('Layer 1: gather keys and values','Each GPU computes Q, K, V for its own tokens, then all-gathers K and V (Llama 3\'s variant; Ring Attention passes the blocks round a ring instead). With grouped-query attention K and V are 4 times smaller than Q: '+gb1(3/4*2*32768*1024*2)+' per GPU per layer.',{ph:'f',row:0,coll:'ag',nv:3/4*2*32768*1024*2,cn:1,act:0.03});
@@ -112,12 +124,12 @@ window.ANIM=(function(){
       add('Layers 2 to 32','One all-gather per layer.',{ph:'f',row:'all',coll:'ag',nv:31*3/4*2*32768*1024*2,cn:31,act:1});
       add('Backward','Gradients of K and V are reduce-scattered back to the GPUs that own those tokens: 32 reduce-scatters, '+gb1(32*3/4*2*32768*1024*2)+'.',{ph:'b',row:'all',coll:'rs',nv:32*3/4*2*32768*1024*2,cn:32,act:0.5});
       add('All-reduce of the weight gradients','Every GPU computed gradients for all weights from its own tokens, so they are averaged as in DP: 24.1 GB. Total '+gb1(N.nv)+'.',{coll:'ar',nv:2*3/4*2*A.P,cn:1});
-      add('Optimizer step','Identical update everywhere. Each GPU held a quarter of the activations, '+gb(A.totA/4)+', whether the batch was four sequences or one.',{ph:'o'});
+      add('Optimiser step','Identical update everywhere. Each GPU held a quarter of the activations, '+gb(A.totA/4)+', whether the batch was four sequences or one.',{ph:'o'});
     }
     return S;
   }
   // ---------- drawing ----------
-  const card=$('an');let ST=steps(),ctl;
+  let ST=steps(),ctl;
   const C={w:'var(--c1)',g:'var(--c5)',o:'var(--c4)',a:'var(--c3)',f:'var(--acc)',b:'var(--c2)',nv:'var(--c6)',ib:'var(--ib)'};
   const SEQC=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
   function holds(g,r,blk,q){ // weight slice state: 1 held, 0 not held
@@ -135,7 +147,7 @@ window.ANIM=(function(){
     if(one)return g===0?1:0;
     if(mode==='HSDP')return row===g?1:0;
     return row===g?1:0}
-  function draw(i){const s=ST[i],N=A.numbers(mode,B),Wd=RD.width($('anSvg'));
+  function draw(i){const s=ST[i],N=A.numbers(mode,B),Wd=RD.width($(px+'Svg'));
     const gap=Math.max(6,Math.min(14,Wd*0.02)),cw=(Wd-3*gap)/4,pad=4;
     let y0=16,svg='';const cs=Math.max(4,Math.min(10,(cw-2*pad)/8-1.2));
     const dH=4*(cs+1.2),rh=Math.max(6,Math.min(10,cs)),gH=8*(rh+2);
@@ -148,7 +160,7 @@ window.ANIM=(function(){
       const node=mode==='HSDP'?(g<2?' · server A':' · server B'):'';
       const busy=(B===1&&(mode==='DP'||mode.startsWith('ZeRO')||mode==='HSDP')&&g>0);
       svg+='<rect x="'+x+'" y="2" width="'+cw+'" height="'+(yM+24)+'" rx="6" fill="var(--soft)" stroke="var(--line)"'+(busy?' opacity="0.55"':'')+'/>';
-      svg+='<text x="'+(x+pad+2)+'" y="'+(y0-2)+'" font-size="10.5" font-weight="600">GPU '+g+(cw>110?node:'')+'</text>';
+      svg+='<text x="'+(x+pad+2)+'" y="'+(y0-2)+'" font-size="11" font-weight="600">GPU '+g+(cw>110?node:'')+'</text>';
       // data grid
       for(let row=0;row<4;row++)for(let c=0;c<8;c++){const d=data(g,row,c),cx=x+pad+c*(cs+1.2),cy=yD+row*(cs+1.2);
         const col=B===1?SEQC[0]:SEQC[row];
@@ -170,11 +182,11 @@ window.ANIM=(function(){
       const aw=bwid*ac/scale;svg+='<rect x="'+bx.toFixed(1)+'" y="'+yM+'" width="'+Math.min(aw,x+pad+bwid-bx).toFixed(1)+'" height="10" fill="'+C.a+'"/>';
       svg+='<rect x="'+(x+pad)+'" y="'+yM+'" width="'+bwid.toFixed(1)+'" height="10" fill="none" stroke="var(--line)"/>';
       const lx=x+pad+bwid*80e9/scale;svg+='<line x1="'+lx.toFixed(1)+'" x2="'+lx.toFixed(1)+'" y1="'+(yM-3)+'" y2="'+(yM+13)+'" stroke="var(--bad)" stroke-width="1.4"/>';
-      svg+='<text x="'+(x+pad)+'" y="'+(yM+22)+'" font-size="10" fill="var(--mute)">'+gb(st+ac)+'</text>';
+      svg+='<text x="'+(x+pad)+'" y="'+(yM+23)+'" font-size="11" fill="var(--mute)">'+gb(st+ac)+'</text>';
     }
     // collectives band
     const cy=yC+8,mid=g=>g*(cw+gap)+cw/2;let band='';const k=s.coll;
-    if(k){const col=k==='pair'?C.ib:C.nv;const mk='url(#anah)';
+    if(k){const col=k==='pair'?C.ib:C.nv;const mk='url(#'+px+'ah)';
       const arr=(x1,x2,yy,curve,c)=>'<path d="M'+x1.toFixed(1)+','+yy+' Q'+((x1+x2)/2).toFixed(1)+','+(yy+curve)+' '+x2.toFixed(1)+','+yy+'" fill="none" stroke="'+(c||col)+'" stroke-width="1.6" marker-end="'+mk+'"/>';
       if(k==='ar'||k==='rs'||k==='ag'){for(let g=0;g<3;g++)band+=arr(mid(g)+6,mid(g+1)-6,cy,-10);band+=arr(mid(3)-4,mid(0)+4,cy+6,22)}
       else if(k==='ring2'){band+=arr(mid(0)+6,mid(1)-6,cy,-10)+arr(mid(1)-6,mid(0)+6,cy+6,10)+arr(mid(2)+6,mid(3)-6,cy,-10)+arr(mid(3)-6,mid(2)+6,cy+6,10)}
@@ -182,32 +194,33 @@ window.ANIM=(function(){
       else if(k==='a2a'){const src=B===1&&mode==='EP'&&(s.t.indexOf('dispatch')>=0)?[0]:[0,1,2,3];src.forEach(a=>{for(let b=0;b<4;b++)if(a!==b)band+=arr(mid(a)+(b>a?4:-4),mid(b)+(b>a?-4:4),cy+(a+b)%3*3,(b>a?-1:1)*(6+4*Math.abs(a-b)))})}
       else if(k==='p2p'){const back=s.ph==='b';for(let g=0;g<3;g++)band+=back?arr(mid(g+1)-6,mid(g)+6,cy,10,C.b):arr(mid(g)+6,mid(g+1)-6,cy,-10,C.f)}
       const nm={ar:'all-reduce',rs:'reduce-scatter',ag:'all-gather',ring2:'all-gather and reduce-scatter in each server',pair:'all-reduce across servers (InfiniBand)',a2a:'all-to-all',p2p:'send / receive'}[k];
-      band+='<text x="2" y="'+(yC+44)+'" font-size="10.5" fill="var(--mute)">'+nm+'</text>';
+      band+='<text x="2" y="'+(yC+44)+'" font-size="11" fill="var(--mute)">'+nm+'</text>';
     }
     // PP gantt
     let gy=yC+52,gH2=0;
     if(mode==='PP'){const m=B===1?1:4,G=sched(4,m),tw=Wd-40,u=tw/G.T,lim=s.gantt||0;
-      for(let g=0;g<4;g++){const yy=gy+g*13;svg+='<text x="0" y="'+(yy+9)+'" font-size="10" fill="var(--mute)">'+g+'</text><rect x="14" y="'+yy+'" width="'+tw.toFixed(1)+'" height="11" fill="var(--soft)" stroke="var(--line)"/>';
-        G.st[g].forEach(o=>{if(o.s>=lim)return;const w=Math.min(o.d,lim-o.s)*u;svg+='<rect x="'+(14+o.s*u).toFixed(1)+'" y="'+yy+'" width="'+(w-0.6).toFixed(1)+'" height="11" fill="'+(o.k==='F'?C.f:C.b)+'" fill-opacity="0.75"/>';if(w>12)svg+='<text x="'+(14+o.s*u+w/2).toFixed(1)+'" y="'+(yy+9)+'" font-size="8.5" text-anchor="middle" fill="var(--bg)">'+(o.j+1)+'</text>'})}
-      gH2=4*13+4;svg+='<text x="14" y="'+(gy+gH2+8)+'" font-size="10" fill="var(--mute)">time (forward 1 unit, backward 2); grey is idle</text>';gH2+=12}
+      for(let g=0;g<4;g++){const yy=gy+g*16;svg+='<text x="0" y="'+(yy+11)+'" font-size="11" fill="var(--mute)">'+g+'</text><rect x="14" y="'+yy+'" width="'+tw.toFixed(1)+'" height="14" fill="var(--soft)" stroke="var(--line)"/>';
+        G.st[g].forEach(o=>{if(o.s>=lim)return;const w=Math.min(o.d,lim-o.s)*u;svg+='<rect x="'+(14+o.s*u).toFixed(1)+'" y="'+yy+'" width="'+(w-0.6).toFixed(1)+'" height="14" fill="'+(o.k==='F'?C.f:C.b)+'" fill-opacity="0.75"/>';if(w>16)svg+='<text x="'+(14+o.s*u+w/2).toFixed(1)+'" y="'+(yy+11)+'" font-size="11" text-anchor="middle" fill="var(--bg)">'+(o.j+1)+'</text>'})}
+      gH2=4*16+4;svg+='<text x="14" y="'+(gy+gH2+10)+'" font-size="11" fill="var(--mute)">time (forward 1 unit, backward 2); grey is idle</text>';gH2+=14}
     const H=(mode==='PP'?gy+gH2:yC+50)+4;
-    $('anSvg').innerHTML='<svg viewBox="0 0 '+Wd+' '+H+'" width="100%" role="img" aria-label="Four GPUs under '+mode+', step '+(i+1)+'"><defs><marker id="anah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker></defs>'+svg+band+'</svg>';
-    $('anCap').innerHTML='<div class="t">'+mode+' · step '+(i+1)+' of '+ST.length+': '+s.t+'</div><p>'+s.p+'</p>';
+    $(px+'Svg').innerHTML='<svg viewBox="0 0 '+Wd+' '+H+'" width="100%" role="img" aria-label="Four GPUs under '+mode+', step '+(i+1)+'"><defs><marker id="'+px+'ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker></defs>'+svg+band+'</svg>';
+    $(px+'Cap').innerHTML='<div class="t">'+mode+' · step '+(i+1)+' of '+ST.length+': '+s.t+'</div><p>'+s.p+'</p>';
     // counters with the comparison mode's totals
-    const cm=$('anCmp').value,K=A.numbers(cm,B);
+    const cm=$(px+'Cmp').value,K=A.numbers(cm,B);
     const actMax=Math.max(...N.A),kAct=Math.max(...K.A);
-    $('anCnt').innerHTML=RD.stat('Model states per GPU',gb(N.states),(mode==='EP'?(N.states/A.moeP).toFixed(1)+' bytes per parameter of the 24.9B twin':(N.states/A.P).toFixed(1)+' bytes per parameter')+' · '+cm+' '+gb(K.states))+
+    $(px+'Cnt').innerHTML=RD.stat('Model states per GPU',gb(N.states),(mode==='EP'?(N.states/A.moeP).toFixed(1)+' bytes per parameter of the 24.9B twin':(N.states/A.P).toFixed(1)+' bytes per parameter')+' · '+cm+' '+gb(K.states))+
       RD.stat('Activations, busiest GPU',gb(actMax),'at the end of forward · '+cm+' '+gb(kAct))+
       RD.stat('Sent per GPU so far',gb1(nv+ib),(ib?'NVLink '+gb1(nv)+', InfiniBand '+gb1(ib):'NVLink')+' · whole step '+gb1(N.nv+N.ib)+' · '+cm+' '+gb1(K.nv+K.ib))+
       RD.stat('Collectives so far',String(cn),'whole step '+N.coll+' · '+cm+' '+K.coll)+
       RD.stat('Idle',(N.idle?(100*N.idle).toFixed(0)+'%':'0%')+(mode==='EP'&&B===1?' (uneven)':''),mode==='PP'?'share of the timeline · bubble (p − 1)/m = '+(100*N.bubble).toFixed(0)+'%':(N.idle?'GPUs with no data':'every GPU busy')+' · '+cm+' '+(100*K.idle).toFixed(0)+'%');
   }
-  const note=()=>{$('anNote').innerHTML='<i class="nl d">derived</i> All counts for Llama 3 8B in bf16 with fp32 Adam (16 bytes per parameter), 4 GPUs on NVLink (HSDP: two servers joined by InfiniBand). Bytes are per GPU and sent, not received, from the ring formulas; activations use Korthikanti et al.\'s 34<i>sbh</i> per layer, a GPT-style estimate, and in EP mode its 15 : 19 split between attention and MLP <i class="nl i">illustrative</i>. Bars are to scale with a full bar = 280 GB. Recomputed in <code>src/recompute.py</code>.'};
-  function build(){const b=$('anM');b.innerHTML=MODES.map(m=>'<button data-m="'+m+'" class="'+(m===mode?'on':'')+'">'+m+'</button>').join('');
+  function build(){const b=$(px+'M');if(!b)return;b.innerHTML=MODES.map(m=>'<button data-m="'+m+'" class="'+(m===mode?'on':'')+'">'+m+'</button>').join('');
     b.querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{const keep=ctl.i;mode=x.dataset.m;b.querySelectorAll('button').forEach(y=>y.classList.toggle('on',y===x));ST=steps();ctl.reset(ST.length);ctl.go(Math.min(keep,ST.length-1))}))}
-  build();note();
-  ctl=RD.anim({card:'an',ctl:'anC',n:ST.length,draw:i=>draw(Math.min(i,ST.length-1)),ms:2600,label:'Step of the training step'});
-  $('anB').addEventListener('change',e=>{B=+e.target.value;ST=steps();const k=ctl.i;ctl.reset(ST.length);ctl.go(Math.min(k,ST.length-1))});
-  $('anCmp').addEventListener('change',()=>ctl.redraw());
+  build();
+  ctl=RD.anim({card:px,ctl:px+'C',n:ST.length,draw:i=>draw(Math.min(i,ST.length-1)),ms:2600,label:'Step of the training step'});
+  $(px+'B').addEventListener('change',e=>{B=+e.target.value;ST=steps();const k=ctl.i;ctl.reset(ST.length);ctl.go(Math.min(k,ST.length-1))});
+  $(px+'Cmp').addEventListener('change',()=>ctl.redraw());
   let rw=0;addEventListener('resize',()=>{clearTimeout(rw);rw=setTimeout(()=>{if(card.offsetParent)ctl.redraw()},120)});
+  return ctl;
+  }
 })();

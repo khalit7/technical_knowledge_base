@@ -1,0 +1,2314 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Distributed Training Distributed Training How one training step is split across many GPUs: data, sharded data, tensor, pipeline, expert and context parallelism, what each GPU holds, what crosses which wire, and how the splits are composed.",
+  "label": "core",
+  "key": "what crosses which wire",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Part of Topic: llm-training-and-post-training .",
+  "label": "core",
+  "key": "Part of Topic: llm-training-and-post-training",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Sources are linked inline; data as of 3 October 2026.",
+  "label": "core",
+  "key": "data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading tab about 22 min · +9h 40m resources.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old reading-time format, replaced by the measured subtitle"
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Layout calculator Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar labels"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen One step, nine ways Collectives Data parallel ZeRO and FSDP Tensor Pipeline Expert Context Composing Frameworks Common mistakes",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section nav"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "Six ways to split one training step A training step is a forward pass over a batch, a backward pass that produces one gradient per parameter, and an optimizer update.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "defines a training step, which the reader knows; the hero and section 1 carry what matters"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "When the model, its optimizer state or its activations do not fit on one GPU, or one GPU is too slow, the step is cut along one of five dimensions: the batch (data parallelism), the stored state (sharded data parallelism: ZeRO, FSDP), each weight matrix (tensor parallelism), the layers (pipeline parallelism), the experts of a mixture-of-experts model (expert parallelism) or the sequence (context parallelism).",
+  "label": "core",
+  "key": "the batch, the stored state, each weight matrix, the layers, the experts or the sequence",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "Every cut buys memory or speed with communication, and the communication has a shape (a collective ) and a wire it has to cross: NVLink inside a server, InfiniBand or Ethernet between servers, about nine times slower per GPU on an H100 cluster.",
+  "label": "core",
+  "key": "about nine times faster per GPU",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "The table compares them on the questions that decide which to use. Ψ is the parameter count, n the number of GPUs in the group, s the sequence length, b the micro-batch in sequences, h the hidden size; bytes are bf16 (2 per value) unless stated.",
+  "label": "depth",
+  "key": "the micro-batch in sequences",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "Split What is cut Each GPU holds Collective in one step Bytes sent per GPU per step Link it needs Reach for it when Data (DDP) The batch The whole model, its gradients and optimizer state; its own micro-batch All-reduce of the gradients, in buckets, overlapped with backward 2( n −1)/ n × 2Ψ Either; tolerates latency The model and its optimizer fit on one GPU ZeRO-1, ZeRO-2 The batch, plus optimizer state (and gradients) Full weights; 1/ n of the optimizer state (and of the gradients) Reduce-scatter of gradients, all-gather of updated weights Same as DDP Either Optimizer state is what does not fit ZeRO-3, FSDP Everything stored 1/ n of weights, gradients, optimizer state; one layer's full weights at a time All-gather of each layer's weights before forward and again before backward; reduce-scatter of gradients 3( n −1)/ n × 2Ψ , 1.5 times DDP Fast; hybrid sharding keeps it in the server The weights themselves do not fit; the usual choice below about 10B Tensor (TP, + SP) Every weight matrix 1/ t of each matrix; the whole micro-batch Two all-reduces per layer forward, two backward (with sequence parallelism, reduce-scatter plus all-gather of the same size) 4 × 2( t −1)/ t × 2 sbh per layer per micro-batch NVLink, inside one server ( t ≤ 8) One layer, or its activations, does not fit Pipeline (PP) The layers L / p consecutive layers; activations of the micro-batches in flight Send and receive between neighbouring stages 2 × 2 sbh per micro-batch per boundary Slow links are fine The model does not fit in one server; across servers Expert (EP) An MoE model's experts E / e experts; attention replicated or split another way All-to-all dispatch and combine around every MoE layer, forward and backward 4 × k × tokens × h × bytes × ( e −1)/ e per MoE layer NVLink, or InfiniBand with routing limited to a few nodes The model is a mixture of experts Context (CP) The sequence 1/ c of every sequence's tokens; full weights All-gather (or ring pass) of keys and values forward, reduce-scatter of their gradients backward; gradient all-reduce as in DDP 2 × ( c −1)/ c × K,V bytes per layer per micro-batch Fast preferred A single long sequence's activations do not fit Formulas: ring collectives from nccl-tests (all-reduce sends 2( n −1)/ n of the buffer, reduce-scatter and all-gather ( n −1)/ n ); ZeRO's 2Ψ against 3Ψ from ZeRO §7; tensor-parallel all-reduces from Megatron-LM ; the other rows are derived in src/recompute.py .",
+  "label": "depth",
+  "key": "Reach for it when",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "Numbers are published with the source linked unless marked derived , illustrative , reported (the maker's own figure) or unconfirmed .",
+  "label": "depth",
+  "key": "the maker's own figure",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "The one-line version of this table, beside precision and clusters, is in the parent page's Machinery section .",
+  "label": "depth",
+  "key": "The one-line version of this table",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "The memory every split is fighting Mixed-precision training with Adam holds about 16 bytes per parameter before activations: 2 for bf16 weights, 2 for bf16 gradients, 12 for the fp32 master weights and the two Adam moments ( ZeRO §3.1).",
+  "label": "core",
+  "key": "about 16 bytes per parameter",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "A 7.5B model needs 120 GB on every GPU under plain data parallelism.",
+  "label": "core",
+  "key": "a 7.5B model needs 120 GB on every GPU",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "Sixteen is one convention, not a constant: MT-NLG counts fp32 gradient copies and gets 20 ( Smith et al.",
+  "label": "depth",
+  "key": "MT-NLG counts fp32 gradient copies",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "2022 §2.1.1); Llama 3 accumulates and reduces gradients in FP32 ( §3.3.2 ), about 18 on our reading derived ; DeepSeek-V3 keeps fp32 master weights and gradients but bf16 Adam moments ( §3.3 ), about 14 with a bf16 working copy derived .",
+  "label": "depth",
+  "key": "about 14 with a bf16 working copy",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "Activations come on top and grow with sequence length and micro-batch: about 34 sbh bytes per layer for a GPT-style layer once the attention score matrix is not stored ( Korthikanti et al.",
+  "label": "core",
+  "key": "34 sbh bytes per layer",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "2022 ), 36.5 GB for one 8,192-token sequence through Llama 3 8B's 32 layers derived .",
+  "label": "core",
+  "key": "36.5 GB for one 8,192-token sequence",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "six ways to split one training step",
+  "text": "The parent page's bytes-per-parameter bars (Machinery) compare training with fine-tuning and serving; the Layout calculator here splits that memory across a layout.",
+  "label": "depth",
+  "key": "compare training with fine-tuning and serving",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "one training step, nine ways",
+  "text": "One training step, nine ways The same model, the same batch and the same four GPUs, split nine ways.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "intro to the single nine-mode animation, now one step-through per section"
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "one training step, nine ways",
+  "text": "The model is Llama 3 8B (32 layers, hidden size 4,096, 8.03B parameters recounted from its config.json ( unsloth mirror of the gated repository)), drawn as 8 rows of 4 layers, each with its attention block (A) and feed-forward block (F) cut into four slices.",
+  "label": "core",
+  "key": "8.03B parameters recounted",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "one training step, nine ways",
+  "text": "The batch is four sequences of 8,192 tokens, or one sequence of 32,768 to see which splits can cut a single sequence.",
+  "label": "core",
+  "key": "or one of 32,768",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "one training step, nine ways",
+  "text": "Each GPU's bar shows its memory to scale against an 80 GB H100: weights, gradients and optimizer state (16 bytes per parameter) and activations (34 sbh per layer, derived ).",
+  "label": "depth",
+  "key": "full bar = 280 GB",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "one training step, nine ways",
+  "text": "Expert parallelism needs an MoE model, so its mode uses an MoE twin illustrative : every feed-forward block becomes four experts the size of the original, each token routed to one (Switch-style top-1), so each token costs the same compute and the model grows to 24.9B parameters.",
+  "label": "core",
+  "key": "24.9B parameters",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "one training step, nine ways",
+  "text": "Try: step through DP, then switch to ZeRO-3 at the same step and watch the bars shrink while the bytes counter grows by half.",
+  "label": "core",
+  "key": "the bars fall to a quarter while the bytes counter grows by half",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "one training step, nine ways",
+  "text": "TP sends the most bytes of all, 51.5 GB per GPU, which is why it stays on NVLink.",
+  "label": "core",
+  "key": "51.5 GB per GPU for this step",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "one training step, nine ways",
+  "text": "Switch the batch to one 32K sequence: DP and ZeRO leave three GPUs idle, PP idles 75% of the time, and only TP and CP split the sequence's 146 GB of activations.",
+  "label": "depth",
+  "key": "PP idles 75% of the time",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "one training step, nine ways",
+  "text": "Batch 4 sequences × 8,192 tokens 1 sequence × 32,768 tokens Compare counters with DP (the baseline) ZeRO-3 TP weights gradients optimizer state activations 80 GB line forward backward NVLink InfiniBand Go deeper: the ZeRO stages layer by layer on 2 to 8 GPUs are on the ZeRO page's Step through a training step tab; a tensor-parallel MLP split on real matrices is on the Megatron-LM page's Split a layer across GPUs tab; Switch Transformers' Figure 9 (data, model and expert splits on 16 cores) is redrawn on its page .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "control labels, now written by the step-through script"
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "collectives, and the wire they cross",
+  "text": "Collectives, and the wire they cross Every split communicates through a handful of operations that all GPUs in a group call together (NCCL implements them on NVIDIA hardware): all-reduce , after which every GPU holds the element-wise sum (gradient averaging in data parallelism, the partial sums in tensor parallelism); reduce-scatter and all-gather , one slice of the sum or every slice (ZeRO and FSDP; a ring all-reduce is exactly a reduce-scatter followed by an all-gather, which is why ZeRO-1 and ZeRO-2 cost what DDP costs, Ultra-Scale Playbook ); all-to-all , a different piece to every GPU (expert dispatch and combine, DeepSpeed Ulysses); and send and receive between pipeline stages.",
+  "label": "core",
+  "key": "Expert dispatch and combine; DeepSpeed Ulysses",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "collectives, and the wire they cross",
+  "text": "In a ring each GPU sends 2( n − 1)/ n of the buffer for an all-reduce and ( n − 1)/ n for the others ( nccl-tests ), so the bytes per GPU barely change with the group size and the slowest link sets the time.",
+  "label": "core",
+  "key": "the slowest link sets the time",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "collectives, and the wire they cross",
+  "text": "Inside an H100 server NVLink gives each GPU 450 GB/s each way; between servers each GPU has its own 400 Gb/s card, 50 GB/s, nine times less (Llama 3 used RoCE and InfiniBand at 400 Gb/s per GPU, §3.3.1 ); DeepSeek's export-limited H800s have NVLink at 160 GB/s, \"roughly 3.2 times that of IB (50 GB/s)\" ( DeepSeek-V3 §3.2.2).",
+  "label": "core",
+  "key": "roughly 3.2 times that of IB (50 GB/s)",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "collectives, and the wire they cross",
+  "text": "That ratio is what pins each split to a level of the network in the sections below.",
+  "label": "core",
+  "key": "That ratio pins each split to a level of the network",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "collectives, and the wire they cross",
+  "text": "The collectives on the wire (ring against tree and the other algorithms, latency against bandwidth, published bus-bandwidth measurements) are owned by Interconnects and scaling , section 7: its Collective simulator tab moves real chunks step by step and times an all-reduce, all-gather or all-to-all under each algorithm, for 2 to 16 GPUs, over NVLink, InfiniBand or RoCE; for a gradient all-reduce the bytes are this page's: Llama 3 8B has 16.1 GB of bf16 gradients, 141 GB at 70B.",
+  "label": "core",
+  "key": "Collective simulator",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "collectives, and the wire they cross",
+  "text": "Implemented in: Distributed PyTorch section 2 (what each collective leaves on every rank, run in PyTorch); Interconnects and scaling section 7 and its Collective simulator (ring, tree and the other algorithms on any link); Launching distributed training section 6 (building the NCCL communicator, and its timeouts).",
+  "label": "core",
+  "key": "the NCCL communicator and its timeouts",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "data parallelism (dp, ddp)",
+  "text": "Data parallelism (DP, DDP) Replicate the model on every GPU and give each replica a different micro-batch.",
+  "label": "core",
+  "key": "give each replica a different micro-batch",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "data parallelism (dp, ddp)",
+  "text": "After backward, an all-reduce averages the gradients, so every replica takes the identical optimizer step: copy the model to each of the X GPUs; shard the batch; forward in parallel; backward in parallel; all-reduce the gradients, overlapped with backward by sending them in buckets (25 MiB by default in PyTorch, DistributedDataParallel ); the same optimizer step everywhere.",
+  "label": "core",
+  "key": "25 MiB by default",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "data parallelism (dp, ddp)",
+  "text": "PyTorch's old DataParallel was a single process driving the GPUs of one machine by threads; DDP ( DistributedDataParallel ) runs one process per GPU, works across machines, and is the baseline everything else builds on ( Li et al.",
+  "label": "core",
+  "key": "runs one process per GPU, works across machines",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "data parallelism (dp, ddp)",
+  "text": "It is simple and scales nearly linearly while the all-reduce hides behind backward.",
+  "label": "core",
+  "key": "scales nearly linearly while the all-reduce hides behind backward",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "data parallelism (dp, ddp)",
+  "text": "Its cost is memory: the full model, gradients and optimizer state on every GPU, 16 bytes per parameter, so a model above about 5B parameters no longer fits on an 80 GB GPU with Adam (80 / 16, derived ).",
+  "label": "core",
+  "key": "above about 5B parameters",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "data parallelism (dp, ddp)",
+  "text": "That ceiling is what ZeRO and FSDP remove.",
+  "label": "core",
+  "key": "the ceiling ZeRO and FSDP remove",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "data parallelism (dp, ddp)",
+  "text": "The global batch is micro-batch × gradient-accumulation steps × data-parallel degree ( Playbook ), so DP is also how a layout reaches its target batch once the model fits.",
+  "label": "core",
+  "key": "micro-batch × gradient-accumulation steps × data-parallel degree",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "data parallelism (dp, ddp)",
+  "text": "Implemented in: Distributed PyTorch section 3 (DDP's reducer, buckets, accumulation and comm hooks); Sharding and scale (JAX) (a batch-sharded mesh axis); Launching distributed training (torchrun and rendezvous, which start every rank).",
+  "label": "core",
+  "key": "torchrun, rendezvous",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "ZeRO and FSDP: sharded data parallelism Data parallelism stores the same 16 bytes per parameter n times.",
+  "label": "core",
+  "key": "stores the same 16 bytes per parameter",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "ZeRO ( paper page , Rajbhandari et al.",
+  "label": "core",
+  "key": "Rajbhandari et al. 2019",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "2019 ) shards them across the data-parallel group instead: ZeRO-1 shards the optimizer state: 4 + 12/ n bytes per parameter.",
+  "label": "core",
+  "key": "4 + 12/ n bytes per parameter",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "The 7.5B example on 64 GPUs: 31.4 GB.",
+  "label": "core",
+  "key": "31.4, 16.6 and 1.88 GB",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "ZeRO-2 also shards the gradients: 2 + 14/ n ; 16.6 GB.",
+  "label": "core",
+  "key": "2 + 14/ n",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "ZeRO-3 also shards the parameters: each layer's weights are all-gathered just in time for forward and again for backward, then freed.",
+  "label": "core",
+  "key": "all-gathered just in time for forward and again for backward",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "16/ n ; 1.88 GB, against 120 GB for plain DP (ZeRO Table 1).",
+  "label": "core",
+  "key": "ZeRO-3 16/ n",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "Communication is 3Ψ against DP's 2Ψ, 1.5 times (§7), and model-state memory falls as 1/ N .",
+  "label": "core",
+  "key": "3Ψ against DP's 2Ψ",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "ZeRO-Offload moves optimizer state and its update to CPU memory ( Ren et al.",
+  "label": "depth",
+  "key": "moves optimiser state and its update to CPU memory",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "2021 ); ZeRO-Infinity adds NVMe, enough to \"fine-tune trillion parameter models on a single NVIDIA DGX-2 node\" ( Rajbhandari et al.",
+  "label": "depth",
+  "key": "fine-tune trillion parameter models on a single NVIDIA DGX-2 node",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "FSDP is PyTorch's native version, \"motivated by\" ZeRO with a design aligned with the rest of PyTorch ( Zhao et al.",
+  "label": "core",
+  "key": "motivated by",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "2023 ); its default full sharding is ZeRO-3, and it has a ZeRO-2-like mode as well (the stage names across DeepSpeed, FSDP1 and FSDP2 are matched on the ZeRO page's Then and now tab).",
+  "label": "core",
+  "key": "ZeRO-2-like mode",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "FSDP2 ( fully_shard ) \"replac[ed] the original FSDP1 FlatParameter sharding.",
+  "label": "depth",
+  "key": "replac[ed] the original FSDP1 FlatParameter sharding",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "Specifically, parameters are now represented as DTensors sharded on the tensor dimension 0\" ( torchtitan paper ).",
+  "label": "depth",
+  "key": "sharded on the tensor dimension 0",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "Because every parameter keeps its own identity: it composes with TP, PP and EP on a device mesh; state_dict handling is sane through Distributed Checkpoint (DCP); partial freezing works, so LoRA-style fine-tuning is straightforward; it \"records an average of 7% lower GPU memory versus FSDP1\" and \"an average gain of 1.5% faster throughput\" reported (torchtitan paper).",
+  "label": "depth",
+  "key": "records an average of 7% lower GPU memory versus FSDP1",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "The 2026 default: on PyTorch, without a need for NVMe offload, use FSDP2 rather than DeepSpeed.",
+  "label": "core",
+  "key": "use FSDP2 rather than DeepSpeed",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "The arithmetic is the same; the composition is cleaner.",
+  "label": "core",
+  "key": "the composition cleaner",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "A 2026 framework survey reaches the same split: DeepSpeed remains the pragmatic choice mainly for memory-bound runs that need ZeRO-Infinity offload.",
+  "label": "depth",
+  "key": "pragmatic choice mainly for memory-bound runs",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "Hybrid sharding (HSDP) builds \"a 2-D DeviceMesh that contains replica groups on one dimension and shard groups on the other\" (torchtitan paper): FSDP-shard within a server (or a small group), DDP-replicate across groups.",
+  "label": "core",
+  "key": "contains replica groups on one dimension and shard groups on the other",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "The heavy per-layer all-gathers stay on NVLink and only the gradient all-reduce crosses servers (HSDP mode above: 8.0 GB per GPU on InfiniBand against 36.1 GB for ZeRO-3 across both servers).",
+  "label": "core",
+  "key": "8.0 GB per GPU on InfiniBand against 36.1 GB",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "It also bounds the blast radius of a failure: a lost server leaves complete replicas, which is how torchft does \"fault tolerance across the replicated dimension\".",
+  "label": "core",
+  "key": "fault tolerance across the replicated dimension",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "Use it when the model fits in one server's (or group's) aggregate memory.",
+  "label": "core",
+  "key": "fits in one server's (or group's) aggregate memory",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "zero and fsdp: sharded data parallelism",
+  "text": "Implemented in: Distributed PyTorch section 4 (FSDP2: wrapping policies, HSDP, prefetching, state dicts); Sharding and scale (JAX) (sharding parameters and optimizer state along a mesh axis, measured).",
+  "label": "core",
+  "key": "FSDP along a mesh axis",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "tensor parallelism and sequence parallelism",
+  "text": "Tensor parallelism and sequence parallelism Tensor parallelism splits individual weight matrices \"horizontally\" across GPUs ( Megatron-LM ): a column-parallel matrix followed by a row-parallel one, in the feed-forward block and in attention (heads are divided among GPUs), so the nonlinearity in between needs no communication and each block ends with one all-reduce.",
+  "label": "core",
+  "key": "heads are divided among GPUs",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "tensor parallelism and sequence parallelism",
+  "text": "That is two all-reduces per layer forward and two backward, inside every layer, in small latency-bound messages.",
+  "label": "core",
+  "key": "two all-reduces per layer forward and two backward",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "tensor parallelism and sequence parallelism",
+  "text": "In the animation TP sends 51.5 GB per GPU for the step, more than any other mode.",
+  "label": "core",
+  "key": "51.5 GB per GPU for this step",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "tensor parallelism and sequence parallelism",
+  "text": "It therefore needs NVLink-class bandwidth and stays inside a server: Megatron's guidance is TP \"up to degree g when using g-GPU servers\", then pipeline parallelism across servers ( Narayanan et al.",
+  "label": "core",
+  "key": "up to degree g when using g-GPU servers",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "tensor parallelism and sequence parallelism",
+  "text": "2021 ), and the Playbook measured \"around 43% performance degradation\" when TP crosses nodes, against 14% for PP.",
+  "label": "core",
+  "key": "around 43% performance degradation",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "tensor parallelism and sequence parallelism",
+  "text": "Sequence parallelism (Megatron-style) extends TP to the regions TP leaves replicated, LayerNorm and dropout, by splitting their activations along the sequence.",
+  "label": "core",
+  "key": "the regions TP leaves replicated, LayerNorm and dropout",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "tensor parallelism and sequence parallelism",
+  "text": "The all-reduce becomes a reduce-scatter plus an all-gather of the same total size, so communication is unchanged and the duplicated activation memory disappears: activations per layer fall from sbh (34 + 5 as / h ) to sbh / t (34 + 5 as / h ), and with selective recomputation to 34 sbh / t ( Korthikanti et al.",
+  "label": "core",
+  "key": "34 sbh / t",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "tensor parallelism and sequence parallelism",
+  "text": "Do not confuse it with context parallelism below, which splits the sequence through attention too.",
+  "label": "core",
+  "key": "It is not context parallelism",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "tensor parallelism and sequence parallelism",
+  "text": "Implemented in: Distributed PyTorch sections 5 and 6 (DTensor, and tensor and sequence parallelism on a real block); Sharding and scale (JAX) (GSPMD propagation and explicit shardings); Interconnects and scaling section 9 (why TP stays inside the NVLink domain).",
+  "label": "core",
+  "key": "TP and SP on a real block",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Pipeline parallelism Pipeline parallelism splits the model \"vertically\" into stages of consecutive layers, one stage per GPU or group.",
+  "label": "core",
+  "key": "stages of consecutive layers",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Run naively, one batch at a time, only one stage works while the others wait: the bubble .",
+  "label": "core",
+  "key": "only one stage works while the others wait",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Cutting the batch into m micro-batches lets stages work on different micro-batches at once, and a schedule decides the order: GPipe ( Huang et al.",
+  "label": "core",
+  "key": "lets stages work on different micro-batches at once",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "2019 ): all forwards, then all backwards.",
+  "label": "core",
+  "key": "all forwards, then all backwards",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Bubble time fraction ( p − 1)/ m of the ideal time, and every stage holds the activations of all m micro-batches.",
+  "label": "core",
+  "key": "every stage holds the activations of all m micro-batches",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "1F1B (from PipeDream, Harlap et al.",
+  "label": "core",
+  "key": "PipeDream-Flush",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "2018 ; Megatron uses its flushing variant, PipeDream-Flush): after a warm-up, each stage alternates one forward and one backward.",
+  "label": "core",
+  "key": "alternates one forward and one backward",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "The bubble is the same as GPipe's; what changes is memory, at most p micro-batches in flight instead of m ( Narayanan et al.",
+  "label": "core",
+  "key": "at most p micro-batches in flight instead of m",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Interleaved 1F1B : each GPU holds v non-adjacent chunks of layers, cutting the bubble to ( p − 1)/( v · m ) for v times more point-to-point traffic (Narayanan et al.).",
+  "label": "core",
+  "key": "v times more point-to-point traffic",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Llama 3 used it, with a tunable number of consecutive micro-batches per stage, and states the same ratio, (PP − 1)/(V × M) ( Llama 3 §3.3.2).",
+  "label": "core",
+  "key": "(PP − 1)/(V × M)",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Zero bubble, ZB-H1 ( Qi et al.",
+  "label": "core",
+  "key": "reduced to a third of 1F1B's size",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "2023 ): backward is split into the gradient for the input (B) and for the weights (W); W has no one waiting for it, so it fills the gaps. \"The bubble size is reduced to a third of 1F1B's size\" at the same peak memory; ZB-H2 removes it for about twice the activations.",
+  "label": "core",
+  "key": "ZB-H2 removes it for about twice the activations",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "DualPipe (DeepSeek-V3, paper page ): micro-batches enter from both ends, each forward chunk is overlapped with a backward chunk, and the all-to-all and pipeline communication hide inside the computation.",
+  "label": "core",
+  "key": "micro-batches enter from both ends",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Bubble ( PP /2 − 1)( F & B + B − 3 W ), for two copies of the parameters and PP + 1 micro-batches of activations (Table 2).",
+  "label": "core",
+  "key": "PP + 1 micro-batches of activations",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Only activations (forward) and their gradients (backward) cross a stage boundary, 2 sbh bytes per micro-batch each way, so PP is cheap on bandwidth and is the preferred way to split a model across servers.",
+  "label": "core",
+  "key": "2 sbh bytes per micro-batch each way",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "The price is the bubble, a batch-size constraint (enough micro-batches per step), uneven memory (the first stage holds the most activations, and the embedding) and invasive code changes.",
+  "label": "core",
+  "key": "invasive code changes",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Try: the default is DeepSeek's README example, 8 stages and 20 micro-batches.",
+  "label": "core",
+  "key": "DeepSeek's DualPipe README example, 8 stages and 20 micro-batches",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Move m down to 8: the GPipe and 1F1B rows rise to 88% of the ideal time.",
+  "label": "core",
+  "key": "rise to 88% of the ideal time",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Then raise v .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "an instruction to move a slider, kept as the predict prompt"
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Bubble rows use illustrative chunk times (forward 1, full backward 2, weight-gradient part 1), which is what makes ZB-H1 exactly a third of 1F1B.",
+  "label": "core",
+  "key": "what makes ZB-H1 exactly a third of 1F1B",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Stages, p = 8 Micro-batches per step, m = 20 Chunks per GPU (interleaved), v = 2 Animated schedules already exist on two other pages, so they are linked rather than rebuilt: the DeepSeek page (Numerics and systems) runs 1F1B, ZB1P, DualPipe and DualPipeV rank by rank, and the Llama 3 page's Run the 16K-GPU job tab simulates Llama 3's interleaved schedule with its tunable micro-batch grouping.",
+  "label": "core",
+  "key": "runs 1F1B, ZB1P, DualPipe and DualPipeV",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "pipeline parallelism",
+  "text": "Implemented in: Distributed PyTorch section 8 (every PyTorch pipeline schedule, measured); Sharding and scale (JAX) (pipeline parallelism written by hand with shard_map).",
+  "label": "core",
+  "key": "every PyTorch schedule, measured",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "expert parallelism",
+  "text": "Expert parallelism In a mixture-of-experts model each token visits only k of E feed-forward experts, so the experts can live on different GPUs.",
+  "label": "core",
+  "key": "each token visits only k of E feed-forward experts",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "expert parallelism",
+  "text": "Tokens travel to their experts in an all-to-all dispatch and come back in an all-to-all combine , around every MoE layer, forward and backward; attention and the other dense parts stay replicated (data parallel) or are split another way.",
+  "label": "core",
+  "key": "all-to-all combine",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "expert parallelism",
+  "text": "As Mixtral's paper puts it, tokens \"are routed to the corresponding GPU for processing, and the expert's output is returned to the original token location\", and EP \"introduces challenges in load balancing\" ( Mixtral §2.1): the busiest GPU sets the pace.",
+  "label": "core",
+  "key": "introduces challenges in load balancing",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "expert parallelism",
+  "text": "The EP mode above shows the memory side: per GPU the MoE twin needs what the dense model needed, while holding three times the parameters.",
+  "label": "core",
+  "key": "while holding three times the parameters",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "expert parallelism",
+  "text": "Lineage: experts were sharded across devices with all-to-all routing by GShard ( Lepikhin et al.",
+  "label": "depth",
+  "key": "Lepikhin et al. 2020",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "expert parallelism",
+  "text": "2020 , the work DeepSeek-V3 cites for EP); Switch Transformers simplified routing to one expert and laid out how expert, data and model parallelism combine (§5).",
+  "label": "depth",
+  "key": "simplified routing to one expert",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "expert parallelism",
+  "text": "DeepSeek-V3's layout (256 fine-grained routed experts per layer, 8 per token, 64-way EP over 8 nodes, each token capped at 4 nodes so it crosses InfiniBand once and NVLink forwards it, dispatch in FP8) is worked through on Mixture of experts , section 7, and on the DeepSeek-V3 paper page (§3.2).",
+  "label": "core",
+  "key": "each token capped at 4 nodes",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "expert parallelism",
+  "text": "What it means for the training layout: 20 of each H800's SMs drive the communication, and even so cross-node EP gave \"an inefficient computation-to-communication ratio of approximately 1:1\", the reason DualPipe (pipeline section above) overlaps the two.",
+  "label": "core",
+  "key": "an inefficient computation-to-communication ratio of approximately 1:1",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "expert parallelism",
+  "text": "Qwen3's MoE models (Qwen3-235B-A22B: 128 experts, 8 per token, config.json ) are trained and fine-tuned with expert parallelism in Megatron-based stacks ( ms-swift guide ); Qwen has not published its own pretraining layout unconfirmed .",
+  "label": "depth",
+  "key": "Qwen has not published its own pretraining layout",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "expert parallelism",
+  "text": "The memory side of long-context MoE training (dispatch buffers, the vocabulary projection, checkpoints, optimizer state) is worked through on the MoE training memory bottlenecks paper page.",
+  "label": "depth",
+  "key": "MoE training memory bottlenecks",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "expert parallelism",
+  "text": "Implemented in: Mixture of experts section 7 (expert parallelism and the all-to-all); Interconnects and scaling section 8 (all-to-all on the wire); Sharding and scale (JAX) (expert parallelism written by hand).",
+  "label": "core",
+  "key": "all-to-all on the wire",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "Context parallelism Context parallelism shards the sequence dimension of the activations across GPUs, for long-context training where activation memory, which grows with sequence length, is what no longer fits.",
+  "label": "core",
+  "key": "shards the sequence dimension",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "Token-wise layers (the feed-forward block, norms) need nothing from other GPUs; attention does, because every query needs the keys and values of earlier tokens.",
+  "label": "core",
+  "key": "every query needs the keys and values of earlier tokens",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "Three ways to supply them: Ring Attention ( Liu et al.",
+  "label": "core",
+  "key": "Ring Attention",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "2023 ): key and value blocks are passed round a ring, each step's transfer overlapped with attention on the block already received.",
+  "label": "core",
+  "key": "each overlapped with attention on the block already received",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "DeepSpeed Ulysses ( Jacobs et al.",
+  "label": "core",
+  "key": "Jacobs et al. 2023",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "2023 ): an all-to-all regroups the data so each GPU holds the full sequence for a subset of heads, computes ordinary attention, and a second all-to-all switches back.",
+  "label": "core",
+  "key": "a second all-to-all swaps back",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "Its communication volume stays constant when sequence length and GPU count grow together, and it trained \"2.5x faster with 4x longer sequence length\" than the baseline it compared with reported ; because it splits by heads, its degree is bounded by the head count derived .",
+  "label": "core",
+  "key": "2.5x faster with 4x longer sequence length",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "All-gather , Llama 3's choice: gather all keys and values, then compute attention for the local queries.",
+  "label": "core",
+  "key": "Llama 3's choice",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "The gather is exposed rather than overlapped, but with grouped-query attention keys and values are much smaller than queries and the gather is O( S ) against attention's O( S ²); it also handles document masks easily (§3.3.2).",
+  "label": "core",
+  "key": "handles document masks easily",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "Causal attention makes late tokens more expensive than early ones, so the sequence is cut into 2 × CP chunks and rank i takes chunks i and 2 × CP − 1 − i (Llama 3; the CP mode above draws it).",
+  "label": "core",
+  "key": "takes chunks i and 2 × CP − 1 − i",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "Llama 3 used CP = 16 for its 128K-context phase ( Table 4 ).",
+  "label": "core",
+  "key": "CP = 16 for its 128K-context phase",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "PyTorch's context parallel, shipped in torchtitan, implements Ring Attention with two rotation methods, ring passing and all-gather, defaulting to all-gather, and trained Llama 3 8B on 1M-token sequences on 32 H100s ( PyTorch ).",
+  "label": "core",
+  "key": "1M-token sequences on 32 H100s",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "Correction The old page said torchtitan \"ships both\" Ring Attention and Ulysses.",
+  "label": "core",
+  "key": "ships both",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "Its context parallel is Ring Attention (with an all-gather rotation as the default); Ulysses is DeepSpeed's.",
+  "label": "core",
+  "key": "Ulysses is DeepSpeed's",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "It also implied Llama 3 used Ring Attention: Llama 3 chose an all-gather variant instead, for document masks and simplicity (§3.3.2).",
+  "label": "core",
+  "key": "Llama 3 chose an all-gather variant instead",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "context parallelism",
+  "text": "Implemented in: Distributed PyTorch section 7 (ring attention, run on a CPU); Sharding and scale (JAX) (ring attention against all-gather, measured).",
+  "label": "core",
+  "key": "ring attention on a CPU",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Composing them: 4D and 5D parallelism The standard mental model, outermost to innermost: DP (FSDP or HSDP) × PP × CP × TP (+SP) , with EP as a further axis for MoE layers.",
+  "label": "core",
+  "key": "DP (FSDP or HSDP) × PP × CP × TP (+SP)",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Llama 3 orders its groups [TP, CP, PP, DP] from innermost to outermost because \"the innermost parallelism requires the highest network bandwidth and lowest latency, and hence is usually constrained to within the same server\", while DP tolerates latency by prefetching weights and reducing gradients asynchronously (§3.3.2).",
+  "label": "core",
+  "key": "the innermost parallelism requires the highest network bandwidth",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Two published layouts: Run GPUs TP CP PP EP DP Notes Llama 3 405B, 8K, first stage 8,192 8 1 16 1 64 16M tokens per batch; 43% BF16 MFU Llama 3 405B, 8K 16,384 8 1 16 1 128 41%; FSDP shards optimizer state and gradients but keeps weights gathered after forward Llama 3 405B, 128K 16,384 8 16 16 1 8 38% DeepSeek-V3 671B 2,048 1 1 16 64 128 ZeRO-1 data parallel; DualPipe; \"without using costly tensor parallelism\" Sources: Llama 3 Table 4 (the 41% row computes to 40.4%, 400 / 989.5, a rounding the Llama 3 page also flags); DeepSeek-V3 §3.2, DP = 2,048 / 16 derived , with the 64-way EP carved out of each stage's 128 data-parallel GPUs.",
+  "label": "core",
+  "key": "without using costly tensor parallelism",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "The Layout calculator loads each of these as a preset; the Megatron-LM page's Then and now tab lays out more runs from 2019 to 2026, and the Llama 3 page maps every rank of its mesh.",
+  "label": "core",
+  "key": "lays out more runs from 2019 to 2026",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Rules of thumb , from the Ultra-Scale Playbook's 4,100 benchmarked runs on up to 512 GPUs ( step 1, \"Fitting a training step in memory\" ): Fit the model first.",
+  "label": "core",
+  "key": "Fitting a training step in memory",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Under 10B parameters one technique is enough, \"tensor parallelism or ZeRO-3/DP with full recompute across 8 GPUs\".",
+  "label": "core",
+  "key": "tensor parallelism or ZeRO-3/DP with full recompute across 8 GPUs",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "From 10B to 100B: TP = 8 with PP, TP = 8 with ZeRO-3, or ZeRO-3 alone.",
+  "label": "core",
+  "key": "TP = 8 with PP, TP = 8 with ZeRO-3, or ZeRO-3 alone",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "At 512+ GPUs pure ZeRO-3 starts to lose efficiency to communication cost; at 1,024+ a recommended setup is TP = 8 with ZeRO-2 and PP.",
+  "label": "core",
+  "key": "TP = 8 with ZeRO-2 and PP",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Add CP across nodes for very long sequences, and EP across nodes for MoE.",
+  "label": "core",
+  "key": "Add CP across nodes for very long sequences",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Keep the bandwidth-hungry axes (TP, EP dispatch) inside NVLink domains ; PP and DP gradient sync can cross InfiniBand.",
+  "label": "core",
+  "key": "Keep the bandwidth-hungry axes",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Then reach the target global batch (step 2) by scaling DP or gradient accumulation, or CP for long sequences: global batch = micro-batch × accumulation steps × DP.",
+  "label": "core",
+  "key": "Then reach the target global batch",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Then optimise throughput (step 3): scale TP up to about the server size, increase DP with ZeRO-3 while keeping the batch, move to PP when DP communication becomes the bottleneck, and tune the micro-batch.",
+  "label": "core",
+  "key": "move to PP when DP communication becomes the bottleneck",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Short of GPUs: full activation recomputation and more gradient accumulation.",
+  "label": "core",
+  "key": "Short of GPUs",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Correction The old page's first rule read \"FSDP alone up to tens of billions of parameters on H100 nodes; add TP when a layer no longer fits; add PP across nodes for 100B+\".",
+  "label": "core",
+  "key": "FSDP alone up to tens of billions",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "The Playbook's own thresholds are lower and different in kind: one technique under 10B, three combinations from 10B to 100B, and the switch away from pure ZeRO-3 is set by GPU count (512+), not by model size.",
+  "label": "core",
+  "key": "set by GPU count (512+), not by model size",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Activation checkpointing Instead of storing every activation for backward, store a few and recompute the rest.",
+  "label": "core",
+  "key": "store a few and recompute the rest",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Full recomputation (keep only each layer's input) costs 30 to 40% more execution time (36% measured); selective recomputation of only the attention core, the large but cheap part, cuts activation memory about 5 times for 2.7% (GPT-3) or 1.6% (MT-NLG) extra FLOPs ( Korthikanti et al.",
+  "label": "core",
+  "key": "36% measured",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "2022 ; the Playbook quotes 70% less activation memory for 2.7% compute).",
+  "label": "core",
+  "key": "70% less activation memory for 2.7% compute",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "FlashAttention already recomputes attention in its backward pass instead of storing the score matrix, which is why selective checkpointing pairs naturally with it.",
+  "label": "core",
+  "key": "pairs naturally with it",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Llama 3 trained 8K sequences with no activation checkpointing at all, after deallocating stage inputs and outputs it no longer needed (§3.3.2).",
+  "label": "core",
+  "key": "no activation checkpointing at all",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Correction The old page said activation checkpointing \"(full or selective) trades about 30% compute\".",
+  "label": "core",
+  "key": "trades about 30% compute",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "That figure is full recomputation's (30 to 40%); selective recomputation costs about 2 to 3%.",
+  "label": "core",
+  "key": "selective recomputation costs about 2 to 3%",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "composing them: 4d and 5d parallelism",
+  "text": "Implemented in: Distributed PyTorch sections 9 and 10 (distributed checkpoints, and composing PP, FSDP and TP the torchtitan way); Sharding and scale (JAX) (choosing a mesh, many hosts); Interconnects and scaling section 9 (why the network picks your parallelism); Launching distributed training (starting and debugging the ranks); Fault tolerance at scale (what fails at this scale, checkpoint and restart, goodput).",
+  "label": "core",
+  "key": "the torchtitan order",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "frameworks (2026)",
+  "text": "Frameworks (2026) torchtitan : PyTorch's native reference for pretraining.",
+  "label": "core",
+  "key": "PyTorch's native reference for pretraining",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "frameworks (2026)",
+  "text": "FSDP2 with per-parameter sharding, tensor parallel (including async TP), pipeline parallel (including zero-bubble schedules), context parallel, DDP and HSDP, per-op selective and full activation checkpointing, torch.compile , low-precision training (MXFP8 and NVFP4 today; the paper's Float8), Distributed Checkpoint with async saves, torchft fault tolerance (README).",
+  "label": "depth",
+  "key": "MXFP8 and NVFP4",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "frameworks (2026)",
+  "text": "Its paper reports 65.08% speed-up on Llama 3.1 8B at 128 GPUs (1D), 12.59% on 70B at 256 GPUs (2D) and 30% on 405B at 512 GPUs (3D) over its own baselines reported .",
+  "label": "depth",
+  "key": "65.08%",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "frameworks (2026)",
+  "text": "The 2026 survey's advice is to \"use torchtitan as a pattern source, not as a dependency\".",
+  "label": "core",
+  "key": "use torchtitan as a pattern source, not as a dependency",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "frameworks (2026)",
+  "text": "Megatron-Core / NeMo : NVIDIA's production stack and the most mature TP and PP kernels, with expert parallelism and a distributed optimizer; the survey calls it \"the ceiling for NVIDIA training\".",
+  "label": "core",
+  "key": "the ceiling for NVIDIA training",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "frameworks (2026)",
+  "text": "DeepSpeed : still relevant for ZeRO-Offload and ZeRO-Infinity and for its Hugging Face Trainer integration. nanotron : Hugging Face's lightweight pretraining library, the Ultra-Scale Playbook's companion.",
+  "label": "core",
+  "key": "the Ultra-Scale Playbook's companion",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "frameworks (2026)",
+  "text": "FSDP2 with HSDP covers the great majority of fine-tuning and pretraining below about 70B; full 4D parallelism is needed only at frontier scale.",
+  "label": "core",
+  "key": "below about 70B",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "frameworks (2026)",
+  "text": "Schedulers, checkpoint cadence and fault tolerance at 16,000 GPUs are summarised in the parent's Machinery section (\"Running the job\", Topic: llm-training-and-post-training ) and owned by Fault tolerance at scale ; number formats for training (FP8, MXFP4) on Quantization and Precision .",
+  "label": "core",
+  "key": "Running the job",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes \"1F1B shrinks the pipeline bubble\" It does not: GPipe and 1F1B share the ( p − 1)/ m bubble.",
+  "label": "core",
+  "key": "zero-bubble schedules and DualPipe are what shrink the bubble",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "1F1B caps the activations in flight at p micro-batches.",
+  "label": "core",
+  "key": "caps the activations in flight at p micro-batches",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Interleaving (÷ v ), zero-bubble schedules and DualPipe are what shrink the bubble. \"ZeRO-3 is free memory\" It costs 1.5 times DP's communication, and with gradient accumulation it gathers the weights for every micro-batch, forward and backward.",
+  "label": "core",
+  "key": "gathers the weights again for every micro-batch",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Across servers that traffic lands on the slow link; HSDP or ZeRO-2 are the usual fixes. \"Context parallelism (or expert parallelism) shrinks the weights\" Neither does by itself.",
+  "label": "core",
+  "key": "HSDP or ZeRO-2 are the usual fixes",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "CP cuts activations; EP spreads experts but each GPU still holds a dense model's worth of state (both modes above stay at 128.5 GB).",
+  "label": "depth",
+  "key": "both steps above stay at 128.5 GB",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "They are combined with FSDP, ZeRO-1 or TP for the weights. \"Sequence parallelism and context parallelism are the same thing\" Megatron's sequence parallelism splits only the regions tensor parallelism leaves replicated (norms, dropout) and lives inside the TP group.",
+  "label": "depth",
+  "key": "lives inside the TP group",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Context parallelism splits attention itself across its own group and can be used without TP. \"Tensor parallelism across servers is just slower\" It is much slower: four latency-bound collectives per layer per micro-batch.",
+  "label": "depth",
+  "key": "four latency-bound collectives per layer per micro-batch",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The Playbook measured about 43% degradation crossing nodes, against 14% for pipeline parallelism over the same boundary. \"Data parallelism can always use more GPUs\" Only while there are sequences to hand out: global batch = micro-batch × accumulation × DP.",
+  "label": "core",
+  "key": "a fixed token budget per step caps it",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A fixed token budget per step caps DP, which is why Llama 3's 16K-GPU run had fewer sequences per DP rank and a lower MFU (41% against 43%, §3.3.2). \"16 bytes per parameter is a law\" It is the ZeRO paper's convention for bf16 with fp32 Adam.",
+  "label": "core",
+  "key": "41% against 43%",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "FP32 gradients make it 18 to 20, bf16 moments 14, an 8-bit optimizer less; activations come on top.",
+  "label": "depth",
+  "key": "FP32 gradients make it 18 to 20",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Layout calculator Pick a model and a layout, TP × CP × PP × DP (plus EP for an MoE model), and see what one GPU holds and what it sends in one optimizer step, axis by axis, on the link that axis lands on.",
+  "label": "core",
+  "key": "see what one GPU holds and what it sends in one optimiser step",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "It is the One training step animation's arithmetic at real scale.",
+  "label": "core",
+  "key": "at real scale",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Training time in GPU-days for a model size and token budget is the parent page's Scaling calculator tab; this tab only uses compute to put the communication in proportion.",
+  "label": "core",
+  "key": "Scaling calculator",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Try: start from Llama 3 405B on 16,384 GPUs, then switch the preset to 128K context: CP = 16 takes the sixteen-fold longer sequences and activations per GPU do not move.",
+  "label": "core",
+  "key": "activations per GPU do not move",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Load DeepSeek-V3 and watch expert all-to-all dominate the step: that is the \"approximately 1:1\" computation-to-communication ratio DualPipe was built to hide.",
+  "label": "core",
+  "key": "watch expert all-to-all dominate the step",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Set ZeRO to stage 0 on the ZeRO 7.5B preset to see 120 GB.",
+  "label": "core",
+  "key": "Set ZeRO to stage 0 on the ZeRO 7.5B preset",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Preset Llama 3 405B, 8K, 16,384 GPUs Llama 3 405B, 8K, 8,192 GPUs Llama 3 405B, 128K context DeepSeek-V3, 2,048 H800s ZeRO paper: 7.5B on 64 GPUs Llama 3 8B, FSDP on 8 GPUs (illustrative) Custom Model Bytes per parameter GPU and links TP CP PP DP EP (MoE only) ZeRO stage over DP 0: replicated (DDP) 1: optimizer state 2: + gradients 3: + weights (FSDP) Sequence length 4096 8192 32768 131072 Micro-batches per step, m Activations Stored, 34 sbh per layer Full recomputation Not counted (states only) Pipeline schedule 1F1B: min(m, PP) in flight DualPipe: PP + 1 in flight, 2 parameter copies MFU, 41 % Memory per GPU weights gradients optimizer state activations (estimate) 80 GB One step: compute against communication, per GPU How the numbers are made Parameters per GPU : dense parameters ÷ (TP × PP), expert parameters ÷ (EP × PP × TP); doubled for DualPipe's two copies.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "control labels"
+ },
+ {
+  "id": 173,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Counts from config.json, recounted (Llama 3 8B 8.03B, 70B 70.55B, 405B 405.85B; DeepSeek-V3 671.03B of which 653.91B routed experts and 37.55B active, from the DeepSeek-V3 paper page ).",
+  "label": "core",
+  "key": "Counts from config.json, recounted",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "States : bytes per parameter split into weights, gradients and optimizer state; ZeRO divides them over the data-parallel group, which includes the CP ranks (as Megatron's distributed optimizer does) and, for experts, DP × CP ÷ EP ranks.",
+  "label": "core",
+  "key": "as Megatron's distributed optimiser does",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Llama 3's \"shards optimizer states and gradients\" but keeps weights after forward is modelled as stage 2.",
+  "label": "core",
+  "key": "is modelled as stage 2",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Activations estimate : Korthikanti et al.'s 34 sbh per layer for a GPT-style layer with sequence parallelism and no stored score matrix, ÷ (TP × CP), × layers per stage × micro-batches in flight on the first stage.",
+  "label": "core",
+  "key": "micro-batches in flight on the first stage",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Full recomputation keeps 2 sbh per layer plus one layer's working set.",
+  "label": "core",
+  "key": "Full recomputation keeps 2 sbh per layer",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Llama's SwiGLU and GQA and DeepSeek's MLA, FP8 caching and recomputation make the real figure differ.",
+  "label": "core",
+  "key": "make the real figure differ",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Communication : bytes sent per GPU per step, ring factors from nccl-tests.",
+  "label": "core",
+  "key": "ring factors from nccl-tests",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "DP: one all-reduce (stage 0) or reduce-scatter plus all-gather (1, 2), plus two all-gathers per micro-batch (3).",
+  "label": "core",
+  "key": "plus two all-gathers per micro-batch (3)",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "TP: 4 all-reduces of 2 sbh /CP bytes per layer per micro-batch.",
+  "label": "core",
+  "key": "TP: 4 all-reduces",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "CP: an all-gather of K and V forward and a reduce-scatter of their gradients backward per layer.",
+  "label": "core",
+  "key": "a reduce-scatter of their gradients backward per layer",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "PP: one activation and one gradient per micro-batch.",
+  "label": "core",
+  "key": "one activation and one gradient per micro-batch",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "EP: dispatch and combine, forward and backward, k copies per token, (EP − 1)/EP leaving the GPU (FP8 dispatch for DeepSeek-V3).",
+  "label": "core",
+  "key": "FP8 dispatch for DeepSeek-V3",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Links : groups are laid out innermost first, TP, CP, EP, PP, DP (Llama 3's order, with EP inside DP as DeepSeek places 64 experts' GPUs on 8 servers); a group that fits in one 8-GPU server uses NVLink, otherwise the network.",
+  "label": "core",
+  "key": "groups are laid out innermost first",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Peak bandwidths; real collectives reach less, and overlap with compute hides much of the time, so the bars are an upper bound on exposed time and a lower bound on transfer time.",
+  "label": "core",
+  "key": "an upper bound on exposed time and a lower bound on transfer time",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "Compute : 6 × active parameters × tokens per step ÷ (GPUs × 989.5 TFLOP/s BF16 × MFU), attention FLOPs left out, which understates the 128K row.",
+  "label": "core",
+  "key": "attention FLOPs left out",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "MFU defaults are Llama 3's published 43, 41 and 38% and the DeepSeek-V3 page's derived 34%.",
+  "label": "core",
+  "key": "the DeepSeek-V3 page's derived 34%",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-calc",
+  "section": "layout calculator",
+  "text": "All formulas in src/recompute.py ; src/check_calc.mjs confirms this page's JavaScript gives the same numbers for every preset.",
+  "label": "core",
+  "key": "check_calc.mjs confirms",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Links open in a new tab.",
+  "label": "core",
+  "key": "Links open in a new tab",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Times are estimates: for knowledge base pages, the Reading tab's word count at 230 words a minute.",
+  "label": "core",
+  "key": "230 words a minute",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "On this page One training step, nine ways The animation in Reading: DP, ZeRO-1/2/3, HSDP, TP, PP, EP and CP on the same model, batch and four GPUs.",
+  "label": "core",
+  "key": "stepped through under DP, ZeRO-1/2/3",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Layout calculator Memory and communication per GPU for any layout, with Llama 3 405B and DeepSeek-V3 presets.",
+  "label": "core",
+  "key": "with Llama 3 405B and DeepSeek-V3 presets",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Around this page in the knowledge base Distributed PyTorch Every split on this page as PyTorch code: c10d collectives, DDP's reducer, FSDP2, DTensor and TP, ring attention, every pipeline schedule measured, distributed checkpoints, torchtitan composition.",
+  "label": "core",
+  "key": "torchtitan composition",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 30 min) Sharding and scale (JAX) The same splits as mesh shardings: GSPMD propagation, every strategy measured, ring attention, pipeline and expert parallelism by hand, many hosts.",
+  "label": "core",
+  "key": "pipeline and expert parallelism by hand",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 23 min) Interconnects and scaling The wire under every collective: NVLink, InfiniBand and RoCE, collective algorithms with a Collective simulator, all-to-all, and why the network picks your parallelism.",
+  "label": "core",
+  "key": "why the network picks your parallelism",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 32 min) Launching distributed training Starting the ranks: torchrun, rendezvous, building the NCCL communicator, every timeout, and debugging hangs.",
+  "label": "core",
+  "key": "debugging hangs",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 26 min) Mixture of experts Section 7: expert parallelism and the all-to-all, with DeepSeek-V3's node-limited routing.",
+  "label": "core",
+  "key": "with DeepSeek-V3's node-limited routing",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 37 min) Topic: llm-training-and-post-training The parent: training stages compared; its Machinery section has the bytes-per-parameter bars and the one-line parallelism table, its Scaling calculator tab the FLOPs and GPU-days.",
+  "label": "core",
+  "key": "the FLOPs and GPU-days",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(Reading tab about 27 min) Fault tolerance at scale What fails at 16,000 GPUs and how runs recover: detection, checkpoint and restart, replica groups, goodput.",
+  "label": "core",
+  "key": "detection, checkpoint and restart, replica groups, goodput",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The parent's Machinery section summarises the stack and the frameworks.",
+  "label": "core",
+  "key": "summarises the stack and the frameworks",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(40 min read) Quantization and Precision FP8 and 4-bit training: the other way to cut bytes per parameter and per message.",
+  "label": "core",
+  "key": "the other way to cut bytes per parameter and per message",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(23 min read · +6h 25m resources) Pretraining The runs these layouts serve: objectives, scaling laws, data curricula.",
+  "label": "core",
+  "key": "objectives, scaling laws, data curricula",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(16 min read · +15h 35m resources) Topic: hardware The accelerators, NVLink domains and networks the layouts are mapped onto.",
+  "label": "core",
+  "key": "NVLink domains and networks the layouts are mapped onto",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(37 min read · +9h 13m resources) DeepSeek Lab page; Numerics and systems has the DualPipe and 1F1B schedule simulator and EPLB.",
+  "label": "core",
+  "key": "DualPipe and 1F1B schedule simulator and EPLB",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(Reading tab about 34 min) Paper pages ZeRO (2019) Sharded data parallelism; Step through a training step (DDP against each stage, layer by layer); stage names then and now.",
+  "label": "core",
+  "key": "DDP against each stage, layer by layer",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(Reading tab about 19 min) Megatron-LM (2019) Tensor parallelism; a layer split on real matrices; parallel layouts from 2019 to 2026.",
+  "label": "core",
+  "key": "a layer split on real matrices",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 20 min) Switch Transformers (2021) Top-1 routing; data, model and expert parallelism combined (§5, Figure 9 redrawn).",
+  "label": "core",
+  "key": "Figure 9 redrawn",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 19 min) Mixtral of Experts (2024) Expert parallelism and its load-balancing problem in a deployed MoE.",
+  "label": "core",
+  "key": "its load-balancing problem in a deployed MoE",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 20 min) DeepSeek-V3 Technical Report (2024) DualPipe, node-limited all-to-all, ZeRO-1 without TP, FP8 training.",
+  "label": "core",
+  "key": "ZeRO-1 without TP",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 26 min) The Llama 3 Herd of Models (2024) 4D parallelism on 16K H100s: rank mapper, interleaved pipeline simulator, 54 days of interruptions replayed.",
+  "label": "core",
+  "key": "54 days of interruptions replayed",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 26 min) Bounding the memory bottlenecks of large MoE training (2026) The four memory peaks of long-context MoE training and how to schedule them.",
+  "label": "core",
+  "key": "The four memory peaks",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 23 min) FlashAttention (2022) Attention without storing the score matrix, the reason selective recomputation is cheap.",
+  "label": "core",
+  "key": "the reason selective recomputation is cheap",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 20 min) Best resources Hugging Face, The Ultra-Scale Playbook The canonical walk from single-GPU memory anatomy through DP, ZeRO, TP, PP, CP and EP and how to combine them, built on over 4,100 benchmarked runs on up to 512 GPUs.",
+  "label": "core",
+  "key": "The canonical walk",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 8h) PyTorch FSDP2 docs (fully_shard) Per-parameter DTensor sharding, reshard after forward, mixed precision, HSDP meshes.",
+  "label": "core",
+  "key": "reshard after forward, mixed precision, HSDP meshes",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(docs, about 30 min) TorchTitan paper (Liang et al.) How PyTorch composes FSDP2, TP, PP and CP natively, with measured gains up to 405B.",
+  "label": "core",
+  "key": "with measured gains up to 405B",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min) Framework survey: FSDP2, Megatron-Core, DeepSpeed, torchtitan, nanotron, MaxText (April 2026) A current practical comparison of when to use which.",
+  "label": "core",
+  "key": "A current practical comparison",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 25 min) Primary sources behind this page Narayanan et al.",
+  "label": "core",
+  "key": "Megatron-LM on GPU clusters",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2021, Megatron-LM on GPU clusters PTD-P: TP inside servers, PP across, the 1F1B and interleaved schedules; 502 PFLOP/s on 3,072 GPUs at 52% of peak for 1T parameters.",
+  "label": "core",
+  "key": "502 PFLOP/s on 3,072 GPUs",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(paper, about 45 min) Korthikanti et al.",
+  "label": "core",
+  "key": "Reducing activation recomputation",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2022, Reducing activation recomputation Sequence parallelism, selective recomputation and the 34 sbh activation formula.",
+  "label": "core",
+  "key": "the 34 sbh activation formula",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(paper, about 40 min) Qi et al.",
+  "label": "core",
+  "key": "Zero Bubble Pipeline Parallelism",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2023, Zero Bubble Pipeline Parallelism Splitting backward into B and W; ZB-H1 and ZB-H2.",
+  "label": "core",
+  "key": "ZB-H1 and ZB-H2",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(paper, about 35 min) Huang et al.",
+  "label": "core",
+  "key": "Huang et al. 2019, GPipe",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2019, GPipe and Harlap et al.",
+  "label": "core",
+  "key": "Harlap et al. 2018, PipeDream",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2018, PipeDream The two schedules every later pipeline improves on.",
+  "label": "core",
+  "key": "The two schedules every later pipeline improves on",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(papers, about 30 min each) Liu et al.",
+  "label": "core",
+  "key": "Liu et al. 2023, Ring Attention",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2023, Ring Attention and Jacobs et al.",
+  "label": "core",
+  "key": "Jacobs et al. 2023, DeepSpeed Ulysses",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2023, DeepSpeed Ulysses The two families of context parallelism.",
+  "label": "core",
+  "key": "The two families of context parallelism",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(papers, about 30 min each) Lepikhin et al.",
+  "label": "core",
+  "key": "Lepikhin et al. 2020, GShard",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2020, GShard Experts sharded across devices with all-to-all routing: where expert parallelism starts.",
+  "label": "core",
+  "key": "where expert parallelism starts",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(paper, about 40 min) Zhao et al.",
+  "label": "core",
+  "key": "Zhao et al. 2023, PyTorch FSDP",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2023, PyTorch FSDP and Li et al.",
+  "label": "core",
+  "key": "Li et al. 2020, PyTorch DDP",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2020, PyTorch DDP How PyTorch implements sharded and plain data parallelism, buckets and overlap included.",
+  "label": "core",
+  "key": "buckets and overlap included",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(papers, about 30 min each) ZeRO-Offload and ZeRO-Infinity Optimizer state and parameters pushed to CPU memory and NVMe.",
+  "label": "core",
+  "key": "pushed to CPU memory and NVMe",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(papers, about 30 min each) nccl-tests, PERFORMANCE.md Algorithm against bus bandwidth, and the ring factors used throughout this page.",
+  "label": "core",
+  "key": "the ring factors used throughout this page",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(10 min) torchtitan , Megatron-LM , DeepSpeed , nanotron , torchft The frameworks' repositories and feature lists.",
+  "label": "core",
+  "key": "repositories and feature lists",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Tensor-parallel degree should divide the number of heads (KV heads with GQA), or attention is reshuffled: 1.33 times the predicted bytes for 4 heads over 8 devices (from Sharding and scale (JAX)).",
+  "label": "core",
+  "key": "a divisor of the number of heads",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Keeping gathered weights from forward to backward saves the second all-gather for activation-like memory; FSDP2 reshard_after_forward, XLA kept them (from Sharding and scale (JAX), Distributed PyTorch).",
+  "label": "core",
+  "key": "reshard_after_forward",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Under TP + SP the LayerNorm weight gradients are partial sums and need an all-reduce over the TP group (from Distributed PyTorch section 6).",
+  "label": "core",
+  "key": "need an all-reduce over the TP group",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Ring attention merges partial outputs with their log-sum-exp (online softmax), so no device holds all keys or a full score matrix (from Distributed PyTorch section 7, Sharding and scale (JAX)).",
+  "label": "core",
+  "key": "log-sum-exp",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Ring attention costs n sequential steps; a plain causal ring leaves device 0 with work in 1 of 8 steps (from Sharding and scale (JAX)).",
+  "label": "core",
+  "key": "work in 1 of 8 steps",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Measured: 123 MB temp memory per device for the ring against 273 MB for all-gather at 8,192 tokens (Sharding and scale (JAX)).",
+  "label": "core",
+  "key": "123 MB of temporary memory per device for the ring against 273 MB",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "V-shaped pipeline schedules (DualPipeV, ZBV) give rank 0 the first and last stage (from Distributed PyTorch section 8).",
+  "label": "core",
+  "key": "give rank 0 both the first and the last stage",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Data parallelism hides its all-reduce when tokens per replica T >= 2I/3, about 5,300 for an H100 at 40% over 400 Gb/s; Llama 3 405B has 131,072 per replica (from Interconnects and scaling section 9).",
+  "label": "core",
+  "key": "5,300 tokens",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "TP bytes per FLOP do not depend on batch; 70B at TP 8 over a 400 Gb/s card: communication 141% of compute (from Interconnects and scaling section 9).",
+  "label": "core",
+  "key": "141% of the compute",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "TP all-reduces sit on the critical path; overlap cannot hide them (from Interconnects and scaling section 9).",
+  "label": "core",
+  "key": "so overlap cannot hide them",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "new figure",
+  "text": "Hero: six panels, what each split cuts, what it sends (bytes per GPU for Llama 3 8B on four GPUs) and which link.",
+  "label": "core",
+  "key": "Cuts the stored state",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "new figure",
+  "text": "Memory bar: Llama 3 8B states 128.5 GB plus 36.5 GB activations against 80 GB.",
+  "label": "core",
+  "key": "does not fit on one H100 before a single activation is stored",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "new figure",
+  "text": "Collectives before and after on four GPUs; all-reduce = reduce-scatter + all-gather.",
+  "label": "core",
+  "key": "an all-reduce is a reduce-scatter followed by an all-gather",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "new figure",
+  "text": "ZeRO predict: ZeRO-1 at 64 GPUs keeps 4 + 12/64 = 4.19 bytes per parameter, 31.4 GB.",
+  "label": "core",
+  "key": "4 + 12/64 = 4.19 bytes per parameter",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "new figure",
+  "text": "TP block before and after sequence parallelism.",
+  "label": "core",
+  "key": "sequence parallelism trades it for a reduce-scatter and an all-gather",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "new figure",
+  "text": "Pipeline predict: GPipe and 1F1B both idle 35% at p = 8, m = 20.",
+  "label": "core",
+  "key": "= 35% of the ideal time",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "new figure",
+  "text": "Context parallelism three traffic patterns.",
+  "label": "core",
+  "key": "three traffic patterns",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "new figure",
+  "text": "Mesh: Llama 3 405B TP 236.8 GB on NVLink 0.53 s, DP 18.9 GB, PP 1.07 GB, compute 6.15 s; DeepSeek-V3 EP 704 GB 14.1 s against 20.4 s.",
+  "label": "core",
+  "key": "236.8 GB per GPU per step over NVLink",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "new figure",
+  "text": "Activation checkpointing for Llama 3 8B, one 8K sequence: 380 GB stored, 36.5 GB selective, 3.3 GB full.",
+  "label": "core",
+  "key": "Selective recomputation removes nine tenths of the activations",
+  "where": ""
+ }
+]

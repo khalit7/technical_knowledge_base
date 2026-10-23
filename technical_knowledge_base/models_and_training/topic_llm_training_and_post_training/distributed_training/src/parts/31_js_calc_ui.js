@@ -50,7 +50,7 @@
       RD.stat('Tokens per step',(r.tokens/1e6).toFixed(1)+'M','DP × m × sequence');
     const mx=Math.max(r.total,r.mem)*1.08,seg=(v,c)=>'<span style="width:'+(100*v/mx).toFixed(2)+'%;background:'+c+'" title="'+f1(v)+' GB"></span>';
     $('lcBar').innerHTML=seg(r.W,'var(--c1)')+seg(r.G,'var(--c5)')+seg(r.O,'var(--c4)')+seg(r.A,'var(--c3)')+'<span class="lc-line" style="left:'+(100*r.mem/mx).toFixed(2)+'%"></span>';
-    $('lcMemN').innerHTML='Weights '+f1(r.W)+' GB, gradients '+f1(r.G)+' GB, optimizer state '+f1(r.O)+' GB, activations '+f1(r.A)+' GB <i class="nl d">derived</i>.';
+    $('lcMemN').innerHTML='Weights '+f1(r.W)+' GB, gradients '+f1(r.G)+' GB, optimiser state '+f1(r.O)+' GB, activations '+f1(r.A)+' GB <i class="nl d">derived</i>.';
     const ax=['DP','TP','CP','PP','EP'].filter(a=>r.comm[a]>0);
     const tmax=Math.max(r.t_comp,...ax.map(a=>r.t[a]),1e-9);
     const row=(nm,t,c,sub)=>'<div class="crow"><span class="nm">'+nm+'</span><span class="track"><span class="fill" style="width:'+Math.max(0.5,100*t/tmax).toFixed(1)+'%;background:'+c+'"></span></span><span class="val">'+tm(t)+'<br><span class="mute" style="font-size:11px">'+sub+'</span></span></div>';
