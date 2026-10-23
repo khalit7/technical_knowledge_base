@@ -27,32 +27,8 @@ document.querySelectorAll('pre[data-ex]').forEach(p=>{const t=S.ex[p.dataset.ex]
 document.querySelectorAll('.sl-pr').forEach(box=>box.addEventListener('click',e=>{const b=e.target.closest('button[data-a]');if(!b)return;
   box.querySelectorAll('button[data-a]').forEach(x=>{x.classList.toggle('right',x.dataset.a==='1');x.classList.toggle('wrong',x===b&&x.dataset.a!=='1')});box.classList.add('done')}));
 
-// ---- the cluster map ----
-const MAP=[
- {id:'user',x:0,y:0,w:1,sh:'users',ss:'alice, carol, bob',lab:'users alice, carol (teama), bob (teamb)',sub:'sbatch, squeue, sacct',info:'Users log in somewhere with the Slurm client commands and a copy of the munge key; here they are the accounts alice, carol and bob on the controller container. On a real cluster that is a login node.'},
- {id:'ctl',x:1,y:0,w:2,sh:'ctl: slurmctld, slurmdbd',ss:'MariaDB, munged',lab:'ctl: slurmctld + slurmdbd + MariaDB',sub:'munged, slurmscriptd; 512 MB, 1 CPU',info:'The controller container: slurmctld (all scheduling and state), slurmscriptd (runs controller-side scripts), slurmdbd and MariaDB (accounting, fairshare usage, QOS and limits) and munged. Real clusters put slurmdbd and the database on their own host and run a backup slurmctld.'},
- {id:'c1',x:0,y:1,w:1,lab:'c1: slurmd',ss:'4 CPU, 4 fake GPU',sub:'4 CPUs, 4 fake GPUs',info:'A compute node: slurmd and munged only, fetching its configuration from ctl (configless). Declared 4 CPUs, 4,000 MB and gpu:4 (four empty placeholder files). Each container is capped at 800 MB and 2 CPUs by Docker; Slurm does not know that.'},
- {id:'c2',x:1,y:1,w:1,lab:'c2: slurmd',ss:'4 CPU, 4 fake GPU',sub:'4 CPUs, 4 fake GPUs',info:'Same as c1. The running example ran on c1 and c2: 2 ranks each.'},
- {id:'c3',x:2,y:1,w:1,lab:'c3: slurmd',ss:'4 CPU, 4 fake GPU',sub:'4 CPUs, 4 fake GPUs',info:'Same as c1. Reserved for alice in section 10.'},
- {id:'sh',x:0,y:2,w:3,lab:'/shared volume on all four containers',sub:'jobs, out, ckpt, logs',info:'A Docker volume mounted at /shared everywhere: job scripts, job output, checkpoints and the training logs. The stand-in for a cluster file system (the root\'s Storage lab measures what that costs).'}];
-function drawMap(){const el=$('sl-map');if(!el)return;const W=Math.min(RD.width(el),860),cw=(W-20)/3,rh=58;
-  let b='';const col={user:'var(--c4)',ctl:'var(--c1)',c1:'var(--c3)',c2:'var(--c3)',c3:'var(--c3)',sh:'var(--c5)'};
-  const fs=W<480?10.5:12;
-  // arrows
-  const cx=i=>10+cw*i+cw/2;
-  b+='<line x1="'+cx(0.5)+'" y1="'+(10+rh)+'" x2="'+cx(0.5)+'" y2="'+(10+rh+16)+'" stroke="var(--mute)"/>';
-  MAP.forEach(m=>{const x=10+m.x*cw+3,y=10+m.y*(rh+16),w=m.w*cw-6;
-    b+='<g data-k="'+m.id+'" style="cursor:pointer"><rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+rh+'" rx="8" fill="var(--soft)" stroke="'+col[m.id]+'" stroke-width="1.6"/>'+
-      '<text x="'+(x+w/2)+'" y="'+(y+24)+'" text-anchor="middle" font-size="'+fs+'" font-weight="600">'+esc(fit(W<480&&m.sh?m.sh:m.lab,w,fs))+'</text>'+
-      '<text x="'+(x+w/2)+'" y="'+(y+42)+'" text-anchor="middle" font-size="'+(fs-1)+'" fill="var(--mute)">'+esc(fit(W<480&&m.ss?m.ss:m.sub,w,fs-1))+'</text></g>'});
-  el.innerHTML=RD.svg(W,10+3*(rh+16),b,'The lab Slurm cluster');}
-function fit(s,w,fs){const n=Math.floor(w/(fs*0.56));return s.length>n?s.slice(0,Math.max(4,n-1))+'…':s}
-(function(){const el=$('sl-map');if(!el)return;el.addEventListener('click',e=>{const g=e.target.closest('g[data-k]');if(!g)return;const m=MAP.find(x=>x.id===g.dataset.k);
-  $('sl-map-info').innerHTML='<b>'+esc(m.lab)+'.</b> '+esc(m.info)});$('sl-map-info').innerHTML='<b>Click a box.</b> Arrows are not drawn between every pair: every daemon talks to slurmctld, and slurmctld talks to slurmdbd.';
-  drawMap();RD.onRender(drawMap);RD.onResize(drawMap)})();
-
 // ---- job states ----
-const ST=[['PENDING','PD','main','Waiting with a reason (section 5 and the Why pending? tab). Held jobs are PENDING with priority 0.'],
+const ST=[['PENDING','PD','main','Waiting with a reason (sections 5 and 6, and the Why pending? tab). Held jobs are PENDING with priority 0.'],
  ['CONFIGURING','CF','main','Nodes allocated but not ready (booting from power saving, or a slow prolog with PrologFlags=Alloc). Skipped here.'],
  ['RUNNING','R','main','The batch script and its steps are running.'],
  ['COMPLETING','CG','main','The script ended; nodes are killing leftover processes and running the epilog. Seen here for about 1 s (05:37:28.6).'],

@@ -1,47 +1,47 @@
+<section id="s-res">
+<h2>3. Resources: what a job asks for, and what it gets</h2>
+<p>A GPU node is not a box of GPUs: it is CPUs, memory and GPUs that must be handed out together. Slurm counts every kind of thing it hands out as a <b>TRES</b> (trackable resource): <code>cpu</code>, <code>mem</code>, <code>node</code>, <code>gres/gpu</code>, and <code>billing</code>, a weighted sum used for fairshare. The selection plugin <code>select/cons_tres</code> (the default) allocates individual cores, memory and GPUs, so several jobs can share a node; <code>SelectTypeParameters</code> says what is consumable (here <code>CR_Core</code>, cores only; GPU clusters use <code>CR_Core_Memory</code> so memory is counted too).</p>
+<div class="tw"><table><thead><tr><th>Option</th><th>Means</th><th>Typical use</th></tr></thead><tbody>
+<tr><td><code>-N 2</code> / <code>--nodes</code></td><td>number of nodes</td><td>multi-node training: one node per 8 GPUs</td></tr>
+<tr><td><code>--ntasks-per-node=8</code>, <code>-n</code></td><td>tasks (processes <code>srun</code> will start)</td><td>one task per GPU (srun launches the ranks), or one per node (torchrun launches them)</td></tr>
+<tr><td><code>-c 12</code> / <code>--cpus-per-task</code></td><td>CPUs per task</td><td>data-loader workers</td></tr>
+<tr><td><code>--gres=gpu:8</code> or <code>--gpus-per-node=8</code></td><td>GPUs on each node</td><td>whole-node training jobs</td></tr>
+<tr><td><code>--gpus=16</code></td><td>GPUs for the whole job, spread as Slurm likes</td><td>rarely what training wants: the split per node is not fixed</td></tr>
+<tr><td><code>--gpus-per-task=1</code>, <code>--cpus-per-gpu</code>, <code>--mem-per-gpu</code></td><td>tie CPUs and memory to GPUs</td><td>shared nodes: keeps each GPU's CPU and memory share fixed</td></tr>
+<tr><td><code>--exclusive</code>, <code>--mem=0</code></td><td>whole nodes shared with no one; all of each node's memory</td><td>big training jobs; benchmarking</td></tr>
+</tbody></table></div>
+<div class="sl-card" id="sl-sg-card"><h4>The same 6 GPUs asked two ways: one strands 2 GPUs, one does not</h4>
+<div class="sl-seg" id="sl-sg-mode"><button data-m="0" class="on">--gpus=6 --cpus-per-gpu=1</button><button data-m="1">--ntasks=6 --gpus-per-task=1 --cpus-per-task=1</button></div>
+<div id="sl-sg-svg" class="sl-svg"></div><div class="sl-anc" id="sl-sg-cap"></div>
+<p class="sl-cap">Two nodes of 4 CPUs and 4 GPUs; one square is one CPU or one GPU. Measured in the root's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} on this cluster (<code>scontrol -d show job</code>, 16 Oct 2026): the first form got <code>NumCPUs=8</code> (c1 CPUs 0-3 and GPUs 0-3, c2 CPUs 0-3 and GPUs 0-1), so the next 2-GPU job sat in <code>(Resources)</code> while <code>sinfo</code> showed GPUs free. The second form got exactly 6 CPUs; its split across nodes was not recorded, so the drawing's split is <span class="sl-ill">illustrative</span>.</p></div>
+<p>The rule behind it: <b>a GPU is schedulable only with the CPUs and memory that come with it</b>. One task per node takes all the node's CPUs, and under <code>CR_Core_Memory</code> a job without <code>--mem</code> on a cluster whose default is the whole node takes all its memory. Check <code>AllocTRES</code> in <code>scontrol show job</code> against what you meant after submitting anything new.</p>
+<div class="sl-pr" id="sl-pr3"><div class="q">Predict: the running example asks <code>--nodes=2 --ntasks-per-node=1 --cpus-per-task=2 --gres=gpu:2</code>, and this cluster bills a GPU 1.0 and a CPU 0.25. What does <code>sacct</code> show as its AllocTRES?</div>
+<div class="opts"><button data-a="0">cpu=2,gres/gpu=2,node=2,billing=2.5</button><button data-a="1">cpu=4,gres/gpu=4,node=2,billing=5</button><button data-a="0">cpu=8,gres/gpu=8,node=2,billing=10</button></div>
+<div class="ans"><code>billing=5,cpu=4,gres/gpu=4,node=2</code> (section 2's sacct): <code>--gres</code> and <code>--ntasks-per-node</code> are per node, so 2 nodes give 2 x 2 CPUs and 2 x 2 GPUs; billing is 4 x 1.0 + 4 x 0.25 = 5. The batch step <code>79.batch</code> shows only the first node's share, <code>cpu=2,gres/gpu=2</code>.</div></div>
+<p><b>Which GPU is mine?</b> On a real node <code>gres.conf</code> maps each GPU to its device file (<code>Name=gpu File=/dev/nvidia[0-7]</code>, or <code>AutoDetect=nvml</code>), and Slurm sets <code>CUDA_VISIBLE_DEVICES</code> for every job and step to the GPUs it was given. Only cgroups make that a fence: with <code>TaskPlugin=task/cgroup</code>, <code>ProctrackType=proctrack/cgroup</code> and <code>ConstrainCores</code>, <code>ConstrainRAMSpace</code>, <code>ConstrainDevices</code> in <code>cgroup.conf</code> (each "no" by default, {{cgroup.conf|https://slurm.schedmd.com/cgroup.conf.html}}), the job's processes cannot see other GPUs or use other cores, and are killed past their memory (state <code>OUT_OF_MEMORY</code>). Without them a process can open every GPU on the node, as on this lab cluster, where cgroups are off (inside a container without systemd, slurmd 24.11 stops with <code>fatal: systemd scope for slurmstepd could not be set</code>). How cgroups work is owned by {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}.</p>
+<p><b>Topology.</b> Where the nodes sit decides all-reduce speed: <code>topology/tree</code> (switches) and <code>topology/block</code> (blocks of nodes such as NVL72 racks; both in 24.11, and 25.05 added several topologies in one <code>topology.yaml</code>, {{topology docs|https://slurm.schedmd.com/topology.html}}) keep a job inside one switch or block, and <code>--switches=1@01:00:00</code> waits up to an hour for that. The networks themselves are {{Cluster anatomy|n:3fc5c17b0d0d816a871df56477fc83b2}}'s.</p>
+<details class="dp"><summary>What each task sees: rank variables from a four-task step <span class="mute">(measured)</span></summary><div class="b">
+<pre>$ srun -l bash -c 'echo rank=$SLURM_PROCID local=$SLURM_LOCALID node=$(hostname) gpus_on_node=$SLURM_GPUS_ON_NODE cuda=${CUDA_VISIBLE_DEVICES:-unset}'
+0: rank=0 local=0 node=c1 gpus_on_node=2 cuda=unset
+1: rank=1 local=1 node=c1 gpus_on_node=2 cuda=unset
+2: rank=2 local=0 node=c2 gpus_on_node=2 cuda=unset
+3: rank=3 local=1 node=c2 gpus_on_node=2 cuda=unset</pre>
+<p class="sl-cap">On a real GPU node <code>cuda=</code> would print the GPU indices; here there are no devices to name. <code>SLURM_PROCID</code> is the global rank, <code>SLURM_LOCALID</code> the rank on the node (which picks the GPU when srun launches one task per GPU).</p>
+</div></details>
+</section>
 
-<section id="s-life">
-<h2>2. The life of a job, from the controller's own log</h2>
-<p><b>The problem.</b> "My job is not running" can mean a dozen things: it is waiting its turn, waiting for nodes, waiting for a limit, its nodes are booting, its prolog is running, its first step has not launched, it finished and is cleaning up. Each is a different state in Slurm, and knowing them tells you where to look.</p>
-<div class="sl-card"><h4>Job states</h4><div id="sl-states"></div>
-<p class="sl-cap">The states <code>squeue</code> and <code>sacct</code> print (short codes in brackets). Click one. The main line is what the running example did here; the side exits are the ways a job ends badly.</p><div id="sl-states-info" class="sl-anc"></div></div>
-<p><b>Watching it happen.</b> The running example was submitted while another job (bob's, 12 GPUs, time limit 1 minute, sleeping 25 s) held every GPU, with the controller at <code>debug</code> log level and the <code>Backfill</code> debug flag on, a prolog and epilog that log a line on each node, and <code>squeue</code> polled every second <span class="sl-meas">measured</span>. The key lines:</p>
-<pre><span class="c"># slurmctld.log on the controller (UTC; lines trimmed)</span>
-05:36:55.526 _slurm_rpc_submit_batch_job: JobId=79 InitPrio=4166
-05:36:55.852 sched/backfill: BACKFILL: test for JobId=79 Prio=4166 Partition=batch
-05:36:55.852 sched/backfill: _dump_job_sched: BACKFILL: JobId=79 to start at 2026-10-16T05:37:53,
-             end at 2026-10-16T05:47:53 on nodes c[1-2] in partition batch
-<span class="c">  ... the same plan every 2 s (bf_interval=2), 12 times ...</span>
-05:37:18.890 _job_complete: JobId=78 WEXITSTATUS 0                <span class="c"># the blocker ends</span>
-05:37:18.911 debug:  sched: Running job scheduler for default depth.
-05:37:18.912 sched: Allocate JobId=79 NodeList=c[1-2] #CPUs=4 Partition=batch
-<span class="c"># slurmd.log on c1, and the prolog's own line</span>
-05:37:18.917 prolog c1 job=79 user=alice
-05:37:18.929 Launching batch job 79 for UID 2001
-05:37:18.956 launch task StepId=79.0 request from UID:2001 ...   <span class="c"># srun torchrun, on c1 and c2</span>
-<span class="c"># the training processes (rank logs): started 05:37:21.2, step 200 at 05:37:27.7, gloss 2.2638769149780273</span>
-05:37:28.639 [79.0] done with step
-05:37:28.644 [79.batch] done with step
-05:37:28.649 epilog c1 job=79 user=alice</pre>
-<p class="sl-cap">Raw logs (IPs scrubbed) in <code>src/runs/raw1/</code>. The {{Job lifecycle|#t-life}} tab replays every line on a timeline, against the same job on an idle cluster.</p>
-<p>Read it as the job's life:</p>
-<ol>
-<li><b>Submit.</b> <code>sbatch</code> sends the script and its options to the controller, which validates them against partitions, limits and node configurations (a request no node could ever satisfy is refused here, with <code>Requested node configuration is not available</code>), gives the job an id and an initial priority, and returns. The script is stored by the controller; editing the file afterwards changes nothing.</li>
-<li><b>Pending.</b> The job waits with a <b>reason</b>, here <code>Resources</code>: it is first in line and the resources are busy. The backfill scheduler planned a start at 05:37:53, which is the blocker's <i>time limit</i> (started 05:36:53, limit 1 minute), not its real end: Slurm plans with limits because it cannot know runtimes.</li>
-<li><b>Allocate.</b> The blocker actually ended at 05:37:18.890. Ending a job is an event that triggers the main scheduler, which allocated c1 and c2 to job 79 22 ms later, 34 s before the plan. A job's planned start is an upper bound that usually moves earlier.</li>
-<li><b>Prolog.</b> With <code>PrologFlags=Alloc</code>, slurmd runs the site's prolog as root on every node of the allocation before anything else (5 ms later here). Sites check GPU health here; a prolog that exits non-zero drains the node and requeues the job.</li>
-<li><b>Batch step.</b> The script runs on the first node of the allocation (c1) as the user. This is step <code>79.batch</code>.</li>
-<li><b>Job steps.</b> Each <code>srun</code> inside the script asks the controller for a step; slurmd on each node starts a <code>slurmstepd</code>, which starts the tasks. The running example's one <code>srun</code> started one <code>torchrun</code> per node: step <code>79.0</code>.</li>
-<li><b>Completing.</b> When the script exits, the job is COMPLETING while every node kills leftovers and runs the epilog; only then are the nodes free for the next job.</li>
-<li><b>Completed, and recorded.</b> The accounting record goes to slurmdbd; <code>sacct</code> shows the job and each step:</li>
-</ol>
-<pre>$ sacct -j 79 --format=JobID,JobName,State,Start,End,Elapsed,NodeList,AllocTRES
-       JobID    JobName      State               Start                 End    Elapsed        NodeList                                     AllocTRES
------------- ---------- ---------- ------------------- ------------------- ---------- --------------- ---------------------------------------------
-          79   mi-train  COMPLETED 2026-10-16T05:37:18 2026-10-16T05:37:28   00:00:10          c[1-2]             billing=5,cpu=4,gres/gpu=4,node=2
-    79.batch      batch  COMPLETED 2026-10-16T05:37:18 2026-10-16T05:37:28   00:00:10              c1                 cpu=2,gres/gpu=2,mem=0,node=1
-        79.0   torchrun  COMPLETED 2026-10-16T05:37:18 2026-10-16T05:37:28   00:00:10          c[1-2]                 cpu=4,gres/gpu=4,mem=0,node=2</pre>
-<p><b>Where the 10 seconds went.</b> Of the job's 10 s of elapsed time, the training loop itself ran about 6.5 s (the ranks' own <code>wall_s</code>); the rest is the chain every job pays: prolog, starting the batch shell, the step request, <code>torchrun</code> and Python imports, rendezvous, and the epilog. On a real cluster the prolog (GPU health checks), image pulls and the rendezvous of hundreds of nodes make this chain minutes long, and it is paid again on every restart. The root's {{Launch lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} splits it by stage. <span class="sl-meas">measured on Apple M1 Pro, Docker Desktop VM, shared machine</span></p>
-<div class="sl-pr" id="sl-pr2"><div class="q">Predict: <code>squeue --start</code> said job 79 would start at 05:37:53. Why did it start at 05:37:18?</div>
-<div class="opts"><button data-a="0">Backfill found a hole for it</button><button data-a="1">The blocker ended before its time limit, and a job ending triggers the main scheduler</button><button data-a="0">Its priority rose with age until it preempted the blocker</button></div>
-<div class="ans">The plan uses time limits; the blocker asked for 1 minute and used 25 s. When it ended, <code>_job_complete</code> was followed 21 ms later by <code>Running job scheduler for default depth</code> and the allocation: the main scheduler runs on events (a job submitted or ending, a node coming back) and also periodically, so it does not wait for the next backfill cycle. Nothing was preempted: both jobs were in partition batch, and preemption here works only across partition tiers (<a href="#s-pre">section 9</a>).</div></div>
+<section id="s-steps">
+<h2>4. Job steps: the processes inside an allocation</h2>
+<p>An allocation is only a reservation; <code>srun</code> starts the processes. Each <code>srun</code> in a script is one <b>job step</b>: it asks the controller for a slice of the allocation, slurmd on each node starts a <code>slurmstepd</code>, and that starts the tasks, gives each its rank and collects their exit codes. Steps run one after another (preprocess, train, evaluate) or side by side (a sweep of small runs inside one big allocation).</p>
+<p><b>The trap.</b> By default a step may use <i>every</i> CPU of the job on each of its nodes ("By default, all non-GRES resources on each node in the step allocation will be used", {{srun --exact|https://slurm.schedmd.com/srun.html}}), so steps meant to run side by side queue behind each other. Predict how long four 6-second one-task steps take in a 2-node allocation of 2 CPUs per node, then step through:</p>
+<div class="sl-card" id="sl-st-card"><h4>Four steps side by side: 12 s without <code>--exact</code>, 6 s with it <span class="sl-meas">measured</span></h4>
+<div class="sl-seg" id="sl-st-mode"><button data-m="plain" class="on">without --exact</button><button data-m="exact">with --exact</button></div>
+<div id="sl-st-svg" class="sl-svg"></div><div class="sl-ctl" id="sl-st-ctl"></div><div class="sl-anc" id="sl-st-cap"></div><div class="out" id="sl-st-cnt"></div>
+<p class="sl-cap">Each bar is a step as <code>sacct</code> recorded it (start, end, node, CPUs). The allocation holds 2 CPUs and 2 GPUs on each of c1 and c2. Jobs 129 (without) and 126 (with), 16 Oct 2026; one-second resolution.</p></div>
+<p>Without <code>--exact</code> each step took both CPUs of its node (AllocTRES <code>cpu=2</code>), so the third and fourth waited 6 s (srun prints only <code>srun: Step created for StepId=129.4</code> when it finally gets in); with it each took one CPU and all four ran at once. <b>A subtlety:</b> a job submitted with <code>--cpus-per-task</code> exports <code>SLURM_CPUS_PER_TASK</code>, and srun treats that as an explicit <code>-c</code>, which "implies --exact" (srun's <code>-c</code> entry): the same steps without <code>--exact</code> inside a job with <code>--cpus-per-task=1</code> (job 130) ran side by side. So a step's behaviour depends on how its job was submitted: write <code>--exact</code> when you mean it, and <code>-N1</code> for one-task steps in a multi-node job.</p>
+<pre>$ srun -n 8 true          <span class="c"># inside an allocation of 4 tasks</span>
+srun: error: Unable to create step for job 80: More processors requested than permitted
+$ srun -n1 sleep 6        <span class="c"># inside a 2-node allocation, without -N1</span>
+srun: warning: can't run 1 processes on 2 nodes, setting nnodes to 1</pre>
+<p><b>Overlap.</b> Steps never share CPUs unless asked: <code>srun --overlap --jobid=N --pty bash</code> runs a step on resources another step holds, which is how you attach a debugger or <code>py-spy</code> to a running training step. <b>For training</b> the usual layout is one step that starts everything: one <code>torchrun</code> per node (the running example, section 14), or one task per GPU with ranks from <code>SLURM_PROCID</code>. {{Launching distributed training|n:3fc5c17b0d0d81b3a8a5c58224bff9fa}} compares the launchers, and {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}} owns torchrun at the PyTorch level.</p>
 </section>

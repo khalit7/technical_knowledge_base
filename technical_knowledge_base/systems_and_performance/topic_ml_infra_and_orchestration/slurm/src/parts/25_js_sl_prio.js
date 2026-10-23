@@ -1,7 +1,7 @@
-// ---- Priority calculator tab: multifactor priority as Slurm 24.11.5 computes it, checked against the recorded sprio rows ----
+// ---- Reading section 7, the priority calculator: multifactor priority as Slurm 24.11.5 computes it, checked against the recorded sprio rows ----
 (function(){
 const S=window.SL, esc=RD.esc, $=id=>document.getElementById(id);
-if(!$('t-prio'))return;
+if(!$('pc-in'))return;
 const W0=S.weights;
 const PART={batch:1,sllow:0.5,urgent:0.5}, QOSF={normal:0,'sl-small':0.2,'sl-high':1};
 // the 22 measured rows
@@ -42,5 +42,5 @@ $('pc-tab').addEventListener('click',e=>{const tr=e.target.closest('tr[data-i]')
 // the truncation case
 (function(){const i=ROWS.findIndex(r=>r.id==='90'&&r.snap===S.snaps[1].at);if(i<0)return;const r=ROWS[i],c=calc(r.in,W0,CL);
   $('pc-trunc').innerHTML='Job '+r.id+' at '+r.snap+': its parts are '+Object.keys(NM).map(k=>c.parts[k].toFixed(3)).join(' + ')+', which is 8,585 in exact arithmetic. Added as doubles in the source\'s order the sum is '+c.raw.toFixed(9)+' (the thirds are not exact in binary), and truncation gives '+c.prio.toLocaleString('en-US')+', which is what <code>sprio</code> printed. Rounding instead of truncating would miss it by one. '+ok+' of '+ROWS.length+' rows reproduce.'})();
-load(0);
+load(0);RD.onResize(run);RD.onRender(run);
 })();

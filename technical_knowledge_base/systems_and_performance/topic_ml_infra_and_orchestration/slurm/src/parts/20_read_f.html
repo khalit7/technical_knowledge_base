@@ -1,45 +1,50 @@
-
-<section id="s-prio">
-<h2>7. Priority: one number per job</h2>
-<p><b>The problem.</b> The main loop walks jobs in priority order, so the whole policy of who goes first reduces to how that number is computed. With <code>PriorityType=priority/multifactor</code> it is a weighted sum of factors, each between 0 and 1:</p>
-<div class="fm"><div class="eq">priority = W<sub>age</sub>&middot;age + W<sub>fs</sub>&middot;fairshare + W<sub>size</sub>&middot;jobsize + W<sub>part</sub>&middot;partition + W<sub>qos</sub>&middot;qos + &Sigma; W<sub>tres</sub>&middot;tres &minus; nice</div>
-<dl>
-<dt>age</dt><dd>time eligible (since <code>AccrueTime</code>) over <code>PriorityMaxAge</code>, capped at 1. A job held by a dependency or a begin time does not accrue: in the gallery, jobs 84 and 85 showed <code>AccrueTime=Unknown</code>.</dd>
-<dt>fairshare</dt><dd>with Fair Tree (the default), the user's rank in the account tree divided by the number of users: heavy recent use, decayed with <code>PriorityDecayHalfLife</code>, means a low factor. The root's Scheduling lab derives it with a calculator.</dd>
-<dt>jobsize</dt><dd>by default favours large jobs: (nodes / cluster nodes + CPUs / cluster CPUs) / 2.</dd>
-<dt>partition</dt><dd>the partition's <code>PriorityJobFactor</code> over the largest one.</dd>
-<dt>qos</dt><dd>the QOS's priority over the largest QOS priority.</dd>
-<dt>tres</dt><dd>each TRES the job asks for over the partition's total, with its own weight (<code>PriorityWeightTRES=GRES/gpu=500</code>).</dd>
-<dt>nice</dt><dd>subtracted as is (<code>--nice=1500</code>); users may only lower their own priority.</dd>
-</dl></div>
-<div class="sl-src-q">Source: the sum, then truncation to an integer, and 0 reserved for held jobs</div><pre data-q="prio_sum"></pre>
-<p class="small mute">The other factors are computed in <code>set_priority_factors()</code> in the same file: age <span class="q-ref" data-r="prio_age"></span>, job size <span class="q-ref" data-r="prio_js"></span>, partition <span class="q-ref" data-r="prio_part"></span>, QOS <span class="q-ref" data-r="prio_qos"></span>, TRES <span class="q-ref" data-r="prio_tres"></span>. Defaults: <code>PriorityDecayHalfLife</code> 7 days and <code>PriorityCalcPeriod</code> 5 minutes (<span class="q-ref" data-r="def_decay"></span>); this cluster uses 10 minutes and 1 minute so a lab can watch them move.</p>
-<p><b>Measured.</b> For the gallery run the weights were set to age 1,000, fairshare 10,000, job size 1,000, partition 1,000, QOS 2,000 and GPU TRES 500 (the cluster's normal configuration uses only fairshare and age; this page's variant is <code>src/scripts/sl_slurm.conf</code>). Fifteen jobs waited behind bob's 12-GPU job, and <code>sprio</code> was read twice, 51 seconds apart. Nobody touched anything in between:</p>
-<div class="sl-card" id="sl-pq-card"><h4>The same queue, 51 seconds later <span class="sl-meas">measured</span></h4>
-<div class="sl-seg" id="sl-pq-mode"><button data-m="0" class="on">05:38:07</button><button data-m="1">05:38:58</button></div>
-<div id="sl-pq-svg"></div>
-<p class="sl-cap">Each bar is one pending job's priority as <code>sprio -l</code> printed it, split into its weighted factors; the order is the order the main loop would try them. Held jobs (priority 0) and jobs not yet eligible are left out. Colours: fairshare, age, job size, partition, QOS, GPU TRES; a hatched end is the nice penalty.</p><div id="sl-pq-info" class="sl-anc"></div></div>
-<div class="sl-pr" id="sl-pr4"><div class="q">Predict: bob's job 95 had the highest priority of all at 05:38:07 (9,166). At 05:38:58 it was second to last (4,250). What changed?</div>
-<div class="opts"><button data-a="0">Its age factor fell</button><button data-a="1">Bob's 12-GPU job kept running, so bob's recent usage grew and his fairshare rank fell</button><button data-a="0">An administrator changed his QOS</button></div>
-<div class="ans">Fairshare. Bob's blocker job was charging him 15 billing units per second (12 GPUs at 1.0 plus 12 CPUs at 0.25). At 05:38:07 teamb's usage was still below teama's (EffectvUsage 0.31 against 0.69 in <code>sshare</code>), so bob ranked 3 of 4 users (factor 0.75: 7,500 points); by 05:38:58 teamb had passed teama (EffectvUsage 0.60 against 0.40) and bob dropped to rank 1 (0.25: 2,500 points), while alice rose to 0.5 and carol to 0.75. Fair Tree compares teams first, so carol, who ran nothing, moves with her team. That swing of 5,000 points dwarfs every other factor here. The {{Priority calculator|#t-prio}} recomputes all 22 rows from these inputs.</div></div>
-<p><b>Two things that surprise people.</b> First, <code>sprio</code> shows the factors as of the last recalculation, not now: at 05:38:58 the age factor of jobs eligible since 05:37:48 read 0.0867, which is 52 s of waiting over 600, so the values were computed at about 05:38:40 (one <code>PriorityCalcPeriod</code> of 1 minute after the previous one). Second, the result is truncated: job 82's parts were 86.67 + 5,000 + 500 + 1,000 + 333.33 = 6,920.0, printed 6,920, while <code>sprio -l</code> rounds each part (87, 333) so the printed parts do not always add up to the total.</p>
-</section>
-
 <section id="s-pre">
-<h2>8. Preemption: taking nodes back</h2>
-<p><b>The problem.</b> The cluster is full of long training jobs and an urgent job arrives: an evaluation before a deadline, or a team whose guaranteed share is being used by others. Waiting days is not acceptable. Preemption lets the scheduler stop running jobs to make room.</p>
+<h2>8. Preemption and requeue: taking nodes back</h2>
+<p>The cluster is full of long training jobs and an urgent job arrives (an evaluation before a deadline, a team whose guaranteed share others are using). Preemption lets the scheduler stop running jobs to make room; the same requeue machinery serves time limits.</p>
 <div class="tw"><table><thead><tr><th>Setting</th><th>Choices</th></tr></thead><tbody>
-<tr><td><code>PreemptType</code>: who may preempt whom</td><td><code>preempt/partition_prio</code>: a job in a partition with a higher <code>PriorityTier</code> preempts jobs of lower tiers (this cluster: <code>urgent</code> tier 10 over <code>batch</code> tier 1). <code>preempt/qos</code>: each QOS lists the QOS it may preempt (<code>sacctmgr modify qos high set preempt=scavenger</code>). <code>preempt/none</code>.</td></tr>
-<tr><td><code>PreemptMode</code>: what happens to the victim</td><td><code>CANCEL</code> (killed), <code>REQUEUE</code> (killed and put back in the queue, needs <code>--requeue</code>; otherwise cancelled), <code>SUSPEND</code> (paused in memory, resumed later; needs <code>GANG</code> at cluster level), <code>GANG</code> (time slicing between jobs on the same resources), <code>OFF</code> ({{preemption docs|https://slurm.schedmd.com/preempt.html}}).</td></tr>
-<tr><td><code>GraceTime</code></td><td>the victim is sent SIGCONT and SIGTERM at once and SIGKILL only after GraceTime (default 0), which is the window to write a checkpoint.</td></tr>
+<tr><td><code>PreemptType</code>: who may preempt whom</td><td><code>preempt/partition_prio</code>: a job in a partition with a strictly higher <code>PriorityTier</code> preempts jobs of lower tiers (this cluster: <code>urgent</code> tier 10 over <code>batch</code> tier 1). <code>preempt/qos</code>: each QOS lists the QOS it may preempt (<code>sacctmgr modify qos high set preempt=scavenger</code>). <code>preempt/none</code>.</td></tr>
+<tr><td><code>PreemptMode</code>: what happens to the victim</td><td><code>CANCEL</code> (killed), <code>REQUEUE</code> (killed and put back in the queue, needs <code>--requeue</code>; otherwise cancelled), <code>SUSPEND</code> (paused in memory; needs <code>GANG</code> at cluster level, and keeps GPU memory occupied, so it is rarely practical for GPU jobs), <code>GANG</code> (time slicing on the same resources), <code>OFF</code> ({{preemption docs|https://slurm.schedmd.com/preempt.html}}).</td></tr>
+<tr><td><code>GraceTime</code></td><td>the victim gets SIGCONT and SIGTERM at once and SIGKILL only after GraceTime (default 0): the window to write a checkpoint.</td></tr>
 </tbody></table></div>
-<div class="sl-src-q">Source: in partition_prio, a tier strictly higher is the test <span class="q-ref" data-r="pp_tier"></span></div><pre data-q="pp_tier"></pre>
-<p>The root's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} preempted bob's 12-GPU batch job with a 4-GPU urgent job on this cluster: <code>preempted JobId=39 has been requeued to reclaim resources for JobId=40</code>, the urgent job was allocated 0.6 s after it was submitted, and the victim could not restart for 121 s (a requeued job's begin time is pushed past the job credential's lifetime, 120 s by default, plus 1). For training, REQUEUE without a checkpoint loses everything since the last save; GPU-hours lost per preemption are the time since the last checkpoint times the GPUs, the trade-off the root's Failure lab turns into a checkpoint interval.</p>
-<h3>Checkpoint before the limit: <code>--signal</code></h3>
-<p>The same machinery serves time limits. <code>--signal=B:USR1@25</code> asks Slurm to send SIGUSR1 to the batch shell 25 s before the time limit; the script traps it, saves, and requeues itself, and the next start resumes. A real run <span class="sl-meas">measured</span>:</p>
+<p>For training the usual choice is REQUEUE with a GraceTime long enough to checkpoint, with low-priority work in a preemptible QOS or partition. The root's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} preempted bob's 12-GPU batch job with a 4-GPU urgent job on this cluster: <code>preempted JobId=39 has been requeued to reclaim resources for JobId=40</code>, the urgent job was allocated 0.6 s after submission, and the victim could not restart for 121 s. GPU-hours lost per preemption are the time since the last checkpoint times the GPUs, the trade-off the root's Failure lab turns into a checkpoint interval.</p>
+<div class="sl-card" id="sl-pe-card"><h4>Checkpoint before the limit, then two minutes of dead time: job 128 <span class="sl-meas">measured</span></h4>
+<div id="sl-pe-svg" class="sl-svg"></div>
+<p class="sl-cap"><code>--time=1 --signal=B:USR1@25 --requeue</code>: Slurm should signal the batch shell 25 s before the 60 s limit; the script traps SIGUSR1, saves, and runs <code>scontrol requeue</code>; the next start resumes. The signal came 12 s after the start, not 35 s; the requeued job became eligible at 05:44:53, 121 s after the requeue, and finished from its checkpoint. 16 Oct 2026, <code>sacct -D</code>.</p></div>
+<p>Two lessons for a checkpoint budget. The signal "may be sent up to 60 seconds earlier than specified" because of how Slurm resolves events ({{sbatch --signal|https://slurm.schedmd.com/sbatch.html}}), so ask for more warning than a save takes, plus a minute. And a requeued job's begin time is pushed past the job credential's lifetime (120 s by default) plus 1 s, so the old run's credentials and I/O are gone before the new run starts: <b>budget two minutes of dead time per requeue</b>, for preemption and for time limits alike. <code>SLURM_RESTART_COUNT</code> tells the script it is a restart; the running example instead finds its <code>latest</code> checkpoint pointer and resumes from it. A 30-day run on a cluster whose maximum job time is 2 days is a chain of such hops (or of <code>afterany</code> jobs, section 9).</p>
+<details class="dp"><summary>The script, its output, <code>sacct -D</code>, and the tier test in the source <span class="mute">(measured and source)</span></summary><div class="b">
 <pre data-ex="sig_script"></pre>
 <pre data-ex="sig_out"></pre>
 <pre data-ex="sig_sacct"></pre>
-<p class="sl-cap">Job 128, 16 Oct 2026: <code>src/scripts/sl_sig.sbatch</code>, output and <code>sacct -D</code> (duplicates: both runs of the same job id).</p>
-<p>Two things the run shows. The signal came 12 s after the start, not 35 s: "Due to the resolution of event handling by Slurm, the signal may be sent up to 60 seconds earlier than specified" ({{sbatch --signal|https://slurm.schedmd.com/sbatch.html}}), so ask for more warning than a save takes, plus a minute. And the requeued job became eligible at 05:44:53, 121 s after the requeue, exactly the delay the Scheduling lab measured for preemption: budget two minutes of dead time per requeue. <code>SLURM_RESTART_COUNT</code> tells the script it is a restart; the running example instead finds its <code>latest</code> checkpoint pointer and resumes from it.</p>
+<p class="sl-cap">Job 128: <code>src/scripts/sl_sig.sbatch</code>, its output, and <code>sacct -D</code> (both runs of the same job id). A job owner may <code>scontrol requeue</code> their own job.</p>
+<div class="sl-src-q">In partition_prio, a strictly higher tier is the test <span class="q-ref" data-r="pp_tier"></span></div><pre data-q="pp_tier"></pre>
+</div></details>
+</section>
+
+<section id="s-arr">
+<h2>9. Arrays, dependencies and heterogeneous jobs: workflows inside Slurm</h2>
+<p>Real work is rarely one job: a sweep is 50 nearly identical jobs; a pipeline is "tokenise, then train, then evaluate, and clean up if training fails"; an RL setup wants a CPU-only controller beside GPU workers, started together. All three tools were run here at once:</p>
+<pre>sbatch --array=0-5%2 ...                          <span class="c"># 6 tasks, at most 2 running at a time</span>
+sbatch -J sl-prep ...                              <span class="c"># job 103</span>
+sbatch -J sl-train --dependency=afterok:103 ...     <span class="c"># 106: only if prep exits 0</span>
+sbatch -J sl-eval  --dependency=afterok:106 ...     <span class="c"># 107</span>
+sbatch -J sl-fail --wrap 'sleep 5; exit 3'         <span class="c"># 108: fails on purpose</span>
+sbatch -J sl-clean  --dependency=afternotok:108 ... <span class="c"># 109: only if 108 fails</span>
+sbatch -J sl-report --dependency=afterok:108 ...    <span class="c"># 110: only if 108 succeeds</span>
+sbatch -J sl-single --dependency=singleton ...      <span class="c"># 111 and 112: same name, one at a time</span></pre>
+<div class="sl-card" id="sl-dg-card"><h4>Eligible is not started: what sacct recorded <span class="sl-meas">measured</span></h4><div id="sl-dg-svg" class="sl-svg"></div>
+<p class="sl-cap">Thin grey: submitted, not yet eligible (a dependency or the array throttle). Bar: running, on the node shown. Every job asks for 1 fake GPU except sl-train (4). 16 Oct 2026, one-second resolution; seconds from submission.</p></div>
+<ul>
+<li><b>Arrays.</b> One submission, one job id (102), tasks <code>102_0</code> to <code>102_5</code>, each with <code>SLURM_ARRAY_TASK_ID</code> set (the script picks its hyperparameters or shard from it). <code>%2</code> throttles: tasks 2 to 5 pended with reason <code>JobArrayTaskLimit</code> and started in pairs. Until a task starts, the pending tasks are one record in the controller, which is why a 1,000-task array costs the scheduler far less than 1,000 jobs; the default <code>MaxArraySize</code> is 1001 (<span class="q-ref" data-r="def_array"></span>), so <code>--array=0-1000</code> is the largest by default.</li>
+<li><b>Dependencies.</b> sl-train became eligible the second sl-prep ended (+10 s), sl-eval when sl-train ended; <code>afternotok</code> ran the cleanup because 108 exited 3. sl-report, waiting on <code>afterok:108</code>, can never run, and Slurm says so but leaves it queued (<code>DependencyNeverSatisfied</code>):
+<pre data-ex="never"></pre>
+Without <code>--kill-on-invalid-dep=yes</code> (or the cluster-wide <code>kill_invalid_depend</code>) such jobs sit in the queue forever. <code>singleton</code> held the second sl-single until the first ended. The types: <code>after</code>, <code>afterany</code>, <code>afterok</code>, <code>afternotok</code>, <code>aftercorr</code> (task by task between two arrays), <code>singleton</code> ({{sbatch --dependency|https://slurm.schedmd.com/sbatch.html}}).</li>
+<li><b>Heterogeneous jobs.</b> One job with differently shaped components, allocated together (all or none, so the gang rule still holds) and launched with <code>srun --het-group</code>: job 116's component <code>116+0</code> got one CPU on c3 and no GPU, component <code>116+1</code> two GPU nodes, and backfill started both together.</li>
+</ul>
+<p><b>When to use what.</b> Sweeps of small runs: an array with a throttle. A pipeline: dependencies, or an outside workflow engine (Airflow, Flyte, Metaflow submit jobs and watch them; {{ML platforms and workflows|n:3c65c17b0d0d81b9943cf6c72600f96b}}). A long run cut into time-limited pieces: one job that requeues itself (section 8) or a chain of <code>afterany</code> jobs that each resume from the latest checkpoint.</p>
+<details class="dp"><summary>The heterogeneous job: script, output, sacct <span class="mute">(measured)</span></summary><div class="b">
+<pre data-ex="het_script"></pre>
+<pre data-ex="het_out"></pre>
+<pre data-ex="het_sacct"></pre>
+<p class="sl-cap">Job 116, 16 Oct 2026. <code>sdiag</code> counted "2 heterogeneous job components" started by backfill.</p>
+</div></details>
 </section>
