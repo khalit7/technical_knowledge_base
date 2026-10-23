@@ -191,7 +191,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div class="hero" id="av-hero-card"><h4>What one past token leaves behind in one layer, and what the next token reads</h4>
 <div class="rd-svg" id="av-hero"></div>
 <p class="small" id="av-hero-cap">Entries to scale at Llama 3.1 8B's shape (32 query heads of 128); the MLA rows use DeepSeek-V3's 512 + 64. Squares: orange key, purple value, green latent, teal RoPE key, gold indexer key, pale green merged entry. Strip: <span class="hl">blue = read</span>, grey = stored, not read, dashed = not stored; window, top-k and ratios <span class="ill">illustrative</span>.</p></div>
-<p><b>You need:</b> what attention and a KV cache are (<a href="https://app.notion.com/p/3fd5c17b0d0d8174980ddde4a20c7b3c" target="_blank" rel="noopener noreferrer">The transformer from zero</a>, or the root's <a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">attention section</a>) and RoPE (<a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional Encodings</a>), which MLA's decoupled key works around. Whole-model cache sizes at a context length (bytes per sequence, what fits on a GPU) are on <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a>; this page is the mechanism.</p>
+<p><b>You need:</b> what attention and a KV cache are (<a href="https://app.notion.com/p/3fd5c17b0d0d8174980ddde4a20c7b3c" target="_blank" rel="noopener noreferrer">The transformer from zero</a>: one head by hand in section 3, why the cache exists in section 9; or the root's <a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">attention section</a>, section 4) and RoPE (<a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional Encodings</a>), which MLA's decoupled key works around. Whole-model cache sizes at a context length (bytes per sequence, what fits on a GPU) are on <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a>; this page is the mechanism.</p>
 <dl class="terms">
 <dt>KV head</dt><dd>one key and one value projection; MHA has one per query head, GQA one per group of query heads, MQA one in all.</dd>
 <dt>Latent (MLA)</dt><dd>a short vector per token from which every head's key and value are rebuilt; only it is cached.</dd>
@@ -221,7 +221,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 
 <section id="s1"><h2>1. Why the cache is the cost</h2>
 <p><b>Concrete.</b> Llama 3.1 8B keeps, for every past token, a key and a value for each of its 8 KV heads of 128 numbers in each of its 32 layers: 2 &times; 8 &times; 128 &times; 32 = 65,536 numbers, <b>128 KiB per token</b> in bf16. A past token's keys and values never change in a causal decoder, so they are computed once and kept; generating one token reads all of it once. Each number read is used by the query heads that share it, one multiply-add for the score and one for the weighted value, so decode attention does about (query heads / KV heads) FLOPs per byte: 1 for MHA, 4 for Llama 3.1 8B. An H100 can do about 295 (989 TFLOPS dense bf16 over 3.35 TB/s), so the step waits on memory, and batching does not help because every sequence reads its own cache. <b>Cache bytes are decode time.</b></p>
-<p><b>Measured.</b> One attention layer at Llama 3.1 8B's shape, batch 4, 32,768 cached tokens, fp16 on the M1 Pro's GPU (the root's <a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Attention lab</a>): MHA 17.49 ms, GQA-8 5.97 ms, absorbed MLA 3.43 ms, MQA 1.54 ms. The order is the order of bytes cached (8,192, 2,048, 576 and 256 numbers per token per layer), not of heads or FLOPs. <span class="meas">measured on Apple M1 Pro (MPS)</span></p>
+<p><b>Measured.</b> One attention layer at Llama 3.1 8B's shape, batch 4, 32,768 cached tokens, fp16 on the M1 Pro's GPU (run for the root's former Attention lab, now carried by this page): MHA 17.49 ms, GQA-8 5.97 ms, absorbed MLA 3.43 ms, MQA 1.54 ms. The order is the order of bytes cached (8,192, 2,048, 576 and 256 numbers per token per layer), not of heads or FLOPs. <span class="meas">measured on Apple M1 Pro (MPS)</span></p>
 <details class="dp"><summary>Notation and the running example <span class="mute">(the symbols used below; the tiny GPT and SmolLM2)</span></summary><div class="b"><p><b>Notation.</b> One layer, input x<sub>t</sub>, H query heads of size d<sub>h</sub>: q<sup>h</sup><sub>t</sub> = W<sub>Q</sub><sup>h</sup> x<sub>t</sub>, k<sup>h</sup><sub>j</sub> = W<sub>K</sub><sup>h</sup> x<sub>j</sub>, v<sup>h</sup><sub>j</sub> = W<sub>V</sub><sup>h</sup> x<sub>j</sub>, weights a<sup>h</sup><sub>tj</sub> = softmax<sub>j</sub>(q<sup>h</sup><sub>t</sub> &middot; k<sup>h</sup><sub>j</sub> / &radic;d<sub>h</sub>) over j &le; t, output &Sigma;<sub>j</sub> a<sup>h</sup><sub>tj</sub> v<sup>h</sup><sub>j</sub> per head, concatenated and multiplied by W<sub>O</sub>. RoPE rotates q and k by their positions so the score depends on j &minus; t.</p>
 <p><b>The running example.</b> The topic's tiny GPT (6 layers, d<sub>model</sub> 256, 8 heads of 32, context 256, RoPE), trained on TinyStories for 1,500 steps of 8,192 tokens with the same seed and batches for every variant, so two runs differ only in their attention. The root's Attention lab trained MHA, GQA-4, GQA-2, MQA, MLA, a 64-token window and a 2 local : 1 global interleave; this page adds eight runs. Held-out loss differences under about 0.016 are inside the spread between two seeds (MHA 2.160 and 2.175 on 100 windows). Real-model behaviour comes from SmolLM2-135M (30 layers, 9 query heads and 3 KV heads of 64), inference only.</p>
 </div></details>
@@ -556,8 +556,8 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <p class="small">Links checked 2026-10-19; the DeepSeek-V3.2 arXiv and V4 report links were added 2026-10-23 from the DeepSeek page, where they are cited. Times for outside sources are rough reading times; times for knowledge-base pages are the ones their headers state, where they state one. "maker" marks a source written by the lab that built the method; "third-party" everything else.</p>
 <h3>This page's parent and siblings</h3>
 <ul>
-<li><a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Topic: llm-architecture</a>: the Reading tab's attention section (comparison and definitions), the <b>Attention lab</b> (the cache drawn to scale for 16 tokens, the trained variants this page reuses, the decode benchmark, the KV-cache sizing calculator), the <b>Config calculator</b>, <b>Inside a real model</b> (sinks and massive activations in SmolLM2) and the <b>Architecture map</b>. <span class="tm">Reading about 28 min, Attention lab about 24 min, as their headers state</span></li>
-<li><a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context: KV cache growth and compression, local and global attention, effective context</a>: the memory side of length, eviction and quantised caches, effective context. <span class="tm">about 22 min, as its header states</span></li>
+<li><a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Topic: llm-architecture</a>: the Reading tab's section 4 (the four levers on the cache, with the definitions), the <b>Config calculator</b>, <b>Inside a real model</b> (sinks and massive activations in SmolLM2) and the <b>Architecture map</b>. Its former Attention lab (the four caches to scale, the trained variants, the decode benchmark) was folded into this page on 2026-10-23. <span class="tm">23 min, plus 13 in closed details</span></li>
+<li><a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context: KV cache growth and compression, local and global attention, effective context</a>: the memory side of length, eviction and quantised caches, effective context. <span class="tm">22 min, plus 13 in closed details</span></li>
 <li><a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional Encodings</a>: RoPE, partial RoPE and scaling, which MLA's decoupled key builds on.</li>
 <li><a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention: SSMs, Mamba, linear attention, RWKV and hybrids</a>: the Gated DeltaNet layers beside Qwen3-Next's gated attention.</li>
 <li><a href="https://app.notion.com/p/3fd5c17b0d0d8163b50dc5e9d9240e89" target="_blank" rel="noopener noreferrer">Normalisation, residuals and stability</a>: QK-norm, logit softcapping and loss spikes, the other half of attention stability.</li>
@@ -643,7 +643,7 @@ window.CC=(function(){
       s.layers=Array(L).fill({mix,ffn:null,norms:d});return s;
     }
     if(Object.prototype.hasOwnProperty.call(UNSUPPORTED,mt))throw new Error(UNSUPPORTED[mt]);
-    const d=c.hidden_size,L=c.num_hidden_layers,V=c.vocab_size;
+    const d=c.hidden_size,L=c.num_hidden_layers||(c.layers_block_type||[]).length,V=c.vocab_size;
     const nh=c.num_attention_heads,nkv=g(c,['num_key_value_heads'],nh);
     const hd=g(c,['head_dim','attention_head_dim'],nh?Math.floor(d/nh):0);
     const ff=c.intermediate_size;
@@ -692,11 +692,17 @@ window.CC=(function(){
       let pat=c.hybrid_override_pattern;
       if(!pat&&c.layers_block_type){pat=c.layers_block_type.map(x=>NEMOTRON_CODES[x]||'?').join('');s.notes.push('layer pattern read from layers_block_type')}
       if(!pat)throw new Error('nemotron_h config has neither hybrid_override_pattern nor layers_block_type');
-      if(pat.includes('E'))throw new Error('Nemotron MoE layers (E in the pattern, the latent MoE of Nemotron 3) are not modelled here');
+      // Nemotron 3 MoE layers (E): two-matrix squared-ReLU experts, a non-gated shared expert; with moe_latent_size the routed
+      // experts work in a latent space behind two dense projections (counted as dense FFN). See calc.py.
+      const lat=c.moe_latent_size||0;
+      const nmoe={t:'moe',E:c.n_routed_experts||0,k:c.num_experts_per_tok||0,ff:c.moe_intermediate_size||0,
+        sff:(c.n_shared_experts||0)*(c.moe_shared_expert_intermediate_size||0),sgate:false,rbias:false,cbias:false,ebias:false,g:false,lat};
+      if(pat.includes('E')&&(c.num_nextn_predict_layers||0))s.notes.push('MTP layers not counted');
       for(const ch of pat){
         if(ch==='M')layers.push({mix:m2,ffn:null,norms:d});
         else if(ch==='*')layers.push({mix:full(),ffn:null,norms:d});
         else if(ch==='-')layers.push({mix:null,ffn:{t:'mlp',ff,bias:!!c.mlp_bias},norms:d});
+        else if(ch==='E')layers.push({mix:null,ffn:nmoe,norms:d});
         else throw new Error('unknown Nemotron layer code '+JSON.stringify(ch));
       }
       s.layers=layers;return s;
@@ -800,7 +806,7 @@ window.CC=(function(){
     if(!f)return r;
     if(f.t==='glu'){r.dense=3*d*f.ff;r.dense_o=f.bias?2*f.ff+d:0}
     else if(f.t==='mlp'){r.dense=2*d*f.ff;r.dense_o=f.bias?f.ff+d:0}
-    else{const E=f.E;r.routed=E*3*d*f.ff;r.routed_o=f.ebias?E*(2*f.ff+d):0;r.shared=3*d*f.sff+(f.sgate?d:0);r.router=d*E;r.moe_o=(f.rbias?E:0)+(f.cbias?E:0)}
+    else{const E=f.E,nm=f.g===false?2:3,lat=f.lat||0;r.routed=E*nm*(lat||d)*f.ff;r.routed_o=f.ebias?E*(2*f.ff+d):0;r.shared=nm*d*f.sff+(f.sgate?d:0);r.router=d*E;r.moe_o=(f.rbias?E:0)+(f.cbias?E:0);r.dense=2*d*lat}
     return r;
   }
   const sumv=o=>Object.values(o).reduce((a,b)=>a+b,0);
@@ -816,7 +822,7 @@ window.CC=(function(){
       const f=ffnParams(lay.ffn,d);
       b.ffn_dense+=f.dense+f.dense_o;b.moe_routed+=f.routed+f.routed_o;b.moe_shared+=f.shared;b.router+=f.router+f.moe_o;
       mm+=f.dense+f.shared+f.router;
-      if(lay.ffn&&lay.ffn.t==='moe'){const per=(f.routed+f.routed_o)/lay.ffn.E;actR+=per*lay.ffn.k;mm+=3*d*lay.ffn.ff*lay.ffn.k}
+      if(lay.ffn&&lay.ffn.t==='moe'){const per=(f.routed+f.routed_o)/lay.ffn.E;actR+=per*lay.ffn.k;mm+=(lay.ffn.g===false?2:3)*(lay.ffn.lat||d)*lay.ffn.ff*lay.ffn.k}
     }
     const total=sumv(b);const active=Math.round(total-b.moe_routed+actR);
     mm+=V*d;
