@@ -53,7 +53,7 @@
        ['B, stopped after 250',0,vals(R.B).map(l=>l.val_loss.toFixed(4)).join(', '),R.B.kept_steps.join(', '),R.B.best],
        ['C, same command again',R.C.log.length?200:'?',vals(R.C).map(l=>l.val_loss.toFixed(4)).join(', '),R.C.kept_steps.join(', '),R.C.best]]);
     const s=document.getElementById('ts-full-sum');
-    if(s)s.innerHTML='B+C ended with parameters '+(D.full.final_bitwise_equal_A_vs_BC?'<b>bit-identical</b>':'<b>not identical</b>')+' to A: steps 201 to 250 ran twice (once in B, lost with the preemption, once in C), which is the cost of saving every 100 steps. With <code>LatestN(1)</code> and <code>BestN(n=2)</code> the directory kept steps '+R.A.kept_steps.join(', ')+'. Wall time on the shared CPU: A '+D.full.times_s.A+' s, B '+D.full.times_s.B+' s, C '+D.full.times_s.C+' s, including process start and compilation (rough).';}
+    if(s)s.innerHTML='Recorded result: B+C '+(D.full.final_bitwise_equal_A_vs_BC?'<b>bit-identical</b>':'<b>not identical</b>')+' to A. With <code>LatestN(1)</code> and <code>BestN(n=2)</code> the directory kept steps '+R.A.kept_steps.join(', ')+'. Wall time on the shared CPU: A '+D.full.times_s.A+' s, B '+D.full.times_s.B+' s, C '+D.full.times_s.C+' s, including process start and compilation (rough).';}
 
   // ---- charts, drawn when the tab is visible ----
   function charts(){
@@ -64,6 +64,8 @@
       U.lines(f,['fp16 no scaling','static','dynamic'].map((k,i)=>({name:k==='static'?'fp16, static 2^12':k==='dynamic'?'fp16, dynamic':k,color:U.COL[i+1],pts:RR[k].losses.map((p,j)=>[p[0],p[1]-base[j][1]])})),{zero:1,dec:3,label:'loss minus float32 loss',h:200})}
   }
   RD.onRender(charts);RD.onResize(charts);
+  // charts inside closed <details> have no width until opened: redraw everything on open
+  document.querySelectorAll('#t-read details').forEach(d=>d.addEventListener('toggle',()=>{if(d.open)dispatchEvent(new Event('resize'))}));
 
   // ---- scan before/after animation ----
   const rows=N.E7.rows,byKey={};rows.forEach(r=>byKey[r.kind+r.layers]=r);
@@ -103,7 +105,7 @@
     stats.innerHTML=RD.stat('layers',depth,'')+RD.stat('jaxpr equations (final)',U.int(r.jaxpr_top_eqns),mode)+RD.stat('HLO lines',U.int(r.hlo_lines),'optimised')+RD.stat('compile time',r.compile_s+' s','rough, loaded CPU');
   }
   if(svg){const A=RD.anim({card:'ts-scan-card',ctl:'ts-scan-ctl',n:nsteps(),draw,ms:1100,label:'Tracing step'});
-    RD.seg(document.getElementById('ts-scan-depth'),v=>{depth=+v;A.reset(nsteps());A.play()});
-    RD.seg(document.getElementById('ts-scan-mode'),v=>{mode=v;A.reset(nsteps());A.play()});
+    RD.seg(document.getElementById('ts-scan-depth'),v=>{depth=+v;A.reset(nsteps())});
+    RD.seg(document.getElementById('ts-scan-mode'),v=>{mode=v;A.reset(nsteps())});
     RD.onResize(()=>A.redraw());}
 })();

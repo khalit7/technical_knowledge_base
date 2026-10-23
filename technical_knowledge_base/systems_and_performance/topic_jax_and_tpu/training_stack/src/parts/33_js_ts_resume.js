@@ -1,6 +1,6 @@
-// ---- Resume lab tab (t-resume) ----
+// ---- Reading section 5: five ways to resume (was the Resume lab tab) ----
 (function(){
-  const U=TSU,D=U.D,K=D.ckpt,root=document.getElementById('t-resume');if(!root||!K)return;
+  const U=TSU,D=U.D,K=D.ckpt,root=document.getElementById('rs-card');if(!root||!K)return;
   const LAB={all:'everything',no_data:'no data iterator',no_opt:'no optimiser state',no_rng:'no RNG streams',params_only:'Params only'};
   const HAS={all:[1,1,1,1],no_data:[1,1,1,0],no_opt:[1,0,1,1],no_rng:[1,1,0,1],params_only:[1,0,0,0]};
   let v='all';const SAVE=K.save_at,TOT=K.total,NF=17;
@@ -28,17 +28,11 @@
     document.getElementById('rs-stats').innerHTML=RD.stat('first resumed loss gap',V.first_loss_diff?U.ex(V.first_loss_diff,1):'0','step '+SAVE)+RD.stat('largest loss gap',V.max_loss_diff?U.ex(V.max_loss_diff,1):'0','steps '+SAVE+' to '+(TOT-1))+RD.stat('bitwise equal',V.bitwise_equal?'yes':'no',K.n_arrays+' arrays');}
   chips();
   const A=RD.anim({card:'rs-card',ctl:'rs-ctl',n:NF,draw,ms:600,label:'Resumed step'});
-  RD.seg(document.getElementById('rs-var'),m=>{v=m;chips();A.reset(NF);A.play()});
+  RD.seg(document.getElementById('rs-var'),m=>{v=m;chips();A.reset(NF)});
   // files
   const F=K.files,tot=F.reduce((a,f)=>a+f[1],0),big=F.filter(f=>f[1]>100000);
   document.getElementById('rs-fsum').textContent=F.length+' files, '+(tot/1e6).toFixed(2)+' MB, of which '+big.length+' data files hold '+(big.reduce((a,f)=>a+f[1],0)/1e6).toFixed(2)+' MB';
   document.getElementById('rs-files').innerHTML=F.map(f=>'<div class="r"><span>'+U.esc(f[0])+'</span><span>'+U.int(f[1])+'</span></div>').join('');
   document.getElementById('rs-rng').innerHTML=K.rng_leaves.map(l=>'<code>'+U.esc(l[0])+'</code> ('+l[1]+')').join(', ');
-  if(D.ckpt_mesh){const M=D.ckpt_mesh.targets;
-    U.table('ts-mesh-t2',[['Restored onto'],['Devices',1],['fc1 spec'],['Shard'],['Restored bitwise'],['Continued bitwise'],['Largest parameter gap at 40',1]],
-      Object.keys(M).map(k=>{const m=M[k];return [k,m.n_devices,'<code>'+U.esc(m.fc1_spec)+'</code>',U.shape(m.fc1_shard),m.restored_bitwise?'yes':'no',m.continued_bitwise_equal_ref?'<b>yes</b>':'no',m.param_maxdiff_vs_ref?U.ex(m.param_maxdiff_vs_ref,1):'0']}));}
-  function full(){const e=document.getElementById('rs-full-svg');if(!e||e.offsetParent===null||!D.full)return;const R=D.full.runs,vv=r=>r.log.filter(l=>l.val_loss!=null).map(l=>[l.step,l.val_loss]);
-    U.lines(e,[{name:'A, uninterrupted',color:'var(--mute)',pts:vv(R.A),w:4},{name:'B, stopped after 250',color:U.COL[1],pts:vv(R.B)},{name:'C, resumed from 200',color:U.COL[0],pts:vv(R.C),dash:'4 3'}],{dec:3,h:190,label:'validation loss of the complete script'})}
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-resume']=[()=>{A.redraw();full()}];
-  addEventListener('resize',()=>{if(root.hidden)return;A.redraw();full()});
+  RD.onResize(()=>A.redraw());
 })();

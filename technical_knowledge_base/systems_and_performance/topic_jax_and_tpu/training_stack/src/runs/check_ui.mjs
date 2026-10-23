@@ -11,7 +11,7 @@ const puppeteer=require('puppeteer');
 const page_path=path.resolve(HERE,'..','..','index.html'),shots=process.argv[2];
 const J=n=>JSON.parse(fs.readFileSync(path.join(HERE,'out',n+'.json'),'utf8'));
 let fail=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)fail++};
-const TABS=['t-read','t-state','t-opt','t-resume','t-data','t-more'];
+const TABS=['t-read','t-more'];
 const b=await puppeteer.launch({headless:'shell'});
 for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   const p=await b.newPage();const errs=[];

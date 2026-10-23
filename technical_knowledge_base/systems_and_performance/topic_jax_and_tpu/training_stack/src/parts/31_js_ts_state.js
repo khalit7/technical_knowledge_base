@@ -1,6 +1,6 @@
-// ---- State inspector tab (t-state) ----
+// ---- Reading section 1: the split stepper (was the State inspector tab) ----
 (function(){
-  const U=TSU,D=U.D,N=D.nnx,root=document.getElementById('t-state');if(!root)return;
+  const U=TSU,D=U.D,N=D.nnx,root=document.getElementById('si-card');if(!root)return;
   const FILTERS=Object.keys(N.E2.plain.groups);
   const TYC={Param:'var(--c1)',RngCount:'var(--c2)',RngKey:'var(--c2)',StepCount:'var(--c4)'};
   let model='plain',filter=FILTERS[0];
@@ -38,11 +38,10 @@
   const seg=document.getElementById('si-filter');
   seg.innerHTML=FILTERS.map((f,i)=>'<button data-m="'+U.esc(f)+'"'+(i===0?' class="on"':'')+'>'+U.esc(f)+'</button>').join('');
   const A=RD.anim({card:'si-card',ctl:'si-ctl',n:mods().length+1,draw,ms:700,label:'Split step'});
-  RD.seg(document.getElementById('si-model'),v=>{model=v;A.reset(mods().length+1);A.play()});
-  RD.seg(seg,v=>{filter=v;A.reset(mods().length+1);A.play()});
+  RD.seg(document.getElementById('si-model'),v=>{model=v;A.reset(mods().length+1)});
+  RD.seg(seg,v=>{filter=v;A.reset(mods().length+1)});
   // static attributes and optimizer sample
   const SA=N.E1.static_attr_values;
   U.table('si-static',[['Attribute'],['Values seen']],Object.keys(SA).map(k=>['<code>'+U.esc(k)+'</code>',SA[k].map(v=>'<code>'+U.esc(v)+'</code>').join(', ')]));
   U.table('si-opt',[['Path'],['Type'],['Shape']],N.E9.sample.map(l=>['<code>'+U.esc(l.path)+'</code>',l.type,l.shape.length?U.shape(l.shape):'scalar']));
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-state']=[()=>A.redraw()];
 })();

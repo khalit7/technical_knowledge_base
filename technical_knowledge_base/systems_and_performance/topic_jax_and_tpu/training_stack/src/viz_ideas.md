@@ -30,3 +30,9 @@ The root's Training lab already built (and this page links, not rebuilds): the N
 
 ## What the methodology lacked here
 No published figure to reproduce. The reproductions are internal: the hand-computed AdamW stages against optax (7e-11), the AdamW 300-step validation loss against the root Training lab's float32 run (agree within 1e-7), the bitwise resumes, the Muon hand iteration against `orthogonalize_via_newton_schulz`. The most valuable visuals came from experiments that failed in an interesting way (mesh resume not bitwise, BestN metrics not persisted, worker-count dependence), which argues for running the "obvious" check before drawing it.
+
+## 2026-10-23 rebuild
+- Added: hero, a static annotated diagram of one training step as state (structure, so static; score: central 2, beyond a sentence 2, absent elsewhere 2, fits the kind 2).
+- Moved inline: State inspector (now section 1), Optimiser lab stage stepper (section 4), Resume lab (section 5), Data lab (section 6); each explains one mechanism, so it belongs beside the claim.
+- Moved into closed blocks: Muon spectrum, four-optimiser curves, float16 loss-gap chart (measured depth, not needed on first read).
+- Removed: the complete-script validation chart (A, B, C points coincide; the table says bit-identical) and the second copy of the mesh-restore table.
