@@ -13,7 +13,7 @@ What to do when a page already exists in Notion in its old written form (or as a
 - **Text someone added in Notion** since the last sync: stop and show Khalid. It is knowledge that belongs in the repository first.
 
 ## The coverage floor
-The old page is the floor of what the new page carries, not its scope, and not its truth ([../understand/research.md](../understand/research.md)):
+The old page is the floor of what the new page carries, not its scope, and not its truth ([../understand/research.md](../understand/research.md)). For a page already built in this repo, the floor is the knowledge ledger ([../teaching/teaching-contract.md](../teaching/teaching-contract.md)): only units labelled fat are dropped. For an old Notion page:
 - every distinct fact, number, mechanism step, caveat and source link is listed in `src/coverage.json`, with where the new page carries it;
 - dropped only as a genuine duplicate, or as a stale claim with its correction and source;
 - every claim checked against a primary source; corrections in visible boxes;

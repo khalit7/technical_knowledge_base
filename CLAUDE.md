@@ -8,7 +8,7 @@ This repository is the home of Khalid's Technical knowledge base. **It is the so
 |---|---|
 | `technical_knowledge_base/` | The knowledge base, laid out exactly like the Notion tree: one folder per Notion heading (`models_and_training/`, ...), one folder per page inside it, a child page's folder inside its parent's. Names are snake_case slugs of the Notion titles; each folder's README and `pages.json` give the exact title and Notion id. |
 | `technical_knowledge_base/pages.json` | Manifest of every page: path, title, Notion id, status (`html_only` or `not_migrated`), `published_sha256` (what Notion holds now), video. |
-| `html_utils/` | Runtime only: `checkpage.sh`, `tabshot.mjs`, `clipcheck.mjs`, `tex2mathml.mjs`, `sync_status.py`, `page_finalize.py`, `paper_finalize.py`. How pages are built lives in the `explainer-page` skill. |
+| `html_utils/` | Runtime only: `checkpage.sh`, `tabshot.mjs`, `clipcheck.mjs`, `tex2mathml.mjs`, `sync_status.py`, `page_finalize.py`, `paper_finalize.py`, `audit_pages.mjs`/`.py` (what each page gives a reader), `ledger.py` (condense without losing knowledge), `build_site.py` (the private reading site, see `sync-kb-github/site.md`). How pages are built lives in the `explainer-page` skill. |
 | `.claude/skills/` | Only the four skills below. Real folders, no symlinks. The third-party HyperFrames skills the video workflow uses are vendored inside `explainer-video/vendor/`; unused ones were removed (reinstall with `npx hyperframes skills update <name>` then `explainer-video/scripts/vendor_skills.sh <name>`). Everything learned about how Khalid wants pages built (reader, page kinds, animation types, local runs, resource safety, briefs, lessons) lives in `explainer-page/`; narration scripts and voice envs in `explainer-video/narration/`. |
 
 A migrated page folder holds `index.html` (the whole Notion page, built), `README.md`, `src/` (`build.sh`, `parts/`, `README.md`, `viz_ideas.md`, data scripts, `inputs/`) and, if it has one, `video/` (the HyperFrames project; renders are not committed).
@@ -30,8 +30,8 @@ No knowledge-base skills live in Notion any more (deleted 2026-10-19); Notion's 
 
 ## Khalid's preferences
 - **Ask, don't assume**, when a decision is his.
-- **Animations** for explanations, often: before/after of the same input, like the DeepSeek MLA explainer (`technical_knowledge_base/models_and_training/topic_llm_landscape/deepseek/`).
-- Root `Topic: *` pages are short comparisons plus definitions; details live on child pages.
+- **The goal of every page: understand the subject deeply in the least time** (`explainer-page/teaching/teaching-contract.md`, agreed 2026-10-23). A visual beside every core idea, chosen by what the concept is (static diagram, stepper, animation only when the change is the point, before/after like the DeepSeek MLA explainer, real image); nothing decorative; never autoplay. Length is judged per page and condensing never loses important information (knowledge ledger). He reads to understand, not to memorise: no quizzes or flashcards.
+- Root `Topic: *` pages are short comparisons plus definitions; details live on child pages; one page owns each concept and the others link to it.
 - Do not launch a multi-agent Workflow without his explicit opt-in; plain subagents are fine, about four at a time.
 
 ## Writing

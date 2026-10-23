@@ -2,7 +2,7 @@
 
 The catalogue of visual types that earned their place on built pages: what each is, when to reach for it, what makes it good, and a folder in this repo to read before building one. Paths are relative to `technical_knowledge_base/`. Pick by the content ([choosing.md](choosing.md)); build with [mechanics.md](mechanics.md).
 
-Most pages need two or three of these, not ten. Every type below still has to pass the same test: it teaches something a sentence or a static figure cannot.
+Most pages need two or three of these, not ten. Every type below still has to pass the same test: it teaches something a sentence or a static figure cannot. Choose the kind first with the decision rule in [../teaching/teaching-contract.md](../teaching/teaching-contract.md): a static annotated diagram or a stepper is often the better choice, and is listed as types 14 and 15 below.
 
 ---
 
@@ -18,7 +18,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 - **A caption for every step** (in HTML beside the drawing): what happens and why it matters, with the formula and the number at that step. Seven steps each way.
 - **Running counters** that tie the picture to the numbers the text quotes (numbers cached, bytes per token over 61 layers, read per decoded token).
 - **Controls:** play and pause, step back and forward, a scrubber over the steps, and a speed control (0.5x, 1x, 2x), so a reader can stop on the step they are thinking about.
-- **Good manners:** it animates only while its card is on screen and its tab is visible, plays once when first scrolled into view, and under `prefers-reduced-motion` starts paused and moves one step at a time without tweening.
+- **Good manners:** it animates only while its card is on screen and its tab is visible, never plays by itself (the reader presses play or steps; changed 2026-10-23, learner pacing is what makes animation teach), and under `prefers-reduced-motion` moves one step at a time without tweening.
 
 **What makes it good.** The static switch shows two end states; the animation shows how one becomes the other. The earlier rejection of this animation as duplicating the static mode switch was wrong, and the log says so.
 
@@ -203,7 +203,33 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 ---
 
+## 14. Static annotated diagram
+
+**What it is.** One drawing of a structure (a decoder block, a memory hierarchy, the parties in a protocol, a cluster's layout) with every label on the figure and a one-line title saying what to notice. No motion, no controls.
+
+**When to use it.** Whenever the content is a structure, not a change: who talks to whom, what contains what, where data sits. It is the cheapest visual and often the best one; the 2026-10-23 audit found pages such as MCP explaining host, client and server in a 9,000-word Reading tab with no diagram at all.
+
+**What makes it good.** Drawn at the measured width, labels at least 11 px, one highlight colour for the part the section is about, the explaining sentence right beside it. A hero figure is usually this type.
+
+## 15. Stepper (a static sequence the reader advances)
+
+**What it is.** A process shown as numbered frames: Next and Back buttons (and arrow keys), one caption per frame, the changed part highlighted in each frame. Unlike type 1 there is no tweening and no play button: each frame is a still.
+
+**When to use it.** A process whose steps matter more than the motion between them: a handshake, an OAuth flow, a request through a serving stack, a training step through a parallelism scheme. Evidence: a fair sequence of stills does about as well as animation, and learner-paced segments help most (Tversky et al. 2002; Rey et al. 2019).
+
+**What makes it good.** Same layout in every frame so only the change moves; the caption says what changed and why; the frame count is shown ("step 3 of 8"). `RD.anim` with tweening off does this.
+
+## 16. Real image
+
+**What it is.** A photo or a source's own figure: a GPU die, an HBM stack, a rack, a paper's architecture figure that people cite, a real dashboard or log.
+
+**When to use it.** When the reality itself teaches (what a node actually looks like, the figure every paper references) and a drawing would be a weaker copy. Never for a mechanism a drawing explains better, and never an AI-generated image of a mechanism.
+
+**What makes it good.** Small WebP in the page's `img/` folder, alt text saying what it shows, the source and licence named under it ([../teaching/teaching-contract.md](../teaching/teaching-contract.md) Images).
+
 ## Patterns that were rejected (do not rebuild)
+- Autoplaying loops: the reader cannot stop on the step they are thinking about.
+- The same concept drawn again on a second page (link the owner's visual).
 - A visual of a single number with nothing to move.
 - Data that exists only as figure images (read printed labels or decode vector figures; never read curves by eye).
 - Stacked bars on a log axis (the later, smaller stages vanish or the bar lies about sums).

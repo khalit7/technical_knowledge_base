@@ -1,6 +1,6 @@
 # Page kind: a child page of a topic
 
-The depth on one specific thing (a lab or model family, a stage, a technique, a tool, a language), going deeper than the root without repeating it. A suggestion, not a template: say any departure and why in `src/README.md`.
+The depth on one specific thing (a lab or model family, a stage, a technique, a tool, a language), going deeper than the root without repeating it. A suggestion, not a template: say any departure and why in `src/README.md`. [../teaching/teaching-contract.md](../teaching/teaching-contract.md) governs.
 
 Reference children:
 - `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/diffusion_from_zero/`: reuses the root lab's checkpoint, adds three labs;
@@ -8,7 +8,7 @@ Reference children:
 - `.../topic_llm_training_and_post_training/distributed_training/`: one training step under nine parallelism schemes.
 
 ## What it is for
-The reader's question: **"how does this work, exactly, and what is the evidence?"** A child owns every detail of its subject: mechanisms, formulas, configs, numbers, history, common mistakes. Nothing is cut; each fact is said once and clearly.
+The reader's question: **"how does this work, exactly, and what is the evidence?"** A child owns every detail of its subject: mechanisms, formulas, configs, numbers, common mistakes. Each fact is said once and clearly; the core carries what is needed to understand, and the rest of the detail sits in closed blocks. Nothing important is cut (the ledger proves it), but restatement, wind-ups and chronicle are.
 
 ## Read before you write
 1. **The parent root**: its `index.html` and `src/`, especially:
@@ -29,12 +29,12 @@ The reader's question: **"how does this work, exactly, and what is the evidence?
 
 ## Shape that worked
 - **Reading tab** organised by the subject's own logic:
-  - an "in one screen" summary or comparison table first;
-  - the mechanisms in order, from zero for this subject;
+  - the core idea, the hero figure, then an "in one screen" summary or comparison table;
+  - the mechanisms in order, from zero for this subject, each with its visual inline;
   - what is in production now (real configs and recipes);
-  - common mistakes with real errors;
-  - interview questions including a design one.
-- **One tab per standalone visual that deserves room**, named for what the reader does:
+  - common mistakes with real errors, when they teach;
+  - optional interview rehearsal in a closed block.
+- **One tab per standalone visual that deserves room** (a tool used across the page, not the explanation of one mechanism, which goes inline), named for what the reader does:
   - a calculator (Layout calculator, Trainable parameters);
   - a lab or workbench (Sampler workbench, Sampler lab, Alert lab);
   - a dataset view (Twelve decoders, One real layer, Case gallery);
@@ -45,7 +45,7 @@ The reader's question: **"how does this work, exactly, and what is the evidence?
 - **Variation (programming-languages, 2026-10-05)**: one page per language holding several parts, with a part bar ("Start here" plus parts) and per-part tabs, because Khalid wanted one Notion page per language with all parts' content kept.
 
 ## What makes a child page good
-- **Research beyond the old page.** The old page is the floor (every fact carried, in `src/coverage.json`). Each claim is checked against primary sources: papers, model cards, `config.json` files, library code at pinned versions with `file:line`, vendor docs. Corrections go in visible boxes; what cannot be sourced is marked unconfirmed.
+- **Research beyond the old page.** The old page is the floor: every important fact carried (the knowledge ledger, `src/ledger.json`; `src/coverage.json` on older pages). Each claim is checked against primary sources: papers, model cards, `config.json` files, library code at pinned versions with `file:line`, vendor docs. Corrections go in visible boxes; what cannot be sourced is marked unconfirmed.
 - **Real data over illustrative data**: real logits from a small open model, a real layer's weights, a real chat template on real conversations, real configs from many families, real `slurmctld` logs, real `EXPLAIN ANALYZE` plans. Small extracts go in `src/inputs/` (under 1 MB each); large downloads stay in scratch.
 - **Toys when they show a mechanism.** A toy is welcome when:
   - it makes a mechanism visible;
@@ -63,7 +63,7 @@ The reader's question: **"how does this work, exactly, and what is the evidence?
 
 ## Size and time
 - **Page size**: about **1 MB**, images as small WebP data URIs; say why if more.
-- **Reading time**: usually 25 to 45 minutes, because a child owns its details. Measure it and state it; flag anything over about 45 minutes to Khalid in the report (jax_core ran 55 and was flagged). Fold secondary material into closed `<details>` blocks counted apart.
+- **Reading time**: judged per page, not budgeted ([../teaching/teaching-contract.md](../teaching/teaching-contract.md)). Measure it, state it with the closed blocks counted apart, and record why that length is right in `src/README.md`.
 - **Children of one topic** run several at once ([../orchestration/topic-pipeline.md](../orchestration/topic-pipeline.md)). A child that depends on a sibling's results reads that sibling's handoff note (`handoff_<sibling>.md`), or waits for it.
 
 ## Scaffold notes
