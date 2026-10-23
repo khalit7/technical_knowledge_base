@@ -1,57 +1,36 @@
-
-<section id="s-lim">
-<h2>5. Partitions, QOS and associations: who may use what</h2>
-<p><b>The problem.</b> A shared cluster needs rules beyond "first come, first served": one team may not take every GPU, debug jobs must start fast, a huge job may run only at night. Slurm has three places to put rules, and a pending job's reason names the one holding it.</p>
-<div class="grid">
-<div class="sp"><div class="n">Partition</div><p>A named set of nodes (a queue) with its own rules: <code>MaxTime</code>, <code>MaxNodes</code>, default time, who may submit, <code>PriorityJobFactor</code> (a priority bonus) and <code>PriorityTier</code> (an order between partitions, used for preemption). Partitions may overlap: here <code>batch</code>, <code>urgent</code> and this page's <code>sllow</code> all cover c[1-3]. In <code>slurm.conf</code>.</p></div>
-<div class="sp"><div class="n">Association</div><p>A (cluster, account, user) triple in the accounting database: alice in teama, bob in teamb. Accounts form a tree (root, teama, teamb), each with fairshare <b>shares</b> and optional limits such as <code>GrpTRES=gres/gpu=64</code> (the whole team at once) or <code>MaxJobs</code>. In slurmdbd, set with <code>sacctmgr</code>.</p></div>
-<div class="sp"><div class="n">QOS</div><p>"Quality of service": a named bundle of a priority, limits (<code>MaxTRESPerUser</code>, <code>MaxWall</code>, <code>GrpTRES</code>) and preemption rules that a job selects with <code>--qos</code>. Typical: <code>debug</code> (high priority, 1 node, 30 minutes), <code>normal</code>, <code>scavenger</code> (lowest priority, preemptible). In slurmdbd.</p></div>
-</div>
-<p>When several define the same limit, the first one found wins, in this order: partition QOS, job QOS, user association, account associations up the tree, root, partition ({{resource limits|https://slurm.schedmd.com/resource_limits.html}}). And none of it applies unless <code>AccountingStorageEnforce</code> includes <code>limits</code> and <code>qos</code>: the default is <code>none</code>, and this lab cluster runs with <code>none</code>, so for this page's runs it was switched on, with two QOS and one limit <span class="sl-meas">measured</span>:</p>
-<pre>$ sacctmgr -i add qos sl-high Priority=100
-$ sacctmgr -i add qos sl-small Priority=20 MaxTRESPerUser=gres/gpu=4
-$ sacctmgr -i modify user where name=alice,bob,carol set qos+=sl-high,sl-small
-$ sacctmgr -i modify user where name=carol set GrpTRES=gres/gpu=2
-$ sacctmgr show assoc format=account,user,grptres,qos
-   Account       User       GrpTRES                            QOS
----------- ---------- ------------- ------------------------------
-      root                                                  normal
-     teama                                                  normal
-     teama      alice                      normal,sl-high,sl-small
-     teama      carol    gres/gpu=2        normal,sl-high,sl-small
-     teamb                                                  normal
-     teamb        bob                      normal,sl-high,sl-small</pre>
-<p>Then three jobs that break a rule each, submitted while every GPU was busy:</p>
-<pre>JOBID         NAME   USER PARTITI       QOS ST PRIORITY NODES CPUS NODELIST(REASON)
-   92    sl-g-qmax  alice   batch  sl-small PD     4733     2    8 (QOSMaxGRESPerUser)
-   93   sl-g-assoc  carol   batch    normal PD     6500     1    4 (AssocGrpGRES)
-   88     sl-g-ptl  alice   batch    normal PD     3750     1    1 (PartitionTimeLimit)</pre>
-<p class="sl-cap">squeue at 05:38:07 UTC, 16 Oct 2026, columns trimmed. Full gallery in the {{Why pending?|#t-why}} tab.</p>
-<p>All three were <b>accepted</b> and will <b>never start</b>: 8 GPUs exceed sl-small's 4 per user, 4 GPUs exceed carol's 2, and 120 minutes exceed batch's <code>MaxTime=60</code>. A job that breaks a limit on its own pends forever unless its QOS has the <code>DenyOnLimit</code> flag (then it is refused at submission), and a job over a partition's time limit is accepted unless <code>EnforcePartLimits</code> is set. Note carol's priority, 6500, the highest of the three: priority and limits are separate questions. <code>squeue --start</code> printed <code>N/A</code> for job 88 but a start time for 92 and 93, so do not read a start time as a promise that a job can run.</p>
-<p>Some requests are refused before they reach the queue, because no node could ever satisfy them <span class="sl-meas">measured</span>:</p>
-<pre id="sl-ex-err"></pre>
-<p class="sl-cap">16 Oct 2026. The controller's log names the cause the user does not see: <code>_pick_best_nodes: JobId=97 never runnable in partition batch</code>, <code>_build_node_list: No nodes satisfy JobId=99 requirements in partition batch</code>, <code>error: Invalid qos (nope)</code>.</p>
-</section>
-
-<section id="s-sched">
-<h2>6. The scheduler: a main loop and a backfill loop</h2>
-<p><b>The problem.</b> Thousands of pending jobs, a cluster that changes every second. Testing every job against every node on every change would be too slow, and starting jobs in strict priority order wastes nodes that a big job at the head cannot use yet. Slurm runs two loops inside the controller.</p>
-<div class="grid">
-<div class="sp"><div class="n">The main loop (fast, strict)</div><p>Runs on every event (a job submitted or ending, a node returning) and every <code>sched_interval</code> (60 s by default, <span class="q-ref" data-r="sched_int"></span>). It walks the pending jobs in priority order and starts each one that fits <i>now</i>. On an event it tests at most <code>default_queue_depth</code> jobs (100 by default). And the moment one job of a partition cannot start, it starts nothing else in that partition or on its nodes in that pass: strict priority order.</p></div>
-<div class="sp"><div class="n">The backfill loop (slower, planning)</div><p>Every <code>bf_interval</code> (30 s by default, 2 s here) it builds a timeline from every running job's <i>time limit</i>, gives each waiting job, in priority order, the earliest start where it fits (a reservation), and starts any lower-priority job that fits in a gap and ends before the reservations it would cross. Slurm's version reserves for every job it tests (conservative) and reserves whole nodes.</p></div>
-</div>
-<div class="sl-src-q">Source: the main loop stops a partition at its first blocked job</div><pre data-q="main_fail_part"></pre>
-<div class="sl-src-q">and on an event it tests a limited depth</div><pre data-q="main_depth"></pre>
-<p>That rule is where the two most common reasons come from: the first blocked job of a partition shows <code>Resources</code>, and every job behind it shows <code>Priority</code> ("a job ahead of me is waiting"). Backfill is the only way a job jumps that line, and it needs your time limit to do it. The root's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} runs the same eight-job queue under FIFO and backfill on this cluster and shows where Slurm's whole-node reservations depart from the textbook; this page does not repeat it.</p>
-<div class="co warn"><div class="t">A message that lies: "Nodes required for job are DOWN, DRAINED or reserved for jobs in higher priority partitions" <span class="sl-meas">measured</span></div>
-In the gallery run, job 91 in partition <code>sllow</code> (same nodes as batch, same tier) pended with exactly this reason although every node was up and nothing was drained. The cause is the rule above: when batch's top job could not start, the main loop removed batch's nodes from what was available for the rest of that pass, so <code>sllow</code> saw zero usable nodes and the code fills in its generic text:
-<pre data-q="nodes_down_msg"></pre>
-On clusters with overlapping partitions this reason usually means "a higher-priority job in another partition is waiting for these nodes", not that anything is broken. Check <code>sinfo</code> before calling the admins.</div>
-<p><b>How to look inside.</b> <code>sdiag</code> prints both loops' statistics. Over this page's 3.7 minutes of experiments <span class="sl-meas">measured</span>:</p>
-<div class="tw"><table><thead><tr><th></th><th class="num">cycles</th><th class="num">per minute</th><th class="num">mean cycle</th><th class="num">max cycle</th><th>other</th></tr></thead><tbody>
-<tr><td>main loop</td><td class="num">39</td><td class="num">13</td><td class="num">172 &micro;s</td><td class="num">945 &micro;s</td><td>never hit <code>default_queue_depth</code></td></tr>
-<tr><td>backfill</td><td class="num">65</td><td class="num"></td><td class="num">409 &micro;s</td><td class="num">939 &micro;s</td><td>9 jobs started by backfill, 2 of them heterogeneous-job components; mean depth 6 jobs</td></tr>
-</tbody></table></div>
-<p class="sl-cap"><code>sdiag</code> at 05:40:22 UTC, statistics since the reconfigure at 05:36:40 (<code>src/runs/raw1/acct.txt</code>). On a large cluster backfill cycles take seconds; when <code>Backfill exit</code> shows <code>Hit bf_max_job_test</code> or <code>Timeout (bf_max_time)</code>, jobs deep in the queue are never considered for backfill at all; the knobs are <code>bf_max_job_test</code>, <code>bf_max_job_user</code> (a cap per user so one user's thousand jobs do not fill the test budget), <code>bf_continue</code> and <code>bf_max_time</code>.</p>
-<p>The idle-cluster run shows the two loops racing: job 125 was submitted at 05:42:05.390 and started by <b>backfill</b> 444 ms later, not by the main loop, because this cluster's <code>sched_min_interval=500000</code> (0.5 s) keeps the main loop from running more than twice a second and the backfill cycle came first. Either loop may start any job; the log line says which (<code>sched: Allocate</code> for the main loop, <code>sched/backfill: _start_job</code> for backfill).</p>
+<section id="s-prio">
+<h2>7. Priority: one number per job</h2>
+<p>The main loop walks jobs in priority order, so the whole policy of who goes first is how that number is computed. With <code>PriorityType=priority/multifactor</code> it is a weighted sum of factors, each between 0 and 1, then truncated to an integer. A concrete case first: for this page's gallery run the weights were age 1,000, fairshare 10,000, job size 1,000, partition 1,000, QOS 2,000 and GPU TRES 500 (the cluster's normal configuration uses only fairshare and age; the variant is <code>src/scripts/sl_slurm.conf</code>). Fifteen jobs waited behind bob's 12-GPU job, and <code>sprio</code> was read twice, 51 seconds apart. Nobody touched anything in between:</p>
+<div class="sl-card" id="sl-pq-card"><h4>The same queue, 51 seconds later: fairshare reorders it</h4>
+<div class="sl-seg" id="sl-pq-mode"><button data-m="0" class="on">05:38:07</button><button data-m="1">05:38:58</button></div>
+<div id="sl-pq-svg" class="sl-svg"></div>
+<p class="sl-cap">Each bar is one pending job's priority as <code>sprio -l</code> printed it, split into its weighted factors, in the order the main loop would try them. Held jobs (priority 0) and jobs not yet eligible are left out; a hatched end is the nice penalty. Click a job for its sum. <span class="sl-meas">measured</span></p><div id="sl-pq-info" class="sl-anc"></div></div>
+<div class="sl-pr" id="sl-pr4"><div class="q">Predict: bob's job 95 had the highest priority of all at 05:38:07 (9,166). At 05:38:58 it was second to last (4,250). What changed?</div>
+<div class="opts"><button data-a="0">Its age factor fell</button><button data-a="1">Bob's 12-GPU job kept running, so bob's recent usage grew and his fairshare rank fell</button><button data-a="0">An administrator changed his QOS</button></div>
+<div class="ans">Fairshare. Bob's blocker was charging him 15 billing units per second (12 GPUs at 1.0 plus 12 CPUs at 0.25). At 05:38:07 teamb's usage was still below teama's (EffectvUsage 0.31 against 0.69 in <code>sshare</code>), so bob ranked 3 of 4 users (factor 0.75: 7,500 points); by 05:38:58 teamb had passed teama (0.60 against 0.40) and bob dropped to rank 1 (0.25: 2,500 points), while alice rose to 0.5 and carol to 0.75. Fair Tree compares teams first, so carol, who ran nothing, moves with her team. That swing of 5,000 points dwarfs every other factor here.</div></div>
+<div class="fm"><div class="eq">priority = W<sub>age</sub>&middot;age + W<sub>fs</sub>&middot;fairshare + W<sub>size</sub>&middot;jobsize + W<sub>part</sub>&middot;partition + W<sub>qos</sub>&middot;qos + &Sigma; W<sub>tres</sub>&middot;tres &minus; nice</div>
+<dl>
+<dt>age</dt><dd>time eligible (since <code>AccrueTime</code>) over <code>PriorityMaxAge</code>, capped at 1. A job held by a dependency or a begin time does not accrue (jobs 84 and 85 showed <code>AccrueTime=Unknown</code>).</dd>
+<dt>fairshare</dt><dd>with Fair Tree (the default), the user's rank in the account tree divided by the number of users: heavy recent use, decayed with <code>PriorityDecayHalfLife</code>, means a low factor. The root's Scheduling lab has a Fair Tree calculator.</dd>
+<dt>jobsize</dt><dd>by default favours large jobs: (nodes / cluster nodes + CPUs / cluster CPUs) / 2.</dd>
+<dt>partition</dt><dd>the partition's <code>PriorityJobFactor</code> over the largest one.</dd>
+<dt>qos</dt><dd>the QOS's priority over the largest QOS priority.</dd>
+<dt>tres</dt><dd>each TRES the job asks for over the partition's total, with its own weight (<code>PriorityWeightTRES=GRES/gpu=500</code>).</dd>
+<dt>nice</dt><dd>subtracted as is (<code>--nice=1500</code>); users may only lower their own priority.</dd>
+</dl></div>
+<div class="sl-card" id="sl-pc-card"><h4>Recompute any row: the calculator lands on <code>sprio</code> for all 22 rows</h4>
+<p class="small">The formula as Slurm 24.11.5 computes it (<code>set_priority_factors()</code> and <code>_get_priority_internal()</code> in <code>priority_multifactor.c</code>): factors times weights, summed as doubles in the source's order, minus nice, truncated. Defaults reproduce every <code>sprio</code> row of the gallery run, independently (<code>src/scripts/recompute.py</code> does the same in Python). Predict what doubling the fairshare weight does to job 95's rank at 05:38:58, then change it.</p>
+<label class="small">Start from a measured row: <select id="pc-pre"></select></label>
+<div id="pc-in"></div>
+<div class="out" id="pc-out"></div>
+<div id="pc-bars"></div>
+<p class="small" id="pc-res"></p>
+<details class="dp"><summary>All 22 rows: calculator against <code>sprio</code>, and the one that needs Slurm's arithmetic <span class="mute">(measured)</span></summary><div class="b">
+<div class="tw"><table><thead><tr><th>time</th><th>job</th><th>user</th><th>inputs</th><th class="num">calculator</th><th class="num">sprio</th><th></th></tr></thead><tbody id="pc-tab"></tbody></table></div>
+<p class="sl-cap">Inputs per row: the age and fairshare factors as <code>sprio -n</code> printed them (7 decimals; age as seconds = factor &times; 600), requested nodes, CPUs and GPUs from <code>scontrol show job</code> (ReqTRES), partition, QOS and nice. Click a row to load it. Fairshare is an input here: Fair Tree's rank of the user among all users (here 4: root, alice, carol, bob), which depends on every account's decayed usage. The lab cluster's size: 3 nodes, 12 CPUs, 12 fake GPUs; partition factors batch 1.0 (PriorityJobFactor 2), sllow and urgent 0.5; QOS factors normal 0, sl-small 0.2, sl-high 1.0.</p>
+<div class="co key"><div class="t">Truncation, not rounding: job 90 sums to 8,584.999... and prints 8584</div><span id="pc-trunc"></span></div>
+<div class="sl-src-q">Source: the sum, then truncation to an integer, and 0 reserved for held jobs</div><pre data-q="prio_sum"></pre>
+<p class="small mute">The factors are computed in <code>set_priority_factors()</code>: age <span class="q-ref" data-r="prio_age"></span>, job size <span class="q-ref" data-r="prio_js"></span>, partition <span class="q-ref" data-r="prio_part"></span>, QOS <span class="q-ref" data-r="prio_qos"></span>, TRES <span class="q-ref" data-r="prio_tres"></span>.</p>
+</div></details></div>
+<p><b>Two things that surprise people.</b> <code>sprio</code> shows factors as of the last recalculation, not now: at 05:38:58 the age factor of jobs eligible since 05:37:48 read 0.0867, which is 52 s over 600, so they were computed at about 05:38:40 (one <code>PriorityCalcPeriod</code> after the previous one). And the printed parts need not add up: job 82's parts were 86.67 + 5,000 + 500 + 1,000 + 333.33 = 6,920.0, printed 6,920, while <code>sprio -l</code> rounds each part (87, 333). Defaults: <code>PriorityDecayHalfLife</code> 7 days and <code>PriorityCalcPeriod</code> 5 minutes (<span class="q-ref" data-r="def_decay"></span>); this cluster uses 10 minutes and 1 minute so a lab can watch them move. Most sites make fairshare dominant, age stops starvation, and QOS gives fast lanes such as debug.</p>
 </section>

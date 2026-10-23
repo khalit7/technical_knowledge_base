@@ -50,14 +50,21 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     await p.evaluate(s => { const e = document.querySelector(s); if (e) e.scrollIntoView({ block: 'center' }) }, sel); await sleep(700);
     if (prep) await p.evaluate(prep); await sleep(300); const el = await p.$(sel); if (el) await el.screenshot({ path: `${shots}/${name}-${scheme}-${width}.png` }) };
   const slider = (id, v) => `(()=>{const s=document.getElementById('${id}');s.value=${v};s.dispatchEvent(new Event('input',{bubbles:true}))})()`;
-  await shot('t-read', '#sl-map-card', 'map');
+  for (const c of ['sl-hero-card','sl-lm-card','sl-pe-card','sl-rv-card','sl-dg-card']) await shot('t-read', '#'+c, c.replace('-card',''));
+  await shot('t-read', '#sl-sg-card', 'sg0');
+  await shot('t-read', '#sl-sg-card', 'sg1', `document.querySelector('#sl-sg-mode button[data-m="1"]').click()`);
+  await shot('t-read', '#sl-bf-card', 'bf0');
+  await shot('t-read', '#sl-bf-card', 'bf4', slider('sl-bf-ctl-s', 4));
+  await shot('t-read', '#sl-bf-card', 'bf6', slider('sl-bf-ctl-s', 6));
   await shot('t-read', '#sl-st-card', 'steps-plain', slider('sl-st-ctl-s', 8));
   await shot('t-read', '#sl-pq-card', 'prio-snap1', `document.querySelector('#sl-pq-mode button[data-m="1"]').click()`);
-  await shot('t-read', '#sl-dg-card', 'deps');
-  await shot('t-life', '#sl-lf-card', 'life-busy', slider('sl-lf-ctl-s', 9));
-  await shot('t-life', '#sl-lf-card', 'life-idle', `document.querySelector('#sl-lf-mode button[data-m="idle"]').click();` + slider('sl-lf-ctl-s', 8));
+  await shot('t-read', '#sl-lf-card', 'life-busy', slider('sl-lf-ctl-s', 9));
+  await shot('t-read', '#sl-lf-card', 'life-idle', `document.querySelector('#sl-lf-mode button[data-m="idle"]').click();` + slider('sl-lf-ctl-s', 8));
+  await shot('t-read', '#sl-pc-card', 'calc');
   await shot('t-why', '#t-why', 'why', `(()=>{const q=document.getElementById('wy-q');q.value='QOSGrpGRESRunMinutes';q.dispatchEvent(new Event('input',{bubbles:true}))})()`);
-  await shot('t-prio', '#t-prio', 'prio');
+  // nothing may move before the reader acts: every step controller still on step 0 after scrolling past
+  const moved = await p.evaluate(() => [...document.querySelectorAll('input[type=range][id$="-ctl-s"]')].filter(r => +r.value !== 0 && !['sl-bf-ctl-s','sl-st-ctl-s','sl-lf-ctl-s'].includes(r.id)).map(r => r.id));
+  if (moved.length) errs.push('moved without the reader: ' + moved.join(','));
   console.log(scheme, width, 'controls', clicks, 'calc rows ok', okRows, 'errors', JSON.stringify(errs));
   if (errs.length) bad = 1;
   await p.close();

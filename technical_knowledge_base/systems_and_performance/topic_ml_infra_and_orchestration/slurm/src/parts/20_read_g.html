@@ -1,39 +1,13 @@
-
-<section id="s-arr">
-<h2>9. Arrays, dependencies and heterogeneous jobs: workflows inside Slurm</h2>
-<p><b>The problem.</b> Real work is rarely one job: a hyperparameter sweep is 50 nearly identical jobs; a pipeline is "tokenise, then train, then evaluate, and clean up if training fails"; an RL setup wants a CPU-only controller beside GPU workers, started together. Slurm has a tool for each, and all of them were run here at once:</p>
-<pre>sbatch --array=0-5%2 ...                          <span class="c"># 6 tasks, at most 2 running at a time</span>
-sbatch -J sl-prep ...                              <span class="c"># job 103</span>
-sbatch -J sl-train --dependency=afterok:103 ...     <span class="c"># 106: only if prep exits 0</span>
-sbatch -J sl-eval  --dependency=afterok:106 ...     <span class="c"># 107</span>
-sbatch -J sl-fail --wrap 'sleep 5; exit 3'         <span class="c"># 108: fails on purpose</span>
-sbatch -J sl-clean  --dependency=afternotok:108 ... <span class="c"># 109: only if 108 fails</span>
-sbatch -J sl-report --dependency=afterok:108 ...    <span class="c"># 110: only if 108 succeeds</span>
-sbatch -J sl-single --dependency=singleton ...      <span class="c"># 111 and 112: same name, one at a time</span></pre>
-<div class="sl-card" id="sl-dg-card"><h4>What sacct recorded <span class="sl-meas">measured</span></h4><div id="sl-dg-svg"></div>
-<p class="sl-cap">Thin grey: submitted, not yet eligible (waiting on a dependency or the array limit). Bar: running, on the node shown. Every job asks for 1 fake GPU except sl-train (4). 16 Oct 2026, one-second resolution; seconds from submission.</p></div>
-<ul>
-<li><b>Arrays.</b> One submission, one job id (102), tasks <code>102_0</code> to <code>102_5</code>, each with <code>SLURM_ARRAY_TASK_ID</code> set (the script uses it to pick its hyperparameters or shard). <code>%2</code> throttles: tasks 2 to 5 pended with reason <code>JobArrayTaskLimit</code> and started in pairs as earlier ones ended. Until a task starts, the pending tasks are one record in the controller, which is why a 1,000-task array costs the scheduler far less than 1,000 jobs; the default <code>MaxArraySize</code> is 1001 (<span class="q-ref" data-r="def_array"></span>), so <code>--array=0-1000</code> is the largest by default.</li>
-<li><b>Dependencies.</b> sl-train became eligible the second sl-prep ended (+10 s), sl-eval when sl-train ended. <code>afternotok</code> ran the cleanup because 108 exited 3. sl-report, waiting on <code>afterok:108</code>, can never run, and Slurm says so but leaves it in the queue:
-<pre data-ex="never"></pre>
-Without <code>--kill-on-invalid-dep=yes</code> (or the cluster-wide <code>kill_invalid_depend</code>) such jobs sit in the queue forever. <code>singleton</code> held the second sl-single until the first ended. The types: <code>after</code>, <code>afterany</code>, <code>afterok</code>, <code>afternotok</code>, <code>aftercorr</code> (task by task between two arrays), <code>singleton</code> ({{sbatch --dependency|https://slurm.schedmd.com/sbatch.html}}).</li>
-<li><b>Heterogeneous jobs.</b> One job with differently shaped components, allocated together (all components or none, so the gang rule still holds) and launched with <code>srun --het-group</code>:</li>
-</ul>
-<pre data-ex="het_script"></pre>
-<pre data-ex="het_out"></pre>
-<pre data-ex="het_sacct"></pre>
-<p class="sl-cap">Job 116, 16 Oct 2026: component <code>116+0</code> got one CPU on c3 and no GPU, component <code>116+1</code> two GPU nodes. Backfill started both together (<code>sdiag</code> counted "2 heterogeneous job components").</p>
-<p><b>When to use what.</b> Sweeps of small runs: an array with a throttle. A pipeline: dependencies, or an outside workflow engine (Airflow, Flyte, Metaflow submit jobs and watch them), covered by the sibling page <i>{{ML platforms and workflows|n:3c65c17b0d0d81b9943cf6c72600f96b}}</i>. A long training run cut into time-limited pieces: one job that requeues itself (section 8) or a chain of <code>afterany</code> jobs that each resume from the latest checkpoint.</p>
-</section>
-
 <section id="s-resv">
 <h2>10. Reservations: holding nodes for a time or a team</h2>
-<p><b>The problem.</b> Some capacity must be guaranteed in advance: a maintenance window when nodes will be rebooted, a week of 512 GPUs promised to one team for a big run, a demo. A <b>reservation</b> is a named block of nodes (or cores) for a time window, usable only by the users or accounts it names (<code>scontrol create reservation</code>, by an administrator).</p>
-<p><b>A maintenance window</b>, all three nodes, starting in 3 minutes, for 5 minutes, then three jobs <span class="sl-meas">measured</span>:</p>
-<pre>$ scontrol create reservation ReservationName=sl_maint StartTime=now+3minutes Duration=5 \
-      Nodes=ALL Flags=MAINT,IGNORE_JOBS Users=root
-Reservation created: sl_maint
-$ squeue                                   <span class="c"># 8 s later</span>
+<p>Some capacity must be guaranteed in advance: a maintenance window, a week of 512 GPUs promised to one team for a big run, a demo. A <b>reservation</b> is a named block of nodes (or cores) for a time window, usable only by the users or accounts it names (<code>scontrol create reservation</code>, by an administrator). A maintenance window on all three nodes, starting in 3 minutes for 5 minutes, then three jobs <span class="sl-meas">measured</span>:</p>
+<div class="sl-card" id="sl-rv-card"><h4>Free nodes, and a job that will not start: its time limit crosses the window</h4>
+<div id="sl-rv-svg" class="sl-svg"></div>
+<p class="sl-cap"><code>scontrol create reservation ReservationName=sl_maint StartTime=now+3minutes Duration=5 Nodes=ALL Flags=MAINT,IGNORE_JOBS Users=root</code>, window 05:42:57 to 05:47:57; three jobs submitted at 05:39:57 (<code>src/runs/raw1/resv.txt</code>). Bars are each job's time limit from submission.</p></div>
+<p>The 2-minute job fitted before the window and ran; the 4- and 10-minute jobs could not finish before it and pended with <code>ReqNodeNotAvail, Reserved for maintenance</code>, planned for 05:47:57, its end. This is the most common surprise before a maintenance: ask for less time, or wait. After <code>scontrol delete ReservationName=sl_maint</code> the 10-minute job started at once. The source sets that reason when a job's time window overlaps a MAINT reservation <span class="q-ref" data-r="maint_msg"></span>.</p>
+<p><b>A team reservation</b>, node c3 for alice for 10 minutes: alice's job naming <code>--reservation=sl_team</code> ran on c3, her job without it on c1; bob's 3-node job pended with <code>ReqNodeNotAvail, May be reserved for other job</code> and his 2-node job with <code>Resources</code>. Only a job that names the reservation can use it. Flags change the rules: <code>FLEX</code> lets a job use nodes inside and outside, <code>MAINT</code> marks the time as maintenance in accounting, <code>IGNORE_JOBS</code> creates it even if running jobs overlap. For a training team the useful pattern is a recurring or long reservation on a block of nodes in one network domain, so a large job never waits behind fragmentation.</p>
+<details class="dp"><summary>Both reservations as squeue printed them <span class="mute">(measured)</span></summary><div class="b">
+<pre>$ squeue                                   <span class="c"># 8 s after the maintenance reservation</span>
 JOBID         NAME   USER ST PRIORITY NODES CPUS NODELIST(REASON)
   118    sl-r-long  alice PD     6833     2    8 (ReqNodeNotAvail, Reserved for maintenance)   <span class="c"># --time=10</span>
   120     sl-r-mid    bob PD     4000     1    4 (ReqNodeNotAvail, Reserved for maintenance)   <span class="c"># --time=4</span>
@@ -44,29 +18,46 @@ $ squeue --start
 $ scontrol delete ReservationName=sl_maint ; squeue     <span class="c"># 6 s later</span>
   120     sl-r-mid    bob PD     4000     1    4 (Resources)
   118    sl-r-long  alice  R     6833     2    8 c[2-3]
-  119   sl-r-short  alice  R     6500     1    4 c1</pre>
-<p class="sl-cap">From <code>src/runs/raw1/resv.txt</code>, columns trimmed.</p>
-<p>The 2-minute job fitted before the window and ran; the 4- and 10-minute jobs could not finish before it and were held until its end (05:47:57). This is the most common surprise before a maintenance: free nodes, a job that will not start. Ask for less time, or wait. The source sets that reason when a job's time window overlaps a MAINT reservation <span class="q-ref" data-r="maint_msg"></span>.</p>
-<p><b>A team reservation</b>, node c3 for alice for 10 minutes:</p>
-<pre>$ scontrol create reservation ReservationName=sl_team StartTime=now Duration=10 Nodes=c3 Users=alice
+  119   sl-r-short  alice  R     6500     1    4 c1
+$ scontrol create reservation ReservationName=sl_team StartTime=now Duration=10 Nodes=c3 Users=alice
 $ squeue
-JOBID         NAME   USER ST PRIORITY NODES CPUS NODELIST(REASON)
   121   sl-t-bob12    bob PD     4666     3   12 (ReqNodeNotAvail, May be reserved for other job)
   122    sl-t-bob8    bob PD     4333     2    8 (Resources)
   123    sl-t-resv  alice  R     6500     1    4 c3     <span class="c"># --reservation=sl_team</span>
   124   sl-t-nores  alice  R     6500     1    4 c1     <span class="c"># no reservation: ordinary nodes</span></pre>
-<p>Bob's 12-GPU job needs all three nodes and is told one may be reserved; his 8-GPU job waits for ordinary nodes (c1 is taken by alice's other job, c3 is reserved). Only a job that names the reservation can use it. Flags change the rules: <code>FLEX</code> lets a job use nodes inside and outside, <code>MAINT</code> marks the time as maintenance in accounting, <code>IGNORE_JOBS</code> creates it even if running jobs overlap. For a training team the useful pattern is a recurring or long reservation on a block of nodes in one network domain, so a large job never waits behind fragmentation.</p>
+</div></details>
 </section>
 
 <section id="s-acct">
 <h2>11. Accounting: what ran, and what it used</h2>
-<p><b>The problem.</b> After the fact you need to know what a job used (to debug it, to bill a team, to plan capacity), and the controller forgets finished jobs after <code>MinJobAge</code> (300 s by default, <span class="q-ref" data-r="def_minage"></span>; 600 s on this cluster). slurmdbd keeps them.</p>
+<p>The controller forgets finished jobs after <code>MinJobAge</code> (300 s by default, <span class="q-ref" data-r="def_minage"></span>; 600 s on this cluster); slurmdbd keeps them.</p>
 <ul>
-<li><code>sacct</code>: one row per job and per step, any field (<code>AllocTRES</code>, <code>Elapsed</code>, <code>State</code>, <code>ExitCode</code>, <code>NodeList</code>, <code>Reason</code>, <code>Eligible</code>). <code>-X</code> drops the steps, <code>-D</code> shows every requeued run, <code>-P</code> gives pipe-separated output for scripts. GPU-hours of a job are <code>gres/gpu</code> in AllocTRES times Elapsed.</li>
-<li><code>sreport</code>: summaries (cluster utilisation, top users) from <b>rollups</b> the database computes hourly. Asked for this page's last few minutes, it printed headers and no rows <span class="sl-meas">measured</span>: recent jobs are in <code>sacct</code> but not yet in <code>sreport</code>.</li>
-<li><code>sstat</code>: live usage of a running step (CPU, memory). It needs the job accounting plugin to read real per-process numbers; in these containers without cgroups it printed nonsense (<code>AveCPU 213503982+</code>, no MaxRSS) for the running example, so it is not used here.</li>
+<li><code>sacct</code>: one row per job and per step, any field (<code>AllocTRES</code>, <code>Elapsed</code>, <code>State</code>, <code>ExitCode</code>, <code>NodeList</code>, <code>Reason</code>, <code>Eligible</code>). <code>-X</code> drops the steps, <code>-D</code> shows every requeued run, <code>-P</code> gives pipe-separated output. A job's GPU-hours are <code>gres/gpu</code> in AllocTRES times Elapsed. Cancelled pending jobs have empty AllocTRES: they never held anything.</li>
+<li><code>sreport</code>: summaries (cluster utilisation, top users) from <b>rollups</b> the database computes hourly. Asked for this page's last few minutes it printed headers and no rows <span class="sl-meas">measured</span>: use <code>sacct</code> for recent jobs.</li>
+<li><code>sstat</code>: live usage of a running step. It needs the job accounting plugin to read real per-process numbers; in these containers without cgroups it printed nonsense (<code>AveCPU 213503982+</code>, no MaxRSS), so it is not used here.</li>
 <li><code>sacctmgr</code>: the database's users, accounts, QOS and limits (section 5).</li>
 </ul>
-<pre data-ex="acct"></pre>
-<p class="sl-cap"><code>sacct -X</code> over this page's session (16 Oct 2026, lines selected). Cancelled pending jobs have empty AllocTRES: they never held anything.</p>
+<details class="dp"><summary><code>sacct -X</code> over this page's session <span class="mute">(measured)</span></summary><div class="b"><pre data-ex="acct"></pre><p class="sl-cap">16 Oct 2026, lines selected.</p></div></details>
+</section>
+
+<section id="s-cont">
+<h2>12. Containers on Slurm <span class="sl-nr">described, not run here</span></h2>
+<p>A training job needs an exact stack (CUDA, NCCL, PyTorch, your code) on nodes that share one OS image, and nobody gets root. The common answer on GPU clusters is <b>Pyxis with enroot</b> (NVIDIA): Pyxis is "a SPANK plugin for the Slurm Workload Manager" (SPANK: Slurm's plugin interface for job options) that adds <code>--container-image</code>, <code>--container-mounts</code> and <code>--container-name</code> to srun, so <code>srun --container-image=nvcr.io#nvidia/pytorch:&lt;tag&gt; --container-mounts=/data:/data python train.py</code> runs every rank in the image; enroot imports a Docker image into a squashfs file and runs it without root, and pyxis requires enroot 3.1.0 or later ({{pyxis README|https://github.com/NVIDIA/pyxis}}). Not run here because this cluster is itself made of containers; what matters (image pull time on thousands of nodes, squashfs caching on local NVMe, the driver binding) needs real nodes.</p>
+<details class="dp"><summary>The other ways: Apptainer, Slurm's OCI support, plain Docker</summary><div class="b">
+<div class="tw"><table><thead><tr><th>Way</th><th>How</th><th>Notes</th></tr></thead><tbody>
+<tr><td><b>Apptainer</b> (formerly Singularity)</td><td><code>srun apptainer exec --nv image.sif python train.py</code></td><td>one-file images (<code>.sif</code>), run as the user; <code>--nv</code> exposes the host's GPU devices and binds in its CUDA libraries ({{Apptainer GPU docs|https://apptainer.org/docs/user/main/gpu.html}}).</td></tr>
+<tr><td><b>Slurm's own OCI support</b></td><td><code>srun --container=/path/to/bundle ...</code>, configured by <code>oci.conf</code> (runc, crun, ...); <code>scrun</code> lets rootless Docker or Podman run jobs (Slurm 23.02 and later)</td><td>"The bundle must already exist on the requested path on the execution node" ({{containers docs|https://slurm.schedmd.com/containers.html}}).</td></tr>
+<tr><td>plain Docker</td><td>no</td><td>needs a root daemon; the Slurm docs list the security options and networking it must give up to be used through scrun.</td></tr>
+</tbody></table></div>
+<p>The lab nodes' image already contains the running example and torch 2.14.1, so nesting a runtime inside would show nothing a real GPU node does.</p>
+</div></details>
+<details class="dp"><summary>Slurm on Kubernetes: Slinky and SUNK <span class="mute">(described, not run here)</span></summary><div class="b">
+<p>Organisations that want one GPU pool for batch training (driven with <code>sbatch</code>, fairshare and backfill) and long-running services that Kubernetes runs well can run Slurm inside Kubernetes rather than split the GPUs between two clusters, one idle while the other queues.</p>
+<ul>
+<li><b>Slinky</b> (SchedMD's own): a Kubernetes operator that "contains a Kubernetes operator to deploy and manage certain components of Slurm clusters". Workers are <b>NodeSets</b>, "A set of homogeneous Slurm workers (compute nodes)", run as a StatefulSet or a DaemonSet of <code>slurmd</code> pods, each pod's status reflecting its Slurm node state; the controller is a pod too, with high availability through a ReadWriteMany volume. Its compatibility table lists releases 1.0 to 1.3, each needing Slurm 25.11 or later ({{slurm-operator README|https://github.com/SlinkyProject/slurm-operator}}); the latest release when this page was written was v1.2.3 (30 September 2026, root's Tool map). Not run on the topic's kind cluster: it needs Slurm 25.11+ images and more memory than the topic's budget.</li>
+<li><b>SUNK</b> (CoreWeave): "Each Slurm compute node is a Pod running <code>slurmd</code>, placed one-to-one on a Kubernetes Node"; a SUNK Pod Scheduler places Kubernetes pods "through Slurm's own scheduling logic, on the same Nodes as Slurm jobs", and a Syncer "mirrors state between Slurm nodes and their Pods in both directions" ({{SUNK docs|https://docs.coreweave.com/products/sunk}}, <span class="sl-pub">vendor</span>).</li>
+<li>Managed Slurm in clouds: AWS SageMaker HyperPod launched with Slurm in November 2023 (root's Tool map).</li>
+</ul>
+<p><b>What you get, and what it costs.</b> Slurm's semantics stay intact (all-or-nothing allocations, fairshare, backfill) while Kubernetes handles node lifecycle, images, monitoring and the services beside the jobs. The cost is two control planes that must agree about every node, a <code>slurmd</code> that lives in a pod (its cgroups, devices and network are whatever the pod is given), and failure modes from both. Choosing between Slurm, Kubernetes with Kueue, and Ray is the root's comparison; {{Kubernetes for ML|n:3c65c17b0d0d81cf9417de52108cfbce}} owns the Kubernetes side.</p>
+</div></details>
 </section>

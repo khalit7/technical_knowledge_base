@@ -26,7 +26,7 @@ checks = [
  ('recompute all match', all(o['diff'] == 0 for o in json.load(open('recompute.json')))),
  ('sig early 23 s / requeue 121 s', 'came 12 s after the start' in text and '05:44:53, 121 s after' in text and re.search(r'128 +sl-sig +COMPLETED 2026-10-16T05:42:52 2026-10-16T05:44:53', d['ex']['sig_sacct']) is not None),
  ('sdiag 39 / 65 cycles', 'Total cycles: 39' in d['ex']['sdiag_after'] and 'Total cycles: 65' in d['ex']['sdiag_after']),
- ('no em dash', '—' not in page),
+ ('no em dash', '\u2014' not in page),
 ]
 bad = [c for c, ok in checks if not ok]
 print(len(checks) - len(bad), 'of', len(checks), 'checks pass', bad)
