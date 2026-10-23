@@ -44,3 +44,9 @@ Scoring as in visuals/choosing.md (0 to 2 each; "reproduces" and "computable" co
 - Periodic quantities: whether an angle is "seen" must be judged modulo a turn (2026-10-03 lesson, kept).
 - A config field is not proof of use: Nemotron-H configs carry rope_theta but the modeling code never calls the rotation; count calls in the pinned source before quoting a hybrid's position scheme.
 - Partial RoPE has two incompatible meanings in transformers 5 (default respaces the spectrum, "proportional" truncates it): read rope_type, not just partial_rotary_factor.
+
+## 2026-10-23 rebuild
+- Built: hero (static annotated diagram: one pair rotated, the tiny GPT's 16 pairs as clocks at distance 300, fast against slow); layer-strip figure of eight configs (structure); partial RoPE two ways as wavelength ticks (structure, before/after of two designs).
+- Moved inline: the Past tab's offsets animation and per-position curves (section 8), the Spectrum tab's per-pair chart (section 7).
+- Moved to closed blocks: YaRN bands chart (it repeats the spectrum chart's YaRN line per pair; kept for its turn counts and the gpt-oss reproduction).
+- Removed: the measured extension table (its rows are in section 8's table).

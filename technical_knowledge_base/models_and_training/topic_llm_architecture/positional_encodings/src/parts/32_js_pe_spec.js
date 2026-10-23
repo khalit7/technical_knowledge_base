@@ -1,4 +1,4 @@
-// ---- Tab: Stretch the spectrum. Per-pair slowdown (theta / theta') for every extension method on real configs ----
+// ---- Reading section 7 (the chart, moved from the old Stretch the spectrum tab on 2026-10-23) and the Every config tab (tables). Per-pair slowdown (theta / theta') for every extension method on real configs ----
 (function(){
   const $=id=>document.getElementById(id);if(!$('pe-sp')||!window.PE_DATA)return;
   const D=window.PE_DATA,RO=window.ROPE,RD=window.RD;
@@ -64,7 +64,8 @@
     tb.querySelector('tbody').innerHTML=rows.map(r=>'<tr><td><a href="'+e(r.url)+'" target="_blank" rel="noopener noreferrer">'+e(r.repo)+'</a></td><td>'+e(r.scheme)+(r.partial?' (partial '+r.partial+')':'')+'</td><td class="num">'+(r.theta?fmt(r.theta):'')+(r.local_theta?'<br><span class="small mute">local '+fmt(r.local_theta)+'</span>':'')+'</td><td class="num">'+(r.rot_dims||'')+(r.head_dim&&r.rot_dims&&r.rot_dims!==r.head_dim?'<span class="small mute"> of '+r.head_dim+'</span>':'')+'</td><td class="num">'+(r.longest_wavelength?fmt(r.longest_wavelength):'')+'</td><td class="num">'+(r.max_pos?fmt(r.max_pos):'')+'</td><td>'+sc(r)+'</td><td class="small">'+e([r.nope_layers?'NoPE layers: '+r.nope_layers:'',r.window?'window '+fmt(r.window):''].concat(r.notes||[]).filter(Boolean).join('; '))+'</td></tr>').join('');
     $('pe-cnCap').textContent=rows.length+' of '+(D.census||[]).length+' configs. Fetched from Hugging Face (official repositories, or public mirrors where gated) between 2026-10-03 and 2026-10-18; a base config and its Instruct config can differ (Llama 4 Scout). Where a config has no rope_theta, the transformers default 10,000 applies (Llama 1 and 2, Falcon). The base of a decoupled MLA key is that key\'s.'}
   if($('pe-cnF'))$('pe-cnF').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;CN.f=b.dataset.f;[...$('pe-cnF').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});drawCensus()});
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-spec']=window.TAB_RENDER['t-spec']||[]).push(()=>{draw();drawTable();drawCensus()});
+  RD.onRender(draw);
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-spec']=window.TAB_RENDER['t-spec']||[]).push(()=>{drawTable();drawCensus()});
   addEventListener('resize',()=>{if($('pe-sp').offsetParent)draw()});
   draw();drawTable();drawCensus();
 })();

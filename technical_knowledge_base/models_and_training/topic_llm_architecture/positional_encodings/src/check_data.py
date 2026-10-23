@@ -56,11 +56,20 @@ has('llama4 temp 10M', '%.2f at ten million' % rc['llama4_temp']['10485759'])
 has('mistral3 llama4 scale', '%.3f at its last position' % (1 + 0.1 * math.log(1 + math.floor(294911 / 8192))))
 g = rc['partial_two_ways']['gemma4']
 has('gemma4 globals in variants text via data', 'global_head_dim 512')
-has('learned table params', '65,536 parameters in the tiny GPT, 786,432')
+has('learned table params', '65,536 in the tiny GPT, 786,432 in GPT-2')
 has('rope flops', '6 × 256 = 1,536')
 has('llama3 pair 63', '2.46 × 10')
 has('llama3 pair 63 wavelength', '2.56 million tokens')
 has('kimi k3 full layers', '(24 of 93)')
+# static round numbers written into the prose (ledger keys) against the data
+ab = {(r['model'], r['scaling']): r for r in past['runs']}
+has('round: plain rope', 'plain RoPE goes from %.2f inside 256 to %.2f' % (ab[('at_mha', 'plain')]['0-255'], ab[('at_mha', 'plain')]['1024-2047']))
+has('round: yarn x8', 'YaRN ×8 holds %.2f' % ab[('at_mha', 'yarn x8')]['1024-2047'])
+has('round: alibi', 'ALiBi stays at %.2f' % ab[('pe_alibi', 'plain')]['1024-2047'])
+rn = {r['name']: r for r in runs}
+has('round: sinus scale', '%.2f against %.2f' % (rn['pe_sinusoidal']['val_100'], rn['pe_sinusoidal_x16']['val_100']))
+lb = J('probe', 'out', 'probe.json')['layout_bug']
+has('round: layout', '%.2f becomes %.2f' % (lb['right_layout_loss'], lb['interleaved_loss']))
 # the measured headline sentences live in 24_js_pe_fill.js and are built from the data; check the ones that assert an ordering
 pr = {(r['model'], r['scaling']): r for r in past['runs']}
 rope, y8, n8, l8, t8 = pr[('at_mha', 'plain')], pr[('at_mha', 'yarn x8')], pr[('at_mha', 'ntk x8')], pr[('at_mha', 'linear x8')], pr[('at_mha', 'temperature only (x8)')]
