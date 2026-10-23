@@ -6,7 +6,7 @@ const R = createRequire(path.resolve('html_utils/package.json')); const puppetee
 const page_ = path.resolve('technical_knowledge_base/models_and_training/topic_llm_architecture/tokenizers/index.html');
 const shots = path.join(path.dirname(page_), '.shots'); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
-const MUST = ['tk-overStats', 'tk-pipeView', 'tk-snEncode', 'tk-mergeList', 'tk-sweepTab', 'tk-vocCalcTab', 'tk-nowTab', 'tk-chView', 'tk-arRows', 'tk-codeRows', 'tk-spView', 'tk-ltRows', 'tk-glPlot', 'tk-growText', 'tk-costPlot', 'tk-inspOut', 'tk-veBars', 'tk-granRows', 'tk-trnWords', 'tk-failRows'];
+const MUST = ['tk-hero', 'tk-heroStats', 'tk-spcView', 'tk-vcOut', 'tk-vsPlot', 'tk-vtPlot', 'tk-pipeView', 'tk-snEncode', 'tk-mergeList', 'tk-sweepTab', 'tk-vocCalcTab', 'tk-nowTab', 'tk-chView', 'tk-arRows', 'tk-codeRows', 'tk-spView', 'tk-ltRows', 'tk-glPlot', 'tk-growText', 'tk-costPlot', 'tk-inspOut', 'tk-veBars', 'tk-granRows', 'tk-trnWords', 'tk-failRows'];
 let total = 0, bad = 0;
 for (const [scheme, width, rm] of [['dark', 390, false], ['light', 920, false], ['light', 920, true]]) {
   const p = await b.newPage(); const errs = [];
@@ -33,8 +33,15 @@ for (const [scheme, width, rm] of [['dark', 390, false], ['light', 920, false], 
     if (!rm) await p.screenshot({ path: path.join(shots, `ctl-${t}-${scheme}-${width}.png`), fullPage: false });
   }
   for (const id of MUST) { const ok = await p.evaluate(id => { const e = document.getElementById(id); return !!e && e.innerHTML.trim().length > 20; }, id); if (!ok) errs.push('empty card ' + id); }
-  if (rm) { await p.click('#tabs button[data-t=t-read]'); await p.evaluate(() => document.getElementById('tk-pipe').scrollIntoView()); await new Promise(r => setTimeout(r, 1500));
-    const playing = await p.$eval('#tk-pipeCtl-p', x => x.textContent.includes('Pause')); if (playing) errs.push('animation autoplays under reduced motion'); }
+  // nothing may move before the reader acts (2026-10-23): a fresh page, every animated card scrolled into view, no Pause button showing
+  { const q = await b.newPage(); await q.setViewport({ width, height: 900 });
+    await q.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm ? 'reduce' : 'no-preference' }]);
+    await q.goto('file://' + page_); await new Promise(r => setTimeout(r, 300));
+    for (const c of ['tk-pipe', 'tk-grow', 'tk-trn', 'tk-patch']) { await q.evaluate(c => document.getElementById(c).scrollIntoView(), c); await new Promise(r => setTimeout(r, 900)); }
+    const playing = await q.$$eval('.an-play', bs => bs.filter(x => x.textContent.includes('Pause')).length); if (playing) errs.push(playing + ' animation(s) autoplay');
+    // the hero's ids equal the recorded run of src/code/snippets.py
+    const hero = await q.evaluate(() => { const want = window.TKN.snip.encode.stdout.split('\n')[0]; const got = '[' + window.TKG.encode('Roxy loved to climb the icy hill.', 3839).join(', ') + ']'; return got === want ? '' : got + ' != ' + want; });
+    if (hero) errs.push('hero ids ' + hero); await q.close(); }
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push('jsErr ' + box);
   bad += errs.length; console.log(scheme, width, rm ? 'reduced-motion' : '', errs.length ? errs : 'clean'); await p.close();
 }

@@ -20,11 +20,11 @@ s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a hre
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
 D=$(printf '\342\200\224'); if grep -q "$D" ../index.html; then echo "EM DASH FOUND"; grep -n -o ".\{30\}$D.\{30\}" ../index.html | head; fi
 wc -c ../index.html
-# Reading time (230 words per minute over the Reading tab's visible text) and the best-resources total
+# Best-resources total (and a static word estimate; the header's reading time is measured with html_utils/audit_pages.mjs and written into 10_header.html by hand)
 python3 - <<'PY'
 import re
 s=open('../index.html').read()
-a=s.index('id="t-read"');b=s.index('id="t-grow"')
+a=s.index('id="t-read"');b=s.index('id="t-lang"')
 r=re.sub(r'<script.*?</script>|<style.*?</style>','',s[a:b],flags=re.S)
 det=' '.join(re.findall(r'<details.*?</details>',r,flags=re.S));r=re.sub(r'<details.*?</details>',' ',r,flags=re.S)
 t=re.sub(r'<[^>]+>',' ',r);dw=len(re.sub(r'<[^>]+>',' ',det).split())

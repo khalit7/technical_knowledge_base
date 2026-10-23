@@ -63,3 +63,9 @@ Rejected in this rebuild:
 | A second merge animation for WordPiece or Unigram on TinyStories | The three-algorithm trainer already shows both on one text; repeating it at scale adds no mechanism. |
 | Re-running the 204-language FLORES counts with tokenizers 0.23.3 | Deterministic counts already verified exactly against Petrov et al.; spot checks with 0.23.3 agree. |
 | Animating the KV cache cost of extra tokens | Owned by the root's Attention lab and the Long context child; linked. |
+
+## 2026-10-23 rebuild (teaching contract)
+- Built: hero figure (static annotated diagram: one running-story sentence to 11 ids to the 4,096-row table laid out as special, bytes, merges; three cost counters). Chosen because the subject's structure (text, pieces, ids, rows, output scores) is what one draws first; the stepper below it shows the process.
+- Built: special-token traps as before/after (Qwen3 control string in user text; Gemma 3 double BOS), from the recorded ids of `code/snippets.py`. Only the first three ids of the Gemma run were recorded, so the visual shows those and the counts (11 against 10); a fuller view needs the run repeated with all ids printed (seconds on CPU, needs the tokenizer files, which are not on this machine now).
+- Moved inline: merge replay, cost plot, inspector (Grow tab); calculator, share bars, savings plot (Vocabulary size tab). The timeline stays a tab (across 41 models).
+- Rejected: an animation of the pre-tokenizer regex (the pipeline stepper's pre-tokenizer stage already shows it); a chat-template piece-by-piece diagram (Gemma's split of "user\n" was not recorded; would be unconfirmed).
