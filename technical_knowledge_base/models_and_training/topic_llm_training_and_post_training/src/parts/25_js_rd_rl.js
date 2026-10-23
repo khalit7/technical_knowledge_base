@@ -63,5 +63,5 @@
       RD.stat(mode==='grpo'?'Answers with a learning signal':'Learning signals',sh==='a'?signals:'not yet',mode==='grpo'?'groups with no spread give none':'');
   }
   A=RD.anim({card:'rd-rl',ctl:'rd-rlC',n:MODES.ppo.steps.length,draw,ms:2600,label:'Step'});
-  $('rd-rlM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=b.dataset.m;A.reset(MODES[mode].steps.length);A.play()});
+  $('rd-rlM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=b.dataset.m;A.reset(MODES[mode].steps.length)});
 })();
