@@ -1,38 +1,39 @@
 <section id="rd-s0">
-<p class="lead">A <dfn>large language model</dfn> (LLM) is a function that reads a sequence of tokens and returns, for the next position, a probability for every token in its vocabulary. Almost every LLM in use in 2026 computes that function with the same machine: a stack of identical <dfn>decoder blocks</dfn>, each mixing information across positions (attention, or a recurrent substitute) and then transforming each position on its own (a feed-forward network), with a normalisation and a residual connection around each. This page follows one token through one block, then asks at each component what the alternatives are and what each one costs, in parameters, in FLOPs and in the memory a running model must hold. Reading time about <span id="rd-time">39</span> minutes (measured from the words outside widgets at 200 a minute; the folded answers add about <span id="rd-time-qa">7</span>).</p>
+<p class="core"><b>The core idea.</b> Almost every LLM in 2026 is one <dfn>decoder block</dfn> repeated L times around a <dfn>residual stream</dfn>: each block lets every position read earlier positions (the sequence mixer), then transforms each position on its own (the feed-forward network), and nearly every design choice since 2017 trades quality against what one token costs to keep, read and compute in one of those two places.</p>
 
-<div class="rd-card">
-<h4>The decoder in one screen: each component, its 2026 default, the alternatives and what they trade</h4>
-<div class="tw"><table class="rd-cmp">
-<thead><tr><th>Component</th><th>Usual choice in 2026</th><th>Alternatives</th><th>What the choice trades</th><th>Section</th></tr></thead>
-<tbody>
-<tr><td>Tokens and embedding</td><td>Byte-level BPE, vocabulary of about 100K to 260K</td><td>SentencePiece unigram, bytes, smaller vocabularies</td><td>Shorter sequences against a bigger embedding table</td><td><a href="#rd-s1">1</a></td></tr>
-<tr><td>Sequence mixer</td><td>Grouped-query attention (GQA)</td><td>MHA, MQA, MLA, sliding window, trained sparse, state-space or linear layers (hybrids)</td><td>Bytes each token must keep (the KV cache) against quality and exact recall</td><td><a href="#rd-s3">3</a>, <a href="#rd-s4">4</a>, <a href="#rd-s10">10</a></td></tr>
-<tr><td>Position</td><td>RoPE, with a scaling rule for long context</td><td>Learned or sinusoidal absolute, ALiBi, no position (NoPE) on some layers, partial RoPE</td><td>Behaviour past the trained length</td><td><a href="#rd-s5">5</a></td></tr>
-<tr><td>Feed-forward</td><td>SwiGLU; mixture of experts (MoE) in most large open models</td><td>GELU MLP of width 4d; dense against sparse</td><td>Compute per token against memory for all experts</td><td><a href="#rd-s6">6</a></td></tr>
-<tr><td>Normalisation</td><td>Pre-norm RMSNorm, often QK-norm</td><td>Post-norm LayerNorm (2017), norms after the sublayer, both sides</td><td>Trainability at depth and loss spikes</td><td><a href="#rd-s7">7</a></td></tr>
-<tr><td>Shape</td><td>Width about 100 to 130 times the depth in large models</td><td>Deeper and thinner small models</td><td>Same parameters, different latency and quality</td><td><a href="#rd-s8">8</a></td></tr>
-<tr><td>Family and objective</td><td>Decoder-only, next-token prediction</td><td>Encoder-only (masked tokens), encoder-decoder, multi-token prediction, diffusion LMs</td><td>What the model can be asked to do, and how fast it generates</td><td><a href="#rd-s11">11</a></td></tr>
-</tbody></table></div>
-<p class="small mute">Each cell is sourced in the section it links. The table is the axes of the whole page; the {{Architecture map|#t-map}} places real models on them.</p>
+<div class="fig" id="rd-hero">
+<h4>One decoder block, repeated L times: every part is a choice, and one child page owns each</h4>
+<div class="rd-svg" id="rd-hero-svg"></div>
+<p class="cap">Each box opens the page that owns it. The left rail is the residual stream, one vector of d numbers per position (4,096 in Llama 3.1 8B); each sublayer reads a normalised copy and adds its result back at &oplus;. The two rows inside the block are where the choices compared on this page live. {{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}} builds this exact block from an empty file and trains it; the {{LLM architecture gallery|n:3c65c17b0d0d81be8a07f2562fa2030a}} reads real 2026 configs part by part.</p>
 </div>
 
-<p><b>The running example.</b> Every section and every lab uses the same three things: <span data-rd="example" class="rd-todo">TODO 1 (setup): the tiny GPT trained on this Mac (corpus, tokenizer, d_model, layers, heads, context, parameters) and the fixed 256-token running sequence, from src/data/README.md.</span> A small open model inspected layer by layer: <span data-rd="example_open" class="rd-todo">TODO 2 (setup): SmolLM2-135M (licence, revision).</span> And the <code>config.json</code> files of real models (Llama 3.1, Qwen3 dense and MoE, DeepSeek-V3, gpt-oss, Gemma 3, a hybrid), from which every frontier number on this page is <span class="der">derived</span> with the formula shown.</p>
-<p>Labels: <span class="meas">measured</span> means produced for this page in October 2026 on an Apple M1 Pro (GPU through PyTorch's MPS backend, or CPU); <span class="vend">vendor</span>, a lab's figure about its own model; <span class="indep">third-party</span>, someone without a stake; <span class="der">derived</span>, computed here with the formula shown; <span class="unc">unconfirmed</span>, no primary source. Shapes, parameter counts, FLOPs and bytes transfer exactly to a datacenter GPU; laptop seconds do not.</p>
-<p>The page serves four goals: write and modify a GPT block, know what every tensor in it is and costs, debug a model that misbehaves, and answer design questions in an interview. Neighbouring pages own their subjects and are linked, not repeated: {{Topic: llm-landscape|n:3c65c17b0d0d812d9e00f6ec89965286}} (labs, models, prices), {{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}} (how these models are trained), {{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}} (how they are served), and {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} (the hardware side of FLOPs and bytes).</p>
+<p class="small"><b>You need</b> a neural network, a matrix multiply and a softmax. If the transformer itself is rusty, {{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}} first.</p>
+<div class="small"><b>New terms on this page</b> (each defined again where it is used):</div>
+<div class="terms">
+<div><b>Residual stream</b>: the vector each position carries through the stack; blocks only add to it.</div>
+<div><b>Sequence mixer</b>: the sublayer where a position reads other positions (attention, or a recurrent layer).</div>
+<div><b>KV cache</b>: the keys and values of past tokens that attention keeps so it never recomputes them.</div>
+<div><b>Prefill / decode</b>: processing the prompt at once (compute-bound) / one new token per step (memory-bound).</div>
+<div><b>Total / active parameters</b>: what must sit in memory / what one token multiplies through (they differ in MoE).</div>
+<div><b>Hybrid</b>: a stack that mixes a few attention layers with many fixed-state recurrent layers.</div>
+</div>
+
 </section>
 
 <section id="rd-s1">
-<h2>1. What an LLM computes: tokens in, a distribution out</h2>
-<p>Text is first cut into <dfn>tokens</dfn>, integer ids from a fixed vocabulary of size V, by a <dfn>tokenizer</dfn> (Llama 3.1 uses V = 128,256, {{config|https://huggingface.co/unsloth/Meta-Llama-3.1-8B/raw/main/config.json}}). The model then runs a fixed pipeline on each position:</p>
-<div class="rd-pipe">
-<div style="--sc:var(--c1)"><b>Embed</b><i>row id of a V &times; d table: one vector of d numbers per token</i></div><span>&rarr;</span>
-<div style="--sc:var(--c3)"><b>L blocks</b><i>each adds attention, then a feed-forward, to that vector</i></div><span>&rarr;</span>
-<div style="--sc:var(--c4)"><b>Final norm</b><i>rescale the vector</i></div><span>&rarr;</span>
-<div style="--sc:var(--c2)"><b>Unembed</b><i>d &times; V matrix: one score (logit) per vocabulary entry</i></div><span>&rarr;</span>
-<div style="--sc:var(--c5)"><b>Softmax</b><i>logits become probabilities that sum to 1</i></div>
-</div>
-<p>The vector of d numbers a position carries through the stack is the <dfn>residual stream</dfn>: every block reads it and adds its output back, so it is the model's working memory for that position. The scores before the softmax are the <dfn>logits</dfn>. In <dfn>training</dfn>, every position predicts its own next token at once and the loss is the average cross-entropy (minus the log probability given to the true next token); a <dfn>causal mask</dfn> stops a position from looking at later ones, so one forward pass over a 4,096-token sequence gives 4,096 training examples. In <dfn>generation</dfn>, the model predicts one token, appends it, and runs again (how the next token is picked from the distribution is {{Sampling and decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}).</p>
-<p>Two small choices live here. The embedding and unembedding matrices both have V &times; d entries; <dfn>tied embeddings</dfn> use one matrix for both ({{Press and Wolf 2016|https://arxiv.org/abs/1608.05859}}), which small models do because the table is a large share of their parameters (Llama 3.1 8B does not tie, <code>"tie_word_embeddings": false</code>; its two tables are 1.05 billion of its 8.03 billion parameters, <span class="der">derived</span> as 2 &times; 128,256 &times; 4,096). And the vocabulary size trades sequence length against table size: a bigger vocabulary needs fewer tokens per sentence, so attention is cheaper, but each token is rarer in training. How tokenizers are trained and fail is {{Tokenizers|n:3c65c17b0d0d817187bcd94a1b0f15ea}}.</p>
-<p class="deepnote">Go deeper (optional): {{Tokenizers|n:3c65c17b0d0d817187bcd94a1b0f15ea}} (BPE, byte-level, unigram, the language tax, glitch tokens); the {{logit lens|#t-inside}} in the Inside a real model lab shows what the residual stream would predict if the model stopped after each layer.</p>
+<h2>1. The decoder in one screen</h2>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Part</th><th>Usual choice in 2026</th><th>Alternatives</th><th>What the choice trades</th><th>Owner</th></tr></thead>
+<tbody>
+<tr><td>Tokens and embedding</td><td>Byte-level BPE, vocabulary of about 100K to 260K</td><td>SentencePiece unigram, bytes, smaller vocabularies</td><td>Shorter sequences against a bigger embedding table</td><td>{{Tokenizers|n:3c65c17b0d0d817187bcd94a1b0f15ea}}</td></tr>
+<tr><td>Sequence mixer: attention variant</td><td>Grouped-query attention (GQA)</td><td>MHA, MQA, MLA, sliding window, trained sparse attention</td><td>Bytes each token keeps and each step reads, against quality</td><td>{{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}</td></tr>
+<tr><td>Sequence mixer: attention or a fixed state</td><td>Attention; hybrids in a growing share of flagships</td><td>State-space or linear layers (Mamba, Gated DeltaNet), mixed with a few attention layers</td><td>Constant memory per sequence against exact recall</td><td>{{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}}</td></tr>
+<tr><td>Context and its cache</td><td>128K or more, with windowed layers in some models</td><td>Global layers only, local : global mixes, cache eviction</td><td>Memory and compute per token of context, against what the model can still use</td><td>{{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}</td></tr>
+<tr><td>Position</td><td>RoPE, with a scaling rule for long context</td><td>Learned or sinusoidal absolute, ALiBi, no position (NoPE) on some layers</td><td>Behaviour past the trained length</td><td>{{Positional Encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}</td></tr>
+<tr><td>Feed-forward</td><td>SwiGLU; mixture of experts (MoE) in most large open models</td><td>GELU MLP of width 4d; dense against sparse</td><td>Compute per token against memory for all experts</td><td>{{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}</td></tr>
+<tr><td>Normalisation</td><td>Pre-norm RMSNorm, often QK-norm</td><td>Post-norm LayerNorm (2017), norms after the sublayer, both sides</td><td>Trainability at depth and loss spikes</td><td>{{Normalisation, residuals and stability|n:3fd5c17b0d0d8163b50dc5e9d9240e89}}</td></tr>
+<tr><td>Shape</td><td>Width about 100 to 130 times the depth in large models</td><td>Deeper and thinner small models</td><td>Same parameters, different latency and quality</td><td>This page (section 8)</td></tr>
+<tr><td>Family and objective</td><td>Decoder-only, next-token prediction</td><td>Encoder-only (masked tokens), encoder-decoder, multi-token prediction, diffusion LMs</td><td>What the model can be asked to do, and how fast it generates</td><td>{{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}</td></tr>
+</tbody></table></div>
+<p class="small mute">Each row is a section below with its sources. The {{Architecture map|#t-map}} places real models from GPT-2 to 2026 on these axes; the {{Block lab|#t-block}} runs one real token through one block.</p>
 </section>

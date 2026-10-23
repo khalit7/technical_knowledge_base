@@ -1,7 +1,7 @@
 // ---- Architecture map (t-map): shared helpers under window.AM ----
 // Data: window.AMD (models, from src/map/build_map.py) and window.AMS (shift stepper, from src/map/shifts.py).
 // The step controller is a copy of RD.anim registered on this tab: it animates only while its card is on screen
-// in the visible tab, plays once when first scrolled into view, and never autoplays under prefers-reduced-motion.
+// in the visible tab, never autoplays: it waits until the reader presses play or steps (2026-10-23).
 window.AM=(function(){
   if(!window.AMD||!document.getElementById('t-map'))return null;
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -56,7 +56,7 @@ window.AM=(function(){
     q('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     q('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM&&o.autoplay!==false){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
