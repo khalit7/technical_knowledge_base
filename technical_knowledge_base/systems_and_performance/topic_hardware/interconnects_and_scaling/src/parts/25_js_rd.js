@@ -8,7 +8,7 @@
 
   // ---- ladder ----
   (function(){const mx=Math.log10(D.ladder[0].bw/5);
-    $('ic-ladder').innerHTML=D.ladder.map((r,i)=>'<div class="row"><span class="nm">'+esc(r.nm)+'<span class="ml">'+esc(r.sub)+'</span></span><span class="track"><span class="fill" style="width:'+(Math.log10(r.bw/5)/mx*100).toFixed(1)+'%;background:'+(i===0?'var(--c4)':r.bw>=400?'var(--c3)':r.bw>=60?'var(--c5)':'var(--c2)')+'"></span></span><span class="val">'+(r.bw>=1000?fN(r.bw):r.bw)+' GB/s</span></div>').join('')+
+    $('ic-ladder').innerHTML=D.ladder.map((r,i)=>'<div class="row"><span class="nm">'+esc(r.nm)+'<span class="ml">'+esc(r.sub)+'</span></span><span class="track"><span class="fill" style="width:'+(Math.log10(r.bw/5)/mx*100).toFixed(1)+'%;background:'+(/HBM/.test(r.nm)?'var(--c4)':/NVLink/.test(r.nm)?'var(--c3)':/PCIe/.test(r.nm)?'var(--c5)':'var(--c2)')+'"></span></span><span class="val">'+(r.bw>=1000?fN(r.bw):r.bw)+' GB/s</span></div>').join('')+
       '<div class="small mute">Bars on a log scale.</div>';
     set('ic-g8',(D.ex.grad8/1e9).toFixed(2)+' GB');
   })();
@@ -35,17 +35,17 @@
       return i===1?'Every GPU sends its whole buffer up to the NVSwitch, which adds the 8 copies as they arrive (shown in the switch row).':'The switch multicasts the sum back down. In hardware the up and down streams overlap in chunks, so the time is one buffer’s worth plus two latencies.';
     }
     function draw(i){
-      const host=$('ic-arsvg'),W=Math.min(860,RD.width(host)),cw=Math.min(64,(W-20)/n),gap=Math.max(4,cw*0.18),cellW=cw-gap,ch=13,top=54,H=top+n*(ch+2)+(alg==='switch'?66:20);
+      const host=$('ic-arsvg'),W=Math.min(860,RD.width(host)),cw=Math.min(64,(W-20)/n),gap=Math.max(4,cw*0.18),cellW=cw-gap,ch=15,top=54,H=top+n*(ch+2)+(alg==='switch'?66:20);
       const x0=(W-n*cw)/2;const sn=run.snaps[i];let s='';
       // arrows for this step
       if(i>0){sn.tr.forEach(([a,b])=>{
         if(b===-1||a===-1){const g=a===-1?b:a,x=x0+g*cw+cellW/2,y1=top+n*(ch+2)+4,y2=y1+22;s+='<line x1="'+x+'" y1="'+(a===-1?y2:y1)+'" x2="'+x+'" y2="'+(a===-1?y1:y2)+'" stroke="var(--acc)" stroke-width="1.6" marker-end="url(#ic-ah)"/>';return}
         const xa=x0+a*cw+cellW/2,xb=x0+b*cw+cellW/2,h=Math.min(40,10+Math.abs(b-a)*6);
         s+='<path d="M'+xa+','+(top-4)+' Q'+((xa+xb)/2)+','+(top-4-h)+' '+xb+','+(top-4)+'" fill="none" stroke="var(--acc)" stroke-width="1.4" opacity=".8" marker-end="url(#ic-ah)"/>';});}
-      for(let g=0;g<n;g++){const x=x0+g*cw;s+=RD.t(x+cellW/2,top+n*(ch+2)+(alg==='switch'?62:14),'GPU '+g,{a:'middle',fs:10});
+      for(let g=0;g<n;g++){const x=x0+g*cw;s+=RD.t(x+cellW/2,top+n*(ch+2)+(alg==='switch'?62:14),'GPU '+g,{a:'middle',fs:11});
         for(let c=0;c<n;c++){const k=ICSIM.pop(sn.have[g][c]),f=k/n;
           s+='<rect x="'+x+'" y="'+(top+c*(ch+2))+'" width="'+cellW+'" height="'+ch+'" rx="2" fill="var(--c1)" fill-opacity="'+(0.12+0.88*f).toFixed(2)+'"/>';
-          if(cellW>26)s+=RD.t(x+cellW/2,top+c*(ch+2)+10,k+'/8',{a:'middle',fs:9,fill:f>0.5?'var(--bg)':'var(--ink)'});}}
+          if(cellW>26)s+=RD.t(x+cellW/2,top+c*(ch+2)+11.5,k+'/8',{a:'middle',fs:11,fill:f>0.5?'var(--bg)':'var(--ink)'});}}
       if(alg==='switch'){const y=top+n*(ch+2)+28;s+='<rect x="'+x0+'" y="'+y+'" width="'+(n*cw-gap)+'" height="18" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(x0+(n*cw-gap)/2,y+13,'NVSwitch'+(sn.sw?': holds '+ICSIM.pop(sn.sw[0])+'/8 in every chunk':''),{a:'middle',fs:11})}
       host.innerHTML=RD.svg(W,H,'<defs><marker id="ic-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--acc)"/></marker></defs>'+s,'All-reduce of 8 chunks over 8 GPUs, '+NM[alg]+', step '+i);
       set('ic-arcap','<b>'+NM[alg]+'.</b> '+caption(i));
@@ -75,13 +75,13 @@
       const all=[];['ring','rd','gloo'].forEach(k=>{if(v.data[k])v.data[k].hi.forEach(t=>{if(t)all.push(t)})});
       const ymin=Math.min(...v.data.rd.lo.filter(t=>t))*0.7,ymax=Math.max(...all)*1.3,y=t=>T+(Math.log10(ymax)-Math.log10(t))/(Math.log10(ymax)-Math.log10(ymin))*(H-T-B);
       let s='';
-      for(let e=-5;e<=0;e++){const t=Math.pow(10,e);if(t<ymin||t>ymax)continue;s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(t)+'" y2="'+y(t)+'" stroke="var(--line)"/>'+RD.t(L-4,y(t)+4,fT(t),{a:'end',fs:10})}
-      [4,1024,1048576,16777216].forEach((sz,k)=>{s+=RD.t(x(sz),H-B+14,fB(sz),{a:k===3?'end':k===0?'start':'middle',fs:10})});
-      s+=RD.t((L+W-R)/2,H-4,'all-reduce buffer size (log)',{a:'middle',fs:10,fill:'var(--mute)'});
+      for(let e=-5;e<=0;e++){const t=Math.pow(10,e);if(t<ymin||t>ymax)continue;s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(t)+'" y2="'+y(t)+'" stroke="var(--line)"/>'+RD.t(L-4,y(t)+4,fT(t),{a:'end',fs:11})}
+      (W<520?[4,1024,16777216]:[4,1024,1048576,16777216]).forEach((sz,k,A)=>{s+=RD.t(x(sz),H-B+14,fB(sz),{a:k===A.length-1?'end':k===0?'start':'middle',fs:11})});
+      s+=RD.t((L+W-R)/2,H-4,'all-reduce buffer size (log)',{a:'middle',fs:11,fill:'var(--mute)'});
       const col={ring:'var(--c1)',rd:'var(--c2)',gloo:'var(--mute)'};
       ['ring','rd'].forEach(k=>{const pts=v.model[k].map((t,j)=>(k==='ring'&&!v.data.ring.med[j])?null:[x(S[j]),y(t)]).filter(p=>p);s+='<polyline points="'+pts.map(p=>p.join(',')).join(' ')+'" fill="none" stroke="'+col[k]+'" stroke-width="1.5" stroke-dasharray="5 3"/>'});
       ['gloo','ring','rd'].forEach(k=>{const d=v.data[k];if(!d)return;d.med.forEach((t,j)=>{if(!t)return;const X=x(S[j]);s+='<line x1="'+X+'" x2="'+X+'" y1="'+y(d.lo[j])+'" y2="'+y(d.hi[j])+'" stroke="'+col[k]+'"/><circle cx="'+X+'" cy="'+y(t)+'" r="'+(k==='gloo'?2.5:3.4)+'" fill="'+col[k]+'"/>'})});
-      if(v.xo_model&&n!=='2'){const X=x(v.xo_model);s+='<line x1="'+X+'" x2="'+X+'" y1="'+T+'" y2="'+(H-B)+'" stroke="var(--c5)" stroke-dasharray="2 3"/>'+RD.t(X>W-110?X-4:X+4,T+12,'model crossover',{fs:10,fill:'var(--c5)',a:X>W-110?'end':'start'})}
+      if(v.xo_model&&n!=='2'){const X=x(v.xo_model);s+='<line x1="'+X+'" x2="'+X+'" y1="'+T+'" y2="'+(H-B)+'" stroke="var(--c5)" stroke-dasharray="2 3"/>'+RD.t(X>W-110?X-4:X+4,T+12,'model crossover',{fs:11,fill:'var(--c5)',a:X>W-110?'end':'start'})}
       host.innerHTML=RD.svg(W,H,s,'Measured all-reduce time against size, '+n+' ranks')+
         '<div class="hmleg"><span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="var(--c1)"/></svg>ring (measured)</span><span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="var(--c2)"/></svg>recursive doubling (measured)</span><span><svg width="12" height="12"><circle cx="6" cy="6" r="3" fill="var(--mute)"/></svg>Gloo built-in</span><span><svg width="18" height="12"><line x1="0" y1="6" x2="18" y2="6" stroke="var(--ink)" stroke-dasharray="5 3"/></svg>alpha-beta model</span></div>';
       const rr=v.resid.ring.filter(r=>r!=null).map(Math.abs);
