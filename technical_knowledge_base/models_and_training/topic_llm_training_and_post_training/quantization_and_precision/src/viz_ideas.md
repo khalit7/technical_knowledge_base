@@ -23,8 +23,20 @@ Scoring (Methodology, section 2): R reproduces a published figure (x2), C comput
 | 9 | Loss-scaling simulator (gradient histogram against fp16 range, S slider) | 0 | 0 | 2 | 2 | 1 | 1 | 1 | 1 | 1 | | | rejected: gradient distributions exist only as figure images (Micikevicius Fig. 3); the explorer's 1e-8 preset makes the point |
 | 10 | NF4 codebook on the block animation | | | | | | | | | | | | rejected: owned by the QLoRA page (P-qlora.1, .2) |
 | 11 | FP8 tile/block granularity on activations | | | | | | | | | | | | rejected: owned by the DeepSeek-V3 page (P-deepseek_v3.1) |
-| 12 | Memory calculator for serving formats | | | | | | | | | | | | rejected: owned by the parent root page |
+| 12 | Memory calculator for serving formats | | | | | | | | | | | | rejected: the fine-tuning memory calculator is owned by PEFT (section Memory); serving memory is the bits per weight of section 2 times the parameters |
 | 13 | Ternary packing calculator (2 - z against 1.625 and log2 3) | 2 | 2 | 1 | 0 | 1 | 0 | 1 | 0 | 0 | | Reading, ternary | rejected as a widget: two crossovers stated as derived numbers in a sentence |
+
+## Added on 2026-10-23 (teaching-contract rebuild)
+| # | Idea | Kind | Placement | Status |
+|---|---|---|---|---|
+| 14 | **Hero**: one ordinary real block in INT4, per-tensor scale against its own scale (32 of 32 zeroed against 2) | static annotated diagram on real weights | Reading, top | built |
+| 15 | **GPTQ stepper**: Algorithm 1 on one row of four weights, error pushed into later columns, RTN ticks at the end | stepper, illustrative inputs (the shipped slice has only 16 evaluation tokens, so a real Hessian would be in-sample) | Reading, section 3 | built |
+| 16 | **Weight error against output error** for RTN g128, AWQ, GPTQ, GPTQ act-order | paired bars from the layer results | Reading, section 3 | built (replaces the old tab's metric toggle) |
+| 17 | **Hadamard rotation before/after** on the real outlier slice, token slider, 4-bit per-token grid | toggle-compare on real activations | Reading, section 4 | built |
+| 18 | **QAT**: fake quantisation and the straight-through gradient | static annotated diagram | Reading, section 5 | built |
+| 19 | **Training recipes**: one linear layer's three matmuls, the format of each input under fp16, bf16, TE FP8, DeepSeek-V3 FP8 and NVFP4 | toggle-compare, static | Reading, section 6 | built |
+| 20 | GPTQ on the real slice | | | rejected: Hessian from the 16 evaluation tokens would be in-sample and flatter GPTQ; a real one needs calibration activations not shipped (a re-export with export_data.py is a few minutes of CPU, proposed, not run) |
+| 21 | Bit explorer and layer charts as tabs | | | moved inline beside the claims they prove (the contract: the strongest visual must not sit one click away); tables and α curves closed |
 
 ## Data and formulas
 - Weights and activations: Qwen2.5-0.5B (https://huggingface.co/Qwen/Qwen2.5-0.5B), `model.layers.8.self_attn.q_proj` (896 x 896, bf16). Chosen by `probe_layers.py` (inputs/layer_survey.json): largest weight -1.664 at column 5 (64 x the std), activation channel peaks 16 x the median. Calibration text: Pride and Prejudice opening; evaluation: A Tale of Two Cities opening (Gutenberg, public domain), 511 tokens each after dropping position 0 (massive activations, Sun et al. 2024).

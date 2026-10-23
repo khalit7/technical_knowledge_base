@@ -1,0 +1,2180 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Quantization and Precision Quantization and Precision How numbers are stored in training and serving: the formats, post-training quantization and the outlier problem, how to read a quantisation name, quantization-aware training, mixed-precision and FP8 training, and the 4-bit frontier.",
+  "label": "core",
+  "key": "Quantization and Precision",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "A deep dive under Topic: llm-training-and-post-training .",
+  "label": "core",
+  "key": "A child of Topic: llm-training-and-post-training",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Sources are linked inline; checked 3 October 2026.",
+  "label": "core",
+  "key": "checked 3 October 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Bit explorer One real layer, every scheme Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab names: the page now has Reading and Further reading only"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "At a glance Formats Mixed precision PTQ Outliers Ternary Reading a name QAT 4-bit frontier Mistakes Every number in a language model is stored in some format, and fewer bits per number means less memory, less memory traffic and faster matrix multiplies.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "nav"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "Precision is the choice of format during training (bf16 by default, FP8 and now 4-bit on the newest GPUs); quantization is moving a model to fewer bits, after training (post-training quantization, PTQ) or with the model learning to cope during training (quantization-aware training, QAT).",
+  "label": "core",
+  "key": "quantising a trained model with no retraining",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "The whole subject keeps returning to one question: how many bits can each number lose before the model's outputs change , and the answer depends less on the bit count than on how the scale is shared and what the outliers do.",
+  "label": "core",
+  "key": "depends less on the bit count than on how many numbers share each scale",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "Where you are Default in 2026 Bits per weight What it costs Training bf16 compute, fp32 master weights and optimiser state 16 bytes of state per parameter Nothing in quality; FP8 or 4-bit training trades engineering for speed ( Mixed precision , 4-bit frontier ) Serving, compute-bound (many concurrent users) FP8 W8A8: weights and activations in FP8 8 Near-lossless; no calibration needed in the dynamic form Serving, memory-bound (one user, large model) 4-bit weights, 16-bit activations: INT4 g128 (GPTQ, AWQ), NVFP4, or GGUF Q4_K_M locally 4.25 to 4.9 Small and model-dependent; newer, smaller, more heavily trained models lose more Squeezing a big model onto a small card 2 to 3 bit codebook quants (IQ2, IQ3) with an importance matrix; ternary models built for it 1.7 to 3.8 Dense models fall off a cliff below about 3 bits; a model trained ternary is a different case The memory each choice needs for a given model (full fine-tune, LoRA, QLoRA, bf16, FP8 or 4-bit serving) is the bytes-per-parameter calculator in the Machinery section of Topic: llm-training-and-post-training ; this page explains the bytes.",
+  "label": "core",
+  "key": ") serving, compute-bound (many concurrent users) fp8 w8a8",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "Labels: derived numbers show their formula; measured here numbers come from the scripts in this page's source run on a real model; illustrative inputs are labelled; unconfirmed claims could not be traced to a source.",
+  "label": "core",
+  "key": "labels: derived numbers show their formula; measured here",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "number formats",
+  "text": "Number formats How a float is built (a sign, an exponent that sets the range , a mantissa that sets the precision , subnormals below the smallest normal number) and the float formats ML trains in, fp32, tf32, fp16, bf16 and FP8 E4M3 and E5M2, each with its limits computed from the bit layout and what it is for, are owned by Numerical computing for ML (section 4; section 3 there covers the gaps between neighbouring floats).",
+  "label": "core",
+  "key": "how the bits encode a value, subnormals and rounding are built bit by bit",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "number formats",
+  "text": "This page starts from the consequence: the fewer the bits, the fewer binades and the coarser the steps, so formats below 16 bits only work with a scale shared by a tensor, a row or a block.",
+  "label": "core",
+  "key": "this page starts from the consequence",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "number formats",
+  "text": "The formats built around that shared scale, every limit computed from the bit layout derived and agreeing with the specifications (E2M1 6.0, OCP MX spec v1.0 , §5.3): Format Layout Largest Relative step Where it is used fp8 E4M3, E5M2 1 / 4 / 3, 1 / 5 / 2 448, 57,344 0.125, 0.25 Hopper and later: E4M3 for weights and activations, E5M2 for gradients (limits and the split explained in Numerical computing for ML ); always with a per-tensor or per-block scale here fp4 E2M1 1 / 2 / 1 6 0.5 Only 15 distinct values (0, ±0.5, ±1, ±1.5, ±2, ±3, ±4, ±6); useful only with a fine-grained scale (MXFP4, NVFP4) int8 integer, −127 to 127 127 × scale even steps The classic PTQ target; activation int8 needs care with outliers int4 integer, 15 or 16 levels 7 × scale even steps Weight-only serving, always with group scales NF4 4-bit code into 16 fixed values 1 × absmax uneven QLoRA's codebook, spaced for normally distributed weights, absmax per 64 ( QLoRA ) MXFP8 / MXFP4 fp8 or E2M1 elements + one shared E8M0 scale (a power of two) per 32 element max × scale as element The OCP open microscaling standard, from \"AMD, Arm, Intel, Meta, Microsoft, NVIDIA, and Qualcomm\" ( spec §2); 8.25 and 4.25 bits per element derived: 8 or 4 + 8/32 NVFP4 E2M1 + an FP8 E4M3 scale per 16 + one FP32 scale per tensor 6 × scales as E2M1 NVIDIA Blackwell native; \"one FP8 scale per 16 values (4.5 bits per value)\", finer scaling than MXFP4 ( NVIDIA ) The same seven floating formats on one axis: pale is the subnormal tail, solid the normal range. bf16 and fp32 span the same 2 −126 to 2 128 ; fp16 covers 40 binades; E4M3 under 18; E2M1 under 4.",
+  "label": "core",
+  "key": "e fp4 e2m1 1 / 2 / 1 6 0.5 only 15 distinct values (0",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "number formats",
+  "text": "That is why the 8- and 4-bit formats only work with a scale chosen per tensor, per row or per block.",
+  "label": "core",
+  "key": "only work with a scale chosen per tensor, per row or per block",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "number formats",
+  "text": "Range computed from each layout derived : largest = 2 emax × (2 − 2 −m ), smallest subnormal = 2 1−bias−m .",
+  "label": "core",
+  "key": "computed from each layout derived : largest = 2 emax × (2 −",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "number formats",
+  "text": "Type any number into the Bit explorer to see its bits, its stored value and its error in every format at once.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed Bit explorer tab; the explorer is now inline"
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "Mixed-precision and FP8 training Compute-heavy operations run in low precision; numerically sensitive state stays high ( Micikevicius et al.",
+  "label": "core",
+  "key": "compute-heavy operations run in low precision; numerically",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "2017 ): float32 master weights and optimiser state, because otherwise small updates round away; matrix multiplies in fp16 or bf16 on tensor cores, with reductions, softmax and norms often in fp32; and, in fp16 only, loss scaling , because fp16 gradients underflow. bf16 has fp32's exponent range and skips loss scaling entirely: this is why bf16 became the default.",
+  "label": "core",
+  "key": "because fp16 gradients underflow. bf16 has fp32's",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "Each of those failures is measured on a real model's 134.5 million gradients, with a loss-scale slider and PyTorch's GradScaler rules, in Numerical computing for ML (section 11).",
+  "label": "core",
+  "key": "is measured on a real model's 134.5 million gradients, with",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "Try 1e-8 in the Bit explorer : fp16 stores 0, bf16 keeps it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed tab; the explorer presets carry 1e-8 inline"
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "The master copy is where the 16 bytes per parameter of Adam training come from: 2 (bf16 weights) + 2 (gradients) + 4 + 4 + 4 (fp32 master, first and second moments) derived , as in ZeRO .",
+  "label": "core",
+  "key": "is where the 16 bytes per parameter of adam training come",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "FP8 training (Hopper and Blackwell with NVIDIA's Transformer Engine): matmul inputs in E4M3 or E5M2 with a scale per tensor or per block; weights and gradients accumulate in higher precision.",
+  "label": "core",
+  "key": "Weights and gradients accumulate in higher precision",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "The split is \"E4M3 for weight and activation tensors, and E5M2 for gradient tensors\" ( FP8 formats, Micikevicius et al.",
+  "label": "core",
+  "key": "\"e4m3 for weight and activation tensors, and e5m2 for",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "2022 ), which Transformer Engine's HYBRID recipe does exactly.",
+  "label": "core",
+  "key": "HYBRID recipe does exactly",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "Its original \"delayed scaling\" uses the scale from the previous iteration and an amax history (default 1,024 steps) ( TE docs ).",
+  "label": "core",
+  "key": "its original \"delayed scaling\" uses the scale from the",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "DeepSeek-V3 showed fine-grained FP8 pretraining at 671B: 1 × 128 tiles for activations, 128 × 128 blocks for weights, E4M3 on all tensors, partial sums promoted to FP32 every 128 elements, and \"the relative loss error of our FP8-training model remains consistently below 0.25%\" against BF16 ( §3.3 ; the DeepSeek-V3 paper page animates its tile and block scaling and the accumulation).",
+  "label": "core",
+  "key": "partial sums promoted to fp32 every 128 elements, and",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "In PyTorch's torchtitan, Float8 is a configuration flag: on Llama 3.1 8B with FSDP on 8 H100s, torch.compile plus Float8 reached 9,409 tokens per second, +50.35% over plain FSDP; +65.08% on 128 GPUs ( torchtitan , Tables 1 and 2).",
+  "label": "core",
+  "key": "in pytorch's torchtitan, float8 is a configuration flag: on",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "Adding Float8 on top of compile (6,674 tokens per second) is 9,409 / 6,674 = +41% derived .",
+  "label": "core",
+  "key": "adding float8 on top of compile (6,674 tokens per second)",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "mixed-precision and fp8 training",
+  "text": "Correction The old page said torchtitan and Transformer Engine give \"about 30 to 40% throughput gains\" from FP8. torchtitan's own tables give +41% for adding Float8 to a compiled run and +50% for compile plus Float8 over eager, on 8 GPUs, rising to +65% on 128 (link above).",
+  "label": "core",
+  "key": "correction the old page said torchtitan and transformer",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Post-training quantization (PTQ) Quantize a trained model with no retraining. fp32 to fp16 or bf16 is essentially free.",
+  "label": "core",
+  "key": "a trained model with no retraining. fp32 to fp16 or bf16 is",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Integer and 4-bit formats need a mapping, q = round(x / scale) + zero_point , with the scale (and, for asymmetric schemes, a zero point) chosen per tensor, per channel or per block .",
+  "label": "core",
+  "key": "q = round(x / scale) + zero_point",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "The choice of scope matters more than the bit count, because one large value sets the step for everything that shares its scale.",
+  "label": "core",
+  "key": "one large value sets the step for everything that shares",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Dynamic PTQ : activation scales computed on the fly from each batch (or each token); simpler, a little latency overhead, no calibration data.",
+  "label": "core",
+  "key": "computes them on the fly per batch or token",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Static PTQ : run a small calibration set through the model, record activation statistics, freeze the scales; lower latency, and brittle when real inputs drift from the calibration set (values beyond the frozen range clip).",
+  "label": "core",
+  "key": "inputs beyond the frozen range clip",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Weight-only methods are the LLM mainstream, because generating one token at a time is memory-bound: the time goes into streaming weights, so shrinking weights speeds it up even if the multiply still runs in 16-bit.",
+  "label": "core",
+  "key": "because generating one token at a time is memory-bound: the",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "The animation runs one block of 32 real weights through five scopes.",
+  "label": "core",
+  "key": "The animation runs one block of 32 real weights through five scopes",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "The weights are the exact bf16 values of layer 8's query projection in Qwen2.5-0.5B , a layer chosen because its largest weight, −1.664 in input column 5, is 64 times the layer's standard deviation (0.026) measured here .",
+  "label": "core",
+  "key": "chosen because its largest weight, −1.664 in input column",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Try: it starts on an ordinary block.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "stepping instruction for the old autoplay"
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Watch per-tensor INT4 zero most of it (its scale is set by an outlier in another row), then press the scopes in order.",
+  "label": "core",
+  "key": "), then press the scopes in order",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Then pick row 223 and block 0, where the outlier itself lives: there every scope suffers, and MXFP4's power-of-two scale clips.",
+  "label": "core",
+  "key": "then pick row 223 and block 0, where the outlier itself",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Row Block (32 input columns) 0 Blue bars: the weights; purple lines: representable values; green: what is stored; orange dots: non-zero weights stored as zero.",
+  "label": "core",
+  "key": "row block (32 input columns) 0 blue bars: the weights",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "The quantisers are ported exactly from src/qformats.py and follow the specs: INT4 symmetric absmax; MXFP4 with the OCP shared exponent floor(log2(amax)) − 2 ( Rouhani et al.",
+  "label": "core",
+  "key": "the quantisers are ported exactly from src/qformats.py and",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "2023 , Algorithm 1); NVFP4 with an E4M3 block scale and a per-tensor FP32 scale of amax / (448 × 6).",
+  "label": "core",
+  "key": "2023 , algorithm 1); nvfp4 with an e4m3 block scale and a",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Bits per weight derived : elements plus scale bits shared over the block.",
+  "label": "core",
+  "key": "element bits + scale bits / block size",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "What the block shows holds for the whole layer: per-tensor INT4 leaves 84% output error, per-channel 17%, a scale per 128 weights 7.8% and per 16 (NVFP4) 6.2%, for 0.25 to 0.5 extra bits per weight measured here ; every scheme is compared on the whole layer in One real layer, every scheme .",
+  "label": "core",
+  "key": "channel 17%, a scale per 128 weights 7.8% and per 16",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "QLoRA's NF4 codebook and its block-size trade-off on real LLaMA weights are on the QLoRA page ; a single MXFP4 block of gpt-oss is on OpenAI: GPT family .",
+  "label": "core",
+  "key": "qlora's nf4 codebook and its block-size trade-off on real",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "The weight-only methods GPTQ ( Frantar et al.",
+  "label": "core",
+  "key": "Frantar et al. 2022",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "2022 ): quantize a layer one column at a time and, after each column, adjust the not-yet-quantized columns to cancel the error in the layer's output , using approximate second-order (Hessian) information from calibration activations.",
+  "label": "core",
+  "key": "to cancel the error in the layer's output , using",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Built on Optimal Brain Quantization with lazy batch updates and a Cholesky reformulation; it quantized 175B models \"in approximately four GPU hours\" to 3 or 4 bits.",
+  "label": "core",
+  "key": "built on optimal brain quantization with lazy batch updates",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Act-order (quantizing columns in decreasing order of activation size) is not in the paper; it came from the GPTQ repository, where it lowered LLaMA-7B's WikiText-2 perplexity from 7.15 to 6.09 ( IST-DASLab/gptq ).",
+  "label": "core",
+  "key": "ing columns in decreasing order of activation size) is not",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "AWQ ( Lin et al.",
+  "label": "core",
+  "key": "Lin et al. 2023",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "2023 , MLSys 2024 best paper): \"protecting only 1% salient weights can greatly reduce quantization error\", and the salient channels are picked from the activation distribution, not the weights.",
+  "label": "core",
+  "key": "\"protecting only 1% salient weights can greatly reduce",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Rather than keep them in high precision, it multiplies those input channels by a scale s = s X α before 4-bit quantization (α by grid search over [0, 1]) and folds 1/s into the previous operation; group size 128. llama.cpp K-quants and I-quants (GGUF) and bitsandbytes NF4 : the ecosystem workhorses, decoded in Reading a quantisation name .",
+  "label": "core",
+  "key": "rather than keep them in high precision, it multiplies",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "Unsloth's Dynamic 3.0 GGUFs (19 August 2026, first for Qwen3.8-27B) are the next iteration of its dynamic scheme: a broader imatrix calibration set \"refined for agentic coding, chat, and multilingual performance\", better layer selection, and \"everything is done through post-training quantization\", no QAT; Unsloth reports more than 10% better top-1 accuracy at the same size than other providers ( docs , date ) vendor's figure .",
+  "label": "volatile",
+  "key": "Dynamic 3.0 GGUFs",
+  "where": "reference/tech_news/2026_08_24_tech_news"
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "SmoothQuant (W8A8; Xiao et al.",
+  "label": "core",
+  "key": "Xiao et al. 2022",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "2022 ): migrate activation outliers into the weights so both quantize well (next section).",
+  "label": "core",
+  "key": "Divide each activation channel by a factor s",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "post-training quantization (ptq)",
+  "text": "FP8 W8A8 is now the low-effort serving default on Hopper and Blackwell: vLLM's FP8-dynamic uses static per-channel weight scales and dynamic per-token activation scales, needs no calibration data, and gives \"a 2x reduction in model memory requirements and up to a 1.6x improvement in throughput\" ( vLLM ).",
+  "label": "core",
+  "key": "default on hopper and blackwell: vllm's fp8-dynamic uses",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "Outliers, the central difficulty A few channels with huge magnitudes destroy naive scaling.",
+  "label": "core",
+  "key": "y a few channels with huge magnitudes destroy naive scaling",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "In activations they are a property of the channel, recurring on every token: LLM.int8() found features \"up to 20x larger than in other dimensions\" in about 25% of layers of small models, and \"at around 6.7B parameters, a phase shift occurs\" where all layers and 75% of sequence positions are affected, though outliers remain \"about 0.1% of all features\" ( Dettmers et al.",
+  "label": "core",
+  "key": "in activations they are a property of the channel",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "2022 ; its fix keeps those features in fp16, decomposing the matmul at a threshold of 6.0).",
+  "label": "core",
+  "key": "2022 ; its fix keeps those features in fp16, decomposing",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "In the Qwen layer used on this page, the largest input channel peaks at 31.9 against a median channel peak of 2.0, a 16-fold gap measured here .",
+  "label": "core",
+  "key": "in the qwen layer used on this page, the largest input",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "The fixes are finer scales (per channel, per block), moving the difficulty somewhere easier (SmoothQuant, AWQ), compensating for it (GPTQ), or rotating it away (QuIP#, QuaRot, SpinQuant).",
+  "label": "core",
+  "key": "), moving the difficulty somewhere easier (smoothquant",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "The animation shows the two migrations on the same real input, each against the plain method it improves: 16 tokens of A Tale of Two Cities entering the same Qwen layer, on 64 of its 896 input channels (the 8 with the largest activations on the calibration text plus 56 at random) and 8 of its output rows (at random).",
+  "label": "core",
+  "key": "on the same real input, each against the plain method it",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "Scales come from a separate calibration text (the opening of Pride and Prejudice ), as they would in practice.",
+  "label": "core",
+  "key": "scales come from a separate calibration text (the opening",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "Try: run W8A8 plain, then SmoothQuant at α = 0.5 (the paper's default for OPT and BLOOM).",
+  "label": "core",
+  "key": "try: run w8a8 plain, then smoothquant at α = 0.5 (the",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "Then drag α: near 0 the weights' own outliers are pushed into the activations and the error grows; near 1 the weights take all of it.",
+  "label": "core",
+  "key": "then drag α: near 0 the weights' own outliers are pushed",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "Then compare INT4 plain against AWQ.",
+  "label": "core",
+  "key": "then compare int4 plain against awq",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "Migration strength α 0.50 Columns: 64 input channels (the 8 with the largest calibration activations, orange, plus 56 at random).",
+  "label": "core",
+  "key": "migration strength α 0.50 columns: 64 input channels (the 8",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "Rows: 16 tokens (X, blue) and 8 output channels (W, green).",
+  "label": "core",
+  "key": "rows: 16 tokens (x, blue) and 8 output channels (w, green)",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "Purple bars: the per-channel factor s.",
+  "label": "core",
+  "key": "purple bars: the per-channel factor s",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "SmoothQuant's factor s j = max|X j | α / max|W j | 1−α ( Eq.",
+  "label": "core",
+  "key": "SmoothQuant's factor s",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "4 ), with max|W j | over the whole layer; activations INT8 per tensor with a static scale from calibration, weights INT8 per output channel.",
+  "label": "core",
+  "key": "over the whole layer; activations INT8 per tensor with a static scale",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "AWQ's s = (mean|x|) α , normalised by the geometric mean of its largest and smallest.",
+  "label": "core",
+  "key": "normalised by the geometric mean of its largest and smallest",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "Output error is ‖X̂Ŵ T − XW T ‖ / ‖XW T ‖. \"Whole layer\" repeats the procedure on all 896 channels and 511 evaluation tokens (AWQ with groups of 128) in src/quant_lab.py ; the first token of each text is left out because it carries \"massive activations\" ( Sun et al.",
+  "label": "core",
+  "key": "output error is ‖x̂ŵ t − xw t ‖ / ‖xw t ‖. \"whole layer\"",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "On the whole layer measured here : plain W8A8 with a static per-tensor activation scale gives 4.73% output error; SmoothQuant brings it to 1.70% at its best α of 0.75, better than FP8-dynamic (2.45%) at the same 8 bits.",
+  "label": "core",
+  "key": "smoothquant brings it to 1.70% at its best α of 0.75",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "The paper found the same need to tune α: 0.5 for OPT and BLOOM, 0.75 for GLM-130B, 0.8 for LLaMA-1, 0.85 for Llama-2-7B and 13B, 0.9 for Llama-2-70B, with which \"SmoothQuant can match the FP16 accuracy\" on OPT-175B ( Xiao et al. ; its \"up to 1.56× speedup and 2× memory reduction\" was measured on OPT-13B and 30B on one GPU, while for 66B and 175B the claim is similar speed on half the GPUs).",
+  "label": "depth",
+  "key": "the paper found the same need to tune α: 0.5 for opt and",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "For 4-bit weights, round-to-nearest with groups of 128 gives 7.80%, AWQ 6.20% and GPTQ with act-order 6.12%, while both methods raise the plain weight error (from 10.8% to 12.8% and 18.1%): they spend error where the activations are small.",
+  "label": "core",
+  "key": "awq 6.20% and gptq with act-order 6.12%, while both",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "Weight error is not output error, which is why both need calibration data.",
+  "label": "core",
+  "key": "weight error is not output error, which is why both need",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "The curves and the full table are in One real layer, every scheme .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed layer tab; the charts are inline"
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "Rotations spread outliers across all channels before quantizing: multiply weights and activations by an orthogonal matrix (often a randomised Hadamard transform) whose inverse cancels in the product, so no channel stands out.",
+  "label": "core",
+  "key": "activations by an orthogonal matrix",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "They are what makes 2 to 3 bit weights and 4-bit activations work: QuIP# (randomised Hadamard plus E8 lattice codebooks plus fine-tuning) has \"QuIP# 3 bit\" beating \"a theoretical lossless 4 bit model\" on Llama 2 ( Tseng et al.",
+  "label": "depth",
+  "key": "quip# (randomised hadamard plus e8 lattice codebooks plus",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "2024 ); QuaRot's W4A4 Llama 2-70B with a 4-bit KV cache loses \"at most 0.47 WikiText-2 perplexity\" and keeps 99% of zero-shot performance ( Ashkboos et al.",
+  "label": "depth",
+  "key": "2024 ); quarot's w4a4 llama 2-70b with a 4-bit kv cache",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "2024 ); SpinQuant learns the rotation, narrowing W4A4KV4 LLaMA-2 7B's zero-shot gap to 2.9 points ( Liu et al.",
+  "label": "depth",
+  "key": "2024 ); spinquant learns the rotation, narrowing w4a4kv4",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "outliers, the central difficulty",
+  "text": "NVFP4 pretraining uses the same trick ( below ).",
+  "label": "core",
+  "key": "nvfp4 pretraining uses the same trick",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "ternary: where the floor is",
+  "text": "Ternary: where the floor is Ternary weights take only −1, 0 and +1 (times a scale).",
+  "label": "core",
+  "key": "ternary weights take only",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "ternary: where the floor is",
+  "text": "That is where the compression floor currently sits, and the quality cost is smaller than the bit count suggests for models built ternary.",
+  "label": "core",
+  "key": "the quality cost is smaller than the bit count suggests",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "ternary: where the floor is",
+  "text": "Ternary Bonsai 2 27B (PrismML, 17 September 2026), \"based on Qwen3.8 27B\", \"uses ternary {−1, 0, +1} weights with FP16 group-wise scaling, for 1.76 effective bits per weight and a total model footprint of 5.9GB\", \"more than 9x smaller while retaining 98.2% of aggregate benchmark performance\": it scores 83.9 against Qwen3.8 27B's 85.4, with a 262K-token context, text and image input, agentic tool use in its benchmark suite, Apache 2.0, and up to 143 tokens per second on an RTX 5090 ( PrismML , model card ).",
+  "label": "depth",
+  "key": "\"uses ternary {−1, 0, +1} weights with fp16 group-wise",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "ternary: where the floor is",
+  "text": "The headline numbers check out derived : 27 × 10 9 × 1.76 / 8 = 5.94 GB; 16 / 1.76 = 9.1 times; 83.9 / 85.4 = 98.2%.",
+  "label": "depth",
+  "key": "the headline numbers check out derived : 27 × 10 9 × 1.76 /",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "ternary: where the floor is",
+  "text": "The nominal floor is not 1.585 bits either.",
+  "label": "depth",
+  "key": "the nominal floor is not 1.585 bits either",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "ternary: where the floor is",
+  "text": "Three values carry log 2 3 = 1.585 bits; packing five trits in a byte (3 5 = 243 fits in 256) gives 1.6, and with power-of-two group sizes it \"rounds up to 1.625\", because it treats the three values as equally likely.",
+  "label": "depth",
+  "key": "three values carry log 2 3 = 1.585 bits; packing five trits",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "ternary: where the floor is",
+  "text": "They are not: across 29 ternary models, zeros are \"up to 51.5% of all weights\".",
+  "label": "depth",
+  "key": "they are not: across 29 ternary models, zeros are \"up to",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "ternary: where the floor is",
+  "text": "BITCOS stores \"a dense presence bitmap plus a compacted sign vector\" and \"costs 2 − z bits per weight element given a zero density z\": it beats five-trit packing in 26 of the 29 models, reaches 1.485 bits on the sparsest, and decodes up to 1.18× faster on CPUs and 1.27× on GPUs ( Georganas et al.",
+  "label": "depth",
+  "key": "bitcos stores \"a dense presence bitmap plus a compacted",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "ternary: where the floor is",
+  "text": "2 − z beats 1.625 once zeros pass 37.5%, and beats log 2 3 once they pass 41.5% derived .",
+  "label": "depth",
+  "key": "2 − z beats 1.625 once zeros pass 37.5%, and beats log 2 3",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "ternary: where the floor is",
+  "text": "For comparison, llama.cpp's own ternary types cost 1.6875 (TQ1_0: 54 bytes per 256 weights, scale included) and 2.0625 bits (TQ2_0) from the block structs ; BitNet b1.58 is the model family that made ternary training work ( Ma et al.",
+  "label": "depth",
+  "key": "for comparison, llama.cpp's own ternary types cost 1.6875",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "ternary: where the floor is",
+  "text": "What this is not These models were built ternary rather than converted, so their bits per weight are a packing result, not a reason to quantize an ordinary checkpoint this far.",
+  "label": "core",
+  "key": "were built ternary rather than converted",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "ternary: where the floor is",
+  "text": "An ordinary dense model rounded to under 3 bits falls off a cliff ( next section ).",
+  "label": "core",
+  "key": "an ordinary dense model rounded to under 3 bits falls off a cliff",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Reading a quantisation name Everything above is the method ; this section is the notation : how to decode a quant string on a Hub repo without opening config.json .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up sentence"
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "GGUF names, in one paragraph A GGUF name is the letter Q , a nominal bit count and a variant tag. _0 and _1 are the legacy flat formats (32 weights, one fp16 scale, plus a minimum for _1 ); K marks the K-quants (a 256-weight super-block whose sub-block scales are themselves quantised: the group scaling of GPTQ and AWQ taken one level further, like QLoRA's double quantisation); IQ marks codebook types steered by an importance matrix (imatrix), the same activation-weighted idea as AWQ and GPTQ in the layer tab ; and _S , _M , _L name a per-tensor mixing recipe, not a block format.",
+  "label": "core",
+  "key": "_0 and _1 are the legacy flat formats (32 weights, one fp16",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "So the bits per weight are never the nominal number: Q4_K's block is 4.5 bits per weight and a whole Q4_K_M file about 4.9.",
+  "label": "core",
+  "key": "the bits per weight are never the nominal number",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Every type's block layout (decoded from real files), the mixing recipes, importance matrices and a quality ladder measured as KL divergence against F16 on two Qwen3 models are owned by Local and on-device inference (sections 3 and 4, and its Quant ladder tab), with llama.cpp's own perplexity lists and the corrections this page used to carry; the file container is section 4 of Model formats: GGUF, safetensors, ONNX, and the rest .",
+  "label": "core",
+  "key": "every type's block layout (decoded from real files), the",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "The short version: Q4_K_M with an imatrix is the default, I-quants buy size rather than quality per byte, and dense models fall off a cliff below about 3 bits.",
+  "label": "core",
+  "key": "the short version: q4_k_m with an imatrix is the default",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Names you will meet outside GGUF Name you see What it means gptq-4bit-128g-actorder_True GPTQ, 4-bit weight-only.",
+  "label": "depth",
+  "key": "names you will meet outside gguf name you see what it means",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Group size 128 : one scale and zero point per 128 consecutive weights along the input dimension.",
+  "label": "depth",
+  "key": "group size 128 : one scale and zero point per 128",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Smaller g is finer and more accurate but adds scale overhead (4 + 32/128 = 4.25 bits at g128 with fp16 scale and zero derived ); 32g is the quality end, 128g the usual compromise, no g means per channel. act-order ( desc_act in the config) quantises columns in decreasing order of activation size so accumulated error lands on the columns that matter least.",
+  "label": "depth",
+  "key": "smaller g is finer and more accurate but adds scale",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Better accuracy, historically incompatible with some fused kernels: \"Some GPTQ clients have had issues with models that use Act Order plus Group Size, but this is generally resolved now\" ( TheBloke's card ) awq-4bit-128g, AWQ-INT4 AWQ, 4-bit weight-only, group size 128.",
+  "label": "depth",
+  "key": "better accuracy, historically incompatible with some fused",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Instead of reordering, it rescales the roughly 1% of salient channels (chosen by activation magnitude) before quantising.",
+  "label": "depth",
+  "key": "instead of reordering, it rescales the roughly 1% of",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "No reordering means simpler, faster kernels, which is why AWQ often wins on throughput at similar accuracy unconfirmed as a general rule .",
+  "label": "depth",
+  "key": "no reordering means simpler, faster kernels, which is why",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Qwen ships official AWQ checkpoints (for example Qwen3-8B-AWQ ) nf4, fp4, load_in_4bit, bnb-4bit bitsandbytes.",
+  "label": "depth",
+  "key": "qwen ships official awq checkpoints (for example",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "A runtime flag, not a checkpoint format : the fp16 weights are quantised on load.",
+  "label": "depth",
+  "key": "a runtime flag, not a checkpoint format : the fp16 weights",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "NF4 is a 16-level codebook fitted to a normal distribution over 64-weight blocks; \"double quant\" additionally quantises the block scales (4.127 bits per weight 4 + 8/64 + 32/(64 × 256) ).",
+  "label": "depth",
+  "key": "nf4 is a 16-level codebook fitted to a normal distribution",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "This is the QLoRA base.",
+  "label": "depth",
+  "key": "This is the QLoRA base",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Convenient, not competitive on serving throughput W4A16 compressed-tensors and llm-compressor (the vLLM naming): \"Quantizes weights to 4 or 8-bit integer precision, retaining activations in 16-bit\", per group, \"optimally compressed using non-RTN algorithms (GPTQ, AWQ) which require a dataset\" ( llm-compressor ).",
+  "label": "depth",
+  "key": "convenient, not competitive on serving throughput w4a16",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Memory-bound win: right for low concurrency where you are streaming weights W8A8 (-INT8) Weights and activations both int8, so the matmul itself runs in int8.",
+  "label": "depth",
+  "key": "memory-bound win: right for low concurrency where you are",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Needs calibration for static activation scales (or GPTQ/AWQ for the weights).",
+  "label": "depth",
+  "key": "needs calibration for static activation scales (or gptq/awq",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "The high-throughput, compute-bound choice on pre-Hopper hardware FP8-dynamic FP8 W8A8 with per-channel weight scales and per-token activation scales computed at runtime .",
+  "label": "depth",
+  "key": "the high-throughput, compute-bound choice on pre-hopper",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "No calibration set required.",
+  "label": "depth",
+  "key": "No calibration set required",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "The low-effort near-lossless default on Hopper and Blackwell ( vLLM ). vLLM can also do it online from a bf16 checkpoint with a per-tensor scale FP8-static Same, but the activation scales are frozen from a calibration pass.",
+  "label": "depth",
+  "key": "the low-effort near-lossless default on hopper and",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Marginally faster (no per-token reduction), and marginally more brittle: a distribution shift away from the calibration data shows up as clipping. llm-compressor lists it as an option of its FP8 scheme rather than a separate name.",
+  "label": "depth",
+  "key": "marginally faster (no per-token reduction), and marginally",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "FP8_BLOCK uses 128 × 128 weight tiles and per-128 activation groups, DeepSeek-V3's recipe NVFP4, MXFP4 checkpoints Blackwell-native 4-bit.",
+  "label": "depth",
+  "key": "fp8_block uses 128 × 128 weight tiles and per-128",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "NVFP4: a global scale per tensor and FP8 E4M3 scales per 16, and it \"requires a calibration dataset to calibrate activation global scales\"; MXFP4: E8M0 scales per 32, \"no calibration data required if using RTN\", \"though RTN accuracy may be lower\" ( llm-compressor ).",
+  "label": "depth",
+  "key": "nvfp4: a global scale per tensor and fp8 e4m3 scales per",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "See the 4-bit frontier Trailing -KV8, -FP8-KV Not about the weights at all: the KV cache is stored quantised (vLLM: kv_cache_dtype=\"fp8\" , per-tensor scales of 1.0 without calibration, per-head scales with it; docs ).",
+  "label": "depth",
+  "key": "trailing -kv8, -fp8-kv not about the weights at all: the kv",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "Orthogonal to the weight scheme, and often the bigger memory win at long context On the dual 5090s: GGUF or a native checkpoint Which model and which GGUF type fit two 32 GB cards, and the rule that a bigger model at Q4_K_M beats a smaller one at Q8_0 (checked by measurement), are in Local and on-device inference (sections 4 and 8).",
+  "label": "depth",
+  "key": "orthogonal to the weight scheme, and often the bigger",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "The precision side: MoE experts tolerate much harder quantisation than the attention and shared layers; gpt-oss ships only its MoE weights, \"90+% of the total parameter count\", in MXFP4 ( gpt-oss card ), and llama.cpp's MXFP4_MOE type keeps \"other tensors\" at Q8_0.",
+  "label": "depth",
+  "key": "the precision side: moe experts tolerate much harder",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "And the two 5090s are Blackwell SM120 with native FP8 and NVFP4 tensor cores , while GGUF's K-quants are a CPU-friendly design that dequantises to fp16 before the matmul.",
+  "label": "depth",
+  "key": "and the two 5090s are blackwell sm120 with native fp8 and",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "reading a quantisation name",
+  "text": "For single-stream interactive work the difference is small and llama.cpp's flexibility wins; once concurrency matters, an FP8 or NVFP4 checkpoint under vLLM uses hardware the GGUF path never touches, and the gap becomes large.",
+  "label": "depth",
+  "key": "for single-stream interactive work the difference is small",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "quantization-aware training (qat)",
+  "text": "Quantization-aware training (QAT) Insert fake-quantization operations during training: quantize then dequantize in the forward pass, so the loss sees the rounding, and pass the gradient straight through the rounding in the backward pass (the straight-through estimator, Bengio et al.",
+  "label": "core",
+  "key": "e in the forward pass, so the loss sees the rounding, and",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "quantization-aware training (qat)",
+  "text": "2013 ), so the model learns weights that survive the eventual precision.",
+  "label": "core",
+  "key": "2013 ), so the model learns weights that survive the",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "quantization-aware training (qat)",
+  "text": "It costs extra training compute and recovers most of PTQ's loss at 4 bits and below.",
+  "label": "core",
+  "key": "it costs extra training compute and recovers most of ptq's",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "quantization-aware training (qat)",
+  "text": "Current practice: short QAT fine-tunes after PTQ ( torchao ), official QAT checkpoints (Google's Gemma 3; Meta's Llama 3.2 1B and 3B), and \"QAT from scratch\" for models native to 4 bits or fewer, such as the ternary models above.",
+  "label": "depth",
+  "key": "), official qat checkpoints (google's gemma 3; meta's llama",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "quantization-aware training (qat)",
+  "text": "Qwen ships official AWQ, GPTQ-Int4 and FP8 checkpoints but no QAT ones, as of this check ( Qwen docs ).",
+  "label": "depth",
+  "key": "qwen ships official awq, gptq-int4 and fp8 checkpoints but",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "quantization-aware training (qat)",
+  "text": "QLoRA-style training (frozen NF4 base plus bf16 adapters) is the budget alternative: it trains adapters on a quantized base rather than teaching the base to be quantized ( PEFT , QLoRA ).",
+  "label": "core",
+  "key": "qlora-style training (frozen nf4 base plus bf16 adapters)",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "quantization-aware training (qat)",
+  "text": "What each approach has been shown to cost, as published.",
+  "label": "depth",
+  "key": "what each approach has been shown to cost, as published",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "quantization-aware training (qat)",
+  "text": "The rows use different models and metrics, so read each against its own baseline; they are not comparable across rows.",
+  "label": "depth",
+  "key": "the rows use different models and metrics, so read each",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "quantization-aware training (qat)",
+  "text": "Approach Setting Published result Source PTQ, GGUF Q4_K_M, about 4.9 bits Perplexity +0.05 on LLaMA-1-7B, +0.18 on Llama-3-8B; benchmark average 69.15 against 69.47 on Llama-3.1-8B-Instruct llama.cpp (above); Kurt 2026 PTQ, W8A8 SmoothQuant INT8, OPT-175B \"can match the FP16 accuracy\" Xiao et al.",
+  "label": "depth",
+  "key": "approach setting published result source ptq, gguf q4_k_m",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "quantization-aware training (qat)",
+  "text": "PTQ, NVFP4 DeepSeek-R1-0528, from its FP8 release \"1% or less accuracy degradation on key language modeling tasks\" vendor's figure NVIDIA QAT Gemma 3, to Q4_0, about 5,000 steps \"We reduce the perplexity drop by 54%\" against PTQ Google QAT Llama 3 8B, 4-bit weights (groups) and 8-bit dynamic activations Recovers \"up to 96% of the accuracy degradation on hellaswag and 68% of the perplexity degradation on wikitext\" against PTQ PyTorch torchao QAT + LoRA, and SpinQuant Llama 3.2 1B and 3B, 4-bit weights in groups of 32, 8-bit per-token activations 2 to 4 times faster, 56% smaller and 41% less memory than BF16, on a OnePlus 12 Meta FP8 training DeepSeek-V3, fine-grained E4M3 Relative loss error below 0.25% against BF16 DeepSeek-V3 NVFP4 training 12B hybrid Mamba-Transformer, 10T tokens MMLU-Pro 62.58 against 62.62 for the FP8 run NVIDIA 2025 , Table 2 MXFP4 training 8B hybrid, against NVFP4 Matches NVFP4's loss only \"when trained on 36% more tokens (i.e., using 1.36T instead of 1T tokens)\" ibid. , §5",
+  "label": "depth",
+  "key": "ptq, nvfp4 deepseek-r1-0528, from its fp8 release \"1% or",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "The 4-bit frontier (2025 to 2026) Blackwell tensor cores natively support MXFP8, MXFP4 and NVFP4, moving 4-bit from a storage trick to a compute format: \"Tensor Cores deliver FP4 computations at 2× (on GB200 chips) and 3× (on GB300 chips) higher math throughput rates compared to FP8\" ( NVIDIA 2025 , §2).",
+  "label": "core",
+  "key": "blackwell tensor cores natively support mxfp8, mxfp4 and",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "NVFP4 pretraining ( NVIDIA 2025 ): a 12B hybrid Mamba-Transformer trained on 10T tokens in NVFP4 matched its FP8 baseline closely (MMLU-Pro 62.58 against 62.62; MMLU 76.57 against 77.36; HumanEval+ 57.43 against 59.93).",
+  "label": "core",
+  "key": "a 12b hybrid mamba-transformer trained on 10t tokens in",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "It needed four things: random Hadamard transforms (16 × 16, on the weight-gradient inputs) to smooth outliers; 2D 16 × 16 block scaling for weights so the forward and backward passes see the same quantised weights; stochastic rounding on gradients; and keeping some layers in BF16 (the first two and the last eight blocks, 16% of the linear layers).",
+  "label": "core",
+  "key": "needed four things: random hadamard transforms (16 × 16, on",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "NVFP4 against MXFP4 : NVFP4's 16-element blocks with an E4M3 scale beat MXFP4's 32-element power-of-two blocks on quality.",
+  "label": "core",
+  "key": "over blocks half as long",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "In the same paper's 8B experiment, MXFP4 matched NVFP4's loss only with 36% more tokens (1.36T against 1T), and its loss gap to BF16 was about 2.5% against NVFP4's 1.5%.",
+  "label": "core",
+  "key": "in the same paper's 8b experiment, mxfp4 matched nvfp4's",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "The animation above shows why on one block: an E8M0 scale is a power of two, so a block's largest value lands anywhere between 4 and 8 times the scale and above 6 it clips, while E4M3 puts it on 6 almost exactly.",
+  "label": "core",
+  "key": "an e8m0 scale is a power of two, so a block's largest value",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "MXFP4's advantage is portability: it is an open standard that also runs on AMD (the MI355X, per Spheron's guide , a vendor blog that calls its own accuracy table directional).",
+  "label": "core",
+  "key": "mxfp4's advantage is portability: it is an open standard",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "Low-precision RL is live ( LMSYS, 29 July 2026 ): in the Miles framework (SGLang rollouts, Megatron and Transformer Engine training), MXFP8 runs end to end, \"rollout, forward propagation, weight-gradient GEMMs, and data-gradient GEMMs\"; NVFP4 covers only the MoE experts in rollout and forward, with the backward pass in high precision and the rest of the model (shared experts, the last 15% of layers) in BF16.",
+  "label": "depth",
+  "key": "low-precision rl is live ( lmsys, 29 july 2026 ): in the",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "On Qwen3-30B-A3B with GRPO, \"all five low-precision reward curves closely track the BF16 reward curve\", although \"both low-precision formats show higher train-inference mismatch than BF16\".",
+  "label": "depth",
+  "key": "on qwen3-30b-a3b with grpo, \"all five low-precision reward",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "Both cut rollout time; MXFP8 training is faster than BF16, the NVFP4 backward variants slower in that implementation.",
+  "label": "depth",
+  "key": "both cut rollout time; mxfp8 training is faster than bf16",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "The methods that go further all target that mismatch rather than the quantisation error on each side: TRACE uses the rollout's FP4 rounding outcomes to guide the trainer's, and reports RL \"comparable to BF16 rollout\" with FP4 weights, activations and KV cache on four large MoE models at up to 5.4x rollout speedup ( TRACE (arXiv 2610.07767) ); TRIAGE keeps native NVFP4 W4A4 on both sampler and learner and repairs mismatched updates by their gradient direction, reaching full-precision scores on five math benchmarks with Qwen3-4B and Qwen3-30B-A3B at up to 2.3x BF16 rollout throughput ( TRIAGE (arXiv 2610.07043) ).",
+  "label": "owned:models_and_training/topic_rl/rl_for_llms",
+  "key": "TRACE (arXiv 2610.07767)",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "For asynchronous rollouts the KV cache is the bigger lever: KV quantization gave more speedup than weight-only or weight-activation schemes at matched workload, but plain INT4 KV degraded learning even with truncated importance sampling; keeping attention sinks and recent tokens in INT8 (KV4-RL) gave 1.80x cumulative rollout and 1.27x full-iteration speedup over 400 GRPO iterations of Qwen3-8B-Base, with final six-benchmark accuracy within 0.5 points of BF16 rollouts ( KV4-RL (arXiv 2610.14448) ).",
+  "label": "owned:models_and_training/topic_rl/rl_for_llms",
+  "key": "KV4-RL (arXiv 2610.14448)",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "Why the mismatch matters, and the importance-sampling corrections, are on RL for LLMs .",
+  "label": "depth",
+  "key": "why the mismatch matters, and the importance-sampling corrections",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "Inference default stack, 2026 : bf16, then FP8 W8A8 (near-lossless), then NVFP4 or INT4 weight-only for memory-bound serving; MoE models quantize their experts aggressively.",
+  "label": "core",
+  "key": "inference default stack, 2026 : bf16, then fp8 w8a8",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "NVFP4 is about 3.5 times smaller than FP16 and 1.8 times smaller than FP8 ( NVIDIA ; 16 / 4.5 = 3.56, 8 / 4.5 = 1.78 derived ). llama.cpp's ggml has begun adding an NVFP4 block type too ( ggml-common.h ).",
+  "label": "core",
+  "key": "nvfp4 is about 3.5 times smaller than fp16 and 1.8 times",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "Recurrent states : linear-attention layers replace the growing KV cache with a fixed-size state, which becomes the memory bottleneck under concurrent serving, and quantizing it naively fails because errors propagate through every later state update.",
+  "label": "depth",
+  "key": "recurrent states : linear-attention layers replace the",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "STEPQuant allocates precision by error magnitude and memory lifetime and fits key-row and value-column scales jointly; on Qwen3.8-27B and Kimi-Linear-48B-A3B-Instruct it closely matched FP32-state accuracy at a nominal 6 bits, and in SGLang gave over 5x state compression and up to 68.7% less total serving memory ( STEPQuant (arXiv 2609.38169) ).",
+  "label": "depth",
+  "key": "stepquant allocates precision by error magnitude and memory",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "Corrections The old page described NVFP4 pretraining as \"matching-quality training with 2-3x matmul speedups\": the 2 to 3 times is the hardware's peak FP4 rate against FP8 on GB200 and GB300, not a speedup measured in the paper.",
+  "label": "core",
+  "key": "corrections the old page described nvfp4 pretraining as",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "It put the MXFP4 \"36% more tokens\" result without its setting: it is the 8B experiment, 1.36T against 1T tokens.",
+  "label": "core",
+  "key": "it put the mxfp4 \"36% more tokens\" result without its",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "And it said low-precision RL reduces \"the rollout/trainer precision mismatch that destabilises RL\": the LMSYS post reports that both low-precision formats show higher train-inference mismatch than BF16, with reward curves that still track BF16, and that NVFP4 there is used for MoE experts in rollout and forward only, not for \"rollouts with bf16 training\" across the model.",
+  "label": "core",
+  "key": "and it said low-precision rl reduces \"the rollout/trainer",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "the 4-bit frontier (2025 to 2026)",
+  "text": "Serving-side kernels and KV-cache quantization live in Topic: inference-and-serving ; hardware details in Topic: hardware .",
+  "label": "core",
+  "key": "KV-cache quantisation and sizing in",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes \"bf16 is more precise than fp16\" It is less precise (7 mantissa bits against 10, a relative step of 0.0078 against 0.00098).",
+  "label": "core",
+  "key": "7 mantissa bits against 10, a relative step of 0.0078 against 0.00098",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "It wins for training because of range: its exponent is fp32's, so gradients do not underflow and no loss scaling is needed. \"4-bit means 4 bits per weight\" Scales cost bits: 4.25 for MXFP4 and INT4 g128, 4.5 for NVFP4 and Q4_K, about 4.9 for a whole Q4_K_M file.",
+  "label": "core",
+  "key": "Budget memory on these effective bits",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Budget memory on effective bits per weight, or use the calculator on Topic: llm-training-and-post-training . \"Lower weight error means a better quantization\" GPTQ and AWQ raise the plain weight error on the layer used here (10.8% to 18.1% and 12.8%) while lowering the output error (7.8% to 6.1% and 6.2%).",
+  "label": "core",
+  "key": "Budget memory on these effective bits",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "What matters is error weighted by the activations each weight meets ( One real layer, every scheme ). \"Integers are always better than floats at the same bits\" With one scale per tensor, FP8 E4M3 left 1.9% output error on this layer and INT8 10.5%: floating point spaces its levels by magnitude, so one outlier does not starve the small weights.",
+  "label": "core",
+  "key": "one outlier does not starve the small weights",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "With a scale per channel, INT8 wins (0.76%).",
+  "label": "core",
+  "key": "with a scale per channel, INT8 wins (0.76%)",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Granularity and format interact. \"An uploader's perplexity proves the quant is fine\" Perplexity on the calibration distribution hides losses off it, and schemes with similar perplexity diverge on instruction-following and reasoning ( Kurt 2026 ).",
+  "label": "depth",
+  "key": "\"an uploader's perplexity proves the quant is fine\"",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Evaluate on your own tasks. \"Convert to MXFP4 for free speed\" gpt-oss was released in MXFP4; converting an ordinary checkpoint into it with round-to-nearest is lossier than NVFP4 or INT4 with group scales (9.3% against 6.2% and 7.8% output error on this page's layer) and should be calibrated or fine-tuned. \"Quantize from whatever file you have\" Always quantize from the full-precision original: errors from an already-quantized file compound and cannot be recovered ( Model formats ).",
+  "label": "core",
+  "key": "is lossier than NVFP4 or INT4 with group scales (9.3% against 6.2% and 7.8%)",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Real-weight results: Qwen2.5-0.5B (Apache 2.0), layer 8 q_proj, calibration on the opening of Pride and Prejudice , evaluation on the opening of A Tale of Two Cities (Project Gutenberg, public domain), 511 tokens each.",
+  "label": "core",
+  "key": "real-weight results: qwen2.5-0.5b (apache 2.0), layer 8",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Scripts in this page's src/ : qformats.py, quant_lab.py, export_data.py, recompute.py.",
+  "label": "core",
+  "key": "scripts in this page's src/ : qformats.py, quant_lab.py",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Checked 3 October 2026.",
+  "label": "core",
+  "key": "checked 3 October 2026",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "Bit explorer Type or slide a number and see what every format does with it: the bits it stores, the value you get back, the error, the gap to the next representable number at that magnitude, and what happens at the edges (subnormals, underflow to zero, overflow to infinity or saturation).",
+  "label": "core",
+  "key": "Any number through every format",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "It extends Reading: Number formats .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to Reading from the removed tab"
+ },
+ {
+  "id": 168,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "Try: 1e-8, a tiny gradient: fp16 stores 0 and bf16 keeps it (why fp16 training needs loss scaling).",
+  "label": "core",
+  "key": "1e-8 (tiny gradient)",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "70000: fp16 overflows to infinity.",
+  "label": "core",
+  "key": "70000 (fp16 overflows to infinity)",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "500: E4M3 saturates at 448 while E5M2 stores 512.",
+  "label": "core",
+  "key": "500 (E4M3 saturates at 448, E5M2 stores 512)",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "1 + 2^-8: bf16 cannot tell it from 1, fp16 can.",
+  "label": "core",
+  "key": "1 + 2^-8 (bf16 cannot tell it from 1, fp16 can)",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "Value Magnitude (log2 slider) Rounding is round-to-nearest-even with subnormals, as in hardware conversion.",
+  "label": "core",
+  "key": "value magnitude (log2 slider) rounding is",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "Formats with infinities (fp32, tf32, bf16, fp16, E5M2) overflow to infinity once past the largest value by half a step; E4M3 and E2M1 have none, and conversion kernels saturate. \"Step here\" is the gap between neighbouring values at this magnitude (one unit in the last place).",
+  "label": "core",
+  "key": "formats with infinities (fp32, tf32, bf16, fp16, e5m2)",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "Inside a block: one shared scale Block formats store each number as a small element times a scale shared with its neighbours, set by the block's largest magnitude.",
+  "label": "depth",
+  "key": "block formats store each number as a small element times a",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "Set that largest magnitude and see where your value lands.",
+  "label": "depth",
+  "key": "Set that largest magnitude",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "A value much smaller than the block's largest loses most of its precision in every block format: that is the outlier problem from Reading: Outliers .",
+  "label": "depth",
+  "key": "a value much smaller than the block's largest loses most of",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "Largest magnitude in the block MX scale per the OCP spec: 2 to the floor(log2(largest)) minus the element format's largest exponent (2 for E2M1, 8 for E4M3), so the largest element can exceed the element maximum and clip.",
+  "label": "depth",
+  "key": "largest magnitude in the block mx scale per the ocp spec: 2",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "NVFP4's second-level FP32 tensor scale is set as if this block held the tensor's largest value (amax / (448 × 6)), so the block scale is 448.",
+  "label": "depth",
+  "key": "nvfp4's second-level fp32 tensor scale is set as if this",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "NF4 codes from QLoRA Appendix E.",
+  "label": "depth",
+  "key": "nf4 codes from qlora appendix e",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-bits",
+  "section": "bit explorer",
+  "text": "Every format's limits, computed from its bit layout",
+  "label": "depth",
+  "key": "Every float format's limits, computed from its bit layout",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "One real layer, every scheme Seventeen weight formats and six W8A8 recipes applied to one real layer, the query projection of layer 8 in Qwen2.5-0.5B (896 × 896 weights, bf16 in the checkpoint), and measured on 511 tokens of real text the calibration never saw.",
+  "label": "core",
+  "key": "896 × 896 weights, bf16 in the checkpoint",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "It answers \"across all the formats, what does each bit of scale overhead buy?\", and extends Reading: PTQ and Outliers .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "framing of the removed tab"
+ },
+ {
+  "id": 183,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "Everything here is measured here by src/quant_lab.py : one layer of one small model, so read it as a mechanism made visible, not as a ranking that will hold on your model.",
+  "label": "core",
+  "key": "a mechanism made visible, not a ranking that will hold on your model",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "Try: switch the metric to weight error: GPTQ and AWQ jump from best to worst among the 4.25-bit schemes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "try-prompt for the removed metric toggle; the flip chart in section 3 shows weight against output error directly"
+ },
+ {
+  "id": 185,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "They minimise the output error, which is what the model feels.",
+  "label": "core",
+  "key": "Weight error is not output error",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "Output error Weight error About 4 bits About 8 bits All 8-bit 4-bit, round to nearest 4-bit, calibrated (GPTQ, AWQ) Output error: ‖XŴ T − XW T ‖ / ‖XW T ‖ on the evaluation tokens (activations unquantised); weight error: ‖Ŵ − W‖ / ‖W‖.",
+  "label": "core",
+  "key": "4-bit, calibrated (GPTQ, AWQ",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "Bits per weight include scales: per-channel overhead is one fp16 scale per 896 weights.",
+  "label": "core",
+  "key": "per-channel overhead is one fp16 scale per 896 weights",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "Q4_K* is a simplified Q4_K (min-max per block of 32, 6-bit scales and mins against fp16 super-values, without llama.cpp's search).",
+  "label": "depth",
+  "key": "q4_k* is a simplified q4_k (min-max per block of 32, 6-bit",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "NF4 + DQ stores the same values as NF4 in fewer bits (scale error not modelled).",
+  "label": "depth",
+  "key": "nf4 + dq stores the same values as nf4 in fewer bits (scale",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "GPTQ: the paper's algorithm without lazy batching, 1% damping, calibration Hessian from 511 tokens; act-order uses static groups.",
+  "label": "depth",
+  "key": "gptq: the paper's algorithm without lazy batching, 1%",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "AWQ: grid search of α on the calibration text.",
+  "label": "depth",
+  "key": "awq: grid search of α on the calibration text",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "The table Weights and activations in 8 bits (W8A8) Output error when the activations are quantised too.",
+  "label": "core",
+  "key": "Output error with activations quantised too",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "One per-tensor activation scale is the cheapest kernel and the most exposed to outlier channels; per-token scales or FP8's range fix most of it; SmoothQuant fixes it while keeping the cheap kernel.",
+  "label": "core",
+  "key": "one per-tensor activation scale is the cheapest kernel and",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "Weights INT8 or FP8 per output channel unless named. \"Static\" uses the calibration text's maximum; \"dynamic\" recomputes it per batch or per token.",
+  "label": "core",
+  "key": "weights int8 or fp8 per output channel unless named",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "Tuning the migration SmoothQuant α , W8A8 INT8 per-tensor static At α = 0 the factor is 1/max|W|: the weights' own outlier (column 5) moves into the activations, and the error reaches 31% (off the chart).",
+  "label": "core",
+  "key": "at α = 0 the factor is 1/max|w|: the weights' own outlier",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-layer",
+  "section": "one real layer, every scheme",
+  "text": "AWQ α , INT4 g128 weight-only The grid search picks α on the calibration text (0.30); the curve shown is the evaluation text, whose best is also 0.30.",
+  "label": "depth",
+  "key": "the grid search picks α on the calibration text (0.30); the",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Links open in a new tab, with reading times.",
+  "label": "core",
+  "key": "Links open in a new tab, with reading times",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "On this page Bit explorer Any number through every format: bits, stored value, error, step, edges; and inside a shared-scale block.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "On this page entry for a removed tab"
+ },
+ {
+  "id": 199,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "One real layer, every scheme Seventeen weight formats and six W8A8 recipes on one real Qwen layer, with GPTQ, AWQ and SmoothQuant tuned on calibration text.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "On this page entry for a removed tab"
+ },
+ {
+  "id": 200,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "In this knowledge base Topic: llm-training-and-post-training The parent page: the stages compared, and in its Machinery section the bytes-per-parameter memory calculator (full fine-tune, LoRA, QLoRA, bf16, FP8, 4-bit serving).",
+  "label": "core",
+  "key": "The parent page: the stages compared",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 27 min) QLoRA NF4 built and checked against Appendix E, double quantisation, real LLaMA-7B weights quantised in the browser.",
+  "label": "core",
+  "key": "about 27 min) qlora nf4 built and checked against appendix",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 29 min) DeepSeek-V3 Technical Report FP8 training at 671B: tile and block scaling animated, 14-bit accumulation against promotion every 128.",
+  "label": "core",
+  "key": "about 29 min) deepseek-v3 technical report fp8 training at",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 26 min) OpenAI: GPT family gpt-oss on one GPU, with one MXFP4 block quantised.",
+  "label": "core",
+  "key": "about 26 min) openai: gpt family gpt-oss on one gpu, with",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 28 min) Parameter-Efficient Fine-Tuning (PEFT) LoRA and QLoRA, the budget alternative to QAT.",
+  "label": "core",
+  "key": "the fine-tuning memory calculator",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 20 min) ZeRO Where the 16 bytes per parameter of mixed-precision Adam come from, and how to shard them.",
+  "label": "core",
+  "key": ") zero where the 16 bytes per parameter of mixed-precision",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 19 min) Numerical computing for ML The owner of the float formats (section 4: fp32 to FP8 bit by bit, with their limits) and of mixed-precision mechanics (section 11: master weights, loss scaling and bf16, measured on a real model's gradients).",
+  "label": "core",
+  "key": "about 19 min) numerical computing for ml the owner of the",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 45 min) Local and on-device inference: llama.cpp, Ollama, MLX The owner of GGUF types: block layouts decoded from real files, mixing recipes, importance matrices, a measured quality ladder, and the fit arithmetic on two RTX 5090s.",
+  "label": "core",
+  "key": "about 45 min) local and on-device inference: llama.cpp",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 44 min) Model formats: GGUF, safetensors, ONNX, and the rest The container around a quantised model, and which conversions are lossy.",
+  "label": "core",
+  "key": "about 44 min) model formats: gguf, safetensors, onnx, and",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(29 min read) Topic: inference-and-serving Serving kernels, KV-cache quantization, batching.",
+  "label": "core",
+  "key": "Serving kernels, KV-cache quantization, batching",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(43 min read) Topic: hardware Tensor cores and which formats each GPU generation runs natively.",
+  "label": "core",
+  "key": "43 min read) topic: hardware tensor cores and which",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 37 min) Best resources Maarten Grootendorst, A Visual Guide to Quantization The best visual introduction to formats, PTQ, QAT and GPTQ.",
+  "label": "core",
+  "key": "about 37 min) best resources maarten grootendorst, a",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 40 min) Ultra-Scale Playbook, mixed-precision section bf16 and FP8 training mechanics.",
+  "label": "core",
+  "key": "about 40 min) ultra-scale playbook, mixed-precision",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 1 h for that section) Pretraining LLMs with NVFP4 (NVIDIA, 2025) The 4-bit training recipe and the MXFP4 comparison.",
+  "label": "core",
+  "key": "about 1 h for that section) pretraining llms with nvfp4",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min) NVFP4 vs MXFP4 decision guide (Spheron) A vendor's practical comparison; its accuracy table is directional.",
+  "label": "core",
+  "key": "45 min) nvfp4 vs mxfp4 decision guide (spheron) a vendor's",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 25 min) LMSYS: end-to-end MXFP8 and NVFP4 RL (2026) Low-precision RL in practice, in Miles.",
+  "label": "core",
+  "key": "about 25 min) lmsys: end-to-end mxfp8 and nvfp4 rl (2026)",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 30 min) What is quantization?",
+  "label": "core",
+  "key": "about 30 min) what is quantization?",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(The AI Engineer) An introduction.",
+  "label": "core",
+  "key": "the ai engineer) an introduction",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 20 min) Quantization in practice: GPTQ vs AWQ (The AI Engineer) The two calibrated weight-only methods side by side.",
+  "label": "core",
+  "key": "about 20 min) quantization in practice: gptq vs awq (the",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 25 min) GGUF format and k-quants explained The container and the K-quant blocks.",
+  "label": "core",
+  "key": "about 25 min) gguf format and k-quants explained the",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 25 min) Hugging Face Hub: GGUF quantisation types The reference table for block structures and nominal bits per weight.",
+  "label": "core",
+  "key": "about 25 min) hugging face hub: gguf quantisation types",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(docs, about 20 min) llama.cpp quantize README The source of the measured bits-per-weight column.",
+  "label": "core",
+  "key": "docs, about 20 min) llama.cpp quantize readme the source",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 15 min) llm-compressor compression schemes The authority on W4A16, W8A8, FP8, NVFP4 and MXFP4 naming.",
+  "label": "core",
+  "key": "about 15 min) llm-compressor compression schemes the",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(docs, about 20 min) Which Quantization Should I Use?",
+  "label": "core",
+  "key": "docs, about 20 min) which quantization should i use?",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(Kurt, 2026) A unified evaluation of llama.cpp quantizations on Llama-3.1-8B-Instruct.",
+  "label": "core",
+  "key": "kurt, 2026) a unified evaluation of llama.cpp",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min) Unsloth Dynamic 3.0 GGUFs The current dynamic imatrix scheme.",
+  "label": "core",
+  "key": "45 min) unsloth dynamic 3.0 ggufs the current dynamic",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 15 min) Primary papers and specifications Mixed Precision Training (2017) fp32 master weights and loss scaling.",
+  "label": "core",
+  "key": "about 15 min) primary papers and specifications mixed",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30 min) FP8 Formats for Deep Learning (2022) E4M3 and E5M2 defined.",
+  "label": "core",
+  "key": "30 min) fp8 formats for deep learning (2022) e4m3 and e5m2",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(25 min) OCP Microscaling (MX) spec v1.0 MXFP8, MXFP6, MXFP4, MXINT8 and the E8M0 scale (archived copy; the live PDF is behind a bot check).",
+  "label": "core",
+  "key": "25 min) ocp microscaling (mx) spec v1.0 mxfp8, mxfp6",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30 min) LLM.int8() (2022) Emergent outlier features and mixed-precision decomposition.",
+  "label": "core",
+  "key": "30 min) llm.int8() (2022) emergent outlier features and",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min) GPTQ (2022) Second-order, layer-wise weight quantization.",
+  "label": "core",
+  "key": "45 min) gptq (2022) second-order, layer-wise weight",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min) SmoothQuant (2022) Moving activation outliers into the weights.",
+  "label": "core",
+  "key": "45 min) smoothquant (2022) moving activation outliers into",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(40 min) AWQ (2023) Activation-aware weight scaling.",
+  "label": "core",
+  "key": "40 min) awq (2023) activation-aware weight scaling",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(40 min) QuaRot (2024) and SpinQuant (2024) Rotations for 4-bit weights, activations and KV cache.",
+  "label": "core",
+  "key": "40 min) quarot (2024) and spinquant (2024) rotations for",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min each) Breaking the 1.58-bit Barrier for Ternary LLMs (BITCOS, 2026) Packing ternary weights below log2 3.",
+  "label": "core",
+  "key": "45 min each) breaking the 1.58-bit barrier for ternary",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "page",
+  "section": "limits table",
+  "text": "Every float format's limits (largest, smallest normal, smallest subnormal, relative step, binades), script-rendered by 31_js_bits.js from the bit layouts",
+  "label": "depth",
+  "key": "448, 57,344, 65,504, 6.0, and subnormals down to",
+  "where": "",
+  "note": "added by hand: script-rendered"
+ },
+ {
+  "id": 236,
+  "tab": "page",
+  "section": "layer table",
+  "text": "The whole-layer table: 17 weight schemes with bits per weight, weight error, SQNR and output error (script-rendered from QD.lab)",
+  "label": "depth",
+  "key": "The whole layer, every scheme: the table and how each was run",
+  "where": "",
+  "note": "added by hand: script-rendered"
+ },
+ {
+  "id": 237,
+  "tab": "page",
+  "section": "W8A8 bars",
+  "text": "W8A8 recipes on the whole layer: INT8 per tensor static 4.73%, dynamic 4.89%, per token 2.65%, FP8 per tensor 2.73%, FP8-dynamic 2.45%, SmoothQuant 1.70% (script-rendered)",
+  "label": "core",
+  "key": "Plain W8A8 with a static per-tensor activation scale gives 4.73%",
+  "where": "",
+  "note": "added by hand: script-rendered"
+ },
+ {
+  "id": 238,
+  "tab": "page",
+  "section": "block counters",
+  "text": "Block animation counters per scope: scale source, step, weights zeroed, distinct values, block error, bits per weight; all scopes compared at the last step (script-rendered)",
+  "label": "core",
+  "key": "one block through five scopes",
+  "where": "",
+  "note": "added by hand: script-rendered"
+ },
+ {
+  "id": 239,
+  "tab": "page",
+  "section": "explorer presets",
+  "text": "Bit explorer presets: 0.1, 1/3, pi, 300, 448, 500, 65504, 70000, 1e-5, 1e-8, 1 + 2^-8 (script-rendered)",
+  "label": "core",
+  "key": "1e-8 (tiny gradient)",
+  "where": "",
+  "note": "added by hand: script-rendered"
+ },
+ {
+  "id": 240,
+  "tab": "page",
+  "section": "block calculator",
+  "text": "Inside-a-block calculator: INT8, INT4, MXFP8, MXFP4, NVFP4, NF4 with the shared scale, element and error (script-rendered)",
+  "label": "depth",
+  "key": "Any value inside one block, in every block format",
+  "where": "",
+  "note": "added by hand: script-rendered"
+ }
+]
