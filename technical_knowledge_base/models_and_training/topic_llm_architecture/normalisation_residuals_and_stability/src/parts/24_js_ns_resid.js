@@ -1,4 +1,4 @@
-// ---- Residual stream lab (t-resid): four placements, init or trained, stepped point by point ----
+// ---- Reading section 2: the residual stream under four placements, init or trained, stepped sub-layer by sub-layer (moved from the old Residual stream tab) ----
 (function(){
   const D=window.NSD,C=window.NSC,$=id=>document.getElementById(id);
   if(!D||!C||!window.RD||!$('rs-ch'))return;
@@ -18,7 +18,7 @@
     const cap=(R.caps[st.when]||{})[i]||'';
     $('rs-cap').innerHTML='<b>Point '+i+' of '+(N-1)+': '+ptName(i)+'.</b> '+cap;
   }
-  const an=RD.anim({card:'rs-ch',ctl:'rs-ctl',n:N,ms:900,draw,label:'Sub-layer'});
+  const an=RD.anim({card:'rs-card',ctl:'rs-ctl',n:N,ms:900,draw,label:'Sub-layer'});
   const re=()=>an.reset(N);
   RD.seg($('rs-when'),m=>{st.when=m;re()});RD.seg($('rs-q'),m=>{st.q=m;an.redraw()});RD.seg($('rs-init'),m=>{st.init=m;re()});
   function tab(){
@@ -26,6 +26,6 @@
     $('rs-tab').innerHTML='<table><thead><tr><th>Model (trained)</th><th class="num">largest entry</th><th>where</th><th class="num">median |entry|</th><th class="num">ratio</th></tr></thead><tbody>'+
       rows.map(r=>'<tr><td>'+C.esc(r.label)+'</td><td class="num">'+C.fmt(r.max)+'</td><td>'+C.esc(r.where)+'</td><td class="num">'+C.fmt(r.med)+'</td><td class="num">'+C.fmt(r.ratio)+'</td></tr>').join('')+'</tbody></table>';
   }
-  tab();
-  C.onTab('t-resid',()=>an.redraw());C.onResize('t-resid',()=>an.redraw());
+  if($('rs-tab'))tab();
+  RD.onResize(()=>an.redraw());
 })();

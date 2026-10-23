@@ -1,0 +1,3204 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Normalisation, residuals and stability: pre-norm, RMSNorm, QK-norm, initialisation, loss spikes Normalisation, residuals and stability: pre-norm, RMSNorm, QK-norm, initialisation, loss spikes Why a deep transformer trains at all, and what makes it stop: where the norm sits (post, pre, sandwich, output), LayerNorm against RMSNorm, attention-logit growth and QK-norm or soft-capping, output logits and z-loss, residual scaling and initialisation, massive activations, and how to read and fix a loss spike.",
+  "label": "core",
+  "key": "normalisation, residuals and stability: pre-norm, rmsnorm, qk-norm,",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Every placement and fix trained on the running example of Topic: llm-architecture with the same batches and seed (Apple M1 Pro, MPS), production choices read from configs and transformers 5.20.1, published results kept apart.",
+  "label": "core",
+  "key": "transformers 5.20.1",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading tab about 37 min (plus 7 min in closed details).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "stale reading-time phrasing; the subtitle is rewritten to the new format"
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Stability explorer Residual stream Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar navigation; the Residual stream tab moved into Reading section 2"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 The stream 2 Placement 3 LN or RMS 4 Attention logits 5 Output logits 6 Initialisation 7 Massive activations 8 Loss spikes 9 In production Mistakes Interview",
+  "label": "core",
+  "key": "1 the stream 2 placement 3 ln",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "In one screen A transformer trains because every block adds to a residual stream instead of replacing it, and because a norm keeps what each block reads at a fixed size.",
+  "label": "core",
+  "key": "transformer trains because every block adds to",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Everything on this page is a refinement of those two ideas: where the norm sits, which norm, what bounds the softmax logits inside attention and at the output, how small the branches start, and what to do when the loss jumps anyway.",
+  "label": "core",
+  "key": "where the norm sits, which norm, what",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Each row below was trained on the running example (the root's tiny GPT on TinyStories, 1,500 steps, the same batches and seed for every run), so the numbers compare like with like; published results at scale sit beside them.",
+  "label": "core",
+  "key": "keeps the same batches and seed",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Knob The problem it solves The usual choice (2026) What it costs Measured here (held-out loss, lr 3e-3 unless stated) Norm placement (section 2) gradients vanishing through depth vs the stream growing pre-norm; sandwich (Gemma) or output norm (OLMo) as variants pre-norm: a growing stream; post-norm: needs warmup or a lower rate pre 2.281; post 5.943 (stuck), 2.138 with 500 warmup steps; sandwich 2.501, 2.396 with QK-norm; output norm 3.405, 2.506 with QK-norm (the output placements need a logit control) Norm type (section 3) the cost of two reductions per token per norm RMSNorm, statistics in float32 none in quality; on MPS it is slower (no fused kernel, section 3) LayerNorm 2.269, RMSNorm 2.266 (two-seed means) Attention-logit control (section 4) logits growing until attention is one-hot QK-norm per head; soft-cap (Gemma 2); qk-clip (Kimi K2) two small norms per layer lr 3e-2, no clipping: 4.295 without (largest logit 20,865), 2.432 with QK-norm (largest logit 69.9) Output-logit control (section 5) the output logits drifting (log Z) z-loss 1e-4 one logsumexp, already computed z-loss leaves attention-logit growth untouched: 4.289 against 4.295 Residual init (section 6) 2L branches summing to a large, noisy stream at step 0 N(0, 0.02), output projections ÷ √(2L) (or small everywhere: DeepSeek-V3 0.006) none GPT-2 init 2.279, flat N(0, 0.02) 2.267 Wider residual (section 2) one stream limits how blocks connect DeepSeek-V4's mHC: 4 streams, doubly stochastic mixing 6.7% time (published) not run here (no MPS-sized model would show it); the random-matrix calculation shows why the constraint is needed Spike handling (section 8) a run that jumps or diverges warmup, clipping at 1.0, rollback and batch skipping, the fixes above checkpoints and logging clipping did not stop logit growth (4.361 with, 4.295 without) Where the basics live.",
+  "label": "core",
+  "key": "20,865",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "LayerNorm, RMSNorm, BatchNorm, the placement theorem (Xiong et al.), Xavier and He initialisation and μP are derived on the ML-fundamentals page Normalisation and initialisation ; its parent's When training goes wrong tab maps training symptoms to causes.",
+  "label": "core",
+  "key": "; its parent's when training goes wrong",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The root's Block lab (Topic: llm-architecture) trained pre- and post-norm at eight learning rates, and this page reuses those eight runs.",
+  "label": "core",
+  "key": "the root's block lab",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "This page is the transformer-specific depth: controlled runs of every placement and fix on one model, the production choices read from code, and the forensics of a spike.",
+  "label": "core",
+  "key": "this page is the transformer-specific",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The root's tiny GPT: 6 blocks, d_model 256, 8 heads of 32, LayerNorm, learned positions, tied embeddings, 5.8M parameters, trained on TinyStories with a 4,096-token BPE; batches of 32 × 256 tokens, AdamW (0.9, 0.95), lr 3e-3 with 100 warmup steps and cosine decay, clipping at 1.0 ( the root's src/data ).",
+  "label": "depth",
+  "key": "4,096-token bpe",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "This page's training loop is the root's train.py with a probe added ( src/runs/ns_train.py ); it reproduces the Block lab's pre-norm run (2.2788 here against 2.2811, MPS reruns differ in the third decimal).",
+  "label": "core",
+  "key": "2.2811",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "All runs: measured on Apple M1 Pro (MPS), about 5.5 minutes each.",
+  "label": "core",
+  "key": "measured on apple m1 pro",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "The residual stream, and why depth is a stability problem The problem.",
+  "label": "core",
+  "key": "the residual stream, and why depth is",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "A transformer is a stack of L blocks, each with two sub-layers (attention, then the feed-forward network).",
+  "label": "core",
+  "key": "(attention, then the feed-forward",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "Each sub-layer computes a branch F(x) and adds it to a running vector per token, the residual stream : x ← x + F(x).",
+  "label": "core",
+  "key": "the running vector per token that blocks add to",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "After L blocks the stream is the embedding plus 2L branch outputs.",
+  "label": "core",
+  "key": "two sub-layers each",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "Two things can go wrong with depth.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "Forward: the stream's size can drift, either growing (every add makes it bigger) or being forced flat (normalising it after every add).",
+  "label": "core",
+  "key": "every add can make it bigger",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "Backward: the gradient that reaches block 1 has to travel through every block above it; if each step scales it by a little less than one, it vanishes, and by a little more, it explodes.",
+  "label": "core",
+  "key": "through every block above it;",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "Normalisation (rescaling a vector to a fixed size, defined from zero on the ML-fundamentals Normalisation and initialisation page ) and the placement of the norm relative to the add decide which of these happens. x 2L = x 0 + F 1 (·) + F 2 (·) + … + F 2L (·) ∂x 2L /∂x 0 = I + (terms through the branches) x 0 the token embedding (plus a position vector in the tiny GPT); shape (B, T, D) with D = d_model = 256 F i sub-layer i's output, written into the stream; under pre-norm it reads Norm(x), under post-norm the add is normalised I the identity: with a clean residual path the gradient reaches every block undiminished, whatever the branches do What each piece buys, measured.",
+  "label": "core",
+  "key": "on the ml-fundamentals normalisation and initialisation page",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "The transformer from zero child trained the tiny GPT with one piece removed at a time, at an equal budget: without the residual connection it learns nothing (held-out 6.011, the unigram floor is 6.006); without the norms it trains but worse (2.546 against 2.276; at lr 1e-3, 3.061 against 2.464).",
+  "label": "core",
+  "key": "6.011",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "The residual path is what makes depth trainable; the norm is what lets it train at a useful learning rate.",
+  "label": "core",
+  "key": "lets it train at a useful learning",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "This page is about the second part: how the norm is placed, which norm, what else is added for stability, and how the weights start.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "signpost"
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "The size of the stream at initialisation, measured.",
+  "label": "core",
+  "key": "the size of the stream",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "Before any training, the running sequence (256 tokens of the Roxy story) through a fresh seed-0 tiny GPT, median token norm (L2 over the 256 channels): Placement after the embedding after the last sub-layer why Pre-norm, GPT-2 init 0.449 1.42 each branch starts small (output matrices ÷ √(2L), section 6), so 12 adds barely move the stream Pre-norm, flat init 0.449 5.18 same blocks without the √(2L) shrink: the branches are 3.46× larger at the start Post-norm 0.449 16.0 the stream itself is normalised after every add: norm √256 = 16 (RMS 1) by construction Sandwich (peri-norm) 0.449 56.0 every branch output is normalised to norm 16 before it is added; 12 nearly independent unit-RMS vectors sum to about 16 √12 = 55.4 (derived) Output norm (OLMo 2) 0.449 53.2 same argument as the sandwich: the branch reads the raw stream, but its output is normalised before the add So the four placements disagree before the first step: pre-norm starts almost as an identity map, post-norm pins the stream at RMS 1, and the two \"norm the output\" placements make it grow like the square root of the number of sub-layers.",
+  "label": "core",
+  "key": "0.449",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "After training the picture changes again (pre-norm grows to 65.5); the Residual stream tab animates every placement through all 12 sub-layers, before and after training, for the median token, one traced token, token 0 and the largest single entry.",
+  "label": "core",
+  "key": "65.5",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "How to check it on a real run.",
+  "label": "core",
+  "key": "how to check it on a real",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "Log the stream's RMS after each block for a fixed batch every few hundred steps (forward hooks on each decoder layer's output; in transformers, output_hidden_states=True returns the stream after every block, with the last entry already after the final norm, as the root's Inside lab found).",
+  "label": "core",
+  "key": "log the stream's rms after each block",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. the residual stream, and why depth is a stability problem",
+  "text": "A pre-norm stream that grows steadily is normal; a single dimension that is hundreds of times larger than the rest is a massive activation (section 7); a stream that is identical in every layer under post-norm is also normal, because the norm forces it.",
+  "label": "core",
+  "key": "hundreds of times larger than the rest",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Where the norm goes: post, pre, sandwich, output norm, DeepNorm The problem.",
+  "label": "core",
+  "key": "where the norm goes: post, pre, sandwich,",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "The norm can sit before the branch, after the add, or around the branch, and each choice trades the size of the stream against the path the gradient takes.",
+  "label": "core",
+  "key": "the norm can sit before the branch,",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Five placements are in use or in the literature: Placement One sub-layer Stream Gradient path Used by (checked in configs and code) Post-norm x = Norm(x + F(x)) fixed at RMS 1 (times the gain) through every norm on the way down 2017 Transformer, BERT Pre-norm x = x + F(Norm(x)) , final norm before the unembedding grows with depth clean identity path GPT-2 onward, Llama 1 to 4, Mistral, Qwen 2 and 3, DeepSeek-V2, V3 and V3.2 (V4 adds four mixed streams, below), Kimi K2, gpt-oss, SmolLM2 Sandwich (peri-norm) x = x + Norm(F(Norm(x))) grows like √(sub-layers) times the learned gains clean Gemma 2, 3 and 4 (four norms per block) Output norm (\"reordered\") x = x + Norm(F(x)) grows like √(sub-layers) clean OLMo 2 and OLMo 3 DeepNorm x = Norm(αx + F(x)) , branch init × β fixed (post-norm) through every norm, but the residual is up-weighted MiniMax-M1 (α = 3.5566 in its config) The tiny GPT's block, which this page's runs use (the output norm is added by src/runs/ns_model.py , a patch at import, because the shared code is read-only for child pages): OLMo 2 normalises the branch output and adds it to the raw stream; Gemma 3 does the same after a normalised input as well (both quoted from the pinned transformers source): DeepNorm in a released model.",
+  "label": "core",
+  "key": "3.5566",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "2022 keep post-norm but scale the residual by α = (2N) 1/4 for an N-layer decoder (and shrink some branch initialisations by β = (8N) −1/4 ), reporting stable training \"up to 1,000 layers\".",
+  "label": "depth",
+  "key": "up to 1,000 layers",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "MiniMax-M1's config sets postnorm: true and layernorm_*_alpha = 3.5565588 with 80 layers, which is exactly (2 × 80) 1/4 = 3.5566 (calculated); its transformers code normalises the input, keeps the normalised vector as the residual, and adds α × residual + β × branch: Why post-norm needs warmup.",
+  "label": "depth",
+  "key": "3.5565588",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "2020 show that at initialisation post-norm's gradients near the output are large, so a large learning rate early on is unstable and warmup (ramping the learning rate up from near zero) is what makes it train; pre-norm's gradients are \"well-behaved at initialization\".",
+  "label": "core",
+  "key": "well-behaved at initialization",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "The theorem, its lemma on the stream's growth and a toy that reproduces both are derived on the ML-fundamentals Normalisation page ; here is what happens on the running example.",
+  "label": "core",
+  "key": "and a toy that reproduces",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Predict: the Block lab trained post-norm at lr 3e-3 with the default 100 warmup steps, and again with 500 warmup steps.",
+  "label": "core",
+  "key": "and again with 500",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Pre-norm at lr 3e-3 reaches 2.281.",
+  "label": "core",
+  "key": "2.281",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Where does post-norm with 500 warmup steps end?",
+  "label": "core",
+  "key": "where does post-norm with 500 warmup steps",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Still stuck near the unigram floor (6.006) Trains, but worse than pre-norm (about 2.5) Better than pre-norm Skip to the answer 2.138, the best of all eight Block lab runs.",
+  "label": "core",
+  "key": "6.006",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "With 100 warmup steps post-norm is stuck at 5.943 (at the unigram level by step 30, so it learned only token frequencies).",
+  "label": "core",
+  "key": "5.943",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "With 500 it beats pre-norm by 0.143.",
+  "label": "core",
+  "key": "0.143",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Post-norm is not a worse architecture at this depth; it is a narrower one to train: it needs a smaller rate or a longer warmup.",
+  "label": "core",
+  "key": "post-norm is not a worse architecture at",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "In the trained stuck run the gradient reaching block 1 is 5.1e-7 against 0.027 at block 6 (Block lab).",
+  "label": "core",
+  "key": "5.1e-7",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "At initialisation the six blocks' gradients are level (0.074 each), so Xiong et al.'s large-near-the-output pattern does not show at 6 layers: the failure here develops in the first steps rather than being present at step 0.",
+  "label": "core",
+  "key": "0.074",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Measured: four placements at three learning rates (held-out loss after 1,500 steps; the full grid with curves is the Stability explorer tab): Placement lr 3e-3 lr 1e-2 lr 3e-2 Pre-norm 2.281 2.734 4.361 Post-norm 5.943 not run not run Sandwich 2.501 3.324 3.389 Output norm 3.405 3.763 3.605 Pre-norm + QK-norm 2.273 2.302 2.476 At this scale the two placements that normalise the branch output train worse than pre-norm, and the attention logits say why.",
+  "label": "core",
+  "key": "2.734",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "With the output norm nothing normalises what attention reads, so q and k grow with the raw stream: the largest logit reaches 5,693 at lr 3e-3 (pre-norm: 58.2) and the loss stalls at 3.405.",
+  "label": "core",
+  "key": "5,693",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "The sandwich does normalise its input, yet its logits still reach 241 at 3e-3 and 7,239 at 1e-2.",
+  "label": "core",
+  "key": "7,239",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Neither placement ships alone: OLMo 2 adds QK-norm to its output norm (its paper: \"in isolation, neither of these changes yield good results, but together\" they help), Gemma 2 adds soft-capping to its sandwich and Gemma 3 QK-norm; with QK-norm added, output norm reaches 2.506 (largest logit 15.3) and the sandwich 2.396 (largest logit 12.5).",
+  "label": "core",
+  "key": "2.396",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "QK-norm does not rescue post-norm, whose failure is the gradient, not the logits: post-norm + QK-norm at 3e-3 ends at 6.011, the unigram level, with a largest logit of only 5.70.",
+  "label": "core",
+  "key": "6.011",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Pre-norm + QK-norm is the most robust row: 2.273, 2.302 and 2.476 across a tenfold range of rates.",
+  "label": "core",
+  "key": "2.302",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Kim et al.'s Peri-LN advantage (below) does not reproduce at 6 layers and 12M tokens; their runs are 400M to 3.2B parameters.",
+  "label": "depth",
+  "key": "does not reproduce at 6 layers and",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "2025 (Peri-LN) trained the three placements at 400M, 1.5B and 3.2B parameters (their Table 1, five seeds each, diverged runs excluded, which they say \"mostly occurs in Pre-LN\"); published by the authors, not run here (hundreds of GPU-days): Size Post-LN loss Pre-LN loss Peri-LN loss Post / Pre / Peri benchmark average 400M 7.46 3.43 3.34 42.45 / 49.69 / 51.57 1.5B 5.38 3.29 3.18 45.49 / 53.71 / 56.55 3.2B 4.43 3.20 3.11 46.45 / 56.69 / 58.56 Their Post-LN losses are those of runs that trained badly at the shared learning rate, like the Block lab's post-norm at 3e-3; the paper also reports that Pre-LN hidden states pass the float16 maximum \"as early as 0.5B training tokens\" (section 7.2).",
+  "label": "depth",
+  "key": "42.45",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Read 2026-10-19 from arXiv 2502.02732 v3.",
+  "label": "depth",
+  "key": "2502.02732",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Widening the stream: hyper-connections and DeepSeek-V4's mHC The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Every placement above keeps one stream of width D per token.",
+  "label": "depth",
+  "key": "every placement above keeps one stream of",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Hyper-connections (Zhu et al.",
+  "label": "depth",
+  "key": "hyper-connections (zhu et al.",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "2024) keep n copies of it (n = 4) and learn, per sub-layer, how to collapse them into the branch input, how to spread the branch output back, and an n × n matrix H res that mixes the streams in place of the plain identity add: x l+1 = H res l x l + H post⊤ l F(H pre l x l ) ( mHC paper, Eq.",
+  "label": "depth",
+  "key": "how to collapse them into the branch input",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "The cost of the freedom is the identity path: after L sub-layers the stream carries the product of L mixing matrices, and DeepSeek report that in a 27B run the composite's largest gain reached \"peaks of 3000, a stark divergence from 1\", with \"an unexpected loss surge around the 12k step\" (section 3.1, figures 2 and 3; published by the authors, not run here).",
+  "label": "core",
+  "key": "3000",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "How mHC fixes it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Manifold-constrained hyper-connections project each H res onto the doubly stochastic matrices (non-negative, every row and every column sums to 1) with 20 iterations of Sinkhorn-Knopp (alternately dividing by row and column sums).",
+  "label": "depth",
+  "key": "manifold-constrained hyper-connections project each h res onto",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "A product of doubly stochastic matrices is doubly stochastic, so the composite can only average streams, never amplify them.",
+  "label": "depth",
+  "key": "a product of doubly stochastic matrices is",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "The authors report a 6.7% time overhead at n = 4 and a final loss 0.021 below the baseline at 27B (sections 1 and 5.2).",
+  "label": "depth",
+  "key": "0.021",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "DeepSeek-V4's released code does exactly this (config hc_mult 4, hc_sinkhorn_iters 20), with ordinary pre-norm RMSNorm inside each branch: The arithmetic, on random matrices (calculated, illustrative; src/analysis/hc_toy.py ): 120 sub-layers (60 blocks), 4 streams, each mixing matrix the identity plus Gaussian noise of standard deviation σ, 20 seeds.",
+  "label": "depth",
+  "key": "deepseek-v4's released code does exactly this (config",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "The largest row sum of the product, median over seeds: σ unconstrained (median, max) doubly stochastic (max) 0.05 3.24, 7.03 1.0000 0.1 12.1, 35.5 1.0000 0.2 268, 11,678 1.0000 0.3 136,917, 13,111,633 1.0000 Small per-layer deviations compound geometrically when nothing constrains them; the projection pins the gain at 1 whatever the noise.",
+  "label": "depth",
+  "key": "13,111,633",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "These are random matrices, not trained ones, so they show the mechanism, not the paper's 3,000.",
+  "label": "depth",
+  "key": "3,000",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "At 6 layers, pre-norm and a well-warmed post-norm differ by about a tenth of a nat, while the output placements without a logit control lose much more (the table above).",
+  "label": "core",
+  "key": "about a tenth of a nat",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "Placement matters more when the learning rate is pushed (a larger rate is a shorter run), when depth grows (post-norm's narrow window narrows further), and in low precision, where pre-norm's growing stream is the one that overflows.",
+  "label": "core",
+  "key": "more when the learning rate is pushed",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. where the norm goes: post, pre, sandwich, output norm, deepnorm",
+  "text": "How to check: sweep the learning rate for three or four values on a short run before committing; the placement with the widest flat region is the robust one (Wortsman et al. call the width \"LR sensitivity\", section 8).",
+  "label": "core",
+  "key": "the placement with the widest flat region",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "LayerNorm or RMSNorm The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "A norm runs twice per block on every token, in training and at inference.",
+  "label": "core",
+  "key": "a norm runs twice per block on",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "LayerNorm subtracts the mean and divides by the standard deviation; RMSNorm (Zhang and Sennrich 2019) drops the mean and divides by the root mean square, on the hypothesis that \"re-centering invariance in LayerNorm is dispensable\".",
+  "label": "core",
+  "key": "re-centering invariance in layernorm is dispensable",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "LN(x) = γ ⊙ (x − μ) / √(σ 2 + ε) + β RMSNorm(x) = γ ⊙ x / √(mean(x 2 ) + ε) μ, σ 2 mean and variance over the D = 256 channels of one token (two reductions) mean(x 2 ) one reduction; equals σ 2 + μ 2 , so the two norms agree exactly when μ = 0 γ, β learned gain and bias per channel; the tiny GPT, like most LLMs, has no β ( bias=False ) ε keeps the division finite for an all-zero row: 1e-5 in Llama and Mistral configs, 1e-6 in Qwen, DeepSeek, Gemma, OLMo and Kimi configs (read 2026-10-19) How much the mean matters in a trained model, measured.",
+  "label": "core",
+  "key": "keeps the division finite",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "In the root's reference tiny GPT (LayerNorm, pre-norm), the mean of a token's stream row is small next to its RMS: |μ| / RMS has a median of at most 0.015 at any of the 13 points and a maximum of 0.069.",
+  "label": "core",
+  "key": "0.015",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "Replacing every trained LayerNorm by an RMSNorm with the same gains, at inference and without retraining, moves the loss on the running sequence by 0.000012 nats (1.956310 to 1.956322), and the greedy continuation is identical.",
+  "label": "core",
+  "key": "1.956310",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "The model barely uses the re-centring, which is the RMSNorm paper's hypothesis, seen from the inside.",
+  "label": "core",
+  "key": "the rmsnorm paper's hypothesis, seen from",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "Training each from scratch, measured (same batches, seed, schedule, 1,500 steps, lr 3e-3; held-out loss, 20 windows): LayerNorm 2.279 (seed 0) and 2.260 (seed 1); RMSNorm 2.275 and 2.256.",
+  "label": "core",
+  "key": "no measurable difference at this scale",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "The gap between the two norms, 0.004 on the two-seed means, is smaller than the spread between seeds (0.019 for LayerNorm, 0.018 for RMSNorm): no measurable difference at this scale, as the paper reports.",
+  "label": "core",
+  "key": "0.004",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "Wall time per run: 323 s against 383 s (rough, shared laptop).",
+  "label": "core",
+  "key": "wall time per run: 323 s against",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "The paper reports RMSNorm \"reduces the running time by 7%~64% on different models\" (published, 2019 GPUs and frameworks).",
+  "label": "core",
+  "key": "reduces the running time by 7%~64%",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "On this laptop, the operation alone, forward plus backward, median of 30 repeats on MPS and 15 on the CPU (rough, measured on a shared Apple M1 Pro; read the ratio, not the milliseconds): Device Input (B × T × D) dtype LayerNorm ms nn.RMSNorm ms hand RMSNorm (Llama) ms RMS / LN CPU 32 × 256 × 256 float32 0.93 4.00 4.04 4.28 CPU 4 × 2,048 × 4,096 float32 15.82 38.07 38.03 2.41 CPU 1 × 8,192 × 8,192 float32 36.96 75.08 75.94 2.03 MPS 32 × 256 × 256 float32 1.79 4.05 4.01 2.26 MPS 32 × 256 × 256 bfloat16 0.91 4.40 4.23 4.86 MPS 4 × 2,048 × 4,096 float32 15.11 59.44 59.41 3.93 MPS 4 × 2,048 × 4,096 bfloat16 8.27 64.95 62.66 7.86 MPS 1 × 8,192 × 8,192 float32 25.24 100.73 100.48 3.99 MPS 1 × 8,192 × 8,192 bfloat16 12.22 111.52 106.64 9.12 Does not reproduce on this Mac.",
+  "label": "depth",
+  "key": "100.73",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "On MPS with torch 2.14.1, RMSNorm is 2.3 to 9.1 times slower than LayerNorm, and PyTorch's own nn.RMSNorm is no faster than the hand-written Llama version: LayerNorm has a fused MPS kernel, RMSNorm runs as separate elementwise and reduction ops.",
+  "label": "depth",
+  "key": "is no faster than the hand-written llama version",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "Whole training runs show it too: 383 s for RMSNorm against 323 s for LayerNorm (rough).",
+  "label": "depth",
+  "key": "whole training runs show it too: 383",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "On the CPU: 4.28x at 32 x 256 x 256, 2.41x at 4 x 2048 x 4096, 2.03x at 1 x 8192 x 8192 (RMS time over LN time).",
+  "label": "core",
+  "key": "4.28",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "What transfers: RMSNorm does strictly less arithmetic and one fewer reduction, which is why it is universal; the size of the saving depends on whether the framework fuses the norm into neighbouring kernels, which is why measured savings range so widely.",
+  "label": "core",
+  "key": "the saving depends on",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "With fused kernels the norms are a small share of a training step; here the unfused RMSNorm made the whole run 19% slower.",
+  "label": "depth",
+  "key": "with fused kernels the norms are a",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "The code real models run. transformers' Llama RMSNorm computes the statistics in float32 whatever the input dtype, then casts back before the gain; Gemma 1 to 3 and Qwen3-Next store the gain as an offset from 1 and multiply by (1 + w), while Gemma 4 went back to a plain w, so a checkpoint loaded into the other convention is wrong by exactly 1 in every gain (section \"Mistakes\" shows what that does): PyTorch's nn.RMSNorm has a different default ε (measured) torch.nn.RMSNorm(dim) without eps uses the machine epsilon of float32, 1.19e-7, not the 1e-5 or 1e-6 of model configs (torch 2.14.1 docstring: \"If not specified, uses the machine epsilon of the computation (opmath) type\").",
+  "label": "depth",
+  "key": "1.19e-7",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "On a row of 256 entries all equal to 0.001 (RMS 0.001) the output entry is 0.9452 with the default, 0.3015 with 1e-5 and 0.7071 with 1e-6.",
+  "label": "depth",
+  "key": "0.3015",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "Ordinary rows have an RMS near 1, where the three agree to many digits, so the difference only bites on near-zero rows; but a reimplementation that leaves eps unset does not reproduce the reference model bit for bit.",
+  "label": "depth",
+  "key": "ordinary rows have an rms near 1,",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. layernorm or rmsnorm",
+  "text": "The tiny GPT passes eps=cfg.norm_eps (1e-5) explicitly.",
+  "label": "depth",
+  "key": "eps=cfg.norm_eps",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Attention-logit growth: QK-norm, soft-capping, qk-clip The problem.",
+  "label": "core",
+  "key": "attention-logit growth: qk-norm, soft-capping, qk-clip the problem.",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "An attention logit is the score before the softmax, s = q · k / √d h = |q| |k| cos θ / √d h (d h = 32 in the tiny GPT).",
+  "label": "core",
+  "key": "an attention logit is the score before",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "The norm before attention fixes the size of the input x, but q = W q Norm(x) and k = W k Norm(x), and nothing stops W q and W k from growing.",
+  "label": "core",
+  "key": "the norm before attention fixes the size",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "When a few logits get large, the softmax becomes one-hot: its entropy (−Σ p log p over the keys, about 4.58 nats for uniform attention averaged over this sequence's positions, 0 for one-hot) collapses, the softmax's gradient to every other key vanishes, and the head stops learning.",
+  "label": "core",
+  "key": "4.58",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "ViT-22B's team saw \"divergent training loss after a few thousand steps\" at about 8B parameters, \"caused by extremely large values in attention logits\" that gave \"(almost one-hot) attention weights with near-zero entropy\" ( Dehghani et al.",
+  "label": "depth",
+  "key": "vit-22b's team saw \"divergent training loss after",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "2023, section 2 ); Zhai et al.",
+  "label": "depth",
+  "key": "(almost one-hot) attention weights with near-zero entropy",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "2023 name it attention entropy collapse ; Wortsman et al.",
+  "label": "depth",
+  "key": "name it attention entropy collapse",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "2023 showed the same instability \"also appear[s] in small models when training at high learning rates\", and that in their sweeps \"all points with attention logits above 1e4 diverged\" (section 3.3).",
+  "label": "core",
+  "key": "all points with attention logits above 1e4 diverged",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "QK-norm normalises each head's query and key vectors before the dot product, so |q| and |k| are set by the norm's learned gains instead of by the projection weights.",
+  "label": "core",
+  "key": "qk-norm normalises each head's query and key",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "In the tiny GPT (RMSNorm per head, before RoPE, as in Qwen3): Watch the logits run away, then the same batches with a fix Pre-norm tiny GPT at lr 3e-2 (ten times the default) with gradient clipping switched off, against the same model, seed and batches with one change.",
+  "label": "core",
+  "key": "rmsnorm per head, before rope",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Left: the largest attention logit in each layer on a fixed probe batch (8 held-out windows), bar length on a log scale from 1 to 100,000, with each layer's mean attention entropy under it.",
+  "label": "core",
+  "key": "100,000",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Measured on Apple M1 Pro (MPS), every 10 steps; the animation shows every 30th step. + QK-norm + z-loss 1e-4 + logit cap 50 lr 3e-3 instead (the default) lr 3e-2, no clipping, no fix the same with the selected change Measured.",
+  "label": "core",
+  "key": "each animation step is 30 training steps",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Without a fix the largest logit passes 1,000 by step 100 and peaks at 20,865 (step 510); the lowest layer entropy falls to 0.004 nats, one-hot attention.",
+  "label": "core",
+  "key": "20,865",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "The loss never becomes non-finite: the run stalls at a held-out 4.295, between the bigram floor (3.616) and the unigram floor.",
+  "label": "core",
+  "key": "4.295",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "With QK-norm and everything else identical the largest logit peaks at 69.9 and the run reaches 2.432.",
+  "label": "core",
+  "key": "2.432",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "For scale, at the default lr 3e-3 the same model without QK-norm peaks at 58.2 and reaches 2.279; with QK-norm at 3e-3, 2.273.",
+  "label": "core",
+  "key": "2.273",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Predict: z-loss (section 5) adds 1e-4 × (log Z) 2 to the loss, where Z is the output softmax's normaliser.",
+  "label": "core",
+  "key": "does it stop this run's attention logits",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Does it stop this run's attention logits from running away?",
+  "label": "core",
+  "key": "does it stop this run's attention logits",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Yes: it keeps every softmax well scaled No: it acts on the output layer's softmax, not on attention Skip to the answer No.",
+  "label": "core",
+  "key": "yes: it keeps every softmax well scaled",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "With z-loss the largest attention logit still reaches 24,895 (without: 20,865) and the run ends at 4.289 against 4.295.",
+  "label": "core",
+  "key": "24,895",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Mean log Z at the end: 8.52 with z-loss, 8.67 without.",
+  "label": "core",
+  "key": "8.67",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "The two instabilities are different softmaxes; the ML-fundamentals root found the same on a character-level model (z-loss alone did not remove the gradient spikes, QK-norm did).",
+  "label": "core",
+  "key": "the two instabilities are different softmaxes; the",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Where real models put it.",
+  "label": "depth",
+  "key": "where real models put",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Qwen3 normalises per head before RoPE; OLMo 2 normalises the whole query projection (all heads at once) before splitting into heads; Llama 4 Scout uses a weightless L2 norm, only in its RoPE layers, and Maverick turns it off ( use_qk_norm false in its config; the code comment says \"the 128E model does not use qk_norm\"): QK-norm does not cap the logit at a small number.",
+  "label": "depth",
+  "key": "qwen3 normalises per head before rope; olmo",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "With unit gains an RMS-normalised head vector has length √d h , so s ≤ √d h = 5.66 here.",
+  "label": "core",
+  "key": "5.66",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "But the gains are learned: in this page's QK-norm run at lr 3e-2 the mean |q| after the norm is 3.6 to 11.6 per layer and |k| 3.1 to 11.9 at the end (unit gains would give 5.66 for both), and the largest logit is 67.1, about 12 times the unit-gain ceiling.",
+  "label": "core",
+  "key": "mean |q| after the norm",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "The ML-fundamentals page measures the same on Qwen3-0.6B (ceilings 184 to 12,897 from its trained gains, real largest logits 12.5 to 48) ( Normalisation and initialisation, section 6 ).",
+  "label": "core",
+  "key": "12,897",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "What QK-norm removes is growth through the projection weights and the stream; the gain vector is small and moves slowly.",
+  "label": "core",
+  "key": "what qk-norm removes is growth through the",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Soft-capping instead Gemma 2 squashes the logits themselves: s ← c · tanh(s / c), \"50.0 for the self-attention layers and 30.0 for the final layer\" ( Gemma 2 report, section 2 ). tanh is the identity near 0 and flattens at ±1, so logits well under c pass unchanged and none can exceed c.",
+  "label": "core",
+  "key": "50.0",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Gemma 3 \"replace[d] the soft-capping of Gemma 2 with QK-norm\" ( Gemma 3 report ); Gemma 4's config keeps the final-layer cap at 30 and has no attention cap, with QK-norm in every attention layer (configs read 2026-10-19): Measured (same high-rate run, a cap of 50 on the attention logits): held-out 2.845 against 4.295 uncapped and 2.432 with QK-norm; the largest raw logit before the cap reached 6,296.",
+  "label": "core",
+  "key": "replace[d] the soft-capping of gemma 2 with qk-norm",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "The cap helps but less than QK-norm: logits keep growing behind it (raw 6,296), but because no capped logit can exceed 50 no head goes fully one-hot (lowest layer entropy 1.371 nats against 0.004 uncapped).",
+  "label": "core",
+  "key": "removes the growth instead of hiding it",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "That is one reason Gemma 3 switched to QK-norm, which removes the growth instead of hiding it.",
+  "label": "core",
+  "key": "that is one reason gemma 3 switched",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Without QK-norm: MLA and qk-clip.",
+  "label": "core",
+  "key": "without qk-norm: mla and qk-clip.",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Multi-head latent attention never materialises per-head keys at decode (they are absorbed into the query, see the Attention variants child), so a per-head key norm has nowhere to go.",
+  "label": "core",
+  "key": "multi-head latent attention never materialises per-head keys",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "DeepSeek-V3 instead \"employs additional RMSNorm layers after the compressed latent vectors\" ( DeepSeek-V3 report, section 4.2 ).",
+  "label": "core",
+  "key": "deepseek-v3 instead \"employs additional rmsnorm layers after",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Kimi K2 keeps the forward pass untouched and, after each optimiser step, rescales a head's query and key weights when that head's largest logit passes a threshold (qk-clip, part of MuonClip); the Moonshot AI: Kimi page animates it.",
+  "label": "core",
+  "key": "kimi k2 keeps the forward pass untouched",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "When it matters and how to check.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Log the largest attention logit per layer on a fixed batch every few hundred steps (one extra forward with the scores computed explicitly, as ns_model.py does; fused attention kernels never return them).",
+  "label": "core",
+  "key": "log the largest attention logit per layer",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. attention-logit growth: qk-norm, soft-capping, qk-clip",
+  "text": "Steady growth past a few hundred, together with falling entropy in the same layers, predicts trouble before the loss shows it; Wortsman et al. used exactly this to predict that a 4.8B model \"will be unstable at LR 1e-2\", and it was.",
+  "label": "core",
+  "key": "will be unstable at lr 1e-2",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. output logits and z-loss",
+  "text": "Output logits and z-loss The problem.",
+  "label": "core",
+  "key": "output logits and z-loss the problem.",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. output logits and z-loss",
+  "text": "The last layer's softmax has the same weakness at the other end of the model.",
+  "label": "core",
+  "key": "the last layer's softmax has the same",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. output logits and z-loss",
+  "text": "Cross-entropy depends only on differences between the output logits y j , so the whole vector can drift up or down for free; Z = Σ j e y j is the softmax's normaliser and log Z is that drift.",
+  "label": "core",
+  "key": "cross-entropy depends only on differences between the",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. output logits and z-loss",
+  "text": "2023 (section 3.1.2) describe an instability where the logits \"diverge and become very negative\", far from the log-probabilities, which in low precision loses the small differences that matter. loss = cross-entropy + c · (log Z) 2 , log Z = log Σ j exp(y j ), c = 10 −4 log Z 0 when the logits are already log-probabilities; the penalty pulls them there without changing which token wins c PaLM's coefficient: \"z loss = 10 −4 · log 2 Z to encourage the softmax normalizer log(Z) to be close to 0, which we found increases the stability of training\" ( PaLM, section 5 ); OLMo 2 and Wortsman et al. use the same value Measured.",
+  "label": "core",
+  "key": "diverge and become very negative",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. output logits and z-loss",
+  "text": "Mean log Z on the probe batch starts at 8.37 (a uniform guess over 4,096 tokens has log Z = ln 4096 = 8.32 when the logits are near 0) and ends at 11.46 in the healthy run at lr 3e-3, at 8.67 in the high-rate run without a fix and at 8.52 with z-loss 1e-4.",
+  "label": "core",
+  "key": "8.37",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. output logits and z-loss",
+  "text": "So at this scale z-loss 1e-4 barely moves log Z (8.52 against 8.67).",
+  "label": "core",
+  "key": "8.67",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. output logits and z-loss",
+  "text": "In the healthy run log Z drifts up to 11.46, where the penalty is 1e-4 × 11.46 2 = 0.013 nats, under 1% of the loss: the pull is weak by design, and the drift it prevents shows up over long runs, at scale and in low precision (published), none of which a 1,500-step float32 run has.",
+  "label": "core",
+  "key": "under 1% of the loss",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. output logits and z-loss",
+  "text": "It also left the attention logits alone (section 4).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement: section 4 and its z-loss reveal carry it"
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. output logits and z-loss",
+  "text": "OLMo 2's team found that the fused cross-entropy in Flash Attention (which includes a z-loss) and their own PyTorch z-loss gave the same forward value but behaved differently in the backward pass; a fork that switched implementations saw its z-loss jump about thirty-fold within a few hundred steps, and they retrained from the switch point (the OLMo 2 paper page replays it).",
+  "label": "depth",
+  "key": "z-loss jump about thirty-fold within a few",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. output logits and z-loss",
+  "text": "The lesson is general: do not change a loss implementation in the middle of a run.",
+  "label": "depth",
+  "key": "loss implementation in the middle of a",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. output logits and z-loss",
+  "text": "Log mean log Z on a fixed batch; a value drifting steadily away from 0 is the symptom z-loss treats.",
+  "label": "core",
+  "key": "log mean log z on a fixed",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "5. output logits and z-loss",
+  "text": "Computing it costs one logsumexp you already pay for in the cross-entropy.",
+  "label": "core",
+  "key": "it costs one logsumexp you already pay",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "Residual scaling and initialisation The problem.",
+  "label": "core",
+  "key": "residual scaling and initialisation the problem.",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "The stream after L blocks is a sum of 2L branch outputs.",
+  "label": "core",
+  "key": "the stream after l blocks is a",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "If each branch starts with variance v, the sum starts with variance about 2L · v (independent terms add their variances), so a deeper model starts with a larger, noisier stream and with branches whose first updates are large relative to what they are added to.",
+  "label": "core",
+  "key": "if each branch starts with variance v,",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "Initialisation is the choice of the weights' random scale before step 0; the basics (Xavier, He, why 0.02 is not variance-preserving on its own) are on the ML-fundamentals Normalisation and initialisation page .",
+  "label": "core",
+  "key": "xavier and he",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "This section is the transformer-specific part.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "signpost"
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "Scale the weights of the layers that write into the stream (attention's output projection and the FFN's down projection) by 1/√N, N the number of residual layers (Radford et al.",
+  "label": "core",
+  "key": "scale the weights of the layers that",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "With N = 2L the sum of 2L branches then starts with the variance of one.",
+  "label": "core",
+  "key": "with n = 2l the sum of",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "In practice: N(0, 0.02) everywhere and 0.02/√(2L) for those two matrices; for the tiny GPT (L = 6) that is 0.02/√12 = 0.00577.",
+  "label": "core",
+  "key": "0.00577",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "The tiny GPT and transformers' GPT-2 do exactly this: Measured: what the shrink does.",
+  "label": "core",
+  "key": "the tiny gpt and transformers' gpt-2 do",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "At initialisation the median token's stream grows from 0.449 to 1.42 with the scaled init and to 5.18 without it (section 1).",
+  "label": "core",
+  "key": "0.449",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "Trained from scratch on the same batches at lr 3e-3: 2.267 without the shrink against 2.279 with it.",
+  "label": "core",
+  "key": "2.267",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "The difference is smaller than the spread between two seeds of the default init (2.279 and 2.260): with 12 branches the √12 shrink does not measurably matter.",
+  "label": "core",
+  "key": "2.260",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "It is a depth effect: the papers above report it at hundreds of millions of parameters and dozens of layers, where this page cannot run.",
+  "label": "core",
+  "key": "it is a depth effect: the papers",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "Scheme What it does Evidence (published, not run here) OLMo 2: plain N(0, 0.02), no depth scaling dropped OLMo-0424's 1/√d input and 1/√(2 · d · layer) output scaling in a run made to spike, gradient-norm spike score 0.40 to 0.03 (OLMo 2 §3.2; recounted on the OLMo 2 paper page ) DeepSeek-V3: σ = 0.006 \"All learnable parameters are randomly initialized with a standard deviation of 0.006\" DeepSeek-V3 report, section 4.2 ; its config.json still says initializer_range 0.02, the library default, so the config is not evidence of the training init \"Spike No More\": small sub-layers, large shortcut initialise branches small and keep the embedding large: scale embeddings by √d or put a norm on them Takase et al., COLM 2025 : the usual init spiked at 350M and 1.7B (\"its loss value exploded at about 13000 steps\" at 1.7B) DeepNorm post-norm with residual × α = (2N) 1/4 , some branches × β = (8N) −1/4 Wang et al.",
+  "label": "depth",
+  "key": "0.006",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "2022 ; MiniMax-M1 (section 2) μP init and per-layer learning rates scaled with width so the best hyperparameters transfer from a small model Yang et al.",
+  "label": "depth",
+  "key": "init and per-layer learning rates scaled with width",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "2022 : \"by transferring from 40M parameters, we outperform published numbers of the 6.7B GPT-3 model, with tuning cost only 7% of total pretraining cost\"; the rules (Table 3) are on the ML-fundamentals page Embeddings are part of the init.",
+  "label": "depth",
+  "key": "tuning cost only 7% of total pretraining cost",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "The tiny GPT's token and position tables start at N(0, 0.02) each, so a token enters the stream with a norm of 0.449 (0.02 × √(2 × 256) = 0.45, calculated), against blocks whose outputs must be added to it.",
+  "label": "core",
+  "key": "0.449",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "A tiny embedding makes the first norm's Jacobian large (it divides by the input's size), which is Takase et al.'s argument for scaling it up and the OLMo 2 team's argument for not weight-decaying it (spike score 0.16 to 0.092 without decay on embeddings).",
+  "label": "core",
+  "key": "0.092",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "When it matters and how to check.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "Init is decided once and decides the first thousand steps; its effects grow with depth and width.",
+  "label": "core",
+  "key": "decides the first thousand",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "Check it before training: one forward pass at step 0, the stream's RMS by layer and the gradient norm by layer (the Residual stream tab is that check on the tiny GPT).",
+  "label": "core",
+  "key": "and the gradient norm by layer (the",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "6. residual scaling and initialisation",
+  "text": "A 2× change in the last layer's stream between two inits is worth a short learning-rate sweep on each.",
+  "label": "core",
+  "key": "a 2× change in the last layer's",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "Massive activations What they are.",
+  "label": "core",
+  "key": "massive activations what they are.",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "In trained LLMs a handful of stream entries, at fixed channels and mostly on the first token, are thousands of times larger than the rest.",
+  "label": "core",
+  "key": "in trained llms a handful of stream",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "2024 found in LLaMA2-7B a largest activation \"about 2,000\" (2,622 in their Table 1) \"approximately 10,000 times larger than the median magnitude (about 0.2)\", appearing \"in layer 2\" and staying \"nearly constant values until layer 30\", on the starting token and the first period or newline, in two channels (1415 and 2533).",
+  "label": "core",
+  "key": "10,000",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "They act as fixed biases: setting them to zero makes perplexity infinite and drops mean zero-shot accuracy from 68.95% to 36.75%, while setting them to their mean value changes almost nothing (their Table 3; published, not run here).",
+  "label": "core",
+  "key": "36.75",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "Why they matter for this page.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "Under pre-norm the stream is never normalised in place, so a huge entry, once written, rides the residual path to the last layer; every RMSNorm that reads that token divides by an RMS dominated by one channel.",
+  "label": "core",
+  "key": "under pre-norm the stream is never normalised",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "Sun et al. link the massive activations to attention concentrating on those same tokens (the attention sink, which the Attention variants child owns); how exactly the norm takes part is our reading, not their claim.",
+  "label": "core",
+  "key": "the norm takes part is our reading,",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "They also set the range that low-precision formats must hold: Peri-LN's authors report Pre-LN hidden states passing the float16 maximum \"as early as 0.5B training tokens\" ( Kim et al.",
+  "label": "core",
+  "key": "the float16 maximum \"as early as 0.5b",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "2025, section 7.2 ), and quantisation must keep these channels apart ( Quantization and Precision ).",
+  "label": "core",
+  "key": "keeps these channels apart",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "Measured on real models (the root's Inside a real model lab , Apple M1 Pro): in SmolLM2-135M, channel 507 of token 0 reaches 20,155 at layer 12 against a median entry of 1.56, the same layer where its attention sink switches on (weight on token 0 at most 0.085 before layer 12, 0.31 to 0.74 after); masking token 0 raises the loss on the running text from 1.563 to 1.648.",
+  "label": "core",
+  "key": "20,155",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "In Qwen3-0.6B the largest entry is 6,160 (channel 35 of token 0, layer 26) against a median of 5.54.",
+  "label": "core",
+  "key": "6,160",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "Measured on the tiny GPT: none.",
+  "label": "core",
+  "key": "the tiny gpt: none.",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "In the root's reference tiny GPT the largest single stream entry anywhere is 35.8 (token 132, f6) against a median |entry| of 2.69 at that point, a ratio of 13; the Inside lab's own measurement (35.8) agrees, and its verdict was no massive activation.",
+  "label": "core",
+  "key": "2.69",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "The Residual stream tab's last table lists every trained model of this page.",
+  "label": "core",
+  "key": "every trained model of this",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "A 6-layer model trained on 12M tokens is far too small and too short for the phenomenon, which the Inside lab saw only in pretrained models; what the tiny GPT does show is where the largest entry lives (token 0 in the middle blocks), a hint of the same first-token specialisation.",
+  "label": "core",
+  "key": "for the phenomenon, which the inside lab",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "What removes them, published.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "Sun et al.: \"in GPT-2 with explicit attention biases, massive activations disappear\" (section 4.3).",
+  "label": "depth",
+  "key": "sun et al.: \"in gpt-2 with explicit",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "Gated attention (an elementwise sigmoid gate on each head's output, Qwen3-Next) cut the largest activation from 1,053 to 94 and first-token attention from 0.467 to 0.048 in Qiu et al.'s 15B MoE (Table 4); the Attention variants child trained that gate on the tiny GPT, where there is no sink to remove: largest stream entry 35.1 with the gate against 37.5 without, first-token attention at most 0.016 against 0.016.",
+  "label": "depth",
+  "key": "1,053",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "For each layer, the largest |entry| of the stream, its token and its channel, against the median |entry|, on a few real prompts (forward hooks, or output_hidden_states=True ).",
+  "label": "core",
+  "key": "channel, against the median |entry|, on a",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "7. massive activations",
+  "text": "A ratio in the thousands at a fixed channel on token 0 is a massive activation; it is normal in a large pretrained model and a design input for quantisation and for low-precision training, not a bug.",
+  "label": "core",
+  "key": "a ratio in the thousands at a",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "Loss spikes: reading them and fixing them What a spike is.",
+  "label": "core",
+  "key": "loss spikes: reading them and fixing them",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "A loss spike is a sudden jump of the training loss after a healthy stretch; sometimes it recovers in a few hundred steps, sometimes the run never comes back ( divergence ).",
+  "label": "core",
+  "key": "a loss spike is a sudden jump",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "PaLM's 540B run \"observed spikes in the loss roughly 20 times during training, despite the fact that gradient clipping was enabled\", \"not observed when training the smaller models\"; restarting \"roughly 100 steps before the spike\" and skipping \"roughly 200-500 data batches\" stopped each one, and replaying the same batches from an earlier checkpoint did not spike, so \"spikes only occur due to the combination of specific data batches with a particular model parameter state\" ( PaLM, section 5.1 ).",
+  "label": "core",
+  "key": "palm's 540b run \"observed spikes in the",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "OLMo 2 found gradient-norm spikes to be more frequent than loss spikes and to come first, and measured them with a spike score : the share of values at least seven standard deviations from a rolling average of the last 1,000 (the OLMo 2 paper page replays every ablation).",
+  "label": "core",
+  "key": "rolling average of the last 1,000",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "The causes and their fixes , in the order to check them: Symptom before the spike Likely cause Fix Evidence largest attention logit climbing, entropy falling in some layers attention-logit growth QK-norm (or a logit cap, or qk-clip); lower peak learning rate section 4; measured here 4.295 to 2.432 mean log Z drifting away from 0 output-logit divergence z-loss 1e-4 section 5; Wortsman et al. §3.1.2 spike at the very start, before or during warmup learning rate too high for the placement or init longer warmup; pre-norm; smaller branch init post-norm 5.943 to 2.138 with 500 warmup steps (Block lab); \"a longer warm-up period reduces LR sensitivity\" (Wortsman et al. §3.2.1) gradient norm growing slowly over the whole run optimiser and init settings (AdamW ε too large, embeddings decayed) AdamW ε 1e-8 (not 1e-5), no weight decay on embeddings, OLMo 2's init OLMo 2 §3 to §3.4; Wortsman et al. §3.4 (ε 1e-15 helped at 4.8B) spike tied to particular batches data plus parameter state (repeated n-grams in OLMo 2's case) roll back about 100 steps and skip the batches; filter repeated n-grams PaLM §5.1; OLMo 2 §3.1 loss becomes non-finite (not a number, or infinite) in one step numerics: an overflow in low precision, a norm on an all-zero row find the first non-finite tensor (anomaly detection), keep norms and softmax statistics in float32 the Numerical computing page; transformers' RMSNorm upcasts (section 3) Predict: at lr 3e-2 the Block lab's pre-norm run had gradient clipping at 1.0; this page's run is identical except for no clipping.",
+  "label": "core",
+  "key": "in the order to check them",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "Clipping, clearly: it is the standard fix for spikes About the same: clipping does not stop the logits from growing No clipping, clearly Skip to the answer About the same.",
+  "label": "core",
+  "key": "clipping, clearly: it is the standard fix",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "With clipping at 1.0: 4.361; without: 4.295.",
+  "label": "core",
+  "key": "4.361",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "The largest gradient norm without clipping was 76.6 (step 1,257), but the damage is done by many ordinary steps that each push the query and key weights a little further, which clipping does not touch.",
+  "label": "core",
+  "key": "1,257",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "QK-norm without clipping: 2.432.",
+  "label": "core",
+  "key": "2.432",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "OLMo 2's score run on this page's every-step logs (7 standard deviations; a 100-step window, as on the ML-fundamentals root, because these runs have 1,500 steps, not hundreds of thousands): count of spiking steps out of the 1,400 after the first window.",
+  "label": "core",
+  "key": "out of the 1,400",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "Run loss spikes gradient-norm spikes gradient-norm score lr 3e-3 (default) 0 1 0.07% lr 3e-2, no clipping 0 9 0.64% + QK-norm 0 0 0.00% + z-loss 0 9 0.64% + logit cap 50 0 5 0.36% lr 3e-2, clipping, QK-norm 0 0 0.00% No run has a loss spike by this definition: at a 1,500-step scale the loss changes too smoothly.",
+  "label": "core",
+  "key": "0.64%",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "The gradient norm separates them: 9 spikes without a fix, 9 with z-loss, 5 with the cap, 0 with QK-norm, against 1 at the default rate; the ML-fundamentals root found the same ordering on a character-level model (QK-norm 0, z-loss no better than nothing).",
+  "label": "core",
+  "key": "the gradient norm separates them: 9 spikes",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "What does not transfer.",
+  "label": "core",
+  "key": "what does not transfer.",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "The tiny GPT shows the mechanisms (logits growing until attention is one-hot, a placement that cannot leave the unigram floor, warmup rescuing it) at a learning rate ten times its default; real runs show them at their own default rates because instability grows with model size, which is Wortsman et al.'s central finding.",
+  "label": "core",
+  "key": "real runs show them at their own",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "Absolute thresholds (a logit of 1e4, a spike score of 0.1%) do not transfer; the direction of each fix does.",
+  "label": "core",
+  "key": "absolute thresholds (a logit of 1e4, a",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "A run log that makes a spike diagnosable (all cheap, all from the sources above): loss and global gradient norm every step; per-layer largest attention logit, attention entropy and stream RMS on a fixed batch every few hundred steps; mean log Z; the learning rate actually applied; the batch indices of every step, so the batches around a spike can be replayed; checkpoints frequent enough to roll back about 100 steps.",
+  "label": "core",
+  "key": "a run log that makes a spike",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "8. loss spikes: reading them and fixing them",
+  "text": "The When training goes wrong tab of Topic: ml-fundamentals is the general symptom map; this page is the transformer-specific part.",
+  "label": "core",
+  "key": "when training goes wrong tab",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "9. in production now",
+  "text": "In production now Read from the released config.json files in the root's src/data/configs and src/map/inputs/configs and from the modeling code in transformers 5.20.1 (read 2026-10-19). \"Code\" means the choice is fixed in the model class with no config switch.",
+  "label": "depth",
+  "key": "\"code\" means the choice is fixed in the model class",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "9. in production now",
+  "text": "Model Norm Placement Attention-logit control Output cap ε Other GPT-2 (2019) LayerNorm pre + final none none 1e-5 residual outputs ÷ √(2L) Llama 3.1 8B / 70B / 405B RMSNorm pre none none 1e-5 statistics in float32 (code) Llama 4 Scout / Maverick RMSNorm pre weightless L2 norm on RoPE layers (Scout use_qk_norm true; Maverick false) none 1e-5 Mistral 7B, Mixtral, Mistral Small 3.1 RMSNorm pre none none 1e-5 Qwen3 dense and MoE RMSNorm pre QK-norm per head, before RoPE (code) none 1e-6 Qwen3-Next RMSNorm, gain 1 + w (code) pre QK-norm per head (code) none 1e-6 sigmoid output gate on attention Gemma 2 (9B, 27B) RMSNorm, gain 1 + w sandwich soft-cap 50 soft-cap 30 1e-6 Gemma 3 RMSNorm, gain 1 + w sandwich QK-norm (replaced the cap) none 1e-6 Gemma 4 31B RMSNorm, plain gain w (code; back from 1 + w) sandwich QK-norm per head (code) soft-cap 30 1e-6 OLMo 2, OLMo 3 RMSNorm output norm QK-norm over all heads at once (code) none 1e-6 z-loss and N(0, 0.02) init in training (OLMo 2 report) DeepSeek-V3, V3.2 RMSNorm pre none (MLA); RMSNorm on the compressed latents none 1e-6 init σ 0.006 (report; config says 0.02) DeepSeek-V4 RMSNorm pre inside each branch its own compressed attention (the Attention variants child) none 1e-6 mHC: 4 streams, Sinkhorn-projected mixing ( hc_mult 4) Kimi K2 RMSNorm pre qk-clip in the optimiser (MuonClip), not in the model none 1e-6 MLA (DeepSeek-V3 layout) GLM-4.5 / GLM-4.5-Air RMSNorm pre use_qk_norm true / false none 1e-5 MiniMax-M1 RMSNorm DeepNorm ( postnorm true, α 3.5566) none none 1e-5 α = (2 × 80) 1/4 MiniMax-M2 RMSNorm pre QK-norm over all heads at once none 1e-6 gpt-oss 20b / 120b RMSNorm pre none; a learned sink logit per head none 1e-5 The pattern.",
+  "label": "core",
+  "key": "3.5566",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "9. in production now",
+  "text": "RMSNorm everywhere; pre-norm as the base; since 2024 a second control on the attention logits in most new families (QK-norm in Qwen3, Gemma 3 and 4, OLMo 2 and 3, GLM-4.5, MiniMax-M2, Llama 4 Scout; qk-clip in Kimi K2; a cap in Gemma 2), and a few departures from the plain identity residual (Gemma's and OLMo's normalised branch outputs, MiniMax-M1's DeepNorm, DeepSeek-V4's four mixed streams).",
+  "label": "core",
+  "key": "a second control on the attention logits",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "9. in production now",
+  "text": "The ML-fundamentals page measures the residual streams of six released models ( Depth and placement tab ); the root's Architecture map places these choices on the 2017 to 2026 timeline.",
+  "label": "core",
+  "key": "depth and placement tab",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Each one ran here unless marked; the losses are on the 256-token running sequence (the trained reference model scores 1.956) or held-out windows, from src/analysis/mistakes.py and the runs above.",
+  "label": "core",
+  "key": "1.956",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Training post-norm at a pre-norm learning rate No error and a smooth curve: post-norm at lr 3e-3 with 100 warmup steps reaches the unigram level by step 30 and stays there (held-out 5.943, unigram 6.006), so it looks \"converged\".",
+  "label": "core",
+  "key": "6.006",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "It learned token frequencies only.",
+  "label": "depth",
+  "key": "it learned token frequencies only.",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A longer warmup (2.138 with 500 steps) or a lower rate (2.534 at 1e-3) fixes it.",
+  "label": "core",
+  "key": "2.534",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Always compare the first loss plateau with the unigram cross-entropy of your data.",
+  "label": "depth",
+  "key": "always compare the first loss plateau with",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Leaving out the final norm in a hand-written pre-norm stack Pre-norm never normalises the stream, so the last block's output reaches the unembedding at its full grown size.",
+  "label": "depth",
+  "key": "leaving out the final norm in a",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Removing the final LayerNorm from the trained model raises the loss from 1.956 to 3.493, yet the greedy continuation is \" play outside in the park.",
+  "label": "depth",
+  "key": "3.493",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "One day, she saw a big, scary dog...\": the logits are scaled, the top token mostly is not, so greedy text hides a broken probability distribution that sampling and the loss expose.",
+  "label": "depth",
+  "key": "one day, she saw a big, scary",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Loading a zero-centred gain into a plain norm (or the reverse) Gemma 1 to 3 and Qwen3-Next multiply by (1 + w), Llama-style norms by w.",
+  "label": "depth",
+  "key": "loading a zero-centred gain into a plain",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Simulated on the trained model by subtracting 1 from every trained gain: loss 8.496 (worse than the uniform guess, ln 4096 = 8.318) and greedy output \"ctementementementementementementementementemente...\".",
+  "label": "depth",
+  "key": "8.318",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "No error is raised because the shapes match.",
+  "label": "depth",
+  "key": "no error is raised because the shapes",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "An ε that is not small With ε = 1.0 instead of 1e-5 in every LayerNorm, rows whose variance is below 1 are no longer normalised to unit size: loss 7.720, greedy output \" the a time in the the the the the the the the the the the S...\".",
+  "label": "depth",
+  "key": "7.720",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The subtler version is PyTorch's nn.RMSNorm without eps (section 3).",
+  "label": "depth",
+  "key": "the subtler version is pytorch's nn.rmsnorm without",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Dropping QK-norm at inference (a converter that forgets q_norm and k_norm ) On this page's model trained with QK-norm at lr 3e-3 (loss 2.025 on the running sequence), skipping the trained q_norm and k_norm at inference gives 3.206 and greedy output \" play outside.",
+  "label": "depth",
+  "key": "2.025",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "One day, she found a shiny rock.",
+  "label": "depth",
+  "key": "one day, she found a shiny rock.",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "It was a ver...\".",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "fragment of a greedy-output quote; the mistake keeps its own unit"
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The checkpoint loads without error if the converter simply never creates the two modules.",
+  "label": "depth",
+  "key": "the checkpoint loads without error if the",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Treating gradient clipping as the fix for growing attention logits Clipping rescales a step whose gradient norm is large; logit growth proceeds through many small, unclipped steps.",
+  "label": "core",
+  "key": "which clipping does not touch",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "At lr 3e-2 the run with clipping at 1.0 ends at 4.361, the run without at 4.295; QK-norm without clipping ends at 2.432.",
+  "label": "core",
+  "key": "2.432",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "PaLM saw its spikes \"despite the fact that gradient clipping was enabled\".",
+  "label": "core",
+  "key": "the fact that gradient clipping was",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Reading QK-norm as a hard cap on the logits Only with unit gains.",
+  "label": "core",
+  "key": "qk-norm does not cap the logit at a small number",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "In the tiny GPT trained with QK-norm at lr 3e-2 the largest logit is 67.1 against a unit-gain ceiling of 5.66 (section 4).",
+  "label": "core",
+  "key": "67.1",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Taking initializer_range in a config as the training init DeepSeek-V3's config says 0.02; its report says every parameter was initialised with σ = 0.006.",
+  "label": "depth",
+  "key": "0.006",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The field is what Hugging Face uses to initialise a fresh model of that class, not a record of training (not run here: read from the config and report).",
+  "label": "depth",
+  "key": "the field is what hugging face uses",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Calling OLMo 2's or Gemma's norm \"post-norm\" Both keep the stream unnormalised and normalise the branch output before adding it; the 2017 post-norm normalises the stream itself.",
+  "label": "depth",
+  "key": "both keep the stream unnormalised",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The difference is the whole point: the measured init streams differ (53.2 for the output norm against 16.0 for post-norm, section 1).",
+  "label": "core",
+  "key": "16.0",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Switching the loss implementation in the middle of a run OLMo 2's fork that moved from Flash Attention's fused cross-entropy with z-loss to a PyTorch z-loss saw the z-loss jump about thirty-fold within a few hundred steps, though the forward values matched (published; replayed on the OLMo 2 paper page ).",
+  "label": "depth",
+  "key": "switching the loss implementation in the middle",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Interview questions Why did LLMs move from post-norm to pre-norm, and what did it cost?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating a core section; three design questions kept in the closed rehearsal block"
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Pre-norm leaves an identity path from the loss to every block, so gradients do not have to pass through 2L norms; it trains without the long warmup post-norm needs (Xiong et al.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating a core section; three design questions kept in the closed rehearsal block"
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The cost: the stream grows with depth (the tiny GPT's median token norm goes from 1.31 to 65.5), later blocks add a shrinking fraction to it, and large entries survive to the end, which hurts low precision.",
+  "label": "core",
+  "key": "1.31",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Post-norm can be better when it trains: here 2.138 with 500 warmup steps against 2.281.",
+  "label": "core",
+  "key": "2.281",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why is RMSNorm as good as LayerNorm?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating a core section; three design questions kept in the closed rehearsal block"
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Because a trained model's stream rows are nearly mean-zero, so the mean subtraction does almost nothing: in the tiny GPT |μ| / RMS has a median of at most 0.015, and swapping the trained LayerNorms for RMSNorms changes the loss by 0.000012.",
+  "label": "core",
+  "key": "0.000012",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "RMSNorm drops one reduction and the bias, so it is cheaper.",
+  "label": "core",
+  "key": "one fewer reduction and no bias",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Derive GPT-2's residual init scale.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating a core section; three design questions kept in the closed rehearsal block"
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The stream after L blocks sums 2L branch outputs.",
+  "label": "core",
+  "key": "the stream after l blocks",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "If each starts with variance v and they are roughly independent, the sum has variance 2L · v; to keep it at v, scale each branch's output by 1/√(2L), i.e. initialise the two output projections with std 0.02/√(2L).",
+  "label": "core",
+  "key": "with n = 2l the sum of 2l branches starts with the variance of one",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "For L = 6: 0.00577.",
+  "label": "core",
+  "key": "0.00577",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What does QK-norm bound, and what does it not?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating a core section; three design questions kept in the closed rehearsal block"
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "It bounds |q| and |k| by the norm's learned gains, so logits cannot grow through the projection weights or the stream; it does not bound them at √d h , because the gains are learned (In the tiny GPT trained with QK-norm at lr 3e-2 the largest logit is 67.1 against a unit-gain ceiling of 5.66).",
+  "label": "core",
+  "key": "the gain vector is small and moves slowly",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why can't DeepSeek's MLA use QK-norm, and what do MLA models do instead?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating a core section; three design questions kept in the closed rehearsal block"
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "At decode MLA absorbs the key up-projection into the query and attends against the cached latent, so per-head keys never exist to be normalised.",
+  "label": "core",
+  "key": "absorbed into the query",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "DeepSeek-V3 puts RMSNorm on the compressed latents; Kimi K2 clips per-head query and key weights in the optimiser when a head's largest logit passes a threshold (qk-clip).",
+  "label": "core",
+  "key": "head's largest logit passes a threshold",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What is z-loss and why 1e-4? c · (log Z) 2 on the output softmax, pulling the logits toward log-probabilities without changing the argmax; 1e-4 is PaLM's value, small enough not to compete with the cross-entropy.",
+  "label": "core",
+  "key": "without changing which token wins",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "It treats output-logit drift, not attention-logit growth (here it left the attention logits at 24,895).",
+  "label": "core",
+  "key": "24,895",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Your 70B run's loss spikes at step 40,000 and recovers.",
+  "label": "depth",
+  "key": "40,000",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What do you look at, in order?",
+  "label": "depth",
+  "key": "what do you look at, in order?",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Whether the gradient norm spiked first (OLMo 2's pattern); the per-layer largest attention logit and entropy in the steps before (logit growth: QK-norm or a lower rate for the rest of the run); mean log Z (z-loss); the batches at the spike, replayed from an earlier checkpoint (PaLM: if replaying does not spike, it is data plus state: roll back about 100 steps and skip 200 to 500 batches); the optimiser's ε and the learning rate actually applied; any non-finite tensor in low precision.",
+  "label": "depth",
+  "key": "whether the gradient norm spiked first (olmo",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Do not change the loss implementation mid-run.",
+  "label": "depth",
+  "key": "do not change the loss implementation mid-run.",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Massive activations: what are they and why do they matter for FP8 training and quantisation?",
+  "label": "depth",
+  "key": "massive activations: what are they and why",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A few fixed channels, mostly on the first token, thousands of times the median (LLaMA2-7B: about 2,000 against 0.2; SmolLM2: 20,155 against 1.56).",
+  "label": "core",
+  "key": "20,155",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "They set the dynamic range a format must hold, so per-tensor scaling either clips them (breaking the model: zeroing them makes perplexity infinite) or wastes precision on everything else; outlier-aware quantisation and fine-grained (per-block) scaling exist for this reason ( Quantization and Precision owns them).",
+  "label": "depth",
+  "key": "they set the dynamic range a format",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why does DeepSeek-V4 project its stream-mixing matrices onto doubly stochastic matrices?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating a core section; three design questions kept in the closed rehearsal block"
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "With n mixed streams the identity add becomes a product of learned n × n matrices, whose gain compounds over depth (3,000 in DeepSeek's unconstrained 27B run; a median of 268 at noise 0.2 over 120 sub-layers in the random-matrix calculation here).",
+  "label": "depth",
+  "key": "3,000",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Doubly stochastic matrices are closed under products and can only average, so the gain stays 1.",
+  "label": "core",
+  "key": "are closed under products and can only",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Design: the stability recipe for a 120-layer MoE trained in bf16 at an aggressive learning rate.",
+  "label": "depth",
+  "key": "design: the stability recipe for a 120-layer",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Pre-norm RMSNorm (statistics in float32) with a final norm; QK-norm per head (or, with MLA, norms on the latents plus qk-clip); z-loss 1e-4; GPT-2-style depth-scaled or small branch init and a large shortcut (do not weight-decay embeddings); warmup of a few thousand steps; global-norm clipping at 1.0 as a backstop; AdamW ε 1e-8 or smaller.",
+  "label": "depth",
+  "key": "120-layer moe",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Monitor per-layer max logit, entropy, stream RMS and the largest entry, log Z and the gradient norm with a spike score; keep checkpoints every few hundred steps and batch indices for rollback and skip.",
+  "label": "depth",
+  "key": "monitor per-layer max logit, entropy, stream rms",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Sweep the peak rate at small scale first and pick from the flat region, since sensitivity grows with size (Wortsman et al.).",
+  "label": "depth",
+  "key": "sweep the peak rate at small scale",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Consider the output norm (OLMo 2) or sandwich (Gemma) if the stream grows into the bf16 danger zone.",
+  "label": "depth",
+  "key": "consider the output norm (olmo 2) or",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-stab",
+  "section": "stability explorer: learning rate × norm placement × qk-norm",
+  "text": "Stability explorer: learning rate × norm placement × QK-norm Every cell is a real training run of the running example's tiny GPT (6 blocks, d_model 256, LayerNorm, learned positions, 1,500 steps of 32 × 256 tokens, seed 0, AdamW, 100 warmup steps then cosine, gradient clipping at 1.0 unless the row says otherwise), measured on Apple M1 Pro (MPS).",
+  "label": "core",
+  "key": "every cell is a real training run",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-stab",
+  "section": "stability explorer: learning rate × norm placement × qk-norm",
+  "text": "The number is the held-out loss at the end (20 fixed validation windows); the unigram floor, the loss of a model that ignores context, is 6.006.",
+  "label": "core",
+  "key": "6.006",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-stab",
+  "section": "stability explorer: learning rate × norm placement × qk-norm",
+  "text": "Runs from the root's Block lab (on Topic: llm-architecture) are marked Block lab and were logged every 10 steps without the attention probe; this page's runs record the largest attention logit and the output log Z every 10 steps on a fixed probe batch.",
+  "label": "core",
+  "key": "runs from the root's block lab (on",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-stab",
+  "section": "stability explorer: learning rate × norm placement × qk-norm",
+  "text": "Try: click up to three cells to overlay them; the first click on a selected cell removes it.",
+  "label": "core",
+  "key": "try: click up to three cells to",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-stab",
+  "section": "stability explorer: learning rate × norm placement × qk-norm",
+  "text": "Start with pre-norm at 3e-2 against pre-norm + QK-norm at 3e-2, then post-norm at 3e-3 against post-norm with 500 warmup steps. final loss under 2.5 2.5 to 4.0 over 4.0 (near or at the unigram floor) Held-out loss Largest attention logit (any layer, probe batch) Gradient norm before clipping (every 10 steps) Mean log Z of the output softmax (probe batch) Logit and log Z panels are empty for Block lab runs (not recorded).",
+  "label": "core",
+  "key": "click up to three cells",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-stab",
+  "section": "stability explorer: learning rate × norm placement × qk-norm",
+  "text": "Log scales on the logit and gradient panels.",
+  "label": "core",
+  "key": "log scales on the logit and gradient",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-stab",
+  "section": "stability explorer: learning rate × norm placement × qk-norm",
+  "text": "Timings are not shown: each run took about 5.5 minutes on a shared laptop, which says nothing about a datacenter GPU; the losses and logits are deterministic up to MPS's last-digit reruns (this page's rerun of the Block lab's pre-norm lr 3e-3 run ended at 2.2788, the Block lab's at 2.2811, the root's reference run at 2.278).",
+  "label": "core",
+  "key": "2.2788",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-stab",
+  "section": "stability explorer: learning rate × norm placement × qk-norm",
+  "text": "What the grid says",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "empty heading (its panel was never filled); removed"
+ },
+ {
+  "id": 277,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "Residual stream: one sequence through four placements, before and after training The residual stream is the running sum each block reads from and adds to.",
+  "label": "core",
+  "key": "x = x + norm(f(norm(x)))",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "Where the norm sits decides what happens to its size.",
+  "label": "core",
+  "key": "where the norm sits",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "This lab runs the same 256-token running sequence (the Roxy story, never seen in training) through the tiny GPT under four placements and records the stream's size after the embedding and after every sub-layer (12 sub-layers in 6 blocks): pre-norm x + F(Norm(x)) (GPT-2, Llama, Qwen, DeepSeek), post-norm Norm(x + F(x)) (the 2017 Transformer, BERT), sandwich or peri-norm x + Norm(F(Norm(x))) (Gemma 2 and 3), and output norm x + Norm(F(x)) (OLMo 2).",
+  "label": "core",
+  "key": "the roxy story, never seen in training",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "Same seed, same initial weights where the shapes allow, same data; measured on Apple M1 Pro (CPU forward of the recorded checkpoints).",
+  "label": "depth",
+  "key": "same initial weights where the shapes",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "The root's Block lab shows pre- against post-norm on one token in more detail; this lab adds the two placements used in 2024 to 2026 models, the initialisation switch, and the largest single entry.",
+  "label": "core",
+  "key": "matched pair",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "Try: press Play with \"at initialisation\", then switch to \"trained\" and play again.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "UI instruction of the retired tab"
+ },
+ {
+  "id": 283,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "Switch the size to \"largest single entry\" to look for massive activations.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "UI instruction of the retired tab"
+ },
+ {
+  "id": 284,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "Weights at initialisation trained (1,500 steps) Size median token (L2 norm) token \"o\" in \"Roxy\" (position 157) token 0 (<|endoftext|>) largest single entry Pre-norm init GPT-2: residual outputs ÷ √(2L) flat: every matrix N(0, 0.02) Reading the four curves At initialisation the curves separate by construction (section 1 of the Reading tab): pre-norm barely moves (0.449 to 1.42), post-norm sits at 16 after every sub-layer, sandwich and output norm climb to about 16 √12 = 55.4.",
+  "label": "core",
+  "key": "token \"o\" in \"roxy\" (position 157)",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "After training (pre-norm: the root's reference run; post-norm lr 1e-3; sandwich and output norm lr 3e-3) pre-norm grows the most, 1.31 to 65.5; the sandwich reaches 47.6 and the output norm 34.1; post-norm ends at 24.6, set by its last norm's learned gain.",
+  "label": "core",
+  "key": "24.6",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "Flat init ends at 67.9, about where the scaled init ends: training erases the starting scale at this depth.",
+  "label": "core",
+  "key": "67.9",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "Switch to largest single entry : no placement grows a massive activation (the largest is a few tens, table below).",
+  "label": "core",
+  "key": "largest single entry",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "Largest entries, trained models Massive activations are single dimensions of the stream, usually on the first token, thousands of times larger than the median entry (Sun et al.",
+  "label": "depth",
+  "key": "on the first token, thousands of times",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "The table checks whether the tiny GPT grows any.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "signpost"
+ },
+ {
+  "id": 290,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "Scripts: src/analysis/inspect_runs.py (steps each block by hand for its placement and checks the logits equal the model's own forward; largest difference 0 on every run) and src/runs/ns_train.py .",
+  "label": "depth",
+  "key": "each block by hand for its placement",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-resid",
+  "section": "residual stream: one sequence through four placements, before and after training",
+  "text": "Norms are L2 norms over the 256 channels (an RMS of 1 is a norm of 16), as in the Block lab.",
+  "label": "core",
+  "key": "rms 1 is norm 16",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Links checked 2026-10-19.",
+  "label": "core",
+  "key": "links checked 2026-10-19",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Times are rough reading times. \"Maker\" means written by the lab that built the model or method; \"third-party\" means independent.",
+  "label": "core",
+  "key": "times are rough reading times. \"maker\" means",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The parent page and its tabs Topic: llm-architecture Section 7 of its Reading tab is the root-depth summary of this page.",
+  "label": "core",
+  "key": "the parent page and its tabs topic:",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "39 min Block lab (on the root) One token through one block; pre- against post-norm residual norms and gradients; the eight runs reused here.",
+  "label": "core",
+  "key": "min block lab (on the root) one",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min Inside a real model (on the root) SmolLM2's massive activation and attention sink, measured.",
+  "label": "core",
+  "key": "15 min inside a real model (on",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min Sibling pages The transformer from zero The block written from an empty file; the no-residual and no-norm ablations.",
+  "label": "core",
+  "key": "15 min sibling pages the transformer from",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "38 min Attention variants MLA (why it cannot take QK-norm), sinks and the output gate trained on the tiny GPT.",
+  "label": "core",
+  "key": "38 min attention variants mla (why it",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "39 min Positional encodings RoPE, which QK-norm sits in front of.",
+  "label": "core",
+  "key": "min positional encodings rope, which qk-norm sits",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "34 min Mixture of experts Router logits, the other softmax that needs watching.",
+  "label": "core",
+  "key": "34 min mixture of experts router logits,",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "37 min Neighbouring pages Normalisation and initialisation (ML fundamentals) The basics: every norm from zero, Xiong et al.'s theorem in a toy, init schemes, μP, six released models' streams.",
+  "label": "core",
+  "key": "37 min neighbouring pages normalisation and initialisation",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "26 min Topic: ml-fundamentals, When training goes wrong The symptom map for any training run; a char-level transformer swept with and without QK-norm and z-loss.",
+  "label": "core",
+  "key": "26 min topic: ml-fundamentals, when training goes",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "35 min OLMo 2 paper page Every stability ablation of a real 7B to 13B run, re-drawn from the paper's vector figures, spike score live.",
+  "label": "core",
+  "key": "35 min olmo 2 paper page every",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "26 min Moonshot AI: Kimi qk-clip and MuonClip, animated.",
+  "label": "core",
+  "key": "26 min moonshot ai: kimi qk-clip and",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "35 min Quantization and Precision What massive activations do to low-precision formats.",
+  "label": "core",
+  "key": "35 min quantization and precision what massive",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "22 min Numerical computing for ML Floating point, stable softmax, why norms keep statistics in float32.",
+  "label": "core",
+  "key": "22 min numerical computing for ml floating",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Optimisers and learning-rate schedulers Warmup, AdamW's ε and βs.",
+  "label": "core",
+  "key": "45 min optimisers and learning-rate schedulers warmup,",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "35 min Pretraining Where a stable recipe sits in a whole pretraining run.",
+  "label": "core",
+  "key": "35 min pretraining where a stable recipe",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "16 min Papers and reports (primary sources) Xiong et al.",
+  "label": "core",
+  "key": "16 min papers and reports (primary sources)",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2020, On Layer Normalization in the Transformer Architecture Third-party.",
+  "label": "core",
+  "key": "on layer normalization in the transformer architecture",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Why post-norm needs warmup.",
+  "label": "core",
+  "key": "why post-norm needs warmup.",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Zhang and Sennrich 2019, RMSNorm Maker (of RMSNorm).",
+  "label": "core",
+  "key": "zhang and sennrich 2019, rmsnorm",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Wortsman et al.",
+  "label": "core",
+  "key": "30 min wortsman et al.",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2023, Small-scale proxies for large-scale Transformer training instabilities Third-party (Google DeepMind).",
+  "label": "core",
+  "key": "small-scale proxies for large-scale transformer training instabilities",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Attention-logit growth and output-logit divergence reproduced in small models; the most useful paper for this page.",
+  "label": "core",
+  "key": "attention-logit growth and output-logit divergence reproduced in",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "60 min Dehghani et al.",
+  "label": "core",
+  "key": "60 min dehghani et al.",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2023, Scaling Vision Transformers to 22 Billion Parameters Maker.",
+  "label": "core",
+  "key": "scaling vision transformers to 22 billion parameters",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "QK normalisation, section 2.",
+  "label": "core",
+  "key": "qk normalisation, section 2.",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min for section 2 Zhai et al.",
+  "label": "core",
+  "key": "15 min for section 2 zhai et",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2023, Attention entropy collapse Third-party (Apple). σReparam.",
+  "label": "core",
+  "key": "σreparam",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Kim et al.",
+  "label": "core",
+  "key": "kim et al. 2025, peri-ln",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2025, Peri-LN Third-party (NAVER).",
+  "label": "core",
+  "key": "third-party (naver)",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Pre, post and peri-norm at 400M to 3.2B.",
+  "label": "core",
+  "key": "pre, post and peri-norm at 400m to",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Takase et al., Spike No More Third-party.",
+  "label": "core",
+  "key": "45 min takase et al., spike no",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Small sub-layers, large shortcut.",
+  "label": "core",
+  "key": "small sub-layers, large shortcut.",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Sun et al.",
+  "label": "core",
+  "key": "sun et al. 2024, massive activations",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2024, Massive Activations in Large Language Models Third-party.",
+  "label": "core",
+  "key": "massive activations in large language models",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Xie et al.",
+  "label": "core",
+  "key": "xie et al. 2025, mhc",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2025, mHC: Manifold-Constrained Hyper-Connections Maker (DeepSeek); Zhu et al.",
+  "label": "core",
+  "key": "manifold-constrained hyper-connections",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2024, Hyper-Connections is the method it constrains.",
+  "label": "core",
+  "key": "hyper-connections is the method it constrains",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Wang et al.",
+  "label": "core",
+  "key": "wang et al. 2022, deepnet",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2022, DeepNet Maker (Microsoft).",
+  "label": "core",
+  "key": "maker (microsoft)",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min PaLM, sections 5 and 5.1 Maker. z-loss and the rollback-and-skip recipe.",
+  "label": "core",
+  "key": "30 min palm, sections 5 and 5.1",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min for those sections Gemma 2 report, section 2 , Gemma 3 report Maker.",
+  "label": "core",
+  "key": "10 min for those sections gemma 2",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min each Yang et al.",
+  "label": "core",
+  "key": "10 min each yang et al.",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2022, Tensor Programs V (μP) Third-party for these models (Microsoft).",
+  "label": "core",
+  "key": "tensor programs v",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Hyperparameter transfer across width.",
+  "label": "core",
+  "key": "hyperparameter transfer across width.",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "60 min Code read for this page (pinned) transformers v5.20.1 modeling_llama, qwen3, qwen3_next, olmo2, olmo3, gemma2, gemma3, gemma4, minimax, llama4, deepseek_v4, gpt2: every quoted line located by pattern in src/code/code_refs.py . as needed",
+  "label": "core",
+  "key": "modeling_llama, qwen3",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "Block lab trace, matched pair at lr 1e-3: token 'o' grows 0.9 to 14.8 under pre-norm",
+  "label": "core",
+  "key": "from 0.9 to 14.8",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "Post-norm keeps the stream between 16.0 and 16.4 until the last norm's learned gain takes it to 24.6",
+  "label": "core",
+  "key": "24.6",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "The reference model (lr 3e-3) grows 1.3 to 65.8, most of it in block 1's FFN, a branch of norm 53.0",
+  "label": "core",
+  "key": "a branch of norm 53.0",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "Pre-norm's cost: later blocks add small updates next to the stream; the final norm (ln_f, modeling_llama self.norm) is mandatory",
+  "label": "core",
+  "key": "is mandatory",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "Pre-norm trains at every rate: 2.464 at 1e-3, 2.734 at 1e-2, 4.361 at 3e-2 where the gradient norm before clipping spikes to 40.8",
+  "label": "core",
+  "key": "40.8",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "Post-norm trains at 1e-3 (2.534) and 3e-4 (3.215)",
+  "label": "core",
+  "key": "3.215 at 3e-4",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "Post-norm at lr 3e-3, 100 warmup steps: at the unigram level by step 30 (6.04), ends at 5.943",
+  "label": "core",
+  "key": "6.04",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "Post-norm with a 500-step warmup at lr 3e-3 reaches 2.138, the best of the eight Block lab runs",
+  "label": "core",
+  "key": "best of all eight block lab runs",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "The failed post-norm run's gradient at block 1 is 5.1e-7 against 0.027 at block 6, a factor of about 50,000",
+  "label": "core",
+  "key": "5.1e-7",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "Runs that trained have block gradients between 0.27 and 0.92, roughly even across depth",
+  "label": "core",
+  "key": "between 0.27 and 0.92",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "Xiong et al. Figure 3 does not reproduce at 6 layers: at init post-norm's block gradients level (0.074 to 0.075), pre-norm 2.21 to 1.57; warmup conclusion reproduces; 24-layer version not run",
+  "label": "core",
+  "key": "a 24-layer version",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "How to check: a training loss sitting at the unigram entropy with a small flat gradient norm is a model that stopped using context",
+  "label": "core",
+  "key": "compare the first loss plateau with the unigram",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "The loss curves of the eight Block lab runs (pre and post at five rates) are overlaid in the Stability explorer, marked Block lab",
+  "label": "core",
+  "key": "marked block lab",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "The gradient-norm-by-block chart (init and trained) of gradnorm.py",
+  "label": "core",
+  "key": "its lower blocks receive almost no gradient",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "absorbed from the root's Block lab (2026-10-23)",
+  "text": "The pre/post-norm residual trace animation of the Block lab: now the four-placement stepper with init and trained modes",
+  "label": "core",
+  "key": "through 12 sub-layers",
+  "where": ""
+ }
+]

@@ -27,13 +27,11 @@ def link(m):  # the same link macros build.sh expands, for links that arrived in
 t = re.sub(r"\{\{([^|{}]+)\|([^{}]+)\}\}", link, t)
 if "{{" in t:
     sys.exit("fill.py: unexpanded link macro after filling")
-# reading time: words of the Reading tab outside closed <details>, at 200 words per minute; details apart
-i, j = t.find('id="t-read"'), t.find('<div class="tab" id="t-', t.find('id="t-read"') + 10)
-body = re.sub(r"<(script|style)\b.*?</\1>", " ", t[i:j], flags=re.S)
-det = " ".join(re.findall(r"<details\b.*?</details>", body, flags=re.S))
-main = re.sub(r"<details\b.*?</details>", " ", body, flags=re.S)
-words = lambda s: len(re.findall(r"[A-Za-z0-9][\w'.,%-]*", H.unescape(re.sub(r"<[^>]+>", " ", s))))
-rt, rd = round(words(main) / 200), round(words(det) / 200)
+# reading time: measured on the rendered page by reading_time.mjs (230 words a minute, closed <details> apart, as
+# html_utils/audit_pages.mjs counts); after a text change run it, then build.sh again.
+RT = os.path.join(HERE, "out", "reading_time.json")
+rt = json.load(open(RT)) if os.path.exists(RT) else {"minutes_main": 0, "minutes_details": 0}
+rt, rd = rt["minutes_main"], rt["minutes_details"]
 t = t.replace("{%RT_MIN%}", str(rt)).replace("{%RT_DET%}", str(rd))
 open(P, "w", encoding="utf-8").write(t)
 print(f"fill.py: {len(nums)} numbers; Reading about {rt} min plus {rd} min in closed details")
