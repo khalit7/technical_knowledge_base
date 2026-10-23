@@ -1,36 +1,58 @@
-<section id="rd-s8">
-<h2>8. Depth, width, and the arithmetic that ties it together</h2>
-<p>Three numbers answer most questions about a model, and all three come from its config in a minute: parameters, FLOPs per token, and KV bytes per token (section 3).</p>
-<div class="fm"><div class="eq">N &asymp; L &times; (attention + FFN) + 2Vd</div><div class="eq">FLOPs per token &asymp; 2N + 4 L T H d<sub>h</sub></div>
-<dl><dt>attention</dt><dd>2d&sup2; for Q and output, plus 2 d H<sub>kv</sub> d<sub>h</sub> for K and V (4d&sup2; with full MHA)</dd>
-<dt>FFN</dt><dd>3 d d<sub>ff</sub> for SwiGLU (2 d d<sub>ff</sub> for a plain MLP; 8d&sup2; at d<sub>ff</sub> = 4d, hence the classic 12 L d&sup2;)</dd>
-<dt>2Vd</dt><dd>embedding and unembedding (Vd once if tied)</dd>
-<dt>4 L T H d<sub>h</sub></dt><dd>the attention term of the forward pass for one token attending to T earlier tokens: scores Q K<sup>&#8868;</sup> and the weighted sum with V, 2 FLOPs per multiply-add each</dd></dl></div>
-<p><b>Worked: Llama 3.1 8B.</b> 32 blocks of 218.1M (section 2) = 6.98B, plus two 525.3M embedding tables and a final norm = 8.03B parameters, the published size (<span class="der">derived</span>, matches the 8.03B on its model page). Forward FLOPs per token: 2N = 15.0 GFLOP. The attention term at T = 131,072: 4 &times; 32 &times; 131,072 &times; 4,096 = 68.7 GFLOP, more than four times the weights' share. The two are equal at T &asymp; 28,600 tokens: below that a token's cost is set by the parameter count, above it by the context (<span class="der">derived</span>). Training costs about three times the forward, the 6N rule of section 2 (plus three times the attention term).</p>
-<div class="tw"><table class="rd-cmp rd-narrow">
-<thead><tr><th>Model</th><th>Width d</th><th>Depth L</th><th>d / L</th></tr></thead>
+<section id="rd-s10">
+<h2>10. Families and training objectives</h2>
+<p>The same blocks build three families, differing in which positions may see which (the mask) and in what they are trained to predict (the objective):</p>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Family</th><th>Attention mask</th><th>Objective</th><th>Good at</th><th>Example</th></tr></thead>
 <tbody>
-<tr><td>SmolLM2-135M</td><td>576</td><td>30</td><td>19</td></tr>
-<tr><td>Llama 3.1 8B</td><td>4,096</td><td>32</td><td>128</td></tr>
-<tr><td>Llama 3.1 70B</td><td>8,192</td><td>80</td><td>102</td></tr>
-<tr><td>Llama 3.1 405B</td><td>16,384</td><td>126</td><td>130</td></tr>
-<tr><td>DeepSeek-V3</td><td>7,168</td><td>61</td><td>118</td></tr>
+<tr><td>Decoder-only</td><td>Causal: each token sees itself and earlier tokens</td><td>Predict the next token at every position</td><td>Generation; everything, at scale</td><td>{{GPT-3|n:3c65c17b0d0d8193ac92c7648cfaca12}}, Llama, Qwen, DeepSeek</td></tr>
+<tr><td>Encoder-only</td><td>Bidirectional: every token sees every token</td><td>Recover masked tokens (15% in BERT)</td><td>Embeddings, classification, retrieval; cannot generate fluently</td><td>{{BERT|n:3c65c17b0d0d81e5ad9bd09cbf18ad7c}}</td></tr>
+<tr><td>Encoder-decoder</td><td>Bidirectional encoder over the input; causal decoder that also attends to it</td><td>Rebuild corrupted spans, or input-to-output</td><td>Translation, summarisation; the input is encoded once</td><td>{{T5|n:3d45c17b0d0d81ec8ebfec02e953a7fd}}, {{T5Gemma 2|n:3d45c17b0d0d81a9a22ffaada508db5c}}</td></tr>
 </tbody></table></div>
-<p class="small">From each model's <code>config.json</code> (hidden_size, num_hidden_layers); <span data-rd="cfg_check" class="rd-todo">TODO 9: recheck every config value on this page against src/data/configs/ (setup).</span></p>
-<p><b>Depth against width.</b> At a fixed parameter count, shape matters less than one might think: {{Kaplan et al. 2020|https://arxiv.org/abs/2001.08361}} found that "other architectural details such as network width or depth have minimal effects within a wide range" (abstract). It matters for speed: each layer is a sequential step, so a deeper model of the same size has more latency per token and less to parallelise per step. Small models are the exception that go deep and thin: Meta's MobileLLM reports that at under a billion parameters depth beats width ({{Liu et al. 2024|https://arxiv.org/abs/2402.14905}}, <span class="vend">vendor</span>), and SmolLM2-135M is 30 layers of 576. Checked on every saved config: <span data-rd="calc_resid" class="rd-todo">TODO 10 (Config calculator): parameter-count residuals against published sizes for every config in src/data/configs/, and the largest one explained.</span></p>
-<p class="deepnote">Go deeper (optional): {{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}} derives every shape of one block and trains the tiny GPT; the {{Config calculator|#t-calc}} does all of this for any config, with a context slider; {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} turns FLOPs and bytes into seconds on real hardware; {{Scaling Laws|n:3c65c17b0d0d81b08a1debb0c15cd252}} and {{Chinchilla|n:3c65c17b0d0d8116b7ddffba5c599f3f}} for how parameters and data trade.</p>
+<p>Decoder-only won because one objective, next-token prediction, turns any text into training data and any task into a prompt, and it scales simply. Two newer objectives change what a decoder predicts. <dfn>Multi-token prediction</dfn> (MTP) trains extra heads to predict tokens further ahead ({{Gloeckle et al. 2024|https://arxiv.org/abs/2404.19737}}): DeepSeek-V3 trains one extra token and can reuse that module as a draft for {{speculative decoding|n:3f35c17b0d0d81e086fde85940ebac1c}}. <dfn>Diffusion language models</dfn> start from a fully masked sequence and unmask many tokens per step in any order, trading the left-to-right loop for parallel refinement ({{LLaDA, Nie et al. 2025|https://arxiv.org/abs/2502.09992}}; {{DiffusionGemma|n:3c65c17b0d0d818390bfd7969757211e}}).</p>
+<details class="dp"><summary>Measured: MTP on the tiny GPT</summary><div>
+<p>In the MTP lab of {{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}, one MTP module trained jointly lowers the main model's held-out loss from 2.278 to 2.241 at an equal number of tokens, a gain of 0.036; but the module adds 32% training FLOPs per step, and the plain model given those FLOPs reaches 2.160. At equal compute MTP loses at this scale. DeepSeek-V3 reports gains from MTP at a far larger scale (<span class="vend">vendor</span>), not tested here <span class="meas">measured</span>.</p>
+</div></details>
+<p class="deepnote">Go deeper: {{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}} owns the masks, the objectives, MTP and diffusion LMs; {{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}} how the objective is run at scale.</p>
 </section>
 
-<section id="rd-s9">
-<h2>9. Long context: four walls</h2>
-<p>A model "supports 128K tokens" only if it clears four separate limits, each with its own remedy:</p>
+<section id="rd-s11">
+<h2>11. Reading a model's config in 30 seconds</h2>
+<p>A Hugging Face <code>config.json</code> is the architecture in about thirty fields, and every part of the map above has its fields. Llama 3.1 8B (excerpt, field order kept; {{full file|https://huggingface.co/unsloth/Meta-Llama-3.1-8B/raw/main/config.json}}):</p>
+<div class="rd-doc">"head_dim": <span class="k">128</span>,
+"hidden_act": <span class="p">"silu"</span>,
+"hidden_size": <span class="k">4096</span>,
+"intermediate_size": <span class="p">14336</span>,
+"max_position_embeddings": <span class="tag">131072</span>,
+"num_attention_heads": <span class="k">32</span>,
+"num_hidden_layers": <span class="k">32</span>,
+"num_key_value_heads": <span class="k">8</span>,
+"rms_norm_eps": 1e-05,
+"rope_scaling": {<span class="tag">"factor": 8.0, "high_freq_factor": 4.0, "low_freq_factor": 1.0, "original_max_position_embeddings": 8192, "rope_type": "llama3"</span>},
+"rope_theta": <span class="tag">500000.0</span>,
+"tie_word_embeddings": false,
+"torch_dtype": "bfloat16",
+"vocab_size": 128256</div>
 <ol>
-<li><b>Memory</b>: the KV cache grows linearly with context (40 GiB per 128K request for Llama 3.1 70B, section 3). Remedies: fewer KV heads (GQA, MQA), compressed caches (MLA), windowed layers, FP8 caches, layers without a cache (section 10).</li>
-<li><b>Compute</b>: prefill attention grows with the square of the prompt length; past about 29K tokens it is most of Llama 3.1 8B's work (section 8). Remedies: sliding windows, trained sparse attention, linear layers.</li>
-<li><b>Position</b>: rotation angles past the trained length were never seen (section 5). Remedy: RoPE scaling plus a long-context training phase.</li>
-<li><b>Use</b>: a model can fit and run 128K tokens and still fail to use them. RULER found that of models claiming 32K or more, "only half of them can maintain satisfactory performance at the length of 32K" ({{Hsieh et al. 2024|https://arxiv.org/abs/2404.06654}}, <span class="indep">third-party</span>); information in the middle of a long prompt is used worse than at its ends ({{Liu et al. 2023|https://arxiv.org/abs/2307.03172}}). The claimed context is a ceiling, the <dfn>effective context</dfn> is measured.</li>
+<li><b>Shape</b>: <code>num_hidden_layers</code> &times; <code>hidden_size</code>: 32 &times; 4,096.</li>
+<li><b>Mixer and cache</b>: <code>num_attention_heads</code> against <code>num_key_value_heads</code>: 32 against 8 is GQA with groups of 4; with <code>head_dim</code> 128 that is 2 &times; 32 &times; 8 &times; 128 &times; 2 = 128 KiB per token in BF16. Other variants announce themselves: <code>kv_lora_rank</code> and <code>qk_rope_head_dim</code> mean MLA, <code>sliding_window</code> or <code>layer_types</code> mean windowed layers, linear-layer fields mean a hybrid.</li>
+<li><b>FFN</b>: <code>intermediate_size</code> 14,336 with <code>silu</code> means SwiGLU at 3.5d. MoE adds <code>num_experts</code> or <code>n_routed_experts</code>, <code>num_experts_per_tok</code> and a separate expert width (<code>moe_intermediate_size</code>).</li>
+<li><b>Position and context</b>: <code>rope_theta</code>, <code>rope_scaling</code> and <code>max_position_embeddings</code>: trained at 8,192 and stretched 8 times to 131,072.</li>
+<li><b>Size</b>: <code>vocab_size</code> and <code>tie_word_embeddings</code> for the embedding share, then section 8's formula: 8.03B.</li>
 </ol>
-<p><b>Measured</b> (on the {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}} child, CPU): SmolLM2-135M, whose config allows 8,192 positions, finds a pass key 80% of the time at 8,192 tokens and never at 12,288 or 16,384 (wall 3). Wall 4 hides behind perplexity: at 4,096 tokens, evicting three quarters of its KV cache with scores computed before the question is seen drops retrieval from 97% to 0%, while H2O eviction down to 12.5% of the cache moves the loss on a new story only from 2.07 to 2.10. And a model trained with a window has no position wall: the tiny GPT with window 64 (RoPE, trained on 256 tokens) scores 2.09 on positions 1,024 to 2,047, where the same model with full attention scores 3.82.</p>
-<p>How to check: compute the cache at the target context and concurrency (wall 1), time a prefill at that length (wall 2), read <code>rope_scaling</code> and <code>max_position_embeddings</code> (wall 3), and run a long-context benchmark at the length you need, not the length on the card (wall 4).</p>
-<p class="deepnote">Go deeper (optional): {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}} owns cache growth and compression, local and global layouts and effective context; {{Long-context and multimodal benchmarks|n:3ef5c17b0d0d810bb4dfc98919c9be8a}} owns how it is measured.</p>
+<p class="deepnote">Go deeper: paste any config into the {{Config calculator|#t-calc}}; the {{Architecture map|#t-map}} lays these fields side by side from GPT-2 to 2026; the {{LLM architecture gallery|n:3c65c17b0d0d81be8a07f2562fa2030a}} decodes many more 2026 configs.</p>
+</section>
+
+<section id="rd-s12">
+<h2>12. Choosing: which design for which constraint</h2>
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Constraint</th><th>Choose</th><th>Why, and what you give up</th></tr></thead>
+<tbody>
+<tr><td>Short contexts, high throughput, standard serving stacks</td><td>Dense or MoE with GQA, SwiGLU, RoPE, pre-norm RMSNorm</td><td>Mature kernels everywhere; the cache is small at short context anyway</td></tr>
+<tr><td>Long contexts at high concurrency</td><td>MLA, or GQA with few KV heads; FP8 cache; windowed layers mixed with global ones</td><td>Shrinks what each token keeps or how long; costs kernel complexity (MLA) or far recall through fewer layers (windows)</td></tr>
+<tr><td>Very long streams, fixed memory</td><td>Hybrid: mostly SSM or linear layers, one attention layer in 4 to 8</td><td>Near-constant memory; exact recall rests on the few attention layers</td></tr>
+<tr><td>More quality at the same latency, memory available</td><td>MoE with many small experts and a shared expert</td><td>Active parameters set latency; total parameters set memory, and balancing must be engineered</td></tr>
+<tr><td>Small device, little memory</td><td>Small dense model, deep and thin, tied embeddings, GQA</td><td>MoE does not help when every expert must fit in memory</td></tr>
+<tr><td>Stable training at scale</td><td>Pre-norm RMSNorm plus QK-norm</td><td>Two extra norms per layer, almost free</td></tr>
+</tbody></table></div>
+<p class="deepnote">Go deeper: the {{Architecture map|#t-map}} lays these choices out model by model from GPT-2 to 2026 and has a picker by constraint; the {{Config calculator|#t-calc}} checks a candidate's parameters and FLOPs, and the {{KV-cache calculator|n:3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv}} its cache.</p>
 </section>

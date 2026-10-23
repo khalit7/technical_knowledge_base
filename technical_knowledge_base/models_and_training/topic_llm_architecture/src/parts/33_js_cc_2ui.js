@@ -35,7 +35,7 @@
     q('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     q('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM&&o.autoplay!==false){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);onRender(()=>{show();kick()});show();
     return {reset(n){setPlay(false);st.n=n;st.i=0;show()},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},redraw(){o.draw(st.i)},get i(){return st.i},get n(){return st.n},get playing(){return st.play}};
   }
@@ -74,8 +74,6 @@
     h+=stat('Total parameters',cnt(p.total),grp(p.total)+(p.mtp?' (+ '+cnt(p.mtp)+' MTP)':''));
     h+=stat('Active per token',cnt(p.active),moe?'without the input embedding: '+cnt(p.active_no_emb)+'; without embedding and head: '+cnt(p.active_no_emb_head):'dense: every parameter is used');
     h+=stat('Weights in memory',bytes(p.total*wb()),'at '+$('cc-wdt').selectedOptions[0].text.split(' (')[0]);
-    h+=stat('KV cache per token',bytes(c1.kv),c1.state?'plus '+bytes(c1.state)+' fixed recurrent state per sequence':'one sequence, all layers');
-    h+=stat('Cache at '+ctxs(L)+' &times; batch '+B,bytes(cL.total*B),'windows and fixed states included');
     h+=stat('Decode FLOPs per token at '+ctxs(L),fl(f.decode),'weights '+fl(f.weights)+', attention and state '+fl(f.decode_attn+f.state));
     h+=stat('Prefill FLOPs per token, '+ctxs(L)+' prompt',fl(f.prefill),'average over the prompt (causal)');
     const wr=(p.total-p.breakdown.moe_routed+(moe?p.breakdown.moe_routed*expFrac(sp,B):0))*wb();
@@ -186,7 +184,7 @@
         fll.push(pad(n+' layers',11)+'decode, absorbed: 2 x n_h x (2 r_kv + rope) = 2 x '+m.nh+' x '+(2*m.kvl+m.rope)+' = '+grp(2*m.nh*(2*m.kvl+m.rope))+' per position'+(m.itop?' (top '+m.itop+' positions)':''));
         fll.push(pad('',11)+'prefill: 2 x n_h x (nope + rope + v) = 2 x '+m.nh+' x '+(m.nope+m.rope+m.v)+' = '+grp(2*m.nh*(m.nope+m.rope+m.v))+' per position')}
       else kvl.push(pad(n+' layers',11)+m.t+': no per-token cache; a fixed state per sequence (counted in FP32)')});
-    h+='<div class="cc-fmt">KV cache per token</div><div class="cc-fm">'+esc(kvl.join('\n'))+'</div>';
+    h+='<div class="cc-fmt">KV cache per token</div><p class="cc-hint">Sized on Long context (its KV-cache calculator runs these formulas); the bytes the decode step reads are counted in the arithmetic intensity above.</p>';
     h+='<div class="cc-fmt">FLOPs per token</div><div class="cc-fm">'+esc(['weights: 2 x '+grp(p.matmul_active)+' matmul weights touched (LM head in, embedding lookup out) = '+grp(2*p.matmul_active)].concat(fll).join('\n'))+'</div>';
     $('cc-fm').innerHTML=h;
   }

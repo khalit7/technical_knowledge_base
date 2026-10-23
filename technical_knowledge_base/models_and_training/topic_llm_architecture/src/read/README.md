@@ -1,3 +1,5 @@
+**2026-10-23:** the Reading tab was rewritten as a map (see `../README.md`); its parts no longer use `data-rd` fills, and the old parts this file describes are in `../retired/parts/` or were rewritten. The scripts here are kept for provenance.
+
 # src/read: the Reading and Further reading tabs
 
 Parts: `parts/20_read.html` (tab opener, CSS, section nav), `20_read_a.html` to `20_read_i.html` (sections 0 to 13, mistakes, interview questions, child pages), `20_read_z.html` (closes the tab), `22_js_rd_data.js` (generated), `23_js_rd_drills.js` (predict-then-reveal, table cards, lab values), `24_js_rd_moe.js` (section 6 animation), `25_js_rd_ssm.js` (section 10 animation and chart), `39_tab_more.html` (Further reading). `21_js_rd_common.js` is the lead's shared helper.
