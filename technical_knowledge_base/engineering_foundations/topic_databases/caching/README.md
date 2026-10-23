@@ -1,5 +1,6 @@
 # Caching: every layer, eviction, invalidation, and the LLM caches
 
 Notion: https://app.notion.com/p/3cd5c17b0d0d817ebd6ccadd4750c23a (child of Topic: databases)
+Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_databases/caching/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Why caches work (skew measured on real Wikipedia traffic), the layers from CPU caches to the browser, invalidation and the stale-set race reproduced with two real clients and fixed with leases and versioned keys, every window of cache/database inconsistency, Redis maxmemory policies (including the Redis 8.6 LRM policies) measured on real and Zipf traffic against exact LRU and OPT, the cost-weighted hit ratio, Redis against Memcached, Postgres's own caches (materialised views, Memoize, pg_prewarm), HTTP caching, the KV cache, provider prompt caching with dated prices and break-even, and semantic caching measured on Quora and PAWS pairs. Tabs: Reading, Cache lab, Threshold lab, Further reading. Rebuilds the old page "Caching: types, policies, and semantic caching" (kept verbatim in `src/live.md`, every fact mapped in `src/coverage.json`); no child pages, databases or video.

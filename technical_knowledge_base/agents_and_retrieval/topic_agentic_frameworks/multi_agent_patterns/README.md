@@ -1,6 +1,7 @@
 # Multi-agent patterns: orchestrator-workers, handoffs, debate, when several agents help or hurt
 
 Notion: https://app.notion.com/p/3c65c17b0d0d8194a306c37803387bf3 (child of Topic: agentic-frameworks, https://app.notion.com/p/3c65c17b0d0d81ab8432c54d65b7f8c7)
+Site: https://khalit7.github.io/technical_knowledge_base/agents_and_retrieval/topic_agentic_frameworks/multi_agent_patterns/
 
 HTML-only page: `index.html` is built by `src/build.sh` (see `src/README.md`). Tabs: Reading, Audit lab, Debate lab, Further reading.
 

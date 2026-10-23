@@ -1,6 +1,7 @@
 # Query planning and performance: EXPLAIN, statistics, slow queries, tuning
 
 Notion: https://app.notion.com/p/3ef5c17b0d0d817f9e15f445b079e9c8 (child of Topic: databases, https://app.notion.com/p/3cd5c17b0d0d815d8841ec845f5f3324)
+Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_databases/query_planning_and_performance/
 
 HTML-only page, built 2026-10-04. `index.html` is the whole page; source in `src/` (see `src/README.md`).
 

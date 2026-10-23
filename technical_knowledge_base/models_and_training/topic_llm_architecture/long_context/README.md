@@ -1,6 +1,7 @@
 # Long context: KV cache growth and compression, local and global attention, effective context
 
 Notion: https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5
+Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/topic_llm_architecture/long_context/
 
 Child page of Topic: llm-architecture, and the knowledge base's owner of KV-cache sizing. One interactive page (`index.html`,
 built from `src/` by `sh src/build.sh`): Reading (one token's cost, why decode and prefill slow down, smaller entries,

@@ -21,7 +21,7 @@ Create the root's `src/` from [../build/templates/](../build/templates/) as [../
 - Write scaffold loops in `sh`, not zsh, or list names explicitly: zsh does not split words in `for x in $list` and once created one wrongly named placeholder file (2026-10-14).
 
 ## 3. Register the children
-- When Notion is connected: create the new child pages under the root with `notion-create-pages` (parent `page_id` = root id, `allow_async` false, content "Being built in the technical_knowledge_base repository."); reuse an old child's page id where the new child replaces it (it is retitled at publish). Add one `pages.json` entry per child (`path`, exact `title`, `id`, `parent` = root title, `section`, `status` `not_migrated`) and write the id into its README. Commit: "Register the N children of Topic: <name>".
+- When Notion is connected: create the new child pages under the root with `notion-create-pages` (parent `page_id` = root id, `allow_async` false, content: the link line from the `sync-kb-github` skill, which works once the page is pushed); reuse an old child's page id where the new child replaces it (it is retitled at publish). Add one `pages.json` entry per child (`path`, exact `title`, `id`, `parent` = root title, `section`, `status` `not_migrated`) and write the id into its README. Commit: "Register the N children of Topic: <name>".
 - When Notion is disconnected: keep "Notion: pending" in the READMEs, tell agents to name siblings in plain text and list those mentions in their reports, and wire links later (step 10). Two topics (ML infra, generative) were built entirely this way on 2026-10-16/17 and registered in one commit when Notion came back.
 
 ## 4. Scratch, scripts and briefs
@@ -57,7 +57,7 @@ One agent with [briefs/fix-pass.md](briefs/fix-pass.md): the ROOT FIX LIST as le
 When all child ids exist, one agent with [briefs/link-wiring.md](briefs/link-wiring.md) turns every plain-text sibling or child mention (root `src/read/links_todo.md`, children's notes and parts, "being built" cards) into `{{text|n:<id>}}`, rebuilds and checks every page. Commit.
 
 ## 11. Publish
-One agent (or the lead) with [briefs/publish.md](briefs/publish.md), strictly one page at a time: children first (upload, `replace_content` with the two-line block, retitle reused pages, `page_finalize.py`, push), then the root (it has children and often a video: insert the embed at the start, delete the old text in chunks keeping the video and every `<page>` tag, `page_finalize.py`, push), then `sync_status.py --no-build`. The procedure itself is the `sync-kb-github` skill.
+The lead, with the `sync-kb-github` skill: check each page, `page_finalize.py` (commits), `git push` (the site deploys), make sure every page of the topic has its Notion link page (new pages created, reused pages retitled), add the topic's concept owners to `technical_knowledge_base/OWNERS.md`, then `sync_status.py --no-build` must say "Published".
 
 ## 12. Close
 - Final memory-log line: what is live, commits, reading times (flag a root over 30 minutes or a child over about 45), what Khalid must do (delete an old video, delete "TO DELETE: ..." pages), open items.
@@ -68,8 +68,8 @@ One agent (or the lead) with [briefs/publish.md](briefs/publish.md), strictly on
 - **Watch, don't poll.** For a long background job, start one watcher (one background command that exits when a marker such as `ALLDONE` appears in a log, or the Monitor tool with an until-condition) and get on with other work. Never let an agent sit in a sleep loop waiting for a job; let it hand back and resume it with SendMessage when the marker appears.
 - **Stop re-reports.** An agent waiting on a long run tends to send status report after status report, each waking the lead. Tell it: "no more status reports; stop your own watcher (kill only PIDs you started; leave the run going) and end your turn; I will message you at ALLDONE; report once after that" (2026-10-17).
 - **Stage explicit paths.** Never `git add -A` (or `git add` of a whole topic) while agents are working: it sweeps their unfinished files into your commit (2026-10-14). Add only the folders or files you verified.
-- **page_finalize on a root commits its children's folders** (it runs `git add <root folder>`, which contains the children). Publish the root when children are finished or between their edits, or check `git status` first and accept what it sweeps (2026-10-15).
-- **Agents never** commit, publish, write to Notion, edit `pages.json`, or edit folders they do not own; they suggest changes in their reports. The only exception is the publish agent, which commits through `page_finalize.py`.
+- **page_finalize commits only the page's own files** (`index.html`, `README.md`, `src/`) since 2026-10-23, so a root no longer sweeps in its children.
+- **Agents never** commit, publish, write to Notion, edit `pages.json`, or edit folders they do not own; they suggest changes in their reports. The lead commits and publishes.
 - **Git one at a time.** Only one process (you or the publish agent) does git operations at any moment; `git pull` before the first commit of a session.
 - **Keep the brief the source of rules.** When an incident teaches a rule, append it (dated) to the common or child brief, message every running agent once, and add it to [../lessons.md](../lessons.md) if it is not topic-specific.
 - **Resource first.** Run `guard.sh` before launching a heavy agent; if it prints HIGH, launch only light work. Check `uptime`, swap and other topics' GPU queues; one GPU job machine-wide across topics.

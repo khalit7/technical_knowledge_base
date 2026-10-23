@@ -1,5 +1,6 @@
 # Agent and trajectory evaluation: grading actions, not messages
 
 Notion: https://app.notion.com/p/3ef5c17b0d0d81fdbabaf3582bff37f2 (child of Topic: evaluation-and-llm-judges)
+Site: https://khalit7.github.io/technical_knowledge_base/measurement/topic_evaluation_and_llm_judges/agent_and_trajectory_evaluation/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). How to evaluate your own agent: outcome grading (state diffs, tests, the do-nothing baseline), grading actions rather than messages (MOLE and Emergence World, corrected readings), step-level grading and why exact path matching is brittle, trajectory judges, agent-as-a-judge (DevAI's swapped percentages) and process reward models, reliability across runs, reward hacking in your own evals (METR, ImpossibleBench, StateM, Prime Agent), cost and step budgets, environment design, tracing (OpenTelemetry GenAI conventions, LangSmith, Braintrust, Inspect). Real data: 400 τ²-bench airline trials of GPT-5.2 and Claude Opus 4.5, re-graded with τ²-bench's evaluator. Tabs: Reading, Three graders (400 trials), Path matchers, Further reading. New page; no child pages, databases or video.

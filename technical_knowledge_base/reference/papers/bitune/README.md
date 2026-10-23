@@ -1,5 +1,6 @@
 # Bitune: Leveraging Bidirectional Attention to Improve Decoder-Only LLMs
 
 Notion: https://app.notion.com/p/3ce5c17b0d0d8173af14ed0caa19d6db (a row of the Papers database; its properties Paper, Takeaway, Topics and Year stay in the database)
+Site: https://khalit7.github.io/technical_knowledge_base/reference/papers/bitune/
 
-`index.html` is the whole Notion page body (one interactive HTML block). It is built from `src/` with `sh src/build.sh` and published with the `sync-kb-github` skill.
+`index.html` is the whole page (read it on the site) (one interactive HTML block). It is built from `src/` with `sh src/build.sh` and published with the `sync-kb-github` skill.

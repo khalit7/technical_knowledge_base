@@ -1,6 +1,7 @@
 # Python: the language in depth and the 2026 toolchain
 
 Notion: https://app.notion.com/p/3cd5c17b0d0d81b28acdea39e7a4d998 (child of Topic: programming-languages)
+Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_programming_languages/python/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). One page with a part bar (Start here, Part 1, Part 2); each part has its own tabs, and each part's sources, real runs and checks live in its own `src/<part>/` folder (see its README).
 - Part 1 "In depth" (`src/pa/`, tabs Reading, Event loop, Data model, Predict the output): names and objects, the data model, iterators and generators, closures and decorators, classes and descriptors, typing (mypy and ty errors), exceptions, context managers, threads and the GIL, asyncio from the event loop up, CPython internals (dis, refcounts, the specialising interpreter), performance. Generated from `src/pa/tpl/` by `src/pa/gen.py`.

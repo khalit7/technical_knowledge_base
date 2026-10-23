@@ -1,6 +1,6 @@
 ---
 name: explainer-video
-description: Make a narrated explainer video of a Technical knowledge base page (make a video of a page, explainer video, remake or re-voice a video), with visuals built in HyperFrames, narration voiced locally with Chatterbox Turbo, burned-in captions, length decided by the content, and the MP4 attached to the Notion page directly under its interactive HTML. Use when Khalid asks for a video of a page, an explainer video, or for an existing video to be remade or re-voiced.
+description: Make a narrated explainer video of a Technical knowledge base page (make a video of a page, explainer video, remake or re-voice a video), with visuals built in HyperFrames, narration voiced locally with Chatterbox Turbo, burned-in captions, length decided by the content, and the MP4 attached to the page's Notion page directly under its link line. Use when Khalid asks for a video of a page, an explainer video, or for an existing video to be remade or re-voiced.
 ---
 
 # explainer-video
@@ -39,7 +39,7 @@ Then publish to Notion as `notion.md` says.
 |---|---|
 | `workflow.md` | Steps 1 to 9 with commands, the real-path rule, known check false positives, re-voicing by timeline warp, lessons from the worked example. |
 | `hyperframes.md` | Which vendored HyperFrames skills and scripts this workflow uses and how; refreshing them with `scripts/vendor_skills.sh`. |
-| `notion.md` | Uploading the MP4, placing the `<video>` under the HTML embed, `pages.json`. |
+| `notion.md` | Uploading the MP4, placing the `<video>` under the page's Notion link line, `pages.json`. |
 | `narration/install.md` | One-time setup: uv, Node, ffmpeg, the voice environment (`voice_mac` or `voice_cuda`), smoke test. |
 | `narration/narrate.py` | Voices each line of `narration_lines.tsv` into `NN-cb.wav`; picks the installed backend. |
 | `narration/check_takes.py` | Transcribes each take, flags REDO lines, writes the `voices` of `audio_meta.json`. |
@@ -64,7 +64,7 @@ Report to Khalid:
 - the lines regenerated after take checks, and the caption spelling fixes applied;
 - anything `check` flagged and why it was accepted (known false positives) or fixed;
 - every fact you added to the page first, and any fact you dropped because the page did not support it;
-- where the video sits in Notion (fetched and confirmed under the embed), the `pages.json` change, and the commit.
+- where the video sits in Notion (fetched and confirmed under the link line), the `pages.json` change, and the commit.
 
 ## Sources distilled
 (History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)

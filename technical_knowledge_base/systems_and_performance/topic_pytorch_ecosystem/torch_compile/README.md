@@ -1,6 +1,7 @@
 # torch.compile from the user's side
 
 Notion: https://app.notion.com/p/3c65c17b0d0d8123a232d75bd7339ecb (child of Topic: pytorch-ecosystem, 3c65c17b0d0d8150aa65ca44b6ed2fd5)
+Site: https://khalit7.github.io/technical_knowledge_base/systems_and_performance/topic_pytorch_ecosystem/torch_compile/
 
 HTML-only page: `index.html` is the whole page, built by `src/build.sh`. Reuses the old page "torch.compile: Dynamo, AOTAutograd, Inductor", to be retitled; its text (no child pages, databases or video) is kept verbatim in `../src/read/old/torch_compile.md` and accounted for claim by claim in `src/coverage.md`.
 

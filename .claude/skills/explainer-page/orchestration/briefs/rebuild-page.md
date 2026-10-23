@@ -1,0 +1,26 @@
+# Brief: rebuild an existing page to the teaching contract
+
+Fill in the `{{...}}` slots and give it to one agent per page. Used for the 2026-10-23 rollout; reuse it whenever a built page is condensed, restructured or re-visualised. Children of a topic run first (they are the owners), its root last.
+
+---
+
+You are rebuilding one page of Khalid's technical knowledge base (repo root: the current git checkout). Page: `{{PAGE_PATH}}` ({{TITLE}}; build with `sh src/build.sh`; read `src/README.md` first). Its topic root is `{{ROOT_PATH}}`; its siblings are the other folders under it.
+
+GOAL: Khalid (MSc-level AI engineer with production LLM experience, a visual learner) understands the subject deeply in the least time. Every section, visual and sentence earns its place; nothing important is lost.
+
+READ FIRST and follow: `.claude/skills/explainer-page/teaching/teaching-contract.md` (governs), then `page-kinds/{{KIND}}.md`, `teaching/page-quality.md`, `visuals/choosing.md`, `visuals/animation-types.md`, `visuals/mechanics.md`, `teaching/writing-style.md`, `build/checks.md`, and `technical_knowledge_base/OWNERS.md` (one page owns each concept). Then this page (`src/README.md`, `src/parts`, `index.html`). Examples already rebuilt to the standard: `models_and_training/topic_llm_architecture/attention_variants`, `.../long_context` (children) and `.../topic_llm_architecture` (root); read their `src/README.md`.
+
+BASELINE (audit 2026-10-23): {{BASELINE}} (Reading core minutes + closed, other-tab minutes, visuals inline).
+OWNERSHIP for this page: {{OWNERSHIP}} (what this page owns per OWNERS.md; what it must link to instead of teaching; units it should absorb from other pages, if any).
+
+METHOD
+1. Measure before: `node html_utils/audit_pages.mjs <scratch>/before.jsonl <page>`.
+2. `python3 html_utils/ledger.py init <page>`; edit `src/ledger.json`: merge sentences into knowledge units, label each (core | depth | owned:<page path> | volatile | fat), give every non-fat unit a short distinctive `key` that will appear verbatim in static text (numbers make good keys; text drawn only by script is invisible to the check, so write the key into a caption or details block). Add units by hand for script-rendered tables. `owned:` is allowed only when the owner's built page carries the key now; otherwise keep the unit here and list it in your report for that owner.
+3. Rewrite to the contract: the core idea in one sentence and a hero figure at the top; "You need" and new terms only when useful; concrete numbers, then picture, then formula; every core idea with its visual inline beside the claim, chosen by the kind of concept (static annotated diagram for structure, stepper for a process, animation only when the change is the point, before/after when a method replaced another, slider for a parameter); mechanisms with no visual get one; lab tabs whose content explains one mechanism move into the Reading flow; tabs stay only for tools used across the page. Depth, provenance and optional interview rehearsal in closed `<details>`. Delete only fat. On a root: a map, comparisons, definitions and child cards with measured times; never re-teach a child.
+4. Replace this page's `src/parts/21_js_rd_common.js` and `99_js_tabs.js` with the templates in `.claude/skills/explainer-page/build/templates/` (keep its own storage key), or remove the autoplay code by hand if the page has its own animation controller: nothing may move before the reader acts. Header subtitle: "Reading: N min, plus M in closed details." (230 words a minute, as `audit_pages.mjs` measures).
+5. Rebuild; `sh html_utils/checkpage.sh <page>` must end `fail=0, emdash 0, errbox 1, clipped 0`; Read the screenshots in `.shots/` for the tabs you changed and fix anything ugly; run the page's own checks in `src/` (check_data.py, check_controls.mjs and similar) and fix what you broke; `python3 html_utils/ledger.py check <page>` must print problems 0; measure after.
+6. `src/README.md`: what changed and why, the length judgement (core minutes before and after and why this length is right), ledger counts. Update the page `README.md` status line if it describes the old structure.
+
+HARD RULES: no em-dashes anywhere. British spelling. Never write home or scratchpad paths, hostnames, emails or tokens into the repo. Do not commit, stage, push, touch Notion or edit `pages.json` or `OWNERS.md` (report what should change). Edit only files inside this page's folder; other agents are editing other pages. Do not invent numbers; every number keeps its source; a new number is sourced inline or derived with its formula. No heavy compute: if a visual needs data, derive it in a small script under `src/` from inputs the page already has; a run over a few minutes, or any GPU run, is reported as a proposal instead. Never pkill or killall. Scratch: `{{SCRATCH}}`.
+
+REPORT (under 500 words): minutes before and after per tab; visuals inline before and after, added, moved and removed; ledger counts by label; units other pages should absorb or link (page, section, key); OWNERS.md changes you propose; anything uncertain; check results.

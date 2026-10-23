@@ -61,13 +61,7 @@ A team of agents, one per tab ([../orchestration/topic-pipeline.md](../orchestra
 Each tab agent owns only its own part files: CSS scoped under its tab id, ids prefixed, renders registered in `window.TAB_RENDER` ([../build/scaffold.md](../build/scaffold.md)).
 
 ## Publishing a root
-A root has child pages, so it is **never** published with `replace_content`:
-- insert the embed and source line with `update_content`;
-- delete the old text in chunks (a run of consecutive blocks matched as one span);
-- keep every `<page>` tag, the video block and its heading;
-- fetch afterwards to confirm.
-
-Details in [migrate-or-fold.md](migrate-or-fold.md) and the `sync-kb-github` skill. The old narrated video describes the old page: leave it, and tell Khalid it is his to delete.
+Commit and push like any page (`sync-kb-github`). Its Notion page has child pages, so its link line is written with `update_content`, never `replace_content`, keeping every `<page>` tag and any video. An old narrated video describes the old page: leave it, and tell Khalid it is his to delete.
 
 ## Lessons (dated)
 - **2026-10-01**: build folded-in tabs in parallel and write the Reading tab last, by one hand, from their drafts; give the build script per-tab slots.

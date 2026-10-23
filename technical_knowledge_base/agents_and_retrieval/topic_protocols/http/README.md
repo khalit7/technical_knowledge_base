@@ -1,5 +1,6 @@
 # HTTP: semantics, 1.1 vs 2 vs 3, proxies and timeouts for LLM APIs
 
 Notion: https://app.notion.com/p/3c65c17b0d0d811bb035fa3f158b0889 (child of Topic: protocols)
+Site: https://khalit7.github.io/technical_knowledge_base/agents_and_retrieval/topic_protocols/http/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). HTTP taught from zero on the root's streaming LLM request: the message, semantics (methods, status codes, fields), caching and conditional requests, HTTP/1.1 framing and pipelining, HTTP/2 frames, HPACK, flow control and its attacks, HTTP/3 and QPACK, proxies (what they rewrite, hop-by-hop fields, request smuggling probes), the six kinds of timeout with dated defaults, retries and idempotency at the protocol level (what the official Python SDKs actually do), LLM API specifics, debugging, interview questions. Every exchange recorded locally on 2026-10-05 (`src/raw/`, rerun with `src/run_all.sh`). Tabs: Reading, Frame by frame (every frame on HTTP/1.1, 2 and 3), Timeout chain (hop timers against a generation, checked against 8 measured runs), Further reading. Rebuilds the old page "HTTP: 1.1, 2, 3, and what matters for LLM services" (kept verbatim in `../src/read/old/`, every fact mapped in `src/coverage.json`); no child pages, databases or video.

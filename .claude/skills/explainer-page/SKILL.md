@@ -9,7 +9,7 @@ description: Build an interactive explainer page for Khalid's Technical knowledg
 
 **Golden rule: understand the topic well enough to teach it before building anything.** A page is a teacher, not a summary. If you cannot explain the problem, the mechanism, the cost, when it matters and how to check it, with a running example and the numbers traced to sources, you are not ready to write a tab or brief an agent.
 
-The repository is the source of truth; Notion only displays it. Every page is one interactive `index.html` built from `src/` in its folder under `technical_knowledge_base/`, then published by the `sync-kb-github` skill. Videos are the `explainer-video` skill.
+The repository is the source of truth. Every page is one interactive `index.html` built from `src/` in its folder under `technical_knowledge_base/`; it is read on the public site built from `main` (https://khalit7.github.io/technical_knowledge_base/), and its Notion page is only a link to it. Publishing is the `sync-kb-github` skill (check, commit, push; a new page also gets its Notion link page). Videos are the `explainer-video` skill.
 
 ## Inputs this skill handles
 | Input | Start with | Page kind |
@@ -29,14 +29,14 @@ The repository is the source of truth; Notion only displays it. Every page is on
 5. **Choose the visuals.** [visuals/choosing.md](visuals/choosing.md), the catalogue [visuals/animation-types.md](visuals/animation-types.md) (before/after on the same input first), and [visuals/mechanics.md](visuals/mechanics.md).
 6. **Write to teach.** [teaching/teaching-contract.md](teaching/teaching-contract.md), [teaching/page-quality.md](teaching/page-quality.md) and [teaching/writing-style.md](teaching/writing-style.md).
 7. **Build and check.** [build/scaffold.md](build/scaffold.md), [build/templates/](build/templates/), [build/checks.md](build/checks.md).
-8. **Publish and record.** The `sync-kb-github` skill, then `python3 html_utils/page_finalize.py <folder>` (papers: `paper_finalize.py <slug>`), `git push`, `python3 html_utils/sync_status.py --no-build`. Present pages to Khalid before publishing unless he has said to publish.
+8. **Publish.** The `sync-kb-github` skill: `python3 html_utils/page_finalize.py <folder>` (papers: `paper_finalize.py <slug>`) commits, `git push` deploys the site, a new page gets its Notion link page, and `python3 html_utils/sync_status.py --no-build` ends "Published". Concept owners: add a row to `technical_knowledge_base/OWNERS.md` when the page owns something new. Present pages to Khalid before publishing unless he has said to publish.
 9. **Keep the lessons.** Add a dated lesson to the page-kind file or [lessons.md](lessons.md) when something new is learned; add a new page kind when Khalid approves a new shape.
 
 Many pages at once (a topic, a batch of papers): [orchestration/topic-pipeline.md](orchestration/topic-pipeline.md) and the fill-in briefs in [orchestration/briefs/](orchestration/briefs/).
 
 ## Hard constraints
 - **The shapes in page-kinds are suggestions, not templates.** Take what fits the content, depart where it needs and say why in `src/README.md`. Never force content into a shape.
-- One self-contained `index.html` per page: no network, no CDN, no web fonts; images as small WebP files in `img/` once the page is served by the reading site, data URIs while it is still a Notion embed ([visuals/mechanics.md](visuals/mechanics.md)).
+- One self-contained `index.html` per page: no network, no CDN, no web fonts; images as small WebP files in `img/` ([visuals/mechanics.md](visuals/mechanics.md)).
 - Tabs: Reading first and open by default, one tab per standalone lab or tool that deserves room, Further reading last.
 - Fail-safe JS (one `<script>` per JS part, the `#jsErr` box), light and dark, 390 px with no sideways scroll, animations pause off screen and under reduced motion.
 - Every specific fact sourced inline and dated; measured results labelled with the machine; anything not run says "not run here" and why.

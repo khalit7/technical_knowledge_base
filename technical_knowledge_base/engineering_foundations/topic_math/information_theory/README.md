@@ -1,5 +1,6 @@
 # Information theory for ML: entropy, cross-entropy, KL, mutual information
 
 Notion: https://app.notion.com/p/3c65c17b0d0d81c6baf3f778a62e14e5 (child of Topic: math)
+Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_math/information_theory/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`; see `src/README.md`). Surprise and why the log, bits and nats, entropy, prefix codes, Kraft and Huffman (animated on the root's tiny model), the source coding theorem, joint and conditional entropy, cross-entropy as the training loss, KL as the gap (one stream through two codes, animated), forward against reverse KL (a Gaussian fitted to two humps, animated), mutual information and the data processing inequality, InfoNCE and its ln N ceiling (live Monte Carlo), perplexity against bits per byte and per character (real models), the loss floor and compression as prediction (arithmetic coding animated; Delétang et al. checked and corrected), f-divergences and Jensen-Shannon, KL in RLHF, DPO and VAEs, estimating entropy and mutual information from samples. Tabs: Reading, Entropy and KL lab, Real text, measured (GPT-2, OPT-125m, SmolLM2-135M, Qwen2.5-0.5B and five compressors on English, French and C), Further reading. Rebuilds the old "Information theory for ML" page; no child pages, databases or video.

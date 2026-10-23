@@ -1,6 +1,7 @@
 # C++: the language, the machine underneath, and reading llama.cpp
 
 Notion: https://app.notion.com/p/3cd5c17b0d0d81ceadcee44fe9c023a0 (child of Topic: programming-languages)
+Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_programming_languages/cpp/
 
 Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). One page with a part bar (Start here, Part 1, Part 2, Part 3); each part has its own tabs, and each part's sources, real runs and checks live in its own `src/<part>/` folder (see its README).
 - Part 1 "The language" (`src/ca/`, tabs Reading, Build pipeline, Object lifetimes, UB gallery, Predict the output): the build (preprocessor, translation units, linking, CMake), values, references and pointers, RAII, smart pointers, moves, classes and virtual calls (measured), templates and concepts, the standard library, lambdas, errors (exceptions against std::expected, measured), undefined behaviour at -O0 and -O2 with sanitizers, C++20/23/26 status. Generated from `src/ca/tpl/` by `src/ca/gen.py`.

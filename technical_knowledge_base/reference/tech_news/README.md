@@ -1,6 +1,7 @@
 # Tech news
 
 Notion: https://app.notion.com/p/3c65c17b0d0d817297b0f28491701516
+Site: https://khalit7.github.io/technical_knowledge_base/reference/tech_news/
 
 Not an HTML page: in Notion it is a one-line description followed by one child page per issue. New issues are written by the `update-kb` skill (`.claude/skills/update-kb/`), named by the last day of the window they cover.
 

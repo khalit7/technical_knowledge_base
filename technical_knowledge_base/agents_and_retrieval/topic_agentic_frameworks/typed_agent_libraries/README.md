@@ -1,6 +1,7 @@
 # Typed agent libraries: Pydantic AI, OpenAI Agents SDK, smolagents, Google ADK
 
 Notion: https://app.notion.com/p/3f15c17b0d0d819fba89f9ec88feb859 (child of Topic: agentic-frameworks, 3c65c17b0d0d81ab8432c54d65b7f8c7)
+Site: https://khalit7.github.io/technical_knowledge_base/agents_and_retrieval/topic_agentic_frameworks/typed_agent_libraries/
 
 HTML-only page: `index.html` is the whole page, built by `src/build.sh`. A new page (no old Notion text).
 
