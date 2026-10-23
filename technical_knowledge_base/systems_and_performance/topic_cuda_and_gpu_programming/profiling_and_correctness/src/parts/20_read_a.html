@@ -1,13 +1,25 @@
 <section id="rd-one">
-<p class="lead">Four questions come up every time you try to make GPU code faster, and each has its own tool. <b>Where does the time go?</b> (a timeline of the whole program). <b>Why is this one kernel slow?</b> (hardware counters for that kernel). <b>Is my timing true?</b> (a measuring method that survives asynchronous execution, caches, clocks and a busy machine). <b>Is the answer still right?</b> (a reference, a tolerance that fits the number format, and tools that catch memory errors and races). This page teaches all four from zero, with real tool output wherever it can be produced without an NVIDIA GPU.</p>
-<p>Words used throughout: a <dfn>kernel</dfn> is one function that runs on the GPU across many threads; a <dfn>launch</dfn> is the CPU asking the GPU to run one; a <dfn>profiler</dfn> is a program that watches another program and records what it did and how long it took. The parent's {{section 9|n:3c65c17b0d0d81c39f34d5e070d783c1}} gives the short version of this page; the {{programming model|n:3c65c17b0d0d8162865eec15d9dae87e}} sibling owns launches, the CUDA error model, <code>CUDA_LAUNCH_BLOCKING</code> and what a launch costs; {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} owns FLOP counting and MFU (model FLOPs utilisation); this page owns the tools and the method.</p>
-<div class="q3">
-<div style="--sc:var(--c1)"><b>Where does the time go?</b>Nsight Systems (<code>nsys</code>) for the whole program; <code>torch.profiler</code> for "which PyTorch op". Cheap, run first. Section 3.</div>
-<div style="--sc:var(--c2)"><b>Why is this kernel slow?</b>Nsight Compute (<code>ncu</code>): replays one kernel many times to read hardware counters. Slow; only on kernels the timeline convicted. Section 4.</div>
-<div style="--sc:var(--c3)"><b>Is my timing true?</b>CUDA events or a synchronised clock, warm-up, a cold cache, fixed clocks, many runs, median and spread, <code>triton.testing.do_bench</code>. Sections 1 and 2.</div>
-<div style="--sc:var(--c4)"><b>Is the answer right?</b>A higher-precision reference, a tolerance per data type, awareness of summation order and atomics, <code>compute-sanitizer</code>. Section 5.</div>
-</div>
-<h3>What was actually run for this page</h3>
+<p class="lead"><b>A GPU number is only as good as the method behind it:</b> time the GPU's queue, not the CPU's call; find where the time goes with a timeline before asking why one kernel is slow; and call a kernel right only when its gap from a higher-precision reference is no bigger than its number format and summation order explain.</p>
+<figure class="hero" id="rd-hero">
+<div class="hero-t">One loop, four questions, a tool for each: the cheap whole-program view comes first, and no speedup counts until the timing is honest and the output checked</div>
+<ol class="loop">
+<li style="--sc:var(--c1)"><span class="n">1</span><b>Where does the time go?</b><span class="tool">nsys, torch.profiler</span>A timeline of CPU threads, kernels, copies and NCCL. Is the GPU row full? If not, the problem is the CPU, launches, data or communication, and no kernel work will help. Otherwise rank kernels by total GPU time (<code>cuda_gpu_kern_sum</code>, or <code>key_averages()</code> sorted by device time).<span class="sx">one cheap pass; section 3</span></li>
+<li style="--sc:var(--c2)"><span class="n">2</span><b>Why is this kernel slow?</b><span class="tool">ncu</span>Counters for one kernel the timeline convicted: Speed of Light says memory-, compute- or latency-bound, then occupancy and warp stalls say why. Place it on the roofline ({{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}).<span class="sx">42 replays of one kernel; section 4</span></li>
+<li style="--sc:var(--c5)"><span class="n">3</span><b>Change one thing</b><span class="tool">your kernel</span>One change per round, so the next measurement can blame it. Treat the profiler's estimated speedup as a hypothesis.<span class="sx">section 4's lesson</span></li>
+<li style="--sc:var(--c3)"><span class="n">4</span><b>Is my timing true?</b><span class="tool">events, do_bench</span>Synchronise or use events, warm up, flush the cache, many runs, median and spread, same clocks.<span class="sx">sections 1 and 2</span></li>
+<li style="--sc:var(--c4)"><span class="n">5</span><b>Is the answer right?</b><span class="tool">assert_close, compute-sanitizer</span>A float64 reference of the same rounded inputs, a tolerance from the format and the sum's length, the four sanitizer tools.<span class="sx">section 5</span></li>
+</ol>
+<div class="loopback">&#8634; Back to 1 with the numbers written down: the change, the result, the environment. Simon Boehm's {{matmul worklog|https://siboehm.com/articles/22/CUDA-MMM}} is the model: each kernel, its GFLOP/s, and what the profiler blamed. A speedup without the method behind it is not a result.</div>
+</figure>
+<p><b>You need</b> launches, warps and occupancy ({{The CUDA programming model|n:3c65c17b0d0d8162865eec15d9dae87e}}, which also owns the CUDA error model, <code>CUDA_LAUNCH_BLOCKING</code> and what a launch costs), coalescing and bank conflicts ({{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}}), and for step 2 the roofline ({{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}, which owns FLOP counting and MFU). The parent's {{section 9|n:3c65c17b0d0d81c39f34d5e070d783c1}} is this page in one screen.</p>
+<ul class="terms">
+<li><dfn>Stream</dfn>: the queue of GPU work the CPU writes into; <dfn>event</dfn>: a marker in that queue that the GPU timestamps.</li>
+<li><dfn>Timeline</dfn> (<dfn>trace</dfn>): every CPU call, kernel and copy on one time axis, one row per thread or stream.</li>
+<li><dfn>Replay</dfn>: Nsight Compute running one kernel many times, reading a different group of hardware counters each pass.</li>
+<li><dfn>Speed of Light</dfn>: each unit's throughput as a percentage of its peak; <dfn>achieved occupancy</dfn>: active warps as a share of the SM's maximum; a <dfn>warp stall</dfn>: the reason a warp's next instruction cannot issue.</li>
+<li><dfn>ulp</dfn>: the spacing between neighbouring floating-point numbers at a value; <dfn>rtol</dfn>, <dfn>atol</dfn>: the relative and absolute tolerances of a comparison.</li>
+</ul>
+<details class="dp"><summary>What was actually run for this page, and the labels used</summary><div class="b">
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Evidence</th><th>What it is</th><th>Label used</th></tr></thead><tbody>
 <tr><td>Nsight Compute 2026.3.1 and compute-sanitizer 2026.3.0</td><td>From the CUDA 13.4.2 toolkit in the Docker image <code>kb-gpu-lab:1</code>. Without a GPU they cannot profile, but <code>ncu --import</code> reads saved reports: NVIDIA ships six real reports with the tool (profiled by NVIDIA on an RTX A4500 in October 2023), three before/after pairs. Their help text, section files and metric lists are real too.</td><td><span class="der">real tool, NVIDIA's reports</span></td></tr>
 <tr><td>Timing experiments</td><td>PyTorch 2.14.1 on the M1 Pro GPU through MPS (Apple's backend): <code>torch.mps.synchronize</code> and <code>torch.mps.Event</code> play the parts of <code>torch.cuda.synchronize</code> and <code>torch.cuda.Event</code>. Three runs; the laptop was shared with other agents, so every result shows its runs and the load.</td><td><span class="meas">measured on Apple M1 Pro GPU</span></td></tr>
@@ -15,5 +27,33 @@
 <tr><td>Numerics</td><td>PyTorch and NumPy experiments; a fp16 and bf16 matmul on the M1 GPU checked against a float64 reference; floating-point atomics measured on the M1 GPU with MLX kernels.</td><td><span class="meas">measured here</span></td></tr>
 <tr><td>Nsight Systems, nvidia-smi, CUDA events, cuBLAS</td><td>Not installed or not runnable without a GPU.</td><td><span class="vend">docs only</span></td></tr>
 </tbody></table></div>
-<div class="co key"><div class="t">The loop this page builds</div>Measure the whole program (timeline) &rarr; pick the biggest kernel or gap &rarr; explain it (counters, roofline) &rarr; change one thing &rarr; re-measure with an honest benchmark &rarr; check the output against a reference. Write the numbers down at every step. A speedup without the method behind it is not a result.</div>
+</div></details>
+</section>
+<section id="rd-s1">
+<h2>1. Why a stopwatch around GPU code lies</h2>
+<p>The CPU and the GPU are two workers with a queue between them. <code>c = a @ b</code> on a GPU tensor does not wait for the multiply: the CPU writes a command into the stream and returns at once, and the GPU picks it up when it is free. This <dfn>asynchronous execution</dfn> is why PyTorch on a GPU is fast (the CPU runs ahead and keeps the queue full), and why a CPU clock around that line measures how long it took to <i>queue</i> the work. One 2,048 &times; 2,048 float32 multiply timed four ways, drawn to scale; step through each:</p>
+<div class="card" id="rd-tl-card">
+<div class="seg" id="rd-tl-seg"><button data-m="nosync" class="on">Clock, no synchronise</button><button data-m="sync">Clock + synchronise</button><button data-m="event">Events</button><button data-m="queued">Forgot to synchronise first</button></div>
+<div class="rd-chart" id="rd-tl-svg"></div>
+<div class="an-ctl" id="rd-tl-ctl"></div>
+<div class="an-cap" id="rd-tl-cap"></div>
+<div class="an-cnt" id="rd-tl-cnt"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro GPU</span> PyTorch 2.14.1, MPS backend; each bar is the median of 25 repetitions in each of 3 runs, the median of the 3 run medians shown; the runs are listed under the counters. Without a synchronise the clock read 0.18 ms against 4.15 ms of GPU time. The same queue exists on every NVIDIA GPU; only the durations differ.</p>
+</div>
+<div class="pr" id="rd-pr1"><div class="q">Predict: four earlier multiplies are still in the queue when you start the clock, then you queue one more and synchronise. What does the clock say, roughly?</div>
+<div class="opts"><button data-a="0">About one multiply (4 ms)</button><button data-a="1" data-right="1">About five multiplies (20 ms)</button><button data-a="2">Almost nothing (0.2 ms)</button></div>
+<div class="ans" hidden>The synchronise waits for everything in the queue, including the four multiplies queued before the clock started. <span class="meas">measured</span>: <b><span data-v="q_ms">19.93</span> ms</b> against <b><span data-v="sync_ms">4.243</span> ms</b> for one. The fix is a <code>synchronize()</code> before reading the start time too.</div></div>
+<p>So there are two honest ways: make the CPU wait for the queue to drain before <i>both</i> clock reads (<code>torch.cuda.synchronize()</code>), or put two <dfn>events</dfn> into the stream and ask the GPU how far apart they were:</p>
+<pre class="code"><span class="c"># warm up first (section 2), then:</span>
+start = torch.cuda.Event(enable_timing=True)
+end = torch.cuda.Event(enable_timing=True)
+torch.cuda.synchronize()          <span class="c"># nothing else in the queue</span>
+start.record()                    <span class="c"># a marker in the stream</span>
+y = f(x)
+end.record()
+torch.cuda.synchronize()          <span class="c"># or end.synchronize()</span>
+ms = start.elapsed_time(end)      <span class="c"># GPU time between the markers, in ms</span></pre>
+<p>Event timing has "a resolution of around 0.5 microseconds" ({{CUDA Runtime API 13.4, cudaEventElapsedTime|https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__EVENT.html}}) <span class="vend">docs</span>. Events leave out the CPU's own overhead, a synchronised clock includes it: use events for "how fast is this kernel" and a synchronised clock or a timeline for "how fast is this step", because in launch-bound code the CPU <i>is</i> the cost. An event pair also counts any time the GPU sat idle between the markers waiting for the CPU, so a slow Python loop inflates event times too.</p>
+<p><b>Know what your timer brackets.</b> A tiny multiply of 4,096 numbers measured <b><span data-v="tiny_ev">0.157</span> ms</b> with an event pair and <b><span data-v="tiny_sync">0.196</span> ms</b> with a clock and a synchronise per call, but <b><span data-v="tiny_batch_us">4.96</span> &micro;s</b> per call when 200 calls were queued back to back with one synchronise at the end <span class="meas">measured</span>. The GPU work is a few microseconds; the rest is the measuring (Apple's MPS events mark command-buffer boundaries and carry a fixed overhead; CUDA's are lighter, but a kernel of a few microseconds timed alone is still mostly launch and synchronisation, which is why {{CUDA graphs|n:3f05c17b0d0d81b19a6acab65c370b75}} and Triton's <code>do_bench_cudagraph</code> exist). For tiny kernels, time many back-to-back calls and divide, and say so.</p>
+<div class="co warn"><div class="t">The same trap inside PyTorch code you did not write</div>Any operation that needs a value on the CPU forces a synchronise: <code>loss.item()</code>, <code>print(tensor)</code>, <code>tensor.cpu()</code>, <code>if tensor.any():</code>, a <code>nonzero()</code> whose size the CPU must know. In a training loop these silently serialise the CPU and GPU, and a stopwatch then "works" by accident. The timeline in section 3 shows where they are.</div>
 </section>

@@ -1,4 +1,4 @@
-// ---- Numerics lab tab: dot-product error against format, length and order (window.FP model) ----
+// ---- Reading section 5, closed workbench (was the Numerics lab tab): dot-product error against format, length and order (window.FP model) ----
 (function(){
   const f=MC.fmtN,$=id=>document.getElementById(id),NU=PCD.numerics;
   const ids=['nl-fin','nl-fa','nl-acc','nl-S','nl-fout','nl-K'];
@@ -24,6 +24,6 @@
       {logx:true,logy:true,xl:'reduction length K',yl:'median error / scale',xfmt:v=>v>=1024?(v/1024)+'K':String(v),yfmt:v=>'1e'+Math.round(Math.log10(v)),label:'error against K'});
   }
   ids.forEach(i=>$(i).addEventListener('input',run));
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-num']=[run];
-  addEventListener('resize',()=>{if($('t-num').offsetParent)chart(cfg())});
+  const det=$('rd-nl-det');let ran=false;det.addEventListener('toggle',()=>{if(det.open){run();ran=true}});
+  RD.onResize(()=>{if(det.open)chart(cfg())});
 })();
