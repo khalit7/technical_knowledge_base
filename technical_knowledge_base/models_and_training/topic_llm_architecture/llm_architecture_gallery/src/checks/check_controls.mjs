@@ -1,6 +1,6 @@
-// Clicks every control of every tab at 390 px dark and 920 px light, walks every model through the Decode tab and the
-// Cache tab's animation, and fails on page errors, a visible #jsErr, sideways scroll, or NaN / undefined / Infinity
-// in a tab's text. Then checks that nothing autoplays under prefers-reduced-motion. Optional screenshots of the main
+// Clicks every control of every tab at 390 px dark and 920 px light, walks every model through the Decode tab and its
+// animation, and fails on page errors, a visible #jsErr, sideways scroll, or NaN / undefined / Infinity
+// in a tab's text. Then checks that nothing autoplays, with and without prefers-reduced-motion. Optional screenshots of the main
 // cards go to the folder given as the second argument (outside the repo).
 // Run from the repo root: node <page>/src/checks/check_controls.mjs <page>/index.html [shots dir]
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
@@ -37,9 +37,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       const n = await p.$eval('#' + id, s => s.options.length);
       for (let k = 0; k < n; k++) {
         await p.$eval('#' + id, (s, k) => { s.selectedIndex = k; s.dispatchEvent(new Event('change', { bubbles: true })) }, k);
-        if (id === 'dc-sel' || id === 'cx-am') {
-          if (id === 'cx-am') await p.$eval('#cx-anCtl-s', r => { r.value = r.max; r.dispatchEvent(new Event('input', { bubbles: true })) });
-          if (id === 'dc-sel') await p.$eval('#dc-anCtl-s', r => { r.value = r.max; r.dispatchEvent(new Event('input', { bubbles: true })) });
+        if (id === 'dc-sel') {
+          await p.$eval('#dc-anCtl-s', r => { r.value = r.max; r.dispatchEvent(new Event('input', { bubbles: true })) });
           const bad = await textBad(p, t); if (bad) errs.push(`${t} ${id}[${k}]: ${bad}`);
         }
       }
@@ -55,24 +54,22 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push('jsErr: ' + box);
   if (shots) {
     await p.click('#tabs button[data-t=t-read]'); await sleep(300);
-    for (const id of ['ag-cen', 'ag-s1', 'ag-sm', 'agx', 'ag-t6', 'ag-w7', 'ag-t8', 'ag-t9']) { const el = await p.$('#' + id); if (el) { await el.scrollIntoView(); await sleep(250); await el.screenshot({ path: path.join(shots, `${id}-${scheme}-${width}.png`) }) } }
+    for (const id of ['ag-hero', 'ag-cen', 'ag-corr', 'ag-sm', 'ag-spread', 'ag-t6', 'ag-w7', 'ag-ratio', 'ag-t8', 'ag-moe', 'ag-t9', 'ag-stack']) { const el = await p.$('#' + id); if (el) { await el.scrollIntoView(); await sleep(250); await el.screenshot({ path: path.join(shots, `${id}-${scheme}-${width}.png`) }) } }
     await p.click('#tabs button[data-t=t-dec]'); await p.$eval('#dc-sel', s => { s.value = 'Kimi K3'; s.dispatchEvent(new Event('change', { bubbles: true })) }); await sleep(300);
     for (const id of ['dc-card', 'dc-out', 'dc-an']) { const el = await p.$('#' + id); if (el) { await el.scrollIntoView(); await el.screenshot({ path: path.join(shots, `${id}-${scheme}-${width}.png`) }) } }
     await p.click('#tabs button[data-t=t-cmp]'); await sleep(300); for (const id of ['cm-scc', 'cm-t']) { const el = await p.$('#' + id); if (el) await el.screenshot({ path: path.join(shots, `${id}-${scheme}-${width}.png`) }) }
-    await p.click('#tabs button[data-t=t-ctx]'); await sleep(300); await p.$eval('#cx-am', s => { s.value = 'Gemma 3 27B'; s.dispatchEvent(new Event('change', { bubbles: true })) }); await p.$eval('#cx-anCtl-s', r => { r.value = 17; r.dispatchEvent(new Event('input', { bubbles: true })) });
-    for (const id of ['cx-an', 'cx-plot', 'cx-tab']) { const el = await p.$('#' + id); if (el) await el.screenshot({ path: path.join(shots, `${id}-${scheme}-${width}.png`) }) }
   }
   console.log(scheme, width, errs.length ? errs : 'clean'); fails += errs.length; await p.close();
 }
-// reduced motion: nothing may start playing on its own
-{
-  const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+// nothing may start playing on its own, with or without reduced motion (the only animation is the Decode tab's)
+for (const motion of ['reduce', 'no-preference']) {
+  const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: motion }]);
   await p.goto('file://' + page); const res = [];
-  for (const [t, card, btn] of [['t-read', 'agx', '#agxPlay'], ['t-dec', 'dc-an', '#dc-anCtl-p'], ['t-ctx', 'cx-an', '#cx-anCtl-p']]) {
+  for (const [t, card, btn] of [['t-dec', 'dc-an', '#dc-anCtl-p']]) {
     await p.click(`#tabs button[data-t=${t}]`); await p.$eval('#' + card, e => e.scrollIntoView()); await sleep(1500);
-    const txt = await p.$eval(btn, x => x.textContent); if (/Pause/.test(txt)) res.push(`${card} autoplays under reduced motion`);
+    const txt = await p.$eval(btn, x => x.textContent); if (/Pause/.test(txt)) res.push(`${card} autoplays (${motion})`);
   }
-  console.log('reduced motion', res.length ? res : 'clean'); fails += res.length; await p.close();
+  console.log('motion ' + motion, res.length ? res : 'clean'); fails += res.length; await p.close();
 }
 await b.close();
 process.exit(fails ? 1 : 0);

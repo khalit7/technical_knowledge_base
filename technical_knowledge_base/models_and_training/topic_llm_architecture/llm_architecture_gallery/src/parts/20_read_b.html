@@ -1,26 +1,16 @@
 
-<section id="ag-s1">
-<h2>1. The gallery, and how this page rebuilt it</h2>
-<p><b>What it is.</b> The {{LLM Architecture Gallery|https://sebastianraschka.com/llm-architecture-gallery/}} is Sebastian Raschka's side-by-side reference of open-weight model architectures: a drawn diagram per model and a fact sheet with total and active parameters, decoder type, attention and layer mix, context length, licence, links to the config and the technical report, and one headline number, the <b>KV cache per token in bf16</b>. Its metadata is a single {{models.yml|https://github.com/rasbt/llm-architecture-gallery}} under Apache 2.0; this page uses it at commit <code>589d213</code> (4 October 2026, read 18 October 2026): 109 entries from GPT-2 XL to models released in October 2026. It is a third-party summary: useful because it is consistent, not because it is a primary source.</p>
-<p><b>Its convention for the headline number</b>, from its {{KV-cache notes|https://sebastianraschka.com/llm-architecture-gallery/kv-cache-calculations/}}: "the logical cache added by one token for one sequence", batch 1, 2 bytes per element, summed over every layer that appends to a growing cache. A sliding-window layer is counted at full cost ("It changes how long a token remains in the cache"), linear and state-space layers count 0 B and their fixed state is kept outside the number, and MLA counts its compressed latent, not expanded keys and values. The root page's {{Architecture map (on Topic: llm-architecture)|n:3fd5c17b0d0d8172b490dc9f9ac281df}} and this page use the same convention, so the three agree, and both add a second number with the windows credited.</p>
-<p><b>How this page rebuilt it.</b> For each entry the script downloads nothing at build time: it reads the saved <code>config.json</code> (public mirrors for gated Meta and Google repos), decodes one code per layer for the mixer, the FFN and the position scheme, and sums the cache layer by layer. Then it compares its own number with the gallery's.</p>
-<div class="ag-box ag-bchk" id="ag-repro"></div>
-<div id="ag-diffs"></div>
-<p class="small mute">Not rebuilt: four entries whose config is not public (three gated repos, one LoRA adapter with no config of its own), and the three DeepSeek V4 entries, whose compressed caches the per-layer formula does not express; for those the gallery's figure is shown, with the reconstruction in section 12.</p>
-</section>
-
 <section id="ag-s2">
 <h2>2. Reading a model card in thirty seconds</h2>
-<p>A model card answers five questions, and each answer predicts something different. Ask them in this order:</p>
+<p>Five questions, in this order; each answer predicts something different.</p>
 <ol>
-<li><b>Total and active parameters.</b> The total is the memory you must provision for the weights; the active count is what runs per token, so it sets latency and price. They are routinely conflated. Their ratio is the MoE sparsity.</li>
+<li><b>Total and active parameters.</b> Total is the weight memory; active is what runs per token, so latency and price. Their ratio is the MoE sparsity. They are routinely conflated, and an encoder-decoder can have two active counts (DeepSeek V4.1-Flash: 8B during prefill, 16B during decode, gallery).</li>
 <li><b>Attention type and layer mix.</b> Full attention, windows, linear layers or trained sparse attention, and in what proportion: how cost grows with context, which matters more than the advertised context length.</li>
 <li><b>KV cache per token, times context, times concurrent requests,</b> with the windows credited: whether long context fits, in GiB.</li>
-<li><b>Experts: routed, active, shared.</b> How much expert parallelism serving needs, and how much skewed traffic will hurt (the {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}} page owns why).</li>
+<li><b>Experts: routed, active, shared.</b> How much expert parallelism serving needs, and how much skewed traffic will hurt.</li>
 <li><b>Licence, and whether base weights shipped.</b> Base weights decide whether you can post-train at all.</li>
 </ol>
 <div class="grid">
-<div class="card"><h3 style="margin-top:0">gpt-oss-120b (August 2025)</h3>
+<div class="card"><h4>gpt-oss-120b (August 2025)</h4>
 <ol class="small" style="padding-left:18px">
 <li>117B total, 5.1B active (OpenAI's {{model card|https://huggingface.co/openai/gpt-oss-120b}}, vendor): 4.4% runs per token, so it decodes like a 5B model and needs memory for 117B.</li>
 <li>36 layers alternating a 128-token sliding window and full attention, one to one: cost grows with context through 18 of 36 layers.</li>
@@ -28,7 +18,7 @@
 <li>128 routed experts, 4 active, no shared expert in the config.</li>
 <li>Apache 2.0; the card does not say whether a base checkpoint shipped.</li>
 </ol></div>
-<div class="card"><h3 style="margin-top:0">Kimi K3 (July 2026)</h3>
+<div class="card"><h4>Kimi K3 (July 2026)</h4>
 <ol class="small" style="padding-left:18px">
 <li>2.8T total, 104B active (gallery line from Moonshot's card, vendor): 3.7% runs per token.</li>
 <li>93 layers: 69 Kimi Delta Attention layers (linear, fixed state) and 24 MLA layers that carry no positional encoding (<code>mla_use_nope</code>).</li>
@@ -45,7 +35,7 @@
 
 <section id="ag-s3">
 <h2>3. Reading the config: the fields behind each strip</h2>
-<p>The card is a summary; the <code>config.json</code> is what the loading code reads, so when the two disagree the config wins for that checkpoint. Thirty fields describe the architecture, but each strip comes from a handful, and every lab spells them differently. The {{Decode a config|#t-dec}} tab shows, for any of the 105 models, exactly which fields this page read and what each one set.</p>
+<p>The card is a summary; <code>config.json</code> is what the loading code reads, so when they disagree the config wins for that checkpoint. Each strip comes from a handful of fields, and every lab spells them differently. {{Decode a config|#t-dec}} shows, for any of the 105 models, exactly which fields were read and what each set.</p>
 <div class="tw"><table>
 <thead><tr><th>To know</th><th>Read</th><th>Watch for</th></tr></thead>
 <tbody>
@@ -57,14 +47,16 @@
 <tr><td>Position</td><td><code>rope_theta</code>, <code>rope_scaling</code></td><td>Nested per layer type in <code>rope_parameters</code> (Gemma 4); per-layer lists of bases and rotary fractions (Step); <code>partial_rotary_factor</code></td></tr>
 <tr><td>Context</td><td>the model card</td><td><code>max_position_embeddings</code> is a limit in the code, not the trained context (MiniMax-M1's is 10,240,000; Qwen3's 40,960 against a 32,768 native context, per the root page)</td></tr>
 </tbody></table></div>
+<p class="small mute">The two classic misreadings, deriving <code>head_dim</code> from <code>hidden_size</code> and reading <code>max_position_embeddings</code> as trained context, are worked on the root page's section 12 ({{Topic: llm-architecture|n:3fd5c17b0d0d8172b490dc9f9ac281df}}).</p>
 <p><b>Traps met building this page</b>, each real:</p>
 <ul class="tight">
-<li><b>The config is not where you think.</b> Multimodal checkpoints nest the language model under <code>text_config</code> (Gemma 4, Qwen3.5, Kimi K3); DeepSeek V4.1-Flash stores its <code>text_config</code> as a Python-repr string, not JSON; DeepSeek V4-Pro stores <code>compress_ratios</code> as a string holding a list; Mistral Large 3 ships <code>params.json</code> with its own key names.</li>
-<li><b>A saved file that is not a config.</b> Gated repos answer a download without a token with an error body, and a script that does not check saves it as <code>config.json</code>. This page's own earlier build had nine such files (eight error bodies from gated repos and one "Entry not found"), among them <code>unsloth__Meta-Llama-3-8B.json</code> containing only <code>Invalid username or password.</code> and <code>google__gemma-3-27b-it.json</code> beginning <code>Access to model google/gemma-3-27b-it is restricted.</code> Those models were silently skipped; Llama 3 8B now comes from the public mirror <code>unsloth/llama-3-8b</code>.</li>
+<li><b>The config is not where you think.</b> Multimodal checkpoints nest the language model under <code>text_config</code> (Gemma 4, Qwen3.5, Kimi K3); DeepSeek V4.1-Flash stores its <code>text_config</code> as a Python-repr string, V4-Pro its <code>compress_ratios</code> as a string holding a list; Mistral Large 3 ships <code>params.json</code> with its own key names.</li>
+<li><b>A saved file that is not a config.</b> A gated repo answers an anonymous download with an error body, and a script that does not check saves it as <code>config.json</code>. This page's earlier build had nine such files (eight from gated repos, one "Entry not found"), among them <code>unsloth__Meta-Llama-3-8B.json</code> containing only <code>Invalid username or password.</code>; those models were silently skipped. Parse every download and fail loudly; Llama 3 8B now comes from the public mirror <code>unsloth/llama-3-8b</code>.</li>
 <li><b>The list includes layers that are not in the stack.</b> Step 3.5 Flash's <code>layer_types</code> has 48 entries for 45 decoder layers: the last three are its multi-token-prediction layers.</li>
-<li><b>The config alone is not enough.</b> Gemma 4 E2B's config says <code>head_dim</code> 256, but transformers gives its global layers <code>global_head_dim</code> 512 and lets its last 20 layers reuse earlier caches; Motif 3 has <code>kv_lora_rank</code> like MLA, but its released code caches the expanded keys and values. Both are settled only by reading the modeling code (section 1's corrections).</li>
+<li><b>The config alone is not enough.</b> Gemma 4 E2B's config says <code>head_dim</code> 256, but transformers gives its global layers <code>global_head_dim</code> 512 and lets its last 20 layers reuse earlier caches; Motif 3 has <code>kv_lora_rank</code> like MLA, but its released code caches the expanded keys and values. Both are settled only by the modeling code (section 1).</li>
 </ul>
-<p>The decoding itself is a cascade of such cases. This is the start of the mixer branch of <code>src/gen_data.py</code> (the same branches as the root map's <code>build_map.py</code>), and the report line it wrote for Gemma 3 27B:</p>
+<details class="dp"><summary>The decoder's mixer branch, and the report line it wrote for Gemma 3 27B <span class="mute">(code)</span></summary><div class="b">
+<p class="small">The start of the mixer branch of <code>src/gen_data.py</code> (the same branches as the root map's <code>build_map.py</code>):</p>
 <div class="ag-code">    if t.get('hybrid_override_pattern'):
         p = t['hybrid_override_pattern']
         mix = ''.join({'M': 'L', '*': 'G', 'E': 'F', '-': 'F'}[c] for c in p)
@@ -77,4 +69,15 @@
         mix = ''.join('G' if (i + 1) % n == 0 else 'S' for i in range(L))
 <span class="c"># src/out/report.txt</span>
 match    Gemma 3 27B                          calc    496.00 KiB  idx       -  gallery 496 KiB      kvw   85248.0  mix SSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSS ffn dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd pos RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR</div>
+</div></details>
+</section>
+
+<section id="ag-s4">
+<h2>4. The per-layer strips</h2>
+<p>A card's "52 sliding-window + 10 global" hides where those layers sit, and placement matters: Gemma 3 puts a global layer after every five windowed ones, so information never travels more than five layers before it can reach the whole context. The strips draw each layer in order, left (next to the embedding) to right (next to the output head), every model stretched to the same width.</p>
+<div class="ag-leg" id="ag-leg4"></div>
+<div class="card" id="ag-sm"><h4>Twelve stacks side by side: the cache grows only in the blue, green and purple cells</h4><div class="ag-sm" id="ag-smb"></div>
+<p class="small mute">Three bars per model: mixer, FFN, position; on the right the KV cache per token in bf16, card convention. Click a name to open it in {{Decode a config|#t-dec}}. The tiny GPT is this topic's running example (6 layers of multi-head attention with learned positions, 6,144 bytes per token).</p></div>
+<p><b>How to read one.</b> Blue (full attention), green (MLA) and purple (trained sparse) cells grow a cache with every token; teal (windowed) cells stop at W and yellow (linear) cells keep a fixed state. Orange cells in the middle bar are expert layers, so a grey first cell is the dense prefix DeepSeek-style models keep. A black cell (white in dark mode) in the bottom bar is a layer with no positional encoding: Llama 4 Maverick's every fourth layer, SmolLM3's every fourth, Kimi K3's attention layers. {{Compare architectures|#t-cmp}} has the strips of every model, sortable and filterable.</p>
+<p><b>Seven colours, seven answers to one question:</b> what must this token leave behind in this layer so later tokens can use it? A key and value for every query head (MHA), one per group (GQA) or one for all (MQA), a latent every head rebuilds from (MLA), the same entries for the last W tokens only (window), all entries kept but only the top k read (trained sparse), or a fixed-size state (Gated DeltaNet, KDA, Mamba-2). How each works is on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}} and {{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}}; this page's question is which answer each released model chose, and in what mixture.</p>
 </section>

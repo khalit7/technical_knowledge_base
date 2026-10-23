@@ -144,65 +144,92 @@ dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
 @media (max-width:520px){.ag-code{font-size:11.5px}}
 </style></head><body><div class="w">
 <h1>LLM Architecture Gallery (rasbt) and the architectural deltas that matter</h1>
-<div class="sub">How to read a 2026 open model's card and config.json in thirty seconds, and the few choices inside the decoder block that actually differ between models: what each token stores, windows, linear layers, experts, position and stack shape. Every model of Sebastian Raschka's LLM Architecture Gallery is rebuilt layer by layer from its own config, checked against the gallery's figures, against transformers 5.20.1's own parsing and against the root page's Config calculator. Configs parsed on an Apple M1 Pro (CPU); no model was run. Data as of October 2026. Reading: 30 min, plus 3 in closed details.</div>
+<div class="sub">Which released open models made which architectural choices, for every model of Sebastian Raschka's LLM Architecture Gallery with a readable config, rebuilt layer by layer from its own config.json and checked against the gallery, transformers 5.20.1 and the root Config calculator. Configs parsed on an Apple M1 Pro (CPU); no model was run. Data as of October 2026. Reading: 22 min, plus 8 in closed details.</div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-dec" aria-selected="false">Decode a config</button><button role="tab" data-t="t-cmp" aria-selected="false">Compare architectures</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
 #t-read .ag-dt{width:100%}#t-read .ag-dt td{vertical-align:top}#t-read .ag-dt td:first-child{font-weight:600;min-width:8.5em}
-#t-read .ag-cen .row{display:grid;grid-template-columns:minmax(0,10.5em) minmax(0,1fr);gap:8px;align-items:center;font-size:12.5px;margin:4px 0}
 #t-read .ag-sm{display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr) 5.4em;gap:4px 10px;align-items:center;font-size:12.5px}
 #t-read .ag-sm .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#t-read .ag-sm .v{text-align:right;font-variant-numeric:tabular-nums;color:var(--mute)}
 #t-read .ag-sm button.nm{all:unset;cursor:pointer;color:var(--acc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
 #t-read .ag-q{margin:6px 0}#t-read .ag-q summary{cursor:pointer;font-weight:600;font-size:14px}
 #t-read .ag-q .b{font-size:13.5px;padding:2px 0 4px 16px}
-@media (max-width:520px){#t-read .ag-sm{grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 4.6em}#t-read .ag-cen .row{grid-template-columns:minmax(0,7.6em) minmax(0,1fr)}}
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4,#t-read .card h4{margin:0 0 4px;font-size:14.5px}
+#t-read .ag-hx{overflow-x:auto;max-width:100%}#t-read .ag-hx svg{max-width:none}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+#t-read dfn{font-style:normal;font-weight:600}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px}
+#t-read .tw table{min-width:560px}#t-read td,#t-read .ans{overflow-wrap:anywhere}
+@media (max-width:520px){#t-read .ag-sm{grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 4.6em}#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
 </style>
-<nav class="nav" id="rd-nav"><a href="#ag-s0">In one screen</a><a href="#ag-s1">The gallery</a><a href="#ag-s2">A card in 30 s</a><a href="#ag-s3">The config</a><a href="#ag-s4">Strips</a><a href="#ag-s5">Seven answers</a><a href="#ag-s6">Stores</a><a href="#ag-s7">Windows</a><a href="#ag-s8">Linear</a><a href="#ag-s9">Experts</a><a href="#ag-s10">Position</a><a href="#ag-s11">Norms</a><a href="#ag-s12">Stack shape</a><a href="#ag-s13">Checks</a><a href="#ag-s14">Mistakes</a><a href="#ag-s15">Interview</a></nav>
+<nav class="nav" id="rd-nav"><a href="#ag-s0">The idea</a><a href="#ag-s1">The gallery</a><a href="#ag-s2">A card</a><a href="#ag-s3">The config</a><a href="#ag-s4">Strips</a><a href="#ag-s5">Stores</a><a href="#ag-s6">Windows</a><a href="#ag-s7">Linear</a><a href="#ag-s8">Experts</a><a href="#ag-s9">Position, norms</a><a href="#ag-s10">Stack shape</a><a href="#ag-s11">Checks</a><a href="#ag-s12">Depth</a></nav>
 
 <section id="ag-s0">
-<h2>In one screen</h2>
-<p class="lead">Almost every open model released in 2025 and 2026 is still the machine of <a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Topic: llm-architecture</a>: a stack of decoder blocks, each mixing information across tokens (attention or a recurrence) and then transforming each token on its own (a feed-forward network, FFN), with a normalisation and a residual connection around each. What differs between two model cards is a short list of choices inside that block. This page teaches you to read those choices off a card and a <code>config.json</code> in thirty seconds, and shows, for the 105 of the 109 models in Sebastian Raschka's <a href="https://sebastianraschka.com/llm-architecture-gallery/" target="_blank" rel="noopener noreferrer">LLM Architecture Gallery</a> whose config this page could read, which choices they made, layer by layer.</p>
-<p>Two terms first. The <dfn>KV cache</dfn> is the keys and values of every earlier token that an attention layer keeps during generation so it does not recompute them; its size per token is the number this page keeps returning to, because it, not the parameter count, decides whether long context and many concurrent users fit in memory. A <dfn>per-layer strip</dfn> is this page's picture of a model: one thin bar per layer, coloured by what that layer does (legend in <a href="#ag-s4">section 4</a>), three bars per model for the mixer, the FFN and the position scheme.</p>
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">An open model of 2026 is still the decoder block of <a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Topic: llm-architecture</a> with a handful of choices changed, and two of them decide what it costs to serve: <span class="hl">how many weights run per token</span> (experts) and <span class="hl">what each token leaves behind in each layer</span> (shared heads, latents, windows, linear layers). Both can be read off a <code>config.json</code> in thirty seconds; in 2026 almost every model is sparse on both, in different proportions.</p>
+<div class="hero"><h4>Fourteen models, one row each: which choices they made</h4>
+<div class="ag-hx" id="ag-hero"></div>
+<p class="small">Tinted cells are choices, read from each model's own config by <code>src/gen_data.py</code>; layer counts are out of the model's layers (W the window, 1K = 1,024 tokens). Click a row to open it in <a href="#" data-tab="t-dec">Decode a config</a>; on a phone, scroll sideways. <b>Bottom row</b>, the gallery's 66 models of 2026: MLA in 16; no plain MHA at all; windows in 25; linear or SSM hybrids in 20; trained sparse attention in 11; MoE in 52 (39 add a shared expert and 31 keep their first layers dense); partial RoPE in 25; layers with no position in 5; median cache 68.6 KiB per token against 144 KiB for the 2025 models.</p></div>
+<p><b>You need:</b> the decoder block and what a KV cache is (<a href="https://app.notion.com/p/3fd5c17b0d0d8174980ddde4a20c7b3c" target="_blank" rel="noopener noreferrer">The transformer from zero</a>). This page does not teach the mechanisms; it counts who uses them and links each to its owner: <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a> (MHA, GQA, MQA, MLA, windows, sparse attention), <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a> (sizing a whole cache at a context length), <a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a> (linear and state-space layers), <a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a>, <a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional Encodings</a> and <a href="https://app.notion.com/p/3fd5c17b0d0d8163b50dc5e9d9240e89" target="_blank" rel="noopener noreferrer">Normalisation, residuals and stability</a>.</p>
+<dl class="terms">
+<dt>KV per token (card)</dt><dd>the gallery's headline: bytes one token adds to the cache across all layers, bf16, every layer at full cost.</dd>
+<dt>Held at 131K</dt><dd>the average bytes per token one 131,072-token request actually holds once windowed layers stop growing.</dd>
+<dt>Per-layer strip</dt><dd>this page's picture of a model: one cell per layer, coloured by what the layer does; three bars for mixer, FFN and position.</dd>
+<dt>Local : global</dt><dd>windowed layers per full-attention layer (Gemma 3: 5 : 1).</dd>
+<dt>Linear : attention</dt><dd>linear or state-space layers per attention layer in a hybrid (Qwen3.5: 3 : 1).</dd>
+<dt>Dense prefix</dt><dd>the first layers of an MoE model kept as ordinary FFNs.</dd>
+</dl>
+<div class="card"><h4>MoE and windows were common by 2025; linear hybrids, MLA and trained sparse attention are what 2026 added</h4>
+<div id="ag-cen"></div>
+<p class="small mute">Derived from configs; 2026 counts in brackets. The gallery is curated, not a census: read the shares as "among the models a careful observer found worth drawing".</p></div>
+<details class="dp"><summary>The deltas, the config fields that say them, and who owns the mechanism <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="ag-dt">
-<thead><tr><th>Delta</th><th>What it changes</th><th>Where to read it</th><th>2026 models in the gallery (of 66 with a config)</th><th>Owned in depth by</th></tr></thead>
+<thead><tr><th>Delta</th><th>What it changes</th><th>Where to read it</th><th>Owned in depth by</th></tr></thead>
 <tbody>
-<tr><td>What each token stores</td><td>KV cache per token per layer: all heads (MHA), shared heads (GQA, MQA), a compressed latent (MLA)</td><td><code>num_key_value_heads</code>, <code>head_dim</code>, <code>kv_lora_rank</code></td><td>MLA in 16; no plain MHA at all; median cache 68.6 KiB per token against 144 KiB for the 2025 models</td><td><a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a></td></tr>
-<tr><td>How long it is kept</td><td>Sliding-window layers keep only the last W tokens; a few global layers keep everything</td><td><code>layer_types</code>, <code>sliding_window</code></td><td>Windows in 25</td><td><a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a></td></tr>
-<tr><td>Whether it is stored at all</td><td>Linear-attention or state-space layers keep a fixed-size state instead of a growing cache</td><td><code>layer_types</code>, <code>hybrid_override_pattern</code>, <code>linear_attn_config</code></td><td>Linear or SSM hybrids in 20</td><td><a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a></td></tr>
-<tr><td>Which attention is computed</td><td>A trained indexer picks the top k earlier tokens per query; full attention only over those</td><td><code>index_topk</code>, <code>index_head_dim</code></td><td>Trained sparse attention in 11</td><td><a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a></td></tr>
-<tr><td>How many FFN weights run</td><td>Mixture of experts (MoE): many expert FFNs, a router picks k per token</td><td><code>n_routed_experts</code>, <code>num_experts_per_tok</code>, <code>n_shared_experts</code></td><td>MoE in 52; of those 39 add a shared expert and 31 keep their first layers dense</td><td><a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a></td></tr>
-<tr><td>How position enters</td><td>RoPE on all dimensions, on part of them, or on none in some layers</td><td><code>rope_parameters</code>, <code>partial_rotary_factor</code>, <code>no_rope_layers</code></td><td>RoPE in 61; partial RoPE in 25; layers with no position in 5</td><td><a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional Encodings</a></td></tr>
-<tr><td>Stack shape</td><td>Looped layers, layers that share another layer's cache, two sublayers per layer, encoder-decoder</td><td><code>num_loops</code>, <code>num_kv_shared_layers</code></td><td>Looped in 1, cross-layer KV sharing in 2</td><td>this page, section 12</td></tr>
-</tbody></table></div>
-<p>The counts are read from each model's own config by this page's script (<code>src/gen_data.py</code>) and dated by the gallery's release date; "2026" means released from 1 January 2026, 66 models. The bars below put the same seven deltas side by side for the three release years in the gallery, so you see which choices spread.</p>
-<div class="card" id="ag-cen"><div class="ag-cen" id="ag-cenb"></div><p class="small mute">Share of the gallery's models with a readable config, by release year (2024 and earlier, 2025, 2026). Derived from configs; the gallery is a curated list, not a census of all models, so read the shares as "among the models a careful observer found worth drawing".</p></div>
-<div class="co key"><div class="t">The one-line takeaway</div>Read a card for two different things: how many parameters run per token (dense or experts: compute and latency) and what each token leaves behind (attention variant, windows, linear layers: cache and concurrency). In 2026 almost every model is sparse in both, in different proportions, and the per-layer strips are the quickest way to see the proportions.</div>
+<tr><td>What each token stores</td><td>KV cache per token per layer: all heads (MHA), shared heads (GQA, MQA), a compressed latent (MLA)</td><td><code>num_key_value_heads</code>, <code>head_dim</code>, <code>kv_lora_rank</code></td><td><a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a></td></tr>
+<tr><td>How long it is kept</td><td>Sliding-window layers keep only the last W tokens; a few global layers keep everything</td><td><code>layer_types</code>, <code>sliding_window</code></td><td><a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a></td></tr>
+<tr><td>Whether it is stored at all</td><td>Linear-attention or state-space layers keep a fixed-size state instead of a growing cache</td><td><code>layer_types</code>, <code>hybrid_override_pattern</code>, <code>linear_attn_config</code></td><td><a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a></td></tr>
+<tr><td>Which attention is computed</td><td>A trained indexer picks the top k earlier tokens per query; full attention only over those</td><td><code>index_topk</code>, <code>index_head_dim</code></td><td><a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a></td></tr>
+<tr><td>How many FFN weights run</td><td>Mixture of experts: many expert FFNs, a router picks k per token</td><td><code>n_routed_experts</code>, <code>num_experts_per_tok</code>, <code>n_shared_experts</code></td><td><a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a></td></tr>
+<tr><td>How position enters</td><td>RoPE on all dimensions, on part of them, or on none in some layers</td><td><code>rope_parameters</code>, <code>partial_rotary_factor</code>, <code>no_rope_layers</code></td><td><a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional Encodings</a></td></tr>
+<tr><td>Stack shape</td><td>Looped layers, layers that share another layer's cache, two sublayers per layer, encoder-decoder</td><td><code>num_loops</code>, <code>num_kv_shared_layers</code></td><td>this page, section 10 (looped in 1, cross-layer KV sharing in 2 of the 2026 models)</td></tr>
+</tbody></table></div></div></details>
 </section>
 
 <section id="ag-s1">
-<h2>1. The gallery, and how this page rebuilt it</h2>
-<p><b>What it is.</b> The <a href="https://sebastianraschka.com/llm-architecture-gallery/" target="_blank" rel="noopener noreferrer">LLM Architecture Gallery</a> is Sebastian Raschka's side-by-side reference of open-weight model architectures: a drawn diagram per model and a fact sheet with total and active parameters, decoder type, attention and layer mix, context length, licence, links to the config and the technical report, and one headline number, the <b>KV cache per token in bf16</b>. Its metadata is a single <a href="https://github.com/rasbt/llm-architecture-gallery" target="_blank" rel="noopener noreferrer">models.yml</a> under Apache 2.0; this page uses it at commit <code>589d213</code> (4 October 2026, read 18 October 2026): 109 entries from GPT-2 XL to models released in October 2026. It is a third-party summary: useful because it is consistent, not because it is a primary source.</p>
-<p><b>Its convention for the headline number</b>, from its <a href="https://sebastianraschka.com/llm-architecture-gallery/kv-cache-calculations/" target="_blank" rel="noopener noreferrer">KV-cache notes</a>: "the logical cache added by one token for one sequence", batch 1, 2 bytes per element, summed over every layer that appends to a growing cache. A sliding-window layer is counted at full cost ("It changes how long a token remains in the cache"), linear and state-space layers count 0 B and their fixed state is kept outside the number, and MLA counts its compressed latent, not expanded keys and values. The root page's <a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Architecture map (on Topic: llm-architecture)</a> and this page use the same convention, so the three agree, and both add a second number with the windows credited.</p>
-<p><b>How this page rebuilt it.</b> For each entry the script downloads nothing at build time: it reads the saved <code>config.json</code> (public mirrors for gated Meta and Google repos), decodes one code per layer for the mixer, the FFN and the position scheme, and sums the cache layer by layer. Then it compares its own number with the gallery's.</p>
-<div class="ag-box ag-bchk" id="ag-repro"></div>
-<div id="ag-diffs"></div>
-<p class="small mute">Not rebuilt: four entries whose config is not public (three gated repos, one LoRA adapter with no config of its own), and the three DeepSeek V4 entries, whose compressed caches the per-layer formula does not express; for those the gallery's figure is shown, with the reconstruction in section 12.</p>
+<h2>1. The gallery, and the six figures the configs do not reproduce</h2>
+<p>The <a href="https://sebastianraschka.com/llm-architecture-gallery/" target="_blank" rel="noopener noreferrer">LLM Architecture Gallery</a> is Sebastian Raschka's side-by-side reference of open-weight architectures: a diagram and a fact sheet per model (total and active parameters, attention and layer mix, context, licence, links to config and report) and one headline number, the <b>KV cache per token in bf16</b>. Its metadata is one <a href="https://github.com/rasbt/llm-architecture-gallery" target="_blank" rel="noopener noreferrer">models.yml</a> (Apache 2.0), used here at commit <code>589d213</code> (4 October 2026, read 18 October 2026): 109 entries from GPT-2 XL to October 2026. It is a third-party summary, useful because it is consistent, not because it is primary.</p>
+<p><b>Its convention</b> (<a href="https://sebastianraschka.com/llm-architecture-gallery/kv-cache-calculations/" target="_blank" rel="noopener noreferrer">KV-cache notes</a>): "the logical cache added by one token for one sequence", batch 1, 2 bytes per element, summed over every layer that appends to a growing cache. A sliding-window layer counts at full cost ("It changes how long a token remains in the cache"), linear and state-space layers count 0 B with their fixed state kept outside the number, and MLA counts its latent, not expanded keys and values. The root's <a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Architecture map (on Topic: llm-architecture)</a> and this page use the same convention and add a second number with the windows credited.</p>
+<p><b>How this page rebuilt it.</b> For the 105 of the 109 models whose config this page could read, the script reads the saved <code>config.json</code> (public mirrors for gated Meta and Google repos; nothing is downloaded at build time), decodes one code per layer for mixer, FFN and position, sums the cache layer by layer and compares with the gallery.</p>
+<div class="ag-box ag-bchk"><div class="t">Defaults reproduce the gallery, independently</div>Recomputed from each model's own config with the gallery's convention, the KV cache per token matches the gallery's figure for <b>95 of the 101 figures</b> both sides compute, within rounding (two only once the trained-sparse indexer keys are added, as the gallery does). Not rebuilt: four entries whose config is not public (three gated repos, one LoRA adapter with no config of its own), and the three DeepSeek V4 entries, whose compressed caches the per-layer formula does not express (their reconstruction is in section 10). Rows this page adds: Llama 3.1 8B and 70B, Granite 4.0-H Small, Step-5 Preview (gallery figure "N/A") and the tiny GPT.</div>
+<div class="card"><h4>Six gallery figures the configs do not reproduce: gallery (hollow) against the config (filled)</h4>
+<div id="ag-corr"></div>
+<div class="ag-box ag-bcorr" style="margin-bottom:0"><div class="t">Correction</div><b>Gemma 4 E2B and E4B: 18 KiB and 56 KiB per token, not the gallery's 35 and 84</b>: the last 20 and 18 layers reuse an earlier layer's cache and the global layers use <code>global_head_dim</code> 512 (transformers 5.20.1). <b>MiMo-V2-Flash and MiMo-V2.5: 217.5 KiB, not 144</b>: the config gives sliding layers their own 8 KV heads and 128-dimension values. <b>LongCat-Flash-Lite: 31.5 KiB, not 63</b>: 14 config layers of two MLA sublayers are 28 caches, not 56. <b>Step 3.5 Flash: 180 KiB against 192</b> is a convention, not an error (the gallery adds the 3 multi-token-prediction layers). Red: correction; teal: convention. The full arithmetic of each side is below.</div></div>
+<details class="dp"><summary>Each mismatch with both arithmetics <span class="mute">(provenance)</span></summary><div class="b"><div id="ag-diffs"></div>
+<p class="small">The lesson of this page's first build: a curated table is only as good as its recomputation. Two of the six overstate the cache by about 1.5 to 2 times because they ignore cross-layer sharing. Recompute every row you rely on and publish the match count.</p></div></details>
 </section>
 
 <section id="ag-s2">
 <h2>2. Reading a model card in thirty seconds</h2>
-<p>A model card answers five questions, and each answer predicts something different. Ask them in this order:</p>
+<p>Five questions, in this order; each answer predicts something different.</p>
 <ol>
-<li><b>Total and active parameters.</b> The total is the memory you must provision for the weights; the active count is what runs per token, so it sets latency and price. They are routinely conflated. Their ratio is the MoE sparsity.</li>
+<li><b>Total and active parameters.</b> Total is the weight memory; active is what runs per token, so latency and price. Their ratio is the MoE sparsity. They are routinely conflated, and an encoder-decoder can have two active counts (DeepSeek V4.1-Flash: 8B during prefill, 16B during decode, gallery).</li>
 <li><b>Attention type and layer mix.</b> Full attention, windows, linear layers or trained sparse attention, and in what proportion: how cost grows with context, which matters more than the advertised context length.</li>
 <li><b>KV cache per token, times context, times concurrent requests,</b> with the windows credited: whether long context fits, in GiB.</li>
-<li><b>Experts: routed, active, shared.</b> How much expert parallelism serving needs, and how much skewed traffic will hurt (the <a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a> page owns why).</li>
+<li><b>Experts: routed, active, shared.</b> How much expert parallelism serving needs, and how much skewed traffic will hurt.</li>
 <li><b>Licence, and whether base weights shipped.</b> Base weights decide whether you can post-train at all.</li>
 </ol>
 <div class="grid">
-<div class="card"><h3 style="margin-top:0">gpt-oss-120b (August 2025)</h3>
+<div class="card"><h4>gpt-oss-120b (August 2025)</h4>
 <ol class="small" style="padding-left:18px">
 <li>117B total, 5.1B active (OpenAI's <a href="https://huggingface.co/openai/gpt-oss-120b" target="_blank" rel="noopener noreferrer">model card</a>, vendor): 4.4% runs per token, so it decodes like a 5B model and needs memory for 117B.</li>
 <li>36 layers alternating a 128-token sliding window and full attention, one to one: cost grows with context through 18 of 36 layers.</li>
@@ -210,7 +237,7 @@ dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
 <li>128 routed experts, 4 active, no shared expert in the config.</li>
 <li>Apache 2.0; the card does not say whether a base checkpoint shipped.</li>
 </ol></div>
-<div class="card"><h3 style="margin-top:0">Kimi K3 (July 2026)</h3>
+<div class="card"><h4>Kimi K3 (July 2026)</h4>
 <ol class="small" style="padding-left:18px">
 <li>2.8T total, 104B active (gallery line from Moonshot's card, vendor): 3.7% runs per token.</li>
 <li>93 layers: 69 Kimi Delta Attention layers (linear, fixed state) and 24 MLA layers that carry no positional encoding (<code>mla_use_nope</code>).</li>
@@ -227,7 +254,7 @@ dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
 
 <section id="ag-s3">
 <h2>3. Reading the config: the fields behind each strip</h2>
-<p>The card is a summary; the <code>config.json</code> is what the loading code reads, so when the two disagree the config wins for that checkpoint. Thirty fields describe the architecture, but each strip comes from a handful, and every lab spells them differently. The <a href="#" data-tab="t-dec">Decode a config</a> tab shows, for any of the 105 models, exactly which fields this page read and what each one set.</p>
+<p>The card is a summary; <code>config.json</code> is what the loading code reads, so when they disagree the config wins for that checkpoint. Each strip comes from a handful of fields, and every lab spells them differently. <a href="#" data-tab="t-dec">Decode a config</a> shows, for any of the 105 models, exactly which fields were read and what each set.</p>
 <div class="tw"><table>
 <thead><tr><th>To know</th><th>Read</th><th>Watch for</th></tr></thead>
 <tbody>
@@ -239,14 +266,16 @@ dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
 <tr><td>Position</td><td><code>rope_theta</code>, <code>rope_scaling</code></td><td>Nested per layer type in <code>rope_parameters</code> (Gemma 4); per-layer lists of bases and rotary fractions (Step); <code>partial_rotary_factor</code></td></tr>
 <tr><td>Context</td><td>the model card</td><td><code>max_position_embeddings</code> is a limit in the code, not the trained context (MiniMax-M1's is 10,240,000; Qwen3's 40,960 against a 32,768 native context, per the root page)</td></tr>
 </tbody></table></div>
+<p class="small mute">The two classic misreadings, deriving <code>head_dim</code> from <code>hidden_size</code> and reading <code>max_position_embeddings</code> as trained context, are worked on the root page's section 12 (<a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Topic: llm-architecture</a>).</p>
 <p><b>Traps met building this page</b>, each real:</p>
 <ul class="tight">
-<li><b>The config is not where you think.</b> Multimodal checkpoints nest the language model under <code>text_config</code> (Gemma 4, Qwen3.5, Kimi K3); DeepSeek V4.1-Flash stores its <code>text_config</code> as a Python-repr string, not JSON; DeepSeek V4-Pro stores <code>compress_ratios</code> as a string holding a list; Mistral Large 3 ships <code>params.json</code> with its own key names.</li>
-<li><b>A saved file that is not a config.</b> Gated repos answer a download without a token with an error body, and a script that does not check saves it as <code>config.json</code>. This page's own earlier build had nine such files (eight error bodies from gated repos and one "Entry not found"), among them <code>unsloth__Meta-Llama-3-8B.json</code> containing only <code>Invalid username or password.</code> and <code>google__gemma-3-27b-it.json</code> beginning <code>Access to model google/gemma-3-27b-it is restricted.</code> Those models were silently skipped; Llama 3 8B now comes from the public mirror <code>unsloth/llama-3-8b</code>.</li>
+<li><b>The config is not where you think.</b> Multimodal checkpoints nest the language model under <code>text_config</code> (Gemma 4, Qwen3.5, Kimi K3); DeepSeek V4.1-Flash stores its <code>text_config</code> as a Python-repr string, V4-Pro its <code>compress_ratios</code> as a string holding a list; Mistral Large 3 ships <code>params.json</code> with its own key names.</li>
+<li><b>A saved file that is not a config.</b> A gated repo answers an anonymous download with an error body, and a script that does not check saves it as <code>config.json</code>. This page's earlier build had nine such files (eight from gated repos, one "Entry not found"), among them <code>unsloth__Meta-Llama-3-8B.json</code> containing only <code>Invalid username or password.</code>; those models were silently skipped. Parse every download and fail loudly; Llama 3 8B now comes from the public mirror <code>unsloth/llama-3-8b</code>.</li>
 <li><b>The list includes layers that are not in the stack.</b> Step 3.5 Flash's <code>layer_types</code> has 48 entries for 45 decoder layers: the last three are its multi-token-prediction layers.</li>
-<li><b>The config alone is not enough.</b> Gemma 4 E2B's config says <code>head_dim</code> 256, but transformers gives its global layers <code>global_head_dim</code> 512 and lets its last 20 layers reuse earlier caches; Motif 3 has <code>kv_lora_rank</code> like MLA, but its released code caches the expanded keys and values. Both are settled only by reading the modeling code (section 1's corrections).</li>
+<li><b>The config alone is not enough.</b> Gemma 4 E2B's config says <code>head_dim</code> 256, but transformers gives its global layers <code>global_head_dim</code> 512 and lets its last 20 layers reuse earlier caches; Motif 3 has <code>kv_lora_rank</code> like MLA, but its released code caches the expanded keys and values. Both are settled only by the modeling code (section 1).</li>
 </ul>
-<p>The decoding itself is a cascade of such cases. This is the start of the mixer branch of <code>src/gen_data.py</code> (the same branches as the root map's <code>build_map.py</code>), and the report line it wrote for Gemma 3 27B:</p>
+<details class="dp"><summary>The decoder's mixer branch, and the report line it wrote for Gemma 3 27B <span class="mute">(code)</span></summary><div class="b">
+<p class="small">The start of the mixer branch of <code>src/gen_data.py</code> (the same branches as the root map's <code>build_map.py</code>):</p>
 <div class="ag-code">    if t.get('hybrid_override_pattern'):
         p = t['hybrid_override_pattern']
         mix = ''.join({'M': 'L', '*': 'G', 'E': 'F', '-': 'F'}[c] for c in p)
@@ -259,93 +288,104 @@ dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
         mix = ''.join('G' if (i + 1) % n == 0 else 'S' for i in range(L))
 <span class="c"># src/out/report.txt</span>
 match    Gemma 3 27B                          calc    496.00 KiB  idx       -  gallery 496 KiB      kvw   85248.0  mix SSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSSSSSGSS ffn dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd pos RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR</div>
+</div></details>
 </section>
 
 <section id="ag-s4">
 <h2>4. The per-layer strips</h2>
-<p>A card's "layer mix" line ("52 sliding-window + 10 global") hides where those layers sit, and position matters: Gemma 3 puts a global layer after every five windowed ones so that information never travels more than five layers before it can reach the whole context, while a model that put all its global layers at the end would not. The strips draw each layer in order, left (layer 0, next to the embedding) to right (the last layer, next to the output head), each model stretched to the same width.</p>
+<p>A card's "52 sliding-window + 10 global" hides where those layers sit, and placement matters: Gemma 3 puts a global layer after every five windowed ones, so information never travels more than five layers before it can reach the whole context. The strips draw each layer in order, left (next to the embedding) to right (next to the output head), every model stretched to the same width.</p>
 <div class="ag-leg" id="ag-leg4"></div>
-<div class="card" id="ag-sm"><div class="ag-sm" id="ag-smb"></div>
-<p class="small mute">Three bars per model: mixer, FFN, position. The number on the right is the KV cache per token in bf16 (every layer at full cost). Click a name to open that model in <a href="#" data-tab="t-dec">Decode a config</a>. The tiny GPT is this topic's running example (6 layers of multi-head attention with learned positions, 6,144 bytes per token), drawn on the same scale of colours.</p></div>
-<p><b>How to read one.</b> Count the blue, green and purple cells in the top bar: full attention, MLA and trained sparse layers, the ones whose cache grows with every token. Yellow cells (linear) and teal cells (windowed) stop growing. Orange cells in the middle bar are expert layers, so a grey first cell is the dense prefix DeepSeek-style models keep. A black cell (white in dark mode) in the bottom bar is a layer with no positional encoding: Llama 4 Maverick's every fourth layer, SmolLM3's every fourth, Kimi K3's attention layers. The <a href="#" data-tab="t-cmp">Compare architectures</a> tab has the strips for every model, sortable and filterable.</p>
+<div class="card" id="ag-sm"><h4>Twelve stacks side by side: the cache grows only in the blue, green and purple cells</h4><div class="ag-sm" id="ag-smb"></div>
+<p class="small mute">Three bars per model: mixer, FFN, position; on the right the KV cache per token in bf16, card convention. Click a name to open it in <a href="#" data-tab="t-dec">Decode a config</a>. The tiny GPT is this topic's running example (6 layers of multi-head attention with learned positions, 6,144 bytes per token).</p></div>
+<p><b>How to read one.</b> Blue (full attention), green (MLA) and purple (trained sparse) cells grow a cache with every token; teal (windowed) cells stop at W and yellow (linear) cells keep a fixed state. Orange cells in the middle bar are expert layers, so a grey first cell is the dense prefix DeepSeek-style models keep. A black cell (white in dark mode) in the bottom bar is a layer with no positional encoding: Llama 4 Maverick's every fourth layer, SmolLM3's every fourth, Kimi K3's attention layers. <a href="#" data-tab="t-cmp">Compare architectures</a> has the strips of every model, sortable and filterable.</p>
+<p><b>Seven colours, seven answers to one question:</b> what must this token leave behind in this layer so later tokens can use it? A key and value for every query head (MHA), one per group (GQA) or one for all (MQA), a latent every head rebuilds from (MLA), the same entries for the last W tokens only (window), all entries kept but only the top k read (trained sparse), or a fixed-size state (Gated DeltaNet, KDA, Mamba-2). How each works is on <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a> and <a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a>; this page's question is which answer each released model chose, and in what mixture.</p>
 </section>
 
 <section id="ag-s5">
-<h2>5. Seven answers to one question</h2>
-<p>The mixer bar has seven colours because there are, in practice, seven answers to one question: what must this token leave behind in this layer so that later tokens can use it? A key and a value for every query head (MHA), one per group of heads (GQA) or one for all (MQA), a compressed latent from which every head rebuilds its own (MLA), the same entries kept only for the last W tokens (a sliding window), or a fixed-size recurrent state instead of a growing cache (Gated DeltaNet, KDA). How the attention answers work and what each costs in quality, MLA's absorbed form and decoupled RoPE key included, is taught once, with a figure of what one past token leaves behind under each, on <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a>; the recurrent ones on <a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a>; what a whole model holds at a given context in the <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv" target="_blank" rel="noopener noreferrer">KV-cache calculator on Long context</a>. This page's question is narrower: which answer each released model chose, and in what mixture. The next sections take the deltas one at a time.</p>
+<h2>5. Delta one: what each token stores</h2>
+<p>Every decoded token reads the keys and values of every earlier token in every attention layer, so the bytes per entry are decode time as well as memory. At Llama 3.1 70B's shape with all 64 heads (MHA) that would be 2,560 KiB per token, 320 GiB for one 128K request; GQA keeps one key and value head per group (Llama 3.1 70B: 64 query heads, 8 KV heads, 320 KiB per token), and MLA a 512-number latent plus a 64-number positional key per layer whatever the head count (DeepSeek-V3: 61 × 576 × 2 = 68.6 KiB per token). Fewer KV heads cost a little quality and MLA costs extra projections and its own kernels; why, and how MLA rebuilds the heads, is on <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a>.</p>
+<div class="card"><h4>The hundredfold spread, and a median that halved in a year</h4>
+<div id="ag-spread"></div>
+<p class="small mute">KV cache per token, card convention, bf16, every gallery model with a config (DeepSeek V4's compressed caches and xLSTM's state-only stack left out); dots coloured by attention family, the bar marks the median. Derived from configs. In the gallery's 2026 models the median is 68.6 KiB per token against 144 KiB for the 2025 models, and the spread is still a hundredfold: Nemotron 3.5 Lightning keeps 6 KiB per token, Gemma 4 31B 840 KiB.</p></div>
+<p><b>How to check:</b> <code>num_key_value_heads</code> × <code>head_dim</code> × 4 bytes per attention layer (K and V, 2 bytes each), or (<code>kv_lora_rank</code> + <code>qk_rope_head_dim</code>) × 2 for MLA, then count the layers that grow a cache. The table does that for ten models.</p>
+<div class="tw" id="ag-t6"></div>
+<p><b>Sparse attention does not shrink the cache.</b> Selecting the top k keys cuts arithmetic, not storage: every key must stay available to be selected, and the indexer adds keys of its own. DeepSeek V3.2 keeps V3's 68.6 KiB per token plus 15.25 KiB of indexer keys (61 × 128 × 2 bytes); storage falls only when entries are also compressed, as in V4 (section 10).</p>
 </section>
 
 <section id="ag-s6">
-<h2>6. Delta one: what each token stores</h2>
-<p><b>The problem.</b> During decoding every new token must read the keys and values of every earlier token, in every attention layer. Multi-head attention (MHA) stores a key and a value for each of its heads; at Llama 3.1 70B's shape with all 64 heads that would be 2,560 KiB per token, 320 GiB for one 128K request.</p>
-<p><b>How models shrink it.</b> Grouped-query attention (GQA) shares one key and value head among a group of query heads (Llama 3.1 70B: 64 query heads, 8 KV heads, 320 KiB per token). Multi-head latent attention (MLA) stores a 512-number compressed latent plus a 64-number positional key per layer whatever the head count (DeepSeek-V3: 61 × 576 × 2 = 68.6 KiB per token). The table puts the real per-layer cost of each design side by side, read from the configs.</p>
-<div class="tw" id="ag-t6"></div>
-<p><b>What it costs.</b> Fewer KV heads cost a little quality (the GQA and DeepSeek-V2 ablations are on <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a>); MLA costs extra projections and its own kernels. <b>When it matters:</b> decode is bound by memory traffic, so a smaller cache is faster decode, not only more room. <b>How to check:</b> <code>num_key_value_heads</code> × <code>head_dim</code> × 4 bytes per attention layer, or (<code>kv_lora_rank</code> + <code>qk_rope_head_dim</code>) × 2 for MLA, then count the layers that grow a cache.</p>
-<p>In the gallery's 2026 models no model uses plain MHA, 16 use MLA latents (alone, under a sparse indexer, or between linear layers), and the median cache is 68.6 KiB per token against 144 KiB for the 2025 models. The spread is still a hundredfold: Nemotron 3.5 Lightning keeps 6 KiB per token, Gemma 4 31B 840 KiB.</p>
-</section>
-
-<section id="ag-s7">
-<h2>7. Delta two: how long it is kept (sliding windows)</h2>
-<p><b>The problem.</b> Most of what a token needs is nearby. <b>How:</b> most layers attend only to the last W tokens (a <dfn>sliding window</dfn>), and every few layers a <dfn>global</dfn> layer attends to everything, so far information still reaches every token, a few layers later. A windowed layer stores the same row per token as its base design but drops rows older than W, so the memory one request holds at context T is the sum over layers of bytes per token × min(T, W). How far a stack of windows can see, and what windows cost in recall, are on <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a> and <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a>; this section counts which released models use them.</p>
-<div class="card" id="ag-w7"><div class="bars" id="ag-w7b"></div>
-<p class="small mute">Every windowed model in the gallery with a computable cache: KV per token on the card (every layer at full cost, light bar) against the average per token actually held at 131,072 tokens with windows credited (dark bar). Derived from configs, bf16.</p></div>
-<p><b>What it costs.</b> Information more than W tokens back reaches a token only through the global layers, so exact retrieval far back depends on how many there are. <b>When it matters:</b> only past the window; below W the two numbers coincide. <b>How to check:</b> count <code>sliding_attention</code> entries in <code>layer_types</code> and read <code>sliding_window</code>; then credit them. In this set the local-to-global ratio runs from 1:1 (gpt-oss) through 3:1 (11 models, the most common) to 5:1 (Gemma 3 and 4), and windows from 128 tokens (11 models, gpt-oss and MiMo among them) to 8,192 (Llama 4's chunks). Crediting the windows cuts the long-context cache 2 times for gpt-oss and 18 times for Gemma 4 31B: 840 KiB per token on the card, about 46 KiB per token held at 131,072 tokens.</p>
+<h2>6. Delta two: how long it is kept (sliding windows)</h2>
+<p>Most layers attend only to the last W tokens (a <dfn>sliding window</dfn>) and every few layers a <dfn>global</dfn> layer attends to everything. A windowed layer stores the same entry per token as its base design but drops entries older than W, so one request at context T holds the sum over layers of bytes per token × min(T, W). That is why the card's figure, which counts windowed layers at full cost, overstates a windowed model's long-context cache. The price: information more than W tokens back reaches a token only through the global layers, so exact retrieval far back depends on how many there are. What windows cost in recall is on <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a> and <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a>; this section counts who uses them.</p>
+<div class="card" id="ag-w7"><h4>Crediting the windows: the card (hollow) against the cache held at 131,072 tokens (filled)</h4>
+<div id="ag-w7b"></div>
+<p class="small mute">Every windowed model in the gallery with a computable cache, sorted by the factor on the right; log scale, bf16, derived from configs. Crediting the windows cuts the long-context cache 2 times for gpt-oss and 18 times for Gemma 4 31B: 840 KiB per token on the card, about 46 KiB per token at 131,072 tokens, 105 GiB against 5.8 GiB for one request. The top of the list is Gemma 4 12B at 31.2 times.</p></div>
+<p><b>The ratios released.</b> The local-to-global ratio runs from 1:1 (gpt-oss) through 3:1 (11 models, the most common) to 5:1 (Gemma 3 and 4), and windows from 128 tokens (11 models, gpt-oss and MiMo among them) to 8,192 (Llama 4's chunks). <b>How to check:</b> count <code>sliding_attention</code> entries in <code>layer_types</code>, read <code>sliding_window</code>, then credit them; below W the two numbers coincide.</p>
 <div class="ag-pr" data-ok="b"><div class="q">Predict: Llama 4 Maverick has 48 layers; 36 attend within 8,192-token chunks and 12 are global, each layer 4 KiB per token. The card says 192 KiB per token. What does a 131,072-token request hold per token?</div>
 <div class="opts"><button data-k="a">192 KiB, chunks do not help</button><button data-k="b">57 KiB</button><button data-k="c">48 KiB, only the global layers count</button></div>
 <p class="small"><a href="#" class="skip">Skip: show the answer</a></p>
-<div class="ans" hidden>57 KiB. The 12 global layers hold every token: 12 × 4 = 48 KiB per token. The 36 chunked layers hold at most 8,192 tokens each, which spread over 131,072 tokens is 36 × 4 KiB × 8,192 / 131,072 = 9 KiB per token. Close to "only the globals count", but not equal: windows that are a large fraction of the context still cost. (This page, like the root Config calculator, treats Llama 4's chunks as an 8,192-token window, an upper bound for chunked attention.)</div></div>
+<div class="ans" hidden>57 KiB. The 12 global layers hold every token: 12 × 4 = 48 KiB per token. The 36 chunked layers hold at most 8,192 tokens each, which spread over 131,072 tokens is 36 × 4 KiB × 8,192 / 131,072 = 9 KiB per token. Close to "only the globals count", but not equal: windows that are a large fraction of the context still cost. (This page, like the root Config calculator, treats Llama 4's chunks as an 8,192-token window, an upper bound for chunked attention; the chunk mechanism is on <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a>.)</div></div>
 </section>
 
-<section id="ag-s8">
-<h2>8. Delta three: whether it is stored at all (linear and state-space layers)</h2>
-<p><b>The problem.</b> Even windows keep a cache that grows with context in the global layers. <b>How:</b> replace most attention layers with a recurrence that folds each token into a fixed-size state: Gated DeltaNet in Qwen3-Next and Qwen3.5 to 3.8, Kimi Delta Attention in Kimi Linear and Kimi K3, Mamba-2 in Nemotron 3 and Granite 4.0-H, lightning attention in Ling, short convolutions in LFM2.5. Keep one attention layer in three to eight for exact recall. The mechanisms are on <a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a>; here, what the released mixtures are.</p>
-<div class="tw" id="ag-t8"></div>
-<p><b>What it costs.</b> The state is a lossy summary; what is not written into it is gone, which is why every released hybrid keeps some attention. Moonshot's Kimi Linear ablation (vendor, <a href="https://arxiv.org/abs/2510.26692" target="_blank" rel="noopener noreferrer">arXiv 2510.26692</a>, Table 1) picked 3 KDA layers per MLA layer: validation perplexity 5.65 at 3:1 against 5.66 at 1:1, 5.70 at 7:1, 5.82 at 15:1 and 5.77 for the pure full-attention baseline (0:1). <b>When it matters:</b> the fixed state is a cost too; the last column is the context at which the state equals the growing cache, below which the hybrid holds more per request than its attention layers alone suggest. <b>How to check:</b> count <code>linear_attention</code>, <code>mamba</code> or <code>M</code> entries; the state per layer is heads × key dim × value dim (or heads × head dim × state size for Mamba-2).</p>
+<section id="ag-s7">
+<h2>7. Delta three: whether it is stored at all (linear and state-space layers)</h2>
+<p>A hybrid replaces most attention layers with a recurrence that folds each token into a fixed-size state: Gated DeltaNet in Qwen3-Next and Qwen3.5 to 3.8, Kimi Delta Attention in Kimi Linear and Kimi K3, Mamba-2 in Nemotron 3 and Granite 4.0-H, lightning attention in Ling, short convolutions in LFM2.5. The state is a lossy summary, so every released hybrid keeps some attention layers for exact recall; the question the configs answer is how many. The mechanisms are on <a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a>.</p>
+<div class="card"><h4>The ablation picked 3 : 1, and so did most of the market</h4>
+<div id="ag-ratio"></div>
+<p class="small mute">Top, published (vendor): Moonshot's Kimi Linear ablation (<a href="https://arxiv.org/abs/2510.26692" target="_blank" rel="noopener noreferrer">arXiv 2510.26692</a>, Table 1), validation perplexity 5.65 at 3:1 against 5.66 at 1:1, 5.70 at 7:1, 5.82 at 15:1 and 5.77 for the pure full-attention baseline (0:1). Bottom, derived from configs: every gallery hybrid with attention layers at its own linear-to-attention ratio (Nemotron's FFN-only blocks left out); 13 of the 23 sit between 2.9 and 3.1 to 1, the rest from 1.7:1 (LFM2.5) to 7:1 (Ling). Two sources on two panels: one vendor's small-scale ablation is not evidence about the other models.</p></div>
+<p><b>The state is a cost too.</b> Below some context a hybrid holds more state than cache (the closed table gives, per model, the context at which the fixed state equals the growing cache). <b>How to check:</b> count <code>linear_attention</code>, <code>mamba</code> or <code>M</code> entries; the state per layer is heads × key dim × value dim (heads × head dim × state size for Mamba-2), in FP32. Calling a hybrid "cache-free" is wrong on both counts: Kimi K3's attention layers still grow 27 KiB per token, and its 414 MiB of state is larger than the cache up to about 15,700 tokens.</p>
+<details class="dp"><summary>Every hybrid: attention layers, cache, state, and where they cross <span class="mute">(per-model table)</span></summary><div class="b"><div class="tw" id="ag-t8"></div></div></details>
 <div class="ag-pr" data-ok="b"><div class="q">Predict: Qwen3.5 397B keeps 15 attention layers of 60, 30 KiB per token in all; its 45 Gated DeltaNet layers hold 180 MiB of FP32 state per sequence. Past what context does the growing cache outweigh the fixed state?</div>
 <div class="opts"><button data-k="a">About 600 tokens</button><button data-k="b">About 6,000 tokens</button><button data-k="c">About 60,000 tokens</button></div>
 <p class="small"><a href="#" class="skip">Skip: show the answer</a></p>
 <div class="ans" hidden>About 6,000: 180 MiB / 30 KiB = 6,144 tokens. Below that a short chat holds more state than cache; at 262,144 tokens the cache is 7.5 GiB and the state a rounding error. For serving many short requests the state, not the cache, sets concurrency.</div></div>
 </section>
 
+<section id="ag-s8">
+<h2>8. Delta four: how many FFN weights run (experts)</h2>
+<p>A mixture-of-experts (MoE) layer holds many expert FFNs and a router sends each token to k of them, often plus an always-on <dfn>shared expert</dfn>; many models keep their first layers dense. Of the gallery's 2026 models with a config, 52 of 66 are MoE; 39 of those add a shared expert and 31 keep a dense prefix; 8 experts per token is the most common choice (31 models). Routing, balancing and expert parallelism are owned by <a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a>.</p>
+<div class="card"><h4>The bigger the model, the smaller the share that runs</h4>
+<div id="ag-moe"></div>
+<p class="small mute">Active parameters as a share of total, every MoE model of 2025 and 2026 in the gallery, against total parameters (both from the gallery's lines, <span class="ag-lab gal">gallery</span>, from vendor cards). From 500B parameters up, 21 of 22 models run 2.9 to 6.4% of their weights per token (DeepSeek V4-Pro 3.1%, Kimi K2.5 to K2.7 3.2%, Kimi K3 3.7%; the exception, Nemotron 3 Ultra, 10%); at 35B and below the share is 8 to 21% (Mellum2 Thinking 20.8%).</p></div>
+<p><b>What it means for serving.</b> All experts must be in memory, so the total, not the active count, sets the hardware; at small batch, decode reads every expert some token picks. The MoE choice and the attention choice are independent: Kimi K3 is extreme on both. <b>How to check:</b> <code>n_routed_experts</code>, <code>num_experts_per_tok</code>, <code>n_shared_experts</code>, and the dense prefix from <code>first_k_dense_replace</code> or a per-layer list.</p>
+<details class="dp"><summary>The fourteen largest MoE models of 2026: experts, shared, dense first layers <span class="mute">(per-model table)</span></summary><div class="b"><div class="tw" id="ag-t9"></div></div></details>
+</section>
+
 <section id="ag-s9">
-<h2>9. Delta four: how many FFN weights run (experts)</h2>
-<p><b>The problem.</b> Quality grows with parameters, latency with the parameters each token uses. <b>How:</b> a mixture-of-experts (MoE) layer holds many expert FFNs and a router sends each token to k of them, often plus one always-on <dfn>shared expert</dfn>; many models keep their first layers dense. Of the gallery's 2026 models with a config, 52 of 66 are MoE; 39 of those add a shared expert and 31 keep a dense prefix; 8 experts per token is the most common choice (31 models). The routing, balancing and parallelism are owned by <a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a>.</p>
-<div class="tw" id="ag-t9"></div>
-<p><b>What it costs.</b> All experts must be in memory, so the total, not the active count, sets the hardware. <b>When it matters:</b> at small batch, decode reads every expert some token picks. <b>How to check:</b> <code>n_routed_experts</code>, <code>num_experts_per_tok</code>, <code>n_shared_experts</code>, and the dense prefix from <code>first_k_dense_replace</code> or a per-layer list. The active share runs down to about 3% (DeepSeek V4-Pro 3.1%, Kimi K2.5 to K2.7 3.2%, Kimi K3 3.7%, gallery lines). The MoE choice and the attention choice are independent: Kimi K3 is extreme on both.</p>
+<h2>9. Position, norms and gates</h2>
+<p><b>Position.</b> Almost every model rotates queries and keys by their position (RoPE, 61 of the 66 models of 2026), and the deltas are in the details, each readable from the config and visible in the bottom strip: <b>partial RoPE</b> (rotate only some dimensions: 25 models, the Qwen3.5 to 3.8 line and Gemma 4's global layers among them); <b>no position in some layers</b> (5 models in 2026: Kimi K3 and Ember-1 in all 24 attention layers, Solar Open 2, Muse Glimmer, GLM-5.3-Flash; earlier Llama 4 Maverick in 12 of 48 and SmolLM3 in 9 of 36); <b>different bases per layer type</b> (10,000 on local layers against 500,000 to 10,000,000 on global ones in Gemma 4, MiMo, Laguna and Naive); and <b>scaling past the trained length</b> (YaRN factors in 9 of the 2026 configs). Why each works is on <a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional Encodings</a>; read <code>rope_parameters</code> per layer type.</p>
+<p><b>Norms and gates: on the card, rarely in the config.</b> Pre-norm RMSNorm is close to universal; the 2025 to 2026 deltas are QK-norm (an RMSNorm on queries and keys before the dot product, which bounds attention logits), extra norms after each sublayer (OLMo 2, Gemma's sandwich) and output gates on attention (Qwen3-Next, Trinity, Laguna, Kimi K3's "Gated MLA"). The modeling code does these, not config fields, so this page does not decode them; the gallery's attention line names QK-norm for 19 of the 2026 models, an undercount because it is named only when the card mentions it. The root <a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Architecture map (on Topic: llm-architecture)</a> records norm placement and QK-norm, sourced, for its 46 lineage models; <a href="https://app.notion.com/p/3fd5c17b0d0d8163b50dc5e9d9240e89" target="_blank" rel="noopener noreferrer">Normalisation, residuals and stability</a> owns why they work.</p>
 </section>
 
 <section id="ag-s10">
-<h2>10. Delta five: how position enters</h2>
-<p><b>The problem.</b> Attention by itself does not know the order of tokens. Almost every model rotates queries and keys by their position (RoPE, 61 of the 66 models of 2026), and the deltas are in the details, each readable from the config: <b>partial RoPE</b> (rotate only some dimensions: 25 models, the Qwen3.5 to 3.8 line and Gemma 4's global layers among them); <b>no position in some layers</b> (5 models in 2026: Kimi K3 and Ember-1 in all 24 attention layers, Solar Open 2, Muse Glimmer, GLM-5.3-Flash; earlier Llama 4 Maverick in 12 of 48 and SmolLM3 in 9 of 36); <b>different bases per layer type</b> (10,000 on local layers against 500,000 to 10,000,000 on global ones in Gemma 4, MiMo, Laguna and Naive); and <b>scaling past the trained length</b> (YaRN factors in 9 of the 2026 configs). Why each works, and RoPE scaling in full, are on <a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional Encodings</a>. <b>How to check:</b> the bottom strip; then <code>rope_parameters</code> per layer type.</p>
+<h2>10. Delta six: stack shape</h2>
+<p>Everything above assumes one causal stack, each layer run once with its own cache. Four 2025 to 2026 designs break that, and each changes the cache arithmetic, which is why the number of layers in a config is not the number of caches.</p>
+<div class="card"><h4>Layers in the config are not caches per token</h4>
+<div id="ag-stack"></div>
+<p class="small mute">Grey: layers the config declares; blue: caches one token adds. Derived from configs and the transformers 5.20.1 modeling code named below.</p></div>
+<ul class="tight">
+<li><b>Looped layers.</b> Ouro-Thinking 2.6B runs its 48 layers 4 times per token (<code>total_ut_steps</code> 4) and each pass keeps its own cache: 384 KiB per pass, 1.5 MiB per token, the largest per-token cache in the gallery, from a 2.6B model. Nanbeige 4.2 runs 22 layers twice (<code>num_loops</code> 2). Whether every pass needs its own cache, and why two loops is the usual stopping point, is research in progress (closed block below).</li>
+<li><b>Cross-layer KV sharing.</b> Gemma 4 E2B and E4B let their last 20 and 18 layers reuse the cache of an earlier layer of the same type (<code>num_kv_shared_layers</code>; transformers 5.20.1, <code>modeling_gemma4.py</code>, <code>is_kv_shared_layer</code>): this page's section 1 correction.</li>
+<li><b>Two attention sublayers per layer.</b> LongCat-Flash layers each hold two MLA sublayers and a shortcut MoE beside two dense MLPs (<code>modeling_longcat_flash.py</code>): 14 layers in the config, 28 caches.</li>
+<li><b>Compressed caches.</b> DeepSeek V4 compresses most layers' entries 4 times (CSA) or 128 times (HCA) along the sequence (the mechanism is on <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a>). From <code>compress_ratios</code>, in the gallery's bf16 convention (512 numbers per entry, indexer keys and the 128-token windows left out): V4-Pro 30 CSA + 31 HCA layers, 7,928 bytes per token, which reproduces the gallery's 7.7 KiB; V4-Flash 21 CSA + 20 HCA layers plus 2 window-only layers, 5,536 bytes, the gallery's 5.4 KiB. DeepSeek V4.1-Flash goes further, an encoder whose final state feeds the decoder's keys and values (gallery; detailed, with its 890 bytes per token at FP4, on <a href="https://app.notion.com/p/3c65c17b0d0d81a2ae7ec6796947a235" target="_blank" rel="noopener noreferrer">DeepSeek</a>). The DeepSeek page's own V4-Pro estimate, 4,939.5 bytes per token, uses FP8 main entries and FP4 indexer keys: a different precision convention, not a contradiction.</li>
+</ul>
+<p>Multi-token prediction (MTP) layers, extra heads that predict tokens further ahead and double as a draft model (<a href="https://app.notion.com/p/3fd5c17b0d0d8105b616c17c1439f766" target="_blank" rel="noopener noreferrer">Families and objectives</a>), are a fifth: used at inference they keep caches too, which is the whole difference between this page's 180 KiB and the gallery's 192 KiB for Step 3.5 Flash.</p>
+<details class="dp"><summary>Looped models: does every pass need its own cache? <span class="mute">(research, October 2026)</span></summary><div class="b">
+<p>The cache per pass is a training choice, not a law: as the recurrent states approach fixed points, later passes can share the last pass's keys and values (<b>terminal KV sharing</b>) "with almost no loss in accuracy", and at 1.6B a learned depth prior with a 3x smaller KV cache matched fixed-depth training with the full cache; fixed-depth training is what breaks sharing (<a href="https://arxiv.org/abs/2610.06833" target="_blank" rel="noopener noreferrer">Looped Models Done Right, Part II (arXiv 2610.06833)</a>).</p>
+<p>Why two loops is the usual stopping point: hidden-state variance grows with each loop, and in a looped MoE the routers pick the same experts every pass, so extra loops add FLOPs without new computation; scaled residuals, input re-injection and per-loop routers kept 100M to 1.7B models stable to 9 to 12 loops, with a near-iso-FLOP 700M model best at 5 (<a href="https://arxiv.org/abs/2610.01153" target="_blank" rel="noopener noreferrer">LOOM (arXiv 2610.01153)</a>).</p>
+<p>The first scaling law fitted jointly over recurrence, sparsity, size and data puts recurrence at about 2x total-parameter efficiency on reasoning (sparsity about 3x active-parameter efficiency), and at trillion-token scale and matched training compute a looped MoE with law-derived recurrence matched a non-looped MoE about twice its size on reasoning benchmarks (<a href="https://arxiv.org/abs/2609.40316" target="_blank" rel="noopener noreferrer">Scaling Laws for Looped MoE (arXiv 2609.40316)</a>).</p></div></details>
 </section>
 
 <section id="ag-s11">
-<h2>11. Norms and gates: on the card, rarely in the config</h2>
-<p>Pre-norm RMSNorm is close to universal; the 2025 to 2026 deltas are QK-norm (an RMSNorm on queries and keys before the dot product, which bounds attention logits), extra norms after each sublayer (OLMo 2's post-sublayer norm, Gemma's sandwich), and output gates on attention (Qwen3-Next, Trinity, Laguna, Kimi K3's "Gated MLA"). Configs rarely state these as fields (the modeling code does them), so this page does not decode them; the gallery's attention line names QK-norm for 19 of the 2026 models, an undercount because it is named only when the card mentions it. The root <a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Architecture map (on Topic: llm-architecture)</a> records norm placement and QK-norm, sourced, for its 46 lineage models, and <a href="https://app.notion.com/p/3fd5c17b0d0d8163b50dc5e9d9240e89" target="_blank" rel="noopener noreferrer">Normalisation, residuals and stability</a> owns why they work.</p>
-</section>
-
-<section id="ag-s12">
-<h2>12. Delta six: stack shape</h2>
-<p>The sections above assume one causal stack, each layer run once, each with its own cache. Four 2025 to 2026 configs break that, and each changes the cache arithmetic:</p>
-<ul class="tight">
-<li><b>Looped layers.</b> Ouro-Thinking 2.6B runs its 48 layers 4 times per token (<code>total_ut_steps</code> 4) and each pass keeps its own cache: 384 KiB per pass, 1.5 MiB per token, the largest per-token cache in the gallery from a 2.6B model. Nanbeige 4.2 runs 22 layers twice (<code>num_loops</code> 2). The cache per pass is a training choice, not a law: as the recurrent states approach fixed points, later passes can share the last pass's keys and values (<b>terminal KV sharing</b>) "with almost no loss in accuracy", and at 1.6B a learned depth prior with a 3x smaller KV cache matched fixed-depth training with the full cache; fixed-depth training is what breaks sharing (<a href="https://arxiv.org/abs/2610.06833" target="_blank" rel="noopener noreferrer">Looped Models Done Right, Part II (arXiv 2610.06833)</a>). Why two loops is the usual stopping point: hidden-state variance grows with each loop, and in a looped MoE the routers pick the same experts every pass, so extra loops add FLOPs without new computation; scaled residuals, input re-injection and per-loop routers kept 100M to 1.7B models stable to 9 to 12 loops, with a near-iso-FLOP 700M model best at 5 (<a href="https://arxiv.org/abs/2610.01153" target="_blank" rel="noopener noreferrer">LOOM (arXiv 2610.01153)</a>). The first scaling law fitted jointly over recurrence, sparsity, size and data puts recurrence at about 2x total-parameter efficiency on reasoning (sparsity about 3x active-parameter efficiency), and at trillion-token scale and matched training compute a looped MoE with law-derived recurrence matched a non-looped MoE about twice its size on reasoning benchmarks (<a href="https://arxiv.org/abs/2609.40316" target="_blank" rel="noopener noreferrer">Scaling Laws for Looped MoE (arXiv 2609.40316)</a>).</li>
-<li><b>Cross-layer KV sharing.</b> Gemma 4 E2B and E4B let their last 20 and 18 layers reuse the cache of an earlier layer of the same type (<code>num_kv_shared_layers</code>; transformers 5.20.1, <code>modeling_gemma4.py</code>, <code>is_kv_shared_layer</code>): 18 KiB and 56 KiB per token, not the gallery's 35 and 84.</li>
-<li><b>Two attention sublayers per layer.</b> LongCat-Flash layers each hold two MLA sublayers and a shortcut MoE beside two dense MLPs (<code>modeling_longcat_flash.py</code>): 14 layers in the config, 28 caches.</li>
-<li><b>Compressed and shared caches.</b> DeepSeek V4 compresses most layers' entries 4 times (CSA) or 128 times (HCA) along the sequence. From <code>compress_ratios</code>, in the gallery's bf16 convention (512 numbers per entry, indexer keys and the 128-token windows left out): V4-Pro 30 CSA + 31 HCA layers, 7,928 bytes per token, which reproduces the gallery's 7.7 KiB; V4-Flash 21 CSA + 20 HCA layers plus 2 window-only layers, 5,536 bytes, the gallery's 5.4 KiB. DeepSeek V4.1-Flash goes further, an encoder whose final state feeds the decoder's keys and values (gallery; detailed, with its 890 bytes per token at FP4, on <a href="https://app.notion.com/p/3c65c17b0d0d81a2ae7ec6796947a235" target="_blank" rel="noopener noreferrer">DeepSeek</a>). The DeepSeek page's own V4-Pro estimate, 4,939.5 bytes per token, uses FP8 main entries and FP4 indexer keys: a different precision convention, not a contradiction.</li>
-</ul>
-<p>Multi-token prediction (MTP) layers, extra heads that predict tokens further ahead and double as a draft model (<a href="https://app.notion.com/p/3fd5c17b0d0d8105b616c17c1439f766" target="_blank" rel="noopener noreferrer">Families and objectives</a>), are a fifth: when used at inference they keep caches too, which is the whole difference between this page's 180 KiB and the gallery's 192 KiB for Step 3.5 Flash.</p>
-</section>
-
-<section id="ag-s13">
-<h2>13. How the numbers were checked</h2>
-<p>A curated table is only as good as its recomputation (lesson of this page's first build). Every cache figure here was checked four ways, all on an Apple M1 Pro (CPU), configs only:</p>
+<h2>11. How the numbers were checked</h2>
+<p>Every cache figure here was checked four ways, configs only, on an Apple M1 Pro (CPU):</p>
 <ol>
-<li><b>Against the gallery.</b> 95 of the 101 figures both sides compute agree within rounding; the six that do not are in section 1, each with both arithmetics.</li>
-<li><b>Against transformers' own parsing.</b> <code>src/checks/hf_layer_types.py</code> builds each config with its transformers 5.20.1 configuration class (no weights, no network) and compares the per-layer list transformers itself derives with this page's mixer strip. Result: 59 models agree layer for layer, 0 differ; the other 49 cannot be checked this way: 19 need custom code (no class in transformers), 2 configs are rejected by their class (a non-finite number inside a list, a field type), and 28 classes keep no per-layer list, 26 of them for stacks this page also draws as uniform; the other two are Inkling (windows from <code>local_layer_ids</code>) and MiniMax M3 (three dense layers, from its model card).</li>
-<li><b>Against the root's Config calculator.</b> <code>src/checks/cc_agree.mjs</code> runs the root page's <a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Config calculator (on Topic: llm-architecture)</a> code on every gallery config it models and compares the KV cache at 1; 1,000; 4,096; 32,768 and 131,072 tokens with windows credited: 44 models, 220 numbers, all equal (the calculator includes DeepSeek V3.2's indexer keys, as this page's "with indexer" figure does). Two Nemotron configs that spell their pattern as <code>layers_block_type</code> make the calculator throw (<code>TypeError: c.hybrid_override_pattern is not iterable</code>), reported to the root.</li>
-<li><b>Against the root's Architecture map.</b> The 27 models both pages draw have identical strips, cache, windows and expert counts, field for field.</li>
+<li><b>Against the gallery:</b> 95 of the 101 figures agree within rounding; the six that do not are in section 1, each with both arithmetics.</li>
+<li><b>Against transformers' own parsing:</b> <code>src/checks/hf_layer_types.py</code> builds each config with its transformers 5.20.1 configuration class (no weights, no network) and compares the per-layer list transformers derives with this page's mixer strip. 59 models agree layer for layer, 0 differ; the other 49 cannot be checked this way.</li>
+<li><b>Against the root's Config calculator:</b> <code>src/checks/cc_agree.mjs</code> runs the root page's <a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Config calculator (on Topic: llm-architecture)</a> code on every gallery config it models and compares the KV cache at 1; 1,000; 4,096; 32,768 and 131,072 tokens with windows credited: 42 of 46 models agree, 210 numbers, all equal (the calculator includes DeepSeek V3.2's indexer keys, as this page's "with indexer" figure does). The other 4, the Nemotron 3 configs, the calculator rejects with an explicit error ("Nemotron MoE layers (E in the pattern, the latent MoE of Nemotron 3) are not modelled here"), checked 2026-10-23.</li>
+<li><b>Against the root's Architecture map:</b> the 27 models both pages draw have identical strips, cache, windows and expert counts, field for field.</li>
 </ol>
-<p>This is the transformers check as it ran (excerpt of <code>src/checks/hf_layer_types.py</code> and its last lines of output):</p>
+<p class="small"><span class="ag-lab meas">measured</span> means a script ran over saved configs; nothing depends on the machine. <span class="ag-lab gal">gallery</span> marks fields read from <code>models.yml</code> (third-party summaries of vendor cards: release dates, total and active parameters, licences). <span class="ag-lab der">derived</span> marks numbers computed from configs.</p>
+<details class="dp"><summary>The transformers check as it ran, and the 49 it cannot check <span class="mute">(provenance)</span></summary><div class="b">
+<p class="small">Of the 49: 19 need custom code (no class in transformers), 2 configs are rejected by their class (a non-finite number inside a list, a field type), and 28 classes keep no per-layer list, 26 of them for stacks this page also draws as uniform; the other two are Inkling (windows from <code>local_layer_ids</code>) and MiniMax M3 (three dense layers, from its model card). Excerpt of <code>src/checks/hf_layer_types.py</code> and its last lines of output:</p>
 <div class="ag-code">cfg = CONFIG_MAPPING[mt](**{k: v for k, v in t.items() if k not in ('model_type', 'transformers_version')})
 lt = getattr(cfg, 'layer_types', None) or getattr(cfg, 'layers_block_type', None)
 hf = ''.join(CODE.get(x, '?') for x in lt)
@@ -357,30 +397,18 @@ agree    Kimi K3                            kimi_linear
 agree    Nemotron 3.5 Lightning 30B-A3B     nemotron_h
 agree    Kolibri-1 78B                      kolibri1
 transformers 5.20.1 agree 59 differ 0 not checkable 49</div>
-<p class="small"><span class="ag-lab meas">measured</span> means here a script ran on this Mac over saved configs; nothing on this page depends on the machine. <span class="ag-lab gal">gallery</span> marks fields read from the gallery's <code>models.yml</code> (third-party summaries of vendor cards: release dates, total and active parameters, licences). <span class="ag-lab der">derived</span> marks numbers computed from configs.</p>
+</div></details>
 </section>
 
-<section id="ag-s14">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Sizing the cache by query heads</summary><div class="b">The cache is set by KV heads. Llama 3.1 70B has 64 query heads and 8 KV heads; using 64 overstates its cache 8 times (2,560 KiB per token instead of 320).</div></details>
-<details class="mist"><summary>Taking the card's per-token figure as the long-context cost of a windowed model</summary><div class="b">The headline counts windowed layers at full cost. Gemma 4 31B reads 840 KiB per token but holds about 46 KiB per token at 131,072 tokens: 105 GiB against 5.8 GiB for one request.</div></details>
-<details class="mist"><summary>Calling a hybrid "cache-free"</summary><div class="b">Its attention layers still grow a cache (Kimi K3: 27 KiB per token) and the state is a fixed cost per request (414 MiB in FP32 for Kimi K3), larger than the cache up to about 15,700 tokens.</div></details>
-<details class="mist"><summary>Assuming sparse attention shrinks the cache</summary><div class="b">Selecting the top k keys cuts arithmetic, not storage: every key must stay available to be selected, and the indexer adds keys of its own. DeepSeek V3.2 keeps V3's 68.6 KiB per token plus 15.25 KiB of indexer keys (61 × 128 × 2 bytes). Storage falls only when entries are also compressed, as in V4.</div></details>
-<details class="mist"><summary>Treating total parameters as compute, or active as memory</summary><div class="b">Total sets the memory floor, active sets latency and price, and an encoder-decoder can have two active counts (DeepSeek V4.1-Flash: 8B during prefill, 16B during decode, gallery).</div></details>
-<details class="mist"><summary>Saving an error page as a config</summary><div class="b">A gated repo answers an anonymous download with a short error body. This page's first build saved nine of them as <code>.json</code> files (one reads, in full, <code>Invalid username or password.</code>) and silently skipped those models. Parse every downloaded config and fail loudly.</div></details>
-<details class="mist"><summary>Trusting a curated table without recomputing it</summary><div class="b">Six of the gallery's 101 recomputable figures do not follow from the configs; two of them (Gemma 4 E2B and E4B) overstate the cache by about 1.5 to 2 times because they ignore cross-layer sharing. Recompute every row you rely on and publish the match count.</div></details>
-<p class="small mute">Two more mistakes, deriving <code>head_dim</code> from <code>hidden_size</code> and reading <code>max_position_embeddings</code> as trained context, are worked on the root page's section 12 (<a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Topic: llm-architecture</a>).</p>
-</section>
-
-<section id="ag-s15">
-<h2>Interview questions</h2>
+<section id="ag-s12">
+<h2>12. Depth</h2>
+<details class="dp"><summary>Rehearse it: four design questions <span class="mute">(optional)</span></summary><div class="b">
 <details class="ag-q"><summary>A config has 60 layers, 50 of them sliding (window 1,024, 16 KV heads of 256) and 10 global with one shared K = V tensor of 4 heads × 512. KV per token in bf16, and at 131,072 tokens?</summary><div class="b">Sliding: 2 × 16 × 256 × 2 = 16 KiB per layer; global: 4 × 512 × 2 = 4 KiB. Per token on the card: 50 × 16 + 10 × 4 = 840 KiB. At 131,072 tokens the sliding layers hold 1,024 tokens each (800 MiB) and the global ones all of them (5 GiB): about 5.8 GiB, 46 KiB per token. That is Gemma 4 31B.</div></details>
-<details class="ag-q"><summary>Why does gpt-oss-120b's cache halve at long context, while Gemma 3 27B's falls six times?</summary><div class="b">gpt-oss alternates windows and global layers 1:1 with a 128-token window, so half its layers stop growing; Gemma 3 has 5 windowed layers per global one, so five sixths stop growing.</div></details>
 <details class="ag-q"><summary>"2.8T total, 104B active". What does each number tell you about serving it?</summary><div class="b">2.8T is the weight memory (5.1 TiB in bf16, so a multi-node deployment or aggressive quantisation); 104B is the compute per token, so latency and price are those of a 100B dense model. Neither says anything about the cache: that is the attention design (27 KiB per token for Kimi K3).</div></details>
 <details class="ag-q"><summary>A hybrid keeps 1 attention layer in 4. At what context does its fixed state stop mattering?</summary><div class="b">Where the state equals the growing cache: state bytes divided by cache bytes per token. Qwen3-Next: 72 MiB of FP32 state against 24 KiB per token, about 3,000 tokens; beyond a few tens of thousands of tokens the state is a rounding error.</div></details>
-<details class="ag-q"><summary>Why do so many MoE models keep their first layers dense?</summary><div class="b">Early representations are barely differentiated by token type, so routing on them is close to random and unstable; dense layers there cost little and steady training. 31 of the 52 MoE models of 2026 in the gallery do it, most with one to three dense layers.</div></details>
-<details class="ag-q"><summary>Two 30B models differ tenfold in KV cache per token. Name three causes you would look for in the config.</summary><div class="b">KV heads (MHA against GQA or MQA), head dimension, MLA latent against full keys and values, how many layers grow a cache (windows, linear layers, shared layers), looped passes.</div></details>
 <details class="ag-q"><summary>Design: serve 16 concurrent 1M-token conversations on one node of 8 × 80 GB GPUs, weights and cache in bf16. Which gallery design would you start from, and why?</summary><div class="b">First filter on published context: Gemma 4 31B (256K), Qwen3.5 and Qwen3-Next (262K) are out. Then budget: 640 GB is 596 GiB. Nemotron 3 Super 120B-A12B: weights about 224 GiB; its 8 attention layers hold 8 GiB per 1M-token request plus 160 MiB of Mamba-2 state, about 130 GiB for 16 requests: about 355 GiB, it fits with room for activations. Kimi K3 has a small cache (27 GiB per request) but 2.8T of weights (5.1 TiB). A GQA model of the same size would hold hundreds of GiB per request. So: a Mamba-2 or linear-attention hybrid with few attention layers, MoE for quality at 12B active, then FP8 for both weights and cache if headroom is needed. Illustrative arithmetic: activations, framework overheads and expert placement are left out.</div></details>
+</div></details>
+<details class="dp"><summary>Why do so many MoE models keep their first layers dense? <span class="mute">(one claim, unsourced here)</span></summary><div class="b"><p>The usual argument: early representations are barely differentiated by token type, so routing on them is close to random and unstable, and dense layers there cost little. 31 of the 52 MoE models of 2026 in the gallery do it, most with one to three dense layers. The mechanism and its evidence belong on <a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a>.</p></div></details>
 </section>
 <p class="foot">Built 2026-10-18 from Sebastian Raschka's LLM Architecture Gallery (models.yml at commit 589d213, Apache 2.0) and the config.json of each model; how it was built is in this page's <code>src/README.md</code>. Corrections to the gallery are this page's reading of the configs and the modeling code, not the gallery author's.</p>
 </div>
@@ -465,16 +493,16 @@ transformers 5.20.1 agree 59 differ 0 not checkable 49</div>
 <p>The parent topic and its tabs, the sibling pages that own each delta, the lab and paper pages behind the models, and the best outside resources, each with an approximate time. Outside sources are marked <span class="who v">maker</span> (written by the lab that builds the model or library) or <span class="who i">third-party</span>. Links checked 2026-10-18.</p>
 <h3>This page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>The deltas in one screen, the gallery and its corrections, reading a card and a config, the strips, the seven answers, each delta in turn, the checks, mistakes, interview questions. <span class="rt">about 30 min, plus 3 in closed details</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-dec">Decode a config</a></div><p>Any of the 105 configs: the fields read, what each set, the cache arithmetic, layer by layer. <span class="rt">10 min, more if you predict first</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-cmp">Compare architectures</a></div><p>Every model's strips and cache against the gallery's, a scatter over time, a diff of any two. <span class="rt">10 min</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>Fourteen models by design choice, the gallery and its six corrections, reading a card and a config, the strips, each delta with the cross-model pattern drawn, the checks. <span class="rt">about 22 min, plus 8 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-dec">Decode a config</a></div><p>Any of the 105 configs: the fields read, what each set, the cache arithmetic, layer by layer. <span class="rt">4 min, more if you predict first</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-cmp">Compare architectures</a></div><p>Every model's strips and cache against the gallery's, a scatter over time, a diff of any two: a lookup, not a read. <span class="rt">5 min to use; 17 min to read every row</span></p></div>
 </div>
 <h3>The parent topic and the siblings that own each delta</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Topic: llm-architecture</a></div><p>The block and its alternatives at root depth; its Architecture map (the lineage from GPT-2, norms and QK-norm per model), Config calculator (parameters, FLOPs and cache for any config) and Attention lab. <span class="rt">about 39 min, plus the labs</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a></div><p>Why sharing keys and values costs little, MLA's factorisation and absorbed form, sliding windows, sparse attention, sinks. <span class="rt">about 39 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv" target="_blank" rel="noopener noreferrer">Long context</a></div><p>The memory and compute side of length, and the KV-cache calculator that replaces this page's former Cache at context tab: cache growth and compression, local and global layers, effective context. <span class="rt">about 22 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a></div><p>SSMs, Mamba, linear attention, RWKV, gated DeltaNet and the hybrids of section 8. <span class="rt">about 38 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a></div><p>SSMs, Mamba, linear attention, RWKV, gated DeltaNet and the hybrids of section 7. <span class="rt">about 38 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a></div><p>Routers, balancing, fine-grained and shared experts, expert parallelism. <span class="rt">about 37 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81a5b7c9e578fcdfac00" target="_blank" rel="noopener noreferrer">Positional Encodings</a></div><p>RoPE derived, partial RoPE and NoPE, scaling past the trained length. <span class="rt">being rebuilt</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8163b50dc5e9d9240e89" target="_blank" rel="noopener noreferrer">Normalisation, residuals and stability</a></div><p>Pre-norm, RMSNorm, QK-norm, sandwich norms, loss spikes. <span class="rt">about 37 min</span></p></div>
@@ -513,7 +541,7 @@ transformers 5.20.1 agree 59 differ 0 not checkable 49</div>
 <div class="sp"><div class="n"><a href="https://sebastianraschka.com/llm-architecture-gallery/kv-cache-calculations/" target="_blank" rel="noopener noreferrer">Gallery KV-cache notes</a><span class="who i">third-party</span></div><p>The exact per-token conventions for GQA, MLA, shared KV, looped depth, compressed caches and hybrids. <span class="rt">10 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://github.com/rasbt/llm-architecture-gallery" target="_blank" rel="noopener noreferrer">rasbt/llm-architecture-gallery</a><span class="who i">third-party</span></div><p>models.yml, the fact sheets as data, Apache 2.0. <span class="rt">15 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://magazine.sebastianraschka.com/p/the-big-llm-architecture-comparison" target="_blank" rel="noopener noreferrer">The Big LLM Architecture Comparison</a><span class="who i">third-party</span></div><p>The written walkthrough of the same models, updated as they appear. <span class="rt">about 1 h</span></p></div>
-<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2510.26692" target="_blank" rel="noopener noreferrer">Kimi Linear (arXiv 2510.26692)</a><span class="who v">maker</span></div><p>KDA, the 3:1 ablation of section 8, NoPE in the MLA layers. <span class="rt">about 1 h</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2510.26692" target="_blank" rel="noopener noreferrer">Kimi Linear (arXiv 2510.26692)</a><span class="who v">maker</span></div><p>KDA, the 3:1 ablation of section 7, NoPE in the MLA layers. <span class="rt">about 1 h</span></p></div>
 <div class="sp"><div class="n"><a href="https://github.com/huggingface/transformers/tree/main/src/transformers/models" target="_blank" rel="noopener noreferrer">transformers model code</a><span class="who v">maker</span></div><p>Where a config becomes a cache: <code>gemma4/configuration_gemma4.py</code>, <code>longcat_flash/modeling_longcat_flash.py</code>, <code>zaya/modeling_zaya.py</code> (read here at 5.20.1). <span class="rt">as needed</span></p></div>
 </div>
 </section>
@@ -659,23 +687,12 @@ window.AG=(function(){
 })();
 </script>
 <script>/* 24_js_ag_rd.js */
-// ---- Reading tab: census bars, reproduction box, corrections, small-multiple strips, delta tables ----
+// ---- Reading tab: corrections table, small-multiple strips, delta tables ----
 (function(){
   const G=window.AG;if(!G||!document.getElementById('t-read'))return;
   const {rows,by,$,fmt,fmtB,esc,A}=G,C=G.D.census;
-  // census bars (section 0)
-  (function(){const el=$('ag-cenb');if(!el)return;
-    const K=[['mla','MLA latent'],['sparse','Trained sparse'],['win','Sliding windows'],['hyb','Linear or SSM hybrid'],['moe','Mixture of experts'],['prope','Partial RoPE'],['nope','Layers with no position']];
-    const Y=[['2024','2024 and earlier','var(--dim)'],['2025','2025','var(--c6)'],['2026','2026','var(--acc)']];
-    function draw(){const w=G.width(el),narrow=w<520,lw=narrow?0:150,bw=Math.max(80,w-lw-60),rh=9;
-      let h='<div class="ag-leg">'+Y.map(y=>'<span><i class="ag-sw" style="background:'+y[2]+'"></i>'+y[1]+' ('+C[y[0]].n+' models)</span>').join('')+'</div>';
-      K.forEach(([k,l])=>{let s='';Y.forEach((y,j)=>{const v=C[y[0]][k]/C[y[0]].n,x=Math.round(bw*v);s+='<rect x="0" y="'+(j*(rh+2))+'" width="'+Math.max(1,x)+'" height="'+rh+'" rx="2" fill="'+y[2]+'"/><text x="'+(x+4)+'" y="'+(j*(rh+2)+8.5)+'" font-size="10.5" fill="var(--mute)">'+Math.round(100*v)+'%</text>'});
-        h+='<div class="row"><span>'+l+'</span><svg viewBox="0 0 '+(bw+40)+' '+(3*(rh+2))+'" width="'+(bw+40)+'" height="'+(3*(rh+2))+'" role="img" aria-label="'+l+' by year">'+s+'</svg></div>'});
-      el.innerHTML=h}
-    draw();G.onTab('t-read',draw);let t=0;addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(()=>{if(!$('t-read').hidden)draw()},80)})})();
   // reproduction box and corrections (section 1)
-  (function(){const st=C.status,el=$('ag-repro');if(!el)return;
-    el.innerHTML='<div class="t">Defaults reproduce the gallery, independently</div>Recomputed from each model\'s own config.json with the gallery\'s convention, the KV cache per token matches the gallery\'s published figure for <b>'+st.match+' of '+(st.match+st.differs)+'</b> models within rounding (two of them only once the trained-sparse indexer keys are added, as the gallery does for GQA-based sparse attention). The <b>'+st.differs+'</b> that differ are below, each with the gallery\'s arithmetic reconstructed and the config\'s. Also listed: '+st.nocfg+' entries with no readable config, '+st.galkv+' DeepSeek V4 entries shown with the gallery\'s figure, and rows this page adds (Llama 3.1 8B and 70B, Granite 4.0-H Small, Step-5 Preview whose gallery figure is "N/A", and the tiny GPT).';
+  (function(){if(!$('ag-diffs'))return;
     const d=rows.filter(r=>r.status==='differs');
     $('ag-diffs').innerHTML='<div class="tw"><table><thead><tr><th>Model</th><th class="num">Gallery</th><th>How the gallery\'s number reconstructs</th><th class="num">From the config</th><th>Which is right, and the evidence</th></tr></thead><tbody>'+
       d.map(r=>'<tr><td><b>'+esc(r.n)+'</b><br><span class="ag-lab '+(r.kind==='conv'?'der':'unc')+'">'+(r.kind==='conv'?'convention':'correction')+'</span></td><td class="num">'+esc(r.galtxt)+'</td><td class="small">'+esc(r.galhow)+' = '+fmt(r.galbytes)+' bytes</td><td class="num">'+fmtB(r.kv)+'<br><span class="small mute">'+fmt(r.kv)+' bytes</span></td><td class="small">'+esc(r.why)+'</td></tr>').join('')+'</tbody></table></div>'})();
@@ -689,11 +706,6 @@ window.AG=(function(){
     const N=['Llama 3.1 70B','Qwen3 235B-A22B','GPT-OSS 120B','MiniMax M2 230B','DeepSeek V3','Mistral Large 3','Kimi K3','Gemma 4 31B','Qwen3 Next 80B-A3B','Nemotron 3 Super 120B-A12B'];
     el.innerHTML='<table><thead><tr><th>Model</th><th>Design</th><th>Per growing layer, per token</th><th class="num">Layers that grow</th><th class="num">KV per token</th></tr></thead><tbody>'+N.filter(n=>by[n]).map(n=>{const r=by[n],x=G.explain(r);
       return '<tr><td>'+esc(n)+'</td><td>'+G.FAM[r.fam][0]+'</td><td class="small">'+x.lines.map(l=>'<b>'+l.c+'</b> '+fmt(l.per)+' B: '+esc(l.ph)).join('<br>')+'</td><td class="num">'+x.lines.reduce((a,l)=>a+l.n,0)+' of '+r.L+'</td><td class="num">'+fmtB(r.kv)+'</td></tr>'}).join('')+'</tbody></table>'})();
-  // windows: headline against credited (section 7)
-  (function(){const el=$('ag-w7b');if(!el)return;
-    const W=rows.filter(r=>r.mix&&/S/.test(r.mix)&&r.kv&&r.kvw&&!r.x).sort((a,b)=>b.kv/b.kvw-a.kv/a.kvw);const mx=Math.max(...W.map(r=>r.kv));
-    el.innerHTML=W.map(r=>'<div class="row"><span class="nm" title="'+esc(r.n)+'">'+esc(r.n)+'</span><div class="track"><div class="fill" style="width:'+(100*r.kv/mx).toFixed(1)+'%;background:var(--acc2)"></div><div class="fill" style="width:'+Math.max(.6,100*r.kvw/mx).toFixed(1)+'%;background:var(--c6)"></div></div><span class="val">'+(r.kv/r.kvw).toFixed(1)+'×</span></div>').join('')+
-      '<p class="small mute">Right: the factor by which crediting the windows shrinks the cache held at 131,072 tokens. Bars to the same scale, largest '+fmtB(mx)+' per token.</p>'})();
   // hybrids (section 8)
   (function(){const el=$('ag-t8');if(!el)return;
     const H=rows.filter(r=>r.mix&&/[LH]/.test(r.mix)&&r.kv&&!r.x).sort((a,b)=>a.dt<b.dt?-1:1);
@@ -705,6 +717,156 @@ window.AG=(function(){
     el.innerHTML='<table><thead><tr><th>2026 model (largest 14)</th><th class="num">Total</th><th class="num">Active</th><th class="num">Routed experts</th><th class="num">Per token</th><th class="num">Shared</th><th class="num">Dense first layers</th></tr></thead><tbody>'+M.map(r=>{const pre=r.ffn.length-r.ffn.replace(/^d+/,'').length;
       return '<tr><td>'+esc(r.n)+'</td><td class="num">'+(r.tot>=1000?(r.tot/1000).toFixed(1)+'T':fmt(r.tot,r.tot%1?1:0)+'B')+'</td><td class="num">'+(r.act?fmt(r.act,r.act%1?1:0)+'B':'')+'</td><td class="num">'+(r.E||'')+'</td><td class="num">'+(r.k||'')+'</td><td class="num">'+(r.sh||0)+'</td><td class="num">'+pre+'</td></tr>'}).join('')+'</tbody></table><p class="small mute">Total and active: the gallery\'s line (<span class="ag-lab gal">gallery</span>, from vendor cards); experts and dense layers read from the configs.</p>'})();
   G.drills(document.getElementById('t-read'));
+})();
+</script>
+<script>/* 25_js_ag_figs.js */
+// ---- Reading tab figures (2026-10-23 rebuild): hero matrix, census by year, corrections, KV spread, windows,
+// hybrid ratios, expert sparsity, stack shape. Every number is derived from window.AGD (src/out/gallery.json and
+// census.json, written by src/gen_data.py) or quoted with its source in the caption; src/checks/check_data.py checks
+// the static captions against the same data.
+(function(){
+  const G=window.AG;if(!G||!document.getElementById('t-read'))return;
+  const {rows,by,$,fmt,fmtB,esc}=G,C=G.D.census,KiB=1024;
+  const T=(x,y,s,o)=>{o=o||{};return '<text x="'+(+x).toFixed(1)+'" y="'+(+y).toFixed(1)+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'" fill="'+(o.fill||'var(--ink)')+'"'+(o.w?' font-weight="'+o.w+'"':'')+(o.extra||'')+'>'+s+'</text>'};
+  const svg=(w,h,b,l)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+esc(l)+'">'+b+'</svg>';
+  const lg=Math.log10;
+  const att=r=>(r.mix||'').replace(/[LHF]/g,'').length;            // attention layers (any kind)
+  const nLin=r=>((r.mix||'').match(/[LH]/g)||[]).length;
+  const prefix=r=>r.E?(r.ffn.match(/^d*/)||[''])[0].length:0;
+  const entry=r=>r.kvc?'compressed':r.dc&&r.mt!=='Motif'?'MLA '+r.dc+'+'+r.dr:r.Hkv===r.H?'MHA '+r.H:r.Hkv===1?'MQA':'GQA '+r.Hkv+' KV';
+  function posTxt(r){const p=(r.pos||'').replace(/-/g,''),n=(p.match(/N/g)||[]).length;
+    if(n)return 'NoPE '+n+'/'+p.length;if(/P/.test(p)&&!(r.dc&&r.mt!=='Motif'))return 'partial';if(r.dc&&r.mt!=='Motif')return 'RoPE key';if(/A/.test(p))return 'learned';return 'RoPE'}
+  const draws=[];const add=f=>{draws.push(f)};
+  function all(){draws.forEach(f=>{try{f()}catch(e){}})}
+  G.onTab('t-read',all);let rt=0,lw=0;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{const r=$('t-read');if(!r||r.hidden)return;const w=r.clientWidth;if(Math.abs(w-lw)>30){lw=w;all()}},90)});
+
+  // ---------- hero: model by design choice ----------
+  add(function(){const el=$('ag-hero');if(!el)return;
+    const N=['Llama 3.1 8B','DeepSeek V3','Gemma 3 27B','Llama 4 Maverick','Qwen3 235B-A22B','GPT-OSS 120B','Qwen3 Next 80B-A3B','DeepSeek V3.2','GLM-5 744B','Qwen3.5 397B','Nemotron 3 Super 120B-A12B','Gemma 4 31B','DeepSeek V4-Flash','Kimi K3'].filter(n=>by[n]);
+    const w0=G.width(el),narrow=w0<620,SH={'Qwen3 235B-A22B':'Qwen3 235B','Qwen3 Next 80B-A3B':'Qwen3-Next 80B','Nemotron 3 Super 120B-A12B':'Nemotron 3 Super','GLM-5 744B':'GLM-5','GPT-OSS 120B':'gpt-oss-120b'};
+    const cols=[
+      {h:['Cache','entry'],c:'var(--c1)',v:r=>entry(r),on:r=>true,col:r=>r.kvc?'var(--c4)':r.dc&&r.mt!=='Motif'?'var(--c3)':'var(--c1)',foot:'MLA '+C['2026'].mla},
+      {h:['Windowed','layers'],c:'var(--c6)',v:r=>{const s=(r.mix.match(/S/g)||[]).length;return s?s+'/'+att(r)+' · '+(r.W>=1024&&r.W%1024===0?r.W/1024+'K':fmt(r.W)):''},foot:String(C['2026'].win)},
+      {h:['Linear','layers'],c:'var(--c5)',v:r=>{const l=nLin(r);return l?l+'/'+(l+att(r)):''},foot:String(C['2026'].hyb)},
+      {h:['Sparse','indexer'],c:'var(--c4)',v:r=>/D/.test(r.mix)?'top-k':'',foot:String(C['2026'].sparse)},
+      {h:['Experts','routed/k'],c:'var(--c2)',v:r=>r.E?r.E+'/'+r.k:'',foot:String(C['2026'].moe)},
+      {h:['Shared','expert'],c:'var(--c2)',v:r=>r.E&&r.sh?String(r.sh):'',foot:String(C['2026'].shared),wide:1},
+      {h:['Dense','first'],c:'var(--mute)',v:r=>prefix(r)?String(prefix(r)):'',foot:String(C['2026'].prefix),wide:1},
+      {h:['Position','partial · NoPE'],c:'var(--ink)',v:r=>posTxt(r),on:r=>/NoPE|partial/.test(posTxt(r)),foot:C['2026'].prope+' · '+C['2026'].nope},
+      {h:['KV/token','card'],c:'var(--acc)',v:r=>r.kv?fmtB(r.kv):r.galtxt||'',on:r=>false,foot:fmtB(C['2026'].kv_median),num:1},
+      {h:['Held at','131K'],c:'var(--acc)',v:r=>r.kvw?fmtB(r.kvw):'',on:r=>false,foot:fmtB(C['2026'].kvw_median),num:1,wide:1}
+    ].filter(c=>!narrow||!c.wide);
+    const nw=narrow?118:136,cw=narrow?66:64,W=Math.max(w0,nw+cols.length*cw+34),rh=22,top=34,H=top+N.length*rh+38;
+    const cwx=(W-nw-34)/cols.length;
+    let s='';
+    cols.forEach((c,j)=>{const x=nw+j*cwx+cwx/2;s+=T(x,13,c.h[0],{a:'middle',fs:11,w:600})+T(x,26,c.h[1],{a:'middle',fs:10.5,fill:'var(--mute)'})});
+    let yr='';
+    N.forEach((n,i)=>{const r=by[n],y=top+i*rh;const Y=r.dt.slice(0,4);
+      if(Y!==yr){yr=Y;s+='<line x1="0" x2="'+W+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/>'+T(W-2,y+15,Y,{a:'end',fs:10.5,fill:'var(--mute)'})}
+      s+='<g class="ag-hrow" data-n="'+esc(n)+'" style="cursor:pointer">'+'<rect x="0" y="'+y+'" width="'+W+'" height="'+rh+'" fill="transparent"/>'+T(2,y+15,esc(SH[n]||n),{fs:narrow?11:12});
+      cols.forEach((c,j)=>{const v=c.v(r),x=nw+j*cwx,on=v&&(c.on?c.on(r):true);
+        if(on)s+='<rect x="'+(x+3).toFixed(1)+'" y="'+(y+3)+'" width="'+(cwx-6).toFixed(1)+'" height="'+(rh-6)+'" rx="4" fill="'+(c.col?c.col(r):c.c)+'" fill-opacity=".2" stroke="'+(c.col?c.col(r):c.c)+'" stroke-opacity=".7"/>';
+        s+=T(x+cwx/2,y+15,v?esc(v):'·',{a:'middle',fs:narrow?10.5:11,fill:v?'var(--ink)':'var(--mute)'})});
+      s+='</g>'});
+    const yb=top+N.length*rh;
+    s+='<line x1="0" x2="'+W+'" y1="'+yb+'" y2="'+yb+'" stroke="var(--ink)"/>'+T(2,yb+18,'2026, '+C['2026'].n+' models',{fs:11.5,w:600})+T(2,yb+31,'count; KV median',{fs:10.5,fill:'var(--mute)'});
+    cols.forEach((c,j)=>{s+=T(nw+j*cwx+cwx/2,yb+18,c.foot,{a:'middle',fs:10.5,w:600,fill:'var(--acc)'})});
+    el.innerHTML=svg(W,H,s,'Fourteen models by design choice, with the 2026 counts');
+    if(!el.dataset.wired){el.dataset.wired=1;el.addEventListener('click',e=>{const g=e.target.closest('.ag-hrow');if(g&&window.AGDEC)window.AGDEC.open(g.dataset.n)})}
+  });
+
+  // ---------- census by release year ----------
+  add(function(){const el=$('ag-cen');if(!el)return;
+    const K=[['moe','Mixture of experts'],['win','Sliding windows'],['prope','Partial RoPE'],['hyb','Linear or SSM hybrid'],['mla','MLA latent'],['sparse','Trained sparse'],['nope','Layers with no position']];
+    const Y=[['2024','2024 and earlier','var(--dim)'],['2025','2025','var(--c6)'],['2026','2026','var(--acc)']];
+    const W=Math.max(300,Math.min(860,G.width(el))),narrow=W<520,lw=narrow?0:170,bw=W-lw-46,bh=8,gh=narrow?52:38;
+    let s='',y=0;
+    K.forEach(([k,l])=>{if(narrow){s+=T(0,y+11,l,{fs:11.5,w:600});y+=15}else s+=T(0,y+17,l,{fs:12});
+      Y.forEach((yy,j)=>{const v=C[yy[0]][k]/C[yy[0]].n,x=Math.max(1,bw*v);s+='<rect x="'+lw+'" y="'+(y+j*(bh+2))+'" width="'+x.toFixed(1)+'" height="'+bh+'" rx="2" fill="'+yy[2]+'"/>'+T(lw+x+4,y+j*(bh+2)+7.5,Math.round(100*v)+'%'+(j===2?' ('+C[yy[0]][k]+')':''),{fs:10.5,fill:'var(--mute)'})});
+      y+=narrow?gh-15:gh});
+    el.innerHTML='<div class="ag-leg">'+Y.map(y=>'<span><i class="ag-sw" style="background:'+y[2]+'"></i>'+y[1]+' ('+C[y[0]].n+')</span>').join('')+'</div>'+svg(W,y,s,'Share of models with each design choice by release year');
+  });
+
+  // ---------- corrections: gallery figure against the config ----------
+  add(function(){const el=$('ag-corr');if(!el)return;
+    const D=rows.filter(r=>r.status==='differs');const W=Math.max(300,Math.min(860,G.width(el))),narrow=W<520,lw=narrow?0:190,pr=56,rh=narrow?40:26;
+    const mx=Math.max(...D.map(r=>Math.max(r.kv,r.gal)))*1.05,X=v=>lw+(W-lw-pr)*v/mx;let s='';
+    [0,64,128,192].forEach(v=>{const x=X(v*KiB);s+='<line x1="'+x+'" x2="'+x+'" y1="0" y2="'+(D.length*rh)+'" stroke="var(--line)"/>'+T(x,D.length*rh+13,v+' KiB',{a:'middle',fs:10.5,fill:'var(--mute)'})});
+    D.forEach((r,i)=>{const y=i*rh+(narrow?26:13),a=X(r.gal),b=X(r.kv),cv=r.kind==='conv';
+      s+=narrow?T(0,y-12,esc(r.n),{fs:11.5}):T(0,y+4,esc(r.n),{fs:12});
+      s+='<line x1="'+a+'" x2="'+b+'" y1="'+y+'" y2="'+y+'" stroke="var(--mute)" stroke-width="1.5"/><circle cx="'+a+'" cy="'+y+'" r="5" fill="var(--bg)" stroke="var(--mute)" stroke-width="1.5"/><circle cx="'+b+'" cy="'+y+'" r="5" fill="'+(cv?'var(--c6)':'var(--bad)')+'"/>'+T(W-2,y+4,(r.kv>r.gal?'+':'')+Math.round(100*(r.kv/r.gal-1))+'%',{a:'end',fs:11,fill:cv?'var(--c6)':'var(--bad)',w:600})});
+    el.innerHTML=svg(W,D.length*rh+18,s,'The six gallery figures that the configs do not reproduce');
+  });
+
+  // ---------- KV per token by release year (strip plot) ----------
+  add(function(){const el=$('ag-spread');if(!el)return;
+    const R=rows.filter(r=>r.kv&&!r.x&&r.status!=='tiny');const Y=[['2024','2024 and earlier'],['2025','2025'],['2026','2026']];
+    const W=Math.max(300,Math.min(860,G.width(el))),narrow=W<520,lw=narrow?0:120,pr=12,rh=narrow?62:48,top=narrow?14:4,lo=4*KiB,hi=2*G.MiB;
+    const X=v=>lw+(W-lw-pr)*(lg(v)-lg(lo))/(lg(hi)-lg(lo));let s='';
+    [[4,'4 KiB'],[16,'16 KiB'],[64,'64 KiB'],[256,'256 KiB'],[1024,'1 MiB']].forEach(([v,l])=>{const x=X(v*KiB);s+='<line x1="'+x+'" x2="'+x+'" y1="0" y2="'+(top+3*rh)+'" stroke="var(--line)"/>'+T(x,top+3*rh+13,l,{a:x<20?'start':'middle',fs:10.5,fill:'var(--mute)'})});
+    Y.forEach(([k,l],j)=>{const y0=top+j*rh,ys=R.filter(r=>(k==='2024'?r.dt<'2025':r.dt.slice(0,4)===k));
+      s+=narrow?T(0,y0+2,l+' ('+ys.length+')',{fs:11,fill:'var(--mute)'}):T(0,y0+rh/2+4,l+' ('+ys.length+')',{fs:12});
+      ys.forEach((r,i)=>{const jit=((i*37)%11-5)*(rh-22)/11;s+='<circle cx="'+X(r.kv).toFixed(1)+'" cy="'+(y0+rh/2+jit).toFixed(1)+'" r="4" fill="'+G.FAM[r.fam][1]+'" fill-opacity=".8" stroke="var(--bg)"><title>'+esc(r.n)+': '+fmtB(r.kv)+' per token</title></circle>'});
+      const m=C[k].kv_median,xm=X(m);s+='<line x1="'+xm+'" x2="'+xm+'" y1="'+(y0+6)+'" y2="'+(y0+rh-6)+'" stroke="var(--ink)" stroke-width="2"/>'+T(xm+4,y0+(narrow?rh-4:12),'median '+fmtB(m),{fs:10.5,w:600})});
+    el.innerHTML=svg(W,top+3*rh+18,s,'KV cache per token of every model with a config, by release year')+'<div class="ag-leg">'+Object.keys(G.FAM).map(k=>'<span><i class="ag-sw" style="background:'+G.FAM[k][1]+';border-radius:50%"></i>'+G.FAM[k][0]+'</span>').join('')+'</div>';
+  });
+
+  // ---------- windows: the card against the cache held at 131,072 tokens ----------
+  add(function(){const el=$('ag-w7b');if(!el)return;
+    const Wd=rows.filter(r=>r.mix&&/S/.test(r.mix)&&r.kv&&r.kvw&&!r.x).sort((a,b)=>b.kv/b.kvw-a.kv/a.kvw);
+    const W=Math.max(300,Math.min(860,G.width(el))),narrow=W<520,lw=narrow?112:200,pr=42,rh=15,lo=2*KiB,hi=1024*KiB;
+    const X=v=>lw+(W-lw-pr)*(lg(v)-lg(lo))/(lg(hi)-lg(lo));let s='';const H=Wd.length*rh+20;
+    [[4,'4 KiB'],[16,'16'],[64,'64'],[256,'256'],[1024,'1 MiB']].forEach(([v,l])=>{const x=X(v*KiB);s+='<line x1="'+x+'" x2="'+x+'" y1="0" y2="'+(H-18)+'" stroke="var(--line)"/>'+T(x,H-5,l,{a:'middle',fs:10.5,fill:'var(--mute)'})});
+    Wd.forEach((r,i)=>{const y=i*rh+8,a=X(r.kv),b=X(r.kvw);const nm=narrow&&r.n.length>17?r.n.slice(0,16)+'…':r.n;
+      s+=T(0,y+4,esc(nm),{fs:11})+'<line x1="'+b+'" x2="'+a+'" y1="'+y+'" y2="'+y+'" stroke="var(--acc)" stroke-opacity=".45" stroke-width="3"/><circle cx="'+a+'" cy="'+y+'" r="3.5" fill="var(--bg)" stroke="var(--acc)" stroke-width="1.5"><title>'+esc(r.n)+': '+fmtB(r.kv)+' per token on the card</title></circle><circle cx="'+b+'" cy="'+y+'" r="3.5" fill="var(--acc)"><title>'+esc(r.n)+': '+fmtB(r.kvw)+' per token held at 131,072 tokens</title></circle>'+T(W-2,y+4,(r.kv/r.kvw).toFixed(1)+'×',{a:'end',fs:11,fill:'var(--mute)'})});
+    el.innerHTML=svg(W,H,s,'Windowed models: KV per token on the card against the cache held at 131,072 tokens');
+  });
+
+  // ---------- hybrids: the published ratio ablation and the ratios released ----------
+  add(function(){const el=$('ag-ratio');if(!el)return;
+    const Hy=rows.filter(r=>r.mix&&/[LH]/.test(r.mix)&&!r.x&&att(r)>0);
+    const W=Math.max(300,Math.min(860,G.width(el))),narrow=W<520,pl=narrow?44:56,pr=14,p1=134,gap=40;
+    const X=q=>pl+(W-pl-pr)*Math.log2(1+q)/Math.log2(16);
+    const A=[[0,5.77],[1,5.66],[3,5.65],[7,5.70],[15,5.82]],ylo=5.62,yhi=5.85,Y=v=>26+(p1-44)*(1-(v-ylo)/(yhi-ylo));
+    let s=T(pl,0+10,narrow?'Kimi Linear ablation, perplexity':'Kimi Linear ablation: validation perplexity (vendor, arXiv 2510.26692 Table 1)',{fs:11,fill:'var(--mute)'});
+    [5.65,5.75,5.85].forEach(v=>{s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+T(pl-4,Y(v)+4,v.toFixed(2),{a:'end',fs:10.5,fill:'var(--mute)'})});
+    s+='<polyline fill="none" stroke="var(--c5)" stroke-width="2" points="'+A.map(([q,v])=>X(q).toFixed(1)+','+Y(v).toFixed(1)).join(' ')+'"/>';
+    A.forEach(([q,v])=>{s+='<circle cx="'+X(q)+'" cy="'+Y(v)+'" r="4" fill="var(--c5)"/>'+T(X(q),Y(v)-7,v.toFixed(2),{a:'middle',fs:10.5,w:q===3?600:400})});
+    const bins={};Hy.forEach(r=>{const q=nLin(r)/att(r),k=Math.round(Math.log2(1+q)*8)/8;(bins[k]=bins[k]||[]).push(r)});
+    const p2=Math.max(...Object.values(bins).map(b=>b.length))*9+14,y0=p1+gap;s+=T(pl,y0-8,narrow?'Released hybrids ('+Hy.length+'), derived':'Released hybrids in the gallery at each ratio ('+Hy.length+' models, derived from configs)',{fs:11,fill:'var(--mute)'});
+    Object.keys(bins).forEach(k=>{bins[k].forEach((r,i)=>{const q=nLin(r)/att(r);s+='<circle cx="'+X(q).toFixed(1)+'" cy="'+(y0+p2-10-i*9).toFixed(1)+'" r="4" fill="var(--c5)" fill-opacity=".85" stroke="var(--bg)"><title>'+esc(r.n)+': '+nLin(r)+' linear to '+att(r)+' attention layers</title></circle>'})});
+    const yb=y0+p2;s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+yb+'" y2="'+yb+'" stroke="var(--mute)"/>';
+    [0,1,3,7,15].forEach(q=>{s+='<line x1="'+X(q)+'" x2="'+X(q)+'" y1="'+(p1-18)+'" y2="'+yb+'" stroke="var(--line)" stroke-dasharray="2 3"/>'+T(X(q),yb+14,q+':1',{a:'middle',fs:11})});
+    s+=T((pl+W-pr)/2,yb+30,'linear (or SSM) layers per attention layer',{a:'middle',fs:11,fill:'var(--mute)'});
+    el.innerHTML=svg(W,yb+36,s,'Linear to attention ratio: the published ablation and the released models');
+  });
+
+  // ---------- experts: active share against total parameters ----------
+  add(function(){const el=$('ag-moe');if(!el)return;
+    const M=rows.filter(r=>r.E&&r.tot&&r.act&&!r.x&&r.dt>='2025');
+    const W=Math.max(300,Math.min(860,G.width(el))),narrow=W<520,pl=narrow?40:48,pr=14,pt=10,H=narrow?250:280,pb=34,lo=5,hi=4000,ymax=22;
+    const X=v=>pl+(W-pl-pr)*(lg(v)-lg(lo))/(lg(hi)-lg(lo)),Y=v=>pt+(H-pt-pb)*(1-v/ymax);let s='';
+    [0,5,10,15,20].forEach(v=>{s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+T(pl-4,Y(v)+4,v+'%',{a:'end',fs:10.5,fill:'var(--mute)'})});
+    [[10,'10B'],[30,'30B'],[100,'100B'],[300,'300B'],[1000,'1T'],[3000,'3T']].forEach(([v,l])=>{s+=T(X(v),H-pb+15,l,{a:'middle',fs:10.5,fill:'var(--mute)'})});
+    s+=T((pl+W-pr)/2,H-4,'total parameters (gallery line, log scale)',{a:'middle',fs:11,fill:'var(--mute)'});
+    const lab={'Kimi K3':[-7,-7,'end'],'DeepSeek V4-Pro':[6,15,'end'],'GPT-OSS 120B':[0,-8,'middle'],'JetBrains Mellum2 Thinking 12B-A2.5B':[7,4,'start'],'Nemotron 3 Ultra 550B-A55B':[-7,-7,'end']},SN={'JetBrains Mellum2 Thinking 12B-A2.5B':'Mellum2 Thinking','Nemotron 3 Ultra 550B-A55B':'Nemotron 3 Ultra','GPT-OSS 120B':'gpt-oss-120b'};
+    M.forEach(r=>{const v=100*r.act/r.tot,c=r.dt>='2026'?'var(--acc)':'var(--c2)';s+='<circle cx="'+X(r.tot).toFixed(1)+'" cy="'+Y(v).toFixed(1)+'" r="4" fill="'+c+'" fill-opacity=".8" stroke="var(--bg)"><title>'+esc(r.n)+': '+r.act+'B of '+r.tot+'B active ('+v.toFixed(1)+'%)</title></circle>'});
+    M.forEach(r=>{const o=lab[r.n];if(!o||(narrow&&r.n==='GPT-OSS 120B'))return;const v=100*r.act/r.tot;s+=T(X(r.tot)+o[0],Y(v)+o[1],esc(SN[r.n]||r.n)+' '+v.toFixed(1)+'%',{a:o[2],fs:10.5,w:600})});
+    el.innerHTML=svg(W,H,s,'Active share of parameters against total parameters, MoE models of 2025 and 2026')+'<div class="ag-leg"><span><i class="ag-sw" style="background:var(--c2);border-radius:50%"></i>2025</span><span><i class="ag-sw" style="background:var(--acc);border-radius:50%"></i>2026</span></div>';
+  });
+
+  // ---------- stack shape: layers in the config against caches kept ----------
+  add(function(){const el=$('ag-stack');if(!el)return;
+    const S=[['Ouro-Thinking 2.6B','4 passes'],['Nanbeige 4.2 3B','2 passes'],['LongCat-Flash-Lite 68.5B-A3B','2 MLA sublayers per layer'],['Gemma 4 E4B','last 18 reuse a cache'],['Gemma 4 E2B','last 20 reuse a cache']].filter(x=>by[x[0]]);
+    const cfgL=r=>(r.fields&&(r.fields.num_hidden_layers||r.fields.num_layers))||r.L,kept=r=>(r.L-(r.shared||0))*(r.passes||1);
+    const W=Math.max(300,Math.min(860,G.width(el))),narrow=W<520,lw=narrow?0:200,pr=40,rh=narrow?44:30,mx=200,X=v=>(W-lw-pr)*v/mx;let s='';
+    S.forEach(([n,why],i)=>{const r=by[n],y=i*rh+(narrow?16:4),a=cfgL(r),b=kept(r);
+      s+=narrow?T(0,y-4,esc(n)+': '+why,{fs:11}):T(0,y+10,esc(n),{fs:12})+T(0,y+23,why,{fs:10.5,fill:'var(--mute)'});
+      s+='<rect x="'+lw+'" y="'+y+'" width="'+X(a).toFixed(1)+'" height="9" rx="2" fill="var(--dim)"/>'+T(lw+X(a)+4,y+8.5,a+' layers in the config',{fs:10.5,fill:'var(--mute)'});
+      const lb=b+' caches per token',ins=lw+X(b)+130>W;s+='<rect x="'+lw+'" y="'+(y+11)+'" width="'+X(b).toFixed(1)+'" height="9" rx="2" fill="var(--acc)"/>'+(ins?T(lw+X(b)-4,y+19,lb,{a:'end',fs:10.5,w:600,fill:'var(--bg)'}):T(lw+X(b)+4,y+19.5,lb,{fs:10.5,w:600}))});
+    el.innerHTML=svg(W,S.length*rh+(narrow?16:4),s,'Layers in the config against caches kept per token');
+  });
+  all();
 })();
 </script>
 <script>/* 31_js_ag_dec.js */
