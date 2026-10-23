@@ -1,4 +1,4 @@
-// ---- Attention lab: masks position by position and tile by tile; kernel sweep dense vs block-sparse ----
+// ---- Reading section 11, the BlockMask card (moved from the old Attention lab tab on 2026-10-23): masks position by position and tile by tile; kernel sweep dense vs block-sparse ----
 (function(){
   const D=window.FST,U=window.FU,$=U.$,esc=RD.esc;const F=D.flex;if(!F)return;
   const BS=128,W=F.window,PRE=F.prefix;
@@ -55,7 +55,7 @@
   U.seg($('at-T'),[['256','T = 256'],['1024','T = 1,024'],['4096','T = 4,096']],t=>{T=+t;all()},'1024');
   U.seg($('at-mode'),[['flex','FlexAttention (BlockMask)'],['dense','SDPA, dense mask']],m=>{mode=m;if(A)A.reset(NS)},'flex');
   A=RD.anim({card:'at-card',ctl:'at-ctl',n:NS,ms:160,draw,label:'Tiles computed'});
-  (window.TAB_RENDER['t-attn']=window.TAB_RENDER['t-attn']||[]).push(()=>{drawPos();A.redraw()});
+  RD.onRender(()=>{drawPos();A.redraw()});
   // measured tables
   const TF=D.time_flex&&D.time_flex.results;
   if(TF){let h='<table class="rd-tbl tbl-sm"><thead><tr><th>Device, T</th><th>Mask</th><th class="num">FlexAttention</th><th class="num">SDPA, dense mask</th><th class="num">SDPA is_causal</th></tr></thead><tbody>';

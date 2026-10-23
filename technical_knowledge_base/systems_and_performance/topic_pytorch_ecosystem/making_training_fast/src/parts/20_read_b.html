@@ -1,48 +1,57 @@
-<section id="fst-s1">
-<h2>1. Measuring honestly: what a timing can and cannot tell you</h2>
-<p><b>The problem.</b> Every fix on this page is judged by a number, and a careless number points at the wrong fix. Three things make naive timings lie.</p>
-<div class="mech">
-<div><b>Asynchronous devices</b>On a GPU (CUDA or Apple's MPS), a PyTorch call only <i>queues</i> a kernel and returns. Timing the call times the queuing. You must wait for the device to finish (<code>torch.cuda.synchronize()</code>, <code>torch.mps.synchronize()</code>) before reading the clock.</div>
-<div><b>Warm-up</b>The first calls pay one-off costs: memory allocation into the caching allocator, kernel selection, compilation for <code>torch.compile</code>, lazy initialisation. Run a few untimed steps first.</div>
-<div><b>Noise</b>Other processes, thermal limits and frequency scaling move every number. Repeat, report the median and the spread, and record the machine's load.</div>
-</div>
+<section id="fst-s3">
+<h2>3. The worked hunt: one slow step, fixed one bottleneck at a time</h2>
+<p><b>The job.</b> The larger variant trained through a <code>DataLoader</code>, written the way a first version usually is:</p>
+<div class="code">loader = DataLoader(dataset, batch_size=8)          <span class="c"># num_workers=0: batches built in the main process</span>
+model = make_model(GPTConfig(..., attn="manual"))  <span class="c"># attention written out: softmax(QK^T / sqrt(d)) V</span>
+opt = torch.optim.AdamW(params, lr=6e-4)           <span class="c"># default implementation: for-loop on CPU and MPS</span>
+for x, y in loader:
+    _, loss = model(x.to(dev), y.to(dev))          <span class="c"># float32 everywhere</span>
+    loss.backward(); opt.step(); opt.zero_grad(set_to_none=True)
+    print(loss.item())                             <span class="c"># waits for the device every step</span></div>
+<p>The dataset spends 2 ms of Python work per sample before returning a window of text <span class="ann">illustrative cost</span>: a stand-in for decoding and tokenising raw data, set by hand so that data loading is visible. Everything else is the real model.</p>
 <div class="rd-card">
-<h4>The same matrix multiply, timed three ways on MPS</h4>
-<div class="bars" id="fst-timer-bars"></div>
-<p class="small mute" id="fst-timer-note"></p>
+<div class="figt">Step one: split the baseline step into phases (each followed by a synchronize)</div>
+<div class="seg" id="fst-ph-seg"></div>
+<div class="bars" id="fst-ph-bars"></div>
+<details class="src"><summary>Measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute" id="fst-ph-note"></p></div></details>
 </div>
-<p><code>torch.utils.benchmark.Timer</code> does the bookkeeping: it warms up, chooses how many runs fit in a time budget, sets the thread count, and reports the median and interquartile range (IQR, the spread of the middle half of the runs). At 2.14.1 its default clock calls <code>torch.accelerator.synchronize()</code> before every reading whenever an accelerator is present, CUDA or MPS alike (<code>torch/utils/benchmark/utils/timer.py</code> L15 to 18). This page's scripts also synchronised inside the timed statement, which is redundant but harmless:</p>
-<div class="code">import torch.utils.benchmark as tb
-def call():
-    a @ b; torch.mps.synchronize()            <span class="c"># redundant at 2.14.1: Timer's clock synchronises the accelerator</span>
-m = tb.Timer(stmt="call()", globals={"call": call}).blocked_autorange(min_run_time=1.0)
-print(m.median, m.iqr, len(m.times))</div>
-<p><b>Whole training steps</b> are timed the simple way: warm up, synchronise, start the clock, run N steps, synchronise, stop, divide; repeat the whole thing three times and take the median. Every timed result on this page was taken that way or with <code>Timer</code>, while holding a lock so that no other job of this knowledge base ran at the same time, with the load average recorded next to it.</p>
-<div class="co"><div class="t">What carries over to NVIDIA GPUs, and what does not</div>The <i>method</i> carries over exactly, and so do byte counts, op counts, which ops exist and which fixes apply. The <i>times</i> do not: an M1 Pro's CPU and GPU have their own balance of compute, memory bandwidth and launch cost, so a fix that wins 20% here can win 2% or 2 times on an H100. This page says, for each result, which way it is likely to move on a data-centre GPU and why; the honest-timing details for CUDA (CUDA events, <code>cudaDeviceSynchronize</code>, Nsight) are on {{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}}.</div>
-</section>
-<section id="fst-s2">
-<h2>2. torch.profiler from zero</h2>
-<p><b>The problem.</b> A step time says how slow; it does not say where. <dfn>torch.profiler</dfn> records every operator PyTorch runs (with start and end time, thread, input shapes if asked, the Python stack if asked, memory allocated if asked) and, on CUDA, every GPU kernel and memory copy. Its output is a <dfn>trace</dfn>: a timeline you can open in a viewer.</p>
-<div class="code">from torch.profiler import profile, schedule, record_function, ProfilerActivity
-
-with profile(activities=[ProfilerActivity.CPU],          <span class="c"># add ProfilerActivity.CUDA on NVIDIA GPUs</span>
-             schedule=schedule(wait=4, warmup=2, active=2), <span class="c"># skip 4 steps, warm the profiler 2, record 2</span>
-             record_shapes=True,                          <span class="c"># input shapes per op (for "which matmul?")</span>
-             on_trace_ready=lambda p: p.export_chrome_trace("trace.json")) as prof:
-    for step in range(8):
-        with record_function("data"):      x, y = next(it)
-        with record_function("forward"):   _, loss = model(x, y)
-        with record_function("backward"):  loss.backward()
-        with record_function("optimizer"): opt.step(); opt.zero_grad(set_to_none=True)
-        prof.step()                                       <span class="c"># tells the schedule a step ended</span>
-print(prof.key_averages().table(sort_by="self_cpu_time_total", row_limit=10))</div>
-<ul class="tight">
-<li><b><code>schedule(wait, warmup, active, repeat)</code></b>: profiling every step of a long run would be slow and huge. The schedule skips <i>wait</i> steps, runs the profiler without keeping results for <i>warmup</i> steps (its own start-up cost lands there), then records <i>active</i> steps; <i>repeat</i> cycles it. <code>prof.step()</code> at the end of each step drives it. Signature at 2.14.1: <code>schedule(*, wait, warmup, active, repeat=0, skip_first=0, skip_first_wait=0)</code> <span class="meas">read from the installed wheel</span>.</li>
-<li><b><code>record_function("name")</code></b>: a labelled range in the trace. Cheap; leave a few in your training loop for good.</li>
-<li><b><code>key_averages()</code></b>: the same events summed by name. <i>Total</i> time includes children (<code>aten::linear</code> includes its <code>aten::addmm</code>); <i>self</i> time excludes them. Sort by self time to find the ops doing the work.</li>
-<li><b><code>with_stack=True</code></b> links each op to the Python line that called it (larger traces); <code>profile_memory=True</code> records allocations (section 7). On CUDA with compiled code, <code>TORCHINDUCTOR_UNIQUE_KERNEL_NAMES=1</code> gives generated kernels readable names.</li>
-<li><b>Viewers</b>: {{Perfetto|https://ui.perfetto.dev/}} or <code>chrome://tracing</code> open the exported JSON; <code>tensorboard_trace_handler(dir)</code> writes files for TensorBoard; for many ranks at once, {{Holistic Trace Analysis|https://github.com/facebookresearch/HolisticTraceAnalysis}} summarises idle time, communication overlap and stragglers across ranks.</li>
-</ul>
-<p><b>What to look for in a trace.</b> On a GPU, the device lane should be busy end to end. Gaps on it mean the GPU waited for something: the data loader (gaps before forward), the CPU launching many tiny kernels (launch-bound: fix with fusion, <code>torch.compile</code>, CUDA graphs, fused optimizers), or a synchronisation such as <code>.item()</code>, <code>.cpu()</code> or <code>print(loss)</code> (a device-to-host copy). In multi-GPU traces, communication kernels that do not overlap compute. On a CPU, the bars <i>are</i> the work, so look for the widest ones.</p>
-<p>The {{Profiler trace|#t-trace}} tab shows two traces recorded this way, before and after the hunt in section 3.</p>
+<div class="pr" id="fst-pr-hunt">
+<div class="q">Predict before reading on: on the Apple GPU (MPS), which change will speed this step up the most?</div>
+<div class="opts"><button data-a="0">DataLoader workers</button><button data-a="1">Fused AdamW</button><button data-a="2">bfloat16 autocast</button><button data-a="3">torch.compile</button></div>
+<div class="ans" hidden></div>
+</div>
+<div class="rd-card" id="fst-huntcard">
+<div class="figt">Step two: apply one fix at a time, keep it only if it beats the spread (median step time; step through the fixes)</div>
+<div class="seg" id="fst-hunt-seg"></div>
+<div class="bars" id="fst-hunt-bars"></div>
+<div class="an-cap" id="fst-hunt-cap"></div>
+<div class="an-ctl" id="fst-hunt-ctl"></div>
+<details class="src"><summary>Measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute" id="fst-hunt-note"></p></div></details>
+</div>
+<p>On MPS the step went from 162 ms to 134 ms (1.21 times faster; final configuration: torch.compile and everything before it except bfloat16); on the CPU from 429 ms to 362 ms (1.19 times; final: SDPA and the fixes before it). On MPS the biggest gain was the least glamorous: DataLoader workers (15.9 ms), then torch.compile (9.3 ms), then the fused optimizer (7.3 ms). On the CPU the attention kernel mattered (32.7 ms) and compile did not (372 ms against 374 ms). bfloat16 autocast lost on both: 208 ms against 143 ms on MPS, 43.7 seconds per step on the CPU (2 runs of 3 steps) against 374 ms (section 6). On an NVIDIA GPU the ranking would likely change; the method would not.</p>
+<div class="rd-card" id="fst-trcard">
+<div class="figt">The same step traced before and after the hunt, on one clock: the long .item() bar is the GPU's backlog surfacing on the CPU</div>
+<div class="seg" id="tr-dev"></div>
+<div class="tr-wrap"><div class="tr-svg" id="tr-svg"></div></div>
+<div class="leg" id="tr-leg"></div>
+<div class="zoomrow"><label>Zoom <select id="tr-zoom"><option value="1">whole step</option><option value="4">4&times;</option><option value="16">16&times;</option><option value="64">64&times;</option></select></label><label style="flex:1 1 200px;display:flex;gap:6px;align-items:center">Pan <input type="range" id="tr-pan" min="0" max="1000" value="0" aria-label="Pan"></label></div>
+<div class="tr-info" id="tr-info">Click a bar for its name and duration.</div>
+<div class="an-cap" id="tr-cap"></div>
+<div class="an-cnt" id="tr-cnt"></div>
+<div class="an-ctl" id="tr-ctl"></div>
+<p class="small mute">Two real <code>torch.profiler</code> traces: as first written, and with the fixes the hunt kept. Lanes are threads. Top row: the <code>record_function</code> ranges; below, the ATen ops they called, nested; a second lane is autograd's device thread running backward.</p><details class="src"><summary>Measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute" id="tr-note"></p></div></details>
+</div>
+<p><b>The wait moves; it does not vanish.</b> On MPS the CPU only enqueues work, so the GPU's timeline is not in this trace (on CUDA <code>ProfilerActivity.CUDA</code> adds it; on MPS it goes to Instruments via <code>torch.mps.profiler.profile()</code>). "Before", the CPU waits 117.6 ms in <code>.item()</code> (<code>aten::_local_scalar_dense</code>, 72.4% of the traced step): every queued kernel finishing. "After", the CPU runs ahead until the next thing that needs the GPU, copying the next batch (<code>aten::copy_</code>, 123.7 ms). The step is GPU-bound either way; what shrank is the GPU work and the serial loading in front of it.</p>
+<details class="dp"><summary>Where the time went: ATen ops by self time, before and after <span class="mute">(table)</span></summary><div class="b">
+<div class="seg" id="tr-which"></div>
+<div class="tw nomin" id="tr-top"></div>
+</div></details>
+<p><b>How close to the hardware's limit?</b> <dfn>Model FLOPs utilisation</dfn> (MFU) = model FLOPs per step / step time / peak. One step needs 6 &times; 25,373,184 parameters &times; 2,048 tokens = 311.8 GFLOP plus 12 &times; L &times; T &times; d per token for attention (12 &times; 8 &times; 256 &times; 512 &times; 2,048 = 25.8 GFLOP): 337.6 GFLOP <span class="der">derived</span>. With this GPU's measured float32 matmul rate as the peak (4,087.5 GFLOP/s, section 6; Apple publishes none), MFU = 337.6 / 0.162 / 4,087.5 = <b>51%</b> as first written and <b>62%</b> after the hunt; on the CPU (1,854.3 GFLOP/s) 42% and 50% <span class="der">derived, src/derive_mfu.py</span>. The fixes removed overhead around the matmuls; what remains is matmuls. Peaks of real GPUs and MFU of published runs: {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}.</p>
+<div class="co key"><div class="t">The method, which is the point</div><ol class="tight">
+<li>Time the whole step honestly, then split it: phases with a synchronize, and a trace.</li>
+<li>Fix the biggest piece with the cheapest change that targets it.</li>
+<li>Measure again with the spread; keep the change only if it beats the noise, even if "everyone uses it".</li>
+<li>Check the loss is unchanged on the same batches (it was, to the printed digits, for every float32 stage here).</li>
+<li>Repeat until what remains is matmuls on a busy device, which MFU measures.</li>
+</ol></div>
 </section>

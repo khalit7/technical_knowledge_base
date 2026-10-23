@@ -43,7 +43,10 @@ def build():
     data = {"mem": mem(), "attn": attn(), "flex": load("flex_lab.json"), "ao": load("torchao_lab.json"),
             "probe": {k: v for k, v in (load("probe_api.json") or {}).items() if k in ("torch", "SDPBackend", "mem_categories", "ckpt_policy", "torchao")}}
     for n in ("hunt_time_mps", "hunt_time_cpu", "hunt_phases_mps", "hunt_phases_cpu", "hunt_trace", "budget", "saved_formula",
-              "time_optim", "time_attn", "time_flex", "time_ckpt", "time_lce", "time_amp", "time_ao", "time_data", "time_timer", "varlen"):
+              "time_optim", "time_attn", "time_flex", "time_ckpt", "time_lce", "time_amp", "time_ao", "time_data", "time_timer", "varlen",
+              # absorbed 2026-10-23 from the sibling Tensors, the dispatcher and autograd (its exp/module_loop.py and
+              # exp/dataloader.py at torch 2.14.1, copied verbatim; quotes from its inputs/sources.json)
+              "loop_module", "loop_dataloader", "loop_sources"):
         data[n] = load(n + ".json")
     if data["ao"]:
         f8 = data["ao"].get("float8_emulated_small", {})

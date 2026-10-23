@@ -1,4 +1,4 @@
-// ---- Profiler trace tab: two real traces (before and after the hunt), same clock, animated playhead ----
+// ---- Reading section 3, the trace card (moved from the old Profiler trace tab on 2026-10-23): two real traces (before and after the hunt), same clock, animated playhead ----
 (function(){
   const D=window.FST,U=window.FU,$=U.$,esc=RD.esc;
   const TR=D.hunt_trace&&D.hunt_trace.traces;if(!TR)return;
@@ -53,15 +53,13 @@
   $('tr-svg').addEventListener('click',e=>{const r=e.target.closest('rect[data-i]');if(!r)return;const [b,a]=pair(dev);const tr=+r.dataset.p?a:b;const ev=tr.events[+r.dataset.i];
     $('tr-info').innerHTML='<b>'+esc(tr.names[ev[3]])+'</b> ('+(+r.dataset.p?'after':'before')+', '+(ev[0]?'second thread':'main thread')+', depth '+ev[4]+'): starts at '+(ev[1]/1e3).toFixed(2)+' ms, lasts '+(ev[2]/1e3).toFixed(3)+' ms.'});
   $('tr-leg').innerHTML=[['data','var(--c5)'],['forward','var(--c1)'],['backward','var(--c4)'],['optimizer','var(--c3)'],['.item() wait','var(--c2)'],['ops, main thread','var(--acc)']].map(c=>'<span style="--sw:'+c[1]+'">'+c[0]+'</span>').join('');
-  A=RD.anim({card:'tr-anim-card',ctl:'tr-ctl',n:N,ms:180,draw,label:'Clock'});
-  (window.TAB_RENDER['t-trace']=window.TAB_RENDER['t-trace']||[]).push(()=>{A.redraw();table(which)});
+  A=RD.anim({card:'fst-trcard',ctl:'tr-ctl',n:N,ms:180,draw,label:'Clock'});
+  RD.onRender(()=>{A.redraw();table(which)});
   U.seg($('tr-dev'),[['mps','MPS (Apple GPU)'],['cpu','CPU, 4 threads']],d=>{dev=d;if(A){A.reset(N)}table(which);note()},'mps');
   U.seg($('tr-which'),[['b','Before'],['a','After']],w=>{which=w;table(w)},'b');
   $('tr-zoom').addEventListener('change',e=>{zoom=+e.target.value;A.redraw()});
   $('tr-pan').addEventListener('input',e=>{pan=+e.target.value/1000;A.redraw()});
-  addEventListener('resize',()=>{const t=$('t-trace');if(t&&!t.hidden)A.redraw()});
-  (function(){const a=TR['mps:s6'];if(!a)return;const c=a.top_self.find(r=>r[0]==='aten::copy_');const b=TR['mps:s0'];const it=b.top_self.find(r=>r[0]==='aten::_local_scalar_dense');
-    if(c&&it)$('tr-moved').innerHTML='<b>The wait moves; it does not vanish.</b> In the MPS "before" trace the CPU waits '+(it[1]/1e3).toFixed(1)+' ms in <code>.item()</code>. In the "after" trace the loss is no longer read every step, so the CPU runs ahead until the next thing that needs the GPU: copying the next batch to the device (<code>aten::copy_</code> inside the <code>data</code> range, '+(c[1]/1e3).toFixed(1)+' ms). The step is GPU-bound either way; what shrank is the GPU work itself (compiled kernels, fused AdamW) and the serial data loading in front of it.'})();
+  RD.onResize(()=>A.redraw());
   function note(){const [b,a]=pair(dev);
-    $('tr-note').innerHTML='<span class="meas">measured on Apple M1 Pro</span>, PyTorch 2.14.1, '+(dev==='cpu'?'CPU, 4 threads':'MPS')+'. <code>torch.profiler.profile(activities=[CPU], schedule=schedule(wait=4, warmup=2, active=2), record_shapes=True)</code>, the last active step of each run, exported with <code>export_chrome_trace</code> and compacted (src/exp/compact_trace.py): bars shorter than '+D.hunt_trace.min_us+' &micro;s are not drawn ('+U.comma(b.dropped_short)+' of '+U.comma(b.total_events)+' events before, '+U.comma(a.dropped_short)+' of '+U.comma(a.total_events)+' after) but count in the table. The profiler adds overhead per event, so traced steps run longer than the timed ones in the Reading tab; compare shapes, not absolute times. Recorded under the bench lock, in the same sessions as the hunt\'s timings (load averages there).'}
+    $('tr-note').innerHTML='<span class="meas">measured on Apple M1 Pro</span>, PyTorch 2.14.1, '+(dev==='cpu'?'CPU, 4 threads':'MPS')+': <code>torch.profiler.profile(activities=[CPU], schedule=schedule(wait=4, warmup=2, active=2), record_shapes=True)</code>, the last active step of each run, exported with <code>export_chrome_trace</code> and compacted (src/exp/compact_trace.py): bars shorter than '+D.hunt_trace.min_us+' &micro;s are not drawn ('+U.comma(b.dropped_short)+' of '+U.comma(b.total_events)+' events before, '+U.comma(a.dropped_short)+' of '+U.comma(a.total_events)+' after) but count in the table. The profiler adds overhead per event, so traced steps run longer than the timed ones above; compare shapes, not absolute times. Recorded under the bench lock, in the same sessions as the hunt\'s timings (load averages there).'}
 })();

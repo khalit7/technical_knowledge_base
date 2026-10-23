@@ -28,3 +28,20 @@ The question the page keeps returning to: **where does this step's time and memo
 ## What the methodology lacked for this page
 
 A rule for **negative results**: two "standard" fixes (bfloat16, torch.compile) slowed this machine down. The page keeps them, marks them reverted, and explains which way they would move on NVIDIA hardware, rather than dropping them or presenting laptop results as general.
+
+## 2026-10-23 rebuild (teaching contract)
+
+Placement changed, not the data: every visual now sits beside the claim it proves.
+
+| Visual | Was | Now | Kind (contract) |
+|---|---|---|---|
+| Hero: one step's time by phase (MPS) and memory at the peak by category, each lever bracketed under the part it shrinks | (new) | Reading top | static annotated diagram (structure of the problem) |
+| Two real traces on one clock | Profiler trace tab | Reading section 3 | before/after on the same input |
+| BlockMask sweep, dense SDPA against FlexAttention | Attention lab tab | Reading section 11 | before/after on the same input |
+| float16's range against the step-0 gradients, unscaled and scaled by 65,536 (counts: 1,636 and 436,592 against 58 and 1,031) | a predict-reveal on the sibling Tensors page | Reading section 6 | before/after (toggle) |
+| Tied weight: two names, one Parameter, 52 against 53 | a table on the sibling | Reading section 7 | static annotated diagram |
+| The loop, line by line, a caption per line with the measured value | a bullet list on the sibling | Reading section 7 | stepper (no tweening) |
+| Compile activation-memory budget bars (1.0 to 0.0) | a sentence | Reading section 9 | bars over a parameter |
+| Memory budget calculator | tab | tab (kept: serves sections 8 to 10) | calculator |
+
+Rejected on 2026-10-23: a separate MFU chart (two numbers per device; a sentence with the formula says it completely); a CUDA-graphs visual (owned and drawn by Streams, CUDA graphs and multi-GPU; nothing runs here).

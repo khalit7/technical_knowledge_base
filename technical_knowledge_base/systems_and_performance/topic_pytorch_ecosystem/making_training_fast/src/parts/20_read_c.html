@@ -1,0 +1,57 @@
+<section id="fst-s4">
+<h2>4. Data loading: keep the next batch ready</h2>
+<p>With <code>DataLoader(num_workers=0)</code> (the default) the main process reads, decodes and collates every sample itself, between steps, so loading time adds straight onto step time. <code>num_workers=n</code> starts n worker processes that build whole batches in the background; <code>prefetch_factor</code> (default 2 when workers are used) is how many batches each keeps ready; <code>persistent_workers=True</code> keeps them alive between epochs instead of paying their start-up each epoch.</p>
+<div class="rd-card">
+<div class="figt">One worker hides the loading: a loop that needs 20 ms per step, fed by batches that cost 16 ms to build</div>
+<div class="bars" id="fst-data-bars"></div>
+<details class="src"><summary>Measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute" id="fst-data-note"></p></div></details>
+</div>
+<p>Without workers, every step waited 16.1 ms for its batch (8 samples &times; 2 ms) and took 44.5 ms. One worker builds the next batch while the step runs, and the wait fell to 0.22 ms; with two the step took 27.6 ms, within a millisecond or two of the loop with free data (27.1 ms). More workers or a deeper prefetch changed nothing here, because one worker already kept up; they help when loading is slower than the step, or uneven.</p>
+<p><b>When it matters</b>: decoding images or audio, tokenising on the fly, network storage, heavy augmentation; pre-tokenised data in memory-mapped arrays (as LLM pre-training usually uses) barely needs workers. <b>Check</b>: the <code>data</code> range in a trace (or gaps on the GPU before forward), or time <code>next(iter(loader))</code> alone. On CUDA add <code>pin_memory=True</code> (page-locked host memory) so <code>x.to("cuda", non_blocking=True)</code> copies asynchronously.</p>
+<details class="dp"><summary>Workers, seeds and pin_memory, measured <span class="mute">(absorbed from Tensors, the dispatcher and autograd)</span></summary><div class="b">
+<p>Workers are separate processes: each holds its own copy of the Dataset, so keep it small; on macOS and Windows they start with <code>spawn</code>, so the Dataset must be importable and picklable. On an Apple chip CPU and GPU share one memory, so <code>pin_memory</code> was not measured here (signature at 2.14.1 includes <code>pin_memory_device</code> and <code>in_order</code>, <span class="meas">read from the installed wheel</span>).</p>
+<div id="fst-dl"></div>
+<p class="small">In short: workers on macOS start with <code>spawn</code>; each worker seeds torch, <code>random</code> and NumPy; in the main process <code>torch.manual_seed</code> does not seed Python's <code>random</code> or NumPy. <code>pin_memory=True</code> on MPS warned "'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used." Defaults worth knowing at 2.14.1: <code>prefetch_factor</code> 2 batches per worker when <code>num_workers &gt; 0</code> (dataloader.py L293), workers restarted every epoch unless <code>persistent_workers=True</code>.</p>
+</div></details>
+</section>
+<section id="fst-s5">
+<h2>5. The optimizer step: one kernel or hundreds</h2>
+<p>AdamW's update is a few element-wise ops per parameter tensor. The <dfn>for-loop</dfn> implementation calls them for each tensor in turn (100 tensors in the larger variant, 52 in the small one), each call with Python and dispatcher overhead and, on a GPU, a launch. <dfn>foreach</dfn> uses <code>torch._foreach_*</code> operators that take a whole list of tensors per call; <dfn>fused</dfn> does the whole update for all parameters in one kernel per device and dtype group (<code>torch.optim.AdamW(..., foreach=True)</code> or <code>fused=True</code>). At 2.14.1 the default is foreach on CUDA-like devices and the for-loop on CPU and MPS; fused is never the default though it runs on CPU, MPS and CUDA (<code>torch/utils/_foreach_utils.py</code> L8 to 23, per the root's {{Inside one step|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} measurements).</p>
+<div class="rd-card">
+<div class="figt">Fused AdamW is three times faster than the default; foreach barely helps (<code>opt.step()</code> alone)</div>
+<div class="seg" id="fst-opt-seg"></div>
+<div class="bars" id="fst-opt-bars"></div>
+<details class="src"><summary>Measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute" id="fst-opt-note"></p></div></details>
+</div>
+<p>Larger variant: fused 9.17 ms against 28.5 ms for the for-loop on the CPU (3.1 times), 7.67 ms against 25.0 ms on MPS (3.3 times); foreach within a few percent of the for-loop (26.7 and 24.5 ms), because each foreach op still makes a full pass over every tensor, while fused makes one pass for the whole update. It matters most with many small tensors, or a fast device where launches dominate. On CUDA foreach is already the default; fused is the switch to try (it needs every parameter on a supported device and dtype). What AdamW computes: {{Optimisers|n:3c65c17b0d0d817080bbc90954681d09}}.</p>
+</section>
+<section id="fst-s6">
+<h2>6. Mixed precision in practice: autocast and the GradScaler</h2>
+<p>bfloat16 and float16 use 2 bytes per number against float32's 4: half the memory traffic and, on GPUs with tensor cores, much faster matmuls. <dfn>Automatic mixed precision</dfn> (AMP): inside <code>torch.autocast(device_type, dtype=torch.bfloat16)</code>, ops on autocast's lists (matmuls, linear layers, attention) run in 16 bits, precision-sensitive ops (softmax, normalisation, losses) stay in float32, and the parameters stay float32. On the CPU the running example's step under bfloat16 autocast produced bfloat16 logits, a float32 loss and float32 gradients on float32 parameters <span class="meas">measured</span>: autocast changes the compute, not the weights or the optimizer. The formats themselves belong to {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}.</p>
+<p><b>bfloat16</b> keeps float32's 8 exponent bits: no overflow or underflow beyond float32's, so no loss scaling; the usual choice on recent GPUs. <b>float16</b> has 5 exponent bits: below 2<sup>&minus;14</sup> it loses precision and below 2<sup>&minus;24</sup> it cannot represent a value at all, so small gradients vanish. <code>torch.amp.GradScaler</code> multiplies the loss by a scale (default 2<sup>16</sup> = 65,536) before backward, so every gradient is 65,536 times larger while in float16, then divides it out before the step; if any gradient overflowed to inf or NaN it skips the step and halves the scale, and every 2,000 clean steps it doubles it (defaults <code>init_scale=2.0**16, growth_factor=2.0, backoff_factor=0.5, growth_interval=2000</code>, {{grad_scaler.py L126 to 129 at v2.14.1|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/amp/grad_scaler.py#L126-L129}}).</p>
+<div class="pr" data-pr id="fst-pr-fp16">
+<div class="q">Predict: of the running example's 3,186,944 gradient values at step 0, how many would be flushed to zero if stored in float16 without a scaler?</div>
+<div class="opts"><button data-a="0">None: the gradients are not that small</button><button data-a="1">About 1,600</button><button data-a="2">About 400,000</button></div>
+<div class="ans" hidden></div>
+</div>
+<div class="rd-card" id="fst-fp16card">
+<div class="figt">The scaler slides the gradients into float16's range: the same step-0 gradients, unscaled and multiplied by 65,536</div>
+<div class="seg" id="fst-fp16-seg"></div>
+<div class="rd-svg" id="fst-fp16-svg"></div>
+<div class="an-cnt" id="fst-fp16-cnt"></div>
+<p class="small mute"><span class="meas">measured</span> on the running example's step-0 float32 gradients (CPU; recorded by the sibling {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}): 1,636 below 2<sup>&minus;24</sup> would flush, 436,592 below 2<sup>&minus;14</sup> lose precision; scaled, 58 and 1,031, and the largest becomes 33,812, under float16's 65,504. Axis in powers of two; the bar spans the nonzero magnitudes.</p>
+</div>
+<div class="code">scaler = torch.amp.GradScaler("cuda")          <span class="c"># only for float16</span>
+with torch.autocast("cuda", dtype=torch.float16):
+    _, loss = model(x, y)
+scaler.scale(loss).backward(); scaler.step(opt); scaler.update(); opt.zero_grad(set_to_none=True)</div>
+<p>Four steps of the running example with float16 autocast on the CPU: losses 3.80133, 3.18798, 3.16783, 2.9406, scale 65,536 throughout (no overflow, and far from 2,000 steps) <span class="meas">measured</span>. With clipping, the order matters: section 7.</p>
+<div class="rd-card">
+<div class="figt">On this machine bfloat16 made everything slower: time relative to float32 for the same work</div>
+<div class="seg" id="fst-amp-seg"></div>
+<div class="bars" id="fst-amp-bars"></div>
+<details class="src"><summary>Measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute" id="fst-amp-note"></p></div></details>
+</div>
+<p>A 2,048-square matmul ran at 1,854.3 GFLOP/s in float32 on the CPU and 2.1 in bfloat16; on MPS 4,087.5 against 2,180.1 (float16: 4,276.9). The larger variant's training step with autocast(bfloat16): 44.0 s against 393 ms on the CPU, 216 ms against 149 ms on MPS. Bars are capped at 3 times.</p>
+<div class="co warn"><div class="t">This is the result that does not transfer</div>NVIDIA GPUs since the A100 have bfloat16 tensor cores, where AMP is close to free speed. This M1 Pro's CPU has no bfloat16 instructions (<code>sysctl hw.optional.arm.FEAT_BF16</code> = 0, <code>FEAT_FP16</code> = 1) <span class="meas">read on this machine</span>, so bfloat16 is converted and pays for it; the MPS slowdown points the same way (not checked against Apple documentation). What transfers: check native support for the dtype before expecting a speedup, and measure.</div>
+</section>
