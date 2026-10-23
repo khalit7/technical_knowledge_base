@@ -8,7 +8,7 @@ window.CHIPX=(function(){
   // TFLOPS in, readable unit out
   const fF=t=>t==null?'':t>=1e6?sig(t/1e6)+' EFLOPS':t>=1e3?sig(t/1e3)+' PFLOPS':sig(t)+' TFLOPS';
   const fGB=g=>g==null?'':g>=1e3?sig(g/1e3)+' TB':sig(g)+' GB';
-  const fBW=t=>t==null?'':t>=1e3?sig(t/1e3)+' PB/s':t<1?sig(t*1e3)+' GB/s':sig(t)+' TB/s';
+  const fBW=t=>t==null||isNaN(t)?'not published':t>=1e3?sig(t/1e3)+' PB/s':t<1?sig(t*1e3)+' GB/s':sig(t)+' TB/s';
   const FN={bf16:'BF16',fp8:'FP8',fp4:'FP4',fp6:'FP6',tf32:'TF32',fp32:'FP32',int8:'INT8',fp16:'FP16'};
   // the lowest-precision dense rate the chip publishes
   function low(c){const p=c.peaks;for(const f of ['fp4','fp6','fp8','bf16','fp32'])if(p[f]!=null)return [p[f],f];return [null,null]}
@@ -19,8 +19,8 @@ window.CHIPX=(function(){
   function srcA(k,txt){if(!k||!S[k])return txt?esc(txt):'';const s=S[k];
     if(s.u.charAt(0)==='#')return '<a href="#" data-tab="'+s.u.slice(1)+'">'+esc(txt||s.t)+'</a>';
     return '<a href="'+esc(s.u)+'" target="_blank" rel="noopener noreferrer">'+esc(txt||s.t)+'</a>'}
-  const VC={NVIDIA:'var(--c3)',AMD:'var(--c2)',Google:'var(--c1)',AWS:'var(--c5)',Cerebras:'var(--c4)',Groq:'var(--c6)',Apple:'var(--mute)'};
-  const inGroup=(c,g)=>g==='all'||(g==='nvdc'&&c.vendor==='NVIDIA'&&c.kind==='dc')||(g==='desk'&&(c.kind==='consumer'||c.kind==='laptop'))||(g==='amd'&&c.vendor==='AMD')||(g==='tpu'&&c.kind==='tpu')||(g==='other'&&['AWS','Cerebras','Groq'].indexOf(c.vendor)>=0);
+  const VC={NVIDIA:'var(--c3)',AMD:'var(--c2)',Google:'var(--c1)',AWS:'var(--c5)',Cerebras:'var(--c4)',Groq:'var(--c6)',Intel:'var(--acc)',SambaNova:'var(--closed)',Apple:'var(--mute)'};
+  const inGroup=(c,g)=>g==='all'||(g==='nvdc'&&c.vendor==='NVIDIA'&&c.kind==='dc')||(g==='desk'&&(c.kind==='consumer'||c.kind==='laptop'))||(g==='amd'&&c.vendor==='AMD')||(g==='tpu'&&c.kind==='tpu')||(g==='other'&&['AWS','Cerebras','Groq','Intel','SambaNova'].indexOf(c.vendor)>=0);
   const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(880,(document.documentElement.clientWidth||900)-50))};
   // step-animation controller: play, pause, step, scrub, speed; only runs on screen in the visible tab; paused under reduced motion
   function anim(o){
@@ -40,7 +40,7 @@ window.CHIPX=(function(){
     $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.3}).observe(card)}else st.vis=true;
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.3}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -74,7 +74,7 @@ window.CHIPX=(function(){
     {k:'cmp',t:'Compare',nosort:1}];
   function sortVal(c,k){const n=X.scaleN(c,st.sc);
     if(k==='name')return c.short;if(k==='rel')return c.rel||'9999';if(k==='peak'){const p=X.peak(c,st.fmt);return p==null?-1:p*n}
-    if(k==='mem')return c.mem*n;if(k==='bw')return c.bw*n;if(k==='ridge'){const r=X.ridge(c,st.fmt);return r==null?-1:r}
+    if(k==='mem')return c.mem*n;if(k==='bw')return c.bw==null?-1:c.bw*n;if(k==='ridge'){const r=X.ridge(c,st.fmt);return r==null?-1:r}
     if(k==='link')return c.link==null?-1:c.link;if(k==='tdp')return c.tdp==null?-1:c.tdp*n;return 0}
   function head(){const fl=st.fmt==='low'?'lowest format':FN[st.fmt];
     tab.tHead.innerHTML='<tr>'+COLS.map(o=>'<th class="'+(o.cls||'')+(o.num?' num':'')+(o.nosort?' nosort':'')+(st.sort===o.k?' on':'')+'" data-k="'+o.k+'">'+
@@ -88,7 +88,7 @@ window.CHIPX=(function(){
       '<td>'+(c.rel?c.rel.slice(0,7):'')+'</td>'+
       '<td class="num">'+(p==null?'<span class="mute">not published</span>':fF(p*n))+(st.fmt==='low'&&lw[1]?'<small>'+FN[lw[1]]+'</small>':'')+(spv!=null?'<small>sparse: '+fF(spv)+'</small>':'')+(st.fmt==='bf16'&&c.kind==='consumer'&&p!=null?'<small>FP32 accumulate</small>':'')+'</td>'+
       '<td class="num">'+fGB(c.mem*n)+(n>1?'<small>'+n+' x '+fGB(c.mem)+'</small>':'')+'</td>'+
-      '<td class="num">'+fBW(c.bw*n)+'</td>'+
+      '<td class="num">'+fBW(c.bw==null?null:c.bw*n)+'</td>'+
       '<td class="num">'+(r==null?'':sig(r))+'</td>'+
       '<td class="num">'+(c.link==null?'':c.link>=1000?sig(c.link/1000)+' TB/s':sig(c.link)+' GB/s')+'</td>'+
       '<td class="num">'+(c.tdp==null?'':(c.tdp*n>=1e4?sig(c.tdp*n/1e3)+' kW':sig(c.tdp*n)+' W'))+'</td>'+

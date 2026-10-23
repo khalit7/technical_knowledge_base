@@ -2,7 +2,7 @@
 import json, os
 from model import MODELS, CHIPS, RECIPES, FMT, lora_params, HERE
 rc = json.load(open(os.path.join(HERE, "recompute.json")))
-keep = ("name", "src", "L", "h", "nh", "nkv", "hd", "V", "P", "Pact", "Pexp", "E", "k", "moeL", "exp1", "kv_full", "kv_slide", "window", "kv_el", "dqk", "dv", "layer_params", "fmt", "fmt_note")
+keep = ("name", "src", "L", "h", "nh", "nkv", "hd", "V", "P", "Pact", "Pexp", "E", "k", "moeL", "exp1", "kv_full", "kv_slide", "window", "kv_el", "dqk", "dv", "fa", "layer_params", "fmt", "fmt_note")
 M = {k: {kk: m.get(kk, 0) for kk in keep} for k, m in MODELS.items()}
 for k in M: M[k]["lora"] = lora_params(MODELS[k])
 def fmt_of(c):

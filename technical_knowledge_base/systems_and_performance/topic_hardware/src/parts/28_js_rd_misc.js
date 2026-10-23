@@ -1,6 +1,10 @@
-// ---- Reading: ridge-point bars (section 5), peak per dollar-hour (section 9), predict-then-reveal questions ----
+// ---- Reading: full-memory reads per second (section 3, moved from the retired 25_js_rd_decode.js), ridge-point bars (section 5), peak per dollar-hour (section 9), predict-then-reveal questions ----
 (function(){
   if(!window.RDH)return;
+  // full-memory reads per second
+  const rr=document.getElementById('rd-reads');
+  if(rr){const mxr=Math.max(...RDH.reads.map(r=>r.per_s));
+    rr.innerHTML=RDH.reads.slice().sort((a,b)=>b.per_s-a.per_s).map(r=>'<div class="row'+(r.name.indexOf('H100')===0?' hl':'')+'"><span class="nm" title="'+r.name+'">'+r.name+'</span><span class="track"><span class="fill" style="width:'+(100*r.per_s/mxr).toFixed(1)+'%;background:'+(r.name.indexOf('M1')===0?'var(--c6)':'var(--c1)')+'"></span></span><span class="val">'+r.per_s.toFixed(1)+' /s</span></div>').join('')}
   const rb=document.getElementById('rd-ridge');
   if(rb){const mx=Math.max(...RDH.ridge.map(r=>r.ridge));
     rb.innerHTML=RDH.ridge.map(r=>'<div class="row"><span class="nm" title="'+r.name+', '+r.fmt+'">'+r.name+' <span class="mute">'+r.fmt+'</span></span><span class="track"><span class="fill" style="width:'+(100*r.ridge/mx).toFixed(1)+'%;background:'+(r.name.indexOf('M1')===0?'var(--c6)':r.fmt==='BF16'||r.fmt.indexOf('BF16')===0?'var(--c1)':'var(--c4)')+'"></span></span><span class="val">'+(r.ridge<100?r.ridge.toFixed(1):Number.isInteger(r.ridge*2)?r.ridge.toLocaleString('en-US'):Math.round(r.ridge).toLocaleString('en-US'))+'</span></div>').join('')}
