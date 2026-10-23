@@ -1,4 +1,4 @@
-// ---- Reading sections 5 to 7 and the llama-server lab tab: measured results (LO.srv, LO.ollama, LO.cpu, LO.q.mlx) ----
+// ---- Reading sections 5 to 7 : measured results, with every run in closed blocks (LO.srv, LO.ollama, LO.cpu, LO.q.mlx) ----
 (function(){
   if(!window.LO)return;
   const $=id=>document.getElementById(id),f=(v,d)=>v==null?'&ndash;':Number(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -35,5 +35,4 @@
   }
   texts();slots();
   RD.onRender(slots);RD.onResize(slots);
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-srv']=window.TAB_RENDER['t-srv']||[]).push(slots);
 })();

@@ -41,6 +41,6 @@
     C.innerHTML=RD.stat('bits per weight',i>=3?I.bpw:'16','F16 = 16')+RD.stat('bytes for these 32',i>=3?I.bytes:'64','F16: 64 bytes')+RD.stat('RMS error, this block',i>=4?fx(rms(F.slice(0,N),I.rec)):'&ndash;','relative to F16')+RD.stat('whole tensor, relative',i>=4?(B.types[fmt].rel*100).toFixed(1)+'%':'&ndash;','error RMS / weight RMS');
   }
   const A=RD.anim({card:'lo-qb',ctl:'lo-qb-ctl',n:5,draw,ms:1800,label:'Quantization step'});
-  RD.seg(document.getElementById('lo-qb-seg'),m=>{fmt=m;A.reset(5);A.play()});
+  RD.seg(document.getElementById('lo-qb-seg'),m=>{fmt=m;A.reset(5)});
   RD.onResize(()=>A.redraw());
 })();

@@ -1,59 +1,47 @@
-
 <section id="lo-s5">
-<h2>5. llama-server in depth</h2>
-<p><code>llama-server</code> is llama.cpp's HTTP server: one process, one model (or many in router mode), an OpenAI-compatible API (<code>/v1/chat/completions</code>, <code>/v1/completions</code>, embeddings, reranking), an Anthropic-compatible <code>/v1/messages</code> ({{PR #17570|https://github.com/ggml-org/llama.cpp/pull/17570}}, November 2025), its own <code>/completion</code>, and a web UI. Everything below was read in the source at build 11146 and run on this laptop with Qwen3-1.7B Q4_K_M. The {{C++ page|n:3cd5c17b0d0d81ceadcee44fe9c023a0}} (Part 3) walks the code itself; this section is about running it.</p>
-
-<h3>Slots: how one server serves several people</h3>
-<p>A <dfn>slot</dfn> is one conversation in progress: its tokens, its sampling settings and its share of the KV cache. <code>-np N</code> sets the number of slots; every step, all busy slots go through the model together (<dfn>continuous batching</dfn>, on by default: a slot joins or leaves the batch at any step, as in the parent's section 3). A request that finds every slot busy waits. The context <code>-c</code> is the total KV cache in tokens: with the default <dfn>split</dfn> KV each slot gets <code>-c / N</code>; with a <dfn>unified</dfn> KV (<code>-kvu</code>) all slots draw from one pool, so one long conversation can use most of it. Defaults at b11146: <code>-np</code> is "auto", which means 4 slots with a unified KV cache (<code>tools/server/server.cpp</code> L156 to L160); <code>-c 0</code> takes the model's trained context, and <code>--fit</code> (on) then shrinks unset settings until the model and cache fit the device with a 1,024 MiB margin (<code>common/fit.h</code>).</p>
-<p><b>Which slot a request gets</b> (<code>get_available_slot</code>, <code>server-context.cpp</code> L1547 to L1655): among idle slots, the one whose cached tokens share the longest common prefix with the new prompt, if that prefix is more than 10% of the prompt (<code>--slot-prompt-similarity</code>, default 0.1); otherwise the least recently used idle slot. So a returning conversation lands back on the slot that still holds its history and skips most of its prefill. When a slot is about to be overwritten, its cache is first saved to a host-memory <dfn>prompt cache</dfn> (<code>--cache-ram</code>, 8,192 MiB by default) so it can be restored later; the {{batching sibling|n:3c65c17b0d0d819db53bd2c48909e5b2}} measured that tier (113 to 421 ms to restore a 5,010-token prompt against 5.63 s to recompute it).</p>
-<p class="small"><span class="meas">Measured here</span>: <span data-lo="uniSummary"></span></p>
-<div class="lo-card" id="lo-slots"><h4>Measured: 8 users, 1 to 8 slots</h4>
-<p class="small">Eight users in a closed loop (each sends its next request when the previous answer finishes), 400-word prompts, 128-token answers, 32 requests, two seeds; <code>-c 16384</code> split across the slots. <span class="meas">Measured here</span>.</p>
-<div class="lo-svg" id="lo-slots-svg"></div><div class="small mute" id="lo-slots-note"></div></div>
-
-<h3>Two ways the cache is reused, and one way it is stretched</h3>
-<p><b>Prompt caching</b> (<code>cache_prompt</code>, on by default): a new request in a slot keeps the cached tokens it shares <b>as a prefix</b> with the slot's previous prompt and computes only the rest (L3216 to L3225). This is the same idea as vLLM's prefix cache, per slot. But the moment one early token differs (an edited message, a tool result inserted in the middle, a document removed) everything after it is recomputed, even text that is still there.</p>
-<p><b>Cache reuse</b> (<code>--cache-reuse N</code>, off by default) goes further: after the common prefix, it scans the old cache for runs of at least N tokens that match the new prompt and <b>moves</b> them to their new positions instead of recomputing them (L3226 to L3290). Moving is possible because llama.cpp can re-rotate cached keys to a new position (RoPE positions are a rotation, so shifting a key is one more rotation). It is <b>approximate</b>: the moved keys and values were computed while attending to the old preceding text, not the new one. The animation runs the same edit both ways.</p>
-<div class="lo-card" id="lo-cr">
-<h4>The same edited prompt, without and with --cache-reuse</h4>
-<div class="seg" id="lo-cr-seg"><button data-m="off" class="on">Prompt caching only</button><button data-m="on">With --cache-reuse 256</button></div>
-<div class="lo-svg" id="lo-cr-svg"></div>
-<div class="an-ctl" id="lo-cr-ctl"></div>
-<div class="an-cap" id="lo-cr-cap"></div>
-<div class="an-cnt" id="lo-cr-cnt"></div>
-<p class="small mute">Token counts and times are the measured run below: a system text, document A and document B, then the same request with document A removed. Bars drawn to scale in tokens.</p>
+<h2>5. The GGUF types measured: what each one costs</h2>
+<p>Each file was scored against the F16 file on the same 10,200 WikiText-2 tokens: perplexity, <b>KL divergence</b> (rank by this: it only grows as the model drifts) and how often the top token stays the same. <span class="meas">Measured here</span>, Qwen3-1.7B and Qwen3-4B:</p>
+<details class="dp"><summary>How quality was measured <span class="mute">(depth)</span></summary><div class="b">
+<p><b>How quality was measured.</b> Each file was compared with the F16 file on the same text: the first 40 windows of 512 tokens of WikiText-2's test split, the last 255 tokens of each window scored (10,200 tokens), with <code>llama-perplexity --kl-divergence</code>. Three numbers: <dfn>perplexity</dfn> (exp of the average negative log-probability of the true next token; lower is better), <dfn>KL divergence</dfn> against the F16 model's whole next-token distribution, and <dfn>same top token</dfn> (how often both pick the same most likely token, what greedy decoding sees). Rank by KLD: perplexity can improve by luck on one text, while KLD only grows as the model drifts from what was trained.</p>
+</div></details>
+<div class="lo-five">
+<div style="--sc:var(--c3)"><div class="k">8 bits</div><div class="v">indistinguishable</div><p>Q8_0: KLD <span data-lo="kldQ8"></span>, same top token <span data-lo="topQ8"></span>%, perplexity <span data-lo="pplQ8"></span> against <span data-lo="pplF16"></span>.</p></div>
+<div style="--sc:var(--c1)"><div class="k">5 to 6.5 bits</div><div class="v">small, measurable</div><p>Q6_K: KLD <span data-lo="kldQ6"></span>; Q5_K_M: <span data-lo="kldQ5"></span>. Eight to twenty times Q8_0's drift; perplexity up 0.1% and 1.3%.</p></div>
+<div style="--sc:var(--c5)"><div class="k">4 to 5 bits</div><div class="v">the usual choice</div><p>Q4_K_M: KLD <span data-lo="kldQ4km"></span> without an importance matrix, <span data-lo="kldQ4kmI"></span> with one. IQ4_XS with one: <span data-lo="kldIq4xsI"></span> at <span data-lo="bpwIq4xs"></span> bits.</p></div>
+<div style="--sc:var(--c2)"><div class="k">3 bits</div><div class="v">needs an imatrix</div><p>Q3_K_M: KLD <span data-lo="kldQ3"></span> without, <span data-lo="kldQ3I"></span> with an importance matrix.</p></div>
+<div style="--sc:var(--bad)"><div class="k">2 bits and below</div><div class="v">the cliff</div><p>Q2_K without an imatrix: KLD <span data-lo="kldQ2"></span>, perplexity <span data-lo="pplQ2"></span>; with one, <span data-lo="kldQ2I"></span>. IQ1_M: perplexity <span data-lo="pplIq1m"></span>.</p></div>
 </div>
-<div id="lo-cr-res"></div>
+<div class="lo-card lo-ql-wrap" id="lo-ql">
+<h4>Drift stays small down to about 4 bits, then climbs steeply; the importance matrix moves every file down</h4>
+<div class="seg" id="lo-ql-m"><button data-m="kld" class="on">Mean KLD (log)</button><button data-m="ppl">Perplexity</button><button data-m="top">Same top token</button><button data-m="p99">99th percentile KLD (log)</button></div>
+<div class="seg" id="lo-ql-x"><button data-m="bpw" class="on">x: bits per weight</button><button data-m="gb">x: GB of weights (compare models at equal memory)</button></div>
+<div class="seg" id="lo-ql-f"><button data-m="all" class="on">Both models</button><button data-m="m17">Qwen3-1.7B</button><button data-m="m4">Qwen3-4B</button><button data-m="mlx">1.7B: GGUF and MLX</button></div>
+<div class="leg" id="lo-ql-leg"></div>
+<div class="lo-svg" id="lo-ql-svg"></div>
+<div class="det" id="lo-ql-det">Tap or hover a point for its numbers.</div>
+<p class="small mute"><span class="meas">Measured here</span>, Qwen3-1.7B and Qwen3-4B, llama.cpp b11146, <span data-lo="qDate"></span>; bits per weight = tensor bytes &times; 8 / values stored. Predict before you switch the x axis to GB: at equal memory, does the bigger model at fewer bits win?</p>
+</div>
 
-<p><b>Context shift</b> (<code>--context-shift</code>, off by default at b11146) handles a conversation that outgrows its slot. Off: generation stops when the slot is full, and a prompt longer than the slot is refused ("exceeds the available context size", L3195 to L3215). On: when the slot fills, the server keeps the first <code>n_keep</code> tokens, discards half of the rest and shifts the remainder back (L2909 to L2970), so generation can go on forever while forgetting the middle. Useful for endless chat; wrong for anything that must see its whole input.</p>
-<div id="lo-cs-res"></div>
-
-<h3>The options that matter, with their b11146 defaults</h3>
-<div class="tw"><table class="lo-tbl tbl-sm">
-<thead><tr><th>Option</th><th>Default</th><th>What it trades</th></tr></thead>
-<tbody>
-<tr><td><code>-ngl</code> GPU layers</td><td>auto (all that fit)</td><td>Layers left on the CPU run at CPU bandwidth: partial offload lets a too-big model run, slowly (section 2). <code>--n-cpu-moe N</code> keeps only experts on the CPU.</td></tr>
-<tr><td><code>-c</code> context (total KV, tokens)</td><td>0 = the model's, then shrunk by <code>--fit</code></td><td>Memory against the longest conversation; divided by slots unless unified.</td></tr>
-<tr><td><code>-np</code> slots</td><td>auto = 4, unified KV</td><td>Concurrency against per-slot context and per-user speed (measured above).</td></tr>
-<tr><td><code>-b</code> / <code>-ub</code> batch sizes</td><td>2,048 / 512</td><td>Tokens per step (logical / physical): bigger reads prompts faster, but a long prompt then stalls the other slots' streams longer (the {{batching sibling|n:3c65c17b0d0d819db53bd2c48909e5b2}} measured 242 ms to 7.26 s gaps).</td></tr>
-<tr><td><code>-fa</code> flash attention</td><td>auto</td><td>Faster long contexts and required for a quantized V cache.</td></tr>
-<tr><td><code>-ctk</code> / <code>-ctv</code> KV cache type</td><td>f16</td><td>q8_0 halves the cache with no measured loss on Qwen3-1.7B (15.18 against 15.18 perplexity); q4_0 costs 15.18 to 19.42 ({{batching sibling|n:3c65c17b0d0d819db53bd2c48909e5b2}}).</td></tr>
-<tr><td><code>--cache-ram</code></td><td>8,192 MiB</td><td>Host memory for saved slot caches.</td></tr>
-<tr><td><code>--cache-reuse N</code></td><td>0 (off)</td><td>Faster edited prompts against exactness (above).</td></tr>
-<tr><td><code>--context-shift</code></td><td>off</td><td>Endless generation against forgetting the middle.</td></tr>
-<tr><td><code>-sm</code> split mode</td><td>layer</td><td>Several GPUs: layer (fit, no speed-up for one user), row, tensor (experimental; section 8).</td></tr>
-<tr><td><code>--metrics</code> / <code>--slots</code></td><td>off / on</td><td>Prometheus metrics at <code>/metrics</code>; per-slot state at <code>/slots</code>.</td></tr>
-<tr><td><code>--lora FILE</code> (repeatable)</td><td>none</td><td>Several fine-tunes on one base model, with a trap: slots are batched together only when their adapter sets are identical, and a request that names no adapter gets every loaded adapter at its load scale, not the bare base model. Measured with 8 users: one shared adapter 352 tokens/s, two different adapters 109 to 127, four to eight different 83 to 90 ({{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}, section 4).</td></tr>
-<tr><td><code>--models-dir</code>, <code>--models-max</code></td><td>off, 4</td><td>Router mode (below).</td></tr>
-</tbody></table></div>
-<p class="small mute">From <code>tools/server/README.md</code> and <code>common/arg.cpp</code> at b11146.</p>
-
-<h3>Reading its metrics</h3>
-<p>With <code>--metrics</code>, <code>/metrics</code> exports Prometheus counters and gauges named <code>llamacpp:*</code> (<code>server-task.cpp</code> L1596). The ones read from a live server here, after one request:</p>
-<div id="lo-met"></div>
-
-<h3>Router mode: several models behind one port</h3>
-<p>Started without <code>-m</code> and with <code>--models-dir</code>, llama-server becomes a <dfn>router</dfn>: it lists the GGUF files, starts one child llama-server per model on demand, forwards each request by its <code>"model"</code> field, and with <code>--models-max</code> reached, unloads the least recently used (router mode {{PR #17470|https://github.com/ggml-org/llama.cpp/pull/17470}}, December 2025; LRU scheduling {{PR #26572|https://github.com/ggml-org/llama.cpp/pull/26572}}, August 2026). It is what Ollama's model lifecycle does, inside llama.cpp. The price is the load time on every switch:</p>
-<div id="lo-rt-res"></div>
-<p class="small mute">The {{llama-server lab|#t-srv}} tab has every run of this section with its raw numbers.</p>
+<h3>What the ladder teaches</h3>
+<ol>
+<li><b>The importance matrix is the cheapest quality there is.</b> Same size, same speed: KLD fell by <span data-lo="imxQ4"></span>% at Q4_K_M, <span data-lo="imxQ3"></span>% at Q3_K_M and <span data-lo="imxQ2"></span>% at Q2_K. Prefer GGUFs made with one; makers usually say so on the card or in the file name.</li>
+<li><b>The averages hide the bad tokens.</b> At Q4_K_M with an imatrix the mean KLD is <span data-lo="kldQ4kmI"></span>, but the worst 1% of tokens exceed <span data-lo="p99Q4kmI"></span> and the top token changes on <span data-lo="flipQ4kmI"></span>% of tokens, often where the model was uncertain: what users notice as an occasional odd word or wrong digit.</li>
+<li><b>Perplexity can point the wrong way.</b> On Qwen3-4B, Q4_K_M with an imatrix has the lower KLD (<span data-lo="kldI4"></span> against <span data-lo="kld4"></span>) but the higher perplexity (<span data-lo="pplI4"></span> against <span data-lo="ppl4"></span>; F16 <span data-lo="pplF16_4"></span>). Perplexity rewards being confidently right on this one text, even after moving away from the original; KLD measures the move.</li>
+<li><b>Who made the file matters.</b> The Q4_K_M GGUF that Qwen publishes ({{Qwen/Qwen3-4B-GGUF|https://huggingface.co/Qwen/Qwen3-4B-GGUF}}, revision bc640142), measured the same way against this page's F16 conversion, drifted <span data-lo="kldQwen4"></span>: twice this page's Q4_K_M without an imatrix and three times the one with (made with an older llama.cpp or from different source weights; the card does not say). Measure before you trust a download.</li>
+</ol>
+<details class="dp"><summary>Three more lessons: legacy types, i-quants, small models <span class="mute">(depth)</span></summary><div class="b"><ul>
+<li><b>Legacy types are worse per bit.</b> Q4_0 at <span data-lo="bpwQ40"></span> bits drifts <span data-lo="kldQ40"></span>, more than Q4_K_M at <span data-lo="bpwQ4km"></span> without an imatrix (<span data-lo="kldQ4km"></span>). Its one advantage is speed on this GPU (section 1).</li>
+<li><b>I-quants buy size, not magic.</b> IQ4_XS with an imatrix is <span data-lo="bpwIq4xs"></span> bits against Q4_K_M's <span data-lo="bpwQ4km"></span> (8% smaller) and drifts <span data-lo="kldIq4xsI"></span> against <span data-lo="kldQ4kmI"></span>: the same curve. Choose by the size you need, and measure speed on your hardware (here IQ4_XS generated slightly faster).</li>
+<li><b>Small models suffer more.</b> llama-quantize's help text quotes +0.18 perplexity at Q4_K_M and +3.5 at Q2_K for Llama-3-8B; on Qwen3-1.7B the same types cost <span data-lo="dPplQ4km"></span> and <span data-lo="dPplQ2"></span>. Qwen3-4B, in the chart, sits between.</li>
+</ul></div></details>
+<div class="pr" id="lo-pr4"><div class="q">Predict: you have about 2.3 GB for weights. Which is the better model: Qwen3-1.7B at Q8_0 (2.2 GB) or Qwen3-4B at about 4 bits (2.3 to 2.5 GB)?</div>
+<div class="opts"><button data-a="0">1.7B at Q8_0: never quantise hard</button><button data-a="1" data-ok="1">4B at 4 bits</button><button data-a="2">They are equal</button></div>
+<div class="ans" hidden><span data-lo="bigSmall"></span> The rule of thumb "prefer a bigger model at Q4 over a smaller one at Q8" holds here, by measurement (both share a tokenizer, so their perplexities on the same text compare). It stops holding once the bigger model must go below about 3 bits.</div></div>
+<details class="dp"><summary>Every file, with every speed pass; newer models and benchmarks; the old rule of thumb <span class="mute">(depth)</span></summary><div class="b">
+<div class="seg" id="lo-qt-f"><button data-m="m17" class="on">Qwen3-1.7B</button><button data-m="m4">Qwen3-4B</button><button data-m="mlx">MLX (1.7B)</button></div>
+<div class="tw lo-qt-tbl"><table id="lo-qt"></table></div>
+<p class="small mute">"i" = quantised with an importance matrix computed here from bartowski's calibration_datav3 (no overlap with the scoring text). Columns sort on tap. The laptop was shared and its load varied, so speed was measured in up to three passes at different times (the ladder itself, then speed-only passes); each row shows the fastest pass (another job on the GPU can only slow a run, and the load average does not see GPU use), &plusmn; the standard deviation of its 5 repetitions, with that pass's load average; tap a point in the chart above for every pass. Qwen3-4B's speed is shown only from a pass that ran alone on the GPU; a dash means every attempt overlapped another agent's job (quality does not depend on timing). Qwen3-4B's ladder is reduced (no IQ1, IQ2 or IQ3_XXS files), which took 30 to 50 minutes each under contention; Qwen3-1.7B covers them. Raw logs: <code>src/results/</code>.</p>
+<p><b>Newer, more heavily trained models suffer more.</b> The same help text listed LLaMA-1-7B in July 2023 (<a href="https://raw.githubusercontent.com/ggml-org/llama.cpp/6cbf9dfb32/examples/quantize/quantize.cpp" target="_blank" rel="noopener noreferrer">commit 6cbf9dfb32</a>) and Llama-3-8B now, and each type costs 2 to 6.5 times more perplexity on the newer model (Q2_K +0.87 against +3.52, Q4_K_M +0.05 against +0.18, Q6_K +0.004 against +0.022, Q8_0 +0.0004 against +0.0026). Fewer weights, or more training per weight, means each carries more of the function. <b>Perplexity is not the whole story either:</b> a unified 2026 evaluation of llama.cpp types on Llama-3.1-8B-Instruct finds "schemes with similar perplexity can diverge meaningfully on instruction-following and reasoning benchmarks"; there Q4_K_M averages 69.15 against FP16's 69.47 and Q5_0 scores best of all, 69.92 (<a href="https://arxiv.org/html/2601.14277" target="_blank" rel="noopener noreferrer">Kurt 2026</a>, Table 2).</p>
+<div class="co"><div class="t">The old page's rule of thumb, checked</div><p>"4-bit costs about 0.6 GB per billion parameters (plus KV)". Measured with Q4_K_M: <span data-lo="gbPerB"></span>. It holds for Qwen3-4B; Qwen3-1.7B's file is heavier because it carries a second copy of the embedding (section 4). Small models, and files that keep extra tensors at high precision, cost more than 0.6.</p></div>
+</div></details>
 </section>

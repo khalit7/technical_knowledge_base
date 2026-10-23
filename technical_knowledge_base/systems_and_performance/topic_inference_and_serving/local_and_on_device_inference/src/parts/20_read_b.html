@@ -1,37 +1,38 @@
+<section id="lo-s1">
+<h2>1. One user's speed is set by memory bandwidth</h2>
+<p>To generate one token, the model multiplies the newest token's vector by every weight matrix: each weight is read from memory once and used for one multiply and one add. With one user that is 2 operations per weight read, so the arithmetic units wait for memory almost all the time (the parent's section 1 explains this from zero; {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} counts it).</p>
+<div class="fm"><div class="eq">tokens per second &le; bandwidth / bytes read per token</div>
+<dl><dt>bandwidth</dt><dd>bytes per second the memory holding the weights delivers (200 GB/s for this M1 Pro, Apple's figure)</dd><dt>bytes read per token</dt><dd>the weights the token passes through (all of them for a dense model, only the routed experts for a mixture of experts) plus the KV cache read so far</dd></dl></div>
+<p>Qwen3-1.7B in F16 is <span data-lo="gbF16_17"></span> GB, so the ceiling here is 200 / <span data-lo="gbF16_17"></span> = <span data-lo="ceilF16_17"></span> tokens per second. <span class="meas">Measured here</span>: <span data-lo="tgF16_17"></span>, memory read at <span data-lo="effF16_17"></span> GB/s, <span data-lo="m1Eff"></span> of Apple's figure. Quantisation (section 4) shrinks the bytes and should raise the ceiling in proportion:</p>
 
-<section id="lo-s0">
-<p class="lead"><dfn>Local inference</dfn> means running a language model on a machine you own (a laptop, a desktop with one or two gaming GPUs, a phone) for yourself or a handful of people. The datacenter pages ask how to serve thousands of users per GPU at the lowest cost. Here the questions flip: <b>does the model fit in my memory, how fast does it stream for me, how much quality did shrinking it cost, and which program should run it?</b></p>
-<p>The parent page, {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}, explains prefill, decode and the KV cache from zero; this page uses those words. In one line each: <dfn>prefill</dfn> reads the whole prompt in one pass; <dfn>decode</dfn> then produces one token per pass; the <dfn>KV cache</dfn> holds the keys and values every earlier token produced, so decode does not recompute them; <dfn>TTFT</dfn> (time to first token) is how long you wait before text appears, and <dfn>tokens per second</dfn> (or its inverse, TPOT, time per output token) is how fast it streams after that.</p>
+<div class="pr" id="lo-pr1"><div class="q">Predict: Q8_0 is <span data-lo="q8Ratio"></span> times smaller than F16 and Q4_K_M (with an importance matrix) <span data-lo="q4Ratio"></span> times smaller. How much faster do they generate on this laptop?</div>
+<div class="opts"><button data-a="0">In proportion to size: about 1.9 and 3.2 times</button><button data-a="1" data-ok="1">Q8_0 nearly in proportion, Q4_K_M much less than its size suggests</button><button data-a="2">Both the same as F16</button></div>
+<div class="ans" hidden><span class="meas">Measured</span>: Q8_0 generates at <span data-lo="tgQ8_17"></span> tokens per second (<span data-lo="spQ8"></span> times F16), reading memory at <span data-lo="effQ8_17"></span> GB/s; Q4_K_M at <span data-lo="tgQ4_17"></span> (<span data-lo="spQ4"></span> times), only <span data-lo="effQ4_17"></span> GB/s. The 4-bit file is no longer limited by memory: unpacking each 4-bit code with its 6-bit sub-block scale and minimum costs arithmetic, and this laptop's GPU (about 5 TFLOP/s, no matrix units) runs out of arithmetic first. Simpler blocks unpack faster: Q4_0, the same size class, reached <span data-lo="tgQ40_17"></span>. The chart below plots every file.</div></div>
 
-<div class="stepbox">
-<div style="--sc:var(--c1)"><div class="k">1. How fast it streams</div><div class="v">bytes per token / bandwidth</div><p>With one user, every token reads all the weights once. Speed is set by memory bandwidth, not by arithmetic (section 1).</p></div>
-<div style="--sc:var(--c3)"><div class="k">2. Whether it fits</div><div class="v">weights + KV cache + buffers</div><p>The weights must sit in memory the GPU can read fast: VRAM on a graphics card, unified memory on a Mac (section 2).</p></div>
-<div style="--sc:var(--c2)"><div class="k">3. What shrinking costs</div><div class="v">quantization</div><p>Storing weights in 4 bits instead of 16 makes the model 3 to 4 times smaller, faster (by less than that on a small GPU, section 1), and a little worse. How much worse is measurable (sections 3 and 4).</p></div>
-<div style="--sc:var(--c4)"><div class="k">4. Which program</div><div class="v">llama.cpp, MLX, Ollama, LM Studio</div><p>All four sit on two engines: ggml (llama.cpp) and MLX. The wrappers add model management and hide knobs (sections 5 to 7).</p></div>
+<div class="lo-card" id="lo-qs-card">
+<h4>Files sit on or below the bandwidth line: the small, complex ones fall furthest below it</h4>
+<div class="seg" id="lo-qs-m"><button data-m="tg" class="on">Generation (tg128)</button><button data-m="pp">Prompt reading (pp512)</button></div>
+<div class="lo-svg" id="lo-qs-svg"></div>
+<p class="small mute">Every GGUF file of Qwen3-1.7B and Qwen3-4B made here, and MLX's Qwen3-1.7B files, against the GB read per token. <span class="meas">Measured here</span> with <code>llama-bench -p 512 -n 128 -r 5 -fa 1</code> (Metal), fastest of up to three passes.</p>
+<p class="small mute" id="lo-qs-note"></p>
 </div>
+<p>So the bandwidth rule is a <b>ceiling</b>, reached by formats that are cheap to unpack and approached less closely by complex ones on a small GPU. On a GPU with far more arithmetic per byte (an RTX 5090 has about 40 times this laptop's FP16 throughput for 9 times its bandwidth) small formats come much closer: 64% of peak for Q4_0 on the published scoreboard (section 9). The rule still decides the big choices: a model twice as large streams about half as fast, and a machine with twice the bandwidth about twice as fast.</p>
 
-<h3>Local against datacenter, in one table</h3>
-<div class="tw"><table class="lo-tbl tbl-sm">
-<thead><tr><th></th><th>Datacenter serving (the parent and its siblings)</th><th>Local inference (this page)</th></tr></thead>
-<tbody>
-<tr><td>Users at once</td><td>Hundreds to thousands per replica</td><td>One, sometimes a few (an agent running tools in parallel, a small team)</td></tr>
-<tr><td>What sets speed</td><td>Batch size: many users share one read of the weights</td><td>Bandwidth: one user pays for the whole read of the weights on every token</td></tr>
-<tr><td>Typical weights</td><td>BF16, FP8, NVFP4 checkpoints in safetensors</td><td>2 to 8-bit GGUF files (llama.cpp) or MLX safetensors; the format is chosen to fit the memory</td></tr>
-<tr><td>Engines</td><td>vLLM, SGLang, TensorRT-LLM</td><td>llama.cpp (and Ollama, LM Studio on top of it), MLX and mlx-lm on Apple silicon</td></tr>
-<tr><td>Hardware</td><td>H100, H200, B200 with HBM at 3 to 8 TB/s</td><td>A Mac's unified memory at 0.12 to 1.2 TB/s, a gaming GPU's GDDR at 0.9 to 1.8 TB/s (section 8), a phone's less</td></tr>
-<tr><td>What you tune</td><td>Batch size, KV cache size, parallelism, scheduling</td><td>Quant type, context length, how many layers go on the GPU, KV cache type, slots</td></tr>
-</tbody></table></div>
+<h3>The context adds bytes too</h3>
+<p>Each token also reads the KV cache of every earlier token: at 16,000 tokens Qwen3-1.7B reads <span data-lo="kv16k"></span> GB of cache against <span data-lo="gbQ4_17"></span> GB of Q4_K_M weights, so long contexts stream slower.</p>
+<details class="dp"><summary>The KV cache read, counted <span class="mute">(depth)</span></summary><div class="b">
+<p>Each new token also reads the KV cache of every earlier token. Qwen3-1.7B keeps 114,688 bytes per token (2 for K and V &times; 28 layers &times; 8 KV heads &times; 128 dimensions &times; 2 bytes), so at 16,000 tokens a token reads <span data-lo="kv16k"></span> GB of cache besides <span data-lo="gbQ4_17"></span> GB of Q4_K_M weights: the cache is the larger read. The parent's {{Engine bench|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} measured the effect on Qwen3-0.6B: 198 tokens per second with an empty context, 56 at 16K. Long-context local work is slower than a short chat on the same model, and a q8_0 KV cache helps speed as well as memory.</p>
+</div></details>
 
-<h3>The stack</h3>
-<p>Every local program sits on one of two numerical engines. Knowing which one tells you which file format it reads and which knobs exist underneath its interface.</p>
-<div class="lo-stack">
-<div class="lo-st-row"><div class="lo-st-lab">Apps and wrappers</div><div class="lo-st-c lo-gg"><b>Ollama</b> (Go server, model registry, runs its own runner processes) &middot; <b>LM Studio</b> (desktop app, closed source)</div><div class="lo-st-c lo-mx"><b>LM Studio</b> (its MLX engine) &middot; <b>Ollama</b> on Macs (MLX path: section 7)</div></div>
-<div class="lo-st-row"><div class="lo-st-lab">Server (HTTP, OpenAI-compatible)</div><div class="lo-st-c lo-gg"><b>llama-server</b>: slots, continuous batching, prompt cache, metrics</div><div class="lo-st-c lo-mx"><b>mlx_lm.server</b>: batched decode, prompt cache</div></div>
-<div class="lo-st-row"><div class="lo-st-lab">Engine</div><div class="lo-st-c lo-gg"><b>libllama</b> (C/C++): model graphs, KV cache, sampling</div><div class="lo-st-c lo-mx"><b>mlx-lm</b> (Python): models, generation, quantization</div></div>
-<div class="lo-st-row"><div class="lo-st-lab">Kernels</div><div class="lo-st-c lo-gg"><b>ggml</b>: CPU (NEON, AVX), Metal, CUDA, Vulkan, ROCm/HIP, SYCL</div><div class="lo-st-c lo-mx"><b>MLX</b> (Apple's array framework): Metal, CPU</div></div>
-<div class="lo-st-row"><div class="lo-st-lab">File format</div><div class="lo-st-c lo-gg"><b>GGUF</b>: one file, weights in block-quantized types plus tokenizer and chat template</div><div class="lo-st-c lo-mx"><b>safetensors</b> with MLX's group-wise scales and biases</div></div>
-</div>
-<p class="small mute">Versions on this machine: llama.cpp build 11146 (Homebrew 0.5.0, commit 7fe450e19, 23 September 2026), MLX 0.32.3 with mlx-lm 0.32.0, Ollama 0.40.1. Read at those versions; quoted with file and line.</p>
-
-<p><b>The running examples.</b> Two small open models, Qwen3-1.7B and Qwen3-4B (Alibaba, Apache 2.0), measured on the Apple M1 Pro laptop this page was built on (10-core CPU, 16-core GPU, 16 GB unified memory, 200 GB/s by Apple's specification), the same machine and models as the parent's {{Engine bench|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} tab. Every measured number is labelled <span class="meas">measured here</span>, with the machine's load average recorded, because other jobs shared the laptop. For NVIDIA, the example is a desktop with two GeForce RTX 5090 cards (32 GB each): nothing was run on one here, so its numbers are published ones, labelled by who measured them.</p>
+<h3>Reading the prompt is the laptop's weak point</h3>
+<p>Prefill is arithmetic-bound, and it is the laptop's weak point: a 30,000-token history costs about <span data-lo="ttft30k"></span> seconds before the first token on Qwen3-1.7B at Q4_K_M, where a datacenter GPU takes a fraction of a second.</p>
+<details class="dp"><summary>Prefill measured on this laptop <span class="mute">(depth)</span></summary><div class="b">
+<p>Prefill reads the weights once for all the prompt's tokens, hundreds of operations per byte, so it is limited by arithmetic. <span class="meas">Measured here</span>: Qwen3-1.7B F16 reads a 512-token prompt at <span data-lo="ppF16_17"></span> tokens per second, <span data-lo="ppTg"></span> times faster per token than generating, about <span data-lo="tflopsF16"></span> TFLOP/s of useful arithmetic against a peak of about 5.3 ({{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}}). A 30,000-token agent history still costs <span data-lo="ttft30k"></span> seconds before the first token on Qwen3-1.7B at Q4_K_M (longer in practice, since attention grows with the prompt); a datacenter GPU does it in a fraction of a second. On a Mac, prompt length is what you feel.</p>
+</div></details>
+<details class="dp"><summary>CPU against GPU on the same chip, the FLOP count, and what transfers to datacenter GPUs <span class="mute">(depth)</span></summary><div class="b">
+<p><b>CPU or GPU.</b> On Apple silicon the CPU and GPU share the same memory, so in principle they see the same 200 GB/s; in practice the CPU cores cannot pull that much. <span class="meas">Measured here</span>, Qwen3-1.7B Q4_K_M all on the CPU (8 threads) against all on the GPU: generation <span data-lo="cpuTg"></span> against <span data-lo="gpuTg"></span> tokens per second, prompt reading <span data-lo="cpuPp"></span> against <span data-lo="gpuPp"></span>. Run everything on the GPU (<code>-ngl</code> all, the default) unless the model does not fit.</p>
+<div id="lo-sv-cpu"></div>
+<p><b>The prefill FLOP count.</b> 2 operations &times; 1.41 billion multiplied weights per token: the embedding table is looked up, not multiplied, and llama-bench computes the output layer only for the last token (<code>src/llama-batch.cpp</code> L121 to L125).</p>
+<p><b>What transfers.</b> The rule is the same everywhere: one user's decode speed is bandwidth over bytes, and the parent's {{Capacity planner|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} uses exactly this step model for an H200. What does not transfer: the arithmetic shortfall on small formats (a GPU with tensor cores unpacks 4-bit blocks with time to spare), and the slow prefill (an H200's 1,979 FP8 TFLOP/s, the parent's figure, is about 370 times this GPU's 5.3). A datacenter never runs one user: batching shares each read of the weights across many users, the point of the parent page. How to check on your machine: <code>llama-bench -m model.gguf -p 512 -n 128</code>, then divide file size by the tg time per token.</p>
+</div></details>
 </section>

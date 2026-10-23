@@ -1,0 +1,33 @@
+<section id="lo-dep">
+<h2>Depth: common mistakes and interview rehearsal</h2>
+<details class="dp"><summary>Common mistakes, each with the section that shows it <span class="mute">(depth)</span></summary><div class="b"><ul>
+<li><b>Judging a quant by its name.</b> Q4_K_M is a recipe, and on small models the embeddings dominate: on Qwen3-1.7B "Q2_K" averages <span data-lo="bpwQ2"></span> bits per weight, and the Qwen3-0.6B Q4_K_M file <span data-mf="ggBpw"></span>, while Q4_K itself is 4.5. Compare files by size and a measured KLD (section 4).</li>
+<li><b>Ranking quants by perplexity alone.</b> Perplexity on one text moves by luck and can even improve after quantisation; KLD against the full-precision model, and its 99th percentile, show the drift users feel (section 5).</li>
+<li><b>Downloading a low-bit GGUF made without an importance matrix.</b> At 3 bits and below it is the difference between usable and broken: Q2_K's KLD on Qwen3-1.7B was <span data-lo="kldQ2"></span> without one and <span data-lo="kldQ2I"></span> with one, same size.</li>
+<li><b>Requantising a quantised file.</b> Q8_0 to Q4_K_M stacks two roundings. Quantise from the BF16 or F32 original (section 3).</li>
+<li><b>"Converting to F16 GGUF is lossless."</b> From a BF16 checkpoint it changed <span data-mf="f16Inexact"></span> values of Qwen3-0.6B. Use <code>--outtype bf16</code> (or f32) for a lossless master.</li>
+<li><b>Trusting a GGUF's chat template because the file is self-contained.</b> It is whatever the uploader wrote: the Unsloth file in the store has a rewritten template and one fewer stop id than the original repo.</li>
+<li><b>Reading GGUF shapes like PyTorch shapes.</b> GGUF lists dimensions fastest-first: <code>[1024, 151936]</code> is PyTorch's <code>[151936, 1024]</code>.</li>
+<li><b>"weights_only=True makes torch.load safe."</b> It was bypassed before PyTorch 2.6 (CVE-2025-32434), and it is still an allowlist inside a pickle interpreter. Prefer safetensors; keep PyTorch current.</li>
+<li><b>Expecting a 4-bit file to stream 4 times faster than F16.</b> On a GPU with little arithmetic unpacking costs time: Q4_K_M streamed <span data-lo="spQ4"></span> times faster than F16 on this laptop, not 3.2 times (section 1).</li>
+<li><b>Forgetting the KV cache when sizing.</b> A full 40,960-token context of Qwen3-4B needs 6.0 GB of F16 cache, more than twice its Q4_K_M weights (section 2).</li>
+<li><b>Leaving Ollama at its default context.</b> Under 24 GiB of VRAM it uses 4,096 tokens; a longer prompt is cut without an error. Set <code>num_ctx</code> or <code>OLLAMA_CONTEXT_LENGTH</code> (section 8).</li>
+<li><b>Splitting a model across two GPUs and expecting it to be faster.</b> The default layer split adds memory, not single-user speed. For one user use tensor split; for throughput, one replica per card (section 9).</li>
+<li><b>Turning on --cache-reuse or --context-shift without knowing they are approximate.</b> Both reuse keys and values computed with different preceding text (section 6).</li>
+<li><b>Running mlx_lm.server for a team.</b> Its own docs say not for production, and it ran out of Metal memory under load here (section 7).</li>
+<li><b>Measuring load time with a warm cache and calling it cold start.</b> The second load reads from RAM; cold loads are disk-bound (section 3).</li>
+<li><b>Exporting an LLM to ONNX and expecting a chat server.</b> A plain export has no KV cache, sampling or batching (section 3).</li>
+<li><b>Shipping a TensorRT plan as "the model".</b> It is tied to the GPU type and TensorRT version; ship safetensors and build plans in CI.</li>
+<li><b>Believing a headline tokens-per-second figure.</b> Ask for the batch size, context length, hardware, quantisation and who measured it; vendor "up to" numbers and model-card tables differed by about 10% for Bonsai (section 10).</li>
+</ul></div></details>
+<details class="dp"><summary>Interview rehearsal <span class="mute">(optional)</span></summary><div class="b">
+<p><b>A 70B model on two 24 GB GPUs: how do you run it, and how fast?</b> At about 4.8 bits it is about 43 GB: it fits across 48 GB with a little room for the cache. Layer split: one user gets about one card's bandwidth, a ceiling of about 1,000 / 43 = 23 tokens per second on 4090s, less in practice. Tensor split adds speed at the cost of PCIe traffic (no P2P on GeForce). Or drop to 3 bits with an imatrix and accept the quality cost.</p>
+<p><b>An RTX 5090 on a 3.8 GB model: the speed limit?</b> 1,792 / 3.83 = 468 tokens per second; measured 300.</p>
+<p><b>A model's file is 20% bigger than parameters &times; 2 bytes. Where would you look?</b> Duplicated tied tensors (Qwen3-0.6B's lm_head), F32 tensors, or extra heads; list the header and compare byte ranges.</p>
+<p><b>Two Q4 formats both cost 4.5 bits per weight. What can still differ?</b> Group size, whether there is an offset, scale precision, and where scales live in the file (GGUF interleaves them per block; MLX keeps separate tensors), which affects quality and kernel design.</p>
+<p><b>Why does Apple silicon run large models that a gaming GPU cannot?</b> Unified memory: up to 512 GB the GPU can address, against 32 GB on an RTX 5090; but bandwidth is lower (200 to 1,200 GB/s against 1,792) and prompt reading much slower. Big models fit; they stream more slowly and read prompts much more slowly.</p>
+<p><b>Why don't vLLM and SGLang serve ONNX, and is a TensorRT engine portable?</b> Their speed comes from a paged KV cache, custom attention kernels and per-step scheduling, which a static graph does not express. A TensorRT engine is portable by default only to the same GPU type and TensorRT version; hardware and version compatibility modes (since 8.6) widen that at some cost.</p>
+<p><b>Is a 1.58-bit model just a 16-bit model rounded hard?</b> No: rounding a normally trained model to 2 bits or below breaks it (Q1_0 perplexity <span data-lo="pplQ10"></span> here); ternary models are trained or retrained for it and need kernels that store and unpack them (TQ1_0/TQ2_0, bitnet.cpp).</p>
+</div></details>
+<p class="foot">Runs: Apple M1 Pro, 10 and 11 October 2026, under the shared bench lock; scripts and raw outputs in this page's <code>src/scripts</code>, <code>src/results</code> and <code>src/formats/</code>. Documentation facts checked 10 and 11 October 2026.</p>
+</section>
