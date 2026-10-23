@@ -107,8 +107,8 @@ function draw(i){
 }
 const an=RD.anim({card:'cmp-fu',ctl:'cmp-fu-ctl',n:nSteps(),draw:draw,ms:1500,label:'Fusion step'});
 onR(()=>an.redraw());
-seg($('cmp-fu-fn'),v=>{fn=v;an.reset(nSteps());an.play()});
-seg($('cmp-fu-md'),v=>{md=v;an.reset(nSteps());an.play()});
+seg($('cmp-fu-fn'),v=>{fn=v;an.reset(nSteps())});
+seg($('cmp-fu-md'),v=>{md=v;an.reset(nSteps())});
 $('cmp-fu-k1').textContent=gel.kernel;$('cmp-fu-k2').textContent=Fz.add_ln.kernel;
 // predict 1
 (function(){const g=gel.t,al=Fz.add_ln.t;

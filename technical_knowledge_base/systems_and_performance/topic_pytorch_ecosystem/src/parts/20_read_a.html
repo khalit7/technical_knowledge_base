@@ -1,40 +1,51 @@
 <section id="rd-s0">
-<p class="lead"><dfn>PyTorch</dfn> is a Python library for computing with arrays of numbers on CPUs and GPUs, which also works out the gradients you need to train a model. This page teaches it from zero by following <b>one training step of a tiny GPT down through PyTorch, then making it fast, then spreading it over several processes</b>. Every number on it was either measured here or comes from a linked, dated source, and the two are labelled apart.</p>
+<p class="lead"><b>The idea in one sentence.</b> PyTorch runs your Python one operator call at a time, and <span class="hlw">every call walks down a table of kernels chosen by keys its tensors carry</span> (autocast, autograd, device), with autograd recording on the way down the graph that backward walks back up; <code>torch.compile</code> replaces that walk with generated kernels, and <code>torch.distributed</code> runs the same program in several processes that must call the same collectives in the same order. Each child page owns one layer of that picture; this page is the map, the comparisons across the layers, and the one running example they all share.</p>
 
-<p><b>The running example.</b> A character-level GPT written in plain PyTorch: 43 distinct characters as its vocabulary, 4 transformer blocks of width 256 with 4 attention heads, a context of 64 characters, <b>3,186,944 parameters</b>, trained with AdamW on batches of 8 windows cut from the first three paragraphs of <i>Alice's Adventures in Wonderland</i>. Its first loss is 3.8014, just above ln 43 = 3.761, the loss of a uniform guess, and after 300 steps it reaches 0.546 <span class="meas">measured on Apple M1 Pro</span>. The same model, the same batches and the same seed are used by every tab of this page and by every child page. Machine: an Apple M1 Pro laptop, its CPU (4 threads) and its GPU through Apple's <dfn>MPS</dfn> backend (Metal Performance Shaders), PyTorch 2.14.1 (released 2026-09-30, {{PyPI|https://pypi.org/project/torch/#history}}). There is no NVIDIA GPU here, so each section says what carries over to one and what does not, and published GPU numbers are quoted separately with who measured them.</p>
-
-<div class="rd-card" id="rd-stk-card">
-<h4>One forward pass of the tiny GPT, down through the stack: eager, then compiled</h4>
-<div class="seg" id="rd-stk-mode"><button class="on" data-m="eager">Eager (op by op)</button><button data-m="comp">torch.compile</button></div>
-<div class="stk" id="rd-stk"></div>
-<div class="an-cap" id="rd-stk-cap"></div>
-<div class="an-cnt" id="rd-stk-cnt"></div>
-<div class="an-ctl" id="rd-stk-ctl"></div>
-<p class="small mute">Counts <span class="meas">measured on Apple M1 Pro, CPU, torch 2.14.1</span>: 142 ATen operator calls seen by a dispatch-level recorder in one eager forward ({{Inside one step|#t-step}}); 1 captured graph of 59 operations, 549 guards, and 35 launches per compiled forward, of which 14 are generated C++ kernels, 17 matrix multiplies in the BLAS library and 4 attention calls ({{Compile lab|#t-comp}}). Compile time 9.0 to 10.0 s with an empty cache.</p>
+<div class="rd-hero" id="rd-hero">
+<h4>One training step, from your loop down to the bytes, and the page that owns each layer</h4>
+<div class="hz" style="--sc:var(--c6)"><b>Libraries that run the loop for you</b>Hugging Face Trainer and Accelerate, Lightning, torchtitan, DeepSpeed: the same calls below, plus defaults that change the run.<span class="o">{{Libraries on top of PyTorch|n:3c65c17b0d0d81019d98f99978dc26f6}}; this page, section 9 and the {{Ecosystem map|#t-map}}</span></div>
+<div class="hz-ar">&darr; or you write it</div>
+<div class="hz" style="--sc:var(--c2)"><b>Your loop</b><code>nn.Module</code>, <code>state_dict</code>, the optimizer, autocast, accumulation, clipping: the step every lever edits.<span class="o">{{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}}, section 7; this page, section 4</span></div>
+<div class="hz-ar">&darr; <code>model(x)</code> runs in one of two ways (section 5)</div>
+<div class="hz" style="--sc:var(--c4)"><b>Eager or compiled</b>
+<div class="hz-in">
+<div style="--sc:var(--c1)"><b>Eager</b>Python runs <code>forward</code> line by line; every line is one or more operator calls: 142 per forward of the running example.</div>
+<div style="--sc:var(--c4)"><b>torch.compile</b>Dynamo captures a graph behind guards, AOTAutograd splits forward and backward, Inductor fuses: 35 launches. {{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}}</div>
+</div></div>
+<div class="hz-ar">&darr; each operator call</div>
+<div class="hz hl"><b>The dispatcher: a walk down the keys</b>Autocast casts, Autograd records a node, Python hands the call to a subclass or mode, the backend key runs the kernel. Every extension plugs into one of these slots.<span class="o">{{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}, section 2; the slots: {{Extending PyTorch|n:3f85c17b0d0d8158a7addcd3d601d72a}}</span></div>
+<div class="hz-ar">&darr; leaves behind, and runs on</div>
+<div class="hz" style="--sc:var(--c3)"><b>The graph and the bytes</b>
+<div class="hz-in">
+<div style="--sc:var(--c3)"><b>The autograd graph</b>One node per differentiable call, keeping saved tensors: 34.76 MB after one forward, against 12.75 MB of weights. Backward walks it. Tensors, section 3</div>
+<div style="--sc:var(--c5)"><b>A tensor over storage</b>Shape, strides and offset over a flat block of bytes: a transpose or a slice copies nothing. Tensors, section 1</div>
+</div></div>
+<div class="hz-side"><b>Across processes</b>: the same step on every rank; DDP all-reduces gradients, FSDP2 gathers and scatters shards, DTensor names every split as a placement ({{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}}; section 7). <b>Checked by</b>: measuring the step phase by phase and fixing the largest part ({{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}}; section 6). The tabs carry the evidence on one model: {{Inside one step|#t-step}} records all 923 calls of a step, {{Compile lab|#t-comp}} compiles it, {{Distributed lab|#t-dist}} runs it on 2 and 4 processes.</div>
 </div>
 
-<p>The figure is the whole page in miniature. Your code calls <code>model(x)</code>. Python runs the module's <code>forward</code>, which calls PyTorch functions such as <code>torch.matmul</code>. Each call is an <dfn>operator</dfn> (a named operation such as <code>aten::addmm</code>; <dfn>ATen</dfn> is PyTorch's C++ tensor library, where every operator is defined). The <dfn>dispatcher</dfn> decides which implementation of that operator runs, by reading labels on the inputs: is a gradient needed, is mixed precision on, which device holds the data. At the bottom a <dfn>kernel</dfn> (one compiled function that does the arithmetic on one device) runs. <code>torch.compile</code> replaces most of that walk with generated code; <code>torch.distributed</code> runs the same program in several processes that exchange data.</p>
+<p><b>The running example.</b> A character-level GPT in plain PyTorch: 43 distinct characters as its vocabulary, 4 transformer blocks of width 256 with 4 attention heads, a context of 64 characters, <b>3,186,944 parameters</b>, trained with AdamW on batches of 8 windows cut from the first three paragraphs of <i>Alice's Adventures in Wonderland</i>. Its first loss is 3.8014, just above ln 43 = 3.761 (a uniform guess), and after 300 steps it reaches 0.546 <span class="meas">measured on Apple M1 Pro</span>. Every tab of this page and every child page uses this model, these batches and this seed, which is why their numbers can be compared. Machine: an Apple M1 Pro laptop, its CPU (4 threads) and its GPU through Apple's <dfn>MPS</dfn> backend, PyTorch 2.14.1 (released 2026-09-30, {{PyPI|https://pypi.org/project/torch/#history}}). There is no NVIDIA GPU here: each page says what carries over to one, and published GPU numbers are labelled with who measured them.</p>
 
-<p><b>Five ideas carry everything that follows.</b></p>
-<div class="rd-five">
-<div style="--sc:var(--c1)"><div class="k">1. Views</div><div class="v">shape + strides</div><p>A tensor is a window onto a flat block of memory. Transposes and slices are free; they only change how the window steps. Section 1.</p></div>
-<div style="--sc:var(--c2)"><div class="k">2. Dispatch</div><div class="v">one table per operator</div><p>Every call looks up a kernel by keys. Autograd, mixed precision, subclasses and devices are all entries in that table. Section 2.</p></div>
-<div style="--sc:var(--c3)"><div class="k">3. Saved tensors</div><div class="v">34.76 MB</div><p>Forward records a graph and keeps tensors for backward. They, not the weights, fill memory in training. Section 3.</p></div>
-<div style="--sc:var(--c4)"><div class="k">4. Fusion</div><div class="v">142 &rarr; 35</div><p>Compiling turns many small memory round trips into a few loops. It pays when memory traffic or launch overhead dominates. Section 5.</p></div>
-<div style="--sc:var(--c5)"><div class="k">5. Placements</div><div class="v">Shard, Replicate, Partial</div><p>Distributed PyTorch describes how each tensor is split over processes; FSDP2 and tensor parallelism are placements. Section 7.</p></div>
-</div>
-<p class="small mute">34.76 MB is the bytes autograd kept after one forward of the running example (34,761,220 B), 142 and 35 the eager calls and compiled launches above, all <span class="meas">measured on Apple M1 Pro</span>.</p>
+<p><b>You need</b>: nothing beyond Python and the idea of a gradient; this topic starts from zero. The parallelism forms themselves (data, tensor, pipeline parallelism, ZeRO) are taught on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}; the GPU underneath on {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}.</p>
+<div class="co"><div class="t">New terms</div><div class="terms">
+<div><dfn>Operator</dfn>: a named operation such as <code>aten::addmm</code>; <dfn>ATen</dfn> is PyTorch's C++ tensor library where every operator is defined.</div>
+<div><dfn>Kernel</dfn>: one compiled function that does the arithmetic of an operator on one device.</div>
+<div><dfn>Dispatch key</dfn>: a label (<code>AutogradCPU</code>, <code>AutocastCPU</code>, <code>Python</code>, <code>CPU</code>) that selects one kernel from an operator's table.</div>
+<div><dfn>Storage, strides, view</dfn>: the flat bytes; how many elements to step per dimension; a new tensor over the same bytes.</div>
+<div><dfn>Saved tensors</dfn>: what autograd nodes keep from forward for backward; they, not the weights, fill memory in training.</div>
+<div><dfn>Guard, graph break</dfn>: a condition under which compiled code stays valid; a spot Dynamo cannot capture, run eagerly between graphs.</div>
+<div><dfn>Rank, collective</dfn>: one process of a job; an operation every rank calls together (all-reduce, all-gather, reduce-scatter).</div>
+<div><dfn>Placement</dfn>: how a DTensor is split over ranks: <code>Shard(d)</code>, <code>Replicate()</code>, <code>Partial()</code>.</div>
+</div></div>
 
-<div class="prob">
-<a href="#rd-s1" style="--sc:var(--c1)"><b>Tensors</b><span>Storage, strides, views, dtype, device</span></a>
-<a href="#rd-s2" style="--sc:var(--c1)"><b>The dispatcher</b><span>How one call finds its kernel</span></a>
-<a href="#rd-s3" style="--sc:var(--c1)"><b>Autograd</b><span>The graph, saved tensors, checkpointing</span></a>
-<a href="#rd-s4" style="--sc:var(--c2)"><b>A training loop done right</b><span>nn.Module, state_dict, optimizers, AMP</span></a>
-<a href="#rd-s5" style="--sc:var(--c3)"><b>torch.compile</b><span>Dynamo, guards, breaks, Inductor, export</span></a>
-<a href="#rd-s6" style="--sc:var(--c3)"><b>Performance</b><span>Find the bottleneck, then fix that one</span></a>
-<a href="#rd-s7" style="--sc:var(--c4)"><b>Distributed</b><span>DDP, FSDP2, DTensor, TP, PP, hangs</span></a>
-<a href="#rd-s8" style="--sc:var(--c5)"><b>Extending PyTorch</b><span>Custom ops, subclasses, Triton kernels</span></a>
-<a href="#rd-s9" style="--sc:var(--c6)"><b>The ecosystem</b><span>What to use, what is dead</span></a>
-</div>
-<p class="small mute">The four lab tabs carry the evidence: {{Inside one step|#t-step}} records all 923 operator calls of one training step, {{Compile lab|#t-comp}} compiles the model, {{Distributed lab|#t-dist}} runs it on several processes, and {{Ecosystem map|#t-map}} is the dated atlas of libraries. This tab gives the intuition and links to them.</p>
+<h3>The comparison: one step of the running example, where its cost goes and which page fixes it</h3>
+<div class="tw"><table class="rd-tbl"><thead><tr><th>Layer</th><th>What it costs on the running example</th><th>The lever, measured</th><th>Owner</th></tr></thead><tbody>
+<tr><td>Python and dispatch, per call</td><td>142 calls per forward, 295 in backward, 486 in the default optimizer step <span class="meas">measured</span></td><td>torch.compile: 142 calls become 35 launches; the step on the CPU is no faster (23.20 ms compiled against 22.75 ms eager), on MPS 1.18 times faster, 1.85 times with a fused optimizer as well</td><td>{{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}}</td></tr>
+<tr><td>The optimizer step</td><td>A quarter of the CPU step: the default for-loop AdamW launches several small operations per parameter tensor</td><td><code>fused=True</code>: the optimizer phase 2.7 times faster on the CPU and 4.1 times on MPS</td><td>{{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}}, section 5</td></tr>
+<tr><td>Saved activations</td><td>34.76 MB after one forward, against 12.75 MB of weights</td><td>Checkpointing each block: 34.85 to 3.33 MB added by forward, for a step that went from 22.5 to 31.6 ms on the CPU</td><td>Mechanism: {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}, 3.6; the trade: Making training fast, section 9</td></tr>
+<tr><td>Autograd when no gradient is needed</td><td>One forward: 6.52 ms with gradients, 6.16 ms under <code>no_grad</code> and 6.12 ms under <code>inference_mode</code> on the CPU; 4.29, 2.41 and 2.40 ms on MPS</td><td><code>inference_mode</code> for serving, <code>no_grad</code> for evaluation</td><td>Tensors, the dispatcher and autograd, 3.5</td></tr>
+<tr><td>Weights and optimizer state per process</td><td>On the 25.3M-parameter variant, 303 MB of weights and AdamW state on every DDP rank</td><td>FSDP2 on 4 ranks: the peak from 548 MB to 249 MB, for 14 collectives per step against DDP's 2 all-reduces</td><td>{{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}}, sections 3 and 4</td></tr>
+<tr><td>A library's defaults</td><td>The Hugging Face Trainer clips at 1.0, decays the learning rate and shuffles by default, so a ported loop no longer matches</td><td>Matched defaults: the same three losses, 3.80137, 3.18793, 3.16783, from a plain loop, Lightning, the Trainer and Accelerate</td><td>{{Libraries on top of PyTorch|n:3c65c17b0d0d81019d98f99978dc26f6}}, sections 1 and 2</td></tr>
+<tr><td>Code PyTorch does not ship</td><td>A Python function in the middle of a model breaks the compiled graph; a backward registered too late silently drops gradients</td><td>A custom operator with a fake implementation is one graph node; register everything before anything traces</td><td>{{Extending PyTorch|n:3f85c17b0d0d8158a7addcd3d601d72a}}, sections 1 and 2</td></tr>
+</tbody></table></div>
+<p class="small mute">All <span class="meas">measured on Apple M1 Pro</span>, PyTorch 2.14.1, step times as medians of 5 trials of 20 steps: the calls, phases and checkpointing on the {{Inside one step|#t-step}} tab, compiled steps on the {{Compile lab|#t-comp}} (section 8), memory per rank on the {{Distributed lab|#t-dist}} (section 6), the library losses on the {{Ecosystem map|#t-map}} ("Same step, five doors"). What carries over to NVIDIA GPUs is the structure (calls, graphs, bytes, collectives); the times do not.</p>
 </section>

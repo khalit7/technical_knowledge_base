@@ -128,7 +128,7 @@ window.DST_DERIVE={srcLocal,dstLocal};
       (e[2][0]==='F'&&e[1]===0?'Its output activations (2 &times; 64 &times; 256 floats) are sent to rank 1.':e[2][0]==='F'?'Received from rank 0; at the end the loss is computed here.':e[1]===1?'The gradient of its input is sent back to rank 0.':'Rank 0 finishes this micro-batch and frees its activations.'):'';}
   const an=RD.anim({card:'dst-pp',ctl:'dst-pp-ctl',n:evs.length,ms:900,draw:draw,label:'Action'});
   J.onR(()=>an.redraw());
-  J.seg($('dst-pp-seg'),[['gpipe','GPipe'],['1f1b','1F1B']],cur,m=>{cur=m;S=schedule(cur);flat();an.reset(evs.length);if(!J.RM)an.play()});
+  J.seg($('dst-pp-seg'),[['gpipe','GPipe'],['1f1b','1F1B']],cur,m=>{cur=m;S=schedule(cur);flat();an.reset(evs.length)});
   const r0=PP.gpipe.ranks[0];$('dst-pp-tb').textContent=r0.tied_before.toFixed(3);$('dst-pp-ta').textContent=r0.tied_after.toExponential(1);
 })();
 

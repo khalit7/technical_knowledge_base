@@ -82,9 +82,9 @@ $('dst-an-next').addEventListener('click',()=>{stop();const n=evTimes().find(x=>
 $('dst-an-back').addEventListener('click',()=>{stop();const p=evTimes().filter(x=>x<t-1e-6);t=p.length?p[p.length-1]:0;draw()});
 $('dst-an-scrub').addEventListener('input',e=>{stop();t=+e.target.value/1000*TMAX;draw()});
 $('dst-an-speed').addEventListener('change',e=>{spd=+e.target.value});
-J.seg($('dst-an-seg'),[['ddp','DDP'],['fsdp','FSDP2'],['nr','FSDP2, no reshard after forward']],cur,m=>{stop();cur=m;t=0;draw();if(!J.RM&&live())play()});
+J.seg($('dst-an-seg'),[['ddp','DDP'],['fsdp','FSDP2'],['nr','FSDP2, no reshard after forward']],cur,m=>{stop();cur=m;t=0;draw()});
 let started=false;
-if('IntersectionObserver' in window)new IntersectionObserver(es=>{if(es[es.length-1].isIntersecting&&!started&&card.offsetParent){started=true;if(!J.RM)play()}},{threshold:.35}).observe(card);
+// nothing plays until the reader presses Play (2026-10-23)
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stop()});
 J.onR(draw);draw();
 

@@ -73,6 +73,7 @@ $('dst-pq2-b').textContent=MB(peak('fsdp_w2_big'),0)+' to '+MB(peak('fsdp_w4_big
 
 // ---------- 3. DDP buckets ----------
 (function(){
+  if(!document.getElementById('dst-bk-strip'))return; // the strip moved to Distributed PyTorch, section 3 (2026-10-23)
   const P=D.ddp.w2.params,COL=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)'];
   const modes={s0:['Step 0',D.ddp.w2,0],s2:['Step 2 (rebuilt buckets)',D.ddp.w2,2],b1:['bucket_cap_mb=1, step 2',D.ddp.w2_b1,0]};
   let cur='s0';

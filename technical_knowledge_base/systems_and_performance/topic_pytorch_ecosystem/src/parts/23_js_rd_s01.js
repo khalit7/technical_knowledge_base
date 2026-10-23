@@ -33,7 +33,7 @@
       RD.stat('Autograd nodes added',fmt(c[1]),mode==='eager'?'one per differentiable call':'one for the whole graph')+
       RD.stat('Kernel runs',fmt(c[2]),'')+RD.stat('Guards checked per call',c[3],mode==='eager'?'nothing to check':'45 to 81 &micro;s')}
   const an=RD.anim({card:'rd-stk-card',ctl:'rd-stk-ctl',n:ST.eager.length,draw,ms:2600,label:'Stack step'});
-  RD.seg(document.getElementById('rd-stk-mode'),m=>{mode=m;an.reset(ST[m].length);an.play()});
+  RD.seg(document.getElementById('rd-stk-mode'),m=>{mode=m;an.reset(ST[m].length)});
 
   // ---------- section 1: views of one storage ----------
   const V=D.strides,seg=document.getElementById('rd-str-seg');if(!seg)return;

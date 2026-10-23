@@ -47,7 +47,7 @@ claims = [
     ("activations kept for backward 34.8 MB", round(saved / 1e6, 1) == 34.8),
     ("+34.8 MB after forward to +12.8 MB after backward", round((pl["live_after_fwd"] - base) / 1e6, 1) == 34.8 and round((pl["live_after_bwd"] - base) / 1e6, 1) == 12.8),
     ("12.75 MB at their peak", round(nparams * 4 / 1e6, 2) == 12.75),
-    ("Python 13, Functionalize 15, ADInplaceOrView 19, Autograd 21, Autocast 24", True),  # read from torch._C.DispatchKey on the wheel (README)
+    # 2026-10-23: the key numbers (Python 13 ... Autocast 24) moved with the dispatch tables to Tensors, the dispatcher and autograd, section 2.1
     ("about a quarter of the CPU step", 0.2 < T["cpu"]["plain"]["opt"]["median_ms"] / T["cpu"]["plain"]["step"]["median_ms"] < 0.3),
     ("fused, about 3&times;", 2.5 < TO["cpu"]["forloop"]["median_ms"] / TO["cpu"]["fused"]["median_ms"] < 3.5),
 ]
