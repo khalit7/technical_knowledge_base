@@ -1,11 +1,11 @@
-// ---- Grid and BlockSpec lab (tab t-pkgrid). Data: PK.G (src/runs/pk_grid.py). Copies are recomputed here from the
+// ---- Grid and BlockSpec lab (Reading section 2). Data: PK.G (src/runs/pk_grid.py). Copies are recomputed here from the
 // step order with Pallas's rule (copy a block only when its index differs from the previous step on that core);
 // in lexicographic order they equal the counts recorded by pk_grid.py (checked by src/check_page.py).
 (function(){
   const U=PKU,P=window.PK,G=P.G,$=id=>document.getElementById(id);
   const names=[['bias_gelu','Bias + GELU'],['softmax','Softmax'],['xent','Cross-entropy'],['ln_fwd','LayerNorm fwd'],['ln_bwd','LayerNorm bwd'],
     ['matmul','Matmul (root)'],['flash_fwd','Flash fwd'],['flash_dkv','Flash bwd dK dV'],['flash_dq','Flash bwd dQ'],['paged','Paged decode']];
-  let kname='flash_fwd',variant='clamped',order='lex';
+  let kname='bias_gelu',variant='clamped',order='lex';
   const find=()=>G.kernels.find(k=>k.name===kname&&(k.variant===null||k.variant===variant));
   $('pg-kern').innerHTML=names.map(n=>'<button data-m="'+n[0]+'"'+(n[0]===kname?' class="on"':'')+'>'+n[1]+'</button>').join('');
   function lexIndex(L,g){let ix=0;for(let a=0;a<L.grid.length;a++)ix=ix*L.grid[a]+g[a];return ix}
@@ -63,10 +63,10 @@
       (s[1]?'The body runs.':'The body is skipped by <code>pl.when</code>'+(copied.length?', but its blocks were still copied.':', and nothing was copied for it.'))+'</p>';
     $('pg-cnt').innerHTML=U.stat('Body ran',runs+' of '+(i+1),'steps so far')+L.ops.map((o,t)=>U.stat(U.esc(o.name)+(o.kind==='out'?' write-backs':' copies'),st.copies[t],'of '+(o.shape[0]/o.block[0])*(o.shape[1]/o.block[1])+' blocks')).join('')+
       U.stat('Bytes moved',U.bytes(moved),'minimum '+U.bytes(minB))}
-  const A=U.anim({card:'pg-card',ctl:'pg-ctl',tab:'t-pkgrid',n:16,ms:900,label:'Grid step',draw,autoplay:false});
+  const A=U.anim({card:'pg-card',ctl:'pg-ctl',tab:'t-read',n:16,ms:900,label:'Grid step',draw,autoplay:false});
   U.seg($('pg-kern'),m=>{kname=m;order='lex';setup()});
   $('pg-var').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;variant=b.dataset.m;setup()});
   $('pg-ord').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;order=b.dataset.m;setup()});
-  U.onRender('t-pkgrid',()=>A.redraw());addEventListener('resize',()=>{if(!$('t-pkgrid').hidden)A.redraw()});
+  U.onRender('t-read',()=>A.redraw());addEventListener('resize',()=>{if(!$('t-read').hidden)A.redraw()});
   setup();
 })();

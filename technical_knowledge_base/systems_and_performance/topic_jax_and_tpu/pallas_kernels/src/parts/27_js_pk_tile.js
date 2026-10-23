@@ -1,4 +1,4 @@
-// ---- Flash tiles (tab t-pktile): the online softmax replayed on real scores (PK.TI from src/runs/pk_tiles.py).
+// ---- Flash tiles (Reading section 5): the online softmax replayed on real scores (PK.TI from src/runs/pk_tiles.py).
 (function(){
   const U=PKU,T=window.PK.TI,$=id=>document.getElementById(id);
   const nb=T.steps.length,bk=T.bk,bq=T.bq,row0=T.rows[0],focus=T.focus_row-row0;
@@ -40,8 +40,8 @@
     const cur=mode==='naive'?(i>=3?T.v_focus_dims:null):(mode==='online'?st.focus_out:st.focus_out_wrong);
     $('ft-cnt').innerHTML=U.stat('Floats held on chip',mode==='naive'?U.comma(T.floats_naive+bq*T.dh,0):U.comma(T.floats_online,0),mode==='naive'?'scores of the block plus the output':'one tile, m and l per row, the accumulator')+
       U.stat('Row 100: m',mode==='naive'&&i<1?'&#8211;':st.m[focus].toFixed(2),'running max')+U.stat('Row 100: l',mode==='naive'?'&#8211;':U.comma(st.l[focus],3),'running sum (after rescaling)')+
-      U.stat('Row 100: error vs the final output',cur?U.e2(maxdiff(cur,T.v_focus_dims)):'&#8211;',mode==='naive'?'only known at the end':'so far')}
-  const A=U.anim({card:'ft-card',ctl:'ft-ctl',tab:'t-pktile',n:nb,ms:1500,label:'Key block',draw});
+      U.stat('Row 100: error vs the final output',cur?(d=>d>=0.01?d.toFixed(2):U.e2(d))(maxdiff(cur,T.v_focus_dims)):'&#8211;',mode==='naive'?'only known at the end':'so far')}
+  const A=U.anim({card:'ft-card',ctl:'ft-ctl',tab:'t-read',n:nb,ms:1500,label:'Key block',draw});
   U.seg($('ft-mode'),m=>{mode=m;A.reset(nsteps())});
-  U.onRender('t-pktile',()=>A.redraw());addEventListener('resize',()=>{if(!$('t-pktile').hidden)A.redraw()});
+  U.onRender('t-read',()=>A.redraw());addEventListener('resize',()=>{if(!$('t-read').hidden)A.redraw()});
 })();

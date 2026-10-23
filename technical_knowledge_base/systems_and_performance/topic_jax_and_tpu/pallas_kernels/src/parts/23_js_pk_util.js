@@ -18,7 +18,7 @@ window.PKU=(function(){
   const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
   // segmented buttons: el holds <button data-m>; f(value) on click
   function seg(el,f){if(!el)return;el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)})}
-  // step animation in any tab: o = {card, ctl, tab, n, draw(i), ms, label}
+  // step animation in any tab: o = {card, ctl, tab, n, draw(i), ms, label}; never autoplays (waits on step 0 for the reader)
   function anim(o){
     const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
     const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};const pid=o.ctl+'-';
@@ -41,7 +41,7 @@ window.PKU=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM&&o.autoplay!==false){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+      kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(o.tab,()=>{show();kick()});show();
     return {reset(n){setPlay(false);st.n=n;st.i=0;show()},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
