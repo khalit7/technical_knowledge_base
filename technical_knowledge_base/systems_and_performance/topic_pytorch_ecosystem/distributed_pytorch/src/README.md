@@ -85,3 +85,7 @@ Why 30 minutes is right: the page owns ten APIs (launch and groups, collectives,
 
 ## Knowledge ledger (`src/ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 345 units: core 228, depth 78, fat 38, owned 1 (ring attention's merge by log-sum-exp, on Distributed Training section 8). 334 drafted by `ledger.py init` from the page before the rebuild; 11 added by hand for the script-drawn figures (section "added 2026-10-23"). Fat units carry a `note`.
+
+## Close of the topic (2026-10-23)
+
+Sibling and neighbour reading times in Further reading set to each page's header (the 60 and 50 min were stale); times dropped for pages whose header states none (Interconnects and scaling, Fault tolerance at scale, Memory allocators, Launching distributed training, the paper pages). Ten ledger keys that began with a stale time were re-keyed to their descriptions.
