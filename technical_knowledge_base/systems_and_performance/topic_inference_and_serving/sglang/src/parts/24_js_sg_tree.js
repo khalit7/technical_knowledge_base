@@ -79,7 +79,7 @@
     capEl.innerHTML='<div class="t">Step '+i+' of '+(FR[mode].length-1)+'</div><p>'+f.cap+'</p>'+(mode==='radix'?'<p class="small"><span style="color:var(--good)">green</span>: matched path; <span style="color:var(--acc)">blue</span>: nodes created; thick border: locked.</p>':'<p class="small"><span style="color:var(--good)">green</span>: reused blocks; <span style="color:var(--acc)">blue</span>: blocks this request filled and cached; <span style="color:var(--bad)">red</span>: cached content evicted.</p>');
     const c=f.c;cntEl.innerHTML=RD.stat('Requests',c[0])+RD.stat('Prompt tokens sent',c[1])+RD.stat('Reused from cache',c[2],c[1]?Math.round(100*c[2]/c[1])+'% of prompt tokens':'')+RD.stat(mode==='radix'?'Tree nodes':'Cached blocks',c[3])+RD.stat('Tokens evicted',c[4])+RD.stat('Slots holding KV',(c[5]||0)+' of '+CAP)}
   const A=RD.anim({card:'sg-tree-card',ctl:'sg-tree-ctl',n:FR.radix.length,draw:draw,ms:1700,label:'Step'});
-  RD.seg(document.getElementById('sg-tree-mode'),m=>{mode=m;A.reset(FR[m].length);A.play()});
+  RD.seg(document.getElementById('sg-tree-mode'),m=>{mode=m;A.reset(FR[m].length)});
   RD.onResize(()=>A.redraw());
   window.SG_TREE_TOTALS={radix:FR.radix[FR.radix.length-1].c,blocks:FR.blocks[FR.blocks.length-1].c};
 })();

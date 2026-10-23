@@ -79,14 +79,44 @@
 #t-read .sg-tree svg text{font-family:ui-monospace,Menlo,monospace}
 #t-read .sg-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px;margin:8px 0}
 #t-read .sg-two>div{min-width:0}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4{margin:0 0 2px;font-size:14.5px}
+#t-read .core{font-size:16px;line-height:1.55;border-left:4px solid var(--good);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400;color:var(--mute)}
+#t-read details.dp>.b{padding:0 12px 10px;min-width:0}
+#t-read .hl{color:var(--good);font-weight:600}
+#t-read .ctl{margin:6px 0}
+#t-read .chart{width:100%;overflow:hidden;margin:6px 0}#t-read .chart svg text{font-size:11px}
+#t-read pre{font:12px/1.45 ui-monospace,Menlo,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;white-space:pre}
+#t-read td.num{font-variant-numeric:tabular-nums}#t-read .bad{color:var(--bad);font-weight:600}
+#t-read .seg button:disabled{opacity:.35}
+#t-read .out{grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr))}
 </style>
 <nav class="nav" id="rd-nav">
-<a href="#sg-s0">0 One screen</a><a href="#sg-s1">1 What SGLang is</a><a href="#sg-s2">2 The radix tree</a><a href="#sg-s3">3 Tree or blocks?</a><a href="#sg-s4">4 Cache-aware scheduling</a><a href="#sg-s5">5 Overlap scheduler</a><a href="#sg-s6">6 Structured output</a><a href="#sg-s7">7 Run and tune</a><a href="#sg-s8">8 Router</a><a href="#sg-s9">9 Large scale</a><a href="#sg-s10">10 SGLang or vLLM?</a><a href="#sg-s11">11 On a Mac</a><a href="#sg-mis">Mistakes</a><a href="#sg-int">Interview</a>
+<a href="#sg-s0">The idea</a><a href="#sg-s1">1 Origin and frontend</a><a href="#sg-s2">2 The radix tree</a><a href="#sg-s3">3 Tree or blocks?</a><a href="#sg-s4">4 Cache-aware scheduling</a><a href="#sg-s5">5 Overlap scheduler</a><a href="#sg-s6">6 Structured output</a><a href="#sg-s7">7 Run and tune</a><a href="#sg-s8">8 Router</a><a href="#sg-s9">9 Large scale</a><a href="#sg-s10">10 SGLang or vLLM?</a><a href="#sg-s11">11 On a Mac</a>
 </nav>
 
 <section id="sg-s0">
-<p class="lead"><dfn>SGLang</dfn> is an open-source serving engine for language models: software that takes requests over HTTP, batches them onto GPUs and streams tokens back, like vLLM. Its organising idea is to <b>keep the KV cache of every finished request in a radix tree</b>, so that any later request starting with the same tokens (a system prompt, a document, the earlier turns of a chat, an agent's growing history) skips recomputing them. Around that tree it builds a scheduler that can order requests to hit the cache, a scheduler loop that hides its own CPU work behind the GPU, constrained decoding for JSON and grammars, a router that sends each request to the replica most likely to hold its prefix, and recipes for serving DeepSeek-sized mixture-of-experts models on hundreds of GPUs.</p>
-<p>This page assumes the parent {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}: what prefill and decode are, what the <dfn>KV cache</dfn> is (the keys and values every layer computed for every earlier token, kept so that each new token attends to them without recomputing them), and what <dfn>prefix caching</dfn> is (keeping that cache after a request ends so the next request with the same beginning reuses it). The running example is the root's chat assistant, and the small open model measured here is Qwen3-0.6B (28 layers, 8 KV heads of 128 dimensions, so 114,688 bytes of KV per token at 16-bit precision, as the {{Engine bench|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} tab measured).</p>
+<p class="core"><b>SGLang keeps the KV cache of every finished request in a <span class="hl">radix tree</span> of token runs, so a later request that begins with the same tokens skips recomputing them; its scheduler, router and structured-output path are built around reusing that tree.</b></p>
+<div class="hero" id="sg-hero-card"><h4>Where each idea acts: one request through an SGLang deployment</h4>
+<div class="rd-svg" id="sg-hero"></div>
+<p class="small">Three processes per server talk over ZeroMQ sockets so that tokenizing, scheduling and detokenizing never block one another: the HTTP server with the <b>TokenizerManager</b> (OpenAI-compatible or native <code>/generate</code>; chat template, token ids), the <b>Scheduler</b>, one per GPU rank, which owns the waiting queue, the <span class="hl">radix tree</span> and the KV pool and runs the model ({{scheduler.py|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/scheduler.py}}), and the <b>DetokenizerManager</b>, which turns new ids into text and streams it ({{detokenizer_manager.py|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/detokenizer_manager.py}}). The tree lives on the CPU and maps runs of token ids to slot numbers in the GPU's KV pool; the KV itself never moves. Everything this page says about caching and ordering happens inside the Scheduler. Section numbers in the figure point to where each part is explained.</p></div>
+<p><b>You need:</b> prefill, decode and the KV cache (the keys and values every layer computed for every earlier token) from the parent {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}; continuous batching, paged attention and <dfn>prefix caching</dfn> as ideas (keeping the KV after a request ends so the next request with the same beginning reuses it) from {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}. The other engine, read the same way, is {{vLLM: inside the default engine|n:3c65c17b0d0d8113b976d8bcaf2c0722}}.</p>
+<dl class="terms">
+<dt>Radix tree</dt><dd>a prefix tree whose edges carry whole runs of tokens; a node exists only where two cached sequences part (section 2).</dd>
+<dt>Lock reference</dt><dd>a count of running requests using a node; a locked node cannot be evicted.</dd>
+<dt>Schedule policy</dt><dd>the order of the waiting queue: <code>fcfs</code> (default), or cache-aware <code>lpm</code> (longest prefix match) and <code>dfs-weight</code> (section 4).</dd>
+<dt>Overlap scheduler</dt><dd>the loop that prepares step <i>k</i> plus 1 on the CPU while the GPU runs step <i>k</i> (section 5).</dd>
+<dt>Retraction</dt><dd>SGLang's word for preemption: a running request is pushed back to the queue and recomputed later (section 7).</dd>
+<dt>HiCache</dt><dd>the radix tree extended over host memory and storage (section 7).</dd>
+</dl>
+<div class="co key"><div class="t">The short answer</div>On the same requests the radix tree and vLLM's hash blocks reuse almost exactly the same tokens (within 0.8 points, section 3). SGLang's edge, where it has one, comes from what sits around the cache: queue ordering when the cache is scarce, the router, structured-output plumbing and the large-scale MoE recipes; and both engines move fast enough that any benchmark older than a few months says little about today.</div>
+<details class="dp"><summary>SGLang v0.5.21 and vLLM v0.31.0 side by side, with the source line for each default <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="rd-tbl"><thead><tr><th></th><th>SGLang v0.5.21</th><th>vLLM v0.31.0</th></tr></thead><tbody>
 <tr><td>Prefix cache</td><td>A radix tree of token sequences, one node per shared run of tokens, page size 1 token by default ({{overrides.py L1280|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/arg_groups/overrides.py#L1280}}); the default class is <code>UnifiedRadixCache</code> ({{registry.py L80|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/mem_cache/registry.py#L80}})</td><td>A hash per full 16-token block, chained over the blocks before it ({{kv_cache_utils.py L684|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/core/kv_cache_utils.py#L684}}); only full blocks are reusable</td></tr>
 <tr><td>On by default</td><td>Yes; <code>--disable-radix-cache</code> turns it off ({{memory.py L64|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/arg_groups/fields/memory.py#L64}})</td><td>Yes (<code>enable_prefix_caching</code>, {{cache.py L142|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/cache.py#L142}})</td></tr>
@@ -95,14 +125,7 @@
 <tr><td>CPU work hidden behind the GPU</td><td>Overlap scheduler, on by default ({{scheduler.py L1941|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/scheduler.py#L1941}})</td><td>Asynchronous scheduling, on unless a feature disables it ({{config/vllm.py|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/vllm.py}}, read for the root's Serving simulator)</td></tr>
 <tr><td>Structured output</td><td>XGrammar by default; llguidance and Outlines selectable ({{serving_hook.py L219|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/arg_groups/serving_hook.py#L219}})</td><td>XGrammar or guidance ({{README|https://github.com/vllm-project/vllm/tree/v0.31.0}})</td></tr>
 <tr><td>Router</td><td>SGLang Model Gateway (Rust), <code>cache_aware</code> by default ({{main.rs L150|https://github.com/sgl-project/sglang/blob/v0.5.21/sgl-model-gateway/src/main.rs#L150}})</td><td>None in the engine; llm-d or the production stack in front ({{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}})</td></tr>
-</tbody></table></div>
-<p>What this page adds to the root, in five pieces of evidence:</p>
-<div class="rd-five">
-<div style="--sc:var(--good)"><div class="k">Same traces, two caches</div><div class="v" id="sg-k-tree">...</div><p>SGLang's own radix cache classes and vLLM's own KV cache manager replayed on four request traces; a page-sized port runs live in the {{Radix lab|#t-sgtree}}.</p></div>
-<div style="--sc:var(--acc)"><div class="k">Queue order</div><div class="v" id="sg-k-sched">...</div><p>SGLang's own scheduling policy code ordering real queues; the {{Scheduling lab|#t-sgsched}} replays it.</p></div>
-<div style="--sc:var(--c4)"><div class="k">The real engine on a laptop</div><div class="v" id="sg-k-m1">...</div><p>SGLang v0.5.21 built from source and run on an Apple M1 Pro through its MLX backend; {{SGLang on the M1|#t-sgm1}}.</p></div>
-<div style="--sc:var(--bad)"><div class="k">Bugs on Apple silicon</div><div class="v">wrong text, crashes</div><p>The release would not start, its cache returned another request's text, and eviction, chunked prefill and cache flushes crashed it (section 11).</p></div>
-<div style="--sc:var(--c6)"><div class="k">Independent comparison</div><div class="v" id="sg-k-vs">...</div><p>Throughput per GPU at matched concurrency in SemiAnalysis InferenceX runs of both engines (DeepSeek-V4-Pro, four GPU types); {{SGLang vs vLLM|#t-sgvs}}.</p></div>
-</div>
-<div class="co key"><div class="t">The short answer</div>On the same requests the radix tree and vLLM's hash blocks reuse almost exactly the same tokens (section 3). SGLang's edge, where it has one, comes from what sits around the cache: queue ordering when the cache is scarce, the router, structured-output plumbing and the large-scale MoE recipes; and both engines move fast enough that any benchmark older than a few months says little about today.</div>
+</tbody></table></div></div></details>
+<details class="dp"><summary>How this page knows: the evidence behind it <span class="mute">(provenance)</span></summary><div class="b">
+<p>Everything is read from source at SGLang <b>v0.5.21</b> (tag commit <code>e00930c5</code>) and vLLM <b>v0.31.0</b>, with file and line beside each claim. Three kinds of evidence are added to the published record, each labelled where it appears: the engines' own prefix-cache classes replayed on the same request traces (section 3); SGLang's own scheduling-policy code ordering real queues (section 4); and SGLang v0.5.21 built from source and run on an Apple M1 Pro through its MLX backend (sections 3 to 6 and 11), which also surfaced bugs on Apple silicon: the release would not start, its cache returned another request's text, and eviction, chunked prefill and cache flushes crashed it. The independent comparison of the two engines is SemiAnalysis InferenceX (section 10). The small open model measured here is Qwen3-0.6B (28 layers, 8 KV heads of 128 dimensions, so 114,688 bytes of KV per token at 16-bit precision, as the root's {{Engine bench|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} tab measured); the running example is the root's chat assistant.</p></div></details>
 </section>

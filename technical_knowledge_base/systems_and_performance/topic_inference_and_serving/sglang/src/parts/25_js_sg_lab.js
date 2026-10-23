@@ -1,6 +1,6 @@
-// ---- Radix lab (t-sgtree): the two caches live on the four traces ----
+// ---- Reading section 3: the two caches live on the four traces (was the Radix lab tab) ----
 (function(){
-  const root=document.getElementById('t-sgtree');if(!root||!window.SG||!window.SGD)return;
+  const root=document.getElementById('sgt-card'),rd=document.getElementById('t-read');if(!root||!window.SG||!window.SGD)return;
   const CAPS=[6000,8000,12000,16000,24000,32000,48000,64000,96000,1000000];
   const DESC={chat:'240 requests: conversations of 4 turns, 90% of them under one of 3 system prompts of 600 tokens; each turn resends the whole conversation. From the root simulator\'s generator (seed 7).',
     agent:'200 requests: conversations of 10 turns under one 2,000-token system prompt, turns 15 s apart, so up to about 4,800 tokens of history per request (seed 11).',
@@ -14,7 +14,7 @@
   function run(tr,cap){const k=tr+'|'+cap;if(!cache[k]){const reqs=SG.getTrace(tr),a=SG.runCache('radix',reqs,cap),b=SG.runCache('blocks',reqs,cap);
       let blocks=0;for(const h of b.cache.hash)if(h!==null)blocks++;
       cache[k]={reqs:reqs,a:a.reqs,b:b.reqs,nodes:a.cache.nodes-1,blocks:blocks}}return cache[k]}
-  function draw(){if(root.hidden)return;NEED[trace]=NEED[trace]||need(trace);
+  function draw(){if(rd.hidden)return;NEED[trace]=NEED[trace]||need(trace);
     const caps=CAPS.filter(c=>c>=NEED[trace]);if(ci>=caps.length)ci=caps.length-1;const sl=$('sgt-cap');sl.max=caps.length-1;sl.value=ci;
     const cap=caps[ci];$('sgt-capv').textContent=cap>=1000000?'room for everything':fmt(cap)+' token slots ('+(cap*114688/2**30).toFixed(2)+' GiB of Qwen3-0.6B KV at 16 bits)';
     $('sgt-desc').textContent=DESC[trace];
@@ -34,15 +34,15 @@
     if(cap<=100000)b+='<line x1="'+lx(cap)+'" x2="'+lx(cap)+'" y1="'+y0+'" y2="'+(y0+ph)+'" stroke="var(--bad)" stroke-dasharray="3 3"/>';
     else b+=RD.t(x0+pw,y0+10,'room for all: '+pct(ha,P)+' / '+pct(hb,P),{a:'end',fs:10,fill:'var(--bad)'});
     el.innerHTML=RD.svg(w,h,b,'Share of prompt tokens reused against pool size');
-    // per-request difference
+    drawDiff()}
+  function drawDiff(){const det=$('sgt-diff-det');if(rd.hidden||!det||!det.open)return;const caps=CAPS.filter(c=>c>=NEED[trace]),r=run(trace,caps[Math.min(ci,caps.length-1)]);
     const el2=$('sgt-diff'),w2=RD.width(el2),h2=150,m=r.reqs.length,bw=Math.max(1,(w2-44)/m);let mx=1;const d=r.a.map((x,i)=>x[1]-r.b[i][1]);for(const v of d)mx=Math.max(mx,Math.abs(v));
     const mid=h2/2;let s='<line x1="40" x2="'+(w2-4)+'" y1="'+mid+'" y2="'+mid+'" stroke="var(--line)"/>'+RD.t(36,14,'+'+fmt(mx),{a:'end',fs:10,fill:'var(--mute)'})+RD.t(36,h2-6,'-'+fmt(mx),{a:'end',fs:10,fill:'var(--mute)'})+RD.t(36,mid+4,'0',{a:'end',fs:10,fill:'var(--mute)'});
     d.forEach((v,i)=>{if(!v)return;const hh=(mid-8)*Math.abs(v)/mx;s+='<rect x="'+(40+i*bw).toFixed(1)+'" y="'+(v>0?mid-hh:mid).toFixed(1)+'" width="'+Math.max(1,bw-0.5).toFixed(1)+'" height="'+Math.max(1,hh).toFixed(1)+'" fill="'+(v>0?'var(--good)':'var(--acc)')+'"><title>request '+(i+1)+': '+(v>0?'+':'')+v+' tokens</title></rect>'});
     const np=d.filter(v=>v>0).length,nn=d.filter(v=>v<0).length;s+=RD.t(w2-4,14,np+' requests tree ahead, '+nn+' blocks ahead',{a:'end',fs:10,fill:'var(--mute)'});
-    el2.innerHTML=RD.svg(w2,h2,s,'Per-request difference in reused tokens');
-    if(SGD.real)$('sgt-src').textContent='Checked: '+SGD.real.identical+' of '+SGD.real.runs+' real-class replays identical to the port ('+SGD.real.requests.toLocaleString('en-US')+' requests: SGLang v0.5.21 UnifiedRadixCache and RadixCache, vLLM v0.31.0 Scheduler and KVCacheManager), run 2026-10-08.'}
+    el2.innerHTML=RD.svg(w2,h2,s,'Per-request difference in reused tokens')}
   RD.seg($('sgt-trace'),m=>{trace=m;draw()});
   $('sgt-cap').addEventListener('input',e=>{ci=+e.target.value;draw()});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-sgtree']=[draw];
-  addEventListener('resize',()=>{clearTimeout(root._t);root._t=setTimeout(draw,80)});
+  $('sgt-diff-det').addEventListener('toggle',drawDiff);
+  RD.onRender(draw);RD.onResize(draw);
 })();

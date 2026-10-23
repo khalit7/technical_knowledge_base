@@ -1,13 +1,7 @@
 // ---- Reading section 5: plain loop against overlap loop, five decode steps on a CPU lane and a GPU lane ----
-// Durations: from the M1 runs when present (GPU = time per token with overlap; CPU = the extra time per token without
-// it, the work the overlap hides), else illustrative values, labelled.
 (function(){
   const card=document.getElementById('sg-ovl-card');if(!card)return;
-  let f=5,c=1.5,src='Illustrative durations: 5 ms of GPU work and 1.5 ms of CPU work per step.';
-  const o=window.SGD&&SGD.m1&&SGD.m1.overlap;
-  if(o&&o.on&&o.off&&o.on['1']&&o.off['1']){const ton=o.on['1'].ms_per_token,toff=o.off['1'].ms_per_token;
-    if(toff>ton){f=ton;c=toff-ton;src='Durations from the M1 runs at concurrency 1: '+ton.toFixed(2)+' ms per token with overlap (taken as the GPU work), '+toff.toFixed(2)+' ms without, so '+c.toFixed(2)+' ms of CPU work per step was hidden (derived). Qwen3-0.6B 4-bit through SGLang\'s MLX backend.'}}
-  document.getElementById('sg-ovl-src').textContent=src;
+  const f=5,c=1.5;  // illustrative durations, stated in the card's caption (the M1 overlap runs crashed)
   const N=5;
   function events(mode){const ev=[];let t=0;
     if(mode==='normal'){for(let k=1;k<=N;k++){ev.push({lane:'cpu',s:t,e:t+c/2,k:k,what:'schedule '+k});t+=c/2;ev.push({lane:'gpu',s:t,e:t+f,k:k,what:'forward '+k});t+=f;ev.push({lane:'cpu',s:t,e:t+c/2,k:k,what:'results '+k});t+=c/2}}
@@ -34,6 +28,6 @@
     capEl.innerHTML='<div class="t">'+(mode==='normal'?'Plain loop':'Overlap loop')+': '+e.what+'</div><p>'+(mode==='normal'?'The GPU waits while the CPU schedules the next batch and processes the last one; every step costs GPU time plus CPU time.':'The CPU processes step k minus 1 and schedules step k plus 1 while the GPU runs step k, using placeholders for the tokens step k has not produced yet; the GPU runs back to back as long as the CPU work is shorter than the forward pass.')+'</p>';
     cntEl.innerHTML=RD.stat('Elapsed',end.toFixed(1)+' ms')+RD.stat('Steps launched',done+' of '+N)+RD.stat('GPU busy',(100*gpu/end).toFixed(0)+'%')+RD.stat('Per step, steady state',(mode==='normal'?(f+c):Math.max(f,c)).toFixed(2)+' ms')}
   const A=RD.anim({card:'sg-ovl-card',ctl:'sg-ovl-ctl',n:EV.normal.length,draw:draw,ms:900,label:'Event'});
-  RD.seg(document.getElementById('sg-ovl-mode'),m=>{mode=m;A.reset(EV[m].length);A.play()});
+  RD.seg(document.getElementById('sg-ovl-mode'),m=>{mode=m;A.reset(EV[m].length)});
   RD.onResize(()=>A.redraw());
 })();
