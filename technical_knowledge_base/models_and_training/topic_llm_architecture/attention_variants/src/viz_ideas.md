@@ -31,3 +31,17 @@ Scores 0 to 2 on the skill's eight criteria (2 and 3 count double), minus build 
 | Differential attention trained on the tiny GPT | Its gains are reported at billions of parameters; the tiny model's attention is mostly local, so there is little noise to cancel. Published numbers instead. |
 | A V4 compression animation | The DeepSeek page derives V4's cache; the ladder places it beside the others. |
 | SmolLM2 served with each variant | SmolLM2 was trained with full attention; running it under DSA or windows measures mismatch, not the variant. The explorer reports kept mass instead, and the Long context child measures eviction. |
+
+## Rebuild of 2026-10-23 (teaching contract pilot)
+| Visual | Where | Type | Why |
+|---|---|---|---|
+| What each variant caches per token per layer, beside what the next token reads | top (hero) | static annotated diagram (type 14), to scale | the whiteboard picture of the whole subject: entry size against tokens kept and read |
+| Four caches, one sequence (MHA against GQA-4, GQA-2, MQA, MLA, window) | Reading s2 | before/after (type 1), moved from the root's Attention lab | the GQA grouping and the shrinking cache seen on the same 16 tokens; this page now owns the mechanism |
+| MLA explainer: one token through one layer, MLA against MHA | Reading s3 | before/after (type 1), moved from the DeepSeek page | Khalid's reference animation; now paused until the reader starts it |
+| NSA's three branches and gates | Reading s5 | static annotated diagram (type 14), new | structure, not a process; the audit flagged it missing |
+| DSA: score, top-k, read, reads at scale, training stages | Reading s5 | stepper (type 15) on real SmolLM2 attention, new | a process; real data instead of an illustration (oracle indexer, labelled) |
+| V4 CSA and HCA: merge, window, select or read all | Reading s5 | stepper (type 15) with a mode switch, new | a process; the audit flagged it missing |
+| Stacked-window reach | Reading s4 | stepper, moved from the keys tab | beside the claim it proves |
+| Per-layer decode cost: read and FLOPs per byte for 16 layer types | Reading s7 | one slider (context), from the old Cache ladder | per layer (the mechanism), not per sequence (Long context owns sizing) |
+
+Removed: the two-rung decode race (its point, memory-bound against near the balance point, is carried by the FLOPs per byte bars and one sentence); the Cache ladder's "cache held per sequence" mode (whole-model sizing belongs to Long context); the DeepSeek page's MLA prefill/decode toggle and GQA-groups slider were not moved (the MLA explainer's steps 5 and 6 and the "576 = 2 x 2.25 x 128" sentence carry them).

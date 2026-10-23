@@ -47,12 +47,12 @@ upr = {r["kv_heads"]: r for r in up["rows"]}
 f3 = lambda v: f"{v:.3f}"
 checks = [
     ("averaging the tiny MHA's 8 KV heads into 2 took held-out loss from 2.137 to 4.276", f3(kr["held_out_20win"]) == "2.137" and f3(conv[(2, None)]) == "4.276"),
-    ("back to 2.481 after 5% uptraining and 2.317 after 10%", f3([u for u in upr[2]["uptrain"] if u["steps"] == 75][0]["held_out_20win"]) == "2.481" and f3([u for u in upr[2]["uptrain"] if u["steps"] == 150][0]["held_out_20win"]) == "2.317"),
+    ("5% uptraining brought it back to 2.481 and 10% to 2.317", f3([u for u in upr[2]["uptrain"] if u["steps"] == 75][0]["held_out_20win"]) == "2.481" and f3([u for u in upr[2]["uptrain"] if u["steps"] == 150][0]["held_out_20win"]) == "2.317"),
     ("a GQA-2 trained from the start reached 2.160 (20 windows)", f3(run["at_gqa2"]["val_loss_20win"]) == "2.160"),
-    ("cost 0.093 in loss and 128 directions 0.009", f3(conv[(None, 64)] - kr["held_out_20win"]) == "0.093" and f3(conv[(None, 128)] - kr["held_out_20win"]) == "0.009"),
+    ("onto 64 directions cost 0.093 and onto 128 directions 0.009", f3(conv[(None, 64)] - kr["held_out_20win"]) == "0.093" and f3(conv[(None, 128)] - kr["held_out_20win"]) == "0.009"),
     ("projection: +0.009 at 128 numbers", f3(conv[(None, 128)] - kr["held_out_20win"]) == "0.009"),
     ("moves attention weights by up to 0.40", f"{max(l['rope_trap_weight_err'] for l in ml['layers']):.2f}" == "0.40"),
-    ("reads 57x fewer bytes than the expanded cache", round(ml["deepseek_v3"]["costs_T32768"]["cache expanded K and V"]["bytes"] / ml["deepseek_v3"]["costs_T32768"]["absorbed"]["bytes"]) == 57),
+    ("reads 57x fewer bytes than an expanded cache", round(ml["deepseek_v3"]["costs_T32768"]["cache expanded K and V"]["bytes"] / ml["deepseek_v3"]["costs_T32768"]["absorbed"]["bytes"]) == 57),
     ("about 3.7x the arithmetic", f"{ml['deepseek_v3']['costs_T32768']['absorbed']['flops'] / ml['deepseek_v3']['costs_T32768']['cache expanded K and V']['flops']:.1f}" == "3.7"),
     ("MLA (d<sub>c</sub> 64, d<sub>r</sub> 16) at 2.255 held-out (seed 1: 2.248)", f3(run["at_mla"]["val_loss_100win"]) in ("2.255",) and f3(run["at_mla_s1"]["val_loss_100win"]) == "2.248"),
     ("hold 75% to 94% of its attention in layers 13 to 30", True),
@@ -62,6 +62,9 @@ checks.append(("land at 2.185, 2.182 and 2.177 (seed 1: 2.185) against MHA's 2.1
 deep = [r for r in tk["smollm2"]["layers"] if r["layer"] >= 13]
 checks[-1] = ("hold 75% to 94% of its attention in layers 13 to 30", f"{100*min(r['topk']['16'] for r in deep):.0f}" == "75" and f"{100*max(r['topk']['16'] for r in deep):.0f}" == "94")
 checks.append(("last 64 keys plus position 0 hold only 46% to 76%", f"{100*min(r['window64_plus_tok0'] for r in deep):.0f}" == "46" and f"{100*max(r['window64_plus_tok0'] for r in deep):.0f}" == "76"))
+sp = kr["spectrum"]; fx = lambda key, r: [x[key][r] for x in sp]
+checks.append(("the top 64 directions hold 94.2% to 99.6% of their variance and the top 128 hold 99.3% to 99.98%", f"{100*min(fx('kv','64')):.1f} {100*max(fx('kv','64')):.1f} {100*min(fx('kv','128')):.1f} {100*max(fx('kv','128')):.2f}" == "94.2 99.6 99.3 99.98"))
+checks.append(("32 directions (what MQA keeps) hold 84% to 94%", f"{100*min(fx('k','32')):.0f} {100*max(fx('k','32')):.0f}" == "84 94"))
 for extra in json.load(open(os.path.join(HERE, "out", "prose_checks.json"))) if os.path.exists(os.path.join(HERE, "out", "prose_checks.json")) else []:
     checks.append((extra["text"], extra["ok"]))
 for text, ok in checks:

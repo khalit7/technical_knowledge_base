@@ -47,9 +47,9 @@
       ['New-story loss',r.new!==undefined?LC.fmt(r.new,2):'not run','full '+LC.fmt(ser('full',1).new,2)]
     ].map(x=>'<div class="stat"><div class="k">'+x[0]+'</div><div class="v">'+x[1]+'</div><div class="d">'+x[2]+'</div></div>').join('');
   }
-  const an=LC.anim({card:'ev-card',ctl:'ev-ctl',n:steps().length,draw,ms:2200,tab:'t-evict',label:'Policy step'});
+  const an=LC.anim({card:'ev-card',ctl:'ev-ctl',n:steps().length,draw,ms:2200,tab:'t-read',label:'Policy step'});
   LC.seg($('ev-bud'),m=>{bud=m;an.reset(steps().length)});
-  LC.onResize($('t-evict'),()=>{an.redraw();chart()});
+  LC.onResize($('t-read'),()=>{an.redraw();chart()});
   // quality vs memory
   let met='pk';
   const COL={recent:'--c3',sink_recent:'--c5',random:'--mute',h2o:'--c2',snapkv:'--acc',snapkv_doc:'--c6',local_global:'--c4',q_tok:'--ink',q_kivi:'--c4'};
@@ -79,7 +79,7 @@
       new:'New-story loss: what a perplexity benchmark sees. Every policy that keeps the first tokens stays within a few percent of the full cache even at 6% of it; only the windows without sinks (recent) and 2-bit per-token rounding move it. A perplexity check would pass caches that fail both other tasks.'};
     $('ev-qtext').textContent=TXT[met];
   }
-  LC.seg($('ev-met'),m=>{met=m;chart()});LC.onTab('t-evict',chart);chart();
+  LC.seg($('ev-met'),m=>{met=m;chart()});LC.onTab('t-read',chart);chart();
   // survival table
   const pols=['recent','sink_recent','random','h2o','snapkv','snapkv_doc','local_global'];
   let h='<thead><tr><th>Policy</th>'+['50%','25%','12.5%','6.25%'].map(x=>'<th class="num">'+x+': heads kept / correct</th>').join('')+'</tr></thead><tbody>';

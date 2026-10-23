@@ -1,4 +1,4 @@
-"""Writes parts/31_js_wl_0data.js (window.WLD) for the Memory wall tab: real config.json files from the root's
+"""Historical (the Memory wall tab was replaced by the KV-cache calculator on 2026-10-23); writes out/wl_data.js (window.WLD): real config.json files from the root's
 src/data/configs/ (read-only), their manifest rows, and the root calc.py results the tab's defaults must reproduce
 (src/calc/out/py_results.json). Run: python3 make_wall_data.py"""
 import json, os
@@ -21,5 +21,5 @@ for k in KEYS:
                    "ref_total": py[k]["params"]["total"]})
 out = {"date": "2026-10-18", "models": models}
 s = "// written by src/wall/make_wall_data.py from the root's src/data/configs and src/calc/out; do not edit by hand\nwindow.WLD=" + json.dumps(out, separators=(",", ":")) + ";\n"
-open(os.path.join(H, "../parts/31_js_wl_0data.js"), "w").write(s)
+open(os.path.join(H, "out/wl_data.js"), "w").write(s)
 print(len(s))

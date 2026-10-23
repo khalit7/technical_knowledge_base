@@ -1,4 +1,4 @@
-# Visuals: built and rejected (Long context child, 2026-10-18)
+# Visuals: built and rejected (Long context child, 2026-10-18; rebuilt 2026-10-23)
 
 Scores 0 to 2 per criterion of the explainer-page skill (choosing.md): movable quantity, reproduces a source (x2),
 public inputs (x2), shows what a sentence cannot, corrects a misconception, measures the central question, absent
@@ -28,3 +28,18 @@ elsewhere, animatable against the method replaced. Build cost subtracted.
 | A RULER / NoLiMa effective-length chart over published models | Long-context and multimodal benchmarks has the Effective length tab over 39 rows. |
 | Decode latency against context measured on MPS | Absolute times on a shared laptop teach little; the bandwidth argument is in Performance math and the root's Attention lab measured it at a real layer shape. |
 | Paged-block reclaim simulation of eviction | Batching, KV cache and scheduling measured realisable savings already. |
+
+## 2026-10-23 rebuild (teaching-contract pilot)
+| Visual | Where | Kind | Why |
+|---|---|---|---|
+| Hero: one Llama 3.1 8B request's weights and cache against context on an 80 GB GPU, linear axes, MHA counterfactual dashed | Reading, top | static annotated, to scale | the whiteboard picture: linear growth, cache equals weights near 122K, MHA runs out before 110K |
+| One token's entry per design (MHA, GQA-8, MQA, MLA, MLA + DSA, recurrent), squares of 64 numbers | Reading s1 | static, drawn to scale | structure of the per-token rate; mechanisms stay on Attention variants |
+| Attention share of FLOPs against context, decode and prefill (calc.py) | Reading s2 | static chart | the 28,600 and 70% numbers were prose only |
+| Key and value outlier ratios, 90 caches | Reading s3 | static dot strip from measured data | KIVI's premise on our model, beside the claim |
+| Gemma 3 27B layer strip | Reading s5 | one slider (context) | windowed layers stop, globals grow; replaces a paragraph |
+| Eviction kept map, quality against memory, position wall, distance slider, pass-key grid | Reading s4, s7, s8 | moved from the lab tabs | the strongest visuals were one click away |
+| KV-cache calculator: 45 presets, design as the variable, all presets at one context, 12 published checks | own tab | calculator with residuals | sole owner of sizing; replaces the Memory wall and the cache tabs of eight pages |
+
+Rejected on 2026-10-23: a log-scale bar chart of every preset (bars on a log axis lie about ratios; linear bars with printed
+values instead); keeping the Memory wall alongside the calculator (two calculators for one concept); per-channel key
+histograms (would need a rerun for data the ratio strip already shows).

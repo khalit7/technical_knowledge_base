@@ -34,14 +34,14 @@ if pa != EFD["past"]: bad.append("past.json differs from page")
 def need(text, cond, why):
     if text not in page: bad.append("text not found: " + text)
     elif not cond: bad.append("prose number wrong: " + why)
-need("three 128K sequences fit, and thirteen at 32K", LCF["w_l8_cfg_fit"] == 3 and LCF["w_l8_cfg_32k_fit"] == 13, "l8 fits")
-need("at 131,072 tokens attention is 70% of the prefill", round(LCF["w_l8_cfg_attn"]) == 70, "l8 attn")
+need("holds three such sequences after the weights, thirteen at 32K", LCF["w_l8_cfg_fit"] == 3 and LCF["w_l8_cfg_32k_fit"] == 13, "l8 fits")
+need("attention from 70% to 28% of the FLOPs", round(LCF["w_l8_cfg_attn"]) == 70, "l8 attn")
 need("(10 at 128K as configured", LCF["w_l70_cfg_fit"] == 10, "l70 fit")
 need("attention from 70% to 28% of the FLOPs", round(LCF["w_l8_cfg_attn"]) == 70 and round(LCF["w_l8_lg_attn"]) == 28, "attn share")
 need("cut the cache 8 and 6 times", round(LCF["w_l8_cfg_tok"] / LCF["w_l8_mqa_tok"]) == 8 and round(LCF["w_l8_cfg_tok"] / LCF["w_l8_lg_tok"]) == 6, "ratios")
 need("Six times smaller", round(LCF["w_l8_cfg_tok"] / LCF["w_l8_lg_tok"]) == 6, "anim ratio")
 need("41 requests fit", LCF["w_l8_lg_fp8_fit"] == 41, "anim 41")
-need("(41 sequences fit with the layout and fp8; 3 as Llama 3.1 8B ships)", LCF["w_l8_lg_fp8_fit"] == 41 and LCF["w_l8_cfg_fit"] == 3, "iq")
+need("only a trained layout plus fp8 reaches 32", LCF["w_l8_lg_fp8_fit"] == 41 and LCF["w_l8_cfg_fit"] == 3, "iq")
 need("about 9 times", True, "") if "about 9 times" in page else None
 print("problems:", len(bad)); [print(" ", b) for b in bad]
 sys.exit(1 if bad else 0)

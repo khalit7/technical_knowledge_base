@@ -22,6 +22,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       const side = await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
       if (m || side) { errs.push(`${t} ${what}: ${m ? m[0] : ''} ${side ? 'sideways' : ''}`); }
     };
+    await p.$$eval(`#${t} details`, ds => ds.forEach(d => { d.open = true }));
     await check('open');
     // selects: every option
     const sels = await p.$$(`#${t} select`);

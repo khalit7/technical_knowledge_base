@@ -8,3 +8,9 @@ Corrections this page makes or adds relative to neighbours (evidence on the page
 - The root Attention lab's MLA gap (about 0.09 worse than MHA): investigated in Reading section 3 with three runs.
 - The GQA paper's "GQA already achieves reasonable performance after conversion" does not reproduce on the tiny GPT:
   averaged heads give 4.28 against 2.14 before uptraining (section 2).
+
+## 2026-10-23: owner of the attention-variant mechanisms
+This page now owns MHA, MQA, GQA, MLA, windows, NSA, DSA, DeepSeek-V4's CSA and HCA, sinks and gates. The mechanism passages of
+the root (Reading section 4 and the Attention lab), the DeepSeek page (MLA, DSA, V4 sections), the LLM Architecture Gallery and the
+Kimi page were read and every knowledge unit they hold about these mechanisms is on this page; `ledger.json` lists them (section
+"absorbed") with the key string that proves each. Whole-model KV sizing at a context length stays with Long context.

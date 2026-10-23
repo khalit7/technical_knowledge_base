@@ -1,6 +1,6 @@
 """Write the page's data parts from the recorded outputs in out/ (never by hand).
 
-  parts/33_js_ky_0data.js  window.AVK  (Which keys are read: explorer rows, top-k statistics)
+  parts/22_js_rd_0keys.js  window.AVK  (Which keys are read: explorer rows, top-k statistics)
   parts/22_js_rd_0data.js  window.AVR  (Reading: runs, window sweep, sinks, MLA checks, conversions)
 Run: python3 make_page_data.py   (reads out/*.json only; no scratch needed)
 """
@@ -37,7 +37,7 @@ def keys():
             "stats": {"smollm2": {"block": t["smollm2"]["block"], "layers": S},
                       "tiny_at_mha": {"block": t["tiny_at_mha"]["block"], "layers": T}},
             "say": say}
-    open(os.path.join(HERE, "parts", "33_js_ky_0data.js"), "w").write(
+    open(os.path.join(HERE, "parts", "22_js_rd_0keys.js"), "w").write(
         "// written by src/make_page_data.py from out/topk_mass.json; do not edit by hand\nwindow.AVK=" +
         json.dumps(data, separators=(",", ":"), ensure_ascii=False) + ";\n")
     return data

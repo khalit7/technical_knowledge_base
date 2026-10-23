@@ -1,9 +1,9 @@
-// Which keys are read: SmolLM2's real attention under each variant's read set; the stacked-window reach; the top-k table.
+// Which keys are read: SmolLM2's real attention under each variant's read set (the reach animation and top-k table moved to the Reading tab).
 (function(){
   if(!window.AVK||!document.getElementById('ky-txt'))return;
   const $=id=>document.getElementById(id),K=window.AVK,esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const KS=[8,16,32,64,128],WS=[16,32,64,128],BL=16;
-  let mode='full',inited=false,anim=null,mod='smollm2';
+  const KS=[8,16,32,64,128],BL=16;
+  let mode='full',inited=false;
   const dec=(s,m)=>Array.from(s,ch=>(ch.charCodeAt(0)-48)/63*m);
   function row(){const l=+$('ky-l').value,q=+$('ky-q').value;const r=K.rows.find(x=>x.layer===l&&x.q===q);
     return {r,w:$('ky-h').value==='head'?dec(r.head_row,r.head_max):dec(r.mean,r.mean_max)}}
@@ -34,32 +34,12 @@
       nsa:'NSA reads three things: a compressed summary of every block (not drawn), the top blocks by score, and a local window; the first block and the two local blocks are always among the selected. Blocks of 16 tokens here (NSA uses 64 at long context).'};
     $('ky-note').innerHTML='<div class="t">'+esc($('ky-var').querySelector('button.on').textContent)+'</div><p>'+notes[mode]+'</p>';
   }
-  function reach(s,W,inter){for(let l=1;l<=s;l++)if(inter&&l%3===0)return Infinity;return s*(W-1)}
-  function strip(i){
-    const W=WS[+$('ky-w').value];$('ky-wv').textContent=W;const s=i+1,q=K.tokens.length-1;const n=q+1;const cells=64;
-    const bar=(R)=>{let h='';for(let c=0;c<cells;c++){const p=Math.floor(c*n/cells);const ok=q-p<=R;h+='<i style="background:'+(ok?'var(--acc)':'transparent')+'"></i>'}return '<div class="c">'+h+'</div>'};
-    let h='<div class="small"><b>Every layer local</b></div>';for(let l=1;l<=s;l++)h+='<div class="r"><span>layer '+l+'</span>'+bar(reach(l,W,false))+'</div>';
-    h+='<div class="small" style="margin-top:4px"><b>2 local : 1 global</b> (layers 3 and 6 global)</div>';for(let l=1;l<=s;l++)h+='<div class="r"><span>layer '+l+(l%3===0?' G':'')+'</span>'+bar(reach(l,W,true))+'</div>';
-    $('ky-strip').innerHTML=h;
-    const Ra=reach(s,W,false),Rb=reach(s,W,true);
-    $('ky-cap').innerHTML='<b>After layer '+s+'.</b> All-local: the last token can be influenced by the previous '+Math.min(q,Ra)+' tokens ('+s+' x (W - 1) = '+Ra+(Ra>=q?', the whole 226-token text':'')+'). Interleaved: '+(Rb===Infinity?'every token, since a global layer has run':Rb+' tokens')+'. '+(s===6?'With 6 layers and W = '+W+', the all-local stack reaches '+(6*(W-1))+' tokens: Mistral 7B\'s 32 layers x 4,096 give the "about 131K" its paper calls a theoretical span; theoretical, because information must survive 32 hops of mixing to get there.':'');
-  }
-  function table(){
-    const S=K.stats[mod];const ks=Object.keys(S.layers[0].topk);
-    let h='<thead><tr><th>Layer</th>'+ks.map(k=>'<th class="num">top '+k+'</th>').join('')+'<th class="num">top 16 without position 0</th><th class="num">top 4 blocks of '+S.block+'</th><th class="num">position 0</th><th class="num">last 64</th><th class="num">last 64 + position 0</th></tr></thead><tbody>';
-    for(const r of S.layers)h+='<tr><td>'+r.layer+'</td>'+ks.map(k=>'<td class="num">'+(100*r.topk[k]).toFixed(0)+'%</td>').join('')+'<td class="num">'+(100*r.topk_no_tok0['16']).toFixed(0)+'%</td><td class="num">'+(100*r.top_blocks['4']).toFixed(0)+'%</td><td class="num">'+(100*r.tok0).toFixed(1)+'%</td><td class="num">'+(100*r.window64).toFixed(0)+'%</td><td class="num">'+(100*r.window64_plus_tok0).toFixed(0)+'%</td></tr>';
-    $('ky-tab').innerHTML=h+'</tbody>';
-    $('ky-say').innerHTML=K.say[mod];
-  }
   function init(){if(inited)return;inited=true;
     $('ky-q').innerHTML=K.queries.map(q=>'<option value="'+q+'">'+q+': "'+esc(K.tokens[q].trim()||K.tokens[q])+'"</option>').join('');$('ky-q').value=K.queries[K.queries.length-1];
     $('ky-l').innerHTML=K.layers.map(l=>'<option value="'+l+'">'+l+' of 30</option>').join('');$('ky-l').value=18;
     ['ky-q','ky-l','ky-h','ky-k'].forEach(id=>$(id).addEventListener(id==='ky-k'?'input':'change',draw));
     $('ky-var').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;$('ky-var').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));draw()});
-    $('ky-mod').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mod=b.dataset.m;$('ky-mod').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));table()});
-    anim=RD.anim({card:'ky-strip',ctl:'ky-ctl',n:6,ms:1300,draw:strip,label:'Layer'});
-    $('ky-w').addEventListener('input',()=>anim.redraw());
-    draw();table();
+    draw();
   }
   (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-keys']=window.TAB_RENDER['t-keys']||[]).push(()=>{init();draw()});
 })();

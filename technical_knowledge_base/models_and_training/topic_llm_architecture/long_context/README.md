@@ -2,9 +2,8 @@
 
 Notion: https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5
 
-Child page of Topic: llm-architecture. One interactive page (`index.html`, built from `src/` by `sh src/build.sh`):
-Reading (the four walls of long context: memory, compute, position, use; every lever with its cost; design,
-mistakes, interview questions), Memory wall (real configs redesigned lever by lever with the root's calculator code),
-Eviction lab (SmolLM2-135M at 4,096 tokens under seven eviction policies and five quantised caches), Effective context
-lab (the tiny GPT past its trained length; SmolLM2's pass-key grid to 16K), Further reading. How it was built and
-rerun: `src/README.md`.
+Child page of Topic: llm-architecture, and the knowledge base's owner of KV-cache sizing. One interactive page (`index.html`,
+built from `src/` by `sh src/build.sh`): Reading (one token's cost, why decode and prefill slow down, smaller entries,
+eviction and quantisation measured on SmolLM2-135M, local and global layers, long prompts, the position wall on the tiny GPT,
+effective context, a design worked through; ten figures inline), KV-cache calculator (45 real models, the attention design
+as the variable, twelve published figures recomputed), Further reading. How it was built and rerun: `src/README.md`.
