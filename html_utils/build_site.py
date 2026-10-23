@@ -15,6 +15,9 @@ BASE = sys.argv[2] if len(sys.argv) > 2 else "/"
 pages = json.loads((ROOT / "technical_knowledge_base/pages.json").read_text())["pages"]
 by_path = {p["path"]: p for p in pages}
 by_id = {p["id"].replace("-", ""): p for p in pages}
+for _p in pages:
+    for _a in _p.get("aliases", []):
+        by_id.setdefault(_a.replace("-", ""), _p)
 SECTIONS = ["Models & training", "Systems & performance", "Agents & retrieval", "Measurement", "Engineering foundations", "Reference"]
 
 
@@ -74,8 +77,10 @@ REFS = set()
 
 
 def redirects():
-    for pid in set(by_id) | REFS:
-        p = by_id.get(pid)
+    # a page merged into another keeps working: its old id is listed in the survivor's "aliases"
+    alias = {a.replace("-", ""): p for p in pages for a in p.get("aliases", [])}
+    for pid in set(by_id) | REFS | set(alias):
+        p = by_id.get(pid) or alias.get(pid)
         to = url(p) if p else f"https://app.notion.com/p/{pid}"
         d = OUT / "p" / pid
         d.mkdir(parents=True, exist_ok=True)
