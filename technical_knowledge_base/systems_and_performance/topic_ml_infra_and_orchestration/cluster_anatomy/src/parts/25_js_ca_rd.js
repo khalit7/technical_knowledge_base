@@ -1,4 +1,4 @@
-// ---- Reading tab: ladder, node drawing, scale-up rows, four networks, placement animation, tiers, designs ----
+// ---- Reading tab: ladder, node drawing, placement animation, designs table, measured spans ----
 (function(){
   const CA=window.CA,esc=RD.esc,$=id=>document.getElementById(id);
   const fmt=(v,d)=>v==null?'n/a':(+v).toLocaleString('en-GB',{maximumFractionDigits:d==null?1:d});
@@ -31,7 +31,7 @@
       box.querySelectorAll('[data-p]').forEach(g=>g.setAttribute('opacity',g.dataset.p===sel?1:.55));
       $('ca-node-parts').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.p===sel))}
     function draw(){const W=Math.max(300,Math.min(860,RD.width(box)));const g=(W-16)/4,x0=8;const narrow=W<520;
-      const fs=narrow?9.5:11;let s='';
+      const fs=11;let s='';
       const rect=(p,x,y,w,h,fill,txt)=>'<g data-p="'+p+'" style="cursor:pointer"><rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="4" fill="'+fill+'" stroke="var(--line)"/>'+RD.t((x+w/2).toFixed(1),y+h/2+4,txt,{a:'middle',fs:fs})+'</g>';
       // CPUs + RAM
       for(let c=0;c<2;c++){const x=x0+c*2*g+4,w=2*g-8;s+=rect('ram',x,6,w,20,'var(--soft)','DRAM, 1 TB');s+=rect('cpu',x,30,w,24,'var(--acc2)','CPU '+c+' (56 cores)')}
@@ -58,36 +58,6 @@
     $('ca-node-parts').innerHTML=Object.keys(P).map(k=>'<button data-p="'+k+'">'+esc(P[k][0])+'</button>').join('');
     $('ca-node-parts').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sel=b.dataset.p;det()});
     draw();RD.onRender(draw);RD.onResize(draw);
-  })();
-
-  // 2. scale-up rows
-  (function(){const tb=$('ca-su-rows');if(!tb)return;
-    tb.innerHTML=CA.scaleup.map(r=>'<tr><td>'+esc(r.nm)+'</td><td data-h="GPUs">'+r.n+'</td><td data-h="Joined by">'+esc(r.link)+'</td><td data-h="Label"><a href="'+r.src+'" target="_blank" rel="noopener noreferrer">source</a> '+lab(r.label)+'</td></tr>').join('')})();
-
-  // 3. four networks
-  (function(){const ch=$('ca-net-chips');if(!ch)return;
-    const NET=[['nvl','NVLink (inside the node)','var(--c4)','scale-up: GPU to GPU in one server or NVL72 rack'],
-      ['cmp','Compute fabric (back-end)','var(--c2)','one 400 Gb/s port per GPU, InfiniBand or RoCE, rail-optimised, non-blocking'],
-      ['sto','Storage fabric','var(--c3)','2 dual-port cards per node to the parallel file system; more than 40 GB/s per node'],
-      ['inb','In-band management (front-end)','var(--c1)','Ethernet: logins, the scheduler, NFS home directories, registries'],
-      ['oob','Out-of-band management','var(--c5)','1 GbE to every BMC, switch and rack PDU']];
-    const TR=[['tp','Tensor-parallel all-reduce, inside one server','nvl','Inside the scale-up domain; never leaves the server.'],
-      ['dp','Gradient all-reduce between nodes','cmp','NCCL over RDMA on the GPU\'s own NIC; the step waits on it.'],
-      ['ld','Reading training data','sto','From the parallel file system, often staged to local NVMe first. On Meta\'s clusters this is the front-end.'],
-      ['ck','Writing a checkpoint','sto','A burst from every rank at once; Fire-Flyer 2 sends it over the compute fabric on a separate virtual lane.'],
-      ['bs','NCCL bootstrap (exchanging addresses)','inb','Plain TCP sockets on the interface NCCL_SOCKET_IFNAME picks, before the RDMA connections exist.'],
-      ['ssh','ssh to a login node, sbatch, kubectl','inb','Small messages to the login nodes and the controller.'],
-      ['img','Pulling a container image','inb','From a registry; thousands of nodes pulling one image at once is its own storm.'],
-      ['hb','slurmd and kubelet heartbeats','inb','The controller decides a node is dead when these stop (the parent\'s Failure lab).'],
-      ['pc','Power-cycling a hung node','oob','Through the BMC, which works when the operating system does not.']];
-    let cur='dp';
-    $('ca-net-boxes').innerHTML=NET.map(n=>'<div data-n="'+n[0]+'" style="--nc:'+n[2]+'"><b>'+esc(n[1])+'</b>'+esc(n[3])+'</div>').join('');
-    ch.innerHTML=TR.map(t=>'<button data-t="'+t[0]+'">'+esc(t[1])+'</button>').join('');
-    function show(){const t=TR.find(x=>x[0]===cur);
-      ch.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.t===cur));
-      $('ca-net-boxes').querySelectorAll('div').forEach(d=>{d.classList.toggle('on',d.dataset.n===t[2]);d.classList.toggle('off',d.dataset.n!==t[2])});
-      const n=NET.find(x=>x[0]===t[2]);$('ca-net-det').innerHTML='<b>'+esc(t[1])+'</b> rides the <b>'+esc(n[1])+'</b>. '+esc(t[3])}
-    ch.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;cur=b.dataset.t;show()});show();
   })();
 
   // 4. placement animation: the same 16-rank ring, packed or spread
@@ -136,13 +106,9 @@
         RD.stat('All-reduce of 1 GB, bandwidth term',t===''?'':fmt(t,1)+' ms',i>=3?'derived':'');
     }
     const A=RD.anim({card:'ca-place-card',ctl:'ca-place-ctl',n:STEPS.length,draw,ms:1800,label:'Placement step'});
-    RD.seg($('ca-place-mode'),m=>{mode=m;A.reset(STEPS.length);A.play()});
+    RD.seg($('ca-place-mode'),m=>{mode=m;A.reset(STEPS.length)});
     RD.onResize(()=>A.redraw());
   })();
-
-  // 5. tiers
-  (function(){const tb=$('ca-tier-rows');if(!tb)return;
-    tb.innerHTML=CA.tiers.map(t=>'<tr><td>'+esc(t.nm)+'</td><td data-h="Capacity">'+esc(t.cap)+'</td><td data-h="Bandwidth">'+esc(t.bw)+'</td><td data-h="Lives for">'+esc(t.life)+'</td><td data-h="Source"><a href="'+t.src+'" target="_blank" rel="noopener noreferrer">source</a> '+lab(t.label)+'</td></tr>').join('')})();
 
   // 7. designs table, sortable
   (function(){const tb=$('ca-des-rows');if(!tb)return;let key='n',dir=-1;
@@ -156,11 +122,9 @@
   (function(){const M=CA.meas;const set=(id,v)=>{const e=$(id);if(e)e.textContent=v};
     set('ca-rtt-br',fmt(M.rtt_bridge_med,0));set('ca-rtt-lo',fmt(M.rtt_loop_med,0));set('ca-rtt-br-all',M.rtt_bridge_us.map(v=>fmt(v,1)).join(', '))})();
 
-  // predict-then-reveal and reading time
+  // predict-then-reveal
   document.querySelectorAll('#t-read .pr').forEach(pr=>{const ans=pr.querySelector('.ans');
     pr.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
       pr.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.a==='1')x.classList.add('right')});
       if(b.dataset.a!=='1')b.classList.add('wrong');ans.hidden=false}))});
-  const r=$('t-read');if(r){const c=r.cloneNode(true);c.querySelectorAll('style,nav,.rd-card,details,pre,.pr').forEach(x=>x.remove());
-    const words=(c.textContent.match(/\S+/g)||[]).length;window.RD_WORDS=words;const e=$('rd-time');if(e)e.textContent=Math.round(words/200)}
 })();

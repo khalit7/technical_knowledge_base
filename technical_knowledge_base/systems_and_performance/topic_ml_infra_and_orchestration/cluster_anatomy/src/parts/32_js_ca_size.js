@@ -35,7 +35,7 @@ window.CA_SIZE=function(p){
     else if(pr.pub&&same(p,pr)){const rs=pr.resid;const ok=Object.values(rs).every(v=>v===0);
       res=(ok?'<b>Defaults reproduce the published counts</b> independently, from the formula: ':'<b>Does not fully reproduce:</b> ')+Object.keys(pr.pub).map(k=>esc(k.replace(/_/g,' '))+' published '+pr.pub[k]+', computed '+(pr.pub[k]+rs[k])).join('; ')+
         (ok?'':'. NVIDIA lists 16 spines for 3 SUs where 24 leaves need only 12: the design keeps the 4-SU spine layer, presumably for growth (not stated).')+' <a href="'+pr.src+'" target="_blank" rel="noopener noreferrer">source</a>';}
-    else res=pr.pub?'Inputs changed from the preset: no published figure to compare.':'No published switch count for this preset: '+(pr.src?'<a href="'+pr.src+'" target="_blank" rel="noopener noreferrer">its shape</a> is described in section 7 of the Reading tab.':'a design exercise (the Reading tab\'s last interview question).');
+    else res=pr.pub?'Inputs changed from the preset: no published figure to compare.':'No published switch count for this preset: '+(pr.src?'<a href="'+pr.src+'" target="_blank" rel="noopener noreferrer">its shape</a> is described in section 8 of the Reading tab (nine published clusters).':'a design exercise (the last question of the Reading tab\'s interview rehearsal).');
     $('sz-res').innerHTML=res;$('sz-res').classList.toggle('bad',!!r.too_big);
     sketch(r);}
   function sketch(r){const box=$('sz-sk');const W=Math.max(300,Math.min(860,box.clientWidth||RD.width(box)));

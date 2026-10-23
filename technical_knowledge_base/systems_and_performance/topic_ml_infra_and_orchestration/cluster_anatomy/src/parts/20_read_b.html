@@ -1,36 +1,41 @@
-<section id="rd-s2">
-<h2>2. The scale-up domain: how many GPUs share NVLink</h2>
-<p><b>The idea.</b> The <dfn>scale-up domain</dfn> (NVIDIA says <dfn>NVLink domain</dfn>) is the set of GPUs joined by memory-speed links, so that any of them can read another's memory at hundreds of GB/s. Outside it, GPUs talk through network cards at about a ninth of that (450 against 50 GB/s each way for an H100 and a 400 Gb/s card <span class="der">derived</span>). The {{interconnects page|n:3c65c17b0d0d81808563fd41fb163af0}} explains why tensor and expert parallelism must stay inside the domain; here the question is what the domain's size does to a cluster.</p>
-<div class="tw"><table class="rd-cmp">
-<thead><tr><th>System</th><th>GPUs in one domain</th><th>Joined by</th><th>Label</th></tr></thead>
-<tbody id="ca-su-rows"></tbody></table></div>
-<p><b>What changes when the domain is a rack instead of a server.</b> With 8-GPU servers, a node is both the unit the scheduler hands out and the whole scale-up domain, and any two free nodes are as good as any other two for a data-parallel job. With a GB200 NVL72, 18 compute trays of 4 GPUs share one NVLink domain of 72 ({{DGX GB200 user guide|https://docs.nvidia.com/dgx/dgxgb200-user-guide/hardware.html}}) <span class="vend">vendor</span>, so:</p>
-<ul>
-<li><b>The scheduler must know which trays are in which rack.</b> Eight trays in one rack form a 32-GPU NVLink group; eight trays spread over eight racks do not. Slurm describes this with its topology plugins (<code>topology/tree</code> for switch trees, <code>topology/block</code> for blocks such as NVLink racks: {{Slurm topology guide|https://slurm.schedmd.com/topology.html}}), Kueue with Topology Aware Scheduling ({{Kueue TAS|https://kueue.sigs.k8s.io/docs/concepts/topology_aware_scheduling/}}). The siblings {{Slurm|n:3c65c17b0d0d81889c32cd050bbbadd3}} and {{Kubernetes for ML|n:3c65c17b0d0d81cf9417de52108cfbce}} show them working; the parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} runs topology-aware placement on its toy clusters.</li>
-<li><b>The rack becomes the unit of power and cooling:</b> about 120 kW, liquid-cooled (same guide), against 10.2 kW for an air-cooled DGX H100. Section 6.</li>
-<li><b>The rack becomes a unit of failure and maintenance.</b> A tray can be swapped, but the NVLink switch trays serve all 72 GPUs; how operators handle a partly broken rack is described on {{Power, cooling and reliability|n:3f05c17b0d0d8143851cfc3ae14c3c22}} and the sibling {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}}.</li>
-</ul>
-<div class="pr"><div class="q">Predict. A model needs tensor parallelism of 16. On 8-GPU H100 servers, what carries half of each tensor-parallel all-reduce, and how much slower is it than NVLink?</div>
-<div class="opts"><button data-a="0">NVLink still, the NVSwitches of two servers are joined</button><button data-a="1">The compute NICs, about 9 times slower</button><button data-a="0">PCIe, about 2 times slower</button></div>
-<div class="ans" hidden>A group of 16 spans two servers, so the all-reduce has to cross the 400 Gb/s NICs: 50 GB/s against 450 GB/s each way, 9 times slower <span class="der">derived</span>, on the critical path of every layer. That is why Llama 3 used tensor parallelism of exactly 8, and why rack-scale domains exist: on an NVL72 a group of 16 (or 64) stays on NVLink.</div></div>
-</section>
+<section id="rd-s1">
+<h2>1. Inside one node: the parts list</h2>
+<p>A GPU server has many more parts than "8 GPUs", and each is a place where a job can be slow or broken: a GPU on the wrong CPU socket, a network card that is not the one next to its GPU, a disk that vanishes with the node. The reference is NVIDIA's DGX H100, the most fully documented 8-GPU server; most HGX servers from other builders (Meta's Grand Teton, Dell, Supermicro) use the same 8-GPU board and a similar layout ({{DGX H100 user guide|https://docs.nvidia.com/dgx/dgxh100-user-guide/introduction-to-dgxh100.html}}) <span class="vend">vendor</span>.</p>
 
-<section id="rd-s3">
-<h2>3. The four networks (and which byte rides which)</h2>
-<p><b>The problem.</b> A training cluster moves very different kinds of traffic: gradients between GPUs (huge, bursty, every step, and the step waits for them), training data and checkpoints (large, steady or bursty), logins, job submissions and container images (small, many), and the "turn it off and on again" commands for a node whose operating system is dead. Putting all of it on one network lets a checkpoint burst slow the gradients, or a broken switch take away the only way to reach a hung node. So clusters separate them.</p>
-<p><b>The four networks</b> of NVIDIA's DGX SuperPOD reference design, in its own words: "DGX SuperPOD configurations utilize four network fabrics" ({{SuperPOD network fabrics|https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/network-fabrics.html}}) <span class="vend">vendor</span>, plus the NVLink inside each node:</p>
-<div class="rd-card" id="ca-net-card">
-<h4>Which network does this traffic ride? (SuperPOD layout)</h4>
-<div class="chips" id="ca-net-chips"></div>
-<div class="ca-net" id="ca-net-boxes"></div>
-<div class="ca-det" id="ca-net-det"></div>
+<figure class="ph"><img src="img/hgx_b200_board.webp" alt="An HGX B200 eight-GPU baseboard on a table: eight tall black heatsinks in two rows of four, each over one GPU, with the board's power and PCIe connectors along its front edge" loading="lazy" width="720" height="731">
+<figcaption><b>The 8-GPU board is one part among many.</b> Eight heatsinks, one per GPU, on a single baseboard that also carries the NVLink switch chips joining them (this is an HGX B200, the successor of the H100 board; no openly licensed DGX H100 photo was found). The CPUs, DRAM, network cards and drives of the parts list below sit on other boards in the same chassis, joined to this one over PCIe.<span class="cr">Photo: Pokiiri, {{Nvidia DGX-B200-HGX|https://commons.wikimedia.org/wiki/File:Nvidia_DGX-B200-HGX.jpg}}, CC BY-SA 4.0, resized.</span></figcaption></figure>
+
+<div class="rd-card" id="ca-node-card">
+<h4>Each GPU hangs under a PCIe switch with its own network card</h4>
+<div class="rd-svg" id="ca-node-svg"></div>
+<div class="ca-parts" id="ca-node-parts"></div>
+<div class="ca-det" id="ca-node-det"></div>
+<p class="small mute">DGX H100, schematic, not to scale. Click a part. The GPU and NIC pairing under a shared PCIe switch is how HGX boards are built; the guide lists the parts, not the wiring, so check a real node with <code>nvidia-smi topo -m</code> (section 7).</p>
 </div>
+
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Part</th><th>DGX H100</th><th>What it is for</th></tr></thead>
+<tbody>
+<tr><td>GPUs</td><td data-h="DGX H100">8 x H100, 640 GB of HBM3 in all</td><td data-h="For">the arithmetic; their memory holds weights, optimiser state and activations</td></tr>
+<tr><td>NVSwitch</td><td data-h="DGX H100">4th-gen NVLink, "900 GB/s GPU-to-GPU bandwidth" (450 each way)</td><td data-h="For">every GPU reaches every other at full NVLink speed: the scale-up network (section 2)</td></tr>
+<tr><td>CPUs</td><td data-h="DGX H100">2 x Xeon 8480C, 56 cores each</td><td data-h="For">each rank's Python process, data loader workers, kernel launches; two sockets mean two NUMA nodes</td></tr>
+<tr><td>Memory</td><td data-h="DGX H100">2 TB of DRAM in 32 DIMMs</td><td data-h="For">data loader buffers, pinned memory for copies to the GPU, the page cache, CPU-offloaded optimiser state</td></tr>
+<tr><td>Compute NICs</td><td data-h="DGX H100">8 x ConnectX-7 single port, up to 400 Gb/s, InfiniBand by default</td><td data-h="For">one per GPU: the compute fabric between nodes (section 3)</td></tr>
+<tr><td>Storage / management NICs</td><td data-h="DGX H100">2 x ConnectX-7 dual port, Ethernet by default</td><td data-h="For">the storage network and in-band management: datasets, checkpoints, logins, container pulls</td></tr>
+<tr><td>Management ports</td><td data-h="DGX H100">dual 100 GbE + 10 GbE; a 1 GbE port for the <dfn>BMC</dfn></td><td data-h="For">the BMC (baseboard management controller) is a small computer on the board that can power-cycle the node, read sensors and show its console even when the operating system is dead</td></tr>
+<tr><td>Local disks</td><td data-h="DGX H100">2 x 1.92 TB NVMe (OS, mirrored); 8 x 3.84 TB NVMe "data cache" in RAID 0 (30.72 TB)</td><td data-h="For">a scratch tier for staged datasets and a first copy of a checkpoint; RAID 0 means one dead disk loses all of it, and it is gone if the node is (section 5)</td></tr>
+<tr><td>Power</td><td data-h="DGX H100">6 x 3.3 kW supplies, 4+2 redundant; 10.2 kW max</td><td data-h="For">eight 700 W GPUs are only about 55% of it; the power page explains the rest</td></tr>
+</tbody></table></div>
+
+<div class="pr"><div class="q">Predict. Count the high-speed network ports on one DGX H100 (100 Gb/s or more, not counting the BMC).</div>
+<div class="opts"><button data-a="0">8: one per GPU</button><button data-a="0">10: one per GPU plus two</button><button data-a="1">14: eight compute, four storage and management, two 100 GbE</button></div>
+<div class="ans" hidden>Eight single-port compute cards, two dual-port cards (four ports) for storage and in-band management, and a dual-port 100 GbE card: 8 + 4 + 2 = 14 <span class="der">derived</span> from the guide's list. A node sits on several networks at once, each with its own cables, switch ports and addresses; section 3 says which byte goes on which.</div></div>
+
+<h3>The PCIe tree and NUMA: why "which GPU" matters inside one box</h3>
+<p><b>PCIe</b> is the bus every device hangs from (taught on the {{interconnects page|n:3c65c17b0d0d81808563fd41fb163af0}}). In an 8-GPU server it is a tree: each CPU socket has PCIe lanes, under each socket sit PCIe switches, and under each switch (typically) two GPUs, their two network cards and some NVMe drives. Two consequences:</p>
 <ul>
-<li><b>Compute fabric</b> (also <dfn>back-end</dfn>, <dfn>east-west</dfn> or <dfn>scale-out</dfn> network): one 400 Gb/s port per GPU, InfiniBand or RoCE, rail-optimised. Only GPU-to-GPU traffic: the collectives of the training job.</li>
-<li><b>Storage fabric:</b> the two dual-port cards per node to the shared file system. NVIDIA asks that "the I/O per-node for the DGX SuperPOD must exceed 40 GBps", with the node side "slightly oversubscribed with a ratio near 4:3" (same page).</li>
-<li><b>In-band management</b> (often called the <dfn>front-end</dfn>): ordinary Ethernet to the login nodes, the scheduler (Slurm, Kubernetes, Run:ai in NVIDIA's list), home directories over NFS and outside services such as container registries.</li>
-<li><b>Out-of-band management</b> (<dfn>OOB</dfn>): 1 GbE to "the management ports of all devices including DGX and management servers, storage, networking gear, rack PDUs": the BMCs, so a hung node can be power-cycled.</li>
+<li><b>GPU and NIC pairs.</b> When GPU 3 sends to another node, the fastest path is the NIC under the same PCIe switch: GPU to switch to NIC, never touching the CPU (<dfn>GPUDirect RDMA</dfn>). A NIC under the other socket means crossing the link between the two CPUs. NCCL reads the tree, pairs each GPU with its nearest NIC, and names the distances <code>PIX</code> (same PCIe switch), <code>PXB</code> (several PCIe switches), <code>PHB</code> (through the CPU, same NUMA node) and <code>SYS</code> ("crossing the SMP interconnect (e.g. QPI/UPI)") ({{NCCL environment variables|https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html}}) <span class="vend">docs</span>.</li>
+<li><b>NUMA.</b> Each socket's memory is near its own cores and far from the other's. A rank whose process runs on socket 1 while its GPU hangs under socket 0 copies every batch across the inter-socket link. The fix is <dfn>CPU affinity</dfn>: Slurm's <code>--gpu-bind</code> and <code>--cpu-bind</code>, Kubernetes' Topology Manager, or <code>numactl</code> in the launch script (switches on {{Slurm|n:3c65c17b0d0d81889c32cd050bbbadd3}} and {{Kubernetes for ML|n:3c65c17b0d0d81cf9417de52108cfbce}}; pinning from the operating system side on {{Scheduling and CPU time|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}}).</li>
 </ul>
-<p><b>Not everyone splits them the same way.</b> Meta's description of its RoCE clusters uses two names: "the frontend (FE) network for tasks such as data ingestion, checkpointing, and logging", and the backend, "a specialized fabric that connects all RDMA NICs in a non-blocking architecture" ({{Meta engineering, Aug 5 2024|https://engineering.fb.com/2024/08/05/data-center-engineering/roce-network-distributed-ai-training-at-scale/}}) <span class="pub">published</span>: storage rides the front-end. DeepSeek's Fire-Flyer 2 goes the other way: each node has a single 200 Gb/s InfiniBand card, and its storage servers sit on the same fabric, "each storage server equipped with two IB NICs, respectively connected to different zones" ({{Fire-Flyer 2, section III|https://arxiv.org/html/2408.14158v2}}) <span class="pub">authors</span>, so gradients and checkpoints share one network; the paper keeps them apart with InfiniBand service levels mapped to virtual lanes, so that "flows in distinct lanes do not interfere with each other" (section VI-A1). Three designs, three answers: the choice is cost (every separate network is cables, switches and ports) against interference.</p>
-<div class="co key"><div class="t">One thing that surprises people: NCCL's bootstrap uses the front-end</div>Before NCCL opens its fast InfiniBand or RoCE connections, ranks exchange their addresses over ordinary TCP sockets, on whatever interface <code>NCCL_SOCKET_IFNAME</code> selects (or NCCL's guess). A job whose ranks cannot reach each other on the management network hangs at initialisation even though the compute fabric is fine. The sibling {{Launching distributed training|n:3fc5c17b0d0d81b3a8a5c58224bff9fa}} covers bootstrap and its hangs.</div>
+<div class="co warn"><div class="t">The commonest node-level mistake</div>Running 8 ranks with no binding, so the operating system spreads them over both sockets as it likes. Nothing fails; input copies and the data loader get slower, by an amount that depends on the job. Read <code>nvidia-smi topo -m</code> before writing the launch script (section 7).</div>
 </section>

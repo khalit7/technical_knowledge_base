@@ -1,4 +1,4 @@
-// Every tab: click every control at 390 px dark and 920 px light; fail on page errors, NaN, undefined,
+// Every tab: click every control (the message path and job stepper live in the Reading tab since 2026-10-24) at 390 px dark and 920 px light; fail on page errors, NaN, undefined,
 // Infinity or sideways scroll; check the page's sizing model against src/out/expected.json.
 // Usage (repo root): node <this file> <page folder> [screenshot dir]
 import {createRequire} from 'module';
@@ -18,7 +18,7 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   await p.setViewport({width:w,height:900});
   await p.goto('file://'+dir+'/index.html',{waitUntil:'load'});
   await p.evaluate(()=>{try{localStorage.clear()}catch(e){}});
-  for(const tab of ['t-read','t-camap','t-capath','t-casize','t-more']){
+  for(const tab of ['t-read','t-camap','t-casize','t-more']){
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);
     await new Promise(r=>setTimeout(r,250));
     const n=await p.evaluate(async t=>{const root=document.getElementById(t);let c=0;
@@ -38,11 +38,14 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
           const ch=document.querySelector('#cm-svg .cm-ch');if(ch){ch.dispatchEvent(new MouseEvent('click',{bubbles:true}));c++}
           const bad=(document.getElementById('t-camap').innerText.match(/\bNaN\b|\bundefined\b|Infinity|\bnull\b/g)||[]).length;if(bad)return -1}}
         document.querySelector('#cm-design [data-m="llama3"]').click();return c});ok(m>0,`${w} ${scheme} t-camap: every design and level (${m} actions)`)}
-    if(tab==='t-capath'){const m=await p.evaluate(async()=>{let c=0;const sl=document.getElementById('mp-ctl-s');
+    if(tab==='t-read'){const m=await p.evaluate(async()=>{let c=0;const sl=document.getElementById('mp-ctl-s');
         for(const a of [...document.querySelectorAll('#mp-a button')])for(const b of [...document.querySelectorAll('#mp-b button')]){a.click();b.click();
           for(let v=0;v<=+sl.max;v++){sl.value=v;sl.dispatchEvent(new Event('input'));c++}
-          if((document.getElementById('t-capath').innerText.match(/\bNaN\b|\bundefined\b|Infinity|\bnull\b|\?\)/g)||[]).length)return -1}
-        document.querySelector('#mp-a [data-m="node"]').click();document.querySelector('#mp-b [data-m="pod"]').click();return c});ok(m>0,`${w} ${scheme} t-capath: 25 route pairs, every hop (${m} actions)`)}
+          if((document.getElementById('ca-mp-card').innerText.match(/\bNaN\b|\bundefined\b|Infinity|\bnull\b|\?\)/g)||[]).length)return -1}
+        document.querySelector('#mp-a [data-m="node"]').click();document.querySelector('#mp-b [data-m="pod"]').click();
+        const js=document.getElementById('ca-job-ctl-s');for(let v=0;v<=+js.max;v++){js.value=v;js.dispatchEvent(new Event('input'));c++;
+          if(!document.getElementById('ca-job-cap').textContent.includes('Step '+(v+1)))return -2}
+        return c});ok(m>0,`${w} ${scheme} t-read message path: 25 route pairs, every hop (${m} actions)`)}
     const bad=await p.evaluate(t=>{const s=document.getElementById(t).innerText;return (s.match(/\bNaN\b|\bundefined\b|Infinity|\bnull\b/g)||[]).length},tab);
     const sw=await p.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
     ok(bad===0,`${w} ${scheme} ${tab}: ${n} control actions, no NaN/undefined/null (${bad})`);
