@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Profiling, benchmarking and correctness: Nsight, honest timing, numerical checks</h1>
-<div class="sub">How to find where GPU time goes, why one kernel is slow, whether a timing is true, and whether the answer is right. Real Nsight Compute 2026.3.1 reading NVIDIA's own sample reports, torch.profiler traces, timing pitfalls measured on this laptop's Apple M1 Pro GPU, and numerical experiments in PyTorch; no NVIDIA GPU was used. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a>. Data as of October 2026.</div>
+<div class="sub">Reading: 25 min, plus 9 in closed details. Where GPU time goes, why one kernel is slow, whether a timing is true and whether the answer is right: Nsight Compute 2026.3.1 reading NVIDIA's own sample reports, torch.profiler traces, timing pitfalls measured on an Apple M1 Pro GPU, and numerical experiments in PyTorch; no NVIDIA GPU was used. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a>. Data as of October 2026.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-ncu" aria-selected="false">Report reader</button><button role="tab" data-t="t-num" aria-selected="false">Numerics lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-ncu" aria-selected="false">Report reader</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -184,19 +184,54 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read p code,#t-read li code,#t-read details code,#t-read .co code,#t-read td code{overflow-wrap:anywhere;word-break:break-word}
 @media (max-width:520px){#t-read .bars .row{grid-template-columns:minmax(0,8.5em) minmax(0,1fr) 5.6em}}
 </style>
+<style>
+#t-read .hero{margin:12px 0 6px;padding:0}
+#t-read .hero-t{font-weight:600;font-size:14.5px;margin:0 0 8px}
+#t-read ol.loop{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px}
+#t-read ol.loop>li{position:relative;border:1px solid var(--line);border-top:4px solid var(--sc);border-radius:8px;padding:7px 9px;background:var(--bg);min-width:0;font-size:12.5px;line-height:1.45}
+#t-read ol.loop>li:not(:last-child):after{content:"\2192";position:absolute;right:-14px;top:38%;color:var(--mute);font-size:15px;font-weight:600}
+#t-read ol.loop .n{display:inline-block;font-size:11px;font-weight:600;color:var(--mute);margin-right:4px}
+#t-read ol.loop b{font-size:13.5px}
+#t-read ol.loop .tool{display:block;margin:3px 0;font:600 11.5px ui-monospace,Menlo,Consolas,monospace;color:var(--sc);overflow-wrap:anywhere}
+#t-read ol.loop .sx{display:block;font-size:11.5px;color:var(--mute);margin-top:3px}
+#t-read .loopback{margin:8px 0 0;font-size:12.5px;color:var(--mute);border-top:1px dashed var(--line);padding-top:5px}
+@media (max-width:760px){#t-read ol.loop{grid-template-columns:1fr;gap:14px}#t-read ol.loop>li:not(:last-child):after{content:"\2193";right:auto;left:18px;top:auto;bottom:-15px}}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--soft)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>.b{padding:0 12px 10px;font-size:14px}
+#t-read .terms{font-size:13.5px;margin:6px 0}#t-read .terms li{margin:2px 0}
+#t-read table.sel tbody tr{cursor:pointer}#t-read table.sel tbody tr.on td{background:var(--hl)}
+#t-read table.sel tbody tr:focus{outline:2px solid var(--acc);outline-offset:-2px}
+#t-read .stleg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .stleg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#t-read .ctl label{font-size:13px}#t-read .ctl select{padding:3px 6px;max-width:100%}
+#t-read .anat span{max-width:100%;overflow-wrap:anywhere;word-break:break-all}
+</style>
 <nav class="nav" id="rd-nav">
-<a href="#rd-one">In one screen</a><a href="#rd-s1">1 Why timing lies</a><a href="#rd-s2">2 Benchmark honestly</a><a href="#rd-s3">3 Where time goes</a><a href="#rd-s4">4 Why a kernel is slow</a><a href="#rd-s5">5 Is it right?</a><a href="#rd-s6">6 Workflow, interview</a>
+<a href="#rd-one">The idea</a><a href="#rd-s1">1 Why timing lies</a><a href="#rd-s2">2 Benchmark honestly</a><a href="#rd-s3">3 Where time goes</a><a href="#rd-s4">4 Why a kernel is slow</a><a href="#rd-s5">5 Is it right?</a><a href="#rd-s6">6 Depth</a>
 </nav>
 <section id="rd-one">
-<p class="lead">Four questions come up every time you try to make GPU code faster, and each has its own tool. <b>Where does the time go?</b> (a timeline of the whole program). <b>Why is this one kernel slow?</b> (hardware counters for that kernel). <b>Is my timing true?</b> (a measuring method that survives asynchronous execution, caches, clocks and a busy machine). <b>Is the answer still right?</b> (a reference, a tolerance that fits the number format, and tools that catch memory errors and races). This page teaches all four from zero, with real tool output wherever it can be produced without an NVIDIA GPU.</p>
-<p>Words used throughout: a <dfn>kernel</dfn> is one function that runs on the GPU across many threads; a <dfn>launch</dfn> is the CPU asking the GPU to run one; a <dfn>profiler</dfn> is a program that watches another program and records what it did and how long it took. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">section 9</a> gives the short version of this page; the <a href="https://app.notion.com/p/3c65c17b0d0d8162865eec15d9dae87e" target="_blank" rel="noopener noreferrer">programming model</a> sibling owns launches, the CUDA error model, <code>CUDA_LAUNCH_BLOCKING</code> and what a launch costs; <a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a> owns FLOP counting and MFU (model FLOPs utilisation); this page owns the tools and the method.</p>
-<div class="q3">
-<div style="--sc:var(--c1)"><b>Where does the time go?</b>Nsight Systems (<code>nsys</code>) for the whole program; <code>torch.profiler</code> for "which PyTorch op". Cheap, run first. Section 3.</div>
-<div style="--sc:var(--c2)"><b>Why is this kernel slow?</b>Nsight Compute (<code>ncu</code>): replays one kernel many times to read hardware counters. Slow; only on kernels the timeline convicted. Section 4.</div>
-<div style="--sc:var(--c3)"><b>Is my timing true?</b>CUDA events or a synchronised clock, warm-up, a cold cache, fixed clocks, many runs, median and spread, <code>triton.testing.do_bench</code>. Sections 1 and 2.</div>
-<div style="--sc:var(--c4)"><b>Is the answer right?</b>A higher-precision reference, a tolerance per data type, awareness of summation order and atomics, <code>compute-sanitizer</code>. Section 5.</div>
-</div>
-<h3>What was actually run for this page</h3>
+<p class="lead"><b>A GPU number is only as good as the method behind it:</b> time the GPU's queue, not the CPU's call; find where the time goes with a timeline before asking why one kernel is slow; and call a kernel right only when its gap from a higher-precision reference is no bigger than its number format and summation order explain.</p>
+<figure class="hero" id="rd-hero">
+<div class="hero-t">One loop, four questions, a tool for each: the cheap whole-program view comes first, and no speedup counts until the timing is honest and the output checked</div>
+<ol class="loop">
+<li style="--sc:var(--c1)"><span class="n">1</span><b>Where does the time go?</b><span class="tool">nsys, torch.profiler</span>A timeline of CPU threads, kernels, copies and NCCL. Is the GPU row full? If not, the problem is the CPU, launches, data or communication, and no kernel work will help. Otherwise rank kernels by total GPU time (<code>cuda_gpu_kern_sum</code>, or <code>key_averages()</code> sorted by device time).<span class="sx">one cheap pass; section 3</span></li>
+<li style="--sc:var(--c2)"><span class="n">2</span><b>Why is this kernel slow?</b><span class="tool">ncu</span>Counters for one kernel the timeline convicted: Speed of Light says memory-, compute- or latency-bound, then occupancy and warp stalls say why. Place it on the roofline (<a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a>).<span class="sx">42 replays of one kernel; section 4</span></li>
+<li style="--sc:var(--c5)"><span class="n">3</span><b>Change one thing</b><span class="tool">your kernel</span>One change per round, so the next measurement can blame it. Treat the profiler's estimated speedup as a hypothesis.<span class="sx">section 4's lesson</span></li>
+<li style="--sc:var(--c3)"><span class="n">4</span><b>Is my timing true?</b><span class="tool">events, do_bench</span>Synchronise or use events, warm up, flush the cache, many runs, median and spread, same clocks.<span class="sx">sections 1 and 2</span></li>
+<li style="--sc:var(--c4)"><span class="n">5</span><b>Is the answer right?</b><span class="tool">assert_close, compute-sanitizer</span>A float64 reference of the same rounded inputs, a tolerance from the format and the sum's length, the four sanitizer tools.<span class="sx">section 5</span></li>
+</ol>
+<div class="loopback">&#8634; Back to 1 with the numbers written down: the change, the result, the environment. Simon Boehm's <a href="https://siboehm.com/articles/22/CUDA-MMM" target="_blank" rel="noopener noreferrer">matmul worklog</a> is the model: each kernel, its GFLOP/s, and what the profiler blamed. A speedup without the method behind it is not a result.</div>
+</figure>
+<p><b>You need</b> launches, warps and occupancy (<a href="https://app.notion.com/p/3c65c17b0d0d8162865eec15d9dae87e" target="_blank" rel="noopener noreferrer">The CUDA programming model</a>, which also owns the CUDA error model, <code>CUDA_LAUNCH_BLOCKING</code> and what a launch costs), coalescing and bank conflicts (<a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a>), and for step 2 the roofline (<a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a>, which owns FLOP counting and MFU). The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">section 9</a> is this page in one screen.</p>
+<ul class="terms">
+<li><dfn>Stream</dfn>: the queue of GPU work the CPU writes into; <dfn>event</dfn>: a marker in that queue that the GPU timestamps.</li>
+<li><dfn>Timeline</dfn> (<dfn>trace</dfn>): every CPU call, kernel and copy on one time axis, one row per thread or stream.</li>
+<li><dfn>Replay</dfn>: Nsight Compute running one kernel many times, reading a different group of hardware counters each pass.</li>
+<li><dfn>Speed of Light</dfn>: each unit's throughput as a percentage of its peak; <dfn>achieved occupancy</dfn>: active warps as a share of the SM's maximum; a <dfn>warp stall</dfn>: the reason a warp's next instruction cannot issue.</li>
+<li><dfn>ulp</dfn>: the spacing between neighbouring floating-point numbers at a value; <dfn>rtol</dfn>, <dfn>atol</dfn>: the relative and absolute tolerances of a comparison.</li>
+</ul>
+<details class="dp"><summary>What was actually run for this page, and the labels used</summary><div class="b">
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Evidence</th><th>What it is</th><th>Label used</th></tr></thead><tbody>
 <tr><td>Nsight Compute 2026.3.1 and compute-sanitizer 2026.3.0</td><td>From the CUDA 13.4.2 toolkit in the Docker image <code>kb-gpu-lab:1</code>. Without a GPU they cannot profile, but <code>ncu --import</code> reads saved reports: NVIDIA ships six real reports with the tool (profiled by NVIDIA on an RTX A4500 in October 2023), three before/after pairs. Their help text, section files and metric lists are real too.</td><td><span class="der">real tool, NVIDIA's reports</span></td></tr>
 <tr><td>Timing experiments</td><td>PyTorch 2.14.1 on the M1 Pro GPU through MPS (Apple's backend): <code>torch.mps.synchronize</code> and <code>torch.mps.Event</code> play the parts of <code>torch.cuda.synchronize</code> and <code>torch.cuda.Event</code>. Three runs; the laptop was shared with other agents, so every result shows its runs and the load.</td><td><span class="meas">measured on Apple M1 Pro GPU</span></td></tr>
@@ -204,24 +239,23 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>Numerics</td><td>PyTorch and NumPy experiments; a fp16 and bf16 matmul on the M1 GPU checked against a float64 reference; floating-point atomics measured on the M1 GPU with MLX kernels.</td><td><span class="meas">measured here</span></td></tr>
 <tr><td>Nsight Systems, nvidia-smi, CUDA events, cuBLAS</td><td>Not installed or not runnable without a GPU.</td><td><span class="vend">docs only</span></td></tr>
 </tbody></table></div>
-<div class="co key"><div class="t">The loop this page builds</div>Measure the whole program (timeline) &rarr; pick the biggest kernel or gap &rarr; explain it (counters, roofline) &rarr; change one thing &rarr; re-measure with an honest benchmark &rarr; check the output against a reference. Write the numbers down at every step. A speedup without the method behind it is not a result.</div>
+</div></details>
 </section>
 <section id="rd-s1">
 <h2>1. Why a stopwatch around GPU code lies</h2>
-<p><b>The problem.</b> The CPU and the GPU are two workers with a queue between them. When Python runs <code>c = a @ b</code> on a GPU tensor, the CPU does not wait for the multiply: it writes a command into the queue (CUDA calls the queue a <dfn>stream</dfn>) and returns at once. The GPU picks the command up when it is free. So a clock read on the CPU before and after that line measures how long it took to <i>queue</i> the work, not to do it. This is called <dfn>asynchronous execution</dfn>, and it is the reason PyTorch on a GPU can be fast at all: the CPU runs ahead and keeps the queue full.</p>
-<p><b>How to time it.</b> Either make the CPU wait for the queue to drain before reading the clock (<code>torch.cuda.synchronize()</code>, and also before starting it, or earlier queued work is charged to you), or put two markers into the queue itself and ask the GPU how far apart they were: a CUDA <dfn>event</dfn>. Below, one 2,048 &times; 2,048 float32 matrix multiply is timed four ways on this laptop's GPU, drawn to scale.</p>
+<p>The CPU and the GPU are two workers with a queue between them. <code>c = a @ b</code> on a GPU tensor does not wait for the multiply: the CPU writes a command into the stream and returns at once, and the GPU picks it up when it is free. This <dfn>asynchronous execution</dfn> is why PyTorch on a GPU is fast (the CPU runs ahead and keeps the queue full), and why a CPU clock around that line measures how long it took to <i>queue</i> the work. One 2,048 &times; 2,048 float32 multiply timed four ways, drawn to scale; step through each:</p>
 <div class="card" id="rd-tl-card">
 <div class="seg" id="rd-tl-seg"><button data-m="nosync" class="on">Clock, no synchronise</button><button data-m="sync">Clock + synchronise</button><button data-m="event">Events</button><button data-m="queued">Forgot to synchronise first</button></div>
 <div class="rd-chart" id="rd-tl-svg"></div>
 <div class="an-ctl" id="rd-tl-ctl"></div>
 <div class="an-cap" id="rd-tl-cap"></div>
 <div class="an-cnt" id="rd-tl-cnt"></div>
-<p class="small mute"><span class="meas">measured on Apple M1 Pro GPU</span> PyTorch 2.14.1, MPS backend; each bar is the median of 25 repetitions in each of 3 runs, the median of the 3 run medians shown; the runs are listed under the counters. The same queue exists on every NVIDIA GPU; only the durations differ.</p>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro GPU</span> PyTorch 2.14.1, MPS backend; each bar is the median of 25 repetitions in each of 3 runs, the median of the 3 run medians shown; the runs are listed under the counters. Without a synchronise the clock read 0.18 ms against 4.15 ms of GPU time. The same queue exists on every NVIDIA GPU; only the durations differ.</p>
 </div>
 <div class="pr" id="rd-pr1"><div class="q">Predict: four earlier multiplies are still in the queue when you start the clock, then you queue one more and synchronise. What does the clock say, roughly?</div>
 <div class="opts"><button data-a="0">About one multiply (4 ms)</button><button data-a="1" data-right="1">About five multiplies (20 ms)</button><button data-a="2">Almost nothing (0.2 ms)</button></div>
 <div class="ans" hidden>The synchronise waits for everything in the queue, including the four multiplies queued before the clock started. <span class="meas">measured</span>: <b><span data-v="q_ms">19.93</span> ms</b> against <b><span data-v="sync_ms">4.243</span> ms</b> for one. The fix is a <code>synchronize()</code> before reading the start time too.</div></div>
-<h3>The PyTorch recipe on CUDA</h3>
+<p>So there are two honest ways: make the CPU wait for the queue to drain before <i>both</i> clock reads (<code>torch.cuda.synchronize()</code>), or put two <dfn>events</dfn> into the stream and ask the GPU how far apart they were:</p>
 <pre class="code"><span class="c"># warm up first (section 2), then:</span>
 start = torch.cuda.Event(enable_timing=True)
 end = torch.cuda.Event(enable_timing=True)
@@ -231,74 +265,77 @@ y = f(x)
 end.record()
 torch.cuda.synchronize()          <span class="c"># or end.synchronize()</span>
 ms = start.elapsed_time(end)      <span class="c"># GPU time between the markers, in ms</span></pre>
-<p>NVIDIA documents event timing with "a resolution of around 0.5 microseconds" (<a href="https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__EVENT.html" target="_blank" rel="noopener noreferrer">CUDA Runtime API 13.4, cudaEventElapsedTime</a>) <span class="vend">docs</span>. Events measure the stream, so they leave out the CPU's own overhead; a synchronised CPU clock includes it. Use events for "how fast is this kernel", and a synchronised clock (or a profiler timeline) when the question is "how fast is this step", because in launch-bound code the CPU <i>is</i> the cost. One more trap: an event pair also counts any time the GPU sat idle between the markers waiting for the CPU to queue the next kernel, so a slow Python loop inflates event times too.</p>
-<h3>Know what your timer brackets</h3>
-<p>Apple's MPS events are not CUDA events: they mark command-buffer boundaries, so they carry a fixed overhead. On this laptop, a tiny multiply of 4,096 numbers measured <b><span data-v="tiny_ev">0.157</span> ms</b> with an event pair and <b><span data-v="tiny_sync">0.196</span> ms</b> with a clock and a synchronise per call, but <b><span data-v="tiny_batch_us">4.96</span> &micro;s</b> per call when 200 calls were queued back to back with one synchronise at the end <span class="meas">measured</span>. The GPU work is a few microseconds; everything else is the measuring. On CUDA the same effect exists at a smaller scale: a kernel of a few microseconds timed alone is mostly launch and synchronisation, which is why <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">CUDA graphs</a> and Triton's <code>do_bench_cudagraph</code> exist. For tiny kernels, time many back-to-back calls and divide, and say so.</p>
+<p>Event timing has "a resolution of around 0.5 microseconds" (<a href="https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__EVENT.html" target="_blank" rel="noopener noreferrer">CUDA Runtime API 13.4, cudaEventElapsedTime</a>) <span class="vend">docs</span>. Events leave out the CPU's own overhead, a synchronised clock includes it: use events for "how fast is this kernel" and a synchronised clock or a timeline for "how fast is this step", because in launch-bound code the CPU <i>is</i> the cost. An event pair also counts any time the GPU sat idle between the markers waiting for the CPU, so a slow Python loop inflates event times too.</p>
+<p><b>Know what your timer brackets.</b> A tiny multiply of 4,096 numbers measured <b><span data-v="tiny_ev">0.157</span> ms</b> with an event pair and <b><span data-v="tiny_sync">0.196</span> ms</b> with a clock and a synchronise per call, but <b><span data-v="tiny_batch_us">4.96</span> &micro;s</b> per call when 200 calls were queued back to back with one synchronise at the end <span class="meas">measured</span>. The GPU work is a few microseconds; the rest is the measuring (Apple's MPS events mark command-buffer boundaries and carry a fixed overhead; CUDA's are lighter, but a kernel of a few microseconds timed alone is still mostly launch and synchronisation, which is why <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">CUDA graphs</a> and Triton's <code>do_bench_cudagraph</code> exist). For tiny kernels, time many back-to-back calls and divide, and say so.</p>
 <div class="co warn"><div class="t">The same trap inside PyTorch code you did not write</div>Any operation that needs a value on the CPU forces a synchronise: <code>loss.item()</code>, <code>print(tensor)</code>, <code>tensor.cpu()</code>, <code>if tensor.any():</code>, a <code>nonzero()</code> whose size the CPU must know. In a training loop these silently serialise the CPU and GPU, and a stopwatch then "works" by accident. The timeline in section 3 shows where they are.</div>
 </section>
 <section id="rd-s2">
 <h2>2. Benchmarking honestly: warm-up, caches, spread, clocks</h2>
-<p>Even with correct synchronisation, the same kernel gives different times depending on <i>when</i> and <i>how</i> you time it. Five effects account for almost every wrong benchmark. Each is shown here with a measurement from this laptop and the rule that follows.</p>
-
+<p>With correct synchronisation, the same kernel still gives different times depending on <i>when</i> and <i>how</i> you time it. Four effects account for almost every wrong benchmark, each measured here, each with its rule.</p>
 <h3>Warm-up: the first call pays for everything that happens once</h3>
-<p>The first time a process runs an operation, it pays one-time costs: setting up the device, compiling or loading the kernel, choosing an algorithm (cuDNN's benchmark mode tries several), growing the memory allocator. Triton kernels compile and autotune on first call, and <code>torch.compile</code> compiles once per new input shape. None of that is the kernel's speed.</p>
 <div class="rd-chart" id="rd-warm"></div>
-<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: each line is the median over 9 fresh Python processes (3 runs &times; 3) of the k-th call, each call synchronised; the bars show the slowest and fastest process. The first <code>softmax</code> took <b><span data-v="w_sm1">5.78</span> ms</b> (median; one process took <span data-v="w_sm1max">17.9</span> ms) against <b><span data-v="w_smlast">0.45</span> ms</b> by the 15th call; the first matmul <b><span data-v="w_mm1">26.9</span> ms</b> against <b><span data-v="w_mmlast">4.27</span> ms</b>. In the profiled training step of section 3, the first step on the GPU took <b><span data-v="p_first">905</span> ms</b> and the later ones about <b><span data-v="p_later">7</span> ms</b>. Rule: run the operation until its time stops falling, and only then time it; for compiled or autotuned code, warm up every shape you will time.</p>
-
+<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: each line is the median over 9 fresh Python processes (3 runs &times; 3) of the k-th call, each call synchronised; the bars show the slowest and fastest process. The first <code>softmax</code> took <b><span data-v="w_sm1">5.78</span> ms</b> (median; one process took <span data-v="w_sm1max">17.9</span> ms) against <b><span data-v="w_smlast">0.45</span> ms</b> by the 15th call, a first softmax about 13 times slower; the first matmul <b><span data-v="w_mm1">26.9</span> ms</b> against <b><span data-v="w_mmlast">4.27</span> ms</b>. In the profiled training step of section 3 the first step on the GPU took <b><span data-v="p_first">905</span> ms</b> and the later ones about <b><span data-v="p_later">7</span> ms</b>.</p>
+<p>The first call pays one-time costs: device set-up, compiling or loading the kernel, choosing an algorithm (cuDNN's benchmark mode tries several), growing the memory allocator. Triton kernels compile and autotune on first call, and <code>torch.compile</code> compiles once per new input shape. <b>Rule:</b> run until the time stops falling, then time; for compiled or autotuned code, warm up every shape you will time.</p>
 <h3>Caches: timing the same small tensor in a loop measures the cache</h3>
-<p>A GPU has a large last-level cache (the L2: 40 MB on an A100 40 GB per <a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">NVIDIA's Ampere post</a>, 50 MB on an H100 SXM per the <a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper post</a>, 96 MB on an RTX 5090 per the <a href="https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf" target="_blank" rel="noopener noreferrer">RTX Blackwell whitepaper</a>). If a benchmark reads the same 16 MB buffer a hundred times, every read after the first comes from the cache, and the "memory bandwidth" it reports is the cache's. In a real model the input was just written by another kernel or evicted by one, so the honest number is the cold one.</p>
+<p>A GPU's last-level cache (the L2) is large: 40 MB on an A100 40 GB (<a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">NVIDIA's Ampere post</a>), 50 MB on an H100 SXM (<a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper post</a>), 96 MB on an RTX 5090 (<a href="https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf" target="_blank" rel="noopener noreferrer">RTX Blackwell whitepaper</a>). Read the same 16 MB buffer a hundred times and every read after the first comes from it. In a real model the input was just written or evicted by another kernel, so the honest number is the cold one.</p>
 <div class="pr" id="rd-pr2"><div class="q">Predict: <code>x.sum()</code> over a 16 MB tensor on this laptop (its GPU's last-level cache is 24 MB), timed hot (the same tensor again and again) and cold (rotating through 512 MB of tensors). How different?</div>
 <div class="opts"><button data-a="0">The same: a sum is memory-bound either way</button><button data-a="1" data-right="1">Hot is about 1.7 times faster</button><button data-a="2">Hot is 10 times faster</button></div>
-<div class="ans" hidden><span class="meas">measured</span>: hot <b><span data-v="c16_hot">255</span> GB/s</b>, cold <b><span data-v="c16_cold">154</span> GB/s</b>. At 128 MB, far beyond the cache, both are <span data-v="c128">169</span> GB/s. The chart below shows where the gap opens and closes.</div></div>
+<div class="ans" hidden><span class="meas">measured</span>: hot <b><span data-v="c16_hot">255</span> GB/s</b>, cold <b><span data-v="c16_cold">154</span> GB/s</b>, so the hot loop reports 1.7&times; too fast at 16 MB here. At 128 MB, far beyond the cache, both are <span data-v="c128">169</span> GB/s. The chart shows where the gap opens and closes.</div></div>
 <div class="rd-chart" id="rd-cache"></div>
-<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: effective bandwidth of <code>x.sum()</code> (bytes read divided by time), each point the median of 3 runs of 7 batches of 32 back-to-back calls with one synchronise per batch; whiskers are the 3 runs. The M1 Pro's 24 MB system-level cache is an independent measurement (<a href="https://github.com/philipturner/metal-benchmarks" target="_blank" rel="noopener noreferrer">metal-benchmarks</a>). Rule: flush the cache before each timed run, or rotate through buffers larger than it, and say which.</p>
-
+<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: effective bandwidth of <code>x.sum()</code> (bytes read divided by time), each point the median of 3 runs of 7 batches of 32 back-to-back calls with one synchronise per batch; whiskers are the 3 runs. The M1 Pro's 24 MB system-level cache is an independent measurement (<a href="https://github.com/philipturner/metal-benchmarks" target="_blank" rel="noopener noreferrer">metal-benchmarks</a>). <b>Rule:</b> flush the cache before each timed run, or rotate through buffers larger than it, and say which.</p>
 <h3>Spread: report the median and the spread, never one number</h3>
 <div class="rd-chart" id="rd-dist"></div>
-<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: 300 event timings of the same 1,024 &times; 1,024 float32 multiply in each of three runs, minutes apart, laptop 1-minute load average between <span data-v="load_lo">4.3</span> and <span data-v="load_hi">4.7</span> (other agents were running). Run medians: <b><span data-v="d_meds">0.721, 1.554, 1.209</span> ms</b>: the same code, a factor of 2 apart. Within a run, the mean is pulled by a few slow outliers (run 2: mean <span data-v="d_mean2">1.521</span>, maximum <span data-v="d_max2">11.82</span> ms). Rules: use the median (or several quantiles) of many runs, repeat whole runs, report the spread and the machine's load, and distrust any comparison between two numbers taken at different times on a shared machine. The minimum is tempting because it is stable, but it describes a lucky run, not the typical one.</p>
-
+<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: 300 event timings of the same 1,024 &times; 1,024 float32 multiply in each of three runs, minutes apart, 1-minute load average between <span data-v="load_lo">4.3</span> and <span data-v="load_hi">4.7</span> (other agents were running). Run medians <b><span data-v="d_meds">0.721, 1.554, 1.209</span> ms</b>: the same code, three runs that disagreed by a factor of 2. A few slow outliers pull the mean (run 2: mean <span data-v="d_mean2">1.521</span>, maximum <span data-v="d_max2">11.82</span> ms).</p>
+<p><b>Rule:</b> the median (or several quantiles) of many runs, whole runs repeated, the spread and the machine's load reported; distrust any comparison of two numbers taken at different times on a shared machine. The minimum is tempting because it is stable, but it describes a lucky run, not the typical one.</p>
 <h3>Clocks: the GPU changes speed while you measure</h3>
-<p>GPUs raise their clock when cool and idle (boost) and lower it when hot or at their power limit (throttling), so back-to-back runs can differ. Two remedies <span class="vend">docs only, not run here</span>: lock the clocks for the measurement (<code>nvidia-smi -lgc &lt;min,max&gt;</code> "defines closest desired locked GPU clock speed in MHz", <code>-rgc</code> resets; both need root; <a href="https://docs.nvidia.com/deploy/nvidia-smi/index.html" target="_blank" rel="noopener noreferrer">nvidia-smi docs</a>), or record the clock and power alongside every result (<code>nvidia-smi dmon</code> prints "one line of monitoring data per monitoring cycle"; the third-party <code>nvitop</code> is a friendlier live view). A fixed power limit (<code>nvidia-smi -pl</code>, in watts) and a note of the cooling matter on a workstation, where fans and room temperature change sustained clocks. Nsight Compute locks clocks itself while profiling: since version 2026.1 to boost by default, before that to base (<a href="https://docs.nvidia.com/nsight-compute/ReleaseNotes/index.html" target="_blank" rel="noopener noreferrer">release notes</a>). NVIDIA's own 2023 sample reports show the old default: the device reports a maximum clock of <span data-v="a45_max">1,650</span> MHz, but every kernel ran at <span data-v="a45_lo">0.94</span> to <span data-v="a45_hi">1.05</span> GHz <span class="der">read from NVIDIA's reports</span>. So a duration from <code>ncu</code> is not the duration in your training run; compare <code>ncu</code> with <code>ncu</code>.</p>
-
+<p>GPUs boost their clock when cool and throttle when hot or at their power limit, so back-to-back runs differ. Either lock the clocks for the measurement (<code>nvidia-smi -lgc &lt;min,max&gt;</code> "defines closest desired locked GPU clock speed in MHz", <code>-rgc</code> resets; both need root) or record clock and power beside every result (<code>nvidia-smi dmon</code> prints "one line of monitoring data per monitoring cycle"; the third-party <code>nvitop</code> is a friendlier live view) (<a href="https://docs.nvidia.com/deploy/nvidia-smi/index.html" target="_blank" rel="noopener noreferrer">nvidia-smi docs</a>) <span class="vend">docs only, not run here</span>. On a workstation a fixed power limit (<code>nvidia-smi -pl</code>, in watts) and a note of the cooling matter too, because fans and room temperature change sustained clocks.</p>
+<p>Nsight Compute locks clocks itself while profiling. NVIDIA's own 2023 sample reports show it: the device's maximum clock is <span data-v="a45_max">1,650</span> MHz, but every kernel ran at <span data-v="a45_lo">0.94</span> to <span data-v="a45_hi">1.05</span> GHz <span class="der">read from NVIDIA's reports</span>. So a duration from <code>ncu</code> is not the duration in your training run; compare <code>ncu</code> with <code>ncu</code>.</p>
+<div class="co warn"><div class="t">Correction to the old page: ncu's clock default</div>The old page said <code>ncu</code> "locks clocks to base by default during replay". That was true until Nsight Compute 2025.4; the default of <code>--clock-control</code> became <b>boost</b> in 2026.1 (<a href="https://docs.nvidia.com/nsight-compute/ReleaseNotes/index.html" target="_blank" rel="noopener noreferrer">release notes</a>; <code>ncu --help</code> in 2026.3.1 shows <code>(=boost)</code>). NVIDIA's 2023 reports above ran under the old base default. To compare <code>ncu</code> durations with Nsight Systems, NVIDIA recommends locking clocks with <code>nvidia-smi</code> and passing <code>--clock-control none</code>.</div>
 <h3><code>triton.testing.do_bench</code>: the harness that does all of this</h3>
-<p>Triton's benchmark function, read in the Triton 3.8.0 source <span class="der">real source</span>: it runs your function once and synchronises; times 5 runs to estimate the cost; computes how many warm-up runs fit in 25 ms and how many timed runs fit in 100 ms; runs the warm-up; then for each timed run zeroes a 256 MB buffer ("to make sure that the L2 cache doesn't contain any input data before the run") and records one event pair around your function; finally returns the <b>mean</b> by default, or <code>return_mode="median"</code>, <code>"min"</code>, <code>"max"</code>, <code>"all"</code>, or <code>quantiles=[0.2, 0.5, 0.8]</code>. Its sibling <code>do_bench_cudagraph</code> captures the calls in a CUDA graph to remove launch overhead.</p>
-<div class="co warn"><div class="t">Correction to the old page</div>The old page said <code>do_bench</code> "has <code>flush_l2=True</code>". It has no such argument in Triton 3.8.0: flushing is always on (the 256 MB zeroing above). It also returns the mean, not the median, unless you ask. (<a href="https://github.com/triton-lang/triton/blob/main/python/triton/testing.py" target="_blank" rel="noopener noreferrer">testing.py</a>.)</div>
+<p>Read in the Triton 3.8.0 source <span class="der">real source</span>: it runs your function once and synchronises; times 5 runs to estimate the cost; fits as many warm-up runs as take 25 ms and as many timed runs as take 100 ms; then for each timed run zeroes a 256 MB buffer ("to make sure that the L2 cache doesn't contain any input data before the run") and records one event pair around your function. It returns the <b>mean</b> by default; ask for <code>return_mode="median"</code> (or <code>"min"</code>, <code>"max"</code>, <code>"all"</code>, or <code>quantiles=[0.2, 0.5, 0.8]</code>). Its sibling <code>do_bench_cudagraph</code> captures the calls in a CUDA graph to remove launch overhead.</p>
+<div class="co warn"><div class="t">Correction to the old page: do_bench</div>The old page said <code>do_bench</code> "has <code>flush_l2=True</code>". It has no such argument in Triton 3.8.0: flushing is always on (the 256 MB zeroing). It also returns the mean, not the median, unless you ask (<a href="https://github.com/triton-lang/triton/blob/main/python/triton/testing.py" target="_blank" rel="noopener noreferrer">testing.py</a>).</div>
+<details class="dp"><summary>do_bench ported to MPS, and the rules for a fair comparison</summary><div class="b">
 <p>Ported line by line to MPS (one synchronise added before each start event, because MPS refuses event pairs that land in one command buffer) <span class="meas">measured on Apple M1 Pro GPU</span>: a 16 MB <code>sum</code> gave a median of <b><span data-v="db_fl">0.36</span> ms</b> with the flush and <b><span data-v="db_nf">0.25</span> ms</b> without, across 3 runs; the 2,048 matmul <b><span data-v="db_mm">4.27</span> ms</b>. The flush difference matches the hot and cold measurement above; the absolute sum times include MPS's per-event overhead, which CUDA events do not have.</p>
-
-<h3>Fair comparisons and a log</h3>
 <ul>
 <li><b>Check the output first</b> (section 5): a kernel that skips work is very fast.</li>
 <li><b>Compare against the strongest baseline:</b> <code>torch.compile</code> rather than eager PyTorch, cuBLAS or cuBLASLt with the same data type, layout and fused epilogue, FlashAttention rather than a naive attention.</li>
-<li><b>Report achieved throughput next to the limit:</b> GB/s against the memory bandwidth for a memory-bound kernel, TFLOP/s against the peak for the data type for a compute-bound one (<a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a> owns the FLOP counts). "2&times; faster" means little; "from 40% to 80% of peak bandwidth" can be judged.</li>
+<li><b>Report achieved throughput next to the limit:</b> GB/s against the memory bandwidth for a memory-bound kernel, TFLOP/s against the peak for the data type for a compute-bound one. "2&times; faster" means little; "from 40% to 80% of peak bandwidth" can be judged.</li>
 <li><b>Write down the environment</b>: GPU model and count, driver, CUDA toolkit (13.4.2 is current in October 2026; the old page's "13.3 current" is out of date), PyTorch and Triton versions, clocks (locked or not), power limit, input shapes and data types, and the machine's load. Every measurement on this page records its versions and load in <code>src/out/</code>.</li>
 </ul>
+</div></details>
 </section>
 <section id="rd-s3">
 <h2>3. Where does the time go? Timelines: Nsight Systems and torch.profiler</h2>
-<p><b>The problem.</b> A training step is thousands of kernels, copies and CPU functions. Before optimising any kernel you need to know which ones matter, and whether the GPU is even busy. A <dfn>timeline</dfn> (a <dfn>trace</dfn>) records every event with its start and end on one time axis, one row per CPU thread and per GPU stream. The questions it answers: is the GPU row full or full of gaps? Which kernels take most of the time? Do copies and communication overlap the compute or wait for it? Where does the CPU block?</p>
-<h3>The tools and what sits under them</h3>
-<p><b>CUPTI</b> (the CUDA Profiling Tools Interface) is NVIDIA's library for collecting GPU activity (kernel start and end times, copies) and hardware counters from inside a process. <b>Nsight Systems</b> (<code>nsys</code>) records a whole-program timeline: CPU threads, CUDA API calls, kernels, memory copies, NCCL, OS calls and your own <b>NVTX</b> ranges (named intervals you mark in code); its kernel times come through CUPTI (Nsight Compute's <a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide</a>). <b>torch.profiler</b> is PyTorch's in-process profiler, built on the Kineto library ("an in-process profiling library integrated with the PyTorch Profiler", <a href="https://github.com/pytorch/kineto" target="_blank" rel="noopener noreferrer">pytorch/kineto</a>), whose CUDA backend is CUPTI (its <code>CuptiActivityApi</code> sources). It names every PyTorch operator, its input shapes and the kernels it launched, so it answers "which op is slow" in PyTorch's own vocabulary.</p>
+<p>A training step is thousands of kernels, copies and CPU functions. Before optimising any kernel, find out which ones matter and whether the GPU is even busy. A timeline answers that: is the GPU row full or full of gaps, which kernels take most of the time, do copies and communication overlap the compute, where does the CPU block? Three tools, three questions:</p>
 <div class="tw"><table class="tbl-sm"><thead><tr><th></th><th>Nsight Systems</th><th>torch.profiler</th><th>Nsight Compute (section 4)</th></tr></thead><tbody>
 <tr><td>Question</td><td>where does wall-clock time go, across CPU, GPU, copies, network</td><td>which PyTorch op and which kernel</td><td>why this one kernel is slow</td></tr>
 <tr><td>Cost to the run</td><td>low; one pass, clocks not locked, launches not serialised</td><td>low to moderate (stack capture and memory tracking add more)</td><td>high: each kernel replayed many times, serialised, clocks locked, caches flushed</td></tr>
 <tr><td>Output</td><td><code>.nsys-rep</code>, GUI, <code>nsys stats</code> tables</td><td>Chrome/Perfetto JSON trace, TensorBoard, <code>key_averages()</code> tables</td><td><code>.ncu-rep</code>, GUI, <code>--page details</code> text</td></tr>
 <tr><td>Run here?</td><td><span class="vend">docs only</span></td><td><span class="meas">yes, CPU and MPS</span></td><td><span class="der">reads NVIDIA's reports</span></td></tr>
 </tbody></table></div>
-<h3>Nsight Systems in practice <span class="vend">docs only, not run here</span></h3>
+
+<h3>Reading a timeline: six shapes and what they mean</h3>
+<div class="card" id="rd-sym-card">
+<div class="rd-chart" id="rd-sym-svg"></div>
+<p class="small mute"><span class="der">illustrative shapes, not a measured trace</span>: rows as Nsight Systems and Perfetto draw them, one step on the time axis. Pick a row of the table to draw its shape; the red bracket marks what to notice.</p>
+<div class="tw"><table class="tbl-sm symp sel" id="rd-sym-tab"><thead><tr><th>On the timeline you see</th><th>It usually means</th><th>Try</th></tr></thead><tbody>
+<tr data-k="0" tabindex="0" class="on"><td>Gaps between kernels on the GPU row; the CPU row is solid</td><td>CPU-bound or launch-bound: Python and launch overhead cannot keep the queue full</td><td>bigger batches, <code>torch.compile</code> (fewer, fused kernels), <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">CUDA graphs</a></td></tr>
+<tr data-k="1" tabindex="0"><td>A <code>cudaStreamSynchronize</code> or <code>cudaMemcpy</code> blocking the CPU mid-step</td><td>a hidden synchronise: <code>.item()</code>, <code>.cpu()</code>, a data-dependent shape</td><td>move logging out of the hot loop, keep values on the GPU</td></tr>
+<tr data-k="2" tabindex="0"><td>Long host-to-device copies before each step</td><td>pageable host memory, or loading on the critical path</td><td><code>pin_memory=True</code> and <code>non_blocking=True</code> (<a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">memory hierarchy</a>), a prefetching loader</td></tr>
+<tr data-k="3" tabindex="0"><td>NCCL kernels running after the backward pass instead of during it</td><td>communication not overlapped</td><td>bucket sizes, overlap settings (<a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a>, <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">streams and multi-GPU</a>)</td></tr>
+<tr data-k="4" tabindex="0"><td>The whole GPU idle at the start of each step</td><td>the data loader is the bottleneck</td><td>more workers, preprocessing off the critical path</td></tr>
+<tr data-k="5" tabindex="0"><td>A few kernels take most of the GPU time</td><td>good news: you know what to optimise</td><td>Nsight Compute on those kernels (section 4)</td></tr>
+</tbody></table></div>
+</div>
+<details class="dp"><summary>What sits under the tools; Nsight Systems commands, capture ranges and report scripts <span class="mute">(docs only, not run here)</span></summary><div class="b">
+<p>Under the first two sits <b>CUPTI</b> (the CUDA Profiling Tools Interface), NVIDIA's library for collecting kernel start and end times, copies and counters from inside a process. Nsight Systems records CPU threads, CUDA API calls, kernels, copies, NCCL, OS calls and your own <b>NVTX</b> ranges (named intervals you mark in code), its kernel times through CUPTI (Nsight Compute's <a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide</a>). torch.profiler is built on Kineto ("an in-process profiling library integrated with the PyTorch Profiler", <a href="https://github.com/pytorch/kineto" target="_blank" rel="noopener noreferrer">pytorch/kineto</a>), whose CUDA backend is CUPTI (its <code>CuptiActivityApi</code> sources); it names every operator, its input shapes and the kernels it launched.</p>
 <pre class="code">nsys profile -t cuda,nvtx,osrt -o step python train.py   <span class="c"># default -t is cuda,opengl,nvtx,osrt</span>
 nsys profile --capture-range=cudaProfilerApi ...          <span class="c"># record only between cudaProfilerStart/Stop</span>
 nsys stats step.nsys-rep                                  <span class="c"># summary tables in the terminal</span></pre>
 <p>In Python, mark phases so the timeline is readable: <code>torch.cuda.nvtx.range_push("forward")</code> ... <code>range_pop()</code> (or the <code>torch.cuda.nvtx.range</code> context manager), and limit the capture to a few steps with <code>torch.cuda.profiler.start()</code>/<code>stop()</code> plus <code>--capture-range=cudaProfilerApi</code>. The <code>nsys stats</code> report scripts include <code>cuda_gpu_kern_sum</code> ("a summary of CUDA kernels and their execution times"), <code>cuda_api_sum</code>, <code>cuda_gpu_mem_time_sum</code>, <code>nvtx_sum</code> and <code>osrt_sum</code>. CUDA graphs are traced as whole graphs by default (<a href="https://docs.nvidia.com/nsight-systems/UserGuide/index.html" target="_blank" rel="noopener noreferrer">User Guide v2026.5</a>, <a href="https://docs.nvidia.com/nsight-systems/AnalysisGuide/index.html" target="_blank" rel="noopener noreferrer">Analysis Guide</a>).</p>
-<div class="tw"><table class="tbl-sm symp"><thead><tr><th>On the timeline you see</th><th>It usually means</th><th>Try</th></tr></thead><tbody>
-<tr><td>Gaps between kernels on the GPU row; the CPU row is solid</td><td>CPU-bound or launch-bound: Python and launch overhead cannot keep the queue full</td><td>bigger batches, <code>torch.compile</code> (fewer, fused kernels), <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">CUDA graphs</a></td></tr>
-<tr><td>A <code>cudaStreamSynchronize</code> or <code>cudaMemcpy</code> blocking the CPU mid-step</td><td>a hidden synchronise: <code>.item()</code>, <code>.cpu()</code>, a data-dependent shape</td><td>move logging out of the hot loop, keep values on the GPU</td></tr>
-<tr><td>Long host-to-device copies before each step</td><td>pageable host memory, or loading on the critical path</td><td><code>pin_memory=True</code> and <code>non_blocking=True</code> (<a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">memory hierarchy</a>), a prefetching loader</td></tr>
-<tr><td>NCCL kernels running after the backward pass instead of during it</td><td>communication not overlapped</td><td>bucket sizes, overlap settings (<a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a>, <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">streams and multi-GPU</a>)</td></tr>
-<tr><td>The whole GPU idle at the start of each step</td><td>the data loader is the bottleneck</td><td>more workers, preprocessing off the critical path</td></tr>
-<tr><td>A few kernels take most of the GPU time</td><td>good news: you know what to optimise</td><td>Nsight Compute on those kernels (section 4)</td></tr>
-</tbody></table></div>
+</div></details>
 <h3>torch.profiler, run on a real training step</h3>
-<p>A two-block MLP (LayerNorm, 512 to 2,048 to 512 with GELU, residual) plus a 1,000-way classifier, batch 256, one AdamW step, profiled with a schedule of 1 step skipped, 1 warm-up step and 2 recorded steps; the recipe for CUDA is the same with <code>ProfilerActivity.CUDA</code> added <span class="meas">run here</span>:</p>
+<p>A two-block MLP (LayerNorm, 512 to 2,048 to 512 with GELU, residual) plus a 1,000-way classifier, batch 256, one AdamW step, profiled with 1 step skipped, 1 warm-up step and 2 recorded; on CUDA add <code>ProfilerActivity.CUDA</code> <span class="meas">run here</span>:</p>
 <pre class="code">from torch.profiler import profile, schedule, record_function, ProfilerActivity
 with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
              schedule=schedule(wait=1, warmup=1, active=2),
@@ -315,22 +352,22 @@ print(prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=15))</
 <div class="tw" id="rd-prof-tab"></div>
 <p class="small mute" id="rd-prof-note"></p>
 </div>
-<p><b>Read the two runs side by side.</b> On the CPU, <code>aten::mm</code> is the biggest row: the CPU does the multiply, so its "self CPU" time is the work (<span data-v="pc_mm">498.3</span> &micro;s per call). With the model on the GPU, the same operator costs <span data-v="pm_mm">38.5</span> &micro;s of CPU time per call: that is only the time to queue it. PyTorch 2.14 has no MPS profiler activity (its activities are <span data-v="p_acts">CPU, XPU, MTIA, CUDA, HPU, PrivateUse1</span>), so the GPU's own time is missing and the waiting shows up wherever the CPU blocked: the step's own row holds <span data-v="pm_step">6.76</span> ms of "self" time, which is the synchronise at the end of each step. This is exactly what a CUDA profile looks like if you forget <code>ProfilerActivity.CUDA</code>, and why the device columns (<code>self_cuda_time_total</code>, called <code>device</code> time in PyTorch 2.14's tables) are the ones to sort by on a GPU.</p>
+<p><b>The same operator, two meanings.</b> On the CPU, <code>aten::mm</code> is the biggest row: the CPU does the multiply, so its "self CPU" time is the work (<span data-v="pc_mm">498.3</span> &micro;s per call). With the model on the GPU, the same operator costs <span data-v="pm_mm">38.5</span> &micro;s of CPU time per call: only the time to queue it. PyTorch 2.14 has no MPS profiler activity (its activities are <span data-v="p_acts">CPU, XPU, MTIA, CUDA, HPU, PrivateUse1</span>), so the GPU's own time is missing and the waiting shows up wherever the CPU blocked: the step's own row holds <span data-v="pm_step">6.76</span> ms of "self" time, the synchronise at the end of each step. That is what a CUDA profile looks like if you forget <code>ProfilerActivity.CUDA</code>, and why on a GPU you sort by the device columns (<code>self_cuda_time_total</code>, called <code>device</code> time in PyTorch 2.14's tables).</p>
 <p class="small">Open a saved trace in <a href="https://ui.perfetto.dev" target="_blank" rel="noopener noreferrer">Perfetto</a> or <code>chrome://tracing</code>. For multi-GPU traces, Meta's <a href="https://github.com/facebookresearch/HolisticTraceAnalysis" target="_blank" rel="noopener noreferrer">Holistic Trace Analysis</a> computes the temporal breakdown, idle time, kernel breakdown and communication/computation overlap per rank. PyTorch's wider tooling is the subject of <a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Topic: pytorch-ecosystem</a>.</p>
 </section>
 <section id="rd-s4">
 <h2>4. Why is this kernel slow? Nsight Compute</h2>
-<p><b>The problem.</b> The timeline says one kernel takes 30% of the step. Why? Is it moving more bytes than it needs, leaving the arithmetic units idle, using too few warps, or stalling on shared memory? The GPU has thousands of <dfn>hardware counters</dfn> (instructions issued, bytes read from DRAM, cache hits, cycles each unit was busy), but only a few can be read in one run. <b>Nsight Compute</b> (<code>ncu</code>) solves this by <dfn>replaying</dfn> the kernel: it saves the memory the kernel can touch, runs the kernel, restores the memory, runs it again with different counters, and so on, then turns the counters into metrics, sections and advice.</p>
-<h3>What replay costs, from NVIDIA's own reports <span class="der">real tool, NVIDIA's reports</span></h3>
-<p>Every one of the six sample reports shipped with Nsight Compute 2026.3.1 (collected with <code>--set full</code>) needed <b><span data-v="n_passes">42</span> passes</b> of the same kernel, and for the matrix transpose the tool saved and restored <b><span data-v="n_bak">545</span> MB</b> before each pass. Between passes it flushes the caches ("Nsight Compute flushes all GPU caches by default between replay passes"), it serialises kernels that would otherwise overlap, and it locks the clocks. So a profiled run can take orders of magnitude longer, and its durations describe a cold-cache, locked-clock, serialised kernel. Use it on a handful of kernels the timeline already convicted, never on a whole training run (<a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide, kernel replay and workload durations</a>).</p>
+<p>The timeline says one kernel takes 30% of the step. Is it moving more bytes than it needs, leaving the arithmetic units idle, running too few warps, or stalling on shared memory? The GPU has thousands of <dfn>hardware counters</dfn> (instructions issued, bytes read from DRAM, cache hits, cycles each unit was busy), but only a few can be read in one run. <b>Nsight Compute</b> (<code>ncu</code>) therefore <dfn>replays</dfn> the kernel: save the memory it can touch, run it, restore the memory, run it again with other counters, and so on, then turn the counters into metrics, sections and advice.</p>
+<p><b>What replay costs</b> <span class="der">real tool, NVIDIA's reports</span>: every one of the six sample reports shipped with Nsight Compute 2026.3.1 (collected with <code>--set full</code>) needed <b><span data-v="n_passes">42</span> passes</b> of the same kernel, and for the matrix transpose the tool saved and restored <b><span data-v="n_bak">545</span> MB</b> before each pass. Between passes "Nsight Compute flushes all GPU caches by default between replay passes"; it also serialises kernels that would otherwise overlap and locks the clocks. So its durations describe a cold-cache, locked-clock, serialised kernel, and it belongs on a handful of kernels the timeline already convicted, never on a whole training run (<a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide, kernel replay and workload durations</a>).</p>
 <pre class="code">ncu --set full -k regex:softmax -c 1 -o sm python train.py   <span class="c"># first matching kernel only</span>
-ncu --import sm.ncu-rep --page details                          <span class="c"># the text you see in the Report reader tab</span>
-ncu --import sm.ncu-rep --page raw --csv                        <span class="c"># every metric, for scripts</span>
+ncu --import sm.ncu-rep --page details                          <span class="c"># the text in the Report reader tab</span></pre>
+<details class="dp"><summary>More ncu flags: sets, NVTX filters, raw CSV, source lines</summary><div class="b">
+<pre class="code">ncu --import sm.ncu-rep --page raw --csv                        <span class="c"># every metric, for scripts</span>
 ncu --nvtx --nvtx-include "step/" ...                           <span class="c"># only kernels inside an NVTX range</span></pre>
-<p class="small">Flags from <code>ncu --help</code> (2026.3.1): <code>-k</code> takes an exact name or <code>regex:</code>; <code>-c</code> limits the number of profiled launches; without <code>--set</code> the <b>basic</b> set is collected (LaunchStats, Occupancy, SpeedOfLight, WorkloadDistribution: an estimated <span data-v="set_basic">229</span> metrics), while <b>full</b> is an estimated <span data-v="set_full">9,059</span> metrics in <span data-v="set_full_n">24</span> sections (<code>ncu --list-sets</code>). Compile with <code>-lineinfo</code> and add <code>--import-source on</code> to see metrics per line of your source. A Python API for reports ships in <code>extras/python/ncu_report.py</code>.</p>
-
+<p>Flags from <code>ncu --help</code> (2026.3.1): <code>-k</code> takes an exact name or <code>regex:</code>; <code>-c</code> limits the number of profiled launches; without <code>--set</code> the <b>basic</b> set is collected (LaunchStats, Occupancy, SpeedOfLight, WorkloadDistribution: an estimated <span data-v="set_basic">229</span> metrics), while <b>full</b> is an estimated <span data-v="set_full">9,059</span> metrics in <span data-v="set_full_n">24</span> sections (<code>ncu --list-sets</code>). Compile with <code>-lineinfo</code> and add <code>--import-source on</code> to see metrics per line of your source. A Python API for reports ships in <code>extras/python/ncu_report.py</code>.</p>
+</div></details>
 <h3>Read a report top-down: three real before-and-after pairs</h3>
-<p>The <dfn>Speed of Light</dfn> (SOL) section comes first: "for each unit, the throughput reports the achieved percentage of utilization with respect to the theoretical maximum", and the two headline numbers are the highest such percentage among the compute units (<b>Compute (SM)</b>) and among the memory units (<b>Memory</b>). Together they place the kernel: memory high, compute low is memory-bound (move fewer bytes); compute high is compute-bound (cheaper instructions, tensor cores, lower precision); both low means latency-bound (too few warps, stalls, a tail of idle SMs, or a tiny kernel). Then follow the section the numbers point to. The animation walks NVIDIA's three sample pairs through that order, with the tool's real numbers.</p>
+<p>The <dfn>Speed of Light</dfn> (SOL) section comes first: "for each unit, the throughput reports the achieved percentage of utilization with respect to the theoretical maximum", and its two headline numbers are the highest such percentage among the compute units (<b>Compute (SM)</b>) and among the memory units (<b>Memory</b>). They place the kernel: memory high and compute low is <b>memory-bound</b> (move fewer bytes); compute high is <b>compute-bound</b> (cheaper instructions, tensor cores, lower precision); both low is <b>latency-bound</b> (too few warps, stalls, a tail of idle SMs, or a tiny kernel). Then follow the section the numbers point to. Step through NVIDIA's three sample pairs in that order, with the tool's real numbers:</p>
 <div class="card" id="rd-walk-card">
 <div class="seg" id="rd-walk-seg"><button data-m="0" class="on">Uncoalesced loads</button><button data-m="1">Bank conflicts</button><button data-m="2">double against float</button></div>
 <div class="rd-chart" id="rd-walk-svg"></div>
@@ -339,53 +376,91 @@ ncu --nvtx --nvtx-include "step/" ...                           <span class="c">
 <div class="an-cnt" id="rd-walk-cnt"></div>
 <p class="small mute"><span class="der">real tool, NVIDIA's reports</span>: values printed by <code>ncu --import ... --page details</code> (Nsight Compute 2026.3.1) from the six <code>.ncu-rep</code> files in <code>extras/samples</code>, profiled by NVIDIA on an RTX A4500 (56 SMs, compute capability 8.6) with <code>--set full</code>. The <a href="#" data-tab="t-ncu">Report reader</a> tab shows every section of all six.</p>
 </div>
-<div class="co key"><div class="t">The lesson of the first pair: the rules are hypotheses</div>Nsight Compute's guided analysis estimated a <b><span data-v="w0_est">64.67</span>%</b> speedup from fixing the uncoalesced loads of <code>addConstDouble3</code>. NVIDIA's fixed kernel took <b><span data-v="w0_b">89.86</span> &micro;s</b> before and <b><span data-v="w0_a">89.73</span> &micro;s</b> after: both kernels move the same bytes from DRAM, and DRAM was the limit, so the extra L1 sectors cost nothing. For the transpose the estimate was <span data-v="w1_est">87.21</span>% and the real gain <span data-v="w1_gain">29.7</span>% less time. The rules point at where to look; the clock decides. This is the old page's "trust it as a hypothesis generator" confirmed with NVIDIA's own data.</div>
-
-<h3>Metric names: how to read one</h3>
+<div class="co key"><div class="t">The lesson of the first pair: the rules are hypotheses</div>Nsight Compute's guided analysis estimated a <b><span data-v="w0_est">64.67</span>%</b> speedup from fixing the uncoalesced loads of <code>addConstDouble3</code>. NVIDIA's fixed kernel took <b><span data-v="w0_b">89.86</span> &micro;s</b> before and <b><span data-v="w0_a">89.73</span> &micro;s</b> after (64.67% estimated, 0.14% measured): both kernels move the same bytes from DRAM, and DRAM was the limit, so the extra L1 sectors cost nothing. For the transpose the estimate was <span data-v="w1_est">87.21</span>% and the real gain <span data-v="w1_gain">29.7</span>% less time. The rules point at where to look; the clock decides. This is the old page's "trust it as a hypothesis generator" confirmed with NVIDIA's own data.</div>
+<h3>Occupancy and warp stalls: where a warp's cycles go</h3>
+<p>Each SM sub-partition's scheduler can issue one instruction per cycle from any <i>eligible</i> warp. A warp is <dfn>stalled</dfn> when its next instruction cannot go, and the Warp State section splits each warp's cycles between issued instructions by reason. Stalls only cost time when no warp is eligible, so read them together with <b>achieved occupancy</b> (how many warps were there to hide them) and the issue rate. The same before-and-after pairs:</p>
+<div class="card" id="rd-stall-card">
+<div class="seg" id="rd-stall-seg"><button data-m="0">Uncoalesced loads</button><button data-m="1" class="on">Bank conflicts</button><button data-m="2">double against float</button></div>
+<div class="rd-chart" id="rd-stall-svg"></div>
+<div class="stleg" id="rd-stall-leg"></div>
+<div class="an-cnt" id="rd-stall-cnt"></div>
+<p class="small mute"><span class="der">real tool, NVIDIA's reports</span>: "Warp Cycles Per Issued Instruction" and the "Warp State (All Cycles)" table of each report, first 10 reasons (the rest, under half a cycle, is shown as other); occupancy from the Occupancy section. The transpose with bank conflicts spent 83.8 of 158.5 cycles per instruction in MIO throttle; padding the tile removed it. In the Sobel pair achieved occupancy fell from 95.5% to 83.8% while cycles per issued instruction fell from 280 to 11.9: occupancy is a means, not the goal.</p>
+</div>
+<ul>
+<li><b>Long scoreboard</b>: waiting for data from L1, L2 or DRAM; a memory-latency problem (more warps or loads in flight, fewer loads).</li>
+<li><b>MIO throttle</b> and <b>short scoreboard</b>: mostly shared-memory or special-function pressure (the bank-conflict pair). <b>Tex throttle</b>: the texture/L1 queue is full (the Sobel <code>double</code> kernel).</li>
+<li><b>Barrier</b>: warps waiting at <code>__syncthreads()</code> for slower ones. <b>Math pipe throttle</b>: an arithmetic pipe is saturated, often good news.</li>
+<li><b>Achieved occupancy</b> (<code>sm__warps_active.avg.pct_of_peak_sustained_active</code>) against the theoretical: the limiter (registers, shared memory, block size) is in the same section (<a href="https://app.notion.com/p/3c65c17b0d0d8162865eec15d9dae87e" target="_blank" rel="noopener noreferrer">occupancy rules</a>). High occupancy with high stalls means every warp waits on the same thing; more warps will not help.</li>
+<li><b>Memory throughput</b> (<code>gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed</code>, shown as "DRAM Throughput"): near its peak, the kernel is done unless it can move fewer bytes.</li>
+</ul>
+<p class="small">The scoreboards are real bits in every SASS instruction: which instruction sets one and which waits on it is decoded in section 3 of <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a> ("The bits nobody prints") and its <b>SASS, decoded</b> tab.</p>
+<details class="dp"><summary>Metric names, and which metric answers which question <span class="mute">(reference table)</span></summary><div class="b">
 <p>Every metric is <code>unit__counter.rollup.submetric</code>: the hardware unit, what is counted, how the instances of the unit are combined (<code>.sum</code>, <code>.avg</code>, <code>.min</code>, <code>.max</code> over all SMs or all L2 slices), and an optional view (<code>.per_second</code>, <code>.pct_of_peak_sustained_elapsed</code>, ...). "Throughput metrics return the maximum percentage value of their constituent counters" (<a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide, metrics structure</a>). Click the parts:</p>
 <div class="anat" id="rd-anat"></div>
 <div class="small" id="rd-anat-out" style="min-height:3.2em"></div>
-<h3>The question decides the metric</h3>
 <p>Names checked with <code>ncu --query-metrics --chip</code> for GA100 (A100), GH100 (H100), GB100 (B200) and GB202 (RTX 5090) in Nsight Compute 2026.3.1 <span class="der">real tool</span>; <code>launch__*</code> and the sampled <code>smsp__pcsamp_*</code> stall metrics are not in that list by design (they are launch attributes and sampling data) and are documented in the Profiling Guide.</p>
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Question</th><th>Section</th><th>Metric (exact name)</th><th>How to read it</th></tr></thead><tbody>
 <tr><td>Memory- or compute-bound?</td><td>GPU Speed Of Light</td><td class="mname">gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed, sm__throughput.avg.pct_of_peak_sustained_elapsed</td><td>which is near 100%; both low means latency-bound</td></tr>
-<tr><td>Is DRAM saturated?</td><td>Speed Of Light, Memory Workload Analysis</td><td class="mname">gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed (shown as "DRAM Throughput"), dram__bytes_read.sum, dram__bytes_write.sum</td><td>percent of peak; bytes per second against the card's bandwidth (1,792 GB/s on an RTX 5090, per NVIDIA's whitepaper); bytes against what the algorithm needs (<code>dram__bytes_read</code> is not listed for GB202)</td></tr>
-<tr><td>Enough warps?</td><td>Occupancy</td><td class="mname">sm__warps_active.avg.pct_of_peak_sustained_active</td><td>achieved occupancy against the theoretical; the limiter (registers, shared memory, block size) is in the same section; <a href="https://app.notion.com/p/3c65c17b0d0d8162865eec15d9dae87e" target="_blank" rel="noopener noreferrer">occupancy rules</a></td></tr>
+<tr><td>Is DRAM saturated?</td><td>Speed Of Light, Memory Workload Analysis</td><td class="mname">gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed, dram__bytes_read.sum, dram__bytes_write.sum</td><td>percent of peak; bytes per second against the card's bandwidth (1,792 GB/s on an RTX 5090, per NVIDIA's whitepaper); bytes against what the algorithm needs (<code>dram__bytes_read</code> is not listed for GB202)</td></tr>
+<tr><td>Enough warps?</td><td>Occupancy</td><td class="mname">sm__warps_active.avg.pct_of_peak_sustained_active</td><td>achieved occupancy against the theoretical, with its limiter</td></tr>
 <tr><td>Enough blocks for every SM?</td><td>Launch Statistics</td><td class="mname">launch__waves_per_multiprocessor</td><td>a fractional last wave leaves SMs idle (the tail effect); compare <code>sm__cycles_active.avg</code> with the elapsed cycles: per-SM numbers look fine while some SMs sit idle</td></tr>
 <tr><td>Coalesced global loads?</td><td>Memory Workload Analysis Tables, Source Counters</td><td class="mname">l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum / l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum</td><td>sectors per request: 4 for 4-byte loads by 32 lanes, 8 for 8-byte (<a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">sectors explained</a>)</td></tr>
-<tr><td>Shared-memory bank conflicts?</td><td>Memory Workload Analysis Tables</td><td class="mname">l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum (and _op_st), against l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum</td><td>conflicts as a share of wavefronts (passes)</td></tr>
+<tr><td>Shared-memory bank conflicts?</td><td>Memory Workload Analysis Tables</td><td class="mname">l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum (and _op_st), against l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum</td><td>conflicts as a share of wavefronts (passes); the Source Counters section points to the line; typical fix: pad (<code>[32][33]</code>) or swizzle</td></tr>
 <tr><td>Divergence?</td><td>Warp State, Source Counters</td><td class="mname">smsp__thread_inst_executed_per_inst_executed.ratio</td><td>average active threads per instruction: 32 means none; branch statistics in Source Counters</td></tr>
 <tr><td>Tensor cores used?</td><td>Compute Workload Analysis</td><td class="mname">sm__pipe_tensor_cycles_active, sm__inst_executed_pipe_tensor</td><td>non-zero, and HMMA/HGMMA/UTCHMMA in the SASS (<a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">tensor cores</a>)</td></tr>
 <tr><td>Spills?</td><td>Memory Workload Analysis</td><td class="mname">l1tex__t_requests_pipe_lsu_mem_local_op_ld.sum</td><td>local-memory traffic; confirm with <code>-Xptxas -v</code> (<a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">spills</a>)</td></tr>
 <tr><td>What are warps waiting for?</td><td>Warp State Statistics</td><td class="mname">smsp__pcsamp_warps_issue_stalled_long_scoreboard, _mio_throttle, _barrier, ...</td><td>"only focus on stall reasons if the schedulers fail to issue every cycle"</td></tr>
 </tbody></table></div>
-<p><b>Warp stalls in one paragraph.</b> Each SM sub-partition's scheduler can issue one instruction per cycle from any eligible warp. A warp is <i>stalled</i> when its next instruction cannot go: <b>long scoreboard</b> means it waits for data from L1, L2 or DRAM (a memory latency problem: more warps, prefetching, fewer loads); <b>MIO throttle</b> and <b>short scoreboard</b> mostly mean shared-memory or special-function pressure (the transpose with bank conflicts spent 83.8 of 158.5 cycles per instruction in MIO throttle); <b>barrier</b> means warps waiting at <code>__syncthreads()</code> for slower ones; <b>math pipe throttle</b> means an arithmetic pipe is saturated (often good news). Stalls only matter when no warp is eligible; with many warps, the scheduler hides them. The scoreboards are real bits in every SASS instruction: which instruction sets one and which waits on it is decoded in section 3 of <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a> ("The bits nobody prints") and its <b>SASS, decoded</b> tab.</p>
-<div class="co warn"><div class="t">Correction to the old page</div>The old page said <code>ncu</code> "locks clocks to base by default during replay". That was true until Nsight Compute 2025.4; the default of <code>--clock-control</code> became <b>boost</b> in 2026.1 (release notes; <code>ncu --help</code> in 2026.3.1 shows <code>(=boost)</code>). NVIDIA's 2023 reports on this page ran under the old base default, at about 1 GHz on a GPU whose maximum is 1.65 GHz. To compare <code>ncu</code> durations with Nsight Systems, NVIDIA recommends locking clocks with <code>nvidia-smi</code> and passing <code>--clock-control none</code>.</div>
+</div></details>
 </section>
 <section id="rd-s5">
 <h2>5. Is the answer right? References, tolerances, order and atomics</h2>
-<p><b>The problem.</b> A new kernel rarely crashes when it is wrong; it returns numbers that look plausible. And a correct kernel rarely returns exactly the same bits as PyTorch, because floating-point arithmetic rounds after every operation and <b>addition is not associative</b>: <code>(a + b) + c</code> and <code>a + (b + c)</code> can differ in the last bits. A GPU kernel adds in whatever order its threads, tiles and atomics dictate. So "is it right?" means "does it differ from a trustworthy reference by no more than the rounding of this number format and this summation explains?".</p>
-<h3>The number formats and their default tolerances</h3>
-<div class="tw" id="rd-fmt-tab"></div>
-<p class="small"><span class="meas">read from PyTorch 2.14.1</span>: <code>torch.finfo</code> for each type; the default <code>rtol</code> and <code>atol</code> of <code>torch.testing.assert_close</code> from its source (<code>_DTYPE_PRECISIONS</code>). TF32 keeps float32's 8-bit exponent with a 10-bit mantissa (<a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">NVIDIA Ampere post</a>). <i>eps</i> is the gap between 1 and the next number: a single rounding changes a value by at most eps/2 relative. <code>assert_close</code> passes when |actual &minus; expected| &le; atol + rtol &times; |expected| for every element. Floating point itself, from zero, is on <a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing for ML</a>.</p>
+<p>A wrong kernel rarely crashes; it returns plausible numbers. And a correct kernel rarely returns exactly PyTorch's bits, because floating point rounds after every operation and <b>addition is not associative</b>: <code>(a + b) + c</code> and <code>a + (b + c)</code> can differ in the last bits, and a GPU kernel adds in whatever order its threads, tiles and atomics dictate. So "is it right?" means: does it differ from a trustworthy reference by no more than this format's rounding and this summation explain?</p>
+<h3>The number formats and <code>assert_close</code>'s default tolerances</h3>
+<div class="tw"><table class="tbl-sm" id="rd-fmt-tab"><thead><tr><th>Type</th><th class="num">bits</th><th class="num">eps</th><th class="num">largest</th><th class="num">smallest normal</th><th class="num">default rtol</th><th class="num">default atol</th></tr></thead><tbody>
+<tr><td>float64 (the reference)</td><td class="num">64</td><td class="num">2<sup>&minus;52</sup></td><td class="num"></td><td class="num"></td><td class="num">1e-7</td><td class="num">1e-7</td></tr>
+<tr><td>float32</td><td class="num">32</td><td class="num">1.19e-7</td><td class="num">3.40e38</td><td class="num">1.18e-38</td><td class="num">1.3e-6</td><td class="num">1e-5</td></tr>
+<tr><td>TF32 (tensor cores)</td><td class="num">19</td><td class="num">9.77e-4</td><td class="num">as float32</td><td class="num">as float32</td><td class="num">none</td><td class="num">none</td></tr>
+<tr><td>bfloat16</td><td class="num">16</td><td class="num">7.81e-3</td><td class="num">3.39e38</td><td class="num">1.18e-38</td><td class="num">0.016</td><td class="num">1e-5</td></tr>
+<tr><td>float16</td><td class="num">16</td><td class="num">9.77e-4</td><td class="num">65,504</td><td class="num">6.10e-5</td><td class="num">1e-3</td><td class="num">1e-5</td></tr>
+<tr><td>float8 e4m3fn</td><td class="num">8</td><td class="num">0.125</td><td class="num">448</td><td class="num">0.0156</td><td class="num">none</td><td class="num">none</td></tr>
+<tr><td>float8 e5m2</td><td class="num">8</td><td class="num">0.25</td><td class="num">57,344</td><td class="num">6.10e-5</td><td class="num">none</td><td class="num">none</td></tr>
+</tbody></table></div>
+<p class="small"><span class="meas">read from PyTorch 2.14.1</span>: <code>torch.finfo</code> for each type; the default <code>rtol</code> and <code>atol</code> of <code>torch.testing.assert_close</code> from its source (<code>_DTYPE_PRECISIONS</code> in <a href="https://github.com/pytorch/pytorch/blob/main/torch/testing/_comparison.py" target="_blank" rel="noopener noreferrer">_comparison.py</a>). TF32 keeps float32's 8-bit exponent with a 10-bit mantissa (<a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">NVIDIA Ampere post</a>). <i>eps</i> is the gap between 1 and the next number: one rounding changes a value by at most eps/2 relative. <code>assert_close</code> passes when |actual &minus; expected| &le; atol + rtol &times; |expected| for every element. The defaults fit one rounding, not a sum of thousands of terms. Floating point from zero is on <a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing for ML</a>; the formats themselves on <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>.</p>
 <h3>How to compare against a reference</h3>
 <ol>
 <li><b>Same inputs, more precision.</b> Round the inputs to the kernel's input type first, then compute the reference in float64 (or float32 for a float16 kernel) from those rounded inputs. Otherwise you measure the input rounding, not the kernel.</li>
 <li><b>Tolerance from the output type and the problem size.</b> A float16 output can be off by one rounding (eps/2 relative) plus the accumulated error of the sum, which grows with the reduction length <i>K</i>. Near zero, after cancellation, a relative tolerance is meaningless; compare the error to the scale of the terms instead (for a dot product, &radic;&Sigma;(a<sub>i</sub>b<sub>i</sub>)&sup2;).</li>
-<li><b>Look at the worst element and where it is,</b> not only a pass or fail: an error concentrated in the last tile or the last row is a bug, an error spread evenly at the rounding level is arithmetic.</li>
+<li><b>Look at the worst element and where it is,</b> not only pass or fail: an error concentrated in the last tile or the last row is a bug; an error spread evenly at the rounding level is arithmetic.</li>
 </ol>
 <div class="pr" id="rd-pr3"><div class="q">Predict: a correct float16 matmul (float32 accumulation) on this laptop's GPU, 256 &times; 256 output, <i>K</i> = 4,096, compared with <code>assert_close</code>'s float16 defaults against a float64 reference rounded to float16. How many of the 65,536 elements fail?</div>
 <div class="opts"><button data-a="0">None: the kernel is correct</button><button data-a="1" data-right="1">A few dozen</button><button data-a="2">Most of them</button></div>
 <div class="ans" hidden><span class="meas">measured on Apple M1 Pro GPU</span>: <b><span data-v="mm_f4096">23</span></b> fail at <i>K</i> = 4,096 and <b><span data-v="mm_f16384">51</span></b> at 16,384 (none at 64 and 512). The worst error is <span data-v="mm_scale">0.16</span>% of the scale of the terms, about what rounding the result to float16 alone explains; the failing elements are those whose result is small after cancellation, where rtol = 0.001 of a small number is tighter than the rounding. bfloat16's default rtol of 0.016 passes every element at every <i>K</i>. Defaults are a starting point; set the tolerance from the format and <i>K</i>, and say what you chose.</div></div>
 <h3>Accumulate in float32, even when inputs are 16-bit</h3>
 <div class="rd-chart" id="rd-acc"></div>
-<p class="small"><span class="meas">computed here</span> (NumPy, 256 random dot products per point, inputs N(0,1) rounded to float16; products are exact in float32): median error relative to &radic;&Sigma;(a<sub>i</sub>b<sub>i</sub>)&sup2;. A running sum kept in float16 or bfloat16 loses accuracy roughly in proportion to <i>K</i> (at <i>K</i> = 65,536 the bfloat16 running sum is off by <span data-v="acc_bf">14.6</span>% of the scale), because each small product is rounded against a large running total. Float32 accumulation keeps the error near 10<sup>&minus;6</sup>, and a pairwise tree (how a parallel reduction adds) keeps it lower and nearly flat. This is why tensor-core matmuls on 16-bit inputs accumulate in float32, and why a reduction kernel should keep its partial sums in float32. Try other formats and lengths in the <a href="#" data-tab="t-num">Numerics lab</a>.</p>
+<p class="small"><span class="meas">computed here</span> (NumPy, 256 random dot products per point, inputs N(0,1) rounded to float16; products are exact in float32): median error relative to &radic;&Sigma;(a<sub>i</sub>b<sub>i</sub>)&sup2;. A running sum kept in float16 or bfloat16 loses accuracy roughly in proportion to <i>K</i>: at <i>K</i> = 65,536 the bfloat16 running sum is off by <span data-v="acc_bf">14.6</span>% of the scale, because each small product is rounded against a large running total. Float32 accumulation keeps the error near 10<sup>&minus;6</sup>, and a pairwise tree (how a parallel reduction adds) keeps it lower and nearly flat. This is why tensor-core matmuls on 16-bit inputs accumulate in float32, and why a reduction kernel keeps its partial sums in float32.</p>
+<details class="dp" id="rd-nl-det"><summary>Workbench: any input, accumulator and output format, length and summation order</summary><div class="b">
+<p>Pick the number formats of a dot product (the inner loop of every matmul and attention score), its length and its summation order, and see how far the result lands from the exact answer and whether <code>torch.testing.assert_close</code>'s defaults would pass it.</p>
+<div class="ctl">
+<label>Inputs rounded to <select id="nl-fin"><option value="fp32">float32</option><option value="tf32">TF32</option><option value="bf16">bfloat16</option><option value="fp16" selected>float16</option><option value="e4m3">float8 e4m3fn</option><option value="e5m2">float8 e5m2</option></select></label>
+<label>Accumulator <select id="nl-fa"><option value="fp32" selected>float32</option><option value="bf16">bfloat16</option><option value="fp16">float16</option></select></label>
+<label>Order <select id="nl-acc"><option value="seq" selected>one running sum (a thread's loop)</option><option value="pair">pairwise tree (a parallel reduction)</option><option value="split">split-K: S chunks, then the partials</option></select></label>
+<label>S (split-K chunks) <select id="nl-S"><option>2</option><option selected>8</option><option>32</option><option>128</option></select></label>
+<label>Output rounded to <select id="nl-fout"><option value="fp32" selected>float32</option><option value="bf16">bfloat16</option><option value="fp16">float16</option></select></label>
+<label>Length K: <b id="nl-Kv">4,096</b><input type="range" id="nl-K" min="4" max="16" step="1" value="12"></label>
+</div>
+<div class="out" id="nl-out"></div>
+<div class="rd-chart" id="nl-chart"></div>
+<p class="small mute" id="nl-note"></p>
+<p class="small">How it works: each trial draws two vectors of N(0, 1) numbers with a seeded generator, rounds them to the input format, forms the products (exact in double precision, then rounded to the accumulator), adds them in the chosen order rounding after every addition, and rounds the result to the output format. The error is measured against the exact dot product of the rounded inputs (computed with Shewchuk's exact summation), divided by &radic;&Sigma;(a<sub>i</sub>b<sub>i</sub>)&sup2;. "Passes" applies <code>assert_close</code>'s default rtol and atol for the output type (float32 1.3e-6 and 1e-5, bfloat16 0.016 and 1e-5, float16 0.001 and 1e-5) against the exact result rounded once to that type. The rounding model matches PyTorch 2.14.1's casts on 2,055 test values and six whole experiments bit for bit (<code>check/check_js.mjs</code> against <code>code/reference.py</code>). Real tensor cores may compute products and partial sums with internal widths this model does not capture.</p>
+</div></details>
 <h3>Order changes the bits: split-K, tiles and atomics</h3>
-<p>The same 1,048,576 float32 numbers summed in different orders <span class="meas">computed here</span>, error in units in the last place (<dfn>ulps</dfn>, the spacing of float32 numbers at the size of the answer, here <span data-v="ulp">0.0039</span>):</p>
+<p>The same 1,048,576 float32 numbers summed in different orders <span class="meas">computed here</span>, error in units in the last place (<dfn>ulps</dfn>, here the spacing of float32 numbers at the size of the answer, <span data-v="ulp">0.0039</span>):</p>
 <div class="bars" id="rd-order"></div>
 <p class="small">Exact answer from <code>math.fsum</code>. "Split-K S" cuts the sum into S chunks, sums each, then adds the S partials, which is what a matmul does when it splits the <i>K</i> dimension across thread blocks to use more SMs. Every choice of S gives a different, equally legitimate answer. Sorting by value (all negatives first) is the worst order: the running total grows large before the positives cancel it.</p>
-<p><b>Atomics make the order change from run to run.</b> When many threads add into one location with <code>atomicAdd</code>, the hardware decides the order, so the same kernel on the same input returns different bits each run. Measured on this laptop's GPU with three MLX kernels summing the same 1,048,576 float32 numbers 30 times each <span class="meas">measured on Apple M1 Pro GPU</span>:</p>
+<p><b>Atomics make the order change from run to run.</b> When many threads add into one location with <code>atomicAdd</code>, the hardware decides the order, so the same kernel on the same input returns different bits each run. Three MLX kernels summing the same 1,048,576 float32 numbers 30 times each <span class="meas">measured on Apple M1 Pro GPU</span>:</p>
 <div class="tw" id="rd-atom-tab"></div>
+<p class="small">One atomic per thread gave 30 different answers in 30 runs, spread over 552 ulps; one atomic per 256-thread group gave 17, spread over 30 ulps; a fixed tree gave the same bits every time.</p>
 <div class="card" id="rd-sum-card">
 <div class="seg" id="rd-sum-seg"><button data-m="seq" class="on">Left to right</button><button data-m="pair">Pairwise tree</button><button data-m="atom">Atomics (random order)</button></div>
 <div class="rd-chart" id="rd-sum-svg"></div>
@@ -398,64 +473,49 @@ ncu --nvtx --nvtx-include "step/" ...                           <span class="c">
 <ul>
 <li><code>torch.use_deterministic_algorithms(True)</code> makes PyTorch use deterministic implementations where they exist and raise an error where they do not (for example <code>index_add_</code> and <code>scatter_add_</code> on CUDA, which use atomics); it also stops Inductor from autotuning in ways that change numerics. "Deterministic operations tend to have worse performance" (<a href="https://docs.pytorch.org/docs/2.14/notes/randomness.html" target="_blank" rel="noopener noreferrer">PyTorch reproducibility notes</a>; docstring of PyTorch 2.14.1).</li>
 <li><code>torch.backends.cudnn.benchmark = False</code> makes cuDNN choose its algorithm deterministically; <code>torch.backends.cudnn.deterministic = True</code> also requires that algorithm to be deterministic.</li>
-<li>cuBLAS gives "the same bit-wise results at every run when executed on GPUs with the same architecture and the same number of SMs", but not with several concurrent streams sharing a handle unless you set <code>CUBLAS_WORKSPACE_CONFIG=:4096:8</code> (about 24 MiB more memory) or <code>:16:8</code> (<a href="https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility" target="_blank" rel="noopener noreferrer">cuBLAS 13.4, results reproducibility</a>) <span class="vend">docs</span>. A different GPU model, SM count or library version may still change the bits: compare across machines with a tolerance, not with equality.</li>
+<li>cuBLAS gives "the same bit-wise results at every run when executed on GPUs with the same architecture and the same number of SMs", but not with several concurrent streams sharing a handle unless you set <code>CUBLAS_WORKSPACE_CONFIG=:4096:8</code> (about 24 MiB more memory) or <code>:16:8</code> (<a href="https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility" target="_blank" rel="noopener noreferrer">cuBLAS 13.4, results reproducibility</a>) <span class="vend">docs</span>. A different GPU model, SM count or library version may still change the bits: compare across machines with a tolerance, not with equality; require bit-equality only from the same kernel on the same GPU with deterministic settings.</li>
 </ul>
-<h3>FP8 needs a scale, and one outlier can spoil a per-tensor scale</h3>
-<p>float8 e4m3 has only 3 mantissa bits and a range of &plusmn;448 (its smallest normal is 2<sup>&minus;6</sup>), so values are multiplied by a scale before the cast and divided after. A million activations whose rows differ in scale, plus one outlier of 900, cast to e4m3 <span class="meas">computed here, PyTorch 2.14.1</span>:</p>
-<div class="tw" id="rd-fp8-tab"></div>
-<p class="small">The outlier fixes the per-tensor scale at 448/900, which pushes the small rows below e4m3's range: more values flush to zero than with no scale at all. One scale per row avoids it; this is why FP8 training recipes use fine-grained scales (per tile or per block, as in the MX formats), owned by the <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">hardware formats</a> and <a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">tensor-core</a> pages. Note also what PyTorch's cast did with values above 448: it saturated them to 448 (even infinity), rather than producing NaN; a kernel that casts differently will not match it bit for bit.</p>
 <h3>compute-sanitizer: memory errors, races, uninitialised reads</h3>
-<p>The <a href="https://app.notion.com/p/3c65c17b0d0d8162865eec15d9dae87e" target="_blank" rel="noopener noreferrer">programming model</a> page shows how CUDA reports errors and why a bad kernel often fails silently. <code>compute-sanitizer</code> runs your program with instrumented kernels and reports the first bad access with the thread, block and source line (compile with <code>-lineinfo</code>). Its four tools, from <code>compute-sanitizer --help</code> (2026.3.0) <span class="der">real tool, help text</span>:</p>
+<p>A bad kernel often fails silently (the error model is on <a href="https://app.notion.com/p/3c65c17b0d0d8162865eec15d9dae87e" target="_blank" rel="noopener noreferrer">The CUDA programming model</a>). <code>compute-sanitizer</code>, shipped with the toolkit, runs your program with instrumented kernels and reports the first bad access with the thread, block and source line (compile with <code>-lineinfo</code>). Its four tools, quoted from <code>compute-sanitizer --help</code> (2026.3.0, CUDA 13.4.2) <span class="der">real tool, help text</span>:</p>
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Tool</th><th>Catches</th><th>Example</th></tr></thead><tbody>
-<tr><td><code>memcheck</code> (default)</td><td>out-of-bounds and misaligned global and shared accesses, leaks with <code>--leak-check full</code>; <code>--padding N</code> adds a guard zone after each allocation</td><td><code>compute-sanitizer --leak-check full python test_kernel.py</code></td></tr>
-<tr><td><code>racecheck</code></td><td>"Shared memory hazard checking": two threads touching the same shared word without a barrier between them</td><td><code>compute-sanitizer --tool racecheck ./a.out</code></td></tr>
-<tr><td><code>synccheck</code></td><td>illegal use of barriers, such as <code>__syncthreads()</code> inside a branch not all threads take</td><td><code>--tool synccheck</code></td></tr>
-<tr><td><code>initcheck</code></td><td>reads of global memory nobody wrote (an uninitialised buffer from <code>torch.empty</code>)</td><td><code>--tool initcheck</code></td></tr>
+<tr><td><code>memcheck</code> (default)</td><td>"Memory access checking": out-of-bounds and misaligned global and shared accesses, leaks with <code>--leak-check full</code>; <code>--padding N</code> adds a guard zone after each allocation</td><td><code>compute-sanitizer --leak-check full python test_kernel.py</code></td></tr>
+<tr><td><code>racecheck</code></td><td>"Shared memory hazard checking": two threads touching the same shared word without a barrier between them (a missing <code>__syncthreads()</code>), which may only corrupt results at large sizes or on another GPU</td><td><code>compute-sanitizer --tool racecheck ./a.out</code></td></tr>
+<tr><td><code>synccheck</code></td><td>"Synchronization checking": illegal use of barriers, such as <code>__syncthreads()</code> inside a branch not all threads take</td><td><code>--tool synccheck</code></td></tr>
+<tr><td><code>initcheck</code></td><td>"Global memory initialization checking": reads of global memory nobody wrote (an uninitialised buffer from <code>torch.empty</code>); it would have caught <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>' RMSNorm bug below</td><td><code>--tool initcheck</code></td></tr>
 </tbody></table></div>
-<p class="small">Run here without a GPU, a deliberately out-of-bounds kernel could not be checked: <code>compute-sanitizer</code> printed "Target application terminated before first instrumented API call" and <code>ncu</code> "failed to connect to the CUDA driver" (<code>src/out/ncu/nogpu_*.txt</code>). <code>cuda-gdb</code> (also in the toolkit) steps through a kernel thread by thread when the sanitizer has found the line. Expect large slowdowns under the sanitizer; run it on small inputs that still cover the edges.</p>
+<p class="small">Expect large slowdowns under the sanitizer; run it on small inputs that still cover the edges, in CI. Run here without a GPU, a deliberately out-of-bounds kernel could not be checked: <code>compute-sanitizer</code> printed "Target application terminated before first instrumented API call" and <code>ncu</code> "failed to connect to the CUDA driver" (<code>src/out/ncu/nogpu_*.txt</code>). <code>cuda-gdb</code> (also in the toolkit) steps through a kernel thread by thread once the sanitizer has found the line.</p>
 <h3>A testing checklist for a new kernel</h3>
 <ul class="tight">
 <li>Sizes that are not multiples of the tile or block (1, 7, 127, 4,097), the first and last block, and one size far bigger than any test you thought of: the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Kernel lab</a> records a missing barrier that passed every small test and corrupted 1 to 5 random rows per run only at 4,096 rows.</li>
 <li>Poison the output (fill it with NaN, or use fresh memory) and run the reference after the kernel under test, not before. <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>, section 8, records "a kernel that wrote nothing passed the test": an RMSNorm whose loop count came out 0 wrote nothing and still passed, because its output buffer most likely still held the library's answer from the run just before.</li>
 <li>Non-contiguous and transposed inputs, every data type you claim to support, and inputs with large, tiny, zero, infinite and NaN values.</li>
 <li>Several random seeds; the same input twice (does the output change? then something is racing or using atomics).</li>
+<li>A tolerance tight enough to see a bug: bfloat16's default rtol of 1.6% would hide an off-by-one tile that changes a few per cent of one row, so test a float32 version of the kernel with tight tolerances too.</li>
 <li>Gradients: <code>torch.autograd.gradcheck</code> in float64 for a custom backward.</li>
 <li><code>compute-sanitizer</code> (all four tools) on a small case before any benchmark.</li>
 </ul>
+<details class="dp"><summary>FP8 needs a scale, and one outlier can spoil a per-tensor scale <span class="mute">(measured)</span></summary><div class="b">
+<p>float8 e4m3 has only 3 mantissa bits and a range of &plusmn;448 (its smallest normal is 2<sup>&minus;6</sup>), so values are multiplied by a scale before the cast and divided after. A million activations whose rows differ in scale, plus one outlier of 900, cast to e4m3 <span class="meas">computed here, PyTorch 2.14.1</span>:</p>
+<div class="tw" id="rd-fp8-tab"></div>
+<p class="small">The outlier fixes the per-tensor scale at 448/900, which pushes the small rows below e4m3's range: 12,118 non-zero values flush to zero against 6,091 with no scale at all and 11 with one scale per row. This is why FP8 recipes use fine-grained scales (per tile or per block, as in the MX formats), owned by <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>, the <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">hardware formats</a> and <a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">tensor-core</a> pages. Note also what PyTorch's cast did with values above 448: it saturated them to 448 (even infinity), rather than producing NaN; a kernel that casts differently will not match it bit for bit.</p>
+</div></details>
 </section>
 <section id="rd-s6">
-<h2>6. The workflow, common mistakes, and interview questions</h2>
-<h3>One loop, written down</h3>
-<ol>
-<li><b>Timeline first</b> (Nsight Systems or torch.profiler with CUDA activity, a few steps after warm-up, NVTX ranges on the phases). Is the GPU busy? If not, the problem is the CPU, launches, data or communication, and no kernel work will help.</li>
-<li><b>Rank the kernels</b> by total GPU time (<code>cuda_gpu_kern_sum</code>, or <code>key_averages()</code> sorted by device time). Work on the top one or two.</li>
-<li><b>Place each on the roofline</b>: bytes and FLOPs it must move and do (<a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a>), against its measured time. Far below both limits means latency or occupancy; near one limit means that limit.</li>
-<li><b>Nsight Compute on that kernel</b>, top-down: Speed of Light, then the section it points to, then source counters. Treat the rule estimates as hypotheses (section 4).</li>
-<li><b>Change one thing</b>, check the output against the reference (section 5), and re-measure with the honest harness (section 2): warm, cold-cache, many runs, median and spread, same clocks.</li>
-<li><b>Log</b> the change, the numbers, the environment. Simon Boehm's <a href="https://siboehm.com/articles/22/CUDA-MMM" target="_blank" rel="noopener noreferrer">matmul worklog</a> is the model: each kernel, its GFLOP/s, and what the profiler blamed.</li>
-</ol>
-<h3>Common mistakes</h3>
-<details class="mist"><summary>Timing an asynchronous launch with <code>time.time()</code></summary><div class="b">Measures the queueing (0.18 ms against 4.15 ms in section 1). Synchronise before both clock reads, or use events.</div></details>
-<details class="mist"><summary>Including the first call</summary><div class="b">Compilation, autotuning, algorithm search and allocator growth land in it (a first softmax about 13 times slower than the fifteenth call here, median of 9 processes). Warm up every shape.</div></details>
-<details class="mist"><summary>A hot cache</summary><div class="b">A tensor smaller than L2 timed in a loop reports cache bandwidth (1.7&times; too fast at 16 MB here). Flush or rotate buffers, as <code>do_bench</code> does.</div></details>
-<details class="mist"><summary>Reporting the minimum, or the mean of a noisy run</summary><div class="b">Report the median and the spread over several runs, and the machine's load. Three runs on this laptop disagreed by a factor of 2.</div></details>
-<details class="mist"><summary>Comparing an <code>ncu</code> duration with a training-step time</summary><div class="b">Nsight Compute locks clocks, flushes caches and serialises kernels; its durations are for comparing kernels under the same conditions, not for predicting the step.</div></details>
-<details class="mist"><summary>Profiling the whole run with Nsight Compute</summary><div class="b">Dozens of replay passes per kernel (42 for the full set in NVIDIA's samples). Filter with <code>-k</code>, <code>-c</code> and NVTX ranges.</div></details>
-<details class="mist"><summary>Believing the guided analysis's estimated speedup</summary><div class="b">64.67% estimated, 0.14% measured for NVIDIA's own uncoalesced sample. Measure.</div></details>
-<details class="mist"><summary>Requiring bit-equality with PyTorch</summary><div class="b">Different summation order gives different bits. Compare with a tolerance built from the format and K; require bit-equality only from the same kernel on the same GPU with deterministic settings.</div></details>
-<details class="mist"><summary>A tolerance so loose it hides a bug</summary><div class="b">bfloat16's default rtol of 1.6% would hide an off-by-one tile that changes a few per cent of one row. Look at the worst element and its location, and test float32 versions of the kernel with tight tolerances.</div></details>
-<details class="mist"><summary>Testing only sizes that are multiples of the tile</summary><div class="b">Boundary handling is where kernels break: test 1, 7, 127, 4,097 and a size larger than any you expect.</div></details>
-<h3>Interview questions</h3>
+<h2>6. Depth: interview rehearsal, and agents that run this loop</h2>
+<details class="dp"><summary>Interview rehearsal: eight questions with short answers</summary><div class="b">
 <details class="qa"><summary>Nsight Systems or Nsight Compute first? Why?</summary><div>Systems: one cheap pass shows where wall time goes (gaps, launches, copies, communication). Compute replays one kernel dozens of times to explain it; use it only on kernels the timeline convicted.</div></details>
 <details class="qa"><summary>How do you time a CUDA kernel from PyTorch?</summary><div>Warm up; <code>torch.cuda.Event(enable_timing=True)</code> pairs recorded around the call, synchronise, <code>elapsed_time</code>; flush L2 or rotate inputs; many runs; report the median and spread; or just <code>triton.testing.do_bench</code> (mean by default; ask for the median).</div></details>
 <details class="qa"><summary>Speed of Light shows Compute 20%, Memory 25%. What now?</summary><div>Latency-bound: neither unit is busy. Check achieved occupancy and its limiter, waves per SM (tail), warp stall reasons (long scoreboard: memory latency, not enough loads in flight), and whether the kernel is simply tiny (then fuse it or use CUDA graphs).</div></details>
-<details class="qa"><summary>How do you detect shared-memory bank conflicts?</summary><div><code>l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum</code> against <code>..._wavefronts_mem_shared_op_ld.sum</code> in Memory Workload Analysis Tables; the Source Counters section points to the line. Typical fix: pad (<code>[32][33]</code>) or swizzle.</div></details>
+<details class="qa"><summary>How do you detect shared-memory bank conflicts?</summary><div>Bank conflicts against wavefronts in Memory Workload Analysis Tables (the metric table in section 4), MIO throttle in Warp State; the Source Counters section points to the line. Typical fix: pad (<code>[32][33]</code>) or swizzle.</div></details>
 <details class="qa"><summary>Why does my fused kernel not match PyTorch exactly?</summary><div>Floating-point addition is not associative and the kernel sums in a different order (tiles, split-K, warp shuffles, atomics). Compare with a tolerance built from the output format and the reduction length, against a float64 reference of the same rounded inputs.</div></details>
 <details class="qa"><summary>Why accumulate in float32 with bfloat16 inputs?</summary><div>bfloat16 has 8 significant bits; a running sum in it loses each small term against a large total, with error growing about linearly in K (14.6% of the scale at K = 65,536 here, against about 10<sup>&minus;6</sup> in float32).</div></details>
 <details class="qa"><summary>Your training loss differs between two identical runs. Where do you look?</summary><div>Atomics-based ops (<code>index_add_</code>, <code>scatter_add_</code>, some backward passes), cuDNN autotuning (<code>cudnn.benchmark</code>), split-K choices that depend on the GPU, multiple streams sharing a cuBLAS handle, data-loader order and seeds. <code>torch.use_deterministic_algorithms(True)</code> plus <code>CUBLAS_WORKSPACE_CONFIG=:4096:8</code> narrows it.</div></details>
 <details class="qa"><summary>What does compute-sanitizer's racecheck catch that tests miss?</summary><div>Shared-memory hazards between threads of a block (a missing <code>__syncthreads()</code>), which may only corrupt results at large sizes or on another GPU.</div></details>
-<h3>The tooling is starting to run this loop itself</h3>
-<p>AMD's Hyperloom, released with ROCm 10.0 on August 27, 2026, is an "agentic system that automates end-to-end inference workload optimization" by profiling, analysing, planning, applying changes and validating correctness in a loop, and "AMD reports that Hyperloom cuts what used to be weeks of manual optimization work down to hours" (a vendor claim; <a href="https://rocm.blogs.amd.com/ecosystems-and-partners/rocm-x-blog/README.html" target="_blank" rel="noopener noreferrer">ROCm blog</a>). Dream-RSI (<a href="https://arxiv.org/abs/2609.14858" target="_blank" rel="noopener noreferrer">arXiv 2609.14858</a>, September 2026) reports, among other domains, GPU kernel engineering with "competitive or improved discovery quality while substantially reducing discovery cost". Either way, an agent's reported speedup is only as good as the method in sections 2 and 5: no warm-up, a hot cache or an unchecked output make it worthless. The old page also cited a "Phi-Bench" result (Hardware and Edge category at 5.4%); it could not be found and is left out as unconfirmed.</p>
+</div></details>
+<details class="dp"><summary>Agents that run this loop, and why the method still decides <span class="mute">(dated, 2026)</span></summary><div class="b">
+<p>AMD's Hyperloom, released with ROCm 10.0 on August 27, 2026, is an "agentic system that automates end-to-end inference workload optimization" that profiles, plans, applies changes and validates them in a loop; AMD says it cuts weeks of tuning to hours (a vendor claim; <a href="https://rocm.blogs.amd.com/ecosystems-and-partners/rocm-x-blog/README.html" target="_blank" rel="noopener noreferrer">ROCm blog</a>; the <a href="https://app.notion.com/p/3db5c17b0d0d8135a34af60966c5ecc1" target="_blank" rel="noopener noreferrer">2026-09-14 tech news</a> issue). <a href="https://app.notion.com/p/3e25c17b0d0d813ba021d805ba80ef54" target="_blank" rel="noopener noreferrer">Dream-RSI</a> (<a href="https://arxiv.org/abs/2609.14858" target="_blank" rel="noopener noreferrer">arXiv 2609.14858</a>, September 2026) reports, among other domains, GPU kernel engineering with "competitive or improved discovery quality while substantially reducing discovery cost", and <a href="https://app.notion.com/p/3db5c17b0d0d81029236da6c38f5891f" target="_blank" rel="noopener noreferrer">&Phi;-Bench</a> (<a href="https://arxiv.org/abs/2609.10226" target="_blank" rel="noopener noreferrer">arXiv 2609.10226</a>) finds Hardware and Edge the worst category for frontier models at 5.4%. An agent's reported speedup is only as good as sections 2 and 5: no warm-up, a hot cache or an unchecked output make it worthless.</p>
+<div class="co warn"><div class="t">Correction to this page (2026-10-23)</div>Earlier versions said the old page's "Phi-Bench" result (Hardware and Edge at 5.4%) could not be found and left it out as unconfirmed. The paper exists (arXiv 2609.10226) and has a page in this knowledge base, linked above, which carries the figure.</div>
+</div></details>
 </section>
 </div>
 <div class="tab" id="t-ncu" role="tabpanel" hidden>
@@ -482,34 +542,13 @@ ncu --nvtx --nvtx-include "step/" ...                           <span class="c">
 <div id="nc-body"></div>
 <p class="small" id="nc-lab"></p>
 </div>
-<div class="tab" id="t-num" role="tabpanel" hidden>
-<style>
-#t-num select{padding:3px 6px}
-#t-num .nl-chart{width:100%;overflow:hidden;margin:6px 0}
-#t-num .ctl label{font-size:13px}
-#t-num .note{font-size:12.5px;color:var(--mute)}
-</style>
-<p class="lead" style="margin-top:14px">Pick the number formats of a dot product (the inner loop of every matmul and attention score), its length and its summation order, and see how far the result lands from the exact answer and whether <code>torch.testing.assert_close</code>'s defaults would pass it.</p>
-<div class="ctl">
-<label>Inputs rounded to <select id="nl-fin"><option value="fp32">float32</option><option value="tf32">TF32</option><option value="bf16">bfloat16</option><option value="fp16" selected>float16</option><option value="e4m3">float8 e4m3fn</option><option value="e5m2">float8 e5m2</option></select></label>
-<label>Accumulator <select id="nl-fa"><option value="fp32" selected>float32</option><option value="bf16">bfloat16</option><option value="fp16">float16</option></select></label>
-<label>Order <select id="nl-acc"><option value="seq" selected>one running sum (a thread's loop)</option><option value="pair">pairwise tree (a parallel reduction)</option><option value="split">split-K: S chunks, then the partials</option></select></label>
-<label>S (split-K chunks) <select id="nl-S"><option>2</option><option selected>8</option><option>32</option><option>128</option></select></label>
-<label>Output rounded to <select id="nl-fout"><option value="fp32" selected>float32</option><option value="bf16">bfloat16</option><option value="fp16">float16</option></select></label>
-<label>Length K: <b id="nl-Kv">4,096</b><input type="range" id="nl-K" min="4" max="16" step="1" value="12"></label>
-</div>
-<div class="out" id="nl-out"></div>
-<div class="nl-chart" id="nl-chart"></div>
-<p class="note" id="nl-note"></p>
-<p class="small">How it works: each trial draws two vectors of N(0, 1) numbers with a seeded generator, rounds them to the input format, forms the products (exact in double precision, then rounded to the accumulator), adds them in the chosen order rounding after every addition, and rounds the result to the output format. The error is measured against the exact dot product of the rounded inputs (computed with Shewchuk's exact summation), divided by &radic;&Sigma;(a<sub>i</sub>b<sub>i</sub>)&sup2;. "Passes" applies <code>assert_close</code>'s default rtol and atol for the output type (float32 1.3e-6 and 1e-5, bfloat16 0.016 and 1e-5, float16 0.001 and 1e-5) against the exact result rounded once to that type. The rounding model matches PyTorch 2.14.1's casts on 2,055 test values and six whole experiments bit for bit (<code>check/check_js.mjs</code> against <code>code/reference.py</code>). Real tensor cores may compute products and partial sums with internal widths this model does not capture.</p>
-</div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more">
 <p class="lead" style="margin-top:14px">The tabs of this page, the knowledge base pages it leans on, and the best outside resources, each with an approximate time. Links checked on 2026-10-05.</p>
 <h3>This page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-ncu">Report reader</a></div><p>NVIDIA's six sample Nsight Compute reports as three before-and-after pairs, every section with the metric name behind each label. <span class="rt">15 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-num">Numerics lab</a></div><p>Dot-product error for any input, accumulator and output format, length and summation order, against assert_close's defaults. <span class="rt">10 min</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-ncu">Report reader</a></div><p>NVIDIA's six sample Nsight Compute reports as three before-and-after pairs, every section with the metric name behind each label. <span class="rt">12 min</span></p></div>
+
 </div>
 <h3>The parent and siblings</h3>
 <div class="grid">
@@ -551,9 +590,9 @@ ncu --nvtx --nvtx-include "step/" ...                           <span class="c">
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab: shared helpers, copied from Topic: hardware and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -584,7 +623,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -791,7 +830,7 @@ window.FP=(function(){
       RD.stat('Throughput implied',i>=3?f(A.flops/m.report/1e9,A.flops/m.report/1e9<10?2:0)+' TFLOP/s':'...','2N&sup3; = '+f(A.flops/1e9,1)+' GFLOP; the M1 Pro GPU peaks near 5 TFLOP/s');
   }
   const an=RD.anim({card:'rd-tl-card',ctl:'rd-tl-ctl',n:4,ms:1600,draw,label:'Timing step'});
-  RD.seg(document.getElementById('rd-tl-seg'),v=>{mode=v;an.reset(4);an.play()});
+  RD.seg(document.getElementById('rd-tl-seg'),v=>{mode=v;an.reset(4)});
   RD.onResize(()=>an.redraw());
   // predict boxes (all sections)
   document.querySelectorAll('#t-read .pr').forEach(pr=>pr.addEventListener('click',e=>{const b=e.target.closest('button[data-a]');if(!b)return;
@@ -884,6 +923,42 @@ window.FP=(function(){
     pm_step:f(row('mps','ProfilerStep*').self_cpu_us/1000,2),p_acts:P.activities.join(', ')});
 })();
 </script>
+<script>/* 27b_js_rd_sym.js */
+// ---- Reading section 3: six timeline shapes (illustrative, labelled so), chosen by a row of the static symptom table ----
+(function(){
+  const el=document.getElementById('rd-sym-svg'),tab=document.getElementById('rd-sym-tab');if(!el||!tab)return;
+  // each shape: lanes, then bars [lane, start, end, colour, label]; time runs 0..100 (one step); br: the bracket [lane, start, end, note]
+  const K='var(--c1)',W8='var(--dim)',CP='var(--c5)',NC='var(--c4)',LD='var(--c6)',BW='var(--c2)';
+  function launches(a,b,n,lane,col,lab){const o=[],d=(b-a)/n;for(let i=0;i<n;i++)o.push([lane,a+i*d,a+i*d+d*0.7,col,i===0?lab:'']);return o}
+  const SH=[
+    {lanes:['CPU','GPU'],bars:launches(0,100,10,0,'var(--c3)','launch').concat(launches(2,100,10,1,K,'kernel').map(b=>[b[0],b[1]+3,b[1]+5.5,b[3],b[4]])),br:[1,10.5,15,'idle: waiting for the next launch']},
+    {lanes:['CPU','GPU'],bars:launches(0,28,6,0,'var(--c3)','launch').concat([[0,28,74,W8,'cudaStreamSynchronize (.item())']],launches(74,100,5,0,'var(--c3)','')).concat([[1,2,72,K,'kernels queued earlier'],[1,78,100,K,'']]),br:[1,72,78,'GPU idle while the CPU catches up']},
+    {lanes:['CPU','Copy','GPU'],bars:[[0,0,34,W8,'cudaMemcpy (pageable)'],[1,1,34,CP,'host-to-device copy'],[2,35,100,K,'forward and backward']].concat(launches(35,100,8,0,'var(--c3)','')),br:[2,0,35,'compute waits for the copy']},
+    {lanes:['GPU','NCCL'],bars:[[0,0,30,K,'forward'],[0,30,70,BW,'backward'],[1,70,96,NC,'all-reduce'],[0,96,100,'var(--c3)','opt']],br:[0,70,96,'compute idle during communication']},
+    {lanes:['Loader','CPU','GPU'],bars:[[0,0,38,LD,'next batch: decode, augment'],[1,38,100,'var(--c3)','launches'],[2,40,100,K,'forward, backward, optimizer']],br:[2,0,40,'whole GPU idle at step start']},
+    {lanes:['CPU','GPU'],bars:launches(0,30,6,0,'var(--c3)','launch').concat([[1,1,3,K,''],[1,3,40,'var(--c2)','gemm A'],[1,40,42,K,''],[1,42,78,'var(--c2)','gemm B'],[1,78,80,K,''],[1,80,96,'var(--c4)','attention'],[1,96,100,K,'']]),br:[1,3,78,'two kernels take most of the GPU time']}
+  ];
+  let k=0;
+  function draw(){
+    const s=SH[k],Wd=RD.width(el),L=Wd<500?48:60,R=10,X=t=>L+t/100*(Wd-L-R),rh=26,top=30;let o='';
+    s.lanes.forEach((n,i)=>{const y=top+i*(rh+8);o+='<rect x="'+L+'" y="'+y+'" width="'+(Wd-L-R)+'" height="'+rh+'" style="fill:var(--soft);stroke:var(--line)"/>'+RD.t(L-6,y+17,n,{a:'end',fs:11,w:600})});
+    s.bars.forEach(b=>{const y=top+b[0]*(rh+8)+3,x=X(b[1]),w=Math.max(1.5,X(b[2])-x);o+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+(rh-6)+'" rx="2" style="fill:'+b[3]+';opacity:.85"/>';
+      if(b[4]&&w>b[4].length*5.8+6)o+=RD.t(x+4,y+14,RD.esc(b[4]),{fs:10.5,fill:b[3]===W8?'var(--ink)':'var(--bg)'})});
+    const br=s.br,ly=top+br[0]*(rh+8),a=X(br[1]),b=X(br[2]),nl=s.lanes.length,ny=top+nl*(rh+8)+12;
+    o+='<rect x="'+(a-1).toFixed(1)+'" y="'+(ly-2)+'" width="'+(b-a+2).toFixed(1)+'" height="'+(rh+4)+'" rx="3" fill="none" style="stroke:var(--bad)" stroke-width="2" stroke-dasharray="5 3"/>';
+    o+='<line x1="'+((a+b)/2).toFixed(1)+'" x2="'+((a+b)/2).toFixed(1)+'" y1="'+(ly+rh+2)+'" y2="'+(ny-11)+'" style="stroke:var(--bad)" stroke-width="1.5"/>';
+    const tx=Math.min(Wd-R,Math.max(L,(a+b)/2)),half=br[3].length*3.1,anc=tx+half>Wd-R?'end':tx-half<L?'start':'middle';
+    o+=RD.t(anc==='end'?Wd-R:anc==='start'?Math.max(L,a):tx,ny,RD.esc(br[3]),{a:anc,fs:11,w:600,fill:'var(--bad)'});
+    const H=ny+20;
+    o+=RD.t(L,top-10,'one step, time left to right',{fs:10,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(Wd,H,o,'illustrative timeline shape');
+  }
+  function pick(tr){if(!tr||!tr.dataset.k)return;k=+tr.dataset.k;tab.querySelectorAll('tbody tr').forEach(r=>r.classList.toggle('on',r===tr));draw()}
+  tab.addEventListener('click',e=>{if(e.target.closest('a'))return;pick(e.target.closest('tr[data-k]'))});
+  tab.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const tr=e.target.closest('tr[data-k]');if(tr){e.preventDefault();pick(tr)}}});
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+</script>
 <script>/* 28_js_rd_walk.js */
 // ---- Reading section 4: walk a real Nsight Compute report top-down, before and after the fix (NVIDIA's sample pairs) ----
 // Also the metric-name anatomy widget. Every number is read from PCD.ncu (ncu --import output).
@@ -935,7 +1010,7 @@ window.NCU=(function(){
       RD.stat('After',i>=5?D.p.a:'...','')+RD.stat('Estimated',D.est!=null?f(D.est,2)+'%':'none',D.rule?'rule in '+(D.rule.speedup?'the report':''):'')+RD.stat('Measured',i>=6?f((1-D.da/D.db)*100,Math.abs(1-D.da/D.db)<0.01?2:1)+'% less time':'...','duration before and after');
   }
   const an=RD.anim({card:'rd-walk-card',ctl:'rd-walk-ctl',n:7,ms:2200,draw,label:'Report step'});
-  RD.seg(document.getElementById('rd-walk-seg'),v=>{k=+v;D=NCU.pairData(k);an.reset(7);an.play()});
+  RD.seg(document.getElementById('rd-walk-seg'),v=>{k=+v;D=NCU.pairData(k);an.reset(7)});
   RD.onResize(()=>an.redraw());
   // anatomy widget
   const EX=[['l1tex','unit: the L1/TEX cache of each SM (others: sm, smsp = SM sub-partition, lts = L2 slice, dram, gpc, gpu)'],['__',''],['data_bank_conflicts_pipe_lsu_mem_shared_op_ld','counter: bank conflicts in the data stage, load/store pipe, shared memory, load operations'],['.sum','roll-up: added over all instances of the unit (all SMs); .avg, .min, .max are the alternatives']];
@@ -948,15 +1023,44 @@ window.NCU=(function(){
     w0_est:f(p0.est,2),set_basic:f(PCD.ncu.sets.find(x=>x.id==='basic').metrics,0),set_full:f(PCD.ncu.sets.find(x=>x.id==='full').metrics,0),set_full_n:String(PCD.ncu.sets.find(x=>x.id==='full').sections.length),w0_b:f(p0.db,2),w0_a:f(p0.da,2),w1_est:f(p1.est,2),w1_gain:f((1-p1.da/p1.db)*100,1)});
 })();
 </script>
+<script>/* 28b_js_rd_stall.js */
+// ---- Reading section 4: where a warp's cycles go, before and after the fix (Warp State and Occupancy sections of NVIDIA's reports) ----
+(function(){
+  const el=document.getElementById('rd-stall-svg');if(!el||!window.NCU)return;
+  const f=MC.fmtN,leg=document.getElementById('rd-stall-leg'),cnt=document.getElementById('rd-stall-cnt');
+  const COL={'Long Scoreboard':'var(--c1)','MIO Throttle':'var(--c2)','Barrier':'var(--c3)','Short Scoreboard':'var(--c4)','Tex Throttle':'var(--c5)','LG Throttle':'var(--c6)','Drain':'var(--bad)'};
+  const sec=(r,n)=>r.sections.find(s=>s.name===n);
+  function warp(r){const s=sec(r,'Warp State Statistics'),t0=s.tables[0].rows,t1=s.tables.find(t=>t.title==='Warp State (All Cycles)').rows;
+    const v=l=>+t0.find(x=>x[0]===l)[2];const parts=t1.map(x=>({n:x[0].replace(/^Stall /,''),v:+x[2]}));
+    const cpi=v('Warp Cycles Per Issued Instruction'),known=parts.reduce((a,p)=>a+p.v,0);
+    return {cpi,ipc:v('Issued Warp Per Scheduler'),parts,other:Math.max(0,cpi-known)}}
+  function occ(r){const rows=sec(r,'Occupancy').tables[0].rows,g=l=>+rows.find(x=>x[0]===l)[2];return {th:g('Theoretical Occupancy'),ach:g('Achieved Occupancy')}}
+  let k=1;
+  function draw(){
+    const p=NCU.PAIRS[k],B=NCU.byStem(p.b),A=NCU.byStem(p.a),wb=warp(B),wa=warp(A),ob=occ(B),oa=occ(A);
+    const W=RD.width(el),L=W<500?52:70,R=12,mx=Math.max(wb.cpi,wa.cpi),X=v=>v/mx*(W-L-R),bh=30;let s='';
+    [[wb,'before',14],[wa,'after',14+bh+30]].forEach(([w,lab,y])=>{
+      s+=RD.t(L-6,y+19,lab,{a:'end',fs:11,w:600});let x=L;
+      const segs=w.parts.map(q=>({n:q.n,v:q.v,c:COL[q.n]||(q.n==='Selected'?'var(--good)':'var(--dim)')})).concat([{n:'other',v:w.other,c:'var(--dim)'}]);
+      segs.forEach(q=>{const ww=X(q.v);if(ww<0.3)return;s+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+ww.toFixed(1)+'" height="'+bh+'" style="fill:'+q.c+';opacity:.88;stroke:var(--bg);stroke-width:.6"><title>'+RD.esc(q.n)+': '+f(q.v,2)+' cycles</title></rect>';
+        const lab2=q.n+' '+f(q.v,q.v>=10?0:1);if(ww>lab2.length*5.9+6)s+=RD.t(x+4,y+19,RD.esc(lab2),{fs:10.5,fill:q.c==='var(--dim)'?'var(--ink)':'var(--bg)'});x+=ww});
+      s+=RD.t(Math.min(W-R,x+4),y+bh+13,f(w.cpi,w.cpi>=100?0:1)+' cycles per issued instruction',{a:x+200>W-R?'end':'start',fs:10.5,fill:'var(--mute)'})});
+    el.innerHTML=RD.svg(W,14+2*bh+30+18,s,'warp cycles per issued instruction by stall reason, before and after');
+    const names=[...new Set(wb.parts.concat(wa.parts).map(q=>q.n))].filter(n=>COL[n]);
+    leg.innerHTML=names.map(n=>'<span style="--sw:'+COL[n]+'">'+n+'</span>').join('')+'<span style="--sw:var(--good)">Selected (issuing)</span><span style="--sw:var(--dim)">other reasons</span>';
+    cnt.innerHTML=RD.stat('Cycles per issued instruction',f(wb.cpi,1)+' &rarr; '+f(wa.cpi,1),'per warp')+RD.stat('Issued warp per scheduler',f(wb.ipc,2)+' &rarr; '+f(wa.ipc,2),'1.00 would issue every cycle')+
+      RD.stat('Achieved occupancy',f(ob.ach,1)+'% &rarr; '+f(oa.ach,1)+'%','theoretical '+f(ob.th,0)+'% and '+f(oa.th,0)+'%')+RD.stat('Top stall before',RD.esc(wb.parts.filter(q=>q.n!=='Selected')[0].n),f(wb.parts[0].v,1)+' cycles');
+  }
+  RD.seg(document.getElementById('rd-stall-seg'),v=>{k=+v;draw()});
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+</script>
 <script>/* 29_js_rd_num.js */
-// ---- Reading section 5: formats table, accumulation chart, summation order, atomics, FP8, and the summation-order animation ----
+// ---- Reading section 5: accumulation chart, summation order, atomics, FP8, and the summation-order animation ----
 (function(){
   const NU=PCD.numerics,AT=PCD.atomics,f=MC.fmtN;
   const sci=v=>v==null?'':v===0?'0':Number.isInteger(v)&&Math.abs(v)<1e6?v.toLocaleString('en-US'):Math.abs(v)>=1e5||Math.abs(v)<1e-2?v.toExponential(2).replace('e+','e'):String(+v.toPrecision(4));
-  // formats
-  const TL=NU.assert_close_defaults,rows=[['float32','float32'],['tf32','TF32 (tensor cores)'],['bfloat16','bfloat16'],['float16','float16'],['float8_e4m3fn','float8 e4m3fn'],['float8_e5m2','float8 e5m2']];
-  document.getElementById('rd-fmt-tab').innerHTML='<table class="tbl-sm"><thead><tr><th>Type</th><th class="num">bits</th><th class="num">eps</th><th class="num">largest</th><th class="num">smallest normal</th><th class="num">default rtol, atol</th></tr></thead><tbody>'+
-    rows.map(([k,n])=>{const d=NU.dtypes[k],t=TL[k];return '<tr><td>'+n+'</td><td class="num">'+d.bits+'</td><td class="num">'+sci(d.eps)+'</td><td class="num">'+(d.max==null?'as float32':sci(d.max))+'</td><td class="num">'+(d.smallest_normal==null?'as float32':sci(d.smallest_normal))+'</td><td class="num">'+(t?sci(t[0])+', '+sci(t[1]):'none')+'</td></tr>'}).join('')+'</tbody></table>';
+  // formats: a static table in 20_read_e.html since 2026-10-23 (check/check_embed.py compares it with the data)
   // accumulation chart
   function acc(){const R=NU.accumulate.inputs.float16,S=[['fp32_pairwise','float32, pairwise tree','var(--c3)'],['fp32_sequential','float32 running sum','var(--c1)'],['fp16_sequential','float16 running sum','var(--c2)'],['bf16_sequential','bfloat16 running sum','var(--c4)']];
     MC.line(document.getElementById('rd-acc'),S.map(([k,n,c])=>({name:n,color:c,pts:R.map(r=>({x:r.K,y:r[k].median}))})),{logx:true,logy:true,xl:'reduction length K',yl:'median relative error',xfmt:v=>v>=1024?(v/1024)+'K':String(v),yfmt:v=>'1e'+Math.round(Math.log10(v)),label:'accumulation error against K'})}
@@ -994,14 +1098,45 @@ window.NCU=(function(){
     cap.innerHTML='<div class="t">Addition '+(i+1)+' of 15</div><p>'+(mode==='seq'?'Left to right: the 2,048 comes first, so every later number is added to a total whose float16 spacing is 2.':mode==='pair'?'Pairwise: neighbours are added first, so the small numbers meet each other before they meet 2,048; a parallel reduction adds this way.':'Atomics: the hardware picks the order; each run is a different order and may give a different answer.')+'</p>';
     cnt.innerHTML=RD.stat('Result so far',f(o.v,o.v>100?0:2),'float16')+RD.stat('Exact sum of all 16',f(exact,4),'float64')+RD.stat('Final result',i>=14?f(last.v,last.v>100?0:2):'...',i>=14?'error '+f(last.v-exact,3):'')+
       (mode==='atom'?RD.stat('Run','<button id="rd-sum-again" style="font-size:12px">Another run</button>','order seed '+seed):'');
-    const b=document.getElementById('rd-sum-again');if(b)b.onclick=()=>{seed++;build();an.reset(15);an.play()};
+    const b=document.getElementById('rd-sum-again');if(b)b.onclick=()=>{seed++;build();an.reset(15)};
   }
   const an=RD.anim({card:'rd-sum-card',ctl:'rd-sum-ctl',n:15,ms:900,draw,label:'Addition'});
-  RD.seg(document.getElementById('rd-sum-seg'),v=>{mode=v;build();an.reset(15);an.play()});
+  RD.seg(document.getElementById('rd-sum-seg'),v=>{mode=v;build();an.reset(15)});
   RD.onResize(()=>an.redraw());
   const mmr=NU.matmul_vs_ref.float16,acc65=NU.accumulate.inputs.float16.find(r=>r.K===65536);
   Object.assign(window.RDV=window.RDV||{},{mm_f4096:String(mmr.find(r=>r.K===4096).fail_default),mm_f16384:String(mmr.find(r=>r.K===16384).fail_default),
     mm_scale:f(mmr.find(r=>r.K===4096).max_err_over_scale*100,2),acc_bf:f(acc65.bf16_sequential.median*100,1),ulp:String(+ulp.toPrecision(2))});
+})();
+</script>
+<script>/* 29b_js_rd_lab.js */
+// ---- Reading section 5, closed workbench (was the Numerics lab tab): dot-product error against format, length and order (window.FP model) ----
+(function(){
+  const f=MC.fmtN,$=id=>document.getElementById(id),NU=PCD.numerics;
+  const ids=['nl-fin','nl-fa','nl-acc','nl-S','nl-fout','nl-K'];
+  const sci=v=>v===0?'0':v<1e-3?v.toExponential(2):f(v*100,v*100>=10?1:3)+'%';
+  let tm=0;
+  function cfg(){return {fin:$('nl-fin').value,fa:$('nl-fa').value,acc:$('nl-acc').value,S:+$('nl-S').value,fout:$('nl-fout').value,K:1<<+$('nl-K').value}}
+  function run(){
+    const c=cfg();$('nl-Kv').textContent=f(c.K,0);$('nl-S').disabled=c.acc!=='split';
+    const T=c.K>=16384?32:64,r=FP.experiment(Object.assign({seed:11,trials:T},c));
+    $('nl-out').innerHTML=RD.stat('Median error',sci(r.median),'of the scale &radic;&Sigma;(a&middot;b)&sup2;')+RD.stat('90th percentile',sci(r.p90),T+' trials')+RD.stat('Worst',sci(r.max),'')+
+      RD.stat('assert_close defaults pass',r.pass+' of '+r.T,'rtol, atol for '+FP.F[c.fout].name)+RD.stat('One rounding of the output',sci(FP.eps(c.fout)/2),'eps/2 of '+FP.F[c.fout].name);
+    // chart: this configuration against float32 sequential and pairwise, K = 16 .. 16384
+    clearTimeout(tm);tm=setTimeout(()=>chart(c),30);
+    const ref=NU.accumulate.inputs.float16.find(x=>x.K===c.K);
+    $('nl-note').innerHTML=(c.fin==='fp16'&&c.fout==='fp32'&&ref&&((c.fa==='fp32'&&c.acc!=='split')||(c.fa!=='fp32'&&c.acc==='seq'))?'Cross-check: the NumPy run in <code>src/out/numerics.json</code> (256 trials, its own random numbers) gave a median of '+sci(ref[(c.fa==='fp32'?'fp32_':c.fa==='fp16'?'fp16_':'bf16_')+(c.acc==='pair'?'pairwise':'sequential')].median)+' for this setting; agreement is statistical, not bit for bit.':'');
+  }
+  function chart(c){
+    const el=$('nl-chart');if(!el.offsetParent)return;
+    const Ks=[16,64,256,1024,4096,16384];
+    const pts=o=>Ks.map(K=>({x:K,y:Math.max(1e-12,FP.experiment(Object.assign({seed:5,trials:K>=4096?24:48},o,{K})).median)}));
+    const base={fin:c.fin,fout:'fp32',S:c.S};
+    MC.line(el,[{name:'your setting',color:'var(--c2)',pts:pts(c)},{name:'float32 running sum',color:'var(--c1)',pts:pts(Object.assign({},base,{fa:'fp32',acc:'seq'})),dash:'4 3'},{name:'float32 pairwise',color:'var(--c3)',pts:pts(Object.assign({},base,{fa:'fp32',acc:'pair'})),dash:'4 3'}],
+      {logx:true,logy:true,xl:'reduction length K',yl:'median error / scale',xfmt:v=>v>=1024?(v/1024)+'K':String(v),yfmt:v=>'1e'+Math.round(Math.log10(v)),label:'error against K'});
+  }
+  ids.forEach(i=>$(i).addEventListener('input',run));
+  const det=$('rd-nl-det');let ran=false;det.addEventListener('toggle',()=>{if(det.open){run();ran=true}});
+  RD.onResize(()=>{if(det.open)chart(cfg())});
 })();
 </script>
 <script>/* 30_js_rd_vals.js */
@@ -1051,39 +1186,8 @@ window.NCU=(function(){
   draw();
 })();
 </script>
-<script>/* 32_js_num.js */
-// ---- Numerics lab tab: dot-product error against format, length and order (window.FP model) ----
-(function(){
-  const f=MC.fmtN,$=id=>document.getElementById(id),NU=PCD.numerics;
-  const ids=['nl-fin','nl-fa','nl-acc','nl-S','nl-fout','nl-K'];
-  const sci=v=>v===0?'0':v<1e-3?v.toExponential(2):f(v*100,v*100>=10?1:3)+'%';
-  let tm=0;
-  function cfg(){return {fin:$('nl-fin').value,fa:$('nl-fa').value,acc:$('nl-acc').value,S:+$('nl-S').value,fout:$('nl-fout').value,K:1<<+$('nl-K').value}}
-  function run(){
-    const c=cfg();$('nl-Kv').textContent=f(c.K,0);$('nl-S').disabled=c.acc!=='split';
-    const T=c.K>=16384?32:64,r=FP.experiment(Object.assign({seed:11,trials:T},c));
-    $('nl-out').innerHTML=RD.stat('Median error',sci(r.median),'of the scale &radic;&Sigma;(a&middot;b)&sup2;')+RD.stat('90th percentile',sci(r.p90),T+' trials')+RD.stat('Worst',sci(r.max),'')+
-      RD.stat('assert_close defaults pass',r.pass+' of '+r.T,'rtol, atol for '+FP.F[c.fout].name)+RD.stat('One rounding of the output',sci(FP.eps(c.fout)/2),'eps/2 of '+FP.F[c.fout].name);
-    // chart: this configuration against float32 sequential and pairwise, K = 16 .. 16384
-    clearTimeout(tm);tm=setTimeout(()=>chart(c),30);
-    const ref=NU.accumulate.inputs.float16.find(x=>x.K===c.K);
-    $('nl-note').innerHTML=(c.fin==='fp16'&&c.fout==='fp32'&&ref&&((c.fa==='fp32'&&c.acc!=='split')||(c.fa!=='fp32'&&c.acc==='seq'))?'Cross-check: the NumPy run in <code>src/out/numerics.json</code> (256 trials, its own random numbers) gave a median of '+sci(ref[(c.fa==='fp32'?'fp32_':c.fa==='fp16'?'fp16_':'bf16_')+(c.acc==='pair'?'pairwise':'sequential')].median)+' for this setting; agreement is statistical, not bit for bit.':'');
-  }
-  function chart(c){
-    const el=$('nl-chart');if(!el.offsetParent)return;
-    const Ks=[16,64,256,1024,4096,16384];
-    const pts=o=>Ks.map(K=>({x:K,y:Math.max(1e-12,FP.experiment(Object.assign({seed:5,trials:K>=4096?24:48},o,{K})).median)}));
-    const base={fin:c.fin,fout:'fp32',S:c.S};
-    MC.line(el,[{name:'your setting',color:'var(--c2)',pts:pts(c)},{name:'float32 running sum',color:'var(--c1)',pts:pts(Object.assign({},base,{fa:'fp32',acc:'seq'})),dash:'4 3'},{name:'float32 pairwise',color:'var(--c3)',pts:pts(Object.assign({},base,{fa:'fp32',acc:'pair'})),dash:'4 3'}],
-      {logx:true,logy:true,xl:'reduction length K',yl:'median error / scale',xfmt:v=>v>=1024?(v/1024)+'K':String(v),yfmt:v=>'1e'+Math.round(Math.log10(v)),label:'error against K'});
-  }
-  ids.forEach(i=>$(i).addEventListener('input',run));
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-num']=[run];
-  addEventListener('resize',()=>{if($('t-num').offsetParent)chart(cfg())});
-})();
-</script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (storage key cuprof-tab: this page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1101,6 +1205,8 @@ window.NCU=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('cuprof-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

@@ -50,6 +50,14 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const again = await p.$('#rd-sum-again'); if (again) { await again.click(); await sleep(100); }
   await clickAll('#rd-prof-seg button'); await shot('#rd-prof-card', 'prof-mps'); await p.click('#rd-prof-seg button[data-m="cpu"]'); await shot('#rd-prof-card', 'prof-cpu');
   await clickAll('#t-read .pr button[data-a]'); await check('predict');
+  // timeline shapes (rows of the symptom table) and warp stalls (pair switch)
+  for (const r of await p.$$('#rd-sym-tab tbody tr')) { await r.evaluate(x => x.scrollIntoView({ block: 'center' })); await r.click(); await sleep(80); await check('sym'); }
+  await shot('#rd-sym-card', 'sym');
+  await clickAll('#rd-stall-seg button'); await check('stall'); await shot('#rd-stall-card', 'stall');
+  await p.click('#rd-stall-seg button[data-m="1"]'); await shot('#rd-hero', 'hero');
+  // closed details: open them all (the workbench draws when opened)
+  for (const d of await p.$$('#t-read details')) await d.evaluate(x => x.open = true);
+  await sleep(400);
   await clickAll('#rd-anat span'); await check('anat');
   for (const s of ['#rd-warm', '#rd-cache', '#rd-dist', '#rd-acc', '#rd-order', '#rd-atom-tab', '#rd-fp8-tab', '#rd-fmt-tab', '#rd-one']) await shot(s, s.slice(1));
   await check('reading');
@@ -57,15 +65,19 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await p.click('#tabs button[data-t="t-ncu"]'); await sleep(200);
   for (const b of await p.$$('#nc-pair button')) { await b.click(); await sleep(150); for (const d of await p.$$('#t-ncu details.sec')) await d.evaluate(x => x.open = true); await clickAll('#t-ncu [data-mn]'); await check('ncu'); }
   await shot('#nc-head', 'ncu-head'); await shot('#nc-body details.sec', 'ncu-sol');
-  // Numerics lab
-  await p.click('#tabs button[data-t="t-num"]'); await sleep(300);
+  // Workbench (closed details in Reading section 5, opened above)
+  await p.click('#tabs button[data-t="t-read"]'); await sleep(300);
   for (const [id, vs] of [['#nl-fin', ['fp32', 'tf32', 'bf16', 'e4m3', 'e5m2', 'fp16']], ['#nl-fa', ['bf16', 'fp16', 'fp32']], ['#nl-acc', ['pair', 'split', 'seq']], ['#nl-fout', ['bf16', 'fp16', 'fp32']]]) {
     for (const v of vs) { await p.select(id, v); await sleep(250); await check('num ' + id + ' ' + v); }
   }
   await p.$eval('#nl-K', e => { e.value = 16; e.dispatchEvent(new Event('input')); }); await sleep(1500); await check('num K16');
   await p.$eval('#nl-K', e => { e.value = 12; e.dispatchEvent(new Event('input')); }); await sleep(800);
-  await shot('#t-num', 'numlab');
-  await p.click('#tabs button[data-t="t-more"]'); await sleep(150); await check('more'); await shot('#t-more', 'more');
+  await shot('#rd-nl-det', 'numlab');
+  await p.click('#tabs button[data-t="t-more"]'); await sleep(150); await check('more');
+  // no animation may move before the reader acts
+  const p2 = await browser.newPage(); await p2.setViewport({ width: w, height: 900 }); await p2.goto(page_, { waitUntil: 'load' });
+  for (const c of ['#rd-tl-card', '#rd-walk-card', '#rd-sum-card']) { await p2.$eval(c, x => x.scrollIntoView({ block: 'center' })); await sleep(1800); const i = await p2.$eval(c + ' input[type=range]', x => x.value); if (i !== '0') { fail++; console.log('FAIL autoplay', c, i); } }
+  await p2.close(); await shot('#t-more', 'more');
   if (errs.length) { fail++; console.log('FAIL console', scheme, w, errs.slice(0, 5)); }
   await p.close();
 }

@@ -53,7 +53,7 @@
       RD.stat('Throughput implied',i>=3?f(A.flops/m.report/1e9,A.flops/m.report/1e9<10?2:0)+' TFLOP/s':'...','2N&sup3; = '+f(A.flops/1e9,1)+' GFLOP; the M1 Pro GPU peaks near 5 TFLOP/s');
   }
   const an=RD.anim({card:'rd-tl-card',ctl:'rd-tl-ctl',n:4,ms:1600,draw,label:'Timing step'});
-  RD.seg(document.getElementById('rd-tl-seg'),v=>{mode=v;an.reset(4);an.play()});
+  RD.seg(document.getElementById('rd-tl-seg'),v=>{mode=v;an.reset(4)});
   RD.onResize(()=>an.redraw());
   // predict boxes (all sections)
   document.querySelectorAll('#t-read .pr').forEach(pr=>pr.addEventListener('click',e=>{const b=e.target.closest('button[data-a]');if(!b)return;

@@ -48,7 +48,7 @@ window.NCU=(function(){
       RD.stat('After',i>=5?D.p.a:'...','')+RD.stat('Estimated',D.est!=null?f(D.est,2)+'%':'none',D.rule?'rule in '+(D.rule.speedup?'the report':''):'')+RD.stat('Measured',i>=6?f((1-D.da/D.db)*100,Math.abs(1-D.da/D.db)<0.01?2:1)+'% less time':'...','duration before and after');
   }
   const an=RD.anim({card:'rd-walk-card',ctl:'rd-walk-ctl',n:7,ms:2200,draw,label:'Report step'});
-  RD.seg(document.getElementById('rd-walk-seg'),v=>{k=+v;D=NCU.pairData(k);an.reset(7);an.play()});
+  RD.seg(document.getElementById('rd-walk-seg'),v=>{k=+v;D=NCU.pairData(k);an.reset(7)});
   RD.onResize(()=>an.redraw());
   // anatomy widget
   const EX=[['l1tex','unit: the L1/TEX cache of each SM (others: sm, smsp = SM sub-partition, lts = L2 slice, dram, gpc, gpu)'],['__',''],['data_bank_conflicts_pipe_lsu_mem_shared_op_ld','counter: bank conflicts in the data stage, load/store pipe, shared memory, load operations'],['.sum','roll-up: added over all instances of the unit (all SMs); .avg, .min, .max are the alternatives']];
