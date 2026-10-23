@@ -1,4 +1,4 @@
-// ---- Pipeline schedules (t-dpt-pipe) ----
+// ---- Pipeline schedule explorer, inline in Reading section 8 (was the Pipeline schedules tab) ----
 (function(){
   const D=window.DPT,U=window.DU,$=U.$;
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -51,7 +51,7 @@
       RD.stat('Steps (5 timed)',D.pp[A][0].steps.join(', ')+' ms','load '+rec.load[0]);
   }
   function setPlay(p){playing=p;$('dp-play').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';if(timer){clearTimeout(timer);timer=0}if(p){if(pos>=1)pos=0;tick()}}
-  const visible=()=>{const t=$('t-dpt-pipe');return t&&!t.hidden&&!document.hidden};
+  const visible=()=>{const c=$('dpt-pipe');return c&&c.offsetParent!==null&&!document.hidden};
   function tick(){timer=0;if(!playing)return;if(!visible()){setPlay(false);return}pos=Math.min(1,pos+0.01*spd);$('dp-scrub').value=Math.round(pos*1000);draw();if(pos>=1){setPlay(false);return}timer=setTimeout(tick,60)}
   $('dp-play').addEventListener('click',()=>setPlay(!playing));
   $('dp-scrub').addEventListener('input',e=>{setPlay(false);pos=+e.target.value/1000;draw()});
@@ -65,5 +65,5 @@
     const ld=keys.map(k=>D.pp[k][0].load[0]);
     $('dp-foot').innerHTML='Load average (1 minute) at the end of each run: '+Math.min(...ld).toFixed(1)+' to '+Math.max(...ld).toFixed(1)+'. The formula assumes every stage takes the same time; here the first stage also embeds and the last also computes the head and loss, so ranks differ. Measured bubbles include Python overhead and gloo send/recv waits, which the ideal clock leaves out; on GPUs the ratio of communication to compute is different again, so trust the order and the ideal-clock column for what transfers. The ideal clock reproduces the formula for GPipe and 1F1B by construction (equal stages, no communication); for the multi-stage schedules it shows their own smaller fill and drain. Peaks are activations, gathered weights and temporaries above the persistent state, for float32 on this CPU.';
   }
-  U.onTab('t-dpt-pipe',()=>{table();draw();if(!RM&&pos>=1&&!playing){}});U.onResize('t-dpt-pipe',draw);
+  table();RD.onRender(draw);RD.onResize(draw);draw();
 })();

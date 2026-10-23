@@ -1,4 +1,4 @@
-// ---- Comm-hook bytes lab (t-dpt-hook) ----
+// ---- Comm-hook lab, Reading section 3, closed depth block #dpt-hook-det (was the Comm-hook bytes lab tab) ----
 (function(){
   const D=window.DPT,U=window.DU,$=U.$;
   const COLS=['var(--ink)','var(--c6)','var(--c3)','var(--c5)','var(--c2)','var(--c1)','var(--c4)','var(--bad)'];
@@ -60,5 +60,7 @@
   }
   $('dh-r').addEventListener('input',calc);$('dh-mcr').addEventListener('change',calc);
   hooksUI();
-  U.onTab('t-dpt-hook',()=>{draw();calc()});U.onResize('t-dpt-hook',draw);
+  const det=$('dpt-hook-det');const live=()=>det&&det.open;
+  det.addEventListener('toggle',()=>{if(live()){draw();calc()}});
+  RD.onRender(()=>{if(live())draw()});RD.onResize(()=>{if(live())draw()});calc();
 })();

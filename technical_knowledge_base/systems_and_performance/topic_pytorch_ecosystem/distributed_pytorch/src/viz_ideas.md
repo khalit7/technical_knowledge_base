@@ -28,3 +28,17 @@ Existing visuals not repeated (parent's Distributed lab tab): DDP against FSDP2 
 
 ## What the methodology lacked
 A rule for "measurements of failure": several findings here are crashes (PowerSGD order race, async_save on the default group, batched PowerSGD assertion, gloo 64 MiB all-gather abort, flaky elastic restarts). The page records each with its run, how often it happened, what fixed it, and says plainly when the cause was not isolated, rather than dropping the run or retrying until it passes.
+
+## Added 2026-10-23 (teaching-contract rebuild)
+| Idea | Kind | Placement | Data |
+|---|---|---|---|
+| Hero: what each rank holds under DDP, FSDP2, TP, PP | static annotated | top of Reading | recorded counts and bytes |
+| torchrun, store and mesh groups | static annotated | section 1 | c10d.json (env, mesh) |
+| DDP buckets, step 0 against step 1 | stepper, before/after | section 3 | parent lab's ddp_w2.json via ddp_timeline.py |
+| FSDP2 one step per unit | static annotated | section 4 | fsdpm_fsdp4.json |
+| DTensor placements and the product rule | static annotated | section 5 | dtensor_prop.json shapes |
+| DCP files and read-backs | static annotated | section 9 | dcp_more.json |
+| One weight cut by TP then FSDP, to scale | drawn to scale | section 10 | compose3d.json |
+| First disagreeing sequence number | static annotated | section 11 | fr_trace.json and fr_skip.py |
+
+Moved: the pipeline schedule explorer (tab to section 8), the comm-hook lab (tab to a closed block in section 3). Rejected: a CP ring animation (Distributed Training section 8 owns the form and draws it).
