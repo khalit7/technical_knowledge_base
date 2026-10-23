@@ -94,3 +94,6 @@ Owns the survey of released architectures: which model made which design choice,
 
 ### Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 273 units: core 196, depth 29, fat 38 (each with a `note`), owned 10. 249 drafted from the pre-rebuild page by `ledger.py init`; 12 added by hand for the script-drawn figures and tables (keys in their static titles); 12 carried from the pilot (moved to Attention variants and Long context then, keys verified there).
+
+### Topic close (2026-10-23)
+The root's Config calculator now models Nemotron 3's MoE layers, so `checks/cc_agree.mjs` agrees on all 46 models (230 numbers); section 11's text and `check_data.py` say so. The dense-prefix block in section 12 now quotes the published reason (DeepSeekMoE, arXiv 2401.06066, section 5.1.2), which Mixture of experts also carries in its design-choices table. Sibling reading times in Further reading match each header; section 11 (not 12) of the root is where the config misreadings are worked.
