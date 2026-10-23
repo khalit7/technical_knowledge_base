@@ -72,7 +72,7 @@ checks = [
     ("peak at position 407", n["peak_pos"] == 407),
     # numbers typed statically in the 2026-10-23 rebuild (hero, card titles, notes)
     ("hero: 3,411 / 5,318 / 4,932 / 817 / 783 / 33 / 374.4 MB", (n["step_jaxpr"], n["step_shlo"], n["step_hlo"], n["step_kernels"], n["step_fusions"], n["step_dots"], n["xla_peak_mb"]) == (3411, 5318, 4932, 817, 783, 33, 374.4)),
-    # the root's Compiler lab prose prints 1,057 (its old counter); its lab output now counts top-level kernels (816), so check the arithmetic and the 816
+    # the root's Compiler lab now prints 816 top-level kernels; its old counter printed 1,057 (816 plus 241 reducer bodies): check both
     ("root reconciliation: 1,057 = 816 + 241 reducer bodies", n["root_entry_kernels"] == 816 and 1057 - 816 == 241),
     ("attention block forms: 61, 90, 133, then 13 kernels", (gen["low"]["fcounts"]["jaxpr_eqns"], gen["low"]["fcounts"]["stablehlo_ops"], gen["low"]["fcounts"]["hlo_instructions"], gen["low"]["fcounts"]["opt_kernels"]) == (61, 90, 133, 13)),
     ("stair note: cse 4,681 to 3,758; fusion 3,677 to 2,006", any(pd["step"]["steps"][i][2] == "cse" and pd["step"]["steps"][i - 1][3] == 4681 and pd["step"]["steps"][i][3] == 3758 for i in range(1, len(pd["step"]["steps"])))
