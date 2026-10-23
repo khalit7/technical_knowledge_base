@@ -16,6 +16,7 @@ elsewhere, animatable against the method replaced. Build cost subtracted.
 | Distance-frequency histogram with a slider | Effective context lab section 2 | 9 | Makes An et al.'s left-skew argument concrete on the topic's own training length |
 | SmolLM2 pass-key grid, length x depth, 1K to 16K | Effective context lab section 3 | 12 | Claimed (max_position 8,192) against measured, including past the config maximum |
 | Design animation: one 80 GB GPU filled with 128K requests, lever by lever | Reading section 8 | 12 | Before/after of the same serving budget; numbers from the Memory wall's code |
+| Fit the model game: GPU columns to scale, weights plus one brick per user, cards as levers priced live, six briefs with debriefs (2026-10-23) | Fit the model tab | 14 | The levers composed under a budget, which no single widget shows; numbers by construction from the calculator's engine, quality only from cited runs; teaches when each lever is legitimate (question timing, retraining, evidence) |
 
 ## Rejected
 | Idea | Reason |
@@ -27,6 +28,8 @@ elsewhere, animatable against the method replaced. Build cost subtracted.
 | Ring attention step animation | Distributed Training, Distributed PyTorch and the JAX sharding page own context parallelism; one table row here. |
 | A RULER / NoLiMa effective-length chart over published models | Long-context and multimodal benchmarks has the Effective length tab over 39 rows. |
 | Decode latency against context measured on MPS | Absolute times on a shared laptop teach little; the bandwidth argument is in Performance math and the root's Attention lab measured it at a real layer shape. |
+| Game avatars, characters or decorative art; a timer or points for speed | The rules are the lesson; decoration and time pressure teach nothing about the cache. |
+| One summed quality limit across MMLU and pass-key | Different tests on different models; the limits stay separate, only the game score adds them. |
 | Paged-block reclaim simulation of eviction | Batching, KV cache and scheduling measured realisable savings already. |
 
 ## 2026-10-23 rebuild (teaching-contract pilot)

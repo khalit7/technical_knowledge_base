@@ -13,6 +13,7 @@ Reading-figure data), `make_page_data.py` (runs and prose facts, `facts.json`), 
 |---|---|---|
 | Reading `t-read` | `20_read_a` (styles) to `20_read_z`; `22_js_rd_0facts.js` (LCF), `22_js_rd_1fill.js`, `23_js_rd_anim.js` (design stepper), `24_js_rd_vis.js` (hero, entry to scale, FLOPs share, key channels, Gemma layer strip), `32_js_ev_*` (eviction map stepper and quality chart), `33_js_ef_*` (position wall, distance slider, pass-key grid) | core idea, hero, nine sections, depth blocks |
 | KV-cache calculator `t-kv` | `34_tab_kv_a.html`, `34_tab_kv_c.html` (static tables, written by the script), `19_js_kc_0data.js` (KCD), `19_js_kc_1core.js` (engine, `window.KC`), `34_js_kc_2ui.js` | 45 presets, context slider, design as the variable |
+| Fit the model `t-game` | `35_tab_game_a.html`, `35_js_fg_0levels.js` (briefs, references, debriefs, quoted quality numbers `FGQ`), `35_js_fg_1game.js` (engine `window.FG`, UI) | the game below |
 | Further reading `t-more` | `39_tab_more.html` | |
 `30_js_lc_0core.js` holds `window.LC` (helpers and a tab-aware copy of the step controller).
 
@@ -43,6 +44,39 @@ Reading-figure data), `make_page_data.py` (runs and prose facts, `facts.json`), 
 - **Deleted as fat**: wind-ups, section headings, "The problem." lead-ins, the four-walls box (the sections carry it), the
   common-mistakes list (each mistake now sits in the section that shows it) and seven interview answers that restated the core.
   Three design questions stayed, closed.
+
+## Fit the model (added 2026-10-23)
+A game whose rules are the page's mechanism: each level is a client brief (model, users, context, GPUs, quality limit);
+the board draws each GPU's memory to scale with the weights and one brick per user's cache; cards are the levers. Memory
+comes from the calculator's engine (`KC.seq`, `KC.redesign`, params x bytes, 92% usable, even split over GPUs), so every
+number equals the t-kv tab. Score = quality points given up + GPUs used. No avatar, no art, nothing moves before a click.
+
+| Level | Brief | Lesson | Reference (score) |
+|---|---|---|---|
+| 1 Free bits | Llama 3.1 8B, 24 users at 32K, 1 H100, released weights | an 8-bit cache halves every user for free | FP8 (1) |
+| 2 One user weighs a model | same, 8 users at 128K, question with the document | eviction works when the question is known | FP8 + SnapKV 50% (1) |
+| 3 The question comes later | same, 12 users at 128K, multi-turn | eviction without the question fails; adding a GPU is the honest answer (no win on 1 GPU) | FP8 + 2 GPUs (2) |
+| 4 Redesign an MHA model | Llama 2 7B shape, 16 users at 32K, retraining, MMLU limit 5 | MQA fits but its published cost breaks the limit; GQA-8 (Llama 3) or MLA (DeepSeek) | MLA (1) |
+| 5 Already MLA | DeepSeek-V3, fp8 weights, 72 users at 128K, 8 H200 | an efficient design leaves only bits and hardware | FP8 (8) |
+| 6 Design for 32 users at 128K | Llama 3.1 8B shape, retraining, MMLU limit 2, every token reachable | section 9's answer: 5 local : 1 global + FP8 (Gemma 3) | 5:1 + FP8 (1, one unpriced move) |
+
+Quality numbers and their sources (no others are used; a move without one shows "no published number" in amber and is
+counted as an unpriced risk beside the score):
+- Attention design, MMLU: DeepSeek-V2 Table 8 (7B dense, 1.33T tokens) MHA 45.2, GQA-8 41.2, MQA 37.9; Table 9 (MoE) MLA
+  50.0 against MHA 48.7; both as quoted on Attention variants. GQA-8 or MQA against MLA, and any window layout: no
+  published number (Gemma 3's "minimal impact on perplexity" and MixAttention's "at least one standard attention KV cache"
+  are shown as quotes, the latter as the rule that rules out an all-windowed model in level 6).
+- Cache precision and eviction, pass-key points: this page's SmolLM2-135M runs (`window.EVD`, 30 prompts at 4,096 tokens,
+  full cache 29/30): int8 29/30 (priced as FP8, labelled), int4 per token 26/30 (the calculator's 4.5-bit INT4; KIVI's 28/30
+  shown, not priced), SnapKV with the question 29/29/26 of 30 at 50/25/12.5%, before the question 9/0/0. Batching page's
+  Qwen3-1.7B q8_0 and q4_0 perplexities shown beside them.
+- Speed notes: Attention variants' measured decode times per design; section 9's prefill share; the calculator's decode ceiling.
+Costs of two moves are added (never measured together); MMLU and pass-key limits are checked separately.
+
+`game/check_game.mjs` (run from the repo root): no animation before interaction (normal and reduced motion); every
+reference wins and has the lowest score of all winning card combinations (brute force); per-user cache equals the
+calculator tab driven to the same settings and the calculator fits at least the brief's users; level 3 has no win with
+the brief's GPU and users; every quoted number is still on its credited page; every card button at 390 dark and 920 light.
 
 ## Length judgement
 | | Before (2026-10-18) | After |
