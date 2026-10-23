@@ -1,8 +1,8 @@
-// ---- Ray child page: Ownership lab (t-own) ----
+// ---- Ray child page: Reading, ownership stepper and node-loss replay (moved from the Ownership lab tab, 2026-10-24) ----
 (function(){
 const Y=window.RY,E=RD.esc,$=id=>document.getElementById(id),U=window.RYU,f1=U.f1,f2=U.f2;
-const reg=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-own']=window.TAB_RENDER['t-own']||[]).push(f)};
-const vis=()=>{const t=$('t-own');return t&&!t.hidden};
+const reg=f=>{RD.onRender(f);RD.onResize(f)};
+const vis=()=>{const t=$('t-read');return t&&!t.hidden};
 
 // 1. life of a task (from the design; message order only)
 let lifeMode='big';
@@ -45,7 +45,7 @@ function drawLife(i){
   $('ry-life-cap').innerHTML='<b>Step '+(i+1)+' of '+LIFE[lifeMode].length+'.</b> '+st.t;
 }
 const life=RD.anim({card:'ry-life-card',ctl:'ry-life-ctl',n:LIFE.big.length,draw:drawLife,ms:2200,label:'Step'});
-RD.seg($('ry-life-mode'),m=>{lifeMode=m;life.reset(LIFE[m].length);life.play()});
+RD.seg($('ry-life-mode'),m=>{lifeMode=m;life.reset(LIFE[m].length)});
 
 // 2. node loss replay
 const L=Y.lineage;const G=k=>L.gets.find(g=>g.obj===k);
@@ -94,6 +94,6 @@ function lossTable(){
   $('ry-loss-table').querySelector('tbody').innerHTML=ITEMS.map(it=>{const g=G(it.obj);
     return '<tr><td>'+E(it.lab)+'</td><td>'+E(it.owner)+'</td><td>'+(g.ok?'<b>ok</b>'+(/actor/.test(it.obj)?' (counter '+g.value+', on '+g.host_pid[0]+')':'')+(g.secs>1?' after '+f1(g.secs)+' s':''):'<code>'+E(g.type)+'</code>')+'</td><td>'+E(it.why)+(g.ok?'':'<div class="small mute">"'+E(g.msg.split(' | ').filter(x=>x&&!/^Failed to retrieve|RAY_record_ref/.test(x)).slice(0,1).join(' ').slice(0,260)||g.msg.slice(0,200))+'"</div>')+'</td></tr>'}).join('');}
 function all(){if(!vis())return;drawLife(life.i);drawLoss(loss.i);lossTable()}
-reg(all);addEventListener('resize',()=>{clearTimeout(all.t);all.t=setTimeout(all,80)});
+reg(all);
 lossTable();
 })();
