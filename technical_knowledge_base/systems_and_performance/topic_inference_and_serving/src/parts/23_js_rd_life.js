@@ -1,4 +1,4 @@
-// ---- Reading tab: small SVG helpers and section 0's request lifecycle animation ----
+// ---- Reading tab: small SVG helpers and section 1's request lifecycle animation ----
 window.RDX=(function(){
   const nf=(x,d)=>Number(x).toLocaleString('en-US',{maximumFractionDigits:d==null?0:d,minimumFractionDigits:d==null?0:Math.min(d,0)});
   const T=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.w?' font-weight="'+o.w+'"':'')+(o.c?' style="fill:'+o.c+'"':'')+'>'+s+'</text>'};
@@ -16,12 +16,12 @@ window.RDX=(function(){
   const S=[
     ['1. The request arrives','An HTTP request with the chat messages and settings (max_tokens 300, temperature). Nothing has run on the GPU yet.',[0,0,0,0,0]],
     ['2. Tokenize','The chat template wraps the messages in special tokens and the tokenizer turns the text into 2,000 token ids, on the CPU, in well under a millisecond of GPU time.',[0,0,0,0,0]],
-    ['3. Queue','The request waits for a seat in the next batch and for cache blocks. Alone on the GPU it waits for nothing; under load this is where TTFT goes (section 4).',[0,0,0,0,0]],
+    ['3. Queue','The request waits for a seat in the next batch and for cache blocks. Alone on the GPU it waits for nothing; under load this is where TTFT goes (section 5).',[0,0,0,0,0]],
     ['4. Prefill: all 2,000 prompt tokens in one pass','Every layer computes keys and values for all 2,000 tokens at once and stores them: '+RDX.nf(2000*MiB)+' MiB of KV cache. The weights are read once for 2,000 tokens, so the arithmetic units are the limit (compute-bound): '+RDX.nf(tp,1)+' ms.',[tp,0,2000,D.pre_bytes,D.pre_fl]],
     ['5. The first token','Prefill ends with probabilities for the first answer token; one is sampled, turned back into text and streamed. This moment is the time to first token, TTFT = '+RDX.nf(tp,1)+' ms.',decAt(1)],
     ['6. Decode, one token per step','Each step feeds only the newest token, reads all '+D.weights_gb+' GB of weights plus the cache, and appends one key and value per layer. The read sets the pace: '+td+' ms per token (memory-bound), the time per output token.',decAt(10)],
     ['7. ... 299 steps later','The answer reaches 300 tokens. Each step re-read the weights: the request has caused over 20 TB of memory reads to produce 300 tokens, against one read for its whole prompt.',decAt(300)],
-    ['8. Done: the cache is freed','End-to-end latency '+RDX.nf(D.e2e_s,2)+' s: '+RDX.nf(tp/1000,2)+' s of prefill, then 299 decode steps. Its '+RDX.nf(2300*MiB)+' MiB of cache are released for the next user (or kept as a prefix cache, section 2).',[tp+299*td,300,0,D.pre_bytes+299*D.dec_bytes,D.pre_fl+299*D.dec_fl]]
+    ['8. Done: the cache is freed','End-to-end latency '+RDX.nf(D.e2e_s,2)+' s: '+RDX.nf(tp/1000,2)+' s of prefill, then 299 decode steps. Its '+RDX.nf(2300*MiB)+' MiB of cache are released for the next user (or kept as a prefix cache, section 4).',[tp+299*td,300,0,D.pre_bytes+299*D.dec_bytes,D.pre_fl+299*D.dec_fl]]
   ];
   const cap=document.getElementById('rd-life-cap'),cnt=document.getElementById('rd-life-cnt');
   function draw(i){

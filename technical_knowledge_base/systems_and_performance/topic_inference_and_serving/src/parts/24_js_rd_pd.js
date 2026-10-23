@@ -1,4 +1,4 @@
-// ---- Reading tab, section 1: prefill against decode on the same weights (before/after animation) ----
+// ---- Reading tab, section 2: prefill against decode on the same weights (before/after animation) ----
 (function(){
   const D=window.RDD.life,svgEl=document.getElementById('rd-pd-svg');if(!svgEl)return;
   const PEAK=1979e12*0.345; // FP8 dense peak x fitted compute efficiency (Capacity planner)
@@ -25,7 +25,7 @@
     let t,p;
     if(i===0){t=mode==='pre'?'Prefill: the whole prompt at once':'Decode: one token at a time';p=mode==='pre'?'2,000 tokens enter the first layer together. Each weight will be read from memory once and used 2,000 times.':'One token enters the first layer. Each weight will be read from memory once and used once.'}
     else if(i<9){t='Layers '+((g-1)*10+1)+' to '+g*10;p=mode==='pre'?'This group\'s weights stream in from memory while 2,000 tokens multiply against them: the arithmetic units, not the memory, set the pace.':'This group\'s weights stream in from memory for a single token\'s multiply: the arithmetic finishes almost instantly and waits for the next bytes.'}
-    else{t=mode==='pre'?'Done: '+RDX.nf(m.t,1)+' ms for 2,000 tokens':'Done: '+m.t+' ms for 1 token';p=mode==='pre'?'About '+RDX.nf(m.t/2000,2)+' ms per token, compute-bound. Switch to decode to see the same weights serve one token.':'One token per full read of the weights, memory-bound: '+RDX.nf(m.t/(D.t_pre_ms/2000))+' times the prefill cost per token. Batching (section 3) puts more tokens on each read.'}
+    else{t=mode==='pre'?'Done: '+RDX.nf(m.t,1)+' ms for 2,000 tokens':'Done: '+m.t+' ms for 1 token';p=mode==='pre'?'About '+RDX.nf(m.t/2000,2)+' ms per token, compute-bound. Switch to decode to see the same weights serve one token.':'One token per full read of the weights, memory-bound: '+RDX.nf(m.t/(D.t_pre_ms/2000))+' times the prefill cost per token. Batching (section 5) puts more tokens on each read.'}
     RDX.cap(cap,t,p);
     RDX.cnt(cnt,[['Memory read',RDX.nf(m.by*f/1e9,1)+' GB'],['Arithmetic',m.fl*f>=1e12?RDX.nf(m.fl*f/1e12,1)+' TFLOP':RDX.nf(m.fl*f/1e9)+' GFLOP'],['Time',RDX.nf(bt,1)+' ms'],['Tokens done',i>=9?RDX.nf(m.n):'0']]);
   }

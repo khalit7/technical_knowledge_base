@@ -15,7 +15,7 @@ p.on('pageerror', e => errs.push(String(e)));
 await p.goto('file://' + path.resolve(file));
 await p.evaluate(() => document.querySelector('#tabs button[data-t="t-sim"]').click());
 await new Promise(r => setTimeout(r, 1500));
-for (const id of ['sim-anim', 'sim-labbox', 'sim-stbox', 'sim-swbox', 'sim-v-plot', 'sim-v-m1']) {
+for (const id of ['sim-labbox', 'sim-stbox', 'sim-swbox', 'sim-v-plot', 'sim-v-m1']) {
   const el = await p.$('#' + id);
   await el.scrollIntoView();
   await new Promise(r => setTimeout(r, 400));

@@ -1,5 +1,7 @@
 # Reading and Further reading tabs (t-read, t-more): sources, scripts, checks
 
+**Since 2026-10-23** the Reading tab is the rebuilt map (`../README.md` says what changed): parts `20_read.html` (CSS, nav, the core idea, hero, new terms, running example) and `20_read_b` to `20_read_f` (sections 1 to 12 and the closed depth block); JavaScript `21_js_rd_common.js` (the skill template, never autoplays), `22_js_rd_data.js` (generated), `23_js_rd_life.js` (section 1's stepper and the RDX helpers), `24_js_rd_pd.js` (section 2's prefill against decode), `2a_js_rd_misc.js` (predict-then-reveal). The parts described below as they were on 2026-10-08 are in `../retired/parts/`. `check_data.py` no longer asserts the vLLM preemption run or the expected-tokens formula, which live on their owners now.
+
 Built 2026-10-08. Parts: `parts/20_read.html` (CSS, section nav, section 0) and `parts/20_read_b.html` to `20_read_m.html`
 (sections 1 to 10, common mistakes, interview questions, section 11), closed by `20_read_z.html`; JavaScript
 `parts/22_js_rd_data.js` (generated), `23_js_rd_life.js` (helpers RDX, request lifecycle), `24_js_rd_pd.js` (prefill against
