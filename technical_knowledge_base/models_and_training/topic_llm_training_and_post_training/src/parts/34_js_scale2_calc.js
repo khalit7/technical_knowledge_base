@@ -1,4 +1,4 @@
-// ---- Scaling calculator: controls, outputs, the presets table and the two charts ----
+// ---- Scaling calculator: controls, outputs and the presets table (the allocation charts and the inference slider moved to Pretraining section 3 on 2026-10-23; their code stays guarded) ----
 (function(){
 const X=window.SC;if(!X||!X.$('sc-pre'))return;
 const {D0,S,compute,statePreset,$,fmt,sci,cnt,usd,pct,spct,tpp,A,stat,svgEl,frame,decTicks,segBind,segSet,onTab,lg,chinOpt,chinLoss,sardana,isoD}=X;
@@ -16,7 +16,7 @@ X.load=load;
 $('sc-pre').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.p)load(b.dataset.p);else{S.preset=null;sync();X.changed()}}));
 // ---- controls -> state ----
 const custom=()=>{S.preset=null};
-const on=(id,ev,f)=>$(id).addEventListener(ev,e=>{f(e.target);sync(true);X.changed()});
+const on=(id,ev,f)=>$(id)&&$(id).addEventListener(ev,e=>{f(e.target);sync(true);X.changed()});
 on('sc-N','input',t=>{S.N=toV('N',+t.value);if(S.kind==='dense')S.Ntot=S.N;else S.Ntot=Math.max(S.Ntot,S.N);custom()});
 on('sc-Ntot','input',t=>{S.Ntot=Math.max(S.N,toV('Ntot',+t.value));custom()});
 on('sc-D','input',t=>{S.D=toV('D',+t.value);custom()});
@@ -35,13 +35,13 @@ segBind('sc-prec',m=>{S.prec=m;sync(true);X.changed()});
 // ---- state -> controls ----
 function sync(fromCtl){
   if(!fromCtl){$('sc-N').value=toP('N',S.N);$('sc-Ntot').value=toP('Ntot',S.Ntot);$('sc-D').value=toP('D',S.D);$('sc-gpus').value=toP('gpus',S.gpus);
-    $('sc-mfu').value=(S.mfu*100).toFixed(1);$('sc-usd').value=S.usd;$('sc-inf').value=infP(S.Dinf)}
+    $('sc-mfu').value=(S.mfu*100).toFixed(1);$('sc-usd').value=S.usd;if($('sc-inf'))$('sc-inf').value=infP(S.Dinf)}
   $('sc-attn').checked=S.attn;$('sc-L').value=S.L;$('sc-dattn').value=S.dattn;$('sc-ctx').value=String(S.ctx);$('sc-acc').value=S.acc;$('sc-fit').value=S.fit;
   segSet('sc-kind',S.kind);segSet('sc-prec',S.prec);$('sc-Ntotrow').hidden=S.kind!=='moe';
   $('sc-Nlab').textContent=S.kind==='moe'?'Active parameters N':'Parameters N';
   $('sc-Nv').textContent=cnt(S.N);$('sc-Ntotv').textContent=cnt(S.Ntot);$('sc-Dv').textContent=cnt(S.D)+' tokens';
   $('sc-mfuv').textContent=pct(S.mfu);$('sc-gpusv').textContent=fmt(S.gpus);$('sc-usdv').textContent='$'+S.usd.toFixed(2);
-  $('sc-infv').textContent=S.Dinf?sci(S.Dinf,1)+' tokens':'none';
+  if($('sc-infv'))$('sc-infv').textContent=S.Dinf?sci(S.Dinf,1)+' tokens':'none';
   $('sc-pre').querySelectorAll('button').forEach(b=>b.classList.toggle('on',(b.dataset.p||null)===S.preset));
 }
 // ---- outputs ----
@@ -78,7 +78,7 @@ function render(){
     t+='</table></div><p style="margin:4px 0 0">'+p.why+'</p><p class="small mute" style="margin:2px 0 0">'+[p.pubC_src,p.pubH_src,p.mfu_src].filter(Boolean).join('; ')+'. '+A(p.src,'Source')+'.</p>';rb.innerHTML=t}
   // inference outputs
   const cl=6*o.cN*o.cD+2*o.cN*S.Dinf;
-  $('sc-o4').innerHTML=
+  if($('sc-o4'))$('sc-o4').innerHTML=
     stat('Lifetime compute, this model',sci(o.cur_tot),S.Dinf?'6ND + 2N·D<sub>inf</sub>: inference is '+pct(o.inf_share)+' of it':'no inference: training only','cur_tot',o.cur_tot,'hl')+
     stat('Chinchilla-optimal model of the same loss',cnt(o.cN)+' <small>on '+cnt(o.cD)+'</small>','lifetime '+sci(cl)+'; training alone '+sci(o.cC),'cN',o.cN)+
     stat('Inference-aware optimum (Sardana et al.)',cnt(o.sN)+' <small>on '+cnt(o.sD)+'</small>',tpp(o.sD/o.sN)+' tokens per parameter; lifetime '+sci(o.sTot),'sN',o.sN)+
@@ -152,9 +152,9 @@ function drawLife(){
 function sard(){
   const f=FITS.hoff,G=Math.pow(f.al*f.A/(f.be*f.B),1/(f.al+f.be)),a=f.be/(f.al+f.be);
   const ex=[[13e9,2e12,'7B on 2.1× the data, 17% fewer FLOPs'],[7e9,1e11,'6B on 1.18× the data'],[30e9,1e13,'13.6B on 2.84× the data, 28% fewer FLOPs']];
-  $('sc-sard').innerHTML='<b>Check against the paper.</b> With Hoffmann\'s unrounded constants this method reproduces Sardana et al.\'s §2 examples closely: '+ex.map(([Nc,Di,pr])=>{const C0=6*Math.pow(Nc/G,1/a),l=chinLoss(f,Nc,C0/6/Nc),[n,d,t]=sardana(f,l,Di,Nc);
+  if($('sc-sard'))$('sc-sard').innerHTML='<b>Check against the paper.</b> With Hoffmann\'s unrounded constants this method reproduces Sardana et al.\'s §2 examples closely: '+ex.map(([Nc,Di,pr])=>{const C0=6*Math.pow(Nc/G,1/a),l=chinLoss(f,Nc,C0/6/Nc),[n,d,t]=sardana(f,l,Di,Nc);
     return 'a '+cnt(Nc,0)+'-quality model served for '+sci(Di,0)+' tokens gives '+cnt(n,1)+' on '+(d/(C0/6/Nc)).toFixed(2)+'× the data, '+pct(1-t/(C0+2*Nc*Di),0)+' fewer FLOPs (paper: '+pr+')'}).join('; ')+'. The small differences are the fit\'s rounding; with the rounded constants the answers move by 10 to 40%.';
 }
-S.Dinf=1e15;load('l31_405');table();sard();
+S.Dinf=$('sc-inf')?1e15:0;load('l31_405');table();sard();
 onTab(()=>{table();render()});
 })();

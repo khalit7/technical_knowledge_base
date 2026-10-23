@@ -1,5 +1,5 @@
-// Exercise every control of the Reading tab at 390 px dark and 920 px light: grid cells, the four animations
-// (every mode, every step, play, pause, speed), the memory calculator, the path chips and script-written tab links.
+// Exercise every control of the Reading tab at 390 px dark and 920 px light: grid cells, the two animations
+// (every mode, every step, play, pause, speed; neither moves before the reader acts), the path chips and script-written tab links.
 // Fails on console errors, NaN or undefined in the tab text, or sideways scroll. Screenshots land in ../.shots/rd-*.png.
 // usage: node src/check_read.mjs   (from the page folder or anywhere)
 import { createRequire } from 'node:module';
@@ -49,10 +49,15 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     return n;
   };
   const scrub = (ctl, i) => p.$eval(`#${ctl}-s`, (s, i) => { s.value = i; s.dispatchEvent(new Event('input')) }, i);
-  // Axis 1: checkpoints
-  await p.$eval('#rd-ck', e => e.scrollIntoView()); await wait(300);
-  const nck = await stepAll('rd-ckC', 'ckpt'); await clickAll('#rd-ckS button'); await check('ckpt strip');
-  await scrub('rd-ckC', 0); await shot('#rd-ck', 'ckpt-base'); await scrub('rd-ckC', 3); await shot('#rd-ck', 'ckpt-rl');
+  // hero and nothing moves before the reader acts: scroll past both animations, wait, the scrubbers must not have moved
+  await shot('#rd-hero', 'hero');
+  const pos0 = await p.evaluate(() => ['rd-dtC-s', 'rd-rlC-s'].map(i => document.getElementById(i).value));
+  for (const id of ['#rd-dt', '#rd-rl']) { await p.$eval(id, e => e.scrollIntoView()); await wait(1600) }
+  const pos1 = await p.evaluate(() => ['rd-dtC-s', 'rd-rlC-s'].map(i => document.getElementById(i).value));
+  if (JSON.stringify(pos0) !== JSON.stringify(pos1)) problems.push('an animation moved before the reader acted ' + pos0 + ' -> ' + pos1);
+  await p.$eval('#rd-rlM button[data-m=grpo]', b => b.click()); await wait(1600);
+  if (await p.$eval('#rd-rlC-s', s => s.value) !== '0') problems.push('rl mode switch started playback');
+  await p.$eval('#rd-rlM button[data-m=ppo]', b => b.click());
   // Axis 2: data
   await p.$eval('#rd-dt', e => e.scrollIntoView()); await wait(300);
   const ndt = await stepAll('rd-dtC', 'data'); await scrub('rd-dtC', 1); await shot('#rd-dt', 'data-mid'); await scrub('rd-dtC', ndt - 1); await shot('#rd-dt', 'data-end');
@@ -64,21 +69,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     const hd = await p.$eval('#rd-rlRH', e => e.textContent); if (!hd.includes({ ppo: '1 per', grpo: '8 per', dpo: 'Fixed' }[m])) problems.push('rl mode ' + m + ' not shown: ' + hd);
     nrl += await stepAll('rd-rlC', 'rl ' + m); await scrub('rd-rlC', 3); await shot('#rd-rl', 'rl-' + m);
   }
-  // Axis 4: KL leash
-  await p.$eval('#rd-kl', e => e.scrollIntoView()); await wait(300);
-  let nkl = 0;
-  for (const m of ['0', '1']) {
-    await p.$eval(`#rd-klM button[data-m="${m}"]`, b => b.click()); await wait(100);
-    nkl += await stepAll('rd-klC', 'kl ' + m); await scrub('rd-klC', m === '0' ? 8 : 20); await shot('#rd-kl', 'kl-' + m);
-  }
-  // Machinery: memory calculator, every combination
-  for (const n of ['7', '65', '70', '405']) for (const g of ['48', '80', '141']) { await p.select('#rd-mmN', n); await p.select('#rd-mmG', g); await check(`mem ${n} ${g}`) }
-  await p.select('#rd-mmN', '65'); await p.select('#rd-mmG', '80'); await shot('#rd-mm', 'mem');
   // Choosing
   const nch = await clickAll('#rd-chF button'); await check('choose'); await shot('#rd-choose', 'choose');
   const det = await clickAll('#t-read details.mist summary'); await check('mistakes');
   if (errs.length) problems.push('errors ' + JSON.stringify(errs));
-  console.log(`${scheme} ${width}: grid cells ${cells}, ckpt steps ${nck}, data steps ${ndt}, rl steps ${nrl}, kl frames ${nkl}, paths ${nch}, mistakes ${det}; problems ${problems.length}`);
+  console.log(`${scheme} ${width}: grid cells ${cells}, data steps ${ndt}, rl steps ${nrl}, paths ${nch}, mistakes ${det}; problems ${problems.length}`);
   problems.slice(0, 10).forEach(x => console.log('  ' + x));
   bad += problems.length;
   await p.close();
