@@ -101,6 +101,16 @@ R["v7x_cubes"] = 9216 // 64
 R["elcap_ratio_claimed"] = round(42.5 / 1.7, 1)             # Google: "more than 24x"
 R["ironwood_bf16_over_elcap"] = round(R["ironwood_pod_bf16_ef"] / 1.809, 1)
 
+# Section 9 (added 2026-10-23): Intel Gaudi 3 from the Hot Chips 2024 slides
+R["gaudi3_clock_ghz"] = round(1835e12 / (8 * 65536 * 2) / 1e9, 2)        # 1.75 (not stated on the slides)
+R["gaudi3_scaleup_tbps"] = round(8 * 21 * 200 * 2 / 1000, 1)              # 67.2: 21 ports per card to 7 peers
+R["gaudi3_scaleout_tbps"] = round(8 * 3 * 200 * 2 / 1000, 1)              # 9.6: 3 ports per card to the network
+R["amd_board_links"] = 8 * 7 // 2                                          # 28
+# Hero: GiB to GB for the chips whose memory is published in GiB
+R["hero_tpu7x_gb"] = round(192 * 2**30 / 1e9, 1)                           # 206.2
+R["hero_trn2_gb"] = round(96 * 2**30 / 1e9, 1)                             # 103.1
+R["groq3_lpu_gb"] = 128 / 256                                              # 0.5
+
 here = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(os.path.join(here, "out"), exist_ok=True)
 with open(os.path.join(here, "out", "recompute.json"), "w") as fh:

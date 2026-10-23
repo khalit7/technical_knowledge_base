@@ -14,8 +14,8 @@
   const C=v=>'var(--'+v+')';
   function cell(x,y,s,fill,stroke,txt,sub,o){o=o||{};
     let h='<rect x="'+x+'" y="'+y+'" width="'+s+'" height="'+s+'" rx="3" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+(o.sw||1)+'"/>';
-    if(txt!==''&&txt!=null)h+=RD.t(x+s/2,sub!=null?y+s*0.46:y+s/2+4,txt,{a:'middle',fs:o.fs||Math.max(9,Math.round(s*0.36)),w:o.w,fill:o.fill});
-    if(sub!=null)h+=RD.t(x+s-3,y+s-3,sub,{a:'end',fs:Math.max(7,Math.round(s*0.24)),fill:C('mute')});
+    if(txt!==''&&txt!=null)h+=RD.t(x+s/2,sub!=null?y+s*0.46:y+s/2+4,txt,{a:'middle',fs:o.fs||Math.max(11,Math.round(s*0.36)),w:o.w,fill:o.fill});
+    if(sub!=null)h+=RD.t(x+s-3,y+s-3,sub,{a:'end',fs:11,fill:C('mute')});
     return h}
   function counters(c){cnt.innerHTML=RD.stat('Cycles',c.cyc,c.cycd)+RD.stat('Multiply-adds done',c.macs+' of 80','')+
     RD.stat('Operand reads from storage',c.reads,c.readd)+RD.stat('Hand-offs to a neighbour',c.pass,'short wires, no storage port')+
@@ -34,12 +34,12 @@
     // inputs waiting in the skewed queue
     const tt=Math.max(t,-1);
     for(let k=0;k<K;k++)for(let m=0;m<M;m++){const due=m+k;const d=due-tt-(fr?0:0);
-      if(t<T&&due>tt){const x=gx-(due-tt)*qs;if(x>=4)h+=cell(x,gy+k*s+(s-qs)/2+1,qs-4,C('bg'),C('c2'),X[m][k],null,{fs:Math.max(9,Math.round(s*0.3)),fill:C('c2')})}}
+      if(t<T&&due>tt){const x=gx-(due-tt)*qs;if(x>=4)h+=cell(x,gy+k*s+(s-qs)/2+1,qs-4,C('bg'),C('c2'),X[m][k],null,{fs:Math.max(11,Math.round(s*0.3)),fill:C('c2')})}}
     // outputs below
     const oy=gy+K*s+16;h+=RD.t(gx-6,oy+14,'Y leaves the bottom',{a:'end',fs:11,fill:C('mute')});
     const seen={};for(let tt2=0;tt2<=Math.min(t,T-1);tt2++)sim.frames[tt2].out.forEach(o=>seen[o[0]+','+o[1]]=o[2]);
     const os=Math.max(18,Math.round(s*0.7));
-    for(let m=0;m<M;m++)for(let n=0;n<N;n++){const v=seen[m+','+n];h+=cell(gx+n*s+(s-os)/2,oy+4+m*(os+2),os-2,v!=null?C('open2'):C('bg'),C('line'),v!=null?v:'',null,{fs:Math.max(9,Math.round(os*0.42))})}
+    for(let m=0;m<M;m++)for(let n=0;n<N;n++){const v=seen[m+','+n];h+=cell(gx+n*s+(s-os)/2,oy+4+m*(os+2),os-2,v!=null?C('open2'):C('bg'),C('line'),v!=null?v:'',null,{fs:Math.max(11,Math.round(os*0.42))})}
     const H=oy+4+M*(os+2)+6;svgEl.innerHTML=RD.svg(Math.max(w,gx+N*s+4),H,h,'Systolic array animation');
     // counters
     const tc=Math.max(0,Math.min(t+1,T));let macs=0,edge=0,pass=0;for(let j=0;j<tc;j++){macs+=sim.frames[j].act;edge+=sim.frames[j].edge;pass+=sim.frames[j].pass}
@@ -53,7 +53,7 @@
     const w=RD.width(svgEl);const s=Math.max(26,Math.min(48,Math.floor((w-110)/4)));const gx=104,gy=22;
     const r=Math.min(Math.floor(i/K),rounds-1),kk=i-r*K,fin=i>=rounds*K;
     let h=RD.t(gx,14,'16 lanes, each owns one output',{fs:11,fill:C('mute')})+
-      '<rect x="6" y="'+(gy)+'" width="78" height="'+(4*s-2)+'" rx="6" fill="'+C('soft')+'" stroke="'+C('c2')+'"/>'+RD.t(45,gy+2*s-8,'register',{a:'middle',fs:11})+RD.t(45,gy+2*s+7,'file',{a:'middle',fs:11})+RD.t(45,gy+2*s+22,'2 reads per',{a:'middle',fs:10,fill:C('mute')})+RD.t(45,gy+2*s+34,'lane per cycle',{a:'middle',fs:10,fill:C('mute')});
+      '<rect x="6" y="'+(gy)+'" width="78" height="'+(4*s-2)+'" rx="6" fill="'+C('soft')+'" stroke="'+C('c2')+'"/>'+RD.t(45,gy+2*s-8,'register',{a:'middle',fs:11})+RD.t(45,gy+2*s+7,'file',{a:'middle',fs:11})+RD.t(45,gy+2*s+22,'2 reads per',{a:'middle',fs:11,fill:C('mute')})+RD.t(45,gy+2*s+34,'lane per cycle',{a:'middle',fs:11,fill:C('mute')});
     const done={};let macs=0,reads=0;
     const upto=fin?rounds*K:i+1;
     for(let st=0;st<upto;st++){const rr=Math.floor(st/K),k=st-rr*K;for(let l=0;l<LANES;l++){const idx=rr*LANES+l;if(idx>=M*N)continue;macs++;reads+=2;
@@ -64,7 +64,7 @@
     const oy=gy+4*s+16;h+=RD.t(gx-6,oy+14,'Y',{a:'end',fs:11,fill:C('mute')});
     const os=Math.max(18,Math.round(s*0.7));
     for(let m=0;m<M;m++)for(let n=0;n<N;n++){const idx=m*N+n;const rr=Math.floor(idx/LANES);const ok=fin||rr<r||(rr===r&&kk===K-1);
-      h+=cell(gx+n*s+(s-os)/2,oy+4+m*(os+2),os-2,ok?C('open2'):C('bg'),C('line'),ok?sim.Y[m][n]:'',null,{fs:Math.max(9,Math.round(os*0.42))})}
+      h+=cell(gx+n*s+(s-os)/2,oy+4+m*(os+2),os-2,ok?C('open2'):C('bg'),C('line'),ok?sim.Y[m][n]:'',null,{fs:Math.max(11,Math.round(os*0.42))})}
     const H=oy+4+M*(os+2)+6;svgEl.innerHTML=RD.svg(Math.max(w,gx+4*s+4),H,h,'Scalar lanes animation');
     const cyc=fin?rounds*K:i+1;
     counters({cyc:cyc,cycd:'2 rounds of 4 steps',macs:macs,reads:reads,readd:'x and w for every multiply-add',pass:0});
@@ -72,7 +72,7 @@
     else capt('Round '+(r+1)+' of 2, step '+(kk+1)+' of 4',(r===0?'Lanes 1 to 16 own outputs y00 to y33. ':'Only 4 outputs are left, so 12 of the 16 lanes idle. ')+'Each lane reads x and w from the register file, multiplies and adds into its own accumulator. Nothing passes between lanes.');
   }
   const A=RD.anim({card:'rd-sys-card',ctl:'rd-sys-ctl',n:nSteps(),ms:1100,label:'Animation step',draw:i=>mode==='sys'?drawSys(i):drawLanes(i)});
-  RD.seg(document.getElementById('rd-sys-mode'),m=>{mode=m;A.reset(nSteps());A.play()});
+  RD.seg(document.getElementById('rd-sys-mode'),m=>{mode=m;A.reset(nSteps())});
   RD.onResize(()=>A.redraw());
   window.__tpuRdSys={Y:sim.Y,cycles:sim.cycles,passes:sim.passes,active:sim.active};
 })();

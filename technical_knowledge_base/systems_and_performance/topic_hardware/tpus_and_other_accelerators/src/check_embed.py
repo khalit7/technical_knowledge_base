@@ -26,9 +26,10 @@ need = [
     (f"{R['ironwood_pod_hbm_pb']} PB", "pod HBM"), (f"{R['ironwood_pod_bf16_ef']} EF", "pod bf16"),
     (f"{R['w70_gb']} GB / 44 GB", "Cerebras 70B"), (f"= {R['wse3_per_core_kb']} KB", "WSE-3 per core"),
     (f"{R['groq_mib_in_mb']} MB", "Groq MiB"), (f"= {R['trn2_core_tf']} TFLOPS per core", "Trn2 core"),
-    (f"= {R['trn2_chip_tf']} TFLOPS", "Trn2 chip"), (f"= {fmt(R['mi300x_bf16'], 1)} TFLOPS", "MI300X"),
-    (f"= {fmt(R['mi355x_bf16'], 1)} TFLOPS", "MI355X"), (f"= {R['mi300x_if']} GB/s", "MI300X IF"),
+    (f"= {R['trn2_chip_tf']} TFLOPS", "Trn2 chip"), (f"= {R['mi300x_if']} GB/s", "MI300X IF"),
     (f"= {fmt(R['mi355x_if'], 1)} GB/s", "MI355X IF"), (f"{R['grad_gb']} GB", "8B gradients"),
+    (f"= {R['gaudi3_clock_ghz']} GHz", "Gaudi 3 clock"), (f"= {R['gaudi3_scaleup_tbps']})", "Gaudi 3 scale-up"),
+    (f"8 &times; 7 / 2 = {R['amd_board_links']} links", "AMD board links"),
 ]
 bad = 0
 for s, what in need:

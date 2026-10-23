@@ -12,7 +12,7 @@
     const n=window.__tpuFit(mi,by),mx=Math.log10(Math.max(4000,...n));
     let h=RD.t(0,12,(P[mi]*by/1e9).toFixed(1)+' GB of weights ('+PN[mi]+', '+(by===2?'bf16':'8-bit')+')',{fs:11,fill:'var(--mute)'});
     CH.forEach((c,i)=>{const y=20+i*row,len=Math.max(2,bw*Math.log10(n[i]+1)/(mx));
-      h+=RD.t(lw-6,y+14,w<480?c[3]:c[0],{a:'end',fs:w<480?9.5:11})+'<rect x="'+lw+'" y="'+(y+3)+'" width="'+len.toFixed(1)+'" height="'+(row-8)+'" rx="2" fill="var(--'+c[2]+')"/>'+RD.t(lw+len+5,y+15,n[i].toLocaleString('en-US'),{fs:11,w:600})});
+      h+=RD.t(lw-6,y+14,w<480?c[3]:c[0],{a:'end',fs:11})+'<rect x="'+lw+'" y="'+(y+3)+'" width="'+len.toFixed(1)+'" height="'+(row-8)+'" rx="2" fill="var(--'+c[2]+')"/>'+RD.t(lw+len+5,y+15,n[i].toLocaleString('en-US'),{fs:11,w:600})});
     el.innerHTML=RD.svg(w,20+CH.length*row+4,h,'Chips needed to hold the weights');
   }
   RD.seg(document.getElementById('rd-fit-mod'),m=>{mi=+m;draw()});

@@ -14,7 +14,7 @@
     for(let i=0;i<S;i++)for(let j=0;j<S;j++){const hp=d1(i,sel[0])+d1(j,sel[1]);far=Math.max(far,hp);sum+=hp;
       const me=i===sel[0]&&j===sel[1];const a=1-hp/14;
       h+='<g data-c="'+i+','+j+'" style="cursor:pointer"><circle cx="'+(x0+j*c)+'" cy="'+(y0+i*c)+'" r="'+r+'" fill="'+(me?'var(--acc)':'var(--acc2)')+'" fill-opacity="'+(me?1:Math.max(.25,a).toFixed(2))+'" stroke="var(--acc)"/>'+
-        RD.t(x0+j*c,y0+i*c+4,me?'':hp,{a:'middle',fs:Math.max(9,r)})+'</g>'}
+        RD.t(x0+j*c,y0+i*c+4,me?'':hp,{a:'middle',fs:Math.max(11,r)})+'</g>'}
     el.innerHTML=RD.svg(w,y0+(S-1)*c+c/2+6,h,'Hop counts on an 8 by 8 slice');
     document.getElementById('rd-tor-cnt').innerHTML=RD.stat('Farthest chip',far+' hops',wrap?'torus: 4 + 4':'mesh: up to 7 + 7 from a corner')+
       RD.stat('Average distance',(sum/(S*S-1)).toFixed(2)+' hops','over the other 63 chips')+RD.stat('Links per chip',wrap?'4, all used':'2 to 4','edge chips lose links without wraparound');
