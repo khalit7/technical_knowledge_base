@@ -1,25 +1,13 @@
-// ---- Reading tab visuals: ladder, chip power bars, per-gigawatt table, cooling calculator, Table 5, scale table, predictions ----
+// ---- Reading tab visuals: chip power bars, cooling calculator, Table 5, scale table, predictions ----
 (function(){
   const P=window.PW,F=window.PWF,$=id=>document.getElementById(id);
   const bar=(nm,frac,val,col,hl,ml)=>'<div class="row'+(hl?' hl':'')+'"><div class="nm">'+nm+(ml?'<span class="ml">'+ml+'</span>':'')+'</div><div class="track"><div class="fill" style="width:'+Math.max(0.5,Math.min(100,frac*100)).toFixed(1)+'%;background:'+col+'"></div></div><div class="val">'+val+'</div></div>';
-  const fmtW=w=>w>=1e9?F.n(w/1e9,0)+' GW':w>=1e6?F.n(w/1e6,1)+' MW':w>=1e3?F.n(w/1e3,1)+' kW':F.n(w,0)+' W';
-
-  // 1. the power ladder (log scale)
-  (function(){const L=[['One H100 SXM','GPU board, max',700],['One DGX H100','8 GPUs, server max',10200],['One GB200 NVL72 rack','72 GPUs, approximately',120000],
-    ['One Ironwood pod','9,216 TPUs, "nearly 10 MW"',1e7],['A Llama 3-size job','2,048 servers at DGX H100 max (derived)',2048*10200],['A 1 GW site','grid connection',1e9]];
-    const lo=Math.log10(300),hi=Math.log10(1e9);
-    $('pw-ladder').innerHTML=L.map((x,k)=>bar(x[0],(Math.log10(x[2])-lo)/(hi-lo),fmtW(x[2]),k===4?'var(--c5)':'var(--c1)',false,x[1])).join('')})();
 
   // 2. watts per chip and pJ per FLOP
   (function(){const el=$('pw-chipbars');let mode='w';
     function draw(){const C=P.chips;const mx=Math.max(...C.map(c=>mode==='w'?c[2]:c[6]));
       el.innerHTML=C.map(c=>{const v=mode==='w'?c[2]:c[6];return bar(c[0]+' ('+c[1]+')',v/mx,mode==='w'?F.n(v)+' W':v.toFixed(2)+' pJ',c[0].indexOf('TPU')===0?'var(--c3)':c[0].indexOf('MI')===0?'var(--c2)':'var(--c1)',c[0]==='H100 SXM')}).join('')}
     RD.seg($('pw-chipseg'),m=>{mode=m;draw()});draw()})();
-
-  // 3. per-gigawatt table at PUE 1.2
-  (function(){const pue=P.pue.root;let h='<tr><th>System</th><th class="num">kW each, at the meter</th><th class="num">Per GW</th><th class="num">BF16 peak per GW</th><th class="num">Power $ per hour</th></tr>';
-    P.systems.forEach(s=>{const kw=s[2]/s[3]*pue,n=1e6/kw;h+='<tr><td>'+s[1]+'</td><td class="num">'+kw.toFixed(2)+'</td><td class="num">'+F.n(Math.round(n/1000)*1000)+'</td><td class="num">'+F.n(n*s[4]/1e6,0)+' EF</td><td class="num">$'+(kw*P.price).toFixed(2)+'</td></tr>'});
-    $('pw-gwtab').innerHTML=h})();
 
   // 4. cooling: same heat, air against water
   (function(){const kw=$('pw-cool-kw'),da=$('pw-cool-da'),dw=$('pw-cool-dw'),out=$('pw-cool-out'),pre=$('pw-cool-pre');let cur=120;
