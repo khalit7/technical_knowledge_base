@@ -1,7 +1,7 @@
-// ---- MTP lab (t-mtp): self-speculative decoding replay, per-prompt table, acceptance calculator, training curves ----
+// ---- Reading section 7 (moved from the old MTP lab tab): self-speculative decoding replay, per-prompt table, acceptance calculator, training curves ----
 (function(){
   if(!window.FOD||!document.getElementById('mt-card'))return;
-  const D=FOD.mtpf,esc=FO.esc,t=RD.t,TAB='t-mtp',r7=D.spec[6];
+  const D=FOD.mtpf,esc=FO.esc,t=RD.t,TAB='t-read',r7=D.spec[6];
   let kind='sequential';
   const ev=()=>r7[kind].events;
   function draw(i){
@@ -50,5 +50,5 @@
     el.innerHTML=RD.svg(W,H,b,'module training curves')+'<div class="fo-leg"><span style="--sw:var(--c2)">sequential, last '+C.sequential[C.sequential.length-1][1].toFixed(2)+'</span><span style="--sw:var(--c4)">parallel, last '+C.parallel[C.parallel.length-1][1].toFixed(2)+'</span></div>';
   }
   FO.reg(TAB,()=>{calc();curves()});
-  addEventListener('resize',()=>{const tb=document.getElementById(TAB);if(tb&&!tb.hidden){calc();curves()}});
+  RD.onResize(()=>{calc();curves()});
 })();

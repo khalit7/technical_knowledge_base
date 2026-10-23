@@ -2,18 +2,39 @@
 
 Child page 9 of Topic: llm-architecture (Notion 3fd5c17b0d0d8105b616c17c1439f766). Built 2026-10-18 with the explainer-page skill (`page-kinds/topic-child.md`). `sh build.sh` writes `../index.html`.
 
-## Tabs
+## Tabs (rebuilt 2026-10-23 to the teaching contract)
 
 | Tab | id | What it holds |
 |---|---|---|
-| Reading | `t-read` | 0 one screen (six families and objectives in one table); 1 masks (four patterns, the transformers 5.20.1 mask functions, the mask swapped on the trained checkpoint); 2 objectives (CLM, MLM with 80/10/10, span corruption with T5's length arithmetic, ELECTRA); 3 the leak, measured (before/after animation on the reference checkpoint, real bad output); 4 encoders (fill-in crossover measured, BERT, RoBERTa, ModernBERT, Ettin); 5 encoder-decoder (T5 Table 2, Wang et al. 2022, Whisper, T5Gemma 2); 6 prefix LM and UL2; 7 MTP (parallel against sequential toggle, DeepSeek-V3 equations and parameter bill from the Config calculator, Table 4, joint-training runs on tokens and FLOPs axes, frozen-trunk drafts); 8 diffusion LMs (LLaDA objective and sampler, the adaptation run, the shift, quality against steps, cost, published results); 9 in production; 10 choosing; mistakes; interview questions with three design questions. |
-| Mask lab | `t-mask` | Click-a-query explorer on 24 tokens of the running sequence (causal, bidirectional, prefix with a slider, encoder-decoder), loss under swapped masks, per-layer attention on the next position before/after the leak, the code that ran and its output. |
-| Objective drill | `t-obj` | The same 40 tokens under six objectives (input row, target row, counts), the per-256 table, six predict-then-reveal questions. |
-| MTP lab | `t-mtp` | Self-speculative greedy decoding replayed forward by forward on prompt 7 with the sequential module against the parallel head (before/after on the same prompt), all eight prompts, an acceptance-to-tokens-per-forward calculator with the measured points, module training curves. |
-| Diffusion lab | `t-diff` | The causal model and the adapted diffusion model writing the same 48 tokens (AR, 48, 12, 6 steps; animated, with token-positions-processed counters), quality against steps with random remasking, the continuations, fill-in accuracy at 15/50/90% hidden, the adaptation curve. |
+| Reading | `t-read` | The idea (core sentence, hero of six families as small multiples: mask matrix, input row, scored row; You need; new terms; the six-family table closed); 1 masks (the 12-token matrix toggle, the mask-swap bars, closed: code lines, the full swap table, the 24-token click explorer and the code that ran); 2 objectives (the 40-token six-objective view, CLM, MLM with 80/10/10 and ELECTRA, span corruption with T5's arithmetic, the per-256 table; closed: seven predict-then-reveal questions); 3 the leak (training-curve stepper, layer-by-layer attention on i+1, real output, the real-code warning); 4 encoders (fill-in bars at 15/50/90%, what changed since BERT, Ettin, cost and how to check; closed: fill-in table, ModernBERT recipe, lineage); 5 encoder-decoder (T5 Table 2, Wang et al. 2022, Whisper, T5Gemma 2); 6 prefix LM and UL2; 7 MTP (the two designs, equation, cost and published benefit, the joint-training chart with its tokens/FLOPs toggle, the self-speculative replay of sequential against parallel drafts; closed: parameter bill, DeepSeek-V3 Table 4, frozen-trunk table, per-prompt table, acceptance calculator, module curves); 8 diffusion LMs (the masked-denoising animation of one sentence, AR against 48/12/6 steps, the four steps and the loss, why 1/t, the adaptation run, the shift, quality against steps, the bad-output box, cost and block diffusion, published results; closed: quality table, continuations, LLaDA Table 9, Gemini Diffusion's table, adaptation curve); 9 choosing; Depth (closed: production checkpoints, four mistakes the core does not show, interview rehearsal). |
 | Further reading | `t-more` | Root, siblings, neighbouring pages, paper pages, outside sources, timed. |
 
-Departures from the topic-child shape: none in structure. Two choices worth stating: (1) the masked diffusion model doubles as the "encoder" in the fill-in experiment (one adapted model instead of a separate BERT-style run: at a fixed rate the LLaDA objective is MLM; the page says so); (2) MTP and diffusion each get a lab tab because each has a measured mechanism with its own animation, while encoders and encoder-decoders are taught in Reading and linked to their paper pages, which already train toys (BERT, Ettin, T5Gemma).
+Parts: `20_read_a` (Reading CSS, the idea) to `20_read_g` (choosing, depth), `20_read_z`; JS `21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (storage key `fo-tab`), `22_js_fo_common.js` (`FO.anim` for the step animations, which never autoplays; data placeholders; predict cards; a `toggle` listener that redraws charts when a closed block opens), `23_js_fo_read.js` (hero, mask matrix, leak, MTP designs, joint chart, tables), `31_js_mk.js` (swap bars, attention bars, explorer), `32_js_ob.js` (objective view), `33_js_mt.js` (draft replay, calculator, module curves), `34_js_df.js` (diffusion animation, quality, fill-in, adaptation curve). The `3x_js` files keep their old names and prefixes (`mk-`, `ob-`, `mt-`, `df-`) but now draw into the Reading tab.
+
+## The 2026-10-23 rebuild: what changed and why
+- **Four lab tabs folded into Reading.** Each explained one mechanism, so its visual now sits beside the claim it proves: the objective view in section 2 (the section had no visual), the swap bars in section 1 (replacing a table), the attention-per-layer bars in section 3, the fill-in bars in section 4 (replacing a table), the draft replay in section 7 (which described it in words), and the masked-denoising animation and quality chart in section 8 (the diffusion section now shows the sampler it describes). Per-item tables, the calculator, training curves, code and the click explorer went into closed blocks.
+- **Top added**: core sentence, a static hero (six families as mask matrices with what is scored), You need, new terms. The "in one screen" table is a closed reference block.
+- **No autoplay**: `FO.anim` used to start the leak, draft and diffusion animations when they scrolled into view; it now waits for the reader. `21_js_rd_common.js` and `99_js_tabs.js` are the templates. `lab/check_controls.mjs` now scrolls every card into view and fails if anything plays, and opens every closed block before exercising controls.
+- **Cut as fat**: wind-ups and headings, pointers to the removed tabs, mistakes that restated sections 1, 3 and 8, the predict card on the shift (its point is now the shift box's title). The "why 1/t" interview answer became core text in section 8.
+- **Correction**: the mask-swap evaluation is 20 held-out batches of 32 windows (640 windows of 256 tokens; `lab/masks.py`), not "20 windows" as the old page, this README and `facts.md` said; corrected on the page (marked) and in `facts.md`.
+- **Removed**: `lab/reading_time.py` (the header now states the time measured by `html_utils/audit_pages.mjs`), the four `3x_tab_*.html` parts.
+
+## Departures from the topic-child shape
+No lab tabs: each old lab explained one mechanism, so its visuals moved inline. The masked diffusion model doubles as the "encoder" in the fill-in experiment (one adapted model instead of a separate BERT-style run: at a fixed rate the LLaDA objective is MLM; the page says so). Encoders and encoder-decoders link to their paper pages, which already train toys (BERT, Ettin, T5Gemma).
+
+## Length judgement
+| | Before (2026-10-18 page, audit 2026-10-23) | After |
+|---|---|---|
+| Reading, core (230 words a minute) | 31.1 min (7,157 words) | 27.5 min (6,316 words) |
+| Reading, closed details | 3.8 min | 13.5 min (3,111 words) |
+| Other tabs, core | Mask lab 2.3 + Objective drill 3.0 + MTP lab 2.4 + Diffusion lab 3.5 = 11.1 min | none |
+| Core total, excluding Further reading | 42.3 min | 27.5 min |
+| Visuals drawn in Reading (audit count) | 3 | 16 (6 are the hero's panels); 5 more in closed blocks |
+
+Why 27 minutes is right: the page owns six families and two objectives that are each a mechanism with its own evidence (the masks and what they cache, the objectives and their signal, the leak, encoders, encoder-decoders, prefix LM and UL2, MTP at equal compute and as a draft, masked diffusion with its sampler, loss, shift, quality and cost). Every core unit in the ledger is needed for one of them, and about a fifth of the core words are now captions and counters of the visuals that used to sit in four tabs. What made the old page long beside its tabs (per-item tables, code, mistakes that repeated sections, interview answers, a production table) is closed and optional; the closed time grew because the labs' tables, calculator and curves moved into closed blocks rather than being cut.
+
+## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
+398 units: core 263, depth 101, fat 34, no owned or volatile units. 373 were drafted from the old page by `ledger.py init`; 25 were added by hand for script-rendered visuals and tables (their numbers are drawn by script, so the key is the static caption) and for the correction. Fat units carry a `note`.
 
 ## Evidence
 
@@ -30,12 +51,12 @@ All runs on Apple M1 Pro (16 GB), 2026-10-18, torch 2.14.1, transformers 5.20.1,
 | `lab/diff_eval.py [fo_diffusion_long]` | CPU, SmolLM2-135M as judge (HF cache, revision 93efa2f0) | about 6 min each | `lab/out/diffusion_eval.json` (1,500-step model) and `diffusion_eval_fo_diffusion_long.json` (final, used on the page): fill-in at 15/50/90%, generations at 48/24/12/6/3 steps and random remasking, AR baselines, traces for the animation |
 | `lab/code_refs.py` | topic venv | seconds | `lab/out/code_refs.json`: transformers 5.20.1 line numbers located by pattern |
 
-`lab/make_page_data.py` (run by `build.sh`, standard library only) turns `lab/out/` into `parts/22_js_fo_0data.js` (`window.FOD`), adds the DeepSeek-V3 MTP parameter bill computed with the root's `src/calc/calc.py` (imported read-only) and DeepSeek-V3 Table 4 from the DeepSeek-V3 paper page's `tables.json`, and the derived numbers (formulas in the file). Prose numbers are `<span data-f="path">` placeholders filled from `FOD`, so prose and data cannot drift; `lab/check_page_data.py` proves the page embeds the recorded outputs. `lab/reading_time.py` writes the reading time into the page.
+`lab/make_page_data.py` (run by `build.sh`, standard library only) turns `lab/out/` into `parts/22_js_fo_0data.js` (`window.FOD`), adds the DeepSeek-V3 MTP parameter bill computed with the root's `src/calc/calc.py` (imported read-only) and DeepSeek-V3 Table 4 from the DeepSeek-V3 paper page's `tables.json`, and the derived numbers (formulas in the file). Prose numbers are `<span data-f="path">` placeholders filled from `FOD`, so prose and data cannot drift; `lab/check_page_data.py` proves the page embeds the recorded outputs.
 
 Rebuild from scratch (with the topic scratch present): `LA_SCRATCH=<scratch>/la`, then `masks.py`, `queue_mps.sh joint joint_s1 base_s1 base_flops`, `collect_runs.py`, `mtp_frozen.py`, `train_diffusion.py --shift --steps 1500`, the `--resume` stage, `diff_eval.py` and `diff_eval.py fo_diffusion_long`, `code_refs.py`, then `sh build.sh`. The page itself rebuilds from the repository alone.
 
 ## Files
 
-`build.sh`, `parts/` (01 head with page CSS, 10 header, 20_read_a..f and z, 21 RD helpers from the root, 22 data and FO helpers, 23 Reading visuals, 31 Mask lab, 32 Objective drill, 33 MTP lab, 34 Diffusion lab, 39 Further reading, 99 tabs with storage key `fo-tab`), `lab/` (scripts above, `out/`, `check_controls.mjs`, `check_page_data.py`, `shoot_cards.mjs`, `reading_time.py`), `facts.md`, `viz_ideas.md`, `coverage.md`.
+`build.sh`, `parts/` (above), `lab/` (scripts above, `out/`, `check_controls.mjs`, `check_page_data.py ../index.html`, `shoot_cards.mjs`), `ledger.json`, `facts.md`, `viz_ideas.md`, `coverage.md`.
 
-Reading time: 29 minutes in the Reading tab plus 5 in closed details (measured by `lab/reading_time.py`); the four lab tabs add roughly 15 minutes.
+Reading time: see the length judgement above.

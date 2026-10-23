@@ -1,7 +1,7 @@
 # Verified facts (key fo), 2026-10-18. Also appended to the topic FACTS.md.
 
 ## Measured here (Apple M1 Pro; outputs in lab/out/)
-- Reference tiny GPT (ref_baseline_s1500) on the 20 fixed held-out windows, CPU: causal 2.2776 (reproduces 2.278); same weights with a bidirectional mask 4.1635; prefix-128 mask 3.0864 (suffix positions 2.2093 -> 2.3144).
+- Reference tiny GPT (ref_baseline_s1500) on the 20 fixed held-out batches (640 windows of 256; corrected 2026-10-23 from "20 windows"), CPU: causal 2.2776 (reproduces 2.278); same weights with a bidirectional mask 4.1635; prefix-128 mask 3.0864 (suffix positions 2.2093 -> 2.3144).
 - Leak: 150 steps of next-token training with a bidirectional mask (batch 16, lr 1e-3): train loss 4.11 -> 0.164; held-out 0.2146 under the leaky mask, 7.0242 under the causal mask; layer-1 mean attention on position i+1 0.0085 -> 0.2186; greedy output "to to to ...".
 - MTP joint from scratch (sequential depth 1, lambda 0.3, 1,500 steps, MPS): main-model held-out 2.2413 (seed 0) vs reference 2.2776; seed 1 2.2292 vs baseline seed 1 2.2574 (other seed-1 baseline reruns 2.264, 2.2612). The module adds 32% training FLOPs per step (derived); a baseline given those FLOPs (1,980 steps) reaches 2.1601: at equal compute MTP loses at this scale.
 - MTP modules on the frozen reference (600 steps each, CPU), 128 held-out windows: main next-token top-1 49.8% (loss 2.215); sequential t+2 top-1 44.2% (2.554), teacher-forced agreement with main greedy 67.3%; parallel t+2 26.5% (3.953), agreement 37.5%. Self-speculative greedy decoding, 8 prompts x 120 tokens: 619 forwards (1.55 tokens per forward) sequential, 735 (1.31) parallel; output identical to plain greedy in all 24 runs (incl. the joint-trained module).

@@ -5,4 +5,4 @@ Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/top
 
 Child page of Topic: llm-architecture. How one transformer stack becomes a decoder, an encoder, an encoder-decoder or a prefix LM by its attention mask, and a different model again by its training objective: next token, masked tokens, corrupted spans, multi-token prediction (DeepSeek-V3's MTP module) and masked diffusion. Every mask and objective is run on the topic's tiny GPT and TinyStories running example (Apple M1 Pro); published results are kept apart and labelled.
 
-Tabs: Reading, Mask lab, Objective drill, MTP lab, Diffusion lab, Further reading. Built from `src/` with `sh src/build.sh`; `src/README.md` says how, which scripts made which numbers, and how to rerun them.
+Tabs: Reading (every visual inline since the 2026-10-23 rebuild to the teaching contract; reading 27 min plus 14 in closed details) and Further reading. Built from `src/` with `sh src/build.sh`; `src/README.md` says how, which scripts made which numbers, and how to rerun them.

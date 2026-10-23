@@ -1,4 +1,4 @@
-// ---- Objective drill (t-obj): the same 40 tokens under six objectives; per-256 table ----
+// ---- Reading section 2 (moved from the old Objective drill tab): the same 40 tokens under six objectives; per-256 table ----
 (function(){
   if(!window.FOD||!document.getElementById('ob-card'))return;
   const O=FOD.obj,esc=FO.esc,n=O.n,P=O.pieces.map(s=>s.replace(/\n/g,'↵'));

@@ -1,4 +1,4 @@
-// ---- Families and objectives: page helpers (FO). RD.anim generalised to any tab; data placeholders; predict cards ----
+// ---- Families and objectives: page helpers (FO). RD.anim generalised to any tab (never autoplays: waits on step 0 until the reader acts); data placeholders; predict cards ----
 window.FO=(function(){
   const RM=RD.RM,esc=RD.esc;
   const reg=(tab,f)=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER[tab]=window.TAB_RENDER[tab]||[]).push(f)};
@@ -26,7 +26,7 @@ window.FO=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     reg(o.tab||'t-read',()=>{show();kick()});
     show();
@@ -46,3 +46,6 @@ window.FO=(function(){
   return {RM,esc,anim,reg,get,fmt,fill,predict,W};
 })();
 FO.fill();FO.predict();
+// a chart inside a closed <details> has no width until it opens: redraw the Reading tab's visuals when one opens
+document.addEventListener('toggle',e=>{const d=e.target;if(!d.open||!d.closest||!d.closest('#t-read'))return;
+  ((window.TAB_RENDER||{})['t-read']||[]).forEach(f=>{try{f()}catch(err){}})},true);

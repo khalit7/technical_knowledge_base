@@ -16,6 +16,13 @@
 | Quality against steps, random remasking ticks | Diffusion lab | slider over recorded runs as bars (4) | the speed-quality trade and LLaDA's remasking ablation reproduced in direction (score 11) |
 | Fill-in crossover 15/50/90% | Diffusion lab, Reading 4 table | before/after | why MLM masks 15% and why a sampler's first steps are hardest (score 10) |
 
+## 2026-10-23 rebuild: placement
+All visuals now live in the Reading tab, beside the claim each proves (the lab tabs were removed):
+- Added: **hero**, six families as small multiples (8 by 8 mask matrix, input row, scored row, MTP's second row), static annotated diagram (14): the whiteboard picture of "one block, two dials". Rejected for the hero: the six-family table (kept as a closed reference block; a table does not show what the mask and the scoring look like).
+- Moved inline: six-objective view (section 2), swap bars (section 1, replacing the swap table, which is now closed), attention-on-next bars (section 3), fill-in bars (section 4, replacing the table, now closed), draft replay (section 7), diffusion animation and quality bars (section 8).
+- Moved into closed blocks: click-a-query explorer and the code that ran (section 1), acceptance calculator and module curves (section 7), adaptation curve (section 8).
+- Animations (leak, draft replay, diffusion sampler) no longer start on scroll; they wait for the reader.
+
 ## Rejected
 - Rebuilding BERT's leak animation, T5's span-corruption and mask animations, Ettin's paired generation, DiffusionGemma's block sampler: they exist on the paper pages; linked instead.
 - A from-scratch BERT trained on TinyStories: the BERT and Ettin pages train toy encoders against left-to-right twins; at fixed rate our adapted diffusion model is that encoder.

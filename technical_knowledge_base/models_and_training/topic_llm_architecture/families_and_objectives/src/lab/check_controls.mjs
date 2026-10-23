@@ -17,6 +17,12 @@ try {
     const tabs = await p.$$eval('#tabs button[data-t]', bs => bs.map(x => x.dataset.t));
     for (const t of tabs) {
       await p.click(`#tabs button[data-t=${t}]`); await new Promise(r => setTimeout(r, 250));
+      // nothing may move before the reader acts (2026-10-23): scroll every card into view, then no Pause-labelled button
+      await p.evaluate(t => { for (const c of document.querySelectorAll(`#${t} .fo-card`)) c.scrollIntoView() }, t); await new Promise(r => setTimeout(r, 400));
+      const auto = await p.$$eval(`#${t} .an-play`, bs => bs.filter(x => /Pause/.test(x.textContent)).length);
+      if (auto) errs.push(`${t}: ${auto} animation(s) started without the reader (${rm})`);
+      // open every closed block so its controls are exercised too
+      await p.evaluate(t => document.querySelectorAll(`#${t} details`).forEach(d => { d.open = true }), t); await new Promise(r => setTimeout(r, 200));
       if (rm === 'reduce') {   // nothing may autoplay: every Pause-labelled button must be absent
         const playing = await p.$$eval(`#${t} .an-play`, bs => bs.filter(x => /Pause/.test(x.textContent)).length);
         if (playing) errs.push(`${t}: ${playing} animation(s) autoplay under reduced motion`);
