@@ -1,25 +1,38 @@
-// ---- Reading section 4: queue order results (SGD.sched from src/iso/gen_iso.py; SGD.m1 from src/m1/summarise.py) ----
+// ---- Reading section 4: four queue policies on one queue, round by round (was the Scheduling lab tab) ----
 (function(){
-  if(!window.SGD)return;const S=SGD.sched,set=(id,v)=>{const e=document.getElementById(id);if(e)e.innerHTML=v};
-  const stats=k=>{const v=S[k].map(x=>100*x[1]/x[3]);return {mean:v.reduce((a,b)=>a+b,0)/v.length,min:Math.min(...v),max:Math.max(...v)}};
-  if(SGD.check_sched)set('sg-sched-checked',SGD.check_sched.orders_checked.toLocaleString('en-US'));
-  const names={fcfs:'fcfs (default)',lpm:'lpm',"dfs-weight":'dfs-weight',random:'random'};
-  const el=document.getElementById('sg-sched-bars');
-  if(el){let h='';for(const p of ['fcfs','lpm','dfs-weight','random']){const s=stats('96_3000_'+p);
-      h+='<div class="row"><div class="nm">'+names[p]+'<span class="ml">range '+s.min.toFixed(0)+' to '+s.max.toFixed(0)+'%</span></div><div class="track"><div class="fill" style="left:'+s.min.toFixed(1)+'%;width:'+(s.max-s.min).toFixed(1)+'%;background:var(--acc2)"></div><div class="fill" style="left:'+(s.mean-0.6).toFixed(1)+'%;width:1.2%;background:var(--acc)"></div></div><div class="val">'+s.mean.toFixed(1)+'%</div></div>'}
-    el.innerHTML=h+'<p class="src">Mean over 10 arrival orders (mark) and the range (band); 96 questions of 20 to 80 tokens on 8 documents of 800 tokens, pool 3,000 tokens. Simplified prefill loop, orders checked against SGLang\'s SchedulePolicy.</p>'}
-  set('sg-sched-6k',['fcfs','lpm','dfs-weight','random'].map(p=>p+' '+stats('96_6000_'+p).mean.toFixed(1)+'%').join(', ')+' (96 questions)');
-  const k=document.getElementById('sg-k-sched');if(k)k.textContent=stats('96_3000_fcfs').mean.toFixed(0)+'% to '+stats('96_3000_lpm').mean.toFixed(0)+'% reused';
-  const m=SGD.m1&&SGD.m1.sched;
-  if(m){const ps=['fcfs','lpm','dfs-weight','random'].filter(p=>m[p]);set('sg-m1-sched-line',ps.map(p=>'<b>'+p+'</b> '+m[p].cached_pct.toFixed(1)+'% of prompt tokens from cache, batch done in '+m[p].makespan.toFixed(1)+' s'+(m[p].reps>1?' (runs '+m[p].makespan_min.toFixed(1)+' to '+m[p].makespan_max.toFixed(1)+')':' (one run)')).join('; ')+'. <span class="meas">measured on Apple M1 Pro</span> Within the run-to-run spread the policies did not differ here: the requests reached the server 2 ms apart and at most 8 ran at once, so the queue was ordered in small slices and most documents were cached after their first question whatever the order. dfs-weight crashed the server in all four attempts (the Metal error of section 11) and has no result.')}
-  else set('sg-m1-sched-line','(runs pending)');
-  const M=SGD.m1,f=(n,d)=>n.toLocaleString('en-US',{maximumFractionDigits:d||0,minimumFractionDigits:d||0});
-  if(M&&M.multiturn&&M.multiturn.radix_on){const on=M.multiturn.radix_on.by_turn,off=M.multiturn.radix_off.by_turn;
-    const mo=M.multiturn;set('sg-m1-mt-line','Eight four-turn conversations under one 600-token system prompt, on SGLang v0.5.21 on the M1: by the fourth turn (about '+f(on[3].prompt)+' prompt tokens, '+f(on[3].cached)+' of them cached) the mean time to first token was '+f(on[3].ttft.mean,2)+' s with the radix cache and '+f(off[3].ttft.mean,2)+' s with <code>--disable-radix-cache</code>; on the first turn, where only the system prompt can be shared, '+f(on[0].ttft.mean,2)+' s against '+f(off[0].ttft.mean,2)+' s. But decoding was slower with the cache on ('+f(mo.radix_on.tpot_ms.mean,0)+' against '+f(mo.radix_off.tpot_ms.mean,0)+' ms per output token), so the whole job took longer ('+f(mo.radix_on.makespan.mean,1)+' s against '+f(mo.radix_off.makespan.mean,1)+' s): the Apple backend copies KV between its pool and per-request buffers when the cache is on, a cost a GPU engine with paged attention does not pay (cause not isolated). <span class="meas">measured on Apple M1 Pro</span> (<a href="#" data-tab="t-sgm1">SGLang on the M1</a>).');
-    const k=document.getElementById('sg-k-m1');if(k)k.textContent=f(off[3].ttft.mean/on[3].ttft.mean,1)+'× faster 4th-turn TTFT'}
-  if(!(M&&M.overlap&&M.overlap.on))set('sg-m1-ovl-line','Not measured: with the overlap loop on <i>and</i> off, a sequence of 32 requests of 128 tokens in and out crashed the server every time (6 runs, each retried once; with the overlap on, the Metal out-of-memory error inside the chained-decode path; with it off, an error in the overlap bookkeeping, <code>overlap_utils.py</code>), so the Apple backend gave no usable comparison. The published figure above is the project\'s own.');
-  if(M&&M.overlap&&M.overlap.on){const o=M.overlap;set('sg-m1-ovl-line','Qwen3-0.6B 4-bit, 128 tokens in and out: at concurrency 1 the overlap loop produced '+f(o.on['1'].tok_s,1)+' tokens/s against '+f(o.off['1'].tok_s,1)+' without it ('+f(o.on['1'].ms_per_token,2)+' against '+f(o.off['1'].ms_per_token,2)+' ms per token); at concurrency 4, '+f(o.on['4'].tok_s,0)+' against '+f(o.off['4'].tok_s,0)+'; at 8, '+f(o.on['8'].tok_s,0)+' against '+f(o.off['8'].tok_s,0)+'. <span class="meas">measured on Apple M1 Pro</span> On a laptop GPU running a tiny model the forward pass is short, so the CPU share is large; expect a smaller effect on a big model on an H100.')}
-  if(M&&M.json&&M.json.schema){const j=M.json;set('sg-m1-json-line','With a JSON schema through XGrammar, '+j.schema.valid+' of '+j.schema.n+' answers parsed as JSON against '+j.free.valid+' of '+j.free.n+' without it (unconstrained, the model wraps its JSON in a Markdown code fence), at a median '+f(j.schema.tpot_ms_median,1)+' ms per output token against '+f(j.free.tpot_ms_median,1)+' ms. On the Apple backend a grammar stops decode steps being chained, which is much of that per-token cost here; and grammars apply at all only with <code>--mlx-enable-sampling</code>: without the flag the same requests were decoded greedily without a mask, the grammar rejected the first token (a code fence) and every request ended after '+(j.no_sampling?f(j.no_sampling.tokens_mean,0):'2')+' tokens with invalid output. <span class="meas">measured on Apple M1 Pro</span>, one server run with another job on the machine (load average '+f(j.loads[0][0],1)+').')}
-  // tab links inside text written above
-  document.querySelectorAll('#t-read a[data-tab]').forEach(a=>{if(a._b)return;a._b=1;a.addEventListener('click',e=>{e.preventDefault();const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})});
+  const root=document.getElementById('sgs-anim-card'),rd=document.getElementById('t-read');if(!root||!window.SG)return;
+  const $=id=>document.getElementById(id),fmt=n=>Math.round(n).toLocaleString('en-US');
+  const POL=['fcfs','lpm','dfs-weight','random'];let mode='fcfs',res=null,A=null,trace=null,prm=null;
+  const col=d=>'hsl('+Math.round((d*360/Math.max(1,prm.nd))+15)%360+',62%,52%)';
+  function params(){return {nq:+$('sgs-nq').value,nd:+$('sgs-nd').value,dl:+$('sgs-dl').value,cap:+$('sgs-cap').value,seed:+$('sgs-seed').value}}
+  function compute(){prm=params();$('sgs-nqv').textContent=prm.nq;$('sgs-ndv').textContent=prm.nd;$('sgs-dlv').textContent=fmt(prm.dl)+' tokens';$('sgs-seedv').textContent=prm.seed;
+    const minCap=prm.dl+80+80;if(prm.cap<minCap){prm.cap=Math.ceil(minCap/500)*500;$('sgs-cap').value=prm.cap}
+    $('sgs-capv').textContent=fmt(prm.cap)+' tokens (about '+(prm.cap/(prm.dl+50)).toFixed(1)+' documents)';
+    trace=SG.ragTrace(prm.nd,prm.dl,prm.nq,5);const byId=new Map(trace.map(q=>[q.id,q]));
+    const docIds=d=>{const q={g:d,S:prm.dl,conv:0};return SG.tokens({g:d,S:prm.dl,conv:0,P:prm.dl},prm.dl)};
+    const docs=[];for(let d=0;d<prm.nd;d++)docs.push(docIds(d));
+    res={};for(const p of POL){res[p]=SG.schedRun(trace,prm.cap,p,prm.seed,prm.seed,t=>docs.map(ids=>t.peek(ids)/prm.dl));res[p].byId=byId}
+    let h='';const best=Math.max(...POL.map(p=>res[p].hit_tokens));
+    for(const p of POL){const r=res[p],v=100*r.hit_tokens/r.prompt_tokens;
+      h+='<div class="row'+(r.hit_tokens===best?' hl':'')+'"><div class="nm">'+p+(p==='fcfs'?' (default)':'')+'<span class="ml">'+r.rounds.length+' rounds, '+fmt(r.prefill_tokens)+' computed'+(p==='lpm'&&prm.nq>128?'; off while &gt;128 wait':'')+'</span></div><div class="track"><div class="fill" style="width:'+v.toFixed(1)+'%;background:var(--acc)"></div></div><div class="val">'+v.toFixed(1)+'%</div></div>'}
+    h='<p class="small">Share of prompt tokens served from the cache:</p>'+h;
+    $('sgs-bars').innerHTML=h;
+    if(A)A.reset(res[mode].rounds.length+1);}
+  function draw(i){if(!res)return;const r=res[mode],el=$('sgs-svg'),w=RD.width(el);const n=prm.nq,cols=Math.max(8,Math.floor((w-4)/13)),cell=Math.min(12,(w-4)/cols-1);
+    if(i===0){el.innerHTML=RD.svg(w,40,RD.t(4,24,'Before round 1: '+n+' questions waiting, nothing cached.',{fs:12}),'');$('sgs-cap-t').innerHTML='<div class="t">'+mode+'</div><p>Press play or step forward.</p>';$('sgs-cnt').innerHTML='';return}
+    const rd=r.rounds[i-1],adm=new Set(rd.admitted),rowsQ=Math.ceil(rd.wait.length/cols),hq=rowsQ*(cell+1)+6,hd=prm.nd*14+20,h=hq+hd+20;let b='';
+    rd.wait.forEach((id,k)=>{const q=r.byId.get(id),x=2+(k%cols)*(cell+1),y=2+Math.floor(k/cols)*(cell+1);
+      b+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+cell.toFixed(1)+'" height="'+cell.toFixed(1)+'" fill="'+col(q.g)+'" opacity="'+(adm.has(id)?1:0.45)+'"'+(adm.has(id)?' stroke="var(--ink)" stroke-width="1.5"':'')+'><title>question '+id+', document '+(q.g+1)+'</title></rect>'});
+    const y0=hq+16;b+=RD.t(2,y0-4,'Cached share of each document after the round',{fs:10.5,fill:'var(--mute)'});
+    const bwid=w-60;rd.snap.forEach((f,d)=>{const y=y0+d*14;b+=RD.t(2,y+10,'doc '+(d+1),{fs:10,fill:'var(--mute)'})+'<rect x="44" y="'+y+'" width="'+bwid+'" height="10" fill="var(--soft)"/><rect x="44" y="'+y+'" width="'+(bwid*f).toFixed(1)+'" height="10" fill="'+col(d)+'"/>'});
+    el.innerHTML=RD.svg(w,h,b,'Queue order and cached documents');
+    let cumH=0,cumP=0;for(let k=0;k<i;k++){cumH+=r.rounds[k].hit;cumP+=r.rounds[k].prefill}
+    const docsAdm=new Set(rd.admitted.map(id=>r.byId.get(id).g));
+    $('sgs-cap-t').innerHTML='<div class="t">Round '+i+' of '+r.rounds.length+': '+rd.admitted.length+' admitted, '+docsAdm.size+' document'+(docsAdm.size>1?'s':'')+'</div><p>'+(mode==='fcfs'?'Arrival order: whatever document comes next.':mode==='lpm'?(rd.wait.length>128?'More than 128 waiting: lpm falls back to arrival order this round.':'Longest cached prefix first; questions sharing an uncached document wait behind the first of them (in-batch prefix caching).'):mode==='dfs-weight'?'Depth first through the tree, the subtree with most waiting questions first.':'A seeded shuffle.')+' This round reused '+fmt(rd.hit)+' tokens and computed '+fmt(rd.prefill)+'.</p>';
+    $('sgs-cnt').innerHTML=RD.stat('Waiting',rd.wait.length)+RD.stat('Reused so far',fmt(cumH))+RD.stat('Computed so far',fmt(cumP))+RD.stat('Reuse so far',(100*cumH/Math.max(1,cumH+cumP)).toFixed(1)+'%')}
+  compute();
+  A=RD.anim({card:'sgs-anim-card',ctl:'sgs-ctl',n:res[mode].rounds.length+1,draw:draw,ms:1200,label:'Round'});
+  ['sgs-nq','sgs-nd','sgs-dl','sgs-cap','sgs-seed'].forEach(id=>$(id).addEventListener('input',()=>compute()));
+  RD.seg($('sgs-mode'),m=>{mode=m;A.reset(res[m].rounds.length+1)});
+  RD.onResize(()=>A.redraw());
 })();

@@ -1,0 +1,3482 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "SGLang: radix cache, cache-aware scheduling, large-scale serving SGLang: radix cache, cache-aware scheduling, large-scale serving How SGLang keeps and reuses the KV cache in a radix tree, orders its queue to hit that cache, overlaps its CPU work with the GPU, constrains output, routes across replicas and serves DeepSeek-sized models on hundreds of GPUs; read from source at v0.5.21, its prefix cache and scheduler run in isolation against vLLM's, and the real engine run on an Apple M1 Pro.",
+  "label": "core",
+  "key": "SGLang: radix cache, cache-aware scheduling, large-scale serving SGLang: radix cache",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Radix lab Scheduling lab SGLang on the M1 SGLang vs vLLM Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar of the old page"
+ },
+ {
+  "id": 4,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 What SGLang is 2 The radix tree 3 Tree or blocks?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old section nav"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "4 Cache-aware scheduling 5 Overlap scheduler 6 Structured output 7 Run and tune 8 Router 9 Large scale 10 SGLang or vLLM?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old section nav"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "11 On a Mac Mistakes Interview SGLang is an open-source serving engine for language models: software that takes requests over HTTP, batches them onto GPUs and streams tokens back, like vLLM.",
+  "label": "core",
+  "key": "radix tree of token runs",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "Its organising idea is to keep the KV cache of every finished request in a radix tree , so that any later request starting with the same tokens (a system prompt, a document, the earlier turns of a chat, an agent's growing history) skips recomputing them.",
+  "label": "core",
+  "key": "the KV cache of every finished request in a radix",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "Around that tree it builds a scheduler that can order requests to hit the cache, a scheduler loop that hides its own CPU work behind the GPU, constrained decoding for JSON and grammars, a router that sends each request to the replica most likely to hold its prefix, and recipes for serving DeepSeek-sized mixture-of-experts models on hundreds of GPUs.",
+  "label": "core",
+  "key": "scheduler, router and structured-output path are built around reusing that tree",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page assumes the parent Topic: inference-and-serving : what prefill and decode are, what the KV cache is (the keys and values every layer computed for every earlier token, kept so that each new token attends to them without recomputing them), and what prefix caching is (keeping that cache after a request ends so the next request with the same beginning reuses it).",
+  "label": "core",
+  "key": "the keys and values every layer computed for every earlier",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "The running example is the root's chat assistant, and the small open model measured here is Qwen3-0.6B (28 layers, 8 KV heads of 128 dimensions, so 114,688 bytes of KV per token at 16-bit precision, as the Engine bench tab measured).",
+  "label": "depth",
+  "key": "the small open model measured here is Qwen3-0.6B (28 layers",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "SGLang v0.5.21 vLLM v0.31.0 Prefix cache A radix tree of token sequences, one node per shared run of tokens, page size 1 token by default ( overrides.py L1280 ); the default class is UnifiedRadixCache ( registry.py L80 ) A hash per full 16-token block, chained over the blocks before it ( kv_cache_utils.py L684 ); only full blocks are reusable On by default Yes; --disable-radix-cache turns it off ( memory.py L64 ) Yes ( enable_prefix_caching , cache.py L142 ) Eviction Least recently used leaf that no running request holds; lfu , slru , priority , tlru on request ( memory.py L25 ) Least recently freed block, a request's tail block first ( block_pool.py L777 ) Queue order fcfs by default; cache-aware lpm and dfs-weight on request ( schedule.py L82 ) fcfs by default, priority on request ( scheduler.py L160 ) CPU work hidden behind the GPU Overlap scheduler, on by default ( scheduler.py L1941 ) Asynchronous scheduling, on unless a feature disables it ( config/vllm.py , read for the root's Serving simulator) Structured output XGrammar by default; llguidance and Outlines selectable ( serving_hook.py L219 ) XGrammar or guidance ( README ) Router SGLang Model Gateway (Rust), cache_aware by default ( main.rs L150 ) None in the engine; llm-d or the production stack in front ( LLM serving in production ) What this page adds to the root, in five pieces of evidence: Same traces, two caches ...",
+  "label": "depth",
+  "key": "SGLang v0.5.21 vLLM v0.31.0 Prefix cache A radix tree of",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "SGLang's own radix cache classes and vLLM's own KV cache manager replayed on four request traces; a page-sized port runs live in the Radix lab .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "evidence tile restating a section; the provenance block lists the evidence"
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "SGLang's own scheduling policy code ordering real queues; the Scheduling lab replays it.",
+  "label": "depth",
+  "key": "policy code ordering real queues",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "",
+  "text": "The real engine on a laptop ...",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "evidence tile restating a section; the provenance block lists the evidence"
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "",
+  "text": "SGLang v0.5.21 built from source and run on an Apple M1 Pro through its MLX backend; SGLang on the M1 .",
+  "label": "depth",
+  "key": "SGLang v0.5.21 built from source and run on an Apple",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "",
+  "text": "Bugs on Apple silicon wrong text, crashes The release would not start, its cache returned another request's text, and eviction, chunked prefill and cache flushes crashed it (section 11).",
+  "label": "depth",
+  "key": "The release would not start, its cache returned another request's",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "",
+  "text": "Throughput per GPU at matched concurrency in SemiAnalysis InferenceX runs of both engines (DeepSeek-V4-Pro, four GPU types); SGLang vs vLLM .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "evidence tile restating a section; the provenance block lists the evidence"
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "",
+  "text": "The short answer On the same requests the radix tree and vLLM's hash blocks reuse almost exactly the same tokens (section 3).",
+  "label": "core",
+  "key": "The short answer On the same requests the radix tree",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "",
+  "text": "SGLang's edge, where it has one, comes from what sits around the cache: queue ordering when the cache is scarce, the router, structured-output plumbing and the large-scale MoE recipes; and both engines move fast enough that any benchmark older than a few months says little about today.",
+  "label": "core",
+  "key": "SGLang's edge, where it has one, comes from what sits",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "What SGLang is, and where it came from The problem it started from.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "In late 2023 most engines threw a request's KV cache away the moment the request finished.",
+  "label": "core",
+  "key": "In late 2023 most engines threw a request's KV cache",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "Yet real traffic repeats itself: every chat turn resends the whole conversation, every few-shot prompt resends the same examples, an agent resends its growing history on every step, and a self-consistency run asks the same question several times.",
+  "label": "core",
+  "key": "Yet real traffic repeats itself: every chat turn resends the",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "The SGLang paper ( Zheng et al., arXiv 2312.07104 , December 2023, NeurIPS 2024, from the LMSYS group behind Vicuna and Chatbot Arena) proposed two things: a small Python language for programs that make many model calls ( gen , select , fork ), and a runtime that keeps every request's KV cache in a radix tree so those calls share whatever prefix they have in common ( RadixAttention ).",
+  "label": "core",
+  "key": "The SGLang paper ( Zheng et al., arXiv 2312.07104",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "The authors report up to 6.4 times the throughput of the systems they compared against authors' measurement .",
+  "label": "core",
+  "key": "The authors report up to 6.4 times the throughput of",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "Read the early speedups with their baseline The launch blog's \"up to 5x faster\" ( LMSYS, 2024-01-17 ) compared against Guidance and vLLM v0.2.5 , which kept no KV cache across requests at all. vLLM added automatic prefix caching in v0.4.0 on 2024-03-30, off by default at first ( release notes ), and its V1 engine turns it on by default.",
+  "label": "core",
+  "key": "Read the early speedups with their baseline The launch blog's",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "So the 2024 gap was mostly \"cache across requests or not\", which no longer separates the two engines (section 3 measures what is left).",
+  "label": "core",
+  "key": "So the 2024 gap was mostly \"cache across requests or",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "What it is now.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "The frontend language still ships ( python/sglang/lang ), but most deployments use the OpenAI-compatible server, so this page is about the runtime.",
+  "label": "core",
+  "key": "this page is about the runtime",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "Releases came every few weeks: v0.4 (December 2024) added the overlap scheduler, the cache-aware router and XGrammar ( LMSYS, 2024-12-04 ); 2025 brought prefill/decode disaggregation and large-scale expert parallelism for DeepSeek (section 9); 2026 added TPUs through SGLang-Jax and Apple silicon, first through MLX and, from v0.5.22 (PyPI 2026-10-16, which also requires Python 3.11 or newer), through the standard PyTorch backend too ( releases ).",
+  "label": "depth",
+  "key": "Releases came every few weeks: v0.4 (December 2024) added the",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "The release read here, v0.5.21 , was published on 2026-10-02 with 779 pull requests from 227 contributors, and makes a Rust implementation of the prefix-cache tree the default ( release notes ; tag commit e00930c5 ).",
+  "label": "depth",
+  "key": "The release read here, v0.5.21 , was published on 2026-10-02",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "The project is hosted by the non-profit LMSYS and its README lists xAI, NVIDIA, AMD, LinkedIn, Cursor and the large clouds among adopters, \"on over 400,000 GPUs\" ( README ) project's own claim .",
+  "label": "depth",
+  "key": "The project is hosted by the non-profit LMSYS and its",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "How a request flows.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading; the hero figure carries the request flow"
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "Like vLLM, SGLang splits the work across processes that talk over ZeroMQ sockets, so that tokenizing, scheduling and detokenizing never block one another: 1.",
+  "label": "core",
+  "key": "so that tokenizing, scheduling and detokenizing never block one another",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "HTTP server + TokenizerManager Receives the request (OpenAI-compatible or native /generate ), applies the chat template, tokenizes, forwards the token ids.",
+  "label": "core",
+  "key": "OpenAI-compatible or native /generate",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "Scheduler (one per GPU rank) Owns the waiting queue, the radix tree and the KV pool; matches prefixes, picks the next batch, runs the model worker, frees and caches KV when requests finish ( scheduler.py ).",
+  "label": "core",
+  "key": "Owns the waiting queue, the radix tree and the KV",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "DetokenizerManager Turns new token ids back into text incrementally and streams it out ( detokenizer_manager.py ).",
+  "label": "core",
+  "key": "turns new ids into text and streams it",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "On the M1 run here these were three Python processes, the scheduler holding the model through the MLX backend.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "minor run detail; the M1 set-up block names the MLX backend and server"
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. what sglang is, and where it came from",
+  "text": "Everything this page says about caching and ordering happens inside process 2.",
+  "label": "core",
+  "key": "Everything this page says about caching and ordering happens inside",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "The radix tree, from zero The problem.",
+  "label": "core",
+  "key": "The radix tree, from zero The problem",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "A prefix cache must answer one question fast, millions of times: of the tokens this new request starts with, how many have I already computed, and where is their KV?",
+  "label": "core",
+  "key": "A prefix cache must answer one question fast, millions of",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "A plain dictionary from whole prompts to KV only finds exact repeats.",
+  "label": "core",
+  "key": "dictionary from whole prompts",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "A trie (prefix tree) finds the longest shared beginning by walking one token per level, but a 2,000-token system prompt would be 2,000 nodes deep.",
+  "label": "core",
+  "key": "A trie (prefix tree) finds the longest shared beginning by",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "A radix tree is a trie whose edges carry whole runs of tokens: a node is created only where two cached sequences part ways, so the 2,000-token system prompt is one node and each conversation that continues it is one more.",
+  "label": "core",
+  "key": "A radix tree is a trie whose edges carry whole",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "What each node holds ( TreeNode, radix_cache.py L249 ): its run of token ids (the key ), the indices of the KV slots where those tokens' keys and values live in the GPU pool (the value ), its children (indexed by their first token), a lock reference count (how many running requests are using this node right now) and a last-access time for eviction.",
+  "label": "core",
+  "key": "What each node holds ( TreeNode, radix_cache.py L249 ): its",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "The KV itself never moves; the tree only maps token runs to slot numbers, which is why the SGLang authors keep it on the CPU.",
+  "label": "core",
+  "key": "the tree only maps token runs to slot numbers, which",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "The five operations , each with the line in v0.5.21's radix_cache.py that does it: match Walk from the root, following the child whose first token matches, comparing the run token by token ( L639 ).",
+  "label": "core",
+  "key": "the child whose first token matches, comparing",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "The hit is capped at the prompt length minus one, so at least one token is computed to produce the first output ( schedule_batch.py L1702 ). split If the walk stops in the middle of a node's run, that node is cut in two so the shared part becomes its own node ( L665 ).",
+  "label": "core",
+  "key": "The hit is capped at the prompt length minus one",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "Nothing is copied on the GPU; only the slot list is sliced. insert When a request finishes, its prompt and output (all but the last token, whose KV was never computed) are inserted; the part already in the tree is reused and the duplicate slots freed ( L698 ).",
+  "label": "core",
+  "key": "prompt and output (all but the last token, whose KV",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "The leaf is then split at the prompt boundary so the output can be evicted before the prompt. lock A running request increments the lock count of every node on its path ( L583 ); a locked node cannot be evicted, so a prefix in use never disappears under a request. evict When the pool is full, pop the least recently used unlocked leaf , free its slots, and if its parent has just become a childless unlocked leaf, push the parent too ( L553 ).",
+  "label": "core",
+  "key": "split at the prompt boundary so the output can be",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "Eviction eats branches from the tips inward, so the shared trunk survives longest.",
+  "label": "core",
+  "key": "from the tips inward, so the shared trunk survives longest",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "Below, eight requests from a toy bank assistant arrive one at a time and are cached, with a pool of 40 token slots.",
+  "label": "core",
+  "key": "eight requests from a toy bank assistant",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "The same requests then go through vLLM's way of doing it: hash every full block of 4 tokens (vLLM uses 16; 4 keeps the picture readable) and look the hashes up.",
+  "label": "core",
+  "key": "4 keeps the picture readable",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "Watch three differences: the tree shares the tail of a partially filled block and the hash table cannot; the tree evicts whole leaves while the blocks are evicted one at a time; and the bookkeeping is a handful of nodes against a row per block.",
+  "label": "core",
+  "key": "Watch three differences: the tree shares the tail of a",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "Eight requests through a radix tree, then through hash blocks Radix tree (SGLang) Hash blocks of 4 (vLLM-style) One word stands for one token.",
+  "label": "core",
+  "key": "Eight requests through a radix tree, then through hash blocks",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "Both modes run the page's port of the two caches (src/iso/ref.py), which reproduces SGLang's and vLLM's own classes request by request on the traces of section 3.",
+  "label": "core",
+  "key": "Both modes run the page's port of the two caches",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "Pool: 40 slots (10 blocks of 4).",
+  "label": "core",
+  "key": "40 slots (10 blocks of 4",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "Predict: request 6 repeats request 1 word for word (\"You are a bank assistant .",
+  "label": "core",
+  "key": "Predict: request 6 repeats request 1 word for word (\"You",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "What is my balance ?\", 14 tokens) after other requests have filled the pool.",
+  "label": "core",
+  "key": "What is my balance ?\", 14 tokens) after other requests",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "At most how many of its tokens can the radix tree reuse?",
+  "label": "core",
+  "key": "At most how many of its tokens can the radix",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "All 14 13 12, a whole number of blocks None, it was evicted 13.",
+  "label": "core",
+  "key": "All 14 13 12, a whole number of blocks None",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "The match is capped at the prompt length minus one: the last prompt token is always recomputed, because its forward pass is what produces the logits for the first output token (SGLang's _compute_max_prefix_len ; vLLM's max_cache_hit_length = num_tokens - 1 ).",
+  "label": "core",
+  "key": "The match is capped at the prompt length minus one",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "Blocks of 4 reuse 12 (three full blocks inside the first 13 tokens); with vLLM's real 16-token blocks a 14-token prompt reuses nothing.",
+  "label": "core",
+  "key": "Blocks of 4 reuse 12 (three full blocks inside the",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "Step to request 6 in the animation: with this pool both caches still hold it.",
+  "label": "core",
+  "key": "Step to request 6 in the animation: with this pool",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "What it costs, when it matters, how to check Cost: CPU work per request proportional to the matched length (a token-by-token comparison along the path), plus one node object per branch point.",
+  "label": "core",
+  "key": "when it matters, how to check Cost: CPU work",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "No GPU memory beyond the KV the cache keeps instead of freeing; that KV only uses slots that would otherwise sit empty, because eviction gives them back on demand.",
+  "label": "core",
+  "key": "eviction gives them back on demand",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "When it matters: any traffic with repeated beginnings: chat history, shared system prompts, few-shot examples, retrieval over the same documents, agents.",
+  "label": "core",
+  "key": "chat history, shared system prompts, few-shot examples, retrieval over the",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "On one-shot unrelated prompts it does nothing and costs little (the authors report no measurable overhead without hits, launch blog ).",
+  "label": "core",
+  "key": "no measurable overhead without hits, launch blog",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "How to check: every response from SGLang's native API carries meta_info.cached_tokens ; the server log prints #cached-token per prefill batch; with --enable-metrics the Prometheus endpoint exposes the cache hit counters.",
+  "label": "core",
+  "key": "meta_info.cached_tokens",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. the radix tree, from zero",
+  "text": "Compare against a run with --disable-radix-cache .",
+  "label": "core",
+  "key": "compare with --disable-radix-cache",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Radix tree or hash blocks: does the data structure matter?",
+  "label": "core",
+  "key": "Radix tree or hash blocks: does the data structure matter?",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "The old claim, still repeated in comparisons, is that SGLang's tree \"wins on shared-prefix traffic\" against vLLM's block cache.",
+  "label": "core",
+  "key": "is that SGLang's tree \"wins on shared-prefix traffic\" against vLLM's",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Both structures answer the same question, so the claim can be tested directly: replay the same requests through both caches with the same pool size and count the reused tokens.",
+  "label": "core",
+  "key": "can be tested directly: replay the same requests through both",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "That is what was done here, with the engines' own code rather than a re-implementation: SGLang: its default UnifiedRadixCache (Python tree core, a real token allocator and a tiny KV pool on the CPU, set up as in SGLang's own unit tests) and its older RadixCache , both from v0.5.21. vLLM: its own v1 Scheduler and KVCacheManager from v0.31.0, with a fake model runner, exactly as the root's Serving simulator tab checked its own engine.",
+  "label": "depth",
+  "key": "SGLang: its default UnifiedRadixCache (Python tree core, a real token",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Traces: three from the root simulator's generator (a chat assistant with three 600-token system prompts and four turns per conversation; a coding agent with one 2,000-token system prompt and ten growing turns; unrelated one-shot prompts) and one of 160 short questions about eight 800-token documents.",
+  "label": "core",
+  "key": "from the root simulator's generator",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Requests run one at a time, so only the cache differs.",
+  "label": "core",
+  "key": "Requests run one at a time",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Across 4 traces and 6 pool sizes, the three real classes and the page's small port (src/iso/ref.py) agreed on every one of the ... requests replayed, so the Radix lab can run the comparison live at any pool size.",
+  "label": "core",
+  "key": "the page's small port (src/iso/ref.py",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "The result: Share of prompt tokens reused, radix tree against hash blocks, same requests and pool SGLang v0.5.21 radix cache (page size 1) against vLLM v0.31.0 blocks of 16 tokens; capacity in token slots.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "caption of the removed bar chart; the lab card replaces it"
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Replays of the engines' own classes, run here; the page recomputes them with the checked port.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "caption of the removed bar chart"
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Within one percent when the pool is roomy.",
+  "label": "core",
+  "key": "With room for everything they are within one point",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "With room for everything, the tree reuses ... of the chat trace's prompt tokens and the blocks ... ; on the agent trace ... against ... ; on unrelated prompts both reuse nothing.",
+  "label": "core",
+  "key": "of the chat trace's prompt tokens and the blocks",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "The tree's small lead is the tail of the last, partially filled block of each shared prefix, which a hash of full blocks cannot match (up to 15 tokens a request with 16-token blocks).",
+  "label": "core",
+  "key": "The tree's small lead is the tail of the last",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "When the pool is tight, the blocks can win.",
+  "label": "core",
+  "key": "When the pool is tight the blocks can win",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "With 6,000 slots on the document trace the blocks reuse ... and the tree ... .",
+  "label": "core",
+  "key": "With 6,000 slots on the document trace the blocks reuse",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "The reason is eviction granularity: vLLM frees a request's blocks tail first and evicts them one block at a time, so a document can lose its last blocks and keep its first ones, and the next question about it still reuses a prefix.",
+  "label": "core",
+  "key": "so a document can lose its last blocks and keep",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "The tree evicts whole leaf nodes: once a document's questions are gone, the 800-token document node is itself a leaf, and it goes all at once.",
+  "label": "core",
+  "key": "the 800-token document node is itself a leaf",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Bookkeeping differs a lot more than hits.",
+  "label": "core",
+  "key": "Bookkeeping differs far more than hits",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "At the end of the unbounded chat replay the tree holds ... nodes where vLLM holds ... cached blocks, each with its hash.",
+  "label": "core",
+  "key": "At the end of the unbounded chat replay the tree",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "A tree lookup compares tokens along one path; a block lookup hashes every full block of the prompt (vLLM uses SHA-256 by default, cache.py L144 ).",
+  "label": "core",
+  "key": "A tree lookup compares tokens along one path; a block",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Both are cheap next to a forward pass, and SGLang moved its tree to Rust in v0.5.21 precisely to keep that CPU work small.",
+  "label": "core",
+  "key": "Both are cheap next to a forward pass, and SGLang",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Predict: in the agent trace each turn resends the whole conversation (2,000-token system prompt plus every earlier turn).",
+  "label": "core",
+  "key": "agent trace each turn resends the whole conversation (2,000-token system",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "The pool grows from 24,000 to 48,000 token slots.",
+  "label": "core",
+  "key": "The pool grows from 24,000 to 48,000 token slots",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "What happens to the share of prompt tokens reused?",
+  "label": "core",
+  "key": "What happens to the share of prompt tokens reused?",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Barely moves: the system prompt is already cached Rises a little, about 5 points Jumps by more than 25 points Falls: more to search It jumps from about 70% to 97%.",
+  "label": "core",
+  "key": "Barely moves: the system prompt is already cached Rises a",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "The agent's conversations interleave in time, and each one's history (thousands of tokens) has to survive until its next turn arrives 15 seconds later.",
+  "label": "core",
+  "key": "The agent's conversations interleave in time, and each one's history",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "At 24,000 slots the least recently used histories are evicted before they come back; at 48,000 they all fit.",
+  "label": "core",
+  "key": "At 24,000 slots the least recently used histories are evicted",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Hit rate is a cliff, not a slope, in the working-set size: the capacity planning question is whether the live histories fit, which the Capacity planner tab can size in GB.",
+  "label": "core",
+  "key": "Hit rate is a cliff, not a slope, in the",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "And on the real engine? ...",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "empty placeholder filled by script; its content is hand unit h-m1-mt"
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "So what does differ between the engines?",
+  "label": "core",
+  "key": "So what does differ between the engines?",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. radix tree or hash blocks: does the data structure matter?",
+  "text": "Not how many tokens the cache can reuse, but what the engine does with it: whether the scheduler orders the queue to reuse it before it is evicted (section 4), whether the router keeps a conversation on the replica that holds it (section 8), how big the pages are (SGLang's page size 1 matches to the token; most fast attention kernels want 16 or more, and SGLang uses 64 or 128 with some of them, overrides.py L1068 ), and how the cache spills to host memory and disk (HiCache, section 7; vLLM's offload connectors, Batching, KV cache and scheduling in depth ).",
+  "label": "core",
+  "key": "Not how many tokens the cache can reuse, but what",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "Cache-aware scheduling: the order of the queue The problem.",
+  "label": "core",
+  "key": "Cache-aware scheduling: the order of the queue The problem",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "When many requests wait at once and the KV pool cannot hold every shared prefix, the order in which the scheduler admits them decides whether a prefix is reused or evicted before its siblings arrive.",
+  "label": "core",
+  "key": "When many requests wait at once and the KV pool",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "Picture 160 questions about eight long documents, sent at once in a shuffled order, with a pool that holds about three documents.",
+  "label": "core",
+  "key": "documents, sent at once in a shuffled order, with a",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "First come, first served visits the documents at random: a document is computed, evicted to make room for the next one, and computed again a few requests later.",
+  "label": "core",
+  "key": "First come, first served visits the documents at random",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "How SGLang orders the queue.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "Before every prefill batch the scheduler matches each waiting request against the tree and sorts the queue by a schedule policy ( calc_priority, schedule_policy.py L260 ): fcfs (the default) Arrival order.",
+  "label": "core",
+  "key": "Before every prefill batch the scheduler matches each waiting request",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "The default since v0.4.4 (2025-03-13); v0.3 to v0.4.3 defaulted to lpm ( server_args.py at v0.4.3 and at v0.4.4 ).",
+  "label": "core",
+  "key": "The default since v0.4.4 (2025-03-13); v0.3 to v0.4.3 defaulted to",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "The release notes we read do not give the reason unconfirmed . lpm: longest prefix match Requests with the longest cached prefix go first, so what is cached is used before it can be evicted ( L477 ).",
+  "label": "core",
+  "key": "do not give the reason unconfirmed . lpm: longest prefix",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "The docs suggest it \"if the workload has many shared prefixes\" and warn of more scheduling overhead ( hyperparameter tuning ). in-batch prefix caching (inside lpm) If several waiting requests share 32 or more tokens that are not yet cached, only the first is admitted now; the rest move to the back and hit the cache once it is computed ( L373 , thresholds 32 and 32 at L100 ).",
+  "label": "core",
+  "key": "The docs suggest it \"if the workload has many shared",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "Without it, ten questions about an uncached document in one batch would each compute the document. dfs-weight Walk the tree depth first, heaviest subtree (most waiting requests) first, and admit in that order ( base_prefix_cache.py L325 ).",
+  "label": "core",
+  "key": "Without it, ten questions about an uncached document in one",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "The SGLang paper proves that for a fixed batch, visiting the tree depth first gives the optimal hit rate when the cache holds at least the longest request, and that longest-prefix-first is equivalent (Theorem 3.1, arXiv 2312.07104 ). the 128 cliff With more than 128 requests waiting, lpm (and hrrn ) silently fall back to arrival order to save the sorting cost ( _determine_active_policy, L331 ). dfs-weight has no such cut-off.",
+  "label": "core",
+  "key": "gives the optimal hit rate when the cache holds at",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "The Scheduling lab runs a simplified prefill loop: rounds of admission under a token budget, each round run to completion, the tree from section 2.",
+  "label": "depth",
+  "key": "the numbers are the policy's effect in isolation",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "SGLang's own SchedulePolicy was run alongside on a shadow tree and produced the identical order in every one of the ... queues checked.",
+  "label": "depth",
+  "key": "was run alongside on a shadow",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "Over ten shuffled arrival orders of 96 questions on eight documents with a 3,000-token pool, the share of prompt tokens served from cache was: With 160 questions, more than 128 wait at the start, so lpm behaves like fcfs until the queue drains below the cliff and loses its lead to dfs-weight ; with a 6,000-token pool, which holds most documents, every order lands within a few points: ... .",
+  "label": "core",
+  "key": "lpm behaves like fcfs until the queue drains below the",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "Ordering pays only when the cache is scarce relative to the prefixes waiting for it.",
+  "label": "core",
+  "key": "Ordering pays only when the cache is scarce relative to",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "Measured on the real engine.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "SGLang v0.5.21 on the M1 Pro: 64 questions (40 tokens each) about 8 documents of 800 tokens, all sent at once in a fixed shuffled order, 16 output tokens each, at most 8 requests running, two runs per policy (a server restarted for each).",
+  "label": "depth",
+  "key": "64 questions (40 tokens each) about 8 documents of 800",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "The pool had to be roomy (24,000 tokens): on this backend the server crashed whenever the radix cache had to evict (section 11), so the scarce-cache case above could not be run for real.",
+  "label": "depth",
+  "key": "crashed whenever the radix cache had to evict (section 11",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "What still separates the policies with a roomy pool is in-batch sharing: arrival order puts several questions about the same, not yet cached document into one batch, and each computes the document; lpm admits one of them and holds the rest until it is cached.",
+  "label": "depth",
+  "key": "What still separates the policies",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "The details and every run are on the SGLang on the M1 tab.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab"
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "Predict: you enable --schedule-policy lpm on a busy server where 300 requests are usually waiting.",
+  "label": "core",
+  "key": "Predict: you enable --schedule-policy lpm on a busy server where",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "How much does the queue order change?",
+  "label": "core",
+  "key": "How much does the queue order change?",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "Fully reordered by prefix length Only the first 128 are reordered Reordered, but in-batch caching is turned off Not at all while more than 128 wait Not at all.",
+  "label": "core",
+  "key": "Fully reordered by prefix length Only the first 128 are",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "With more than 128 requests waiting, _determine_active_policy returns FCFS for lpm , so the sort is skipped entirely, and it comes back only when the queue drains.",
+  "label": "core",
+  "key": "With more than 128 requests waiting, _determine_active_policy returns FCFS for",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "On a server that is always deep in backlog, lpm does nothing; dfs-weight has no cut-off but costs a tree walk per scheduling pass.",
+  "label": "core",
+  "key": "always deep in backlog, lpm does nothing; dfs-weight has no",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "The real fix for a permanent backlog is more capacity or a router that keeps related requests together (section 8).",
+  "label": "core",
+  "key": "The real fix for a permanent backlog is more capacity",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "What it costs, when it matters, how to check Cost: one prefix match per waiting request per scheduling pass, plus the sort; and fairness: a request whose prefix nobody shares can wait behind a stream of cache hits.",
+  "label": "core",
+  "key": "pass, plus the sort; and fairness: a request whose prefix",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "The paper names this starvation risk and leaves fairness to future work; SGLang now offers hrrn (highest response ratio next, aging by processed tokens, L496 ) and priority scheduling.",
+  "label": "core",
+  "key": "SGLang now offers hrrn (highest response ratio next, aging by",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "When it matters: offline batch jobs and bursts (evaluations, synthetic data, RL rollouts with many samples per prompt, retrieval over a shared corpus) where the queue is deep and the cache smaller than the set of hot prefixes.",
+  "label": "core",
+  "key": "offline batch jobs and bursts (evaluations, synthetic data, RL rollouts",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "At steady low load the queue is nearly empty and every policy is FCFS.",
+  "label": "core",
+  "key": "At steady low load the queue is nearly empty and",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. cache-aware scheduling: the order of the queue",
+  "text": "How to check: the prefill log line's #cached-token against #new-token , the per-request cached_tokens , and the total time of a fixed batch, with each policy in turn.",
+  "label": "core",
+  "key": "per-request cached_tokens , and the total time of a fixed",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "The overlap scheduler: hiding the CPU behind the GPU The problem.",
+  "label": "core",
+  "key": "The overlap scheduler: hiding the CPU behind the GPU The",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "Every decode step has CPU work around the GPU work: pick the batch, allocate KV slots, match prefixes, build the input tensors, then, after the forward pass, read the sampled tokens back, check stop conditions, free finished requests and insert them into the tree.",
+  "label": "core",
+  "key": "Every decode step has CPU work around the GPU work",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "In a plain loop the GPU waits while the CPU does all of this.",
+  "label": "core",
+  "key": "In a plain loop the GPU waits",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "On a large model the forward pass is long and the CPU share small; on a small model, or with many GPUs splitting each step so each one's share of the forward is short, the CPU share can be large.",
+  "label": "core",
+  "key": "forward is short, the CPU share can be large",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "The SGLang v0.4 post says an unoptimized engine \"can spend as much as half of its time on CPU overhead\" ( LMSYS, 2024-12-04 ) project's claim .",
+  "label": "core",
+  "key": "The SGLang v0.4 post says an unoptimized engine \"can spend",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "The overlap loop ( event_loop_overlap, scheduler.py L1941 ) launches batch k on the GPU without waiting for it, then processes the results of batch k minus 1 and schedules batch k plus 1 while the GPU is busy.",
+  "label": "core",
+  "key": "The overlap loop ( event_loop_overlap, scheduler.py L1941 ) launches batch",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "The catch is that batch k plus 1 needs the tokens batch k has not produced yet; SGLang passes them as placeholders that the GPU fills in when it gets there (the FutureMap , overlap_utils.py L248 ).",
+  "label": "core",
+  "key": "the GPU fills in when it gets there (the FutureMap",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "The plain loop is still there ( event_loop_normal, L1906 ) behind --disable-overlap-schedule .",
+  "label": "core",
+  "key": "event_loop_normal, L1906 ) behind --disable-overlap-schedule",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "The idea is NanoFlow's, as the v0.4 post credits; vLLM's asynchronous scheduling does the same job.",
+  "label": "core",
+  "key": "The idea is NanoFlow's, as the v0.4 post credits; vLLM's",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "Five decode steps, plain loop against overlap loop Plain loop Overlap loop Measured on the M1. ...",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card title and placeholder; the overlap card keeps its own title"
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "What it costs, when it matters, how to check Cost: complexity, one extra step of latency in noticing that a request finished (its slot frees one step late), and a sync point wherever the CPU must see a token before building the next step: on the Apple backend a batch with a grammar or a custom logit processor cannot be chained ( scheduler_mixin.py ); on GPUs SGLang syncs for grammars only with some speculative-decoding algorithms ( L2015 ).",
+  "label": "core",
+  "key": "wherever the CPU must see a token before building the",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "When it matters: small models, low batch sizes, many GPUs per model, fast GPUs: whenever a forward pass is a few milliseconds.",
+  "label": "core",
+  "key": "small models, low batch sizes, many GPUs per model, fast",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "The v0.4 post measured 1.1 times its previous version and says the gain is largest \"on small models and large tensor parallelism sizes\" vendor .",
+  "label": "core",
+  "key": "The v0.4 post measured 1.1 times its previous version and",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. the overlap scheduler: hiding the cpu behind the gpu",
+  "text": "How to check: a profiler timeline (Nsight Systems on NVIDIA) shows gaps between kernels in the plain loop and none with overlap; without one, compare decode throughput at concurrency 1 with and without --disable-overlap-schedule , as done here.",
+  "label": "core",
+  "key": "check: a profiler timeline (Nsight Systems on NVIDIA) shows gaps",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "Structured output: grammars, masks and the jump-forward that was removed The problem.",
+  "label": "core",
+  "key": "and the jump-forward that was removed",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "A tool call or an API response must be valid JSON matching a schema.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; constrained decoding is defined in the section's first sentence"
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "Asking nicely fails some of the time; constrained decoding makes failure impossible by setting the probability of every token that would break the grammar to zero before sampling.",
+  "label": "core",
+  "key": "the probability of every token that would break",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "The grammar (a JSON schema, a regular expression or an EBNF grammar) is compiled into an automaton; at every step the engine computes a token mask over the whole vocabulary (151,936 tokens for Qwen3) and applies it to the logits.",
+  "label": "core",
+  "key": "a token mask over the whole vocabulary (151,936 tokens for",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "How SGLang does it now.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "The default backend is XGrammar ( serving_hook.py L219 ), with llguidance and outlines selectable by --grammar-backend .",
+  "label": "core",
+  "key": "The default backend is XGrammar ( serving_hook.py L219 ), with",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "XGrammar splits the vocabulary into tokens whose validity is known from the grammar position alone (checked ahead of time) and the few that need the parser's stack at run time, and overlaps the mask computation with the GPU's forward pass; its paper reports up to 100 times faster than earlier engines ( Dong et al., arXiv 2411.15100 ) authors' measurement .",
+  "label": "owned:systems_and_performance/topic_inference_and_serving/sampling_and_decoding",
+  "key": "context-independent ones, whose validity depends only on the automaton",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "A request asks for it with json_schema , regex or ebnf in its sampling parameters, or the OpenAI response_format .",
+  "label": "core",
+  "key": "A request asks for it with json_schema , regex or",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "The compressed FSM, and what became of it.",
+  "label": "core",
+  "key": "The compressed FSM, and what became of it",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "In February 2024 SGLang introduced jump-forward decoding : where the grammar allows only one continuation (the key {\"name\": \" in a schema, say), append that whole string in one prefill step instead of decoding it token by token, with the radix tree keeping the KV; the post reported up to 2 times lower latency and 2.5 times higher throughput than Outlines with vLLM ( LMSYS, 2024-02-05 ) vendor .",
+  "label": "core",
+  "key": "In February 2024 SGLang introduced jump-forward decoding : where the",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "It was removed in v0.4.4 \"to simplify the code maintenance\" ( PR #4032, merged 2025-03-03 ).",
+  "label": "core",
+  "key": "It was removed in v0.4.4 \"to simplify the code maintenance\"",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "In v0.5.21 the backends still define try_jump_forward ( xgrammar_backend.py L167 ) but nothing in the scheduler calls it, so no current SGLang release jump-forwards.",
+  "label": "core",
+  "key": "In v0.5.21 the backends still define try_jump_forward ( xgrammar_backend.py L167",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "Measured on the M1. ...",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "empty placeholder filled by script; its content is hand unit h-m1-json"
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "What it costs, when it matters, how to check Cost: compiling the grammar (cached per schema, so the first request with a new schema pays it), a vocabulary-sized mask per step, and on some paths the loss of CPU/GPU overlap.",
+  "label": "core",
+  "key": "when it matters, how to check Cost: compiling the grammar",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "A constrained answer is also not the answer the model wanted: masking forces a different token where the model's choice was invalid, which can lower quality; reasoning models are usually left unconstrained while they think ( structured outputs for reasoning models ).",
+  "label": "core",
+  "key": "A constrained answer is also not the answer the model",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "When it matters: tool calling and any machine-read output.",
+  "label": "core",
+  "key": "tool calling and any machine-read output",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "The serving-time trade-offs (overhead under load, measured with llama.cpp grammars) are on LLM serving in production .",
+  "label": "core",
+  "key": "The serving-time trade-offs (overhead under load, measured with llama.cpp grammars",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "6. structured output: grammars, masks and the jump-forward that was removed",
+  "text": "How to check: parse every response (here every constrained one parsed, see the M1 tab), and compare time per output token with and without the schema at the same output length.",
+  "label": "core",
+  "key": "and compare time per output token with and without the",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "7. running and tuning a server",
+  "text": "Running and tuning a server A server starts with one command ( sglang serve --model-path ... , or the older python -m sglang.launch_server ) and serves the OpenAI API plus a native /generate endpoint.",
+  "label": "core",
+  "key": "Running and tuning a server A server starts with one",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "7. running and tuning a server",
+  "text": "The knobs that matter, with their v0.5.21 defaults read in source: Flag Default What it trades --mem-fraction-static chosen by a heuristic Share of GPU memory for weights plus the KV pool.",
+  "label": "core",
+  "key": "The knobs that matter, with their v0.5.21 defaults read in",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "7. running and tuning a server",
+  "text": "Higher means more cached tokens and bigger batches, until activations or CUDA graphs run out of memory; the docs say to leave 5 to 8 GB free and read available_gpu_mem in the start-up log ( hyperparameter tuning ). --max-total-tokens derived from the line above Caps the KV pool in tokens (the experiments here set it to make the cache scarce). --chunked-prefill-size 2,048 under 20 GB of GPU memory; 4,096 under 60 GB; 8,192 for H100 and H200; 16,384 above ( memory_hook.py L88 ) Longest piece of a prompt computed in one step.",
+  "label": "core",
+  "key": "Higher means more cached tokens and bigger batches, until activations",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "7. running and tuning a server",
+  "text": "Smaller means decode steps wait less behind a long prefill (lower inter-token latency) and less activation memory, at some prefill throughput; -1 turns chunking off.",
+  "label": "core",
+  "key": "Smaller means decode steps wait less behind a long prefill",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "7. running and tuning a server",
+  "text": "The trade is measured on Batching, KV cache and scheduling in depth . --max-prefill-tokens 16,384 ( schedule.py L67 ) Prefill tokens admitted per batch. --max-running-requests bounded by the pool Concurrency cap; lower it if decode runs out of memory. --schedule-policy fcfs Section 4. lpm or dfs-weight for deep queues over shared prefixes. --schedule-conservativeness 1.0 ( L135 ) How much KV the scheduler reserves for the outputs of admitted requests.",
+  "label": "core",
+  "key": "The trade is measured on Batching, KV cache and scheduling",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "7. running and tuning a server",
+  "text": "Lower (0.3) admits more when requests stop early; higher (1.3) if the log keeps saying KV cache pool is full.",
+  "label": "core",
+  "key": "Lower (0.3) admits more when requests stop early; higher (1.3",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "7. running and tuning a server",
+  "text": "Retract requests (retraction is SGLang's word for preemption: the request is pushed back to the queue and recomputed). --page-size 1 (64 or 128 with some attention backends) Granularity of the KV pool and the tree. --radix-eviction-policy lru lfu or slru for a stable hot set, priority with priority scheduling, tlru to keep only the history each conversation's next turn needs to meet a TTFT budget ( eviction policies ; T-LRU is arXiv 2510.15152 ). --enable-hierarchical-cache off ( memory.py L99 ) HiCache : the tree spans GPU memory (L1), host memory (L2, twice the GPU pool by default) and optionally storage shared across machines (L3: file, Mooncake, 3FS, NIXL, AIBrix), so evicted prefixes are copied back instead of recomputed ( HiCache design ). --disable-overlap-schedule , --grammar-backend , --enable-metrics overlap on, xgrammar, metrics off Sections 5 and 6; Prometheus metrics at /metrics . --tp , --dp , --ep , --enable-dp-attention 1, 1, 1, off Section 9.",
+  "label": "core",
+  "key": "Retract requests (retraction is SGLang's word for preemption: the request",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "7. running and tuning a server",
+  "text": "Each decode batch prints a line such as #running-req: 233, #token: 370959, token usage: 0.82, gen throughput (token/s): 4594.01, #queue-req: 317 (the docs' example on an H100-class GPU).",
+  "label": "core",
+  "key": "Each decode batch prints a line such as #running-req: 233",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "7. running and tuning a server",
+  "text": "Token usage above 0.9 with a queue means the pool is the limit; a queue of 0 in an offline job means the client is not sending fast enough (the docs suggest 100 to 2,000 waiting for offline throughput); frequent retraction means the scheduler admitted more than fit.",
+  "label": "core",
+  "key": "Token usage above 0.9 with a queue means the pool",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "7. running and tuning a server",
+  "text": "The prefill lines print #new-token and #cached-token , the radix tree's hit for that batch.",
+  "label": "core",
+  "key": "The prefill lines print #new-token and #cached-token , the radix",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "The router: keeping a conversation where its cache is The problem.",
+  "label": "core",
+  "key": "The router: keeping a conversation where its cache is The",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "With several replicas of a model (data parallelism), each has its own radix tree.",
+  "label": "core",
+  "key": "With several replicas of a model",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "A round-robin load balancer sends a conversation's next turn to a replica that has never seen it, so the cache hit rate falls toward one over the number of replicas.",
+  "label": "core",
+  "key": "A round-robin load balancer sends a conversation's next turn to",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "Sending every request to the replica with its prefix concentrates popular prefixes on one replica.",
+  "label": "core",
+  "key": "Sending every request to the replica",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "The router has to trade cache affinity against load.",
+  "label": "core",
+  "key": "The router has to trade cache affinity against load",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "How SGLang's router decides ( cache_aware.rs, select_worker L387 ).",
+  "label": "core",
+  "key": "cache_aware.rs, select_worker L387",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "The router (now the SGLang Model Gateway, written in Rust) keeps an approximate radix tree per worker of the request texts it has sent there, in characters rather than tokens so it never tokenizes, and never asks the workers what they actually hold.",
+  "label": "core",
+  "key": "The router (now the SGLang Model Gateway, written in Rust",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "For each request: If the load is imbalanced (the busiest worker has more than balance_abs_threshold requests more than the idlest and more than balance_rel_threshold times as many), send it to the least loaded worker.",
+  "label": "core",
+  "key": "the busiest worker has more than balance_abs_threshold requests more than",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "Otherwise find the worker whose tree matches the longest prefix of the text.",
+  "label": "core",
+  "key": "a prefix match counts when the matched share exceeds",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "If the matched share exceeds cache_threshold , send it there.",
+  "label": "core",
+  "key": "the matched share exceeds cache_threshold",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "Otherwise send it to the least loaded worker (the file's header comment says \"smallest tree size\"; the code picks the least loaded, ties broken at random).",
+  "label": "core",
+  "key": "\"smallest tree size\"; the code picks the least loaded, ties",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "Insert the text into the chosen worker's tree; trees are trimmed least recently used on a timer.",
+  "label": "core",
+  "key": "trees are trimmed least recently used on a timer",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "The command-line defaults are a 0.3 cache threshold, 64 requests absolute and 1.5 times relative imbalance, eviction every 120 s and up to 2 26 tree nodes ( main.rs L150-170 ); the Rust struct's own Default (0.5, 32, 1.1, 30 s, 10,000) and the Python launcher (eviction 60 s) disagree with them, so check which entry point you use.",
+  "label": "core",
+  "key": "The command-line defaults are a 0.3 cache threshold, 64 requests",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "At those defaults the imbalance rule may never act: replaying the Mooncake conversation trace on three real replicas, LLM serving in production (Reading and its Router lab) never saw it fire, because no replica ever had more than 10 requests in flight, far below 64 measured there .",
+  "label": "core",
+  "key": "At those defaults the imbalance rule may never act: replaying",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "The v0.4 post reported 1.9 times the throughput and a hit rate of 75% against 20% with 8 replicas on a workload of long shared-prefix groups ( LMSYS, 2024-12-04 ) vendor, one workload .",
+  "label": "core",
+  "key": "The v0.4 post reported 1.9 times the throughput and a",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "The other policies are round_robin , random , power_of_two (pick the less loaded of two random workers), prefix_hash , consistent_hashing and bucket ( policies/ ).",
+  "label": "depth",
+  "key": "The other policies are round_robin , random , power_of_two (pick",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "A router in front of real replicas, measured on this machine against round robin and least-loaded, is on LLM serving in production ; the routing picture is on the root's Reading tab, section 9.",
+  "label": "depth",
+  "key": "against round robin and least-loaded, is on LLM serving in",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "8. the router: keeping a conversation where its cache is",
+  "text": "The gateway also does prefill/decode routing, retries, circuit breakers, rate limits and tokenization in Rust ( README ).",
+  "label": "depth",
+  "key": "The gateway also does prefill/decode routing, retries, circuit breakers, rate",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "9. large scale: deepseek on 96 gpus and on a rack",
+  "text": "Large scale: DeepSeek on 96 GPUs and on a rack SGLang's large-scale recipes target mixture-of-experts models such as DeepSeek-V3/R1 (671 billion parameters, 37 billion active per token, 256 routed experts per layer, multi-head latent attention with one compressed KV vector per token).",
+  "label": "core",
+  "key": "Large scale: DeepSeek on 96 GPUs and on a rack",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "9. large scale: deepseek on 96 gpus and on a rack",
+  "text": "Serving them well needs four ideas, each explained in depth on Distributed and disaggregated serving : DP attention With MLA there is a single KV head, so splitting attention across GPUs by heads (tensor parallelism) would copy the whole KV cache to every GPU.",
+  "label": "core",
+  "key": "DP attention With MLA there is a single KV",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "9. large scale: deepseek on 96 gpus and on a rack",
+  "text": "SGLang instead runs attention data-parallel, each GPU holding different requests' KV, and gathers only around the expert layers; v0.4 reported 1.9 times decode throughput from it vendor .",
+  "label": "core",
+  "key": "each GPU holding different requests' KV, and gathers only around",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "9. large scale: deepseek on 96 gpus and on a rack",
+  "text": "Expert parallelism (EP) with DeepEP Each GPU holds a slice of the experts; every token is sent to the GPUs holding its chosen experts and back (all-to-all), with DeepEP's normal mode for prefill and low-latency mode for decode ( --moe-a2a-backend deepep , EP docs ).",
+  "label": "core",
+  "key": "with DeepEP Each GPU holds a slice of the experts",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "9. large scale: deepseek on 96 gpus and on a rack",
+  "text": "EPLB Some experts are far more popular; DeepSeek's expert-parallel load balancer replicates hot experts into redundant slots (256 plus 32 = 288), which also allows 12 or 72 GPUs instead of powers of two.",
+  "label": "core",
+  "key": "DeepSeek's expert-parallel load balancer replicates hot experts into redundant slots",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "9. large scale: deepseek on 96 gpus and on a rack",
+  "text": "Two-batch overlap Split the batch in two so one half's all-to-all runs while the other half computes; on GB200 NVL72's faster links SGLang moved to finer single-batch overlap.",
+  "label": "core",
+  "key": "Two-batch overlap Split the batch in two so one half's",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "9. large scale: deepseek on 96 gpus and on a rack",
+  "text": "Prefill/decode disaggregation Prefill and decode run on different GPU pools and the KV cache moves between them over a transfer backend: v0.5.21 offers six, mooncake (the default), nixl , mooncake_tcp , mori , ascend and fake for tests ( choices.py L120-127 , PD docs ; more on Distributed and disaggregated serving ); v0.5.21 lets an instance switch role without a restart ( #28403 ).",
+  "label": "core",
+  "key": "mooncake (the default), nixl , mooncake_tcp , mori , ascend",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "9. large scale: deepseek on 96 gpus and on a rack",
+  "text": "The published numbers , all the SGLang team's own vendor , with what each measured: Post Set-up Result Read it as 2025-05-05 DeepSeek-V3, 12 nodes of 8 H100 (96 GPUs): prefill on 4 nodes (EP32), decode on 9 (EP72), 2,000-token inputs 52.3k input and 22.3k output tokens/s per node; decode 22,282 tokens/s per node with a batch of 256 sequences; up to 5 times vanilla TP; \"$0.20 per 1M output tokens\" Prefill and decode measured separately, each assuming the other phase unlimited; the dollar figure is a derived local cost, not a price 2025-09-25 DeepSeek-V3/R1 on GB200 NVL72, FP8 attention and NVFP4 experts, 2,000-token inputs 26,156 input and 13,386 output tokens/s per GPU, 3.8 and 4.8 times the H100 setting; 18,471 and 9,087 at BF16 attention and FP8 GEMMs Lower precision accounts for up to 1.8 and 1.9 times of it 2026-02-20 DeepSeek-R1 on GB300 NVL72 against H200, in SemiAnalysis InferenceX \"Up to 25x\" Measured at 50 tokens/s per user; the post itself says that without the latency constraint H200 reaches similar throughput to its earlier figures.",
+  "label": "depth",
+  "key": "Post Set-up Result Read it as 2025-05-05 DeepSeek-V3, 12 nodes",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "9. large scale: deepseek on 96 gpus and on a rack",
+  "text": "A ratio at one interactivity point Matching DeepSeek's own published serving profile was the stated goal of the first post: with simulated perfect expert balance SGLang's prefill came within 6% of DeepSeek's profile, and decode with simulated multi-token prediction within 6.6% vendor .",
+  "label": "depth",
+  "key": "A ratio at one interactivity point Matching DeepSeek's own published",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "9. large scale: deepseek on 96 gpus and on a rack",
+  "text": "None of this was run here: it needs dozens of datacenter GPUs.",
+  "label": "core",
+  "key": "None of this was run here: it needs dozens of",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "9. large scale: deepseek on 96 gpus and on a rack",
+  "text": "The arithmetic of expert and tensor parallelism (bytes per token over each link, why EP crosses nodes) is computed on Distributed and disaggregated serving with the root's Capacity planner .",
+  "label": "depth",
+  "key": "The arithmetic of expert and tensor parallelism (bytes per token",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "10. sglang or vllm?",
+  "text": "What the independent data says.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "10. sglang or vllm?",
+  "text": "On DeepSeek-V4-Pro in SemiAnalysis InferenceX (single node, no speculative decoding, builds from June to September 2026), neither engine dominates: ...",
+  "label": "core",
+  "key": "no speculative decoding, builds from June to September 2026",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "10. sglang or vllm?",
+  "text": "The SGLang vs vLLM tab plots every run with its build, date and parallel recipe, next to each project's own claims with their baselines.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab; the chart is inline now"
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "10. sglang or vllm?",
+  "text": "What this page measured.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "10. sglang or vllm?",
+  "text": "The prefix caches reuse the same tokens (section 3); the difference lies in the queue policies (section 4, both default to FCFS), the router (section 8) and the large-scale MoE recipes (section 9).",
+  "label": "core",
+  "key": "The prefix caches reuse the same tokens (section 3); the",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "10. sglang or vllm?",
+  "text": "The comparison of the old page that rested on unsourced percentages is dropped.",
+  "label": "depth",
+  "key": "no measurement found supports either figure, so they are dropped",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "10. sglang or vllm?",
+  "text": "If your situation is Lean towards Why, and how to check Deep bursts of requests sharing long prefixes (evaluations, synthetic data, RL rollouts, retrieval over a corpus) SGLang with --schedule-policy lpm or dfs-weight Cache-aware ordering, absent from vLLM's policies; check #cached-token and batch time, and keep the waiting queue under 128 for lpm .",
+  "label": "core",
+  "key": "If your situation is Lean towards Why, and how to",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "10. sglang or vllm?",
+  "text": "Many replicas, multi-turn chat or agents Either, with a prefix-aware router SGLang's gateway or llm-d's scheduler for vLLM; the router matters more than the engine (section 8).",
+  "label": "core",
+  "key": "Many replicas, multi-turn chat or agents Either, with a prefix-aware",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "10. sglang or vllm?",
+  "text": "DeepSeek-class MoE on many GPUs, PD disaggregation SGLang's published recipes, or vLLM's wide-EP and Dynamo Both have recipes; reproduce on your hardware ( Distributed and disaggregated serving ).",
+  "label": "core",
+  "key": "DeepSeek-class MoE on many GPUs, PD disaggregation SGLang's published recipes",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "10. sglang or vllm?",
+  "text": "A model, quantization or chip one engine supports and the other does not That engine Check each project's supported-model list for your exact checkpoint before benchmarking anything.",
+  "label": "core",
+  "key": "A model, quantization or chip one engine supports and the",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "10. sglang or vllm?",
+  "text": "Anything else Run both on your own traffic Same model, precision, GPU, prompt and output lengths, concurrency sweep, TTFT and TPOT percentiles ( LLM serving in production on honest load testing).",
+  "label": "core",
+  "key": "Anything else Run both on your own traffic Same model",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "Running SGLang on a Mac, and what broke Since 2026 SGLang runs natively on Apple silicon: with SGLANG_USE_MLX=1 the scheduler, radix cache and API are SGLang's own, and the forward pass runs in Apple's MLX ( Apple Metal docs ).",
+  "label": "core",
+  "key": "with SGLANG_USE_MLX=1 the scheduler, radix cache and API are SGLang's",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "That is what made the measurements on this page possible on a laptop.",
+  "label": "core",
+  "key": "measurements on this page",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "From v0.5.22 Apple silicon also runs with the standard PyTorch backend, without MLX; everything below is the MLX path on v0.5.21.",
+  "label": "core",
+  "key": "From v0.5.22 Apple silicon also runs",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "It is installed from source (no macOS wheel on PyPI: the v0.5.21 wheels are Linux only) with the srt_mps extra, which brings PyTorch 2.13.0, MLX and XGrammar 0.2.7.",
+  "label": "depth",
+  "key": "installed from source (no macOS wheel on PyPI: the v0.5.21",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "Several problems surfaced, and the way they were found is the useful part: 1.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "It did not start v0.5.21 stopped at start-up with AttributeError: 'MlxModelRunnerStub' object has no attribute 'kv_cache_configurator' .",
+  "label": "core",
+  "key": "AttributeError: 'MlxModelRunnerStub' object has no attribute 'kv_cache_configurator'",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "A refactor of the token-capacity code had not been carried to the Apple path; the fix ( PR #41314 , merged 2026-09-30) landed one day after the release's tag commit.",
+  "label": "depth",
+  "key": "A refactor of the token-capacity code had not been carried",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "Applying its seven-line property let the server start.",
+  "label": "depth",
+  "key": "Applying its seven-line property let the server start",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "It answered the wrong question With the cache on, send A, then an unrelated B, then A again, all greedy: the second A came back as unrelated text ( \"a) the number of employees in the company...\" ) with 25 of its 26 prompt tokens reported cached.",
+  "label": "depth",
+  "key": "\"a) the number of employees in the company...\"",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "Disabling the radix cache made it go away, which pointed at the cache.",
+  "label": "depth",
+  "key": "Disabling the radix cache made it go away, which pointed",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "This is open issue #42415 (reported on v0.5.20); the open pull request #42542 traces it to chained decode steps writing a finished request's KV into slots the tree still points at.",
+  "label": "depth",
+  "key": "#42542 traces it to chained decode steps writing a finished",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "With that patch applied the repeat answered A again, every time.",
+  "label": "depth",
+  "key": "the repeat answered A again, every time",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "Not a bug: cached and uncached answers differ Even patched, the cached A diverged from the uncached A after eight tokens (\"is used to store\" against \"represents the hierarchical\").",
+  "label": "core",
+  "key": "Even patched, the cached A diverged from the uncached A",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "MLX-LM alone, with no SGLang, does the same when the prompt is computed in two pieces instead of one: the top two candidates were within 0.125 of each other in logit at that step, and computing in a different order rounds differently.",
+  "label": "depth",
+  "key": "MLX-LM alone, with no SGLang, does the same when the",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "Prefix caching is exact in arithmetic, not in floating point.",
+  "label": "core",
+  "key": "Prefix caching is exact in arithmetic, not in floating point",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "Crashes The server died with [METAL] Command buffer execution failed: Insufficient Memory , with gigabytes free, in several situations: every time the radix cache had to evict (a 3,000-token pool and 840-token prompts one at a time, with and without the patch of item 2); every time a prefill batch mixed a chunked prompt (512-token chunks) with other requests; on a burst of requests sent after /flush_cache (seen in two runs, not isolated further); and in every run of the overlap experiment (32 requests of 128 tokens in and out, one after another), with the overlap loop on or off.",
+  "label": "core",
+  "key": "[METAL] Command buffer execution failed: Insufficient Memory , with gigabytes",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "The dfs-weight queue runs crashed too.",
+  "label": "depth",
+  "key": "and in every dfs-weight run",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "Open pull requests on the Apple backend touch neighbouring code (per-request buffers released late, #39251 ; retracted requests' state, #38179 ; no device-memory figure on Apple, #39675 ); none was confirmed as the cause here.",
+  "label": "depth",
+  "key": "Open pull requests on the Apple backend touch neighbouring code",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "The runs on this page avoid all three: a pool large enough never to evict, chunks of 4,096 and no flushes.",
+  "label": "depth",
+  "key": "a pool large enough never to evict, chunks of 4,096",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "The backend also gives each running request its own 4,096-token KV buffer per layer (448 MiB for this model), so at most 8 ran at once.",
+  "label": "depth",
+  "key": "per layer (448 MiB for this model",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "The habit this teaches Before trusting a cache, run the same greedy request with it on and off, and an unrelated request in between.",
+  "label": "core",
+  "key": "The habit this teaches Before trusting a cache, run the",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "Identical text is not guaranteed (item 3), but a different topic is a bug (item 2).",
+  "label": "core",
+  "key": "Identical text is not guaranteed (item 3), but a different",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "11. running sglang on a mac, and what broke",
+  "text": "All measurements on this page were taken with both fixes applied and the crashes avoided; the commands, patches and raw results are on the SGLang on the M1 tab.",
+  "label": "core",
+  "key": "All measurements on this page were taken with both fixes",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes \"SGLang schedules by longest prefix by default.\" Not since v0.4.4 (March 2025): the default is fcfs .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Cache-aware ordering is opt-in, and lpm turns itself off whenever more than 128 requests wait. \"The radix tree gets more cache hits than vLLM's blocks.\" On the same requests and pool they reused the same share of tokens within a point; with a tight pool the blocks can win because they evict one block at a time (section 3).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The engines differ in ordering, routing and recipes, not in what the cache structure can find. \"SGLang decodes forced JSON strings in one jump.\" Jump-forward decoding was removed in v0.4.4 (PR #4032).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Constrained decoding today is per-token masking by XGrammar.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Quoting launch-blog speedups as today's gap.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The 5 times of January 2024 was against a vLLM without any cross-request cache.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Compare current builds, on your model, on your hardware, at your latency target.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Measuring prefix caching with identical repeated prompts.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "That measures the best case.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Real hit rates depend on whether the working set of live prefixes fits the pool: the agent trace went from about 70% to 97% between 24,000 and 48,000 slots.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Size the pool from the number of live conversations times their history.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting bit-identical output with and without the cache.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Different computation order rounds differently; at a near-tie greedy decoding flips.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Test for the right topic, not for identical bytes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Reading a vendor \"25x\" as a hardware ratio.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common-mistakes block: each restates a core section (default policy s4, caches equal s3, jump-forward removed s6, early speedups s1, cliff s3, near-tie s11, 25x s9)"
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "It was measured at one per-user speed (50 tokens/s) where the older GPU is weakest; the same post says the unconstrained gap is much smaller.",
+  "label": "core",
+  "key": "where the older GPU is weakest; the same post says",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Interview questions Why a radix tree rather than a trie or a hash map for prefix caching?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section (radix tree s2, locks s2, cap s2, scheduling s4, overlap s5); the three design questions are kept closed"
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A hash map of whole prompts finds only exact repeats; a trie finds longest prefixes but has one node per token; a radix tree compresses runs into single edges, so nodes exist only where cached sequences diverge, and a lookup walks one path comparing tokens.",
+  "label": "core",
+  "key": "whole prompts finds only exact repeats",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How does SGLang avoid evicting KV that a running request needs?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section (radix tree s2, locks s2, cap s2, scheduling s4, overlap s5); the three design questions are kept closed"
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Lock references: a request increments a counter on every node of its matched path; eviction only takes unlocked leaves, and a parent becomes a candidate only once all its children are gone.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section (radix tree s2, locks s2, cap s2, scheduling s4, overlap s5); the three design questions are kept closed"
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why is a prefix match capped at the prompt length minus one?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section (radix tree s2, locks s2, cap s2, scheduling s4, overlap s5); the three design questions are kept closed"
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The last prompt token's forward pass produces the logits for the first output token, so it must be computed even when its KV is cached.",
+  "label": "core",
+  "key": "produces the logits for the first output token",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Both SGLang and vLLM cap the hit there.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section (radix tree s2, locks s2, cap s2, scheduling s4, overlap s5); the three design questions are kept closed"
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "When does cache-aware scheduling help, and what does it cost?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section (radix tree s2, locks s2, cap s2, scheduling s4, overlap s5); the three design questions are kept closed"
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "When the queue is deep and the cache cannot hold all hot prefixes: ordering by longest match (or depth-first through the tree) uses a prefix before it is evicted.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section (radix tree s2, locks s2, cap s2, scheduling s4, overlap s5); the three design questions are kept closed"
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "It costs a match per waiting request per pass and can starve requests with unshared prompts; SGLang disables lpm above 128 waiting requests.",
+  "label": "core",
+  "key": "match per waiting request per pass",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What does the overlap scheduler overlap, and what is its catch?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section (radix tree s2, locks s2, cap s2, scheduling s4, overlap s5); the three design questions are kept closed"
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The CPU's scheduling and result processing for neighbouring steps with the GPU's forward pass, using placeholders for tokens not yet produced.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section (radix tree s2, locks s2, cap s2, scheduling s4, overlap s5); the three design questions are kept closed"
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Catch: anything that needs the previous token on the CPU (some grammar paths, custom logit processors) forces a sync.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section (radix tree s2, locks s2, cap s2, scheduling s4, overlap s5); the three design questions are kept closed"
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Design a router for 8 replicas of a chat model with long system prompts.",
+  "label": "depth",
+  "key": "Design a router for 8 replicas of a chat model",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Route by prefix affinity (approximate per-replica trees or consistent hashing of the prefix) but fall back to least-loaded when the load is imbalanced beyond a threshold; measure hit rate, TTFT percentiles and per-replica load.",
+  "label": "depth",
+  "key": "Route by prefix affinity (approximate per-replica trees or consistent hashing",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "SGLang's gateway does exactly this with a 0.3 match threshold and 64/1.5 imbalance thresholds by default.",
+  "label": "depth",
+  "key": "SGLang's gateway does exactly this with a 0.3 match threshold",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why does DeepSeek serving use data-parallel attention with expert parallelism?",
+  "label": "depth",
+  "key": "Why does DeepSeek serving use data-parallel attention with expert parallelism?",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "MLA has one compressed KV per token, so tensor-parallel attention would replicate the cache on every GPU; data-parallel attention keeps each request's cache on one GPU, and expert parallelism spreads the experts, with all-to-all exchanges around each MoE layer.",
+  "label": "depth",
+  "key": "MLA has one compressed KV per token, so tensor-parallel attention",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How would you check that prefix caching is working on a production server?",
+  "label": "depth",
+  "key": "How would you check that prefix caching is working on",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Per-request cached-token counts or the hit-rate metric, TTFT split by hit and miss, and a greedy A/B/A correctness test with the cache on and off.",
+  "label": "depth",
+  "key": "Per-request cached-token counts or the hit-rate metric, TTFT split by",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-sgtree",
+  "section": "",
+  "text": "The two prefix caches of section 3, run in your browser on the same requests: SGLang's radix tree (page size 1) and vLLM's hash blocks (16 tokens).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab lead; the inline card title says the same"
+ },
+ {
+  "id": 273,
+  "tab": "t-sgtree",
+  "section": "",
+  "text": "Pick a trace and a pool size; every number below is recomputed by the page's port, which matched SGLang's UnifiedRadixCache and RadixCache and vLLM's KVCacheManager on every request at the 24 trace and pool settings checked (src/iso/check_real.py).",
+  "label": "core",
+  "key": "UnifiedRadixCache and RadixCache and",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-sgtree",
+  "section": "",
+  "text": "Try: the coding agent between 24,000 and 48,000 slots (the hit-rate cliff); the document trace at 6,000 slots (the blocks win: eviction granularity); unrelated prompts at any size (nothing to reuse, so the two caches only differ in how much they evict).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab try line; the prediction and the result paragraph carry it"
+ },
+ {
+  "id": 275,
+  "tab": "t-sgtree",
+  "section": "",
+  "text": "Chat assistant Coding agent Questions on 8 documents Unrelated prompts KV pool: Share of prompt tokens reused against pool size radix tree hash blocks of 16 your pool size Request by request: tokens reused by the tree minus tokens reused by the blocks Above the line the tree reused more (usually the tail of a partial block, at most 15 tokens); below it the blocks reused more (a prefix whose last blocks survived eviction while the tree had dropped the whole node).",
+  "label": "core",
+  "key": "Chat assistant Coding agent Questions on 8 documents Unrelated prompts",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-sgtree",
+  "section": "",
+  "text": "What the port does, and what it leaves out Requests run one at a time, so the comparison isolates the cache: match the prompt (capped at its length minus one), lock the matched path, evict least recently used leaves or blocks until the request's new KV fits, insert prompt and output (minus the last token, whose KV is never computed), unlock.",
+  "label": "depth",
+  "key": "match the prompt (capped at its length minus one), lock",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-sgtree",
+  "section": "",
+  "text": "Not modelled: concurrency (several running requests locking more of the tree), HiCache or vLLM's offload tiers, page sizes other than 1 and 16, sliding-window or hybrid models.",
+  "label": "depth",
+  "key": "Not modelled: concurrency (several running requests locking more of the",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-sgtree",
+  "section": "",
+  "text": "SGLang v0.5.21 makes a Rust tree core the default; the Python core was run here (the Rust extension was not built), and SGLang runs the same unit suite against both (test/registered/unit/mem_cache/test_rust_unified_radix_cache_unittest.py).",
+  "label": "depth",
+  "key": "v0.5.21 makes a Rust tree core the default; the Python",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-sgsched",
+  "section": "",
+  "text": "Questions about a few long documents, all arriving at once in a shuffled order, and a KV pool that holds only some of the documents: the case where the order of the queue decides how much of the cache gets used (section 4).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab lead; section 4 problem paragraph carries it"
+ },
+ {
+  "id": 280,
+  "tab": "t-sgsched",
+  "section": "",
+  "text": "All four of SGLang's main policies run on the same queue; the animation shows the rounds one at a time.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab lead"
+ },
+ {
+  "id": 281,
+  "tab": "t-sgsched",
+  "section": "",
+  "text": "Try: 96 questions and a 3,000-token pool (lpm and dfs-weight well ahead); raise the questions above 128 (lpm switches itself off until the queue drains); raise the pool to 9,000 (every order converges); change the arrival order (fcfs and random swing widely, the cache-aware orders hardly move).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab try line; rewritten as the try paragraph of section 4"
+ },
+ {
+  "id": 282,
+  "tab": "t-sgsched",
+  "section": "",
+  "text": "Questions Documents Document length KV pool Arrival order Round by round fcfs (default) lpm dfs-weight random Top: the waiting queue in the order the policy sorted it, one square per question coloured by its document; outlined squares are admitted this round.",
+  "label": "core",
+  "key": "fcfs (default) lpm dfs-weight random Top: the waiting queue in",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-sgsched",
+  "section": "",
+  "text": "Bottom: how much of each document the tree holds after the round.",
+  "label": "core",
+  "key": "Bottom: how much of each document the tree holds after",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-sgsched",
+  "section": "",
+  "text": "On the real engine The model, and how it was checked A round: match every waiting question against the tree; order the queue by the policy; admit questions in that order while each one's new tokens plus its output fit in the free and evictable pool and the round's prefill stays under 16,384 tokens, stopping at the first that does not fit; run the admitted ones to completion and insert them.",
+  "label": "depth",
+  "key": "A round: match every waiting question against the tree; order",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-sgsched",
+  "section": "",
+  "text": "Real SGLang admits continuously, reserves output space by an estimate scaled by --schedule-conservativeness , and overlaps prefill with running decodes, so the numbers here are the policy's effect in isolation, not a throughput prediction.",
+  "label": "depth",
+  "key": "Real SGLang admits continuously, reserves output space by an estimate",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-sgsched",
+  "section": "",
+  "text": "The orderings were checked against SGLang v0.5.21's own SchedulePolicy.calc_priority on a shadow RadixCache : .",
+  "label": "depth",
+  "key": "SGLang v0.5.21's own SchedulePolicy.calc_priority",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-sgsched",
+  "section": "",
+  "text": "Arrival orders and the random policy use the root simulator's seeded generator.",
+  "label": "depth",
+  "key": "Arrival orders and the random policy use the root simulator's",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "The real SGLang engine, release v0.5.21, running on an Apple M1 Pro laptop through its MLX backend: the same scheduler, radix cache, overlap loop and grammar backend that run on GPUs, with Apple's MLX doing the forward pass.",
+  "label": "depth",
+  "key": "the scheduler, radix cache and API are SGLang's own",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Every number on this tab was measured here on 2026-10-08 and 2026-10-09 measured on Apple M1 Pro ; what transfers to datacenter GPUs is said at the end.",
+  "label": "depth",
+  "key": "on 2026-10-08 and 2026-10-09",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Set-up Machine: Apple M1 Pro, 16 GB unified memory, shared with other jobs (load average at the start of the runs; every configuration repeated, spread shown).",
+  "label": "depth",
+  "key": "Machine: Apple M1 Pro, 16 GB unified memory, shared with",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "SGLang v0.5.21 (tag commit e00930c5 , 2026-09-29), installed from source with the srt_mps extra and Rust extensions off ( SGLANG_BUILD_RUST_EXTS=none ): PyTorch 2.13.0, MLX 0.32.3, MLX-LM 0.32.0, XGrammar 0.2.7, Transformers 5.12.1.",
+  "label": "depth",
+  "key": "SGLang v0.5.21 (tag commit e00930c5 , 2026-09-29), installed from source",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "There is no macOS wheel on PyPI.",
+  "label": "depth",
+  "key": "no macOS wheel on PyPI",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Two patches from upstream, both in src/m1/: the start-up fix of PR #41314 (merged after the tag) and the cache fix of PR #42542 (open).",
+  "label": "depth",
+  "key": "Two patches from upstream, both in src/m1/: the start-up fix",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Without the first the server does not start; without the second, cache hits can return the wrong text (below).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 11 items 1 and 2"
+ },
+ {
+  "id": 295,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Model: Qwen3-0.6B (Qwen/Qwen3-0.6B at commit c1899de2) quantized here to 4 bits, group size 64, with MLX-LM 0.32.0, the root's model store.",
+  "label": "depth",
+  "key": "Model: Qwen3-0.6B (Qwen/Qwen3-0.6B at commit c1899de2) quantized here to 4",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "KV pool: 114,688 bytes per token at 16 bits.",
+  "label": "core",
+  "key": "114,688 bytes of KV per token",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Server: SGLANG_USE_MLX=1 python -m sglang.launch_server --model-path <model> --disable-cuda-graph --port 8120 --enable-metrics plus --chunked-prefill-size 4096 --max-running-requests 8 and the flags of each experiment; a fresh server per run.",
+  "label": "depth",
+  "key": "<model> --disable-cuda-graph --port 8120 --enable-metrics plus --chunked-prefill-size 4096 --max-running-requests 8",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Both settings work around the Apple backend: each running request gets its own contiguous KV buffer of 4,096 tokens per layer (448 MiB for this model, model_runner.py L258 ); and with 512-token prefill chunks, any burst of 840-token prompts crashed the server with [METAL] Command buffer execution failed: Insufficient Memory inside _async_extend_batch , every time and with 6 GB free, while the same bursts of 8 to 32 requests ran cleanly with chunks of 4,096 (a third bug, not reported upstream as of this writing).",
+  "label": "depth",
+  "key": "its own contiguous KV buffer of 4,096 tokens per layer",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Client: src/m1/exp.py over the native /generate endpoint with token ids cut from WikiText-2, greedy, streaming; time to first token (TTFT) is the arrival of the first streamed chunk.",
+  "label": "depth",
+  "key": "Client: src/m1/exp.py over the native /generate endpoint with token ids",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "The wrong-answer bug, reproduced Fresh server, cache on, greedy: request A (a bank question), an unrelated B, then A again, B again, A again.",
+  "label": "core",
+  "key": "an unrelated B, then A again",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Queue policies on a burst of shared-document questions 3.",
+  "label": "depth",
+  "key": "policies on a burst of shared-document questions",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Radix cache on and off: a multi-turn chat Eight conversations at once, four turns each, all under one 600-token system prompt; each turn adds 60 to 120 tokens of user text and 64 tokens of answer, and resends the whole history (up to about 1,300 tokens).",
+  "label": "depth",
+  "key": "each turn adds 60 to 120 tokens of user text",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "KV pool 24,000 tokens. radix cache on (default) --disable-radix-cache 4.",
+  "label": "depth",
+  "key": "radix cache on (default) --disable-radix-cache 4",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "The overlap scheduler on and off 32 requests of 128 prompt tokens and 128 output tokens at concurrency 1, 4 and 8; output tokens per second over the whole batch.",
+  "label": "depth",
+  "key": "at concurrency 1, 4 and 8",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Structured output: a JSON schema Twelve chat requests asking for an invented person, with and without a JSON schema (name, city, age, up to four skills) through the default XGrammar backend; two passes each.",
+  "label": "depth",
+  "key": "Twelve chat requests asking for an invented person, with and",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "What transfers to a datacenter GPU Transfers: which tokens are cached and reused (the scheduler and tree are the same code), the ordering effects of the queue policies, the correctness test, the fact that a grammar adds per-step CPU work.",
+  "label": "depth",
+  "key": "Transfers: which tokens are cached and reused (the scheduler and",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Does not transfer: the absolute times.",
+  "label": "depth",
+  "key": "Does not transfer: the absolute times",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "A 0.6B model on a laptop GPU makes the forward pass short and the Python scheduler's share large, so CPU-side effects (overlap, grammar masks) look bigger here than on an H100 serving a 70B model; prefill costs far more per token here than on a GPU, so cache hits save more seconds here.",
+  "label": "depth",
+  "key": "A 0.6B model on a laptop GPU makes the forward",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "The MLX backend also lacks paged attention: it copies a cached prefix out of the pool into a per-request cache ( model_runner.py ).",
+  "label": "depth",
+  "key": "The MLX backend also lacks paged attention: it copies a",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-sgm1",
+  "section": "",
+  "text": "Scripts: src/m1/run_m1.sh (one server per configuration), exp.py, sgclient.py, summarise.py; raw results in src/m1/results/.",
+  "label": "depth",
+  "key": "Scripts: src/m1/run_m1.sh (one server per configuration), exp.py, sgclient.py, summarise.py; raw",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-sgvs",
+  "section": "",
+  "text": "Which engine is faster depends on the model, the GPU, the precision, the prompt length, the per-user speed you promise and the date of the build.",
+  "label": "core",
+  "key": "Which engine is faster depends on the model",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-sgvs",
+  "section": "",
+  "text": "The one place both are run by a third party on the same model and GPUs is SemiAnalysis InferenceX , a continuously running benchmark ( repository , dashboard ) independent .",
+  "label": "core",
+  "key": "are run by a third party on the same model",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-sgvs",
+  "section": "",
+  "text": "Of the models it lists, only DeepSeek-V4-Pro has single-node runs of both vLLM and SGLang; those runs are below, read from its public API on 2026-10-08.",
+  "label": "core",
+  "key": "Of the models it lists, only DeepSeek-V4-Pro has single-node runs",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-sgvs",
+  "section": "",
+  "text": "Read the chart as a trade-off curve: each point is one run at one concurrency; to the right, each user gets more tokens per second; up, each GPU produces more tokens in total.",
+  "label": "core",
+  "key": "each point is one run at one concurrency; to the",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-sgvs",
+  "section": "",
+  "text": "An engine is better where its upper-right envelope (the line) is higher at the per-user speed you need. vLLM SGLang Runs at the same concurrency What this comparison can and cannot say Different builds and dates.",
+  "label": "core",
+  "key": "An engine is better where its upper-right envelope (the line",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-sgvs",
+  "section": "",
+  "text": "The vLLM runs used v0.25.0 to v0.25.1 or nightly images from July to September 2026; the SGLang runs used nightly images from late June and July 2026 (shown per row).",
+  "label": "depth",
+  "key": "The vLLM runs used v0.25.0 to v0.25.1 or nightly images",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-sgvs",
+  "section": "",
+  "text": "Both engines have released several versions since (vLLM v0.31.0, SGLang v0.5.21).",
+  "label": "depth",
+  "key": "Both engines have released several versions since (vLLM v0.31.0, SGLang",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-sgvs",
+  "section": "",
+  "text": "Each engine ran with its own tensor, expert and data-parallel choices (TP and EP columns), so a row at the same concurrency can compare different numbers of GPUs per replica; the envelopes, which take each engine's best configuration, are the fairer reading.",
+  "label": "depth",
+  "key": "Each engine ran with its own tensor, expert and data-parallel",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-sgvs",
+  "section": "",
+  "text": "DeepSeek-V4-Pro is a 1.6-trillion-parameter mixture of experts with a long-context attention design; results on a dense 8B or 70B model can differ completely.",
+  "label": "depth",
+  "key": "DeepSeek-V4-Pro is a 1.6-trillion-parameter mixture of experts with a long-context",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-sgvs",
+  "section": "",
+  "text": "These are single-turn random prompts, so nothing here exercises the radix cache or cache-aware scheduling, where section 3 of the Reading found the two caches equal.",
+  "label": "depth",
+  "key": "These are single-turn random prompts, so nothing here exercises the",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-sgvs",
+  "section": "",
+  "text": "What each project claims about itself Claim Baseline and conditions Source Up to 5 times higher throughput Against Guidance and vLLM v0.2.5 (no cross-request prefix cache), Llama-7B on A10G, program workloads LMSYS 2024-01-17 vendor Up to 6.4 times higher throughput The paper's baselines on agent, reasoning, few-shot, JSON, RAG and chat tasks arXiv 2312.07104 authors 3 times faster JSON decoding Jump-forward with a compressed FSM against Outlines with vLLM; feature removed in v0.4.4 LMSYS 2024-02-05 vendor 1.1 times from the overlap scheduler Against SGLang v0.3, Llama-3.2-3B, 4,096 in / 2,048 out LMSYS 2024-12-04 vendor 1.9 times throughput, 75% against 20% hit rate Cache-aware router against round robin, 8 replicas, a shared-prefix workload \"perfectly balanced\" across groups same vendor 52.3k input and 22.3k output tokens/s per node DeepSeek-V3 on 96 H100 with PD disaggregation and EP; phases measured separately LMSYS 2025-05-05 vendor Up to 25 times on GB300 NVL72 against H200 DeepSeek-R1 at 50 tokens/s per user in InferenceX; much smaller without the latency constraint LMSYS 2026-02-20 vendor, on independent runs The old version of this page said SGLang \"leads by about 20 to 30% on prefix-heavy small and mid-size models\" and that \"at 70B+ dense scale differences shrink to a few percent\" (2026 folklore, no source given): no measurement found supports either figure, so they are dropped.",
+  "label": "depth",
+  "key": "Claim Baseline and conditions Source Up to 5 times higher",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-sgvs",
+  "section": "",
+  "text": "What was measured here is in the Reading's sections 3 and 4.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer"
+ },
+ {
+  "id": 323,
+  "tab": "t-more",
+  "section": "",
+  "text": "The tabs of this page, the parent topic and its siblings, the papers and posts behind each mechanism, and SGLang's own documentation and source, each with an approximate time.",
+  "label": "core",
+  "key": "the parent topic and its siblings, the papers and posts",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 2026-10-08.",
+  "label": "core",
+  "key": "Links checked on 2026-10-08",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page Reading The radix tree, cache-aware scheduling, the overlap scheduler, structured output, tuning, the router, large-scale MoE serving, SGLang against vLLM, running it on a Mac. about 35 min, plus the animations Radix lab SGLang's radix tree against vLLM's hash blocks on four traces at any pool size, checked against both engines' own classes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading cards for removed tabs"
+ },
+ {
+  "id": 326,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 to 15 min Scheduling lab fcfs, lpm, dfs-weight and random on the same queue, round by round, with the real-engine runs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading cards for removed tabs"
+ },
+ {
+  "id": 327,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min SGLang on the M1 Every real run: set-up, patches, the two bugs, cache on and off, queue policies, overlap, JSON schemas.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading cards for removed tabs"
+ },
+ {
+  "id": 328,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min SGLang vs vLLM Independent InferenceX runs of both engines on DeepSeek-V4-Pro, and each project's claims with their baselines.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading cards for removed tabs"
+ },
+ {
+  "id": 329,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min Knowledge base Topic: inference-and-serving The parent: prefill and decode, the KV cache, batching, engines; its Serving simulator, Engine bench and Capacity planner tabs. about 43 min Reading, plus its tabs vLLM: inside the default engine The other engine's scheduler, block pool and prefix hashing read in source. about 31 min, plus its labs Batching, KV cache and scheduling in depth Continuous batching, paging, eviction policies, offload tiers, chunked prefill, fairness. about 40 min, plus its labs Speculative decoding EAGLE, MTP (SGLang's NEXTN), n-gram and DFlash, all of which SGLang ships. about 23 min, plus its labs Distributed and disaggregated serving Tensor, pipeline and expert parallelism, PD disaggregation, Dynamo and llm-d. about 30 min, plus its labs LLM serving in production Routers measured on real replicas, autoscaling, structured output overhead, load testing. about 32 min, plus its labs Local and on-device inference llama.cpp, Ollama and MLX on Apple silicon, the backend SGLang's Mac path runs on. about 44 min, plus its labs Model formats Safetensors, GGUF and MLX quantized layouts. about 29 min, plus its File explorer and Conversion map PagedAttention paper page The paging the block cache is built on.",
+  "label": "core",
+  "key": "Knowledge base Topic: inference-and-serving The parent: prefill and decode, the",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min Sampling and Decoding Logits, masks and greedy decoding, the ground under constrained output.",
+  "label": "core",
+  "key": "25 min Sampling and Decoding Logits, masks and greedy decoding",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-more",
+  "section": "",
+  "text": "16 min Papers and posts SGLang: Efficient Execution of Structured Language Model Programs Zheng et al., NeurIPS 2024: RadixAttention, cache-aware scheduling and Theorem 3.1, the compressed FSM.",
+  "label": "core",
+  "key": "16 min Papers and posts SGLang: Efficient Execution of Structured",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-more",
+  "section": "",
+  "text": "45 min RadixAttention launch post The nine-step tree figure that this page's animation follows.",
+  "label": "core",
+  "key": "45 min RadixAttention launch post The nine-step tree figure that",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min SGLang v0.4 Overlap scheduler, cache-aware router, DP attention, XGrammar.",
+  "label": "core",
+  "key": "15 min SGLang v0.4 Overlap scheduler, cache-aware router, DP attention",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Large-scale EP on 96 H100 PD disaggregation, DeepEP, EPLB, two-batch overlap, profiles against DeepSeek's.",
+  "label": "core",
+  "key": "15 min Large-scale EP on 96 H100 PD disaggregation, DeepEP",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-more",
+  "section": "",
+  "text": "45 min GB200 NVL72, part II FP8 attention and NVFP4 experts on a rack.",
+  "label": "core",
+  "key": "45 min GB200 NVL72, part II FP8 attention and NVFP4",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min XGrammar paper and XGrammar-2 The default grammar engine: context-independent tokens, structural tags, up to 80 times faster compilation (authors).",
+  "label": "core",
+  "key": "20 min XGrammar paper and XGrammar-2 The default grammar engine",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min T-LRU, arXiv 2510.15152 Evicting only what a conversation's next turn does not need for its TTFT target.",
+  "label": "core",
+  "key": "30 min T-LRU, arXiv 2510.15152 Evicting only what a conversation's",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min SemiAnalysis InferenceX Continuous independent benchmarks of SGLang, vLLM and TensorRT-LLM. browse SGLang itself (v0.5.21) Documentation Start with hyperparameter tuning , server arguments , structured outputs , HiCache , model gateway .",
+  "label": "core",
+  "key": "30 min SemiAnalysis InferenceX Continuous independent benchmarks of SGLang, vLLM",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min for the core pages Source to read first radix_cache.py (800 lines, the clearest), schedule_policy.py , scheduler.py event loops , cache_aware.rs , then mem_cache/README.md for the unified cache.",
+  "label": "core",
+  "key": "40 min for the core pages Source to read first",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-more",
+  "section": "",
+  "text": "2 h sgl-learning-materials The team's talks and slides.",
+  "label": "core",
+  "key": "2 h sgl-learning-materials The team's talks and slides",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-more",
+  "section": "",
+  "text": "1 h 30 min Release notes v0.5.21 (2026-10-02); v0.5.18 (2026-08-22) overlapped weight loading with graph capture: 35.6 s against 84.8 s to start Qwen3-32B on an H100 with the opt-in flag, against the plain default (project's measurement).",
+  "label": "depth",
+  "key": "v0.5.18 (2026-08-22) overlapped weight loading with graph capture: 35.6 s",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "Section 3 (script-rendered before): room for all, chat trace, tree 87.6% against blocks 86.8%",
+  "label": "core",
+  "key": "87.6% of the chat trace",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "agent trace, room for all, tree against blocks",
+  "label": "core",
+  "key": "97.2% against 97.0%",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "document trace at 6,000 slots",
+  "label": "core",
+  "key": "the blocks reuse 69.7% and the tree 65.4%",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "bookkeeping at the end of the unbounded chat replay",
+  "label": "core",
+  "key": "483 nodes where vLLM holds 3,641 cached blocks",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "largest gap between the caches with room for all",
+  "label": "core",
+  "key": "within 0.8 points",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "real-class replays all identical to the port",
+  "label": "core",
+  "key": "4,800 requests through each class, 72 replays",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "ten arrival orders, 96 questions, pool 3,000: fcfs mean 51.0% (35 to 68)",
+  "label": "core",
+  "key": "fcfs 51.0%",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "lpm mean 86.2% (85 to 86)",
+  "label": "core",
+  "key": "lpm 86.2%",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "dfs-weight mean",
+  "label": "core",
+  "key": "dfs-weight 84.1% (82 to 86)",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "random mean",
+  "label": "core",
+  "key": "random 60.2% (41 to 80)",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "pool 6,000: every order within a few points",
+  "label": "core",
+  "key": "fcfs 79.1%, lpm 83.2%, dfs-weight 81.5%, random 75.7%",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "SchedulePolicy shadow check",
+  "label": "depth",
+  "key": "475 queue orderings and prefix matches, 0 mismatches",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 fcfs 77.4% from cache",
+  "label": "depth",
+  "key": "batch done in 24.1 s (runs 20.4 to 27.9)",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 lpm 77.4% from cache",
+  "label": "depth",
+  "key": "21.3 s (runs 20.8 to 21.9)",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 random",
+  "label": "depth",
+  "key": "80.4%, 19.5 s (one run)",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 multiturn TTFT, fourth turn",
+  "label": "depth",
+  "key": "2.32 s with the radix cache and 4.81 s",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 multiturn TTFT, first turn",
+  "label": "depth",
+  "key": "2.32 s against 2.73 s",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 multiturn decode slower with cache on",
+  "label": "depth",
+  "key": "208 against 86 ms per output token",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 multiturn whole job",
+  "label": "depth",
+  "key": "59.9 s against 38.8 s",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 multiturn fourth turn sizes (per-turn table is script-rendered)",
+  "label": "depth",
+  "key": "about 1,166 prompt tokens, 1,002 of them cached",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 JSON schema validity",
+  "label": "core",
+  "key": "24 of 24 answers with a JSON schema parsed as JSON against 0 of 24",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 grammar per-token cost",
+  "label": "core",
+  "key": "13.4 ms against 4.9 ms per output token",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 first request with a new schema",
+  "label": "core",
+  "key": "957 ms to first token",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 without --mlx-enable-sampling",
+  "label": "depth",
+  "key": "every request ended after 2 tokens",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "M1 overlap runs all crashed",
+  "label": "depth",
+  "key": "6 configurations, each retried once",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "InferenceX matched-concurrency ratio range, B200",
+  "label": "core",
+  "key": "0.83 to 1.37 times vLLM's on B200 FP4",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "B300",
+  "label": "core",
+  "key": "0.50 to 1.01 times on B300 FP4",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "H200",
+  "label": "core",
+  "key": "0.83 to 1.04 times on H200 FP8",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "MI355X, SGLang leads at every concurrency",
+  "label": "core",
+  "key": "1.85 to 3.32 times",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "split-prefill near-tie margins in MLX-LM alone",
+  "label": "depth",
+  "key": "0.000, 0.125 and 0.125 in logit",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "machine load range during the M1 runs",
+  "label": "depth",
+  "key": "3.9 to 27.2",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "wrong-answer bug reproduction",
+  "label": "core",
+  "key": "25 of its 26 prompt tokens reported cached",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "overlap animation counters (script-rendered)",
+  "label": "core",
+  "key": "GPU plus CPU per step in the plain loop, the larger of the two with overlap",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "grammar diagram (script-drawn SVG)",
+  "label": "core",
+  "key": "compiled once per schema",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "router decision diagram (script-drawn SVG)",
+  "label": "core",
+  "key": "balance first, then the longest prefix, then the least loaded",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "hero figure (script-drawn SVG)",
+  "label": "core",
+  "key": "maps runs of token ids to slot numbers",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "tree animation step captions (script-rendered): request 6 hits 13 in the tree, 12 in blocks of 4",
+  "label": "core",
+  "key": "Blocks of 4 reuse 12",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-read",
+  "section": "added by hand (script-rendered)",
+  "text": "scheduling animation (script-drawn)",
+  "label": "core",
+  "key": "one square per question coloured by its document",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-read",
+  "section": "6",
+  "text": "XGrammar mask computed on the CPU overlapped with the forward pass; up to 100 times faster than earlier engines (authors)",
+  "label": "core",
+  "key": "its mask is computed on the CPU, overlapped with the GPU",
+  "where": ""
+ }
+]

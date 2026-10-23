@@ -1,6 +1,6 @@
-// ---- SGLang vs vLLM (t-sgvs): InferenceX DeepSeek-V4-Pro runs (SGD.ix from inputs/inferencex_dsv4pro_vllm_sglang.json) ----
+// ---- Reading section 10 (was the SGLang vs vLLM tab): InferenceX DeepSeek-V4-Pro runs (SGD.ix from inputs/inferencex_dsv4pro_vllm_sglang.json) ----
 (function(){
-  const root=document.getElementById('t-sgvs');if(!root||!window.SGD||!SGD.ix)return;
+  const root=document.getElementById('sgv-card'),rd=document.getElementById('t-read');if(!root||!window.SGD||!SGD.ix)return;
   const C=SGD.ix.cols,R=SGD.ix.rows.map(r=>{const o={};C.forEach((c,i)=>o[c]=r[i]);return o}).filter(r=>r.tput_gpu>0&&r.intvty>0);
   const $=id=>document.getElementById(id),fmt=(n,d)=>n.toLocaleString('en-US',{maximumFractionDigits:d||0,minimumFractionDigits:d||0});
   const groups={};for(const r of R){const k=r.hw+'|'+r.prec+'|'+r.isl;(groups[k]=groups[k]||{vllm:[],sglang:[]})[r.fw].push(r)}
@@ -15,7 +15,7 @@
     opt('sgv-prec',precs,prec,v=>v.toUpperCase(),v=>valid.includes(hw+'|'+v+'|'+isl)||valid.some(k=>k.startsWith(hw+'|'+v+'|')));
     opt('sgv-isl',isls,isl,v=>fmt(+v)+' in / 1,024 out',v=>valid.includes(hw+'|'+prec+'|'+v))}
   function pick(part,v){const p=sel.split('|');p[part]=v;let k=p.join('|');if(!valid.includes(k)){k=valid.find(x=>{const q=x.split('|');return q[part]===v&&(part!==0||true)&&(part===0||q[0]===p[0])})||sel}sel=k;draw()}
-  function draw(){if(root.hidden)return;segs();const g=groups[sel],el=$('sgv-chart'),w=RD.width(el),h=Math.min(360,Math.max(260,w*0.5)),x0=52,y0=12,pw=w-x0-14,ph=h-y0-40;
+  function draw(){if(rd.hidden)return;segs();const g=groups[sel],el=$('sgv-chart'),w=RD.width(el),h=Math.min(360,Math.max(260,w*0.5)),x0=52,y0=12,pw=w-x0-14,ph=h-y0-40;
     const all=g.vllm.concat(g.sglang),xs=all.map(r=>r.intvty).filter(v=>v>0),ys=all.map(r=>r.tput_gpu).filter(v=>v>0);
     const lx0=Math.log10(Math.min(...xs)*0.8),lx1=Math.log10(Math.max(...xs)*1.2),ly0=Math.log10(Math.min(...ys)*0.7),ly1=Math.log10(Math.max(...ys)*1.4);
     const X=v=>x0+pw*(Math.log10(v)-lx0)/(lx1-lx0),Y=v=>y0+ph*(1-(Math.log10(v)-ly0)/(ly1-ly0));let b='';
@@ -36,16 +36,6 @@
       t+='<tr><td class="num">'+c+'</td><td class="num">'+fmt(bv.tput_gpu,1)+'</td><td class="small">TP'+bv.tp+' EP'+bv.ep+(bv.dpa?' DPA':'')+'<br>'+RD.esc(bv.image.slice(0,34))+', '+bv.date+'</td><td class="num">'+fmt(bs.tput_gpu,1)+'</td><td class="small">TP'+bs.tp+' EP'+bs.ep+(bs.dpa?' DPA':'')+'<br>'+RD.esc(bs.image.slice(0,34))+', '+bs.date+'</td><td class="num">'+(bs.tput_gpu/bv.tput_gpu).toFixed(2)+'</td></tr>'});
     $('sgv-table').innerHTML=t+'</tbody></table>';
     $('sgv-src').textContent='Source: '+SGD.ix.source+', fetched '+SGD.ix.fetched+'. Filter: '+SGD.ix.filter+'. '+R.length+' rows kept; the best configuration per concurrency is shown in the table.'}
-  // one-line summary for the Reading (section 10) and the one-screen tile
-  (function(){const parts=[];let lo=9,hi=0;
-    for(const k of valid){const [hw,prec,isl]=k.split('|');if(isl!=='1024')continue;const g=groups[k],by={};
-      for(const fw of ['vllm','sglang'])for(const r of g[fw]){const c=(by[r.conc]=by[r.conc]||{});c[fw]=Math.max(c[fw]||0,r.tput_gpu)}
-      const rs=Object.keys(by).map(Number).sort((a,b)=>a-b).filter(c=>by[c].vllm&&by[c].sglang).map(c=>[c,by[c].sglang/by[c].vllm]);if(!rs.length)continue;
-      const mn=rs.reduce((a,b)=>b[1]<a[1]?b:a),mx=rs.reduce((a,b)=>b[1]>a[1]?b:a);lo=Math.min(lo,mn[1]);hi=Math.max(hi,mx[1]);
-      parts.push('on '+(HW[hw]||hw)+' '+prec.toUpperCase()+' SGLang\'s throughput per GPU ran from '+mn[1].toFixed(2)+' times vLLM\'s (concurrency '+mn[0]+') to '+mx[1].toFixed(2)+' times (concurrency '+mx[0]+')')}
-    const el=document.getElementById('sg-vs-line');if(el)el.textContent='at matched concurrency with 1,024-token prompts, '+parts.join('; ')+' (best configuration of each engine at each concurrency). The ratio swings with concurrency and recipe; only on MI355X did one engine lead at every matched concurrency (SGLang, against a vLLM ROCm nightly build).';
-    const t=document.getElementById('sg-k-vs');if(t)t.textContent='SGLang at '+lo.toFixed(2)+' to '+hi.toFixed(2)+' times vLLM'})();
   ['sgv-hw','sgv-prec','sgv-isl'].forEach((id,i)=>$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;pick(i,b.dataset.m)}));
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-sgvs']=[draw];
-  addEventListener('resize',()=>{if(!root.hidden){clearTimeout(root._t);root._t=setTimeout(draw,80)}});
+  RD.onRender(draw);RD.onResize(draw);
 })();

@@ -21,3 +21,13 @@ Central question: what does SGLang do with the KV cache that vLLM does not, and 
 Inspiration: the RadixAttention launch post's nine-step tree figure (LMSYS 2024-01-17), the SGLang paper's Theorem 3.1, InferenceX's dashboard (throughput per GPU against interactivity), the root's Serving simulator validation approach (port checked step by step against the real classes).
 
 What the methodology lacked here: a rule for when the product under study is buggy on the test platform. Done here: reproduce, find the upstream issue and fix, apply it, report both states, and add a correctness check (A/B/A greedy) before timing anything.
+
+## 2026-10-23 rebuild
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| SG14 | Hero: one request through a deployment, the tree mapping token runs to KV slots, every part labelled with its section | Reading top | built (static annotated) |
+| SG15 | Constrained request path: compile once per schema, mask each step, sample, advance | Reading s6 | built (static annotated; the mask mechanism itself is Sampling and decoding's) |
+| SG16 | Cache-aware router decision: imbalance, longest prefix, 0.3 threshold, least loaded | Reading s8 | built (static annotated) |
+| SG3, SG5, SG7, SG8 | The four labs | Reading s3, s4, closed blocks, s10 | moved inline from their tabs |
+| SG2, SG4 | Static bars of the two results | - | removed: the inline labs show the same result and their captions keep the numbers |
+| SG17 | Jump-forward before/after on a JSON answer | - | rejected again: feature removed in v0.4.4 |
