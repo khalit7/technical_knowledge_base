@@ -1,4 +1,4 @@
-// ---- Message path tab: two routes animated together ----
+// ---- Reading section 4: one message hop by hop, two routes stepped together (moved from the Message path tab, 2026-10-24) ----
 (function(){const CA=window.CA,esc=RD.esc,$=id=>document.getElementById(id);if(!$('mp-svg'))return;
   const RM=RD.RM,fmt=(v,d)=>v==null?'n/a':(+v).toLocaleString('en-GB',{maximumFractionDigits:d==null?1:d});
   // positions: x in [0,1], row index
@@ -27,7 +27,7 @@
   seg($('mp-a'),ra);seg($('mp-b'),rb);
   const maxN=()=>Math.max(R[ra].h.length,R[rb].h.length);
   function draw(i){const box=$('mp-svg');const W=Math.max(300,Math.min(860,box.clientWidth||RD.width(box)));const narrow=W<560;
-    const rowY=[16,56,96,140,176,212,248],H=268,X=x=>8+x*(W-16);const o=+$('mp-o').value;const fs=narrow?8.5:10.5;
+    const rowY=[16,56,96,140,176,212,248],H=268,X=x=>8+x*(W-16);const o=+$('mp-o').value;const fs=narrow?10.5:11;
     let s='';
     // node frames and pod frames
     [['A',.13],['B',.43],['C',.87]].forEach(n=>{s+='<rect x="'+X(n[1]-.115).toFixed(1)+'" y="126" width="'+(.23*(W-16)).toFixed(1)+'" height="134" rx="6" fill="none" stroke="var(--line)"/>'+RD.t(X(n[1]).toFixed(1),272-4,'node '+n[0]+(n[0]==='C'?' (pod 2)':' (pod 1)'),{a:'middle',fs:fs,fill:'var(--mute)'})});
@@ -38,9 +38,9 @@
     [[ra,'var(--c1)',-2],[rb,'var(--c2)',2]].forEach(q=>{const h=R[q[0]].h;const k=Math.min(i,h.length-1);
       for(let j=0;j<k;j++){const a=h[j],b=h[j+1];s+='<line x1="'+(X(P[a][0])+q[2]).toFixed(1)+'" y1="'+(rowY[P[a][1]]+q[2])+'" x2="'+(X(P[b][0])+q[2]).toFixed(1)+'" y2="'+(rowY[P[b][1]]+q[2])+'" stroke="'+q[1]+'" stroke-width="3" stroke-linecap="round"/>'}});
     // parts
-    Object.keys(P).forEach(k=>{const x=X(P[k][0]),y=rowY[P[k][1]];const kd=kind(k);const w=kd==='nvs'?.2*(W-16):narrow?30:46,h=18;
+    Object.keys(P).forEach(k=>{const x=X(P[k][0]),y=rowY[P[k][1]];const kd=kind(k);const w=kd==='nvs'?.2*(W-16):narrow?36:48,h=18;
       const fill={gpu:'var(--open2)',nic:'var(--closed2)',pcie:'var(--soft)',nvs:'var(--closed2)',leaf:'var(--acc2)',spine:'var(--acc2)',core:'var(--acc2)'}[kd];
-      const lab={gpu:k.split('.')[1]==='g0'?'GPU0':'GPU3',nic:k.split('.')[1]==='n0'?'NIC0':'NIC3',pcie:'PCIe',nvs:'NVSwitch',leaf:narrow?'leaf':'leaf r'+k.slice(-1),spine:'spine',core:'core'}[kd];
+      const lab={gpu:narrow?(k.split('.')[1]==='g0'?'G0':'G3'):(k.split('.')[1]==='g0'?'GPU0':'GPU3'),nic:narrow?(k.split('.')[1]==='n0'?'N0':'N3'):(k.split('.')[1]==='n0'?'NIC0':'NIC3'),pcie:'PCIe',nvs:narrow?'NVS':'NVSwitch',leaf:narrow?'leaf':'leaf r'+k.slice(-1),spine:'spine',core:'core'}[kd];
       s+='<rect x="'+(x-w/2).toFixed(1)+'" y="'+(y-h/2)+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="4" fill="'+fill+'" stroke="var(--line)"/>'+RD.t(x.toFixed(1),y+3.5,lab,{a:'middle',fs:fs})});
     // packets
     [[ra,'var(--c1)',-3],[rb,'var(--c2)',3]].forEach(q=>{const h=R[q[0]].h;const k=h[Math.min(i,h.length-1)];
@@ -57,11 +57,9 @@
         RD.stat('Slowest hop',fmt(st.bw,st.bw<10?2:0)+' GB/s',esc(st.why))+RD.stat('Small-message latency',st.lat==null?'not published':fmt(st.lat,2)+' µs','')+
         RD.stat('1 GB message',fmt(st.ms,1)+' ms','derived')+'</div></div>'}).join('');
   }
-  const A=RD.anim({card:'t-capath',ctl:'mp-ctl',n:maxN(),draw,ms:1100,label:'Hop'});
-  // RD.anim registers its redraw on t-read; this tab needs its own
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-capath']=[()=>A.redraw()];
-  const re=()=>{A.reset(maxN());A.play()};
+  const A=RD.anim({card:'ca-mp-card',ctl:'mp-ctl',n:maxN(),draw,ms:1100,label:'Hop'});
+  const re=()=>A.reset(maxN());
   RD.seg($('mp-a'),m=>{ra=m;re()});RD.seg($('mp-b'),m=>{rb=m;re()});
   $('mp-o').addEventListener('change',()=>A.redraw());
-  addEventListener('resize',()=>{if(!$('t-capath').hidden)A.redraw()});
+  RD.onResize(()=>A.redraw());
 })();
