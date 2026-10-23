@@ -188,5 +188,5 @@ def build(D, T, cc, dq):
         dets = [sp["det"] for sp in r8["special"]]
         X["mis_special"] = (f"Measured on the tiny GPT (moe8top2, 40,960 held-out tokens): given only the token id, its most common first-choice expert is right "
                             f"{pc(min(dets), 0)} to {pc(max(dets), 0)} of the time depending on the layer, against 12.5% for an id-blind router: routing is "
-                            "largely a function of the token itself (see the Router tab's expert-to-token table).")
+                            "largely a function of the token itself (the expert-to-token table is below).")
     _ = (math, dq, X, F)
