@@ -1,27 +1,29 @@
-# Build the private reading site from the repo and deploy it to Cloudflare Pages (behind Cloudflare Access).
-# Needs two repository secrets: CLOUDFLARE_API_TOKEN (Pages: Edit) and CLOUDFLARE_ACCOUNT_ID. Without them it builds and skips the deploy.
+# Build the public reading site from the repo and deploy it to GitHub Pages on every push to main that touches a page.
+# One-time setup: repo Settings, Pages, Source: GitHub Actions. Site: https://khalit7.github.io/technical_knowledge_base/
 name: site
 on:
   push:
     branches: [main]
     paths: ["technical_knowledge_base/**", "html_utils/build_site.py", ".github/workflows/site.yml"]
   workflow_dispatch:
-concurrency: { group: site, cancel-in-progress: true }
+permissions: { contents: read, pages: write, id-token: write }
+concurrency: { group: pages, cancel-in-progress: true }
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    env: { CF_TOKEN: "${{ secrets.CLOUDFLARE_API_TOKEN }}" }
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 1 }
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - run: python3 html_utils/build_site.py site
+      - run: python3 html_utils/build_site.py site /technical_knowledge_base/
       - run: npx -y pagefind@1.3.0 --site site
-      - name: deploy
-        if: ${{ env.CF_TOKEN != '' }}
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy site --project-name=technical-kb --branch=main
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4

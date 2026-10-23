@@ -36,7 +36,7 @@ Many pages at once (a topic, a batch of papers): [orchestration/topic-pipeline.m
 
 ## Hard constraints
 - **The shapes in page-kinds are suggestions, not templates.** Take what fits the content, depart where it needs and say why in `src/README.md`. Never force content into a shape.
-- One self-contained `index.html` per page: no network, no CDN, no web fonts; images as small WebP files in `img/` once the page is served by the private site, data URIs while it is still a Notion embed ([visuals/mechanics.md](visuals/mechanics.md)).
+- One self-contained `index.html` per page: no network, no CDN, no web fonts; images as small WebP files in `img/` once the page is served by the reading site, data URIs while it is still a Notion embed ([visuals/mechanics.md](visuals/mechanics.md)).
 - Tabs: Reading first and open by default, one tab per standalone lab or tool that deserves room, Further reading last.
 - Fail-safe JS (one `<script>` per JS part, the `#jsErr` box), light and dark, 390 px with no sideways scroll, animations pause off screen and under reduced motion.
 - Every specific fact sourced inline and dated; measured results labelled with the machine; anything not run says "not run here" and why.

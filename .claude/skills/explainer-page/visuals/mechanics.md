@@ -3,7 +3,7 @@
 The technical rules every chart, lab and animation follows so it renders correctly in Notion's sandboxed iframe, on a phone and in both themes. The checks in [../build/checks.md](../build/checks.md) enforce most of them.
 
 ## Self-contained: everything inline except images
-- Pages are read on the private static site built from this repo (Notion keeps an index linking to it). A page is still **one self-contained `index.html`** that works opened straight from disk: no CDN, no web fonts, no fetch, no external scripts or stylesheets; hand-written HTML, SVG and Canvas.
+- Pages are read on the public static site built from this repo (GitHub Pages) (Notion keeps an index linking to it). A page is still **one self-contained `index.html`** that works opened straight from disk: no CDN, no web fonts, no fetch, no external scripts or stylesheets; hand-written HTML, SVG and Canvas.
 - **Images** are WebP files in the page's `img/` folder, referenced by relative path (`img/h100_die.webp`), each under about 200 KB, with alt text and a credit line ([../teaching/teaching-contract.md](../teaching/teaching-contract.md)). A page still published as a Notion embed (before it moves to the site) cannot load them: there, images stay small data URIs. Model weights for live toys are quantised and base64-encoded (6 bits per weight as one character, or int8 with per-row scales).
 - Maths: LaTeX converted to MathML at build time (`html_utils/tex2mathml.mjs`), or HTML with Unicode; no runtime library.
 - `localStorage` and `sessionStorage` only inside try/catch; the page works without them.
