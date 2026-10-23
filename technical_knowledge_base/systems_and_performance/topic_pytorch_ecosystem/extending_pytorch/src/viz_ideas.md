@@ -25,3 +25,20 @@ Question the page keeps returning to: which hook keeps autograd, compile and exp
 
 ## What the methodology lacked
 No published figure to reproduce for most of this subject; the "reproduces" criterion became "recorded on this machine and checked by a script" (check_data.py). The FLOP count does reproduce exactly: 6 x 3,156,736 x 512.
+
+## 2026-10-23 rebuild to the teaching contract
+Built (all SVG at the measured width, inline beside the claim):
+| Idea | Kind (teaching contract) | Placement | Data |
+|---|---|---|---|
+| Hero: one call path, six slots, the three facts highlighted | static annotated diagram (structure) | top | none (structure); key order from the sibling page |
+| Custom-op slot stepper: each registration fills one slot and unlocks one more thing | stepper (process), no tweening | Reading 1.1 | custom_ops.json variants kernel_only, kernel_fake, full |
+| Dynamo forward as a strip to scale by operations, inside the existing before/after | before/after animation | Reading 2.1 | graphs.json |
+| Four processes, one cache | static annotated diagram (a mechanism with no visual before) | Reading 2.3 | cache_trap.json |
+| What the compiler sees: custom_op, triton_op, Helion | toggle-free comparison of three structures | Reading 4 | custom_ops.json, helion.json; triton_op from source (not run) |
+| Subclass tracer moved from its tab, stack drawn as SVG | stepper over recorded calls | Reading 5.1 | subclasses.json |
+| Per-call and int8 forward timing bars as SVG | bars (one toggle) | Reading 3.2, 5.4 | timing.json |
+
+Rejected at this rebuild:
+- A dispatcher key walk for the custom op: the sibling page owns the dispatcher and records one call key by key (its Reading 2.2); the hero names the slots and links there.
+- Keeping the Subclass tracer as a tab: it explains one mechanism (where the two intercept points sit), so it moved inline.
+- A second comparison table for "choosing" (old section 8): merged into the top table; the Which extension point? tab asks the same questions one at a time.
