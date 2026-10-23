@@ -54,15 +54,52 @@
 #t-read .sg-tl{width:100%;overflow:hidden;margin:6px 0}
 #t-read .sg-tl svg text{font-size:11px}
 #t-read .sg-note{font-size:12.5px;color:var(--mute)}
-#t-read p code,#t-read li code,#t-read td code,#t-step code{overflow-wrap:anywhere}
+#t-read p code,#t-read li code,#t-read td code{overflow-wrap:anywhere}
+</style>
+<style>
+#t-read p.core{font-size:15.5px;line-height:1.55;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:12px 0}
+#t-read .hl{background:var(--hl);padding:0 3px;border-radius:3px}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4,#t-read .card h4{margin:0 0 4px;font-size:14.5px}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>.b{padding:0 12px 10px}
+#t-read .stages{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:8px 0}
+#t-read .stages>div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--soft);min-width:0;font-size:13px}
+#t-read .stages>div b{display:block;font-size:13.5px;margin-bottom:4px}
+#t-read .stages .nodes{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+#t-read .stages .nodes span{border:1px solid var(--c1);border-radius:4px;padding:1px 6px;font:12px ui-monospace,Menlo,monospace;background:var(--bg)}
+#t-read .stages .nodes span.f{border-style:dashed;color:var(--mute)}
+#t-read .stages .nodes span.e{border-color:var(--c2)}
 </style>
 <nav class="nav" id="rd-nav">
-<a href="#sg-s0">In one screen</a><a href="#sg-s1">1 Streams</a><a href="#sg-s2">2 Copies</a><a href="#sg-s3">3 Launch cost, graphs</a><a href="#sg-s4">4 Graphs in PyTorch</a><a href="#sg-s5">5 Many GPUs, one process</a><a href="#sg-s6">6 NCCL and training</a><a href="#sg-s7">7 Hangs</a><a href="#sg-s8">8 Symmetric memory</a><a href="#sg-s9">Mistakes, interview</a>
+<a href="#sg-s0">The idea</a><a href="#sg-s1">1 Streams</a><a href="#sg-s2">2 Copies</a><a href="#sg-s3">3 Graphs</a><a href="#sg-s4">4 Graphs in PyTorch</a><a href="#sg-s5">5 Many GPUs</a><a href="#sg-s6">6 NCCL, training</a><a href="#sg-s7">7 Hangs</a><a href="#sg-s8">8 Symmetric memory</a><a href="#sg-s9">Check, depth</a>
 </nav>
 <section id="sg-s0">
-<p class="lead">A GPU is fast only while it has work. Between the kernels this topic teaches you to write, a training step leaves the GPU idle in three ways: it waits for the <b>CPU</b> to launch the next kernel, it waits for a <b>copy</b> over PCIe, and it waits for <b>other GPUs</b> to exchange gradients. This page is about the tools that remove those waits: streams (run things side by side), CUDA graphs (launch many kernels with one call) and NCCL on its own stream (communicate while computing).</p>
-<p><b>Where this sits.</b> {{The CUDA programming model|n:3c65c17b0d0d8162865eec15d9dae87e}} taught what one launch is and what it costs, and left streams, events, pinned-memory pipelines and NCCL streams to this page; {{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}} has pinned, mapped and managed memory. Below the API, {{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}} follows a launch down to the doorbell write, and the wires (PCIe, NVLink, InfiniBand) and NCCL's algorithms are on {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}. This page is the programmer's side.</p>
-<p><b>What could run here.</b> There is no NVIDIA GPU. So: every CUDA program on this page was compiled with CUDA 13.4.2 and NCCL 2.31.2 in a container <span class="rd-pub">compiled here</span>, and the runs fail at the first runtime call with "<span data-sgv="cuda.run_errors.s1_pipeline">CUDA driver version is insufficient for CUDA runtime version (35)</span>", which is shown rather than hidden. The overlap of gradient all-reduce with backward was <b>run</b> with real PyTorch DDP on CPU processes (Gloo instead of NCCL) <span class="rd-meas">measured on CPU</span>. Launch and queueing costs were <b>measured</b> on the Apple M1 Pro's GPU through Metal <span class="rd-meas">measured on Apple M1 Pro GPU</span>. NVIDIA timings come from NVIDIA's posts and docs <span class="rd-pub">published</span>; the training-step timelines are a model built from stated inputs <span class="rd-der">derived</span>.</p>
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">A step's time is the sum of the parts that do <b>not</b> overlap. Between kernels a GPU waits in three ways: for the <span class="hl">CPU to launch</span> the next kernel, for a <span class="hl">copy</span> over PCIe, and for <span class="hl">other GPUs</span> to exchange gradients. Streams let copies, compute and communication run side by side, CUDA graphs launch a whole sequence with one call, and NCCL on its own stream hides the all-reduce under backward. Overlap hides the smaller of two things under the larger; it never makes the larger one shorter.</p>
+<div class="hero" id="sg-hero-card"><h4>The same work, with the three waits removed: what is left is the larger of each pair</h4>
+<div class="rd-fig" id="sg-hero"></div>
+<p class="small" id="sg-hero-cap">One GPU, one training step, one row per stream. Top: everything in series; the numbered pale blocks are the SMs idle, waiting for <b>1</b> the copy, <b>2</b> the CPU to launch each small kernel, <b>3</b> the all-reduce. Bottom: the next batch is copied on a copy stream under compute, the small kernels replay as one CUDA graph with no gaps, and gradient buckets are all-reduced under backward; the last bucket is still exposed (section 6 says why). Durations <span class="rd-ill">illustrative</span>; sections 2, 3 and 6 draw each to scale from real numbers.</p></div>
+<p><b>You need:</b> what one kernel launch is and what it costs ({{The CUDA programming model|n:3c65c17b0d0d8162865eec15d9dae87e}}, section 8). Pinned, mapped and managed memory as memory types are on {{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}}; this page uses them to overlap. Which collectives each parallelism needs is {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}'s subject, and the wires and NCCL's ring and tree algorithms are {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}'s; a launch down to the doorbell write is on {{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}. This page is the programmer's side.</p>
+<dl class="terms">
+<dt>Stream</dt><dd>a queue of GPU work: in order inside a stream, possibly overlapping across streams.</dd>
+<dt>Event</dt><dd>a marker in a stream: other streams can wait on it, and two events time the GPU.</dd>
+<dt>Pinned memory</dt><dd>page-locked host memory; required for a copy to run asynchronously.</dd>
+<dt>Copy engine</dt><dd>a DMA unit separate from the SMs, so a copy and a kernel can run together.</dd>
+<dt>CUDA graph</dt><dd>a recorded sequence of kernels and copies, instantiated once, launched with one call.</dd>
+<dt>Peer access</dt><dd>a kernel on one GPU loading and storing another GPU's memory directly.</dd>
+<dt>Communicator, collective</dt><dd>NCCL's group of ranks; an all-reduce or all-gather queued as kernels on a stream.</dd>
+<dt>Bucket</dt><dd>a group of gradients DDP all-reduces together as soon as all are ready.</dd>
+<dt>Symmetric memory</dt><dd>the same buffer on every GPU, which kernels on the others can read and write.</dd>
+</dl>
+<details class="dp"><summary>Provenance: what could run here without an NVIDIA GPU</summary><div class="b">
+<p>There is no NVIDIA GPU. Every CUDA program on this page was compiled with CUDA 13.4.2 and NCCL 2.31.2 in a container <span class="rd-pub">compiled here</span>; runs stop at the first runtime call with "<span data-sgv="cuda.run_errors.s1_pipeline">CUDA driver version is insufficient for CUDA runtime version (35)</span>". Gradient overlap was <b>run</b> with real PyTorch DDP on CPU processes (Gloo instead of NCCL) <span class="rd-meas">measured on CPU</span>; launch and queueing costs were <b>measured</b> on the Apple M1 Pro's GPU through Metal <span class="rd-meas">measured on Apple M1 Pro GPU</span>. NVIDIA timings come from NVIDIA's posts and docs <span class="rd-pub">published</span>; the training-step timelines are a model built from stated inputs <span class="rd-der">derived</span>.</p>
+</div></details>
+<details class="dp"><summary>Every idea in one table, with how to check it <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>Idea</th><th>In one line</th><th>How to check it</th><th>Section</th></tr></thead>
 <tbody>
@@ -70,11 +107,11 @@
 <tr><td><b>Event</b></td><td>A marker in a stream: other streams can wait on it, and two events time the GPU.</td><td><code>cudaEventElapsedTime</code>, <code>torch.cuda.Event</code></td><td>1</td></tr>
 <tr><td><b>Legacy default stream</b></td><td>Stream 0: work on it waits for, and blocks, every other blocking stream.</td><td>the binary calls <code>cudaMemcpyAsync</code>, not <code>cudaMemcpyAsync_ptsz</code></td><td>1</td></tr>
 <tr><td><b>Pinned memory</b></td><td>Page-locked host memory: required for a copy to run asynchronously and overlap.</td><td><code>pin_memory=True</code>, <code>non_blocking=True</code></td><td>2</td></tr>
+<tr><td><b>Managed memory</b></td><td>One pointer for host and device; pages migrate on demand unless prefetched on a stream.</td><td><code>cudaMemPrefetchAsync</code> before the kernel; page faults in Nsight Systems</td><td>2</td></tr>
 <tr><td><b>CUDA graph</b></td><td>A recorded sequence of kernels and copies, instantiated once, launched with one call.</td><td>gaps between kernels vanish on the timeline</td><td>3, 4</td></tr>
 <tr><td><b>Peer access</b></td><td>One GPU reads another's memory directly over NVLink or PCIe.</td><td><code>cudaDeviceCanAccessPeer</code>, <code>nvidia-smi topo -m</code></td><td>5</td></tr>
 <tr><td><b>NCCL collective</b></td><td>All-reduce and friends as kernels queued on a stream; every rank must call them in the same order.</td><td><code>NCCL_DEBUG=INFO</code>, the flight recorder</td><td>6, 7</td></tr>
 <tr><td><b>Comm/compute overlap</b></td><td>DDP all-reduces gradient buckets while backward is still running; FSDP prefetches all-gathers.</td><td>the timeline: NCCL kernels under backward kernels</td><td>6</td></tr>
 <tr><td><b>Symmetric memory</b></td><td>The same buffer on every GPU, readable and writable by kernels on the others.</td><td><code>symm_mem.rendezvous</code></td><td>8</td></tr>
-</tbody></table></div>
-<div class="co key"><div class="t">The one picture to keep</div>A step's time is the sum of the parts that do <b>not</b> overlap. Overlap hides the smaller of two things under the larger; it never makes the larger one shorter, and the two often slow each other down a little (both use the GPU's SMs and memory). Section 6's measurement shows both effects on real DDP.</div>
+</tbody></table></div></div></details>
 </section>

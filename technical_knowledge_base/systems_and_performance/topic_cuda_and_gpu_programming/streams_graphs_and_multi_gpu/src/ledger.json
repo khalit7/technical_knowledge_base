@@ -1,0 +1,3385 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Streams, CUDA graphs and multi-GPU programming: overlap, launch overhead, NCCL Streams, CUDA graphs and multi-GPU programming: overlap, launch overhead, NCCL How to keep a GPU busy, taught from zero: streams and events, the default-stream trap, pinned memory and copy/compute overlap, launch overhead and CUDA graphs (capture, update, conditional nodes, PyTorch's graphs and CUDAGraph Trees, inference engines), several GPUs in one process, NCCL as an API, how data-parallel training hides its all-reduce, debugging hangs, and symmetric memory.",
+  "label": "core",
+  "key": "multi-gpu programming: overlap, launch overhead, nccl streams,",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Real CUDA 13.4.2 and NCCL 2.31.2 compiled here; overlap measured with PyTorch on CPU; launch costs measured on an Apple M1 Pro GPU.",
+  "label": "core",
+  "key": "cuda 13.4.2 and nccl 2.31.2 compiled here;",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Child of Topic: cuda-and-gpu-programming.",
+  "label": "core",
+  "key": "child of topic: cuda-and-gpu-programming.",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026.",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Step timeline Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar text"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen 1 Streams 2 Copies 3 Launch cost, graphs 4 Graphs in PyTorch 5 Many GPUs, one process 6 NCCL and training 7 Hangs 8 Symmetric memory Mistakes, interview A GPU is fast only while it has work.",
+  "label": "core",
+  "key": "graphs 4 graphs in pytorch 5 many",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "Between the kernels this topic teaches you to write, a training step leaves the GPU idle in three ways: it waits for the CPU to launch the next kernel, it waits for a copy over PCIe, and it waits for other GPUs to exchange gradients.",
+  "label": "core",
+  "key": "for the cpu to launch the next",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page is about the tools that remove those waits: streams (run things side by side), CUDA graphs (launch many kernels with one call) and NCCL on its own stream (communicate while computing).",
+  "label": "core",
+  "key": "and nccl on its own stream",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "The CUDA programming model taught what one launch is and what it costs, and left streams, events, pinned-memory pipelines and NCCL streams to this page; GPU memory hierarchy has pinned, mapped and managed memory.",
+  "label": "core",
+  "key": "launch is and what it",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "Below the API, Virtualization and the GPU driver stack follows a launch down to the doorbell write, and the wires (PCIe, NVLink, InfiniBand) and NCCL's algorithms are on Interconnects and scaling .",
+  "label": "core",
+  "key": "a launch down to the doorbell",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page is the programmer's side.",
+  "label": "core",
+  "key": "this page is the programmer's side.",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "What could run here.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "There is no NVIDIA GPU.",
+  "label": "depth",
+  "key": "there is no nvidia gpu.",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "",
+  "text": "So: every CUDA program on this page was compiled with CUDA 13.4.2 and NCCL 2.31.2 in a container compiled here , and the runs fail at the first runtime call with \" CUDA driver version is insufficient for CUDA runtime version (35) \", which is shown rather than hidden.",
+  "label": "depth",
+  "key": "every cuda program on this page was",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "",
+  "text": "The overlap of gradient all-reduce with backward was run with real PyTorch DDP on CPU processes (Gloo instead of NCCL) measured on CPU .",
+  "label": "depth",
+  "key": "was run with real pytorch ddp on",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "",
+  "text": "Launch and queueing costs were measured on the Apple M1 Pro's GPU through Metal measured on Apple M1 Pro GPU .",
+  "label": "depth",
+  "key": "launch and queueing costs were measured on",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "",
+  "text": "NVIDIA timings come from NVIDIA's posts and docs published ; the training-step timelines are a model built from stated inputs derived .",
+  "label": "depth",
+  "key": "nvidia timings come from nvidia's posts and",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "",
+  "text": "Idea In one line How to check it Section Stream A queue of GPU work: in order inside a stream, possibly overlapping across streams.",
+  "label": "depth",
+  "key": "idea in one line how to check",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "",
+  "text": "Nsight Systems shows one row per stream 1 Event A marker in a stream: other streams can wait on it, and two events time the GPU. cudaEventElapsedTime , torch.cuda.Event 1 Legacy default stream Stream 0: work on it waits for, and blocks, every other blocking stream. the binary calls cudaMemcpyAsync , not cudaMemcpyAsync_ptsz 1 Pinned memory Page-locked host memory: required for a copy to run asynchronously and overlap. pin_memory=True , non_blocking=True 2 CUDA graph A recorded sequence of kernels and copies, instantiated once, launched with one call. gaps between kernels vanish on the timeline 3, 4 Peer access One GPU reads another's memory directly over NVLink or PCIe. cudaDeviceCanAccessPeer , nvidia-smi topo -m 5 NCCL collective All-reduce and friends as kernels queued on a stream; every rank must call them in the same order.",
+  "label": "depth",
+  "key": "nsight systems shows one row per stream",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "",
+  "text": "NCCL_DEBUG=INFO , the flight recorder 6, 7 Comm/compute overlap DDP all-reduces gradient buckets while backward is still running; FSDP prefetches all-gathers. the timeline: NCCL kernels under backward kernels 6 Symmetric memory The same buffer on every GPU, readable and writable by kernels on the others. symm_mem.rendezvous 8 The one picture to keep A step's time is the sum of the parts that do not overlap.",
+  "label": "core",
+  "key": "symm_mem.rendezvous",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "",
+  "text": "Overlap hides the smaller of two things under the larger; it never makes the larger one shorter, and the two often slow each other down a little (both use the GPU's SMs and memory).",
+  "label": "core",
+  "key": "overlap hides the smaller of two things",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "",
+  "text": "Section 6's measurement shows both effects on real DDP.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer restated by the hero caption"
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Streams and events, from zero The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "A launch only queues work ( programming model , section 8).",
+  "label": "core",
+  "key": "a launch only queues work ( programming",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Something must say what order the queued work runs in, and which pieces are independent enough to run at the same time.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "That something is the stream.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "A stream is a queue of GPU operations: kernel launches, copies, memsets, waits.",
+  "label": "core",
+  "key": "a queue of GPU work",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "NVIDIA's guide: \"the order of execution of operations in a stream is the same as the order in which those operations were enqueued\", and operations in different streams have no order between them unless you add one ( Programming Guide 2.5 ) vendor doc .",
+  "label": "core",
+  "key": "\"the order of execution of operations in",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Every launch names its stream as the fourth launch argument, k<<<grid, block, smem, stream>>> ; every async copy takes one as its last argument. \"Different streams may overlap\" means the hardware is allowed to run them together, not that it will: a kernel that fills every SM leaves no room for another.",
+  "label": "core",
+  "key": "Different streams may overlap",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "An event is a marker you record into a stream.",
+  "label": "core",
+  "key": "marker recorded into a stream",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "It completes when everything queued before it in that stream has completed.",
+  "label": "core",
+  "key": "it completes when everything queued before it",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Three uses: Order two streams: cudaEventRecord(e, s1); cudaStreamWaitEvent(s2, e) makes everything queued on s2 afterwards wait for s1 's work up to e , without stopping the CPU.",
+  "label": "core",
+  "key": "cudaStreamWaitEvent(s2, e)",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Time the GPU: two events and cudaEventElapsedTime give milliseconds between them as the GPU saw them (honest timing is on Profiling, benchmarking and correctness ).",
+  "label": "core",
+  "key": "(honest timing is on profiling, benchmarking and",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "An event created with cudaEventDisableTiming is cheaper and is the right kind for pure ordering.",
+  "label": "core",
+  "key": "with cudaeventdisabletiming is cheaper and is the",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Wait on the CPU for one point only: cudaEventSynchronize(e) , instead of draining everything.",
+  "label": "depth",
+  "key": "cudaEventSynchronize",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Host waits, from narrowest to widest: cudaEventSynchronize (one point), cudaStreamSynchronize (one stream), cudaDeviceSynchronize (everything on the GPU); cudaStreamQuery and cudaEventQuery only ask.",
+  "label": "depth",
+  "key": "narrowest to widest: cudaeventsynchronize (one point), cudastreamsynchronize",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Some calls wait without saying so: cudaMemcpy is synchronous, cudaFree synchronises the device ( programming model , section 7), and in PyTorch .item() , .cpu() , print(t) and a boolean test of a GPU tensor all wait.",
+  "label": "core",
+  "key": "print(t)",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "A callback can be queued too: cudaLaunchHostFunc(stream, fn, data) runs fn on a CPU thread when the stream reaches it, and such functions \"may not call any CUDA APIs\" (guide 2.5.4).",
+  "label": "depth",
+  "key": "cudaLaunchHostFunc(stream, fn, data)",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "The default stream trap A launch without a stream argument goes to stream 0 , the default stream, and there are two kinds.",
+  "label": "core",
+  "key": "the default stream trap a launch without",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "The legacy default stream (nvcc's default) is shared by every host thread and is a blocking stream: work launched into it \"will wait for all other blocking streams to complete before it can execute\", and the other blocking streams wait for it (guide 2.5.6.1).",
+  "label": "core",
+  "key": "the legacy default stream (nvcc's default) is",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Streams made with cudaStreamCreate are blocking; cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking) makes one that ignores stream 0.",
+  "label": "core",
+  "key": "cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking)",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "The per-thread default stream ( nvcc --default-stream per-thread , or CUDA_API_PER_THREAD_DEFAULT_STREAM before including the headers) gives \"each host thread its own independent default stream which will not synchronize with other streams\" (guide 2.5.6.2) vendor doc . // s5_default_stream.cu (compiled here): A on s1, B on stream 0, C on s2, then a copy on stream 0 cudaStreamCreate(&s1); cudaStreamCreate(&s2); // blocking streams (the default flag) k<<<1, 256, 0, s1>>>(d); // A k<<<1, 256>>>(d + 256); // B: default stream k<<<1, 256, 0, s2>>>(d + 512); // C cudaMemcpyAsync(d, d + 512, 1024, cudaMemcpyDeviceToDevice); // default stream again Predict: with nvcc's default settings, can kernel C run at the same time as kernel A?",
+  "label": "core",
+  "key": "CUDA_API_PER_THREAD_DEFAULT_STREAM",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Yes, they are on different streams No: B on the legacy default stream sits between them Only if A and C are small B waits for A (A is on a blocking stream), and C, queued after B, waits for B.",
+  "label": "core",
+  "key": "yes, they are on different streams no:",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "The three run one after another although they share nothing.",
+  "label": "core",
+  "key": "the three run one after another although",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Compiled with --default-stream per-thread , B goes to this thread's own stream and A, B and C may all overlap.",
+  "label": "core",
+  "key": "compiled with --default-stream per-thread , b goes",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "The chart below draws both. legacy default stream (nvcc default) --default-stream per-thread How to tell which one a binary uses.",
+  "label": "core",
+  "key": "legacy default stream (nvcc default) --default-stream per-thread",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "The flag changes which runtime functions the code calls.",
+  "label": "core",
+  "key": "the flag changes which runtime functions the",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Compiling the program above both ways and listing the CUDA functions each object file needs compiled here : legacy cudaMemcpyAsync , per-thread cudaMemcpyAsync_ptsz , the _ptsz (\"per-thread stream\") entry point.",
+  "label": "core",
+  "key": "cudaMemcpyAsync_ptsz",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Note also what the run printed without a driver: nothing, with exit code 0 ( run_exit=0 ), because this program checks no return codes; the four programs that do check stop at their first call.",
+  "label": "core",
+  "key": "run_exit",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "PyTorch never uses the legacy stream for its own work by accident: every operation goes to the current stream of its device, which starts as the default stream and is changed with a context manager: s = torch.cuda.Stream() s.wait_stream(torch.cuda.current_stream()) # s must see x fully written with torch.cuda.stream(s): y = f(x) # queued on s torch.cuda.current_stream().wait_stream(s) # before anyone on the main stream reads y y.record_stream(torch.cuda.current_stream()) # or the allocator may hand y's memory out early The last line is the subtle one.",
+  "label": "core",
+  "key": "y.record_stream(torch.cuda.current_stream()",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "PyTorch's caching allocator records which stream a block was allocated on and reuses freed blocks in that stream's order; a tensor used on a second stream can be freed and reused while the second stream still reads it.",
+  "label": "core",
+  "key": "a tensor used on a second stream",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "The PyTorch notes say it plainly: even when \"no other uses of A \" exist, \"it is still necessary to synchronize\" ( CUDA semantics, 2.14 ) vendor doc . torch.cuda.Event(enable_timing=True) wraps the CUDA event.",
+  "label": "core",
+  "key": "torch.cuda.Event(enable_timing=True)",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "What \"may overlap\" depends on SMs.",
+  "label": "core",
+  "key": "what \"may overlap\" depends on",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Two kernels run side by side only if the first leaves SMs (or room on them) free.",
+  "label": "core",
+  "key": "free SMs",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Concurrency pays when kernels are small, a few blocks each; a big GEMM takes the whole GPU and the second kernel simply starts on SMs as they free up.",
+  "label": "depth",
+  "key": "big gemm takes the whole gpu and",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "The GPU takes work from a limited number of hardware queues.",
+  "label": "depth",
+  "key": "a limited number of hardware",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "CUDA_DEVICE_MAX_CONNECTIONS sets how many: \"1 to 32 connections, default is 8\"; with more streams than queues, independent streams can share a queue and serialise through \"false dependencies\" ( Programming Guide 3.1 and 5.2 ) vendor doc .",
+  "label": "depth",
+  "key": "CUDA_DEVICE_MAX_CONNECTIONS",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Megatron-LM uses the opposite effect on purpose: it sets the variable to 1 so that launch order becomes execution order, and comments in its tensor-parallel layers say \"we rely on CUDA_DEVICE_MAX_CONNECTIONS=1 to ensure that the all-reduce is scheduled before the weight gradient computation\" ( Megatron-LM layers.py, main, Sep 30 2026 ) source .",
+  "label": "depth",
+  "key": "CUDA_DEVICE_MAX_CONNECTIONS",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "One queue means the communication kernel is guaranteed to start first and then runs under the GEMM.",
+  "label": "depth",
+  "key": "then runs under the gemm.",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Priorities. cudaStreamCreateWithPriority gives a stream a priority; \"lower numbers correspond to higher priorities\", and cudaDeviceGetStreamPriorityRange returns the range for the device (guide 2.5.9.1) vendor doc .",
+  "label": "depth",
+  "key": "\"lower numbers correspond to higher",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Waiting blocks of a high-priority stream get SMs first, which is how communication kernels are kept from queueing behind a long compute kernel; PyTorch exposes it as torch.cuda.Stream(priority=-1) and, for NCCL, TORCH_NCCL_HIGH_PRIORITY ( PyTorch NCCL environment variables ).",
+  "label": "depth",
+  "key": "torch.cuda.Stream(priority=-1)",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "The measurement above is a contrast, not a CUDA number: Metal has command queues instead of streams, and on this M1 Pro, eight independent one-threadgroup kernels on eight separate queues took as long as eight in one queue, while the same eight in one encoder marked \"concurrent\" ran together.",
+  "label": "core",
+  "key": "a contrast, not a cuda number: metal",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Separate queues allowed overlap but did not produce it here.",
+  "label": "core",
+  "key": "separate queues allowed overlap but did not",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "The lesson transfers: never assume overlap, look for it on a timeline.",
+  "label": "core",
+  "key": "look for it on a timeline.",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "1. streams and events, from zero",
+  "text": "Go deeper: how a stream maps to a hardware channel, a GPFIFO ring and a doorbell register is on Virtualization and the GPU driver stack ; reading a stream timeline in Nsight Systems is on Profiling, benchmarking and correctness .",
+  "label": "depth",
+  "key": "how a stream maps to a hardware",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Copies: pinned memory and copy/compute overlap The problem.",
+  "label": "core",
+  "key": "Copies:",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Host memory is far away.",
+  "label": "core",
+  "key": "host memory is far away.",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "A PCIe 5.0 x16 link moves about 63 GB/s each way (the figure Interconnects and scaling uses), while an H100 SXM reads its own HBM at 3.35 TB/s vendor spec , about 53 times faster derived: 3,350 / 63 .",
+  "label": "core",
+  "key": "3.35 TB/s",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "A kernel that waits for its input to cross PCIe runs at PCIe speed.",
+  "label": "core",
+  "key": "a kernel that waits for its input",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "The fix is to move data while the GPU computes on something else.",
+  "label": "core",
+  "key": "while the gpu computes on something else.",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "The GPU's copy engines move data by DMA: they read physical pages directly, so those pages must not move or be swapped out while the copy runs.",
+  "label": "core",
+  "key": "physical pages directly, so those pages must",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Ordinary (pageable) memory can be, so the driver first copies it into a pinned staging buffer, and the copy is not truly asynchronous.",
+  "label": "core",
+  "key": "and the copy is not truly",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "NVIDIA: \"In order for memory copies involving CPU memory to be carried out asynchronously, the host buffers must be pinned and page-locked\" (guide 2.5.2.3) vendor doc .",
+  "label": "core",
+  "key": "\"in order for memory copies involving cpu",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Allocate pinned memory with cudaMallocHost (PyTorch: pin_memory=True in the DataLoader, or t.pin_memory() ); do not pin everything, because pinned pages are taken away from the OS.",
+  "label": "core",
+  "key": "t.pin_memory()",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Copies are done by separate hardware units, not by the SMs, so a copy and a kernel can run at the same time; with two copy engines a host-to-device and a device-to-host copy can also overlap each other. cudaGetDeviceProperties reports how many as asyncEngineCount .",
+  "label": "core",
+  "key": "so a copy and a kernel can",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "With one engine, the two directions take turns.",
+  "label": "core",
+  "key": "the two directions take turns.",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "The chunked pipeline Cut the data into chunks and give each chunk its own sequence (copy in, kernel, copy out) on one of a few streams.",
+  "label": "core",
+  "key": "the chunked pipeline cut the data into",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "While chunk 2 is copied in, chunk 1's kernel runs and chunk 0 is copied out.",
+  "label": "core",
+  "key": "while chunk 2 is copied in, chunk",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "The program, compiled here compiled here : // s1_pipeline.cu: 256 MiB in 8 chunks on 3 non-blocking streams (error checks shortened) cudaMallocHost(&h_in, N * sizeof(float)); // pinned for (int k = 0; k < NS; ++k) cudaStreamCreateWithPriority(&s[k], cudaStreamNonBlocking, k == 0 ? hi : lo); for (int c = 0; c < CHUNKS; ++c) { cudaStream_t st = s[c % NS]; size_t off = (size_t)c * C; cudaMemcpyAsync(d_in + off, h_in + off, C * 4, cudaMemcpyHostToDevice, st); scale<<<(C + 255) / 256, 256, 0, st>>>(d_out + off, d_in + off, C, 2.0f); cudaMemcpyAsync(h_out + off, d_out + off, C * 4, cudaMemcpyDeviceToHost, st); } // s[0] waits on an event from each other stream, records t1, then: cudaEventSynchronize(t1) Chunks 8 two copy engines Model derived : 256 MiB at 63 GB/s each way = 4.26 ms per direction; the kernel reads and writes 256 MiB at 3.35 TB/s = 0.16 ms.",
+  "label": "depth",
+  "key": "cudaMallocHost(&h_in, N * sizeof(float)",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Eight chunks with two engines: 4.81 ms; with one engine: 8.54 ms.",
+  "label": "core",
+  "key": "8.54 ms",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Launch and per-copy latencies are ignored.",
+  "label": "core",
+  "key": "launch and per-copy latencies are ignored.",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Not run here: no GPU.",
+  "label": "core",
+  "key": "not run here: no gpu.",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Read the chart before the numbers.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "instruction, replaced by the predict prompt"
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "The kernel was never the problem; the copies were.",
+  "label": "core",
+  "key": "the kernel was never the problem; the",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Pipelining hides the kernel under the copies (a saving of 0.16 ms) and, with two engines, the copy out under the copy in, which is where the factor of nearly two comes from.",
+  "label": "core",
+  "key": "0.16 ms",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Overlap hides the smaller thing under the larger one.",
+  "label": "core",
+  "key": "overlap hides the smaller thing under the",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "If the copies dominate, the real fixes are to copy less (keep data on the GPU, compress it, use lower precision) or to use a faster link.",
+  "label": "core",
+  "key": "fixes are to copy less (keep data",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "In PyTorch, and when it matters for training loader = DataLoader(ds, batch_size=16, pin_memory=True, num_workers=4) for x, y in loader: x = x.to(\"cuda\", non_blocking=True) # returns at once; ordered before the forward on the stream y = y.to(\"cuda\", non_blocking=True) loss = model(x, y) Host-to-device with non_blocking=True is safe because later kernels on the same stream wait for the copy.",
+  "label": "core",
+  "key": "y.to(\"cuda\", non_blocking=True)",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "The other direction is not: \"attempting cuda_tensor.to(\"cpu\", non_blocking=True).mean() will result in erroneous outputs\", since the CPU reads the buffer before the copy lands; synchronise first.",
+  "label": "core",
+  "key": ", non_blocking=True).mean() will result in erroneous outputs",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Calling .pin_memory() on a tensor just to copy it once is usually slower than a plain copy: the tutorial measured 0.4364 ms against 0.3704 ms ( Moens, \"A guide on good usage of non_blocking and pin_memory()\", PyTorch tutorials, updated Apr 1 2026 ) published .",
+  "label": "depth",
+  "key": "A guide on good usage of non_blocking and pin_memory()",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Pinning pays when the buffer is reused, which is what the DataLoader's pinned buffers do.",
+  "label": "depth",
+  "key": "pinning pays when the buffer is reused,",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "For LLM pretraining the input copy is tiny.",
+  "label": "core",
+  "key": "for llm pretraining the input copy is",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "16 sequences of 1,024 tokens as int64 ids, inputs plus targets, are 262,144 bytes, about 0.004 ms over PCIe derived , against tens of milliseconds of compute.",
+  "label": "core",
+  "key": "16 sequences of 1,024 tokens as int64",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Copy/compute overlap matters when the bytes are large next to the work: activations or optimizer state offloaded to the CPU ( torch.autograd.graph.save_on_cpu(pin_memory=True) , FSDP's CPU offload), inference that streams weights or KV cache from host memory, and image or video pipelines that decode on the CPU.",
+  "label": "core",
+  "key": "torch.autograd.graph.save_on_cpu(pin_memory=True)",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "In each case the same rule decides: if copying a layer's bytes takes longer than computing that layer, overlap cannot hide it.",
+  "label": "core",
+  "key": "if copying a layer's bytes takes longer",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "2. copies: pinned memory and copy/compute overlap",
+  "text": "Go deeper: pinned, mapped (zero-copy) and managed memory and their costs are on GPU memory hierarchy ; PCIe generations and why the NIC and GPU share a switch are on Interconnects and scaling .",
+  "label": "depth",
+  "key": "pinned, mapped (zero-copy) and managed memory",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Launch overhead and CUDA graphs The problem.",
+  "label": "core",
+  "key": "launch overhead and cuda graphs",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Every launch costs CPU time in the runtime and driver.",
+  "label": "core",
+  "key": "every launch costs cpu time in the",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "When kernels are long, the CPU queues them far ahead and the cost is hidden.",
+  "label": "core",
+  "key": "the cpu queues them far ahead and",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "When kernels are short, as in LLM decoding (one token at a time, every matmul small) or a model built from many small operations, the GPU finishes each kernel before the CPU has queued the next one and sits idle between them.",
+  "label": "core",
+  "key": "are short, as in llm decoding (one",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "The CUDA programming model measured the M1 version of this; here is NVIDIA's.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a sibling, said in You need"
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "NVIDIA's measurement ( Alan Gray, \"Getting Started with CUDA Graphs\", NVIDIA blog, Sep 5 2019, V100 ) published : 20 kernels per step, 1,000 steps, each kernel 2.9 µs of GPU work.",
+  "label": "core",
+  "key": "Getting Started with CUDA Graphs",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Synchronising after every launch: 9.6 µs per kernel.",
+  "label": "core",
+  "key": "synchronising after every launch: 9.6 µs per",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Launching the 20 back to back on a stream and synchronising once per step: 3.8 µs.",
+  "label": "core",
+  "key": "launching the 20 back to back on",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "The same 20 as one CUDA graph: 3.4 µs.",
+  "label": "core",
+  "key": "3.4 µs",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Creating and instantiating the graph took \"around 400µs\", once.",
+  "label": "core",
+  "key": "creating and instantiating the graph took \"around",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Those four numbers fit a simple model derived : with a stream the GPU waits for the CPU, so a launch costs the CPU about 3.8 µs; a synchronisation adds about 2.9 µs of wait and wake-up (9.6 − 3.8 − 2.9); inside a graph the GPU still leaves about 0.5 µs between nodes (3.4 − 2.9).",
+  "label": "core",
+  "key": "0.5 µs",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "The animation runs one 20-kernel step under each mode with these values. launch + sync each stream, sync once CUDA graph To scale.",
+  "label": "core",
+  "key": "launch + sync each stream, sync once",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Per-kernel values fitted to NVIDIA's four published V100 figures derived ; the shape, not the exact microseconds, carries over to newer GPUs and drivers.",
+  "label": "core",
+  "key": "the shape, not the exact microseconds, carries",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "The same experiment on the M1 Pro's GPU measured on Apple M1 Pro GPU .",
+  "label": "core",
+  "key": "the same experiment on the m1 pro's",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Metal has no streams or graphs, but it has the same three choices: one command buffer per kernel and wait (like launch-and-sync), one command buffer per kernel committed back to back (like a stream), and N dispatches recorded once into an indirect command buffer and replayed with one call (the nearest thing Metal has to a CUDA graph).",
+  "label": "core",
+  "key": "the same three choices: one command buffer",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "200 dependent kernels of 1,024 threads, Python driving Metal through PyObjC, all four giving the same result ( 101.002 ): Median of 3 runs, each the median of 7 trials; load average 10.6 to 11.3 (the laptop was shared).",
+  "label": "core",
+  "key": "101.002",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Launch and wait: 179.9 µs per kernel (runs 179.9 , 188.7 , 174.2 ).",
+  "label": "depth",
+  "key": "179.9 µs",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "One command buffer: 5.3 , of which the GPU's own clock counts 1.92 , and encoding cost the CPU 453.5 µs for all 200 ( 2.27 µs each, mostly Python).",
+  "label": "depth",
+  "key": "453.5 µs",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Replay: 3.3 µs per kernel with 21.7 µs of CPU for the whole sequence; recording it once took 853 µs.",
+  "label": "depth",
+  "key": "Replay:",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "PyTorch on MPS, 200 dependent x * a + b : 226.2 µs per iteration synchronising each time, 12.3 once (PyTorch 2.14.1 ).",
+  "label": "depth",
+  "key": "226.2 µs",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "The same three lessons as NVIDIA's numbers, measured: waiting after each launch is the disaster ( 8.2 × slower than queueing here); queueing still pays a CPU cost per kernel; recording once and replaying removes the per-kernel CPU cost and leaves the GPU's own time.",
+  "label": "core",
+  "key": "measured: waiting after each launch is the",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "What does not transfer: Metal command buffers are not CUDA launches, Python adds its own cost, and the absolute microseconds belong to this machine.",
+  "label": "core",
+  "key": "what does not transfer: metal command buffers",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "What a CUDA graph is \"A graph is a series of operations such as kernel launches, data movement, etc., connected by dependencies\", used in three stages: definition , instantiation (which \"takes a snapshot of the graph template, validates it, and performs much of the setup and initialization of work with the aim of minimizing what needs to be done at launch\") and execution , launching the executable graph into a stream like any other work, as often as you like ( Programming Guide 4.2, CUDA Graphs, v13.4.2 ) vendor doc .",
+  "label": "core",
+  "key": ", used in three stages: definition , instantiation (which ",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "A node can be a kernel, a copy, a memset, a host function, a child graph, an event record or wait, an allocation or free, or a conditional; CUDA 13.4.2's header lists read here .",
+  "label": "depth",
+  "key": "a node can be a kernel, a",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "There are two ways to define one.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Stream capture records what you would have launched anyway; the explicit API ( cudaGraphAddNode ) builds nodes and edges by hand.",
+  "label": "core",
+  "key": "records what you would have launched",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Capture is what libraries use: // s2_graph.cu, part 1 (compiled here) cudaStreamBeginCapture(s, cudaStreamCaptureModeGlobal); for (int k = 0; k < 20; ++k) axpb<<<n / 256, 256, 0, s>>>(d, n, 1.0001f, 0.5f); // recorded, not run cudaStreamEndCapture(s, &g); cudaGraphInstantiate(&ge, g, 0); // once: the expensive step for (int it = 0; it < 1000; ++it) cudaGraphLaunch(ge, s); // one call per 20 kernels What a graph freezes.",
+  "label": "core",
+  "key": "cudaStreamBeginCapture(s, cudaStreamCaptureModeGlobal)",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Everything about each node: which kernel, the grid, and the argument values, including every pointer.",
+  "label": "core",
+  "key": "every node's kernel, grid and argument values",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "A replay reads and writes the same addresses with the same shapes.",
+  "label": "core",
+  "key": "a replay reads and writes the same",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Changing data means writing new values into the same buffers; changing a scalar argument means updating the graph.",
+  "label": "core",
+  "key": "data means writing new values into the",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Updating is cheaper than re-instantiating: capture again with the same structure and call cudaGraphExecUpdate(ge, g2, &info) , or set one node's parameters with cudaGraphExecKernelNodeSetParams .",
+  "label": "core",
+  "key": "cudaGraphExecUpdate(ge, g2, &info)",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Node parameters \"such as kernel parameters and memory addresses\" may change; \"major changes to graph structure (such as topology or node types) require re-instantiation\" (guide 4.2).",
+  "label": "core",
+  "key": "parameters \"such as kernel parameters and memory",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "The header's failure codes say what can go wrong: .",
+  "label": "depth",
+  "key": "Update failure codes",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Anything that needs the GPU to have actually run: \"It is invalid to synchronize or query the execution status of a stream which is being captured\"; synchronous calls such as cudaMemcpy are invalid; while any stream is capturing, using the legacy default stream from a blocking stream is invalid; and \"when an invalid operation is attempted during stream capture, any associated capture graphs are invalidated\" (guide 4.2).",
+  "label": "core",
+  "key": "anything that needs the gpu to have",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "The capture mode decides how strict this is across threads: (PyTorch's capture_error_mode , default \"global\").",
+  "label": "depth",
+  "key": "capture_error_mode",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Other streams join a capture by waiting on an event recorded in a capturing stream, which is how multi-stream work, NCCL included, ends up in one graph.",
+  "label": "core",
+  "key": "other streams join a capture by waiting",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Control flow on the GPU: conditional nodes A graph replays a fixed sequence, so a loop whose trip count depends on data (iterate until converged, decode until end-of-sequence) used to mean returning to the CPU.",
+  "label": "depth",
+  "key": "control flow on the gpu: conditional nodes",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Conditional nodes keep the decision on the GPU: an IF node runs its body once if a condition value is non-zero (with an optional ELSE body), a WHILE node repeats its body while it is non-zero, and a SWITCH node runs body n .",
+  "label": "depth",
+  "key": "conditional nodes keep the decision on the",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "IF and WHILE arrived in CUDA 12.4, ELSE and SWITCH in 12.8 ( NVIDIA blog, May 10 2024, updated Feb 3 2025 ) published .",
+  "label": "depth",
+  "key": "if and while arrived in cuda 12.4,",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "A kernel in the graph sets the condition: // s2_graph.cu, part 3: a WHILE loop that lives on the GPU __global__ void halve_and_test(float* x, cudaGraphConditionalHandle h) { x[0] *= 0.5f; cudaGraphSetConditional(h, x[0] > 1.0f ?",
+  "label": "depth",
+  "key": "halve_and_test(float* x, cudaGraphConditionalHandle h)",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "1u : 0u); // 0 ends the loop } cudaGraphConditionalHandleCreate(&h, w, 1, cudaGraphCondAssignDefault); cp.type = cudaGraphNodeTypeConditional; cp.conditional.handle = h; cp.conditional.type = cudaGraphCondTypeWhile; cp.conditional.size = 1; cudaGraphAddNode(&cn, w, nullptr, nullptr, 0, &cp); cudaStreamBeginCaptureToGraph(s, cp.conditional.phGraph_out[0], nullptr, nullptr, 0, cudaStreamCaptureModeGlobal); halve_and_test<<<1, 1, 0, s>>>(d, h); // captured into the loop body cudaStreamEndCapture(s, nullptr); What cudaGraphSetConditional compiles to on sm_90a compiled here : the kernel loads a function address from constant bank 4, which the driver fills, and calls it ( CALL.ABS.NOINC ); the sm_100a build does the same.",
+  "label": "depth",
+  "key": "cudaGraphConditionalHandleCreate(&h, w, 1, cudaGraphCondAssignDefault)",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "The condition is set by a driver routine running on the GPU, not by a special instruction.",
+  "label": "depth",
+  "key": "the condition is set by a driver",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Other graph features worth knowing.",
+  "label": "depth",
+  "key": "other graph features worth knowing.",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Graphs can allocate and free memory as nodes ( cudaGraphInstantiateFlagAutoFreeOnLaunch ); a graph instantiated with cudaGraphInstantiateFlagDeviceLaunch can be launched from a kernel (\"fire and forget\", \"tail\" or \"sibling\" launch, guide 4.2); cudaGraphUpload moves the setup out of the first launch (NVIDIA's post saw the first launch \"around 33% slower\"); and cudaGraphDebugDotPrint writes the graph as a DOT file to look at.",
+  "label": "depth",
+  "key": "graphs can allocate and free memory as",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Predict: instantiating costs 400 µs once and saves 0.4 µs per kernel against a stream (NVIDIA's numbers).",
+  "label": "core",
+  "key": "Predict:",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "After how many kernel launches does the graph pay for itself?",
+  "label": "core",
+  "key": "after how many kernel launches does the",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "About 20 (one step) About 1,000 About 100,000 400 / (3.8 − 3.4) = 1,000 kernels derived , 50 steps of 20.",
+  "label": "core",
+  "key": "about 20 (one step) about 1,000 about",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "Training and serving replay the same graph millions of times, so it pays; a graph re-captured every step because shapes keep changing never does.",
+  "label": "core",
+  "key": "training and serving replay the same graph",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "3. launch overhead and cuda graphs",
+  "text": "That is the whole design problem of section 4.",
+  "label": "core",
+  "key": "that is the whole design problem of",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "CUDA graphs in PyTorch, torch.compile and inference engines By hand: torch.cuda.graph .",
+  "label": "core",
+  "key": "torch.cuda.graph",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "PyTorch wraps capture in a context manager.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "The rules follow from what a graph freezes (section 3): inputs and outputs live at fixed addresses, so you copy new data into static tensors; no CPU-GPU synchronisation inside (no .item() ); no data-dependent Python control flow; and warm-up must run first, on a side stream, so that lazy initialisation (cuBLAS handles, autotuning, allocator growth) happens outside the capture ( CUDA semantics, CUDA Graphs, 2.14 ) vendor doc . static_x = torch.randn(B, D, device=\"cuda\") s = torch.cuda.Stream(); s.wait_stream(torch.cuda.current_stream()) with torch.cuda.stream(s): # warm-up on a side stream for _ in range(3): static_y = model(static_x) torch.cuda.current_stream().wait_stream(s) g = torch.cuda.CUDAGraph() with torch.cuda.graph(g): # capture: kernels recorded, memory from a private pool static_y = model(static_x) for x in batches: static_x.copy_(x) # new data, same address g.replay() # one call for every kernel in the model out = static_y.clone() # the next replay overwrites static_y Memory allocated during capture comes from a pool private to the graph, kept for its whole life; graphs can share a pool ( pool= , torch.cuda.graph_pool_handle() ). torch.cuda.make_graphed_callables captures a module's forward and backward together, with num_warmup_iters = 3 by default; its docstring adds that DDP \"needs 11 iterations for warm up\" read here: PyTorch 2.14.1 source .",
+  "label": "core",
+  "key": "s.wait_stream(torch.cuda.current_stream()",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "With DDP and NCCL inside a graph, the PyTorch notes require async error handling off ( NCCL_ASYNC_ERROR_HANDLING=0 , now spelled TORCH_NCCL_ASYNC_ERROR_HANDLING ) and at least 11 DDP-enabled warm-up iterations before capturing the backward.",
+  "label": "core",
+  "key": "TORCH_NCCL_ASYNC_ERROR_HANDLING",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "Automatic: torch.compile(mode=\"reduce-overhead\") and CUDAGraph Trees torch.compile has four modes, \"default\", \"reduce-overhead\", \"max-autotune\" and \"max-autotune-no-cudagraphs\"; \"reduce-overhead\" \"reduces the overhead of python with CUDA graphs, useful for small batches\", at \"the cost of more memory usage\" (docstring, PyTorch 2.14.1).",
+  "label": "core",
+  "key": "torch.compile(mode=\"reduce-overhead\")",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "The graphs are managed by CUDAGraph Trees , whose design note in torch/_inductor/cudagraph_trees.py explains the name: graphs recorded across graph breaks share one memory pool, and \"we support arbitrary trees of CUDA graph operations, not just sequences\", using only the memory of the largest path read here .",
+  "label": "core",
+  "key": "cudagraph_trees.py",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "What a user meets in practice: Warm-up, record, replay.",
+  "label": "core",
+  "key": "what a user meets",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "The first calls run eagerly, the next records, later calls replay.",
+  "label": "core",
+  "key": "the first calls run eagerly, the next",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "Outputs live in the shared pool, so an output kept from one iteration can be overwritten by the next replay; PyTorch raises an error when you read such a stale output, and the fix is to .clone() it.",
+  "label": "core",
+  "key": "clone()",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "One graph per shape. cudagraph_skip_dynamic_graphs is false by default, so each new input shape records a new graph, and Inductor warns when the count passes cudagraph_dynamic_shape_warn_limit = 8 .",
+  "label": "core",
+  "key": "cudagraph_dynamic_shape_warn_limit",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "Pad batch sizes to a few buckets.",
+  "label": "core",
+  "key": "pad batch sizes to a few buckets.",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "Skips, with a reason.",
+  "label": "core",
+  "key": "skipping cudagraphs due to",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "Inductor declines to graph a region and logs \"skipping cudagraphs due to ...\" for, among others: .",
+  "label": "core",
+  "key": "skipping cudagraphs due to ...",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "Partitions instead of all or nothing. graph_partition is true by default in 2.14.1: Inductor splits a compiled graph around the parts that cannot be graphed and graphs the rest.",
+  "label": "core",
+  "key": "graph_partition",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "When not to bother A training step for a large model spends tens of milliseconds per kernel sequence on big matmuls; launch overhead is a rounding error there and graphs mainly cost memory and constraints.",
+  "label": "core",
+  "key": "when not to bother a training step",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "Graphs earn their keep where kernels are small: decoding, small-batch inference, small models, and the many tiny kernels of optimizers and norms.",
+  "label": "core",
+  "key": "graphs earn their keep where kernels are",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "Check first: if the profiler's GPU row has no gaps, graphs will not help.",
+  "label": "core",
+  "key": "check first: if the profiler's gpu row",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "Inference engines Decoding is the textbook case: one token per step, every kernel small, the same sequence of kernels every step.",
+  "label": "core",
+  "key": "inference engines decoding is the textbook case:",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "Engines therefore capture one graph per batch size from a list of capture sizes and pad each real batch up to the nearest one. vLLM's design doc lists five modes ( NONE , PIECEWISE , FULL , FULL_DECODE_ONLY , FULL_AND_PIECEWISE ) and defaults to FULL_AND_PIECEWISE with piecewise compilation: full graphs for uniform decode batches and piecewise graphs otherwise, where piecewise means capturing everything except operations graphs cannot handle, \"mainly attention\", whose shapes change with every request ( vLLM docs, CUDA graphs design, Sep 26 2026 ) published .",
+  "label": "core",
+  "key": "FULL_AND_PIECEWISE",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "The same trade-off as graph_partition : graph what is static, run the dynamic part eagerly between graphs.",
+  "label": "core",
+  "key": "graph_partition",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "4. cuda graphs in pytorch, torch.compile and inference engines",
+  "text": "Go deeper: how Dynamo and Inductor turn Python into the code these graphs capture is on The compiler stack ; serving engines are on inference-and-serving ; PyTorch's caching allocator, which the graph pools build on, is on Memory allocators .",
+  "label": "core",
+  "key": "go deeper: how dynamo and inductor turn",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "5. several gpus from one process: devices, peer access, ipc",
+  "text": "Several GPUs from one process: devices, peer access, IPC Selecting a device.",
+  "label": "core",
+  "key": "several gpus from one process: devices, peer",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "5. several gpus from one process: devices, peer access, ipc",
+  "text": "The runtime has a \"current device\" per host thread; cudaSetDevice(d) switches it, and allocations, streams and launches made afterwards belong to device d .",
+  "label": "core",
+  "key": "cudaSetDevice(d)",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "5. several gpus from one process: devices, peer access, ipc",
+  "text": "A stream belongs to one device; an event can be waited on by a stream of another device, which is how work on two GPUs is ordered.",
+  "label": "core",
+  "key": "a stream belongs to one device; an",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "5. several gpus from one process: devices, peer access, ipc",
+  "text": "In PyTorch: torch.cuda.set_device(d) , with torch.cuda.device(d) , or explicit device=\"cuda:1\" .",
+  "label": "core",
+  "key": "torch.cuda.set_device(d)",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "5. several gpus from one process: devices, peer access, ipc",
+  "text": "On 64-bit systems the host and all GPUs share one virtual address space (unified virtual addressing), so a pointer says which device it belongs to and cudaMemcpyAsync(..., cudaMemcpyDefault, s) can copy between any two.",
+  "label": "core",
+  "key": "cudaMemcpyAsync(..., cudaMemcpyDefault, s)",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "5. several gpus from one process: devices, peer access, ipc",
+  "text": "Peer access goes further: after cudaDeviceEnablePeerAccess , a kernel on GPU 0 can dereference a pointer into GPU 1's memory, and the loads and stores travel over NVLink or PCIe with no copy. // s3_peer.cu (compiled here) cudaDeviceCanAccessPeer(&can01, 0, 1); // is there a path GPU 0 can use? cudaSetDevice(1); cudaMalloc(&b, n * 4); cudaSetDevice(0); cudaMalloc(&a, n * 4); if (can01) { cudaDeviceEnablePeerAccess(1, 0); // GPU 0 may now dereference GPU 1 pointers add_remote<<<n / 256, 256>>>(a, b, n); // b is read across the link } else { cudaMemcpyPeerAsync(tmp, 0, b, 1, n * 4, 0); // copy first, then compute locally add_remote<<<n / 256, 256>>>(a, tmp, n); } cudaIpcGetMemHandle(&hnd, a); // let another process map this allocation Whether peer access exists depends on the wiring: GPUs on one NVLink/NVSwitch fabric, or under one PCIe switch on a platform that allows it. nvidia-smi topo -m prints the matrix (NV#, PIX, PXB, PHB, SYS), and consumer cards from the RTX 4090 on have no NVLink at all.",
+  "label": "depth",
+  "key": "cudaMemcpyPeerAsync(tmp, 0, b, 1, n * 4, 0)",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "5. several gpus from one process: devices, peer access, ipc",
+  "text": "The wires, their speeds and the switch layouts are Interconnects and scaling 's subject; the programmer's question is only \"can this pointer be read from there, and how fast\".",
+  "label": "core",
+  "key": "switch layouts are interconnects and scaling 's",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "5. several gpus from one process: devices, peer access, ipc",
+  "text": "PyTorch training uses one process per GPU ( torchrun ), so peer memory crosses process boundaries: cudaIpcGetMemHandle turns an allocation into a small handle that another process opens with cudaIpcOpenMemHandle (newer code uses the driver's virtual memory API and exports a file descriptor).",
+  "label": "core",
+  "key": "one process per gpu ( torchrun ),",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "5. several gpus from one process: devices, peer access, ipc",
+  "text": "NCCL and symmetric memory (section 8) do exactly this under the hood to read each other's buffers.",
+  "label": "core",
+  "key": "nccl and symmetric memory (section 8) do",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "5. several gpus from one process: devices, peer access, ipc",
+  "text": "One process, many GPUs, or one process per GPU?",
+  "label": "core",
+  "key": "one process, many gpus, or one process",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "5. several gpus from one process: devices, peer access, ipc",
+  "text": "One process per GPU is the PyTorch default and avoids Python's single interpreter becoming the launch bottleneck for eight GPUs.",
+  "label": "core",
+  "key": "one process per gpu is the pytorch",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "5. several gpus from one process: devices, peer access, ipc",
+  "text": "One process driving several GPUs is fine in C++ (and is what ncclCommInitAll and section 6's program do), but NCCL warns that \"using multiple GPUs per process with CUDA graph capture may result in deadlocks\" ( NCCL user guide, CUDA graphs ) vendor doc .",
+  "label": "core",
+  "key": "one process driving several gpus is fine",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "NCCL as an API, and how training hides communication The problem.",
+  "label": "core",
+  "key": "nccl as an api, and how training",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Data-parallel training runs the same model on every GPU with different data, then averages the gradients so every copy takes the same step.",
+  "label": "core",
+  "key": "averages gradients across GPUs every step",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "That average is an all-reduce , and for a model of N parameters it moves about 2 N values per GPU per step.",
+  "label": "core",
+  "key": "moves about 2 n values per gpu",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "On a fast fabric it is cheap; across nodes it can cost as much as the backward pass.",
+  "label": "core",
+  "key": "across nodes it can cost as much",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "The idea of this section: start each piece of the all-reduce the moment its gradients exist, while backward is still computing the rest.",
+  "label": "core",
+  "key": "the idea of this section: start each",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Which collectives each parallelism needs is on Distributed Training ; how NCCL schedules bytes over rings and trees, and what the network sustains, is on Interconnects and scaling (its Collective simulator tab animates rings and trees).",
+  "label": "core",
+  "key": "which collectives each parallelism needs is on",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Here: what the programmer calls and what runs where.",
+  "label": "core",
+  "key": "here: what the programmer calls and what",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "The API in five calls One id for the group.",
+  "label": "core",
+  "key": "the api in five calls one id",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Rank 0 calls ncclGetUniqueId , and the id is \"broadcast to all participating threads and processes using any CPU communication system\" (in PyTorch, the TCP store set up by init_process_group ).",
+  "label": "core",
+  "key": "init_process_group",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "A communicator per GPU. ncclCommInitRank(&comm, nranks, id, rank) on each, ranks 0 to n − 1; ncclCommInitAll when one process owns all the GPUs; ncclCommSplit to carve sub-groups (tensor-parallel and data-parallel groups) ( NCCL user guide, communicators ).",
+  "label": "core",
+  "key": "ncclCommInitRank(&comm, nranks, id, rank)",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Collectives on a stream. ncclAllReduce(sendbuff, recvbuff, count, ncclBfloat16, ncclSum, comm, stream) . \"The NCCL call returns when the operation has been effectively enqueued to the given stream\"; it runs asynchronously, and you wait with stream semantics, events or cudaStreamSynchronize ( NCCL user guide, CUDA stream semantics ) vendor doc .",
+  "label": "core",
+  "key": "collectives on a stream. ncclallreduce(sendbuff, recvbuff, count,",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Calls between ncclGroupStart() and ncclGroupEnd() are \"fused into a single NCCL operation\"; one thread driving several GPUs must group, and grouping many small collectives saves launches. ncclGroupEnd \"only guarantees that the operations are enqueued on the streams, not that the operation is effectively done\" (nccl.h).",
+  "label": "core",
+  "key": "fused into a single NCCL operation",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Tear down with ncclCommDestroy , or ncclCommAbort when a peer is gone (section 7).",
+  "label": "core",
+  "key": "tear down with ncclcommdestroy , or ncclcommabort",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "NCCL 2.31.2 's header, as shipped in the CUDA 13.4.2 image, exports read here .",
+  "label": "depth",
+  "key": "nccl 2.31.2 's header, as shipped in",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Beyond the classic collectives it now has one-sided calls ( ncclPutSignal , ncclSignal , ncclWaitSignal ) on registered memory windows, which are section 8's territory.",
+  "label": "depth",
+  "key": "beyond the classic collectives it now has",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Two rules that cause most NCCL bugs Same calls, same order, on every rank.",
+  "label": "core",
+  "key": "two rules that cause most nccl bugs",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "A collective completes only when every rank has joined it; if rank 3 skips an all-reduce (an if on local data, an unused parameter, an exception caught on one rank), everyone else waits forever.",
+  "label": "core",
+  "key": "a collective completes only when every rank",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "With several communicators per GPU, \"users must ensure the order of host-side launches matches for all devices\"; before NCCL 2.26 that meant serialising all of them, and 2.26 added NCCL_LAUNCH_ORDER_IMPLICIT to follow host issue order (communicators page).",
+  "label": "depth",
+  "key": "NCCL_LAUNCH_ORDER_IMPLICIT",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "NCCL collectives are kernels.",
+  "label": "core",
+  "key": "nccl collectives are kernels.",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "They run on SMs, as thread blocks (CTAs), next to your kernels, and they need the other ranks' matching kernels to be running too.",
+  "label": "core",
+  "key": "they run on sms, as thread blocks",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Because a collective is a kernel, it competes with compute.",
+  "label": "core",
+  "key": "because a collective is a kernel, it",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "NCCL's communicator config, fields read from nccl.h ( ), lets you bound it: minCTAs \"up to 32.",
+  "label": "depth",
+  "key": "nccl's communicator config, fields read from nccl.h",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "The default value is 1\", maxCTAs default 32; CTAPolicy NCCL_CTA_POLICY_EFFICIENCY uses the \"minimal number of CTAs to achieve the decent performance\", recommended for compute/communication overlap, and NCCL_CTA_POLICY_ZERO uses \"zero CTA whenever it can\" ( NCCL API types , flags , NCCL 2.32.3 docs) vendor doc .",
+  "label": "core",
+  "key": "minimal number of CTAs to achieve the decent performance",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "DeepSeek-V3's training gave communication 20 of the H800's 132 SMs and called that a cost: it \"relies on expensive SMs ... which will limit the computational throughput\" ( DeepSeek-V3 report ) published .",
+  "label": "core",
+  "key": "132 SMs",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "The DDP pattern, by hand The program below does what PyTorch's DistributedDataParallel does: a compute stream runs backward, which fills gradient buckets from the last layer to the first; an event marks each bucket ready; a second, communication stream waits for that event only and all-reduces the bucket; the optimizer waits for the communication stream at the end compiled here (with -lnccl ; the run prints NCCL's version code 23102 , then stops at the first CUDA call). // s4_nccl_overlap.cu (abridged; error checks removed) ncclCommInitAll(comm.data(), nd, devs.data()); for (int b = B - 1; b >= 0; --b) { // backward: last layers first for (int d = 0; d < nd; ++d) { cudaSetDevice(d); fake_backward<<<n / 256, 256, 0, compute[d]>>>(grad[d] + b * n, n, 1.0f + d); cudaEventRecord(ready, compute[d]); cudaStreamWaitEvent(comms[d], ready, 0); // wait for this bucket only } ncclGroupStart(); for (int d = 0; d < nd; ++d) ncclAllReduce(grad[d] + b * n, grad[d] + b * n, n, ncclFloat, ncclAvg, comm[d], comms[d]); ncclGroupEnd(); // queued; backward keeps going } // each compute stream waits on an event from its comm stream, then the optimizer step What PyTorch adds.",
+  "label": "depth",
+  "key": "cudaStreamWaitEvent(comms[d], ready, 0)",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "DDP registers a hook on every parameter's gradient and launches a bucket's all-reduce when the bucket's last gradient arrives.",
+  "label": "core",
+  "key": "ddp registers a hook on every parameter's",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Buckets follow the reverse order of model.parameters() , are rebuilt after the first iteration in the order gradients actually arrived, and default to 25 MiB, with a smaller first bucket of 1 MiB so the first all-reduce starts early ( _DEFAULT_BUCKET_CAP_MB = 25 , _DEFAULT_FIRST_BUCKET_BYTES = 1,048,576 , PyTorch 2.14.1 source) read here .",
+  "label": "core",
+  "key": "_DEFAULT_FIRST_BUCKET_BYTES",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "The NCCL calls run on a stream owned by the process group, ordered after the gradient kernels by events. dist.all_reduce(t, async_op=True) returns a work handle whose wait() makes the current stream wait without blocking the CPU. no_sync() skips the all-reduce during gradient accumulation; comm hooks ( register_comm_hook ) can compress buckets to BF16.",
+  "label": "core",
+  "key": "dist.all_reduce(t, async_op=True)",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "One training step, before and after The animation runs one data-parallel step of a GPT-2-small-shaped model ( 124,439,808 parameters) on 64 H100 SXM GPUs over 400 Gb/s InfiniBand, first with nothing overlapped, then with the next batch prefetched on a copy stream and the gradient buckets all-reduced during backward.",
+  "label": "core",
+  "key": "one training step, before and after the",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Inputs derived : 16,384 tokens per GPU; forward 2 N FLOPs per token and backward twice that, at 40% of 989.5 TFLOP/s (an assumed MFU); bucket all-reduce time = bytes × 2( n − 1)/ n / busbw with busbw = 92% of 50 GB/s (the acceptance target the Interconnects page quotes); BF16 gradients bucketed with DDP's rules; optimizer as 32 bytes per parameter at 3.35 TB/s.",
+  "label": "core",
+  "key": "3.35 TB/s",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Attention-score FLOPs and NCCL latency are left out. no overlap copy and comm overlapped To scale.",
+  "label": "core",
+  "key": "attention-score flops and nccl latency are left",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Lanes are streams on one GPU; every GPU runs the same timeline.",
+  "label": "core",
+  "key": "lanes are streams on one gpu; every",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "The Step timeline tab lets you change every input.",
+  "label": "core",
+  "key": "lets you change every input.",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "What the model says.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Without overlap the step is 42.8 ms, of which 10.7 ms is all-reduce with the SMs idle.",
+  "label": "core",
+  "key": "42.8 ms",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "With overlap it is 36.5 ms, 15 % less, and 4.4 ms of communication is still exposed.",
+  "label": "core",
+  "key": "with overlap it is 36.5 ms, 15",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "The reason is the last bucket: GPT-2 ties its token embedding to the output layer, and that 38.6 M-parameter matrix's gradient is complete only when backward reaches the embedding lookup at the very end, so the final bucket ( 97.7 MiB of 237.4 ) cannot start until backward is over.",
+  "label": "core",
+  "key": "97.7 MiB",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "The copy lane is honest too: the batch is a hairline, because token ids are tiny (section 2).",
+  "label": "core",
+  "key": "the copy lane is honest too: the",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Measured: DDP's buckets on real processes The mechanism can be run without GPUs.",
+  "label": "core",
+  "key": "Measured:",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Two CPU processes, real DistributedDataParallel with the Gloo backend instead of NCCL, a 12 -layer MLP of width 1,024 ( 6 buckets of 8.01 MiB with bucket_cap_mb=8 ), two threads per process, PyTorch 2.14.1 .",
+  "label": "core",
+  "key": "instead of nccl, a 12 -layer mlp",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "A comm hook timestamps each bucket when DDP hands it over and when its all-reduce completes; a hook on the first layer's weight marks the end of backward's compute. \"No overlap\" is the same model under no_sync() followed by the same buckets all-reduced one by one measured on CPU : One representative step of each mode (the median step of run 2).",
+  "label": "core",
+  "key": "no_sync()",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Medians over 3 runs of 5 steps: backward plus communication 64.6 ms overlapped against 96.1 ms serial ( 33 % less); per-run 64.6 , 61.5 , 66.3 and 92.6 , 96.1 , 105.7 ms; load average 5 to 7.",
+  "label": "core",
+  "key": "105.7 ms",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "The overlap is real: buckets leave during backward, and only about 7.0 ms of communication remains after the compute ends, against 45.9 ms when nothing overlaps.",
+  "label": "core",
+  "key": "the overlap is real: buckets leave during",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "And overlap is not free: backward's compute itself took 15 % longer ( 57.6 against 50.2 ms) because the all-reduce threads compete for the same cores.",
+  "label": "core",
+  "key": "50.2 ms",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "On a GPU the competitors are SMs and memory bandwidth instead of CPU cores, the reason for NCCL's CTA limits above.",
+  "label": "core",
+  "key": "on a gpu the competitors are sms",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "PyTorch's profiler sees the same thing: in a traced step, Gloo all-reduces run on their own threads while AddmmBackward0 runs on the autograd thread: torch.profiler, CPU activities, rank 0 of a 2-process DDP step after 3 warm-up steps; events named autograd::engine::evaluate_function: AddmmBackward0 and gloo:all_reduce measured on CPU .",
+  "label": "depth",
+  "key": "autograd::engine::evaluate_function:",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "What does not transfer: Gloo on loopback is not NCCL on NVLink, CPU threads are not SMs, and the times are milliseconds on a laptop.",
+  "label": "core",
+  "key": "what does not transfer: gloo on loopback",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "What does: the bucket order, the hand-over during backward, the exposed tail, and the slowdown from sharing hardware.",
+  "label": "core",
+  "key": "what does: the bucket order, the hand-over",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "FSDP: the same idea in both directions Fully sharded data parallelism stores each parameter in pieces, so it must all-gather a layer's parameters before using them, forward and backward, and reduce-scatter its gradients afterwards.",
+  "label": "core",
+  "key": "fsdp: the same idea in both directions",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Overlap again decides the cost.",
+  "label": "core",
+  "key": "overlap again decides the cost.",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "FSDP2's docs: \"In forward, all-gathers run on a separate CUDA stream, so the next module's all-gather can overlap with the current module's forward compute\"; \"in backward, FSDP2 additionally prefetches the next module's all-gather explicitly and runs reduce-scatters on a separate CUDA stream\"; set_modules_to_forward_prefetch issues all-gathers earlier when CPU overhead eats the natural lead; reshard_after_forward defaults to true for non-root modules (free after forward, gather again in backward) and false for the root ( fully_shard docs, 2.14 ) vendor doc .",
+  "label": "depth",
+  "key": "set_modules_to_forward_prefetch",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Prefetching one layer ahead costs one extra layer of unsharded parameters in memory: overlap is bought with memory.",
+  "label": "core",
+  "key": "one extra layer of unsharded parameters",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Tensor parallelism is the hard case.",
+  "label": "core",
+  "key": "tensor parallelism is the hard case.",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "Its all-reduces sit between two matmuls that need the result, so there is nothing independent to hide them under, unless the matmul is cut into pieces that start as their slice of data arrives (Megatron's ordering trick in section 1, async TP in section 8).",
+  "label": "core",
+  "key": "its all-reduces sit between two matmuls that",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "6. nccl as an api, and how training hides communication",
+  "text": "That is why tensor parallelism stays inside the fastest domain ( Interconnects and scaling works the numbers).",
+  "label": "core",
+  "key": "that is why tensor parallelism stays inside",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "When it hangs: NCCL errors, timeouts and debugging Why hangs, not crashes.",
+  "label": "core",
+  "key": "when it hangs: nccl errors, timeouts and",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "A collective waits for every rank.",
+  "label": "core",
+  "key": "a collective waits for every rank.",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "If one rank never arrives, because it crashed, took a different branch, ran out of memory or is stuck on I/O, the others do not fail: their NCCL kernels spin on the GPU waiting for data that never comes, and the CPU blocks at the next synchronisation.",
+  "label": "core",
+  "key": "if one rank never arrives, because it",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "A 1,000-GPU job then stops with 999 healthy-looking processes.",
+  "label": "core",
+  "key": "a 1,000-gpu job then stops with 999",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "Debugging a hang is mostly finding the rank, and the call, that differs.",
+  "label": "core",
+  "key": "debugging a hang is mostly finding the",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "The usual causes Cause What it looks like Fix Ranks disagree on the sequence of collectives All ranks wait; one is in a different collective or none Remove rank-dependent branches around collectives; TORCH_DISTRIBUTED_DEBUG=DETAIL checks that collectives match Unused parameters in DDP Hang or error after the first step: a bucket never fills find_unused_parameters=True , or make every parameter take part Sizes or dtypes differ across ranks Hang or garbage The flight recorder (below) records sizes per call One rank crashed or was killed (OOM, a bad node) Survivors wait until the timeout Watchdog timeout, then restart from a checkpoint Wrong network interface, a firewall, IB disabled Hang at the first collective, or very slow NCCL_DEBUG=INFO shows the transport chosen; NCCL_SOCKET_IFNAME picks the interface Several communicators used in different orders Deadlock between process groups Same issue order on every rank (section 6) A collective inside a CUDA graph on one rank but not another Hang at replay Capture the same collectives everywhere; NCCL requires graph launches \"uniform across all participating ranks\" What PyTorch gives you ProcessGroupNCCL runs a watchdog thread that checks every outstanding collective against the timeout passed to init_process_group(timeout=...) .",
+  "label": "core",
+  "key": "init_process_group(timeout=...)",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "The behaviour is set by environment variables documented for PyTorch 2.14 ( PyTorch NCCL environment variables ) vendor doc : TORCH_NCCL_ASYNC_ERROR_HANDLING (default 3): what the watchdog does when a collective fails or times out (tear down the communicator and the process, so the job fails instead of hanging).",
+  "label": "core",
+  "key": "TORCH_NCCL_ASYNC_ERROR_HANDLING",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "TORCH_NCCL_BLOCKING_WAIT : makes wait() block the CPU, so the timeout raises in your own code.",
+  "label": "depth",
+  "key": "TORCH_NCCL_BLOCKING_WAIT",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "TORCH_NCCL_TRACE_BUFFER_SIZE : the size of the flight recorder , a ring buffer of the last collectives on each rank (which call, sizes, state); TORCH_NCCL_DUMP_ON_TIMEOUT writes it out when the watchdog fires, and comparing the dumps across ranks shows who is behind.",
+  "label": "core",
+  "key": "TORCH_NCCL_TRACE_BUFFER_SIZE",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "TORCH_NCCL_DESYNC_DEBUG tries to name the rank that caused a desync.",
+  "label": "depth",
+  "key": "TORCH_NCCL_DESYNC_DEBUG",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "TORCH_NCCL_ENABLE_MONITORING and TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC : a second thread that kills the process if the watchdog itself is stuck; TORCH_NCCL_NAN_CHECK checks inputs for not-a-number values.",
+  "label": "depth",
+  "key": "TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "The older names without TORCH_ ( NCCL_BLOCKING_WAIT , NCCL_ASYNC_ERROR_HANDLING ) were always PyTorch's, not NCCL's: neither string is in the NCCL 2.31.2 library, while every NCCL_* variable named on this page is checked here with strings libnccl.so .",
+  "label": "depth",
+  "key": "NCCL_BLOCKING_WAIT",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "What NCCL gives you NCCL_DEBUG=INFO (with NCCL_DEBUG_SUBSYS to filter): the version, the transport for each peer (NVLink, P2P, shared memory, IB, sockets), rings and trees.",
+  "label": "depth",
+  "key": "NCCL_DEBUG_SUBSYS",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "A job that fell back to TCP sockets is visible in the first lines.",
+  "label": "core",
+  "key": "fell back to TCP sockets",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "NCCL_P2P_DISABLE , NCCL_SHM_DISABLE , NCCL_IB_DISABLE : switch transports off one at a time to isolate a broken one; NCCL_ALGO and NCCL_PROTO force an algorithm or protocol (for experiments, not production). ncclCommGetAsyncError and ncclCommAbort : a non-blocking communicator ( blocking = 0 in its config) reports errors asynchronously, and abort unblocks the kernels so the process can exit or recover; NCCL 2.31.2 also has ncclCommRevoke , ncclCommShrink and ncclCommGrow for removing and adding ranks without restarting everything.",
+  "label": "depth",
+  "key": "nccl_p2p_disable , nccl_shm_disable , nccl_ib_disable : switch",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "A first-response checklist 1.",
+  "label": "core",
+  "key": "first-response checklist",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "Which ranks are stuck, and in which call?",
+  "label": "core",
+  "key": "which ranks are stuck, and in which",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "(py-spy dump on every rank, or the flight recorder.) 2.",
+  "label": "core",
+  "key": "(py-spy dump on every rank, or the",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "Do all ranks agree on the last collective's sequence number and size?",
+  "label": "core",
+  "key": "do all ranks agree on the last",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "Did one rank die first (OOM, a hardware error in the kernel log)?",
+  "label": "core",
+  "key": "did one rank die first (oom, a",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "Is the transport the expected one ( NCCL_DEBUG=INFO )?",
+  "label": "core",
+  "key": "is the transport the expected one (",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "Does a tiny all-reduce test across the same nodes pass (nccl-tests)?",
+  "label": "core",
+  "key": "does a tiny all-reduce test across the",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "7. when it hangs: nccl errors, timeouts and debugging",
+  "text": "Hardware failure rates at scale are on Power, cooling and reliability .",
+  "label": "core",
+  "key": "hardware failure rates at scale are on",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "Beyond collectives: symmetric memory, NVSHMEM and kernels that communicate The problem.",
+  "label": "core",
+  "key": "beyond collectives: symmetric memory, nvshmem and kernels",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "A collective is a separate kernel launched from the CPU, with a fixed shape, between compute kernels.",
+  "label": "core",
+  "key": "a collective is a separate kernel launched",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "Two things it cannot do well: overlap with the inside of a matmul (tensor parallelism, section 6), and move small, data-dependent messages (sending each token to the GPU that holds its expert in a mixture-of-experts layer).",
+  "label": "core",
+  "key": "overlap with the inside of a matmul",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "Both want the compute kernel itself to read or write another GPU's memory.",
+  "label": "core",
+  "key": "both want the compute kernel itself to",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "Symmetric memory is the enabling idea: every rank allocates the same buffer, at the same offset in a shared heap, so \"this buffer on rank j \" can be computed from a local pointer, and a kernel can load or store it over NVLink (peer access, section 5) or put it across the network.",
+  "label": "core",
+  "key": "symmetric memory is the enabling idea: every",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "Two lineages: NVSHMEM : \"a parallel programming interface based on OpenSHMEM\" that creates \"a global address space for data that spans the memory of multiple GPUs\", with \"a low-overhead, in-kernel communication API for use by GPU threads\" (one-sided put, get, atomics and signals) alongside operations on CUDA streams; version 3.8 is current and supports CUDA 13.4 ( NVIDIA NVSHMEM page ) vendor doc .",
+  "label": "core",
+  "key": "a parallel programming interface based on OpenSHMEM",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "It is the classic way to write kernels that communicate across nodes.",
+  "label": "core",
+  "key": "it is the classic way to write",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "NCCL's own device API.",
+  "label": "core",
+  "key": "NCCL's own device API",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "Recent NCCL registers symmetric memory windows ( ncclCommWindowRegister , flag NCCL_WIN_COLL_SYMMETRIC ) and ships a device-side header; in NCCL 2.31.2 it is nccl_device.h , with parts named read here .",
+  "label": "core",
+  "key": "NCCL_WIN_COLL_SYMMETRIC",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "LSA (load/store accessible) covers peers reachable by plain loads and stores; GIN (GPU-initiated networking) covers peers across the network.",
+  "label": "core",
+  "key": "lsa (load/store accessible) covers peers reachable by",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "In PyTorch , torch.distributed._symmetric_memory : symm_mem.empty(size, device=...) allocates, symm_mem.rendezvous(tensor, group) exchanges handles (both \"must be called in the same order on all ranks in the group\"), with backends for CUDA peer memory within a node, NVSHMEM across nodes, and NCCL symmetric kernels (NCCL 2.27 or newer); each buffer comes with \"signal pads\" for synchronisation; uses named are async tensor parallelism and MoE token dispatch ( all_to_all_vdev_2d ) ( PyTorch symmetric memory docs, 2.14 ) vendor doc .",
+  "label": "core",
+  "key": "torch.distributed._symmetric_memory",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "Async TP splits a tensor-parallel matmul so that each slice of the all-gather feeds a slice of the matmul as it arrives, which is the way around section 6's \"nothing to hide it under\".",
+  "label": "core",
+  "key": "async tp splits a tensor-parallel matmul so",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "A current example, checked DeepSeek's DeepEP, the expert-parallel all-to-all library, was the best-known NVSHMEM user.",
+  "label": "depth",
+  "key": "deepseek's deepep, the expert-parallel all-to-all library, was",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "Its README now says V2 moved to \"the lightweight NCCL Gin backend\" and V2.5 removed \"V1, including its APIs, NVSHMEM backend ...",
+  "label": "depth",
+  "key": "the lightweight NCCL Gin backend",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "NVSHMEM is no longer a dependency\"; it also notes \"EP dispatch and combine require GPU SMs\" ( DeepEP README, Sep 30 2026 ) source .",
+  "label": "depth",
+  "key": "nvshmem is no longer a dependency\"; it",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "Older write-ups that describe DeepEP as built on NVSHMEM describe V1.",
+  "label": "depth",
+  "key": "older write-ups that describe deepep as built",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "For the reader who will write kernels: this is where the line between \"kernel\" and \"communication\" disappears.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "closing flourish"
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "8. beyond collectives: symmetric memory, nvshmem and kernels that communicate",
+  "text": "The tools are the same as everywhere on this page (streams, events, signals, keeping SMs busy), applied inside one kernel instead of between kernels.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "closing flourish"
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Common mistakes, a checklist, interview questions Timing GPU work with a CPU clock and no synchronisation The clock measures how long it took to queue the work.",
+  "label": "core",
+  "key": "never a CPU clock without synchronising",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Use CUDA events, or synchronise before reading the clock (section 1; methodology on Profiling, benchmarking and correctness ).",
+  "label": "core",
+  "key": "methodology on profiling, benchmarking and correctness ).",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "A hidden synchronisation in the training loop loss.item() every step, print(tensor) , if (x > 0).any(): , a .cpu() for logging, torch.cuda.empty_cache() : each drains the queue so the CPU can no longer run ahead.",
+  "label": "core",
+  "key": "copy to pinned memory with a non-blocking copy and read it a step later",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Log every N steps, or copy to pinned memory with a non-blocking copy and read it a step later.",
+  "label": "core",
+  "key": "log every n steps, or copy to",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Expecting two streams to overlap because they are two streams The legacy default stream serialises blocking streams; big kernels leave no SMs; few hardware queues create false dependencies; the M1 measurement in section 1 overlapped nothing across queues.",
+  "label": "core",
+  "key": "Never assume overlap",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Check on a timeline.",
+  "label": "core",
+  "key": "look for it on a timeline",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Using a tensor on a side stream without wait_stream and record_stream Either a race (reading before the producer finished) or a use-after-free through the caching allocator.",
+  "label": "core",
+  "key": "record_stream",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Both give wrong numbers, not errors. non_blocking=True on a device-to-host copy, then reading the result The CPU reads the buffer before the copy lands.",
+  "label": "core",
+  "key": "the cpu reads the buffer before the",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Synchronise (an event) before use.",
+  "label": "core",
+  "key": "record an event and wait on it first",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Capturing a CUDA graph and then feeding it new tensors A replay reads the addresses captured, not your new tensor.",
+  "label": "core",
+  "key": "a replay reads the addresses",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Copy new data into the static input; clone outputs you keep.",
+  "label": "core",
+  "key": "clone outputs you keep",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Shape changes need a new graph.",
+  "label": "core",
+  "key": "capture again for a new shape",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "A rank-dependent branch around a collective The classic hang (section 7).",
+  "label": "core",
+  "key": "takes an if on its local data",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Every rank must make the same collective calls in the same order with the same sizes.",
+  "label": "core",
+  "key": "Same calls, same order, on every rank",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Expecting overlap to remove communication cost It hides the communication that is smaller than the compute running beside it, minus the slowdown from sharing SMs.",
+  "label": "core",
+  "key": "Overlap hides the smaller of two things under the larger",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "The last bucket is always exposed; tensor-parallel all-reduces are on the critical path.",
+  "label": "core",
+  "key": "Tensor parallelism is the hard case",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "How to check, in order Profile one step with Nsight Systems or torch.profiler and look at the GPU rows: gaps between kernels (launch-bound or a sync), copies not under kernels (no overlap), NCCL kernels after backward ends (exposed communication).",
+  "label": "core",
+  "key": "torch.profiler",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Gaps with tiny kernels: remove syncs, fuse, then CUDA graphs ( mode=\"reduce-overhead\" ), and confirm the gaps close.",
+  "label": "core",
+  "key": "gaps with tiny kernels: remove syncs, fuse,",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Exposed all-reduce: check bucket sizes and order, look for a huge last bucket (tied embeddings), consider gradient accumulation (fewer all-reduces per sample) or a faster group layout.",
+  "label": "core",
+  "key": "exposed all-reduce: check bucket sizes and order,",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Hangs: the checklist in section 7.",
+  "label": "core",
+  "key": "hangs: the checklist in section 7.",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Interview questions What is a CUDA stream, and what does an event add?",
+  "label": "depth",
+  "key": "what is a cuda stream, and what",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "A FIFO queue of GPU operations: in order within a stream, unordered across streams.",
+  "label": "depth",
+  "key": "a fifo queue of gpu operations: in",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "An event is a marker in a stream that other streams can wait on (ordering without blocking the CPU) and that can time GPU work.",
+  "label": "depth",
+  "key": "an event is a marker in a",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Why might two kernels on two streams still run one after the other?",
+  "label": "depth",
+  "key": "why might two kernels on two streams",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "The legacy default stream between them; the first kernel occupies every SM; false dependencies through a limited number of hardware queues ( CUDA_DEVICE_MAX_CONNECTIONS ); an implicit synchronisation such as cudaMalloc or a pageable copy.",
+  "label": "depth",
+  "key": "CUDA_DEVICE_MAX_CONNECTIONS",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Why does an async copy need pinned memory?",
+  "label": "depth",
+  "key": "why does an async copy need pinned",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "The copy engine reads physical pages by DMA.",
+  "label": "depth",
+  "key": "the copy engine reads physical pages by",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Pageable pages could move, so the driver stages them through a pinned buffer and the copy cannot overlap freely.",
+  "label": "depth",
+  "key": "pageable pages could move, so the driver",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "What does a CUDA graph save, and what does it cost?",
+  "label": "depth",
+  "key": "what does a cuda graph save, and",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "It replaces per-kernel CPU launch work with one launch of a pre-validated graph, and lets the GPU run nodes with smaller gaps.",
+  "label": "depth",
+  "key": "it replaces per-kernel cpu launch work with",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "It costs an instantiation (hundreds of microseconds), fixed addresses and shapes, no host syncs inside, and memory held by the graph's pool.",
+  "label": "depth",
+  "key": "it costs an instantiation (hundreds of microseconds),",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "How does DDP overlap communication with backward?",
+  "label": "depth",
+  "key": "how does ddp overlap communication with backward?",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Gradient hooks fill buckets in reverse parameter order; when a bucket is full its all-reduce is launched on NCCL's stream while autograd keeps computing earlier layers; the optimizer waits for all of them.",
+  "label": "depth",
+  "key": "gradient hooks fill buckets in reverse parameter",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Default buckets 25 MiB, first bucket 1 MiB.",
+  "label": "core",
+  "key": "25 MiB",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Why can't tensor-parallel all-reduces be hidden the same way?",
+  "label": "depth",
+  "key": "why can't tensor-parallel all-reduces be hidden the",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "The next matmul needs their result, so no independent work exists to overlap them with, unless the matmul is split and pipelined with the communication (async TP, symmetric memory).",
+  "label": "depth",
+  "key": "the next matmul needs their result, so",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "A 512-GPU job hangs at step 40,000.",
+  "label": "depth",
+  "key": "a 512-gpu job hangs at step 40,000.",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "What do you do?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "question fragment of an interview item kept in full"
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Find the rank and call that differ: the flight-recorder dumps on watchdog timeout, py-spy on each rank, the kernel log for a dead GPU or node; check the last collective's sequence number across ranks; restart from the checkpoint without the bad node.",
+  "label": "depth",
+  "key": "find the rank and call that differ:",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "Why do NCCL collectives slow down your compute kernels?",
+  "label": "depth",
+  "key": "why do nccl collectives slow down your",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "They are kernels too: they take SMs (CTAs) and memory bandwidth while they run.",
+  "label": "depth",
+  "key": "they are kernels too: they take sms",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "common mistakes, a checklist, interview questions",
+  "text": "NCCL lets you cap CTAs ( maxCTAs , NCCL_CTA_POLICY_EFFICIENCY ); DeepSeek-V3 reserved 20 of 132 SMs for communication.",
+  "label": "core",
+  "key": "NCCL_CTA_POLICY_EFFICIENCY",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Step timeline The data-parallel step from the Reading tab's section 6, with every input exposed.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "intro of the removed tab"
+ },
+ {
+  "id": 318,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Both timelines are drawn to the same scale: on top nothing overlaps, below the gradient buckets are all-reduced during backward and the batch is prefetched.",
+  "label": "depth",
+  "key": "Both timelines to the same scale",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Change the model, the number of GPUs and the network and watch where the exposed communication comes from.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "instruction for the removed tab"
+ },
+ {
+  "id": 320,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Everything here is a model derived from the formulas listed under the chart; the defaults are exactly the Reading tab's case, and the same model in Python ( recompute.py ) gives the same numbers.",
+  "label": "depth",
+  "key": "recompute.py",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Model shape (GPT-2 family) small: d = 768, 12 layers medium: d = 1,024, 24 layers large: d = 1,280, 36 layers XL: d = 1,600, 48 layers Network 400 Gb/s InfiniBand per GPU, busbw 46 GB/s 8 GPUs on NVLink, busbw 365.6 GB/s 100 Gb/s Ethernet per GPU, busbw 11.5 GB/s GPUs 64 Tokens per GPU per step 16,384 MFU (assumed) 40% Bucket size 25 MiB Latency per all-reduce 0 µs Compute slowdown while overlapped 0% tie the embedding and output layer A: nothing overlapped.",
+  "label": "depth",
+  "key": "model shape (gpt-2 family) small: d =",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "B: batch prefetched, buckets all-reduced during backward.",
+  "label": "depth",
+  "key": "b: batch prefetched, buckets all-reduced during backward.",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Dashed lines: the end of each step.",
+  "label": "depth",
+  "key": "dashed lines: the end of each step.",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Step time against bucket size The overlapped step for the same settings, one point per bucket size.",
+  "label": "depth",
+  "key": "step time against bucket size the overlapped",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Without a latency term smaller buckets always win (the first one leaves sooner); with the latency each all-reduce really pays (tens of microseconds across nodes), very small buckets lose again.",
+  "label": "depth",
+  "key": "without a latency term smaller buckets always",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "DDP's 25 MiB default sits on the flat part for most settings.",
+  "label": "depth",
+  "key": "ddp's 25 mib default sits on the",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "The formulas Parameters: GPT-2 layout, vocabulary 50,257, context 1,024; per block 12 d ² + 13 d (layer norms, attention, MLP with 4 d ); an untied output layer adds 50,257 d .",
+  "label": "core",
+  "key": "Parameters:",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Forward = 2 N × tokens / (989.5 TFLOP/s × MFU), H100 SXM dense BF16 (vendor spec); backward = 2 × forward, split across layers in proportion to their matmul parameters; attention-score FLOPs ignored.",
+  "label": "depth",
+  "key": "forward = 2 n × tokens /",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Gradient readiness: output layer first, then blocks from last to first; with tied weights the embedding's gradient is complete only at the end of backward.",
+  "label": "depth",
+  "key": "gradient readiness: output layer first, then blocks",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Buckets: DDP's rule, reverse parameter order, close a bucket once it reaches the cap; BF16 gradients (2 bytes); first bucket 1 MiB (or the cap if smaller).",
+  "label": "depth",
+  "key": "Buckets:",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "All-reduce of B bytes on n GPUs = B × 2( n − 1)/ n / busbw + latency, one bucket at a time on the NCCL stream.",
+  "label": "depth",
+  "key": "all-reduce of b bytes on n gpus",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Busbw presets: 92% of 50 GB/s (InfiniBand, the acceptance target quoted on Interconnects and scaling), 365.6 GB/s (8× H200 ring, nccl-tests at 8 GiB, measured by Bekman), 92% of 12.5 GB/s = 11.5 (100 Gb/s Ethernet, same efficiency assumed).",
+  "label": "depth",
+  "key": "365.6 GB/s",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "The NVLink preset assumes all the GPUs share one NVLink domain (8 on an HGX board).",
+  "label": "depth",
+  "key": "the nvlink preset assumes all the gpus",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Optimizer = 32 bytes per parameter at 3.35 TB/s.",
+  "label": "core",
+  "key": "3.35 TB/s",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Batch = tokens × 8 bytes × 2 (ids and targets) at 63 GB/s.",
+  "label": "core",
+  "key": "63 GB/s",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-read (was t-step)",
+  "section": "step timeline",
+  "text": "Slowdown: backward stretched by this percentage when overlapped, standing in for NCCL's use of SMs and memory bandwidth; the CPU measurement on the Reading tab found 15% with Gloo threads.",
+  "label": "depth",
+  "key": "Slowdown:",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Every link opens in a new tab; times are reading or watching estimates.",
+  "label": "core",
+  "key": "further reading every link opens in a",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "On this page Step timeline 10 min The data-parallel step model with every input exposed: model size, GPUs, network, bucket size, latency, slowdown; plus step time against bucket size.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "link to the removed Step timeline tab (now a closed block in section 6)"
+ },
+ {
+  "id": 339,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The parent topic Topic: cuda-and-gpu-programming about 45 min One operation from PyTorch to the instructions.",
+  "label": "core",
+  "key": "the parent topic topic: cuda-and-gpu-programming about 45",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Tabs: GPU simulator , Compiler explorer (real PTX and SASS for four generations), Kernel lab (kernels measured on the M1 Pro).",
+  "label": "core",
+  "key": "tabs: gpu simulator , compiler explorer (real",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Sibling pages The CUDA programming model 37 min Kernels and launches, indexing, warps, synchronisation, occupancy, errors, the memory API and what one launch costs.",
+  "label": "core",
+  "key": "sibling pages the cuda programming model 37",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "GPU memory hierarchy 30 min Coalescing, shared memory and bank conflicts, registers and spills; pinned, mapped and managed memory.",
+  "label": "core",
+  "key": "gpu memory hierarchy 30 min coalescing, shared",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Writing kernels 37 min Reductions, softmax, the matmul ladder, fusion (the other cure for launch overhead), FlashAttention.",
+  "label": "core",
+  "key": "writing kernels 37 min reductions, softmax, the",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Triton and Gluon 29 min Block-level kernels, autotuning, what the Triton compiler does.",
+  "label": "core",
+  "key": "triton and gluon 29 min block-level kernels,",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Libraries and tensor cores 33 min cuBLAS, cuDNN, CUTLASS and CuTe; mma, wgmma, TMA, tcgen05.",
+  "label": "core",
+  "key": "libraries and tensor cores 33 min cublas,",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Profiling, benchmarking and correctness 29 min Nsight Systems timelines (where overlap is checked), Nsight Compute, honest timing with events.",
+  "label": "core",
+  "key": "profiling, benchmarking and correctness 29 min nsight",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The compiler stack 28 min nvcc, PTX, SASS, NVRTC, and torch.compile with Inductor, the code that reduce-overhead graphs capture.",
+  "label": "core",
+  "key": "the compiler stack 28 min nvcc, ptx,",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Hardware, systems and training pages Interconnects and scaling PCIe, NVLink, InfiniBand and RoCE; NCCL's algorithms and protocols, busbw, and why the network picks the parallelism.",
+  "label": "core",
+  "key": "hardware, systems and training pages interconnects and",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "GPU architecture about 28 min The SMs, copy engines and schedulers that streams map onto.",
+  "label": "core",
+  "key": "gpu architecture about 28 min the sms,",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Virtualization and the GPU driver stack One CUDA call down to the ioctl, the channel, the GPFIFO and the doorbell.",
+  "label": "core",
+  "key": "virtualization and the gpu driver stack one",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Distributed Training Data, tensor, pipeline, expert and context parallelism, ZeRO and FSDP, and which collective each needs.",
+  "label": "core",
+  "key": "distributed training data, tensor, pipeline, expert and",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Fault tolerance at scale Failures, checkpointing and recovery in practice, including NCCL watchdog timeouts.",
+  "label": "core",
+  "key": "fault tolerance at scale failures, checkpointing and",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Memory allocators PyTorch's caching allocator, which record_stream and graph pools build on.",
+  "label": "core",
+  "key": "record_stream",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Power, cooling and reliability Failure rates at scale: why hangs and restarts are routine. inference-and-serving and pytorch-ecosystem Serving engines and their CUDA graphs; the PyTorch stack around DDP, FSDP and torch.compile.",
+  "label": "core",
+  "key": "torch.compile.",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "ZeRO (paper page) and Megatron-LM (paper page) The sharding and tensor-parallel designs whose communication this page overlaps.",
+  "label": "core",
+  "key": "zero (paper page) and megatron-lm (paper page)",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Primary sources CUDA Programming Guide 2.5: asynchronous execution 40 min Streams, events, default streams, priorities, host functions (v13.4.2).",
+  "label": "core",
+  "key": "v13.4.2",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "CUDA Programming Guide 4.2: CUDA Graphs 60 min Capture, update, conditional nodes, memory nodes, device launch.",
+  "label": "core",
+  "key": "cuda programming guide 4.2: cuda graphs 60",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Getting Started with CUDA Graphs (2019) 15 min The launch-overhead measurement this page's animation is fitted to.",
+  "label": "core",
+  "key": "getting started with cuda graphs (2019) 15",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Dynamic control flow with conditional nodes 20 min IF, WHILE, ELSE and SWITCH nodes with examples.",
+  "label": "core",
+  "key": "dynamic control flow with conditional nodes 20",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "PyTorch CUDA semantics (2.14) 45 min Streams, the caching allocator, record_stream, CUDA graphs and their constraints.",
+  "label": "core",
+  "key": "record_stream",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Guide to non_blocking and pin_memory() 30 min When pinning and non-blocking copies help, and when they are wrong.",
+  "label": "core",
+  "key": "pin_memory()",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "NCCL user guide 60 min Communicators, stream semantics, groups, CUDA graphs, environment variables.",
+  "label": "core",
+  "key": "nccl user guide 60 min communicators, stream",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "PyTorch NCCL environment variables 10 min Watchdog, error handling, flight recorder.",
+  "label": "core",
+  "key": "pytorch nccl environment variables 10 min watchdog,",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "FSDP2 fully_shard 30 min Prefetching, separate streams, resharding after forward.",
+  "label": "core",
+  "key": "fsdp2 fully_shard 30 min prefetching, separate streams,",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "PyTorch symmetric memory 25 min Allocation, rendezvous, backends, one-sided operations. vLLM: CUDA graphs design 25 min Full and piecewise graphs in a serving engine.",
+  "label": "core",
+  "key": "pytorch symmetric memory 25 min allocation, rendezvous,",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Horace He, Making Deep Learning Go Brrrr 25 min Compute, memory and overhead as the three regimes.",
+  "label": "core",
+  "key": "horace he, making deep learning go brrrr",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-read",
+  "section": "added by hand",
+  "text": "Metal concurrency on the M1 Pro: eight one-threadgroup kernels on eight queues took as long as on one queue; a concurrent encoder ran them together (script-rendered bars)",
+  "label": "core",
+  "key": "eight queues took as long as eight in one queue",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-read",
+  "section": "added by hand",
+  "text": "CUDA 13.4.2 graph node types read from the header (script-rendered list)",
+  "label": "depth",
+  "key": "node types and capture modes",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-read",
+  "section": "added by hand",
+  "text": "Step calculator network presets: 46, 365.6 and 11.5 GB/s busbw (moved from the Step timeline tab)",
+  "label": "depth",
+  "key": "365.6 GB/s",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-read",
+  "section": "added by hand",
+  "text": "Managed memory migrates by fault-and-migrate by default (CUDA guide 4.1, added 2026-10-23)",
+  "label": "core",
+  "key": "fault-and-migrate mechanism",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-read",
+  "section": "added by hand",
+  "text": "cudaMemPrefetchAsync is stream-ordered, so prefetch overlaps compute like a copy (guide 4.1.4.1, added 2026-10-23)",
+  "label": "core",
+  "key": "asynchronous stream-ordered API",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-read",
+  "section": "added by hand",
+  "text": "cudaMemAdvise hints SetReadMostly, SetPreferredLocation, SetAccessedBy (guide 4.1.4.2, added 2026-10-23)",
+  "label": "depth",
+  "key": "SetPreferredLocation",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-read",
+  "section": "added by hand",
+  "text": "Hero: the three waits (copy, launch, all-reduce) and their removal on one step (illustrative, added 2026-10-23)",
+  "label": "core",
+  "key": "three waits removed",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-read",
+  "section": "added by hand",
+  "text": "Async TP before/after: slices of the all-gather feed slices of the matmul (illustrative, added 2026-10-23)",
+  "label": "core",
+  "key": "only the first slice is exposed",
+  "where": ""
+ }
+]

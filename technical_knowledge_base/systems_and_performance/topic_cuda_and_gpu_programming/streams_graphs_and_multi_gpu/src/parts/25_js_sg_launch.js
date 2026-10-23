@@ -31,6 +31,6 @@ window.SGL=(function(){
   }
   res=SGL.model(mode,B);
   an=RD.anim({card:'sg-ln-card',ctl:'sg-ln-ctl',n:B.n+1,ms:420,label:'Kernel',draw});
-  RD.seg($('sg-ln-seg'),m=>{mode=m;res=SGL.model(mode,B);an.reset(B.n+1);an.play()});
+  RD.seg($('sg-ln-seg'),m=>{mode=m;res=SGL.model(mode,B);an.reset(B.n+1)});
   RD.onResize(()=>an.redraw());
 })();

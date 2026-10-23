@@ -1,6 +1,9 @@
 <section id="sg-s7">
 <h2>7. When it hangs: NCCL errors, timeouts and debugging</h2>
-<p><b>Why hangs, not crashes.</b> A collective waits for every rank. If one rank never arrives, because it crashed, took a different branch, ran out of memory or is stuck on I/O, the others do not fail: their NCCL kernels spin on the GPU waiting for data that never comes, and the CPU blocks at the next synchronisation. A 1,000-GPU job then stops with 999 healthy-looking processes. Debugging a hang is mostly finding the rank, and the call, that differs.</p>
+<p>A collective waits for every rank. If one rank never arrives, because it crashed, took a different branch, ran out of memory or is stuck on I/O, the others do not fail: their NCCL kernels spin on the GPU waiting for data that never comes, and the CPU blocks at the next synchronisation. A 1,000-GPU job then stops with 999 healthy-looking processes. Debugging a hang is mostly finding the rank, and the call, that differs.</p>
+<div class="card" id="sg-hang-card"><h4>One rank skips a collective; every other rank spins until the watchdog fires</h4>
+<div class="sg-tl" id="sg-hang-fig"></div>
+<p class="small mute">Four ranks. Rank 3 takes an <code>if</code> on its local data and skips all-reduce #41; ranks 0 to 2 enter #41 and their kernels wait for rank 3's data. Rank 3 reaches #42, which nobody else has called. Nothing errors until the watchdog's timeout; the flight recorder then shows ranks 0 to 2 at #41 and rank 3 at #42. Durations <span class="rd-ill">illustrative</span>.</p></div>
 <h3>The usual causes</h3>
 <div class="tw"><table>
 <thead><tr><th>Cause</th><th>What it looks like</th><th>Fix</th></tr></thead>
@@ -13,7 +16,10 @@
 <tr><td>Several communicators used in different orders</td><td>Deadlock between process groups</td><td>Same issue order on every rank (section 6)</td></tr>
 <tr><td>A collective inside a CUDA graph on one rank but not another</td><td>Hang at replay</td><td>Capture the same collectives everywhere; NCCL requires graph launches "uniform across all participating ranks"</td></tr>
 </tbody></table></div>
-<h3>What PyTorch gives you</h3>
+<p><b>PyTorch's watchdog.</b> <code>ProcessGroupNCCL</code> runs a <b>watchdog</b> thread that checks every outstanding collective against the timeout passed to <code>init_process_group(timeout=...)</code>; with <code>TORCH_NCCL_ASYNC_ERROR_HANDLING</code> (default 3) it tears down the communicator and the process, so the job fails instead of hanging. The <b>flight recorder</b> (<code>TORCH_NCCL_TRACE_BUFFER_SIZE</code>, dumped by <code>TORCH_NCCL_DUMP_ON_TIMEOUT</code>) is a ring buffer of the last collectives on each rank, and comparing the dumps across ranks shows who is behind. <b>NCCL's own view:</b> <code>NCCL_DEBUG=INFO</code> prints the version and the transport chosen for each peer, so a job that fell back to TCP sockets is visible in the first lines.</p>
+<div class="co key"><div class="t">A first-response checklist</div>1. Which ranks are stuck, and in which call? (py-spy dump on every rank, or the flight recorder.) 2. Do all ranks agree on the last collective's sequence number and size? 3. Did one rank die first (OOM, a hardware error in the kernel log)? 4. Is the transport the expected one (<code>NCCL_DEBUG=INFO</code>)? 5. Does a tiny all-reduce test across the same nodes pass (nccl-tests)? Hardware failure rates at scale are on {{Power, cooling and reliability|n:3f05c17b0d0d8143851cfc3ae14c3c22}}.</div>
+<details class="dp"><summary>Depth: every PyTorch and NCCL switch for errors and debugging</summary><div class="b">
+<h4>What PyTorch gives you</h4>
 <p><code>ProcessGroupNCCL</code> runs a <b>watchdog</b> thread that checks every outstanding collective against the timeout passed to <code>init_process_group(timeout=...)</code>. The behaviour is set by environment variables documented for PyTorch 2.14 ({{PyTorch NCCL environment variables|https://docs.pytorch.org/docs/2.14/torch_nccl_environment_variables.html}}) <span class="rd-vend">vendor doc</span>:</p>
 <ul>
 <li><code>TORCH_NCCL_ASYNC_ERROR_HANDLING</code> (default 3): what the watchdog does when a collective fails or times out (tear down the communicator and the process, so the job fails instead of hanging).</li>
@@ -22,11 +28,11 @@
 <li><code>TORCH_NCCL_ENABLE_MONITORING</code> and <code>TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC</code>: a second thread that kills the process if the watchdog itself is stuck; <code>TORCH_NCCL_NAN_CHECK</code> checks inputs for not-a-number values.</li>
 </ul>
 <p>The older names without <code>TORCH_</code> (<code>NCCL_BLOCKING_WAIT</code>, <code>NCCL_ASYNC_ERROR_HANDLING</code>) were always PyTorch's, not NCCL's: neither string is in the NCCL <span data-sgv="cuda.nccl_version">2.31.2</span> library, while every <code>NCCL_*</code> variable named on this page is <span class="rd-pub">checked here with <code>strings libnccl.so</code></span>.</p>
-<h3>What NCCL gives you</h3>
+<h4>What NCCL gives you</h4>
 <ul>
 <li><code>NCCL_DEBUG=INFO</code> (with <code>NCCL_DEBUG_SUBSYS</code> to filter): the version, the transport for each peer (NVLink, P2P, shared memory, IB, sockets), rings and trees. A job that fell back to TCP sockets is visible in the first lines.</li>
 <li><code>NCCL_P2P_DISABLE</code>, <code>NCCL_SHM_DISABLE</code>, <code>NCCL_IB_DISABLE</code>: switch transports off one at a time to isolate a broken one; <code>NCCL_ALGO</code> and <code>NCCL_PROTO</code> force an algorithm or protocol (for experiments, not production).</li>
 <li><code>ncclCommGetAsyncError</code> and <code>ncclCommAbort</code>: a non-blocking communicator (<code>blocking = 0</code> in its config) reports errors asynchronously, and abort unblocks the kernels so the process can exit or recover; NCCL 2.31.2 also has <code>ncclCommRevoke</code>, <code>ncclCommShrink</code> and <code>ncclCommGrow</code> for removing and adding ranks without restarting everything.</li>
 </ul>
-<div class="co key"><div class="t">A first-response checklist</div>1. Which ranks are stuck, and in which call? (py-spy dump on every rank, or the flight recorder.) 2. Do all ranks agree on the last collective's sequence number and size? 3. Did one rank die first (OOM, a hardware error in the kernel log)? 4. Is the transport the expected one (<code>NCCL_DEBUG=INFO</code>)? 5. Does a tiny all-reduce test across the same nodes pass (nccl-tests)? Hardware failure rates at scale are on {{Power, cooling and reliability|n:3f05c17b0d0d8143851cfc3ae14c3c22}}.</div>
+</div></details>
 </section>

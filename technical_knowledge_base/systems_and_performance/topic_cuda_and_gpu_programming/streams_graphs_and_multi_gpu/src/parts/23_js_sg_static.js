@@ -15,7 +15,7 @@ window.SGT=(function(){
       s+='<rect x="'+x0.toFixed(1)+'" y="'+(y+4)+'" width="'+w.toFixed(1)+'" height="'+(rh-8)+'" rx="2" fill="'+(e[4]||col[e[0]]||'var(--acc)')+'" opacity="'+(e[5]?0.22:0.9)+'"><title>'+E(e[3]||'')+'</title></rect>';
       if(e[3]&&w>E(e[3]).length*5.6+6)s+=RD.t(x0+4,y+rh/2+4,E(e[3]),{fs:10.5,fill:'var(--bg)'})});
     (o.marks||[]).forEach(m=>{const xx=x(m[0]);s+='<line x1="'+xx+'" x2="'+xx+'" y1="'+top+'" y2="'+(top+o.lanes.length*rh)+'" stroke="var(--ink)" stroke-dasharray="3 3" stroke-width="1"/>';
-      if(m[1])s+=RD.t(Math.min(xx+3,W-90),top+o.lanes.length*rh+22,E(m[1]),{fs:10.5,w:600})});
+      if(m[1]){const tw=String(m[1]).length*6.2;s+=xx+3+tw>W-4?RD.t(xx-3,top+o.lanes.length*rh+22,E(m[1]),{fs:10.5,w:600,a:'end'}):RD.t(xx+3,top+o.lanes.length*rh+22,E(m[1]),{fs:10.5,w:600})}});
     const ty=top+o.lanes.length*rh;ticks(o.tmax,Math.max(3,Math.floor((W-lw)/80))).forEach(t=>{const xx=x(t);if(xx>W-8)return;
       s+='<line x1="'+xx+'" x2="'+xx+'" y1="'+ty+'" y2="'+(ty+4)+'" stroke="var(--mute)"/>'+RD.t(xx,ty+14,(+t.toPrecision(4))+(t===0?' '+o.unit:''),{fs:10,a:'middle',fill:'var(--mute)'})});
     o.el.innerHTML=RD.svg(W,H,s,o.label||'timeline');
