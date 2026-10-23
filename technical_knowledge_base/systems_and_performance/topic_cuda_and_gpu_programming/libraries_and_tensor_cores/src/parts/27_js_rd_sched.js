@@ -1,4 +1,4 @@
-// ---- GEMM scheduler tab (t-sched): data-parallel, split-K, Stream-K and hybrid on P SMs ----
+// ---- GEMM scheduler, Reading section 3 (moved from its own tab on 2026-10-23): data-parallel, split-K, Stream-K and hybrid on P SMs ----
 // The model (window.GS.plan) is mirrored in recompute.py (sched_plan) and checked by check/check_page.mjs.
 window.GS=(function(){
   // returns {T, I, P, time, util, segs: per SM list of [start, len, tile], extraBytes, units}
@@ -50,14 +50,14 @@ window.GS=(function(){
     let b='';res.forEach(([n,r,s],i)=>{const y=i*20+2,x=bw*r.time/mx;b+=RD.t(lab-6,y+12,n,{a:'end',fs:11,w:s===q.sch?600:400})+'<rect x="'+lab+'" y="'+y+'" width="'+Math.max(1,x).toFixed(1)+'" height="14" rx="2" fill="'+(s===q.sch?'var(--acc)':'var(--dim)')+'"/>'+RD.t(lab+x+4,y+11,(100*r.util).toFixed(0)+'% used, '+r.time+' it.',{fs:10.5})});
     el.innerHTML=RD.svg(w,res.length*20+4,b,'schedules compared');
     gantt()}
-  function gantt(){if(!R)return;const el=$('gs-gantt'),w=RD.width(el);const P=R.P,rh=P>120?2:P>60?3:5,H=P*rh+18,lab=24,bw=w-lab-4;const tcur=frac*R.time;
+  function gantt(){if(!R)return;const el=$('gs-gantt'),w=RD.width(el);const P=R.P,rh=P>120?2:P>60?3:5,H=P*rh+18,lab=46,bw=w-lab-4;const tcur=frac*R.time;
     let b='';for(let sm=0;sm<P;sm++)R.segs[sm].forEach(([s,l,t])=>{if(s>=tcur)return;const ll=Math.min(l,tcur-s);
       b+='<rect x="'+(lab+bw*s/R.time).toFixed(2)+'" y="'+(sm*rh)+'" width="'+Math.max(0.6,bw*ll/R.time).toFixed(2)+'" height="'+Math.max(1,rh-(rh>2?1:0))+'" fill="hsl('+((t*47)%360)+',55%,55%)"/>'});
     b+='<line x1="'+(lab+bw*frac)+'" y1="0" x2="'+(lab+bw*frac)+'" y2="'+(P*rh)+'" stroke="var(--ink)" stroke-width="1"/>';
-    b+=RD.t(0,10,'SM 0',{fs:9.5,fill:'var(--mute)'})+RD.t(0,P*rh,'SM '+(P-1),{fs:9.5,fill:'var(--mute)'})+RD.t(lab,H-3,'time (MAC-loop iterations) 0 to '+R.time.toLocaleString('en-US'),{fs:10.5,fill:'var(--mute)'});
+    b+=RD.t(0,10,'SM 0',{fs:11,fill:'var(--mute)'})+RD.t(0,P*rh,'SM '+(P-1),{fs:11,fill:'var(--mute)'})+RD.t(lab,H-3,'time (MAC-loop iterations) 0 to '+R.time.toLocaleString('en-US'),{fs:11,fill:'var(--mute)'});
     el.innerHTML=RD.svg(w,H,b,'SM timeline');$('gs-tl').textContent=Math.round(tcur).toLocaleString('en-US')+' / '+R.time.toLocaleString('en-US')}
   function setPlay(p){playing=p;$('gs-play').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('gs-play').setAttribute('aria-label',p?'Pause':'Play');if(p){if(frac>=1)frac=0;last=0;raf=requestAnimationFrame(step)}else cancelAnimationFrame(raf)}
-  function step(ts){const tab=$('t-sched');if(!playing||tab.hidden||document.hidden){setPlay(false);return}
+  function step(ts){const card=$('gs-card');if(!playing||!card||card.offsetParent===null||document.hidden){setPlay(false);return}
     if(last)frac=Math.min(1,frac+(ts-last)/4000);last=ts;$('gs-t').value=Math.round(frac*1000);gantt();if(frac>=1){setPlay(false);return}raf=requestAnimationFrame(step)}
   $('gs-play').addEventListener('click',()=>setPlay(!playing));
   $('gs-t').addEventListener('input',e=>{setPlay(false);frac=+e.target.value/1000;gantt()});
@@ -67,6 +67,6 @@ window.GS=(function(){
   $('gs-pre').addEventListener('change',e=>{const i=+e.target.value;if(i>=0)preset(i)});
   $('gs-pre').value='3';
   const render=()=>{if(!R)preset(3);else compute()};
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-sched']=[render];
-  addEventListener('resize',()=>{const t=$('t-sched');if(t&&!t.hidden&&R)compute()});
+  RD.onRender(render);
+  RD.onResize(()=>{if(R)compute()});
 })();

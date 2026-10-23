@@ -65,7 +65,7 @@
     cnt.innerHTML=RD.stat('MMA instructions per K slice',c.mma||'0')+RD.stat('Threads that issue them',c.iss||'0')+RD.stat('Accumulator registers per thread',c.where==='tensor memory'?'0':(c.acc||'0'),c.where==='not yet'?'':'accumulator in '+c.where)+RD.stat('Copy instructions per K slice',c.copy||'0',c.ldsm?'+ '+c.ldsm+' ldmatrix':'');
   }
   const A=RD.anim({card:'lt-gen-card',ctl:'lt-gen-ctl',n:SEQ.ampere.steps.length,draw,ms:2600,label:'Step'});
-  RD.seg($('lt-gen-sel'),m=>{gen=m;A.reset(SEQ[m].steps.length);A.play()});
+  RD.seg($('lt-gen-sel'),m=>{gen=m;A.reset(SEQ[m].steps.length)});  // a mode switch resets to step 0 and waits for the reader
   RD.onResize(()=>A.redraw());
   window.LT_GEN_SEQ=SEQ;
 })();

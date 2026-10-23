@@ -32,7 +32,7 @@
       b+=RD.t(lab-6,y+13,w<480?a:(name[a]||a),{a:'end',fs:11})+'<rect x="'+lab+'" y="'+y+'" width="'+(x-xh).toFixed(1)+'" height="'+(rh-6)+'" fill="var(--c1)" rx="2"><title>'+a+': '+v+' kernels, '+hv+' with hidden names</title></rect>';
       if(hv)b+='<rect x="'+(lab+x-xh).toFixed(1)+'" y="'+y+'" width="'+Math.max(1,xh).toFixed(1)+'" height="'+(rh-6)+'" fill="url(#lt-hatch)"/>';
       b+=RD.t(lab+x+4,y+12,v.toLocaleString('en-US'),{fs:11})});
-    b+=RD.t(lab,H-4,'kernels in libcublasLt.so.13.8.0.4 per target ('+L.cublas.lt_total.toLocaleString('en-US')+' in all)',{fs:10.5,fill:'var(--mute)'});
+    b+=RD.t(w<480?2:lab,H-4,(w<480?'kernels per target (':'kernels in libcublasLt.so.13.8.0.4 per target (')+L.cublas.lt_total.toLocaleString('en-US')+' in all)',{fs:11,fill:'var(--mute)'});
     el.innerHTML=RD.svg(w,H,b,'cuBLASLt kernels per architecture');
   }
   inv();RD.onResize(()=>{inv()});
@@ -76,10 +76,14 @@
     for(let t=0;t<T;t++)for(let v=0;v<V;v++){const idx=C.at(l,t+T*v);let r,c;
       if(d.kn){const n=idx%8,k=Math.floor(idx/8);r=k;c=n}else{r=idx%d.rows;c=Math.floor(idx/d.rows)}
       own[r*Q+c]={t,v}}
-    const el=$('lt-tv');el.style.gridTemplateColumns='repeat('+Q+',minmax(0,1fr))';el.style.maxWidth=(Q*34)+'px';
-    el.innerHTML=own.map((o,i)=>'<div data-t="'+o.t+'" title="lane '+o.t+', value '+o.v+'" class="'+(o.t===lane?'on':'')+'" style="background:hsl('+(o.t*360/32)+',55%,'+(o.t===lane?'60%':'80%')+');color:#222">'+o.t+'</div>').join('');
+    // drawn as SVG at the measured width (cells with the lane number; the chosen lane outlined)
+    const el=$('lt-tv'),w=Math.min(RD.width(el),Q*34),cs=Math.floor(w/Q);let sv='';
+    own.forEach((o,i)=>{const r=Math.floor(i/Q),c=i%Q,on=o.t===lane;
+      sv+='<rect x="'+(c*cs)+'" y="'+(r*cs)+'" width="'+(cs-1)+'" height="'+(cs-1)+'" rx="2" data-t="'+o.t+'" style="cursor:pointer" fill="hsl('+(o.t*360/32)+',55%,'+(on?'60%':'80%')+')"'+(on?' stroke="var(--ink)" stroke-width="2"':'')+'><title>lane '+o.t+', value '+o.v+'</title></rect>';
+      if(cs>=17)sv+='<text x="'+(c*cs+cs/2-0.5)+'" y="'+(r*cs+cs/2+4)+'" text-anchor="middle" font-size="11" fill="#222" pointer-events="none">'+o.t+'</text>'});
+    el.innerHTML=RD.svg(Q*cs,R*cs,sv,'which lane holds which element');
     const mine=own.map((o,i)=>o.t===lane?'('+Math.floor(i/Q)+','+(i%Q)+')':null).filter(Boolean);
     $('lt-tvx').innerHTML='<b>'+d.what+'</b>: lane '+lane+' holds '+mine.length+' values at (row, column) '+mine.join(' ')+'. Layout '+esc(d.txt)+'.'}
-  $('lt-tv').addEventListener('click',e=>{const c=e.target.closest('div[data-t]');if(c){lane=+c.dataset.t;tv()}});
-  RD.seg($('lt-tvsel'),m=>{tvSel=m;tv()});tv();
+  $('lt-tv').addEventListener('click',e=>{const c=e.target.closest('rect[data-t]');if(c){lane=+c.getAttribute('data-t');tv()}});
+  RD.seg($('lt-tvsel'),m=>{tvSel=m;tv()});tv();RD.onRender(tv);RD.onResize(tv);
 })();

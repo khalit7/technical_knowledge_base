@@ -49,9 +49,7 @@
 #t-read .lt-ladder{display:grid;gap:4px;margin:10px 0}
 #t-read .lt-ladder>div{display:grid;grid-template-columns:minmax(0,10em) minmax(0,1fr);gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--soft);font-size:13px}
 #t-read .lt-ladder>div b{font-size:13.5px}#t-read .lt-ladder code{overflow-wrap:anywhere}
-#t-read .lt-tv{display:grid;gap:1px;margin:6px 0;max-width:520px}
-#t-read .lt-tv div{font:10px/1 ui-monospace,Menlo,monospace;display:flex;align-items:center;justify-content:center;aspect-ratio:1;border-radius:2px;min-width:0;cursor:pointer;color:var(--ink)}
-#t-read .lt-tv div.on{outline:2px solid var(--ink);outline-offset:-2px}
+#t-read .lt-tv{margin:6px 0;overflow:hidden}
 #t-read .lt-anim svg text{font-size:11px}
 #t-read .lt-name{font:12px/1.5 ui-monospace,Menlo,monospace;overflow-wrap:anywhere;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin:6px 0}
 #t-read .lt-name span{border-radius:3px;padding:0 2px}
@@ -59,15 +57,49 @@
 #t-read #lt-mmatab code{overflow-wrap:normal;word-break:normal;white-space:nowrap}#t-read #lt-cutab code{overflow-wrap:normal;word-break:normal}
 #t-read .seg{display:flex;flex-wrap:wrap;max-width:100%}#t-read .seg button{flex:1 1 auto}
 @media (max-width:520px){#t-read .lt-ladder>div{grid-template-columns:1fr}}
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px}
+#t-read .hero,#t-read .card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4,#t-read .card h4{margin:0 0 4px;font-size:14.5px}
+#t-read .gs-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px 14px;margin:8px 0}
+#t-read .gs-row label{font-size:13px;display:block;min-width:0}#t-read .gs-row input[type=number]{width:100%}
+#t-read .gs-row select{max-width:100%;width:100%}
+#t-read .gs-fig{overflow:hidden;margin:6px 0}#t-read .gs-fig svg text{font-size:10.5px}
+#t-read .gs-ctl{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:6px 0}#t-read .gs-ctl input[type=range]{flex:1 1 140px;width:auto;min-width:0}
+#t-read .ll-fig{overflow-x:auto;margin:6px 0}
 </style>
 <nav class="nav" id="rd-nav" aria-label="Sections">
-<a href="#s0">In one screen</a><a href="#s1">Library first</a><a href="#s2">cuBLAS and cuBLASLt</a><a href="#s3">Tiles and waves</a><a href="#s4">cuDNN</a><a href="#s5">Tensor cores</a><a href="#s6">TMA and pipelines</a><a href="#s7">CUTLASS and CuTe</a><a href="#s8">FP8 and FP4</a><a href="#s9">Choosing, mistakes, interview</a>
+<a href="#s0">The idea</a><a href="#s1">Library first</a><a href="#s2">cuBLAS and cuBLASLt</a><a href="#s3">Tiles and waves</a><a href="#s4">Attention libraries</a><a href="#s5">Tensor cores</a><a href="#s6">TMA and pipelines</a><a href="#s7">CUTLASS and CuTe</a><a href="#s8">FP8 and FP4</a><a href="#s9">Choosing</a>
 </nav>
 <section id="s0">
-<h2>In one screen</h2>
-<p class="lead">Almost every FLOP of a training run is a matrix multiply (a <dfn>GEMM</dfn>, general matrix multiply: <i>D = &alpha;AB + &beta;C</i>), and almost every GEMM you run is a kernel somebody else wrote: a library. This page is about those libraries and the hardware instructions they are built on, so that you can tell which one ran, why it was fast or slow, and when it is worth writing your own.</p>
+<p class="core"><b>The core idea.</b> Almost every FLOP of a training run is a matrix multiply (a <dfn>GEMM</dfn>, general matrix multiply: <i>D = &alpha;AB + &beta;C</i>), and a fast GEMM is one generation's <b>tensor-core instruction</b> kept busy by tiles staged on chip, an asynchronous copy pipeline, a schedule matched to the SM count and a fused epilogue; cuBLAS and cuDNN ship thousands of such kernels prebuilt, and CUTLASS gives you the parts when none of them fits.</p>
+<div class="hero" id="lt-hcard">
+<h4>One PyTorch call goes down four layers, and only the bottom one changes with every GPU generation</h4>
+<div class="rd-fig" id="lt-hero"></div>
+<p class="small mute">The running example followed down: <code>torch._addmm_activation(b, x, w.t(), use_gelu=True)</code> hands the GELU to cuBLASLt (<code>CUBLASLT_EPILOGUE_GELU_BIAS</code>), whose heuristic picks, on an H100, a kernel named like <code>sm90_xmma_gemm_bf16bf16_bf16f32_f32_tn_n_tilesize128x128x64_..._5x_cublas</code> (decoded in section 2), which issues <code>HGMMA.64x128x16.F32.BF16</code>; on Ampere it would be <code>HMMA.16816.F32.BF16</code>, on a B200 <code>UTCHMMA</code> into tensor memory, on an RTX 5090 <code>HMMA</code> again. The numbers in brackets are this page's sections.</p>
+</div>
 <div class="co key"><div class="t">The running example</div>
 <p><b>Y = GELU(X&middot;W + b)</b> in BF16 with FP32 accumulation, X = 8,192 tokens &times; 4,096 features, W = 4,096 &times; 14,336: the shape of the MLP up-projection of a Llama-3-8B-sized layer ({{config.json|https://huggingface.co/meta-llama/Llama-3.1-8B/blob/main/config.json}}: <code>hidden_size</code> 4096, <code>intermediate_size</code> 14336). One forward call is 2 &middot; 8,192 &middot; 14,336 &middot; 4,096 = <b data-k="ex_gflop">962.1</b> GFLOP <span class="ev d">derived</span>. Llama itself uses SwiGLU, not GELU; we use GELU because cuBLASLt can apply it inside the GEMM, and SwiGLU is exactly the kind of fusion that pushes people to write their own kernel (section 9).</p></div>
+<p><b>You need:</b> threads, warps, blocks, clusters and waves from {{The CUDA programming model|n:3c65c17b0d0d8162865eec15d9dae87e}}; shared memory, banks and <code>cp.async</code> from {{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}}. What a tensor core is physically, and its FLOPs per clock in each generation, are on {{GPU architecture|n:3c65c17b0d0d810682aae39bd614ec64}}; what FP8, FP4, MX and NVFP4 are, on {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}.</p>
+<p><b>New terms</b></p>
+<dl class="terms">
+<dt>tensor core, MMA</dt><dd>the unit that computes D = A&middot;B + C on a small tile in one instruction (matrix multiply-accumulate)</dd>
+<dt>fragment</dt><dd>the scattered piece of an MMA tile that one thread holds in its registers, in a pattern fixed by the hardware</dd>
+<dt>warpgroup</dt><dd>four consecutive warps (128 threads) that issue one Hopper <code>wgmma</code> together</dd>
+<dt>TMEM</dt><dd>tensor memory: datacenter Blackwell's 256 KB per SM that holds MMA accumulators instead of registers</dd>
+<dt>TMA</dt><dd>Tensor Memory Accelerator: one thread starts a copy of a whole tile into shared memory</dd>
+<dt>epilogue</dt><dd>what a GEMM kernel does to an output tile after the K loop, before it leaves the chip (bias, activation, scaling)</dd>
+<dt>wave quantization</dt><dd>the idle SMs of a last wave when the tile count is just above a multiple of the SM count</dd>
+<dt>CuTe layout</dt><dd>a shape and a stride: a function from coordinates to offsets, CUTLASS's notation for every arrangement of data and threads</dd>
+</dl>
+<p class="small mute">Evidence on this page is tagged: <span class="ev c">compiled here</span> real CUDA 13.4.2 compiler output in the Docker image kb-gpu-lab:1, no GPU; <span class="ev m">measured on M1 Pro</span> timed on the Apple M1 Pro GPU through MLX 0.32.3; <span class="ev v">vendor</span> NVIDIA documentation, headers or source; <span class="ev i">independent</span> third-party measurement; <span class="ev d">derived</span> arithmetic shown; <span class="ev n">not run here</span> needs an NVIDIA GPU, which this knowledge base does not have.</p>
+<details class="dp"><summary>Reference: every library layer and how PyTorch reaches it <span class="mute">(cuBLAS, cuBLASLt, cuDNN, CUTLASS, CuTe DSL, CCCL, the instructions)</span></summary><div class="b">
 <div class="tw"><table style="min-width:600px">
 <thead><tr><th>Layer</th><th>What it is</th><th>How PyTorch reaches it</th><th>Section</th></tr></thead><tbody>
 <tr><td><b>cuBLAS</b></td><td>NVIDIA's closed-source dense linear algebra; thousands of prebuilt GEMM kernels and a heuristic that picks one</td><td><code>torch.mm</code>, <code>torch.matmul</code>, <code>bmm</code></td><td>2, 3</td></tr>
@@ -77,13 +109,5 @@
 <tr><td><b>CuTe DSL</b></td><td>CUTLASS 4.x's Python front end: CuTe kernels written in Python, compiled just in time</td><td>through DLPack tensors; FlashAttention-4 is written in it</td><td>7</td></tr>
 <tr><td><b>CCCL</b> (Thrust, CUB, libcudacxx)</td><td>Parallel primitives: block- and device-wide reduce, scan, sort, load and store</td><td>inside PyTorch's sorts and scans (its <code>at::cuda::cub</code> wrappers); CUB is also called from your own kernels</td><td>{{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}</td></tr>
 <tr><td><b>Tensor-core instructions</b></td><td><code>mma.sync</code> (Ampere on), <code>wgmma</code> (Hopper only), <code>tcgen05.mma</code> (datacenter Blackwell); fed by <code>ldmatrix</code>, <code>cp.async</code> and <b>TMA</b></td><td>never directly; every library above ends in one of them</td><td>5, 6</td></tr>
-</tbody></table></div>
-<p>Followed down one level at a time, the example becomes:</p>
-<div class="lt-ladder">
-<div><b>PyTorch</b><span><code>F.gelu(F.linear(x, w, b), approximate="tanh")</code>, or <code>torch._addmm_activation(b, x, w.t(), use_gelu=True)</code>, which hands the GELU to cuBLASLt</span></div>
-<div><b>cuBLASLt</b><span><code>cublasLtMatmul</code> with epilogue <code>CUBLASLT_EPILOGUE_GELU_BIAS</code>; a heuristic ranks candidate kernels for this shape, type and GPU</span></div>
-<div><b>One prebuilt kernel</b><span>on an H100, a name like <code>sm90_xmma_gemm_bf16bf16_bf16f32_f32_tn_n_tilesize128x128x64_cgasize1x1x1_..._execute_segment_k_off_kernel__5x_cublas</code> (section 2 decodes it)</span></div>
-<div><b>Tensor-core instruction</b><span>Ampere <code>HMMA.16816.F32.BF16</code>; Hopper <code>HGMMA.64x128x16.F32.BF16</code>; B200 <code>UTCHMMA</code> into tensor memory; RTX 5090 back to <code>HMMA</code></span></div>
-</div>
-<p class="small mute">Evidence on this page is tagged: <span class="ev c">compiled here</span> real CUDA 13.4.2 compiler output in the Docker image kb-gpu-lab:1, no GPU; <span class="ev m">measured on M1 Pro</span> timed on the Apple M1 Pro GPU through MLX 0.32.3; <span class="ev v">vendor</span> NVIDIA documentation, headers or source; <span class="ev i">independent</span> third-party measurement; <span class="ev d">derived</span> arithmetic shown; <span class="ev n">not run here</span> needs an NVIDIA GPU, which this knowledge base does not have.</p>
+</tbody></table></div></div></details>
 </section>

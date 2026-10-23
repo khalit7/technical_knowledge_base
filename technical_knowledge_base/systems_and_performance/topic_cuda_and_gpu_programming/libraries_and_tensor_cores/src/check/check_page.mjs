@@ -27,11 +27,11 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await tab('t-read');
   for (const pr of ['lt-pr1', 'lt-pr2']) { await p.click(`#${pr} .opts button`); log(await p.$eval(`#${pr} .ans`, e => !e.hidden), `${tag} ${pr} reveals`); }
   for (const m of ['sm80_m16n8k16_A', 'sm80_m16n8k16_B', 'sm80_m16n8k16_C']) {
-    await p.click(`#lt-tvsel button[data-m="${m}"]`); await p.click('#lt-tv div[data-t="5"]');
+    await p.click(`#lt-tvsel button[data-m="${m}"]`); await p.click('#lt-tv rect[data-t="5"]');
     const n = await p.$eval('#lt-tvx', e => e.textContent); const want = m.endsWith('A') ? 8 : 4;
     log(n.includes(`lane 5 holds ${want} values`), `${tag} fragment ${m}: lane 5 holds ${want}`); }
   // lane 0 of C must own (0,0) (0,1) (8,0) (8,1): the PTX ISA's documented fragment
-  await p.click('#lt-tv div[data-t="0"]'); const c0 = await p.$eval('#lt-tvx', e => e.textContent);
+  await p.click('#lt-tv rect[data-t="0"]'); const c0 = await p.$eval('#lt-tvx', e => e.textContent);
   log(c0.includes('(0,0) (0,1) (8,0) (8,1)'), `${tag} lane 0 of C = (0,0) (0,1) (8,0) (8,1)`);
   for (const i of [0, 4, 8, 11]) await p.click(`#lt-nm span[data-i="${i}"]`);
   for (const m of ['(4,8):(8,1)', '(4,8):(1,5)', '((2,2),(2,4)):((1,8),(2,16))', '(4,8):(1,4)']) await p.click(`#lt-mini-sel button[data-m="${m}"]`);
@@ -43,6 +43,11 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     await p.click('#lt-gen-ctl-b'); await p.click('#lt-gen-ctl-b'); await p.click('#lt-gen-ctl-b');
     await shot('#lt-gen-card', 'gen-' + g); }
   await p.click('#lt-gen-ctl-p'); await new Promise(r => setTimeout(r, 300)); await p.click('#lt-gen-ctl-p');
+  // the swizzle bank view (moved from the Layout lab into Reading section 7)
+  for (const m of ['1', '2', '3', '0']) { await p.click(`#ll-swsel button[data-m="${m}"]`); const t = await p.$eval('#ll-bankx', e => e.textContent);
+    log(m === '3' ? t.includes('conflict-free') : (m === '0' ? t.includes('8-way') : true), `${tag} swizzle ${m}: ${t.slice(0, 60)}`); }
+  await p.click('#ll-swsel button[data-m="3"]'); await shot('#ll-bank', 'bank');
+  await shot('#lt-hero', 'hero'); await shot('#lt-mma', 'mma'); await shot('#lt-bud', 'bud');
   await shot('#lt-epi', 'epi'); await shot('#lt-inv', 'inv'); await shot('#lt-tv', 'tv'); await shot('#lt-mmatab', 'mmatab'); await shot('#lt-cutab', 'cutab');
   await bad('Reading'); await sideways('Reading');
   // --- Layout lab ---
@@ -53,10 +58,6 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   for (const op of ['eval', 'coalesce', 'compose', 'complement', 'divide', 'zipped', 'blocked', 'raked', 'swizzle']) { await p.select('#ll-op', op); }
   await p.$eval('#ll-a', e => { e.value = '(4,8):(1,'; e.dispatchEvent(new Event('input')); });
   log((await p.$eval('#ll-res', e => e.textContent)).length > 0, `${tag} bad input reports an error`);
-  await p.select('#ll-pre', '8');
-  for (const m of ['1', '2', '3', '0']) { await p.click(`#ll-swsel button[data-m="${m}"]`); const t = await p.$eval('#ll-bankx', e => e.textContent);
-    log(m === '3' ? t.includes('conflict-free') : (m === '0' ? t.includes('8-way') : true), `${tag} swizzle ${m}: ${t.slice(0, 60)}`); }
-  await p.click('#ll-swsel button[data-m="3"]'); await shot('#ll-bank', 'bank');
   for (const m of ['sm80_m16n8k16_A', 'sm80_m16n8k8_tf32_A', 'sm90_m64n64k16_C', 'sm80_m16n8k16_C']) { await p.click(`#ll-tvsel button[data-m="${m}"]`); await p.click('#ll-tv rect[data-t="3"]'); }
   await p.select('#ll-pre', '10'); await shot('#ll-grid', 'grid'); await bad('Layout lab'); await sideways('Layout lab');
   // --- Instruction atlas ---
@@ -67,7 +68,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const ok = await p.$$eval('#at-tab td.ok', e => e.length); log(ok === 81, `${tag} atlas: 81 cells assembled (${ok})`);
   await shot('#at-d', 'atlas-detail'); await bad('Atlas'); await sideways('Atlas');
   // --- GEMM scheduler: the page's model against recompute.py ---
-  await tab('t-sched');
+  await tab('t-read');
   const js = await p.evaluate((cases) => cases.map(c => { const r = GS.plan(...c.args); return { T: r.T, I: r.I, time: r.time, util: Math.round(r.util * 1e6) / 1e6, extra: r.extra }; }), data.sched_check);
   data.sched_check.forEach((c, i) => { const r = js[i]; const same = r.T === c.T && r.time === c.time && r.extra === c.extra && Math.abs(r.util - c.util) < 2e-6;
     log(same, `${tag} scheduler ${c.args.join(' ')}: JS ${r.time}/${r.util} py ${c.time}/${c.util}`); });
@@ -85,6 +86,13 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   log(errs.length === 0, `${tag} no page errors ${errs.slice(0, 3).join(' | ')}`);
   await p.close();
 }
+// normal motion: nothing plays before the reader acts (the tile animation stays on step 0, the Gantt on its end state)
+{ const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(page_file, { waitUntil: 'load' });
+  await p.click('#tabs button[data-t="t-read"]'); await p.$eval('#lt-gen-card', e => e.scrollIntoView());
+  await p.click('#lt-gen-sel button[data-m="hopper"]'); await new Promise(r => setTimeout(r, 3000));
+  const v = await p.$eval('#lt-gen-ctl-s', e => e.value); log(v === '0', `no autoplay: tile animation at step ${v} after 3 s and a mode switch`);
+  const g = await p.$eval('#gs-t', e => e.value); log(g === '1000', `no autoplay: scheduler timeline at ${g}/1000`);
+  await p.close(); }
 await browser.close();
 console.log(fails ? `check_page: ${fails} failures` : 'check_page: all passed');
 process.exit(fails ? 1 : 0);
