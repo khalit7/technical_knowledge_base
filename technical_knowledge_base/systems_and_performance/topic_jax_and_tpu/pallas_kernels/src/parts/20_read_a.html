@@ -48,30 +48,59 @@ pre.pk-out{background:var(--bg);border-style:dashed;white-space:pre-wrap;overflo
 @media (max-width:520px){.pk-bars>div{grid-template-columns:minmax(0,8em) minmax(0,1fr) 3.9em}}
 @media (max-width:560px){table.pk-cards,table.pk-cards tbody,table.pk-cards tr,table.pk-cards td{display:block;width:auto}.pk-tw table.pk-cards{min-width:0}table.pk-cards thead{display:none}table.pk-cards tr{border:1px solid var(--line);border-radius:8px;margin:6px 0;padding:4px 9px}table.pk-cards td{border:0;padding:2px 0;white-space:normal}table.pk-cards td[data-h]:not(:first-child):before{content:attr(data-h) ": ";color:var(--mute);font-size:12px;font-weight:600}}
 .pkv{font-variant-numeric:tabular-nums}
+
+#pk-gridlab .pg-ops{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-start;margin:8px 0}
+#pk-gridlab .pg-op{min-width:0}#pk-gridlab .pg-op .h{font-size:12px;font-weight:600}#pk-gridlab .pg-op .h i{font-style:normal;font-weight:400;color:var(--mute)}
+#pk-gridlab .pg-op svg text{font-size:11px}
+#pk-gridlab .pg-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#pk-gridlab .pg-leg span:before{content:"";display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw);border:1px solid var(--line)}
+#pk-gridlab .pg-meta{font-size:13px;margin:4px 0}
+
+#pk-tilelab .ft-svg{width:100%;overflow:hidden;margin:6px 0}#pk-tilelab .ft-svg svg text{font-size:11px}
+#pk-tilelab .ft-leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#pk-tilelab .ft-leg span:before{content:"";display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw);border:1px solid var(--line)}
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read h3.pk-h3{font-size:15px;margin:16px 0 4px}
+details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+details.dp>.b{padding:0 12px 10px;min-width:0}
 </style>
 <nav class="nav" id="rd-nav">
-<a href="#pk-s0">0 One screen</a><a href="#pk-s1">1 Why a kernel</a><a href="#pk-s2">2 The model</a><a href="#pk-s3">3 Row kernels</a><a href="#pk-s4">4 LayerNorm and its VJP</a><a href="#pk-s5">5 Flash attention</a><a href="#pk-s6">6 Pipelining</a><a href="#pk-s7">7 Scalar prefetch</a><a href="#pk-s8">8 Semantics, megacore</a><a href="#pk-s9">9 Testing</a><a href="#pk-s10">10 Production kernels</a><a href="#pk-s11">11 Block sizes</a><a href="#pk-s12">12 vs Triton, vs XLA</a><a href="#pk-mis">Mistakes</a><a href="#pk-iq">Interview</a>
+<a href="#pk-s0">The idea</a><a href="#pk-s1">1 When to write one</a><a href="#pk-s2">2 Grid and BlockSpec</a><a href="#pk-s3">3 Row kernels</a><a href="#pk-s4">4 LayerNorm and its VJP</a><a href="#pk-s5">5 Flash attention</a><a href="#pk-s6">6 Pipelining</a><a href="#pk-s7">7 Scalar prefetch</a><a href="#pk-s8">8 Semantics, megacore</a><a href="#pk-s9">9 Testing</a><a href="#pk-s10">10 Production kernels</a><a href="#pk-s11">11 Block sizes</a><a href="#pk-s12">12 vs Triton</a><a href="#pk-dp">Depth</a>
 </nav>
 
 <section id="pk-s0">
-<h2>0. In one screen</h2>
-<p class="lead"><dfn>Pallas</dfn> is JAX's language for writing your own kernels, the counterpart of Triton (and, one level lower, of CUDA C++) in the PyTorch world. You write one Python function that works on <dfn>refs</dfn> (mutable views of small tiles sitting in fast on-chip memory), say how the big arrays are cut into tiles and which tile each step of a loop gets (the <dfn>grid</dfn> and the <dfn>BlockSpecs</dfn>), and <code>pl.pallas_call</code> turns it into a TPU kernel (through Mosaic) or a GPU kernel (through Triton or Mosaic GPU). The root page introduced the five ideas and ran a tiled matmul and the flash attention forward in its {{TPU and Pallas lab|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}}; this page builds every other kind of kernel you will meet, on the running example's real tensors, and reads the ones Google ships.</p>
-<div class="pk-flow" id="pk-ladder">
-<div style="--sc:var(--c1)"><b>1. jnp reference</b><i>the function you want, in plain jax.numpy: the oracle for every test</i></div>
-<div style="--sc:var(--c3)"><b>2. interpret=True</b><i>runs the kernel body as ordinary JAX on CPU: values, shapes, gradients</i><span class="v">10 of 11 kernels run</span></div>
-<div style="--sc:var(--c6)"><b>3. TPU interpreter</b><i><code>interpret=pltpu.InterpretParams(...)</code>: simulated DMAs, cores, races, out-of-bounds blocks</i><span class="v">caught 3 of 4 planted bugs</span></div>
-<div style="--sc:var(--c4)"><b>4. Lower for TPU</b><i><code>jax.export(..., platforms=["tpu"])</code> on a laptop: Mosaic accepts the tiling or says why not</i><span class="v">11 of 11 lower</span></div>
-<div style="--sc:var(--bad)"><b>5. On a chip</b><i>speed, VMEM limits, the real compiler. Not run here (no TPU)</i><span class="v">published numbers only</span></div>
-</div>
-<div class="pk-tw"><table class="pk-cards">
-<thead><tr><th>Kernel (this page)</th><th>What it teaches</th><th>Checked against</th><th class="num">max abs. error</th></tr></thead>
-<tbody id="pk-sumtab"></tbody></table></div>
-<p class="pk-note">Every error is measured here, on the running example (Apple M1 Pro CPU, Pallas interpret mode, jax 0.11.2), against a plain jax.numpy reference; float32 throughout unless the row says bf16. Timings appear only once, in section 9, and only to show they mean nothing for a TPU.</p>
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core"><dfn>Pallas</dfn> is JAX's kernel language: you write one Python function that works on <span class="hl">tiles in VMEM</span>, the TPU core's fast on-chip memory, and a <dfn>grid</dfn> (a loop) plus one <dfn>BlockSpec</dfn> per array decide which tile of each array is copied in at every step, with the copies overlapped behind the compute. You write one only when the win comes from <b>doing less</b> than the compiler (XLA) can derive: not storing an intermediate, choosing tiles from data, or skipping known-zero work.</p>
+<div class="pk-card" id="pk-hero-card"><h4>One grid step: the BlockSpec has copied block i into VMEM, block i+1 is already on its way, the bias was copied once</h4>
+<div class="pk-svg" id="pk-hero"></div>
+<p class="pk-note">The bias + GELU kernel of section 3 on the running example's MLP pre-activation x [4,096 &times; 512]: <code>grid=(8,)</code>, one 512-row band per step. x and o move band by band (8 copies in, 8 write-backs); the bias's index map always returns block (0, 0), so it is copied once and given a single buffer. On a TPU core the 8 steps run one after another; on a GPU they would be 8 parallel programs. Section 2 steps through this and nine other grids.</p></div>
+<p><b>You need:</b> <code>jax.jit</code> and <code>jax.custom_vjp</code> ({{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}}, section 6 for custom rules); what VMEM, HBM and the MXU are and how big they are per generation ({{TPU programming and performance|n:3c65c17b0d0d8129b0a5fd82e44ecf6e}}); the five ideas of Pallas, its tiled matmul and the (8, 128) block rule, from the root's {{TPU and Pallas lab|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}}. The PyTorch counterpart is a Triton kernel ({{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}}); CUDA kernel concepts are on {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}.</p>
+<dl class="terms">
+<dt>Ref</dt><dd>a mutable view of one tile in fast memory; the kernel reads <code>x_ref[...]</code> and writes <code>o_ref[...] = ...</code>.</dd>
+<dt>Grid</dt><dd>the loop nest the kernel body runs in; sequential on one TPU core, parallel programs on a GPU.</dd>
+<dt>BlockSpec</dt><dd>for one array: the tile shape and an <dfn>index map</dfn> from grid indices to the tile's block index.</dd>
+<dt>VMEM, SMEM, HBM</dt><dd>the core's vector memory (tiles), its small scalar memory (indices), and the chip's large slow memory (whole arrays).</dd>
+<dt>Mosaic</dt><dd>the compiler that turns a Pallas kernel into TPU code; on GPUs Pallas lowers to Triton or Mosaic GPU.</dd>
+<dt>Dimension semantics</dt><dd>"parallel" or "arbitrary" per grid axis: whether the axis may be split between cores.</dd>
+<dt>Scalar prefetch</dt><dd>small integer arrays copied to SMEM before the grid starts, so index maps can choose tiles from data.</dd>
+<dt>Interpret mode</dt><dd>running the kernel as ordinary JAX on a CPU (<code>interpret=True</code>), or under the TPU interpreter, which simulates copies and cores.</dd>
+</dl>
 <div class="co key"><div class="t">The four things to take away</div>
 <ul class="tight">
-<li><b>Write a kernel only for what XLA cannot derive</b>: an algorithm that changes what is stored (flash attention never writes the T &times; T scores), data-dependent tiles (paged and ragged attention, mixture-of-experts), or block sparsity. For a matmul or a normalisation, Google's own guide shows the best Pallas matmul only matching XLA (section 1).</li>
+<li><b>Write a kernel only for what XLA cannot derive</b>: an algorithm that changes what is stored (flash attention never writes the T &times; T scores), data-dependent tiles (paged and ragged attention, mixture-of-experts), or block sparsity. For a matmul, Google's own guide shows the best Pallas kernel only matching XLA (section 1).</li>
 <li><b>The grid is a sequential loop on a TPU</b>, so a block that several steps share stays in VMEM and can accumulate (sections 4 and 8). On a GPU the same grid is parallel programs, which is why the GPU kernels split such reductions into a second kernel.</li>
 <li><b>Gradients are yours to write</b>: <code>jax.grad</code> of a <code>pallas_call</code> fails; wrap forward and backward kernels in <code>jax.custom_vjp</code> (sections 4 and 5).</li>
 <li><b>Interpret mode proves correctness, not speed or legality</b>: test with the TPU interpreter and lower for TPU on your laptop before paying for a chip (section 9).</li>
 </ul></div>
+<details class="dp"><summary>The eleven kernels on this page and how each was checked <span class="mute">(reference)</span></summary><div class="b">
+<div class="pk-tw"><table class="pk-cards">
+<thead><tr><th>Kernel (this page)</th><th>What it teaches</th><th>Checked against</th><th class="num">max abs. error</th></tr></thead>
+<tbody id="pk-sumtab"></tbody></table></div>
+<p class="pk-note">Every error is measured here, on the running example (Apple M1 Pro CPU, Pallas interpret mode, jax 0.11.2), against a plain jax.numpy reference; float32 throughout unless the row says bf16. Ten of the eleven ran; the eleventh, the <code>emit_pipeline</code> matmul, was lowered for TPU only (section 6). The three production kernels at the bottom ship with jax.</p>
+</div></details>
 </section>

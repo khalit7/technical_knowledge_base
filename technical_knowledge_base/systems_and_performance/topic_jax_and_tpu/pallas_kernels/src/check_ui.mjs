@@ -13,8 +13,8 @@ const [file, outdir] = process.argv.slice(2);
 fs.mkdirSync(outdir, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const TABS = ['t-read', 't-pkgrid', 't-pkplay', 't-pktile', 't-more'];
-const SHOTS = { 't-read': ['pk-be-card', 'pk-pipe-card', 'pk-pg-svg', 'pk-rpa-svg', 'pk-mg-bars', 'pk-ladder'], 't-pkgrid': ['pg-card'], 't-pkplay': ['kp-calc-card'], 't-pktile': ['ft-card'] };
+const TABS = ['t-read', 't-pkplay', 't-more'];
+const SHOTS = { 't-read': ['pk-hero-card', 'pk-be-card', 'pk-pipe-card', 'pk-pg-svg', 'pk-rpa-svg', 'pk-mg-bars', 'pk-ladder', 'pg-card', 'ft-card'], 't-pkplay': ['kp-calc-card'] };
 let bad = 0, actions = 0;
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage();
@@ -72,14 +72,14 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       for (let i = 0; i < cells; i += 5) { await p.evaluate(i => document.querySelectorAll('#pk-pg-svg [data-pg]')[i].dispatchEvent(new MouseEvent('click', { bubbles: true })), i); await check('page cell ' + i) }
     }
     // the kernel and mode switches in the labs, combined with stepping to the last step
-    if (tab === 't-pkgrid' || tab === 't-pktile') {
-      const segs = tab === 't-pkgrid' ? '#pg-kern button' : '#ft-mode button';
+    for (const lab of tab === 't-read' ? ['grid', 'tile'] : []) {
+      const segs = lab === 'grid' ? '#pg-kern button' : '#ft-mode button';
       const ns = await p.$$eval(segs, bs => bs.length);
       for (let i = 0; i < ns; i++) {
         await p.evaluate((s, i) => document.querySelectorAll(s)[i].click(), segs, i);
-        const ctl = tab === 't-pkgrid' ? 'pg-ctl' : 'ft-ctl';
+        const ctl = lab === 'grid' ? 'pg-ctl' : 'ft-ctl';
         await p.evaluate(c => { const r = document.getElementById(c + '-s'); r.value = r.max; r.dispatchEvent(new Event('input', { bubbles: true })) }, ctl);
-        await check('last step of ' + i);
+        await check('last step of ' + lab + ' ' + i);
       }
     }
     for (const id of SHOTS[tab] || []) {

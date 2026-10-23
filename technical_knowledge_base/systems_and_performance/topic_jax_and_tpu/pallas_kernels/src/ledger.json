@@ -1,0 +1,3448 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Pallas kernels Pallas kernels JAX's kernel language from zero, for a PyTorch and CUDA reader: the programming model, eleven kernels written for the running example (elementwise, softmax, cross-entropy, layer norm forward and backward, flash attention forward and backward, two pipelines written by hand, paged decode attention by scalar prefetch), ten run and checked, all eleven lowered for TPU, the production kernels shipped with jax and tokamax run on the same tensors, and how block sizes are chosen.",
+  "label": "core",
+  "key": "JAX's kernel language",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Child of Topic: jax-and-tpu.",
+  "label": "core",
+  "key": "Child of Topic: jax-and-tpu",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Run on an Apple M1 Pro CPU in interpret mode and lowered for TPU and GPU without one; chip speeds are Google's published figures, labelled.",
+  "label": "core",
+  "key": "Run on an Apple M1 Pro",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Grid and BlockSpec Kernel playground Flash tiles Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar changed"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Why a kernel 2 The model 3 Row kernels 4 LayerNorm and its VJP 5 Flash attention 6 Pipelining 7 Scalar prefetch 8 Semantics, megacore 9 Testing 10 Production kernels 11 Block sizes 12 vs Triton, vs XLA Mistakes Interview",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old section nav"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "In one screen Pallas is JAX's language for writing your own kernels, the counterpart of Triton (and, one level lower, of CUDA C++) in the PyTorch world.",
+  "label": "core",
+  "key": "The PyTorch counterpart is a Triton kernel",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "You write one Python function that works on refs (mutable views of small tiles sitting in fast on-chip memory), say how the big arrays are cut into tiles and which tile each step of a loop gets (the grid and the BlockSpecs ), and pl.pallas_call turns it into a TPU kernel (through Mosaic) or a GPU kernel (through Triton or Mosaic GPU).",
+  "label": "core",
+  "key": "pl.pallas_call",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The root page introduced the five ideas and ran a tiled matmul and the flash attention forward in its TPU and Pallas lab ; this page builds every other kind of kernel you will meet, on the running example's real tensors, and reads the ones Google ships.",
+  "label": "core",
+  "key": "five ideas of Pallas",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "1. jnp reference the function you want, in plain jax.numpy: the oracle for every test 2. interpret=True runs the kernel body as ordinary JAX on CPU: values, shapes, gradients 10 of 11 kernels run 3.",
+  "label": "core",
+  "key": "the oracle for every test",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "TPU interpreter interpret=pltpu.InterpretParams(...) : simulated DMAs, cores, races, out-of-bounds blocks caught 3 of 4 planted bugs 4.",
+  "label": "core",
+  "key": "TPU interpreter interpret=pltpu.InterpretParams(...) : simulated DMAs,",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Lower for TPU jax.export(..., platforms=[\"tpu\"]) on a laptop: Mosaic accepts the tiling or says why not 11 of 11 lower 5.",
+  "label": "core",
+  "key": "Lower for TPU jax.export(..., platforms=[\"tpu\"]) on",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "On a chip speed, VMEM limits, the real compiler.",
+  "label": "core",
+  "key": "speed, VMEM limits, the real compiler",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Not run here (no TPU) published numbers only Kernel (this page) What it teaches Checked against max abs. error Every error is measured here, on the running example (Apple M1 Pro CPU, Pallas interpret mode, jax 0.11.2), against a plain jax.numpy reference; float32 throughout unless the row says bf16.",
+  "label": "depth",
+  "key": "The eleven kernels on this page",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Timings appear only once, in section 9, and only to show they mean nothing for a TPU.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "timings no longer kept to one place; restated"
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The four things to take away Write a kernel only for what XLA cannot derive : an algorithm that changes what is stored (flash attention never writes the T × T scores), data-dependent tiles (paged and ragged attention, mixture-of-experts), or block sparsity.",
+  "label": "core",
+  "key": "The four things to take away",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "For a matmul or a normalisation, Google's own guide shows the best Pallas matmul only matching XLA (section 1).",
+  "label": "core",
+  "key": "Google's own guide shows the best",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The grid is a sequential loop on a TPU , so a block that several steps share stays in VMEM and can accumulate (sections 4 and 8).",
+  "label": "core",
+  "key": "The grid is a sequential loop",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "On a GPU the same grid is parallel programs, which is why the GPU kernels split such reductions into a second kernel.",
+  "label": "core",
+  "key": "On a GPU the same grid",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Gradients are yours to write : jax.grad of a pallas_call fails; wrap forward and backward kernels in jax.custom_vjp (sections 4 and 5).",
+  "label": "core",
+  "key": "Gradients are yours to write :",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Interpret mode proves correctness, not speed or legality : test with the TPU interpreter and lower for TPU on your laptop before paying for a chip (section 9).",
+  "label": "core",
+  "key": "Interpret mode proves correctness, not speed",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Why write a kernel at all, and when not to The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading wind-up"
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "In PyTorch you reach for a custom CUDA or Triton kernel when the framework's kernels move too much memory.",
+  "label": "core",
+  "key": "In PyTorch you reach for a",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "In JAX the compiler, XLA, already writes most kernels for you and fuses chains of elementwise work into one pass (how it decides, and the softmax compiled three ways, are on XLA and compilation, section 4 ).",
+  "label": "core",
+  "key": "In JAX the compiler, XLA, already",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "What a compiler cannot do is change the algorithm.",
+  "label": "core",
+  "key": "What a compiler cannot do is",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Four kinds of work need one: Store less than the maths suggests.",
+  "label": "core",
+  "key": "Four kinds of work need one:",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Attention written as softmax(q k T ) v materialises a T × T score matrix in memory (HBM, the chip's large and slow memory).",
+  "label": "core",
+  "key": "k T ) v materialises a",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Flash attention computes the same result one tile at a time and never stores it.",
+  "label": "core",
+  "key": "Flash attention computes the same result",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "For the running example's layer 0 that matrix is 8.4 MB of float32 (32 sequences × 4 heads × 128 × 128), and the backward of the plain version keeps the probabilities of the same size as a residual; the flash backward keeps one number per row instead, 66 KB measured here .",
+  "label": "core",
+  "key": "8.4 MB",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "For a 7B-class model at 8,192 tokens with 32 heads, the scores are 32 × 8,192 2 × 2 bytes = 4.3 GB per sequence per layer in bf16 derived .",
+  "label": "core",
+  "key": "4.3 GB",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Serving keeps the KV cache in fixed-size pages scattered through memory; mixture-of-experts sends a different number of tokens to each expert.",
+  "label": "core",
+  "key": "Serving keeps the KV cache in",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "The tile a step needs depends on a table that only exists at run time (section 7).",
+  "label": "core",
+  "key": "The tile a step needs depends",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Skip work that is known to be zero.",
+  "label": "core",
+  "key": "Skip work known to be zero",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Causal or block-sparse attention masks whole tiles; a kernel can skip computing them and even skip copying them (sections 5 and 7).",
+  "label": "core",
+  "key": "skips computing them and even copying them",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Overlap communication with compute by hand , for example a matmul that pulls the next shard from a neighbouring chip while multiplying the current one (Pallas TPU kernels can copy between chips with pltpu.make_async_remote_copy ; not run here: it needs several chips).",
+  "label": "core",
+  "key": "Overlap communication with compute by hand",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Google's own Pallas TPU matmul guide measured, on a TPU v5e, a plain Pallas matmul against jnp.matmul (XLA).",
+  "label": "core",
+  "key": "jnp.matmul",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "The best Pallas block size reached the compiler; small blocks were 15 times worse.",
+  "label": "core",
+  "key": "15 times worse",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Published outputs committed with the guide at jax-v0.11.2 Google, published : Share of v5e bf16 peak reached by a square bf16 matmul (N × N × N) Source: docs/pallas/tpu/matmul.ipynb cell outputs at jax-v0.11.2 (the guide states \"This notebook was run on a TPU v5e chip\"; run date not stated).",
+  "label": "core",
+  "key": "This notebook was run on a TPU v5e chip",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Utilisation = 2N 3 / time / 197 TFLOP/s, as the guide computes it.",
+  "label": "core",
+  "key": "Utilisation = 2N 3 / time",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Blocks are (bm, bk, bn).",
+  "label": "core",
+  "key": "Blocks are (bm, bk, bn)",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "The same guide's sparse chapter, on the same kind of chip, is the counter-example: a block-sparse × dense matmul (16,384 square, blocks of 512) took 8.136 ms against 46.953 ms for the dense XLA reference Google, published , because the kernel never touches the zero blocks.",
+  "label": "core",
+  "key": "8.136",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "That is the general rule: a kernel wins by doing less, not by doing the same thing better than the compiler.",
+  "label": "core",
+  "key": "kernel wins by doing less, not",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Predict: for which of these would you expect a hand-written Pallas kernel to beat XLA on a TPU by a wide margin?",
+  "label": "core",
+  "key": "Predict: for which of these would",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "A large bf16 matmul LayerNorm over the hidden dimension Attention with a block-sparse mask Bias add followed by GELU Attention with a block-sparse mask: the kernel skips whole tiles of work and memory traffic that XLA's dense attention must do.",
+  "label": "core",
+  "key": "A large bf16 matmul LayerNorm over",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "The matmul is XLA's best case (the guide's 92.3% against 91.5%).",
+  "label": "core",
+  "key": "92.3%",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "LayerNorm and bias-plus-GELU are memory-bound elementwise chains that XLA already fuses into one pass; a kernel can at most match it (section 3 shows the kernels anyway, because they teach the mechanics).",
+  "label": "core",
+  "key": "LayerNorm and bias-plus-GELU are memory-bound elementwise",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. why write a kernel at all, and when not to",
+  "text": "Situation Do this PyTorch counterpart Matmuls, elementwise chains, reductions, normalisation Let XLA fuse it; check the fusion on XLA and compilation torch.compile and Inductor Flash, splash, paged or ragged attention; grouped matmuls for MoE Call a ready-made kernel (section 10) FlashAttention, FlexAttention, vLLM kernels A new attention variant, a fused quantised matmul, a collective overlapped by hand Write a Pallas kernel A Triton or CUDA kernel",
+  "label": "core",
+  "key": "Situation Do this PyTorch counterpart Matmuls,",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "The programming model, precisely Everything below is one call, pl.pallas_call(kernel, out_shape, *, grid, in_specs, out_specs, scratch_shapes, input_output_aliases, compiler_params, interpret, ...) ( pallas_call.py : 1091 at jax-v0.11.2 read in source ).",
+  "label": "core",
+  "key": "is one call, pl.pallas_call(kernel, out_shape, *,",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "It returns a function you call on arrays inside jax.jit .",
+  "label": "core",
+  "key": "a function you call on arrays",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "Piece What it is PyTorch, Triton or CUDA counterpart kernel(*refs) A Python function called once per grid step with one ref per input, then one per output, then the scratch refs.",
+  "label": "core",
+  "key": "once per grid step with one",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "It reads x_ref[...] (the whole tile as an array), writes o_ref[...] = ... , and may slice: o_ref[pl.ds(start, size), :] .",
+  "label": "core",
+  "key": "o_ref[pl.ds(start, size), :]",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "Ordinary jnp code runs on the tile.",
+  "label": "core",
+  "key": "ordinary jnp runs on the tile",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "The body of a Triton @triton.jit function or a CUDA __global__ function grid=(n0, n1, ...) The loop nest. pl.program_id(axis) says where you are; pl.num_programs(axis) how far it goes.",
+  "label": "core",
+  "key": "__global__ function grid=(n0, n1, ...) The",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "On a TPU the steps run one after another (lexicographic order); on a GPU they are parallel programs. blockIdx and the launch grid pl.BlockSpec(block_shape, index_map) For one operand: the tile size, and a function from the grid indices to the tile's block index (block, not element, coordinates).",
+  "label": "core",
+  "key": "lexicographic order",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "A None in block_shape squeezes that dimension away inside the kernel.",
+  "label": "core",
+  "key": "A None in block_shape squeezes that",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "Optional memory_space and pipeline_mode=pl.Buffered(n) ( core.py : 549 ).",
+  "label": "core",
+  "key": "Optional memory_space and pipeline_mode=pl.Buffered(n) ( core.py",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "Triton: pointer arithmetic and tl.load ; CUDA: indexing into shared memory by hand out_shape A jax.ShapeDtypeStruct (or a tuple of them) for each output.",
+  "label": "core",
+  "key": "hand out_shape A jax.ShapeDtypeStruct (or a",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "Outputs start uninitialised. torch.empty passed to the kernel scratch_shapes Extra buffers that live for the whole kernel: pltpu.VMEM(shape, dtype) , pltpu.SMEM(...) , pltpu.SemaphoreType.DMA((n,)) .",
+  "label": "core",
+  "key": "buffers that live for the whole",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "They keep running state across grid steps (flash attention's running max). __shared__ arrays; registers carried across a loop Memory spaces VMEM : the TensorCore's vector memory, 16 to 128 MiB per core by generation ( jax/_src/tpu_info.py , as the root's TPU lab reads it).",
+  "label": "core",
+  "key": "steps (flash attention's running max). __shared__",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "SMEM : small scalar memory for indices and lengths. pl.ANY : \"Unrestricted memory space (usually HBM)\" ( core.py : 277 ): nothing is copied for you.",
+  "label": "core",
+  "key": "Unrestricted memory space (usually HBM)",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "Shared memory and registers; global memory compiler_params=pltpu.CompilerParams(...) dimension_semantics per grid axis (\"parallel\" or \"arbitrary\", section 8), vmem_limit_bytes (which \"must be used in conjunction with the --xla_tpu_scoped_vmem_limit_kib=N flag\", mosaic/core.py : 97 ), and more. num_warps , num_stages in Triton interpret= True : \"runs the pallas_call as a jax.jit of a scan over the grid whose body is the kernel lowered as a JAX function ... the only way to run Pallas kernels on CPU\" ( pallas_call.py : 1143 ). pltpu.InterpretParams(...) : the TPU interpreter (section 9).",
+  "label": "core",
+  "key": "dimension_semantics",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "The same pallas_call lowers per platform: on TPU to a tpu_custom_call holding a Mosaic module (an MLIR dialect that libtpu compiles); on cuda and rocm to Triton unless you pass Mosaic GPU's compiler parameters ( pallas_call.py : 922 : with no compiler_params it constructs Triton's).",
+  "label": "core",
+  "key": "per platform: on TPU to a",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "Both lowerings run on this CPU with jax.export ; the before/after below is one kernel, the fused softmax of section 3, compiled for each.",
+  "label": "core",
+  "key": "compiled for each, on this CPU",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "The same Python kernel, before and after lowering: Mosaic (TPU) against Triton (GPU) Python kernel Mosaic for TPU v5e Triton for an H100 Both produced on this CPU by src/runs/pk_run.py with jax.export(..., platforms=[\"tpu\"]) and platforms=[\"cuda\"] under an abstract device (the TPU lowering targets \"TPU v5 lite\"; the GPU one an \"NVIDIA H100 80GB HBM3\").",
+  "label": "core",
+  "key": "]) and platforms=[",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "Not compiled: that needs libtpu or CUDA.",
+  "label": "core",
+  "key": "Not compiled: that needs libtpu or",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "The Triton block is 16 rows (Triton blocks must be powers of two and small enough for registers); the TPU block is 512 rows.",
+  "label": "core",
+  "key": "The Triton block is 16 rows",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "What the two lowerings show is the core difference between the backends.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up sentence"
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "In Mosaic the refs arrive as memref<512x128xf32, #tpu.memory_space<vmem>> : the copy from HBM already happened, decided by the BlockSpec, and the body is vector.load , two vector.multi_reduction s and a tpu.vector_store .",
+  "label": "core",
+  "key": "In Mosaic the refs arrive as",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "In Triton the refs arrive as raw pointers ( !tt.ptr<f32> ), and the lowering builds a 16 × 128 tensor of addresses ( tt.make_range , tt.addptr ) before tt.load : the BlockSpec became pointer arithmetic, which is what a Triton programmer writes by hand.",
+  "label": "core",
+  "key": "In Triton the refs arrive as",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "Triton functions and their tuning are on Triton and Gluon .",
+  "label": "core",
+  "key": "Triton and Gluon",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "A pallas_call sits inside jax.jit like any primitive. jax.vmap of it adds a leading grid axis (the design note's rule, docs/pallas/design/design.md : 542 ): the softmax kernel vmapped over 4 score matrices of 1,024 rows became one call with grid (4, 2) and matched to 1.5e-8 measured here (jax's own GPU LayerNorm is written this way, one row per program, then vmapped). jax.grad needs a custom_vjp (section 4).",
+  "label": "core",
+  "key": "1.5e-8",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. the programming model, precisely",
+  "text": "Inside shard_map a kernel sees each device's shard; the sharding pages own that.",
+  "label": "core",
+  "key": "Inside shard_map a kernel sees each",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "Row kernels: elementwise, softmax, cross-entropy The simplest useful kernels cut an array into bands of rows and process each band on its own: a one-dimensional grid, one BlockSpec per operand, axis marked \"parallel\".",
+  "label": "core",
+  "key": "cut an array into bands of rows",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "Three of them, each on a real tensor of the running example (code exactly as it ran, from src/runs/pk_kernels.py ): Bias + exact GELU Fused softmax Fused cross-entropy Bias + GELU on the MLP pre-activation of layer 0 ( layer 0 MLP pre-activation x W1 [4,096 x 512] and bias b1 [512] ) matches jax.nn.gelu(x + b, approximate=False) to 7.5e-8 and the model's own hidden activations to the same measured here .",
+  "label": "core",
+  "key": "7.5e-8",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "Two details matter beyond the arithmetic.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "The bias BlockSpec returns block (0, 0) at every step, so Pallas copies it once, not eight times, and the TPU lowering marks it #tpu.pipeline_mode<synchronous> (single-buffered): \"Force single-buffering pipelining for trivial windowing in VMEM\" ( mosaic/lowering.py : 1220 ), a trivial window being a block equal to the whole array with an index map of zeros.",
+  "label": "core",
+  "key": "Force single-buffering pipelining for trivial windowing in VMEM",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "And jax.lax.erf lowers to Mosaic's math.erf , so the exact GELU the model uses costs nothing extra; the tanh approximation (JAX's default) would differ by 1.9e-4 here, a porting trap the running example sets explicitly.",
+  "label": "core",
+  "key": "1.9e-4",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "Fused softmax on the scaled, causally masked attention scores of all 128 heads ( layer 0 attention scores, scaled and causally masked, all 128 heads [16,384 x 128] ): whole rows fit in a 512 × 128 block, so the max, the exponentials and the sum stay in VMEM and each element is read once and written once.",
+  "label": "core",
+  "key": "[16,384 x 128]",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "Error 6.0e-8 , row sums within 2.4e-7 of 1.",
+  "label": "core",
+  "key": "6.0e-8",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "49.6% of the entries are -inf and come out as exact zeros, which works only because every row keeps its diagonal: a row with every entry masked computes -inf - (-inf) and returns NaN (tried here: that row came out all NaN, yes , the other 511 rows untouched), the reason the flash kernel and the paged kernel below skip empty tiles with pl.when instead.",
+  "label": "core",
+  "key": "49.6%",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "With bf16 inputs the kernel (which upcasts to float32 inside) is off the float32 answer by 2.0e-3 ; XLA's jax.nn.softmax on the same bf16 input by 3.6e-3 measured here : inside a kernel the precision of the arithmetic is yours to choose.",
+  "label": "depth",
+  "key": "2.0e-3",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "Fused cross-entropy on the whole model's logits at initialisation ( logits of the whole model at initialisation, batch 0 [4,096 x 65], with the targets ): each row's loss is its logsumexp minus the logit of the target, picked with broadcasted_iota and a compare instead of a gather, and the softmax is never stored.",
+  "label": "core",
+  "key": "Fused cross-entropy on the whole model's",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "Mean 4.21168 , identical to the model's loss_fn (difference 0 ), and close to ln 65 = 4.174 as an untrained model should be.",
+  "label": "core",
+  "key": "4.21168",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "The block is 512 × 65, legal only because 65 is the whole row (the root lab showed the (8, 128) rule rejecting a 100-row block).",
+  "label": "core",
+  "key": "legal only because 65 is the whole row",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "Legal is not free: VMEM is laid out in rows of 128 lanes, so each 65-wide row occupies 128 lanes and 49% of the vector work and memory is padding derived .",
+  "label": "core",
+  "key": "Legal is not free: VMEM is",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "The production flash attention kernel accepts the same cost on purpose: it stores its running max and sum 128 lanes wide, one value repeated ( flash_attention.py : 675 ).",
+  "label": "core",
+  "key": "purpose: it stores its running max",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "Predict: the bias + GELU kernel runs 8 grid steps.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "predict removed: the hero now shows the answer"
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "How many times is the 512-float bias copied from HBM into VMEM?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "predict removed: the hero shows it"
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "8, once per step Once Never: it is a scalar argument Once.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "predict options removed"
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "Pallas copies a block only when its block index differs from the previous step's, and the bias's index map always returns (0, 0).",
+  "label": "core",
+  "key": "only when its block index differs",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "The Grid and BlockSpec tab counts it: x 8 copies, b 1, o 8.",
+  "label": "core",
+  "key": "x 8 copies, b 1, o 8",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. row kernels: elementwise, softmax, cross-entropy",
+  "text": "On TPU the lowering also gives it a single buffer, since there is nothing to prefetch.",
+  "label": "core",
+  "key": "given a single buffer",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "LayerNorm, forward and backward, joined by custom_vjp The problem.",
+  "label": "core",
+  "key": "LayerNorm, forward and backward, joined by",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "A pallas_call is opaque to JAX's autodiff in reverse mode.",
+  "label": "core",
+  "key": "opaque to reverse-mode autodiff",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "Measured here: jax.grad of a function that calls the softmax kernel fails with ValueError: Linearization failed to produce known values for all output primals .",
+  "label": "core",
+  "key": "the softmax kernel fails with ValueError:",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "This is typically caused by attempting to differentiate a function uses an operation that does not support reverse-mode autodiff. , and through the flash kernel (scratch buffers, pl.when ) with a bare AssertionError .",
+  "label": "core",
+  "key": "This is typically caused by attempting",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "Forward mode ( jax.jvp ) of the softmax kernel does work.",
+  "label": "core",
+  "key": "Forward mode ( jax.jvp ) of",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "The Pallas design note explains why reverse mode is not the default path: transposing a kernel turns parallel reads into overlapping writes (\"slow when done atomically\"), and it names jax.custom_vjp \"a viable escape hatch\" ( docs/pallas/design/design.md : 553 ).",
+  "label": "core",
+  "key": "slow when done atomically",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "So every training kernel comes as a pair, a forward and a backward, joined by jax.custom_vjp (the rule itself is explained on JAX core, section 6 ); PyTorch's counterpart is a torch.autograd.Function with its own backward . src/runs/pk_kernels.py, the layer_norm section, as it ran.",
+  "label": "core",
+  "key": "JAX core, section 6 ); PyTorch's",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "The forward normalises a band of 256 rows and also writes two numbers per row, the mean and 1/√(var + ε).",
+  "label": "core",
+  "key": "band of 256 rows",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "Those are the residuals: the backward recomputes x̂ = (x − μ) · rstd from them instead of storing x̂, so the saved state is x plus 2,130,432 bytes in all for this input, of which only 32 KB are statistics.",
+  "label": "core",
+  "key": "2,130,432",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "The backward has two kinds of output. dx is per row, like the forward. dscale and dbias are sums over all 4,096 rows: their BlockSpec maps every grid step to the same (1, 128) block, so the block stays in VMEM, the kernel zeroes it at step 0 and adds each band's contribution, and Pallas writes it back once at the end.",
+  "label": "core",
+  "key": "The backward has two kinds of",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "On layer 0's input with the trained LayerNorm (scale between 0.935 and 1.037 after the 500-step run), the forward matches the model's layer_norm to 2.4e-7 , and against jax.vjp of it the gradients agree to a relative 1.1e-7 (dx), 1.7e-7 (dscale) and 1.0e-7 (dbias) measured here : float32 rounding.",
+  "label": "core",
+  "key": "0.935",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "The accumulation forces \"arbitrary\", and the plain interpreter will not tell you Mark the backward's row axis \"parallel\" and a megacore chip may split the rows between its two cores, each accumulating into its own copy of the shared block.",
+  "label": "core",
+  "key": "The accumulation forces \"arbitrary\", and the",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "The plain interpreter ignores dimension semantics and returns the right answer (error 3.1e-5 on values up to 176, rounding).",
+  "label": "core",
+  "key": "3.1e-5",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "The TPU interpreter with two simulated cores, three seeds: measured here .",
+  "label": "core",
+  "key": "The TPU interpreter with two simulated",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "With \"arbitrary\" the same two-core run is right again ( 3.1e-5 ).",
+  "label": "core",
+  "key": "3.1e-5",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "How production does it on a GPU.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading wind-up"
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "The Triton-style LayerNorm that ships with jax (deprecated in favour of tokamax, section 10) cannot accumulate across programs, because GPU programs run at the same time.",
+  "label": "core",
+  "key": "The Triton-style LayerNorm that ships with",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "It computes dscale and dbias in a second kernel, layer_norm_backward_kernel_dw_db ( ops/gpu/layer_norm.py : 192 ), with one program per block of columns looping over all rows with masked loads.",
+  "label": "core",
+  "key": "dscale and dbias in a second",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. layernorm, forward and backward, joined by custom_vjp",
+  "text": "Same maths, a different decomposition, forced by the grid semantics.",
+  "label": "core",
+  "key": "Same maths, a different decomposition, forced",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "Flash attention: the forward with its residual, and the backward The root's lab ran the causal flash attention forward and showed it matching the model.",
+  "label": "core",
+  "key": "The root's lab ran the causal",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "A training kernel needs three more things: the forward must save something for the backward, the backward must exist, and the two must be joined by custom_vjp .",
+  "label": "core",
+  "key": "three more things",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "All three are below, checked against plain attention and against the two production kernels that ship with jax, on the same tensors ( layer 0 q, k, v of all 32 sequences x 4 heads [128 x 128 x 32]; upstream gradient N(0, 1), key 1 ). m new = max(m, rowmax S j ), α = e m − m new , l ← α l + rowsum e S j − m new , acc ← α acc + e S j − m new V j S j the scores of one query block against key block j, q k T / √d h , causally masked m, l, acc running row max, running softmax denominator, running numerator: VMEM scratch, kept across the key loop α rescales everything accumulated so far when the row max grows; the output is acc / l after the last block, and the saved residual is the logsumexp L = m + log l The Flash tiles tab replays this loop on one query block of a trained layer, step by step, against the naive softmax and against the same loop with α left out.",
+  "label": "core",
+  "key": "upstream gradient N(0, 1), key 1",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "The paper itself, with an HBM against on-chip animation of both loop orders on random input, is the FlashAttention paper page ; the GPU schedules (FlashAttention-2's split of queries across warps, atomics in its backward, Flash-Decoding) are on Writing kernels .",
+  "label": "core",
+  "key": "FlashAttention paper page ; the GPU",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "The forward here is the root's kernel plus one output, lse ; with it the output matches the root kernel exactly (difference 0 ) and the logsumexp matches jax.nn.logsumexp of the scores to 9.5e-7 .",
+  "label": "core",
+  "key": "9.5e-7",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "The backward , from the softmax derivative.",
+  "label": "core",
+  "key": "The backward , from the softmax",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "With P = e S − L recomputed tile by tile from the saved L, and D = rowsum(dO ∘ O) computed once outside the kernels: dV = P T dO, dP = dO V T , dS = P ∘ (dP − D), dK = dS T Q / √d h , dQ = dS K / √d h D rowsum(dO ∘ O): the term the softmax Jacobian subtracts; the production kernel calls it di ∘ elementwise product dK and dV sum over query blocks; dQ sums over key blocks.",
+  "label": "core",
+  "key": "With P = e S −",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "A grid step may only accumulate into an output block it owns, so the backward is two kernels: the first walks one key block past every query block (grid: head, key block, query block), the second one query block past every key block.",
+  "label": "core",
+  "key": "A grid step may only accumulate",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "The production TPU kernel splits it the same way, _flash_attention_dkv_kernel then _flash_attention_dq_kernel ( flash_attention.py : 796 and : 1146 ).",
+  "label": "core",
+  "key": "The production TPU kernel splits it",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "Both recompute P, the price of not storing it: about one extra QK T matmul per kernel.",
+  "label": "core",
+  "key": "Both recompute P, the price of",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "Forward kernel Backward kernels src/runs/pk_kernels.py, as it ran; the custom_vjp that joins them is at the end of the backward.",
+  "label": "depth",
+  "key": "Forward kernel Backward kernels src/runs/pk_kernels.py, as",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "Kernel, same tensors output dQ dK dV Max abs. error against plain attention ( jax.vjp of the model's attention core) in float32; the largest reference values are 0.93 (output) and 5.29 (dV).",
+  "label": "core",
+  "key": "0.93",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "The production TPU kernel ran under pltpu.force_tpu_interpret_mode() ; the GPU one with interpret=True . measured here The production TPU kernel does not scale the scores unless you ask flash_attention(q, k, v, causal=True) has sm_scale: float = 1.0 ( flash_attention.py : 148 ), not 1/√d h .",
+  "label": "core",
+  "key": "The production TPU kernel ran under",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "Called without it on the running example's tensors, its output differs from the model's attention by 0.198 on values below 1 measured here .",
+  "label": "core",
+  "key": "0.198",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "The GPU mha has the same default.",
+  "label": "core",
+  "key": "The GPU mha has the same",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "Pass sm_scale=1/math.sqrt(head_dim) , or scale q first.",
+  "label": "core",
+  "key": "Pass sm_scale=1/math.sqrt(head_dim) , or scale q",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "Skipping, and not even copying.",
+  "label": "core",
+  "key": "Skipping, and not even copying",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "With causal masking the tiles above the diagonal are all -inf .",
+  "label": "core",
+  "key": "With causal masking the tiles above",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "The kernels skip their arithmetic with pl.when , but a BlockSpec would still copy K and V for them.",
+  "label": "core",
+  "key": "The kernels skip their arithmetic with",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "The forward's K and V index map therefore re-uses the last block the query block needs, min(j, last) ; an unchanged block index means no copy.",
+  "label": "core",
+  "key": "The forward's K and V index",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "For one head with 32-wide blocks that is 16 K copies against 9 (and the same for V), while the arithmetic runs on 10 of 16 tiles.",
+  "label": "core",
+  "key": "For one head with 32-wide blocks",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "The production kernel does exactly this with lax.select ( flash_attention.py : 626 ).",
+  "label": "core",
+  "key": "The production kernel does exactly this",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "Step through both maps on the Grid and BlockSpec tab.",
+  "label": "core",
+  "key": "Step both maps",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. flash attention: the forward with its residual, and the backward",
+  "text": "Every block shape tried computes the same answer and lowers for TPU v5e; they differ in how many steps run and how much is skipped: bq bk grid steps per head tiles computed max abs. error lowers for TPU With bf16 inputs, as a TPU kernel would get them, the output is off the float32 answer by 2.6e-3 , and by 1.8e-3 from float32 attention on the same bf16-rounded inputs: most of that is the bf16 rounding of the output itself.",
+  "label": "depth",
+  "key": "2.6e-3",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "Pipelining: what a BlockSpec does for you, written by hand The problem.",
+  "label": "core",
+  "key": "Pipelining: what a BlockSpec does for",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "A TensorCore computes only on data in VMEM; the arrays live in HBM.",
+  "label": "core",
+  "key": "A TensorCore computes only on data",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "Copying a tile in, computing, and copying the result out, one after the other, leaves the matrix unit idle during every copy.",
+  "label": "core",
+  "key": "the matrix unit idles during every copy",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "Every BlockSpec kernel on this page is pipelined automatically: while step s computes, Pallas's generated code is already copying the blocks step s+1 needs into a second buffer ( double buffering ), and writes each output block back once it is final.",
+  "label": "core",
+  "key": "Every BlockSpec kernel on this page",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "The default is two buffers per operand (\"The default buffer count is 2 for all inputs and outputs\", the Pallas TPU pipelining guide, docs/pallas/tpu/pipelining.md : 140 ).",
+  "label": "core",
+  "key": "The default buffer count is 2 for all inputs and outputs",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "One matmul, copies and compute serial against double-buffered Running example (copy-bound) 7B-class (compute-bound) Serial: copy, compute, copy Double-buffered (BlockSpec) Calculated, not measured: every copy at v5e's published 819 GB/s and every block matmul at its 197 TFLOP/s bf16 peak (the figures the Pallas TPU matmul guide uses), bf16 inputs, float32 outputs, a copy issued only for blocks whose index changed.",
+  "label": "core",
+  "key": "Running example (copy-bound) 7B-class (compute-bound) Serial:",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "No DMA latency, issue cost or pipeline overhead is modelled, so real times are longer; the shape of the timeline is the point. derived The two cases show the two regimes.",
+  "label": "core",
+  "key": "No DMA latency, issue cost or",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "The running example's matmul moves more bytes than it computes, so even perfectly overlapped it takes as long as its copies ( 9.05 µs against 8.96 µs of copies); the 7B-class matmul with 512 × 1,024 × 1,024 blocks computes longer than it copies, and overlap hides almost every copy ( 73.7 µs against 119.2 serial for the first 12 steps).",
+  "label": "core",
+  "key": "9.05",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "Overlap can only bring the time down to the larger of the two lanes; block sizes decide which lane that is (section 11).",
+  "label": "core",
+  "key": "Overlap can only bring the time",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "Put an operand in pl.ANY and Pallas copies nothing; you allocate VMEM slots and DMA semaphores as scratch and issue the copies with pltpu.make_async_copy(src, dst, sem) ( mosaic/primitives.py : 703 ), a descriptor with .start() and .wait() .",
+  "label": "core",
+  "key": "Put an operand in pl.ANY and",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "This is the root lab's matmul with A's copies written out, the code a BlockSpec generates for you: It matches jnp.dot exactly in both interpreters (error 0 ) and lowers to a Mosaic loop with two tpu.enqueue_dma (the prologue and the prefetch) and the waits: Inside a kernel: emit_pipeline . pltpu.emit_pipeline(body, grid, in_specs, out_specs) ( mosaic/pipeline.py : 2039 ) builds the same machinery as a BlockSpec pipeline but anywhere inside a kernel: for nested pipelines (an outer loop over chips, an inner one over HBM tiles) and for features the top-level pipeline lacks.",
+  "label": "core",
+  "key": "This is the root lab's matmul",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "The page's matmul_emit lowers for TPU v5e ( 234 lines of Mosaic, against 56 for the hand-written one), but it does not run in either interpreter on a CPU at jax 0.11.2: it asks for the TPU generation to choose a memory tiling and stops with ValueError: Unsupported TPU device kind: cpu. measured here .",
+  "label": "core",
+  "key": "234",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "It is the one kernel on this page that was lowered but not run.",
+  "label": "core",
+  "key": "It is the one kernel on",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "Buffering Interpret mode Lowered for TPU v5e VMEM for A and B blocks plus the output The root lab's matmul with pipeline_mode=pl.Buffered(n) on both inputs ( src/runs/pk_pipeline.py ).",
+  "label": "core",
+  "key": "pl.Buffered(n)",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "The pallas_call lowering accepts one or two buffers only (\"Only single (1) and double (2) buffering are supported\", mosaic/lowering.py : 1277 ); deeper buffering and lookahead prefetch are emit_pipeline features.",
+  "label": "core",
+  "key": "Only single (1) and double (2) buffering are supported",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "One buffer saves VMEM and gives up the overlap: use it for blocks that never change.",
+  "label": "core",
+  "key": "One buffer saves VMEM and gives",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "VMEM is calculated: buffers × block bytes.",
+  "label": "core",
+  "key": "VMEM is calculated: buffers × block",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "The bug the TPU interpreter exists for Move the .wait() to after the matmul that uses the slot.",
+  "label": "core",
+  "key": "The bug the TPU interpreter exists",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "In the plain interpreter a DMA completes the moment it starts, so the result is still exact (error 0 ).",
+  "label": "core",
+  "key": "In the plain interpreter a DMA",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "On a TPU the matmul would read a half-copied buffer.",
+  "label": "core",
+  "key": "On a TPU the matmul would",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. pipelining: what a blockspec does for you, written by hand",
+  "text": "The TPU interpreter executes DMAs only when the kernel waits on their semaphore ( dma_execution_mode=\"on_wait\" , the default, interpret/params.py : 178 ) and fills fresh buffers with NaN, so 1,024 of the 4,096 output rows came out NaN measured here .",
+  "label": "core",
+  "key": "The TPU interpreter executes DMAs only",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Scalar prefetch: tiles chosen by data The problem.",
+  "label": "core",
+  "key": "Scalar prefetch: tiles chosen by data",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "An index map is a traced function of the grid indices, run to decide which block to copy before the step runs.",
+  "label": "core",
+  "key": "An index map is a traced",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Serving needs more: the KV cache of each sequence lives in fixed-size pages scattered through a shared pool, and which physical page holds tokens 32 to 47 of sequence 3 is in a page table known only at run time.",
+  "label": "core",
+  "key": "in fixed-size pages scattered through a",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Scalar prefetch solves it: pltpu.PrefetchScalarGridSpec(num_scalar_prefetch=n, ...) ( mosaic/core.py : 390 ) copies the first n arguments, small integer arrays, into SMEM before the grid starts and passes them as extra arguments to every index map and to the kernel (as SMEM refs, : 407 ).",
+  "label": "core",
+  "key": "Scalar prefetch solves it: pltpu.PrefetchScalarGridSpec(num_scalar_prefetch=n, ...)",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "(Why pages: the PagedAttention paper page simulates the KV cache.) In vLLM's CUDA paged attention the block table is just a kernel argument that each thread block reads; in Triton you load the entry and compute the pointer.",
+  "label": "core",
+  "key": "(Why pages: the PagedAttention paper page",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Here the BlockSpec still does the copy, so the pipelining of section 6 still applies.",
+  "label": "core",
+  "key": "section 6's pipelining still applies",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Eight (sequence, head) pairs of the running example decode one token each: query = the q row at position n − 1, keys and values 0 to n − 1, with lengths 37, 128, 64, 90, 1, 17, 113, 70 .",
+  "label": "core",
+  "key": "Eight (sequence, head) pairs of the",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Their K and V are cut into pages of 16 tokens and scattered over a pool of 40 pages (3 unused) in a shuffled order.",
+  "label": "core",
+  "key": "Their K and V are cut",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Causal attention's row n − 1 sees exactly keys 0 to n − 1, so the kernel's output must equal the model's own attention output at that row: it does, to 3.7e-8 , in both interpreters measured here .",
+  "label": "core",
+  "key": "3.7e-8",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "The page table of the test, and where each logical page lives Rows: the 8 sequences; columns: logical pages 0 to 7; each cell is the physical page in the pool (a dash: unused slot).",
+  "label": "core",
+  "key": "columns: logical pages 0 to 7;",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Hover or tap a cell to see its page in the pool on the right.",
+  "label": "core",
+  "key": "Hover or tap a cell to",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Lengths and the shuffle are those of src/runs/pk_run.py (NumPy seed 0).",
+  "label": "core",
+  "key": "Lengths and the shuffle are those",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Lowered for TPU, the table and lengths become memref<8x8xi32, #tpu.memory_space<smem>> and memref<8xi32, ...smem> arguments and the function is tagged scalar_prefetch = 2 : i64 ; the index maps become transform_ functions that read SMEM with memref.load .",
+  "label": "depth",
+  "key": "Lowered for TPU, the table and",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "The index map also clamps the page index to the sequence's last page, so the steps past the end, which do no work, also copy nothing new: 43 K-page copies without the clamp, 37 with it, exactly the 37 pages that hold tokens.",
+  "label": "core",
+  "key": "The index map also clamps the",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Stale table entries Unused table slots must still hold a valid page index.",
+  "label": "core",
+  "key": "Stale table entries Unused table slots",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "With 9,999 in them and no clamp, the plain interpreter silently clamps the out-of-range block (error 3.7e-8 : the step's arithmetic is skipped anyway); the TPU interpreter refuses: Out-of-bounds block index (9999, 0, 0) for input \"k_ref\" in iteration (0, 3) on device 0 (core 0): reading [(9999, slice(0, 16, 1), slice(0, 32, 1))] but input has shape (40, 16, 32).",
+  "label": "core",
+  "key": "9,999",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "On a chip that copy would read outside the pool.",
+  "label": "core",
+  "key": "On a chip that copy would",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "With −1 in the slots neither interpreter raised measured here , so do not rely on the interpreter for negative indices.",
+  "label": "core",
+  "key": "With −1 in the slots neither",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Who uses it in production (all at jax-v0.11.2, section 10): paged attention passes lengths and page indices this way ( paged_attention_kernel.py : 640 ); the megablox grouped matmul for mixture-of-experts prefetches group metadata, which group and which row tile each step works on ( gmm.py : 530 , built by make_group_metadata : 79 ); run here on the running example's MLP rows split into four \"experts\" of 1000, 0, 2600, 496 rows, one of them empty, it matched per-group matmuls to 2.7e-7 .",
+  "label": "depth",
+  "key": "2.7e-7",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "7. scalar prefetch: tiles chosen by data",
+  "text": "Splash attention precomputes, for every (head, query block, key block), the next key block worth fetching, data_next , and keeps it \"in TPU scalar-memory\", a \"scarse resource\" its comment says, shrinking the dtype to int8 or int16 where it can ( splash_attention_mask_info.py : 32 ).",
+  "label": "depth",
+  "key": "in TPU scalar-memory",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "Dimension semantics, megacore and the order of the grid Each grid axis is \"parallel\" (any order is fine, so the axis may be split between cores) or \"arbitrary\" (must run in order, as an accumulation must).",
+  "label": "core",
+  "key": "\"parallel\" or \"arbitrary\"",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "With no dimension_semantics , every axis is arbitrary ( mosaic/lowering.py : 778 ).",
+  "label": "core",
+  "key": "With no dimension_semantics , every axis",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "The split matters on megacore chips, v4 and v5p, where two TensorCores appear as one JAX device and share HBM but each has its own VMEM; \"Only parallel dimensions can be partitioned over cores\" (the Pallas TPU design notes, docs/pallas/tpu/details.rst : 180 ).",
+  "label": "core",
+  "key": "Only parallel dimensions can be partitioned over cores",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "On TPU7x each core is its own device (the root's TPU lab, from tpu_info.py ), and splitting work between them is sharding's job, not the grid's.",
+  "label": "core",
+  "key": "On TPU7x each core is its",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "The rule: an axis may be \"parallel\" only if no output block is visited by two different indices along it.",
+  "label": "core",
+  "key": "no output block is visited by two different indices",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "The matmul's K axis, the flash kernels' inner key or query loop, and the LayerNorm backward's row axis (because of dscale ) all revisit an output block, so they are \"arbitrary\"; everything else on this page is \"parallel\".",
+  "label": "core",
+  "key": "the LayerNorm backward's row axis",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "Predict: the TPU interpreter runs the flash forward (one head, 4 query blocks × 4 key blocks, semantics (\"parallel\", \"parallel\", \"arbitrary\")) on one simulated core.",
+  "label": "core",
+  "key": "4 query blocks",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "In what order does it visit the query blocks?",
+  "label": "core",
+  "key": "In what order does it visit",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "0, 1, 2, 3: one core runs in order A shuffled order, with the key blocks still 0, 1, 2, 3 inside each Fully random, key blocks included Shuffled: recorded with grid_point_recorder , the query blocks came in the order 3, 1, 0, 2 , each with its key blocks 0 to 3 in order.",
+  "label": "core",
+  "key": "0, 1, 2, 3: one core",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "The interpreter randomises \"parallel\" axes on purpose ( random_seed , interpret/params.py : 144 ) so a kernel that silently depends on their order fails in testing; the \"arbitrary\" LayerNorm backward came out in order ( yes ).",
+  "label": "core",
+  "key": "randomises \"parallel\" axes on purpose",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "A real single-core TPU runs the grid lexicographically.",
+  "label": "core",
+  "key": "A real single-core TPU runs the",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "The root's lab showed the classic failure, a matmul whose K axis was marked parallel, wrong by 0.17 under two simulated cores; section 4 above showed the same for an accumulation across rows.",
+  "label": "core",
+  "key": "0.17",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "8. dimension semantics, megacore and the order of the grid",
+  "text": "Both are invisible to interpret=True .",
+  "label": "core",
+  "key": "Both are invisible to interpret=True .",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "9. testing a kernel without a tpu, and what it cannot tell you",
+  "text": "Testing a kernel without a TPU, and what it cannot tell you The ladder at the top of the page is the whole method.",
+  "label": "core",
+  "key": "Testing a kernel without a TPU,",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "9. testing a kernel without a tpu, and what it cannot tell you",
+  "text": "Each rung catches a different class of bug, measured on this page and on the root's lab: Planted bug interpret=True TPU interpreter Lowering for TPU Tolerances.",
+  "label": "core",
+  "key": "bug interpret=True TPU interpreter Lowering for",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "9. testing a kernel without a tpu, and what it cannot tell you",
+  "text": "Compare with numpy.testing.assert_allclose against the jnp reference, with tolerances set by dtype, not by hope.",
+  "label": "core",
+  "key": "Compare with numpy.testing.assert_allclose against the jnp",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "9. testing a kernel without a tpu, and what it cannot tell you",
+  "text": "On this page float32 kernels land at a relative 1e-7 (rounding), a long float32 sum such as dscale over 4,096 rows at a few e-5 absolute on values near 176, and bf16 inputs at a few e-3.",
+  "label": "core",
+  "key": "1e-7",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "9. testing a kernel without a tpu, and what it cannot tell you",
+  "text": "A kernel 1e-4 off in float32 has a bug.",
+  "label": "core",
+  "key": "1e-4",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "9. testing a kernel without a tpu, and what it cannot tell you",
+  "text": "What interpret mode cannot tell you.",
+  "label": "core",
+  "key": "What interpret mode cannot tell you.",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "9. testing a kernel without a tpu, and what it cannot tell you",
+  "text": "It runs the kernel body as ordinary XLA:CPU code inside a loop over the grid, so it knows nothing about the MXU, VMEM capacity, DMA bandwidth or how Mosaic will schedule the code.",
+  "label": "core",
+  "key": "It runs the kernel body as",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "9. testing a kernel without a tpu, and what it cannot tell you",
+  "text": "Its timings say nothing about TPU speed (and not much about CPU speed either): Kernel XLA, ms interpret mode, ms ratio Measured on Apple M1 Pro (CPU), shared machine, 4 threads, low priority, 1-minute load about 53 at the start of the run; median of 3 wall-clock runs after a warm-up (CPU time recorded in out/kernels.json ).",
+  "label": "depth",
+  "key": "Kernel XLA, ms interpret mode, ms",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "9. testing a kernel without a tpu, and what it cannot tell you",
+  "text": "These numbers are here to be ignored: on a TPU the kernel is compiled by Mosaic and the reference by XLA's TPU backend, and neither runs a loop like this.",
+  "label": "depth",
+  "key": "a TPU the kernel is compiled",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "9. testing a kernel without a tpu, and what it cannot tell you",
+  "text": "What transfers to a TPU from this page is correctness, legality of the block shapes, VMEM arithmetic and copy counts; speed has to be measured on the chip, with the profiler, against the XLA version you are trying to beat.",
+  "label": "core",
+  "key": "is correctness, legality of the block",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "10. reading production kernels",
+  "text": "Reading production kernels Before writing a kernel, look for one.",
+  "label": "core",
+  "key": "Reading production kernels Before writing a",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "10. reading production kernels",
+  "text": "Two places ship them: jax.experimental.pallas.ops inside jax itself, and tokamax , OpenXLA's separate kernel library (0.0.16 on PyPI, uploaded 2026-10-09; its README says it \"is still heavily under development\").",
+  "label": "core",
+  "key": "is still heavily under development",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "10. reading production kernels",
+  "text": "Read at jax-v0.11.2 and tokamax 0.0.16; the ones marked \"ran here\" were run on this page's tensors in interpret mode.",
+  "label": "depth",
+  "key": "tokamax 0.0.16",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "10. reading production kernels",
+  "text": "Kernel What it is for What to learn from it Here ops/tpu/flash_attention.py Flash attention with causal masking, segment ids and a bias, forward and backward A BlockSizes dataclass with three forward and seven backward block sizes, all defaulting to 128 with a TODO to choose them by heuristic (: 114 ); custom_vjp (: 204 ); the dK dV and dQ split; clamped K/V index maps; statistics 128 lanes wide; sm_scale=1.0 by default ran here output 6.0e-8 , gradients within 4.8e-7 ops/tpu/splash_attention/ Block-sparse attention for structured masks (causal, chunked causal, local, any NumPy mask, and their combinations); what MaxText imports (the root's TPU lab: layers/attention_op.py :29) Masks compiled on the host into MaskInfo : which blocks are empty, full or partial, and the next block to fetch, all by scalar prefetch read ops/tpu/paged_attention/ , ragged_paged_attention/ Decode, and mixed prefill and decode batches, over a paged KV cache (serving) Page tables and lengths by scalar prefetch (section 7); a checked-in table of autotuned block sizes per TPU generation (section 11) read ops/tpu/megablox/ Grouped matmul for mixture-of-experts: tokens sorted by expert, one weight matrix per expert ( gmm , and tgmm for the weight gradient) Group metadata by scalar prefetch; row tiles that straddle two groups are visited twice and masked ran here gmm , 2.7e-7 ops/tpu/matmul.py , all_gather.py , random/ A small blocked matmul; an all-gather written with remote DMAs over ICI; in-kernel PRNG (threefry, philox) Minimal, readable examples of each feature read ops/gpu/attention.py and the other Triton-backed GPU ops Flash attention, layer and RMS norm, softmax, decode and paged attention for GPUs, through Triton The same algorithms under GPU constraints: masked loads, parallel programs, a second kernel for reductions.",
+  "label": "depth",
+  "key": "BlockSizes",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "10. reading production kernels",
+  "text": "Importing one warns \" jax.experimental.pallas.ops.gpu.attention is deprecated.",
+  "label": "depth",
+  "key": "Importing one warns \" jax.experimental.pallas.ops.gpu.attention is",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "10. reading production kernels",
+  "text": "Please use tokamax.dot_product_attention instead.",
+  "label": "depth",
+  "key": "tokamax.dot_product_attention",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "10. reading production kernels",
+  "text": "See https://github.com/openxla/tokamax for more details. \"; six of them are deprecated ( ops/gpu/attention.py : 32 ).",
+  "label": "depth",
+  "key": "See https://github.com/openxla/tokamax for more details. \";",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "10. reading production kernels",
+  "text": "The Mosaic GPU kernels beside them ( *_mgpu.py : Hopper and Blackwell matmuls, ragged dot, collective matmul) are not. ran here mha , output 8.9e-8 , gradients within 2.4e-6 tokamax 0.0.16 One API per op with several implementations chosen per device: dot_product_attention , ragged_dot , layer_norm , gated_linear_unit , linear_softmax_cross_entropy_loss and more implementation=None lets it pick, falling back to XLA; tokamax.autotune times every configuration in an op's search space.",
+  "label": "core",
+  "key": "8.9e-8",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "10. reading production kernels",
+  "text": "Its README lists attention as a GPU kernel, but its code also registers a Mosaic TPU attention built on its own copy of splash attention ( ops/attention/api.py : 66 ) read (not installed: needs a GPU or TPU to choose a kernel) What to copy into your own kernels , from reading them: keep every block size in one frozen dataclass, forward and backward, so they can be swept; save the logsumexp, not the probabilities; clamp index maps for skipped tiles; precompute masks and metadata on the host and pass them by scalar prefetch; write the reference implementation beside the kernel (both flash kernels ship one: mha_reference ); and pass every scale explicitly.",
+  "label": "depth",
+  "key": "Its README lists attention as a",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "11. choosing block sizes",
+  "text": "Choosing block sizes The cost model.",
+  "label": "core",
+  "key": "Choosing block sizes The cost model.",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "11. choosing block sizes",
+  "text": "For a matmul tiled (bm, bk, bn), the Pallas TPU guide counts HBM traffic as (m k n / bn + k n m / bm + m n) × bytes per element: A is re-read once per column of blocks, B once per row of blocks ( docs/pallas/tpu/matmul.md : 341 ).",
+  "label": "core",
+  "key": "For a matmul tiled (bm, bk,",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "11. choosing block sizes",
+  "text": "Its advice: \"to be compute bound, make the blocks as big as possible\", limited by VMEM and by pipeline bubbles (with few grid steps, the first copy and last write-back are not hidden); and in practice \"sweep over a large set of candidate block sizes, profile the kernel, and pick the best one\".",
+  "label": "core",
+  "key": "to be compute bound, make the blocks as big as possible",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "11. choosing block sizes",
+  "text": "The root's lab tabulates that traffic for the running example and a 7B-class matmul; the Kernel playground adds the VMEM each of this page's kernels needs at each block size, against each generation's VMEM.",
+  "label": "core",
+  "key": "The root's lab tabulates that traffic",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "11. choosing block sizes",
+  "text": "Three strategies, from the source: One default for everything : the flash attention kernel's 128 everywhere, with its TODO.",
+  "label": "core",
+  "key": "the flash attention kernel's 128 everywhere",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "11. choosing block sizes",
+  "text": "A checked-in table : ragged paged attention looks its block sizes up in TUNED_BLOCK_SIZES ( tuned_block_sizes.py : 37 ), 668 entries for \"TPU v5\" and 668 for \"TPU v6\", keyed by dtypes, heads per block, head dimension, page size, batched tokens and maximum model length, each giving (KV pages per block, queries per block).",
+  "label": "core",
+  "key": " and 668 for ",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "11. choosing block sizes",
+  "text": "The two generations share every key but disagree on 237 of them: tuned values do not transfer between chips.",
+  "label": "core",
+  "key": "The two generations share every key",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "11. choosing block sizes",
+  "text": "Search at run time : tokamax's ops declare a search space and tokamax.autotune measures it, for example ragged_dot's row tiles from 128 to 1,024 (\"we found that there is no need on current TPU generations to search for larger tiles for m\", ops/ragged_dot/pallas_mosaic_tpu.py : 453 ).",
+  "label": "core",
+  "key": "Search at run time : tokamax's",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "11. choosing block sizes",
+  "text": "Its README warns that \"autotuning is fundamentally non-deterministic\" and that different configs \"can lead to different numerics\": serialise the result and reuse it.",
+  "label": "core",
+  "key": "autotuning is fundamentally non-deterministic",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "11. choosing block sizes",
+  "text": "The tuned table, one slice: best (KV pages per block, queries per block) TPU v5 TPU v6 Where they differ From ragged_paged_attention/tuned_block_sizes.py at jax-v0.11.2 Google, published in source ; the slice is q heads per block 8, kv heads per block 2, head_dim 128, max_num_batched_tokens 512 , bf16.",
+  "label": "core",
+  "key": "(KV pages per block, queries per",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "11. choosing block sizes",
+  "text": "Rows: page size; columns: maximum model length.",
+  "label": "core",
+  "key": "Rows: page size; columns: maximum model",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "11. choosing block sizes",
+  "text": "How the table was measured is not stated in the file.",
+  "label": "core",
+  "key": "How the table was measured is",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "12. pallas against triton, and against writing nothing",
+  "text": "Pallas against Triton, and against writing nothing Pallas on TPU (Mosaic) Triton on GPU (or Pallas lowered to it) No kernel: XLA Grid A sequential loop; blocks shared by steps stay in VMEM Parallel programs; shared results need atomics or a second kernel The compiler chooses Memory movement BlockSpecs generate double-buffered DMAs into VMEM; or by hand with async copies and semaphores Pointer arithmetic and tl.load with masks; the compiler pipelines loads ( num_stages ) Fusion keeps intermediates on chip where it can Edges and shapes Last two block dims divisible by (8, 128) or equal to the array; narrow arrays padded to 128 lanes Power-of-two blocks; any edge handled by masks Any shape; padding inserted for you Gradients jax.custom_vjp around forward and backward kernels torch.autograd.Function (or custom_vjp from JAX) Automatic Tuning Your sweep, a checked-in table, or tokamax @triton.autotune configs XLA's own heuristics and autotuner Testing without hardware Two interpreters and lowering for TPU on a laptop (this page) TRITON_INTERPRET=1 ; Pallas's interpret=True Runs anywhere The same Pallas source can lower to both backends only while it stays generic: the fused softmax of section 3 did (section 2's comparison), but anything using pltpu scratch, semaphores, DMAs or CompilerParams is TPU-only, and lowering it for cuda fails with \" Compiler params for platform tpu cannot be used for gpu lowering. \" (the section 3 softmax with its TPU CompilerParams , measured here ).",
+  "label": "core",
+  "key": "Pallas on TPU (Mosaic)",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "12. pallas against triton, and against writing nothing",
+  "text": "The GPU side of this story, Triton and its successors, is on Topic: cuda-and-gpu-programming and Triton and Gluon ; what XLA fuses without help is on XLA and compilation .",
+  "label": "core",
+  "key": "Triton and its successors, is on",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Common mistakes, with the evidence Calling jax.grad on a function that contains a pallas_call Fails: ValueError: Linearization failed to produce known values for all output primals for the softmax kernel, a bare AssertionError for the flash kernel (section 4).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restated section 4"
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Forward mode works; reverse mode needs jax.custom_vjp with a backward you write (and test against jax.vjp of the reference).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restated section 4"
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Forgetting sm_scale on the production flash attention It defaults to 1.0.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated in section 5 warning"
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "On the running example the unscaled output is off by 0.198 (section 5).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated in section 5"
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "No error is raised: the model just trains differently.",
+  "label": "core",
+  "key": "No error is raised: the model",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Accumulating into an output block along a \"parallel\" axis Right in interpret=True , wrong or NaN under the TPU interpreter with two cores, and wrong on a megacore chip (section 4; the root lab's K-parallel matmul for the same bug).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restated sections 4 and 8"
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Rule: \"parallel, unless the output window does not vary\" along that axis.",
+  "label": "core",
+  "key": "parallel, unless the output window does not vary",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Using a DMA's buffer before waiting on it The plain interpreter completes copies instantly, so it hides the bug (exact result); the TPU interpreter executes copies at the wait and fills fresh buffers with NaN ( 1,024 NaN rows, section 6).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated section 6 box"
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Always test hand-written DMAs under pltpu.InterpretParams() .",
+  "label": "core",
+  "key": "Always test hand-written DMAs under pltpu.InterpretParams()",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Leaving stale or out-of-range entries in a prefetched table The plain interpreter clamps silently; the TPU interpreter raises \"Out-of-bounds block index (9999, 0, 0) for input \"k_ref\" ...\"; negative entries were not flagged by either (section 7).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated section 7 box"
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Fill unused slots with a valid index and clamp in the index map.",
+  "label": "core",
+  "key": "Fill unused slots with a valid",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "A row with every entry masked max is -inf , -inf - (-inf) is NaN, and the row comes out NaN (section 3, tried here).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated section 3"
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Skip empty tiles with pl.when or guarantee at least one valid entry per row (decoding at length 0 is the usual way to hit it).",
+  "label": "core",
+  "key": "length 0 is the usual way",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Asking the pallas_call pipeline for three buffers pl.Buffered(3) runs in interpret mode and fails at TPU lowering: \" Only single (1) and double (2) buffering are supported.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated section 6"
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Got 3. \" (section 6).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated section 6"
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Deeper buffering and lookahead belong to emit_pipeline .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated section 6"
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Expecting emit_pipeline to run on a laptop At jax 0.11.2 it needs the TPU generation to pick a tiling and stops with \"Unsupported TPU device kind: cpu\" in both interpreters; lowering with jax.export under an abstract TPU device works (section 6).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated section 6"
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Raising vmem_limit_bytes alone The docstring says it \"must be used in conjunction with the --xla_tpu_scoped_vmem_limit_kib=N flag with N*1kib > vmem_limit_bytes\" ( mosaic/core.py : 97 ).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated section 2 table"
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Not run here (needs a TPU).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the vmem_limit_bytes quote of section 2"
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Reading interpret-mode timings as performance The flash kernel took 150 ms in interpret mode against 2.0 ms for XLA's attention on this CPU (section 9).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated section 9"
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "That ratio says nothing about a TPU.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 9"
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "An output dtype that rounds the accumulator The old version of this page showed a matmul kernel with out_shape in the input dtype and x_ref[...] @ y_ref[...] .",
+  "label": "depth",
+  "key": "An output dtype that rounds the",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "It is correct, but with bf16 inputs the result is stored in bf16: off the float32 answer by 9.0e-4 against 7.1e-4 with a float32 output ( preferred_element_type=jnp.float32 ), measured here.",
+  "label": "depth",
+  "key": "9.0e-4",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Accumulate and, where the next op allows, store in float32.",
+  "label": "depth",
+  "key": "Accumulate and, where the next op allows, store in float32",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Interview questions, with short answers When would you write a Pallas kernel instead of trusting XLA?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 1"
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "When the win comes from doing less, which a compiler cannot derive: not storing an intermediate (flash attention), data-dependent tiles (paged attention, MoE grouped matmuls), skipping known-zero blocks (block-sparse masks), or overlapping a collective with compute.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 1"
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Not for a matmul or a normalisation: Google's own guide has the best Pallas matmul at 91.5% of v5e peak against XLA's 92.3%.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 1 bars"
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Check the profile first, then look for a ready-made kernel, then write one.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the section 1 decision table"
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why can a TPU kernel accumulate dscale across grid steps in one block, when a GPU kernel needs a second kernel or atomics?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 4"
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "On a TPU core the grid is a sequential loop, so a block that consecutive steps map to stays in VMEM and is written back once; the axis must be \"arbitrary\" so it is not split between megacore cores.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 4"
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "On a GPU the grid's programs run concurrently with no ordering, so a shared block would race: jax's Triton LayerNorm computes dscale and dbias in a separate kernel, and FlashAttention-2's backward adds into dQ with atomics.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates sections 4 and 5"
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Walk through the flash attention backward.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 5"
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What is saved, what is recomputed, and why two kernels?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 5"
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Saved: Q, K, V, O and one logsumexp per row (66 KB here against 8.4 MB for the probabilities).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates sections 1 and 5"
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Computed once: D = rowsum(dO ∘ O).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 5"
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Per tile: P = exp(S − L) recomputed, dV += P T dO, dP = dO V T , dS = P ∘ (dP − D), dK += dS T Q, dQ += dS K (both scaled). dK and dV sum over query blocks and dQ over key blocks; each must be owned by one grid row to accumulate in VMEM, so one kernel loops queries for each key block, the other keys for each query block.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 5 formulas"
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The cost is recomputing QK T in each.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 5"
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What is scalar prefetch, and how would you use it for paged attention?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7"
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Small integer arrays copied into SMEM before the grid starts and passed to every index map and to the kernel.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7"
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "For paged decode attention: grid (sequence, logical page); the page table and lengths are prefetched; the K and V index maps return table[s, min(p, last page)], so each step's BlockSpec copies the right physical page and steps past the end copy nothing; the kernel masks the tail of the last page and runs the online softmax across pages.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7 and its code caption"
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Design: a fused grouped matmul for mixture-of-experts on a TPU.",
+  "label": "depth",
+  "key": "fused grouped matmul for mixture-of-experts on",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What are the grid, the BlockSpecs, the semantics and the test plan?",
+  "label": "depth",
+  "key": "grid, BlockSpecs, semantics and test plan",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Inputs: tokens sorted by expert (m × k), expert weights (E × k × n), group sizes.",
+  "label": "depth",
+  "key": "Inputs: tokens sorted by expert (m",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Precompute on the host or in jnp a metadata list mapping each grid index to (group, row tile), with tiles that straddle a group boundary listed once per group; pass it by scalar prefetch.",
+  "label": "depth",
+  "key": "Precompute on the host or in",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Grid (tiles, n blocks, k blocks); lhs map (row tile, k), rhs map (group, k, n block), out map (row tile, n block); semantics (\"parallel\", \"parallel\", \"arbitrary\") with the k loop accumulating in a float32 scratch; mask rows outside the group on straddling tiles.",
+  "label": "depth",
+  "key": "Grid (tiles, n blocks, k blocks);",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Backward: a transposed variant for dW (per group) and the same kernel for dX, under custom_vjp.",
+  "label": "depth",
+  "key": "Backward: a transposed variant for dW",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Tests: per-group jnp matmuls as the reference, uneven and empty groups, bf16 tolerances, the TPU interpreter with two cores, lowering for TPU; then tile sizes swept on the chip.",
+  "label": "depth",
+  "key": "Tests: per-group jnp matmuls as the",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "This is megablox's design (ran here: error 2.7e-7).",
+  "label": "depth",
+  "key": "2.7e-7",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How do you test a TPU kernel without a TPU?",
+  "label": "depth",
+  "key": "How do you test a TPU kernel without a TPU",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A jnp reference; interpret=True for values and gradients (assert_allclose with dtype-based tolerances); interpret=pltpu.InterpretParams(detect_races=True, num_cores_or_threads=2) for ordering, DMA and out-of-bounds bugs; jax.export(..., platforms=[\"tpu\"]) to catch illegal block shapes and unsupported ops.",
+  "label": "depth",
+  "key": "A jnp reference; interpret=True for values",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Then the chip, for speed and VMEM.",
+  "label": "depth",
+  "key": "Then the chip, for speed and",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Your Pallas matmul reaches 6% of a v5e's peak on 8,192-square inputs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the section 1 bars"
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What is the first thing to check?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 1"
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "With 128-cubed blocks the guide measured 6.1%; with 512 × 1,024 × 1,024 the same kernel reached 91.5%.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 1 bars note"
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Small blocks re-read A and B from HBM many times, and each step does too little arithmetic to hide its copy.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 11 cost model"
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why does the production flash kernel store its running max and sum 128 values wide?",
+  "label": "depth",
+  "key": "128 values wide",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "VMEM and vector registers are laid out in 8 × 128 tiles; an array whose last dimension is 1 occupies a full 128-lane row anyway, and keeping the statistic replicated across lanes makes broadcasting it against a 128-wide score tile free.",
+  "label": "depth",
+  "key": "VMEM and vector registers are laid out in 8",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The same padding is why a 65-wide vocabulary wastes 49% of the lanes.",
+  "label": "depth",
+  "key": "The same padding is why a",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Pallas against Triton in one minute?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 12"
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Same idea, a Python kernel over tiles.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 12"
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Pallas on TPU: sequential grid, BlockSpecs that generate double-buffered DMAs into VMEM, (8, 128) tiling, custom_vjp for gradients, interpreters and AOT lowering for testing.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 12 table"
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Triton: parallel programs, pointer arithmetic and masked loads, power-of-two blocks, @triton.autotune .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 12 table"
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A generic Pallas kernel lowers to Triton too; one that uses TPU scratch, DMAs or semaphores does not.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 12"
+ },
+ {
+  "id": 286,
+  "tab": "t-pkgrid",
+  "section": "grid and blockspec",
+  "text": "Grid and BlockSpec Pick a kernel from this page, then step through its grid: for every step, which block of every operand it uses, whether Pallas copies that block (only when its block index changed since the previous step), and whether the kernel body runs at all.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab intro replaced by the section 2 rule paragraph"
+ },
+ {
+  "id": 287,
+  "tab": "t-pkgrid",
+  "section": "grid and blockspec",
+  "text": "The index maps are the kernels' own, evaluated in src/runs/pk_grid.py ; the body conditions are their pl.when tests.",
+  "label": "depth",
+  "key": "The index maps are the kernels'",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-pkgrid",
+  "section": "grid and blockspec",
+  "text": "For two kernels you can switch the index map to see the same grid before and after clamping, and for two you can replay the order the TPU interpreter actually used.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab intro; the lab buttons remain"
+ },
+ {
+  "id": 289,
+  "tab": "t-pkgrid",
+  "section": "grid and blockspec",
+  "text": "Try: Flash attention forward, \"naive map\", then \"clamped map\": the same 16 steps and the same 10 computed tiles, but K and V are copied 16 times against 9.",
+  "label": "core",
+  "key": "same 16 steps and the same",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-pkgrid",
+  "section": "grid and blockspec",
+  "text": "Then LayerNorm backward: dscale and dbias are copied once and written back once, the reason its axis must be \"arbitrary\".",
+  "label": "core",
+  "key": "dscale and dbias are copied once",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-pkgrid",
+  "section": "grid and blockspec",
+  "text": "Then the paged decode: watch the page index jump around the pool, and step past a sequence's end. input block in use, copied this step input block in use, already in VMEM output block in use used earlier grid point done current grid point Each operand is drawn to its own scale (the arrays range from 8 × 32 to 16,384 × 128), with its block grid; an operand that is a single tall column of more than 8 blocks is drawn wrapped, its blocks numbered in order; three-dimensional operands are drawn as the two dimensions a block covers (flash: one head; paged: the pool as 40 pages of 16 tokens).",
+  "label": "core",
+  "key": "page index jumps around the pool",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-pkgrid",
+  "section": "grid and blockspec",
+  "text": "Bytes count bf16 for activations and weights and float32 for statistics and fp32 outputs, the dtypes a TPU kernel would use. \"Minimum\" is every element read or written once.",
+  "label": "depth",
+  "key": "Bytes count bf16 for activations and",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-pkgrid",
+  "section": "grid and blockspec",
+  "text": "The recorded orders come from pltpu.InterpretParams(grid_point_recorder=...) on the real kernels; with \"parallel\" axes the interpreter shuffles them on purpose, even on one core, and a copy count in that order is computed here from the recorded order, per core.",
+  "label": "core",
+  "key": "grid_point_recorder",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-pkplay",
+  "section": "kernel playground",
+  "text": "Kernel playground Every kernel on this page, with its code as it ran, what was measured about it here, what the TPU lowering produced, and a calculator for the one decision you would tune on a chip: the block size, and whether its buffers fit in VMEM.",
+  "label": "core",
+  "key": "Kernel playground Every kernel on this",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-pkplay",
+  "section": "kernel playground",
+  "text": "Try: Flash attention forward at 128 × 128 blocks on v4: the logical bytes fit easily, but the head dimension of 32 is padded to 128 lanes and every one-number-per-row statistic to 128 more, so the padded footprint is about seven times the logical one.",
+  "label": "core",
+  "key": "about seven times",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-pkplay",
+  "section": "kernel playground",
+  "text": "Then cross-entropy: the labels block, one int32 per row, takes as much VMEM as the 65-wide logits.",
+  "label": "core",
+  "key": "Then cross-entropy: the labels block, one",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-pkplay",
+  "section": "kernel playground",
+  "text": "Then the root's matmul at 1,024 × 128 × 512 blocks.",
+  "label": "core",
+  "key": "1,024 × 128 × 512",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-pkplay",
+  "section": "kernel playground",
+  "text": "The code, as it ran Block size, VMEM and the (8, 128) rule Measured values: src/runs/out/kernels.json (interpret mode on Apple M1 Pro CPU, jax 0.11.2).",
+  "label": "depth",
+  "key": "The code, as it ran",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-pkplay",
+  "section": "kernel playground",
+  "text": "Lowering: jax.export(..., platforms=[\"tpu\"]) for a TPU v5e on this CPU, op counts read from the printed Mosaic module (not compiled).",
+  "label": "core",
+  "key": "Lowering: jax.export(..., platforms=[\"tpu\"]) for a TPU",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-pkplay",
+  "section": "kernel playground",
+  "text": "The calculator is arithmetic, not a measurement: buffers × block bytes, two buffers per pipelined operand, one for a block that never moves (the lowering's single-buffering rule), plus scratch; \"padded\" rounds every block's last two dimensions up to (8, 128) as VMEM tiles do.",
+  "label": "core",
+  "key": "The calculator is arithmetic, not a",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-pkplay",
+  "section": "kernel playground",
+  "text": "VMEM per TensorCore by generation is read from jax/_src/tpu_info.py at jax-v0.11.2 (as the root's TPU lab reads it).",
+  "label": "core",
+  "key": "tpu_info.py at jax-v0.11.2",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-pkplay",
+  "section": "kernel playground",
+  "text": "The compiler also applies a lower default limit per kernel, raised with vmem_limit_bytes and the --xla_tpu_scoped_vmem_limit_kib flag; its default value is not stated in the source read here, so it is not drawn.",
+  "label": "core",
+  "key": "The compiler also applies a lower",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-pktile",
+  "section": "flash tiles",
+  "text": "Flash tiles The flash forward kernel's inner loop, replayed on real numbers: one block of 32 queries (positions 96 to 127) of a trained attention head against the keys in 8 blocks of 16, exactly the arithmetic of flash_fwd_kernel .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab intro replaced by the section 5 lead-in"
+ },
+ {
+  "id": 304,
+  "tab": "t-pktile",
+  "section": "flash tiles",
+  "text": "Before: the naive softmax, which stores the whole row of scores.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab intro; the buttons carry it"
+ },
+ {
+  "id": 305,
+  "tab": "t-pktile",
+  "section": "flash tiles",
+  "text": "After: the online softmax, which keeps three running quantities per row and rescales them whenever the row's maximum grows.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab intro; the formula block carries it"
+ },
+ {
+  "id": 306,
+  "tab": "t-pktile",
+  "section": "flash tiles",
+  "text": "And the version that forgets to rescale.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab intro; the buttons carry it"
+ },
+ {
+  "id": 307,
+  "tab": "t-pktile",
+  "section": "flash tiles",
+  "text": "Try: play \"Online (flash)\" and watch row 100's maximum climb from block to block while α shrinks what was accumulated before; then switch to \"Without rescaling\" and compare row 100's output with the reference at the end.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "try line replaced by the predict prompt"
+ },
+ {
+  "id": 308,
+  "tab": "t-pktile",
+  "section": "flash tiles",
+  "text": "Then \"Naive\" for how much it has to hold at once.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "try line replaced by the predict prompt"
+ },
+ {
+  "id": 309,
+  "tab": "t-pktile",
+  "section": "flash tiles",
+  "text": "After: online (flash) Online without rescaling (wrong) Before: naive (store the row) high score (darker is higher) masked (key after query) not reached yet Data: src/runs/pk_tiles.py .",
+  "label": "core",
+  "key": "masked (key after query)",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-pktile",
+  "section": "flash tiles",
+  "text": "Sequence 0, head 0, layer 1 of the running example, training batch 0, with the weights after the root's 500-step training run (at initialisation attention is nearly uniform and the rescaling barely matters; trained, it does).",
+  "label": "depth",
+  "key": "500-step training run",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-pktile",
+  "section": "flash tiles",
+  "text": "The replay is float32 NumPy following the kernel line by line; the kernel itself, run with the same 32 × 16 blocks, agrees with the replay to 1.2e-7 and with plain attention to 3.0e-7 on this query block measured here .",
+  "label": "core",
+  "key": "1.2e-7",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-pktile",
+  "section": "flash tiles",
+  "text": "The scores are q k T / √32.",
+  "label": "depth",
+  "key": "The scores are q k T",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-pktile",
+  "section": "flash tiles",
+  "text": "The same mechanism on random input, with HBM and on-chip memory drawn, is on the FlashAttention paper page .",
+  "label": "core",
+  "key": "is on the FlashAttention paper page",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's tabs, the parent topic and its lab, the sibling pages, the knowledge base pages on the GPU side, and the best outside sources, each with an approximate time.",
+  "label": "core",
+  "key": "This page's tabs, the parent topic",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-more",
+  "section": "",
+  "text": "Outside sources are marked Google (written by the makers of JAX and Pallas) or third-party .",
+  "label": "core",
+  "key": "Outside sources are marked Google (written",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 2026-10-15.",
+  "label": "core",
+  "key": "Links checked on 2026-10-15",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page Reading Why and when to write a kernel, the programming model, nine kinds of kernel on the running example, pipelining, scalar prefetch, testing, production kernels, block sizes, Triton; mistakes and interview questions. about 50 min Grid and BlockSpec Every kernel's grid stepped through: which block each step uses, which copies happen, which steps are skipped; index maps before and after clamping; the TPU interpreter's recorded orders.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old Further reading card for the Reading tab (rewritten with new times)"
+ },
+ {
+  "id": 318,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 to 15 min Kernel playground Each kernel's code, its measured errors, its Mosaic lowering, and a VMEM calculator by block size and generation.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old card for the playground (rewritten)"
+ },
+ {
+  "id": 319,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min Flash tiles The online softmax on a trained head, against the naive softmax and against forgetting to rescale.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old card for the removed Flash tiles tab"
+ },
+ {
+  "id": 320,
+  "tab": "t-more",
+  "section": "",
+  "text": "5 to 10 min The parent topic Topic: jax-and-tpu The overview this page goes deeper than.",
+  "label": "core",
+  "key": "The parent topic Topic: jax-and-tpu The",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-more",
+  "section": "",
+  "text": "Its TPU and Pallas lab tab has the five ideas of Pallas, the tiled matmul and flash forward this page builds on, three planted bugs, the Mosaic module of a matmul, the (8, 128) block rule, and HBM traffic by block size; its section 6 places Pallas in the stack. root about 28 min, the lab 20 to 30 min Sibling pages XLA and compilation What XLA fuses on its own and why it stops (section 4), the softmax compiled three ways, layouts, and AOT export: the \"write nothing\" alternative to this page.",
+  "label": "core",
+  "key": "write nothing",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-more",
+  "section": "",
+  "text": "JAX core custom_jvp and custom_vjp from zero (section 6), the mechanism every training kernel here relies on; vmap and its batching rules.",
+  "label": "core",
+  "key": "JAX core custom_jvp and custom_vjp from",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-more",
+  "section": "",
+  "text": "TPU programming and performance The chip from the programmer's side: MXU, VPU, VMEM, HBM per generation, rooflines and MFU.",
+  "label": "core",
+  "key": "TPU programming and performance The chip",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-more",
+  "section": "",
+  "text": "Sharding and scale shard_map and collectives, the context a multi-chip kernel runs in.",
+  "label": "core",
+  "key": "Sharding and scale shard_map and collectives,",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-more",
+  "section": "",
+  "text": "JAX LLM codebases Where MaxText and others call splash attention and the other kernels read here.",
+  "label": "core",
+  "key": "JAX LLM codebases Where MaxText and",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-more",
+  "section": "",
+  "text": "The GPU side, and the papers Triton and Gluon Triton's block-level model, autotuning and compiler stages: the GPU counterpart of this page.",
+  "label": "core",
+  "key": "The GPU side, and the papers",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-more",
+  "section": "",
+  "text": "Writing kernels Reductions, softmax, tiled matmul and FlashAttention 1 to 4 on GPUs, with causal skipping and Flash-Decoding measured.",
+  "label": "core",
+  "key": "Writing kernels Reductions, softmax, tiled matmul",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-more",
+  "section": "",
+  "text": "Topic: cuda-and-gpu-programming The CUDA model that Pallas's TPU model is contrasted with throughout.",
+  "label": "core",
+  "key": "Topic: cuda-and-gpu-programming The CUDA model that",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-more",
+  "section": "",
+  "text": "FlashAttention (paper page) The algorithm, its IO argument, and a live HBM against on-chip animation.",
+  "label": "core",
+  "key": "FlashAttention (paper page) The algorithm, its",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-more",
+  "section": "",
+  "text": "PagedAttention (paper page) Why serving stores the KV cache in pages, simulated.",
+  "label": "core",
+  "key": "PagedAttention (paper page) Why serving stores",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-more",
+  "section": "",
+  "text": "TPUs and other accelerators The hardware: systolic arrays and TPU pods.",
+  "label": "core",
+  "key": "TPUs and other accelerators The hardware:",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-more",
+  "section": "",
+  "text": "Outside sources Pallas documentation Google.",
+  "label": "core",
+  "key": "Pallas documentation",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-more",
+  "section": "",
+  "text": "The quickstart, grids and BlockSpecs, and the TPU and GPU sections.",
+  "label": "core",
+  "key": "The quickstart, grids and BlockSpecs, and",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-more",
+  "section": "",
+  "text": "45 min for the core pages Grids and BlockSpecs Google.",
+  "label": "core",
+  "key": "45 min for the core pages",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-more",
+  "section": "",
+  "text": "The index map semantics precisely, including squeezed and element dimensions.",
+  "label": "core",
+  "key": "The index map semantics precisely, including",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min TPU pipelining Google.",
+  "label": "core",
+  "key": "TPU pipelining",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-more",
+  "section": "",
+  "text": "Memory spaces, multiple buffering, emit_pipeline, lookahead, megacore.",
+  "label": "core",
+  "key": "Memory spaces, multiple buffering, emit_pipeline, lookahead,",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min TPU matrix multiplication Google.",
+  "label": "core",
+  "key": "25 min TPU matrix multiplication Google.",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-more",
+  "section": "",
+  "text": "The cost model and the v5e block-size measurements quoted in sections 1 and 11.",
+  "label": "core",
+  "key": "The cost model and the v5e",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Scalar prefetch and block-sparse computation Google.",
+  "label": "core",
+  "key": "30 min Scalar prefetch and block-sparse",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-more",
+  "section": "",
+  "text": "The basis of section 7, with block-sparse matmuls.",
+  "label": "core",
+  "key": "The basis of section 7, with",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min Pallas TPU details Google.",
+  "label": "core",
+  "key": "25 min Pallas TPU details Google.",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-more",
+  "section": "",
+  "text": "What is supported on TPU, the sequential grid, the (8, 128) rule, dimension semantics.",
+  "label": "core",
+  "key": "the sequential grid, the (8, 128) rule",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min Distributed computing in Pallas for TPUs Google.",
+  "label": "core",
+  "key": "20 min Distributed computing in Pallas",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-more",
+  "section": "",
+  "text": "Remote DMAs over ICI, semaphores, collectives written as kernels: the topic this page does not run.",
+  "label": "core",
+  "key": "Remote DMAs over ICI, semaphores, collectives",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Pallas design note Google.",
+  "label": "core",
+  "key": "40 min Pallas design note Google.",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-more",
+  "section": "",
+  "text": "Why refs, why the grid and BlockSpecs, how interpret mode and the transformations fit.",
+  "label": "core",
+  "key": "Why refs, why the grid and",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min ops/tpu at jax-v0.11.2 Google.",
+  "label": "core",
+  "key": "ops/tpu at jax-v0.11.2",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-more",
+  "section": "",
+  "text": "The production TPU kernels read in section 10.",
+  "label": "core",
+  "key": "The production TPU kernels read in",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-more",
+  "section": "",
+  "text": "1 to 3 h to read the attention kernels tokamax Google (OpenXLA).",
+  "label": "core",
+  "key": "1 to 3 h to read",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-more",
+  "section": "",
+  "text": "The kernel library replacing jax's GPU ops, with autotuning.",
+  "label": "core",
+  "key": "The kernel library replacing jax's GPU",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min for the README How to Think About TPUs (the scaling book) Google.",
+  "label": "core",
+  "key": "15 min for the README How",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-more",
+  "section": "",
+  "text": "VMEM, HBM and the MXU, which every block-size decision rests on.",
+  "label": "core",
+  "key": "VMEM, HBM and the MXU, which",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-more",
+  "section": "",
+  "text": "50 min FlashAttention-2 (Dao, 2023) Third-party.",
+  "label": "core",
+  "key": "50 min FlashAttention-2 (Dao, 2023) Third-party.",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-more",
+  "section": "",
+  "text": "The backward algorithm implemented in section 5.",
+  "label": "core",
+  "key": "The backward algorithm implemented in section",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Online normalizer calculation for softmax (Milakov and Gimelshein, 2018) Third-party.",
+  "label": "core",
+  "key": "40 min Online normalizer calculation for",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-more",
+  "section": "",
+  "text": "The rescaling trick behind the flash tiles.",
+  "label": "core",
+  "key": "The rescaling trick behind section 5",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Triton tutorial: fused softmax Third-party.",
+  "label": "core",
+  "key": "15 min Triton tutorial: fused softmax",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-more",
+  "section": "",
+  "text": "Section 3's softmax as a Triton programmer writes it, pointers and masks included.",
+  "label": "core",
+  "key": "Section 3's softmax as a Triton",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-read",
+  "section": "script-rendered: matmul guide bars",
+  "text": "Pallas vs XLA utilisation by block size and N on v5e (bars drawn by script)",
+  "label": "core",
+  "key": "91.5% against XLA",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-read",
+  "section": "script-rendered: matmul guide bars",
+  "text": "128-cubed blocks reach 6.1% at N = 8,192",
+  "label": "core",
+  "key": "6.1%",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-read",
+  "section": "script-rendered: summary table",
+  "text": "The eleven kernels, what each teaches, its reference and max error (table drawn by script)",
+  "label": "depth",
+  "key": "Ten of the eleven ran",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-read",
+  "section": "script-rendered: flash error table",
+  "text": "Flash output and dQ, dK, dV errors for this page, the root kernel, jax TPU and GPU kernels",
+  "label": "core",
+  "key": "every kernel within",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-read",
+  "section": "script-rendered: flash block sweep",
+  "text": "bq, bk sweep: grid steps, tiles computed, error, lowers for TPU",
+  "label": "depth",
+  "key": "Every block shape tried computes the same answer",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-read",
+  "section": "script-rendered: buffering table",
+  "text": "Buffered(1|2|3): interpret result, TPU lowering, VMEM",
+  "label": "core",
+  "key": "One buffer saves VMEM and gives up the overlap",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-read",
+  "section": "script-rendered: bug matrix",
+  "text": "Eight planted bugs against interpret=True, the TPU interpreter and lowering",
+  "label": "core",
+  "key": "the TPU interpreter 6 of 8",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-read",
+  "section": "script-rendered: bug matrix",
+  "text": "interpret=True caught only the accumulator never zeroed",
+  "label": "core",
+  "key": "caught 1 of 8",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-read",
+  "section": "script-rendered: timing table",
+  "text": "XLA against interpret-mode milliseconds for four kernels",
+  "label": "depth",
+  "key": "Interpret-mode timings, to be ignored",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-read",
+  "section": "script-rendered: pipeline animation",
+  "text": "Serial against double-buffered timelines, copy-bound and compute-bound cases",
+  "label": "core",
+  "key": "9.05",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-read",
+  "section": "script-rendered: page table",
+  "text": "Page table of the test and the pool",
+  "label": "core",
+  "key": "Rows: the 8 sequences",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-read",
+  "section": "script-rendered: tuned table heatmap",
+  "text": "Tuned (KV pages, queries) per page size and model length, v5 against v6",
+  "label": "core",
+  "key": "237",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-read",
+  "section": "script-rendered: backends toggle",
+  "text": "Python kernel, Mosaic and Triton lowerings of the softmax, with op lists",
+  "label": "core",
+  "key": "On a TPU the BlockSpec has already copied the tile",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-read",
+  "section": "script-rendered: grid lab",
+  "text": "Per-step blocks, copies and skipped bodies for ten kernels, naive and clamped maps, recorded orders",
+  "label": "core",
+  "key": "x 8 copies, b 1, o 8",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-read",
+  "section": "script-rendered: flash tiles lab",
+  "text": "Online, unrescaled and naive softmax replayed on a trained head",
+  "label": "core",
+  "key": "1.08",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-read",
+  "section": "script-rendered: LayerNorm bug seeds",
+  "text": "TPU interpreter, 2 cores, 3 seeds: dscale wrong or NaN",
+  "label": "core",
+  "key": "three seeds",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-pkplay",
+  "section": "script-rendered: playground",
+  "text": "Per-kernel measured errors, Mosaic op counts, code, VMEM calculator logical and padded",
+  "label": "core",
+  "key": "about seven times",
+  "where": ""
+ }
+]
