@@ -2,11 +2,17 @@
 window.CALCX=(function(){
   const D=window.CALCD,M=D.models,C=D.chips,R=D.recipes,F=D.fmt;
   function lora(m){return m.lora}
+  function actLayerTok(m,s,ckpt){
+    const h=m.h,nh=m.nh,nkv=m.nkv,dq=m.dqk,dv=m.dv,fa=m.fa;
+    const flash=16*h+2*nh*(dq+dv)+2*nkv*(dq+dv)+8*fa+4*nh+8;
+    if(ckpt==='none')return flash-4*nh+6*nh*s+2*(nh-nkv)*(dq+dv);
+    return flash;
+  }
+  function actPostTok(m){return 8*m.h+4*m.V+8}
   function actBytes(m,s,b,ckpt,tp){
-    const h=m.h,a=m.nh,L=m.L;
-    if(ckpt==='none')return L*s*b*h*(34+5*a*s/h)/tp;
-    if(ckpt==='flash')return L*34*s*b*h/tp;
-    return (L*2*s*b*h+34*s*b*h)/tp;
+    const L=m.L,T=s*b;
+    if(ckpt==='full')return (L*2*m.h+actLayerTok(m,s,'flash')+actPostTok(m))*T/tp;
+    return (L*actLayerTok(m,s,ckpt)+actPostTok(m))*T/tp;
   }
   function train(o){
     const m=M[o.model],ch=C[o.chip],r=R[o.recipe];

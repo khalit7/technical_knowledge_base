@@ -7,7 +7,7 @@ import json, os, sys, glob, statistics, math
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "out")
 sys.path.insert(0, os.path.join(HERE, "..", "..", "src", "calc"))
-from model import MODELS, CHIPS, decode, prefill, train, act_bytes, allreduce  # the root's Performance calculator
+from model import MODELS, CHIPS, decode, prefill, train, act_bytes_gpt3, allreduce  # the root's Performance calculator
 
 L8, L70, L405, DS = MODELS["l8"], MODELS["l70"], MODELS["l405"], MODELS["dsv3"]
 H100, B200 = CHIPS["h100"], CHIPS["b200"]
@@ -86,8 +86,8 @@ ck_total = sum(int(v) for v in tc["saved_per_layer"].values())
 R["act_ckpt_total_GB"] = ck_total / 1e9
 R["act_ckpt_layers_GB"] = (ck_total - int(tc["saved_per_layer"]["post"])) / 1e9
 R["act_ckpt_per_layer_h"] = (ck_total - int(tc["saved_per_layer"]["post"])) / L8["L"] / T / h
-R["korthikanti_34_GB"] = act_bytes(L8, T, 1, "flash", 1) / 1e9      # the root calculator's estimate
-R["korthikanti_full_GB"] = act_bytes(L8, T, 1, "full", 1) / 1e9
+R["korthikanti_34_GB"] = act_bytes_gpt3(L8, T, 1, "flash", 1) / 1e9      # the GPT-3 count (34sbh), kept for comparison
+R["korthikanti_full_GB"] = act_bytes_gpt3(L8, T, 1, "full", 1) / 1e9
 R["saved_tensors_l0"] = [[s[0], s[1], s[2] / T / h, s[3]] for s in t8["saved_layer0_tensors"]]
 # grouped, in units of h bytes per token (bf16 = 2)
 g = {"mlp": 0, "norm": 0, "attn": 0, "small": 0}
