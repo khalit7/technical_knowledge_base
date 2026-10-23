@@ -3,6 +3,31 @@
   if(!window.FOD||!document.getElementById('fo-mk-card'))return;
   const D=FOD,esc=FO.esc,t=RD.t;
   const P=D.rs.pieces.slice(0,12).map((s,i)=>i===0&&s===''?'<eot>':s.replace(/\n/g,'↵'));
+  // 0. hero: six families as small multiples (mask matrix, input row, scored row) -------------------------
+  (function(){
+    const el=document.getElementById('fo-hero');if(!el)return;
+    const n=8,cs=11,lx=30,F=[
+      {n:'Decoder-only',m:'causal',hid:[],sc:[0,1,2,3,4,5,6],p:'Predict the <b>next token</b> at every position; writes one token per forward from a KV cache.'},
+      {n:'Encoder (MLM)',m:'bidir',hid:[2,5],sc:[2,5],p:'Recover <b>hidden tokens</b> from both sides; one pass, no generation: embeddings, classifiers.'},
+      {n:'Encoder-decoder',m:'encdec',hid:[2],sc:[4,5,6,7],p:'Encoder reads the input both ways; the decoder writes the <b>target</b>, reading the encoder.'},
+      {n:'Prefix LM',m:'prefix',hid:[],sc:[3,4,5,6],p:'Prompt read both ways, <b>continuation</b> causally; only the continuation is scored.'},
+      {n:'Decoder + MTP',m:'causal',hid:[],sc:[0,1,2,3,4,5,6],sc2:[0,1,2,3,4,5],p:'Next token <b>and the one after</b>; the extra module is dropped or used as a draft.'},
+      {n:'Masked diffusion LM',m:'bidir',hid:[0,2,3,5,6],sc:[0,2,3,5,6],p:'Hidden at a <b>random rate t</b>, weighted 1/t; writes by unmasking many tokens per forward.'}];
+    const cell=(m,q,k)=>m==='causal'?(k<=q?1:0):m==='bidir'?1:m==='prefix'?((k<=q||k<3)?1:0):(q<4?(k<4?1:0):(k<4?2:(k<=q?1:0)));
+    el.innerHTML=F.map(f=>{let b='';
+      for(let q=0;q<n;q++)for(let k=0;k<n;k++){const c=cell(f.m,q,k);
+        b+='<rect x="'+(lx+k*cs)+'" y="'+(q*cs)+'" width="'+(cs-1)+'" height="'+(cs-1)+'" rx="1.5" fill="'+(c===2?'var(--c4)':c?'var(--acc)':'var(--soft)')+'" opacity="'+(c?0.85:1)+'"/>'}
+      let y=n*cs+6;
+      b+=t(lx-4,y+10,'in',{a:'end'});
+      for(let k=0;k<n;k++)b+='<rect x="'+(lx+k*cs)+'" y="'+y+'" width="'+(cs-1)+'" height="'+(cs-1)+'" rx="1.5" fill="'+(f.hid.includes(k)?'var(--dim)':'var(--bg)')+'" stroke="var(--line)"/>';
+      y+=cs+3;b+=t(lx-4,y+10,'loss',{a:'end'});
+      for(let k=0;k<n;k++)b+='<rect x="'+(lx+k*cs)+'" y="'+y+'" width="'+(cs-1)+'" height="'+(cs-1)+'" rx="1.5" fill="'+(f.sc.includes(k)?'var(--good)':'var(--bg)')+'" stroke="var(--line)"/>';
+      if(f.sc2){y+=cs+3;b+=t(lx-4,y+10,'t+2',{a:'end'});
+        for(let k=0;k<n;k++)b+='<rect x="'+(lx+k*cs)+'" y="'+y+'" width="'+(cs-1)+'" height="'+(cs-1)+'" rx="1.5" fill="'+(f.sc2.includes(k)?'var(--c5)':'var(--bg)')+'" stroke="var(--line)"/>'}
+      const H=n*cs+6+2*(cs+3)+(f.sc2?cs+3:0)+2;
+      return '<div><h5>'+f.n+'</h5>'+RD.svg(lx+n*cs+2,H,b,f.n+' mask and objective')+'<p>'+f.p+'</p></div>'}).join('');
+  })();
+
   // 1. mask matrices ---------------------------------------------------------------------------------
   // kind of cell: 0 forbidden, 1 self-attention allowed, 2 cross-attention (decoder reads encoder)
   function cell(mode,q,k,n,pre){

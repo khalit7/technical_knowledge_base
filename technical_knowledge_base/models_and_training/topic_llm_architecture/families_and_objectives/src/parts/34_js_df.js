@@ -1,7 +1,7 @@
-// ---- Diffusion lab (t-diff): AR against diffusion on one prompt, quality against steps, fill-in, training curve ----
+// ---- Reading sections 4 and 8 (moved from the old Diffusion lab tab): AR against diffusion on one prompt, quality against steps, fill-in, adaptation curve ----
 (function(){
   if(!window.FOD||!document.getElementById('df-card'))return;
-  const D=FOD.diff,esc=FO.esc,t=RD.t,TAB='t-diff',G=48,Pn=D.prompt_tokens;
+  const D=FOD.diff,esc=FO.esc,t=RD.t,TAB='t-read',G=48,Pn=D.prompt_tokens;
   const clean=s=>s.replace(/\n/g,'↵');
   document.getElementById('df-prompt').textContent='Prompt ('+Pn+' tokens with <|endoftext|>): '+D.trace_prompt;
   let mode='12';
@@ -53,5 +53,5 @@
     el.innerHTML=RD.svg(W,H,b,'adaptation curve')+'<div class="fo-leg"><span style="--sw:var(--c2)">held-out bound: '+E[0][1].toFixed(2)+' at step 0, '+E[E.length-1][1].toFixed(2)+' at step '+mx+'</span></div>';
   }
   FO.reg(TAB,()=>{quality();fill();curve()});
-  addEventListener('resize',()=>{const tb=document.getElementById(TAB);if(tb&&!tb.hidden){quality();fill();curve()}});
+  RD.onResize(()=>{quality();fill();curve()});
 })();
