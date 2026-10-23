@@ -1,11 +1,84 @@
 <section id="fst-s0">
-<h2>0. In one screen</h2>
-<p class="lead">A training job is slow or out of memory for one main reason at a time. Find it by measuring, fix that one thing, measure again. This page does that on the topic's running example (a small GPT, see the {{root page|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}) and on a larger variant of it, on an Apple M1 Pro's CPU and GPU, and says for every result what carries over to NVIDIA GPUs.</p>
-<div class="kids"><div><b>How long does a step really take?</b><span class="small mute">warm-up, synchronize, medians; <code>torch.utils.benchmark.Timer</code> &middot; section <a href="#fst-s1">1</a></span><br><span id="fst-s0-t1">An unsynchronised GPU timing measures the queuing, not the work</span></div><div><b>Where does the time go?</b><span class="small mute"><code>torch.profiler</code>, <code>record_function</code>, a trace viewer &middot; section <a href="#fst-s2">2</a>, <a href="#fst-s3">3</a></span><br><span>On MPS the CPU spent most of the step waiting in <code>.item()</code> for the GPU</span></div><div><b>Which fix helps?</b><span class="small mute">one change at a time, measured with its spread &middot; section <a href="#fst-s3">3</a> to <a href="#fst-s6">6</a></span><br><span id="fst-s0-hunt"></span></div><div><b>What holds memory at the peak?</b><span class="small mute">memory profiler (CPU), memory snapshot (CUDA) &middot; section <a href="#fst-s7">7</a></span><br><span id="fst-s0-mem"></span></div><div><b>How to trade compute for memory?</b><span class="small mute">checkpointing, selective checkpointing, compile's memory budget &middot; section <a href="#fst-s8">8</a></span><br><span id="fst-s0-ck"></span></div><div><b>What about a big vocabulary?</b><span class="small mute">fused linear cross-entropy &middot; section <a href="#fst-s9">9</a></span><br><span id="fst-s0-lce"></span></div><div><b>Which attention kernel runs?</b><span class="small mute">SDPA backends, FlexAttention, varlen &middot; section <a href="#fst-s10">10</a></span><br><span id="fst-s0-att"></span></div><div><b>Fewer bits?</b><span class="small mute">torchao: quantize_, float8, QAT &middot; section <a href="#fst-s11">11</a></span><br><span id="fst-s0-ao"></span></div></div>
+<h2>The idea</h2>
+<p class="core">A training step is slow or out of memory for one main reason at a time: measure where its time and its peak memory go, fix the biggest piece with the lever aimed at it, and measure again.</p>
+<div class="rd-card" id="fst-herocard">
+<div class="figt">One step of the larger variant on the Apple GPU, as first written: every lever on this page aims at one part of these two bars</div>
+<div class="rd-svg" id="fst-hero"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, PyTorch 2.14.1: phases on MPS with a synchronize after each (162 ms timed without them; section 3); memory alive at the peak, float32 (section 8); the slivers are gradients so far (4.2 MB) and backward temporaries (21.1 MB). Section numbers in brackets.</p>
+</div>
+<p>The job is the topic's running example (a small GPT, see the {{root page|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}) and its <b>larger variant</b> (8 blocks, d 512, 8 heads, context 256, batch 8: 25.4M parameters), measured on an Apple M1 Pro's CPU and GPU. Every result says what carries over to NVIDIA GPUs.</p>
+<div class="co"><div class="t">You need</div>The {{root page|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}'s running example and its section 6 (the intuition this page deepens); {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}} for saved tensors, which checkpointing hooks into; {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} for FLOPs per token and roofline arithmetic.</div>
+<div class="co"><div class="t">New terms</div><div class="terms">
+<div><b>synchronize</b>: wait until the device has finished its queued work</div>
+<div><b>trace</b>: the profiler's timeline of every operator</div>
+<div><b>self time</b>: an op's time minus its children's</div>
+<div><b>MFU</b>: model FLOPs per second over the hardware's peak</div>
+<div><b>autocast</b>: runs listed ops in 16 bits, keeps weights in 32</div>
+<div><b>GradScaler</b>: scales the loss so float16 gradients do not underflow</div>
+<div><b>gradient accumulation</b>: several micro-batches' backwards before one step</div>
+<div><b>activation checkpointing</b>: save block inputs, recompute the rest in backward</div>
+<div><b>SAC</b>: selective checkpointing, a policy chooses what to save</div>
+<div><b>fused linear cross-entropy</b>: the loss in chunks, logits never whole</div>
+<div><b>SDPA</b>: <code>F.scaled_dot_product_attention</code>, one call, several kernels</div>
+<div><b>BlockMask</b>: a mask summarised per 128 &times; 128 tile, so empty tiles are skipped</div>
+</div></div>
 <div class="co key"><div class="t">Three ideas the rest of the page keeps using</div><ul class="tight">
 <li><b>A GPU runs behind the CPU.</b> PyTorch queues work and returns; the CPU only waits when it needs a result (<code>.item()</code>, printing, copying to the CPU). Timings and traces must account for that.</li>
 <li><b>Count bytes and launches, not just FLOPs.</b> Element-wise ops move memory and cost a launch each; matmuls do arithmetic. Most fixes either remove launches (fusing) or remove bytes (fewer saved activations, fewer bits).</li>
 <li><b>Peak memory is a moment.</b> It is what is alive at one instant: usually the start of backward, sometimes its end. Fixes that do not touch what is alive at that instant do not lower the peak.</li>
 </ul></div>
-<p class="small mute">Labels used throughout: <span class="meas">measured</span> on this machine with PyTorch 2.14.1 (scripts in this page's src/exp/), <span class="vend">vendor</span> for a figure published by the people who built the thing, <span class="der">derived</span> for arithmetic on other numbers, <span class="ann">illustrative</span> for an input chosen by hand. Timed runs held a lock so no other job of this knowledge base ran at the same time; the load average is quoted next to them.</p>
+<details class="dp"><summary>The answers in one screen <span class="mute">(measured)</span></summary><div class="b"><ul class="answers">
+<li><b>How long does a step take?</b> A 2,048-square matmul on MPS read 0.35 ms without a synchronize and 4.25 ms with <code>torch.utils.benchmark.Timer</code> (section <a href="#fst-s1">1</a>).</li>
+<li><b>Where does the time go?</b> On MPS the CPU spent most of the step waiting in <code>.item()</code> for the GPU (sections <a href="#fst-s2">2</a>, <a href="#fst-s3">3</a>).</li>
+<li><b>Which fix helps?</b> 162 ms &rarr; 134 ms on MPS, 429 ms &rarr; 362 ms on CPU, one change at a time, measured with its spread; bfloat16 and <code>torch.compile</code> are not automatic wins (sections <a href="#fst-s3">3</a> to <a href="#fst-s6">6</a>).</li>
+<li><b>What holds memory at the peak?</b> Larger variant: peak 867.4 MB, of which 537.7 MB saved activations, 304.5 MB weights and AdamW state (section <a href="#fst-s8">8</a>).</li>
+<li><b>How to trade compute for memory?</b> Checkpointing every block: peak 485.3 MB (44% lower), step +22% on CPU (section <a href="#fst-s9">9</a>).</li>
+<li><b>A big vocabulary?</b> Vocabulary 50,257: peak 2394.2 MB &rarr; 1278.8 MB with the chunked loss; the default call saves nothing (section <a href="#fst-s10">10</a>).</li>
+<li><b>Which attention kernel runs?</b> CPU: a flash-style kernel, 4.3 MB kept at 2,048 positions against 138.4 MB written out; MPS: always the math path; FlexAttention inference-only here (section <a href="#fst-s11">11</a>).</li>
+<li><b>Fewer bits?</b> int8 weight-only: Linear weights 100.8 MB &rarr; 25.4 MB; float8 training and MX need GPUs not present here (section <a href="#fst-s12">12</a>).</li>
+</ul></div></details>
+<p class="small mute">Labels: <span class="meas">measured</span> here (src/exp/), <span class="vend">vendor</span>, <span class="der">derived</span>, <span class="ann">illustrative</span>. Timed runs held a lock so no other job of this knowledge base ran at the same time; the load average is quoted next to them.</p>
+</section>
+<section id="fst-s1">
+<h2>1. Measuring honestly</h2>
+<p>Every fix is judged by a number, and three things make a naive timing lie. <b>Asynchronous devices</b>: on a GPU (CUDA or Apple's MPS) a PyTorch call only <i>queues</i> a kernel and returns, so you must wait for the device (<code>torch.cuda.synchronize()</code>, <code>torch.mps.synchronize()</code>) before reading the clock. <b>Warm-up</b>: the first calls pay one-off costs (memory allocation into the caching allocator, kernel selection, compilation for <code>torch.compile</code>, lazy initialisation); run a few untimed steps first. <b>Noise</b>: other processes, thermal limits and frequency scaling move every number; repeat, report the median and the spread, and record the machine's load.</p>
+<div class="rd-card">
+<div class="figt">Without a synchronize the clock times the queuing: the same matrix multiply on MPS, timed three ways</div>
+<div class="bars" id="fst-timer-bars"></div>
+<p class="small mute" id="fst-timer-note"></p>
+</div>
+<p><code>torch.utils.benchmark.Timer</code> does the bookkeeping: it warms up, chooses how many runs fit in a time budget, sets the thread count, and reports the median and interquartile range (IQR, the spread of the middle half of the runs). At 2.14.1 its default clock calls <code>torch.accelerator.synchronize()</code> before every reading whenever an accelerator is present, CUDA or MPS alike (<code>torch/utils/benchmark/utils/timer.py</code> L15 to 18), so the synchronize inside this page's timed statement is redundant but harmless:</p>
+<div class="code">import torch.utils.benchmark as tb
+def call():
+    a @ b; torch.mps.synchronize()            <span class="c"># redundant at 2.14.1: Timer's clock synchronises the accelerator</span>
+m = tb.Timer(stmt="call()", globals={"call": call}).blocked_autorange(min_run_time=1.0)
+print(m.median, m.iqr, len(m.times))</div>
+<p><b>Whole training steps</b>: warm up, synchronise, time N steps, synchronise, divide; median of three. <b>What carries over to NVIDIA GPUs</b>: the method, byte and op counts, which fixes apply; not the times (a fix that wins 20% here can win 2% or 2 times on an H100). CUDA events and Nsight: {{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}}.</p>
+</section>
+<section id="fst-s2">
+<h2>2. torch.profiler</h2>
+<p>A step time says how slow, not where. <dfn>torch.profiler</dfn> records every operator PyTorch runs (start, end, thread; input shapes, Python stack and memory if asked) and, on CUDA, every GPU kernel and copy. Its output is a <dfn>trace</dfn>, a timeline you open in {{Perfetto|https://ui.perfetto.dev/}} or <code>chrome://tracing</code>.</p>
+<div class="code">from torch.profiler import profile, schedule, record_function, ProfilerActivity
+
+with profile(activities=[ProfilerActivity.CPU],          <span class="c"># add ProfilerActivity.CUDA on NVIDIA GPUs</span>
+             schedule=schedule(wait=4, warmup=2, active=2), <span class="c"># skip 4 steps, warm the profiler 2, record 2</span>
+             record_shapes=True,                          <span class="c"># input shapes per op (for "which matmul?")</span>
+             on_trace_ready=lambda p: p.export_chrome_trace("trace.json")) as prof:
+    for step in range(8):
+        with record_function("data"):      x, y = next(it)
+        with record_function("forward"):   _, loss = model(x, y)
+        with record_function("backward"):  loss.backward()
+        with record_function("optimizer"): opt.step(); opt.zero_grad(set_to_none=True)
+        prof.step()                                       <span class="c"># tells the schedule a step ended</span>
+print(prof.key_averages().table(sort_by="self_cpu_time_total", row_limit=10))</div>
+<p>The schedule records a few steps instead of the whole run; <code>record_function</code> ranges are cheap labels worth leaving in a loop for good; <code>key_averages()</code> sums events by name, where <i>total</i> time includes children (<code>aten::linear</code> includes its <code>aten::addmm</code>) and <i>self</i> time excludes them: sort by self time to find the ops doing the work.</p>
+<p><b>What to look for.</b> On a GPU the device lane should be busy end to end. A gap means the GPU waited: for the data loader (gaps before forward), for a CPU launching many tiny kernels (<i>launch-bound</i>), or for a synchronisation such as <code>.item()</code>, <code>.cpu()</code> or <code>print(loss)</code>. In multi-GPU traces: communication that does not overlap compute. On a CPU the bars <i>are</i> the work. Launch-bound fixes: fusion (<code>torch.compile</code>), fused optimizers (section 5) and <b>CUDA graphs</b>, one recorded sequence of launches replayed with one call; <code>torch.compile(mode="reduce-overhead")</code> "reduces the overhead of python with CUDA graphs, useful for small batches", at the cost of memory, CUDA only ({{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}}; mechanism: {{Streams, CUDA graphs and multi-GPU|n:3f05c17b0d0d81b19a6acab65c370b75}}). Not measured here: this Mac has no equivalent.</p>
+<details class="dp"><summary>Profiler options in detail <span class="mute">(reference)</span></summary><div class="b">
+<ul class="tight">
+<li><b><code>schedule(wait, warmup, active, repeat)</code></b> skips <i>wait</i> steps, runs the profiler without keeping results for <i>warmup</i> steps (its own start-up cost lands there), then records <i>active</i> steps; <i>repeat</i> cycles it; <code>prof.step()</code> at the end of each step drives it. Signature at 2.14.1: <code>schedule(*, wait, warmup, active, repeat=0, skip_first=0, skip_first_wait=0)</code> <span class="meas">read from the installed wheel</span>.</li>
+<li><b><code>with_stack=True</code></b> links each op to the Python line that called it (larger traces); <code>profile_memory=True</code> records allocations (section 8). On CUDA with compiled code, <code>TORCHINDUCTOR_UNIQUE_KERNEL_NAMES=1</code> gives generated kernels readable names.</li>
+<li><b>Viewers</b>: <code>tensorboard_trace_handler(dir)</code> writes files for TensorBoard; for many ranks at once, {{Holistic Trace Analysis|https://github.com/facebookresearch/HolisticTraceAnalysis}} summarises idle time, communication overlap and stragglers across ranks.</li>
+<li><b>Leave it off for the whole run.</b> With <code>with_stack=True</code> and <code>profile_memory=True</code> traces get large and steps slow; the schedule is what keeps it to a few steps.</li>
+</ul>
+</div></details>
 </section>

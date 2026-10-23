@@ -1,40 +1,48 @@
-<section id="fst-s3">
-<h2>3. The worked hunt: one slow step, fixed one bottleneck at a time</h2>
-<p><b>The job.</b> The running example's larger variant (8 blocks, d 512, 8 heads, context 256, batch 8: 25.4M parameters) trained through a <code>DataLoader</code>, written the way a first version usually is:</p>
-<div class="code">loader = DataLoader(dataset, batch_size=8)          <span class="c"># num_workers=0: batches built in the main process</span>
-model = make_model(GPTConfig(..., attn="manual"))  <span class="c"># attention written out: softmax(QK^T / sqrt(d)) V</span>
-opt = torch.optim.AdamW(params, lr=6e-4)           <span class="c"># default implementation: for-loop on CPU and MPS</span>
-for x, y in loader:
-    _, loss = model(x.to(dev), y.to(dev))          <span class="c"># float32 everywhere</span>
-    loss.backward(); opt.step(); opt.zero_grad(set_to_none=True)
-    print(loss.item())                             <span class="c"># waits for the device every step</span></div>
-<p>The dataset spends 2 ms of Python work per sample before returning a window of text <span class="ann">illustrative cost</span>: a stand-in for decoding and tokenising raw data, set by hand so that data loading is visible. Everything else is the real model.</p>
+<section id="fst-s7">
+<h2>7. The loop the levers plug into</h2>
+<p>Every lever changes one line of the same loop, whose own rules decide whether a fix is correct. <code>nn.Module</code> adds bookkeeping, not a new machine: assigning an <code>nn.Parameter</code> to a module attribute registers a <dfn>parameter</dfn> (a leaf tensor with <code>requires_grad=True</code> that optimisers update), assigning a module registers a sub-module, and <code>register_buffer</code> registers a <dfn>buffer</dfn> (saved, not trained; <code>persistent=False</code> keeps it out of the state_dict). <code>parameters()</code>, <code>.to()</code>, <code>state_dict()</code> and <code>train()</code>/<code>eval()</code> walk that tree, and a <code>state_dict</code> is names over storages.</p>
 <div class="rd-card">
-<h4>Step one: where does the baseline step go? (per-phase time, synchronised after each phase)</h4>
-<div class="seg" id="fst-ph-seg"></div>
-<div class="bars" id="fst-ph-bars"></div>
-<p class="small mute" id="fst-ph-note"></p>
+<div class="figt">A tied weight is one Parameter under two names: parameters() counts it once, the state_dict twice</div>
+<div class="rd-svg" id="fst-tie-svg"></div>
+<p class="small mute">The running example ties its output head to its token embedding (<code>head.weight is tok.weight</code>). <code>parameters()</code> de-duplicates by object, the state_dict does not, so <code>parameters()</code> counts 52 tensors and the <code>state_dict</code> 53 (3,197,952 elements against 3,186,944) <span class="meas">measured</span>. Consequences: safetensors refuses to save the shared storage, two different values loaded under the two names leave the later one, and <code>to_empty</code> unties them (details below).</p>
 </div>
-<div class="pr" id="fst-pr-hunt">
-<div class="q">Predict before reading on: on the Apple GPU (MPS), which change will speed this step up the most?</div>
-<div class="opts"><button data-a="0">DataLoader workers</button><button data-a="1">Fused AdamW</button><button data-a="2">bfloat16 autocast</button><button data-a="3">torch.compile</button></div>
+<div class="rd-card" id="fst-loopcard">
+<div class="figt">One optimizer step with accumulation, float16 and clipping, line by line (step through it)</div>
+<div class="lp-code" id="fst-loop-code"></div>
+<div class="an-cap" id="fst-loop-cap"></div>
+<div class="an-ctl" id="fst-loop-ctl"></div>
+<p class="small mute"><span class="meas">measured</span> on the running example, CPU, PyTorch 2.14.1 (recorded by the sibling {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}, its exp/module_loop.py): four micro-batches of 2 with each loss divided by 4 gave the same gradient as one batch of 8 (norm 11.1032); without the division the norm was 44.41, exactly 4.00 times too large. <code>clip_grad_norm_</code> returned the norm before clipping (11.1032 at step 0). <code>zero_grad</code> freed 12,747,776 bytes of gradients.</p>
+</div>
+<p>Three rules follow. <b>Gradients accumulate</b> into <code>.grad</code> across backwards, so micro-batch losses must be divided by their number; this is also a memory lever, because activations scale with the micro-batch while the gradient is that of the whole batch (section 8). <b>A GradScaler's gradients must be unscaled before clipping</b>, or you clip a gradient 65,536 times too large and the threshold means nothing. <b>Log the norm <code>clip_grad_norm_</code> returns</b>: it is the cheapest training-health signal you have.</p>
+<p><b>Determinism.</b> Seed with <code>torch.manual_seed</code> and make the data order a function of the step, as <code>get_batch(cfg, step)</code> does (it made the first three losses identical across a plain loop and three frameworks on the root's {{Ecosystem map|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab). In short: CPU with a fixed thread count was bit-for-bit repeatable; 1 against 4 threads differed in the last bits (max parameter difference 1.46e-06); MPS was not bit-repeatable even with <code>use_deterministic_algorithms(True)</code>, which raised nothing <span class="meas">measured</span>.</p>
+<details class="dp"><summary>What a Module registers, measured on the running example <span class="mute">(table)</span></summary><div class="b">
+<div id="fst-reg" class="tw nomin"></div>
+</div></details>
+<details class="dp"><summary>Saving and loading a tied weight <span class="mute">(measured)</span></summary><div class="b">
+<div id="fst-tie" class="tw nomin"></div>
+<p class="small">safetensors: "Some tensors share memory, this will lead to duplicate memory on disk and potential differences when loading them again"; <code>save_model</code> writes 52 tensors and drops <code>tok.weight</code>, and <code>load_model</code> restores the tie.</p>
+<div class="pr" id="fst-pr-sd">
+<div class="q">Predict: how many bytes does the running example's <code>state_dict</code> hold, counting each entry's tensor?</div>
+<div class="opts"><button data-a="0">12,747,776 (3,186,944 &times; 4)</button><button data-a="1">12,791,808</button><button data-a="2">25,495,552</button></div>
 <div class="ans" hidden></div>
 </div>
-<div class="rd-card" id="fst-huntcard">
-<h4>Step two: apply one fix at a time, keep it only if it helps (median step time)</h4>
-<div class="seg" id="fst-hunt-seg"></div>
-<div class="bars" id="fst-hunt-bars"></div>
-<div class="an-cap" id="fst-hunt-cap"></div>
-<div class="an-ctl" id="fst-hunt-ctl"></div>
-<p class="small mute" id="fst-hunt-note"></p>
+<div class="pr" id="fst-pr-tie">
+<div class="q">Predict: you load a state_dict whose <code>tok.weight</code> is all 1.0 and whose <code>head.weight</code> is all 2.0 into the tied model. What is <code>model.tok.weight[0, 0]</code> afterwards?</div>
+<div class="opts"><button data-a="0">1.0</button><button data-a="1">2.0</button><button data-a="2">An error: two values for one tensor</button></div>
+<div class="ans" hidden></div>
 </div>
-<p id="fst-hunt-read"></p>
-<div class="co key"><div class="t">The method, which is the point</div><ol class="tight">
-<li>Time the whole step honestly (section 1), then split it: per-phase timings with a synchronize, and a trace (section 2).</li>
-<li>Fix the biggest piece with the cheapest change that targets it.</li>
-<li>Measure again, with the spread. Keep the change only if the gain is larger than the noise; revert it otherwise, even if "everyone uses it".</li>
-<li>Check the loss is unchanged on the same batches (it was, to the printed digits, for every float32 stage here).</li>
-<li>Repeat until the remaining time is the work itself: matmuls on a busy device.</li>
-</ol></div>
-<p>The {{Profiler trace|#t-trace}} tab shows the first and last stage of this hunt as real traces on one clock.</p>
+</div></details>
+<details class="dp"><summary>Loading: strict, missing and unexpected keys <span class="mute">(measured)</span></summary><div class="b">
+<p><code>load_state_dict</code> matches by name. With the default <code>strict=True</code>, a renamed key (here <code>blocks.0.ln1.weight</code> saved as <code>blocks.0.ln_1.weight</code>) raised:</p>
+<div class="code" id="fst-ld-err"></div>
+<p>With <code>strict=False</code> nothing is raised and the call returns <code><span id="fst-ld-ret"></span></code>; the missing parameter silently keeps its initial value. Check the return value, always. A shape mismatch is an error even with <code>strict=False</code>: "size mismatch for blocks.0.mlp.fc.weight: copying a param with shape torch.Size([512, 256]) from checkpoint, the shape in current model is torch.Size([1024, 256])."</p>
+</div></details>
+<details class="dp"><summary>Forward hooks <span class="mute">(measured)</span></summary><div class="b">
+<p><code>register_forward_pre_hook</code> sees a module's inputs before forward, <code>register_forward_hook</code> its inputs and output after; both may replace them. They are the standard way to read activations without editing the model: one hook per block of the running example, one batch, collected the output standard deviation per block, 0.0495, 0.0659, 0.0799 and 0.0924 <span class="meas">measured</span>, the residual stream growing block by block as expected at initialisation. Backward hooks are on {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}.</p>
+</div></details>
+<details class="dp"><summary>Determinism, run by run <span class="mute">(measured)</span></summary><div class="b">
+<div id="fst-det" class="tw nomin"></div>
+<p class="small">The thread count changes the order of floating-point sums, hence the last bits. On CUDA, <code>use_deterministic_algorithms(True)</code> swaps in deterministic kernels where they exist and raises a <code>RuntimeError</code> for operations without one, and <code>torch.backends.cudnn.benchmark = False</code> stops cuDNN from picking algorithms by timing (not run here).</p>
+<p class="small">Sources: {{Reproducibility notes, 2.14|https://docs.pytorch.org/docs/2.14/notes/randomness.html}}; {{use_deterministic_algorithms|https://docs.pytorch.org/docs/2.14/generated/torch.use_deterministic_algorithms.html}} (the 2.14 docs list, for example, <code>torch.histc</code> on CUDA as an operation without a deterministic kernel).</p>
+</div></details>
 </section>

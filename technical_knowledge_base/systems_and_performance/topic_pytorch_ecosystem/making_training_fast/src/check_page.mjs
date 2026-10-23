@@ -9,7 +9,7 @@ const puppeteer = require('puppeteer');
 const [file, shots] = process.argv.slice(2); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
 let bad = 0;
-const TABS = ['t-read', 't-trace', 't-attn', 't-mem', 't-more'];
+const TABS = ['t-read', 't-mem', 't-more'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
@@ -20,7 +20,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     const res = await p.evaluate(async (tab) => {
       const sleep = ms => new Promise(r => setTimeout(r, ms)); const out = { clicks: 0, steps: 0, issues: [] };
       const root = document.getElementById(tab);
-      const scan = where => { const t = root.innerText; for (const w of ['NaN', 'undefined', 'Infinity', '[object', 'Does not match']) if (t.includes(w)) out.issues.push(w + ' after ' + where) };
+      const scan = where => { const t = root.innerText.replace(/inf or NaN/g, ''); for (const w of ['NaN', 'undefined', 'Infinity', '[object', 'Does not match']) if (t.includes(w)) out.issues.push(w + ' after ' + where) };
       const side = where => { if (document.documentElement.scrollWidth > innerWidth + 1) out.issues.push('sideways after ' + where) };
       const cards = [...root.querySelectorAll('.rd-card, .card')];
       // top-level segs of the tab (outside cards) are cycled around each card

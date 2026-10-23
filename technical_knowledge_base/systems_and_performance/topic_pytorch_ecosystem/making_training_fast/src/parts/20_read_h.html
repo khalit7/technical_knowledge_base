@@ -1,38 +1,53 @@
-<section id="fst-s7">
-<h2>7. Memory: what fills it during one step</h2>
-<p><b>The problem.</b> A job that runs out of memory stops; a job that barely fits runs with a small batch and wastes the hardware. Before cutting memory you need to know <i>what</i> holds it and <i>when</i>, because the peak is a moment, not a total.</p>
-<p><b>Five things live in memory during training</b> (sizes for float32 and AdamW, with <i>P</i> parameters):</p>
-<div class="mech">
-<div><b>Parameters</b>4 bytes &times; <i>P</i>. Alive the whole time.</div>
-<div><b>Gradients</b>4 bytes &times; <i>P</i>. Created during backward, layer by layer; freed by <code>zero_grad(set_to_none=True)</code>.</div>
-<div><b>Optimizer state</b>AdamW keeps two running averages per parameter: 8 bytes &times; <i>P</i>. Created at the first <code>step()</code>, alive from then on.</div>
-<div><b>Activations</b>Tensors the forward pass saves for backward (section 3 of the root). They grow through forward and shrink through backward. They scale with batch &times; sequence length.</div>
-<div><b>Temporaries</b>Short-lived: a matmul's output before the next op consumes it, gradients of activations flowing back through backward.</div>
-</div>
-<p>So the fixed cost is 16 bytes per parameter (4 + 4 + 8). Mixed-precision training with float32 master weights also comes to 16 bytes, split differently (2 + 2 + 12 in the ZeRO paper's accounting; {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} owns that arithmetic and how sharding divides it). The variable cost is the activations, and the peak usually lands at the start of backward, when every activation is still saved and the first gradients start to appear.</p>
-<div class="rd-card" id="fst-memcard">
-<h4>One training step of the larger variant, memory by category over time: plain against checkpointed, same scale</h4>
-<div class="seg" id="fst-mem-seg"></div>
-<div class="rd-svg" id="fst-mem-svg"></div>
-<div class="leg" id="fst-mem-leg"></div>
-<div class="an-cap" id="fst-mem-cap"></div>
-<div class="an-cnt" id="fst-mem-cnt"></div>
-<div class="an-ctl" id="fst-mem-ctl"></div>
-<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, CPU, float32, PyTorch 2.14.1, deterministic (bytes, not time): PyTorch's memory profiler (<code>torch.profiler</code> with <code>profile_memory=True, record_shapes=True, with_stack=True</code>, then <code>prof._memory_profile()</code>, the engine behind <code>export_memory_timeline</code>) follows every tensor from allocation to free and puts it in a category. The second training step (optimizer state exists). Time on the x axis is the profiled run's own clock, so its length depends on load; only the heights are exact. src/exp/mem_step.py.</p>
-</div>
-<p><b>Reading the plain run.</b> <span id="fst-mem-read"></span></p>
-<div class="pr" id="fst-pr-mem">
-<div class="q">Predict: in the running example's larger variant (8 blocks, d 512, context 256, batch 8, 25.4M parameters), which is bigger at the peak: parameters plus gradients plus AdamW state, or the saved activations?</div>
-<div class="opts"><button data-a="0">Weights, gradients and optimizer state</button><button data-a="1">Activations</button><button data-a="2">About equal</button></div>
-<div class="ans" hidden></div>
-</div>
-<h3>How to see this on your own job</h3>
-<div class="tw"><table class="rd-tbl"><thead><tr><th>Device</th><th>Tool</th><th>What it gives you</th></tr></thead><tbody>
-<tr><td>Any (CPU here)</td><td><code>torch.profiler.profile(profile_memory=True, record_shapes=True, with_stack=True)</code>, then <code>prof.export_memory_timeline("m.html")</code></td><td>The chart above: live bytes by category (parameter, optimizer state, gradient, activation, autograd detail, temporary, input). It works on CPU, which is how this page measured it.</td></tr>
-<tr><td>CUDA</td><td><code>torch.cuda.memory._record_memory_history(max_entries=100000)</code>, run a few steps, <code>torch.cuda.memory._dump_snapshot("s.pickle")</code>, drop the file on {{pytorch.org/memory_viz|https://pytorch.org/memory_viz}}</td><td>Every allocation and free with the Python stack that made it, plus the caching allocator's segments: you see fragmentation and reserved-but-unused memory, which the CPU profiler cannot show. Signature at 2.14.1: <code>_record_memory_history(enabled='all', context='all', stacks='all', max_entries=..., device=None, clear_history=False, compile_context=False, global_record_annotations=False, skip_actions=None, record_pinned_host_memory=False, record_cuda=True)</code> <span class="meas">read from the installed wheel</span>. Walkthrough: {{Understanding GPU memory, part 1|https://pytorch.org/blog/understanding-gpu-memory-1/}}. <i>Not run here</i>: no CUDA device.</td></tr>
-<tr><td>CUDA, quick numbers</td><td><code>torch.cuda.max_memory_allocated()</code>, <code>memory_reserved()</code>, <code>memory_summary()</code>; device-agnostic <code>torch.accelerator.max_memory_allocated()</code></td><td>Allocated is what tensors use; reserved is what the caching allocator holds from the driver. The gap is the allocator's cache and fragmentation; {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}} owns how it works and what <code>PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True</code> changes.</td></tr>
-<tr><td>MPS</td><td><code>torch.mps.current_allocated_memory()</code>, <code>driver_allocated_memory()</code>, <code>recommended_max_memory()</code></td><td>Totals only; no per-allocation history at 2.14.1 <span class="meas">checked on the installed wheel</span>.</td></tr>
+<section id="fst-dp">
+<h2>Depth: what carries over, mistakes, interview rehearsal</h2>
+<details class="dp"><summary>What carries over to NVIDIA GPUs, technique by technique <span class="mute">(table)</span></summary><div class="b">
+<p>"Likely" means reasoning from how the hardware differs, not a measurement; published GPU figures are quoted where they exist.</p>
+<div class="tw"><table class="rd-tbl"><thead><tr><th>Technique</th><th>Transfers exactly</th><th>Likely different on an H100-class GPU</th></tr></thead><tbody>
+<tr><td>Honest timing, profiler, traces</td><td>The method; <code>record_function</code> ranges; key_averages</td><td>Add <code>ProfilerActivity.CUDA</code> for the GPU lane; Nsight Systems for kernel-level detail ({{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}})</td></tr>
+<tr><td>DataLoader workers</td><td>The overlap mechanism</td><td>Matters more: a faster GPU leaves less time per step to hide loading; add <code>pin_memory=True</code> with <code>non_blocking=True</code> copies</td></tr>
+<tr><td>Fused optimizer</td><td>Ops per step (one fused kernel against several per tensor)</td><td>foreach is already the CUDA default; fused gains less over foreach than over the for-loop</td></tr>
+<tr><td>bfloat16 autocast</td><td>Which ops autocast casts; memory of 16-bit activations</td><td>Opposite sign: bfloat16 tensor cores make matmuls several times faster than float32</td></tr>
+<tr><td>torch.compile and CUDA graphs</td><td>Graphs, fusion decisions, recompiles (the root's {{Compile lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}})</td><td>Triton kernels and CUDA graphs; the PyTorch team measured 43% faster training on average over 163 models on A100 <span class="vend">vendor</span> ({{PyTorch 2.x|https://pytorch.org/get-started/pytorch-2-x/}})</td></tr>
+<tr><td>Loop, accumulation, GradScaler, determinism</td><td>Accumulation and scaler arithmetic; float16 underflow counts (properties of the gradients, not the device)</td><td>Deterministic mode raises on ops without a deterministic kernel; pinned host buffers let host-to-device copies run asynchronously</td></tr>
+<tr><td>Memory categories and peaks</td><td>Bytes per category for the same dtype and kernels; the formulas of the {{Memory budget|#t-mem}} tab</td><td>The caching allocator adds reserved-but-free memory; flash attention saves no T &times; T matrix (as the CPU kernel here)</td></tr>
+<tr><td>Checkpointing, SAC</td><td>Memory saved, ops recomputed</td><td>Relative time cost similar (one extra forward of the checkpointed part); SAC policies must name the CUDA attention ops</td></tr>
+<tr><td>Fused linear cross-entropy</td><td>Peak memory saved</td><td>The same trade; the time cost was not measured on a GPU here</td></tr>
+<tr><td>SDPA</td><td>The API and <code>sdpa_kernel</code></td><td>Real backend choice: flash, efficient, cuDNN (first on Hopper and Blackwell with recent cuDNN), FA3/FA4 plug-ins</td></tr>
+<tr><td>FlexAttention</td><td>score_mod, mask_mod, BlockMask counts, numerics</td><td>Compiled Triton kernels with backward: trainable, near FlashAttention-2 speed <span class="vend">vendor</span></td></tr>
+<tr><td>torchao</td><td>Bytes per format, which configs exist, numerics (emulated float8)</td><td>float8 training needs compute capability 8.9 or newer; MX and NVFP4 need Blackwell; <code>Int4WeightOnlyConfig</code> needs its kernel package (<code>mslk</code> at 0.18.0), not installed here</td></tr>
 </tbody></table></div>
-<p><b>What carries over to NVIDIA GPUs.</b> The categories and their sizes are the same bytes on any device for the same dtype and the same kernels. Two things differ: the attention kernel decides whether a sequence-by-sequence matrix is saved (section 10), and the CUDA caching allocator adds its own overhead on top of the live bytes shown here (cached free blocks, rounding of allocation sizes; {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}} has the details), which is why <code>memory_reserved</code> exceeds the profiler's peak.</p>
-<p>The {{Memory budget|#t-mem}} tab turns these categories into a calculator, checked against these measured peaks.</p>
+</div></details>
+<details class="dp"><summary>Common mistakes, each with the section that shows it <span class="mute">(14)</span></summary><div class="b">
+<ul class="tight">
+<li><b>Timing GPU code without a synchronize</b>: you time the queuing, not the work; use <code>torch.utils.benchmark.Timer</code>, which synchronises for you at 2.14.1 (1).</li>
+<li><b>Reading the big <code>.item()</code> bar as the problem</b>: it is where queued work surfaces; removing the <code>.item()</code> moves the wait elsewhere unless the GPU had idle time to overlap. Look at the device lane, or time phases with a synchronize after each (3).</li>
+<li><b>Applying the standard checklist without measuring</b>: bfloat16 autocast and <code>torch.compile</code> made this machine slower; each fix is a hypothesis (3).</li>
+<li><b>Accumulating gradients without dividing the loss</b>: the gradient comes out exactly the number of micro-batches times too large (7).</li>
+<li><b>Clipping before unscaling with a GradScaler</b>: you clip the scaled gradient (65,536 times too large at the default scale) and the threshold means nothing (7).</li>
+<li><b>Assuming <code>torch.manual_seed</code> seeds everything</b>: it does not seed Python's <code>random</code> or NumPy in the main process; DataLoader workers seed all three for you (4, 7).</li>
+<li><b>Ignoring <code>load_state_dict(strict=False)</code>'s return value</b>: missing keys keep their random initialisation silently; and tied weights break safetensors, loading and <code>to_empty</code> (7).</li>
+<li><b>Adding up 16 bytes per parameter and all activations as "the peak"</b>: gradients grow while activations shrink, so the peak is the larger of two moments and the sum overestimates it (8).</li>
+<li><b>A selective-checkpointing policy that names the wrong ops</b>: it saves nothing and silently behaves like full checkpointing (9).</li>
+<li><b>Calling <code>F.linear_cross_entropy</code> without <code>options</code></b>: the reference path saves no memory at 2.14.1 (10).</li>
+<li><b>Expecting <code>sdpa_kernel([FLASH_ATTENTION])</code> to force a kernel everywhere</b>: on MPS it is ignored; on CPU and CUDA it restricts the choice and raises if nothing qualifies (11).</li>
+<li><b>Calling <code>flex_attention</code> without <code>torch.compile</code></b>, or building the BlockMask every step: eager materialises the whole score matrix; build the mask once per shape (11).</li>
+<li><b>Assuming "int4" means 4 bits in memory</b>: <code>IntxWeightOnlyConfig(int4)</code> stored a byte per value and came out larger than int8 (12).</li>
+<li><b>Leaving the profiler on for the whole run</b>: use a schedule (2).</li>
+</ul>
+</div></details>
+<details class="dp"><summary>Interview rehearsal: thirteen questions with short answers <span class="mute">(optional)</span></summary><div class="b">
+<details class="qa"><summary>Your training step got slower after you added <code>torch.cuda.synchronize()</code> for timing. Why, and is the number wrong?</summary><div>It removed CPU and GPU overlap, so the step is a little slower; the number is now honest about one step's latency. For throughput, time many steps between two synchronizes.</div></details>
+<details class="qa"><summary>How do you tell a data-loading bottleneck from a compute one?</summary><div>In the trace: gaps on the GPU before forward and long time inside the DataLoader's <code>__next__</code>. Or time <code>next(iter(loader))</code> alone against the step. Fix with workers, prefetching, pre-processing offline.</div></details>
+<details class="qa"><summary>Your MFU is 30%. Where do you look?</summary><div>The trace's device lane for gaps (data, launches, synchronisations), then the share of non-matmul kernels. Gaps are fixed by workers, fusion, CUDA graphs and removing per-step syncs; a matmul share that is already high means the remaining lever is precision (bfloat16 or float8 tensor cores) or larger matmuls.</div></details>
+<details class="qa"><summary>Where is peak memory usually reached in a training step, and what lowers it?</summary><div>At the start of backward (all activations saved, first gradients appearing). Checkpointing, smaller micro-batch, shorter sequence, fused losses, flash attention. If the peak is at the end of backward, it is gradients and optimizer state: shard them (FSDP2) or use a lighter optimizer.</div></details>
+<details class="qa"><summary>Full checkpointing against selective checkpointing?</summary><div>Full keeps only block inputs and recomputes the block's forward (about one extra forward). SAC saves chosen ops (typically matmuls) and recomputes the rest: less recompute, less saving. Which wins depends on where the bytes are: here the matmul outputs were most of the bytes.</div></details>
+<details class="qa"><summary>Why does a large vocabulary blow up memory, and what fixes it?</summary><div>Logits are batch &times; sequence &times; vocabulary floats, plus their softmax and gradient. A fused linear cross-entropy computes them in chunks and never holds them all (<code>nn.LinearCrossEntropyLoss</code>, PyTorch 2.13+).</div></details>
+<details class="qa"><summary>Why does only float16 need a GradScaler?</summary><div>float16 has 5 exponent bits: gradients below about 6e-8 vanish (1,636 of 3.19 million here) and the maximum is 65,504. bfloat16 has float32's 8 exponent bits, so its range is the same as float32's.</div></details>
+<details class="qa"><summary>Your parameter count from the state_dict is higher than from parameters(). Why?</summary><div>Tied (shared) parameters appear once per name in the state_dict: 3,197,952 against 3,186,944 elements here.</div></details>
+<details class="qa"><summary>What does SDPA do when you pass an arbitrary <code>attn_mask</code> on CUDA?</summary><div>The flash backend only supports <code>is_causal</code>, so it falls to memory-efficient attention (supports additive masks) or math. FlexAttention covers structured masks without a dense mask tensor.</div></details>
+<details class="qa"><summary>What is a BlockMask and why does it matter?</summary><div>A tile-level summary of a mask_mod: per row of tiles, which tiles are fully allowed, partly allowed, or empty. The kernel skips empty tiles entirely, so sparse patterns (sliding window, documents) cost less than causal.</div></details>
+<details class="qa"><summary>Weight-only int8 against dynamic int8 activations: when each?</summary><div>Weight-only when memory-bound (small batch decoding: each weight is read once per token). Quantized activations when compute-bound (large batches, prefill, training), where int8 or float8 matmuls are faster than float ones.</div></details>
+<details class="qa"><summary>Why does float8 training need special hardware, and what does torchao do?</summary><div>Speed needs float8 tensor cores (compute capability 8.9 or newer). torchao's <code>Float8Linear</code> casts inputs, weights and gradients to float8 with per-tensor or per-row scales and keeps master weights in high precision; on other hardware it can only emulate.</div></details>
+<details class="qa"><summary>for-loop, foreach, fused optimizers?</summary><div>Several ops per tensor; a few multi-tensor ops per step; one kernel for all. Fused is fastest where supported; foreach is the CUDA default at 2.14.1.</div></details>
+</div></details>
 </section>

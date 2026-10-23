@@ -62,6 +62,6 @@
     const p=model(s).peak;const dd=(p-r.peak)/r.peak;
     h+='<tr><td>'+({small:'running example',big:'larger variant',big_v50k:'larger, V = 50,257'}[r.config])+', '+({plain:'plain',ckpt:'checkpointed',lce:'chunked loss'}[r.how])+'</td><td class="num">'+gb(r.peak)+'</td><td class="num">'+gb(p)+'</td><td class="num '+(Math.abs(dd)<0.03?'ok':'warn')+'">'+(dd>=0?'+':'')+(100*dd).toFixed(1)+'%</td></tr>'});
   $('mb-val').innerHTML=h+'</tbody></table>';
-  $('mb-valnote').innerHTML='<span class="meas">measured on Apple M1 Pro</span>, CPU, float32, PyTorch 2.14.1, second training step, peak live bytes from the memory profiler (src/exp/mem_step.py; the same runs as the Reading tab\'s sections 7 to 9). Green: within 3%. Selective checkpointing is not modelled (its saved set depends on the policy); the Reading tab shows its measured peaks.';
+  $('mb-valnote').innerHTML='<span class="meas">measured on Apple M1 Pro</span>, CPU, float32, PyTorch 2.14.1, second training step, peak live bytes from the memory profiler (src/exp/mem_step.py; the same runs as the Reading tab\'s sections 8 to 10). Green: within 3%. Selective checkpointing is not modelled (its saved set depends on the policy); the Reading tab shows its measured peaks.';
   (window.TAB_RENDER['t-mem']=window.TAB_RENDER['t-mem']||[]).push(render);
 })();

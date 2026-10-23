@@ -40,15 +40,13 @@
   // hunt summary sentence
   const pm=path('mps'),pc=path('cpu');
   const full=p=>['s0','s1','s2','s3','s4','s5','s6'].every(k=>p.out.some(o=>o.r.stage===k));
-  if(full(pm)&&full(pc)&&$('fst-hunt-read')){const s0m=pm.out[0].r.median_ms,s0c=pc.out[0].r.median_ms;
+  if(full(pm)&&full(pc)&&$('fst-pr-hunt')){const s0m=pm.out[0].r.median_ms,s0c=pc.out[0].r.median_ms;
     const g=(p,st)=>{const o=p.out.find(x=>x.r.stage===st);return o?o.r.median_ms:NaN};
     const cs5=pc.out.find(x=>x.r.stage==='s5');
-    $('fst-hunt-read').innerHTML='On MPS the step went from '+U.ms(s0m)+' to '+U.ms(pm.best.median_ms)+' ('+(s0m/pm.best.median_ms).toFixed(2)+' times faster, final configuration: '+STAGE[pm.best.stage][0].replace('+ ','')+' and everything before it except bfloat16); on the CPU from '+U.ms(s0c)+' to '+U.ms(pc.best.median_ms)+' ('+(s0c/pc.best.median_ms).toFixed(2)+' times, final: '+STAGE[pc.best.stage][0].replace('+ ','')+' and the fixes before it). On MPS the biggest single gain was the least glamorous: DataLoader workers ('+U.f1(g(pm,'s0')-g(pm,'s1'))+' ms), then torch.compile ('+U.f1(g(pm,'s4')-g(pm,'s6'))+' ms), then the fused optimizer ('+U.f1(g(pm,'s1')-g(pm,'s2'))+' ms). On the CPU the attention kernel mattered ('+U.f1(g(pc,'s2')-g(pc,'s3'))+' ms) and compile did not ('+U.ms(g(pc,'s6'))+' against '+U.ms(g(pc,'s4'))+'). bfloat16 autocast was a loss on both: '+U.ms(g(pm,'s5'))+' against '+U.ms(g(pm,'s4'))+' on MPS, and on the CPU '+(cs5?U.f1(cs5.r.median_ms/1e3)+' seconds per step ('+cs5.r.trials+' runs of '+cs5.r.steps+' steps, all that was worth waiting for)':'')+' against '+U.ms(g(pc,'s4'))+', because this CPU has no bfloat16 instructions (section 6). On an NVIDIA GPU the ranking would likely change (bfloat16 tensor cores, CUDA graphs and Triton fusion are exactly what this machine lacks); the method would not.';
     const order=pm.out.filter(o=>['s1','s2','s5','s6'].includes(o.r.stage)).map(o=>[o.r.stage,(o.r.stage==='s1'?pm.out[0].r:pm.out.find(x=>x.r.stage===(o.r.stage==='s2'?'s1':'s4')).r).median_ms-o.r.median_ms]);
     const bestFix=order.sort((a,b)=>b[1]-a[1])[0][0];const ix={s1:0,s2:1,s5:2,s6:3}[bestFix];
     U.predict('fst-pr-hunt',ix,'Measured (each fix against the stage it was added to): workers saved '+U.f1(g(pm,'s0')-g(pm,'s1'))+' ms, fused AdamW '+U.f1(g(pm,'s1')-g(pm,'s2'))+' ms, bfloat16 '+(g(pm,'s4')-g(pm,'s5')>=0?'saved '+U.f1(g(pm,'s4')-g(pm,'s5')):'cost '+U.f1(g(pm,'s5')-g(pm,'s4')))+' ms, torch.compile '+(g(pm,'s4')-g(pm,'s6')>=0?'saved '+U.f1(g(pm,'s4')-g(pm,'s6')):'cost '+U.f1(g(pm,'s6')-g(pm,'s4')))+' ms. The per-phase bars above already pointed at it: '+U.ms(phases('mps').s0.median_ms.data)+' of data loading and '+U.ms(phases('mps').s0.median_ms.optimizer)+' of optimizer in a step whose GPU work is mostly forward and backward matmuls.');
-    // section 0 numbers
-    if($('fst-s0-hunt'))$('fst-s0-hunt').innerHTML=U.ms(s0m)+' &rarr; '+U.ms(pm.best.median_ms)+' on MPS, '+U.ms(s0c)+' &rarr; '+U.ms(pc.best.median_ms)+' on CPU';}
+  }
   // ---- section 1: timer ----
   const TT=D.time_timer&&D.time_timer.results;
   if(TT&&$('fst-timer-bars')){U.bars($('fst-timer-bars'),[
@@ -61,7 +59,7 @@
   if(TD&&$('fst-data-bars')){U.bars($('fst-data-bars'),TD.map(r=>({nm:r.sample_cost_ms?'num_workers='+r.num_workers+(r.num_workers?', prefetch '+r.prefetch_factor:''):'no loading cost',ml:r.sample_cost_ms?'waiting for data: '+U.ms(r.median_wait_ms)+' median':'the loop alone (reference)',v:r.ms_per_step,txt:U.ms(r.ms_per_step),col:!r.sample_cost_ms?'var(--c1)':r.num_workers?'var(--c3)':'var(--c2)',hl:r.num_workers===0&&r.sample_cost_ms>0})));
     const rb=TD.find(r=>!r.sample_cost_ms),r0=TD.find(r=>r.sample_cost_ms&&r.num_workers===0),r1=TD.find(r=>r.num_workers===1),r2=TD.find(r=>r.num_workers===2&&r.prefetch_factor===2);
     $('fst-data-note').innerHTML='<span class="meas">measured on Apple M1 Pro</span>; a consumer that sleeps 20 ms per step (it stands in for the training step and leaves the CPU to the workers), samples costing 2 ms of Python work each <span class="ann">illustrative</span>, batch 8; 40 steps after 5 warm-up; bench lock, '+U.load(r0.load)+' (src/exp/time_misc.py <code>data</code>). The reference row has samples that cost nothing: '+U.ms(rb.ms_per_step)+', the 20 ms sleep plus the loop\'s own overhead.';
-    $('fst-data-read').innerHTML='Without workers, every step waited '+U.ms(r0.median_wait_ms)+' for its batch (8 samples &times; 2 ms) and took '+U.ms(r0.ms_per_step)+'. One worker builds the next batch while the step runs, and the wait fell to '+U.ms(r1.median_wait_ms)+'; with two the step took '+U.ms(r2.ms_per_step)+', within a millisecond or two of the loop with free data ('+U.ms(rb.ms_per_step)+'). More workers or a deeper prefetch changed nothing here, because one worker already kept up; they help when loading is slower than the step, or uneven.';}
+  }
   // ---- section 5: optimizer ----
   const TO=D.time_optim&&D.time_optim.results;
   if(TO&&$('fst-opt-bars')){let od='cpu';const draw=()=>{const rows=[];['small','big'].forEach(c=>['forloop','foreach','fused'].forEach(i=>{const r=TO.find(x=>x.device===od&&x.config===c&&x.impl===i);
@@ -69,7 +67,7 @@
     U.seg($('fst-opt-seg'),[['cpu','CPU'],['mps','MPS']],d=>{od=d;draw()},'cpu');
     const t=(d,c,i)=>TO.find(x=>x.device===d&&x.config===c&&x.impl===i).median_ms;
     $('fst-opt-note').innerHTML='<span class="meas">measured on Apple M1 Pro</span>, PyTorch 2.14.1, <code>opt.step()</code> alone with gradients present, <code>torch.utils.benchmark.Timer.blocked_autorange</code> median; bench lock, '+U.load(TO[0].load)+' (src/exp/time_misc.py <code>optim</code>).';
-    $('fst-opt-read').innerHTML='Larger variant: fused took '+U.ms(t('cpu','big','fused'))+' against '+U.ms(t('cpu','big','forloop'))+' for the default for-loop on the CPU ('+(t('cpu','big','forloop')/t('cpu','big','fused')).toFixed(1)+' times), and '+U.ms(t('mps','big','fused'))+' against '+U.ms(t('mps','big','forloop'))+' on MPS ('+(t('mps','big','forloop')/t('mps','big','fused')).toFixed(1)+' times). foreach was within a few percent of the for-loop on both ('+U.ms(t('cpu','big','foreach'))+' on the CPU, '+U.ms(t('mps','big','foreach'))+' on MPS): batching the calls saves dispatch overhead, but each foreach op still makes a full pass over every tensor, while fused makes one pass for the whole update. On CUDA, foreach is already the default; fused is the switch to try.';}
+  }
   // ---- section 6: precision ----
   const TP=D.time_amp&&D.time_amp.results;
   if(TP&&$('fst-amp-bars')){let ad='cpu';const tf=v=>v>=1e4?(v/1e3).toFixed(1)+' s':U.ms(v);
@@ -79,5 +77,5 @@
     U.seg($('fst-amp-seg'),[['cpu','CPU'],['mps','MPS']],d=>{ad=d;draw()},'cpu');
     const m=(d,dt)=>TP.find(r=>r.device===d&&r.dtype===dt),s=(d,a)=>TP.find(r=>r.device===d&&r.op==='big step'&&r.autocast_bf16===a).median_ms;
     $('fst-amp-note').innerHTML='<span class="meas">measured on Apple M1 Pro</span>, PyTorch 2.14.1; matmul: <code>Timer.blocked_autorange</code> median, GFLOP/s = 2 &times; 2,048&sup3; / time; step: median of '+(TP.find(r=>r.device==='mps'&&r.op==='big step')||{}).trials+' trials of '+(TP.find(r=>r.device==='mps'&&r.op==='big step')||{}).steps+' steps on MPS and '+(TP.find(r=>r.device==='cpu'&&r.op==='big step')||{}).trials+' of '+(TP.find(r=>r.device==='cpu'&&r.op==='big step')||{}).steps+' on the CPU (bfloat16 steps there take seconds), after warm-up; bench lock, '+U.load(TP[0].load)+' (src/exp/time_misc.py <code>amp</code>).';
-    $('fst-amp-read').innerHTML='A 2,048-square matmul ran at '+m('cpu','float32').gflops+' GFLOP/s in float32 on the CPU and '+m('cpu','bfloat16').gflops+' in bfloat16; on MPS '+m('mps','float32').gflops+' against '+m('mps','bfloat16').gflops+' (float16: '+m('mps','float16').gflops+'). The training step with autocast(bfloat16): '+(s('cpu',true)/1e3).toFixed(1)+' s against '+U.ms(s('cpu',false))+' on the CPU, '+U.ms(s('mps',true))+' against '+U.ms(s('mps',false))+' on MPS. Bars show time relative to float32 for the same work, capped at 3 times.';}
+  }
 })();

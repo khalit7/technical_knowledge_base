@@ -1,45 +1,74 @@
-<section id="fst-s4">
-<h2>4. Data loading: keep the next batch ready</h2>
-<p><b>The problem.</b> If the training loop asks for a batch and the batch is not ready, everything waits. With <code>DataLoader(num_workers=0)</code> (the default) the main process reads, decodes and collates every sample itself, between steps, so loading time adds straight onto step time.</p>
-<p><b>How it works.</b> <code>num_workers=n</code> starts n worker processes that each build whole batches in the background; <code>prefetch_factor</code> (default 2 when workers are used) is how many batches each worker keeps ready ahead; <code>persistent_workers=True</code> keeps them alive between epochs instead of paying their start-up each epoch. <code>pin_memory=True</code> puts batches in page-locked host memory so a CUDA copy can run asynchronously with <code>x.to("cuda", non_blocking=True)</code>; it is a CUDA mechanism (signature at 2.14.1 includes <code>pin_memory_device</code> and <code>in_order</code>, <span class="meas">read from the installed wheel</span>), and on an Apple chip the CPU and GPU share one memory, so it was not measured here.</p>
-<div class="rd-card">
-<h4>A loop that needs 20 ms per step, fed by a loader whose batches cost 16 ms to build</h4>
-<div class="bars" id="fst-data-bars"></div>
-<p class="small mute" id="fst-data-note"></p>
+<section id="fst-s8">
+<h2>8. Memory: what fills it during one step</h2>
+<p>Five things live in memory during training (float32, AdamW, <i>P</i> parameters): <b>parameters</b>, 4 bytes &times; <i>P</i>, always; <b>gradients</b>, 4 bytes &times; <i>P</i>, built layer by layer in backward, freed by <code>zero_grad(set_to_none=True)</code>; <b>optimizer state</b>, 8 bytes &times; <i>P</i> from the first <code>step()</code>; <b>activations</b>, saved by forward for backward, scaling with batch &times; sequence length; and short-lived <b>temporaries</b>. The fixed cost is 16 bytes per parameter (4 + 4 + 8); mixed-precision training with float32 master weights also comes to 16, split differently (2 + 2 + 12 in the ZeRO paper's accounting; {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} owns that arithmetic and how sharding divides it).</p>
+<div class="rd-card" id="fst-memcard">
+<div class="figt">The peak is a moment: memory by category through one step of the larger variant, plain against checkpointed on one scale (step through it)</div>
+<div class="seg" id="fst-mem-seg"></div>
+<div class="rd-svg" id="fst-mem-svg"></div>
+<div class="leg" id="fst-mem-leg"></div>
+<div class="an-cap" id="fst-mem-cap"></div>
+<div class="an-cnt" id="fst-mem-cnt"></div>
+<div class="an-ctl" id="fst-mem-ctl"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, CPU, float32, the second training step; only the heights are exact.</p><details class="src"><summary>Measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, CPU, float32, PyTorch 2.14.1, deterministic (bytes, not time): PyTorch's memory profiler (<code>torch.profiler</code> with <code>profile_memory=True, record_shapes=True, with_stack=True</code>, then <code>prof._memory_profile()</code>, the engine behind <code>export_memory_timeline</code>) follows every tensor from allocation to free and puts it in a category. The second training step (optimizer state exists). The x axis is the profiled run's own clock, so only the heights are exact. src/exp/mem_step.py.</p></div></details>
 </div>
-<p id="fst-data-read"></p>
-<p><b>When it matters.</b> Whenever building a batch takes a noticeable share of the step: decoding images or audio, tokenising on the fly, reading from network storage, heavy augmentation. Pre-tokenised data in memory-mapped arrays (as LLM pre-training usually uses) barely needs workers. <b>How to check it:</b> in a trace, the <code>data</code> range (or gaps on the GPU before forward); or time <code>next(iter(loader))</code> on its own. Workers are separate processes: each holds its own copy of the Dataset object, so keep it small, and on macOS and Windows they start with <code>spawn</code>, so the Dataset must be importable and picklable.</p>
+<p>Before the forward pass, 304.5 MB is already in use: parameters (101.5 MB = 25,373,184 &times; 4 bytes) and AdamW state (203.0 MB). Forward adds the activations; the peak, 867.4 MB, comes early in backward, when 537.7 MB of activations are still held and the first backward temporaries (21.1 MB) and gradients (4.2 MB) appear. Gradients reach their full 101.5 MB only at the end of backward, by which time most activations are gone, so the textbook sum "16 bytes per parameter plus activations" (943.6 MB) overstates this peak. Switch to <i>Checkpoint every block</i>: the activations nearly vanish and the peak moves to the <i>end</i> of backward (485.3 MB), where full gradients and the last block's rebuilt activations coexist. The {{Memory budget|#t-mem}} tab turns this into a calculator with both moments.</p>
+<div class="pr" id="fst-pr-mem">
+<div class="q">Predict: in the larger variant (8 blocks, d 512, context 256, batch 8, 25.4M parameters), which is bigger at the peak: parameters plus gradients plus AdamW state, or the saved activations?</div>
+<div class="opts"><button data-a="0">Weights, gradients and optimizer state</button><button data-a="1">Activations</button><button data-a="2">About equal</button></div>
+<div class="ans" hidden></div>
+</div>
+<p><b>On your own job</b>: <code>prof.export_memory_timeline("m.html")</code> draws this chart on any device; on CUDA the memory snapshot ({{memory_viz|https://pytorch.org/memory_viz}}) adds each allocation's stack. On a GPU the bytes per category are the same; the attention kernel decides whether a T &times; T matrix is saved (section 11), and the caching allocator adds cached free blocks, so <code>memory_reserved</code> exceeds this peak ({{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}}).</p>
+<details class="dp"><summary>Memory tools by device <span class="mute">(reference)</span></summary><div class="b">
+<div class="tw"><table class="rd-tbl"><thead><tr><th>Device</th><th>Tool</th><th>What it gives you</th></tr></thead><tbody>
+<tr><td>Any (CPU here)</td><td><code>torch.profiler.profile(profile_memory=True, record_shapes=True, with_stack=True)</code>, then <code>prof.export_memory_timeline("m.html")</code></td><td>Live bytes by category (parameter, optimizer state, gradient, activation, autograd detail, temporary, input). It works on CPU, which is how this page measured it.</td></tr>
+<tr><td>CUDA</td><td><code>torch.cuda.memory._record_memory_history(max_entries=100000)</code>, run a few steps, <code>torch.cuda.memory._dump_snapshot("s.pickle")</code>, drop the file on {{pytorch.org/memory_viz|https://pytorch.org/memory_viz}}</td><td>Every allocation and free with the Python stack that made it, plus the caching allocator's segments: fragmentation and reserved-but-unused memory, which the CPU profiler cannot show. Signature at 2.14.1: <code>_record_memory_history(enabled='all', context='all', stacks='all', max_entries=..., device=None, clear_history=False, compile_context=False, global_record_annotations=False, skip_actions=None, record_pinned_host_memory=False, record_cuda=True)</code> <span class="meas">read from the installed wheel</span>. Walkthrough: {{Understanding GPU memory, part 1|https://pytorch.org/blog/understanding-gpu-memory-1/}}. <i>Not run here</i>: no CUDA device.</td></tr>
+<tr><td>CUDA, quick numbers</td><td><code>torch.cuda.max_memory_allocated()</code>, <code>memory_reserved()</code>, <code>memory_summary()</code>; device-agnostic <code>torch.accelerator.max_memory_allocated()</code></td><td>Allocated is what tensors use; reserved is what the caching allocator holds from the driver. The gap is the allocator's cache and fragmentation; {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}} owns how it works and what <code>PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True</code> changes.</td></tr>
+<tr><td>MPS</td><td><code>torch.mps.current_allocated_memory()</code>, <code>driver_allocated_memory()</code>, <code>recommended_max_memory()</code></td><td>Totals only; no per-allocation history at 2.14.1 <span class="meas">checked on the installed wheel</span>.</td></tr>
+</tbody></table></div>
+</div></details>
 </section>
-<section id="fst-s5">
-<h2>5. The optimizer step: one kernel or hundreds</h2>
-<p><b>The problem.</b> AdamW's update is a handful of element-wise operations per parameter tensor. Written as a Python loop over tensors (the <dfn>for-loop</dfn> implementation), that is several separate operator calls for each of the model's tensors (100 tensors in the larger variant, 52 in the small one), each with Python and dispatcher overhead and, on a GPU, a separate kernel launch.</p>
-<p><b>How it works.</b> Two faster implementations exist. <dfn>foreach</dfn> uses <code>torch._foreach_*</code> operators that take a whole list of tensors per call (a few launches per step instead of several per tensor). <dfn>fused</dfn> does the whole update for all parameters in one kernel per device and dtype group. Select with <code>torch.optim.AdamW(..., foreach=True)</code> or <code>fused=True</code>. At 2.14.1 the default is foreach on CUDA-like devices and the for-loop on CPU and MPS; fused is never the default though it runs on CPU, MPS and CUDA (<code>torch/utils/_foreach_utils.py</code> L8 to 23, per the root's {{Inside one step|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} measurements).</p>
-<div class="rd-card">
-<h4>One AdamW step, three implementations</h4>
-<div class="seg" id="fst-opt-seg"></div>
-<div class="bars" id="fst-opt-bars"></div>
-<p class="small mute" id="fst-opt-note"></p>
+<section id="fst-s9">
+<h2>9. Activation checkpointing as a lever, full and selective</h2>
+<p><dfn>Activation checkpointing</dfn> keeps only each block's <i>input</i> in forward and reruns the block's forward in backward to rebuild what it needs: memory down, compute up by about one extra forward of the checkpointed part. Use <code>checkpoint(block, x, use_reentrant=False)</code>; how it hooks autograd's saved tensors is on {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}, the trade at cluster scale on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}. <dfn>Selective activation checkpointing</dfn> (SAC) lets a <i>policy</i>, called for every ATen op in the region, save some outputs anyway; the usual one saves matmul outputs (expensive to recompute) and recomputes element-wise ops ({{PyTorch blog, 2025|https://pytorch.org/blog/activation-checkpointing-techniques/}}; prototype since 2.5). The six <code>CheckpointPolicy</code> values at 2.14.1: <code>MUST_SAVE</code>, <code>PREFER_SAVE</code>, <code>MUST_RECOMPUTE</code>, <code>PREFER_RECOMPUTE</code>, <code>MUST_CPU_OFFLOAD</code>, <code>PREFER_CPU_OFFLOAD</code> <span class="meas">read from the installed wheel</span>.</p>
+<div class="code">from functools import partial
+from torch.utils.checkpoint import checkpoint, create_selective_checkpoint_contexts, CheckpointPolicy
+aten = torch.ops.aten
+SAVE = {aten.mm.default, aten.addmm.default, aten.bmm.default,
+        aten._scaled_dot_product_flash_attention_for_cpu.default}   <span class="c"># the CPU attention kernel; on CUDA name the flash/efficient ops</span>
+
+def policy(ctx, op, *args, **kwargs):
+    return CheckpointPolicy.MUST_SAVE if op in SAVE else CheckpointPolicy.PREFER_RECOMPUTE
+
+x = checkpoint(block, x, use_reentrant=False,
+               context_fn=partial(create_selective_checkpoint_contexts, policy))</div>
+<div class="rd-card" id="fst-ckcard">
+<div class="figt">Checkpointing every block cuts the peak by 44% for 22% more step time; saving the matmuls saves little</div>
+<div class="bars" id="fst-ck-bars"></div>
+<div class="seg" id="fst-ck-seg"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, float32, the same batch and the same loss (3.39147) in all four.</p><details class="src"><summary>Measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, PyTorch 2.14.1, float32, the same batch and the same loss (3.39147) in all four. Memory: CPU memory profiler, deterministic (src/exp/mem_step.py). ATen calls counted with a <code>TorchDispatchMode</code>. Time: median of 3 trials of 10 steps after 3 warm-up steps, CPU 4 threads and MPS, load average 3.5 (src/exp/time_misc.py <code>ckpt</code>, bench lock).</p></div></details>
 </div>
-<p id="fst-opt-read"></p>
-<p><b>When it matters.</b> Many parameter tensors, small model, or a fast device where the arithmetic is cheap and launches dominate. <b>Cost:</b> foreach and fused keep temporary lists or buffers; fused needs every parameter on a supported device and dtype. <b>Check:</b> the <code>optimizer</code> range in a trace, or time <code>opt.step()</code> on its own as above.</p>
+<p>Full checkpointing cut the peak from 867.4 MB to 485.3 MB (44% less): forward now saves only each block's input, 42.3 MB instead of 546.4 MB. The price: backward runs 1,087 ATen calls instead of 567 (each block's forward again), and the step went from 389 ms to 475 ms on the CPU (+22%) and from 150 ms to 189 ms on MPS. SAC saving matmuls landed in between (724.6 MB, 411 ms on CPU); SAC saving only attention matched full checkpointing's peak (485.3 MB). Saving the matmuls saved little because here most activation bytes <i>are</i> matmul outputs (the MLP's 4d-wide fc and GELU outputs, the 3d-wide qkv projection); SAC pays off when expensive ops have small outputs, or when only some layers save. A policy must name the ops that actually run, and names differ by device (<code>_scaled_dot_product_flash_attention_for_cpu</code> on CPU, <code>_scaled_dot_product_flash_attention</code> or <code>_efficient_attention</code> on CUDA).</p>
+<div class="rd-card">
+<div class="figt">torch.compile's memory budget: one knob from "save what eager saves" (1.0) to "recompute everything" (0.0)</div>
+<div class="bars" id="fst-budget-bars"></div>
+<p class="small mute"><span class="meas">measured</span> on the larger variant, CPU, deterministic (src/exp/budget.py): activation bytes saved for backward; at 0.0 backward recomputes the whole forward.</p><details class="src"><summary>The numbers</summary><div class="b"><p class="small mute">Eager saves 546.4 MB; compiled at budget 1.0 546.8 MB, at 0.5 273.0 MB, at 0.2 109.1 MB, and at 0.0 nothing beyond the inputs (0.0 MB); eager checkpointing of every block keeps the block inputs, 42.3 MB. The loss is the same in all (3.81230, freshly initialised model on batch 1).</p></div></details>
+</div>
+<p>Under <code>torch.compile</code> the partitioner already decides what to save ({{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}} owns it); <code>torch._functorch.config.activation_memory_budget</code>, default 1.0, makes it a memory target: in between it "solves a 0-1 knapsack to find the minimum recompute necessary to stay below the activation memory budget" (<code>torch/_functorch/config.py</code> L190 to 202 at 2.14.1). Budget 1.0 saves what eager saves: by default the partitioner optimises runtime, not memory. The PyTorch blog's example spells it <code>torch._dynamo.config.activation_memory_budget</code>; at 2.14.1 it lives in <code>torch._functorch.config</code> <span class="meas">checked on the installed wheel</span>.</p>
+<p><b>When</b>: activations dominate the peak and you would otherwise shrink the batch; not when weights and optimizer state dominate (shard those: FSDP2, the root's {{Distributed lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}). <b>Check</b>: peak and step time before and after, and the same loss on the same batch.</p>
 </section>
-<section id="fst-s6">
-<h2>6. Mixed precision: fewer bits per number</h2>
-<p><b>The problem.</b> float32 uses 4 bytes per number; bfloat16 and float16 use 2. Half the bytes means half the memory traffic, and on GPUs with tensor cores the 16-bit matmuls also run several times faster. <dfn>Automatic mixed precision</dfn> (AMP) gets most of that without rewriting the model: inside <code>torch.autocast(device_type, dtype=torch.bfloat16)</code>, ops on autocast's lists (matmuls, linear layers, attention) run in 16 bits, precision-sensitive ops (softmax, normalisation, losses) stay in float32, and the parameters themselves stay float32.</p>
-<ul class="tight">
-<li><b>bfloat16</b> keeps float32's exponent range (8 exponent bits) with fewer mantissa bits: no overflow, so no loss scaling needed. The usual choice on recent GPUs.</li>
-<li><b>float16</b> has more mantissa but a narrow range: small gradients underflow to zero, so it needs <code>torch.amp.GradScaler</code>, which multiplies the loss by a large factor before backward, divides gradients before the step, and skips steps whose gradients overflowed.</li>
-</ul>
-<div class="code">scaler = torch.amp.GradScaler("cuda")          <span class="c"># only for float16</span>
-with torch.autocast("cuda", dtype=torch.float16):
-    _, loss = model(x, y)
-scaler.scale(loss).backward(); scaler.step(opt); scaler.update(); opt.zero_grad(set_to_none=True)</div>
-<div class="rd-card">
-<h4>What bfloat16 did on this machine</h4>
-<div class="seg" id="fst-amp-seg"></div>
-<div class="bars" id="fst-amp-bars"></div>
-<p class="small mute" id="fst-amp-note"></p>
+<section id="fst-s10">
+<h2>10. The logits problem and fused linear cross-entropy</h2>
+<p>The <dfn>logits</dfn>, one score per vocabulary entry per position, are batch &times; sequence &times; V. With a real tokeniser (GPT-2's has 50,257 entries; the running example has 43 characters) the logits, their softmax and their gradient are the largest tensors of the step. To see it, the larger variant was given V = 50,257 (the batches still use only 43 characters, which changes no shapes and therefore no bytes): one logits tensor is 8 &times; 256 &times; 50,257 &times; 4 bytes = <span class="der">411.7 MB</span>.</p>
+<p>A fused <dfn>linear cross-entropy</dfn> processes the positions in chunks: for each chunk it computes that chunk's logits, the loss and the gradient pieces, then frees them, so the full logits tensor never exists. The same idea is behind {{Liger Kernel|https://github.com/linkedin/Liger-Kernel}}'s fused linear cross-entropy and Apple's {{Cut Cross-Entropy|https://arxiv.org/abs/2411.09009}} (2024); PyTorch 2.13 added it to core as <code>nn.LinearCrossEntropyLoss</code> and <code>F.linear_cross_entropy</code> ({{2.13 release notes|https://github.com/pytorch/pytorch/releases/tag/v2.13.0}}, "up to 4x lower peak memory", release-note figure).</p>
+<div class="co warn"><div class="t">The default does not chunk</div>At 2.14.1, <code>F.linear_cross_entropy(x, W, y)</code> with the default <code>options=None</code> runs the <i>reference</i> path, which materialises all logits like the unfused code. The chunked path needs <code>options=LinearCrossEntropyOptions()</code> (from <code>torch.nn.modules.linear_cross_entropy_options</code>; its docstring: "Pass <code>options=None</code> to use the reference path; pass an instance of this class to opt in"). Measured below: the default saves exactly nothing.</div>
+<div class="code">from torch.nn.modules.linear_cross_entropy_options import LinearCrossEntropyOptions
+h = model.ln_f(hidden)                                   <span class="c"># (B*T, d): stop before the head</span>
+loss = F.linear_cross_entropy(h.view(-1, d), model.head.weight, y.view(-1),
+                              options=LinearCrossEntropyOptions())   <span class="c"># without options: no chunking</span></div>
+<div class="rd-card" id="fst-lcecard">
+<div class="figt">With a 50,257-entry vocabulary the chunked loss nearly halves the peak; the default call changes nothing</div>
+<div class="bars" id="fst-lce-bars"></div>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, the same loss in every run (8.9544 for all four).</p><details class="src"><summary>Measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, CPU, float32, PyTorch 2.14.1, deterministic (CPU memory profiler, src/exp/mem_step.py); the same loss in every run (8.9544 for all four). Step time, median of 3 trials of 5 steps: unfused 827 ms, chunked 1398 ms on CPU; 491 ms and 900 ms on MPS (load average 3.5; bench lock).</p></div></details>
 </div>
-<p id="fst-amp-read"></p>
-<div class="co warn"><div class="t">This is the result that does not transfer</div>Data-centre NVIDIA GPUs since the A100 have bfloat16 tensor cores; there, bfloat16 matmuls run many times faster than float32 ones and AMP is close to free speed. This M1 Pro's CPU reports no bfloat16 instructions (<code>sysctl hw.optional.arm.FEAT_BF16</code> = 0, while <code>FEAT_FP16</code> = 1) <span class="meas">read on this machine</span>, so bfloat16 math on it is converted and pays for the conversion; the measured MPS slowdown points the same way for its GPU (not checked against Apple documentation). The lesson that does transfer: check that the hardware has native support for the dtype before expecting a speedup, and measure.</div>
+<p>The unfused step peaks at 2394.2 MB; at that moment the backward temporaries alone hold 823.4 MB, the softmax's gradient and the logits' gradient, two tensors of 411.7 MB each. The chunked loss brings the peak to 1278.8 MB (1.87 times lower), and its saved activations from 957.8 MB to 541.9 MB, about what the 43-character model saves (546.4 MB): the vocabulary no longer costs activation memory. The default call (2394.2 MB) is byte for byte the unfused peak. Against the release notes' "up to 4x", this whole step (weights, AdamW state, block activations included) gains 1.87 times, and pays in time: +69% on the CPU, +84% on MPS. The docstring's rule: chunking "is a win when <code>num_batches &gt;= in_features</code> and <code>num_classes &gt; in_features</code>; below that, the reference path is cheaper". Logits scale with tokens &times; V, not width, so a small model with a big tokenizer is hit hardest. <b>Check</b>: the peak with and without, and the loss to rounding.</p>
 </section>

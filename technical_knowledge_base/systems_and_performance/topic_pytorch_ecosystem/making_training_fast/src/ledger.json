@@ -1,0 +1,3462 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Making training fast: profiling, memory, attention, torchao Making training fast: profiling, memory, attention, torchao Find the bottleneck in a real training step, fix that one, and measure again: the profiler and honest timing, data loading, optimizers, mixed precision, where memory goes and how checkpointing and fused losses cut it, attention backends and FlexAttention, and torchao's low-precision formats.",
+  "label": "core",
+  "key": "making training fast: profiling, memory, attention",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Every number measured on an Apple M1 Pro (CPU and MPS) with PyTorch 2.14.1 unless labelled published.",
+  "label": "core",
+  "key": "number measured on an apple m1",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Profiler trace Attention lab Memory budget Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old tab bar; the page now has three tabs"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Timing 2 Profiler 3 The hunt 4 Data 5 Optimizer 6 Precision 7 Memory 8 Checkpointing 9 Fused loss 10 Attention 11 torchao 12 To NVIDIA Mistakes Interview",
+  "label": "core",
+  "key": "1 timing 2 profiler 3 the",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "In one screen A training job is slow or out of memory for one main reason at a time.",
+  "label": "core",
+  "key": "for one main reason at a time",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Find it by measuring, fix that one thing, measure again.",
+  "label": "core",
+  "key": "and measure again",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "This page does that on the topic's running example (a small GPT, see the root page ) and on a larger variant of it, on an Apple M1 Pro's CPU and GPU, and says for every result what carries over to NVIDIA GPUs.",
+  "label": "core",
+  "key": "on an apple m1 pro's cpu",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "How long does a step really take? warm-up, synchronize, medians; torch.utils.benchmark.Timer · section 1 An unsynchronised GPU timing measures the queuing, not the work Where does the time go? torch.profiler , record_function , a trace viewer · section 2 , 3 On MPS the CPU spent most of the step waiting in .item() for the GPU Which fix helps? one change at a time, measured with its spread · section 3 to 6 What holds memory at the peak? memory profiler (CPU), memory snapshot (CUDA) · section 7 How to trade compute for memory? checkpointing, selective checkpointing, compile's memory budget · section 8 What about a big vocabulary? fused linear cross-entropy · section 9 Which attention kernel runs?",
+  "label": "depth",
+  "key": "on mps the cpu spent most",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "SDPA backends, FlexAttention, varlen · section 10 Fewer bits? torchao: quantize_, float8, QAT · section 11 Three ideas the rest of the page keeps using A GPU runs behind the CPU.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "navigation grid of the old section 0"
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "PyTorch queues work and returns; the CPU only waits when it needs a result ( .item() , printing, copying to the CPU).",
+  "label": "core",
+  "key": "pytorch queues work and returns; the",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Timings and traces must account for that.",
+  "label": "core",
+  "key": "timings and traces must account for",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Count bytes and launches, not just FLOPs.",
+  "label": "core",
+  "key": "count bytes and launches, not just",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Element-wise ops move memory and cost a launch each; matmuls do arithmetic.",
+  "label": "core",
+  "key": "element-wise ops move memory and cost",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Most fixes either remove launches (fusing) or remove bytes (fewer saved activations, fewer bits).",
+  "label": "core",
+  "key": "most fixes either remove launches (fusing",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Peak memory is a moment.",
+  "label": "core",
+  "key": "peak memory is a moment",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "It is what is alive at one instant: usually the start of backward, sometimes its end.",
+  "label": "core",
+  "key": "it is what is alive at",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Fixes that do not touch what is alive at that instant do not lower the peak.",
+  "label": "core",
+  "key": "fixes that do not touch what",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Labels used throughout: measured on this machine with PyTorch 2.14.1 (scripts in this page's src/exp/), vendor for a figure published by the people who built the thing, derived for arithmetic on other numbers, illustrative for an input chosen by hand.",
+  "label": "core",
+  "key": "with pytorch 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Timed runs held a lock so no other job of this knowledge base ran at the same time; the load average is quoted next to them.",
+  "label": "core",
+  "key": "timed runs held a lock so",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "Measuring honestly: what a timing can and cannot tell you The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading wind-up"
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "Every fix on this page is judged by a number, and a careless number points at the wrong fix.",
+  "label": "core",
+  "key": "is judged by a number, and",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "Three things make naive timings lie.",
+  "label": "core",
+  "key": "three things make",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "Asynchronous devices On a GPU (CUDA or Apple's MPS), a PyTorch call only queues a kernel and returns.",
+  "label": "core",
+  "key": "on a gpu (cuda or apple's",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "Timing the call times the queuing.",
+  "label": "core",
+  "key": "times the queuing",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "You must wait for the device to finish ( torch.cuda.synchronize() , torch.mps.synchronize() ) before reading the clock.",
+  "label": "core",
+  "key": "you must wait for the device",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "Warm-up The first calls pay one-off costs: memory allocation into the caching allocator, kernel selection, compilation for torch.compile , lazy initialisation.",
+  "label": "core",
+  "key": "the first calls pay one-off costs",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "Run a few untimed steps first.",
+  "label": "core",
+  "key": "run a few untimed steps first",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "Noise Other processes, thermal limits and frequency scaling move every number.",
+  "label": "core",
+  "key": "other processes, thermal limits and frequency",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "Repeat, report the median and the spread, and record the machine's load.",
+  "label": "core",
+  "key": "repeat, report the median and the",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "The same matrix multiply, timed three ways on MPS torch.utils.benchmark.Timer does the bookkeeping: it warms up, chooses how many runs fit in a time budget, sets the thread count, and reports the median and interquartile range (IQR, the spread of the middle half of the runs).",
+  "label": "core",
+  "key": "torch.utils.benchmark.timer does the bookkeeping: it warms",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "At 2.14.1 its default clock calls torch.accelerator.synchronize() before every reading whenever an accelerator is present, CUDA or MPS alike ( torch/utils/benchmark/utils/timer.py L15 to 18).",
+  "label": "core",
+  "key": "at 2.14.1 its default clock calls",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "This page's scripts also synchronised inside the timed statement, which is redundant but harmless: import torch.utils.benchmark as tb def call(): a @ b; torch.mps.synchronize() # redundant at 2.14.1: Timer's clock synchronises the accelerator m = tb.Timer(stmt=\"call()\", globals={\"call\": call}).blocked_autorange(min_run_time=1.0) print(m.median, m.iqr, len(m.times)) Whole training steps are timed the simple way: warm up, synchronise, start the clock, run N steps, synchronise, stop, divide; repeat the whole thing three times and take the median.",
+  "label": "core",
+  "key": "b; torch.mps.synchronize() # redundant at 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "Every timed result on this page was taken that way or with Timer , while holding a lock so that no other job of this knowledge base ran at the same time, with the load average recorded next to it.",
+  "label": "core",
+  "key": "no other job of this knowledge",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "What carries over to NVIDIA GPUs, and what does not The method carries over exactly, and so do byte counts, op counts, which ops exist and which fixes apply.",
+  "label": "core",
+  "key": "what carries over to nvidia gpus",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "The times do not: an M1 Pro's CPU and GPU have their own balance of compute, memory bandwidth and launch cost, so a fix that wins 20% here can win 2% or 2 times on an H100.",
+  "label": "core",
+  "key": "a fix that wins 20% here",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. measuring honestly: what a timing can and cannot tell you",
+  "text": "This page says, for each result, which way it is likely to move on a data-centre GPU and why; the honest-timing details for CUDA (CUDA events, cudaDeviceSynchronize , Nsight) are on Profiling, benchmarking and correctness .",
+  "label": "core",
+  "key": "profiling, benchmarking and correctness",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "2. torch.profiler from zero The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading wind-up"
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "A step time says how slow; it does not say where. torch.profiler records every operator PyTorch runs (with start and end time, thread, input shapes if asked, the Python stack if asked, memory allocated if asked) and, on CUDA, every GPU kernel and memory copy.",
+  "label": "core",
+  "key": "a step time says how slow",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "Its output is a trace : a timeline you can open in a viewer. from torch.profiler import profile, schedule, record_function, ProfilerActivity with profile(activities=[ProfilerActivity.CPU], # add ProfilerActivity.CUDA on NVIDIA GPUs schedule=schedule(wait=4, warmup=2, active=2), # skip 4 steps, warm the profiler 2, record 2 record_shapes=True, # input shapes per op (for \"which matmul?\") on_trace_ready=lambda p: p.export_chrome_trace(\"trace.json\")) as prof: for step in range(8): with record_function(\"data\"): x, y = next(it) with record_function(\"forward\"): _, loss = model(x, y) with record_function(\"backward\"): loss.backward() with record_function(\"optimizer\"): opt.step(); opt.zero_grad(set_to_none=True) prof.step() # tells the schedule a step ended print(prof.key_averages().table(sort_by=\"self_cpu_time_total\", row_limit=10)) schedule(wait, warmup, active, repeat) : profiling every step of a long run would be slow and huge.",
+  "label": "core",
+  "key": "add profileractivity.cuda on nvidia gpus schedule=schedule(wait=4",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "The schedule skips wait steps, runs the profiler without keeping results for warmup steps (its own start-up cost lands there), then records active steps; repeat cycles it. prof.step() at the end of each step drives it.",
+  "label": "depth",
+  "key": "skips wait steps, runs the profiler",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "Signature at 2.14.1: schedule(*, wait, warmup, active, repeat=0, skip_first=0, skip_first_wait=0) read from the installed wheel . record_function(\"name\") : a labelled range in the trace.",
+  "label": "depth",
+  "key": "signature at 2.14.1: schedule(*, wait, warmup",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "Cheap; leave a few in your training loop for good. key_averages() : the same events summed by name.",
+  "label": "core",
+  "key": "loop for good",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "Total time includes children ( aten::linear includes its aten::addmm ); self time excludes them.",
+  "label": "core",
+  "key": "total time includes children ( aten::linear",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "Sort by self time to find the ops doing the work. with_stack=True links each op to the Python line that called it (larger traces); profile_memory=True records allocations (section 7).",
+  "label": "core",
+  "key": "sort by self time to find",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "On CUDA with compiled code, TORCHINDUCTOR_UNIQUE_KERNEL_NAMES=1 gives generated kernels readable names.",
+  "label": "depth",
+  "key": "on cuda with compiled code, torchinductor_unique_kernel_names=1",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "Viewers : Perfetto or chrome://tracing open the exported JSON; tensorboard_trace_handler(dir) writes files for TensorBoard; for many ranks at once, Holistic Trace Analysis summarises idle time, communication overlap and stragglers across ranks.",
+  "label": "depth",
+  "key": "tensorboard_trace_handler(dir) writes files for tensorboard; for",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "What to look for in a trace.",
+  "label": "core",
+  "key": "what to look for",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "On a GPU, the device lane should be busy end to end.",
+  "label": "core",
+  "key": "the device lane should be busy",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "Gaps on it mean the GPU waited for something: the data loader (gaps before forward), the CPU launching many tiny kernels (launch-bound: fix with fusion, torch.compile , CUDA graphs, fused optimizers), or a synchronisation such as .item() , .cpu() or print(loss) (a device-to-host copy).",
+  "label": "core",
+  "key": "the data loader (gaps before forward",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "In multi-GPU traces, communication kernels that do not overlap compute.",
+  "label": "core",
+  "key": "in multi-gpu traces",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "On a CPU, the bars are the work, so look for the widest ones.",
+  "label": "core",
+  "key": "the bars are the work",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. torch.profiler from zero",
+  "text": "The Profiler trace tab shows two traces recorded this way, before and after the hunt in section 3.",
+  "label": "core",
+  "key": "the same step traced before and after the hunt",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "3. the worked hunt: one slow step, fixed one bottleneck at a time",
+  "text": "The worked hunt: one slow step, fixed one bottleneck at a time The job.",
+  "label": "core",
+  "key": "the worked hunt: one slow step",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "3. the worked hunt: one slow step, fixed one bottleneck at a time",
+  "text": "The running example's larger variant (8 blocks, d 512, 8 heads, context 256, batch 8: 25.4M parameters) trained through a DataLoader , written the way a first version usually is: loader = DataLoader(dataset, batch_size=8) # num_workers=0: batches built in the main process model = make_model(GPTConfig(..., attn=\"manual\")) # attention written out: softmax(QK^T / sqrt(d)) V opt = torch.optim.AdamW(params, lr=6e-4) # default implementation: for-loop on CPU and MPS for x, y in loader: _, loss = model(x.to(dev), y.to(dev)) # float32 everywhere loss.backward(); opt.step(); opt.zero_grad(set_to_none=True) print(loss.item()) # waits for the device every step The dataset spends 2 ms of Python work per sample before returning a window of text illustrative cost : a stand-in for decoding and tokenising raw data, set by hand so that data loading is visible.",
+  "label": "core",
+  "key": "larger variant (8 blocks, d 512",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "3. the worked hunt: one slow step, fixed one bottleneck at a time",
+  "text": "Everything else is the real model.",
+  "label": "core",
+  "key": "everything else is the real model",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "3. the worked hunt: one slow step, fixed one bottleneck at a time",
+  "text": "Step one: where does the baseline step go?",
+  "label": "core",
+  "key": "step one: split the baseline step",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "3. the worked hunt: one slow step, fixed one bottleneck at a time",
+  "text": "(per-phase time, synchronised after each phase) Predict before reading on: on the Apple GPU (MPS), which change will speed this step up the most?",
+  "label": "core",
+  "key": "predict before reading on: on the",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "3. the worked hunt: one slow step, fixed one bottleneck at a time",
+  "text": "DataLoader workers Fused AdamW bfloat16 autocast torch.compile Step two: apply one fix at a time, keep it only if it helps (median step time) The method, which is the point Time the whole step honestly (section 1), then split it: per-phase timings with a synchronize, and a trace (section 2).",
+  "label": "core",
+  "key": "dataloader workers fused adamw bfloat16 autocast",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "3. the worked hunt: one slow step, fixed one bottleneck at a time",
+  "text": "Fix the biggest piece with the cheapest change that targets it.",
+  "label": "core",
+  "key": "fix the biggest piece with the",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "3. the worked hunt: one slow step, fixed one bottleneck at a time",
+  "text": "Measure again, with the spread.",
+  "label": "core",
+  "key": "with the spread",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "3. the worked hunt: one slow step, fixed one bottleneck at a time",
+  "text": "Keep the change only if the gain is larger than the noise; revert it otherwise, even if \"everyone uses it\".",
+  "label": "core",
+  "key": "keep the change only if",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "3. the worked hunt: one slow step, fixed one bottleneck at a time",
+  "text": "Check the loss is unchanged on the same batches (it was, to the printed digits, for every float32 stage here).",
+  "label": "core",
+  "key": "the printed digits, for every float32",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "3. the worked hunt: one slow step, fixed one bottleneck at a time",
+  "text": "Repeat until the remaining time is the work itself: matmuls on a busy device.",
+  "label": "core",
+  "key": "matmuls on a busy device",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "3. the worked hunt: one slow step, fixed one bottleneck at a time",
+  "text": "The Profiler trace tab shows the first and last stage of this hunt as real traces on one clock.",
+  "label": "core",
+  "key": "on one clock",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "4. data loading: keep the next batch ready",
+  "text": "Data loading: keep the next batch ready The problem.",
+  "label": "core",
+  "key": "data loading: keep the next batch",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "4. data loading: keep the next batch ready",
+  "text": "If the training loop asks for a batch and the batch is not ready, everything waits.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by \"loading time adds straight onto step time\""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "4. data loading: keep the next batch ready",
+  "text": "With DataLoader(num_workers=0) (the default) the main process reads, decodes and collates every sample itself, between steps, so loading time adds straight onto step time.",
+  "label": "core",
+  "key": "with dataloader(num_workers=0) (the default) the main",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "4. data loading: keep the next batch ready",
+  "text": "How it works. num_workers=n starts n worker processes that each build whole batches in the background; prefetch_factor (default 2 when workers are used) is how many batches each worker keeps ready ahead; persistent_workers=True keeps them alive between epochs instead of paying their start-up each epoch. pin_memory=True puts batches in page-locked host memory so a CUDA copy can run asynchronously with x.to(\"cuda\", non_blocking=True) ; it is a CUDA mechanism (signature at 2.14.1 includes pin_memory_device and in_order , read from the installed wheel ), and on an Apple chip the CPU and GPU share one memory, so it was not measured here.",
+  "label": "core",
+  "key": "in the background; prefetch_factor (default 2",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "4. data loading: keep the next batch ready",
+  "text": "A loop that needs 20 ms per step, fed by a loader whose batches cost 16 ms to build When it matters.",
+  "label": "core",
+  "key": "a loop that needs 20 ms",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "4. data loading: keep the next batch ready",
+  "text": "Whenever building a batch takes a noticeable share of the step: decoding images or audio, tokenising on the fly, reading from network storage, heavy augmentation.",
+  "label": "core",
+  "key": "decoding images or audio, tokenising on",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "4. data loading: keep the next batch ready",
+  "text": "Pre-tokenised data in memory-mapped arrays (as LLM pre-training usually uses) barely needs workers.",
+  "label": "core",
+  "key": "pre-tokenised data in memory-mapped arrays (as",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "4. data loading: keep the next batch ready",
+  "text": "How to check it: in a trace, the data range (or gaps on the GPU before forward); or time next(iter(loader)) on its own.",
+  "label": "core",
+  "key": "or gaps on the gpu before",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "4. data loading: keep the next batch ready",
+  "text": "Workers are separate processes: each holds its own copy of the Dataset object, so keep it small, and on macOS and Windows they start with spawn , so the Dataset must be importable and picklable.",
+  "label": "depth",
+  "key": "workers are separate processes: each holds",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "5. the optimizer step: one kernel or hundreds",
+  "text": "The optimizer step: one kernel or hundreds The problem.",
+  "label": "core",
+  "key": "the optimizer step: one kernel or",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "5. the optimizer step: one kernel or hundreds",
+  "text": "AdamW's update is a handful of element-wise operations per parameter tensor.",
+  "label": "core",
+  "key": "adamw's update is a",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "5. the optimizer step: one kernel or hundreds",
+  "text": "Written as a Python loop over tensors (the for-loop implementation), that is several separate operator calls for each of the model's tensors (100 tensors in the larger variant, 52 in the small one), each with Python and dispatcher overhead and, on a GPU, a separate kernel launch.",
+  "label": "core",
+  "key": "100 tensors in the larger variant",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "5. the optimizer step: one kernel or hundreds",
+  "text": "Two faster implementations exist. foreach uses torch._foreach_* operators that take a whole list of tensors per call (a few launches per step instead of several per tensor). fused does the whole update for all parameters in one kernel per device and dtype group.",
+  "label": "core",
+  "key": "foreach uses torch._foreach_* operators that take",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "5. the optimizer step: one kernel or hundreds",
+  "text": "Select with torch.optim.AdamW(..., foreach=True) or fused=True .",
+  "label": "core",
+  "key": "torch.optim.adamw(..., foreach=true) or fused=true",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "5. the optimizer step: one kernel or hundreds",
+  "text": "At 2.14.1 the default is foreach on CUDA-like devices and the for-loop on CPU and MPS; fused is never the default though it runs on CPU, MPS and CUDA ( torch/utils/_foreach_utils.py L8 to 23, per the root's Inside one step measurements).",
+  "label": "core",
+  "key": "at 2.14.1 the default is foreach",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "5. the optimizer step: one kernel or hundreds",
+  "text": "One AdamW step, three implementations When it matters.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading plus wind-up"
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "5. the optimizer step: one kernel or hundreds",
+  "text": "Many parameter tensors, small model, or a fast device where the arithmetic is cheap and launches dominate.",
+  "label": "core",
+  "key": "launches dominate",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "5. the optimizer step: one kernel or hundreds",
+  "text": "Cost: foreach and fused keep temporary lists or buffers; fused needs every parameter on a supported device and dtype.",
+  "label": "core",
+  "key": "needs every parameter on a supported",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "5. the optimizer step: one kernel or hundreds",
+  "text": "Check: the optimizer range in a trace, or time opt.step() on its own as above.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "checking a phase is the method of section 3"
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "6. mixed precision: fewer bits per number",
+  "text": "Mixed precision: fewer bits per number The problem. float32 uses 4 bytes per number; bfloat16 and float16 use 2.",
+  "label": "core",
+  "key": "bfloat16 and float16 use 2",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "6. mixed precision: fewer bits per number",
+  "text": "Half the bytes means half the memory traffic, and on GPUs with tensor cores the 16-bit matmuls also run several times faster.",
+  "label": "core",
+  "key": "on gpus with tensor cores",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "6. mixed precision: fewer bits per number",
+  "text": "Automatic mixed precision (AMP) gets most of that without rewriting the model: inside torch.autocast(device_type, dtype=torch.bfloat16) , ops on autocast's lists (matmuls, linear layers, attention) run in 16 bits, precision-sensitive ops (softmax, normalisation, losses) stay in float32, and the parameters themselves stay float32. bfloat16 keeps float32's exponent range (8 exponent bits) with fewer mantissa bits: no overflow, so no loss scaling needed.",
+  "label": "core",
+  "key": "inside torch.autocast(device_type, dtype=torch.bfloat16) , ops on",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "6. mixed precision: fewer bits per number",
+  "text": "The usual choice on recent GPUs. float16 has more mantissa but a narrow range: small gradients underflow to zero, so it needs torch.amp.GradScaler , which multiplies the loss by a large factor before backward, divides gradients before the step, and skips steps whose gradients overflowed. scaler = torch.amp.GradScaler(\"cuda\") # only for float16 with torch.autocast(\"cuda\", dtype=torch.float16): _, loss = model(x, y) scaler.scale(loss).backward(); scaler.step(opt); scaler.update(); opt.zero_grad(set_to_none=True) What bfloat16 did on this machine This is the result that does not transfer Data-centre NVIDIA GPUs since the A100 have bfloat16 tensor cores; there, bfloat16 matmuls run many times faster than float32 ones and AMP is close to free speed.",
+  "label": "core",
+  "key": "usual choice on recent gpus. float16",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "6. mixed precision: fewer bits per number",
+  "text": "This M1 Pro's CPU reports no bfloat16 instructions ( sysctl hw.optional.arm.FEAT_BF16 = 0, while FEAT_FP16 = 1) read on this machine , so bfloat16 math on it is converted and pays for the conversion; the measured MPS slowdown points the same way for its GPU (not checked against Apple documentation).",
+  "label": "core",
+  "key": "no bfloat16 instructions ( sysctl hw.optional.arm.feat_bf16",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "6. mixed precision: fewer bits per number",
+  "text": "The lesson that does transfer: check that the hardware has native support for the dtype before expecting a speedup, and measure.",
+  "label": "core",
+  "key": "native support for the dtype before",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Memory: what fills it during one step The problem.",
+  "label": "core",
+  "key": "memory: what fills it during one",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "A job that runs out of memory stops; a job that barely fits runs with a small batch and wastes the hardware.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Before cutting memory you need to know what holds it and when , because the peak is a moment, not a total.",
+  "label": "core",
+  "key": "the peak is a moment",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Five things live in memory during training (sizes for float32 and AdamW, with P parameters): Parameters 4 bytes × P .",
+  "label": "core",
+  "key": "five things live in memory during",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Alive the whole time.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "merged into \"parameters, 4 bytes x P, always\""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Gradients 4 bytes × P .",
+  "label": "core",
+  "key": "built layer by layer in backward",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Created during backward, layer by layer; freed by zero_grad(set_to_none=True) .",
+  "label": "core",
+  "key": "freed by zero_grad(set_to_none=true",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Optimizer state AdamW keeps two running averages per parameter: 8 bytes × P .",
+  "label": "core",
+  "key": "8 bytes × p from the first step()",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Created at the first step() , alive from then on.",
+  "label": "core",
+  "key": "from the first step()",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Activations Tensors the forward pass saves for backward (section 3 of the root).",
+  "label": "core",
+  "key": "saved by forward for backward",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "They grow through forward and shrink through backward.",
+  "label": "core",
+  "key": "saved by forward for backward",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "They scale with batch × sequence length.",
+  "label": "core",
+  "key": "with batch × sequence length",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Temporaries Short-lived: a matmul's output before the next op consumes it, gradients of activations flowing back through backward.",
+  "label": "core",
+  "key": "short-lived temporaries",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "So the fixed cost is 16 bytes per parameter (4 + 4 + 8).",
+  "label": "core",
+  "key": "the fixed cost is 16 bytes",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Mixed-precision training with float32 master weights also comes to 16 bytes, split differently (2 + 2 + 12 in the ZeRO paper's accounting; Distributed Training owns that arithmetic and how sharding divides it).",
+  "label": "core",
+  "key": "mixed-precision training with float32 master weights",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "The variable cost is the activations, and the peak usually lands at the start of backward, when every activation is still saved and the first gradients start to appear.",
+  "label": "core",
+  "key": "comes early in backward",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "One training step of the larger variant, memory by category over time: plain against checkpointed, same scale measured on Apple M1 Pro , CPU, float32, PyTorch 2.14.1, deterministic (bytes, not time): PyTorch's memory profiler ( torch.profiler with profile_memory=True, record_shapes=True, with_stack=True , then prof._memory_profile() , the engine behind export_memory_timeline ) follows every tensor from allocation to free and puts it in a category.",
+  "label": "core",
+  "key": "the peak is a moment: memory by category",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "The second training step (optimizer state exists).",
+  "label": "depth",
+  "key": "the second training step (optimizer state",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Time on the x axis is the profiled run's own clock, so its length depends on load; only the heights are exact. src/exp/mem_step.py.",
+  "label": "depth",
+  "key": "the x axis is the profiled",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Reading the plain run.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading wind-up"
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Predict: in the running example's larger variant (8 blocks, d 512, context 256, batch 8, 25.4M parameters), which is bigger at the peak: parameters plus gradients plus AdamW state, or the saved activations?",
+  "label": "core",
+  "key": "larger variant (8 blocks, d 512",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Weights, gradients and optimizer state Activations About equal How to see this on your own job Device Tool What it gives you Any (CPU here) torch.profiler.profile(profile_memory=True, record_shapes=True, with_stack=True) , then prof.export_memory_timeline(\"m.html\") The chart above: live bytes by category (parameter, optimizer state, gradient, activation, autograd detail, temporary, input).",
+  "label": "core",
+  "key": "weights, gradients and optimizer state activations",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "It works on CPU, which is how this page measured it.",
+  "label": "depth",
+  "key": "it works on cpu, which is",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "CUDA torch.cuda.memory._record_memory_history(max_entries=100000) , run a few steps, torch.cuda.memory._dump_snapshot(\"s.pickle\") , drop the file on pytorch.org/memory_viz Every allocation and free with the Python stack that made it, plus the caching allocator's segments: you see fragmentation and reserved-but-unused memory, which the CPU profiler cannot show.",
+  "label": "depth",
+  "key": "cuda torch.cuda.memory._record_memory_history(max_entries=100000) , run a few",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Signature at 2.14.1: _record_memory_history(enabled='all', context='all', stacks='all', max_entries=..., device=None, clear_history=False, compile_context=False, global_record_annotations=False, skip_actions=None, record_pinned_host_memory=False, record_cuda=True) read from the installed wheel .",
+  "label": "depth",
+  "key": "signature at 2.14.1: _record_memory_history(enabled='all', context='all', stacks='all'",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Walkthrough: Understanding GPU memory, part 1 .",
+  "label": "depth",
+  "key": "walkthrough: understanding gpu memory, part 1",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Not run here : no CUDA device.",
+  "label": "depth",
+  "key": "not run here : no cuda",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "CUDA, quick numbers torch.cuda.max_memory_allocated() , memory_reserved() , memory_summary() ; device-agnostic torch.accelerator.max_memory_allocated() Allocated is what tensors use; reserved is what the caching allocator holds from the driver.",
+  "label": "depth",
+  "key": "cuda, quick numbers torch.cuda.max_memory_allocated() , memory_reserved",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "The gap is the allocator's cache and fragmentation; Memory allocators owns how it works and what PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True changes.",
+  "label": "depth",
+  "key": "the gap is the allocator's cache",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "MPS torch.mps.current_allocated_memory() , driver_allocated_memory() , recommended_max_memory() Totals only; no per-allocation history at 2.14.1 checked on the installed wheel .",
+  "label": "depth",
+  "key": "only; no per-allocation history at 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "What carries over to NVIDIA GPUs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "The categories and their sizes are the same bytes on any device for the same dtype and the same kernels.",
+  "label": "core",
+  "key": "the bytes per category are the same",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "Two things differ: the attention kernel decides whether a sequence-by-sequence matrix is saved (section 10), and the CUDA caching allocator adds its own overhead on top of the live bytes shown here (cached free blocks, rounding of allocation sizes; Memory allocators has the details), which is why memory_reserved exceeds the profiler's peak.",
+  "label": "core",
+  "key": "the attention kernel decides whether a",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "7. memory: what fills it during one step",
+  "text": "The Memory budget tab turns these categories into a calculator, checked against these measured peaks.",
+  "label": "core",
+  "key": "the memory budget tab turns",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "Activation checkpointing, full and selective The problem.",
+  "label": "core",
+  "key": "full and selective",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "Section 7's activations are the part that grows with batch and sequence length.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up restating section 8"
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "Activation checkpointing (also called rematerialisation) keeps only each block's input during forward and runs the block's forward a second time during backward to rebuild what it needs.",
+  "label": "core",
+  "key": "backward to rebuild what it needs",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "Memory goes down; compute goes up by roughly one extra forward of the checkpointed part.",
+  "label": "core",
+  "key": "one extra forward of the checkpointed",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "How it works in PyTorch. torch.utils.checkpoint.checkpoint(block, x, use_reentrant=False) .",
+  "label": "core",
+  "key": "checkpoint(block, x, use_reentrant=false)",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "The non-reentrant version (the one to use; the root's Inside one step tab measured it) hooks into autograd's saved-tensor mechanism: during forward it saves nothing inside the block, and when backward first asks for a saved tensor, it reruns the block's forward.",
+  "label": "owned:systems_and_performance/topic_pytorch_ecosystem/tensors_dispatcher_and_autograd",
+  "key": "non-reentrant",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "It also stops the recomputation early, as soon as it has rebuilt the last tensor backward needs ( torch/utils/checkpoint.py at 2.14.1).",
+  "label": "owned:systems_and_performance/topic_pytorch_ecosystem/tensors_dispatcher_and_autograd",
+  "key": "stops recomputing early",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "Selective activation checkpointing (SAC) keeps the checkpoint region but lets a policy decide, op by op, what to save anyway.",
+  "label": "core",
+  "key": "selective activation checkpointing (sac",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "The policy is a function called for every ATen op inside the region; it returns one of six CheckpointPolicy values at 2.14.1: MUST_SAVE , PREFER_SAVE , MUST_RECOMPUTE , PREFER_RECOMPUTE , MUST_CPU_OFFLOAD , PREFER_CPU_OFFLOAD read from the installed wheel (the last two move the saved tensor to host memory instead of dropping it).",
+  "label": "core",
+  "key": "six checkpointpolicy values at 2.14.1: must_save",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "The usual policy saves matmul outputs, which are expensive to recompute, and recomputes cheap element-wise ops ( PyTorch blog, 2025 ; SAC shipped as a prototype in 2.5): from functools import partial from torch.utils.checkpoint import checkpoint, create_selective_checkpoint_contexts, CheckpointPolicy aten = torch.ops.aten SAVE = {aten.mm.default, aten.addmm.default, aten.bmm.default, aten._scaled_dot_product_flash_attention_for_cpu.default} # the CPU attention kernel; on CUDA name the flash/efficient ops def policy(ctx, op, *args, **kwargs): return CheckpointPolicy.MUST_SAVE if op in SAVE else CheckpointPolicy.PREFER_RECOMPUTE x = checkpoint(block, x, use_reentrant=False, context_fn=partial(create_selective_checkpoint_contexts, policy)) Four ways to run the same step of the larger variant: memory and time measured on Apple M1 Pro , PyTorch 2.14.1, float32, the same batch and the same loss (3.39147) in all four.",
+  "label": "core",
+  "key": "element-wise ops ( pytorch blog, 2025",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "Memory: CPU memory profiler, deterministic (src/exp/mem_step.py).",
+  "label": "depth",
+  "key": "memory: cpu memory profiler, deterministic (src/exp/mem_step.py",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "ATen calls counted with a TorchDispatchMode .",
+  "label": "depth",
+  "key": "aten calls counted with a torchdispatchmode",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "Time: (src/exp/time_misc.py ckpt , bench lock).",
+  "label": "depth",
+  "key": "src/exp/time_misc.py ckpt , bench lock",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "Why \"save the matmuls\" saved so little here In this model most activation bytes are matmul outputs: the MLP's 4d-wide hidden layer (fc output, then GELU output) and the 3d-wide qkv projection.",
+  "label": "core",
+  "key": "most activation bytes are matmul outputs",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "A policy that saves every matmul keeps most of what plain training keeps.",
+  "label": "core",
+  "key": "most activation bytes are matmul outputs",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "Saving only the attention output and recomputing everything else gives full checkpointing's peak.",
+  "label": "core",
+  "key": "full checkpointing's peak",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "SAC pays off when the expensive ops have small outputs and the cheap ops have big ones, or when you save some layers' matmuls and not others; measure with your model, do not assume.",
+  "label": "core",
+  "key": "expensive ops have small outputs",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "Under torch.compile , AOTAutograd's partitioner already decides what to save and what to recompute (the torch.compile child owns it).",
+  "label": "core",
+  "key": "partitioner already decides what to save",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "One knob turns that decision into a memory target: torch._functorch.config.activation_memory_budget , default 1.0 (the runtime-optimised choice); 0.0 means as little as checkpointing the whole compiled region; in between, it \"solves a 0-1 knapsack to find the minimum recompute necessary to stay below the activation memory budget\" ( torch/_functorch/config.py L190 to 202 at 2.14.1).",
+  "label": "core",
+  "key": "it \"solves a 0-1 knapsack to",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "The PyTorch blog's example spells it torch._dynamo.config.activation_memory_budget ; at 2.14.1 the setting lives in torch._functorch.config checked on the installed wheel .",
+  "label": "core",
+  "key": "spells it torch._dynamo.config.activation_memory_budget ; at 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "When activations dominate the peak (long sequences, big micro-batches) and you would otherwise shrink the batch.",
+  "label": "core",
+  "key": "and you would otherwise shrink the",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "When it does not: when weights and optimizer state dominate (shard those instead: FSDP2 in the Distributed lab ), or when you are compute-bound and memory is not the limit.",
+  "label": "core",
+  "key": "when weights and optimizer state dominate",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "8. activation checkpointing, full and selective",
+  "text": "How to check it: peak memory before and after (section 7's tools), step time before and after, and the loss on the same batch, which must not change.",
+  "label": "core",
+  "key": "step time before and after, and",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "The logits problem and fused linear cross-entropy The problem.",
+  "label": "core",
+  "key": "the logits problem and fused linear",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "A language model's last layer turns each position's hidden vector (d numbers) into one score per vocabulary entry (V numbers): the logits , a tensor of batch × sequence × V.",
+  "label": "core",
+  "key": "one score per vocabulary entry",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "The running example's vocabulary is 43 characters, so its logits are tiny.",
+  "label": "core",
+  "key": "the running example has 43 characters",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "Real tokenisers have tens of thousands of entries (GPT-2's has 50,257), and then the logits, their softmax and their gradient become the largest tensors of the whole step.",
+  "label": "core",
+  "key": "the logits, their softmax and their",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "To see it, the larger variant was given GPT-2's vocabulary size (V = 50,257; the batches still use only our 43 characters, which changes no shapes and therefore no bytes).",
+  "label": "core",
+  "key": "43 characters, which changes no shapes",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "One logits tensor is then 8 × 256 × 50,257 × 4 bytes = 411.7 MB .",
+  "label": "core",
+  "key": "8 × 256 × 50,257 ×",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "How fusing fixes it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "Instead of computing all logits and then the loss, a fused linear cross-entropy processes the positions in chunks: for each chunk it computes that chunk's logits, the loss and the gradient pieces, then frees them.",
+  "label": "core",
+  "key": "a fused linear cross-entropy processes the",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "The full logits tensor never exists.",
+  "label": "core",
+  "key": "the full logits tensor never exists",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "The same idea is behind Liger Kernel 's fused linear cross-entropy and Apple's Cut Cross-Entropy (2024); PyTorch 2.13 added it to core as nn.LinearCrossEntropyLoss and F.linear_cross_entropy ( 2.13 release notes , \"up to 4x lower peak memory\", release-note figure).",
+  "label": "core",
+  "key": "cross-entropy and apple's cut cross-entropy (2024",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "The default does not chunk At 2.14.1, F.linear_cross_entropy(x, W, y) with the default options=None runs the reference path, which materialises all logits like the unfused code.",
+  "label": "core",
+  "key": "default does not chunk at 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "The chunked path needs options=LinearCrossEntropyOptions() (from torch.nn.modules.linear_cross_entropy_options ; its docstring: \"Pass options=None to use the reference path; pass an instance of this class to opt in\").",
+  "label": "core",
+  "key": "the chunked path needs options=linearcrossentropyoptions() (from",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "Measured below: the default saves exactly nothing. from torch.nn.modules.linear_cross_entropy_options import LinearCrossEntropyOptions h = model.ln_f(hidden) # (B*T, d): stop before the head loss = F.linear_cross_entropy(h.view(-1, d), model.head.weight, y.view(-1), options=LinearCrossEntropyOptions()) # without options: no chunking Peak memory of one step with a 50,257-entry vocabulary measured on Apple M1 Pro , CPU, float32, PyTorch 2.14.1, deterministic (CPU memory profiler, src/exp/mem_step.py); the same loss in every run ( ).",
+  "label": "core",
+  "key": "before the head loss = f.linear_cross_entropy(h.view(-1",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "Large vocabularies with long sequences: the logits scale with tokens per step × V, independent of model width, so a small model with a big tokenizer is hit hardest.",
+  "label": "core",
+  "key": "width, so a small model with",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "The options docstring adds its own rule: chunking \"is a win when num_batches >= in_features and num_classes > in_features ; below that, the reference path is cheaper\".",
+  "label": "core",
+  "key": "rule: chunking \"is a win when",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "With 43 classes the running example is far below that.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "implied by the rule just quoted"
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "9. the logits problem and fused linear cross-entropy",
+  "text": "How to check it: the peak (section 7) with and without; the loss must match to rounding.",
+  "label": "core",
+  "key": "the loss to rounding",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "Attention: SDPA backends, FlexAttention, variable length The problem.",
+  "label": "core",
+  "key": "sdpa backends, flexattention, variable length",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "Attention compares every position with every earlier one.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by the next sentence"
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "Written out (the running example's attn=\"manual\" ), it builds a sequence × sequence matrix of scores per head, softmaxes it, and keeps it for backward.",
+  "label": "core",
+  "key": "written out (the running example's attn=\"manual\"",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "That matrix grows with the square of the sequence length: double the context, four times the memory.",
+  "label": "core",
+  "key": "double the context, four times the",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "The fix, from FlashAttention , is to compute attention in tiles and keep only the output plus one number per row (the log of the softmax's sum, logsumexp ), recomputing the tiles in backward.",
+  "label": "core",
+  "key": "only the output plus one number",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "Memory becomes linear in sequence length; Writing kernels owns how the kernel does it.",
+  "label": "core",
+  "key": "memory becomes linear in sequence length",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "Bytes kept for backward by one attention call (1 sequence, 8 heads of 64), by sequence length measured on Apple M1 Pro , float32, PyTorch 2.14.1, deterministic: unique storages passed to autograd's saved-tensor hooks, q, k and v excluded (src/exp/attn_backends.py).",
+  "label": "core",
+  "key": "a fused kernel keeps 32 times less",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "SDPA: one function, several kernels F.scaled_dot_product_attention ( SDPA ) checks the inputs against each backend's constraints in a fixed priority order and runs the first that qualifies.",
+  "label": "core",
+  "key": "f.scaled_dot_product_attention ( sdpa ) checks the",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "What decides it, read from the C++ at v2.14.1: Device Order tried What disqualifies the fused kernel CUDA flash, efficient, math, cuDNN by default ( aten/src/ATen/Context.h L483 to 488); cuDNN first on compute capability 9.x or 10.x with cuDNN newer than 9.15 ( aten/src/ATen/native/transformers/cuda/sdp_utils.cpp L94 to 136; with CUDA 12 wheels only minor version 0 or 3; TORCH_CUDNN_SDPA_DEPRIORITIZED=1 turns it off) dtype (flash needs float16 or bfloat16), head size, an arbitrary attn_mask (flash takes only is_causal ), dropout for some kernels.",
+  "label": "depth",
+  "key": "read from the c++ at v2.14.1",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "CPU flash (a CPU kernel), then math ( sdp_utils_cpp.cpp L61 to 104) dropout, nested tensors, unsupported shapes or strides (L36 to 57); dtypes float32, float64, bfloat16, float16 all qualify MPS none: MPS registers no fused-choice function, so the backend is always math ( attention.cpp L814); without gradients it runs a fused MPS math kernel, with gradients the generic math path (L862 to 866) everything; and sdpa_kernel([...]) does not change it (below) What actually ran here: the kernel SDPA chose, and what forcing each backend does measured on Apple M1 Pro , PyTorch 2.14.1: the ATen ops recorded by the profiler for one call; error against a float64 reference computed on the CPU (src/exp/attn_backends.py).",
+  "label": "depth",
+  "key": "kernel), then math ( sdp_utils_cpp.cpp l61",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "How to check which backend ran on your machine: profile one call and read the op names ( aten::_scaled_dot_product_flash_attention , ..._efficient_attention , ..._cudnn_attention , ..._attention_math ), or force one with with torch.nn.attention.sdpa_kernel([SDPBackend.FLASH_ATTENTION]): , which raises instead of falling back silently.",
+  "label": "core",
+  "key": "profile one call and read the",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "On CUDA a warning names the failed constraint.",
+  "label": "depth",
+  "key": "on cuda a warning names the",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "Newer FlashAttention versions plug in from outside: torch.nn.attention.list_flash_attention_impls() returns ['FA3', 'FA4'] at 2.14.1 measured ; activate_flash_attention_impl(\"FA4\") imports flash_attn.cute.interface from the separately installed flash-attn package and needs compute capability 9.0 or 10.0 ( torch/nn/attention/_fa4.py L45, L110); FA3 needs exactly 9.0 ( _fa3.py L154).",
+  "label": "depth",
+  "key": "in from outside: torch.nn.attention.list_flash_attention_impls() returns ['fa3'",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "FlexAttention: attention variants as two small functions Fixed backends cover causal and full attention.",
+  "label": "core",
+  "key": "flexattention: attention variants as two small",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "Everything else (sliding windows, several documents packed into one sequence, a prefix that sees itself both ways, relative position biases, soft-capping) used to mean a custom kernel or the slow math path.",
+  "label": "core",
+  "key": "used to mean a custom kernel",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "FlexAttention ( torch.nn.attention.flex_attention , prototype in 2.5) takes two Python functions instead: score_mod(score, b, h, q_idx, kv_idx) changes one score: add a bias, cap it. mask_mod(b, h, q_idx, kv_idx) says whether query q_idx may see key kv_idx . create_block_mask evaluates it once per tile of 128 × 128 (the default block size, flex_attention.py L444) and stores, per row of tiles, which tiles are fully allowed, partly allowed (the kernel applies the mask inside) or empty (the kernel skips them).",
+  "label": "core",
+  "key": "torch.nn.attention.flex_attention , prototype in 2.5",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "That BlockMask is where the speed comes from: empty tiles cost nothing. from torch.nn.attention.flex_attention import flex_attention, create_block_mask doc = document_id_per_position # (T,) int tensor, 0,0,0,1,1,2,... def doc_causal(b, h, q, k): return (doc[q] == doc[k]) & (q >= k) bm = create_block_mask(doc_causal, None, None, T, T) # once per shape; reuse it flex = torch.compile(flex_attention) # eager mode materialises the full score matrix out = flex(q, k, v, block_mask=bm) What FlexAttention does not do on this Mac at 2.14.1 No backward on CPU or MPS. _validate_device raises \"FlexAttention does not support backward on CPU\" (and on MPS) when an input requires grad ( flex_attention.py L2204 to 2219) reproduced .",
+  "label": "core",
+  "key": "document_id_per_position # (t,) int tensor, 0,0,0,1,1,2",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "So it cannot train the running example here; on CUDA it can.",
+  "label": "core",
+  "key": "on cuda (or xpu or hpu) it trains",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "No compiled kernel on a Mac CPU.",
+  "label": "core",
+  "key": "no compiled kernel on a mac",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "Inductor's CPU FlexAttention template requires AVX2 and refuses sys.platform == \"darwin\" ( torch/_inductor/kernel/flex/flex_cpu.py L31 to 40); compiling fails with \"torch.compile on current platform is not supported for CPU\" reproduced .",
+  "label": "core",
+  "key": "avx2 and refuses sys.platform == \"darwin\"",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "Eager mode works and is exact, but materialises the scores.",
+  "label": "core",
+  "key": "works and is exact",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "MPS compiles it (Inductor generates a Metal kernel; supported since 2.13 per the 2.13 release notes ), inference only.",
+  "label": "core",
+  "key": "the 2.13 release notes",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "Published speed on GPUs: 90% of FlashAttention-2 in forward and 85% in backward on the authors' benchmarks vendor, PyTorch team, 2024 ( FlexAttention blog ).",
+  "label": "core",
+  "key": "vendor, pytorch team, 2024 ( flexattention",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "The Attention lab tab draws each mask tile by tile and puts the measured times and errors side by side.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed Attention lab tab"
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "Variable-length attention Packing several sequences into one row avoids padding; the mask then has to stop sequences seeing each other.",
+  "label": "depth",
+  "key": "packing several sequences into one row",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "Two ways: a document mask in FlexAttention (above), or torch.nn.attention.varlen.varlen_attn(q, k, v, cu_seq_q, cu_seq_k, max_q, max_k) (added in 2.10), which takes all sequences concatenated as (total tokens, heads, head size) plus cumulative lengths, like flash_attn_varlen_func .",
+  "label": "depth",
+  "key": "cu_seq_k, max_q, max_k) (added in 2.10",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "10. attention: sdpa backends, flexattention, variable length",
+  "text": "At 2.14.1 it calls aten._flash_attention_forward or cuDNN, both CUDA kernels ( torch/nn/attention/varlen.py L54, L139).",
+  "label": "depth",
+  "key": "at 2.14.1 it calls aten._flash_attention_forward or",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "11. torchao: fewer bits for weights, activations and gradients The problem.",
+  "label": "core",
+  "key": "torchao: fewer bits for weights, activations",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "Every number in the running example is a 32-bit float.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "Fewer bits means less memory, less data moved and, on hardware with matching instructions, faster matmuls. torchao ( pip install torchao , 0.18.0 here, released 2026-08-03) is PyTorch's library for that, for inference and for training.",
+  "label": "core",
+  "key": "pip install torchao , 0.18.0",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "The formats themselves (int8, int4, float8 E4M3 and E5M2, the MX block formats) belong to Quantization and Precision ; this section is about the PyTorch side: what torchao does to a model, what ran on this machine, and what needs which GPU.",
+  "label": "core",
+  "key": "the formats themselves (int8, int4, float8",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "How it works. quantize_(model, config) walks the model and replaces each nn.Linear 's weight with a tensor subclass (a Python class that wraps the low-bit data and its scales and intercepts every op on it; the Extending PyTorch child shows how subclasses are built).",
+  "label": "core",
+  "key": "quantize_(model, config) walks the model and",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "The module code is unchanged; when F.linear reaches the subclass, it dispatches to a quantized kernel or dequantizes.",
+  "label": "core",
+  "key": "it dispatches to a quantized kernel",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "Because it is a subclass, it composes with torch.compile , FSDP2 and DTensor.",
+  "label": "core",
+  "key": "it composes with torch.compile , fsdp2",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "Weight quantization after training, run here The larger variant after 150 training steps, every Linear except the tied head quantized measured on Apple M1 Pro , CPU, torchao 0.18.0, PyTorch 2.14.1 (src/exp/torchao_lab.py). \"Linear bytes\": every inner tensor of the 32 block weights plus the head's float32 weight (data, scales, zero points).",
+  "label": "core",
+  "key": "the larger variant after 150 training",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "Loss on 8 fixed batches of the same text (the model has no held-out data: it is a toy).",
+  "label": "depth",
+  "key": "loss on 8 fixed batches of",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "Logit difference against the float32 model on one batch.",
+  "label": "depth",
+  "key": "logit difference against the float32 model",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "One 4096 × 4096 Linear, quantized: one token against 2,048 tokens Low-precision training: float8 and MX float8 training ( torchao.float8.convert_to_float8_training(model) ) swaps each Linear for a Float8Linear that casts its inputs, weights and output gradients to float8 with a scale per tensor (or per row), runs the matmul in float8 on the tensor cores and keeps the master weights in higher precision.",
+  "label": "core",
+  "key": "float8 training ( torchao.float8.convert_to_float8_training(model) ) swaps",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "Published: up to 1.5 times the throughput at 512 GPUs on a 405B model vendor, torchao README ( torchao ).",
+  "label": "core",
+  "key": "up to 1.5 times the throughput",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "It needs float8 tensor cores: compute capability 8.9 or newer (Ada, Hopper, Blackwell), or AMD MI300; torchao's dynamic float8 inference config asserts exactly that (\"requires CUDA compute capability ≥8.9 or MI300+ or XPU\", reproduced as the error on this CPU).",
+  "label": "core",
+  "key": "compute capability 8.9 or newer (ada",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "What can run here is the numerics: Float8LinearConfig(emulate=True) performs the same casts and scales and emulates the float8 matmul in float32.",
+  "label": "core",
+  "key": "the same casts and scales",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "It shows whether float8 rounding hurts this model, nothing about speed.",
+  "label": "core",
+  "key": "the numerics, not the speed",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "60 training steps of the running example: float32 against emulated float8 (same seed, same batches) measured on Apple M1 Pro , CPU, torchao 0.18.0; the head (256 × 43) stays in float32 because float8 matmuls need both dimensions divisible by 16 (src/exp/torchao_lab.py).",
+  "label": "core",
+  "key": "60 training steps, same seed",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "MX formats (MXFP8, MXFP4; and NVIDIA's NVFP4) put one shared scale on every block of 32 (MX) or 16 (NVFP4) values, so outliers cost less precision than with one scale per tensor.",
+  "label": "depth",
+  "key": "mx formats (mxfp8, mxfp4; and nvidia's",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "In torchao 0.18.0 they live in torchao.prototype.mx_formats ( MXDynamicActivationMXWeightConfig , NVFP4DynamicActivationNVFP4WeightConfig ; listed from the installed package ) and target Blackwell's block-scaled tensor cores.",
+  "label": "depth",
+  "key": "in torchao 0.18.0 they live in",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "Not run here : no Blackwell GPU, and no CPU emulation was attempted.",
+  "label": "depth",
+  "key": "not run here : no blackwell",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "Quantization-aware training (QAT) The idea.",
+  "label": "core",
+  "key": "quantization-aware training (qat",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "Quantizing after training rounds weights the model never saw rounded.",
+  "label": "core",
+  "key": "never saw rounded",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "QAT fine-tunes with fake quantization : the forward pass rounds weights to the target grid (then back to float), the backward pass treats the rounding as identity, so the weights learn to sit where rounding hurts least.",
+  "label": "core",
+  "key": "rounds weights to the target grid",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "In torchao: quantize_(m, QATConfig(base_config, step=\"prepare\")) , train, then quantize_(m, QATConfig(base_config, step=\"convert\")) .",
+  "label": "core",
+  "key": "in torchao: quantize_(m, qatconfig(base_config, step=\"prepare\"",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "Other torchao pieces, by name torchao.optim.AdamW8bit and AdamW4bit (optimizer state in 8 or 4 bits: the 8 bytes per parameter of section 7 shrink to about 2 or 1), CPUOffloadOptimizer (state and the step on the CPU), sparsify_ for 2:4 sparsity on GPUs that accelerate it.",
+  "label": "depth",
+  "key": "torchao.optim.adamw8bit and adamw4bit (optimizer state in",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "11. torchao: fewer bits for weights, activations and gradients",
+  "text": "All present in 0.18.0 checked ; not run here .",
+  "label": "depth",
+  "key": "all present in 0.18.0 checked",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "12. what carries over to nvidia gpus",
+  "text": "What carries over to NVIDIA GPUs Every number above was measured on a laptop.",
+  "label": "depth",
+  "key": "what carries over to nvidia gpus",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "12. what carries over to nvidia gpus",
+  "text": "This table says, technique by technique, what transfers to a data-centre NVIDIA GPU and which way the result is likely to move. \"Likely\" means reasoning from how the hardware differs, not a measurement; published GPU figures are quoted where they exist.",
+  "label": "depth",
+  "key": "\"likely\" means reasoning from how the",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "12. what carries over to nvidia gpus",
+  "text": "Technique Transfers exactly Likely different on an H100-class GPU Honest timing, profiler, traces The method; record_function ranges; key_averages Add ProfilerActivity.CUDA for the GPU lane; Nsight Systems for kernel-level detail ( Profiling, benchmarking and correctness ) DataLoader workers The overlap mechanism Matters more: a faster GPU leaves less time per step to hide loading; add pin_memory=True with non_blocking=True copies Fused optimizer Ops per step (one fused kernel against several per tensor) foreach is already the CUDA default; fused gains less over foreach than over the for-loop bfloat16 autocast Which ops autocast casts; memory of 16-bit activations Opposite sign: bfloat16 tensor cores make matmuls several times faster than float32 torch.compile Graphs, fusion decisions, recompiles (the root's Compile lab ) Triton kernels and CUDA graphs; the PyTorch team measured 43% faster training on average over 163 models on A100 vendor ( PyTorch 2.x ) Memory categories and peaks Bytes per category for the same dtype and kernels; the formulas of the Memory budget tab The caching allocator adds reserved-but-free memory; flash attention saves no T × T matrix (as the CPU kernel here) Checkpointing, SAC Memory saved, ops recomputed Relative time cost similar (one extra forward of the checkpointed part); SAC policies must name the CUDA attention ops Fused linear cross-entropy Peak memory saved The same trade; the time cost was not measured on a GPU here SDPA The API and sdpa_kernel Real backend choice: flash, efficient, cuDNN (first on Hopper and Blackwell with recent cuDNN), FA3/FA4 plug-ins FlexAttention score_mod, mask_mod, BlockMask counts, numerics Compiled Triton kernels with backward: trainable, near FlashAttention-2 speed vendor torchao Bytes per format, which configs exist, numerics (emulated float8) float8 training needs compute capability 8.9 or newer; MX and NVFP4 need Blackwell; Int4WeightOnlyConfig needs its kernel package ( mslk at 0.18.0), not installed here",
+  "label": "depth",
+  "key": "exactly likely different on an h100-class",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Timing GPU code without a synchronize You time the queuing, not the work (section 1 measured the gap).",
+  "label": "depth",
+  "key": "timing gpu code without a synchronize",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Synchronize before reading the clock, or use torch.utils.benchmark.Timer , which does it for you at 2.14.1.",
+  "label": "depth",
+  "key": "for you at 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Reading the big .item() bar as the problem On a GPU, the bar where the CPU waits is where queued work surfaces.",
+  "label": "depth",
+  "key": "reading the big .item() bar as",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Removing the .item() moves the wait elsewhere unless the GPU had idle time to overlap.",
+  "label": "depth",
+  "key": "removing the .item() moves the wait",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Look at the device lane, or time phases with a synchronize after each.",
+  "label": "depth",
+  "key": "look at the device lane, or",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Applying the standard checklist without measuring bfloat16 autocast and torch.compile made this machine slower (section 3).",
+  "label": "depth",
+  "key": "bfloat16 autocast and torch.compile made this",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Each fix is a hypothesis; keep it only if the measured gain beats the noise.",
+  "label": "depth",
+  "key": "each fix is a hypothesis",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Calling F.linear_cross_entropy without options At 2.14.1 the default is the reference path and saves no memory (section 9).",
+  "label": "depth",
+  "key": "the reference path saves no memory at 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting sdpa_kernel([FLASH_ATTENTION]) to force a kernel everywhere On MPS at 2.14.1 the context manager is ignored: the math path always runs (section 10).",
+  "label": "depth",
+  "key": "expecting sdpa_kernel([flash_attention]) to force a kernel",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "On CPU and CUDA it restricts the choice and raises if nothing qualifies.",
+  "label": "depth",
+  "key": "on cpu and cuda it restricts",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Calling flex_attention without torch.compile Eager FlexAttention materialises the whole score matrix (it warns).",
+  "label": "depth",
+  "key": "materialises the whole score matrix",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Compile it, and build the BlockMask once per shape, not every step.",
+  "label": "core",
+  "key": "once per shape",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "On CPU and MPS it is inference-only at 2.14.1.",
+  "label": "core",
+  "key": "no backward on cpu or mps",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Assuming \"int4\" means 4 bits in memory IntxWeightOnlyConfig(int4) stored a byte per value plus group scales and came out larger than int8 (section 11).",
+  "label": "depth",
+  "key": "assuming \"int4\" means 4 bits in",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Adding up 16 bytes per parameter and all activations as \"the peak\" Gradients grow while activations shrink; they are rarely all alive together.",
+  "label": "depth",
+  "key": "adding up 16 bytes per parameter",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The peak is the larger of two moments (the Memory budget tab), and the sum overestimates it.",
+  "label": "depth",
+  "key": "the peak is the larger of",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A selective-checkpointing policy that names the wrong ops Op names differ by device ( _scaled_dot_product_flash_attention_for_cpu on CPU, _scaled_dot_product_flash_attention or _efficient_attention on CUDA).",
+  "label": "depth",
+  "key": "a selective-checkpointing policy that names the",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A policy that names none of the ops that actually run saves nothing and silently behaves like full checkpointing.",
+  "label": "depth",
+  "key": "saves nothing and silently behaves like",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Leaving the profiler on for the whole run Use schedule(wait, warmup, active) so it records a few steps; with with_stack=True and profile_memory=True traces get large and steps slow.",
+  "label": "depth",
+  "key": "leaving the profiler on for the",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Interview questions, with short answers Your training step got slower after you added torch.cuda.synchronize() for timing.",
+  "label": "depth",
+  "key": "your training step got slower after",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why, and is the number wrong?",
+  "label": "depth",
+  "key": "why, and is the number wrong?",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "It removed CPU and GPU overlap, so the step is a little slower; the number is now honest about one step's latency.",
+  "label": "depth",
+  "key": "it removed cpu and gpu overlap",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "For throughput, time many steps between two synchronizes.",
+  "label": "depth",
+  "key": "for throughput, time many steps between",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How do you tell a data-loading bottleneck from a compute one?",
+  "label": "depth",
+  "key": "how do you tell a data-loading",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "In the trace: gaps on the GPU before forward and long time inside the DataLoader's __next__ .",
+  "label": "depth",
+  "key": "in the trace: gaps on the",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Or time next(iter(loader)) alone against the step.",
+  "label": "depth",
+  "key": "or time next(iter(loader)) alone against the",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Fix with workers, prefetching, pre-processing offline.",
+  "label": "depth",
+  "key": "fix with workers, prefetching, pre-processing offline",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Where is peak memory usually reached in a training step, and what lowers it?",
+  "label": "depth",
+  "key": "where is peak memory usually reached",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "At the start of backward (all activations saved, first gradients appearing).",
+  "label": "depth",
+  "key": "at the start of backward (all",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Checkpointing, smaller micro-batch, shorter sequence, fused losses, flash attention.",
+  "label": "depth",
+  "key": "checkpointing, smaller micro-batch, shorter sequence, fused",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "If the peak is at the end of backward, it is gradients and optimizer state: shard them (FSDP2) or use a lighter optimizer.",
+  "label": "depth",
+  "key": "and optimizer state: shard them (fsdp2",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Full checkpointing against selective checkpointing?",
+  "label": "depth",
+  "key": "full checkpointing against selective checkpointing?",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Full keeps only block inputs and recomputes the block's forward (about one extra forward).",
+  "label": "depth",
+  "key": "full keeps only block inputs and",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "SAC saves chosen ops (typically matmuls) and recomputes the rest: less recompute, less saving.",
+  "label": "depth",
+  "key": "sac saves chosen ops (typically matmuls",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Which wins depends on where the bytes are: here the matmul outputs were most of the bytes.",
+  "label": "depth",
+  "key": "which wins depends on where the",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why does a large vocabulary blow up memory, and what fixes it?",
+  "label": "depth",
+  "key": "why does a large vocabulary blow",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Logits are batch × sequence × vocabulary floats, plus their softmax and gradient.",
+  "label": "depth",
+  "key": "logits are batch × sequence ×",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A fused linear cross-entropy computes them in chunks and never holds them all ( nn.LinearCrossEntropyLoss , PyTorch 2.13+).",
+  "label": "depth",
+  "key": "all ( nn.linearcrossentropyloss , pytorch 2.13+",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What does SDPA do when you pass an arbitrary attn_mask on CUDA?",
+  "label": "depth",
+  "key": "what does sdpa do when you",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The flash backend only supports is_causal , so it falls to memory-efficient attention (supports additive masks) or math.",
+  "label": "depth",
+  "key": "the flash backend only supports is_causal",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "FlexAttention covers structured masks without a dense mask tensor.",
+  "label": "depth",
+  "key": "flexattention covers structured masks without a",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What is a BlockMask and why does it matter?",
+  "label": "depth",
+  "key": "what is a blockmask and why",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A tile-level summary of a mask_mod: per row of tiles, which tiles are fully allowed, partly allowed, or empty.",
+  "label": "depth",
+  "key": "a tile-level summary of a mask_mod",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The kernel skips empty tiles entirely, so sparse patterns (sliding window, documents) cost less than causal.",
+  "label": "depth",
+  "key": "the kernel skips empty tiles entirely",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Weight-only int8 against dynamic int8 activations: when each?",
+  "label": "depth",
+  "key": "weight-only int8 against dynamic int8 activations",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Weight-only when memory-bound (small batch decoding: each weight is read once per token).",
+  "label": "depth",
+  "key": "weight-only when memory-bound (small batch decoding",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Quantized activations when compute-bound (large batches, prefill, training), where int8 or float8 matmuls are faster than float ones.",
+  "label": "depth",
+  "key": "large batches, prefill, training), where int8",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why does float8 training need special hardware, and what does torchao do?",
+  "label": "depth",
+  "key": "why does float8 training need special",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Speed needs float8 tensor cores (compute capability 8.9 or newer). torchao's Float8Linear casts inputs, weights and gradients to float8 with per-tensor or per-row scales and keeps master weights in high precision; on other hardware it can only emulate. for-loop, foreach, fused optimizers?",
+  "label": "depth",
+  "key": "speed needs float8 tensor cores (compute",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Several ops per tensor; a few multi-tensor ops per step; one kernel for all.",
+  "label": "depth",
+  "key": "several ops per tensor; a few",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Fused is fastest where supported; foreach is the CUDA default at 2.14.1.",
+  "label": "depth",
+  "key": "is the cuda default at 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-trace",
+  "section": "",
+  "text": "Two real profiler traces of the same training step of the running example's larger variant (8 blocks, d 512, context 256, batch 8): as first written, and after the bottleneck hunt of the Reading tab's section 3 kept the fixes that helped.",
+  "label": "core",
+  "key": "two real torch.profiler traces",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-trace",
+  "section": "",
+  "text": "Lanes are threads; bars are what each thread was doing; nesting goes down.",
+  "label": "core",
+  "key": "lanes are threads",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-trace",
+  "section": "",
+  "text": "Try: press Play to sweep both steps at the same clock and watch where the \"before\" step loses time; then click any bar for its name and duration, and switch between MPS and CPU.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "instruction for the removed tab"
+ },
+ {
+  "id": 274,
+  "tab": "t-trace",
+  "section": "",
+  "text": "Zoom whole step 4× 16× 64× Pan Click a bar.",
+  "label": "core",
+  "key": "zoom whole step 4× 16× 64×",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-trace",
+  "section": "",
+  "text": "Where the time went: ATen ops by self time How to read a trace like this Top lane, labelled ranges.",
+  "label": "depth",
+  "key": "where the time went: aten ops",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-trace",
+  "section": "",
+  "text": "The step was wrapped in torch.profiler.record_function(\"data\") , \"forward\" , \"backward\" , \"optimizer\" and \"log loss (.item)\" .",
+  "label": "core",
+  "key": "the record_function ranges",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-trace",
+  "section": "",
+  "text": "Your own labels are the fastest way to map a trace onto your code.",
+  "label": "core",
+  "key": "cheap labels worth leaving",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-trace",
+  "section": "",
+  "text": "Bars below a label are the ATen operators the Python code called, nested: aten::linear contains aten::addmm , and so on.",
+  "label": "core",
+  "key": "the aten ops they called, nested",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-trace",
+  "section": "",
+  "text": "A bar's self time is its length minus its children.",
+  "label": "core",
+  "key": "minus its children",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-trace",
+  "section": "",
+  "text": "On MPS (and CUDA) the CPU only enqueues work.",
+  "label": "core",
+  "key": "the cpu only enqueues work",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-trace",
+  "section": "",
+  "text": "The forward bars are short because the CPU hands kernels to the GPU and moves on; the GPU's own timeline is not in this trace (on CUDA, ProfilerActivity.CUDA adds it as a separate lane; on MPS the GPU side goes to Instruments through torch.mps.profiler.profile() ).",
+  "label": "core",
+  "key": "timeline is not in this trace",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-trace",
+  "section": "",
+  "text": "The long bar under .item() is not the cost of .item() : it is the CPU waiting for all the queued GPU work to finish.",
+  "label": "core",
+  "key": "every queued kernel finishing",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-trace",
+  "section": "",
+  "text": "On the CPU the bars are the work itself , so their lengths add up to the step.",
+  "label": "core",
+  "key": "cpu the bars are the work",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-trace",
+  "section": "",
+  "text": "A second lane appears when autograd's engine runs backward on its own thread for a device (MPS here; CUDA likewise).",
+  "label": "core",
+  "key": "a second lane",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-attn",
+  "section": "",
+  "text": "One attention pattern, drawn twice: position by position (left: which key each query may see) and tile by tile, the way a FlexAttention kernel sees it (right).",
+  "label": "core",
+  "key": "never visits an empty tile",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-attn",
+  "section": "",
+  "text": "Then the kernel's sweep, animated: SDPA with a dense mask tensor visits every tile; FlexAttention skips the empty ones.",
+  "label": "core",
+  "key": "dense sdpa computes every tile",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-attn",
+  "section": "",
+  "text": "Try: pick Sliding window at 4,096 positions and press Play in both modes; compare the tile counters.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "instruction for the removed Attention lab tab"
+ },
+ {
+  "id": 288,
+  "tab": "t-attn",
+  "section": "",
+  "text": "Then pick Document and look at the partial tiles along the document boundaries.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "instruction for the removed tab"
+ },
+ {
+  "id": 289,
+  "tab": "t-attn",
+  "section": "",
+  "text": "Positions: query (row) may see key (column) 128 × 128 tiles: the BlockMask allowed / full tile partial tile (mask applied inside) empty tile (skipped by FlexAttention) tile being computed Measured: time and correctness Correctness: measured on Apple M1 Pro , PyTorch 2.14.1, B = 2, 4 heads, T = 256, head size 64, float32; largest absolute difference from attention computed in float64 on the CPU with the same mask (src/exp/flex_lab.py).",
+  "label": "core",
+  "key": "row) may see key (column) 128",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-attn",
+  "section": "",
+  "text": "On the CPU, compiled FlexAttention is unavailable on macOS and FlexAttention ran eagerly; on MPS it ran compiled.",
+  "label": "depth",
+  "key": "on the cpu, compiled flexattention is",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-attn",
+  "section": "",
+  "text": "Backward was attempted on both and raised.",
+  "label": "depth",
+  "key": "backward was attempted on both and",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-attn",
+  "section": "",
+  "text": "What this lab does not show GPU speed.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading of a removed block; GPU speed is quoted in section 11"
+ },
+ {
+  "id": 293,
+  "tab": "t-attn",
+  "section": "",
+  "text": "The kernels that make FlexAttention fast on NVIDIA GPUs are Triton kernels generated by Inductor (and, since 2.11, an optional FlashAttention-4 backend, per the 2.11 release notes ); none of them run here.",
+  "label": "core",
+  "key": "an optional flashattention-4 backend",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-attn",
+  "section": "",
+  "text": "The authors' figure, 90% of FlashAttention-2's forward speed and 85% of its backward vendor, 2024 , is from the FlexAttention blog .",
+  "label": "core",
+  "key": "90% of flashattention-2",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-attn",
+  "section": "",
+  "text": "Training with FlexAttention needs a CUDA (or XPU or HPU) device at 2.14.1.",
+  "label": "core",
+  "key": "cuda (or xpu or hpu",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-mem",
+  "section": "",
+  "text": "How much memory will one training step of a GPT-shaped model need at its peak?",
+  "label": "core",
+  "key": "how much memory will one training",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-mem",
+  "section": "",
+  "text": "Set the shape and the switches; the calculator adds up parameters, gradients, optimizer state and saved activations with formulas read off the tensors PyTorch actually saved, and shows how far it lands from the peaks measured on the running example.",
+  "label": "core",
+  "key": "set the shape and the switches",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-mem",
+  "section": "",
+  "text": "Try: start from the larger variant preset, then turn on checkpointing; then set the vocabulary to 50,257 and switch the loss to chunked.",
+  "label": "core",
+  "key": "then set the vocabulary to 50,257",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-mem",
+  "section": "",
+  "text": "Watch which moment holds the peak.",
+  "label": "core",
+  "key": "watch which moment holds the peak",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-mem",
+  "section": "",
+  "text": "The two moments that compete for the peak The formulas Checked against measured peaks What this calculator leaves out The CUDA caching allocator's overhead and fragmentation (reserved above allocated): see Memory allocators .",
+  "label": "core",
+  "key": "the two moments that compete for",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-mem",
+  "section": "",
+  "text": "Measure reserved memory on the real device ( torch.cuda.memory_reserved() ).",
+  "label": "core",
+  "key": "measure reserved memory on the real",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-mem",
+  "section": "",
+  "text": "CUDA context and library workspaces (cuBLAS, cuDNN, NCCL buffers), which take memory before the first tensor.",
+  "label": "core",
+  "key": "cuda context and library workspaces (cublas",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-mem",
+  "section": "",
+  "text": "Sharding across GPUs (FSDP2 divides parameters, gradients and optimizer state by the number of ranks): Distributed Training owns that arithmetic.",
+  "label": "core",
+  "key": "sharding across gpus (fsdp2 divides parameters",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-mem",
+  "section": "",
+  "text": "Mixed precision: autocast keeps float32 parameters and adds bfloat16 copies of activations; this calculator counts float32 everywhere, as measured.",
+  "label": "core",
+  "key": "mixed precision: autocast keeps float32 parameters",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-more",
+  "section": "",
+  "text": "Where to go next, and where the neighbouring subjects live.",
+  "label": "core",
+  "key": "where to go next, and where",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-more",
+  "section": "",
+  "text": "Times are reading or working estimates.",
+  "label": "core",
+  "key": "times are reading or working estimates",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's tabs Profiler trace 10 min The same training step before and after the hunt, as two real traces on one clock.",
+  "label": "core",
+  "key": "before and after the hunt",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-more",
+  "section": "",
+  "text": "Attention lab 10 min Four masks position by position and tile by tile, the kernel's sweep animated, measured times and errors.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card for the removed Attention lab tab"
+ },
+ {
+  "id": 309,
+  "tab": "t-more",
+  "section": "",
+  "text": "Memory budget 10 min A calculator for one step's peak, its formulas read off the saved tensors and checked against measured peaks.",
+  "label": "core",
+  "key": "a calculator for one step's peak",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-more",
+  "section": "",
+  "text": "The parent page and its labs Topic: pytorch-ecosystem 40 min The whole stack from zero with the running example; section 6 is the intuition this page deepens.",
+  "label": "core",
+  "key": "and its labs topic: pytorch-ecosystem 40",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-more",
+  "section": "",
+  "text": "Inside one step tab of the root 40 min Every ATen call of one step of the small running example, the autograd graph, memory and plain checkpointing.",
+  "label": "core",
+  "key": "step tab of the root 40",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-more",
+  "section": "",
+  "text": "Compile lab tab of the root 20 min What torch.compile does to the running example: graphs, fusion, the measured speedups and cold and warm compile times.",
+  "label": "core",
+  "key": "lab tab of the root 20",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-more",
+  "section": "",
+  "text": "Distributed lab tab of the root 20 min DDP and FSDP2 on gloo with per-rank memory: the next step after this page's single-device memory.",
+  "label": "core",
+  "key": "lab tab of the root 20",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-more",
+  "section": "",
+  "text": "Sibling pages Tensors, the dispatcher and autograd Saved tensors, version counters, saved-tensor hooks, the autograd engine: what checkpointing hooks into. torch.compile from the user's side The min-cut partitioner behind the activation memory budget, modes, CUDA graphs, caching.",
+  "label": "core",
+  "key": "sibling pages tensors, the dispatcher and",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-more",
+  "section": "",
+  "text": "Distributed PyTorch When one device's memory is not enough: FSDP2, TP, pipelines; flight recorder for hangs.",
+  "label": "core",
+  "key": "device's memory is not enough: fsdp2",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-more",
+  "section": "",
+  "text": "Extending PyTorch Tensor subclasses (how torchao's quantized tensors are built) and custom ops.",
+  "label": "core",
+  "key": "extending pytorch tensor subclasses (how torchao's",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-more",
+  "section": "",
+  "text": "Libraries on top of PyTorch Which of these switches HF, torchtitan and Lightning turn on for you.",
+  "label": "core",
+  "key": "libraries on top of pytorch which",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-more",
+  "section": "",
+  "text": "Neighbouring pages that own a subject used here Profiling, benchmarking and correctness Nsight Systems and Compute, honest GPU timing, correctness checks.",
+  "label": "core",
+  "key": "neighbouring pages that own a subject",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-more",
+  "section": "",
+  "text": "Memory allocators PyTorch's CUDA caching allocator, fragmentation, expandable segments.",
+  "label": "core",
+  "key": "memory allocators pytorch's cuda caching allocator",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-more",
+  "section": "",
+  "text": "Quantization and Precision int8, int4, float8, MX and NVFP4 formats and what they lose.",
+  "label": "core",
+  "key": "quantization and precision int8, int4, float8",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-more",
+  "section": "",
+  "text": "Performance math FLOPs per token, MFU, memory-bound against compute-bound.",
+  "label": "core",
+  "key": "performance math flops per token, mfu",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-more",
+  "section": "",
+  "text": "Writing kernels and the FlashAttention paper page How a tiled attention kernel avoids the T × T matrix.",
+  "label": "core",
+  "key": "writing kernels and the flashattention paper",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-more",
+  "section": "",
+  "text": "Distributed Training Memory math across GPUs: ZeRO stages, activation memory formulas at scale.",
+  "label": "core",
+  "key": "distributed training memory math across gpus",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-more",
+  "section": "",
+  "text": "Optimisers What AdamW computes; this page only measures its implementations.",
+  "label": "core",
+  "key": "optimisers what adamw computes; this page",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-more",
+  "section": "",
+  "text": "Streams, CUDA graphs and multi-GPU CUDA graphs, the fix for launch overhead that has no MPS equivalent here.",
+  "label": "core",
+  "key": "streams, cuda graphs and multi-gpu cuda",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-more",
+  "section": "",
+  "text": "Best resources PyTorch profiler recipe 20 min Schedules, record_function, stacks, memory, exporting traces. torch.utils.benchmark recipe 20 min Timer, blocked_autorange, comparing results; why naive timing lies.",
+  "label": "core",
+  "key": "best resources pytorch profiler recipe 20",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-more",
+  "section": "",
+  "text": "Understanding GPU memory, part 1 and part 2 35 min The memory snapshot workflow and finding reference cycles; open snapshots in memory_viz .",
+  "label": "core",
+  "key": "understanding gpu memory, part 1 and",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-more",
+  "section": "",
+  "text": "Current and new activation checkpointing techniques 15 min AC, SAC and the compile memory budget on one speed against memory diagram.",
+  "label": "core",
+  "key": "and new activation checkpointing techniques 15",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-more",
+  "section": "",
+  "text": "FlexAttention blog 30 min and paper 60 min score_mod, mask_mod, BlockMask, and the performance model.",
+  "label": "core",
+  "key": "flexattention blog 30 min and paper",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-more",
+  "section": "",
+  "text": "SDPA reference 15 min Arguments, backends, the math reference implementation. torchao and its docs 45 min quantize_, float8 training ( float8 README ), QAT, low-bit optimizers.",
+  "label": "core",
+  "key": "sdpa reference 15 min arguments, backends",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-more",
+  "section": "",
+  "text": "Performance tuning guide 25 min A checklist of general switches: DataLoader workers, pinned memory, set_to_none, channels_last, fused optimizers.",
+  "label": "core",
+  "key": "performance tuning guide 25 min a",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-more",
+  "section": "",
+  "text": "Automatic mixed precision 20 min autocast's op lists and GradScaler.",
+  "label": "core",
+  "key": "automatic mixed precision 20 min autocast's",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-more",
+  "section": "",
+  "text": "DataLoader reference 25 min workers, prefetch_factor, persistent_workers, pin_memory, samplers.",
+  "label": "core",
+  "key": "dataloader reference 25 min workers, prefetch_factor",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-more",
+  "section": "",
+  "text": "Perfetto UI tool Opens the JSON from export_chrome_trace in the browser.",
+  "label": "core",
+  "key": "perfetto ui tool opens the json",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-more",
+  "section": "",
+  "text": "Holistic Trace Analysis 30 min Reads many ranks' traces at once: idle time, communication overlap, stragglers.",
+  "label": "core",
+  "key": "holistic trace analysis 30 min reads",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-more",
+  "section": "",
+  "text": "Profiling torch.compile 20 min Reading traces of compiled code.",
+  "label": "core",
+  "key": "profiling torch.compile 20 min reading traces",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-more",
+  "section": "",
+  "text": "Liger Kernel and Cut Cross-Entropy 30 min Fused losses outside core, the ancestors of LinearCrossEntropyLoss .",
+  "label": "core",
+  "key": "liger kernel and cut cross-entropy 30",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-more",
+  "section": "",
+  "text": "Sources for every number are linked where the number appears.",
+  "label": "core",
+  "key": "sources for every number are linked",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-more",
+  "section": "",
+  "text": "Measured results: src/exp/ in this page's folder (scripts and recorded inputs).",
+  "label": "core",
+  "key": "measured results: src/exp/ in this page's",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-more",
+  "section": "",
+  "text": "PyTorch 2.14.1, torchao 0.18.0, Apple M1 Pro, October 2026.",
+  "label": "core",
+  "key": "pytorch 2.14.1, torchao 0.18.0, apple m1",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "A 2,048-square matmul on MPS: 0.35 ms without a synchronize, 4.25 ms with Timer.",
+  "label": "core",
+  "key": "4.25 ms with",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "Hunt result: 162 ms to 134 ms on MPS (1.21 times), 429 to 362 ms on CPU (1.19 times).",
+  "label": "core",
+  "key": "1.21 times faster",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "On MPS the biggest gains: workers 15.9 ms, compile 9.3 ms, fused optimizer 7.3 ms; CPU attention kernel 32.7 ms; compile 372 against 374 ms.",
+  "label": "core",
+  "key": "DataLoader workers (15.9 ms)",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "bfloat16 autocast lost: 208 against 143 ms on MPS, 43.7 s per step on the CPU against 374 ms.",
+  "label": "core",
+  "key": "43.7 seconds per step",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "Trace: .item() wait 117.6 ms (72.4% of the traced step); after the hunt aten::copy_ 123.7 ms.",
+  "label": "core",
+  "key": "117.6 ms",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "Per-phase baseline on MPS: data 17.2, forward 46.4, backward 92.0, optimizer 25.2 ms; 181 against 162 ms.",
+  "label": "core",
+  "key": "162 ms timed without them",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "Data loading: waited 16.1 ms and took 44.5 ms without workers; one worker 0.22 ms; two workers 27.6 ms against 27.1 ms free data.",
+  "label": "core",
+  "key": "27.6 ms",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "Optimizer: fused 9.17 against 28.5 ms CPU (3.1 times), 7.67 against 25.0 ms MPS (3.3 times); foreach 26.7 and 24.5 ms.",
+  "label": "core",
+  "key": "7.67 ms against 25.0 ms",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "Matmul GFLOP/s: CPU 1,854.3 float32, 2.1 bfloat16; MPS 4,087.5 against 2,180.1, float16 4,276.9; step 44.0 s against 393 ms CPU, 216 against 149 ms MPS.",
+  "label": "core",
+  "key": "4,276.9",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "Memory: start 304.5 MB; peak 867.4 MB early in backward with 537.7 MB activations, 21.1 MB temporaries, 4.2 MB gradients; textbook sum 943.6 MB; checkpointed peak 485.3 MB at the end of backward.",
+  "label": "core",
+  "key": "943.6 MB",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "Checkpointing: 867.4 to 485.3 MB (44%), saved 42.3 against 546.4 MB, backward 1,087 against 567 ATen calls, step 389 to 475 ms CPU (+22%), 150 to 189 ms MPS; SAC matmuls 724.6 MB, 411 ms.",
+  "label": "core",
+  "key": "1,087 ATen calls",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "Compile memory budget: 546.4 eager, 546.8 at 1.0, 273.0 at 0.5, 109.1 at 0.2, 0.0 at 0.0, 42.3 eager checkpointing; loss 3.81230.",
+  "label": "core",
+  "key": "273.0 MB",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "Fused loss: unfused peak 2394.2 MB, temporaries 823.4 MB, chunked 1278.8 MB (1.87 times), saved 957.8 to 541.9 MB; time +69% CPU, +84% MPS; loss 8.9544.",
+  "label": "core",
+  "key": "823.4 MB",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "Attention saved bytes: CPU SDPA 4.3 MB at 2,048 (0.5 at 256), written out 138.4 MB (32 times); MPS SDPA 142.6 MB.",
+  "label": "core",
+  "key": "142.6 MB",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "SDPA measured: bfloat16 error 8.1e-3 against 8.4e-7 float32; forcing EFFICIENT raises No viable backend.",
+  "label": "core",
+  "key": "No viable backend for scaled_dot_product_attention",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "BlockMask at 4,096: causal 48.4% empty, sliding window 93.8%, documents 81.0%; MPS error 8.5e-7; times 16.9 vs 17.4, 54.5 vs 17.6, 148 vs 7.69 ms; 12x claim not reproduced.",
+  "label": "core",
+  "key": "93.8%",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "varlen_attn raises NotImplementedError on CPU and MPS.",
+  "label": "depth",
+  "key": "not currently implemented for the MPS device",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "torchao PTQ: int8 100.8 to 25.4 MB (3.96 times), loss +0.00002; Int4WeightOnlyConfig needs mslk; Intx int4 29.2 MB.",
+  "label": "core",
+  "key": "29.2 MB",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "torchao speed at M = 1: int8 WO 3.16 ms, int4 5.99 ms, float32 2.18 ms; dynamic int8 0.40 ms (5.4 times), 250 ms against 37.0 ms at 2,048.",
+  "label": "core",
+  "key": "250 ms for 2,048 tokens",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "Emulated float8: 2.183 against 2.194 after 60 steps; spike at step 11 (5.39 against 2.90).",
+  "label": "core",
+  "key": "5.39 against 2.90",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-read",
+  "section": "rendered",
+  "text": "QAT: 300 + 100 steps; PTQ 0.3289 to 0.3332 (+0.0044); QAT 0.35054 fake-quantized and converted.",
+  "label": "depth",
+  "key": "0.3332",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-read",
+  "section": "added",
+  "text": "MFU: 337.6 GFLOP per step (6ND 311.8 plus attention 25.8); 51% to 62% on MPS against the measured float32 matmul rate, 42% to 50% on CPU (derive_mfu.py).",
+  "label": "core",
+  "key": "337.6 GFLOP",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-read",
+  "section": "added",
+  "text": "CUDA graphs as a lever: torch.compile(mode=\"reduce-overhead\"), CUDA only; linked to torch_compile and streams_graphs_and_multi_gpu.",
+  "label": "core",
+  "key": "reduce-overhead",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-read",
+  "section": "added",
+  "text": "Hero figure: time by phase and memory at the peak with the lever for each part.",
+  "label": "core",
+  "key": "every lever on this page aims at one part",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "nn.Module registers parameters, sub-modules and buffers (persistent=False keeps a buffer out of the state_dict).",
+  "label": "core",
+  "key": "persistent=False",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Tied weight: parameters() counts 52 tensors and the state_dict 53 (3,197,952 against 3,186,944 elements).",
+  "label": "core",
+  "key": "counts 52 tensors",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "safetensors refuses shared storage; save_model writes 52 tensors and drops tok.weight; load_model restores the tie.",
+  "label": "depth",
+  "key": "drops tok.weight",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "state_dict bytes 12,791,808 against real memory 12,747,776.",
+  "label": "depth",
+  "key": "12,791,808",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Loading different values under the two tied names leaves the later one (2.0).",
+  "label": "depth",
+  "key": "leave the later one",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "load_state_dict strict=True raises on a renamed key; strict=False returns missing and unexpected keys; a shape mismatch errors even with strict=False.",
+  "label": "depth",
+  "key": "size mismatch for blocks.0.mlp.fc.weight",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Forward hooks: block output std 0.0495, 0.0659, 0.0799, 0.0924.",
+  "label": "depth",
+  "key": "0.0924",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Accumulation: four micro-batches of 2 divided by 4 equal one batch of 8 (norm 11.1032); without division 44.41, 4.00 times.",
+  "label": "core",
+  "key": "44.41",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "clip_grad_norm_ returns the norm before clipping (11.1032 at step 0); zero_grad frees 12,747,776 bytes.",
+  "label": "core",
+  "key": "freed 12,747,776 bytes",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Unscale before clipping, or the threshold applies to a gradient 65,536 times too large.",
+  "label": "core",
+  "key": "must be unscaled before clipping",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "float16 underflow: 1,636 below 2^-24, 436,592 below 2^-14; scaled 58 and 1,031; largest 33,812 under 65,504.",
+  "label": "core",
+  "key": "436,592",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "GradScaler defaults: init_scale 2**16, growth 2.0, backoff 0.5, interval 2000 (grad_scaler.py L126 to 129).",
+  "label": "core",
+  "key": "growth_interval=2000",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "float16 autocast on CPU: losses 3.80133, 3.18798, 3.16783, 2.9406, scale 65,536 throughout.",
+  "label": "core",
+  "key": "3.80133",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "bfloat16 autocast on CPU: bfloat16 logits, float32 loss, float32 gradients on float32 parameters.",
+  "label": "core",
+  "key": "autocast changes the compute, not the weights",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "Determinism: CPU fixed threads bit-repeatable; 1 against 4 threads 1.46e-06; MPS was not bit-repeatable even with use_deterministic_algorithms(True).",
+  "label": "core",
+  "key": "MPS was not bit-repeatable even with",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "On CUDA use_deterministic_algorithms raises for ops without a deterministic kernel; cudnn.benchmark = False.",
+  "label": "depth",
+  "key": "cudnn.benchmark = False",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "DataLoader workers on macOS start with spawn; each seeds torch, random and NumPy; manual_seed does not seed random or NumPy in the main process; pin_memory warns on MPS.",
+  "label": "depth",
+  "key": "does not seed Python's random or NumPy",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "prefetch_factor 2 per worker by default (dataloader.py L293); workers restarted every epoch unless persistent_workers.",
+  "label": "depth",
+  "key": "dataloader.py L293",
+  "where": ""
+ }
+]
