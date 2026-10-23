@@ -11,6 +11,12 @@ Method: `.claude/skills/explainer-page/visuals/choosing.md`. Needs of the text, 
 6. **Launch cost bars (Reading s8), 12.** M1: launch-and-wait vs queued launches.
 7. Static evidence: real SASS listings (scale, warp-aggregated atomic, grid.sync), real error output of a host program run without a GPU, the __launch_bounds__ table across four targets.
 
+## Added 2026-10-23 (teaching-contract rebuild)
+8. **Hero: one launch unpacked (top), static annotated diagram.** Grid, block, warp, thread of `scale<<<4096, 256>>>`, one thread highlighted (i = 2,341), how each level cooperates and where it runs. Structure, so static.
+9. **Host and device stepper (section 1).** CPU and GPU memory plus two schematic timelines over the seven steps of the first program; the asynchronous launch and the waiting copies were described only in words before. A process, so a stepper (no tweening). Timing labelled illustrative.
+10. **The same stepper with a faulting kernel (section 6).** Opens at the launch; `cudaGetLastError()` returns success, the copy returns 700, every later call fails. Same input as 9, so a before/after across two sections.
+11. **Occupancy under one slider (section 5).** One H100 SM's 64 warp slots and its 65,536-register file at 256-thread blocks, registers per thread as the only variable; presets are the real ptxas counts of the three `heavy_*` kernels (128, 64, 32 registers: 2, 4, 8 blocks). Uses the planner's port, checked against `cuda_occupancy.h`. Occupancy as a concept had no inline visual; the planner tab stays for the across-kernels question.
+
 ## Rejected
 - Grid-stride vs one-per-element as a before/after for the tail: rejected after working it through; with uniform per-thread work both finish in the same number of rounds, so the animation would teach something false.
 - A divergence animation: the root (s2) and GPU architecture (s5) already have it, with measurements.

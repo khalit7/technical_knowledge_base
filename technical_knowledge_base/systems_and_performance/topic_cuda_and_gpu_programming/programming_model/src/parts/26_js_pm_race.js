@@ -44,5 +44,5 @@
     cnt.innerHTML=RD.stat('Step',(i+1)+' / '+D[mode].length)+RD.stat('At the barrier',mode==='bar'?S.arr+' / 16':'no barrier')+
       RD.stat('Stale reads',S.stale)+RD.stat('Result',S.res===undefined?'...':S.res,S.res===undefined?'':(S.res===80?'correct':'wrong: want 80'))}
   const A=RD.anim({card:'pm-rc-card',ctl:'pm-rc-ctl',n:D.bar.length,draw,ms:1700,label:'Race step'});
-  RD.seg(document.getElementById('pm-rc-mode'),m=>{mode=m;A.reset(D[m].length);A.play()});
+  RD.seg(document.getElementById('pm-rc-mode'),m=>{mode=m;A.reset(D[m].length)});
 })();

@@ -61,6 +61,9 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
       out.push(['waves ' + m, S.filter(s => s.w).length, c.waves]);
       out.push(['last wave ' + m, last(S.filter(s => s.w)).run, c.last_wave_tiles]); }
     for (const [dx, sec] of [[32, 4], [16, 4], [8, 4], [4, 8], [1, 32]]) out.push(['sectors ' + dx, window.PM_IX(dx).sectors, sec]);
+    for (const k of ['heavy_plain', 'heavy_lb1024', 'heavy_lb256x8']) { const r = P.occ.sm_90a[k]; out.push(['occupancy figure ' + k, window.PM_OC(r.regs), r.blocks[7]]); }
+    out.push(['error stepper: steps', window.PM_HD.bad.length, 7]);
+    out.push(['error stepper: code at copy', /700/.test(window.PM_HD.bad[5].p) ? 700 : 0, 700]);
     // planner port against NVIDIA's header values (P.occ is checked against cuda_occupancy.h by recompute.py)
     let mism = 0, tot = 0;
     for (const a of Object.keys(P.occ)) for (const k of Object.keys(P.occ[a])) { const r = P.occ[a][k];
@@ -71,6 +74,10 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     return out;
   });
   for (const c of checks) { const ok = c[1] === c[2]; if (!ok) bad++; console.log(scheme, 'check', c[0], 'page', c[1], 'reference', c[2], ok ? 'ok' : 'MISMATCH'); }
+  await p.reload(); await sleep(300);
+  const moving = await p.evaluate(async () => { for (const c of document.querySelectorAll('#t-read .card')) { c.scrollIntoView(); await new Promise(r => setTimeout(r, 60)); }
+    await new Promise(r => setTimeout(r, 2500)); return [...document.querySelectorAll('#t-read .an-play')].filter(b => /Pause/.test(b.textContent)).length; });
+  console.log(scheme, 'animations playing without a click (after reload):', moving); if (moving) bad++;
   const secs = await p.evaluate(() => [...document.querySelectorAll('#t-read section')].map(s => s.id));
   for (const id of secs) {
     const el = await p.$('#' + id);
