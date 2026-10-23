@@ -22,3 +22,16 @@ How To Scale Your Model (communication rooflines), nccl-tests PERFORMANCE.md, NV
 
 ## What the methodology lacked
 No rule for checking a simulator against measurements made on a different machine class; here the laptop validates the model's shape (step counts, crossover) and published cluster numbers its bandwidth term, each labelled.
+
+## 2026-10-23 rebuild (teaching contract)
+Chosen by the kind of concept, each placed beside its claim in Reading:
+- **Hero: one cluster, five rungs** (static annotated diagram plus the ladder bars): the whiteboard picture of the page. Built.
+- **Effective bandwidth against size** (one slider): the alpha-beta model's consequence; defaults reproduce the 1.18 of the 64 KB prediction. Built.
+- **Switch against mesh** (toggle of end states): NVSwitch HGX against MI300X's direct mesh. Built.
+- **RDMA stepper against the TCP path** (stepper; the captions are the static list). Built.
+- **Credits against PFC pause** (static two-panel diagram). Built.
+- **Topology shapes**: fat tree, torus with hop counts, dragonfly (toggle). Built; the torus view replaces the need for a separate TPU torus drawing here (the TPUs sibling keeps its Pod builder).
+- **Torus collective calculator** (one slider): absorbed from Sharding and scale. Built.
+- **Fabric explorer**: moved from its own tab into section 5 (it explains one mechanism).
+- **Photos**: GB200 NVL72 rack (Wikimedia, CC BY-SA 4.0), InfiniBand cabling (Wikimedia, CC0), TPU v4 paper Figure 1 (CC BY 4.0).
+Rejected: an animated packet-level PFC congestion tree (illustrative only; the static diagram and the UEC quotes carry it); a Frontier photo for dragonflies (the visible cables could not be confirmed as Slingshot links); a separate NVLink generations chart (the table says it).

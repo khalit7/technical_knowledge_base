@@ -16,10 +16,10 @@
     const H=top+n*(ch+2)+(st.alg==='switch'?62:18),x0=(W-n*cw)/2,sn=r.snaps[i];let s='';
     if(i>0)sn.tr.forEach(([a,b])=>{if(a===-1||b===-1){const g=a===-1?b:a,x=x0+g*cw+cellW/2,y1=top+n*(ch+2)+3,y2=y1+20;s+='<line x1="'+x+'" y1="'+(a===-1?y2:y1)+'" x2="'+x+'" y2="'+(a===-1?y1:y2)+'" stroke="var(--acc)" stroke-width="1.3" marker-end="url(#sim-ah)"/>';return}
       const xa=x0+a*cw+cellW/2,xb=x0+b*cw+cellW/2,h=Math.min(40,8+Math.abs(b-a)*4);s+='<path d="M'+xa+','+(top-4)+' Q'+((xa+xb)/2)+','+(top-4-h)+' '+xb+','+(top-4)+'" fill="none" stroke="var(--acc)" stroke-width="1.1" opacity=".75" marker-end="url(#sim-ah)"/>'});
-    for(let g=0;g<n;g++){const x=x0+g*cw;if(n<=8||g%2===0)s+=RD.t(x+cellW/2,H-4,String(g),{a:'middle',fs:10});
+    for(let g=0;g<n;g++){const x=x0+g*cw;if(n<=8||g%2===0)s+=RD.t(x+cellW/2,H-4,String(g),{a:'middle',fs:11});
       for(let c=0;c<n;c++){let f;if(st.coll==='a2a')f=sn.rx[g][c];else if(st.coll==='ag')f=sn.have[g][c]?1:0;else f=ICSIM.pop(sn.have[g][c])/n;
         s+='<rect x="'+x+'" y="'+(top+c*(ch+2))+'" width="'+cellW+'" height="'+ch+'" rx="1.5" fill="'+COL[st.alg]+'" fill-opacity="'+(0.1+0.9*f).toFixed(2)+'"/>'}}
-    if(st.alg==='switch'){const y=top+n*(ch+2)+25;s+='<rect x="'+x0+'" y="'+y+'" width="'+(n*cw-gap)+'" height="16" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(x0+(n*cw-gap)/2,y+12,'switch',{a:'middle',fs:10})}
+    if(st.alg==='switch'){const y=top+n*(ch+2)+25;s+='<rect x="'+x0+'" y="'+y+'" width="'+(n*cw-gap)+'" height="16" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(x0+(n*cw-gap)/2,y+12,'switch',{a:'middle',fs:11})}
     host.innerHTML=RD.svg(W,H,'<defs><marker id="sim-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--acc)"/></marker></defs>'+s,'Collective state, step '+i);
     $('sim-cap').textContent=cap(i);
     const [a,b]=ab(),fin=i===r.steps,t=fin?r.time:sn.t,bf=ICSIM.BUSF[st.coll](n);
@@ -41,9 +41,9 @@
     const all=series.flatMap(s=>s[2]).concat(pts.map(p=>p[1])).filter(v=>v>0&&isFinite(v));
     const lo=Math.min(...all),hi=Math.max(...all),yl=Math.log10(lo)-0.1,yh=Math.log10(hi)+0.1;
     const x=S=>L+(Math.log2(S)-3)/31*(W-L-R),y=v=>T+(yh-Math.log10(v))/(yh-yl)*(H-T-B);
-    let s='';for(let e=Math.ceil(yl);e<=Math.floor(yh);e++){const v=Math.pow(10,e);s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(L-4,y(v)+4,st.ym==='t'?fT(v):(v>=1?v:v.toPrecision(1))+'',{a:'end',fs:10})}
-    [8,1024,2**20,2**30].forEach((S,k)=>{s+=RD.t(x(S),H-B+14,fB(S),{a:k===0?'start':'middle',fs:10})});
-    s+=RD.t((L+W-R)/2,H-4,'buffer size (log)'+(st.ym==='bw'?'; y: busbw, GB/s':''),{a:'middle',fs:10,fill:'var(--mute)'});
+    let s='';for(let e=Math.ceil(yl);e<=Math.floor(yh);e++){const v=Math.pow(10,e);s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(L-4,y(v)+4,st.ym==='t'?fT(v):(v>=1?v:v.toPrecision(1))+'',{a:'end',fs:11})}
+    [8,1024,2**20,2**30].forEach((S,k)=>{s+=RD.t(x(S),H-B+14,fB(S),{a:k===0?'start':'middle',fs:11})});
+    s+=RD.t((L+W-R)/2,H-4,'buffer size (log)'+(st.ym==='bw'?'; y: busbw, GB/s':''),{a:'middle',fs:11,fill:'var(--mute)'});
     series.forEach(sr=>{s+='<polyline points="'+sr[2].map((v,j)=>x(Ss[j]).toFixed(1)+','+y(v).toFixed(1)).join(' ')+'" fill="none" stroke="'+COL[sr[0]]+'" stroke-width="1.8"/>'});
     pts.forEach(p=>{s+='<circle cx="'+x(p[0])+'" cy="'+y(p[1])+'" r="3.5" fill="none" stroke="var(--ink)" stroke-width="1.4"><title>'+esc(p[2])+'</title></circle>'});
     const X=x(st.S);s+='<line x1="'+X+'" x2="'+X+'" y1="'+T+'" y2="'+(H-B)+'" stroke="var(--mute)" stroke-dasharray="2 3"/>';

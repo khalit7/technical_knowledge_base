@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Interconnects and scaling: PCIe, NVLink, InfiniBand and RoCE, why the network picks your parallelism</h1>
-<div class="sub">How GPUs talk to each other, taught from zero: the two numbers of every link (latency and bandwidth), PCIe, NVLink and NVSwitch up to the NVL72 rack, network cards and RDMA, InfiniBand against RoCE, fat trees, rails and oversubscription, the algorithms behind all-reduce and all-to-all with their costs, and why each kind of parallelism belongs on a particular tier of the network. Real collectives measured on this laptop; NVIDIA, AWS and paper figures kept apart. A child of <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a>. Data as of October 2026.</div>
+<div class="sub">How chips talk: the two numbers of every link, PCIe, NVLink and NVSwitch, RDMA over InfiniBand and RoCE, fat trees, rails, dragonflies and TPU tori with optical switches, the collective algorithms on the wire with their costs, and why each kind of parallelism belongs on a particular rung of the network. Real collectives measured on this laptop; NVIDIA, AWS and paper figures kept apart. A child of <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a>. Data as of October 2026. <span id="ic-time">Reading: 30 min, plus 13 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-sim" aria-selected="false">Collective simulator</button><button role="tab" data-t="t-fab" aria-selected="false">Fabric explorer</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-sim" aria-selected="false">Collective simulator</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -117,51 +117,87 @@ body .pill.m{color:var(--good);border-color:var(--good)}body .pill.v{color:var(-
 #t-read .pred button.right{border-color:var(--good);color:var(--good)}#t-read .pred button.wrong{border-color:var(--bad);color:var(--bad)}
 #t-read .ladder .row{grid-template-columns:minmax(0,12.5em) minmax(0,1fr) 6.4em}#t-read .ladder .row .nm{white-space:normal;line-height:1.2}#t-read .ladder .ml{display:block;font-size:11.5px;color:var(--mute)}
 #t-read .co.corr{border-left-color:var(--bad)}
-#t-read .iq summary{font-weight:600}
 #t-read .ff{border:1px solid var(--line);border-radius:10px;padding:8px 14px;margin:12px 0;background:var(--soft)}#t-read .ff .t{font-weight:600;font-size:13.5px}#t-read .ff ul{margin:4px 0}
 #t-read .seg{display:inline-flex;flex-wrap:wrap;margin-right:6px}
-@media (max-width:520px){#t-read .ladder .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 5.6em}}
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+#t-read dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
+#t-read .card h4{margin:0 0 4px;font-size:14.5px}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px;font-size:14px}
+#t-read .hlg{margin:6px 0 0;padding-left:0;list-style:none;font-size:13.5px}#t-read .hlg li{margin:3px 0;display:grid;grid-template-columns:1.6em minmax(0,1fr);gap:4px}
+#t-read .hlg .nb{display:inline-flex;align-items:center;justify-content:center;width:1.35em;height:1.35em;border-radius:99px;color:var(--bg);font-size:11.5px;font-weight:700}
+#t-read ol.steps{padding-left:0;list-style:none;margin:6px 0}#t-read ol.steps li{padding:5px 10px;margin:3px 0;border-left:3px solid var(--line);font-size:13.5px;color:var(--mute)}
+#t-read ol.steps li.on{border-left-color:var(--acc);color:var(--ink);background:var(--soft)}
+#t-read figure.ph{margin:12px 0;display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:12px;align-items:start}
+#t-read figure.ph.wide{grid-template-columns:minmax(0,1fr)}
+#t-read figure.ph img{width:100%;height:auto;border-radius:6px;border:1px solid var(--line);background:#fff}
+#t-read figure.ph figcaption{font-size:13.5px}#t-read figure.ph .cr{display:block;font-size:12px;color:var(--mute);margin-top:4px}
+#t-read .tw table{min-width:520px}#t-read .tw table.nar{min-width:0}
+#t-read td{overflow-wrap:anywhere}
+#fab-card .bars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 6.2em}
+#fab-card .chk{white-space:normal}#fab-card select{max-width:100%;width:100%}
+@media (max-width:520px){#t-read .ladder .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 5.6em}#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}#t-read figure.ph{grid-template-columns:minmax(0,1fr)}#t-read figure.ph img{max-width:300px}}
 </style>
-<nav class="nav" id="ic-nav" aria-label="Sections">
-<a href="#ic-s1">In one screen</a><a href="#ic-s2">Latency and bandwidth</a><a href="#ic-s3">PCIe</a><a href="#ic-s4">NVLink and NVSwitch</a><a href="#ic-s5">NICs, RDMA, IB and RoCE</a><a href="#ic-s6">Topology</a><a href="#ic-s7">Collectives</a><a href="#ic-s8">All-to-all and MoE</a><a href="#ic-s9">Parallelism and the network</a><a href="#ic-s10">Check, mistakes, interview</a>
+<nav class="nav" id="rd-nav" aria-label="Sections">
+<a href="#ic-s0">The idea</a><a href="#ic-s1">Latency and bandwidth</a><a href="#ic-s2">PCIe</a><a href="#ic-s3">NVLink</a><a href="#ic-s4">RDMA, IB, RoCE</a><a href="#ic-s5">Topology</a><a href="#ic-s6">TPU pods</a><a href="#ic-s7">Collectives</a><a href="#ic-s8">All-to-all</a><a href="#ic-s9">Parallelism</a><a href="#ic-s10">Check it, depth</a>
 </nav>
 
-<section id="ic-s1">
-<h2>1. In one screen</h2>
-<p class="lead">A training run on many GPUs is many copies of one computation that must keep agreeing: after every step their gradients are summed, and when a model is split, partial results are passed between GPUs inside every layer. The wires that carry these bytes form a <b>ladder</b>: each rung reaches more GPUs and is roughly an order of magnitude slower than the one above. Which kind of parallelism you can afford is decided by which rung its traffic has to cross.</p>
+<section id="ic-s0">
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">Every message costs a fixed latency plus its bytes over the link's bandwidth, and the links form a <b>ladder</b> in which each rung reaches more chips and is roughly ten times slower than the one above, so <b>each kind of parallelism belongs on the slowest rung whose bandwidth its traffic per FLOP can afford</b>.</p>
+<div class="card" id="ic-herocard">
+<h4>One cluster, five rungs: each reaches more GPUs and is slower than the one above</h4>
+<div id="ic-hero" class="plot"></div>
+<ol class="hlg" id="ic-herolg">
+<li><span class="nb" style="background:var(--c4)">1</span><span><b>HBM</b>, inside each GPU: 3,350 GB/s on an H100.</span></li>
+<li><span class="nb" style="background:var(--c3)">2</span><span><b>NVLink 4 through NVSwitch</b>: 450 GB/s each way between any two of the server's 8 GPUs (72 in an NVL72 rack). Tensor and expert parallelism live here.</span></li>
+<li><span class="nb" style="background:var(--c5)">3</span><span><b>PCIe 5.0 x16</b>: 63 GB/s each way, joining each GPU to its network card (NIC) and the CPU.</span></li>
+<li><span class="nb" style="background:var(--c2)">4</span><span><b>NIC to a rail leaf switch</b>: 400 Gb/s, 50 GB/s each way. GPU <i>k</i> of every server meets on leaf <i>k</i>, one hop apart. Data and pipeline parallelism cross here.</span></li>
+<li><span class="nb" style="background:var(--bad)">5</span><span><b>Leaf to spine</b>: everything else, including most of an all-to-all; often oversubscribed (1:7 between Meta's pods).</span></li>
+</ol>
 <div class="bars ladder" id="ic-ladder"></div>
-<p class="small mute">Bandwidth per GPU, <b>each direction</b>, H100 generation unless named. HBM: 3.35 TB/s (<a href="https://www.nvidia.com/en-us/data-center/h100/" target="_blank" rel="noopener noreferrer">H100 page</a>). NVLink 4: "900 GB/sec total" per H100 over 18 links (<a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a>), 450 each way; NVLink 5 on Blackwell 1.8 TB/s total (<a href="https://www.nvidia.com/en-us/data-center/nvlink/" target="_blank" rel="noopener noreferrer">NVLink page</a>). PCIe 5.0 x16: 63 GB/s each way (32 GT/s per lane, 128b/130b encoding). One 400 Gb/s network card (NIC) per GPU: 50 GB/s each way; an AWS p5 server has 3,200 Gb/s for its 8 H100s (<a href="https://aws.amazon.com/ec2/instance-types/p5/" target="_blank" rel="noopener noreferrer">AWS P5</a>). <span class="pill v">vendor spec</span></p>
-<p>This page follows the same running example as its parent, <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a>: one training step of <b>Llama 3.1 8B</b>, whose bf16 gradients are <b id="ic-g8">16.06 GB</b> <span class="pill d">derived: 8.03 B parameters &times; 2 bytes</span>. The parent's section 6 gives the intuition (the same all-reduce inside and outside a server) and its <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Performance calculator</a> tab computes communication time over any link. This page is the depth: what each link is physically, what latency it adds, how collectives are built from messages, what the network's shape does to them, and how to reason from a link's numbers to a parallelism plan.</p>
-<div class="tw"><table>
-<thead><tr><th>Question</th><th>Short answer</th><th>Section</th></tr></thead>
-<tbody>
-<tr><td>Why is a link described by two numbers?</td><td>Every message pays a fixed start-up time (latency, &alpha;) plus its size divided by bandwidth (&beta;). Small messages see only &alpha;, big ones only &beta;.</td><td>2</td></tr>
-<tr><td>What joins GPUs inside one server?</td><td>PCIe to the CPU and network cards; NVLink through NVSwitch chips between GPUs, 7 times PCIe 5.0 per direction on an H100.</td><td>3, 4</td></tr>
-<tr><td>And between servers?</td><td>One network card per GPU, InfiniBand or Ethernet (RoCE), using RDMA so the card writes straight into remote GPU memory.</td><td>5</td></tr>
-<tr><td>Does the network's shape matter?</td><td>Yes: rails and oversubscription decide which traffic patterns run at full speed. Ring all-reduce barely notices; all-to-all does.</td><td>6, 8</td></tr>
-<tr><td>How long does an all-reduce take?</td><td>Ring: 2(n&minus;1) latencies plus 2(n&minus;1)/n of the buffer over one link. Other algorithms trade the two terms; in-switch reduction halves the bytes.</td><td>7</td></tr>
-<tr><td>Which parallelism goes where?</td><td>Tensor and expert parallelism inside the NVLink domain; pipeline and data parallelism across servers. Section 9 derives the thresholds.</td><td>9</td></tr>
-</tbody></table></div>
-<div class="co key"><div class="t">Four labels used on this page</div><span class="pill v">vendor spec</span> a number NVIDIA, AMD, AWS or a standards body publishes; <span class="pill i">independent</span> measured by someone else on real hardware, with their paper or post linked; <span class="pill m">measured here</span> run for this page on this laptop (an Apple M1 Pro; no NVIDIA GPU or cluster was available); <span class="pill d">derived</span> computed from the others, formula shown. Anything not run here says so.</div>
+<p class="small mute">Bandwidth per GPU, <b>each direction</b>, H100 generation unless named. HBM: 3.35 TB/s (<a href="https://www.nvidia.com/en-us/data-center/h100/" target="_blank" rel="noopener noreferrer">H100 page</a>). NVLink 4: "900 GB/sec total" per H100 over 18 links (<a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a>), 450 each way; NVLink 5 on Blackwell 1.8 TB/s total (<a href="https://www.nvidia.com/en-us/data-center/nvlink/" target="_blank" rel="noopener noreferrer">NVLink page</a>). PCIe 5.0 x16: 63 GB/s each way (32 GT/s per lane, 128b/130b encoding). One 400 Gb/s NIC per GPU: an AWS p5 server has 3,200 Gb/s for its 8 H100s (<a href="https://aws.amazon.com/ec2/instance-types/p5/" target="_blank" rel="noopener noreferrer">AWS P5</a>). The drawing shows 4 of each server's 8 GPUs and 4 of its 8 rails. <span class="pill v">vendor spec</span></p>
+</div>
+<p><b>Running example.</b> As on the parent <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a>: one training step of <b>Llama 3.1 8B</b>, whose bf16 gradients are <b id="ic-g8">16.06 GB</b> <span class="pill d">derived: 8.03 B parameters &times; 2 bytes</span>. The parent's section 6 gives the intuition and its Performance calculator the bandwidth-only arithmetic; this page owns the links, the topologies and the collective algorithms.</p>
+<p><b>You need</b> the parent's roofline (the ridge point returns in section 9 as link intensity) and the parallelism forms from <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> (what DP, FSDP, TP, PP and EP hold and send).</p>
+<dl class="terms">
+<dt>&alpha;, &beta;</dt><dd>a link's latency per message and its bandwidth, one direction</dd>
+<dt>n<sub>&frac12;</sub></dt><dd>half-bandwidth size, &alpha; &times; &beta;: below it latency dominates</dd>
+<dt>NVLink domain</dt><dd>the GPUs joined by NVLink switches, which can load and store each other's memory</dd>
+<dt>RDMA</dt><dd>the network card writes straight into remote (GPU) memory, no kernel, no copy</dd>
+<dt>Rail, spine</dt><dd>leaf switch joining GPU <i>k</i> of every server; the layer above the leaves</dd>
+<dt>Oversubscription</dt><dd>fewer uplinks than downlinks, written 1:7 or 7:1</dd>
+<dt>Torus</dt><dd>a grid of chips whose rows and columns wrap around, each chip wired to its neighbours (TPU ICI)</dd>
+<dt>busbw</dt><dd>nccl-tests' bandwidth rescaled to compare with a wire's rate</dd>
+<dt>Link intensity</dt><dd>sustained FLOP/s over a link's bandwidth: FLOPs that must accompany each byte sent</dd>
+</dl>
+<div class="co key"><div class="t">Four labels used on this page</div><span class="pill v">vendor spec</span> published by NVIDIA, AMD, AWS, Google or a standards body; <span class="pill i">independent</span> measured by others on real hardware; <span class="pill m">measured here</span> on this laptop (Apple M1 Pro; no GPU cluster was available); <span class="pill d">derived</span> computed, formula shown.</div>
+</section>
+<section id="ic-s1">
+<h2>1. The two numbers of every link: latency and bandwidth</h2>
+<div class="pred" data-right="2"><b>Predict first.</b> Per direction, NVLink 4 is 9 times a 400 Gb/s NIC (450 against 50 GB/s). For a 64 KB message, how much faster is NVLink?<div class="opts"><button data-a="0">About 9 times</button><button data-a="1">About 4 times</button><button data-a="2">Less than 1.5 times</button></div><div class="ans">NVLink: 3.33 &micro;s + 65,536 / 450 GB/s = 3.48 &micro;s. NIC: 2.8 &micro;s + 65,536 / 50 GB/s = 4.11 &micro;s. Ratio 1.18 <span class="pill d">derived</span>. At this size both are almost pure latency; the 9 times only appears for messages far above n<sub>&frac12;</sub>.</div></div>
+<p>Before any byte moves, software posts the request, the hardware sets up the transfer, the first bits travel and the receiver notices they arrived. That fixed cost is paid per message, whatever its size. The standard model, used by MPI and NCCL designers alike (the <dfn>alpha-beta</dfn> or Hockney model), charges a message of <i>m</i> bytes</p>
+<div class="fm"><div class="eq">t(m) = &alpha; + m / &beta;</div><dl><dt>&alpha;</dt><dd>latency: start-up time per message (microseconds)</dd><dt>&beta;</dt><dd>bandwidth: bytes per second once the data flows, in one direction</dd></dl></div>
+<div class="card" id="ic-abcard">
+<h4>A fast link is only fast for big messages: effective bandwidth climbs to &beta; only past n<sub>&frac12;</sub></h4>
+<label class="small">Message size <b id="ic-abv"></b> <input type="range" id="ic-abS" min="6" max="34" step="1" value="16" style="width:100%"></label>
+<div id="ic-ab" class="plot"></div>
+<div class="out" id="ic-about"></div>
+</div>
+<p>The <dfn>half-bandwidth size</dfn> n<sub>&frac12;</sub> = &alpha; &times; &beta; is where a message spends as long starting as flowing, so it reaches half the link's bandwidth (the dots on the curves). NVLink's n<sub>&frac12;</sub> is about 1.5 MB. This is why PyTorch's DistributedDataParallel groups gradients into buckets (25 MiB by default), why NCCL switches algorithms by message size (section 7), and why a tensor-parallel all-reduce of one decoded token (8 KB for a 4,096-wide model) is latency-bound on any link.</p>
+<div class="tw"><table id="ic-nhalf"></table></div>
+<p class="small mute">&alpha; for NVLink, InfiniBand and RoCE: 64-byte end-to-end latencies DeepSeek measured on its H800 cluster (<a href="https://arxiv.org/html/2505.09343" target="_blank" rel="noopener noreferrer">Zhao et al. 2025, Table 5</a>) <span class="pill i">independent</span>. The laptop row is <span class="pill m">measured here</span>: two processes exchanging messages through PyTorch's Gloo library over the loopback network (section 7). Rows marked "assumed" have no published latency I could find.</p>
+<p><b>Per direction, always.</b> Vendors usually print both directions added: "900 GB/s" for NVLink 4 is 450 each way, "1.8 TB/s" for NVLink 5 is 900, the "128 GB/s" AMD prints for PCIe 5.0 x16 (<a href="https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/data-sheets/amd-instinct-mi300x-data-sheet.pdf" target="_blank" rel="noopener noreferrer">MI300X data sheet</a>) is 64 before encoding. Network speeds are bits per second per direction: 400 Gb/s is 50 GB/s each way. This page uses <b>per direction</b> throughout, because an all-reduce sends and receives at once.</p>
+<div class="co corr"><div class="t">Correction to a common comparison</div>NVIDIA's own pages compare NVLink's two-direction total with PCIe's: "7x the bandwidth of PCIe Gen 5" (<a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a>), "over 14x" for NVLink 5 (<a href="https://developer.nvidia.com/blog/nvidia-gb200-nvl72-delivers-trillion-parameter-llm-training-and-real-time-inference/" target="_blank" rel="noopener noreferrer">GB200 NVL72 blog</a>). Per direction the H100 ratio is 450 against 64, also 7 times. The old version of this page called a PCIe 5.0 pair "two orders below NVLink"; it is under one order (7 times per direction, 14 times against NVLink's two-direction total), as <a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a> also notes.</div>
 </section>
 
 <section id="ic-s2">
-<h2>2. The two numbers of every link: latency and bandwidth</h2>
-<p><b>The problem.</b> "NVLink is 450 GB/s" sounds like a single speed, but a 1 KB message over it does not take 2 nanoseconds. Before any byte moves, software has to post the request, the hardware has to set up the transfer, the first bits have to travel and the receiver has to notice they arrived. That fixed cost is paid per message, whatever its size.</p>
-<p><b>How it works.</b> The standard model, used by MPI and NCCL designers alike, charges a message of <i>m</i> bytes</p>
-<div class="fm"><div class="eq">t(m) = &alpha; + m / &beta;</div><dl><dt>&alpha;</dt><dd>latency: start-up time per message (microseconds)</dd><dt>&beta;</dt><dd>bandwidth: bytes per second once the data flows, in one direction</dd></dl></div>
-<p>It is called the <dfn>alpha-beta model</dfn> (or Hockney model). Its most useful consequence is the <dfn>half-bandwidth size</dfn> n<sub>&frac12;</sub> = &alpha; &times; &beta;: a message of that size spends as long starting as it spends flowing, so it reaches half the link's bandwidth. Below it, latency dominates and more bandwidth hardly helps; above it, bandwidth dominates.</p>
-<div class="tw"><table id="ic-nhalf"></table></div>
-<p class="small mute">&alpha; for NVLink, InfiniBand and RoCE: 64-byte end-to-end latencies DeepSeek measured on its H800 cluster (<a href="https://arxiv.org/html/2505.09343" target="_blank" rel="noopener noreferrer">Zhao et al. 2025, Table 5</a>) <span class="pill i">independent</span>. The laptop row is <span class="pill m">measured here</span>: two processes exchanging messages through PyTorch's Gloo library over the loopback network (section 7 has the full data). Rows marked "assumed" have no published latency I could find.</p>
-<p><b>What it means for training.</b> A fast link is only fast for big messages. NVLink's n<sub>&frac12;</sub> is about 1.5 MB; to use it well, collectives must move megabytes at a time. This is why PyTorch's DistributedDataParallel groups gradients into buckets (25 MiB by default) instead of sending each layer's gradient on its own, and why NCCL switches algorithms by message size (section 7). It is also why a tensor-parallel all-reduce of a single decoded token (8 KB for a 4,096-wide model) is latency-bound on any link: the bytes are trivial, the start-up cost is not.</p>
-<div class="pred" data-right="2"><b>Predict first.</b> Per direction, NVLink 4 is 9 times a 400 Gb/s NIC (450 against 50 GB/s). For a 64 KB message, how much faster is NVLink, using the &alpha; values above?<div class="opts"><button data-a="0">About 9 times</button><button data-a="1">About 4 times</button><button data-a="2">Less than 1.5 times</button></div><div class="ans">NVLink: 3.33 &micro;s + 65,536 / 450 GB/s = 3.48 &micro;s. NIC: 2.8 &micro;s + 65,536 / 50 GB/s = 4.11 &micro;s. Ratio 1.18 <span class="pill d">derived</span>. At this size both are almost pure latency; the 9 times only appears for messages far above n<sub>&frac12;</sub>.</div></div>
-<p><b>Per direction, or both added?</b> Vendors usually print the sum of both directions: "900 GB/s" for NVLink 4 is 450 each way; "1.8 TB/s" for NVLink 5 is 900 each way; the "128 GB/s" AMD prints for PCIe 5.0 x16 (<a href="https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/data-sheets/amd-instinct-mi300x-data-sheet.pdf" target="_blank" rel="noopener noreferrer">MI300X data sheet</a>) is 64 each way before encoding overhead. Network speeds are quoted in <i>bits</i> per second, per direction: 400 Gb/s is 50 GB/s each way. Every number on this page is <b>per direction</b> unless it says otherwise, because an all-reduce sends and receives at once and is limited by one direction.</p>
-<div class="co corr"><div class="t">Correction to a common comparison</div>NVIDIA's own pages compare NVLink's two-direction total with PCIe's: "7x the bandwidth of PCIe Gen 5" (<a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a>), "over 14x" for NVLink 5 (<a href="https://developer.nvidia.com/blog/nvidia-gb200-nvl72-delivers-trillion-parameter-llm-training-and-real-time-inference/" target="_blank" rel="noopener noreferrer">GB200 NVL72 blog</a>). Per direction the H100 ratio is 450 against 64, also 7 times. The old version of this page called a PCIe 5.0 pair "two orders below NVLink"; it is under one order (7 times per direction, 14 times against NVLink's two-direction total). The sibling page <a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a> carries the same correction.</div>
-</section>
-<section id="ic-s3">
-<h2>3. PCIe: the bus every device sits on</h2>
-<p><b>The problem.</b> A GPU is a card plugged into a computer. The CPU has to send it work and data, the network card has to reach its memory, and on cards without NVLink, GPUs have to reach each other. All of that goes over <dfn>PCI Express</dfn> (PCIe).</p>
-<p><b>How it works.</b> A PCIe link is a bundle of <i>lanes</i>; each lane is two pairs of wires, one per direction, so a link sends and receives at the same time. A GPU slot has 16 lanes ("x16"). Each generation doubled the rate per lane. Data on the wire is wrapped in an encoding that costs a little: 8b/10b (20% overhead) until 2.0, 128b/130b (1.5%) from 3.0, and from 6.0 a new scheme with four voltage levels per symbol (PAM4) and fixed-size packets (FLITs) with error correction, carrying 242 useful bytes in every 256.</p>
+<h2>2. PCIe: the bus every device sits on</h2>
+<p>A GPU is a card in a computer: the CPU sends it work, the NIC reaches its memory, and GPUs without NVLink reach each other, all over <dfn>PCI Express</dfn>. A link is a bundle of <i>lanes</i>, each two pairs of wires, one per direction; a GPU slot has 16 ("x16"). Each generation doubled the rate per lane (rung 3 in the hero figure).</p>
 <div class="tw"><table>
 <thead><tr><th>Version</th><th class="num">Year</th><th class="num">GT/s per lane</th><th>Encoding</th><th class="num">x16, GB/s each way</th><th>Where you meet it</th></tr></thead>
 <tbody>
@@ -171,15 +207,25 @@ body .pill.m{color:var(--good);border-color:var(--good)}body .pill.v{color:var(-
 <tr><td>6.0</td><td class="num">2022</td><td class="num">64</td><td>PAM4, 242B/256B FLIT</td><td class="num">121</td><td>Blackwell Ultra ("PCIe Gen6 256 GB/s", <a href="https://developer.nvidia.com/blog/inside-nvidia-blackwell-ultra-the-chip-powering-the-ai-factory-era/" target="_blank" rel="noopener noreferrer">NVIDIA</a>); ConnectX-8</td></tr>
 <tr><td>7.0</td><td class="num">2025</td><td class="num">128</td><td>PAM4, FLIT</td><td class="num">242</td><td>specification released; no products yet</td></tr>
 </tbody></table></div>
-<p class="small mute">Rates, encodings and the PCI-SIG totals ("up to 256.0 GB/s via a x16 configuration" for 6.0, "bidirectional"; 7.0 "officially released to PCI-SIG members ... on June 11, 2025"; 3.0 released November 17, 2010) from PCI-SIG's <a href="https://pcisig.com/faq" target="_blank" rel="noopener noreferrer">FAQ</a>, <a href="https://pcisig.com/pci-express-6.0-specification" target="_blank" rel="noopener noreferrer">6.0</a> and <a href="https://pcisig.com/specifications/pcie-70-specification-version-03-now-available-members" target="_blank" rel="noopener noreferrer">7.0</a> pages, read through Wayback Machine copies because pcisig.com refuses automated fetching. PCI-SIG's figures are both directions before encoding (64, 128, 256 GB/s for x16 Gen 4, 5, 6); the column here is per direction after encoding <span class="pill d">derived: GT/s &times; 16 &times; 128/130 / 8; 242/256 for FLIT</span>. Years other than 3.0 and 7.0 from <a href="https://en.wikipedia.org/wiki/PCI_Express" target="_blank" rel="noopener noreferrer">Wikipedia</a> (secondary). PCIe 8.0 targets 256 GT/s "by 2028". <span class="pill v">vendor spec</span></p>
-<p><b>What sits on it in a GPU server.</b> In an 8-GPU HGX server the GPUs, their network cards and NVMe drives hang off PCIe switches that connect to the two CPUs. Two features matter for training. <dfn>Peer-to-peer</dfn> lets one GPU read another's memory over PCIe without staging through CPU memory. <dfn>GPUDirect RDMA</dfn> lets a network card read and write GPU memory directly, so gradients leave the server without a copy into CPU memory; it works best when the NIC and GPU share a PCIe switch, which is why HGX boards pair each GPU with its own NIC. The NCCL 2.27 notes give a current example of PCIe being the limit: ConnectX-8 NICs and Blackwell GPUs speak PCIe 6.0, enough for 800 Gb/s, "However, Grace CPUs currently only support PCIe Gen5, which limits throughput to 400 Gb/s" when traffic goes through the CPU (<a href="https://developer.nvidia.com/blog/enabling-fast-inference-and-resilient-training-with-nccl-2-27/" target="_blank" rel="noopener noreferrer">NCCL 2.27 blog</a>).</p>
-<p><b>Consumer cards.</b> GeForce cards from the RTX 4090 on have no NVLink, so two RTX 5090s in one workstation talk over PCIe 5.0: 63 GB/s each way, about a seventh of an H100's NVLink. The parent page's drill works the consequence: the 8B's gradient all-reduce between two such cards takes about 255 ms <span class="pill d">derived: 16.06 GB / 63 GB/s, ring with n = 2</span>.</p>
+<p class="small mute">Per direction after encoding <span class="pill d">derived: GT/s &times; 16 &times; 128/130 / 8; 242/256 for FLIT</span>. Provenance in the closed block below. <span class="pill v">vendor spec</span></p>
+<p><b>What sits on it in a GPU server.</b> In an 8-GPU HGX server the GPUs, their NICs and NVMe drives hang off PCIe switches that connect to the two CPUs. <dfn>Peer-to-peer</dfn> lets one GPU read another's memory over PCIe without staging through CPU memory. <dfn>GPUDirect RDMA</dfn> lets a NIC read and write GPU memory directly, so gradients leave the server without a copy into CPU memory; it works best when the NIC and GPU share a PCIe switch, which is why HGX boards pair each GPU with its own NIC. PCIe can still be the limit: ConnectX-8 NICs and Blackwell GPUs speak PCIe 6.0, enough for 800 Gb/s, "However, Grace CPUs currently only support PCIe Gen5, which limits throughput to 400 Gb/s" when traffic goes through the CPU (<a href="https://developer.nvidia.com/blog/enabling-fast-inference-and-resilient-training-with-nccl-2-27/" target="_blank" rel="noopener noreferrer">NCCL 2.27 blog</a>).</p>
+<p><b>Consumer cards.</b> GeForce cards from the RTX 4090 on have no NVLink, so two RTX 5090s talk over PCIe 5.0: 63 GB/s each way, about a seventh of an H100's NVLink. The 8B's gradient all-reduce between two such cards takes about 255 ms <span class="pill d">derived: 16.06 GB / 63 GB/s, ring with n = 2</span>.</p>
+<details class="dp"><summary>Encodings and provenance of the PCIe table <span class="mute">(1 min)</span></summary><div class="b">
+<p>Data on the wire is wrapped in an encoding that costs a little: 8b/10b (20% overhead) until 2.0, 128b/130b (1.5%) from 3.0, and from 6.0 a new scheme with four voltage levels per symbol (PAM4) and fixed-size packets (FLITs) with error correction, carrying 242 useful bytes in every 256.</p>
+<p class="small">Rates, encodings and the PCI-SIG totals ("up to 256.0 GB/s via a x16 configuration" for 6.0, "bidirectional"; 7.0 "officially released to PCI-SIG members ... on June 11, 2025"; 3.0 released November 17, 2010) from PCI-SIG's <a href="https://pcisig.com/faq" target="_blank" rel="noopener noreferrer">FAQ</a>, <a href="https://pcisig.com/pci-express-6.0-specification" target="_blank" rel="noopener noreferrer">6.0</a> and <a href="https://pcisig.com/specifications/pcie-70-specification-version-03-now-available-members" target="_blank" rel="noopener noreferrer">7.0</a> pages, read through Wayback Machine copies because pcisig.com refuses automated fetching. PCI-SIG's figures are both directions before encoding (64, 128, 256 GB/s for x16 Gen 4, 5, 6). Years other than 3.0 and 7.0 from <a href="https://en.wikipedia.org/wiki/PCI_Express" target="_blank" rel="noopener noreferrer">Wikipedia</a> (secondary). PCIe 8.0 targets 256 GT/s "by 2028".</p>
+</div></details>
 </section>
-
-<section id="ic-s4">
-<h2>4. NVLink and NVSwitch: the scale-up domain</h2>
-<p><b>The problem.</b> Tensor parallelism exchanges activations several times per layer, so GPUs splitting one model need bandwidth near their memory's, far beyond PCIe. Wiring every GPU to every other with fat links does not scale: with 8 GPUs each would need 7 links, each carrying only a seventh of its total.</p>
-<p><b>How it works.</b> <dfn>NVLink</dfn> is NVIDIA's GPU-to-GPU link: many lanes of fast serial wires, grouped into links. Since the A100, the links go not to other GPUs but to <dfn>NVSwitch</dfn> chips, so any GPU can send to any other at its full NVLink bandwidth, and all can do so at once. The set of GPUs joined this way is the <dfn>NVLink domain</dfn> (or scale-up domain). Inside it, GPUs can also load and store each other's memory directly, like one bigger GPU with slower remote memory.</p>
+<section id="ic-s3">
+<h2>3. NVLink and NVSwitch: the scale-up domain</h2>
+<p>Tensor parallelism exchanges activations several times per layer, so GPUs splitting one model need bandwidth near their memory's, far beyond PCIe. <dfn>NVLink</dfn> is NVIDIA's GPU-to-GPU link: many lanes of fast serial wires, grouped into links. Since the A100 the links go not to other GPUs but to <dfn>NVSwitch</dfn> chips, so any GPU can send to any other at its full NVLink bandwidth, all at once. The GPUs joined this way are the <dfn>NVLink domain</dfn> (or scale-up domain); inside it GPUs can load and store each other's memory, like one bigger GPU with slower remote memory.</p>
+<div class="card" id="ic-meshcard">
+<h4>A switch gives every pair the whole port; a mesh gives each pair one link</h4>
+<div class="seg" id="ic-meshm"><button data-m="sw" class="on">NVSwitch (H100 HGX)</button><button data-m="mesh">Direct mesh (MI300X)</button></div>
+<div id="ic-mesh" class="plot"></div>
+<div class="out" id="ic-meshout"></div>
+<p class="small mute">GPU 0 sending to GPU 3 highlighted. NVIDIA: without NVSwitch each of 8 GPUs "must split the same 900 GB/s connectivity into seven dedicated 128 GB/s point-to-point connections", while through NVSwitch any pair gets the full 900 (<a href="https://developer.nvidia.com/blog/nvidia-nvlink-and-nvidia-nvswitch-supercharge-large-language-model-inference/" target="_blank" rel="noopener noreferrer">NVIDIA, Aug 2024</a>). MI300X: 7 Infinity Fabric links of 128 GB/s (both directions) join each GPU directly to the other 7 (<a href="https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/data-sheets/amd-instinct-mi300x-data-sheet.pdf" target="_blank" rel="noopener noreferrer">MI300X data sheet</a>). Values each way. <span class="pill v">vendor spec</span></p>
+</div>
+<p>A mesh is cheaper and has no switch hop, but collectives must use all 7 links at once to see the 448 GB/s total. SemiAnalysis attributes NVIDIA's lead in their single-node collective tests to exactly this, "450GByte/s NVLink switched topology with in-network reduction (NVLS), compared to MI300X's 7x64GByte/s xGMI point-to-point topology" (<a href="https://semianalysis.com/2024/12/22/mi300x-vs-h100-vs-h200-benchmark-part-1-training/" target="_blank" rel="noopener noreferrer">SemiAnalysis, Dec 2024</a>) <span class="pill i">independent</span>.</p>
 <div class="tw"><table>
 <thead><tr><th>Generation</th><th>GPU</th><th class="num">Links</th><th class="num">Per GPU, total</th><th class="num">Each way</th><th>Domain</th></tr></thead>
 <tbody>
@@ -189,29 +235,51 @@ body .pill.m{color:var(--good);border-color:var(--good)}body .pill.v{color:var(-
 <tr><td>NVLink 5</td><td>B200, B300, GB200</td><td class="num">18</td><td class="num">1,800 GB/s</td><td class="num">900</td><td>8 (HGX) or 72 (NVL72 rack)</td></tr>
 <tr><td>NVLink 6</td><td>Rubin</td><td class="num">36</td><td class="num">3,000 or 3,600 GB/s</td><td class="num">1,500 or 1,800</td><td>72 (Vera Rubin NVL72)</td></tr>
 </tbody></table></div>
-<p class="small mute"><a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Ampere in depth</a> (12 links, 600 GB/s; V100 6 links, 300 GB/s); <a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a> (18 links, "25 GB/sec effective bandwidth in each direction" per link, NVLink Switch System "up to 256 GPUs"); <a href="https://developer.nvidia.com/blog/nvidia-nvlink-and-nvidia-nvswitch-supercharge-large-language-model-inference/" target="_blank" rel="noopener noreferrer">NVLink and NVSwitch for inference, Aug 2024</a> ("four third-generation NVSwitch chips" per HGX H100/H200); <a href="https://www.nvidia.com/en-us/data-center/nvlink/" target="_blank" rel="noopener noreferrer">NVLink page</a>. NVLink 6: NVIDIA's NVLink and <a href="https://www.nvidia.com/en-us/data-center/vera-rubin-nvl72/" target="_blank" rel="noopener noreferrer">Vera Rubin NVL72</a> pages say 3,000 GB/s over 36 links and 216 TB/s per rack; the <a href="https://developer.nvidia.com/blog/inside-the-nvidia-rubin-platform-six-new-chips-one-ai-supercomputer/" target="_blank" rel="noopener noreferrer">Rubin platform blog (Jan 2026)</a> and the HGX page say 3.6 TB/s and 260 TB/s. Both shown; the Chip atlas on the parent page uses 3.6. <span class="pill v">vendor spec</span></p>
-<p><b>Why a switch and not a mesh.</b> NVIDIA's own comparison: without NVSwitch, each of 8 GPUs "must split the same 900 GB/s connectivity into seven dedicated 128 GB/s point-to-point connections", while through NVSwitch any pair gets the full 900 (<a href="https://developer.nvidia.com/blog/nvidia-nvlink-and-nvidia-nvswitch-supercharge-large-language-model-inference/" target="_blank" rel="noopener noreferrer">NVIDIA, Aug 2024</a>). AMD's MI300X takes the mesh route: 7 Infinity Fabric links of 128 GB/s (both directions) join each GPU directly to the other 7 on the board (<a href="https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/data-sheets/amd-instinct-mi300x-data-sheet.pdf" target="_blank" rel="noopener noreferrer">MI300X data sheet</a>). A mesh is cheaper and has no switch hop, but a single pair of GPUs only ever gets one link, 64 GB/s each way; collectives must be written to use all 7 links at once to see the 448 GB/s total. SemiAnalysis attributes NVIDIA's lead in their single-node collective tests to exactly this, "450GByte/s NVLink switched topology with in-network reduction (NVLS), compared to MI300X's 7x64GByte/s xGMI point-to-point topology" (<a href="https://semianalysis.com/2024/12/22/mi300x-vs-h100-vs-h200-benchmark-part-1-training/" target="_blank" rel="noopener noreferrer">SemiAnalysis, Dec 2024</a>) <span class="pill i">independent</span>.</p>
-<p><b>The NVL72 rack.</b> GB200 NVL72 puts 72 Blackwell GPUs (and 36 Grace CPUs) in one NVLink domain. Nine switch trays, each with two NVLink switch chips of 72 ports, connect all 18 links of every GPU: "Each NVLink switch tray delivers 144 NVLink ports at 100 GB so the nine switches fully connect each of the 18 NVLink ports on every one of the 72 Blackwell GPUs", through "a copper cable cartridge" rather than optics; 72 &times; 1.8 TB/s gives the 130 TB/s headline (<a href="https://developer.nvidia.com/blog/nvidia-gb200-nvl72-delivers-trillion-parameter-llm-training-and-real-time-inference/" target="_blank" rel="noopener noreferrer">GB200 NVL72 blog</a>, <a href="https://docs.nvidia.com/dgx/dgxgb200-user-guide/hardware.html" target="_blank" rel="noopener noreferrer">DGX GB200 user guide</a>). The point is the domain size: tensor or expert parallelism of up to 72 instead of 8 at NVLink speed, which large mixture-of-experts models use.</p>
-<p><b>In-switch reduction (NVLink SHARP).</b> Third-generation NVSwitch (Hopper) and later can add numbers inside the switch: GPUs send their data in, the switch sums it and multicasts the result back. NVIDIA: "In-fabric multicast and reductions provide up to 2x throughput gain while significantly reducing latency for small block size collectives" (<a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a>). NCCL calls the algorithm NVLS (since version 2.17, <a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html" target="_blank" rel="noopener noreferrer">NCCL environment variables</a>). Section 7 shows why the gain is close to 2: each GPU sends its buffer once instead of nearly twice.</p>
-<p><b>Other scale-up fabrics.</b> Google's TPUs join chips directly in a torus over ICI, without switches; the sibling page <a href="https://app.notion.com/p/3c65c17b0d0d8151bbc2e0ceea196187" target="_blank" rel="noopener noreferrer">TPUs and other accelerators</a> owns it. NVLink-C2C joins a Grace CPU to its GPUs at 900 GB/s (<a href="https://developer.nvidia.com/blog/nvidia-gb200-nvl72-delivers-trillion-parameter-llm-training-and-real-time-inference/" target="_blank" rel="noopener noreferrer">GB200 NVL72 blog</a>). UALink is an open scale-up standard: its 1.0 specification defines 200 Gb/s lanes, 800 Gb/s per four-lane station and "up to 1024 endpoints" with load/store semantics (<a href="https://ualinkconsortium.org/blog/ualink-200g-1-0-specification-overview-802/" target="_blank" rel="noopener noreferrer">UALink Consortium, May 2025</a>); AMD's Helios rack carries it over Ethernet (parent page, Chip atlas).</p>
+<details class="dp"><summary>Sources for the NVLink table, and the two NVLink 6 figures <span class="mute">(1 min)</span></summary><div class="b">
+<p class="small"><a href="https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Ampere in depth</a> (12 links, 600 GB/s; V100 6 links, 300 GB/s); <a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a> (18 links, "25 GB/sec effective bandwidth in each direction" per link, NVLink Switch System "up to 256 GPUs"); <a href="https://developer.nvidia.com/blog/nvidia-nvlink-and-nvidia-nvswitch-supercharge-large-language-model-inference/" target="_blank" rel="noopener noreferrer">NVLink and NVSwitch for inference, Aug 2024</a> ("four third-generation NVSwitch chips" per HGX H100/H200); <a href="https://www.nvidia.com/en-us/data-center/nvlink/" target="_blank" rel="noopener noreferrer">NVLink page</a>. NVLink 6: NVIDIA's NVLink and <a href="https://www.nvidia.com/en-us/data-center/vera-rubin-nvl72/" target="_blank" rel="noopener noreferrer">Vera Rubin NVL72</a> pages say 3,000 GB/s over 36 links and 216 TB/s per rack; the <a href="https://developer.nvidia.com/blog/inside-the-nvidia-rubin-platform-six-new-chips-one-ai-supercomputer/" target="_blank" rel="noopener noreferrer">Rubin platform blog (Jan 2026)</a> and the HGX page say 3.6 TB/s and 260 TB/s. Both shown; the Chip atlas on the parent page uses 3.6. <span class="pill v">vendor spec</span></p>
+
+</div></details>
+<p><b>The NVL72 rack.</b> GB200 NVL72 puts 72 Blackwell GPUs (and 36 Grace CPUs) in one NVLink domain. Nine switch trays, each with two NVLink switch chips of 72 ports, connect all 18 links of every GPU: "Each NVLink switch tray delivers 144 NVLink ports at 100 GB so the nine switches fully connect each of the 18 NVLink ports on every one of the 72 Blackwell GPUs", through "a copper cable cartridge" rather than optics; 72 &times; 1.8 TB/s gives the 130 TB/s headline (<a href="https://developer.nvidia.com/blog/nvidia-gb200-nvl72-delivers-trillion-parameter-llm-training-and-real-time-inference/" target="_blank" rel="noopener noreferrer">GB200 NVL72 blog</a>, <a href="https://docs.nvidia.com/dgx/dgxgb200-user-guide/hardware.html" target="_blank" rel="noopener noreferrer">DGX GB200 user guide</a>). Tensor or expert parallelism of up to 72 instead of 8 now runs at NVLink speed.</p>
+<figure class="ph"><img src="img/gb200_nvl72_rack.webp" alt="Front of an NVIDIA GB200 NVL72 rack: ten compute trays at the top, nine plainer NVLink switch trays in the middle, eight compute trays at the bottom" loading="lazy" width="520" height="1214" style="max-width:220px">
+<figcaption><b>Count the trays: 10 compute, 9 NVLink switch, 8 compute.</b> The switch trays sit in the middle of the rack, so the copper cable cartridge behind the trays, which joins every GPU to every switch, stays short: 72 GPUs share one NVLink domain without optics. Each compute tray carries 4 GPUs and 2 Grace CPUs.<span class="cr">Photo: Pokiiri, <a href="https://commons.wikimedia.org/wiki/File:Nvidia_DGX_GB200.jpg" target="_blank" rel="noopener noreferrer">Nvidia DGX GB200</a>, CC BY-SA 4.0, cropped.</span></figcaption></figure>
+<p><b>In-switch reduction (NVLink SHARP).</b> Third-generation NVSwitch (Hopper) and later can add numbers inside the switch: GPUs send their data in, the switch sums it and multicasts the result back. NVIDIA: "In-fabric multicast and reductions provide up to 2x throughput gain while significantly reducing latency for small block size collectives" (<a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/" target="_blank" rel="noopener noreferrer">Hopper in depth</a>). NCCL calls the algorithm NVLS (since version 2.17, <a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html" target="_blank" rel="noopener noreferrer">NCCL environment variables</a>). Section 7 shows why the gain is close to 2 in bytes and why measurements give less.</p>
+<details class="dp"><summary>Other scale-up fabrics: NVLink-C2C, UALink <span class="mute">(under 1 min)</span></summary><div class="b">
+<p>Google's TPUs join chips directly in a torus over ICI, without switches (section 6). NVLink-C2C joins a Grace CPU to its GPUs at 900 GB/s (<a href="https://developer.nvidia.com/blog/nvidia-gb200-nvl72-delivers-trillion-parameter-llm-training-and-real-time-inference/" target="_blank" rel="noopener noreferrer">GB200 NVL72 blog</a>). UALink is an open scale-up standard: its 1.0 specification defines 200 Gb/s lanes, 800 Gb/s per four-lane station and "up to 1024 endpoints" with load/store semantics (<a href="https://ualinkconsortium.org/blog/ualink-200g-1-0-specification-overview-802/" target="_blank" rel="noopener noreferrer">UALink Consortium, May 2025</a>); AMD's Helios rack carries it over Ethernet (parent page, Chip atlas).</p>
+</div></details>
 </section>
-<section id="ic-s5">
-<h2>5. Leaving the server: network cards, RDMA, InfiniBand and RoCE</h2>
-<p><b>The problem.</b> Past the NVLink domain, GPUs in different servers must talk through a network. The ordinary way, a program calling the operating system's TCP stack, copies every byte through kernel memory, takes interrupts and backs off on loss; at 400 Gb/s per GPU that costs CPU time and microseconds the GPUs spend idle. The page <a href="https://app.notion.com/p/3c65c17b0d0d8117b21dcb9041879564" target="_blank" rel="noopener noreferrer">Networking foundations</a> explains TCP and its section 14 why clusters avoid it for heavy traffic.</p>
-<p><b>RDMA from zero.</b> <dfn>Remote direct memory access</dfn> moves the whole transport into the network card. The steps, in the vocabulary NCCL's network plugins use:</p>
-<ol>
+
+<section id="ic-s4">
+<h2>4. Leaving the server: RDMA, InfiniBand and RoCE</h2>
+<p>Past the NVLink domain, GPUs in different servers talk through NICs. The ordinary way, a program calling the operating system's TCP stack, copies every byte through kernel memory, takes interrupts and backs off on loss; at 400 Gb/s per GPU that costs CPU time and microseconds the GPUs spend idle (<a href="https://app.notion.com/p/3c65c17b0d0d8117b21dcb9041879564" target="_blank" rel="noopener noreferrer">Networking foundations</a> explains TCP, and its section 14 why clusters avoid it for heavy traffic). <dfn>Remote direct memory access</dfn> (RDMA) moves the whole transport into the NIC. Step through it against the TCP path:</p>
+<div class="card" id="ic-rdcard">
+<h4>RDMA takes the CPU and the kernel off the data path: the NIC reads one GPU's memory and writes another's</h4>
+<div id="ic-rdsvg" class="plot"></div>
+<ol class="steps" id="ic-rdsteps">
+<li><b>TCP, for contrast.</b> Bytes are copied from GPU memory to a host buffer, through the kernel's socket buffers to the NIC, and the same in reverse on the receiver: CPU copies and interrupts on both sides.</li>
 <li><b>Register memory.</b> The program tells the NIC which buffer it may touch (on a GPU server, a buffer in GPU memory); the NIC pins it and gets a key. With <dfn>GPUDirect RDMA</dfn> the NIC reaches GPU memory across PCIe without the CPU copying it.</li>
 <li><b>Create a queue pair.</b> Each connection is a pair of queues (send and receive) that live in the NIC; a reliable connection keeps ordering and retransmission in hardware.</li>
-<li><b>Post work.</b> The program writes a small descriptor ("send these bytes", or "write them into the remote buffer at this address with this key") into the queue and rings a doorbell. No system call, no copy.</li>
+<li><b>Post work.</b> The program writes a small descriptor ("write these bytes into the remote buffer at this address with this key") into the queue and rings a doorbell. No system call, no copy.</li>
 <li><b>The NICs move the data.</b> A one-sided RDMA write lands in the remote buffer without the remote CPU doing anything; completion shows up in a completion queue, which the GPU or CPU polls.</li>
 </ol>
-<p>The same RDMA operations run on three kinds of fabric in practice: InfiniBand, RoCE (RDMA over Converged Ethernet: the InfiniBand transport inside UDP packets, port 4791, on ordinary routed Ethernet) and AWS's EFA (its own SRD protocol); <a href="https://app.notion.com/p/3c65c17b0d0d8117b21dcb9041879564" target="_blank" rel="noopener noreferrer">Networking foundations</a> has the details of each and how NCCL picks between them. What separates InfiniBand from RoCE is how each avoids dropping packets, because RDMA's hardware transport recovers from a lost packet slowly.</p>
-<div class="grid">
-<div class="sp"><div class="n">InfiniBand: credits</div><p>A network built for RDMA, with its own switches and adapters. A sender may not transmit until the receiver has granted buffer space: "Each receiving end of a link supplies credits to the sending device ... Data is not transmitted unless the receiver advertises credits indicating receive buffer space is available" (<a href="https://network.nvidia.com/pdf/whitepapers/IB_Intro_WP_190.pdf" target="_blank" rel="noopener noreferrer">Mellanox, Introduction to InfiniBand</a>). So the fabric never drops for lack of buffer. Current NVIDIA switches add adaptive routing and in-network reduction (SHARP). <span class="pill v">vendor</span></p></div>
-<div class="sp"><div class="n">RoCE: lossless Ethernet by configuration</div><p>Ethernet drops packets when buffers fill; RoCE needs Priority Flow Control (PFC), pause frames sent hop by hop, plus ECN marking and a congestion-control algorithm, usually DCQCN. The Ultra Ethernet Consortium's overview names the costs: DCQCN "requires careful manual tuning", a lost packet triggers "Go-Back-N" retransmission, and PFC backpressure "can produce 'congestion trees' and head-of-line blocking" (<a href="https://ultraethernet.org/wp-content/uploads/sites/20/2023/10/23.07.12-UEC-1.0-Overview-FINAL-WITH-LOGO.pdf" target="_blank" rel="noopener noreferrer">UEC overview, 2023</a>). In exchange it is multi-vendor and runs on the Ethernet a data centre already has.</p></div>
+<div class="an-ctl" id="ic-rdctl"></div>
 </div>
-<p><b>RoCE at scale, in a real run.</b> Meta trained Llama 3 405B over RoCE at 400 Gb/s per GPU (smaller models on InfiniBand). Two problems and their fixes are documented: "LLM training produces fat network flows that are hard to balance across all available network paths using traditional methods such as Equal-Cost Multi-Path (ECMP) routing", so "our collective library creates 16 network flows between two GPUs, instead of just one" and an enhanced ECMP hashes on more header fields; with that balancing and "Deep-buffer switches in the spine", they ran "without traditional congestion control methods such as ... (DCQCN)" (<a href="https://arxiv.org/html/2407.21783v3" target="_blank" rel="noopener noreferrer">Llama 3 report, section 3.3.1</a>). The idea: ECMP sends every packet of one flow down one path to keep order, so a few huge flows collide on some links while others sit idle; more flows per connection spread them.</p>
-<p><b>Where Ethernet is going.</b> The Ultra Ethernet Consortium released its Specification 1.0 on June 11, 2025 (<a href="https://ultraethernet.org/ultra-ethernet-consortium-uec-launches-specification-1-0-transforming-ethernet-for-ai-and-hpc-at-scale/" target="_blank" rel="noopener noreferrer">UEC press release</a>). Its design goals, from the overview: "packet spraying" (every flow uses all paths at once), delivery out of order into the application buffer, and a transport that "does not depend on a lossless fabric". NVIDIA's Spectrum-X sells adaptive routing and telemetry-based congestion control on Ethernet (<a href="https://www.nvidia.com/en-us/networking/spectrumx/" target="_blank" rel="noopener noreferrer">Spectrum-X</a>, vendor claims). AWS's SRD already sprays and tolerates reordering (its user guide: "built-in OS-bypass and congestion control through the Scalable Reliable Datagram (SRD) protocol", <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa.html" target="_blank" rel="noopener noreferrer">EFA</a>).</p>
+<p>The same RDMA operations run on three kinds of fabric: InfiniBand, RoCE (RDMA over Converged Ethernet: the InfiniBand transport inside UDP packets, port 4791, on ordinary routed Ethernet) and AWS's EFA (its own SRD protocol); <a href="https://app.notion.com/p/3c65c17b0d0d8117b21dcb9041879564" target="_blank" rel="noopener noreferrer">Networking foundations</a> has the details of each and how NCCL picks between them. What separates InfiniBand from RoCE is how each avoids dropping packets, because RDMA's hardware transport recovers from a lost packet slowly. Meta trained Llama 3 405B over RoCE at 400 Gb/s per GPU (closed block below).</p>
+<div class="card" id="ic-flcard">
+<h4>InfiniBand never sends without buffer space; RoCE pauses the sender once a buffer fills</h4>
+<div id="ic-flsvg" class="plot"></div>
+<div class="grid">
+<div class="sp"><div class="n">InfiniBand: credits</div><p>"Each receiving end of a link supplies credits to the sending device ... Data is not transmitted unless the receiver advertises credits indicating receive buffer space is available" (<a href="https://network.nvidia.com/pdf/whitepapers/IB_Intro_WP_190.pdf" target="_blank" rel="noopener noreferrer">Mellanox, Introduction to InfiniBand</a>). So the fabric never drops for lack of buffer. Current NVIDIA switches add adaptive routing and in-network reduction (SHARP). <span class="pill v">vendor</span></p></div>
+<div class="sp"><div class="n">RoCE: lossless Ethernet by configuration</div><p>Ethernet drops packets when buffers fill; RoCE needs Priority Flow Control (PFC), pause frames sent hop by hop, plus ECN marking and a congestion-control algorithm, usually DCQCN. The Ultra Ethernet Consortium names the costs: DCQCN "requires careful manual tuning", a lost packet triggers "Go-Back-N" retransmission, and PFC backpressure "can produce 'congestion trees' and head-of-line blocking" (<a href="https://ultraethernet.org/wp-content/uploads/sites/20/2023/10/23.07.12-UEC-1.0-Overview-FINAL-WITH-LOGO.pdf" target="_blank" rel="noopener noreferrer">UEC overview, 2023</a>). In exchange it is multi-vendor and runs on the Ethernet a data centre already has.</p></div>
+</div>
+</div>
+<p><b>In-network reduction (SHARP).</b> NVIDIA's InfiniBand switches can do the additions of an all-reduce themselves (SHARPv3 on Quantum-2, SHARP v4 on Quantum-X800), so data "traversing the network" shrinks as it climbs a reduction tree (<a href="https://networking-docs.nvidia.com/sharpum/300/introduction" target="_blank" rel="noopener noreferrer">NVIDIA SHARP docs</a>). SemiAnalysis measured the effect: without SHARP the all-reduce slows as GPUs are added, "In contrast, with SHARP, the speed/completion time stays the same. We have results for up to 1,024 H100s" (<a href="https://semianalysis.com/2024/12/22/mi300x-vs-h100-vs-h200-benchmark-part-1-training/" target="_blank" rel="noopener noreferrer">SemiAnalysis, Dec 2024</a>) <span class="pill i">independent</span>.</p>
+<figure class="ph"><img src="img/infiniband_cabling.webp" alt="InfiniBand cables plugged into the network ports of a column of compute nodes in a cluster rack" loading="lazy" width="600" height="800" style="max-width:240px">
+<figcaption><b>One cable per network port.</b> Each of the stacked compute nodes carries its own InfiniBand cable to the cluster's switches. At one NIC per GPU, an 8-GPU server needs eight such cables, one to each rail leaf (section 5); "cables dominate network cost", as the dragonfly paper puts it (section 5).<span class="cr">Photo: Javils00, <a href="https://commons.wikimedia.org/wiki/File:Cables_Infiniband.jpg" target="_blank" rel="noopener noreferrer">Cables Infiniband</a>, CC0, cropped.</span></figcaption></figure>
+<details class="dp"><summary>RoCE at scale: Meta's Llama 3 cluster without DCQCN <span class="mute">(under 1 min)</span></summary><div class="b">
+<p><b>RoCE at scale, in a real run.</b> Meta trained Llama 3 405B over RoCE at 400 Gb/s per GPU (smaller models on InfiniBand). "LLM training produces fat network flows that are hard to balance across all available network paths using traditional methods such as Equal-Cost Multi-Path (ECMP) routing", so "our collective library creates 16 network flows between two GPUs, instead of just one" and an enhanced ECMP hashes on more header fields; with that balancing and "Deep-buffer switches in the spine", they ran "without traditional congestion control methods such as ... (DCQCN)" (<a href="https://arxiv.org/html/2407.21783v3" target="_blank" rel="noopener noreferrer">Llama 3 report, section 3.3.1</a>). ECMP sends every packet of one flow down one path to keep order, so a few huge flows collide on some links while others sit idle; more flows per connection spread them.</p>
+
+</div></details>
+<details class="dp"><summary>NICs and switches by generation; where Ethernet is going (UEC, Spectrum-X, SRD) <span class="mute">(2 min)</span></summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>Part</th><th>Speed</th><th>Notes</th></tr></thead>
 <tbody>
@@ -222,43 +290,77 @@ body .pill.m{color:var(--good);border-color:var(--good)}body .pill.v{color:var(-
 <tr><td>Quantum-X800 switch</td><td>144 ports of 800 Gb/s</td><td>SHARP v4, adaptive routing (<a href="https://www.nvidia.com/en-us/networking/products/infiniband/quantum-x800/" target="_blank" rel="noopener noreferrer">Quantum-X800</a>)</td></tr>
 <tr><td>Spectrum-6 Ethernet switch chip</td><td>102.4 Tb/s</td><td>200G SerDes (<a href="https://www.nvidia.com/en-us/networking/spectrumx/" target="_blank" rel="noopener noreferrer">Spectrum-X</a>)</td></tr>
 </tbody></table></div>
-<p class="small mute">Per GPU this is 50 GB/s each way at 400 Gb/s, 100 at 800 Gb/s. Server totals vary by builder: NVIDIA's HGX B200 reference lists 0.8 TB/s of networking per 8 GPUs and HGX B300 1.6 TB/s (<a href="https://www.nvidia.com/en-us/data-center/hgx/" target="_blank" rel="noopener noreferrer">HGX</a>); AWS's P6-B200 has 3.2 Tb/s and P6-B300 6.4 Tb/s, half of those (<a href="https://aws.amazon.com/ec2/instance-types/p6/" target="_blank" rel="noopener noreferrer">AWS P6</a>). <span class="pill v">vendor spec</span></p>
-<p><b>In-network reduction (SHARP).</b> NVIDIA's InfiniBand switches can do the additions of an all-reduce themselves (SHARPv3 on Quantum-2, SHARP v4 on Quantum-X800), so data "traversing the network" shrinks as it climbs a reduction tree (<a href="https://networking-docs.nvidia.com/sharpum/300/introduction" target="_blank" rel="noopener noreferrer">NVIDIA SHARP docs</a>). SemiAnalysis measured the effect: without SHARP the all-reduce slows as GPUs are added, "In contrast, with SHARP, the speed/completion time stays the same. We have results for up to 1,024 H100s" (<a href="https://semianalysis.com/2024/12/22/mi300x-vs-h100-vs-h200-benchmark-part-1-training/" target="_blank" rel="noopener noreferrer">SemiAnalysis, Dec 2024</a>) <span class="pill i">independent</span>.</p>
+<p class="small">Per GPU this is 50 GB/s each way at 400 Gb/s, 100 at 800 Gb/s. Server totals vary by builder: NVIDIA's HGX B200 reference lists 0.8 TB/s of networking per 8 GPUs and HGX B300 1.6 TB/s (<a href="https://www.nvidia.com/en-us/data-center/hgx/" target="_blank" rel="noopener noreferrer">HGX</a>); AWS's P6-B200 has 3.2 Tb/s and P6-B300 6.4 Tb/s, half of those (<a href="https://aws.amazon.com/ec2/instance-types/p6/" target="_blank" rel="noopener noreferrer">AWS P6</a>). <span class="pill v">vendor spec</span></p>
+<p><b>Where Ethernet is going.</b> The Ultra Ethernet Consortium released its Specification 1.0 on June 11, 2025 (<a href="https://ultraethernet.org/ultra-ethernet-consortium-uec-launches-specification-1-0-transforming-ethernet-for-ai-and-hpc-at-scale/" target="_blank" rel="noopener noreferrer">UEC press release</a>). Its design goals, from the overview: "packet spraying" (every flow uses all paths at once), delivery out of order into the application buffer, and a transport that "does not depend on a lossless fabric". NVIDIA's Spectrum-X sells adaptive routing and telemetry-based congestion control on Ethernet (<a href="https://www.nvidia.com/en-us/networking/spectrumx/" target="_blank" rel="noopener noreferrer">Spectrum-X</a>, vendor claims). AWS's SRD already sprays and tolerates reordering (its user guide: "built-in OS-bypass and congestion control through the Scalable Reliable Datagram (SRD) protocol", <a href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/efa.html" target="_blank" rel="noopener noreferrer">EFA</a>).</p>
+</div></details>
 </section>
-
-<section id="ic-s6">
-<h2>6. Topology: fat trees, rails and oversubscription</h2>
-<p><b>The problem.</b> A switch has a fixed number of ports (64 on a Quantum-2). Thousands of NICs need several layers of switches, and every layer costs money, power and a hop of latency. How the layers are wired decides which GPUs can talk at full speed at the same time.</p>
-<p><b>Fat trees.</b> The standard answer is a folded Clos network, usually called a <dfn>fat tree</dfn>: <i>leaf</i> switches connect to NICs below and to every <i>spine</i> switch above; a third layer joins groups of spines when two are not enough. With k-port switches, two layers reach k&sup2;/2 endpoints and three reach k&sup3;/4 (<a href="https://dl.acm.org/doi/10.1145/1402958.1402967" target="_blank" rel="noopener noreferrer">Al-Fares et al., SIGCOMM 2008</a>); with 64 ports that is 2,048 and 65,536 <span class="pill d">derived</span>. If each leaf has as many uplinks as downlinks, the network has <dfn>full bisection bandwidth</dfn>: cut it into any two halves and each half can send to the other at the full rate of its NICs. Fewer uplinks than downlinks is <dfn>oversubscription</dfn>, written as the ratio: at 1:7 (Meta) or 15:1 (Alibaba), traffic crossing that layer gets a seventh or a fifteenth of the NIC rate if everyone sends at once.</p>
-<p><b>Rails.</b> In a <dfn>rail-optimised</dfn> fabric, GPU <i>k</i> of every server connects to leaf switch <i>k</i>: rail <i>k</i>. NCCL's collectives across servers mostly pair same-index GPUs (the NVLink inside the server does the rest), so their traffic stays on one leaf, one hop, never touching the spine. NVIDIA's DGX SuperPOD reference: "A modular architecture based on SUs of 32 DGX B200 systems each", "rail-optimized, balanced, full-fat tree", and "Traffic per rail of the DGX B200 systems is always one hop away from the other 31 nodes in a SU. Traffic between nodes, or between rails, traverses the spine layer" (<a href="https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/dgx-superpod-components.html" target="_blank" rel="noopener noreferrer">components</a>, <a href="https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/network-fabrics.html" target="_blank" rel="noopener noreferrer">network fabrics</a>). Four such units, 127 servers, use 32 leaf and 16 spine switches.</p>
+<section id="ic-s5">
+<h2>5. Topology: fat trees, rails, oversubscription and dragonflies</h2>
+<p>A switch has a fixed number of ports (64 on a Quantum-2), so thousands of NICs need layers of switches, each costing money, power and a hop of latency. How they are wired decides which GPUs can talk at full speed at once. Three shapes cover almost every machine:</p>
+<div class="card" id="ic-topocard">
+<h4>Three ways to join many chips: count the hops between the two highlighted endpoints</h4>
+<div class="seg" id="ic-topom"><button data-m="ft" class="on">Fat tree (GPU clusters)</button><button data-m="torus">Torus (TPU pods)</button><button data-m="df">Dragonfly (Frontier)</button></div>
+<div id="ic-topo" class="plot"></div>
+<div class="out" id="ic-topoout"></div>
+</div>
+<p><b>Fat trees.</b> The standard GPU-cluster answer is a folded Clos network, usually called a <dfn>fat tree</dfn>: <i>leaf</i> switches connect to NICs below and to every <i>spine</i> switch above; a third layer joins groups of spines when two are not enough. With k-port switches, two layers reach k&sup2;/2 endpoints and three reach k&sup3;/4 (<a href="https://dl.acm.org/doi/10.1145/1402958.1402967" target="_blank" rel="noopener noreferrer">Al-Fares et al., SIGCOMM 2008</a>); with 64 ports that is 2,048 and 65,536 <span class="pill d">derived</span>. If each leaf has as many uplinks as downlinks, the network has <dfn>full bisection bandwidth</dfn>: cut it into any two halves and each half can send to the other at the full rate of its NICs. Fewer uplinks than downlinks is <dfn>oversubscription</dfn>: at 1:7 (Meta) or 15:1 (Alibaba), traffic crossing that layer gets a seventh or a fifteenth of the NIC rate if everyone sends at once.</p>
+<p><b>Rails.</b> In a <dfn>rail-optimised</dfn> fabric, GPU <i>k</i> of every server connects to leaf switch <i>k</i>: rail <i>k</i> (rung 4 of the hero figure). NCCL's collectives across servers mostly pair same-index GPUs (the NVLink inside the server does the rest), so their traffic stays on one leaf, one hop, never touching the spine. NVIDIA's DGX SuperPOD reference: "Traffic per rail of the DGX B200 systems is always one hop away from the other 31 nodes in a SU. Traffic between nodes, or between rails, traverses the spine layer" (<a href="https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/network-fabrics.html" target="_blank" rel="noopener noreferrer">network fabrics</a>). Real clusters (Meta, Alibaba, DeepSeek, NVIDIA, Frontier) are in the closed block below.</p>
+<div class="pred" data-right="1"><b>Predict first.</b> 16 servers of 8 GPUs on a rail-optimised fabric. Every GPU sends 1 GB in an all-to-all, spread evenly over all 128 GPUs. What fraction of each GPU's bytes must cross the spine (go to a different rail on a different server)?<div class="opts"><button data-a="0">About 1/8</button><button data-a="1">About 5/6</button><button data-a="2">All of it</button></div><div class="ans">Of the 127 other GPUs, 15 are on the same rail (other servers) and 7 in the same server; the other 105 are on another rail and another server: 105/127 = 83% <span class="pill d">derived</span>. A ring all-reduce sends none of its bytes over the spine. This is why all-to-all, not all-reduce, is what a network's spine and oversubscription are for. Check it in the explorer below.</div></div>
+<div class="card" id="fab-card">
+<h4>The same fabric under three traffic patterns: which class of link limits each one</h4>
+<p class="small">Servers of 8 GPUs, each GPU with one 400 Gb/s NIC (50 GB/s each way) and NVLink 4 (450 GB/s each way) inside its server; each GPU sends 1 GB. The drawing shows the first few servers; the numbers are for the whole cluster. Start with all-to-all at 1:1, raise the oversubscription, then tick PXN.</p>
+<div class="ctl">
+<label>Fabric <select id="fab-f"><option value="rail">Rail-optimised (leaf per GPU index) + spine</option><option value="tor">Top-of-rack (2 servers per leaf) + spine</option><option value="railonly">Rail-only (no spine; cross-rail over NVLink)</option></select></label>
+<label>Traffic <select id="fab-p"><option value="a2a">All-to-all over all GPUs (expert parallelism)</option><option value="dp_ring">Ring all-reduce across servers, one ring per GPU index (data parallelism)</option><option value="pp">Pipeline send to the next server</option></select></label>
+<label>Servers <select id="fab-s"><option>2</option><option>4</option><option>8</option><option selected>16</option><option>32</option><option>64</option></select></label>
+<label>Spine oversubscription <select id="fab-o"><option value="1">1:1 (full bisection)</option><option value="2">2:1</option><option value="3">3:1</option><option value="7">7:1 (like Llama 3's top layer)</option></select></label>
+<label class="chk"><input type="checkbox" id="fab-x"> forward cross-rail traffic over NVLink first (NCCL's PXN)</label>
+</div>
+<div id="fab-svg" class="plot"></div>
+<div class="out" id="fab-out"></div>
+<div class="bars" id="fab-bars"></div>
+<p class="small" id="fab-note"></p>
+<p class="small mute">Fluid model (<code>src/fabric.py</code>, mirrored here and checked on 216 cases): perfect load balance across spine switches, no congestion control or flow collisions (real ECMP hashing does worse), all GPUs sending at once. Time = the largest load / capacity over link classes. Switch ports count leaf downlinks plus leaf uplinks and the spine ports they need, a rough cost proxy. <span class="pill d">derived</span></p>
+</div>
+<details class="dp"><summary>Five real clusters: shape, oversubscription and why they oversubscribe <span class="mute">(2 min)</span></summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>Cluster</th><th>Shape</th><th>Oversubscription</th><th>Source</th></tr></thead>
 <tbody>
 <tr><td>Meta, Llama 3 (24K GPUs, RoCE)</td><td>Three-layer Clos. 16 GPUs (two servers) per rack and ToR; 192 racks form a pod of 3,072 GPUs; 8 pods form the cluster</td><td>None inside a pod ("full bisection bandwidth"); 1:7 between pods</td><td><a href="https://arxiv.org/html/2407.21783v3" target="_blank" rel="noopener noreferrer">Llama 3, 3.3.1</a></td></tr>
 <tr><td>Alibaba HPN (15K GPUs per pod)</td><td>Two tiers, rail-optimised, each NIC's two ports on two different ToRs ("dual-ToR"), two planes; 1,024 GPUs per single-layer segment</td><td>1:1 in the pod; 15:1 above it</td><td><a href="https://ennanzhai.github.io/pub/sigcomm24-hpn.pdf" target="_blank" rel="noopener noreferrer">Qian et al., SIGCOMM 2024</a></td></tr>
 <tr><td>DeepSeek (2,048 H800s)</td><td>Multi-plane fat tree: GPU-NIC pair <i>k</i> of every server on its own two-layer plane; 8 planes of 64-port switches reach 16,384 GPUs</td><td>1:1</td><td><a href="https://arxiv.org/html/2505.09343" target="_blank" rel="noopener noreferrer">Zhao et al., ISCA 2025</a></td></tr>
-<tr><td>NVIDIA DGX SuperPOD (B200, 4 SUs)</td><td>Rail-optimised two-tier fat tree, 32 servers per scalable unit</td><td>1:1</td><td><a href="https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/network-fabrics.html" target="_blank" rel="noopener noreferrer">SuperPOD RA</a></td></tr>
+<tr><td>NVIDIA DGX SuperPOD (B200, 4 SUs)</td><td>Rail-optimised two-tier fat tree: "A modular architecture based on SUs of 32 DGX B200 systems each", "rail-optimized, balanced, full-fat tree" (<a href="https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/dgx-superpod-components.html" target="_blank" rel="noopener noreferrer">components</a>); four units, 127 servers, use 32 leaf and 16 spine switches</td><td>1:1</td><td><a href="https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/network-fabrics.html" target="_blank" rel="noopener noreferrer">SuperPOD RA</a></td></tr>
+<tr><td>Frontier (HPE Slingshot)</td><td>Dragonfly; 64-port, 12.8 Tb/s switches; "copper and optical cables"</td><td>not stated</td><td><a href="https://www.olcf.ornl.gov/wp-content/uploads/2-15-23-Frontier-System-Architecture-public-v7.pdf" target="_blank" rel="noopener noreferrer">OLCF, Frontier system architecture, Feb 2023</a></td></tr>
 </tbody></table></div>
 <p><b>Why oversubscribe at all?</b> Alibaba reports that "about 96.3% of in-production LLM training jobs take less than 1K GPUs", so a full-bisection core would mostly carry nothing; HPN places pipeline traffic, the lightest, across pods. DeepSeek's cost table prices a two-layer fat tree at $4.39k per endpoint against $7.5k for three layers, which is why it built eight two-layer planes instead of one three-layer tree (<a href="https://arxiv.org/html/2505.09343" target="_blank" rel="noopener noreferrer">Zhao et al., Table 3</a>). The rail-only proposal goes further and removes the spine, forwarding cross-rail traffic over NVLink, claiming "the same training performance while reducing the network cost by 38% to 77%" with "8.2% to 11.2% completion time overhead for all-to-all traffic" (<a href="https://arxiv.org/abs/2307.12169" target="_blank" rel="noopener noreferrer">Wang et al. 2023</a>).</p>
-<div class="pred" data-right="1"><b>Predict first.</b> 16 servers of 8 GPUs on a rail-optimised fabric. Every GPU sends 1 GB in an all-to-all, spread evenly over all 128 GPUs. What fraction of each GPU's bytes must cross the spine (go to a different rail on a different server)?<div class="opts"><button data-a="0">About 1/8</button><button data-a="1">About 5/6</button><button data-a="2">All of it</button></div><div class="ans">Of the 127 other GPUs, 15 are on the same rail (other servers) and 7 in the same server; the other 105 are on another rail and another server: 105/127 = 83% <span class="pill d">derived</span>. A ring all-reduce sends none of its bytes over the spine. This is why all-to-all, not all-reduce, is what a network's spine and oversubscription are for. The <a href="#" data-tab="t-fab">Fabric explorer</a> tab computes every link's load for both.</div></div>
-<div class="deepnote"><b>Go deeper (optional).</b> The <a href="#" data-tab="t-fab">Fabric explorer</a> tab draws a rail-optimised, a top-of-rack and a rail-only fabric, puts a ring all-reduce, an all-to-all or a pipeline send on it, and shows which link class becomes the bottleneck as you change oversubscription and server count.</div>
+
+</div></details>
+<p><b>Dragonflies.</b> "Because cables dominate network cost, the number of cables, and particularly the number of long, global cables should be minimized". The <dfn>dragonfly</dfn> answer "uses a group of high-radix routers as a virtual router to increase the effective radix of the network", so that "each minimally routed packet traverses at most one global channel"; the authors claim it "reduces cost by 20% compared to a flattened butterfly and by 52% compared to a folded Clos network in configurations with &ge; 16K nodes" (<a href="https://research.google/pubs/technology-driven-highly-scalable-dragonfly-topology/" target="_blank" rel="noopener noreferrer">Kim, Dally, Scott and Abts, ISCA 2008</a>). Inside a group the switches are wired all-to-all with short cables; between groups there is at least one long global link per pair (the Dragonfly view above). The price is that heavy traffic between two groups shares few global links, so the paper adds adaptive routing that sends some packets through a third group. HPC machines such as Frontier use it; the AI training clusters in the table use rail-optimised or multi-plane fat trees, whose rails suit NCCL's same-index rings.</p>
+</section>
+
+<section id="ic-s6">
+<h2>6. TPU pods: a torus of chips, rewired by optical switches</h2>
+<p>Each TPU has its own <dfn>inter-chip interconnect</dfn> (ICI) ports wired straight to neighbouring chips: no NIC, no switch. Chips sit on a grid; each talks to 4 neighbours (a 2-D grid: v2, v3, v5e, v6e) or 6 (a 3-D grid: v4, v5p, Ironwood). Wiring the last chip of every row back to the first makes a <dfn>torus</dfn> (the Torus view in section 5's figure), which roughly halves the longest path and lets a ring of chips send both ways at once. A torus is excellent for ring collectives between neighbours and slower for arbitrary point-to-point traffic, which is why TPU programs are written as shardings over a device mesh (<a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>).</p>
+<figure class="ph"><img src="img/tpuv4_ocs_fig1.webp" alt="Figure 1 of the TPU v4 paper: a 4 by 4 by 4 cube of chips with its face links, and below it the cube's 16 links per face running to X, Y and Z optical circuit switches" loading="lazy" width="640" height="742">
+<figcaption><b>Each face of a 64-chip cube has 16 links; opposite faces go to the same optical switch</b>, which closes the torus in that dimension. Inside the cube chips are wired electrically; between cubes only the mirrors decide who connects to whom.<span class="cr">Figure 1 of Jouppi et al., <a href="https://arxiv.org/abs/2304.01433" target="_blank" rel="noopener noreferrer">TPU v4: An Optically Reconfigurable Supercomputer for Machine Learning (ISCA 2023)</a>, CC BY 4.0, cropped.</span></figcaption></figure>
+<p><b>Optical circuit switches.</b> A torus wired once is fragile: one dead chip breaks a ring, and the whole machine must be cabled before any of it can be used. TPU v4 builds the pod from 4 &times; 4 &times; 4 cubes of 64 chips (one rack, 16 hosts), electrically wired inside, and connects the cubes' faces through <dfn>optical circuit switches</dfn> (OCS): MEMS mirrors that steer light from one fibre to another and switch in milliseconds. Each cube face has 16 links, 96 per cube; opposite faces go to the same switch, so 6 &times; 16 / 2 = 48 switches of 136 ports join 64 cubes into 4,096 chips. The mirrors are not a packet network: they only set which cube's face is plugged into which, like a plugboard: slices of any shape, routing around failed cubes, twisted tori, for under 5% of system cost.</p>
+<details class="dp"><summary>What the optical switches buy, in detail <span class="mute">(1 min)</span></summary><div class="b">
+<p>All from the <a href="https://arxiv.org/abs/2304.01433" target="_blank" rel="noopener noreferrer">TPU v4 paper</a>:</p>
+<ul class="tight">
+<li><b>Slices of any shape:</b> a job asks for, say, 4 &times; 8 &times; 16 chips, and the switches wire the cubes it gets into exactly that torus, wherever they sit in the hall.</li>
+<li><b>Routing around failures:</b> a cube with a dead host is swapped out by re-pointing mirrors; with 1,024 hosts each up 99.0% to 99.9% of the time, a large slice is otherwise rarely all healthy.</li>
+<li><b>Twisted tori:</b> some links are re-pointed to shorten the longest paths, which raised all-to-all throughput; 40% of slices of 64 chips or more chose a twisted topology in Google's sample.</li>
+<li><b>Cost:</b> the switches and optics are "&lt;5% of system cost and &lt;3% of system power".</li>
+</ul>
+</div></details>
+<p>Slices smaller than a cube get no optical wraparound, so a 2 &times; 2 &times; 4 slice is slower per byte than a 4 &times; 4 &times; 4. Ironwood keeps the scheme at 9,216 chips: 144 cubes of 64, 1.77 PB of HBM in one pod, ICI at 9.6 Tb/s (1.2 TB/s) per chip (<a href="https://cloud.google.com/blog/products/compute/ironwood-tpus-and-new-axion-based-vms-for-your-ai-workloads" target="_blank" rel="noopener noreferrer">Google Cloud, Nov 6 2025</a>). Per link the scaling book uses 45 GB/s one way on v4 and v5e and 90 GB/s on v5p, v6e and TPU7x (<a href="https://jax-ml.github.io/scaling-book/tpus/" target="_blank" rel="noopener noreferrer">scaling book</a>). <span class="pill v">vendor spec</span></p>
+<p><b>Beyond a pod.</b> Pods (or slices) join over the ordinary data-centre network, DCN, at about 6.25 GB/s per chip (12.5 on v6e and TPU7x), more than 10 times slower than one ICI link (<a href="https://jax-ml.github.io/scaling-book/tpus/" target="_blank" rel="noopener noreferrer">scaling book</a>). So, as on GPUs, only data parallelism (the gradient all-reduce, once per step) crosses that boundary ("multislice"), and everything chatty stays on ICI: the same ladder, with ICI as the top network rung. Section 7 gives the collective times on a torus; the chip itself is on <a href="https://app.notion.com/p/3c65c17b0d0d8151bbc2e0ceea196187" target="_blank" rel="noopener noreferrer">TPUs and other accelerators</a>.</p>
 </section>
 <section id="ic-s7">
 <h2>7. Collectives on the wire: algorithms and what they cost</h2>
-<p><b>The problem.</b> Training code calls a handful of <dfn>collectives</dfn>, operations every GPU in a group joins: <b>all-reduce</b> (everyone ends with the sum), <b>reduce-scatter</b> (everyone ends with the sum of one slice), <b>all-gather</b> (everyone ends with every slice), <b>all-to-all</b> (everyone sends a different piece to everyone). <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> explains which parallelism calls which. A library (NCCL on NVIDIA, RCCL on AMD) turns each call into a schedule of point-to-point messages, and the schedule decides how many latencies and how many bytes the operation pays.</p>
-<p><b>Four ways to all-reduce.</b> With <i>n</i> GPUs, a buffer of <i>S</i> bytes, and every GPU able to send and receive one message per step:</p>
-<div class="tw"><table>
-<thead><tr><th>Algorithm</th><th>Steps (latencies)</th><th>Bytes sent per GPU</th><th>Time, alpha-beta</th><th>Good for</th></tr></thead>
-<tbody>
-<tr><td><b>Ring</b>: pass chunks of S/n around a ring, adding (n&minus;1 steps), then pass the finished sums (n&minus;1 steps)</td><td class="num">2(n&minus;1)</td><td class="num">2(n&minus;1)/n &middot; S</td><td>2(n&minus;1)&alpha; + 2(n&minus;1)/n &middot; S/&beta;</td><td>large buffers; the minimum bytes of any point-to-point scheme</td></tr>
-<tr><td><b>Recursive doubling</b>: swap the whole buffer with the partner at distance 1, 2, 4, ...</td><td class="num">log&#8322; n</td><td class="num">log&#8322; n &middot; S</td><td>log&#8322;n (&alpha; + S/&beta;)</td><td>tiny buffers</td></tr>
-<tr><td><b>Halving-doubling</b> (Rabenseifner): swap halves of a shrinking range, then grow it back</td><td class="num">2 log&#8322; n</td><td class="num">2(n&minus;1)/n &middot; S</td><td>2 log&#8322;n &alpha; + 2(n&minus;1)/n &middot; S/&beta;</td><td>both, when n is a power of 2</td></tr>
-<tr><td><b>In-switch</b> (NVLink SHARP, InfiniBand SHARP): everyone sends to the switch, which adds and sends back</td><td class="num">2</td><td class="num">S</td><td>2&alpha; + S/&beta; (up and down streams overlap)</td><td>everything, if the switch can add at line rate</td></tr>
-</tbody></table></div>
-<p class="small mute">Formulas: <a href="https://journals.sagepub.com/doi/10.1177/1094342005051521" target="_blank" rel="noopener noreferrer">Thakur, Rabenseifner and Gropp, 2005</a> for recursive doubling and halving-doubling; the ring line is their ring reduce-scatter plus ring all-gather, composed here <span class="pill d">derived</span>. Their &gamma; term for the additions is dropped: on GPUs the adds are far cheaper than the transfers. The in-switch line is idealised (the switch adds as fast as data arrives). NCCL's other main algorithm is a pipelined <b>double binary tree</b>: "full bandwidth and a logarithmic latency", "up to 180x improvement at 24k GPUs" over rings in latency (<a href="https://developer.nvidia.com/blog/massively-scale-deep-learning-training-nccl-2-4/" target="_blank" rel="noopener noreferrer">NCCL 2.4 blog, 2019</a>).</p>
-<h3>The same gradients, four algorithms</h3>
-<p>The animation runs the 8B's 16.06 GB of gradients over 8 GPUs. Each GPU's buffer is cut into 8 chunks; a chunk's colour shows how many GPUs' contributions it already holds (pale: only its own; full: all 8). Switch algorithms on the same input and watch the step counter, the bytes each GPU has sent, and the clock. Switch the link to see the latency term matter.</p>
+<p>Training code calls a handful of <dfn>collectives</dfn>, operations every GPU in a group joins: <b>all-reduce</b> (everyone ends with the sum), <b>reduce-scatter</b> (everyone ends with the sum of one slice), <b>all-gather</b> (everyone ends with every slice), <b>all-to-all</b> (everyone sends a different piece to everyone). <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> explains which parallelism calls which. A library (NCCL on NVIDIA, RCCL on AMD, XLA on TPU) turns each call into a schedule of point-to-point messages, and the schedule decides how many latencies and how many bytes the operation pays. Watch four schedules on the same input first:</p>
 <div class="card" id="ic-arcard">
+<h4>The same 8B gradients, four algorithms: the ring pays many latencies, recursive doubling many bytes, the switch neither</h4>
 <div class="seg" id="ic-aralg"><button data-m="ring" class="on">Ring</button><button data-m="rd">Recursive doubling</button><button data-m="rab">Halving-doubling</button><button data-m="switch">In-switch</button></div>
 <div class="seg" id="ic-arlink"><button data-m="nvl4" class="on">NVLink 4</button><button data-m="ib">InfiniBand 400G</button><button data-m="laptop">This laptop</button></div>
 <div class="seg" id="ic-arsize"><button data-m="16060522496" class="on">16.06 GB (8B gradients)</button><button data-m="8192">8 KB (one decoded token)</button></div>
@@ -266,40 +368,105 @@ body .pill.m{color:var(--good);border-color:var(--good)}body .pill.v{color:var(-
 <div class="cap" id="ic-arcap"></div>
 <div class="an-ctl" id="ic-arctl"></div>
 <div class="out" id="ic-arcnt"></div>
+<p class="small mute">8 GPUs, each buffer cut into 8 chunks; a chunk's shade shows how many GPUs' contributions it holds (pale: its own; full: all 8). <b>Predict, then step:</b> at 16.06 GB, ring and halving-doubling send the same 28.1 GB per GPU and tie; recursive doubling sends 48.2 GB; in-switch sends 16.06 GB and finishes in about 57% of the ring's time. At 8 KB the step count is everything, and recursive doubling's 3 steps beat the ring's 14.</p>
 </div>
-<p class="try"><b>Try:</b> at 16.06 GB, ring and halving-doubling send the same 28.1 GB per GPU and tie; recursive doubling sends 48.2 GB; in-switch sends 16.06 GB and finishes in about 57% of the ring's time. Then pick 8 KB: now the step count is everything, and recursive doubling's 3 steps beat the ring's 14.</p>
-<p><b>Two bandwidths in every benchmark.</b> NVIDIA's nccl-tests, the standard benchmark, prints two: <dfn>algbw</dfn> = S / t, and <dfn>busbw</dfn> = algbw &times; 2(n&minus;1)/n for all-reduce ((n&minus;1)/n for all-gather, reduce-scatter and all-to-all), defined so that it can be compared "with the hardware peak bandwidth, independently of the number of ranks used" (<a href="https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md" target="_blank" rel="noopener noreferrer">nccl-tests PERFORMANCE.md</a>). For a ring, busbw is the bandwidth on each wire. In-switch and hierarchical algorithms break that meaning; NCCL's author: "with SHARP enabled ... BusBW may not represent any 'Bus' bandwidth" (<a href="https://github.com/NVIDIA/nccl-tests/issues/153" target="_blank" rel="noopener noreferrer">nccl-tests issue 153</a>). So a busbw above the link's rate is not a measurement error: it is NVLS or a hierarchy at work.</p>
-<h3>Published measurements against the model</h3>
+<p>With <i>n</i> GPUs, a buffer of <i>S</i> bytes, and every GPU able to send and receive one message per step:</p>
+<div class="tw"><table>
+<thead><tr><th>Algorithm</th><th>Steps (latencies)</th><th>Bytes sent per GPU</th><th>Time, alpha-beta</th><th>Good for</th></tr></thead>
+<tbody>
+<tr><td><b>Ring</b>: pass chunks of S/n around a ring, adding (n&minus;1 steps), then pass the finished sums (n&minus;1 steps)</td><td class="num">2(n&minus;1)</td><td class="num">2(n&minus;1)/n &middot; S</td><td>2(n&minus;1)&alpha; + 2(n&minus;1)/n &middot; S/&beta;</td><td>large buffers; the minimum bytes of any point-to-point scheme</td></tr>
+<tr><td><b>Recursive doubling</b>: swap the whole buffer with the partner at distance 1, 2, 4, ...</td><td class="num">log&#8322; n</td><td class="num">log&#8322; n &middot; S</td><td>log&#8322;n (&alpha; + S/&beta;)</td><td>tiny buffers</td></tr>
+<tr><td><b>Halving-doubling</b> (Rabenseifner): swap halves of a shrinking range, then grow it back</td><td class="num">2 log&#8322; n</td><td class="num">2(n&minus;1)/n &middot; S</td><td>2 log&#8322;n &alpha; + 2(n&minus;1)/n &middot; S/&beta;</td><td>both, when n is a power of 2</td></tr>
+<tr><td><b>Double binary tree</b> (NCCL across nodes): two pipelined trees, each carrying half</td><td class="num">about 2 log&#8322; n</td><td class="num">about 2S</td><td>about 2 log&#8322;n &alpha; + 2S/&beta;</td><td>many nodes, small and medium buffers</td></tr>
+<tr><td><b>In-switch</b> (NVLink SHARP, InfiniBand SHARP): everyone sends to the switch, which adds and sends back</td><td class="num">2</td><td class="num">S</td><td>2&alpha; + S/&beta; (up and down streams overlap)</td><td>everything, if the switch can add at line rate</td></tr>
+</tbody></table></div>
+<details class="dp"><summary>Sources and caveats of the cost table <span class="mute">(1 min)</span></summary><div class="b">
+<p class="small">Formulas: <a href="https://journals.sagepub.com/doi/10.1177/1094342005051521" target="_blank" rel="noopener noreferrer">Thakur, Rabenseifner and Gropp, 2005</a> for recursive doubling and halving-doubling; the ring line is their ring reduce-scatter plus ring all-gather, composed here <span class="pill d">derived</span>. Their &gamma; term for the additions is dropped: on GPUs the adds are far cheaper than the transfers. The tree row is the usual &alpha;-&beta; estimate <span class="pill d">derived</span>; NVIDIA: rings' "latency scales linearly with the number of GPUs", trees give "full bandwidth and a logarithmic latency", "up to 180x improvement at 24k GPUs" in latency (<a href="https://developer.nvidia.com/blog/massively-scale-deep-learning-training-nccl-2-4/" target="_blank" rel="noopener noreferrer">NCCL 2.4 blog, 2019</a>). The in-switch line is idealised (the switch adds as fast as data arrives).</p>
+
+</div></details>
+
+<h3>On a torus: one axis, two axes, or a tree</h3>
+<p>On a TPU slice the ring runs along a torus axis in both directions at once, and a collective over two mesh axes uses both, halving the bandwidth term; a tree trades the ring's n/2 latencies for 2 log<sub>2</sub> n. The formulas are in the closed block.</p>
+<p>For the 8B's 16.06 GB along one 16-chip v5p axis the ring form gives about 2 &times; 16.06 GB / 180 GB/s = 0.178 s, 0.059 s over all three axes <span class="pill d">derived</span>, against 62.5 ms over 8 H100s' NVLink. The book's own statements, and a worked example checked against a profile, are in the closed block.</p>
+<details class="dp"><summary>The torus formulas: the scaling book's statements and a worked example <span class="mute">(2 min)</span></summary><div class="b">
+<p>The scaling book's forms, with W<sub>bidi</sub> one link's two-way bandwidth and &alpha; about 1 &micro;s per ICI hop ("This is typically around 1us", <a href="https://jax-ml.github.io/scaling-book/sharding/" target="_blank" rel="noopener noreferrer">scaling book, part 3</a>, 2025-02-04):</p>
+<div class="tw"><table><thead><tr><th>Algorithm</th><th>All-gather of V bytes over n devices</th><th>All-reduce</th><th>Where it is used</th></tr></thead><tbody>
+<tr><td><b>Ring</b> (1-D, both directions, wraparound)</td><td>max(&alpha;&middot;n/2, V / W<sub>bidi</sub>)</td><td>twice the all-gather (reduce-scatter, then all-gather)</td><td>One axis of a TPU torus; NCCL rings inside a server</td></tr>
+<tr><td><b>2-D torus</b> (X &times; Y, gather over both axes)</td><td>max(&alpha;&middot;(X+Y)/2, V / (2 W<sub>bidi</sub>))</td><td>twice that</td><td>A collective over two mesh axes of a slice; the 2-D all-reduce of <a href="https://arxiv.org/abs/1811.06992" target="_blank" rel="noopener noreferrer">Ying et al. 2018</a> on TPU v3 pods</td></tr>
+<tr><td><b>Tree</b> (double binary tree)</td><td>not used for gathers</td><td>about 2&middot;log<sub>2</sub>(n)&middot;&alpha; + 2V/W</td><td>NCCL across many nodes</td></tr></tbody></table></div>
+<p>A bidirectional ring all-gather takes "T<sub>total</sub> = V / W<sub>ici</sub>", which "doesn't depend on X!", gathering over several axes "increases the available bandwidth by a factor of N<sub>axes</sub>", "an AllReduce is twice as expensive as an AllGather", an all-to-all on a 1-D ring is "1/4 the cost of an AllGather", and an axis without the wraparound "typically doubles the time of most communication" (<a href="https://jax-ml.github.io/scaling-book/sharding/" target="_blank" rel="noopener noreferrer">scaling book, sharding</a>). The book's worked example, an all-gather of 34 MB over a 4-chip v5e axis, predicts 378 &micro;s with a wraparound and 560 &micro;s without one; the profile it shows measured 680 &micro;s <span class="pill i">measured by Google</span>.</p>
+
+</div></details>
+<div class="card" id="ic-cccard">
+<h4>All-reduce time against message size: flat while latency dominates, then rising with the bytes <span class="pill d">derived</span></h4>
+<div class="ctl">
+<label>Devices on the axis: <b id="ic-ccnv"></b><input type="range" id="ic-ccn" min="2" max="10" step="1" value="6" aria-label="Devices, as a power of two"></label>
+<label>Link (one way, per scaling book) <select id="ic-cclink"><option value="4.5e10">v4 / v5e: 45 GB/s</option><option value="9e10" selected>v5p / v6e / TPU7x: 90 GB/s</option></select></label>
+</div>
+<div id="ic-ccsvg" class="plot"></div>
+<div class="hmleg" id="ic-ccleg"></div>
+<p class="small mute" id="ic-ccnote"></p>
+<p class="small"><b>Predict, then drag:</b> at 1,024 devices, which loses for a 100 KB message, the ring or the tree? For small messages latency dominates and a ring over many devices loses; for large ones bandwidth dominates and the ring's latency is irrelevant.</p>
+</div>
+
+<h3>What real clusters measure</h3>
+<p>Against published nccl-tests runs, rings reach 76 to 81% of NVLink's per-direction rate, and in-switch reduction is real but well short of its ideal: 1.29 times the ring on H200 and 1.23 times on B200, not 1.75 times. The table, its model and what nccl-tests' busbw means are in the closed block.</p>
+<details class="dp"><summary>busbw, and published nccl-tests against the model <span class="mute">(3 min)</span></summary><div class="b">
+<p>NVIDIA's nccl-tests, the standard benchmark, prints two bandwidths: <dfn>algbw</dfn> = S / t, and <dfn>busbw</dfn> = algbw &times; 2(n&minus;1)/n for all-reduce ((n&minus;1)/n for all-gather, reduce-scatter and all-to-all), defined so that it can be compared "with the hardware peak bandwidth, independently of the number of ranks used" (<a href="https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md" target="_blank" rel="noopener noreferrer">nccl-tests PERFORMANCE.md</a>). For a ring, busbw is the bandwidth on each wire. In-switch and hierarchical algorithms break that meaning; NCCL's author: "with SHARP enabled ... BusBW may not represent any 'Bus' bandwidth" (<a href="https://github.com/NVIDIA/nccl-tests/issues/153" target="_blank" rel="noopener noreferrer">nccl-tests issue 153</a>). So a busbw above the link's rate is not a measurement error: it is NVLS or a hierarchy at work.</p>
 <div class="tw"><table id="ic-pub"></table></div>
 <p class="small mute">Model: ring busbw equals the link's bandwidth each way; in-switch busbw = 1.75 &times; link (S/&beta; time, rescaled by 2(n&minus;1)/n); across servers a two-level model (ring inside over NVLink, each GPU's 1/8 share all-reduced over its own NIC, the slower phase setting the time) <span class="pill d">derived</span>. Measurements: <a href="https://github.com/stas00/ml-engineering/blob/master/network/benchmarks/README.md" target="_blank" rel="noopener noreferrer">Bekman, ML Engineering, network benchmarks</a> <span class="pill i">independent</span>; <a href="https://github.com/aws-samples/awsome-distributed-training/tree/main/micro-benchmarks/nccl-tests" target="_blank" rel="noopener noreferrer">AWS awsome-distributed-training</a> sample outputs <span class="pill v">vendor</span>. Together AI's acceptance target for H100 InfiniBand clusters is "around 92% of the theoretical maximum of the fabric: so around 370 GB/s on a 400GB/s fabric" (<a href="https://www.together.ai/blog/a-practitioners-guide-to-testing-and-running-large-gpu-clusters-for-training-generative-ai-models" target="_blank" rel="noopener noreferrer">Together AI, Aug 2024</a>).</p>
-<p><b>What the table says.</b> Rings reach 76 to 81% of NVLink's per-direction rate, and two-level all-reduces across servers 73 to 101% of the model. In-switch reduction is real but well short of the ideal: 1.29 times the ring on H200 and 1.23 times on B200, not the 1.75 times that halving the bytes would give, because the switch's adders and protocol overheads, not the wires, become the limit. The 2 &times; p5 case reaches 101% of a model that assumes a ring inside each server, which fits NCCL using NVLS there (the README does not say).</p>
-<p><b>How NCCL picks.</b> NCCL chooses algorithm (ring, tree, NVLS, CollNet, PAT) and protocol by message size and topology from a cost model. The protocols trade latency against bandwidth: <b>LL</b> sends 4 bytes of data with a 4-byte flag (about 1 &micro;s per hop, 25 to 50% of peak bandwidth), <b>LL128</b> 120 bytes of data with an 8-byte flag (about 2 &micro;s, about 95%), <b>Simple</b> large chunks with memory fences (about 6 &micro;s, near peak) (<a href="https://arxiv.org/abs/2507.04786" target="_blank" rel="noopener noreferrer">Hu et al., Demystifying NCCL, Table I</a>) <span class="pill i">independent</span>. NVIDIA's tuning post prints a real choice on 4 servers, 32 GPUs: tree with LL up to 96 KiB, tree with LL128 up to 12 MiB, ring with LL128 up to 96 MiB, ring with Simple above (<a href="https://developer.nvidia.com/blog/understanding-nccl-tuning-to-accelerate-gpu-to-gpu-communication/" target="_blank" rel="noopener noreferrer">NVIDIA, Jul 2025</a>). The lesson is the alpha-beta one: logarithmic-latency schemes for small messages, bandwidth-optimal ones for large.</p>
+<p>Rings reach 76 to 81% of NVLink's per-direction rate, and two-level all-reduces across servers 73 to 101% of the model. In-switch reduction is real but well short of the ideal: 1.29 times the ring on H200 and 1.23 times on B200, not the 1.75 times that halving the bytes would give, because the switch's adders and protocol overheads, not the wires, become the limit. The 2 &times; p5 case reaches 101% of a model that assumes a ring inside each server, which fits NCCL using NVLS there (the README does not say).</p>
+
+</div></details>
+<p><b>How NCCL picks.</b> NCCL chooses algorithm (ring, tree, NVLS, CollNet, PAT) and protocol by message size and topology from a cost model: logarithmic-latency schemes for small messages, bandwidth-optimal ones for large. NVIDIA's tuning post prints a real choice on 4 servers, 32 GPUs: tree with LL up to 96 KiB, tree with LL128 up to 12 MiB, ring with LL128 up to 96 MiB, ring with Simple above (<a href="https://developer.nvidia.com/blog/understanding-nccl-tuning-to-accelerate-gpu-to-gpu-communication/" target="_blank" rel="noopener noreferrer">NVIDIA, Jul 2025</a>).</p>
+<details class="dp"><summary>NCCL's three protocols: LL, LL128, Simple <span class="mute">(under 1 min)</span></summary><div class="b">
+<p>The protocols trade latency against bandwidth: <b>LL</b> sends 4 bytes of data with a 4-byte flag (about 1 &micro;s per hop, 25 to 50% of peak bandwidth), <b>LL128</b> 120 bytes of data with an 8-byte flag (about 2 &micro;s, about 95%), <b>Simple</b> large chunks with memory fences (about 6 &micro;s, near peak) (<a href="https://arxiv.org/abs/2507.04786" target="_blank" rel="noopener noreferrer">Hu et al., Demystifying NCCL, Table I</a>) <span class="pill i">independent</span>.</p>
+</div></details>
+
 <h3>Measured here: latency against bandwidth on one laptop</h3>
-<p>No GPU cluster was available, so the two algorithms were written in PyTorch (send and receive only, so the schedule is exactly the one in the table) and run as 2, 4 and 8 processes on this laptop, talking through the Gloo library over loopback TCP. The "links" are slow (about 80 &micro;s per message) and share one memory system, but the alpha-beta logic is the same, and every result was checked against the exact sum.</p>
+<div class="card" id="ic-mcard">
+<h4>Ring against recursive doubling, measured: recursive doubling wins small, the ring wins past the crossover</h4>
 <div class="seg" id="ic-msn"><button data-m="2">2 ranks</button><button data-m="4">4 ranks</button><button data-m="8" class="on">8 ranks</button></div>
 <div id="ic-mchart" class="plot"></div>
 <div class="small" id="ic-mnote"></div>
-<p class="small mute"><span class="pill m">measured here</span> Apple M1 Pro (8 performance and 2 efficiency cores), PyTorch 2.14.1, Gloo backend, three runs 20 s apart, median shown with the min-max range; load average 5.5 to 7.2 (the machine was shared with other jobs). Lines: the alpha-beta model with &alpha; fitted from sizes up to 16 KiB (both algorithms pooled, time divided by steps) and &beta; from the ring at 16 MiB <span class="pill d">derived</span>. Gloo's own all-reduce (grey) is shown for reference; its algorithm choice was not inspected. Script: <code>src/meas/coll_bench.py</code>.</p>
-<p><b>What the measurement shows.</b> At small sizes the ring takes <span id="ic-mratio"></span> as long as recursive doubling with 8 ranks; the model's step count predicts 14/3 = 4.67. The predicted crossover, where the ring's fewer bytes start to beat recursive doubling's fewer steps, is <span id="ic-mxo"></span>, and the measured crossover falls between the 1 MiB and 4 MiB sizes for 4 and 8 ranks. Two departures teach as much as the agreement. The per-step latency grows with the number of ranks (<span id="ic-malist"></span>), because the processes compete for cores. And the bandwidth per rank falls as ranks are added (<span id="ic-mblist"></span>) while the total stays near <span id="ic-magg"></span>: all the "links" share one memory system, exactly like GPUs whose NICs share an oversubscribed switch. The model assumes independent links; a real fabric only gives you that if it was built with full bisection.</p>
+</div>
+<p>Both algorithms written with send and receive in PyTorch, run as 2, 4 and 8 processes on this laptop over loopback TCP. At small sizes the ring takes <span id="ic-mratio"></span> as long as recursive doubling with 8 ranks; the model's step count predicts 14/3 = 4.67. The predicted crossover is <span id="ic-mxo"></span>, and the measured crossover falls between the 1 MiB and 4 MiB sizes for 4 and 8 ranks.</p>
+<details class="dp"><summary>How it was measured, and the two departures from the model <span class="mute">(1 min)</span></summary><div class="b">
+<p class="small"><span class="pill m">measured here</span> Apple M1 Pro (8 performance and 2 efficiency cores), PyTorch 2.14.1, Gloo backend, three runs 20 s apart, median shown with the min-max range; load average 5.5 to 7.2 (the machine was shared with other jobs). The "links" are slow (about 80 &micro;s per message) and share one memory system; every result was checked against the exact sum. Lines: the alpha-beta model with &alpha; fitted from sizes up to 16 KiB (both algorithms pooled, time divided by steps) and &beta; from the ring at 16 MiB <span class="pill d">derived</span>. Gloo's own all-reduce (grey) is shown for reference; its algorithm choice was not inspected. Script: <code>src/meas/coll_bench.py</code>.</p>
+<p>Two departures teach as much as the agreement. The per-step latency grows with the number of ranks (<span id="ic-malist"></span>), because the processes compete for cores. And the bandwidth per rank falls as ranks are added (<span id="ic-mblist"></span>) while the total stays near <span id="ic-magg"></span>: all the "links" share one memory system, exactly like GPUs whose NICs share an oversubscribed switch. The model assumes independent links; a real fabric only gives you that if it was built with full bisection.</p>
+</div></details>
 <div class="co corr"><div class="t">Corrections to the old page's sanity numbers</div>The old page put the 16 GB all-reduce at "~2 x 16/50 = 0.64 s" over 400G InfiniBand and "~70 ms" over NVLink 4. 2S/&beta; is the large-n limit; for 8 GPUs the ring factor is 2 &times; 7/8 = 1.75, giving 0.56 s and 62 ms (<span id="ic-corr1"></span>) <span class="pill d">derived</span>. It also said SHARP "roughly halv[es] traffic": the bytes per GPU do fall from 2(n&minus;1)/n &middot; S to S, but measured speed-ups are 1.23 to 1.29 times inside a server (table above).</div>
 <div class="deepnote"><b>Go deeper (optional).</b> The <a href="#" data-tab="t-sim">Collective simulator</a> tab runs any of these algorithms, plus all-gather and all-to-all, for 2 to 16 GPUs at any size and link, draws time against size with the crossovers, and overlays the published curves.</div>
 </section>
 <section id="ic-s8">
 <h2>8. All-to-all and mixture-of-experts</h2>
-<p><b>The problem.</b> A mixture-of-experts layer sends each token to a few of many experts, which live on different GPUs (expert parallelism). Every MoE layer therefore does two all-to-alls going forward (dispatch tokens to experts, combine the results) and two going back. Unlike a ring all-reduce, an all-to-all has every GPU talking to every other at once, so its traffic crosses the spine (section 6), and it is not reduced along the way.</p>
-<p><b>Cost.</b> In bytes it looks cheap: each GPU sends (n&minus;1)/n of its buffer, once. In practice it is limited by the narrowest cut of the network the traffic must cross: inside an NVLink domain that is the GPU's NVLink port; across servers, the NIC if the fabric has full bisection, or the spine if it is oversubscribed. Two tricks keep it off the spine. <b>Forwarding through NVLink</b> (NCCL calls it PXN): a GPU hands a piece destined for rail <i>k</i> of another server to its own server's GPU <i>k</i> over NVLink, which sends it on rail <i>k</i>; the cross-rail hop happens on NVLink, not the spine. <b>Limiting the fan-out</b>: route each token to fewer servers.</p>
+<p>A mixture-of-experts layer sends each token to a few of many experts, which live on different GPUs (expert parallelism). Every MoE layer does two all-to-alls going forward (dispatch tokens to experts, combine the results) and two going back. In bytes an all-to-all looks cheap: each GPU sends (n&minus;1)/n of its buffer, once. But every GPU talks to every other at once, so its traffic crosses the spine (section 5's prediction: 83% of it on 16 servers) and nothing is reduced on the way. It is limited by the narrowest cut it crosses: the NVLink port inside a domain; across servers the NIC if the fabric has full bisection, or the spine if it is oversubscribed. Two tricks keep it off the spine. <b>Forwarding through NVLink</b> (NCCL calls it PXN): a GPU hands a piece destined for rail <i>k</i> of another server to its own server's GPU <i>k</i> over NVLink, which sends it on rail <i>k</i> (tick PXN in section 5's explorer). <b>Limiting the fan-out</b>: route each token to fewer servers.</p>
 <div class="ff"><div class="t">DeepSeek-V3: an MoE designed around its network</div><ul>
 <li>2,048 H800s; "NVLink offers a bandwidth of 160 GB/s, roughly 3.2 times that of IB (50 GB/s)" (the H800's NVLink is cut to 400 GB/s total from the H100's 900, per DeepSeek's later paper). 256 routed experts per layer, 8 per token, spread over 64 GPUs in 8 servers (<a href="https://arxiv.org/html/2412.19437v2" target="_blank" rel="noopener noreferrer">DeepSeek-V3 report</a>).</li>
 <li><b>Node-limited routing:</b> "we limit each token to be dispatched to at most 4 nodes, thereby reducing IB traffic". A token is sent once over InfiniBand to the same-index GPU on each target server, "then instantaneously forwarded via NVLink" to the right experts there; "only 20 SMs are sufficient to fully utilize the bandwidths of IB and NVLink".</li>
 <li><b>Their cost:</b> "the communication overhead introduced by cross-node expert parallelism results in an inefficient computation-to-communication ratio of approximately 1:1", which they hide with the DualPipe schedule (computation of one micro-batch overlapping communication of another).</li>
 </ul></div>
-<p><b>Checking the 1:1.</b> Per token per MoE layer going forward, the InfiniBand traffic is at most 4 servers &times; (7,168 bytes of FP8 dispatch + 14,336 bytes of BF16 combine) = <b id="ic-epB">86,016 bytes</b>, which takes <b id="ic-epT">1.72 &micro;s</b> at 50 GB/s. The experts' matmuls for that token are 9 experts (8 routed, 1 shared) &times; 3 matrices of 7,168 &times; 2,048 &times; 2 FLOPs = <b>0.79 GFLOP</b>. For compute to take as long as the transfer, the GPU must run them at <b id="ic-epF">461 TFLOP/s</b>: <span id="ic-epP"></span> of an H100-class chip's dense FP8 peak (1,979), the format DeepSeek trained in <span class="pill d">derived</span>. A realistic fraction of peak, so "approximately 1:1" is what the arithmetic predicts. (Model sizes from the <a href="https://huggingface.co/deepseek-ai/DeepSeek-V3/blob/main/config.json" target="_blank" rel="noopener noreferrer">DeepSeek-V3 config</a>; attention and the backward pass left out, both of which scale the same way.)</p>
-<p><b>The rack-scale answer.</b> An NVL72 rack makes 72 GPUs one NVLink domain, so expert parallelism up to 72 never touches the network at all. DeepSeek's own hardware wish list asks for the same thing from the other side: "future hardware should integrate intra-node (scale-up) and inter-node (scale-out) communication into a unified framework" (<a href="https://arxiv.org/html/2505.09343" target="_blank" rel="noopener noreferrer">Zhao et al., ISCA 2025</a>).</p>
+<p>Per-token arithmetic from DeepSeek-V3's config reproduces the 1:1 at a realistic fraction of FP8 peak (closed block).</p>
+<details class="dp"><summary>Checking DeepSeek's 1:1 <span class="mute">(1 min)</span></summary><div class="b">
+<p><b>Checking the 1:1.</b> Per token per MoE layer going forward, the InfiniBand traffic is at most 4 servers &times; (7,168 bytes of FP8 dispatch + 14,336 bytes of BF16 combine) = <b id="ic-epB">86,016 bytes</b>, which takes <b id="ic-epT">1.72 &micro;s</b> at 50 GB/s. The experts' matmuls for that token are 9 experts (8 routed, 1 shared) &times; 3 matrices of 7,168 &times; 2,048 &times; 2 FLOPs = <b>0.79 GFLOP</b>. For compute to take as long as the transfer, the GPU must run them at <b id="ic-epF">461 TFLOP/s</b>: <span id="ic-epP"></span> of an H100-class chip's dense FP8 peak (1,979), the format DeepSeek trained in <span class="pill d">derived</span>. A realistic fraction of peak, so "approximately 1:1" is what the arithmetic predicts. (Sizes from the <a href="https://huggingface.co/deepseek-ai/DeepSeek-V3/blob/main/config.json" target="_blank" rel="noopener noreferrer">DeepSeek-V3 config</a>; attention and the backward pass left out, both of which scale the same way.)</p>
+
+</div></details>
+<p><b>The rack-scale answer.</b> An NVL72 rack makes 72 GPUs one NVLink domain, so expert parallelism up to 72 never touches the network. DeepSeek's own hardware wish list asks for the same thing from the other side: "future hardware should integrate intra-node (scale-up) and inter-node (scale-out) communication into a unified framework" (<a href="https://arxiv.org/html/2505.09343" target="_blank" rel="noopener noreferrer">Zhao et al., ISCA 2025</a>).</p>
 </section>
 
 <section id="ic-s9">
 <h2>9. Why the network picks your parallelism</h2>
 <p><b>One number per link.</b> Divide the FLOP/s a GPU actually sustains by the bandwidth of the link its traffic crosses: the <dfn>link intensity</dfn> I = F / &beta;, the FLOPs the GPU does in the time one byte crosses. It plays the role the ridge point plays in the parent page's roofline: a parallelism whose computation per byte sent is below I waits on the link. For an H100 at 40% of its dense BF16 peak (F = 396 TFLOP/s): <b id="ic-Inv"></b> FLOPs per byte over NVLink 4, <b id="ic-Iib"></b> over a 400 Gb/s NIC <span class="pill d">derived</span>.</p>
+<div class="card" id="ic-pcard">
+<h4>Move the link down the ladder: data parallelism's break-even rises with I, tensor parallelism's cost rises with no batch to absorb it</h4>
+<div class="ctl">
+<label>GPU <select id="ic-pchip"></select></label>
+<label>Link the traffic crosses <select id="ic-plink"></select></label>
+<label>Fraction of peak sustained <b id="ic-pmfuv">40%</b><input type="range" id="ic-pmfu" min="0.2" max="0.7" step="0.05" value="0.4"></label>
+</div>
+<div class="out" id="ic-pout"></div>
+<p class="small mute" id="ic-pnote"></p>
+</div>
 <div class="tw"><table>
 <thead><tr><th>Parallelism</th><th>Traffic per step, per GPU</th><th>Compute it is set against</th><th>Fits a link when</th><th>H100, 40%: NVLink 4 / 400G NIC</th></tr></thead>
 <tbody>
@@ -309,49 +476,51 @@ body .pill.m{color:var(--good);border-color:var(--good)}body .pill.v{color:var(-
 <tr><td>Pipeline (PP)</td><td>one activation and one gradient per stage boundary</td><td>the stage's layers</td><td>almost always</td><td>405B, 16 stages: <span id="ic-ppR"></span></td></tr>
 <tr><td>Expert (EP)</td><td>4 all-to-alls of the routed tokens per MoE layer</td><td>the experts' matmuls</td><td>see section 8</td><td>about 1:1 across servers (DeepSeek)</td></tr>
 </tbody></table></div>
-<p class="small mute">P parameters, T tokens per data-parallel replica per step, h hidden size. The TP column is the parent page's <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Performance calculator</a> model (Megatron-LM's two all-reduces forward and two backward per layer; Llama 3.1 70B, 8,192 tokens, real layer sizes); the simplified 12h&sup2; formula gives <span id="ic-tpS"></span>. PP: Llama 3.1 405B, one 8,192-token micro-batch, 126/16 layers per stage with TP 8 inside the server, each GPU sending its 1/8 over its own NIC. All rows assume no overlap; overlap hides the data-parallel and pipeline traffic, never the tensor-parallel all-reduces, whose result the next matmul needs. <span class="pill d">derived</span></p>
-<p><b>Reading the table.</b> Data parallelism over a 400 Gb/s NIC breaks even at about 5,300 tokens per replica per step, and real runs are far above that: Llama 3 405B's 16M-token batches over 128 replicas are about 131,000 tokens each <span class="pill d">derived: 16,384 GPUs / (TP 8 &times; PP 16) = 128 replicas</span>. So data parallelism crosses the slowest tier comfortably and overlaps the rest. Tensor parallelism is the opposite: its ratio does not depend on batch size at all, only on t, h and I, so a slow link cannot be fixed by bigger batches. Over NVLink it costs <span id="ic-tpR2"></span> of the layer's compute; over a NIC the GPUs would wait <span id="ic-tpW"></span> of the time. That is the whole rule: <b>tensor and expert parallelism inside the NVLink domain, pipeline and data parallelism across it</b>, and the NVL72 rack exists to make "inside" bigger.</p>
-<div class="card" id="ic-pcard">
-<div class="ctl">
-<label>GPU <select id="ic-pchip"></select></label>
-<label>Link the traffic crosses <select id="ic-plink"></select></label>
-<label>Fraction of peak sustained <b id="ic-pmfuv">40%</b><input type="range" id="ic-pmfu" min="0.2" max="0.7" step="0.05" value="0.4"></label>
-</div>
-<div class="out" id="ic-pout"></div>
-<p class="small mute" id="ic-pnote"></p>
-</div>
+<details class="dp"><summary>Assumptions behind the table <span class="mute">(under 1 min)</span></summary><div class="b">
+<p class="small">P parameters, T tokens per data-parallel replica per step, h hidden size. The TP column is the parent page's Performance calculator model (Megatron-LM's two all-reduces forward and two backward per layer; Llama 3.1 70B, 8,192 tokens, real layer sizes); the simplified 12h&sup2; formula gives <span id="ic-tpS"></span>. PP: Llama 3.1 405B, one 8,192-token micro-batch, 126/16 layers per stage with TP 8 inside the server, each GPU sending its 1/8 over its own NIC. All rows assume no overlap; overlap hides the data-parallel and pipeline traffic, never the tensor-parallel all-reduces, whose result the next matmul needs. <span class="pill d">derived</span></p>
+</div></details>
+<p><b>Reading the table.</b> Data parallelism over a 400 Gb/s NIC breaks even at about 5,300 tokens per replica per step, and real runs are far above that: Llama 3 405B's 16M-token batches over 128 replicas are about 131,000 tokens each <span class="pill d">derived: 16,384 GPUs / (TP 8 &times; PP 16) = 128 replicas</span>. So data parallelism crosses the slowest rung comfortably and overlaps the rest. Tensor parallelism is the opposite: its ratio does not depend on batch size at all, only on t, h and I, so a slow link cannot be fixed by bigger batches. Over NVLink it costs <span id="ic-tpR2"></span> of the layer's compute; over a NIC the GPUs would wait <span id="ic-tpW"></span> of the time. That is the whole rule: <b>tensor and expert parallelism inside the NVLink domain, pipeline and data parallelism across it</b>, and the NVL72 rack exists to make "inside" bigger. TPU slices follow it too: FSDP and tensor parallelism on ICI, data parallelism over DCN (section 6).</p>
 <div class="ff"><div class="t">Two real runs that follow the rule</div><ul>
 <li><b>Llama 3 405B</b>: tensor parallelism 8 (one server), pipeline 16, data parallelism across the rest, on a fabric oversubscribed 1:7 above each 3,072-GPU pod (<a href="https://arxiv.org/html/2407.21783v3" target="_blank" rel="noopener noreferrer">Llama 3 report</a>). Alibaba places pipeline traffic across its oversubscribed pods for the same reason.</li>
 <li><b>DeepSeek-V3</b>: no tensor parallelism at all in training; 16-way pipeline, 64-way expert parallelism over 8 servers, ZeRO-1 data parallelism; the expert traffic shaped to the network as in section 8.</li></ul></div>
 <div class="co corr"><div class="t">Corrections to the old page</div><ul class="tight">
 <li>"Running TP across InfiniBand wastes 90%+ of your FLOPs waiting": for 70B with TP 8 over a 400 Gb/s NIC the communication is 141% of the compute, so with no overlap the GPUs wait about 59% of the time. Bad enough, not 90%.</li>
-<li>"TP=2 attention+MLP all-reduces for one 8B-scale layer stack easily exceed PCIe budgets at inference batch 1": at batch 1 each all-reduce carries one token, 8 KB (4,096 values in bf16), far below PCIe's n<sub>&frac12;</sub> of about 315 KB (with its assumed 5 &micro;s latency). The cost is latency, not bandwidth: 64 all-reduces per token (2 per layer, 32 layers) at several microseconds each. Measure it, as the old page said, but expect latency to dominate.</li>
+<li>"TP=2 attention+MLP all-reduces for one 8B-scale layer stack easily exceed PCIe budgets at inference batch 1": at batch 1 each all-reduce carries one token, 8 KB (4,096 values in bf16), far below PCIe's n<sub>&frac12;</sub> of about 315 KB (with its assumed 5 &micro;s latency). The cost is latency, not bandwidth: 64 all-reduces per token (2 per layer, 32 layers) at several microseconds each.</li>
 </ul></div>
-<div class="deepnote"><b>Go deeper (optional).</b> What each kind of parallelism holds and sends, with an animated step under nine splits and a layout calculator: <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a>. The same step on 1, 8 and 64 GPUs, FSDP against HSDP: the parent's <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Performance calculator</a>. Megatron-LM's tensor parallelism: <a href="https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e" target="_blank" rel="noopener noreferrer">paper page</a>; ZeRO: <a href="https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699" target="_blank" rel="noopener noreferrer">paper page</a>.</div>
+<div class="deepnote"><b>Go deeper.</b> How the splits compose into 3-D, 4-D and 5-D layouts, and what each holds and sends, with an animated step under nine splits and a layout calculator: <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a>, section 9 "Composing them". The same step on 1, 8 and 64 GPUs, FSDP against HSDP: the parent's <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Performance calculator</a>. Choosing a mesh on a TPU slice: <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>.</div>
 </section>
 
 <section id="ic-s10">
-<h2>10. Checking it yourself, common mistakes, interview questions</h2>
-<h3>How to check a real system</h3>
+<h2>10. Checking it yourself, and depth</h2>
+<p>On a real cluster, three commands confirm everything on this page: <code>nvidia-smi topo -m</code> for the wiring, nccl-tests' <code>all_reduce_perf</code> for the collectives, <code>NCCL_DEBUG=INFO</code> for what NCCL chose.</p>
+<details class="dp"><summary>How to check a real system, step by step <span class="mute">(1 min)</span></summary><div class="b">
 <ol>
 <li><b>See the wiring.</b> <code>nvidia-smi topo -m</code> prints, for every GPU pair and GPU-NIC pair, whether they meet over NVLink, a PCIe switch or the CPU. A NIC that is not under the same PCIe switch as its GPU loses GPUDirect's direct path.</li>
-<li><b>Measure the collectives.</b> Build <a href="https://github.com/NVIDIA/nccl-tests" target="_blank" rel="noopener noreferrer">nccl-tests</a> and run <code>all_reduce_perf -b 8 -e 8G -f 2 -g 8</code> on one server, then across servers under your launcher. Compare busbw at large sizes with the link's per-direction rate (rings: 75 to 90% is normal, table in section 7) and look at the small-size time for latency.</li>
+<li><b>Measure the collectives.</b> Build <a href="https://github.com/NVIDIA/nccl-tests" target="_blank" rel="noopener noreferrer">nccl-tests</a> and run <code>all_reduce_perf -b 8 -e 8G -f 2 -g 8</code> on one server, then across servers under your launcher. Compare busbw at large sizes with the link's per-direction rate (rings: 75 to 90% is normal, section 7) and look at the small-size time for latency.</li>
 <li><b>See what NCCL chose.</b> <code>NCCL_DEBUG=INFO</code> logs the transport (NVLink, IB, sockets), the rings and trees, and whether NVLS is used (<a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html" target="_blank" rel="noopener noreferrer">NCCL environment variables</a>). A job that silently fell back to TCP sockets is the classic slow cluster (<a href="https://app.notion.com/p/3c65c17b0d0d8117b21dcb9041879564" target="_blank" rel="noopener noreferrer">Networking foundations</a>, section 14).</li>
 <li><b>In the training run,</b> profile one step and compare the time inside communication kernels with the formulas here; a collective much slower than its bytes predict usually means a straggler rank or a congested link, not a slow algorithm.</li>
 </ol>
-<h3>Common mistakes</h3>
-<details class="mist"><summary>Comparing a two-direction vendor number with a one-direction one</summary><div class="b">900 GB/s NVLink against 64 GB/s PCIe is 14 times; per direction it is 7. Convert everything to one direction and to bytes (divide Gb/s by 8) before comparing.</div></details>
-<details class="mist"><summary>Reading busbw above the link rate as an error</summary><div class="b">With NVLS or a hierarchical algorithm busbw is no longer a wire bandwidth (section 7). Use algbw, or the time, when comparing algorithms.</div></details>
-<details class="mist"><summary>Assuming bigger links help small messages</summary><div class="b">Below n<sub>&frac12;</sub> = &alpha;&beta; the latency dominates; a link 9 times faster gave 1.18 times on a 64 KB message (section 2). Bucket small tensors together.</div></details>
-<details class="mist"><summary>Judging a fabric by its NIC speed alone</summary><div class="b">An all-to-all on a 1:7 oversubscribed spine runs at a seventh of the NIC rate for the traffic crossing it. Ask for the oversubscription and whether the fabric is rail-optimised.</div></details>
-<details class="mist"><summary>Putting tensor parallelism across servers to fit a model</summary><div class="b">Its cost is independent of batch size and runs on the critical path. Use pipeline or fully sharded data parallelism across servers instead (section 9).</div></details>
-<h3>Interview questions</h3>
-<details class="mist iq"><summary>How long does a ring all-reduce of S bytes over n GPUs take?</summary><div class="b">2(n&minus;1)&alpha; + 2(n&minus;1)/n &middot; S/&beta;. The bandwidth term hardly changes with n; the latency term grows linearly, which is why trees exist.</div></details>
-<details class="mist iq"><summary>Why can busbw exceed the hardware's bandwidth?</summary><div class="b">busbw rescales S/t by 2(n&minus;1)/n assuming a flat point-to-point algorithm. In-switch reduction sends S instead, and hierarchical algorithms use NVLink and the NIC at once, so the rescaled number can exceed either link.</div></details>
-<details class="mist iq"><summary>Why does tensor parallelism stay inside a server but data parallelism does not?</summary><div class="b">TP's communication per FLOP is fixed by the model width and the TP degree and sits between dependent matmuls; data parallelism's falls with tokens per replica and overlaps with the backward pass.</div></details>
-<details class="mist iq"><summary>What is a rail-optimised network and why does it help?</summary><div class="b">GPU k of every server connects to leaf switch k. Collectives across servers mostly pair same-index GPUs, so they stay one hop away on their rail and never load the spine; NVLink inside the server handles the rest.</div></details>
-<details class="mist iq"><summary>InfiniBand or RoCE?</summary><div class="b">Both do RDMA at the same speeds. InfiniBand is lossless by design (credits) with SHARP and adaptive routing from one vendor; RoCE runs on multi-vendor Ethernet but needs PFC and congestion control tuned, or, as Meta did for Llama 3, careful load balancing. Ultra Ethernet aims to remove the lossless requirement.</div></details>
-<details class="mist iq"><summary>Why do MoE models like big NVLink domains?</summary><div class="b">Expert parallelism is all-to-all, which crosses the spine and is not reduced on the way. Keeping the experts inside one NVLink domain (8 GPUs, or 72 in an NVL72 rack) avoids the network; otherwise you limit fan-out and forward through NVLink, as DeepSeek did.</div></details>
+
+</div></details>
+<details class="dp"><summary>Common mistakes <span class="mute">(1 min)</span></summary><div class="b">
+<ul class="tight">
+<li><b>Comparing a two-direction vendor number with a one-direction one.</b> 900 GB/s NVLink against 64 GB/s PCIe is 14 times; per direction it is 7. Convert everything to one direction and to bytes (divide Gb/s by 8) before comparing.</li>
+<li><b>Reading busbw above the link rate as an error.</b> With NVLS or a hierarchical algorithm busbw is no longer a wire bandwidth. Use algbw, or the time, when comparing algorithms.</li>
+<li><b>Assuming bigger links help small messages.</b> Below n<sub>&frac12;</sub> = &alpha;&beta; the latency dominates; a link 9 times faster gave 1.18 times on a 64 KB message. Bucket small tensors together.</li>
+<li><b>Judging a fabric by its NIC speed alone.</b> An all-to-all on a 1:7 oversubscribed spine runs at a seventh of the NIC rate for the traffic crossing it. Ask for the oversubscription and whether the fabric is rail-optimised.</li>
+<li><b>Putting tensor parallelism across servers to fit a model.</b> Its cost is independent of batch size and runs on the critical path. Use pipeline or fully sharded data parallelism across servers instead.</li>
+<li><b>Asking for a TPU slice smaller than a cube and expecting cube speed.</b> Below 4 &times; 4 &times; 4 there is no optical wraparound, and a missing wraparound typically doubles collective time.</li>
+</ul></div></details>
+<details class="dp"><summary>Interview rehearsal <span class="mute">(2 min)</span></summary><div class="b">
+<ul class="tight">
+<li><b>How long does a ring all-reduce of S bytes over n GPUs take?</b> 2(n&minus;1)&alpha; + 2(n&minus;1)/n &middot; S/&beta;. The bandwidth term hardly changes with n; the latency term grows linearly, which is why trees exist.</li>
+<li><b>Why can busbw exceed the hardware's bandwidth?</b> busbw rescales S/t by 2(n&minus;1)/n assuming a flat point-to-point algorithm. In-switch reduction sends S instead, and hierarchical algorithms use NVLink and the NIC at once, so the rescaled number can exceed either link.</li>
+<li><b>Why does tensor parallelism stay inside a server but data parallelism does not?</b> TP's communication per FLOP is fixed by the model width and the TP degree and sits between dependent matmuls; data parallelism's falls with tokens per replica and overlaps with the backward pass.</li>
+<li><b>What is a rail-optimised network and why does it help?</b> GPU k of every server connects to leaf switch k. Collectives across servers mostly pair same-index GPUs, so they stay one hop away on their rail and never load the spine; NVLink inside the server handles the rest.</li>
+<li><b>InfiniBand or RoCE?</b> Both do RDMA at the same speeds. InfiniBand is lossless by design (credits) with SHARP and adaptive routing from one vendor; RoCE runs on multi-vendor Ethernet but needs PFC and congestion control tuned, or, as Meta did for Llama 3, careful load balancing. Ultra Ethernet aims to remove the lossless requirement.</li>
+<li><b>Why do MoE models like big NVLink domains?</b> Expert parallelism is all-to-all, which crosses the spine and is not reduced on the way. Keeping the experts inside one NVLink domain (8 GPUs, or 72 in an NVL72 rack) avoids the network; otherwise you limit fan-out and forward through NVLink, as DeepSeek did.</li>
+<li><b>What does an optical circuit switch do in a TPU pod?</b> MEMS mirrors connect the faces of 64-chip cubes, like a plugboard: they build each job's slice as a torus of the requested shape, route around failed cubes and allow twisted tori, for under 5% of system cost and 3% of power (TPU v4).</li>
+</ul></div></details>
 </section>
 </div>
 <div class="tab" id="t-sim" role="tabpanel" hidden>
@@ -383,47 +552,27 @@ body .pill.m{color:var(--good);border-color:var(--good)}body .pill.v{color:var(-
 <p class="small mute" id="sim-cnote"></p>
 <p class="small mute">Formulas and sources in the Reading tab, section 7. Link &alpha; values: DeepSeek's measured 64-byte latencies (NVLink 3.33 &micro;s, InfiniBand 2.8, RoCE 3.6; <a href="https://arxiv.org/html/2505.09343" target="_blank" rel="noopener noreferrer">Zhao et al. 2025, Table 5</a>) or assumed where marked; the laptop link is fitted per rank count from this page's own measurements (16 GPUs use the 8-rank fit). In-switch is idealised: the switch adds at line rate and the up and down streams overlap.</p>
 </div>
-<div class="tab" id="t-fab" role="tabpanel" hidden>
-<style>
-#t-fab .bars .row{grid-template-columns:minmax(0,11em) minmax(0,1fr) 6.2em}
-#t-fab .chk{white-space:normal}#t-fab select{max-width:100%;width:100%}
-</style>
-<h2>Fabric explorer</h2>
-<p>Servers of 8 GPUs, each GPU with one 400 Gb/s NIC (50 GB/s each way) and NVLink 4 (450 GB/s each way) inside its server. Choose how the NICs are wired, what traffic runs, how many servers and how much the spine is oversubscribed, and see which class of link limits the operation. Each GPU sends 1 GB. The drawing shows the first few servers; the numbers are for the whole cluster.</p>
-<div class="ctl">
-<label>Fabric <select id="fab-f"><option value="rail">Rail-optimised (leaf per GPU index) + spine</option><option value="tor">Top-of-rack (2 servers per leaf) + spine</option><option value="railonly">Rail-only (no spine; cross-rail over NVLink)</option></select></label>
-<label>Traffic <select id="fab-p"><option value="a2a">All-to-all over all GPUs (expert parallelism)</option><option value="dp_ring">Ring all-reduce across servers, one ring per GPU index (data parallelism)</option><option value="pp">Pipeline send to the next server</option></select></label>
-<label>Servers <select id="fab-s"><option>2</option><option>4</option><option>8</option><option selected>16</option><option>32</option><option>64</option></select></label>
-<label>Spine oversubscription <select id="fab-o"><option value="1">1:1 (full bisection)</option><option value="2">2:1</option><option value="3">3:1</option><option value="7">7:1 (like Llama 3's top layer)</option></select></label>
-<label class="chk"><input type="checkbox" id="fab-x"> forward cross-rail traffic over NVLink first (NCCL's PXN)</label>
-</div>
-<div id="fab-svg" class="plot"></div>
-<div class="out" id="fab-out"></div>
-<div class="bars" id="fab-bars"></div>
-<p class="small" id="fab-note"></p>
-<p class="small mute">Fluid model (src/fabric.py, mirrored here and checked on 216 cases): perfect load balance across spine switches, no congestion control or flow collisions (real ECMP hashing does worse; Meta's Llama 3 cluster opens 16 flows per GPU pair to balance it), all GPUs sending at once. Time = the largest load / capacity over link classes. Switch ports count leaf downlinks plus leaf uplinks and the spine ports they need, a rough cost proxy; the rail-only paper reports 38 to 77% lower network cost for the same idea (<a href="https://arxiv.org/abs/2307.12169" target="_blank" rel="noopener noreferrer">Wang et al. 2023</a>). <span class="pill d">derived</span></p>
-</div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more">
 <h2 style="margin-top:14px">Further reading</h2>
 <h3>This page's tabs</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-sim">Collective simulator</a></div><p>All-reduce, all-gather and all-to-all under five algorithms, 2 to 16 GPUs, any link and size, with published and measured curves. <span class="rt">10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-fab">Fabric explorer</a></div><p>Rail-optimised, top-of-rack and rail-only fabrics under all-to-all, ring and pipeline traffic; oversubscription and PXN. <span class="rt">10 min</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-sim">Collective simulator</a></div><p>All-reduce, all-gather and all-to-all under five algorithms, 2 to 16 GPUs, any link and size, with published and measured curves. <span class="rt">2 min to read, then explore</span></p></div>
 </div>
 <h3>The parent topic and its other children</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a></div><p>One training step down to the silicon; section 6 is the intuition for this page, the Performance calculator its communication arithmetic, the Chip atlas every accelerator's links. <span class="rt">37 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a></div><p>The SM, tensor cores and the chip that sits at each end of these links. <span class="rt">28 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d818ab063e327e3d7009f" target="_blank" rel="noopener noreferrer">Memory technology</a></div><p>HBM, GDDR and SRAM: the top rung of the ladder. <span class="rt">24 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8151bbc2e0ceea196187" target="_blank" rel="noopener noreferrer">TPUs and other accelerators</a></div><p>TPU pods and their switchless ICI torus with optical switches; Trainium's NeuronLink. <span class="rt">33 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d810682aae39bd614ec64" target="_blank" rel="noopener noreferrer">GPU architecture</a></div><p>The SM, tensor cores and the chip that sits at each end of these links. <span class="rt">29 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d818ab063e327e3d7009f" target="_blank" rel="noopener noreferrer">Memory technology</a></div><p>HBM, GDDR and SRAM: the top rung of the ladder. <span class="rt">23 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8151bbc2e0ceea196187" target="_blank" rel="noopener noreferrer">TPUs and other accelerators</a></div><p>The TPU chip and its generations, with a Pod builder; Trainium's NeuronLink. This page owns ICI, the torus and the optical switches. <span class="rt">33 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a></div><p>FLOPs, memory, MFU and costing a run, including its communication terms. <span class="rt">25 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d8143851cfc3ae14c3c22" target="_blank" rel="noopener noreferrer">Power, cooling and reliability</a></div><p>Failures at scale: why a straggler or a flapping link stalls every rank. <span class="rt">21 min</span></p></div>
 </div>
 <h3>Neighbouring pages</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a></div><p>The six ways to split a step, what each holds and sends, an animated step under nine splits and a layout calculator. <span class="rt">22 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a></div><p>The six ways to split a step, what each holds and sends, an animated step under nine splits, how they compose (section 9) and a layout calculator. <span class="rt">27 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b" target="_blank" rel="noopener noreferrer">Topic: llm-training-and-post-training</a></div><p>The training topic root: its stage grid places distributed training among the other stages. <span class="rt">reading time on that page</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale: GSPMD, Mesh, shard_map</a></div><p>Laying a JAX mesh onto the torus and choosing a mesh for a model and a slice; the collective costs it uses are this page's section 7. <span class="rt">38 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8117b21dcb9041879564" target="_blank" rel="noopener noreferrer">Networking foundations</a></div><p>IP, TCP, UDP and QUIC; section 14 on RDMA, RoCE's UDP port, EFA and NCCL's fallback to sockets. <span class="rt">45 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b" target="_blank" rel="noopener noreferrer">Topic: ml-infra-and-orchestration</a></div><p>Clusters, schedulers and failures in practice: the machinery around a training run. <span class="rt">28 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a></div><p>NCCL as an API, streams and overlapping communication with compute. <span class="rt">reading time on that page</span></p></div>
@@ -448,10 +597,10 @@ body .pill.m{color:var(--good);border-color:var(--good)}body .pill.v{color:var(-
 </div>
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
-<script>/* 21_js_common.js */
-// ---- Shared helpers and the step-animation controller (play, pause, step, scrub, speed), copied from the gpu_architecture sibling (from Topic: hardware); o.tab names the tab an animation lives in ----
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates; one change: onRender, onResize and anim take an optional tab id (o.tab), used by the Collective simulator tab ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -482,7 +631,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()},o.tab);
     show();
@@ -508,7 +657,7 @@ RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="
 // segmented buttons: el contains <button data-m>; calls f(value)
 RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
 // section nav highlight
-(function(){const nav=document.getElementById('ic-nav');if(!nav||!('IntersectionObserver' in window))return;
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
   const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
   const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
   Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
@@ -629,7 +778,7 @@ window.ICFAB=(function(){
 
   // ---- ladder ----
   (function(){const mx=Math.log10(D.ladder[0].bw/5);
-    $('ic-ladder').innerHTML=D.ladder.map((r,i)=>'<div class="row"><span class="nm">'+esc(r.nm)+'<span class="ml">'+esc(r.sub)+'</span></span><span class="track"><span class="fill" style="width:'+(Math.log10(r.bw/5)/mx*100).toFixed(1)+'%;background:'+(i===0?'var(--c4)':r.bw>=400?'var(--c3)':r.bw>=60?'var(--c5)':'var(--c2)')+'"></span></span><span class="val">'+(r.bw>=1000?fN(r.bw):r.bw)+' GB/s</span></div>').join('')+
+    $('ic-ladder').innerHTML=D.ladder.map((r,i)=>'<div class="row"><span class="nm">'+esc(r.nm)+'<span class="ml">'+esc(r.sub)+'</span></span><span class="track"><span class="fill" style="width:'+(Math.log10(r.bw/5)/mx*100).toFixed(1)+'%;background:'+(/HBM/.test(r.nm)?'var(--c4)':/NVLink/.test(r.nm)?'var(--c3)':/PCIe/.test(r.nm)?'var(--c5)':'var(--c2)')+'"></span></span><span class="val">'+(r.bw>=1000?fN(r.bw):r.bw)+' GB/s</span></div>').join('')+
       '<div class="small mute">Bars on a log scale.</div>';
     set('ic-g8',(D.ex.grad8/1e9).toFixed(2)+' GB');
   })();
@@ -656,17 +805,17 @@ window.ICFAB=(function(){
       return i===1?'Every GPU sends its whole buffer up to the NVSwitch, which adds the 8 copies as they arrive (shown in the switch row).':'The switch multicasts the sum back down. In hardware the up and down streams overlap in chunks, so the time is one buffer’s worth plus two latencies.';
     }
     function draw(i){
-      const host=$('ic-arsvg'),W=Math.min(860,RD.width(host)),cw=Math.min(64,(W-20)/n),gap=Math.max(4,cw*0.18),cellW=cw-gap,ch=13,top=54,H=top+n*(ch+2)+(alg==='switch'?66:20);
+      const host=$('ic-arsvg'),W=Math.min(860,RD.width(host)),cw=Math.min(64,(W-20)/n),gap=Math.max(4,cw*0.18),cellW=cw-gap,ch=15,top=54,H=top+n*(ch+2)+(alg==='switch'?66:20);
       const x0=(W-n*cw)/2;const sn=run.snaps[i];let s='';
       // arrows for this step
       if(i>0){sn.tr.forEach(([a,b])=>{
         if(b===-1||a===-1){const g=a===-1?b:a,x=x0+g*cw+cellW/2,y1=top+n*(ch+2)+4,y2=y1+22;s+='<line x1="'+x+'" y1="'+(a===-1?y2:y1)+'" x2="'+x+'" y2="'+(a===-1?y1:y2)+'" stroke="var(--acc)" stroke-width="1.6" marker-end="url(#ic-ah)"/>';return}
         const xa=x0+a*cw+cellW/2,xb=x0+b*cw+cellW/2,h=Math.min(40,10+Math.abs(b-a)*6);
         s+='<path d="M'+xa+','+(top-4)+' Q'+((xa+xb)/2)+','+(top-4-h)+' '+xb+','+(top-4)+'" fill="none" stroke="var(--acc)" stroke-width="1.4" opacity=".8" marker-end="url(#ic-ah)"/>';});}
-      for(let g=0;g<n;g++){const x=x0+g*cw;s+=RD.t(x+cellW/2,top+n*(ch+2)+(alg==='switch'?62:14),'GPU '+g,{a:'middle',fs:10});
+      for(let g=0;g<n;g++){const x=x0+g*cw;s+=RD.t(x+cellW/2,top+n*(ch+2)+(alg==='switch'?62:14),'GPU '+g,{a:'middle',fs:11});
         for(let c=0;c<n;c++){const k=ICSIM.pop(sn.have[g][c]),f=k/n;
           s+='<rect x="'+x+'" y="'+(top+c*(ch+2))+'" width="'+cellW+'" height="'+ch+'" rx="2" fill="var(--c1)" fill-opacity="'+(0.12+0.88*f).toFixed(2)+'"/>';
-          if(cellW>26)s+=RD.t(x+cellW/2,top+c*(ch+2)+10,k+'/8',{a:'middle',fs:9,fill:f>0.5?'var(--bg)':'var(--ink)'});}}
+          if(cellW>26)s+=RD.t(x+cellW/2,top+c*(ch+2)+11.5,k+'/8',{a:'middle',fs:11,fill:f>0.5?'var(--bg)':'var(--ink)'});}}
       if(alg==='switch'){const y=top+n*(ch+2)+28;s+='<rect x="'+x0+'" y="'+y+'" width="'+(n*cw-gap)+'" height="18" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(x0+(n*cw-gap)/2,y+13,'NVSwitch'+(sn.sw?': holds '+ICSIM.pop(sn.sw[0])+'/8 in every chunk':''),{a:'middle',fs:11})}
       host.innerHTML=RD.svg(W,H,'<defs><marker id="ic-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--acc)"/></marker></defs>'+s,'All-reduce of 8 chunks over 8 GPUs, '+NM[alg]+', step '+i);
       set('ic-arcap','<b>'+NM[alg]+'.</b> '+caption(i));
@@ -696,13 +845,13 @@ window.ICFAB=(function(){
       const all=[];['ring','rd','gloo'].forEach(k=>{if(v.data[k])v.data[k].hi.forEach(t=>{if(t)all.push(t)})});
       const ymin=Math.min(...v.data.rd.lo.filter(t=>t))*0.7,ymax=Math.max(...all)*1.3,y=t=>T+(Math.log10(ymax)-Math.log10(t))/(Math.log10(ymax)-Math.log10(ymin))*(H-T-B);
       let s='';
-      for(let e=-5;e<=0;e++){const t=Math.pow(10,e);if(t<ymin||t>ymax)continue;s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(t)+'" y2="'+y(t)+'" stroke="var(--line)"/>'+RD.t(L-4,y(t)+4,fT(t),{a:'end',fs:10})}
-      [4,1024,1048576,16777216].forEach((sz,k)=>{s+=RD.t(x(sz),H-B+14,fB(sz),{a:k===3?'end':k===0?'start':'middle',fs:10})});
-      s+=RD.t((L+W-R)/2,H-4,'all-reduce buffer size (log)',{a:'middle',fs:10,fill:'var(--mute)'});
+      for(let e=-5;e<=0;e++){const t=Math.pow(10,e);if(t<ymin||t>ymax)continue;s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(t)+'" y2="'+y(t)+'" stroke="var(--line)"/>'+RD.t(L-4,y(t)+4,fT(t),{a:'end',fs:11})}
+      (W<520?[4,1024,16777216]:[4,1024,1048576,16777216]).forEach((sz,k,A)=>{s+=RD.t(x(sz),H-B+14,fB(sz),{a:k===A.length-1?'end':k===0?'start':'middle',fs:11})});
+      s+=RD.t((L+W-R)/2,H-4,'all-reduce buffer size (log)',{a:'middle',fs:11,fill:'var(--mute)'});
       const col={ring:'var(--c1)',rd:'var(--c2)',gloo:'var(--mute)'};
       ['ring','rd'].forEach(k=>{const pts=v.model[k].map((t,j)=>(k==='ring'&&!v.data.ring.med[j])?null:[x(S[j]),y(t)]).filter(p=>p);s+='<polyline points="'+pts.map(p=>p.join(',')).join(' ')+'" fill="none" stroke="'+col[k]+'" stroke-width="1.5" stroke-dasharray="5 3"/>'});
       ['gloo','ring','rd'].forEach(k=>{const d=v.data[k];if(!d)return;d.med.forEach((t,j)=>{if(!t)return;const X=x(S[j]);s+='<line x1="'+X+'" x2="'+X+'" y1="'+y(d.lo[j])+'" y2="'+y(d.hi[j])+'" stroke="'+col[k]+'"/><circle cx="'+X+'" cy="'+y(t)+'" r="'+(k==='gloo'?2.5:3.4)+'" fill="'+col[k]+'"/>'})});
-      if(v.xo_model&&n!=='2'){const X=x(v.xo_model);s+='<line x1="'+X+'" x2="'+X+'" y1="'+T+'" y2="'+(H-B)+'" stroke="var(--c5)" stroke-dasharray="2 3"/>'+RD.t(X>W-110?X-4:X+4,T+12,'model crossover',{fs:10,fill:'var(--c5)',a:X>W-110?'end':'start'})}
+      if(v.xo_model&&n!=='2'){const X=x(v.xo_model);s+='<line x1="'+X+'" x2="'+X+'" y1="'+T+'" y2="'+(H-B)+'" stroke="var(--c5)" stroke-dasharray="2 3"/>'+RD.t(X>W-110?X-4:X+4,T+12,'model crossover',{fs:11,fill:'var(--c5)',a:X>W-110?'end':'start'})}
       host.innerHTML=RD.svg(W,H,s,'Measured all-reduce time against size, '+n+' ranks')+
         '<div class="hmleg"><span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="var(--c1)"/></svg>ring (measured)</span><span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="var(--c2)"/></svg>recursive doubling (measured)</span><span><svg width="12" height="12"><circle cx="6" cy="6" r="3" fill="var(--mute)"/></svg>Gloo built-in</span><span><svg width="18" height="12"><line x1="0" y1="6" x2="18" y2="6" stroke="var(--ink)" stroke-dasharray="5 3"/></svg>alpha-beta model</span></div>';
       const rr=v.resid.ring.filter(r=>r!=null).map(Math.abs);
@@ -751,6 +900,183 @@ window.ICFAB=(function(){
     p.querySelectorAll('.opts button').forEach(x=>x.classList.toggle('right',x.dataset.a===right));if(b.dataset.a!==right)b.classList.add('wrong');p.classList.add('done')}))});
 })();
 </script>
+<script>/* 26_js_rd_vis.js */
+// ---- Reading visuals added 2026-10-23: hero cluster, alpha-beta curves (s1), switch against mesh (s3), RDMA stepper and
+// credits against pause (s4), topology shapes (s5), torus collective calculator (s7, absorbed from Sharding and scale) ----
+(function(){
+  const D=window.IC,$=id=>document.getElementById(id),T=RD.t;
+  const fB=b=>b>=1e9?(b/1e9).toFixed(b>=1e10?1:2)+' GB':b>=1e6?(b/1e6).toFixed(b>=1e7?0:1)+' MB':b>=1e3?(b/1e3).toFixed(b>=1e4?0:1)+' KB':Math.round(b)+' B';
+  const fT=s=>s>=1?s.toFixed(2)+' s':s>=1e-3?(s*1e3).toFixed(s>=0.1?0:2)+' ms':(s*1e6).toFixed(s>=1e-4?0:2)+' µs';
+  const box=(x,y,w,h,o)=>{o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.r||4)+'" fill="'+(o.fill||'var(--soft)')+'" stroke="'+(o.stroke||'var(--line)')+'" stroke-width="'+(o.sw||1)+'"/>'};
+  const line=(x1,y1,x2,y2,c,w,dash)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+c+'" stroke-width="'+(w||1.5)+'"'+(dash?' stroke-dasharray="'+dash+'"':'')+'/>';
+  const num=(x,y,k,c)=>'<circle cx="'+x+'" cy="'+y+'" r="9" fill="'+c+'"/>'+T(x,y+4,String(k),{a:'middle',fs:11,w:700,fill:'var(--bg)'});
+
+  // ---- hero: two servers, rails, spine ----
+  (function(){const host=$('ic-hero');if(!host)return;
+    function draw(){const W=Math.min(860,RD.width(host)),H=270,m=8;let s='';
+      const nar=W<520,gap=nar?10:24,sw=(W-2*m-gap)/2,sx=j=>m+j*(sw+gap);
+      const ySp=22,yLf=88,yNic=150,yGpu=192,yNv=238;
+      const leafX=k=>m+(k+0.5)*(W-2*m)/4,spX=i=>W/2+(i-0.5)*Math.min(220,W*0.4);
+      // spine links
+      for(let i=0;i<2;i++)for(let k=0;k<4;k++)s+=line(spX(i),ySp+12,leafX(k),yLf-11,'var(--bad)',1.2);
+      // NIC to leaf links
+      for(let j=0;j<2;j++)for(let g=0;g<4;g++){const gx=sx(j)+(g+0.5)*sw/4;s+=line(gx,yNic-9,leafX(g),yLf+11,'var(--c2)',1.4)}
+      for(let i=0;i<2;i++){s+=box(spX(i)-30,ySp-11,60,23,{stroke:'var(--bad)'})+T(spX(i),ySp+4,'spine',{a:'middle',fs:11})}
+      for(let k=0;k<4;k++){const lw=nar?44:58;s+=box(leafX(k)-lw/2,yLf-11,lw,22,{stroke:'var(--c2)'})+T(leafX(k),yLf+4,(nar?'rail ':'rail ')+k,{a:'middle',fs:11})}
+      for(let j=0;j<2;j++){const x=sx(j);s+=box(x,yNic-20,sw,yNv-yNic+36,{fill:'none',r:8});
+        s+=T(x+6,yNv+28,'server '+j+' (4 of 8 GPUs shown)',{fs:11,fill:'var(--mute)'});
+        const cw=sw/4,bw=Math.min(46,cw-8);
+        for(let g=0;g<4;g++){const gx=x+(g+0.5)*cw;
+          s+=line(gx,yNic+9,gx,yGpu-14,'var(--c5)',2)+line(gx,yGpu+14,gx,yNv-7,'var(--c3)',2.4);
+          s+=box(gx-bw/2,yNic-9,bw,18,{stroke:'var(--c2)'})+T(gx,yNic+4,'NIC',{a:'middle',fs:11});
+          s+=box(gx-bw/2,yGpu-14,bw,28,{fill:'var(--acc2)',stroke:'var(--c4)',sw:1.5})+T(gx,yGpu+4,'GPU',{a:'middle',fs:11})}
+        s+=box(x+6,yNv-7,sw-12,16,{fill:'var(--soft)',stroke:'var(--c3)',sw:1.5})+T(x+sw/2,yNv+5,'NVSwitch',{a:'middle',fs:11});
+      }
+      // numbered markers
+      const g0=sx(0)+0.5*sw/4,g1=sx(0)+1.5*sw/4;
+      s+=num(g0+Math.min(23,sw/8-4)+2,yGpu-12,1,'var(--c4)')+num(sx(1)+sw-14,yNv,2,'var(--c3)')+num(sx(0)+2.5*sw/4-12,(yNic+yGpu)/2+1,3,'var(--c5)')+
+        num((sx(0)+sw/8*3+leafX(3))/2+6,(yNic+yLf)/2,4,'var(--c2)')+num((spX(0)+leafX(0))/2,(ySp+yLf)/2,5,'var(--bad)');
+      host.innerHTML=RD.svg(W,H,s,'Two servers of GPUs: NVSwitch inside each server, a NIC per GPU, NICs wired to rail leaf switches, leaves wired to spine switches');
+    }
+    RD.onRender(draw);RD.onResize(draw);draw();
+  })();
+
+  // ---- alpha-beta: effective bandwidth against message size ----
+  (function(){const host=$('ic-ab');if(!host)return;
+    const L=D.links.filter(l=>['nvl4','pcie5','ib','eth100'].includes(l.id)).map(l=>({nm:l.id==='nvl4'?'NVLink 4':l.id==='pcie5'?'PCIe 5.0 (α assumed)':l.id==='ib'?'InfiniBand 400G':'100 Gb/s Ethernet (α assumed)',a:l.alpha*1e-6,b:l.beta*1e9,id:l.id}));
+    L.push({nm:'this laptop (measured)',a:D.meas.pp_alpha,b:D.meas.pp_beta,id:'lap'});
+    const COL={nvl4:'var(--c3)',pcie5:'var(--c5)',ib:'var(--c2)',eth100:'var(--c4)',lap:'var(--mute)'};
+    const lo=6,hi=34;
+    function draw(){const W=Math.min(860,RD.width(host)),H=Math.max(230,Math.min(300,W*0.5)),l0=54,r0=10,t0=10,b0=34;
+      const S=Math.pow(2,+$('ic-abS').value);$('ic-abv').textContent=fB(S);
+      const x=m=>l0+(Math.log2(m)-lo)/(hi-lo)*(W-l0-r0),y0=-2,y1=Math.log10(1000),y=bw=>t0+(y1-Math.log10(bw/1e9))/(y1-y0)*(H-t0-b0);
+      let s='';
+      [0.01,0.1,1,10,100,1000].forEach(v=>{const Y=y(v*1e9);s+=line(l0,Y,W-r0,Y,'var(--line)',1)+T(l0-4,Y+4,(v<1?v:v)+' GB/s',{a:'end',fs:11})});
+      const ticks=W<520?[64,65536,67108864,17179869184]:[64,4096,262144,16777216,1073741824,17179869184];
+      ticks.forEach((m,k)=>{s+=T(x(m),H-b0+15,fB(m),{a:k===ticks.length-1?'end':k===0?'start':'middle',fs:11})});
+      s+=T((l0+W-r0)/2,H-3,'message size (log)',{a:'middle',fs:11,fill:'var(--mute)'});
+      L.forEach(l=>{let d='';for(let i=0;i<=90;i++){const m=Math.pow(2,lo+(hi-lo)*i/90),bw=m/(l.a+m/l.b);d+=(i?'L':'M')+x(m).toFixed(1)+','+y(Math.max(bw,1e7)).toFixed(1)}
+        s+='<path d="'+d+'" fill="none" stroke="'+COL[l.id]+'" stroke-width="2"/>';const nh=l.a*l.b;s+='<circle cx="'+x(nh)+'" cy="'+y(l.b/2)+'" r="4" fill="'+COL[l.id]+'"/>'});
+      const X=x(S);s+=line(X,t0,X,H-b0,'var(--ink)',1,'3 3');
+      host.innerHTML=RD.svg(W,H,s,'Effective bandwidth against message size for several links')+'<div class="hmleg">'+L.map(l=>'<span><svg width="14" height="10"><rect width="14" height="4" y="3" fill="'+COL[l.id]+'"/></svg>'+l.nm+'</span>').join('')+'<span>dot: n<sub>&frac12;</sub>, half of &beta;</span></div>';
+      const tn=L[0].a+S/L[0].b,ti=L.find(l=>l.id==='ib'),tb=ti.a+S/ti.b;
+      $('ic-about').innerHTML=RD.stat('NVLink 4',fT(tn),Math.round(100*S/tn/L[0].b)+'% of its 450 GB/s')+RD.stat('InfiniBand 400G',fT(tb),Math.round(100*S/tb/ti.b)+'% of its 50 GB/s')+RD.stat('NVLink advantage',(tb/tn).toFixed(2)+'×','9× in bandwidth');
+    }
+    $('ic-abS').addEventListener('input',draw);RD.onRender(draw);RD.onResize(draw);draw();
+  })();
+
+  // ---- switch against mesh ----
+  (function(){const host=$('ic-mesh');if(!host)return;let mode='sw';
+    function draw(){const W=Math.min(620,RD.width(host)),H=Math.min(300,Math.max(230,W*0.62)),cx=W/2,cy=H/2,R=Math.min(W*0.38,H*0.4);let s='';
+      const P=g=>[cx+R*Math.cos(Math.PI*2*g/8-Math.PI/2),cy+R*Math.sin(Math.PI*2*g/8-Math.PI/2)];
+      if(mode==='sw'){s+=box(cx-42,cy-14,84,28,{stroke:'var(--c3)',sw:1.5})+T(cx,cy+4,'NVSwitch',{a:'middle',fs:11});
+        for(let g=0;g<8;g++){const [x,y]=P(g),hl=g===0||g===3;s+=line(x,y,cx+(x-cx)*0.2,cy+(y-cy)*0.2,hl?'var(--acc)':'var(--c3)',hl?5:3.5)}}
+      else{for(let a=0;a<8;a++)for(let b=a+1;b<8;b++){const [x1,y1]=P(a),[x2,y2]=P(b),hl=a===0&&b===3;s+=line(x1,y1,x2,y2,hl?'var(--acc)':'var(--c3)',hl?3:0.9)}}
+      for(let g=0;g<8;g++){const [x,y]=P(g);s+=box(x-20,y-12,40,24,{fill:'var(--acc2)',stroke:(g===0||g===3)?'var(--acc)':'var(--c4)',sw:(g===0||g===3)?2:1})+T(x,y+4,'GPU '+g,{a:'middle',fs:11})}
+      host.innerHTML=RD.svg(W,H,s,mode==='sw'?'Eight GPUs each with one fat link to an NVSwitch':'Eight GPUs each joined directly to the seven others by thin links');
+      $('ic-meshout').innerHTML=mode==='sw'?RD.stat('GPU 0 to GPU 3','450 GB/s','the whole NVLink port')+RD.stat('Per GPU, all peers at once','450 GB/s','shared by destinations')+RD.stat('Links per GPU','18 to the switches','4 NVSwitch chips'):
+        RD.stat('GPU 0 to GPU 3','64 GB/s','one link of seven')+RD.stat('Per GPU, all peers at once','448 GB/s','only if traffic uses all 7 links')+RD.stat('Links per GPU','7 direct','no switch hop');
+    }
+    RD.seg($('ic-meshm'),m=>{mode=m;draw()});RD.onRender(draw);RD.onResize(draw);draw();
+  })();
+
+  // ---- RDMA stepper: the caption is the static list item ----
+  (function(){const host=$('ic-rdsvg');if(!host)return;const items=[...$('ic-rdsteps').querySelectorAll('li')];
+    function draw(i){items.forEach((li,k)=>li.classList.toggle('on',k===i));
+      const W=Math.min(760,RD.width(host)),H=236,cw=(W-60)/2,xs=[10,W-10-cw];let s='';
+      const rows=[['app','program (CPU)',18],['kern','kernel TCP stack',66],['nic','NIC',134],['gpu','GPU memory',190]];
+      const yOf=k=>rows.find(r=>r[0]===k)[2];
+      const tcp=i===0;
+      xs.forEach((x,side)=>{s+=T(x+cw/2,12,side?'receiver':'sender',{a:'middle',fs:11,fill:'var(--mute)'});
+        rows.forEach(([k,nm,y])=>{let on=false;
+          if(tcp)on=true;else if(k==='gpu')on=i>=1;else if(k==='nic')on=i>=2;else if(k==='app')on=(i===3&&side===0);
+          const dim=!tcp&&k==='kern';
+          s+='<g opacity="'+(dim?0.35:1)+'">'+box(x,y,cw,30,{fill:on?'var(--acc2)':'var(--soft)',stroke:on?'var(--acc)':'var(--line)'})+T(x+cw/2,y+19,nm+(k==='gpu'&&i>=1?' (registered, key)':'')+(k==='nic'&&i>=2?(W<520?' + QP':' + queue pair'):''),{a:'middle',fs:11})+'</g>'});});
+      const mid=W/2,arr=(x1,y1,x2,y2,c)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+c+'" stroke-width="2.2" marker-end="url(#ic-rda)"/>';
+      if(tcp){const cxs=[xs[0]+cw*0.25,xs[1]+cw*0.75];
+        s+=arr(cxs[0],yOf('gpu'),cxs[0],yOf('app')+30,'var(--bad)')+arr(cxs[0]+16,yOf('app')+30,cxs[0]+16,yOf('nic'),'var(--bad)')+
+          arr(xs[0]+cw,yOf('nic')+15,xs[1],yOf('nic')+15,'var(--c2)')+arr(cxs[1]-16,yOf('nic'),cxs[1]-16,yOf('app')+30,'var(--bad)')+arr(cxs[1],yOf('app')+30,cxs[1],yOf('gpu'),'var(--bad)');
+        s+=T(mid,yOf('nic')-6,'wire',{a:'middle',fs:11,fill:'var(--c2)'});}
+      else if(i===3){s+=arr(xs[0]+cw*0.5,yOf('app')+30,xs[0]+cw*0.5,yOf('nic'),'var(--acc)')+T(xs[0]+cw*0.5+6,yOf('kern')+19,'doorbell',{fs:11,fill:'var(--acc)'})}
+      else if(i===4){s+=arr(xs[0]+cw*0.7,yOf('gpu'),xs[0]+cw*0.7,yOf('nic')+30,'var(--c5)')+arr(xs[0]+cw,yOf('nic')+15,xs[1],yOf('nic')+15,'var(--c2)')+arr(xs[1]+cw*0.3,yOf('nic')+30,xs[1]+cw*0.3,yOf('gpu'),'var(--c5)')+T(mid,yOf('nic')-6,'RDMA write',{a:'middle',fs:11,fill:'var(--c2)'})}
+      host.innerHTML=RD.svg(W,H,'<defs><marker id="ic-rda" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--mute)"/></marker></defs>'+s,'RDMA step '+i);
+    }
+    RD.anim({card:'ic-rdcard',ctl:'ic-rdctl',n:items.length,draw,ms:2200,label:'RDMA step'});
+  })();
+
+  // ---- credits against pause frames ----
+  (function(){const host=$('ic-flsvg');if(!host)return;
+    function draw(){const W=Math.min(860,RD.width(host)),nar=W<560,pw=nar?W:(W-20)/2,ph=150,H=nar?2*ph+16:ph;let s='';
+      const panel=(ox,oy,ib)=>{let p='';const a=ox+10,b=ox+pw-80;
+        p+=T(ox+pw/2,oy+14,ib?'InfiniBand: the receiver grants credits':'RoCE: a full buffer pauses the sender',{a:'middle',fs:11,w:600});
+        p+=box(a,oy+50,64,40,{})+T(a+32,oy+74,'sender',{a:'middle',fs:11});
+        p+=box(b,oy+42,70,56,{stroke:ib?'var(--good)':'var(--bad)'})+T(b+35,oy+36,ib?'receiver':'switch',{a:'middle',fs:11});
+        for(let k=0;k<4;k++){const full=ib?k<2:true;p+='<rect x="'+(b+8+k*14)+'" y="'+(oy+66)+'" width="11" height="24" rx="2" fill="'+(full?'var(--c1)':'none')+'" stroke="var(--c1)"/>'}
+        const y1=oy+62,y2=oy+82;
+        p+='<line x1="'+(a+66)+'" y1="'+y1+'" x2="'+(b-4)+'" y2="'+y1+'" stroke="var(--c1)" stroke-width="2" marker-end="url(#ic-fla)"/>'+T((a+b)/2+30,y1-5,ib?'2 packets (credits used)':'packets',{a:'middle',fs:11});
+        p+='<line x1="'+(b-4)+'" y1="'+y2+'" x2="'+(a+66)+'" y2="'+y2+'" stroke="'+(ib?'var(--good)':'var(--bad)')+'" stroke-width="2" stroke-dasharray="'+(ib?'':'4 3')+'" marker-end="url(#ic-fla)"/>'+T((a+b)/2+30,y2+15,ib?'credits: 2 buffers free':'PFC pause frame',{a:'middle',fs:11,fill:ib?'var(--good)':'var(--bad)'});
+        p+=T(ox+pw/2,oy+ph-12,ib?'nothing is sent without space: no drops':'pauses spread upstream: congestion trees',{a:'middle',fs:11,fill:'var(--mute)'});
+        return p};
+      s+=panel(0,0,true)+panel(nar?0:pw+20,nar?ph+16:0,false);
+      host.innerHTML=RD.svg(W,H,'<defs><marker id="ic-fla" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--mute)"/></marker></defs>'+s,'Credit-based flow control against priority flow control');
+    }
+    RD.onRender(draw);RD.onResize(draw);draw();
+  })();
+
+  // ---- topology shapes ----
+  (function(){const host=$('ic-topo');if(!host)return;let mode='ft';
+    function draw(){const W=Math.min(760,RD.width(host));let s='',H=250,out='';
+      if(mode==='ft'){const nl=W<520?4:6,ns=W<520?2:3,lx=k=>10+(k+0.5)*(W-20)/nl,sx=k=>W/2+(k-(ns-1)/2)*Math.min(150,(W-40)/ns),yS=30,yL=120,yE=200;
+        for(let a=0;a<ns;a++)for(let k=0;k<nl;k++)s+=line(sx(a),yS+11,lx(k),yL-11,(k===0||k===nl-1)&&a===0?'var(--acc)':'var(--line)',(k===0||k===nl-1)&&a===0?2.4:1.2);
+        for(let a=0;a<ns;a++)s+=box(sx(a)-28,yS-11,56,22,{stroke:'var(--bad)'})+T(sx(a),yS+4,'spine',{a:'middle',fs:11});
+        for(let k=0;k<nl;k++){s+=box(lx(k)-22,yL-11,44,22,{stroke:'var(--c2)'})+T(lx(k),yL+4,'leaf',{a:'middle',fs:11});
+          for(let e=0;e<2;e++){const ex=lx(k)+(e-0.5)*18,hl=(k===0&&e===0)||(k===nl-1&&e===1);s+=line(lx(k),yL+11,ex,yE-8,hl?'var(--acc)':'var(--line)',hl?2.4:1.2)+'<circle cx="'+ex+'" cy="'+yE+'" r="7" fill="'+(hl?'var(--acc)':'var(--acc2)')+'" stroke="var(--c4)"/>'}}
+        s+=T(W/2,yE+32,'NICs (endpoints)',{a:'middle',fs:11,fill:'var(--mute)'});H=240;
+        out=RD.stat('Hops, farthest pair','4','NIC, leaf, spine, leaf, NIC')+RD.stat('Bisection','full, or 1:k','set by leaf uplinks')+RD.stat('Used by','GPU clusters','rail-optimised: Meta, NVIDIA, DeepSeek');}
+      else if(mode==='torus'){const n=4,c=Math.min(52,(W-80)/n),x0=(W-n*c)/2+c/2,y0=34,X=i=>x0+i*c,Y=j=>y0+j*c;
+        const hop=(i,j)=>Math.min(i,n-i)+Math.min(j,n-j);
+        for(let j=0;j<n;j++)for(let i=0;i<n;i++){if(i<n-1)s+=line(X(i),Y(j),X(i+1),Y(j),'var(--c3)',1.6);if(j<n-1)s+=line(X(i),Y(j),X(i),Y(j+1),'var(--c3)',1.6)}
+        for(let j=0;j<n;j++){s+='<path d="M'+X(0)+','+Y(j)+' C'+(X(0)-26)+','+(Y(j)-10)+' '+(X(0)-26)+','+(Y(j)+14)+' '+(X(0)-10)+','+(Y(j)+10)+'" fill="none" stroke="var(--c3)" stroke-dasharray="3 3"/>';s+='<path d="M'+X(n-1)+','+Y(j)+' C'+(X(n-1)+26)+','+(Y(j)-10)+' '+(X(n-1)+26)+','+(Y(j)+14)+' '+(X(n-1)+10)+','+(Y(j)+10)+'" fill="none" stroke="var(--c3)" stroke-dasharray="3 3"/>'}
+        for(let i=0;i<n;i++){s+='<path d="M'+X(i)+','+Y(0)+' C'+(X(i)-10)+','+(Y(0)-26)+' '+(X(i)+14)+','+(Y(0)-26)+' '+(X(i)+10)+','+(Y(0)-10)+'" fill="none" stroke="var(--c3)" stroke-dasharray="3 3"/>'}
+        for(let j=0;j<n;j++)for(let i=0;i<n;i++){const hl=(i===0&&j===0)||(i===n-1&&j===n-1);s+='<circle cx="'+X(i)+'" cy="'+Y(j)+'" r="13" fill="'+(hl?'var(--acc)':'var(--acc2)')+'" stroke="var(--c4)"/>'+T(X(i),Y(j)+4,String(hop(i,j)),{a:'middle',fs:11,fill:hl?'var(--bg)':'var(--ink)'})}
+        H=y0+n*c+28;s+=T(W/2,H-6,'number: hops from the top-left chip; dashed: wraparound links',{a:'middle',fs:11,fill:'var(--mute)'});
+        out=RD.stat('Highlighted pair','2 hops','6 without wraparound; farthest chip 4')+RD.stat('Switches','none','each chip wired to 4 (2-D) or 6 (3-D) neighbours')+RD.stat('Used by','TPU pods','also Trainium2 (4 × 4)');}
+      else{const g=5,R=Math.min(W*0.36,95),cx=W/2,cy=125,gr=W<520?20:26,P=k=>[cx+R*Math.cos(Math.PI*2*k/g-Math.PI/2),cy+R*Math.sin(Math.PI*2*k/g-Math.PI/2)];
+        for(let a=0;a<g;a++)for(let b=a+1;b<g;b++){const [x1,y1]=P(a),[x2,y2]=P(b),hl=a===0&&b===2;s+=line(x1,y1,x2,y2,hl?'var(--acc)':'var(--c2)',hl?2.6:1.3,hl?'':'5 3')}
+        for(let k=0;k<g;k++){const [x,y]=P(k);s+='<circle cx="'+x+'" cy="'+y+'" r="'+gr+'" fill="var(--soft)" stroke="var(--c4)"/>';
+          for(let r=0;r<4;r++){const rx=x+(r%2-0.5)*gr*0.8,ry=y+(Math.floor(r/2)-0.5)*gr*0.8;s+='<rect x="'+(rx-5)+'" y="'+(ry-5)+'" width="10" height="10" rx="2" fill="'+((k===0&&r===3)||(k===2&&r===0)?'var(--acc)':'var(--acc2)')+'" stroke="var(--c4)"/>'}}
+        H=250;s+=T(W/2,H-6,'5 groups of 4 switches; dashed: long global links, one per pair of groups',{a:'middle',fs:11,fill:'var(--mute)'});
+        out=RD.stat('Hops, minimal route','3','local, global, local')+RD.stat('Global links','one per pair of groups','long, often optical')+RD.stat('Used by','HPC (Frontier)','HPE Slingshot');}
+      host.innerHTML=RD.svg(W,H,s,'Network topology: '+mode);$('ic-topoout').innerHTML=out;
+    }
+    RD.seg($('ic-topom'),m=>{mode=m;draw()});RD.onRender(draw);RD.onResize(draw);draw();
+  })();
+
+  // ---- collective cost on a TPU axis: ring, 2-D torus, tree (absorbed from Sharding and scale, 2026-10-23) ----
+  (function(){const el=$('ic-ccsvg');if(!el)return;
+    const al=1e-6,SZ=[['100 KB',1e5],['Llama 3.1 8B bf16 gradients',8030261248*2]];
+    function draw(){const k=+$('ic-ccn').value,n=Math.pow(2,k),Wl=+$('ic-cclink').value,Wb=2*Wl;$('ic-ccnv').textContent=n;
+      const X=Math.pow(2,Math.ceil(k/2)),Y=n/X;
+      const ring=V=>2*Math.max(al*n/2,V/Wb),tor=V=>2*Math.max(al*(X+Y)/2,V/(2*Wb)),tree=V=>2*Math.log2(n)*al+2*V/Wb;
+      const W=Math.min(860,RD.width(el)),H=240,ml=56,mr=10,mt=10,mb=34,pw=W-ml-mr,ph=H-mt-mb,x0=3,x1=11,ys=[-6,1];
+      const px=v=>ml+(Math.log10(v)-x0)/(x1-x0)*pw,py=t=>mt+(1-(Math.log10(t)-ys[0])/(ys[1]-ys[0]))*ph;
+      let s='';const lab=['1 KB','','100 KB','','10 MB','','1 GB','','100 GB'];
+      for(let e=x0;e<=x1;e++){const x=px(Math.pow(10,e));s+=line(x,mt,x,mt+ph,'var(--line)',1);if(lab[e-3]&&(W>=520||e%4===3))s+=T(x,H-18,lab[e-3],{a:e===x1?'end':e===x0?'start':'middle',fs:11})}
+      const yl={'-6':'1 µs','-5':'10 µs','-4':'100 µs','-3':'1 ms','-2':'10 ms','-1':'100 ms','0':'1 s','1':'10 s'};
+      for(let e=ys[0];e<=ys[1];e++){const y=py(Math.pow(10,e));s+=line(ml,y,ml+pw,y,'var(--line)',1)+T(ml-4,y+4,yl[e],{a:'end',fs:11})}
+      s+=T(ml+pw/2,H-3,'message size (bytes all-reduced)',{a:'middle',fs:11,fill:'var(--mute)'});
+      const cv=[['ring (1 axis)',ring,'var(--c2)'],['2-D torus ('+X+' × '+Y+')',tor,'var(--c1)'],['tree (α-β)',tree,'var(--c4)']];
+      cv.forEach(c=>{let d='';for(let i=0;i<=80;i++){const v=Math.pow(10,x0+(x1-x0)*i/80),t=Math.min(Math.max(c[1](v),1e-6),10);d+=(i?'L':'M')+px(v).toFixed(1)+','+py(t).toFixed(1)}s+='<path d="'+d+'" fill="none" stroke="'+c[2]+'" stroke-width="2"/>'});
+      SZ.forEach((z,i)=>{const x=px(z[1]);s+=line(x,mt,x,mt+ph,'var(--mute)',1,'3 3')+T(x+3,mt+12,String.fromCharCode(97+i),{fs:11,w:600})});
+      el.innerHTML=RD.svg(W,H,s,'All-reduce time against message size for ring, 2-D torus and tree');
+      $('ic-ccleg').innerHTML=cv.map(c=>'<span><svg width="14" height="10"><rect width="14" height="4" y="3" fill="'+c[2]+'"/></svg>'+c[0]+'</span>').join('');
+      const a=SZ[0][1],b=SZ[1][1];
+      $('ic-ccnote').innerHTML='At (a) 100 KB on '+n+' devices: ring '+fT(ring(a))+', 2-D torus '+fT(tor(a))+', tree '+fT(tree(a))+'. At (b) the 8B gradients, 16.06 GB: ring '+fT(ring(b))+', 2-D torus '+fT(tor(b))+', tree '+fT(tree(b))+'. Assumptions: &alpha; = 1 &micro;s per hop, W<sub>bidi</sub> = 2 &times; the one-way link ('+(Wl/1e9)+' GB/s, scaling book table), a full ring with wraparound, no overlap with compute. A calculation, not a measurement.';
+    }
+    $('ic-ccn').addEventListener('input',draw);$('ic-cclink').addEventListener('change',draw);RD.onRender(draw);RD.onResize(draw);draw();
+  })();
+})();
+</script>
 <script>/* 31_js_sim.js */
 // ---- Collective simulator tab (t-sim) ----
 (function(){
@@ -770,10 +1096,10 @@ window.ICFAB=(function(){
     const H=top+n*(ch+2)+(st.alg==='switch'?62:18),x0=(W-n*cw)/2,sn=r.snaps[i];let s='';
     if(i>0)sn.tr.forEach(([a,b])=>{if(a===-1||b===-1){const g=a===-1?b:a,x=x0+g*cw+cellW/2,y1=top+n*(ch+2)+3,y2=y1+20;s+='<line x1="'+x+'" y1="'+(a===-1?y2:y1)+'" x2="'+x+'" y2="'+(a===-1?y1:y2)+'" stroke="var(--acc)" stroke-width="1.3" marker-end="url(#sim-ah)"/>';return}
       const xa=x0+a*cw+cellW/2,xb=x0+b*cw+cellW/2,h=Math.min(40,8+Math.abs(b-a)*4);s+='<path d="M'+xa+','+(top-4)+' Q'+((xa+xb)/2)+','+(top-4-h)+' '+xb+','+(top-4)+'" fill="none" stroke="var(--acc)" stroke-width="1.1" opacity=".75" marker-end="url(#sim-ah)"/>'});
-    for(let g=0;g<n;g++){const x=x0+g*cw;if(n<=8||g%2===0)s+=RD.t(x+cellW/2,H-4,String(g),{a:'middle',fs:10});
+    for(let g=0;g<n;g++){const x=x0+g*cw;if(n<=8||g%2===0)s+=RD.t(x+cellW/2,H-4,String(g),{a:'middle',fs:11});
       for(let c=0;c<n;c++){let f;if(st.coll==='a2a')f=sn.rx[g][c];else if(st.coll==='ag')f=sn.have[g][c]?1:0;else f=ICSIM.pop(sn.have[g][c])/n;
         s+='<rect x="'+x+'" y="'+(top+c*(ch+2))+'" width="'+cellW+'" height="'+ch+'" rx="1.5" fill="'+COL[st.alg]+'" fill-opacity="'+(0.1+0.9*f).toFixed(2)+'"/>'}}
-    if(st.alg==='switch'){const y=top+n*(ch+2)+25;s+='<rect x="'+x0+'" y="'+y+'" width="'+(n*cw-gap)+'" height="16" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(x0+(n*cw-gap)/2,y+12,'switch',{a:'middle',fs:10})}
+    if(st.alg==='switch'){const y=top+n*(ch+2)+25;s+='<rect x="'+x0+'" y="'+y+'" width="'+(n*cw-gap)+'" height="16" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(x0+(n*cw-gap)/2,y+12,'switch',{a:'middle',fs:11})}
     host.innerHTML=RD.svg(W,H,'<defs><marker id="sim-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--acc)"/></marker></defs>'+s,'Collective state, step '+i);
     $('sim-cap').textContent=cap(i);
     const [a,b]=ab(),fin=i===r.steps,t=fin?r.time:sn.t,bf=ICSIM.BUSF[st.coll](n);
@@ -795,9 +1121,9 @@ window.ICFAB=(function(){
     const all=series.flatMap(s=>s[2]).concat(pts.map(p=>p[1])).filter(v=>v>0&&isFinite(v));
     const lo=Math.min(...all),hi=Math.max(...all),yl=Math.log10(lo)-0.1,yh=Math.log10(hi)+0.1;
     const x=S=>L+(Math.log2(S)-3)/31*(W-L-R),y=v=>T+(yh-Math.log10(v))/(yh-yl)*(H-T-B);
-    let s='';for(let e=Math.ceil(yl);e<=Math.floor(yh);e++){const v=Math.pow(10,e);s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(L-4,y(v)+4,st.ym==='t'?fT(v):(v>=1?v:v.toPrecision(1))+'',{a:'end',fs:10})}
-    [8,1024,2**20,2**30].forEach((S,k)=>{s+=RD.t(x(S),H-B+14,fB(S),{a:k===0?'start':'middle',fs:10})});
-    s+=RD.t((L+W-R)/2,H-4,'buffer size (log)'+(st.ym==='bw'?'; y: busbw, GB/s':''),{a:'middle',fs:10,fill:'var(--mute)'});
+    let s='';for(let e=Math.ceil(yl);e<=Math.floor(yh);e++){const v=Math.pow(10,e);s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(L-4,y(v)+4,st.ym==='t'?fT(v):(v>=1?v:v.toPrecision(1))+'',{a:'end',fs:11})}
+    [8,1024,2**20,2**30].forEach((S,k)=>{s+=RD.t(x(S),H-B+14,fB(S),{a:k===0?'start':'middle',fs:11})});
+    s+=RD.t((L+W-R)/2,H-4,'buffer size (log)'+(st.ym==='bw'?'; y: busbw, GB/s':''),{a:'middle',fs:11,fill:'var(--mute)'});
     series.forEach(sr=>{s+='<polyline points="'+sr[2].map((v,j)=>x(Ss[j]).toFixed(1)+','+y(v).toFixed(1)).join(' ')+'" fill="none" stroke="'+COL[sr[0]]+'" stroke-width="1.8"/>'});
     pts.forEach(p=>{s+='<circle cx="'+x(p[0])+'" cy="'+y(p[1])+'" r="3.5" fill="none" stroke="var(--ink)" stroke-width="1.4"><title>'+esc(p[2])+'</title></circle>'});
     const X=x(st.S);s+='<line x1="'+X+'" x2="'+X+'" y1="'+T+'" y2="'+(H-B)+'" stroke="var(--mute)" stroke-dasharray="2 3"/>';
@@ -823,7 +1149,7 @@ window.ICFAB=(function(){
 })();
 </script>
 <script>/* 32_js_fab.js */
-// ---- Fabric explorer tab (t-fab) ----
+// ---- Fabric explorer (Reading section 5; was its own tab until 2026-10-23) ----
 (function(){
   const $=id=>document.getElementById(id);
   const fT=s=>s>=1?s.toFixed(2)+' s':s>=1e-3?(s*1e3).toFixed(s>=0.1?0:1)+' ms':(s*1e6).toFixed(0)+' µs';
@@ -838,13 +1164,13 @@ window.ICFAB=(function(){
     const col=u=>u>=0.999?'var(--bad)':u>0.5?'var(--c5)':u>0.05?'var(--c3)':'var(--dim)';
     const sw=(W-20)/shown,gpuY=210,leafY=120,spY=36;let s='';
     const nLeaf=f==='tor'?Math.ceil(shown/2):8,leafX=i=>10+(i+0.5)*(W-20)/nLeaf;
-    if(f!=='railonly'){for(let k=0;k<4;k++){const x=10+(k+0.5)*(W-20)/4;s+='<rect x="'+(x-30)+'" y="'+(spY-12)+'" width="60" height="22" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(x,spY+3,'spine',{a:'middle',fs:10});
+    if(f!=='railonly'){for(let k=0;k<4;k++){const x=10+(k+0.5)*(W-20)/4;s+='<rect x="'+(x-30)+'" y="'+(spY-12)+'" width="60" height="22" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(x,spY+3,'spine',{a:'middle',fs:11});
       for(let i=0;i<nLeaf;i++)s+='<line x1="'+leafX(i)+'" y1="'+(leafY-10)+'" x2="'+x+'" y2="'+(spY+10)+'" stroke="'+col(util('spine'))+'" stroke-width="'+(1+2*util('spine'))+'" opacity=".7"/>'}}
-    for(let i=0;i<nLeaf;i++){s+='<rect x="'+(leafX(i)-17)+'" y="'+(leafY-10)+'" width="34" height="20" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(leafX(i),leafY+4,f==='tor'?'ToR'+i:'R'+i,{a:'middle',fs:9.5})}
-    for(let j=0;j<shown;j++){const bx=10+j*sw+4,bw=sw-8;s+='<rect x="'+bx+'" y="'+(gpuY-12)+'" width="'+bw+'" height="30" rx="5" fill="none" stroke="'+col(util('nvlink'))+'" stroke-width="'+(1+2*util('nvlink'))+'"/>'+RD.t(bx+bw/2,gpuY+30,'server '+j,{a:'middle',fs:10});
+    for(let i=0;i<nLeaf;i++){s+='<rect x="'+(leafX(i)-17)+'" y="'+(leafY-10)+'" width="34" height="20" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(leafX(i),leafY+4,f==='tor'?'ToR'+i:'R'+i,{a:'middle',fs:11})}
+    for(let j=0;j<shown;j++){const bx=10+j*sw+4,bw=sw-8;s+='<rect x="'+bx+'" y="'+(gpuY-12)+'" width="'+bw+'" height="30" rx="5" fill="none" stroke="'+col(util('nvlink'))+'" stroke-width="'+(1+2*util('nvlink'))+'"/>'+RD.t(bx+bw/2,gpuY+30,'server '+j,{a:'middle',fs:11});
       for(let g=0;g<8;g++){const gx=bx+(g+0.5)*bw/8;s+='<rect x="'+(gx-Math.min(6,bw/20))+'" y="'+(gpuY-6)+'" width="'+Math.min(12,bw/10)+'" height="12" rx="2" fill="var(--c1)"/>';
         const lx=f==='tor'?leafX(Math.floor(j/2)):leafX(g);s+='<line x1="'+gx+'" y1="'+(gpuY-6)+'" x2="'+lx+'" y2="'+(leafY+10)+'" stroke="'+col(util('nic'))+'" stroke-width="'+(0.6+1.6*util('nic'))+'" opacity=".55"/>'}}
-    if(srv>shown)s+=RD.t(W-12,gpuY+30,'+ '+(srv-shown)+' more',{a:'end',fs:10,fill:'var(--mute)'});
+    if(srv>shown)s+=RD.t(W-12,gpuY+30,'+ '+(srv-shown)+' more',{a:'end',fs:11,fill:'var(--mute)'});
     host.innerHTML=RD.svg(W,H,s,'Fabric drawing');
     const cls=['nvlink','nic','spine'].filter(k=>!(k==='spine'&&f==='railonly'));
     $('fab-out').innerHTML=RD.stat('Time for 1 GB per GPU',fT(tot),'limited by '+NM[r.worst])+RD.stat('Effective rate per GPU',(1/tot).toFixed(1)+' GB/s','1 GB / time')+RD.stat('Network switch ports',Math.round(r.ports).toLocaleString('en-US'),'leaf down + up + spine')+RD.stat('GPUs',(8*srv).toLocaleString('en-US'),srv+' servers');
@@ -861,11 +1187,11 @@ window.ICFAB=(function(){
     $('fab-note').textContent=note;
   }
   ['fab-f','fab-p','fab-s','fab-o','fab-x'].forEach(id=>$(id).addEventListener('change',render));
-  RD.onRender(render,'t-fab');RD.onResize(render,'t-fab');render();
+  RD.onRender(render);RD.onResize(render);render();
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace ic-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -883,6 +1209,8 @@ window.ICFAB=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('ic-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

@@ -49,6 +49,12 @@ claims = [
     ("1.29 times the ring on H200", pub["h200_nvls"]["meas"] / pub["h200_ring"]["meas"], 1.29, "NVLS / ring"),
     ("1.23 times on B200", pub["b200_nvls"]["meas"] / pub["b200_ring"]["meas"], 1.23, "NVLS / ring"),
     ("n<sub>&frac12;</sub> of about 315 KB", N["pcie5"] / 1e3, 315, "PCIe alpha x beta (assumed alpha)"),
+    ("16.06 GB / 180 GB/s = 0.178 s", 2 * E["grad8"] / 180e9, 0.178, "ring all-reduce on one v5p axis, scaling book form"),
+    ("0.059 s over all three axes", 2 * E["grad8"] / 180e9 / 3, 0.059, "three axes divide the time by 3"),
+    ("against 62.5 ms over 8 H100s", E["ar8_nvl"] * 1e3, 62.5, "ring 8 over NVLink"),
+    ("6 &times; 16 / 2 = 48 switches", 6 * 16 / 2, 48, "faces x links / 2"),
+    ("with 64 ports that is 2,048 and 65,536", 64 ** 2 / 2, 2048, "k^2/2"),
+    ("2,048 and 65,536", 64 ** 3 / 4, 65536, "k^3/4"),
 ]
 for lit, val, want, how in claims:
     if lit not in html:

@@ -1,4 +1,4 @@
-// ---- Fabric explorer tab (t-fab) ----
+// ---- Fabric explorer (Reading section 5; was its own tab until 2026-10-23) ----
 (function(){
   const $=id=>document.getElementById(id);
   const fT=s=>s>=1?s.toFixed(2)+' s':s>=1e-3?(s*1e3).toFixed(s>=0.1?0:1)+' ms':(s*1e6).toFixed(0)+' µs';
@@ -13,13 +13,13 @@
     const col=u=>u>=0.999?'var(--bad)':u>0.5?'var(--c5)':u>0.05?'var(--c3)':'var(--dim)';
     const sw=(W-20)/shown,gpuY=210,leafY=120,spY=36;let s='';
     const nLeaf=f==='tor'?Math.ceil(shown/2):8,leafX=i=>10+(i+0.5)*(W-20)/nLeaf;
-    if(f!=='railonly'){for(let k=0;k<4;k++){const x=10+(k+0.5)*(W-20)/4;s+='<rect x="'+(x-30)+'" y="'+(spY-12)+'" width="60" height="22" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(x,spY+3,'spine',{a:'middle',fs:10});
+    if(f!=='railonly'){for(let k=0;k<4;k++){const x=10+(k+0.5)*(W-20)/4;s+='<rect x="'+(x-30)+'" y="'+(spY-12)+'" width="60" height="22" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(x,spY+3,'spine',{a:'middle',fs:11});
       for(let i=0;i<nLeaf;i++)s+='<line x1="'+leafX(i)+'" y1="'+(leafY-10)+'" x2="'+x+'" y2="'+(spY+10)+'" stroke="'+col(util('spine'))+'" stroke-width="'+(1+2*util('spine'))+'" opacity=".7"/>'}}
-    for(let i=0;i<nLeaf;i++){s+='<rect x="'+(leafX(i)-17)+'" y="'+(leafY-10)+'" width="34" height="20" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(leafX(i),leafY+4,f==='tor'?'ToR'+i:'R'+i,{a:'middle',fs:9.5})}
-    for(let j=0;j<shown;j++){const bx=10+j*sw+4,bw=sw-8;s+='<rect x="'+bx+'" y="'+(gpuY-12)+'" width="'+bw+'" height="30" rx="5" fill="none" stroke="'+col(util('nvlink'))+'" stroke-width="'+(1+2*util('nvlink'))+'"/>'+RD.t(bx+bw/2,gpuY+30,'server '+j,{a:'middle',fs:10});
+    for(let i=0;i<nLeaf;i++){s+='<rect x="'+(leafX(i)-17)+'" y="'+(leafY-10)+'" width="34" height="20" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(leafX(i),leafY+4,f==='tor'?'ToR'+i:'R'+i,{a:'middle',fs:11})}
+    for(let j=0;j<shown;j++){const bx=10+j*sw+4,bw=sw-8;s+='<rect x="'+bx+'" y="'+(gpuY-12)+'" width="'+bw+'" height="30" rx="5" fill="none" stroke="'+col(util('nvlink'))+'" stroke-width="'+(1+2*util('nvlink'))+'"/>'+RD.t(bx+bw/2,gpuY+30,'server '+j,{a:'middle',fs:11});
       for(let g=0;g<8;g++){const gx=bx+(g+0.5)*bw/8;s+='<rect x="'+(gx-Math.min(6,bw/20))+'" y="'+(gpuY-6)+'" width="'+Math.min(12,bw/10)+'" height="12" rx="2" fill="var(--c1)"/>';
         const lx=f==='tor'?leafX(Math.floor(j/2)):leafX(g);s+='<line x1="'+gx+'" y1="'+(gpuY-6)+'" x2="'+lx+'" y2="'+(leafY+10)+'" stroke="'+col(util('nic'))+'" stroke-width="'+(0.6+1.6*util('nic'))+'" opacity=".55"/>'}}
-    if(srv>shown)s+=RD.t(W-12,gpuY+30,'+ '+(srv-shown)+' more',{a:'end',fs:10,fill:'var(--mute)'});
+    if(srv>shown)s+=RD.t(W-12,gpuY+30,'+ '+(srv-shown)+' more',{a:'end',fs:11,fill:'var(--mute)'});
     host.innerHTML=RD.svg(W,H,s,'Fabric drawing');
     const cls=['nvlink','nic','spine'].filter(k=>!(k==='spine'&&f==='railonly'));
     $('fab-out').innerHTML=RD.stat('Time for 1 GB per GPU',fT(tot),'limited by '+NM[r.worst])+RD.stat('Effective rate per GPU',(1/tot).toFixed(1)+' GB/s','1 GB / time')+RD.stat('Network switch ports',Math.round(r.ports).toLocaleString('en-US'),'leaf down + up + spine')+RD.stat('GPUs',(8*srv).toLocaleString('en-US'),srv+' servers');
@@ -36,5 +36,5 @@
     $('fab-note').textContent=note;
   }
   ['fab-f','fab-p','fab-s','fab-o','fab-x'].forEach(id=>$(id).addEventListener('change',render));
-  RD.onRender(render,'t-fab');RD.onResize(render,'t-fab');render();
+  RD.onRender(render);RD.onResize(render);render();
 })();

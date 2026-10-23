@@ -26,7 +26,7 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await p.setViewport({ width: w, height: 900 });
   await p.goto('file://' + pageFile);
   await p.evaluate(() => { try { localStorage.clear() } catch (e) {} });
-  for (const tab of ['t-read', 't-sim', 't-fab', 't-more']) {
+  for (const tab of ['t-read', 't-sim', 't-more']) {
     await p.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), tab);
     await sleep(250);
     const n = await p.evaluate(async (t) => {
@@ -47,13 +47,16 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     await p.evaluate(() => window.scrollTo(0, 0));
     await p.screenshot({ path: path.join(shots, `${scheme}_${w}_${tab}.png`), fullPage: tab !== 't-read' });
   }
-  // Reading sections one by one
+  // Reading cards one by one (topology and mesh in every mode, the RDMA stepper at its last step)
   await p.evaluate(() => document.querySelector('#tabs button[data-t="t-read"]').click());
-  for (const id of ['ic-s1', 'ic-s2', 'ic-arcard', 'ic-mchart', 'ic-pub', 'ic-s9', 'ic-pcard']) {
-    const el = await p.$('#' + id); if (!el) { bad++; console.log('missing', id); continue; }
-    await el.scrollIntoView(); await sleep(150);
-    await el.screenshot({ path: path.join(shots, `${scheme}_${w}_${id}.png`) });
-  }
+  await p.evaluate(() => { for (const d of document.querySelectorAll('#t-read details')) d.open = false; });
+  const shot = async (id, tag) => { const el = await p.$('#' + id); if (!el) { bad++; console.log('missing', id); return; }
+    await el.scrollIntoView(); await sleep(200); await el.screenshot({ path: path.join(shots, `${scheme}_${w}_${id}${tag || ''}.png`) }); };
+  for (const id of ['ic-herocard', 'ic-abcard', 'ic-meshcard', 'ic-flcard', 'fab-card', 'ic-arcard', 'ic-cccard', 'ic-mcard', 'ic-pcard']) await shot(id);
+  for (const m of ['ft', 'torus', 'df']) { await p.evaluate(m => document.querySelector('#ic-topom button[data-m="' + m + '"]').click(), m); await shot('ic-topocard', '_' + m); }
+  await p.evaluate(() => document.querySelector('#ic-meshm button[data-m="mesh"]').click()); await shot('ic-meshcard', '_mesh');
+  for (const k of [0, 4]) { await p.evaluate(k => { const r = document.getElementById('ic-rdctl-s'); r.value = k; r.dispatchEvent(new Event('input', { bubbles: true })); }, k); await shot('ic-rdcard', '_' + k); }
+  for (const id of ['ic-s3', 'ic-s6']) { const el = await p.$('#' + id + ' figure'); await el.scrollIntoView(); await sleep(300); await el.screenshot({ path: path.join(shots, `${scheme}_${w}_${id}_fig.png`) }); }
   if (errs.length) { bad++; console.log('ERRORS', scheme, errs); }
   if (scheme === 'dark') {
     // JS simulator and fabric model against Python
@@ -71,6 +74,12 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   }
   await p.close();
 }
+{ // nothing moves before the reader acts: scroll every animation into view and wait
+  const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + pageFile);
+  for (const id of ['ic-arcard', 'ic-rdcard']) { await p.$eval('#' + id, e => e.scrollIntoView()); await sleep(3000); }
+  const moved = await p.evaluate(() => ['ic-arctl-s', 'ic-rdctl-s'].map(i => +document.getElementById(i).value));
+  if (moved.some(v => v !== 0)) { bad++; console.log('FAIL autoplay', moved); } else console.log('no autoplay: animations wait on step 0');
+  await p.close(); }
 await browser.close();
 console.log(bad ? 'FAIL ' + bad : 'ALL OK');
 process.exit(bad ? 1 : 0);
