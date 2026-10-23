@@ -1,25 +1,9 @@
 // ---- Compiler lab, sections 4 to 7: donation, the remat slider, scan against unroll, the compile caches ----
 (function(){
-  const X=window.XC,D=X.D,$=X.$;if(!$('xc-mem-card'))return;
+  const X=window.XC,D=X.D,$=X.$;
+  // ---- 4. the memory bars were retired 2026-10-23 (buffer assignment is drawn on XLA and compilation, section 6)
   const S=D.step;
-  // ---- 4. memory with and without donation
-  let don=1;
-  function mem(){
-    const m=don?S.memDon:S.memNo,a=m.argument_size_in_bytes,o=m.output_size_in_bytes,t=m.temp_size_in_bytes,al=m.alias_size_in_bytes;
-    const tot=a+o-al+t,mx=S.memNo.argument_size_in_bytes+S.memNo.output_size_in_bytes+Math.max(S.memNo.temp_size_in_bytes,S.memDon.temp_size_in_bytes);
-    const seg=(v,c,l)=>v>0?'<span style="width:'+(100*v/mx).toFixed(2)+'%;background:'+c+'" title="'+X.esc(l)+': '+X.mb(v)+'">'+(v/mx>.06?X.esc(l):'')+'</span>':'';
-    // the training state is a sliver next to temp: show it on its own scale too
-    const sm=Math.max(S.memNo.argument_size_in_bytes+S.memNo.output_size_in_bytes,1);
-    const seg2=(v,c,l)=>v>0?'<span style="width:'+(100*v/sm).toFixed(2)+'%;background:'+c+'" title="'+X.esc(l)+': '+X.mb(v)+'">'+(v/sm>.3?X.esc(l):'')+'</span>':'';
-    $('xc-mem-bars').innerHTML=
-      '<div class="xc-memrow"><span>Whole step</span><div class="xc-mem">'+seg(a,'var(--c1)','args')+seg(o-al,'var(--c2)','outputs')+seg(t,'var(--c4)','temp: activations and intermediates')+'</div></div>'+
-      '<div class="xc-memrow"><span>Training state only (zoomed)</span><div class="xc-mem">'+seg2(a,'var(--c1)','arguments '+X.mb(a))+seg2(o-al,'var(--c2)','new outputs '+X.mb(o-al))+'</div></div>';
-    $('xc-mem-cnt').innerHTML=[['Arguments',X.mb(a)],['Outputs',X.mb(o)],['Aliased into inputs',X.mb(al)],['Temp',X.mb(t)],['Total allocated',X.mb(m.total_allocation_bytes)]].map(c=>'<div class="stat"><div class="k">'+c[0]+'</div><div class="v">'+c[1]+'</div></div>').join('');
-    $('xc-mem-note').innerHTML=(don?'Donated: '+X.n0(S.aliasN)+' outputs are written into input buffers (the optimised HLO\'s header lists them: <code>input_output_alias={'+X.esc(S.aliasEx)+', ...}</code>). The new parameters and optimiser state need no memory of their own.':
-      'Not donated: the outputs ('+X.mb(o)+') need new buffers while the arguments ('+X.mb(a)+') stay alive, two copies of the training state at the end of the step.')+
-      ' Arguments are parameters ('+X.mb(S.par.params)+'), Adam\'s two moments ('+X.mb(S.par.opt_state)+') and the batch. <code>memory_analysis()</code> of the compiled step, <code>src/xla/pipeline.py</code>. On XLA:CPU its <code>peak_memory_in_bytes</code> field equals arguments + outputs - alias and leaves out temp, so totals here are summed from the parts.';}
-  X.seg($('xc-mem-seg'),v=>{don=+v;mem()});mem();
-  const dn=D.debug&&D.debug.donate;if(dn){$('xc-don-code').textContent=dn.code;$('xc-don-out').textContent=dn.output}
+  const dn=D.debug&&D.debug.donate;if(dn&&$('xc-don-code')){$('xc-don-code').textContent=dn.code;$('xc-don-out').textContent=dn.output}
 
   // ---- 5. remat slider
   const R=D.remat;

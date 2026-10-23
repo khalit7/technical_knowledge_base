@@ -3,12 +3,7 @@
   const {D,esc,$,n0,stat}=XF,B=D.basics;
   const arr=a=>'['+a.map(v=>{const s=(+v).toFixed(4).replace(/\.?0+$/,'');return s==='-0'?'0':s}).join(', ')+']';
   const row=(...c)=>'<tr>'+c.map(x=>'<td>'+x+'</td>').join('')+'</tr>';
-  // side effects
-  const S=B.side;
-  $('xf-side').innerHTML='<tr><th>inside the function</th><th>after 3 calls</th></tr>'+
-    row('<code>count[0] += 1</code>','count = <b>'+S.count+'</b> (ran once, while tracing)')+
-    row('<code>log.append(x)</code>',S.log_len+' entry: <code>'+esc(S.log0)+'</code>, a tracer, not a value')+
-    row('<code>jax.debug.print(...)</code>',S.debug_print.length+' lines: '+S.debug_print.map(l=>'<code>'+esc(l)+'</code>').join('<br>'));
+  // side effects: section retired 2026-10-23 (now JAX core, section 3)
   // immutable arrays
   const I=B.immut,IT=B.immut_torch;
   $('xf-immut').innerHTML='<tr><th>operation on x = arange(5.)</th><th>JAX result</th><th>PyTorch</th></tr>'+
@@ -17,14 +12,7 @@
     row('<code>x.at[-1].multiply(2.0)</code>',arr(I.mul),'<code>t[-1] *= 2</code>')+
     row('<code>x.at[0].max(3.0)</code>',arr(I.max),'<code>t[0] = max(t[0], 3)</code>')+
     row('<code>x.at[[0, 0, 0]].add(1.0)</code>',arr(I.dup_add)+' <span class="xf-lbl p">accumulates</span>','<code>t[[0,0,0]] += 1</code>: '+arr(IT.dup_iadd)+'<br><code>index_put_(..., accumulate=True)</code>: '+arr(IT.index_put_accumulate));
-  // keys
-  const P=B.prng;
-  $('xf-prng').innerHTML='<tr><th>code</th><th>numbers (first 3, rounded)</th></tr>'+
-    row('<code>torch.manual_seed(0)</code><br><code>torch.randn(3)</code>, then again','<code>'+arr(P.torch_two_calls[0])+'</code><br><code>'+arr(P.torch_two_calls[1])+'</code> <span class="xf-lbl c">hidden state advanced</span>')+
-    row('<code>key = jax.random.key(0)</code><br><code>jax.random.normal(key, (3,))</code>, then again','<code>'+arr(P.jax_same_key_twice[0])+'</code><br><code>'+arr(P.jax_same_key_twice[1])+'</code> <span class="xf-lbl m">same key, same numbers</span>')+
-    row('<code>key1, key2 = jax.random.split(key)</code><br>normal with each','<code>'+arr(P.split_normals[0])+'</code><br><code>'+arr(P.split_normals[1])+'</code>')+
-    row('<code>jax.random.fold_in(key, step)</code> for step 0, 1, 2',P.fold_in.map(a=>'<code>'+arr(a)+'</code>').join('<br>'))+
-    row('what a key is','<code>jax.random.key(0)</code> is a typed key array, <code>'+esc(P.key_typeof)+'</code>, wrapping two uint32 words <code>'+esc(JSON.stringify(P.key_data))+'</code>; the older <code>jax.random.PRNGKey(0)</code> returns the raw words, <code>'+esc(P.legacy_repr)+'</code>. Prefer the typed form: it cannot be mistaken for data.');
+  // keys: section retired 2026-10-23 (now JAX core, section 10)
   // what counts as a leaf
   $('xf-leaves').innerHTML='<tr><th>path</th><th>leaf</th></tr>'+B.leafdemo.map(l=>row('<code>'+esc(l.path)+'</code>','<code>'+esc(l.leaf)+'</code>')).join('');
   // ---- pytree explorer

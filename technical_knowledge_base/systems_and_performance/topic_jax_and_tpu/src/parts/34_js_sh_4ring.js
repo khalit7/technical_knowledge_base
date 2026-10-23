@@ -54,8 +54,8 @@
     $('sh-ring-cnt').innerHTML=S.stat('array per device (N)',S.fmtB(NB),'the running example\'s gradients')+S.stat('sent so far, busiest device',S.fmtB(mx),'')+S.stat('sent so far, all devices',S.fmtB(tot),'')+S.stat('steps',last,'')+S.stat('per device at the end',S.fmtB(Math.max(...sentUpTo(last))),formula);
   }
   function rebuild(){steps=plan();if(A)A.reset(steps.length);else A=S.anim({card:'sh-ring-card',ctl:'sh-ring-ctl',n:steps.length,draw,ms:1000,label:'Collective step'})}
-  S.seg($('sh-ring-k'),['all-reduce','all-gather','reduce-scatter','all-to-all','collective-permute'].map(k=>[k,k]),kind,v=>{kind=v;$('sh-ring-naive').disabled=v!=='all-reduce';rebuild();A.play()});
+  S.seg($('sh-ring-k'),['all-reduce','all-gather','reduce-scatter','all-to-all','collective-permute'].map(k=>[k,k]),kind,v=>{kind=v;$('sh-ring-naive').disabled=v!=='all-reduce';rebuild()});
   $('sh-ring-n').addEventListener('input',e=>{n=+e.target.value;$('sh-ring-nv').textContent=n;rebuild()});
-  $('sh-ring-naive').addEventListener('change',e=>{naive=e.target.checked;rebuild();A.play()});
+  $('sh-ring-naive').addEventListener('change',e=>{naive=e.target.checked;rebuild()});
   rebuild();S.onResize(()=>A.redraw());
 })();

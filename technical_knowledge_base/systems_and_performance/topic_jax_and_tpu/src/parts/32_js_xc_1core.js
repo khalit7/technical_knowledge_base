@@ -41,7 +41,7 @@ window.XC=(function(){
     g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent&&visible()){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+      if(st.vis&&!st.started&&card.offsetParent&&visible()){st.started=true;/* never autoplays (2026-10-23) */}kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();

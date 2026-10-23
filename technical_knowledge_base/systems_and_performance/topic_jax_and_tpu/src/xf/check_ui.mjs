@@ -39,7 +39,8 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   ok(sw<=0,`${w} ${scheme}: no sideways scroll (${sw})`);
   ok(wide.length===0,`${w} ${scheme}: nothing wider than the tab outside scroll boxes (${wide.join(' ')})`);
   const drills=await p.evaluate(()=>document.querySelectorAll('#xf-drills .xf-ans:not([hidden])').length);
-  ok(drills>0,`${w} ${scheme}: drills revealed ${drills}`);
+  // the recompile drills were retired 2026-10-23 (now JAX core, section 3)
+  ok(drills===0,`${w} ${scheme}: no retired drills left (${drills})`);
   if(shots){await p.evaluate(()=>window.scrollTo(0,0));await p.screenshot({path:`${shots}/xf_${w}_${scheme}_full.png`,fullPage:true})}
   ok(errs.length===0,`${w} ${scheme}: no page errors ${errs.slice(0,3).join(' | ')}`);
   await p.close();

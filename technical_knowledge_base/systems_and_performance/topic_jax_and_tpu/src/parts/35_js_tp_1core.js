@@ -35,7 +35,7 @@ window.TP=(function(){
     g('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
     g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&card.offsetParent){st.started=true;/* never autoplays (2026-10-23) */}kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});show();
     return {reset(n){setPlay(false);st.n=n;st.i=0;show()},redraw(){o.draw(st.i)},get i(){return st.i},get n(){return st.n}};
@@ -72,8 +72,8 @@ window.TP=(function(){
     b+=tx(W/2,by+12,'ICI to neighbours: '+(g.ici?fmtN(g.ici/1e9)+' GB/s per chip, ':'')+esc(g.topo.split(' (')[0]),{a:'middle',fs:fs,fill:'var(--mute)'});
     el.innerHTML=svg(W,by+24,b,'Schematic of one TensorCore of '+g.name);
   }
-  seg($('tp-core-gen'),D.gens.map(g=>[g.gen,GLAB[g.gen]]),coreGen,m=>{coreGen=m;drawCore()});
-  onRender(drawCore);onResize(drawCore);
+  if($('tp-core-svg')){seg($('tp-core-gen'),D.gens.map(g=>[g.gen,GLAB[g.gen]]),coreGen,m=>{coreGen=m;drawCore()});
+  onRender(drawCore);onResize(drawCore);}
 
   // ---- section 6: code, results, bugs, Mosaic
   $('tp-code-mm').textContent=D.code.matmul;$('tp-code-fa').textContent=D.code.flash;

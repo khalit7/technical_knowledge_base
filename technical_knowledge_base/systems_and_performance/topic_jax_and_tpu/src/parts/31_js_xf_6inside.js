@@ -26,8 +26,8 @@
   const wl=Object.values(L).find(r=>typeof r.grad==='string');
   const items=[
     ['Python <code>if</code> on a traced value',T.cf_errors.if_under_jit,'Use <code>jnp.where</code> or <code>jax.lax.cond</code>, or make the deciding argument static (section 2).'],
-    ['A shape that depends on data',T.cf_errors.int_under_jit,'Shapes must be known at trace time: pad to a fixed size and mask, or bucket lengths (section 3).'],
-    ['A tracer saved outside the function (tracer leak)',B.side.leak,'Return everything you need; never store traced values in globals, lists or self attributes inside a transformed function (section 4).'],
+    ['A shape that depends on data',T.cf_errors.int_under_jit,'Shapes must be known at trace time: pad to a fixed size and mask, or bucket lengths (JAX core, section 3).'],
+    ['A tracer saved outside the function (tracer leak)',B.side.leak,'Return everything you need; never store traced values in globals, lists or self attributes inside a transformed function (JAX core, section 3).'],
     ['Assigning into an array',B.immut.setitem,'<code>x = x.at[i].set(v)</code> (section 5).'],
     ['grad of a function that returns a vector',F.nonscalar_grad,'Reduce to a scalar, or use <code>jax.jacobian</code>, <code>jax.vjp</code> or <code>jax.vmap(jax.grad(...))</code>.'],
     ['grad with respect to an integer',F.int_grad,'Differentiate float inputs only (token ids are not differentiable; their embeddings are).'],
@@ -38,10 +38,10 @@
     ['Silent: nan gradients through jnp.where','<code>jax.grad(lambda x: jnp.where(x &gt; 0, jnp.sqrt(x), 0.0))(0.0)</code> returned <b>'+F.where_nan_jax+'</b>; PyTorch\'s <code>torch.where</code> gave <b>'+F.where_nan_torch+'</b> too. Both sides of a where are differentiated, and 0 &times; infinity is not a number (nan).','The double-where trick: feed the unsafe branch a safe input first, <code>jnp.sqrt(jnp.where(x &gt; 0, x, 1.0))</code>; it returned '+F.where_safe_jax+'.',true],
     ['Silent: float64 becomes float32','<code>jnp.array(1.0, dtype=jnp.float64)</code> has dtype <b>'+esc(F.f64_dtype)+'</b>, with the warning: '+esc(F.f64_warning),'Enable <code>jax_enable_x64</code> at start-up if you need 64-bit (rare in ML training).',true],
     ['Silent: out-of-bounds indexing','<code>x[10]</code> on a 5-element array returned <b>'+B.oob.jax_get+'</b>, clamped (section 5).','Validate indices on the host, or read with <code>.at[i].get(mode="fill", fill_value=...)</code>.',true],
-    ['Silent: reusing a random key','Two dropout masks from one key matched on '+(100*B.prng.reuse_same_mask_frac).toFixed(0)+'% of positions (section 6).','Split before every use; turn on <code>jax_debug_key_reuse</code> while debugging.',true],
-    ['Silent: NumPy randomness, the clock, globals','Frozen at trace time: <code>np.random.rand()</code> inside jit gave '+B.np_random_in_jit.join(', ')+' (section 4).','Pass anything that changes as an argument; use <code>jax.random</code>.',true],
+    ['Silent: reusing a random key','Two dropout masks from one key matched on '+(100*B.prng.reuse_same_mask_frac).toFixed(0)+'% of positions (JAX core, section 10).','Split before every use; turn on <code>jax_debug_key_reuse</code> while debugging.',true],
+    ['Silent: NumPy randomness, the clock, globals','Frozen at trace time: <code>np.random.rand()</code> inside jit gave '+B.np_random_in_jit.join(', ')+' (JAX core, section 3).','Pass anything that changes as an argument; use <code>jax.random</code>.',true],
     ['Silent: timing without block_until_ready','A jitted 1024 &times; 1024 matmul "took" '+B.async.no_block_ms+' ms without <code>.block_until_ready()</code> and '+B.async.block_ms+' ms with it ('+esc(B.async.label)+'). JAX dispatches asynchronously: the call returns before the work is done.','Always <code>jax.block_until_ready(out)</code> before stopping a timer; any host read (<code>float(x)</code>, printing, <code>np.asarray</code>) also waits, which is how a stray <code>.item()</code>-style read in a loop serialises a training step.',true],
-    ['Silent: a recompile every step','A new lambda per step: 3 compiles in 3 steps; ragged lengths: one compile per new length (section 3 drills).','Jit once; bucket shapes; log misses with <code>jax_explain_cache_misses</code>.',true]
+    ['Silent: a recompile every step','A new lambda per step: 3 compiles in 3 steps; ragged lengths: one compile per new length (JAX core, section 3).','Jit once; bucket shapes; log misses with <code>jax_explain_cache_misses</code>.',true]
   ];
   $('xf-foot').innerHTML=items.map(it=>'<details class="mist"><summary>'+it[0]+(it[3]?' <span class="xf-lbl c">no error</span>':'')+'</summary><div class="b">'+(it[3]?'<p>'+it[1]+'</p>':'<pre class="xf-code xf-err">'+esc(it[1])+'</pre>')+'<p><b>Fix.</b> '+it[2]+'</p></div></details>').join('');
 })();
