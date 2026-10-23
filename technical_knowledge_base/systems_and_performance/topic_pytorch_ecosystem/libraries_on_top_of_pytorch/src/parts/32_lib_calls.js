@@ -22,7 +22,7 @@
     $('cw-cnt').innerHTML=RD.stat('Key calls',B.length,'plain loop: '+A.length)+RD.stat('Calls into PyTorch per step',Math.round(per),'plain loop: '+Math.round(pp))+RD.stat('Setup calls',set)+RD.stat('Distinct caller, callee pairs',r.edges);
   }
   const an=RD.anim({card:'cw-card',ctl:'cw-ctl',n:T[run].key.length,ms:900,draw,label:'Call'});
-  $('cw-run').addEventListener('change',e=>{run=e.target.value;an.reset(T[run].key.length);an.play()});
+  $('cw-run').addEventListener('change',e=>{run=e.target.value;an.reset(T[run].key.length)});
   // table
   $('cw-leg').innerHTML=CATS.map(c=>'<span style="--sw:'+c[2]+'">'+c[1]+'</span>').join('');
   function bar(tot,steps){const v=CATS.map(c=>(tot[c[0]]||0)/steps),s=v.reduce((a,b)=>a+b,0);if(!s)return '';

@@ -1,4 +1,4 @@
-// ---- Reading tab: numbers from window.LIB, predict questions, the gradient-norm chart, the defaults bars,
+// ---- Reading tab: numbers from window.LIB, predict questions, the gradient-norm chart,
 // the accumulation animation, the torchtitan and DeepSpeed tables ----
 (function(){
   const D=window.LIB, $=id=>document.getElementById(id), esc=RD.esc;
@@ -16,7 +16,6 @@
   });
   // ---- numbers in prose ----
   const dl=D.dl, P=dl.runs.plain, gn=P.gn.slice().sort((a,b)=>a-b);
-  set('lib-s0-clip',dl.clip_active+' of '+dl.steps);
   set('lib-pr2-n',dl.clip_active);set('lib-pr2-med',gn[Math.floor(gn.length/2)].toFixed(2));set('lib-pr2-g0',P.gn[0].toFixed(2));
   const last=r=>r.probe[r.probe.length-1][1];
   set('lib-pr2-p0',f3(last(P)));set('lib-pr2-p1',f3(last(dl.runs.hf_clip)));
@@ -25,7 +24,6 @@
   set('lib-pr3-b',f3(acc.curve.weighted[acc.curve.weighted.length-1][1])+' (token-weighted)');
   const ni=D.hf.num_items;
   set('lib-hf-items','on a tiny Llama with '+ni.valid_targets+' real targets, passing <code>num_items_in_batch='+(3*ni.valid_targets)+'</code> gave '+ni.loss_with_num_items_3n.toFixed(6)+' = sum / '+(3*ni.valid_targets)+' = '+ni.sum_over_3n.toFixed(6));
-  set('lib-hf-keys',esc(D.hf.attention_functions.join(', ')));
   const A=D.hf.attn;
   set('lib-hf-flex','the default picked <code>'+A['default@cpu'].chosen+'</code>; <code>sdpa</code> and <code>eager</code> trained on CPU and MPS (logits within '+A['sdpa@mps'].max_abs_diff_vs_eager_cpu.toExponential(1)+' of eager); <code>flex_attention</code> ran inference on both but its training forward raised "'+esc(A['flex_attention@cpu'].forward.replace(/^error: /,'').split('.')[0])+'" (and the same on MPS) <span class="meas">measured on Apple M1 Pro, torch 2.14.1</span>. On a CUDA GPU FlexAttention compiles to Triton with a backward; not run here.');
   // ---- gradient norm chart ----
@@ -38,12 +36,7 @@
     [0,50,100,149].forEach(i=>s+=RD.t(X(i),h-6,i,{a:i===149?'end':i?'middle':'start',fill:'var(--mute)'}));
     s+=RD.t(w-r,Y(1)-4,'clip at 1.0',{a:'end',fill:'var(--bad)'});
     el.innerHTML=RD.svg(w,h,s,'Gradient norm per step')}
-  // ---- defaults bars ----
-  const NAMES={plain:'Plain loop',hf_matched:'Trainer, matched',pl_default:'Lightning, defaults',acc_default:'Accelerate',hf_clip:'Trainer + clip 1.0',pl_clip:'Lightning + clip 1.0',hf_shuffle:'Trainer + shuffle',hf_sched:'Trainer + linear decay',hf_optim:'Trainer + its optimizer',hf_all:'Trainer, all defaults',hf_all_lr:'Trainer, all defaults, lr 6e-4'};
-  function drawBars(){const el=$('lib-dl-bars');if(!el)return;const ks=Object.keys(NAMES),mx=Math.max(...ks.map(k=>last(dl.runs[k])));
-    el.innerHTML=ks.map(k=>{const v=last(dl.runs[k]);return '<div class="row'+(k==='plain'?' hl':'')+'"><div class="nm">'+NAMES[k]+'</div><div class="track"><div class="fill" style="width:'+(100*v/mx).toFixed(1)+'%;background:'+(Math.abs(v-last(P))<1e-9?'var(--c3)':'var(--c1)')+'"></div></div><div class="val">'+f3(v)+'</div></div>'}).join('');
-    const sw=Math.max(...ks.map(k=>Math.abs(last(dl.runs[k])-last(P))));set('lib-dl-swing',f3(sw))}
-  drawGN();drawBars();RD.onRender(drawGN);RD.onResize(drawGN);
+  drawGN();RD.onRender(drawGN);RD.onResize(drawGN);
   // ---- accumulation animation ----
   const K=acc.accum_steps,M=acc.micro_batch,N=acc.tokens_total,T=acc.tokens_per_row,TM=acc.tokens_per_micro;
   let mode='naive';
@@ -72,7 +65,7 @@
     set('lib-acc-cnt',RD.stat('Micro-batches done',done+' / '+K)+RD.stat('Tokens seen',tok+' / '+N)+RD.stat('Gradient weight so far',sh.toFixed(3),'full batch: 1.000')+RD.stat('Error vs full batch',st>K?pct(err):'...','measured'));
   }
   const an=RD.anim({card:'lib-acc-card',ctl:'lib-acc-ctl',n:K+2,ms:1700,draw:drawAcc,label:'Accumulation step'});
-  RD.seg($('lib-acc-mode'),m=>{mode=m;an.reset(K+2);an.play()});
+  RD.seg($('lib-acc-mode'),m=>{mode=m;an.reset(K+2)});
   RD.onResize(()=>an.redraw());
   // library table
   const LIBN={hf_no_kwargs:['HF Trainer, model without <code>**kwargs</code>','loss / 4 (micro-batches)','trainer.py L2089 to L2094'],
@@ -86,15 +79,10 @@
     titan_cpu_noac:['1 process, no activation checkpointing','AC changes no maths'],titan_cpu_fullac:['1 process, full activation checkpointing','AC changes no maths'],titan_cpu_fsdp:['2 processes, FSDP2, float32','different data shards']};
   set('lib-tt-tbl',Object.keys(TTN).filter(k=>R[k]).map(k=>{const L=R[k].loss;return '<tr><td>'+TTN[k][0]+'</td><td>'+f5(L[0])+'</td><td>'+f5(L[1])+'</td><td>'+f5(L[L.length-1])+'</td><td>'+TTN[k][1]+'</td></tr>'}).join(''));
   const C=D.titan.attention_check;
-  set('lib-tt-chk','largest difference from torch\'s own FlexAttention '+Math.max(...C.map(c=>c.max_abs_diff)).toExponential(1)+', with both '+Math.min(...C.map(c=>Math.min(c.sdpa_vs_f64,c.flex_vs_f64))).toExponential(1)+' to '+Math.max(...C.map(c=>Math.max(c.sdpa_vs_f64,c.flex_vs_f64))).toExponential(1)+' from a float64 reference: the inputs are bfloat16, so the two agree to bf16 rounding. The mask hid '+pct(C[0].masked_fraction)+' of query-key pairs (a plain causal mask over 256 positions hides 49.8%): documents end inside the sequence.');
+  set('lib-tt-chk','largest difference from torch\'s own FlexAttention '+Math.max(...C.map(c=>c.max_abs_diff)).toExponential(1)+', with both '+Math.min(...C.map(c=>Math.min(c.sdpa_vs_f64,c.flex_vs_f64))).toExponential(1)+' to '+Math.max(...C.map(c=>Math.max(c.sdpa_vs_f64,c.flex_vs_f64))).toExponential(1)+' from a float64 reference: the inputs are bfloat16, so the two agree to bf16 rounding. The mask hid '+pct(C[0].masked_fraction)+' of query-key pairs, because documents end inside the sequence');
   // ---- DeepSpeed table ----
   const TR=D.tr,DS=[['ds_z0','ZeRO-0 (plain data parallel), defaults'],['ds_z0_noclip','ZeRO-0, gradient_clipping 0'],['ds_z1','ZeRO-1, defaults'],['ds_z2','ZeRO-2, defaults'],['ds_z3','ZeRO-3, defaults'],['ds_z3_noclip','ZeRO-3, gradient_clipping 0'],['pl_fsdp2','FSDP2 (Lightning ModelParallelStrategy)'],['acc_ddp','DDP (Accelerate)']];
   function colls(k){const c={};TR[k].key.forEach(e=>{if(e[0]!=='loop')return;const m=e[3].match(/(all_gather_into_tensor|reduce_scatter_tensor|all_reduce|broadcast)$/);if(m)c[m[1]]=(c[m[1]]||0)+e[4]});
     const s=Object.keys(c).map(x=>x+' '+c[x]).join(', ');return s||'none from library code'}
   set('lib-ds-tbl',DS.map(([k,n])=>{const x=TR[k];return '<tr><td>'+n+'</td><td>'+x.losses.map(f5).join(', ')+'</td><td>'+(x.optimizer_state_bytes_rank?MB(x.optimizer_state_bytes_rank):'not read')+'</td><td class="small">'+colls(k)+'</td></tr>'}).join(''));
-  const l3=f5(TR.ds_z3.losses[2]);set('lib-ds-l3',l3);document.querySelectorAll('.lib-ds-l3c').forEach(e=>e.textContent=l3);
-  set('lib-ds-st0',MB(TR.ds_z0.optimizer_state_bytes_rank));set('lib-ds-st1',MB(TR.ds_z1.optimizer_state_bytes_rank));
-  set('lib-ds-pers',TR.ds_z3.persistent_params);
-  let ag=0,it=0;TR.ds_z3.key.forEach(e=>{if(e[0]!=='loop')return;if(/all_gather_into_tensor$/.test(e[3]))ag+=e[4];if(/^Tensor\.item$/.test(e[3])&&!/^you\//.test(e[1]))it+=e[4]});
-  set('lib-ds-ag',ag);set('lib-ds-item',it);
 })();

@@ -1,10 +1,11 @@
-// ---- Chooser tab (t-pick): an editorial chooser with reasons, and a porting checklist of defaults ----
+// ---- Chooser (Reading, section 10) and porting checklist (section 2); were their own tab: an editorial chooser with reasons, and a porting checklist of defaults ----
 (function(){
+  if(!document.getElementById('pk-out'))return;
   const $=id=>document.getElementById(id), D=window.LIB;
   const st={task:'pre',scale:'1',hw:'nv',own:'some'};
   const ds=D.tr.ds_z3, dl=D.dl;
   const F={
-    clip:'the Trainer\'s default clip at 1.0 was active on '+dl.clip_active+' of '+dl.steps+' steps of the running example (Reading, section 2)',
+    clip:'the Trainer\'s default clip at 1.0 was active on '+dl.clip_active+' of '+dl.steps+' steps of the running example (section 2)',
     acc:'the Trainer with a transformers model and torchtitan divide by the token count; Accelerate, Lightning and a Trainer with a plain module give a mean of means, 59% gradient error on unequal micro-batches (section 3)',
     titan:'torchtitan 0.3.0 trained on this Mac\'s CPU only after four patches (Triton import, device, FlexAttention backward, gloo reduce op); on NVIDIA none are needed (section 6)',
     tdef:'torchtitan computes in bf16 through FSDP2 even on one rank, clips at 1.0, decays weights on every parameter, and leaves the seed unset in its debug config (section 6)',
@@ -35,7 +36,7 @@
       else{s='TRL GRPOTrainer';alt='Axolotl\'s GRPO trainer (a TRL subclass)';avoid='torchforge (paused)';why=[F.trl,F.ax];set=['learning_rate (1e-6)','gradient_checkpointing (on)','bf16 (on)','max_grad_norm (1.0)'];}
       if(mac){avoid+=', anything needing vLLM on this Mac';}
     } else if(task==='res'){
-      s=own==='all'?'A plain PyTorch loop':own==='none'?'Lightning Trainer':'Lightning Fabric';alt=own==='all'?'Lightning Fabric for launch and precision only':'Accelerate';avoid='DeepSpeed unless you need offload';why=[F.pl,'Lightning with defaults matched the plain loop to five decimals over 150 steps (Defaults lab)',F.clip];set=['gradient_clip_val (off by default)','max_steps or max_epochs (1000 epochs if neither)','precision'];
+      s=own==='all'?'A plain PyTorch loop':own==='none'?'Lightning Trainer':'Lightning Fabric';alt=own==='all'?'Lightning Fabric for launch and precision only':'Accelerate';avoid='DeepSpeed unless you need offload';why=[F.pl,'Lightning with defaults matched the plain loop to five decimals over 150 steps (section 2)',F.clip];set=['gradient_clip_val (off by default)','max_steps or max_epochs (1000 epochs if neither)','precision'];
     } else {s='A plain PyTorch loop, then the root\'s labs, then torchtitan\'s source';alt='this page\'s What calls what tab, to see what each library does on your behalf';avoid='starting from a config tool';why=['the libraries add no maths: matched settings gave identical losses (section 1)',F.titan];set=['nothing: you own every default'];}
     if(hw==='amd'&&task!=='pre'){why.push('AMD: everything here is PyTorch-level and ROCm builds of PyTorch exist; Unsloth\'s and torchtitan\'s Triton kernels depend on Triton\'s ROCm backend (not run here)');}
     return {s,alt,avoid,why,set}}

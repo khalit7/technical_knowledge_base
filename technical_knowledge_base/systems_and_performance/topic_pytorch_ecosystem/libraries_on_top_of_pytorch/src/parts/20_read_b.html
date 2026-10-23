@@ -1,15 +1,6 @@
 <section id="lib-s1">
-<h2>1. The loop every library runs</h2>
-<p class="lead">Before comparing libraries, write the loop they all run. Each word defined here is used on the rest of the page.</p>
-<div class="mech">
-<div><b>Batch and micro-batch</b>The rows fed to one forward call. If a batch does not fit in memory you split it into <dfn>micro-batches</dfn> and add up their gradients before stepping: <dfn>gradient accumulation</dfn>.</div>
-<div><b>Optimizer step</b><code>opt.step()</code> updates every parameter from its <code>.grad</code>. One step per (accumulated) batch.</div>
-<div><b>Learning-rate schedule</b>A function of the step number that sets the optimizer's learning rate: constant, linear decay to zero, warmup then cosine, and so on.</div>
-<div><b>Gradient clipping</b>If the length (L2 norm) of all gradients together exceeds a limit, scale them all down to that length. <code>torch.nn.utils.clip_grad_norm_</code>.</div>
-<div><b>Sampler</b>The object that decides which rows go in which batch: in order, shuffled, or one slice per process.</div>
-<div><b>Rank and world</b>With several processes training one model, each is a <dfn>rank</dfn>; the <dfn>world size</dfn> is how many there are. Data parallel = every rank runs the same step on different rows and averages gradients.</div>
-</div>
-<p>The plain loop, on the running example. Copy it next to the root's <code>src/model/model.py</code> and run it with any Python that has PyTorch 2.14:</p>
+<h2>1. The same loop, the same losses</h2>
+<p class="lead">This is everything a training library automates. Run it next to the root's <code>src/model/model.py</code> with PyTorch 2.14 and it prints three losses that every library reproduces once its settings match.</p>
 <div class="code">import torch
 from model import GPTConfig, make_model, get_batch, make_optimizer
 torch.set_num_threads(2)
@@ -26,18 +17,18 @@ for step in range(3):
 <span class="c"># 0 3.80137
 # 1 3.18793
 # 2 3.16783</span></div>
-<p class="small mute">Output recorded on Apple M1 Pro, CPU, 2 threads, torch 2.14.1 (<code>src/exp/defaults_lab.py</code>, which runs it for 150 steps). That is the whole of what a library automates; everything else is defaults, logging, checkpointing and distribution.</p>
+<p class="small mute">Output recorded on Apple M1 Pro, CPU, 2 threads, torch 2.14.1 (<code>src/exp/defaults_lab.py</code>, which runs it for 150 steps).</p>
 <div class="pr" id="lib-pr1"><div class="q">Predict: the Hugging Face Trainer runs this same model on the same 8-row batches, with its defaults. Are its first three losses 3.80137, 3.18793, 3.16783?</div>
 <div class="opts"><button data-a="0">Yes, it is the same maths</button><button data-a="1">The first one only</button><button data-a="2">None of them</button></div>
-<div class="ans" hidden><b>None of them</b> with its defaults: it shuffles the rows (so step 0 sees a different batch: 3.78405), clips, and uses its own AdamW at lr 5e-5 with betas (0.9, 0.999) and a linear decay; recorded 3.78405, 3.47902, 3.31911. With three settings changed (<code>train_sampling_strategy="sequential"</code>, <code>max_grad_norm=0</code>, and your own optimizer with a constant schedule) it gives exactly 3.80137, 3.18793, 3.16783, as do Accelerate and Lightning <span class="meas">measured on Apple M1 Pro, CPU</span>.</div></div>
-<p>The matched Trainer call, the one that reproduces the plain loop (from <code>src/exp/defaults_lab.py</code>):</p>
+<div class="ans" hidden><b>None of them</b> with its defaults: it shuffles the rows (so step 0 sees a different batch: 3.78405), clips, and uses its own AdamW at lr 5e-5 with betas (0.9, 0.999) and a linear decay; recorded 3.78405, 3.47902, 3.31911. With three settings changed (highlighted below) it gives exactly 3.80137, 3.18793, 3.16783, as do Accelerate and Lightning <span class="meas">measured on Apple M1 Pro, CPU</span>.</div></div>
+<p>The matched Trainer call: three settings make it the plain loop (from <code>src/exp/defaults_lab.py</code>).</p>
 <div class="code">from transformers import Trainer, TrainingArguments
 args = TrainingArguments(output_dir="out", max_steps=150, per_device_train_batch_size=8,
         use_cpu=True, report_to=[], save_strategy="no",
-        train_sampling_strategy="sequential",   <span class="c"># default "random": RandomSampler</span>
-        max_grad_norm=0.0)                      <span class="c"># default 1.0: clipping on</span>
-opt = make_optimizer(model)                     <span class="c"># default: AdamW lr 5e-5, betas (0.9, 0.999), wd 0</span>
-const = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: 1.0)   <span class="c"># default: linear decay to 0</span>
+<span class="h">        train_sampling_strategy="sequential",   <span class="c"># default "random": RandomSampler</span></span>
+<span class="h">        max_grad_norm=0.0)                      <span class="c"># default 1.0: clipping on</span></span>
+<span class="h">opt = make_optimizer(model)                     <span class="c"># default: AdamW lr 5e-5, betas (0.9, 0.999), wd 0</span></span>
+<span class="h">const = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: 1.0)   <span class="c"># default: linear decay to 0</span></span>
 Trainer(model=model, args=args, train_dataset=rows, optimizers=(opt, const)).train()</div>
-<p class="small mute">The model must return a dict with a <code>loss</code> key (a ten-line subclass of the running example does it); <code>rows</code> is a dataset of <code>{"input_ids", "labels"}</code> rows in the plain loop's order.</p>
+<p class="small mute">The model must return a dict with a <code>loss</code> key (a ten-line subclass of the running example does it); <code>rows</code> is a dataset of <code>{"input_ids", "labels"}</code> rows in the plain loop's order. Everything a library adds beyond these duties is logging, checkpointing and distribution.</p>
 </section>

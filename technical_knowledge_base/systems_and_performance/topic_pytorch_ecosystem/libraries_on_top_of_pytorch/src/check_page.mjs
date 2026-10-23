@@ -9,7 +9,7 @@ const puppeteer = require('puppeteer');
 const [file, shots] = process.argv.slice(2); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
 let bad = 0;
-const TABS = ['t-read', 't-dflt', 't-calls', 't-pick', 't-more'];
+const TABS = ['t-read', 't-calls', 't-more'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
@@ -42,6 +42,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       }
       // loose segs (not in cards, not outer)
       for (const s of root.querySelectorAll('.seg')) { if (s.closest('.rd-card,.card') || outer.includes(s)) continue; for (const btn of s.querySelectorAll('button')) { btn.click(); out.clicks++; await sleep(20); scan('seg ' + btn.textContent) } }
+      // chooser rows: every button of every row
+      for (const row of root.querySelectorAll('.pk-row')) for (const btn of row.querySelectorAll('button')) { btn.click(); out.clicks++; await sleep(15); scan('pick ' + btn.textContent); side('pick') }
       // selects and sliders
       for (const sel of root.querySelectorAll('select')) { if (sel.closest('.an-ctl')) continue; for (const o of sel.options) { sel.value = o.value; sel.dispatchEvent(new Event('change')); out.clicks++; await sleep(15); scan('select ' + sel.id + '=' + o.value); side(sel.id) } sel.selectedIndex = 0; sel.dispatchEvent(new Event('change')) }
       for (const r of root.querySelectorAll('input[type=range]')) { if (r.closest('.an-ctl')) continue; for (const v of [r.min, r.max, (+r.min + +r.max) / 2]) { r.value = v; r.dispatchEvent(new Event('input')); out.clicks++; await sleep(15); scan('range ' + r.id + '=' + v); side(r.id) } }
@@ -63,5 +65,17 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   console.log(scheme, width, 'errors', JSON.stringify(errs.slice(0, 8)), 'errbox', JSON.stringify(box), 'more links', more.links, 'tab links', more.tabs);
   if (errs.length || box) bad = 1;
   await p.close();
+}
+// nothing may move before the reader acts: scroll through every card, normal and reduced motion
+for (const rm of ['no-preference', 'reduce']) {
+  const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
+  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
+  await p.goto('file://' + path.resolve(file));
+  const playing = await p.evaluate(async () => { const sleep = ms => new Promise(r => setTimeout(r, ms)); const on = [];
+    for (const c of document.querySelectorAll('#t-read .rd-card')) { c.scrollIntoView(); await sleep(600);
+      for (const b of c.querySelectorAll('.an-play')) if (/Pause/.test(b.textContent)) on.push(c.id) }
+    return on });
+  console.log('autoplay check', rm, playing.length ? 'PLAYING ' + playing.join(',') : 'nothing plays');
+  if (playing.length) bad = 1; await p.close();
 }
 await b.close(); process.exit(bad);

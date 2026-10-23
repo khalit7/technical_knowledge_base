@@ -1,24 +1,12 @@
 <section id="lib-s10">
-<h2>10. Dropping down a level, and what carries over to NVIDIA GPUs</h2>
-<p class="lead">Every library on this page lets you take back one duty at a time. Going down one level when something is wrong is cheaper than switching libraries.</p>
-<div class="tw"><table class="rd-tbl"><thead><tr><th>From</th><th>Take back</th><th>How</th></tr></thead><tbody>
-<tr><td>Axolotl, Unsloth, LLaMA-Factory</td><td>The whole recipe</td><td>Build the same transformers model, tokenizer and dataset yourself and hand them to a <code>Trainer</code> or an <code>SFTTrainer</code>; print <code>trainer.args</code> from the config tool first to copy its effective settings</td></tr>
-<tr><td>HF Trainer</td><td>The loss</td><td>Pass <code>compute_loss_func</code>, or subclass and override <code>compute_loss</code> (accept <code>num_items_in_batch</code> to keep token-weighted accumulation)</td></tr>
-<tr><td></td><td>Optimizer and schedule</td><td><code>optimizers=(opt, scheduler)</code> in the constructor, as section 1 does</td></tr>
-<tr><td></td><td>The loop</td><td>Use Accelerate directly: <code>prepare</code>, then your own loop with <code>accelerator.backward</code> and, for accumulation, <code>with accelerator.accumulate(model)</code></td></tr>
-<tr><td>Accelerate or Lightning Fabric</td><td>Distribution</td><td>Call <code>torch.distributed</code>, <code>DistributedDataParallel</code> or <code>fully_shard</code> yourself under <code>torchrun</code> (root's {{Distributed lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}})</td></tr>
-<tr><td>Lightning Trainer</td><td>The loop</td><td>Fabric; or <code>self.automatic_optimization = False</code> and <code>manual_backward</code> inside <code>training_step</code></td></tr>
-<tr><td>DeepSpeed</td><td>The engine</td><td>FSDP2 with <code>CPUOffloadPolicy</code> for offload; a plain loop (section 7)</td></tr>
-<tr><td>torchtitan</td><td>Anything</td><td>Edit the file: it is meant to be forked. Model in <code>torchtitan/models/</code>, loop in <code>trainer.py</code>, parallel plans in <code>parallelize.py</code></td></tr>
-</tbody></table></div>
-<h3>What this page's results say about NVIDIA GPUs</h3>
-<div class="tw"><table class="rd-tbl"><thead><tr><th>Result</th><th>Transfers exactly</th><th>Different on GPUs</th></tr></thead><tbody>
-<tr><td>Identical losses under matched settings</td><td>The libraries add no maths; the same holds on CUDA with deterministic kernels</td><td>Many CUDA kernels (atomics in backward) are not bit-reproducible run to run, so compare with a tolerance, not equality</td></tr>
-<tr><td>Defaults (clipping, schedule, optimizer, sampler, dtype)</td><td>Read from the same source; device-independent</td><td>The Trainer's fused AdamW and torchtitan's fused default run real fused CUDA kernels; on CPU fused is also supported at 2.14.1</td></tr>
-<tr><td>Loss averaging under accumulation</td><td>The arithmetic, exactly</td><td>Nothing: a bias in the estimator, not a hardware effect</td></tr>
-<tr><td>What each library calls in PyTorch</td><td>The calls and their order</td><td>Accelerate picks FSDP when asked (its CPU branch ignores the plugin); NCCL replaces gloo, so torchtitan's <code>PREMUL_SUM</code> and DDP's bucketed all-reduce run as designed</td></tr>
-<tr><td>torchtitan on CPU</td><td>Its loop, defaults, token normalisation, SAC policy, FSDP2 wrapping</td><td>No patches needed: FlexAttention compiles to Triton with a backward; bf16 is fast on tensor cores (on this CPU it is slow: 2.1 GFLOP/s for a bf16 matmul against 1,854 for float32, {{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}})</td></tr>
-<tr><td>DeepSpeed ZeRO on gloo</td><td>Losses, state bytes per rank, which collectives it calls</td><td>Its fused CUDA optimizers and overlap of communication with compute; every <code>.item()</code> it calls becomes a host-device synchronisation</td></tr>
-</tbody></table></div>
-<p class="small mute">Nothing on this page is a speed measurement: all results are losses, gradients, bytes and call counts, deterministic on a fixed CPU thread count, so no benchmark lock or load average applies.</p>
+<h2>10. Which library for which job</h2>
+<p class="lead">Pick a task, a scale, the hardware and how much of the loop you want to own; the answer names a stack, an alternative, what to avoid, the reasons (each a recorded fact from the sections above) and the settings to write down when you adopt it. A judgement built on those facts, not a speed measurement; the root's Ecosystem map has a broader chooser (serving, kernels).</p>
+<div class="rd-card" id="pk-card"><h4>The answer changes most with the task and how much of the loop you want to keep</h4>
+<div class="pk-row" id="pk-task"><span class="lbl">Task</span><button data-m="pre" class="on">Pretrain or continue pretraining an LLM</button><button data-m="ft">Full fine-tune of a Hub model</button><button data-m="lora">LoRA or QLoRA</button><button data-m="rl">RL post-training (GRPO, PPO)</button><button data-m="res">Research, not only LLMs</button><button data-m="learn">Learn the internals</button></div>
+<div class="pk-row" id="pk-scale"><span class="lbl">Scale</span><button data-m="1" class="on">One GPU or one Mac</button><button data-m="node">One node, 2 to 8 GPUs</button><button data-m="many">Many nodes</button></div>
+<div class="pk-row" id="pk-hw"><span class="lbl">Hardware</span><button data-m="nv" class="on">NVIDIA</button><button data-m="amd">AMD</button><button data-m="mac">Apple Silicon or CPU</button></div>
+<div class="pk-row" id="pk-own"><span class="lbl">The loop</span><button data-m="none">Hand it over</button><button data-m="some" class="on">Keep some of it</button><button data-m="all">Own all of it</button></div>
+<div class="pk-out" id="pk-out"></div>
+<p class="small mute">In short: pretraining at scale goes to torchtitan (forked) or, committed to NVIDIA at the largest scale, Megatron Core; a fine-tune of a Hub model to TRL's SFTTrainer or the HF Trainer, or Axolotl and Unsloth for a config file; RL post-training to TRL's GRPOTrainer or a scale-out RL stack; research beyond LLMs to Lightning or Fabric; and learning the internals to a plain loop. torchtune and torchforge are not options any more.</p>
+</div>
 </section>
