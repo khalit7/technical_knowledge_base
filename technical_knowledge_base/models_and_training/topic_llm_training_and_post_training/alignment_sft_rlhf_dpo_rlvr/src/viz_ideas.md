@@ -38,3 +38,7 @@ DeepSeek MLA explainer (before/after, counters); the DPO page's push-against-mar
 ## What the methodology lacked
 
 A rule for ownership across topics: a sibling under another topic (RL for LLMs) can own a mechanism that the caller listed as a candidate here. Checking the neighbour's own scope statement before scoring saved building a duplicate. Also: when a toy's dynamics depend on the optimiser (Adam made every loss run away at the same rate), fix the step size from the first step so the loss shape, not the optimiser, decides the ending, and say so.
+
+## 23 October 2026 rebuild
+Built: hero (Tulu 3 8B stages, static annotated); sum against mean per token to scale (toggle); reward-model pairs plus agreement ceiling (static); RL loop PPO against GRPO and reward model against verifier (one drawing, two toggles); online against offline evidence to scale; five recipes as stage strips.
+Rejected: the same prompt through each stage's checkpoint (the parent's Axis 1 owns it, illustrative; a real version is proposed in `README.md`); a GRPO advantage animation (RL for LLMs and DeepSeekMath own it); a timeline of RLVR (the Method family tree tab already lays methods on time).
