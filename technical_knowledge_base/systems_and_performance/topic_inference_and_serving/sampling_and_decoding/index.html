@@ -150,55 +150,94 @@ select{max-width:100%;min-width:0}.ctl2 select{width:100%}.foot code{overflow-wr
 @media (max-width:520px){.tkl{grid-template-columns:minmax(0,5.6em) minmax(0,1fr) 4.2em}}
 </style></head><body><div class="w">
 <h1>Sampling and Decoding</h1>
-<div class="sub">How a language model's next-token probabilities become text: greedy and beam search, temperature and truncation samplers, repetition controls, grammar-constrained output, and the techniques built on sampling. Every distribution on this page is real, computed offline from small open models. Part of <a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a>; sources linked inline; as of 3 October 2026. <span class="rt">16 min read · +5h 20m resources</span></div>
+<div class="sub">How a language model's next-token scores become text: greedy and beam search, temperature and truncation samplers, logit processors and repetition controls, and grammar-constrained (structured) output. Every distribution on this page is real, computed offline from small open models. Part of <a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a>; data as of October 2026. <span class="rt">Reading: 18 min, plus 4 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-lab" aria-selected="false">Sampler lab</button><button role="tab" data-t="t-deg" aria-selected="false">Twelve decoders, real text</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-lab" aria-selected="false">Sampler lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
-<p class="lead">A language model does not write text. At each step it outputs one number per vocabulary entry, and a separate rule, the <b>decoder</b>, turns those numbers into the next token. The same model gives repetitive, bland, creative or broken text depending on that rule alone. This page is about the rule: searching for the most probable text, sampling from a reshaped distribution, forcing a format, and the inference techniques built on sampling.</p>
-<p class="small mute">Where this sits: a child of <a href="https://app.notion.com/p/3c65c17b0d0d81c08b3bc95ff45c7b13" target="_blank" rel="noopener noreferrer">Topic: inference-and-serving</a>, which follows a request through a serving engine; this page owns the step at the end of every forward pass, where the next token is picked from the probabilities. Training draws from the same stack for RL rollouts and rejection sampling (<a href="https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b" target="_blank" rel="noopener noreferrer">Topic: llm-training-and-post-training</a>). Numbers are published, with the source linked, unless marked <i class="nl d">derived</i> (formula shown), <i class="nl m">measured here</i> (computed offline on a small open model, script in the page source), <i class="nl i">illustrative</i> or <i class="nl u">unconfirmed</i>.</p>
-
-<h2 id="rd-logits">From logits to a token</h2>
-<p>One forward pass ends in a vector of <b>logits</b> <i>z</i>, one per vocabulary entry: 151,936 for <a href="https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct" target="_blank" rel="noopener noreferrer">Qwen2.5-0.5B-Instruct</a>, the small open model whose real distributions fill the animations below, and 50,257 for <a href="https://huggingface.co/openai-community/gpt2" target="_blank" rel="noopener noreferrer">GPT-2</a>. The softmax turns them into probabilities, with a temperature <i>T</i> that rescales the logits first:</p>
+<style>
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4,#t-read .card h4{margin:0 0 4px;font-size:14.5px}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .rd-svg{width:100%;overflow:hidden;margin:6px 0}
+#t-read .rd-svg svg{display:block}
+#t-read .rd-svg svg text{font-size:11px;fill:var(--ink)}
+#t-read .rd-svg svg text.m{fill:var(--mute)}
+#t-read .rd-svg svg text.h{fill:var(--acc);font-weight:600}
+#t-read .rd-svg svg text.b{font-weight:600}
+#t-read .rd-svg svg text.bad{fill:var(--bad);font-weight:600}
+#t-read .rd-svg .box{fill:var(--soft);stroke:var(--line)}
+#t-read .rd-svg .boxa{fill:var(--acc2);stroke:var(--acc)}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px}
+#t-read details.pr{border:1px solid var(--line);border-radius:10px;margin:12px 0;background:var(--soft)}
+#t-read details.pr>summary{cursor:pointer;padding:8px 12px;font-size:14px}
+#t-read details.pr>.b{padding:0 12px 10px;font-size:13.5px;border-left:3px solid var(--good);margin:0 12px 10px}
+#t-read code{overflow-wrap:anywhere;word-break:break-word}
+#t-read .tw table{min-width:520px}#t-read .tw table.nar{min-width:0}
+#t-read td{overflow-wrap:anywhere}
+</style>
+<nav class="nav" id="rd-nav"><a href="#s0">The idea</a><a href="#s1">Search</a><a href="#s2">Sampling</a><a href="#s3">Diversity</a><a href="#s4">Logit processors</a><a href="#s5">Constrained</a><a href="#s6">Settings</a><a href="#s7">Built on sampling</a></nav>
+<section id="s0"><h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">A model only scores every token in its vocabulary; a separate rule, the <b>decoder</b>, edits those scores, reshapes them, cuts the unlikely tail and picks one token, and <span class="hl">which tokens survive that rule</span> decides whether the same model writes loops, sensible prose, noise or valid JSON.</p>
+<div class="hero" id="sd-hero-card"><h4>One real next-token distribution through the decoder: 151,936 scores in, one token out</h4>
+<div class="rd-svg" id="sd-hero"></div>
+<p class="small">Qwen2.5-0.5B-Instruct writing the opening of a lighthouse story, second token (after "The"); each box draws the 8 most likely tokens. At T 1 the top token " l" (the start of "lighthouse") has 22.0%; dividing the logits by T 1.5 flattens it to 5.4%, with 77.3% of the mass outside the top 12. Min-p 0.1 then keeps <span class="hl">22 of 151,936</span> tokens (top-p 0.9 would keep 6,102), and renormalising lifts the top token to 18.6% <i class="nl m">measured here</i> (<code>src/reading_numbers.mjs</code>). Greedy skips steps 3 to 5 and takes the argmax; beam search keeps the B best whole sequences instead of one token.</p></div>
+<p><b>You need:</b> logits and softmax (assumed), and what a token is (<a href="https://app.notion.com/p/3c65c17b0d0d817187bcd94a1b0f15ea" target="_blank" rel="noopener noreferrer">Tokenizers</a>), which matters for constrained decoding. Where the sampler runs inside a serving engine's step is on <a href="https://app.notion.com/p/3c65c17b0d0d8113b976d8bcaf2c0722" target="_blank" rel="noopener noreferrer">vLLM: inside the default engine</a>.</p>
+<dl class="terms">
+<dt>Decoder</dt><dd>the rule that turns one next-token distribution into the next token.</dd>
+<dt>Logit processor</dt><dd>a function that edits the logits before the choice: penalties, logit bias, a grammar mask.</dd>
+<dt>Temperature T</dt><dd>divides the logits; below 1 sharpens, above 1 flattens.</dd>
+<dt>Truncation</dt><dd>dropping the tail before sampling: top-k (a fixed count), top-p or nucleus (a probability mass), min-p (a share of the top token).</dd>
+<dt>Beam search</dt><dd>keeps the B most probable partial sequences instead of one.</dd>
+<dt>Constrained decoding</dt><dd>masking every token that would break a grammar (a JSON schema, a regular expression) at every step.</dd>
+<dt>Perplexity</dt><dd>exp of minus the mean log-probability per token: how surprised a model is by a text.</dd>
+</dl>
+<p class="small mute">Numbers are published, with the source linked, unless marked <i class="nl d">derived</i> (formula shown), <i class="nl m">measured here</i> (computed offline on a small open model, scripts in the page source) or <i class="nl u">unconfirmed</i>. Training draws from the same stack for RL rollouts and rejection sampling (<a href="https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b" target="_blank" rel="noopener noreferrer">Topic: llm-training-and-post-training</a>).</p>
+<p>The formula behind steps 1 to 3: one forward pass ends in a vector of <b>logits</b> <i>z</i>, one per vocabulary entry (151,936 for <a href="https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct" target="_blank" rel="noopener noreferrer">Qwen2.5-0.5B-Instruct</a>, 50,257 for <a href="https://huggingface.co/openai-community/gpt2" target="_blank" rel="noopener noreferrer">GPT-2</a>), and the softmax with temperature turns them into probabilities:</p>
 <div class="fm"><div class="eq">p<sub>i</sub> = exp(z<sub>i</sub> / T) / &Sigma;<sub>j</sub> exp(z<sub>j</sub> / T)</div>
-<dl><dt>z<sub>i</sub></dt><dd>logit of token i (only differences between logits matter)</dd><dt>T</dt><dd>temperature: T = 1 is the model's own distribution, T &lt; 1 sharpens it, T &gt; 1 flattens it towards uniform, T &rarr; 0 puts all the mass on the top token</dd></dl></div>
-<p>A decoder then picks a token, appends it, and runs the model again. Decoders fall into two families. <b>Search</b> is deterministic and tries to find a high-probability sequence (greedy, beam search). <b>Sampling</b> draws at random from a reshaped distribution (temperature, then truncation by top-k, top-p, min-p and others). A third layer, <b>constraints</b>, removes tokens that would break a required format before either family chooses.</p>
-
-<h2 id="rd-search">Deterministic search: greedy and beam</h2>
-<ul>
-<li><b>Greedy decoding</b> takes the argmax token at every step. It is locally optimal and globally poor for open-ended text: repetitive and dull. It is still fine for short factual answers, and it is effectively what temperature 0 means.</li>
-<li><b>Beam search</b> keeps the <i>B</i> highest-probability partial sequences at every step: each is extended by its best next tokens, all candidates are scored by their total log-probability, and only the top <i>B</i> survive. It is the standard for machine translation and summarisation, where outputs are short and closed-ended. For open-ended generation it produces degenerate, repetitive, low-diversity text, because high probability is not the same as human-like (<a href="https://arxiv.org/abs/1904.09751" target="_blank" rel="noopener noreferrer">Holtzman et al., 2019</a>), and chat LLMs essentially do not use it.</li>
-</ul>
-<p>The animation runs both on the same real input: GPT-2 small continuing a sentence from Jerome K. Jerome's <i><a href="https://www.gutenberg.org/ebooks/308" target="_blank" rel="noopener noreferrer">Three Men in a Boat</a></i> (1889). Every score is the model's own log-probability.</p>
-<div class="card" id="rd-bm">
+<dl><dt>z<sub>i</sub></dt><dd>logit of token i (only differences between logits matter)</dd><dt>T</dt><dd>T = 1 is the model's own distribution; T &rarr; 0 puts all the mass on the top token (greedy)</dd></dl></div>
+<p>Decoders fall into two families: <b>search</b> is deterministic and looks for a high-probability sequence (greedy, beam); <b>sampling</b> draws at random from a reshaped distribution. <b>Constraints</b> sit before either, as a logit processor.</p>
+</section>
+<section id="s1"><h2>1. Search: greedy and beam</h2>
+<p><b>Greedy decoding</b> takes the argmax token at every step: what temperature 0 means. It is locally optimal and, for open-ended text, repetitive and dull. <b>Beam search</b> keeps the <i>B</i> highest-probability partial sequences: each is extended by its best next tokens, all candidates are scored by total log-probability, and the top <i>B</i> survive. Beam search is the standard for machine translation and summarisation, where outputs are short and closed-ended; chat LLMs essentially do not use it, and greedy is fine only for short factual answers.</p>
+<p>Below, both run on GPT-2 small continuing a sentence from Jerome K. Jerome's <i><a href="https://www.gutenberg.org/ebooks/308" target="_blank" rel="noopener noreferrer">Three Men in a Boat</a></i> (1889); every score is the model's own log-probability.</p>
+<div class="card" id="rd-bm"><h4>Beam search finds a path greedy cannot revisit</h4>
 <div class="seg" id="rd-bmM" role="group" aria-label="Decoder"><button data-m="greedy" class="on">Before: greedy</button><button data-m="beam">After: beam search, B = 3</button></div>
 <div class="ctxt" id="rd-bmCtx"></div>
 <div class="bm" id="rd-bmL"></div>
-<div class="tw"><table class="cand" id="rd-bmT"></table></div>
+<div class="tw"><table class="cand nar" id="rd-bmT"></table></div>
 <div class="an-ctl" id="rd-bmC"></div>
 <div class="an-cap" aria-live="polite"><div class="t" id="rd-bmTt"></div><p id="rd-bmP"></p></div>
 <div class="an-cnt" id="rd-bmN"></div>
 </div>
-<p class="try"><b>Try:</b> step to 4 in beam mode. Greedy's choice "was very" is still among the candidates but scores below three other branches, so beam search drops it; greedy can never revisit a choice. After six tokens the best beam is 6.7 times more probable than greedy's text <i class="nl m">measured here</i> (exp(&minus;7.54 + 9.44); script <code>recompute.py</code>).</p>
-<p>Finding the more probable text does not make it better. Run both for 80 tokens on the same prompt <i class="nl m">measured here</i>:</p>
+<p class="try"><b>Try:</b> step to 4 in beam mode. Greedy's "was very" is still a candidate but scores below three other branches, so beam search drops it. After six tokens the best beam is 6.7 times more probable than greedy's text <i class="nl m">measured here</i> (exp(&minus;7.54 + 9.44); <code>recompute.py</code>).</p>
+<p><b>More probable is not better.</b> Run both for 80 tokens on the same prompt <i class="nl m">measured here</i>: both searches fall into a loop the model rates as highly probable; the sample wanders but does not repeat.</p>
 <div class="grid">
 <div class="sp"><div class="n">Greedy, 80 tokens</div><p class="mono" id="rd-bmG"></p></div>
 <div class="sp"><div class="n">Beam search, 4 beams, 80 tokens</div><p class="mono" id="rd-bmB"></p></div>
 <div class="sp"><div class="n">Sampled, T = 1, top-p 0.95</div><p class="mono" id="rd-bmS"></p></div>
 </div>
-<p>Both searches fall into a loop the model rates as highly probable; the sample wanders but does not repeat. This is the paradox Holtzman et al. named: "using likelihood as a decoding objective leads to text that is bland and strangely repetitive", and the per-token probability of natural text is "on average, much lower than text generated by beam search" (§4.3). On 5,000 WebText continuations with GPT-2 Large (762M) they measured perplexity 12.38 for human text against 1.50 for greedy and 1.48 for beam search with 16 beams, and 73.66% of greedy texts repeating (Table 1, <a href="https://arxiv.org/abs/1904.09751" target="_blank" rel="noopener noreferrer">paper</a>). The <a href="#" data-tab="t-deg">Twelve decoders</a> tab reruns that comparison on GPT-2 small.</p>
-<div class="co corr"><div class="t">Correction: temperature 0 is greedy, but greedy is not reproducible on a server</div>Greedy is deterministic for a fixed computation. A served model is not a fixed computation: the batch it shares with other requests changes the kernels' reduction order. Thinking Machines sent the same prompt 1,000 times to Qwen3-235B at temperature 0 and got 80 different completions, diverging at token 103; batch-invariant kernels made all 1,000 identical (<a href="https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/" target="_blank" rel="noopener noreferrer">He, September 2025</a>; how a server forms and reshapes that batch every step is <a href="https://app.notion.com/p/3c65c17b0d0d819db53bd2c48909e5b2" target="_blank" rel="noopener noreferrer">Batching, KV cache and scheduling in depth</a>). Anthropic's migration guide says the same of its API: "temperature = 0 ... never guaranteed identical outputs" (<a href="https://platform.claude.com/docs/en/models/opus-5-5/migration-guide" target="_blank" rel="noopener noreferrer">Opus 5.5 migration guide</a>).</div>
-
-<h2 id="rd-stack">Stochastic sampling: the standard stack</h2>
-<p>Sampling draws the next token at random, but rarely from the raw distribution: pure sampling at T = 1 lets the long tail of unlikely tokens in, and a few bad draws derail the text (Holtzman et al. measured perplexity 22.73 for pure sampling against 12.38 for human text). The standard stack reshapes the distribution first, in this order: <b>temperature, then truncation, then renormalise, then sample</b>.</p>
+<p>Holtzman et al. named this: "using likelihood as a decoding objective leads to text that is bland and strangely repetitive", and natural text's per-token probability is "on average, much lower than text generated by beam search" (&sect;4.3). On 5,000 WebText continuations with GPT-2 Large (762M) they measured perplexity 12.38 for human text against 1.50 for greedy and 1.48 for beam search with 16 beams, and 73.66% of greedy texts repeating (Table 1, <a href="https://arxiv.org/abs/1904.09751" target="_blank" rel="noopener noreferrer">Holtzman et al., 2019</a>). Section 3 reruns that comparison on twelve decoders.</p>
+<div class="co corr"><div class="t">Correction: temperature 0 is greedy, but not reproducible on a server</div>Greedy is deterministic for a fixed computation; a served model is not one, because the batch it shares with other requests changes the kernels' reduction order. Thinking Machines sent the same prompt 1,000 times to Qwen3-235B at temperature 0 and got 80 different completions, diverging at token 103; batch-invariant kernels made all 1,000 identical (<a href="https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/" target="_blank" rel="noopener noreferrer">He, September 2025</a>; how a server reshapes that batch every step is on <a href="https://app.notion.com/p/3c65c17b0d0d819db53bd2c48909e5b2" target="_blank" rel="noopener noreferrer">Batching, KV cache and scheduling in depth</a>). Anthropic says the same of its API: "temperature = 0 ... never guaranteed identical outputs" (<a href="https://platform.claude.com/docs/en/models/opus-5-5/migration-guide" target="_blank" rel="noopener noreferrer">Opus 5.5 migration guide</a>).</div>
+</section>
+<section id="s2"><h2>2. Sampling: temperature, then truncation</h2>
+<p>Pure sampling at T = 1 lets the long tail in, and a few bad draws derail the text (Holtzman et al. measured perplexity 22.73 for pure sampling against 12.38 for human text). So the stack reshapes first: <b>temperature, then truncation, then renormalise, then sample</b>.</p>
 <ul>
-<li><b>Temperature T</b>: divide the logits by T before the softmax. T &lt; 1 sharpens (more deterministic; T &rarr; 0 approaches greedy); T = 1 is the raw distribution; T &gt; 1 flattens towards uniform (more random, more "creative"). Reasoning models often want T around 0.6 to 1.0 to keep exploring (settings below).</li>
-<li><b>Top-k</b> keeps only the k most probable tokens, renormalises and samples (<a href="https://arxiv.org/abs/1805.04833" target="_blank" rel="noopener noreferrer">Fan et al., 2018</a>, who used k = 10 for stories). Its flaw: a fixed k ignores the shape of the distribution. When the distribution is sharp, k lets junk in; when it is flat, k cuts off good options.</li>
-<li><b>Top-p (nucleus)</b> keeps the smallest set of tokens whose cumulative probability reaches p (for example 0.9), renormalises and samples (<a href="https://arxiv.org/abs/1904.09751" target="_blank" rel="noopener noreferrer">Holtzman et al.</a>, Eq. 2: the smallest V<sup>(p)</sup> with &Sigma;<sub>x&isin;V(p)</sub> P(x) &ge; p). The set adapts to the distribution; top-p was the long-time default for open-ended generation.</li>
-<li><b>Min-p</b> keeps tokens whose probability is at least p<sub>min</sub> &times; P(top token), for example 0.05 to 0.1 of the maximum (<a href="https://arxiv.org/abs/2407.01082" target="_blank" rel="noopener noreferrer">Nguyen et al., ICLR 2025 oral</a>). The cut scales with the model's confidence: confident steps become near-greedy, uncertain steps stay diverse. Its authors report better quality and diversity than top-p especially at high temperature; it is implemented in Hugging Face transformers, vLLM, SGLang and llama.cpp, and llama.cpp enables it by default (min-p 0.05, <a href="https://github.com/ggml-org/llama.cpp/blob/master/common/common.h" target="_blank" rel="noopener noreferrer">common.h</a>). Whether it is better is disputed: see the box below.</li>
+<li><b>Temperature T</b> divides the logits. T &lt; 1 sharpens towards greedy, T &gt; 1 flattens towards uniform. Reasoning models are usually run at T 0.6 to 1.0 so they keep exploring (section 6).</li>
+<li><b>Top-k</b> keeps the k most probable tokens (<a href="https://arxiv.org/abs/1805.04833" target="_blank" rel="noopener noreferrer">Fan et al., 2018</a>, k = 10 for stories). A fixed k ignores the shape: on a sharp step it lets junk in, on a flat one it cuts good options.</li>
+<li><b>Top-p (nucleus)</b> keeps the smallest set whose cumulative probability reaches p, the smallest V<sup>(p)</sup> with &Sigma;<sub>x&isin;V(p)</sub> P(x) &ge; p (<a href="https://arxiv.org/abs/1904.09751" target="_blank" rel="noopener noreferrer">Holtzman et al.</a>, Eq. 2). The set adapts to the distribution; it was the long-time default for open-ended text.</li>
+<li><b>Min-p</b> keeps tokens with probability at least p<sub>min</sub> &times; P(top token), typically 0.05 to 0.1 (<a href="https://arxiv.org/abs/2407.01082" target="_blank" rel="noopener noreferrer">Nguyen et al., ICLR 2025 oral</a>). The cut follows the model's confidence: confident steps become near-greedy, uncertain ones stay diverse. It is in Hugging Face transformers, vLLM, SGLang and llama.cpp, which enables it by default (min-p 0.05, <a href="https://github.com/ggml-org/llama.cpp/blob/master/common/common.h" target="_blank" rel="noopener noreferrer">common.h</a>).</li>
 </ul>
-<p>The before/after below runs the same real distribution through top-p, the method min-p was proposed to replace, and through min-p. Two inputs from Qwen2.5-0.5B-Instruct: an uncertain step (the second token of a story opening, where the model's top choice has 22% probability) and a confident one (the token after "The capital of Australia is", where "Canberra" has 96%).</p>
-<div class="card" id="rd-pp">
+<details class="pr"><summary><b>Predict, then open:</b> at T 1.5, on a step where the model is 96% sure of "Canberra", how many of 151,936 tokens does top-p 0.9 keep: one, about fifty, or thousands?</summary><div class="b">Thousands: 5,166 (exact full-vocabulary count; the animation's binned estimate says 5,209) <i class="nl m">measured here</i>. At T 1.5 "Canberra" falls from 96% to 59% and about 30% of the mass spreads thinly beyond the top 12 tokens, which top-p must collect back token by token; min-p 0.1 keeps only "Canberra". Check it below with the confident step.</div></details>
+<p>The before/after runs the same real distribution through top-p, the method min-p was proposed to replace, and through min-p: an uncertain step (the lighthouse story of the hero, top token 22%) and a confident one (after "The capital of Australia is", "Canberra" 96%).</p>
+<div class="card" id="rd-pp"><h4>At high temperature, top-p's cut chases the tail; min-p's follows the top token</h4>
 <div class="row2"><div class="seg" id="rd-ppM" role="group" aria-label="Truncation"><button data-m="p" class="on">Before: top-p 0.9</button><button data-m="m">After: min-p 0.1</button></div>
 <div class="seg" id="rd-ppI" role="group" aria-label="Input"><button data-m="story" class="on">Uncertain step</button><button data-m="capital">Confident step</button></div>
 <div class="seg" id="rd-ppT" role="group" aria-label="Temperature"><button data-m="1">T 1</button><button data-m="1.5" class="on">T 1.5</button><button data-m="2">T 2</button></div></div>
@@ -207,44 +246,98 @@ select{max-width:100%;min-width:0}.ctl2 select{width:100%}.foot code{overflow-wr
 <div class="an-ctl" id="rd-ppC"></div>
 <div class="an-cap" aria-live="polite"><div class="t" id="rd-ppTt"></div><p id="rd-ppP"></p></div>
 <div class="an-cnt" id="rd-ppN"></div>
-<p class="small mute">The top 12 of 151,936 tokens are drawn; the grey row is every other token together. Grey bar: probability before the cut; blue bar: after. Counts include the tail, computed from a binned summary of all 151,936 logits; checked against the exact full-vocabulary count in <code>recompute.py</code> (for example 6,102 against an exact 6,099 kept tokens at T 1.5) <i class="nl m">measured here</i>.</p>
+<p class="small mute">The top 12 of 151,936 tokens are drawn; the last row is every other token together. Grey bar: probability before the cut; <span class="hl">blue bar</span>: after. Counts include the tail, computed from a binned summary of all 151,936 logits and checked against the exact count in <code>recompute.py</code> (6,102 against an exact 6,099 kept tokens at T 1.5) <i class="nl m">measured here</i>.</p>
 </div>
-<p class="try"><b>Try:</b> the confident step at T 1.5. Top-p 0.9 now keeps 5,166 tokens (exact full-vocabulary count; the animation's binned estimate says 5,209), because at T 1.5 "Canberra" falls from 96% to 59% and about 30% of the mass spreads thinly beyond the top 12 tokens, which top-p must collect back token by token <i class="nl m">measured here</i>; min-p keeps only "Canberra". At the uncertain step and T 2, top-p keeps about 35,700 tokens and min-p 46. That is the whole argument for min-p, on a real distribution.</p>
-<div class="co warn"><div class="t">Disputed: "min-p beats top-p"</div>The min-p paper reports better quality and diversity on GPQA, GSM8K and AlpacaEval creative writing, and a human preference for min-p. A re-analysis by <a href="https://arxiv.org/abs/2506.13681" target="_blank" rel="noopener noreferrer">Schaeffer, Kazdan and Denisov-Blanch (June 2025)</a> found omitted data and incorrect statistical tests in the human evaluation, found that "min-p did not outperform baselines in quality, diversity, or a trade-off between quality and diversity" once hyperparameter counts were controlled, and noted that the community-adoption figures were removed from the paper as unsubstantiated. What is not in dispute is the mechanism shown above: at high temperature, min-p's cut follows the top token and top-p's does not. Our own GPT-2 run in <a href="#" data-tab="t-deg">Twelve decoders</a> agrees with the mechanism (at T 1.5, min-p 0.1 stays near human perplexity while top-p 0.95 explodes) but measures likelihood under the same model, not quality as judged by people.</div>
-
+<p class="try"><b>Try:</b> the uncertain step at T 2: top-p keeps about 35,700 tokens and min-p 46. That is the whole argument for min-p, on a real distribution.</p>
+<div class="co warn"><div class="t">Disputed: "min-p beats top-p"</div>The min-p paper reports better quality and diversity on GPQA, GSM8K and AlpacaEval creative writing, and a human preference for min-p. A re-analysis by <a href="https://arxiv.org/abs/2506.13681" target="_blank" rel="noopener noreferrer">Schaeffer, Kazdan and Denisov-Blanch (June 2025)</a> found omitted data and incorrect statistical tests in the human evaluation, found that "min-p did not outperform baselines in quality, diversity, or a trade-off between quality and diversity" once hyperparameter counts were controlled, and noted that the community-adoption figures were removed from the paper as unsubstantiated. The mechanism above is not in dispute; whether it buys quality is. Tune both on your own task.</div>
 <h3>The order is not universal</h3>
-<p>"Temperature, then truncation" is how <a href="https://github.com/huggingface/transformers/blob/main/src/transformers/generation/utils.py" target="_blank" rel="noopener noreferrer">Hugging Face transformers</a> applies its warpers (temperature, top-k, top-p, min-p, typical) and how <a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/sample/sampler.py" target="_blank" rel="noopener noreferrer">vLLM</a> does it (penalties, temperature, min-p, then top-k and top-p; where that sampler runs in the engine's step is on <a href="https://app.notion.com/p/3c65c17b0d0d8113b976d8bcaf2c0722" target="_blank" rel="noopener noreferrer">vLLM: inside the default engine</a>). <a href="https://github.com/ggml-org/llama.cpp/blob/master/common/common.h" target="_blank" rel="noopener noreferrer">llama.cpp</a> applies temperature <i>last</i> by default (penalties, DRY, top-n-sigma, top-k, typical, top-p, min-p, XTC, temperature), so its truncation sees the T = 1 distribution and temperature only reshapes the survivors. With llama.cpp's own defaults (top-k 40, top-p 0.95, min-p 0.05) at T 1.5, the uncertain step keeps 14 tokens with temperature last and 34 with temperature first <i class="nl m">measured here</i>. The <a href="#" data-tab="t-lab">Sampler lab</a> has the switch.</p>
-
-<h3>Repetition controls</h3>
-<p>Blunt instruments, needed less as models improved and still useful for small models:</p>
-<ul>
-<li><b>Repetition penalty</b> (<a href="https://arxiv.org/abs/1909.05858" target="_blank" rel="noopener noreferrer">CTRL, Keskar et al., 2019</a>, who found &theta; &asymp; 1.2 a good balance with greedy sampling): every token already in the context has its logit divided by &theta; if positive and multiplied by &theta; if negative (<a href="https://github.com/huggingface/transformers/blob/main/src/transformers/generation/logits_process.py" target="_blank" rel="noopener noreferrer">transformers' implementation</a>, which counts the prompt too).</li>
-<li><b>Presence and frequency penalties</b> (the OpenAI-style pair): z<sub>j</sub> &rarr; z<sub>j</sub> &minus; c<sub>j</sub>&middot;&alpha;<sub>frequency</sub> &minus; [c<sub>j</sub> &gt; 0]&middot;&alpha;<sub>presence</sub>, where c<sub>j</sub> counts how often token j was already sampled; "around 0.1 to 1" to reduce repetition somewhat, up to 2 to suppress it strongly at a cost in quality (<a href="https://developers.openai.com/api/docs/guides/advanced-usage" target="_blank" rel="noopener noreferrer">OpenAI docs</a>). Qwen3's model card suggests presence_penalty 0 to 2 against endless repetition, warning of language mixing at high values (<a href="https://huggingface.co/Qwen/Qwen3-8B" target="_blank" rel="noopener noreferrer">card</a>).</li>
-<li><b>No-repeat n-gram</b> bans any token that would complete an n-gram already generated (transformers' <code>no_repeat_ngram_size</code>).</li>
-</ul>
-<p>They are blunt because they cannot tell a loop from a correct repeat. In the lab's "pattern" prompt (continue "red, blue, red, blue, red,") the right answer is a word already in the context; a repetition penalty of 1.3 pushes it down. Try it on the <a href="#" data-tab="t-lab">Sampler lab</a>.</p>
-
-<h3>The long tail of samplers</h3>
-<p>The local-model community has produced many more; most are niche. What each keeps:</p>
+<p><a href="https://github.com/huggingface/transformers/blob/main/src/transformers/generation/utils.py" target="_blank" rel="noopener noreferrer">Hugging Face transformers</a> applies its warpers as temperature, top-k, top-p, min-p, typical; <a href="https://github.com/vllm-project/vllm/blob/main/vllm/v1/sample/sampler.py" target="_blank" rel="noopener noreferrer">vLLM</a> as penalties, temperature, min-p, then top-k and top-p. <a href="https://github.com/ggml-org/llama.cpp/blob/master/common/common.h" target="_blank" rel="noopener noreferrer">llama.cpp</a> applies temperature <i>last</i> by default (penalties, DRY, top-n-sigma, top-k, typical, top-p, min-p, XTC, temperature), so its truncation sees the T = 1 distribution. With llama.cpp's defaults (top-k 40, top-p 0.95, min-p 0.05) at T 1.5, the uncertain step keeps 14 tokens with temperature last and 34 with temperature first <i class="nl m">measured here</i>. The <a href="#" data-tab="t-lab">Sampler lab</a> has the switch, every knob on this page and 32 real distributions.</p>
+<details class="dp"><summary>The long tail of samplers <span class="mute">(typical, mirostat, top-a, XTC, DRY)</span></summary><div class="b">
 <div class="tw"><table>
 <tr><th>Sampler</th><th>Rule</th><th>Source</th></tr>
-<tr><td>Typical sampling</td><td>Keep the tokens whose surprisal &minus;log p is closest to the distribution's entropy, until their mass reaches typical_p ("entropy-relative")</td><td><a href="https://arxiv.org/abs/2202.00666" target="_blank" rel="noopener noreferrer">Meister et al., 2022</a>; in the lab</td></tr>
-<tr><td>Mirostat</td><td>Adjust a top-k-like cut on the fly so that the text's surprise stays near a target (target perplexity, &tau; = 5 by default in llama.cpp)</td><td><a href="https://arxiv.org/abs/2007.14966" target="_blank" rel="noopener noreferrer">Basu et al., 2020</a></td></tr>
+<tr><td>Typical sampling</td><td>Keep the tokens whose surprisal &minus;log p is closest to the distribution's entropy, until their mass reaches typical_p ("entropy-relative"). At 0.5 it drops the single most likely token on four of the five uncertain steps tried in the lab (Lighthouse 1 and 2, Kitten 1 and 3), because its surprisal is far below the entropy <i class="nl m">measured here</i>.</td><td><a href="https://arxiv.org/abs/2202.00666" target="_blank" rel="noopener noreferrer">Meister et al., 2022</a>; in the lab</td></tr>
+<tr><td>Mirostat</td><td>Adjust a top-k-like cut on the fly so that the text's surprise stays near a target (&tau; = 5 by default in llama.cpp)</td><td><a href="https://arxiv.org/abs/2007.14966" target="_blank" rel="noopener noreferrer">Basu et al., 2020</a></td></tr>
 <tr><td>Top-a</td><td>Keep tokens above a threshold proportional to the square of the top probability</td><td>local-model community; origin <i class="nl u">unconfirmed</i></td></tr>
 <tr><td>XTC (exclude top choices)</td><td>With some probability, remove every token above a threshold except the least likely of them: cuts the most likely tokens, not the least, to break clich&eacute;s</td><td><a href="https://github.com/oobabooga/text-generation-webui/pull/6335" target="_blank" rel="noopener noreferrer">p-e-w, text-generation-webui PR 6335 (2024)</a></td></tr>
 <tr><td>DRY (don't repeat yourself)</td><td>Penalise a token that would extend a sequence already in the context, by multiplier &times; base<sup>(length &minus; allowed length)</sup> (base 1.75, allowed length 2 in llama.cpp)</td><td><a href="https://github.com/ggml-org/llama.cpp/blob/master/common/common.h" target="_blank" rel="noopener noreferrer">llama.cpp common.h</a></td></tr>
 </table></div>
-<p>The <a href="#" data-tab="t-lab">Sampler lab</a> runs temperature, top-k, top-p, min-p, typical, the repetition penalty and the presence and frequency penalties on 32 real distributions from four prompts, in either order, and samples from the result.</p>
-
-<h2 id="rd-div">Diversity against quality</h2>
-<p>Every truncation trades diversity for staying in the model's high-probability region. The <a href="#" data-tab="t-deg">Twelve decoders</a> tab measures the trade on GPT-2 small: four passages, 48 new tokens, 16 samples per decoder <i class="nl m">measured here</i>. The pattern reproduces Holtzman et al.'s Table 1 independently, on a smaller model and different text:</p>
+<p class="small">Most are niche, from the local-model community. Mirostat and DRY act on a generated sequence rather than one distribution, so the lab leaves them out.</p>
+</div></details>
+</section>
+<section id="s3"><h2>3. Diversity against quality: twelve decoders on real text</h2>
+<p>Every truncation trades diversity for staying in the model's high-probability region, and human text sits in between. GPT-2 small (124M) is given the first 48 tokens of four paragraphs of <i><a href="https://www.gutenberg.org/ebooks/308" target="_blank" rel="noopener noreferrer">Three Men in a Boat</a></i> and writes 48 more, 16 times per decoder; the book's real next 48 tokens are the human reference <i class="nl m">measured here</i>.</p>
+<div class="card"><h4>Search sits far below human perplexity; top-p explodes with temperature, min-p does not</h4>
+<div id="dg-plot" class="plot"></div>
+<div class="fl" id="dg-leg"></div>
+<p class="small mute">Perplexity: exp of minus the mean log-probability per token under GPT-2 small at T = 1 (human text is the target, not the minimum). Diversity: distinct-2 over the 16 samples of a passage (greedy and beam give one text 16 times, so their figure is divided by 16). Hover a dot for its decoder; the table in the closed block below has every value.</p></div>
 <ul>
-<li>Greedy and beam search sit far below human perplexity (2.3 and 2.4 against 31.0 for the real continuation) and repeat: 53% of greedy's 4-grams are repeats.</li>
-<li>Pure sampling overshoots (47.2); top-p 0.95 at T 1 lands closest to human text (31.6 against 31.0), as nucleus sampling did in the paper (13.13 against 12.38).</li>
-<li>Raise the temperature and top-p falls apart (perplexity about 3,900 at T 1.5) while min-p 0.1 stays near human text up to T 2 (16.1 at T 1.5, 40.0 at T 2).</li>
+<li><b>Search loops.</b> Greedy and beam search sit far below human perplexity (2.3 and 2.4 against 31.0 for the real continuation), and 53% of greedy's 4-grams are repeats.</li>
+<li><b>Top-p 0.95 at T 1 lands closest to human text</b> (31.6 against 31.0), as nucleus sampling did in the paper (13.13 against 12.38); pure sampling overshoots (47.2).</li>
+<li><b>Raise the temperature</b> and top-p falls apart (perplexity about 3,900 at T 1.5) while min-p 0.1 stays near human text up to T 2 (16.1 at T 1.5, 40.0 at T 2): the mechanism of section 2, measured on text. This is likelihood under the same model, not quality as judged by people.</li>
 </ul>
-
-<h2 id="rd-set">Settings in practice (2026)</h2>
+<p class="small" id="dg-repro">Defaults reproduce the ordering of Holtzman et al.'s Table 1 independently (GPT-2 small and 4 passages here; GPT-2 Large and 5,000 WebText passages there): search far below human perplexity (greedy 2.26, beam 2.37 against 31.0; theirs 1.50 and 1.48 against 12.38), pure sampling above it (47.2; theirs 22.73) and top-p 0.95 closest (31.6; theirs 13.13). The absolute values do not compare across the two studies: a smaller model is more surprised by everything. Perplexity near human is a necessary condition for human-like text, not a measure of quality.</p>
+<details class="dp"><summary>Every decoder's numbers, and the texts themselves <span class="mute">(table and sample reader)</span></summary><div class="b">
+<div class="tw"><table id="dg-tab" class="nar"></table></div>
+<p class="small">Repetition: share of a text's 4-grams that repeat an earlier 4-gram.</p>
+<div class="ctl2"><label>Decoder <select id="dg-set"></select></label><label>Passage <select id="dg-pas"></select></label></div>
+<div class="ctxt" id="dg-ctx"></div>
+<div id="dg-samp"></div>
+<p class="small mute">Every sampled decoder starts from the same random seed, so pure sampling and top-p 0.95 often write the same words until the first draw that top-p's cut removes. Texts are GPT-2's, unedited except that newlines are shown as &#8629; and any em-dash the model wrote is shown as "--". Three samples per passage are shown, skipping any that match a short list of slurs, sexual and violent words (GPT-2 at high temperature produces them); the measures use all 16. Em-dashes in Jerome's text were replaced by commas before tokenising. Script: <code>src/make_data.py degen</code>; numbers: <code>src/recompute.py</code>.</p>
+</div></details>
+</section>
+<section id="s4"><h2>4. Logit processors: penalties, bias and masks</h2>
+<p>Step 2 of the hero is one interface in every framework: a <b>logit processor</b> takes the tokens so far and the logits, and returns edited logits. In <a href="https://github.com/huggingface/transformers/blob/main/src/transformers/generation/logits_process.py" target="_blank" rel="noopener noreferrer">transformers</a> it is <code>LogitsProcessor.__call__(input_ids, scores)</code>, and the repetition penalty, no-repeat n-gram, minimum length (suppress the end token) and token bans are all processors applied before the warpers. API servers expose the simplest one as <b>logit bias</b>: a value from &minus;100 to 100 added to a token's logit before sampling, where &minus;100 effectively bans it (<a href="https://platform.openai.com/docs/api-reference/chat/create" target="_blank" rel="noopener noreferrer">OpenAI API reference</a>; vLLM's <code>logit_bias</code> and <code>allowed_token_ids</code> in <a href="https://github.com/vllm-project/vllm/blob/main/vllm/sampling_params.py" target="_blank" rel="noopener noreferrer">sampling_params.py</a>). A grammar mask (section 5) is a processor that adds &minus;&infin;.</p>
+<p>The <b>repetition controls</b> are processors that use counts of what is already in the context:</p>
+<ul>
+<li><b>Repetition penalty</b> (<a href="https://arxiv.org/abs/1909.05858" target="_blank" rel="noopener noreferrer">CTRL, Keskar et al., 2019</a>, who found &theta; &asymp; 1.2 a good balance with greedy sampling): every token already in the context has its logit divided by &theta; if positive and multiplied by &theta; if negative; transformers counts the prompt too.</li>
+<li><b>Presence and frequency penalties</b> (the OpenAI pair): z<sub>j</sub> &rarr; z<sub>j</sub> &minus; c<sub>j</sub>&middot;&alpha;<sub>frequency</sub> &minus; [c<sub>j</sub> &gt; 0]&middot;&alpha;<sub>presence</sub>, where c<sub>j</sub> counts how often token j was already sampled; "around 0.1 to 1" to reduce repetition somewhat, up to 2 to suppress it strongly at a cost in quality (<a href="https://developers.openai.com/api/docs/guides/advanced-usage" target="_blank" rel="noopener noreferrer">OpenAI docs</a>). Qwen3's card suggests presence_penalty 0 to 2 against endless repetition, warning of language mixing at high values (<a href="https://huggingface.co/Qwen/Qwen3-8B" target="_blank" rel="noopener noreferrer">card</a>).</li>
+<li><b>No-repeat n-gram</b> bans any token that would complete an n-gram already generated (transformers' <code>no_repeat_ngram_size</code>).</li>
+</ul>
+<div class="card"><h4>A repetition penalty cannot tell a loop from a correct repeat</h4>
+<div class="rd-svg" id="sd-pen"></div>
+<p class="small">Qwen2.5-0.5B-Instruct continuing the pattern "red, blue, red, blue, red," at position 7 of its reply ("red, blue, red,"): the right next token " blue" is already in the context three times (the prompt counts) and was generated once. Repetition penalty 1.3 divides its logit 25.72 by 1.3, so the runner-up " and" (17.59) gains, and " blue" falls from 99.9% to 73.6%; a frequency penalty of 1 subtracts 1 per generated occurrence and barely moves it (99.7%) <i class="nl m">measured here</i>. Penalties are blunt instruments, needed less as models improved and still useful for small models.</p></div>
+</section>
+<section id="s5"><h2>5. Constrained decoding: JSON schemas and grammars</h2>
+<p>Constrained (or structured) decoding guarantees that the output matches a format, a JSON schema, a regular expression or a context-free grammar, by masking every token that would break it at every step: an engine compiles the constraint to an automaton over the tokenizer's vocabulary, tracks the automaton's state as tokens are emitted, and before the sampler runs sets every disallowed logit to &minus;&infin;. The running example: Qwen2.5-0.5B-Instruct, greedy, asked to extract <code>{"name": string, "age": integer}</code> from one sentence. Its favourite first token is a Markdown fence, which no JSON parser accepts.</p>
+<div class="card"><h4>The mask at step 0: four of 151,665 tokens may start the object</h4>
+<div class="rd-svg" id="sd-mask"></div>
+<p class="small">The model's real probabilities at the first step (top 8 shown). The grammar allows 4 tokens holding 35.5% of the mass; every other logit gets &minus;&infin;, so its probability becomes exactly 0, and the softmax renormalises the survivors: <code>{&#8629;</code> goes from 35.4% to 99.5%, <code>{"</code> from 0.16% to 0.44% <i class="nl m">measured here</i>. The sampler (greedy here) then runs on the masked distribution as usual.</p></div>
+<div class="fm"><div class="eq">z&#8242;<sub>i</sub> = z<sub>i</sub> + m<sub>i</sub>,&nbsp;&nbsp; m<sub>i</sub> = 0 if token i keeps the grammar completable, else &minus;&infin;&nbsp;&nbsp;&rArr;&nbsp;&nbsp; p&#8242;<sub>i</sub> = p<sub>i</sub> / &Sigma;<sub>j allowed</sub> p<sub>j</sub></div>
+<dl><dt>m</dt><dd>the mask: a bit per vocabulary entry, recomputed from the grammar's state after every token</dd><dt>p&#8242;</dt><dd>at T = 1, masking then softmax is the model's distribution conditioned on the allowed set</dd></dl></div>
+<p>The mask changes size at every step, and that is what makes it expensive or cheap. Inside a string almost anything is allowed; at a structural position only a handful of tokens are.</p>
+<div class="card"><h4>How many tokens the grammar allows, token by token</h4>
+<div class="rd-svg" id="sd-msz"></div>
+<p class="small">The constrained run's 19 steps, picked token under each bar. Inside the name about 76,660 of 151,665 tokens are allowed; at structural positions 1 to 17. Orange bars are steps where the allowed tokens held under 5% of the model's probability, so the grammar overruled it: step 2 (0.0004%) and step 10 (2.5%), both whitespace, explained below. At step 13 the model gave 22.6% to a quote, which would have made the age a string; the integer type masked it <i class="nl m">measured here</i>.</p></div>
+<p>The whole run, without and with the mask:</p>
+<div class="card" id="rd-js"><h4>Same weights, same greedy rule: only the mask differs</h4>
+<div class="seg" id="rd-jsM" role="group" aria-label="Decoding"><button data-m="free" class="on">Before: unconstrained</button><button data-m="con">After: grammar-constrained</button></div>
+<div class="ctxt" id="rd-jsCtx"></div>
+<div class="tkl" id="rd-jsL"></div>
+<div class="an-ctl" id="rd-jsC"></div>
+<div class="an-cap" aria-live="polite"><div class="t" id="rd-jsTt"></div><p id="rd-jsP"></p></div>
+<div class="an-cnt" id="rd-jsN"></div>
+<p class="small mute">The request is illustrative (a made-up person); everything else is the model's real output <i class="nl m">measured here</i>. A tick marks tokens the grammar allows.</p>
+</div>
+<p class="try"><b>Try:</b> step 0 in both modes: the model puts 57% on <code>```</code>; the constrained run starts with <code>{</code>. Then step 2 of the constrained run: the model wants two spaces of indentation, the toy grammar's whitespace cap forbids the second, and it is forced onto a token it gave 0.0004%. The output is still valid JSON, with one-space indentation.</p>
+<details class="dp"><summary>The toy grammar and how the masks were computed</summary><div class="b">
+<p class="small">The grammar is a regular expression, with whitespace capped at two characters between JSON tokens:</p>
+<pre class="ctxt">\{[ \n]{0,2}"name"[ \n]{0,2}:[ \n]{0,2}"[A-Za-z .\-]{1,40}"[ \n]{0,2},[ \n]{0,2}"age"[ \n]{0,2}:[ \n]{0,2}(0|[1-9][0-9]{0,2})[ \n]{0,2}\}</pre>
+<p class="small">At every step each of the 151,665 tokenizer strings was checked with the <code>regex</code> package's partial matching: a token is allowed when the text so far plus the token can still complete a match (<code>src/make_data.py json</code>). That is a brute-force check of the whole vocabulary at every step; the engines below exist to avoid it.</p>
+</div></details>
+<h3>How engines make the mask fast</h3>
+<div class="tw"><table>
+<tr><th>Engine</th><th>Grammar and method</th><th>Mask cost and where it runs</th></tr>
+<tr><td><b>Outlines</b></td><td>Regular expression or JSON schema compiled to a finite-state machine over tokens, with an index of which tokens are allowed in every state: "transitions between the states of a finite-state machine" (<a href="https://arxiv.org/abs/2307.09702" target="_blank" rel="noopener noreferrer">Willard and Louf, 2023</a>). The approach that popularised near-zero-overhead structured output.</td><td>a lookup per step once the index is built</td></tr>
+<tr><td><b>XGrammar</b></td><td>Full context-free grammars with a pushdown automaton. Tokens are split into context-independent ones, whose validity depends only on the automaton's position and is precomputed, and context-dependent ones, checked at runtime against a persistent stack: for Llama-3.1 and a JSON grammar the context-dependent tokens are "less than 1% (1134 out of 128k)", cut to 120 by context expansion (<a href="https://arxiv.org/abs/2411.15100" target="_blank" rel="noopener noreferrer">Dong et al.</a>).</td><td>under 40 &micro;s per token for JSON schema, overlapped with the GPU's forward pass. Default backend in vLLM (the "auto" backend tries XGrammar first and falls back to llguidance: <a href="https://github.com/vllm-project/vllm/blob/main/vllm/sampling_params.py" target="_blank" rel="noopener noreferrer">sampling_params.py</a>), SGLang (<a href="https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/arg_groups/serving_hook.py" target="_blank" rel="noopener noreferrer">serving_hook.py</a>), TensorRT-LLM and MLC-LLM (<a href="https://github.com/mlc-ai/xgrammar" target="_blank" rel="noopener noreferrer">README</a>)</td></tr>
+<tr><td><b>llguidance</b> (behind Guidance)</td><td>An Earley parser on top of a lexer built from regular-expression derivatives; masks computed lazily by walking a trie of the vocabulary.</td><td>about 50 &micro;s per token for a 128k tokenizer. "LLGuidance shipped in OpenAI for JSON Schema"; in llama.cpp, vLLM (from 0.8.2), SGLang (from 0.4.4) and Chromium (<a href="https://github.com/guidance-ai/llguidance" target="_blank" rel="noopener noreferrer">README</a>)</td></tr>
+</table></div>
+<p><b>Provider "structured outputs" and strict function calling are this mechanism plus training.</b> OpenAI's Structured Outputs works "by constraining OpenAI models to match developer-supplied schemas and by training our models to better understand complicated schemas"; the schema is converted to a context-free grammar; gpt-4o-2024-08-06 scored 100% on its complex-schema eval against under 40% for gpt-4-0613 (<a href="https://web.archive.org/web/20240806180746/https://openai.com/index/introducing-structured-outputs-in-the-api/" target="_blank" rel="noopener noreferrer">OpenAI, 6 August 2024, archived</a>). JSON mode guarantees valid JSON; only Structured Outputs guarantees schema adherence (<a href="https://developers.openai.com/api/docs/guides/structured-outputs" target="_blank" rel="noopener noreferrer">docs</a>). Grammar-constrained tool-call parsing is standard in serving stacks.</p>
+<div class="co warn"><div class="t">What the mask costs in quality</div><ul class="tight">
+<li><b>It guarantees the format, not the content.</b> When the model wanted a token you masked, the rest of the answer is conditioned on text it would not have written (0.0004% at step 2 above). Schema design (field order, letting the model think before the JSON) mitigates it. The size of the effect is disputed: <a href="https://arxiv.org/abs/2408.02442" target="_blank" rel="noopener noreferrer">Tam et al., 2024</a> report "a significant decline in LLMs reasoning abilities under format restrictions"; the Outlines team re-ran their tasks with matched prompts and found structured generation slightly better (GSM8K 0.78 against 0.77, Last Letter 0.77 against 0.73, Shuffled Objects 0.44 against 0.41: <a href="https://blog.dottxt.ai/say-what-you-mean.html" target="_blank" rel="noopener noreferrer">.txt, "Say what you mean"</a>).</li>
+<li><b>Whitespace and token boundaries are the classic bugs.</b> A token can straddle a grammar boundary (<code>":</code> closes a key and starts the colon), whitespace rules decide which tokenisations are reachable (steps 2 and 10 above), and an unbounded whitespace rule lets a model emit spaces forever.</li>
+</ul></div>
+</section>
+<section id="s6"><h2>6. Settings in practice</h2>
 <div class="tw"><table>
 <tr><th>Use</th><th>Typical setting</th><th>Where it comes from</th></tr>
 <tr><td>Chat</td><td>T about 0.7 with top-p 0.9 to 0.95, or min-p 0.05</td><td>Rule of thumb from the original page <i class="nl u">unconfirmed as a standard</i>; close to published defaults: llama.cpp T 0.8, top-k 40, top-p 0.95, min-p 0.05 (<a href="https://github.com/ggml-org/llama.cpp/blob/master/common/common.h" target="_blank" rel="noopener noreferrer">common.h</a>); Qwen3 non-thinking T 0.7, top-p 0.8, top-k 20 (<a href="https://huggingface.co/Qwen/Qwen3-8B" target="_blank" rel="noopener noreferrer">card</a>)</td></tr>
@@ -252,51 +345,19 @@ select{max-width:100%;min-width:0}.ctl2 select{width:100%}.foot code{overflow-wr
 <tr><td>Code and maths, one answer</td><td>Greedy or near it, T 0 to 0.3</td><td>Codex found the best temperature for pass@1 is 0.2 and for pass@100 is 0.8 (<a href="https://arxiv.org/abs/2107.03374" target="_blank" rel="noopener noreferrer">Chen et al., 2021</a>)</td></tr>
 <tr><td>Evaluations</td><td>Fix seeds and settings, or sample k answers and report pass@k or majority vote</td><td>DeepSeek-R1 reports pass@1 as the mean over 64 samples at T 0.6, top-p 0.95 (<a href="https://huggingface.co/deepseek-ai/DeepSeek-R1" target="_blank" rel="noopener noreferrer">card</a>); majority vote is self-consistency (<a href="https://arxiv.org/abs/2203.11171" target="_blank" rel="noopener noreferrer">Wang et al., 2022</a>)</td></tr>
 </table></div>
-<div class="co corr"><div class="t">Updated: closed reasoning models now reject sampling parameters</div>The original page said many providers "remap or ignore extreme values". As of October 2026 the large closed APIs refuse them. On Claude Opus 4.7 and later, "setting temperature, top_p, or top_k to any non-default value ... returns a 400 error" (<a href="https://platform.claude.com/docs/en/models/opus-5-5/migration-guide" target="_blank" rel="noopener noreferrer">Anthropic, Opus 5.5 migration guide</a>). OpenAI's reasoning models other than GPT-6 Astra do not support temperature, top_p, presence_penalty, frequency_penalty, logprobs or logit_bias; GPT-6 Astra supports temperature and top_p (<a href="https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/reasoning" target="_blank" rel="noopener noreferrer">Azure OpenAI reasoning docs, 21 September 2026</a>). The knobs on this page are now mainly for open models you serve yourself.</div>
-
-<h2 id="rd-cons">Structured, or constrained, decoding</h2>
-<p>A constraint guarantees that the output matches a format (a JSON schema, a regular expression, a context-free grammar) by masking invalid tokens at every step: compile the constraint to an automaton over the tokenizer's vocabulary, intersect it with the current state, and set the disallowed logits to &minus;&infin; before the sampler runs. The animation runs Qwen2.5-0.5B-Instruct on one request, with greedy decoding, without and with a grammar for <code>{"name": string, "age": integer}</code>.</p>
-<div class="card" id="rd-js">
-<div class="seg" id="rd-jsM" role="group" aria-label="Decoding"><button data-m="free" class="on">Before: unconstrained</button><button data-m="con">After: grammar-constrained</button></div>
-<div class="ctxt" id="rd-jsCtx"></div>
-<div class="tkl" id="rd-jsL"></div>
-<div class="an-ctl" id="rd-jsC"></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="rd-jsTt"></div><p id="rd-jsP"></p></div>
-<div class="an-cnt" id="rd-jsN"></div>
-<p class="small mute">The request is <i class="nl i">illustrative</i> (a made-up person); everything else is the model's real output <i class="nl m">measured here</i>. The grammar is a regular expression with whitespace capped at two characters between tokens of JSON, checked against all 151,665 tokenizer entries at every step; a token is allowed when the text so far plus the token can still complete a match. A tick marks tokens the grammar allows.</p>
-</div>
-<p class="try"><b>Try:</b> step 0 in both modes. The model puts 57% on a Markdown fence <code>```</code>, which no JSON parser accepts; the constrained run allows 4 tokens holding 36% of the mass and starts with <code>{</code>. Then step 2 of the constrained run: the model wants two spaces of indentation, the toy grammar's whitespace cap forbids the second, and it is forced onto a token it gave 0.0004%. The output is still valid JSON, with one-space indentation.</p>
-<p>Three engines do this in production:</p>
+<div class="co corr"><div class="t">Updated: closed reasoning models now reject sampling parameters</div>The original page said many providers "remap or ignore extreme values". As of October 2026 the large closed APIs refuse them. On Claude Opus 4.7 and later, "setting temperature, top_p, or top_k to any non-default value ... returns a 400 error" (<a href="https://platform.claude.com/docs/en/models/opus-5-5/migration-guide" target="_blank" rel="noopener noreferrer">Anthropic, Opus 5.5 migration guide</a>). OpenAI's reasoning models other than GPT-6 Astra do not support temperature, top_p, presence_penalty, frequency_penalty, logprobs or logit_bias; GPT-6 Astra supports temperature and top_p (<a href="https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/reasoning" target="_blank" rel="noopener noreferrer">Azure OpenAI reasoning docs, 21 September 2026</a>). The knobs on this page are now mainly for open models you serve yourself; structured outputs remain available.</div>
+</section>
+<section id="s7"><h2>7. Built on sampling (owned elsewhere)</h2>
 <ul>
-<li><b>Outlines</b> compiles a regular expression or JSON schema to a finite-state machine over tokens and indexes, for every state, which tokens are allowed: "transitions between the states of a finite-state machine" (<a href="https://arxiv.org/abs/2307.09702" target="_blank" rel="noopener noreferrer">Willard and Louf, 2023</a>). It is the approach that popularised near-zero-overhead structured output.</li>
-<li><b>XGrammar</b> handles full context-free grammars with a pushdown automaton. It splits tokens into context-independent ones, whose validity depends only on the automaton's position and is precomputed, and context-dependent ones, checked at runtime against a persistent stack: for Llama-3.1 and a JSON grammar the context-dependent tokens are "less than 1% (1134 out of 128k)", cut to 120 by context expansion. It overlaps mask computation with the GPU's forward pass; masks take under 40 &micro;s per token for JSON schema (<a href="https://arxiv.org/abs/2411.15100" target="_blank" rel="noopener noreferrer">Dong et al.</a>). It is the default structured-output backend in vLLM (the "auto" backend tries XGrammar first and falls back to llguidance: <a href="https://github.com/vllm-project/vllm/blob/main/vllm/sampling_params.py" target="_blank" rel="noopener noreferrer">sampling_params.py</a>), in SGLang (<a href="https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/arg_groups/serving_hook.py" target="_blank" rel="noopener noreferrer">serving_hook.py</a>), TensorRT-LLM and MLC-LLM (<a href="https://github.com/mlc-ai/xgrammar" target="_blank" rel="noopener noreferrer">README</a>).</li>
-<li><b>llguidance</b> (behind Guidance) runs an Earley parser on top of a lexer built from regular-expression derivatives and computes masks lazily by walking a trie of the vocabulary, about 50 &micro;s per token for a 128k tokenizer. "LLGuidance shipped in OpenAI for JSON Schema", and it is integrated in llama.cpp, vLLM (from 0.8.2), SGLang (from 0.4.4) and Chromium (<a href="https://github.com/guidance-ai/llguidance" target="_blank" rel="noopener noreferrer">README</a>).</li>
+<li><b>Self-consistency and best-of-n</b> sample n answers and return the majority answer (<a href="https://arxiv.org/abs/2203.11171" target="_blank" rel="noopener noreferrer">Wang et al., 2022</a>) or the one a verifier or reward model rates highest; best-of-n is also a baseline alignment method and a reward-hacking amplifier (<a href="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974" target="_blank" rel="noopener noreferrer">Reward Hacking</a>). The maths of pass@k, voting and best-of-n, with a sampling lab: <a href="https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286" target="_blank" rel="noopener noreferrer">Topic: llm-landscape, Deeper: test-time compute</a>.</li>
+<li><b>Speculative decoding</b> drafts several tokens cheaply (a draft model, n-gram lookup, or extra heads such as Medusa and EAGLE) and verifies them in one target pass with an acceptance rule that leaves the output distribution exactly the target's, so every sampler on this page works unchanged. The rule, every kind of drafter and the batch size where it stops paying: <a href="https://app.notion.com/p/3f35c17b0d0d81e086fde85940ebac1c" target="_blank" rel="noopener noreferrer">Speculative decoding</a>.</li>
+<li><b>Test-time compute scaling</b>, longer chains of thought and parallel sampling with a verifier, is the decoding-side half of the reasoning-model story; the training-side half (RL with verifiable rewards) is on <a href="https://app.notion.com/p/3c65c17b0d0d81d5bed7e608d4061c7a" target="_blank" rel="noopener noreferrer">Alignment: SFT, RLHF, DPO Family, RLVR</a>.</li>
 </ul>
-<p>Provider-side "structured outputs" and strict function calling are this mechanism plus training. OpenAI's launch post: Structured Outputs works "by constraining OpenAI models to match developer-supplied schemas and by training our models to better understand complicated schemas"; the schema is converted to a context-free grammar; gpt-4o-2024-08-06 scored 100% on its complex-schema eval against under 40% for gpt-4-0613 (<a href="https://web.archive.org/web/20240806180746/https://openai.com/index/introducing-structured-outputs-in-the-api/" target="_blank" rel="noopener noreferrer">OpenAI, 6 August 2024, archived</a>). JSON mode guarantees valid JSON; only Structured Outputs guarantees schema adherence (<a href="https://developers.openai.com/api/docs/guides/structured-outputs" target="_blank" rel="noopener noreferrer">docs</a>). Grammar-constrained tool-call parsing is standard in serving stacks.</p>
-<div class="co warn"><div class="t">Caveats</div><ul class="tight">
-<li><b>Constraining distorts the distribution.</b> When the model wanted a token you masked, the rest of the answer is conditioned on text it would not have written. Schema design (field order, letting the model think before the JSON) mitigates it. The size of the effect is disputed: <a href="https://arxiv.org/abs/2408.02442" target="_blank" rel="noopener noreferrer">Tam et al., 2024</a> report "a significant decline in LLMs reasoning abilities under format restrictions"; the Outlines team re-ran their tasks with matched prompts and found structured generation slightly better (GSM8K 0.78 against 0.77, Last Letter 0.77 against 0.73, Shuffled Objects 0.44 against 0.41: <a href="https://blog.dottxt.ai/say-what-you-mean.html" target="_blank" rel="noopener noreferrer">.txt, "Say what you mean"</a>).</li>
-<li><b>Whitespace and token boundaries are the classic bugs.</b> A token can straddle a grammar boundary (<code>":</code> closes a key and starts the colon), whitespace rules decide which tokenisations are reachable (step 2 above), and an unbounded whitespace rule lets a model emit spaces forever.</li>
-</ul></div>
-
-<h2 id="rd-adj">Techniques built on sampling</h2>
-<ul>
-<li><b>Self-consistency and best-of-n</b> sample n answers and return the majority answer (<a href="https://arxiv.org/abs/2203.11171" target="_blank" rel="noopener noreferrer">Wang et al., 2022</a>) or the one a reward model or verifier rates highest. Best-of-n is also a baseline alignment method and a reward-hacking amplifier (<a href="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974" target="_blank" rel="noopener noreferrer">Reward Hacking</a>). The maths of pass@k, voting and best-of-n, with a sampling lab, is on <a href="https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286" target="_blank" rel="noopener noreferrer">Topic: llm-landscape, Deeper: test-time compute</a>.</li>
-<li><b>Speculative decoding</b>: a cheap draft model (or n-gram lookup, or extra heads as in <a href="https://arxiv.org/abs/2401.10774" target="_blank" rel="noopener noreferrer">Medusa</a> and <a href="https://arxiv.org/abs/2401.15077" target="_blank" rel="noopener noreferrer">EAGLE</a>) proposes &gamma; tokens, and the target model scores all of them in one forward pass. Each drafted token x is accepted with probability min(1, p(x)/q(x)), p the target's and q the draft's probability; at the first rejection a replacement is drawn from the normalised max(0, p &minus; q). The output distribution is exactly the target's, so the speed-up is lossless (<a href="https://arxiv.org/abs/2211.17192" target="_blank" rel="noopener noreferrer">Leviathan et al., 2023</a>; <a href="https://arxiv.org/abs/2302.01318" target="_blank" rel="noopener noreferrer">Chen et al., 2023</a>). With acceptance rate &alpha;, each target pass yields on average (1 &minus; &alpha;<sup>&gamma;+1</sup>) / (1 &minus; &alpha;) tokens: 3.4 tokens at &alpha; = 0.8 and &gamma; = 4 <i class="nl d">derived</i>. The rule in depth, every kind of drafter and the batch size at which it stops paying are on <a href="https://app.notion.com/p/3f35c17b0d0d81e086fde85940ebac1c" target="_blank" rel="noopener noreferrer">Speculative decoding</a>; a calculator that reproduces Leviathan's Table 4 is on <a href="https://app.notion.com/p/3c65c17b0d0d8173a0aafcb27cf7a5f3" target="_blank" rel="noopener noreferrer">Google DeepMind: Gemini and Gemma</a>; an animation of one token at a time against speculative and block-diffusion decoding is in <a href="https://app.notion.com/p/3c65c17b0d0d81ca8c8af3c2fc0c3ced" target="_blank" rel="noopener noreferrer">2026-08-24: tech news</a>.</li>
-<li><b>Test-time compute scaling</b>: longer chains of thought, and parallel sampling with a verifier reranking the samples. It is the decoding-side half of the reasoning-model story; the training-side half (RL with verifiable rewards) is on <a href="https://app.notion.com/p/3c65c17b0d0d81d5bed7e608d4061c7a" target="_blank" rel="noopener noreferrer">Alignment: SFT, RLHF, DPO Family, RLVR</a>, and the comparison across labs on <a href="https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286" target="_blank" rel="noopener noreferrer">Topic: llm-landscape</a>.</li>
-</ul>
-
-<h2 id="rd-mist">Common mistakes</h2>
-<details class="mist"><summary>"Temperature 0 makes the output reproducible"</summary><div class="b">It makes the rule deterministic, not the computation: batching on a shared server changes the numerics (80 distinct completions out of 1,000 in Thinking Machines' test, above).</div></details>
-<details class="mist"><summary>"Top-p 0.9 keeps a handful of tokens"</summary><div class="b">Only at moderate temperature. At T 1.5 on a step where the model is 96% sure, top-p 0.9 keeps 5,166 of 151,936 tokens <i class="nl m">measured here</i>; whatever temperature spreads out, top-p collects back.</div></details>
-<details class="mist"><summary>"Min-p is proven better than top-p"</summary><div class="b">The mechanism is real; the evidence that it improves quality is disputed (Schaeffer et al., 2025). Tune both on your own task.</div></details>
-<details class="mist"><summary>"The sampler order is fixed"</summary><div class="b">Hugging Face and vLLM apply temperature before truncation; llama.cpp applies it after by default. The same settings keep different token sets.</div></details>
-<details class="mist"><summary>"Beam search finds better text"</summary><div class="b">It finds more probable text, which for open-ended generation is more repetitive text (the loops above). Use it for short closed-ended outputs.</div></details>
-<details class="mist"><summary>"A repetition penalty is free"</summary><div class="b">It penalises every repeated token, including the correct ones (a name, a pattern, code identifiers).</div></details>
-<details class="mist"><summary>"Constrained decoding cannot hurt quality"</summary><div class="b">It guarantees the format, not the content: when the grammar overrules the model (0.0004% in the example above) everything after is conditioned on text it would not have written.</div></details>
+</section>
 </div>
 <div class="tab" id="t-lab" role="tabpanel" hidden>
 <h2>Sampler lab</h2>
-<p>Every sampler from the <a href="#" data-tab="t-read">Reading</a> tab, applied to 32 real next-token distributions: four prompts to Qwen2.5-0.5B-Instruct, eight positions each along the model's own greedy reply. Pick a prompt and a position, move the controls, and see which tokens survive and how likely each becomes. "Draw 200" samples from the result.</p>
+<p>Every sampler from the <a href="#" data-tab="t-read">Reading</a> tab (sections 2 and 4), applied to 32 real next-token distributions: four prompts to Qwen2.5-0.5B-Instruct, eight positions each along the model's own greedy reply. Pick a prompt and a position, move the controls, and see which tokens survive and how likely each becomes. "Draw 200" samples from the result.</p>
 <div class="ctl2">
 <label>Prompt <select id="lb-q"></select></label>
 <label>Position in the reply <select id="lb-pos"></select></label>
@@ -326,23 +387,8 @@ select{max-width:100%;min-width:0}.ctl2 select{width:100%}.foot code{overflow-wr
 <li><b>High temperature.</b> Preset "T 2, top-p 0.95" against "T 2, min-p 0.1" on any uncertain step: 58,000 to 77,000 tokens against 16 to 177 at the steps tried <i class="nl m">measured here</i>.</li>
 <li><b>Order.</b> llama.cpp defaults, then flip the order to "First" at T 1.5: the same numbers keep a different set.</li>
 <li><b>Penalties hurt correct repeats.</b> Pattern, position 7: the right token " blue" is already in the context. Repetition penalty 1.3 cuts its probability from 99.9% to 73.6%, because it appears three times in the context (the prompt counts). A frequency penalty of 1 barely moves it (99.7%): the margin is large and it was generated only once so far.</li>
-<li><b>Typical sampling</b> at 0.5 drops the single most likely token on four of the five uncertain steps tried (Lighthouse 1 and 2, Kitten 1 and 3), because its surprisal is far below the entropy.</li>
 </ul>
 <p class="small mute">Data: <a href="https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct" target="_blank" rel="noopener noreferrer">Qwen2.5-0.5B-Instruct</a> (Apache 2.0), float32 on CPU, chat template with the default system prompt; logits saved by <code>src/make_data.py</code>. Sampler rules follow <a href="https://github.com/huggingface/transformers/blob/main/src/transformers/generation/logits_process.py" target="_blank" rel="noopener noreferrer">transformers</a> (temperature first) and <a href="https://github.com/ggml-org/llama.cpp/blob/master/common/common.h" target="_blank" rel="noopener noreferrer">llama.cpp</a> (temperature last). Presets from <a href="https://github.com/ggml-org/llama.cpp/blob/master/common/common.h" target="_blank" rel="noopener noreferrer">llama.cpp</a>, <a href="https://huggingface.co/Qwen/Qwen3-8B" target="_blank" rel="noopener noreferrer">Qwen3</a> and <a href="https://huggingface.co/deepseek-ai/DeepSeek-R1" target="_blank" rel="noopener noreferrer">DeepSeek-R1</a>; "Chat rule of thumb" is the original page's.</p>
-</div>
-<div class="tab" id="t-deg" role="tabpanel" hidden>
-<h2>Twelve decoders, real text</h2>
-<p>The question behind every sampler: across all decoders and temperatures, how does staying probable trade against sounding like a person? This tab reruns the comparison of <a href="https://arxiv.org/abs/1904.09751" target="_blank" rel="noopener noreferrer">Holtzman et al. (2019)</a> on a small scale. GPT-2 small (124M) is given the first 48 tokens of four paragraphs from Jerome K. Jerome's <i><a href="https://www.gutenberg.org/ebooks/308" target="_blank" rel="noopener noreferrer">Three Men in a Boat</a></i> (public domain) and writes 48 more, 16 times per decoder; the real next 48 tokens are the human reference <i class="nl m">measured here</i>.</p>
-<div class="fl"><span>Measures, all on GPT-2 small:</span><span><b>Perplexity</b>: exp of minus the mean log-probability per token at T = 1 (how surprised the model is by the text; human text is the target, not the minimum)</span><span><b>Repetition</b>: share of a text's 4-grams that repeat an earlier 4-gram</span><span><b>Diversity</b>: distinct-2 over the 16 samples of a passage (greedy and beam give one text 16 times, so their figure is divided by 16)</span></div>
-<div class="card"><div id="dg-plot" class="plot"></div>
-<div class="fl" id="dg-leg"></div><p class="small mute">Hover a dot for its decoder; on a narrow screen only a few dots are labelled and the table below has every value.</p></div>
-<p class="small mute" id="dg-repro"></p>
-<div class="tw"><table id="dg-tab"></table></div>
-<h3>Read the samples</h3>
-<div class="ctl2"><label>Decoder <select id="dg-set"></select></label><label>Passage <select id="dg-pas"></select></label></div>
-<div class="ctxt" id="dg-ctx"></div>
-<div id="dg-samp"></div>
-<p class="small mute">Every sampled decoder starts from the same random seed, so pure sampling and top-p 0.95 often write the same words until the first draw that top-p's cut removes. Texts are GPT-2's, unedited except that newlines are shown as &#8629; and any em-dash the model wrote is shown as "--". Three samples per passage are shown, skipping any that match a short list of slurs, sexual and violent words (GPT-2 at high temperature produces them); the measures use all 16. Em-dashes in Jerome's text were replaced by commas before tokenising. Script: <code>src/make_data.py degen</code>; numbers: <code>src/recompute.py</code>.</p>
 </div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more">
@@ -351,7 +397,6 @@ select{max-width:100%;min-width:0}.ctl2 select{width:100%}.foot code{overflow-wr
 <h3>On this page</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="#" data-tab="t-lab">Sampler lab</a></div><p>Temperature, top-k, top-p, min-p, typical and the three repetition penalties on 32 real distributions, in either sampler order.</p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-deg">Twelve decoders, real text</a></div><p>Greedy, beam and ten samplers on GPT-2 small against the real continuation: perplexity, repetition, diversity and the texts themselves.</p></div>
 </div>
 <h3>Related pages</h3>
 <div class="grid">
@@ -386,9 +431,9 @@ select{max-width:100%;min-width:0}.ctl2 select{width:100%}.foot code{overflow-wr
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -419,7 +464,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -433,12 +478,22 @@ window.RD=(function(){
     };
   }
   // width available inside an element (falls back when the tab is hidden)
-  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.min(860,(document.documentElement.clientWidth||900)-60)};
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
   // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
   function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
     const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
   return {RM,esc,stat,anim,onRender,width,tabLinks};
 })();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
 </script>
 <script>/* 22_js_data.js */
 // Generated by make_page_data.py from inputs/*.json (real model outputs; see make_data.py). Do not edit.
@@ -567,6 +622,81 @@ SD.fmtN=v=>Math.round(v).toLocaleString('en-GB');
   seg('rd-ppM','m');seg('rd-ppI','inp');seg('rd-ppT','T',Number);
 })();
 </script>
+<script>/* 26_js_rd_hero.js */
+// ---- Reading hero: one real next-token distribution (Qwen2.5-0.5B-Instruct, lighthouse story, token 2) through the six stages of a decoder ----
+// Static diagram drawn from the page's data with the page's sampler (numbers quoted in the caption: src/reading_numbers.mjs).
+(function(){
+  const el=document.getElementById('sd-hero');if(!el||!window.SD||!SD.run)return;
+  const pos=SD.LAB.prompts.find(p=>p.k==='story').pos[1];
+  const E=SD.entries(pos),base={k:0,p:1,minp:0,typ:1,order:'first'};
+  const R1=SD.run(E,Object.assign({},base,{T:1})),RT=SD.run(E,Object.assign({},base,{T:1.5})),RM=SD.run(E,Object.assign({},base,{T:1.5,minp:0.1}));
+  const N=8,V=E.reduce((a,e)=>a+e.n,0),sc=R1.pre[0];
+  const pick=+Object.keys(SD.draw(RM,1,7))[0];
+  const lmin=E[N-1].l-1,lmax=E[0].l;
+  const pct=v=>(v*100).toFixed(1)+'%';
+  const stages=[
+    ['1 Logits',SD.fmtN(V)+' scores',j=>(E[j].l-lmin)/(lmax-lmin),()=> 'var(--mute)'],
+    ['2 Processors','penalties, mask',j=>(E[j].l-lmin)/(lmax-lmin),()=> 'var(--mute)'],
+    ['3 Temperature','T 1.5: top '+pct(RT.pre[0]),j=>RT.pre[j]/sc,()=> 'var(--mute)'],
+    ['4 Truncate','min-p 0.1: '+RM.kept+' kept',j=>RT.pre[j]/sc,j=>RM.keep[j]?'var(--acc)':'var(--dim)'],
+    ['5 Renormalise','top '+pct(RM.fin[0]),j=>RM.fin[j]/sc,()=> 'var(--acc)'],
+    ['6 Choose','argmax or a draw',j=>RM.fin[j]/sc,j=>j===pick?'var(--acc)':'var(--dim)']
+  ];
+  function draw(){
+    const W=RD.width(el),cols=W>=640?6:3,gap=W>=640?14:12,bw=(W-(cols-1)*gap)/cols,bh=100,rg=26;
+    const rows=Math.ceil(stages.length/cols),H=rows*bh+(rows-1)*rg+2;
+    let s='';
+    const xy=i=>[(i%cols)*(bw+gap),Math.floor(i/cols)*(bh+rg)+1];
+    stages.forEach((st,i)=>{
+      const [x,y]=xy(i);
+      s+='<rect class="'+(i===3?'boxa':'box')+'" x="'+(x+.5)+'" y="'+y+'" width="'+(bw-1)+'" height="'+bh+'" rx="7"/>';
+      s+='<text class="b" x="'+(x+8)+'" y="'+(y+16)+'">'+st[0]+'</text><text class="m" x="'+(x+8)+'" y="'+(y+31)+'">'+st[1]+'</text>';
+      const bx=x+8,bwid=bw-16,slot=bwid/N,top=y+40,hh=bh-48;
+      for(let j=0;j<N;j++){const v=Math.max(0,Math.min(1,st[2](j)));const h=Math.max(1,v*hh);
+        s+='<rect x="'+(bx+j*slot+1).toFixed(1)+'" y="'+(top+hh-h).toFixed(1)+'" width="'+Math.max(1,slot-2).toFixed(1)+'" height="'+h.toFixed(1)+'" rx="1" fill="'+st[3](j)+'"/>'}
+      if(i<stages.length-1){const [x2,y2]=xy(i+1);
+        if(y2===y)s+='<path d="M'+(x+bw+1)+' '+(y+bh/2)+' H'+(x2-3)+'" stroke="var(--mute)" stroke-width="1.5" marker-end="url(#sdh-ar)"/>';
+        else s+='<path d="M'+(x+bw/2)+' '+(y+bh)+' V'+(y+bh+rg/2)+' H'+(x2+bw/2)+' V'+(y2-3)+'" fill="none" stroke="var(--mute)" stroke-width="1.5" marker-end="url(#sdh-ar)"/>'}
+    });
+    const defs='<defs><marker id="sdh-ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--mute)"/></marker></defs>';
+    el.innerHTML=RD.svg(W,H,defs+s,'The decoder in six stages on one real distribution');
+  }
+  RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
+<script>/* 26_js_rd_pen.js */
+// ---- Reading section 4: what a repetition penalty and a frequency penalty do to a correct repeat (pattern prompt, position 7) ----
+// Same arithmetic as the Sampler lab: repetition penalty on context counts, frequency on generated counts (src/reading_numbers.mjs).
+(function(){
+  const el=document.getElementById('sd-pen');if(!el||!window.SD||!SD.run)return;
+  const pos=SD.LAB.prompts.find(p=>p.k==='pattern').pos[6];
+  const base={k:0,p:1,minp:0,typ:1,order:'first',T:1};
+  function run(rep,freq){const E=SD.entries(pos);
+    const E2=E.map((e,i)=>{if(e.tail)return e;let l=e.l;const cr=pos.c[i],cg=pos.g[i];
+      if(cr>0&&rep!==1)l=l>0?l/rep:l*rep;if(cg>0)l-=freq*cg;return Object.assign({},e,{l,c:0})});
+    return {E2,R:SD.run(E2,base)}}
+  const panels=[['No penalty',1,0],['Repetition penalty 1.3',1.3,0],['Frequency penalty 1',1,1]].map(([t,r,f])=>Object.assign({t},run(r,f)));
+  const f1=v=>v>=0.01&&v<1?(v*100).toFixed(1)+'%':SD.fmtP(v);
+  const lmax=Math.ceil(pos.l[0]);
+  function draw(){
+    const W=RD.width(el),stack=W<600,gap=12,pw=stack?W:(W-2*gap)/3,ph=92;
+    let s='';
+    panels.forEach((P,k)=>{
+      const x=stack?0:k*(pw+gap),y=stack?k*(ph+gap):0;
+      s+='<rect class="box" x="'+(x+.5)+'" y="'+(y+.5)+'" width="'+(pw-1)+'" height="'+(ph-1)+'" rx="7"/>';
+      s+='<text class="b" x="'+(x+8)+'" y="'+(y+16)+'">'+P.t+'</text>';
+      [0,1].forEach(j=>{const yy=y+26+j*20,lab=SD.vis(P.E2[j].t),bx=x+52,bwid=pw-52-56,v=P.E2[j].l;
+        s+='<text x="'+(x+8)+'" y="'+(yy+11)+'" '+(j===0?'class="h"':'')+'>'+RD.esc(lab)+'</text>';
+        s+='<rect x="'+bx+'" y="'+(yy+2)+'" width="'+Math.max(1,bwid*v/lmax).toFixed(1)+'" height="11" rx="2" fill="'+(j===0?'var(--acc)':'var(--mute)')+'"/>';
+        s+='<text class="m" x="'+(x+pw-8)+'" y="'+(yy+11)+'" text-anchor="end">z '+v.toFixed(2)+'</text>'});
+      s+='<text x="'+(x+8)+'" y="'+(y+ph-12)+'">p(<tspan class="h">'+RD.esc(SD.vis(P.E2[0].t))+'</tspan>) = <tspan font-weight="600">'+f1(P.R.fin[0])+'</tspan>, runner-up '+f1(P.R.fin[1])+'</text>';
+    });
+    const H=stack?3*ph+2*gap:ph;
+    el.innerHTML=RD.svg(W,H,s,'Logits and probability of the correct repeat under each penalty');
+  }
+  RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
 <script>/* 27_js_beam.js */
 // ---- Reading: greedy against beam search on the same GPT-2 prompt, real log-probabilities ----
 (function(){
@@ -607,7 +737,7 @@ SD.fmtN=v=>Math.round(v).toLocaleString('en-GB');
   }
   const A=RD.anim({card:'rd-bm',ctl:'rd-bmC',n:S.length+1,draw,ms:2600,label:'Step'});
   const el=document.getElementById('rd-bmM');
-  el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.m;A.reset(S.length+1);A.play()}));
+  el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.m;A.reset(S.length+1)}));
   const v=s=>esc(s).replace(/\n/g,' ↵ ');
   document.getElementById('rd-bmG').innerHTML=v(B.long.greedy);
   document.getElementById('rd-bmB').innerHTML=v(B.long.beam4);
@@ -655,7 +785,100 @@ SD.fmtN=v=>Math.round(v).toLocaleString('en-GB');
   }
   const A=RD.anim({card:'rd-js',ctl:'rd-jsC',n:J.free_steps.length,draw,ms:1700,label:'Step'});
   const el=document.getElementById('rd-jsM');
-  el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.m;A.reset(steps().length);A.play()}));
+  el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.m;A.reset(steps().length)}));
+})();
+</script>
+<script>/* 28_js_rd_mask.js */
+// ---- Reading section 5: the grammar mask at step 0, and the allowed-set size at every step (real Qwen2.5-0.5B-Instruct steps, SD.JSONC) ----
+(function(){
+  const J=window.SD&&SD.JSONC;if(!J)return;
+  const V=J.vocab;
+  const f1=v=>v>=0.01&&v<1?(v*100).toFixed(1)+'%':SD.fmtP(v);
+  const m=document.getElementById('sd-mask');
+  function mask(){
+    const s=J.steps[0],rows=s.top.slice(0,8),W=RD.width(m);
+    const tw=W<480?58:84,mw=W<480?34:46,gap=10,bw=(W-tw-mw-2*gap)/2,rh=20,top=30;
+    const x1=tw,x2=x1+bw+gap,x3=x2+mw+gap;
+    let g='<text class="m" x="0" y="14">token</text><text class="m" x="'+x1+'" y="14">model p</text><text class="m" x="'+x2+'" y="14">mask</text><text class="m" x="'+x3+'" y="14">p after mask</text>';
+    rows.forEach((t,i)=>{const y=top+i*rh,after=t.ok?t.p/s.mass_allowed:0;
+      g+='<text x="0" y="'+(y+12)+'"'+(t.ok?' class="h"':'')+'>'+RD.esc(SD.vis(t.t))+'</text>';
+      g+='<rect x="'+x1+'" y="'+(y+3)+'" width="'+Math.max(1,(bw-44)*t.p).toFixed(1)+'" height="11" rx="2" fill="var(--mute)"/><text class="m" x="'+(x1+bw)+'" y="'+(y+12)+'" text-anchor="end">'+f1(t.p)+'</text>';
+      g+='<text x="'+(x2+mw/2)+'" y="'+(y+12)+'" text-anchor="middle" class="'+(t.ok?'h':'bad')+'">'+(t.ok?'0':'&#8722;&#8734;')+'</text>';
+      g+=(t.ok?'<rect x="'+x3+'" y="'+(y+3)+'" width="'+Math.max(1,(bw-44)*after).toFixed(1)+'" height="11" rx="2" fill="var(--acc)"/>':'')+'<text class="'+(t.ok?'h':'m')+'" x="'+(x3+bw)+'" y="'+(y+12)+'" text-anchor="end">'+(t.ok?f1(after):'0')+'</text>';
+    });
+    // the whole vocabulary as one strip
+    const ys=top+rows.length*rh+14,sw=W-2,aw=Math.max(3,sw*s.n_allowed/V);
+    g+='<text class="m" x="0" y="'+ys+'">the whole vocabulary (the allowed sliver widened to be visible)</text>';
+    g+='<rect x="1" y="'+(ys+6)+'" width="'+sw+'" height="14" rx="3" fill="var(--dim)"/><rect x="1" y="'+(ys+6)+'" width="'+aw.toFixed(1)+'" height="14" rx="1" fill="var(--acc)"/>';
+    g+='<text class="h" x="0" y="'+(ys+34)+'">'+s.n_allowed+' allowed</text><text class="m" x="'+(W-1)+'" y="'+(ys+34)+'" text-anchor="end">'+SD.fmtN(V-s.n_allowed)+' masked to &#8722;&#8734;</text>';
+    m.innerHTML=RD.svg(W,ys+40,g,'Model probabilities, the mask and the renormalised probabilities at the first step');
+  }
+  const z=document.getElementById('sd-msz');
+  function sizes(){
+    const S=J.steps,W=RD.width(z),pl=40,pr=4,pt=24,ph=150,pb=W<520?66:58,H=pt+ph+pb,n=S.length,bw=(W-pl-pr)/n,L=Math.log10(V);
+    const Y=v=>pt+ph*(1-Math.log10(Math.max(1,v))/L);
+    let g='';
+    [1,10,100,1000,10000,100000].forEach(v=>{g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/><text class="m" x="'+(pl-5)+'" y="'+(Y(v)+4)+'" text-anchor="end">'+(v>=1000?(v/1000)+'k':v)+'</text>'});
+    g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(V)+'" y2="'+Y(V)+'" stroke="var(--mute)" stroke-dasharray="4 3"/><text class="m" x="'+(W-pr)+'" y="'+(Y(V)-4)+'" text-anchor="end">whole vocabulary '+SD.fmtN(V)+'</text>';
+    S.forEach((s,i)=>{const x=pl+i*bw,y=Y(s.n_allowed),over=s.mass_allowed<0.05;
+      g+='<rect x="'+(x+1).toFixed(1)+'" y="'+Math.min(y,pt+ph-2).toFixed(1)+'" width="'+Math.max(1,bw-2).toFixed(1)+'" height="'+Math.max(2,pt+ph-y).toFixed(1)+'" rx="1" fill="'+(over?'var(--bad)':'var(--acc)')+'"><title>step '+i+': '+SD.fmtN(s.n_allowed)+' allowed, holding '+SD.fmtP(s.mass_allowed)+'</title></rect>';
+      const cx=x+bw/2;
+      if(W>=520||i%2===0)g+='<text class="m" x="'+cx.toFixed(1)+'" y="'+(pt+ph+13)+'" text-anchor="middle">'+i+'</text>';
+      const tk=s.pick==='<end>'?'[end]':SD.vis(s.pick);
+      g+='<text x="'+cx.toFixed(1)+'" y="'+(pt+ph+24)+'" transform="rotate(-60 '+cx.toFixed(1)+' '+(pt+ph+24)+')" text-anchor="end"'+(over?' class="bad"':'')+'>'+RD.esc(tk.length>6?tk.slice(0,6):tk)+'</text>'});
+    z.innerHTML=RD.svg(W,H,g,'Allowed tokens at each step of the constrained run, log scale');
+  }
+  if(m){RD.onRender(mask);RD.onResize(mask)}
+  if(z){RD.onRender(sizes);RD.onResize(sizes)}
+})();
+</script>
+<script>/* 29_js_rd_deg.js */
+// ---- Reading section 3: twelve decoders, perplexity against diversity (moved from the old Twelve decoders tab), table and sample reader ----
+(function(){
+  const $=id=>document.getElementById(id);
+  const D=SD.DEG,S=D.settings;
+  const ppl=lp=>Math.exp(-lp);
+  const hum=D.passages.reduce((a,p)=>a+p.human_lp,0)/D.passages.length;
+  const H=ppl(hum);
+  const col=s=>s.det?'var(--c2)':/min-p/.test(s.label)?'var(--c5)':/top-p/.test(s.label)?'var(--c1)':'var(--c4)';
+  const fmtp=v=>v>=1000?SD.fmtN(v):v>=100?v.toFixed(0):v.toFixed(1);
+  function plot(){
+    const el=$('dg-plot');const W=Math.max(300,RD.width(el)),Hh=W<520?300:340,pl=46,pr=14,pt=14,pb=40;
+    const x0=Math.log10(1.5),x1=Math.log10(1e5);
+    const X=v=>pl+(W-pl-pr)*(Math.log10(v)-x0)/(x1-x0),Y=v=>pt+(Hh-pt-pb)*(1-v);
+    let s='';
+    [2,5,10,30,100,1000,1e4,1e5].forEach(v=>{s+='<line x1="'+X(v)+'" x2="'+X(v)+'" y1="'+pt+'" y2="'+(Hh-pb)+'" stroke="var(--line)"/><text x="'+X(v)+'" y="'+(Hh-pb+14)+'" text-anchor="middle" fill="var(--mute)" font-size="10.5">'+(v>=1000?(v/1000)+'k':v)+'</text>'});
+    [0,0.25,0.5,0.75,1].forEach(v=>{s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/><text x="'+(pl-6)+'" y="'+(Y(v)+4)+'" text-anchor="end" fill="var(--mute)" font-size="10.5">'+v+'</text>'});
+    s+='<text x="'+((pl+W-pr)/2)+'" y="'+(Hh-6)+'" text-anchor="middle" fill="var(--mute)" font-size="11">perplexity under GPT-2 small (log scale)</text>';
+    s+='<text x="12" y="'+((pt+Hh-pb)/2)+'" text-anchor="middle" fill="var(--mute)" font-size="11" transform="rotate(-90 12 '+((pt+Hh-pb)/2)+')">diversity (distinct-2)</text>';
+    s+='<line x1="'+X(H)+'" x2="'+X(H)+'" y1="'+pt+'" y2="'+(Hh-pb)+'" stroke="var(--good)" stroke-width="2" stroke-dasharray="5 3"/><text x="'+(X(H)+4)+'" y="'+(pt+12)+'" fill="var(--good)" font-size="11">human text '+H.toFixed(1)+'</text>';
+    // labels: short names, placed right of the dot unless near the edge
+    const short=l=>l.replace('Pure sampling, ','pure ').replace('Beam search, 4 beams','beam 4').replace(', ',' ');
+    const placed=[];
+    S.forEach((d,i)=>{const x=X(ppl(d.mean_lp)),y=Y(d.div);s+='<circle cx="'+x+'" cy="'+y+'" r="5" fill="'+col(d)+'"><title>'+d.label+': perplexity '+fmtp(ppl(d.mean_lp))+', diversity '+d.div.toFixed(3)+'</title></circle>';
+      let lx=x+7,anchor='start';const tw=short(d.label).length*5.6;if(lx+tw>W-pr){lx=x-7;anchor='end'}
+      let ly=y+4;for(let k=0;k<6&&placed.some(p=>Math.abs(p[0]-lx)<tw&&Math.abs(p[1]-ly)<11);k++)ly+=11;placed.push([lx,ly]);
+      if(W>=600||d.det||/T 2, top-p|T 3/.test(d.label))s+='<text x="'+lx+'" y="'+ly+'" font-size="10.5" text-anchor="'+anchor+'" fill="var(--ink)">'+short(d.label)+'</text>'});
+    el.innerHTML='<svg viewBox="0 0 '+W+' '+Hh+'" width="'+W+'" role="img" aria-label="Perplexity against diversity for twelve decoders" class="scat">'+s+'</svg>';
+    $('dg-leg').innerHTML=[['var(--c2)','search (greedy, beam)'],['var(--c4)','pure sampling, top-k'],['var(--c1)','top-p'],['var(--c5)','min-p'],['var(--good)','human continuation']].map(([c,t])=>'<span><span class="sw" style="background:'+c+'"></span>'+t+'</span>').join('');
+  }
+  // table
+  let h='<tr><th>Decoder</th><th class="num">Perplexity</th><th class="num">Repetition</th><th class="num">Diversity</th></tr>';
+  h+='<tr><td><b>Human continuation</b></td><td class="num"><b>'+H.toFixed(1)+'</b></td><td class="num">n/a</td><td class="num">n/a</td></tr>';
+  S.forEach(d=>{h+='<tr><td>'+d.label+'</td><td class="num">'+fmtp(ppl(d.mean_lp))+'</td><td class="num">'+(d.rep4*100).toFixed(1)+'%</td><td class="num">'+d.div.toFixed(3)+'</td></tr>'});
+  $('dg-tab').innerHTML=h;
+  // sample reader
+  S.forEach((d,i)=>$('dg-set').insertAdjacentHTML('beforeend','<option value="'+i+'">'+d.label+'</option>'));
+  D.passages.forEach((p,i)=>$('dg-pas').insertAdjacentHTML('beforeend','<option value="'+i+'">Passage '+(i+1)+': "'+RD.esc(p.prompt.split(' ').slice(0,5).join(' '))+' …"</option>'));
+  const nl=s=>RD.esc(s).replace(/\n/g,' ↵ ');
+  function samples(){const d=S[+$('dg-set').value],pi=+$('dg-pas').value,p=D.passages[pi];
+    $('dg-ctx').innerHTML='<span class="q">'+nl(p.prompt)+'</span>';
+    let h='<div class="samp" style="border-color:var(--good)"><span class="m">Human continuation (the book): perplexity '+ppl(p.human_lp).toFixed(1)+'</span>'+nl(p.human)+'</div>';
+    d.samples.filter(x=>x.p===pi).forEach((x,k)=>{h+='<div class="samp"><span class="m">'+d.label+(d.det?'':', sample '+(k+1))+': perplexity '+fmtp(ppl(x.lp))+', repetition '+(x.rep4*100).toFixed(0)+'%</span>'+nl(x.text)+'</div>'});
+    $('dg-samp').innerHTML=h}
+  $('dg-set').addEventListener('change',samples);$('dg-pas').addEventListener('change',samples);
+  $('dg-set').value=String(S.findIndex(s=>s.key==='t15p95'));samples();
+  RD.onRender(plot);RD.onResize(plot);
 })();
 </script>
 <script>/* 30_js_lab.js */
@@ -734,60 +957,8 @@ SD.fmtN=v=>Math.round(v).toLocaleString('en-GB');
   (window.TAB_RENDER=window.TAB_RENDER||{});(TAB_RENDER['t-lab']=TAB_RENDER['t-lab']||[]).push(render);
 })();
 </script>
-<script>/* 31_js_deg.js */
-// ---- Twelve decoders tab: perplexity against diversity, table, sample reader ----
-(function(){
-  const $=id=>document.getElementById(id);
-  const D=SD.DEG,S=D.settings;
-  const ppl=lp=>Math.exp(-lp);
-  const hum=D.passages.reduce((a,p)=>a+p.human_lp,0)/D.passages.length;
-  const H=ppl(hum);
-  const col=s=>s.det?'var(--c2)':/min-p/.test(s.label)?'var(--c5)':/top-p/.test(s.label)?'var(--c1)':'var(--c4)';
-  const fmtp=v=>v>=1000?SD.fmtN(v):v>=100?v.toFixed(0):v.toFixed(1);
-  function plot(){
-    const el=$('dg-plot');const W=Math.max(300,RD.width(el)),Hh=W<520?300:340,pl=46,pr=14,pt=14,pb=40;
-    const x0=Math.log10(1.5),x1=Math.log10(1e5);
-    const X=v=>pl+(W-pl-pr)*(Math.log10(v)-x0)/(x1-x0),Y=v=>pt+(Hh-pt-pb)*(1-v);
-    let s='';
-    [2,5,10,30,100,1000,1e4,1e5].forEach(v=>{s+='<line x1="'+X(v)+'" x2="'+X(v)+'" y1="'+pt+'" y2="'+(Hh-pb)+'" stroke="var(--line)"/><text x="'+X(v)+'" y="'+(Hh-pb+14)+'" text-anchor="middle" fill="var(--mute)" font-size="10.5">'+(v>=1000?(v/1000)+'k':v)+'</text>'});
-    [0,0.25,0.5,0.75,1].forEach(v=>{s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/><text x="'+(pl-6)+'" y="'+(Y(v)+4)+'" text-anchor="end" fill="var(--mute)" font-size="10.5">'+v+'</text>'});
-    s+='<text x="'+((pl+W-pr)/2)+'" y="'+(Hh-6)+'" text-anchor="middle" fill="var(--mute)" font-size="11">perplexity under GPT-2 small (log scale)</text>';
-    s+='<text x="12" y="'+((pt+Hh-pb)/2)+'" text-anchor="middle" fill="var(--mute)" font-size="11" transform="rotate(-90 12 '+((pt+Hh-pb)/2)+')">diversity (distinct-2)</text>';
-    s+='<line x1="'+X(H)+'" x2="'+X(H)+'" y1="'+pt+'" y2="'+(Hh-pb)+'" stroke="var(--good)" stroke-width="2" stroke-dasharray="5 3"/><text x="'+(X(H)+4)+'" y="'+(pt+12)+'" fill="var(--good)" font-size="11">human text '+H.toFixed(1)+'</text>';
-    // labels: short names, placed right of the dot unless near the edge
-    const short=l=>l.replace('Pure sampling, ','pure ').replace('Beam search, 4 beams','beam 4').replace(', ',' ');
-    const placed=[];
-    S.forEach((d,i)=>{const x=X(ppl(d.mean_lp)),y=Y(d.div);s+='<circle cx="'+x+'" cy="'+y+'" r="5" fill="'+col(d)+'"><title>'+d.label+': perplexity '+fmtp(ppl(d.mean_lp))+', diversity '+d.div.toFixed(3)+'</title></circle>';
-      let lx=x+7,anchor='start';const tw=short(d.label).length*5.6;if(lx+tw>W-pr){lx=x-7;anchor='end'}
-      let ly=y+4;for(let k=0;k<6&&placed.some(p=>Math.abs(p[0]-lx)<tw&&Math.abs(p[1]-ly)<11);k++)ly+=11;placed.push([lx,ly]);
-      if(W>=600||d.det||/T 2, top-p|T 3/.test(d.label))s+='<text x="'+lx+'" y="'+ly+'" font-size="10.5" text-anchor="'+anchor+'" fill="var(--ink)">'+short(d.label)+'</text>'});
-    el.innerHTML='<svg viewBox="0 0 '+W+' '+Hh+'" width="'+W+'" role="img" aria-label="Perplexity against diversity for twelve decoders" class="scat">'+s+'</svg>';
-    $('dg-leg').innerHTML=[['var(--c2)','search (greedy, beam)'],['var(--c4)','pure sampling, top-k'],['var(--c1)','top-p'],['var(--c5)','min-p'],['var(--good)','human continuation']].map(([c,t])=>'<span><span class="sw" style="background:'+c+'"></span>'+t+'</span>').join('');
-  }
-  // table
-  let h='<tr><th>Decoder</th><th class="num">Perplexity</th><th class="num">Repetition</th><th class="num">Diversity</th></tr>';
-  h+='<tr><td><b>Human continuation</b></td><td class="num"><b>'+H.toFixed(1)+'</b></td><td class="num">n/a</td><td class="num">n/a</td></tr>';
-  S.forEach(d=>{h+='<tr><td>'+d.label+'</td><td class="num">'+fmtp(ppl(d.mean_lp))+'</td><td class="num">'+(d.rep4*100).toFixed(1)+'%</td><td class="num">'+d.div.toFixed(3)+'</td></tr>'});
-  $('dg-tab').innerHTML=h;
-  const g=S.find(s=>s.key==='greedy'),b=S.find(s=>s.key==='beam'),pu=S.find(s=>s.key==='pure'),p95=S.find(s=>s.key==='p95');
-  $('dg-repro').innerHTML='Defaults reproduce the ordering of Holtzman et al.\'s Table 1 independently (GPT-2 small and 4 passages here; GPT-2 Large and 5,000 WebText passages there): search far below human perplexity (greedy '+fmtp(ppl(g.mean_lp))+', beam '+fmtp(ppl(b.mean_lp))+' against '+H.toFixed(1)+'; theirs 1.50 and 1.48 against 12.38), pure sampling above it ('+fmtp(ppl(pu.mean_lp))+'; theirs 22.73) and top-p 0.95 closest ('+fmtp(ppl(p95.mean_lp))+'; theirs 13.13). The absolute values do not compare across the two studies: a smaller model is more surprised by everything. Perplexity near human is a necessary condition for human-like text, not a measure of quality.';
-  // sample reader
-  S.forEach((d,i)=>$('dg-set').insertAdjacentHTML('beforeend','<option value="'+i+'">'+d.label+'</option>'));
-  D.passages.forEach((p,i)=>$('dg-pas').insertAdjacentHTML('beforeend','<option value="'+i+'">Passage '+(i+1)+': "'+RD.esc(p.prompt.split(' ').slice(0,5).join(' '))+' …"</option>'));
-  const nl=s=>RD.esc(s).replace(/\n/g,' ↵ ');
-  function samples(){const d=S[+$('dg-set').value],pi=+$('dg-pas').value,p=D.passages[pi];
-    $('dg-ctx').innerHTML='<span class="q">'+nl(p.prompt)+'</span>';
-    let h='<div class="samp" style="border-color:var(--good)"><span class="m">Human continuation (the book): perplexity '+ppl(p.human_lp).toFixed(1)+'</span>'+nl(p.human)+'</div>';
-    d.samples.filter(x=>x.p===pi).forEach((x,k)=>{h+='<div class="samp"><span class="m">'+d.label+(d.det?'':', sample '+(k+1))+': perplexity '+fmtp(ppl(x.lp))+', repetition '+(x.rep4*100).toFixed(0)+'%</span>'+nl(x.text)+'</div>'});
-    $('dg-samp').innerHTML=h}
-  $('dg-set').addEventListener('change',samples);$('dg-pas').addEventListener('change',samples);
-  $('dg-set').value=String(S.findIndex(s=>s.key==='t15p95'));samples();
-  (window.TAB_RENDER=window.TAB_RENDER||{});(TAB_RENDER['t-deg']=TAB_RENDER['t-deg']||[]).push(plot);
-  addEventListener('resize',()=>{if(!$('t-deg').hidden)plot()});
-})();
-</script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace sampling-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -805,6 +976,8 @@ SD.fmtN=v=>Math.round(v).toLocaleString('en-GB');
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('sampling-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

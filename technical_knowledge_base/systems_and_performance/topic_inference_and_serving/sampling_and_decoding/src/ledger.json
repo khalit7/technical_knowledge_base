@@ -1,0 +1,1816 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Sampling and Decoding Sampling and Decoding How a language model's next-token probabilities become text: greedy and beam search, temperature and truncation samplers, repetition controls, grammar-constrained output, and the techniques built on sampling.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "header blurb rewritten"
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Every distribution on this page is real, computed offline from small open models.",
+  "label": "core",
+  "key": "Every distribution on this page is real",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Part of Topic: inference-and-serving ; sources linked inline; as of 3 October 2026.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "parent link and date in the new header"
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "16 min read · +5h 20m resources Reading Sampler lab Twelve decoders, real text Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old reading-time line"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "A language model does not write text.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the core sentence carries it"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "At each step it outputs one number per vocabulary entry, and a separate rule, the decoder , turns those numbers into the next token.",
+  "label": "core",
+  "key": "a separate rule, the decoder",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "The same model gives repetitive, bland, creative or broken text depending on that rule alone.",
+  "label": "core",
+  "key": "writes loops, sensible prose, noise or valid JSON",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page is about the rule: searching for the most probable text, sampling from a reshaped distribution, forcing a format, and the inference techniques built on sampling.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "table of contents in prose"
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "Where this sits: a child of Topic: inference-and-serving , which follows a request through a serving engine; this page owns the step at the end of every forward pass, where the next token is picked from the probabilities.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "where-this-sits note; the header links the parent"
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "Training draws from the same stack for RL rollouts and rejection sampling ( Topic: llm-training-and-post-training ).",
+  "label": "core",
+  "key": "rejection sampling",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "Numbers are published, with the source linked, unless marked derived (formula shown), measured here (computed offline on a small open model, script in the page source), illustrative or unconfirmed .",
+  "label": "core",
+  "key": "Numbers are published, with the source linked",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "from logits to a token",
+  "text": "From logits to a token One forward pass ends in a vector of logits z , one per vocabulary entry: 151,936 for Qwen2.5-0.5B-Instruct , the small open model whose real distributions fill the animations below, and 50,257 for GPT-2 .",
+  "label": "core",
+  "key": "50,257",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "from logits to a token",
+  "text": "The softmax turns them into probabilities, with a temperature T that rescales the logits first: p i = exp(z i / T) / Σ j exp(z j / T) z i logit of token i (only differences between logits matter) T temperature: T = 1 is the model's own distribution, T < 1 sharpens it, T > 1 flattens it towards uniform, T → 0 puts all the mass on the top token A decoder then picks a token, appends it, and runs the model again.",
+  "label": "core",
+  "key": "only differences between logits matter",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "from logits to a token",
+  "text": "Decoders fall into two families.",
+  "label": "core",
+  "key": "Decoders fall into two families",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "from logits to a token",
+  "text": "Search is deterministic and tries to find a high-probability sequence (greedy, beam search).",
+  "label": "core",
+  "key": "looks for a high-probability sequence",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "from logits to a token",
+  "text": "Sampling draws at random from a reshaped distribution (temperature, then truncation by top-k, top-p, min-p and others).",
+  "label": "core",
+  "key": "draws at random from a reshaped distribution",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "from logits to a token",
+  "text": "A third layer, constraints , removes tokens that would break a required format before either family chooses.",
+  "label": "core",
+  "key": "Constraints sit before either",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "Deterministic search: greedy and beam Greedy decoding takes the argmax token at every step.",
+  "label": "core",
+  "key": "takes the argmax token at every step",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "It is locally optimal and globally poor for open-ended text: repetitive and dull.",
+  "label": "core",
+  "key": "locally optimal",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "It is still fine for short factual answers, and it is effectively what temperature 0 means.",
+  "label": "core",
+  "key": "fine only for short factual answers",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "Beam search keeps the B highest-probability partial sequences at every step: each is extended by its best next tokens, all candidates are scored by their total log-probability, and only the top B survive.",
+  "label": "core",
+  "key": "highest-probability partial sequences",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "It is the standard for machine translation and summarisation, where outputs are short and closed-ended.",
+  "label": "core",
+  "key": "machine translation and summarisation",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "For open-ended generation it produces degenerate, repetitive, low-diversity text, because high probability is not the same as human-like ( Holtzman et al., 2019 ), and chat LLMs essentially do not use it.",
+  "label": "core",
+  "key": "chat LLMs essentially do not use it",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "The animation runs both on the same real input: GPT-2 small continuing a sentence from Jerome K.",
+  "label": "core",
+  "key": "Three Men in a Boat",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "Jerome's Three Men in a Boat (1889).",
+  "label": "core",
+  "key": "(1889)",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "Every score is the model's own log-probability.",
+  "label": "core",
+  "key": "every score is the model's own log-probability",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "Before: greedy After: beam search, B = 3 Try: step to 4 in beam mode.",
+  "label": "core",
+  "key": "step to 4 in beam mode",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "Greedy's choice \"was very\" is still among the candidates but scores below three other branches, so beam search drops it; greedy can never revisit a choice.",
+  "label": "core",
+  "key": "was very",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "After six tokens the best beam is 6.7 times more probable than greedy's text measured here (exp(−7.54 + 9.44); script recompute.py ).",
+  "label": "core",
+  "key": "6.7 times more probable",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "Finding the more probable text does not make it better.",
+  "label": "core",
+  "key": "More probable is not better",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "Run both for 80 tokens on the same prompt measured here : Greedy, 80 tokens Beam search, 4 beams, 80 tokens Sampled, T = 1, top-p 0.95 Both searches fall into a loop the model rates as highly probable; the sample wanders but does not repeat.",
+  "label": "core",
+  "key": "Run both for 80 tokens",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "This is the paradox Holtzman et al. named: \"using likelihood as a decoding objective leads to text that is bland and strangely repetitive\", and the per-token probability of natural text is \"on average, much lower than text generated by beam search\" (§4.3).",
+  "label": "core",
+  "key": "bland and strangely repetitive",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "On 5,000 WebText continuations with GPT-2 Large (762M) they measured perplexity 12.38 for human text against 1.50 for greedy and 1.48 for beam search with 16 beams, and 73.66% of greedy texts repeating (Table 1, paper ).",
+  "label": "core",
+  "key": "73.66%",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "The Twelve decoders tab reruns that comparison on GPT-2 small.",
+  "label": "core",
+  "key": "reruns that comparison on twelve decoders",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "Correction: temperature 0 is greedy, but greedy is not reproducible on a server Greedy is deterministic for a fixed computation.",
+  "label": "core",
+  "key": "Greedy is deterministic for a fixed computation",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "A served model is not a fixed computation: the batch it shares with other requests changes the kernels' reduction order.",
+  "label": "core",
+  "key": "reduction order",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "Thinking Machines sent the same prompt 1,000 times to Qwen3-235B at temperature 0 and got 80 different completions, diverging at token 103; batch-invariant kernels made all 1,000 identical ( He, September 2025 ; how a server forms and reshapes that batch every step is Batching, KV cache and scheduling in depth ).",
+  "label": "core",
+  "key": "80 different completions",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "deterministic search: greedy and beam",
+  "text": "Anthropic's migration guide says the same of its API: \"temperature = 0 ... never guaranteed identical outputs\" ( Opus 5.5 migration guide ).",
+  "label": "core",
+  "key": "never guaranteed identical outputs",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Stochastic sampling: the standard stack Sampling draws the next token at random, but rarely from the raw distribution: pure sampling at T = 1 lets the long tail of unlikely tokens in, and a few bad draws derail the text (Holtzman et al. measured perplexity 22.73 for pure sampling against 12.38 for human text).",
+  "label": "core",
+  "key": "22.73",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "The standard stack reshapes the distribution first, in this order: temperature, then truncation, then renormalise, then sample .",
+  "label": "core",
+  "key": "temperature, then truncation, then renormalise, then sample",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Temperature T : divide the logits by T before the softmax.",
+  "label": "core",
+  "key": "Temperature T divides the logits",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "T < 1 sharpens (more deterministic; T → 0 approaches greedy); T = 1 is the raw distribution; T > 1 flattens towards uniform (more random, more \"creative\").",
+  "label": "core",
+  "key": "sharpens towards greedy",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Reasoning models often want T around 0.6 to 1.0 to keep exploring (settings below).",
+  "label": "core",
+  "key": "T 0.6 to 1.0",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Top-k keeps only the k most probable tokens, renormalises and samples ( Fan et al., 2018 , who used k = 10 for stories).",
+  "label": "core",
+  "key": "k = 10 for stories",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Its flaw: a fixed k ignores the shape of the distribution.",
+  "label": "core",
+  "key": "A fixed k ignores the shape",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "When the distribution is sharp, k lets junk in; when it is flat, k cuts off good options.",
+  "label": "core",
+  "key": "on a sharp step it lets junk in",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Top-p (nucleus) keeps the smallest set of tokens whose cumulative probability reaches p (for example 0.9), renormalises and samples ( Holtzman et al. , Eq.",
+  "label": "core",
+  "key": "Eq. 2",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "2: the smallest V (p) with Σ x∈V(p) P(x) ≥ p).",
+  "label": "core",
+  "key": "V(p)",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "The set adapts to the distribution; top-p was the long-time default for open-ended generation.",
+  "label": "core",
+  "key": "long-time default",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Min-p keeps tokens whose probability is at least p min × P(top token), for example 0.05 to 0.1 of the maximum ( Nguyen et al., ICLR 2025 oral ).",
+  "label": "core",
+  "key": "0.05 to 0.1",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "The cut scales with the model's confidence: confident steps become near-greedy, uncertain steps stay diverse.",
+  "label": "core",
+  "key": "confident steps become near-greedy",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Its authors report better quality and diversity than top-p especially at high temperature; it is implemented in Hugging Face transformers, vLLM, SGLang and llama.cpp, and llama.cpp enables it by default (min-p 0.05, common.h ).",
+  "label": "core",
+  "key": "enables it by default",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Whether it is better is disputed: see the box below.",
+  "label": "core",
+  "key": "Disputed",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "The before/after below runs the same real distribution through top-p, the method min-p was proposed to replace, and through min-p.",
+  "label": "core",
+  "key": "the method min-p was proposed to replace",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Two inputs from Qwen2.5-0.5B-Instruct: an uncertain step (the second token of a story opening, where the model's top choice has 22% probability) and a confident one (the token after \"The capital of Australia is\", where \"Canberra\" has 96%).",
+  "label": "core",
+  "key": "\"Canberra\" 96%",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Before: top-p 0.9 After: min-p 0.1 Uncertain step Confident step T 1 T 1.5 T 2 The top 12 of 151,936 tokens are drawn; the grey row is every other token together.",
+  "label": "core",
+  "key": "the last row is every other token together",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Grey bar: probability before the cut; blue bar: after.",
+  "label": "core",
+  "key": "probability before the cut",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Counts include the tail, computed from a binned summary of all 151,936 logits; checked against the exact full-vocabulary count in recompute.py (for example 6,102 against an exact 6,099 kept tokens at T 1.5) measured here .",
+  "label": "core",
+  "key": "6,099",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Try: the confident step at T 1.5.",
+  "label": "core",
+  "key": "5,166",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Top-p 0.9 now keeps 5,166 tokens (exact full-vocabulary count; the animation's binned estimate says 5,209), because at T 1.5 \"Canberra\" falls from 96% to 59% and about 30% of the mass spreads thinly beyond the top 12 tokens, which top-p must collect back token by token measured here ; min-p keeps only \"Canberra\".",
+  "label": "core",
+  "key": "falls from 96% to 59%",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "At the uncertain step and T 2, top-p keeps about 35,700 tokens and min-p 46.",
+  "label": "core",
+  "key": "35,700",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "That is the whole argument for min-p, on a real distribution.",
+  "label": "core",
+  "key": "whole argument for min-p",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Disputed: \"min-p beats top-p\" The min-p paper reports better quality and diversity on GPQA, GSM8K and AlpacaEval creative writing, and a human preference for min-p.",
+  "label": "core",
+  "key": "GPQA, GSM8K and AlpacaEval",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "A re-analysis by Schaeffer, Kazdan and Denisov-Blanch (June 2025) found omitted data and incorrect statistical tests in the human evaluation, found that \"min-p did not outperform baselines in quality, diversity, or a trade-off between quality and diversity\" once hyperparameter counts were controlled, and noted that the community-adoption figures were removed from the paper as unsubstantiated.",
+  "label": "core",
+  "key": "min-p did not outperform baselines",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "What is not in dispute is the mechanism shown above: at high temperature, min-p's cut follows the top token and top-p's does not.",
+  "label": "core",
+  "key": "The mechanism above is not in dispute",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Our own GPT-2 run in Twelve decoders agrees with the mechanism (at T 1.5, min-p 0.1 stays near human perplexity while top-p 0.95 explodes) but measures likelihood under the same model, not quality as judged by people.",
+  "label": "core",
+  "key": "measured on text",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "The order is not universal \"Temperature, then truncation\" is how Hugging Face transformers applies its warpers (temperature, top-k, top-p, min-p, typical) and how vLLM does it (penalties, temperature, min-p, then top-k and top-p; where that sampler runs in the engine's step is on vLLM: inside the default engine ). llama.cpp applies temperature last by default (penalties, DRY, top-n-sigma, top-k, typical, top-p, min-p, XTC, temperature), so its truncation sees the T = 1 distribution and temperature only reshapes the survivors.",
+  "label": "core",
+  "key": "temperature, top-k, top-p, min-p, typical",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "With llama.cpp's own defaults (top-k 40, top-p 0.95, min-p 0.05) at T 1.5, the uncertain step keeps 14 tokens with temperature last and 34 with temperature first measured here .",
+  "label": "core",
+  "key": "keeps 14 tokens with temperature last and 34",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "The Sampler lab has the switch.",
+  "label": "core",
+  "key": "has the switch",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Repetition controls Blunt instruments, needed less as models improved and still useful for small models: Repetition penalty ( CTRL, Keskar et al., 2019 , who found θ ≈ 1.2 a good balance with greedy sampling): every token already in the context has its logit divided by θ if positive and multiplied by θ if negative ( transformers' implementation , which counts the prompt too).",
+  "label": "core",
+  "key": "≈ 1.2 a good balance",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Presence and frequency penalties (the OpenAI-style pair): z j → z j − c j ·α frequency − [c j > 0]·α presence , where c j counts how often token j was already sampled; \"around 0.1 to 1\" to reduce repetition somewhat, up to 2 to suppress it strongly at a cost in quality ( OpenAI docs ).",
+  "label": "core",
+  "key": "around 0.1 to 1",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Qwen3's model card suggests presence_penalty 0 to 2 against endless repetition, warning of language mixing at high values ( card ).",
+  "label": "core",
+  "key": "language mixing",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "No-repeat n-gram bans any token that would complete an n-gram already generated (transformers' no_repeat_ngram_size ).",
+  "label": "core",
+  "key": "no_repeat_ngram_size",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "They are blunt because they cannot tell a loop from a correct repeat.",
+  "label": "core",
+  "key": "cannot tell a loop from a correct repeat",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "In the lab's \"pattern\" prompt (continue \"red, blue, red, blue, red,\") the right answer is a word already in the context; a repetition penalty of 1.3 pushes it down.",
+  "label": "core",
+  "key": "red, blue, red, blue, red,",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "Try it on the Sampler lab .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the lab; the figure now shows it"
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "The long tail of samplers The local-model community has produced many more; most are niche.",
+  "label": "depth",
+  "key": "Most are niche",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "stochastic sampling: the standard stack",
+  "text": "What each keeps: Sampler Rule Source Typical sampling Keep the tokens whose surprisal −log p is closest to the distribution's entropy, until their mass reaches typical_p (\"entropy-relative\") Meister et al., 2022 ; in the lab Mirostat Adjust a top-k-like cut on the fly so that the text's surprise stays near a target (target perplexity, τ = 5 by default in llama.cpp) Basu et al., 2020 Top-a Keep tokens above a threshold proportional to the square of the top probability local-model community; origin unconfirmed XTC (exclude top choices) With some probability, remove every token above a threshold except the least likely of them: cuts the most likely tokens, not the least, to break clichés p-e-w, text-generation-webui PR 6335 (2024) DRY (don't repeat yourself) Penalise a token that would extend a sequence already in the context, by multiplier × base (length − allowed length) (base 1.75, allowed length 2 in llama.cpp) llama.cpp common.h The Sampler lab runs temperature, top-k, top-p, min-p, typical, the repetition penalty and the presence and frequency penalties on 32 real distributions from four prompts, in either order, and samples from the result.",
+  "label": "depth",
+  "key": "entropy-relative",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "diversity against quality",
+  "text": "Diversity against quality Every truncation trades diversity for staying in the model's high-probability region.",
+  "label": "core",
+  "key": "trades diversity for staying",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "diversity against quality",
+  "text": "The Twelve decoders tab measures the trade on GPT-2 small: four passages, 48 new tokens, 16 samples per decoder measured here .",
+  "label": "core",
+  "key": "16 times per decoder",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "diversity against quality",
+  "text": "The pattern reproduces Holtzman et al.'s Table 1 independently, on a smaller model and different text: Greedy and beam search sit far below human perplexity (2.3 and 2.4 against 31.0 for the real continuation) and repeat: 53% of greedy's 4-grams are repeats.",
+  "label": "core",
+  "key": "53% of greedy's 4-grams",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "diversity against quality",
+  "text": "Pure sampling overshoots (47.2); top-p 0.95 at T 1 lands closest to human text (31.6 against 31.0), as nucleus sampling did in the paper (13.13 against 12.38).",
+  "label": "core",
+  "key": "31.6 against 31.0",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "diversity against quality",
+  "text": "Raise the temperature and top-p falls apart (perplexity about 3,900 at T 1.5) while min-p 0.1 stays near human text up to T 2 (16.1 at T 1.5, 40.0 at T 2).",
+  "label": "core",
+  "key": "16.1 at T 1.5, 40.0 at T 2",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "settings in practice (2026)",
+  "text": "Settings in practice (2026) Use Typical setting Where it comes from Chat T about 0.7 with top-p 0.9 to 0.95, or min-p 0.05 Rule of thumb from the original page unconfirmed as a standard ; close to published defaults: llama.cpp T 0.8, top-k 40, top-p 0.95, min-p 0.05 ( common.h ); Qwen3 non-thinking T 0.7, top-p 0.8, top-k 20 ( card ) Reasoning models T 0.6, top-p 0.95; never greedy Qwen3 thinking mode: T 0.6, top-p 0.95, top-k 20, min-p 0, \"DO NOT use greedy decoding\" (endless repetitions, card ).",
+  "label": "core",
+  "key": "Qwen3 non-thinking T 0.7",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "settings in practice (2026)",
+  "text": "DeepSeek-R1: T 0.5 to 0.7, 0.6 recommended, \"to prevent endless repetitions or incoherent outputs\" ( card ) Code and maths, one answer Greedy or near it, T 0 to 0.3 Codex found the best temperature for pass@1 is 0.2 and for pass@100 is 0.8 ( Chen et al., 2021 ) Evaluations Fix seeds and settings, or sample k answers and report pass@k or majority vote DeepSeek-R1 reports pass@1 as the mean over 64 samples at T 0.6, top-p 0.95 ( card ); majority vote is self-consistency ( Wang et al., 2022 ) Updated: closed reasoning models now reject sampling parameters The original page said many providers \"remap or ignore extreme values\".",
+  "label": "core",
+  "key": "pass@100 is 0.8",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "settings in practice (2026)",
+  "text": "As of October 2026 the large closed APIs refuse them.",
+  "label": "volatile",
+  "key": "refuse them",
+  "where": "",
+  "note": "kept in the dated Updated box: it decides which knobs a reader can use"
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "settings in practice (2026)",
+  "text": "On Claude Opus 4.7 and later, \"setting temperature, top_p, or top_k to any non-default value ... returns a 400 error\" ( Anthropic, Opus 5.5 migration guide ).",
+  "label": "volatile",
+  "key": "returns a 400 error",
+  "where": "",
+  "note": "kept, dated box"
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "settings in practice (2026)",
+  "text": "OpenAI's reasoning models other than GPT-6 Astra do not support temperature, top_p, presence_penalty, frequency_penalty, logprobs or logit_bias; GPT-6 Astra supports temperature and top_p ( Azure OpenAI reasoning docs, 21 September 2026 ).",
+  "label": "volatile",
+  "key": "GPT-6 Astra",
+  "where": "",
+  "note": "kept, dated box"
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "settings in practice (2026)",
+  "text": "The knobs on this page are now mainly for open models you serve yourself.",
+  "label": "core",
+  "key": "open models you serve yourself",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "Structured, or constrained, decoding A constraint guarantees that the output matches a format (a JSON schema, a regular expression, a context-free grammar) by masking invalid tokens at every step: compile the constraint to an automaton over the tokenizer's vocabulary, intersect it with the current state, and set the disallowed logits to −∞ before the sampler runs.",
+  "label": "core",
+  "key": "compiles the constraint to an automaton",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "The animation runs Qwen2.5-0.5B-Instruct on one request, with greedy decoding, without and with a grammar for {\"name\": string, \"age\": integer} .",
+  "label": "core",
+  "key": "{\"name\": string, \"age\": integer}",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "Before: unconstrained After: grammar-constrained The request is illustrative (a made-up person); everything else is the model's real output measured here .",
+  "label": "core",
+  "key": "a made-up person",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "The grammar is a regular expression with whitespace capped at two characters between tokens of JSON, checked against all 151,665 tokenizer entries at every step; a token is allowed when the text so far plus the token can still complete a match.",
+  "label": "depth",
+  "key": "whitespace capped at two characters",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "A tick marks tokens the grammar allows.",
+  "label": "core",
+  "key": "A tick marks tokens the grammar allows",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "Try: step 0 in both modes.",
+  "label": "core",
+  "key": "step 0 in both modes",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "The model puts 57% on a Markdown fence ``` , which no JSON parser accepts; the constrained run allows 4 tokens holding 36% of the mass and starts with { .",
+  "label": "core",
+  "key": "puts 57% on",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "Then step 2 of the constrained run: the model wants two spaces of indentation, the toy grammar's whitespace cap forbids the second, and it is forced onto a token it gave 0.0004%.",
+  "label": "core",
+  "key": "0.0004%",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "The output is still valid JSON, with one-space indentation.",
+  "label": "core",
+  "key": "one-space indentation",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "Three engines do this in production: Outlines compiles a regular expression or JSON schema to a finite-state machine over tokens and indexes, for every state, which tokens are allowed: \"transitions between the states of a finite-state machine\" ( Willard and Louf, 2023 ).",
+  "label": "core",
+  "key": "transitions between the states of a finite-state machine",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "It is the approach that popularised near-zero-overhead structured output.",
+  "label": "core",
+  "key": "popularised near-zero-overhead",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "XGrammar handles full context-free grammars with a pushdown automaton.",
+  "label": "core",
+  "key": "pushdown automaton",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "It splits tokens into context-independent ones, whose validity depends only on the automaton's position and is precomputed, and context-dependent ones, checked at runtime against a persistent stack: for Llama-3.1 and a JSON grammar the context-dependent tokens are \"less than 1% (1134 out of 128k)\", cut to 120 by context expansion.",
+  "label": "core",
+  "key": "1134 out of 128k",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "It overlaps mask computation with the GPU's forward pass; masks take under 40 µs per token for JSON schema ( Dong et al. ).",
+  "label": "core",
+  "key": "under 40 µs per token",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "It is the default structured-output backend in vLLM (the \"auto\" backend tries XGrammar first and falls back to llguidance: sampling_params.py ), in SGLang ( serving_hook.py ), TensorRT-LLM and MLC-LLM ( README ). llguidance (behind Guidance) runs an Earley parser on top of a lexer built from regular-expression derivatives and computes masks lazily by walking a trie of the vocabulary, about 50 µs per token for a 128k tokenizer. \"LLGuidance shipped in OpenAI for JSON Schema\", and it is integrated in llama.cpp, vLLM (from 0.8.2), SGLang (from 0.4.4) and Chromium ( README ).",
+  "label": "core",
+  "key": "tries XGrammar first and falls back to llguidance",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "Provider-side \"structured outputs\" and strict function calling are this mechanism plus training.",
+  "label": "core",
+  "key": "this mechanism plus training",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "OpenAI's launch post: Structured Outputs works \"by constraining OpenAI models to match developer-supplied schemas and by training our models to better understand complicated schemas\"; the schema is converted to a context-free grammar; gpt-4o-2024-08-06 scored 100% on its complex-schema eval against under 40% for gpt-4-0613 ( OpenAI, 6 August 2024, archived ).",
+  "label": "core",
+  "key": "better understand complicated schemas",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "JSON mode guarantees valid JSON; only Structured Outputs guarantees schema adherence ( docs ).",
+  "label": "core",
+  "key": "JSON mode guarantees valid JSON",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "Grammar-constrained tool-call parsing is standard in serving stacks.",
+  "label": "core",
+  "key": "Grammar-constrained tool-call parsing",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "Caveats Constraining distorts the distribution.",
+  "label": "core",
+  "key": "It guarantees the format, not the content",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "When the model wanted a token you masked, the rest of the answer is conditioned on text it would not have written.",
+  "label": "core",
+  "key": "conditioned on text it would not have written",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "Schema design (field order, letting the model think before the JSON) mitigates it.",
+  "label": "core",
+  "key": "Schema design",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "The size of the effect is disputed: Tam et al., 2024 report \"a significant decline in LLMs reasoning abilities under format restrictions\"; the Outlines team re-ran their tasks with matched prompts and found structured generation slightly better (GSM8K 0.78 against 0.77, Last Letter 0.77 against 0.73, Shuffled Objects 0.44 against 0.41: .txt, \"Say what you mean\" ).",
+  "label": "core",
+  "key": "GSM8K 0.78 against 0.77",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "Whitespace and token boundaries are the classic bugs.",
+  "label": "core",
+  "key": "Whitespace and token boundaries are the classic bugs",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "structured, or constrained, decoding",
+  "text": "A token can straddle a grammar boundary ( \": closes a key and starts the colon), whitespace rules decide which tokenisations are reachable (step 2 above), and an unbounded whitespace rule lets a model emit spaces forever.",
+  "label": "core",
+  "key": "emit spaces forever",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "techniques built on sampling",
+  "text": "Techniques built on sampling Self-consistency and best-of-n sample n answers and return the majority answer ( Wang et al., 2022 ) or the one a reward model or verifier rates highest.",
+  "label": "core",
+  "key": "Wang et al., 2022",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "techniques built on sampling",
+  "text": "Best-of-n is also a baseline alignment method and a reward-hacking amplifier ( Reward Hacking ).",
+  "label": "core",
+  "key": "reward-hacking amplifier",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "techniques built on sampling",
+  "text": "The maths of pass@k, voting and best-of-n, with a sampling lab, is on Topic: llm-landscape, Deeper: test-time compute .",
+  "label": "core",
+  "key": "pass@k, voting and best-of-n",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "techniques built on sampling",
+  "text": "Speculative decoding : a cheap draft model (or n-gram lookup, or extra heads as in Medusa and EAGLE ) proposes γ tokens, and the target model scores all of them in one forward pass.",
+  "label": "core",
+  "key": "Medusa and EAGLE",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "techniques built on sampling",
+  "text": "Each drafted token x is accepted with probability min(1, p(x)/q(x)), p the target's and q the draft's probability; at the first rejection a replacement is drawn from the normalised max(0, p − q).",
+  "label": "owned:systems_and_performance/topic_inference_and_serving/speculative_decoding",
+  "key": "min(1, p(x)/q(x))",
+  "where": "",
+  "note": "acceptance rule taught on the owner"
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "techniques built on sampling",
+  "text": "The output distribution is exactly the target's, so the speed-up is lossless ( Leviathan et al., 2023 ; Chen et al., 2023 ).",
+  "label": "core",
+  "key": "exactly the target's",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "techniques built on sampling",
+  "text": "With acceptance rate α, each target pass yields on average (1 − α γ+1 ) / (1 − α) tokens: 3.4 tokens at α = 0.8 and γ = 4 derived .",
+  "label": "owned:systems_and_performance/topic_inference_and_serving/speculative_decoding",
+  "key": "tokens per target pass",
+  "where": "",
+  "note": "formula on the owner; the 3.4 at alpha 0.8, gamma 4 example dropped"
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "techniques built on sampling",
+  "text": "The rule in depth, every kind of drafter and the batch size at which it stops paying are on Speculative decoding ; a calculator that reproduces Leviathan's Table 4 is on Google DeepMind: Gemini and Gemma ; an animation of one token at a time against speculative and block-diffusion decoding is in 2026-08-24: tech news .",
+  "label": "core",
+  "key": "the batch size where it stops paying",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "techniques built on sampling",
+  "text": "Test-time compute scaling : longer chains of thought, and parallel sampling with a verifier reranking the samples.",
+  "label": "core",
+  "key": "Test-time compute scaling",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "techniques built on sampling",
+  "text": "It is the decoding-side half of the reasoning-model story; the training-side half (RL with verifiable rewards) is on Alignment: SFT, RLHF, DPO Family, RLVR , and the comparison across labs on Topic: llm-landscape .",
+  "label": "core",
+  "key": "decoding-side half",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes \"Temperature 0 makes the output reproducible\" It makes the rule deterministic, not the computation: batching on a shared server changes the numerics (80 distinct completions out of 1,000 in Thinking Machines' test, above). \"Top-p 0.9 keeps a handful of tokens\" Only at moderate temperature.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake restating section 1 (80 completions)"
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "At T 1.5 on a step where the model is 96% sure, top-p 0.9 keeps 5,166 of 151,936 tokens measured here ; whatever temperature spreads out, top-p collects back. \"Min-p is proven better than top-p\" The mechanism is real; the evidence that it improves quality is disputed (Schaeffer et al., 2025).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the predict block and section 2"
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Tune both on your own task. \"The sampler order is fixed\" Hugging Face and vLLM apply temperature before truncation; llama.cpp applies it after by default.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 2 order"
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The same settings keep different token sets. \"Beam search finds better text\" It finds more probable text, which for open-ended generation is more repetitive text (the loops above).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 1"
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use it for short closed-ended outputs. \"A repetition penalty is free\" It penalises every repeated token, including the correct ones (a name, a pattern, code identifiers). \"Constrained decoding cannot hurt quality\" It guarantees the format, not the content: when the grammar overrules the model (0.0004% in the example above) everything after is conditioned on text it would not have written.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates sections 4 and 5"
+ },
+ {
+  "id": 130,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Sampler lab Every sampler from the Reading tab, applied to 32 real next-token distributions: four prompts to Qwen2.5-0.5B-Instruct, eight positions each along the model's own greedy reply.",
+  "label": "core",
+  "key": "32 real next-token distributions",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Pick a prompt and a position, move the controls, and see which tokens survive and how likely each becomes. \"Draw 200\" samples from the result.",
+  "label": "core",
+  "key": "Draw 200",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Prompt Position in the reply Preset Temperature Top-k Top-p Min-p Typical Repetition penalty θ Presence penalty Frequency penalty Temperature applied First (transformers, vLLM) Last (llama.cpp default) Rows 15 30 60 Draw 200 Rows are the most probable tokens at T = 1, before any penalty (␣ is a space, ↵ a newline).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "control labels"
+ },
+ {
+  "id": 133,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Grey: probability after penalties and temperature, before truncation; blue: final probability; the label names the filter that cut a token; an orange border marks a token already in the context.",
+  "label": "core",
+  "key": "an orange border marks a token already in the context",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Penalties use the counts the frameworks use: the repetition penalty counts every token in the context including the chat template and system prompt (as transformers does); presence and frequency count only tokens generated so far (as the OpenAI formula does).",
+  "label": "core",
+  "key": "including the chat template and system prompt",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Tokens beyond the top 60 are grouped in 0.1-logit bins; counts that include them match the exact full-vocabulary result within 1% ( recompute.py --exact ).",
+  "label": "core",
+  "key": "within 1%",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Penalties are not applied to tokens beyond the top 60.",
+  "label": "core",
+  "key": "Penalties are not applied to tokens beyond the top 60",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "What to try Sharp against flat.",
+  "label": "core",
+  "key": "Sharp against flat",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Capital, position 6 (\"Canberra\" at 96%) against Cat, position 3 (a name, top token 7%).",
+  "label": "core",
+  "key": "Cat, position 3",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Set top-k 40: on the sharp step it keeps 39 tokens the model barely considers; on the flat one it may cut good names.",
+  "label": "core",
+  "key": "keeps 39 tokens",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Top-p and min-p adapt.",
+  "label": "core",
+  "key": "Top-p and min-p adapt",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Preset \"T 2, top-p 0.95\" against \"T 2, min-p 0.1\" on any uncertain step: 58,000 to 77,000 tokens against 16 to 177 at the steps tried measured here .",
+  "label": "core",
+  "key": "58,000 to 77,000",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Order. llama.cpp defaults, then flip the order to \"First\" at T 1.5: the same numbers keep a different set.",
+  "label": "core",
+  "key": "flip the order",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Penalties hurt correct repeats.",
+  "label": "core",
+  "key": "Penalties hurt correct repeats",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Pattern, position 7: the right token \" blue\" is already in the context.",
+  "label": "core",
+  "key": "Pattern, position 7",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Repetition penalty 1.3 cuts its probability from 99.9% to 73.6%, because it appears three times in the context (the prompt counts).",
+  "label": "core",
+  "key": "99.9% to 73.6%",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "A frequency penalty of 1 barely moves it (99.7%): the margin is large and it was generated only once so far.",
+  "label": "core",
+  "key": "99.7%",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Typical sampling at 0.5 drops the single most likely token on four of the five uncertain steps tried (Lighthouse 1 and 2, Kitten 1 and 3), because its surprisal is far below the entropy.",
+  "label": "depth",
+  "key": "four of the five uncertain steps",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Data: Qwen2.5-0.5B-Instruct (Apache 2.0), float32 on CPU, chat template with the default system prompt; logits saved by src/make_data.py .",
+  "label": "core",
+  "key": "float32 on CPU",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Sampler rules follow transformers (temperature first) and llama.cpp (temperature last).",
+  "label": "core",
+  "key": "Sampler rules follow",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-lab",
+  "section": "sampler lab",
+  "text": "Presets from llama.cpp , Qwen3 and DeepSeek-R1 ; \"Chat rule of thumb\" is the original page's.",
+  "label": "core",
+  "key": "Chat rule of thumb",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-deg",
+  "section": "twelve decoders, real text",
+  "text": "Twelve decoders, real text The question behind every sampler: across all decoders and temperatures, how does staying probable trade against sounding like a person?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab lead question; section 3 lead carries it"
+ },
+ {
+  "id": 152,
+  "tab": "t-deg",
+  "section": "twelve decoders, real text",
+  "text": "This tab reruns the comparison of Holtzman et al.",
+  "label": "core",
+  "key": "Holtzman et al.",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-deg",
+  "section": "twelve decoders, real text",
+  "text": "(2019) on a small scale.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "sentence fragment"
+ },
+ {
+  "id": 154,
+  "tab": "t-deg",
+  "section": "twelve decoders, real text",
+  "text": "GPT-2 small (124M) is given the first 48 tokens of four paragraphs from Jerome K.",
+  "label": "core",
+  "key": "GPT-2 small (124M)",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-deg",
+  "section": "twelve decoders, real text",
+  "text": "Jerome's Three Men in a Boat (public domain) and writes 48 more, 16 times per decoder; the real next 48 tokens are the human reference measured here .",
+  "label": "core",
+  "key": "human reference",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-deg",
+  "section": "twelve decoders, real text",
+  "text": "Measures, all on GPT-2 small: Perplexity : exp of minus the mean log-probability per token at T = 1 (how surprised the model is by the text; human text is the target, not the minimum) Repetition : share of a text's 4-grams that repeat an earlier 4-gram Diversity : distinct-2 over the 16 samples of a passage (greedy and beam give one text 16 times, so their figure is divided by 16) Hover a dot for its decoder; on a narrow screen only a few dots are labelled and the table below has every value.",
+  "label": "core",
+  "key": "distinct-2 over the 16 samples",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-deg",
+  "section": "twelve decoders, real text",
+  "text": "Read the samples Decoder Passage Every sampled decoder starts from the same random seed, so pure sampling and top-p 0.95 often write the same words until the first draw that top-p's cut removes.",
+  "label": "depth",
+  "key": "same random seed",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-deg",
+  "section": "twelve decoders, real text",
+  "text": "Texts are GPT-2's, unedited except that newlines are shown as ↵ and any em-dash the model wrote is shown as \"--\".",
+  "label": "depth",
+  "key": "newlines are shown as",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-deg",
+  "section": "twelve decoders, real text",
+  "text": "Three samples per passage are shown, skipping any that match a short list of slurs, sexual and violent words (GPT-2 at high temperature produces them); the measures use all 16.",
+  "label": "depth",
+  "key": "slurs, sexual and violent words",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-deg",
+  "section": "twelve decoders, real text",
+  "text": "Em-dashes in Jerome's text were replaced by commas before tokenising.",
+  "label": "depth",
+  "key": "Em-dashes in Jerome's text were replaced",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-deg",
+  "section": "twelve decoders, real text",
+  "text": "Script: src/make_data.py degen ; numbers: src/recompute.py .",
+  "label": "depth",
+  "key": "make_data.py degen",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Links open in a new tab, with reading times.",
+  "label": "core",
+  "key": "Links open in a new tab",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "On this page Sampler lab Temperature, top-k, top-p, min-p, typical and the three repetition penalties on 32 real distributions, in either sampler order.",
+  "label": "core",
+  "key": "in either sampler order",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Twelve decoders, real text Greedy, beam and ten samplers on GPT-2 small against the real continuation: perplexity, repetition, diversity and the texts themselves.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "card for the removed Twelve decoders tab"
+ },
+ {
+  "id": 165,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Related pages Topic: inference-and-serving The parent: one request through a serving engine, then a thousand; the sampler is the last step of each forward pass it follows.",
+  "label": "core",
+  "key": "one request through a serving engine",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 43 min) Speculative decoding: draft models, EAGLE, MTP, n-gram, the batch-size crossover Sibling: the acceptance rule that preserves this page's distributions, every kind of drafter, and the batch size where it stops paying.",
+  "label": "core",
+  "key": "Speculative decoding: draft models",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 23 min) Batching, KV cache and scheduling in depth Sibling: the shared batch that makes temperature 0 unrepeatable on a server.",
+  "label": "core",
+  "key": "Batching, KV cache and scheduling in depth",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 40 min) vLLM: inside the default engine Sibling: where the sampler and the structured-output mask run in the engine's step.",
+  "label": "core",
+  "key": "structured-output mask run",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 31 min) Topic: llm-training-and-post-training Where sampling feeds training: RL rollouts, rejection sampling and distillation draw from this stack.",
+  "label": "core",
+  "key": "Topic: llm-training-and-post-training",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(27 min) Topic: llm-landscape Its \"Deeper: test-time compute\" tab owns pass@k, majority voting and best-of-n, with a sampling lab.",
+  "label": "core",
+  "key": "Deeper: test-time compute",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(tab about 20 min) Reward Hacking Best-of-n as an amplifier of reward-model errors.",
+  "label": "core",
+  "key": "amplifier of reward-model errors",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(29 min) Alignment: SFT, RLHF, DPO Family, RLVR How sampling feeds training: rollouts for RL, rejection sampling for SFT.",
+  "label": "core",
+  "key": "rejection sampling for SFT",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(23 min) Tokenizers Why token boundaries make grammar masks hard.",
+  "label": "core",
+  "key": "Why token boundaries make grammar masks hard",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(34 min) Google DeepMind: Gemini and Gemma Speculative decoding calculator with Gemma 4's drafter; reproduces Leviathan et al.'s Table 4.",
+  "label": "owned:models_and_training/topic_llm_landscape/google_deepmind_gemini_and_gemma",
+  "key": "Table 4",
+  "where": "",
+  "note": "speculative decoding calculator lives on the DeepMind page; card kept in Further reading"
+ },
+ {
+  "id": 175,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(calculator 30 min) 2026-08-24: tech news One token at a time against speculative and block-diffusion decoding, animated.",
+  "label": "owned:reference/tech_news/2026_08_24_tech_news",
+  "key": "autoregressive decoding writes one token per pass",
+  "where": "",
+  "note": "animation lives on the news issue; card kept"
+ },
+ {
+  "id": 176,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(animation 21 min) DiffusionGemma Technical Report Decoding a block of tokens in parallel by denoising instead of left to right.",
+  "label": "core",
+  "key": "DiffusionGemma",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(22 min) Attention Is All You Need The paper's beam search (beam 4, length penalty 0.6) on its translation task.",
+  "label": "core",
+  "key": "length penalty 0.6",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(14 min) Best resources Chip Huyen, Generation configurations: temperature, top-k, top-p Clear, practical treatment of the standard knobs.",
+  "label": "core",
+  "key": "Chip Huyen",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(35 min) Min-p sampling paper (ICLR 2025 oral) The strongest recent addition to the sampler toolbox, by its authors' account.",
+  "label": "core",
+  "key": "ICLR 2025 oral",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min) Min-p, Max Exaggeration The re-analysis that disputes min-p's evaluation; read with the paper.",
+  "label": "core",
+  "key": "Min-p, Max Exaggeration",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30 min) The Curious Case of Neural Text Degeneration Holtzman et al.",
+  "label": "core",
+  "key": "The Curious Case of Neural Text Degeneration",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2019, the nucleus-sampling paper: why likelihood-maximising decoding fails for open-ended text.",
+  "label": "core",
+  "key": "the nucleus-sampling paper",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min) XGrammar paper and docs How modern constrained decoding works and why it is near-zero overhead.",
+  "label": "core",
+  "key": "XGrammar paper",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min + 25 min) Efficient Guided Generation (Outlines) The finite-state-machine index behind Outlines.",
+  "label": "core",
+  "key": "Efficient Guided Generation",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(25 min) Defeating Nondeterminism in LLM Inference Why temperature 0 is not reproducible on a server, and batch-invariant kernels.",
+  "label": "core",
+  "key": "Defeating Nondeterminism",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30 min) Fast Inference from Transformers via Speculative Decoding Leviathan et al.: the acceptance rule and the expected speed-up.",
+  "label": "core",
+  "key": "Fast Inference from Transformers",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(40 min) Source of this page: technical_knowledge_base/systems_and_performance/topic_inference_and_serving/sampling_and_decoding/src/ in the knowledge base repository, including the scripts that computed every distribution and sample ( make_data.py ) and checked every number ( recompute.py ).",
+  "label": "core",
+  "key": "Source of this page",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "stochastic sampling",
+  "text": "Mirostat keeps the text surprise near a target, tau 5 in llama.cpp",
+  "label": "depth",
+  "key": "Basu et al., 2020",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "stochastic sampling",
+  "text": "Top-a: threshold proportional to the square of the top probability; origin unconfirmed",
+  "label": "depth",
+  "key": "square of the top probability",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "stochastic sampling",
+  "text": "XTC removes the most likely tokens to break cliches (PR 6335)",
+  "label": "depth",
+  "key": "PR 6335",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "stochastic sampling",
+  "text": "DRY penalises extending a repeated sequence, base 1.75, allowed length 2",
+  "label": "depth",
+  "key": "base 1.75",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "settings",
+  "text": "Qwen3 thinking: DO NOT use greedy decoding",
+  "label": "core",
+  "key": "DO NOT use greedy decoding",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "settings",
+  "text": "DeepSeek-R1 pass@1 is the mean over 64 samples at T 0.6, top-p 0.95",
+  "label": "core",
+  "key": "mean over 64 samples",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "settings",
+  "text": "DeepSeek-R1: T 0.5 to 0.7, 0.6 recommended",
+  "label": "core",
+  "key": "0.6 recommended",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "structured",
+  "text": "llguidance: Earley parser over regex-derivative lexer, about 50 us per token, shipped in OpenAI for JSON Schema",
+  "label": "core",
+  "key": "LLGuidance shipped in OpenAI for JSON Schema",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "structured",
+  "text": "XGrammar is the default in SGLang, TensorRT-LLM and MLC-LLM",
+  "label": "core",
+  "key": "TensorRT-LLM and MLC-LLM",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "structured",
+  "text": "OpenAI: schema converted to a context-free grammar; 100% against under 40% for gpt-4-0613",
+  "label": "core",
+  "key": "gpt-4-0613",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-deg",
+  "section": "twelve decoders (script-rendered table and repro note)",
+  "text": "greedy 2.26, beam 2.37 against human 31.0; theirs 1.50, 1.48, 12.38",
+  "label": "core",
+  "key": "greedy 2.26, beam 2.37",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "beam animation (script captions)",
+  "text": "Beam search collapses to one prefix; greedy path dropped at step 4",
+  "label": "core",
+  "key": "scores below three other branches",
+  "where": ""
+ }
+]

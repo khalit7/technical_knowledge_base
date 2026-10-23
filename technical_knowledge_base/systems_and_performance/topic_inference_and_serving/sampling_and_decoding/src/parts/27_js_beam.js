@@ -37,7 +37,7 @@
   }
   const A=RD.anim({card:'rd-bm',ctl:'rd-bmC',n:S.length+1,draw,ms:2600,label:'Step'});
   const el=document.getElementById('rd-bmM');
-  el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.m;A.reset(S.length+1);A.play()}));
+  el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.m;A.reset(S.length+1)}));
   const v=s=>esc(s).replace(/\n/g,' ↵ ');
   document.getElementById('rd-bmG').innerHTML=v(B.long.greedy);
   document.getElementById('rd-bmB').innerHTML=v(B.long.beam4);

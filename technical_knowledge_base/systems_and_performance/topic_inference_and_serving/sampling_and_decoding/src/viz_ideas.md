@@ -43,3 +43,15 @@ Holtzman et al. Figures 2 and 3 (probability of beam text against human text; ex
 ## What the methodology lacked here
 
 Nothing in the methodology covered generating data with a model offline. Rules learned: record the exact full-vocabulary result next to any approximation the page uses; save the generation script and seeds; filter displayed model output for slurs and sexual content (GPT-2 at high temperature produces them) while computing metrics on everything; and replace any em-dash the model writes in displayed text, saying so.
+
+## 2026-10-23 rebuild (teaching contract)
+
+| # | Idea | Kind | Decision |
+|---|---|---|---|
+| SD12 | Hero: one real distribution through the six decoder stages, 8 bars per stage, real counts | static annotated diagram | built, top of Reading |
+| SD13 | The grammar mask at one step: model p, 0 or minus infinity, renormalised p, vocabulary strip (4 of 151,665) | static annotated diagram | built, section 5 |
+| SD14 | Allowed-set size at each constrained step, log scale, overrules in orange | static chart over recorded steps | built, section 5 |
+| SD15 | Correct repeat under no penalty, repetition 1.3, frequency 1 (logits and probability) | before/after, static | built, section 4 (was a sentence in the lab) |
+| SD3 | Twelve decoders scatter | moved from its own tab into Reading section 3 (it proved section 3's claims from one click away) | moved; table and texts closed |
+| SD16 | Temperature-only slider on the real story distribution | slider | rejected: the top-p/min-p animation already toggles T 1, 1.5, 2 on the same distribution |
+| SD17 | Mask-step selector (any of the 19 steps in the mask figure) | stepper | rejected: the before/after animation already steps through them; step 2's renormalised values are below the stored precision |
