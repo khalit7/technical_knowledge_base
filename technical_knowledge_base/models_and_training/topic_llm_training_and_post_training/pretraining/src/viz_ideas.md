@@ -44,3 +44,8 @@ Questions: Q1 quantity moves with a control; Q2 defaults reproduce a published f
 ## What the methodology lacked for this page
 - A rule for when a toy experiment is worth running: here it separates two levers that the only published ablation (OLMo 2 Table 11) did not fully cross (it has no "new mix at constant LR" arm). A toy is worth it when it completes a published ablation's missing cell, labelled as toy-scale.
 - A rule for categorising community records: the category is this page's tagging of the first-listed change, stated as such, never the repository's.
+
+## 2026-10-23 rebuild
+- Built: hero (SmolLM3 run, static, numbered decisions; reuses the run stepper's drawing), IsoFLOP valley with a compute slider (defaults land on Chinchilla 70B / 1.4T within 3% and 5%, independently, via the Besiroglu refit), over-training curve with a tokens-per-parameter slider (training compute and serving cost multiples at Chinchilla's loss, break-even, size floor).
+- Moved: the Anneal a toy tab into Reading (cells and curves in section 5, heatmap in section 2).
+- Rejected: a batch-ramp chart (two sentences say it completely); a WSD-against-cosine animation (the optimisers page and its parent own and draw it); a Kaplan-against-Chinchilla animation (the Scaling Laws paper page and the root's calculator already animate it; the IsoFLOP figure shows both rules as points).

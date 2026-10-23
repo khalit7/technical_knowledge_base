@@ -1,0 +1,58 @@
+<section id="rd-data">
+<h2>4 &middot; Data in stages</h2>
+<p>A 2020 run read one fixed mix from start to end. A 2025 run changes the mix as it goes: <b>a bulk stage</b> of filtered web, code and papers (about 90% of tokens or more); <b>an anneal</b> (mid-training) that up-weights the best data (curated maths, instruction-like text, synthetic data) while the learning rate decays (OLMo 2's Dolmino mix; Llama 3 over its final 40M tokens, {{Llama 3, section 3.4.3|https://arxiv.org/abs/2407.21783}}); then <b>long-context extension</b>, a short final phase at 32K to 128K and beyond with upsampled long documents and rescaled RoPE (SmolLM3: 2 &times; 50B tokens, 4K to 32K then 64K; Llama 3 405B: about 800B tokens in six steps from 8K to 128K; mechanics on {{Positional Encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}).</p>
+<div class="card" id="rn-card">
+<h3 style="margin-top:0">One pass against stages: GPT-3 never changed its mix; OLMo 2 and SmolLM3 change it as the learning rate falls</h3>
+<p class="try"><b>Try:</b> step through GPT-3 first: one mix and one cosine. Then switch to OLMo 2 or SmolLM3 and step again. Each run is drawn to scale on its own token axis; the lower strip magnifies the last 5%, where an anneal of 1.3% of the run would otherwise be a hairline.</p>
+<div class="seg" id="rn-mode" role="group" aria-label="Recipe"><button data-m="gpt3" class="on">GPT-3 175B: one pass</button><button data-m="olmo2">OLMo 2 7B: cut, then anneal</button><button data-m="smol">SmolLM3 3B: three mixes</button></div>
+<div id="rn-plot" class="plot"></div>
+<div class="leg" id="rn-leg"></div>
+<div class="an-cap" id="rn-cap" aria-live="polite"></div>
+<div class="an-cnt" id="rn-cnt"></div>
+<div class="an-ctl" id="rn-ctl"></div>
+<p class="small mute" id="rn-src"></p>
+</div>
+<p>GPT-3's learning rate stopped decaying at 260B of 300B tokens and nothing else changed. OLMo 2 planned a cosine over 5T tokens and cut it at 3.90T, with the learning rate still at about 20% of peak (0.1 + 0.9 &times; &frac12;(1 + cos(&pi; &times; 3.90/5)) = 0.203 <i class="nl d">derived</i>), then spent 50B tokens, 1.3% of the run, decaying it linearly to zero on a different mix, three times over different data orders, and averaged the three ("souping"). Its stage-1 mix was 3.90T tokens, 95.2% DCLM web pages, the rest StarCoder code, peS2o and arXiv papers, Wikipedia and two maths sets ({{OLMo 2, Tables 4 and 10|https://arxiv.org/html/2501.00656v3#S2.T4}}). SmolLM3 held its learning rate flat until the last 10% and changed its mix twice.</p>
+<p><b>How a mix is chosen.</b> By small, cheap experiments, not scaling-law studies: the SmolLM3 team ran ablations on 3B models trained on 50B to 100B tokens ({{SmolLM3 blog|https://huggingface.co/blog/smollm3}}); Llama 3 judges a new dataset by annealing a half-trained 8B linearly to zero over 40B tokens with 30% of the data from the candidate ({{section 3.1.3|https://arxiv.org/abs/2407.21783}}). Filtering, deduplication and mixing methods are on {{Topic: data-curation-and-datasets|n:3c65c17b0d0d811fa5ecda8d365ab00f}} and {{Data mixing|n:3c65c17b0d0d819ea5d6c59471e66875}}. The architecture, by contrast, has largely converged (pre-norm decoder, RMSNorm, SwiGLU, RoPE, grouped-query attention; mixture of experts for the compute-rich): the {{LLM Architecture Gallery|n:3c65c17b0d0d81be8a07f2562fa2030a}} shows it model by model. "Annealing" means three things in this literature (learning-rate decay, this phase, and a cheap data experiment); the {{Optimisers page|n:3c65c17b0d0d817080bbc90954681d09}} separates them.</p>
+</section>
+
+<section id="rd-ann">
+<h2>5 &middot; What the anneal buys</h2>
+<p>An anneal pulls two levers at once: the learning rate falls to zero, and the data switches to the best you have. Any "annealing gave +X" is a compound of the two unless an ablation separated them. OLMo 2 ran exactly that ablation on its 7B: from the checkpoint at 4T tokens, 50B tokens with the learning rate decayed to zero on the <i>unchanged</i> pretraining mix, against the same schedule on high-quality mixes ({{Table 11|https://arxiv.org/html/2501.00656v3#S4.T11}}).</p>
+<div class="pq" id="as-q">
+<div><b>Predict:</b> on the maths dev set (GSM*, 200 GSM8K questions), how much of the anneal's gain comes from the learning-rate decay alone?</div>
+<div class="opts"><button data-a="most">Most of it</button><button data-a="half">About half</button><button data-a="none">None of it</button></div>
+<div class="rev" id="as-rev" hidden></div>
+</div>
+<div class="fig" id="as-card"><h4>On maths the gain is all data; on knowledge and multiple choice it is mostly the decay</h4><div class="seg" id="as-mode" role="group" aria-label="Benchmark"></div><div id="as-bars"></div>
+<div class="leg"><span><i style="background:var(--dim)"></i>4T checkpoint, no anneal</span><span><i style="background:var(--c1)"></i>+ LR to zero, same mix</span><span><i style="background:var(--c2)"></i>+ high-quality mix (web, maths, instructions)</span></div>
+<p class="cap">OLMo 2 Table 11: "n/a (pretrain checkpoint)", "PT Mix" and "Web FT7 FW2 + Math + Ins" rows, each 50B tokens from the same 4T checkpoint, transcribed (the bars reproduce Table 11 by construction). <i class="nl d">derived</i> splits: LR part = PT Mix &minus; checkpoint; data part = new mix &minus; PT Mix. GSM* is 200 questions, so one score has a binomial standard error of about 3.2 to 3.5 points and a difference about 4.5 to 4.7 (&radic;(p(1&minus;p)/200)); the multiple-choice scores average many more questions, but the paper gives no error bars for them.</p></div>
+<p><b>On knowledge and multiple-choice tasks most of the gain is the learning-rate decay</b> (OLMES +4.4 of +6.1, MMLU +2.0 of +3.3); <b>on maths all of it is the data</b> (decay alone &minus;1.5, within noise; the new mix +19.5). The shipped OLMo 2 7B, with three souped 50B anneals on the final Dolmino mix, went from 24.1 to 67.5 on full GSM8K and 59.8 to 63.7 on MMLU, +10.6 points on average ({{Table 9|https://arxiv.org/html/2501.00656v3#S4.T9}}); the {{OLMo 2 paper page|n:3c65c17b0d0d81fb9857fb956165ae1c}} rebuilds the microanneals that chose the maths data and the soups. Two facts bound the effect. It shrinks with scale: annealing raised a pre-trained Llama 3 8B by 24.0% on GSM8k and 6.4% on MATH, and the gains on the 405B were negligible ({{Llama 3, section 3.1.3|https://arxiv.org/abs/2407.21783}}); OLMo 2 says the same of Dolmino across its sizes. And the ablation has no cell for "new data at a constant learning rate", so it cannot say whether the data switch needs the decay.</p>
+
+<h3>The missing cell, run here</h3>
+<p>This page trained a 0.8M-parameter character model and annealed it four ways from one checkpoint: learning rate held flat or decayed to zero, crossed with the same mix (3% two-digit sums, SmolLM3's stage-1 maths share) or a maths-heavy mix (25%, close to OLMo 2's 20.8% maths in Dolmino), three seeds each. <i class="nl t">toy</i> measured here; nothing on this card is read from a paper.</p>
+<div class="fig" id="ty-cells"><h4>All four cells: the data lever moves the skill in the data; the decay moves everything a little</h4>
+<div class="seg" id="ty-met" role="group" aria-label="Measure"></div>
+<div id="ty-grid"></div>
+<p class="small mute" id="ty-gnote"></p>
+<div class="seg" id="ty-view" role="group" aria-label="Range"><button data-v="all" class="on">Whole run</button><button data-v="br">Branches only</button></div>
+<div class="seg" id="ty-seed" role="group" aria-label="Seed"><button data-s="-1" class="on">Mean of 3 seeds</button><button data-s="0">Seed 1</button><button data-s="1">Seed 2</button><button data-s="2">Seed 3</button></div>
+<div id="ty-plot" class="plot"></div>
+<div class="leg" id="ty-leg"></div>
+<p class="cap">Switch the measure: "Sum answers" is the loss on the digits after <code>=</code>, which a model can drive to zero; "Sum operands" is the loss on the random digits before it, floored at about 3.25 bits; "Word starts" is the first letter of a word, where text makes its choices. Held-out evaluation every 100 steps: 96 text windows from the held-out 5% of the books, 48 windows of held-out sums, and greedy exact-match accuracy on 300 held-out sums, each given five training sums as context. Bands are the range over seeds.</p></div>
+<ul>
+<li><b>The data lever moves the skill the data contains.</b> Held-out sum accuracy, mean of 3 seeds: 10.7% with no anneal, 20.2% with the decay alone, 89.8% with the maths-heavy mix alone and 99.6% with both.</li>
+<li><b>The learning-rate lever moves everything a little.</b> Text loss: 1.919 bits per character with no anneal, 1.800 with the decay alone; the maths-heavy mix alone makes text slightly worse (1.945), because a quarter of the batch is no longer text, and the decay recovers it (1.809).</li>
+<li><b>The two levers combine.</b> Answer-digit loss falls from 1.639 to 0.025 bits with both, below either alone (1.315 and 0.183). So the data switch does not need the decay to work, but the decay finishes it.</li>
+<li><b>Where the toy and OLMo 2 differ.</b> Here the decay alone also improved the sums (10.7% to 20.2%), while OLMo 2's decay alone left GSM* unchanged. A likely reason, untested: two-digit addition is partly learned from the 3% of sums in stage 1, so a quieter optimiser sharpens it, whereas grade-school word problems at 0.6% maths in OLMo 2's mix were barely learned, so only new data could help.</li>
+<li><b>What it cannot show.</b> A 0.8M-parameter character model on six novels says nothing about scale (Llama 3 found annealing gains negligible at 405B); it has no tokenizer, no long context and no instruction data, and three seeds bound the noise only roughly. It shows the mechanism, not the size of the effect.</li>
+</ul>
+<details class="dp"><summary>How the toy was trained</summary><div>
+<ul class="tight">
+<li><b>Model:</b> a <span id="ty-par">818,688</span>-parameter GPT at the character level (4 layers, width 128, 4 heads, context 96, pre-norm), trained with AdamW (&beta; 0.9 and 0.95, weight decay 0.1), gradient clipping at 1.0, batch 32 sequences.</li>
+<li><b>Two kinds of data.</b> "Web": six public-domain novels from Project Gutenberg, lower-cased, with digits removed (5% of each held out). "Maths": lines like <code>47+38=85</code> for two-digit sums, with a fixed 20% of all pairs never trained on and used only for testing.</li>
+<li><b>Stage 1</b>: 6,000 steps, 3% of sequences maths, learning rate warmed up over 150 steps to 3e-3 and then held flat: the stable phase of warmup-stable-decay.</li>
+<li><b>Four branches of 1,200 steps from the same stage-1 checkpoint</b> (the last 17% of the run, the usual 10 to 20% cooldown): learning rate flat or linearly to zero, crossed with the same mix or 25% sums. Every branch sees the same number of tokens and starts from the same random state; the two same-mix branches see identical batches.</li>
+<li><b>Three seeds</b> (1, 2, 3) of the whole experiment. Code: <code>src/toy/train.py</code>, run on CPU with two threads (<span id="ty-sec">about 11 minutes per seed</span>).</li>
+</ul></div></details>
+</section>

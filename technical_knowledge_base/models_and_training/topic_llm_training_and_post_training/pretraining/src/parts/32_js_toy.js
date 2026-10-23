@@ -87,18 +87,13 @@
   }
   const A=RD.anim({card:'ty-card',ctl:'ty-ctl',n:STEPS.length,draw:heat,ms:2600,label:'Checkpoint'});
   $('ty-br').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;brSel=b.dataset.b;[...$('ty-br').children].forEach(x=>x.classList.toggle('on',x===b));A.go(STEPS.length-1)});
-  // ---- findings, from the recorded runs ----
+  // ---- findings, from the recorded runs (prose is static; see check_data.py) ----
   const f=k=>{const o=finals(k),r={};Object.keys(o).forEach(b=>r[b]=mean(o[b]));return r};
   const A1=f('acc'),T=f('text'),AN=f('m_answer');
   const pc=v=>(v*100).toFixed(1)+'%';
-  $('ty-find').innerHTML=[
-    '<b>The data lever moves the skill the data contains.</b> Held-out sum accuracy: '+pc(A1.const_same)+' with no anneal, '+pc(A1.decay_same)+' with the decay alone, '+pc(A1.const_maths)+' with the maths-heavy mix alone and '+pc(A1.decay_maths)+' with both (means of '+S.length+' seeds).',
-    '<b>The learning-rate lever moves everything a little.</b> Text loss: '+T.const_same.toFixed(3)+' bits per character with no anneal, '+T.decay_same.toFixed(3)+' with the decay alone; the maths-heavy mix alone makes text slightly worse ('+T.const_maths.toFixed(3)+'), because a quarter of the batch is no longer text, and the decay recovers it ('+T.decay_maths.toFixed(3)+').',
-    '<b>The two levers combine.</b> Answer-digit loss falls from '+AN.const_same.toFixed(3)+' to '+AN.decay_maths.toFixed(3)+' bits with both, below either alone ('+AN.decay_same.toFixed(3)+' and '+AN.const_maths.toFixed(3)+'). So the data switch does not need the decay to work, but the decay finishes it.',
-    '<b>Where the toy and OLMo 2 differ.</b> Here the decay alone also improved the sums ('+pc(A1.const_same)+' to '+pc(A1.decay_same)+'), while OLMo 2\'s decay alone left GSM* unchanged. A likely reason, untested: two-digit addition is partly learned from the 3% of sums in stage 1, so a quieter optimiser sharpens it, whereas grade-school word problems at 0.6% maths in OLMo 2\'s mix were barely learned, so only new data could help.',
-    '<b>What it cannot show.</b> A character model of 0.8M parameters on six novels says nothing about scale: Llama 3 found annealing gains negligible at 405B. It has no tokenizer, no long context and no instruction data, and three seeds bound the noise only roughly. It shows the mechanism, not the size of the effect.'
-  ].map(x=>'<li>'+x+'</li>').join('');
+  // the findings are static text in 20_read_e.html; these are the values check_data.py compares it with
+  window.PT_TOYF={acc:A1,text:T,m_answer:AN};
   grid();
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-toy']=window.TAB_RENDER['t-toy']||[]).push(()=>{plot();A.redraw()});
+  RD.onRender(()=>{plot();A.redraw()});
   addEventListener('resize',()=>{if($('ty-plot').offsetParent)plot()});
 })();
