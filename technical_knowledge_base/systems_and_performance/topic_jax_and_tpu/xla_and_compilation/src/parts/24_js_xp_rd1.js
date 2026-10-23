@@ -43,14 +43,14 @@
     const n=S.length, maxI=Math.max(P.start,...S.map(s=>s[3])), bw=(W-padL-8)/(n+1);
     const y=v=>H-padB-(H-padB-padT)*v/maxI;
     let s='';
-    for(let t=0;t<=4;t++){const v=maxI*t/4;s+='<line x1="'+padL+'" x2="'+(W-4)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(padL-4,y(v)+3,f(Math.round(v)),{a:'end',fs:10})}
+    for(let t=0;t<=4;t++){const v=maxI*t/4;s+='<line x1="'+padL+'" x2="'+(W-4)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(padL-4,y(v)+3,f(Math.round(v)),{a:'end',fs:11})}
     s+='<rect x="'+(padL+1)+'" y="'+y(P.start)+'" width="'+Math.max(1,bw-2)+'" height="'+(H-padB-y(P.start))+'" fill="var(--dim)"><title>start: '+P.start+'</title></rect>';
     let path='';
     S.forEach((st,k)=>{const x=padL+(k+1)*bw;const on=k===i, past=k<i;
       s+='<rect x="'+(x+1)+'" y="'+y(st[3])+'" width="'+Math.max(1,bw-2)+'" height="'+(H-padB-y(st[3]))+'" fill="'+(on?'var(--c2)':past?'var(--acc)':'var(--acc2)')+'"><title>'+esc(st[2])+': '+st[3]+'</title></rect>';
       path+=(k?'L':'M')+(x+bw/2).toFixed(1)+','+y(st[4]).toFixed(1)});
     s+='<path d="'+path+'" fill="none" stroke="var(--c3)" stroke-width="1.6"/>';
-    s+=RD.t(padL,H-8,'start',{fs:10})+RD.t(W-6,H-8,'end of pipeline',{a:'end',fs:10});
+    s+=RD.t(padL,H-8,'start',{fs:11})+RD.t(W-6,H-8,'end of pipeline',{a:'end',fs:11});
     host.innerHTML=RD.svg(W,H,s,'Instructions after each pass');
     const st=S[i], prev=i?S[i-1][3]:P.start;
     cn.innerHTML=RD.stat('Pass',(i+1)+' of '+n,esc(st[1]))+RD.stat('Instructions',f(st[3]),(st[3]-prev>=0?'+':'')+f(st[3]-prev)+' from the previous')+RD.stat('Fusions',f(st[4]),'top-level')+RD.stat('Text lines',(st[5]?'+'+st[5]:'0')+' / -'+st[6],'changed in this pass');

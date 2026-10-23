@@ -70,6 +70,19 @@ checks = [
                                                [b for b in gen["fuse"]["breakers"] if b["key"] == "mul_two_users"][0]["s"]["default"]["b"] - 2) < 0.01),
     ("export: calling convention 10", n["export_ccv"] == 10),
     ("peak at position 407", n["peak_pos"] == 407),
+    # numbers typed statically in the 2026-10-23 rebuild (hero, card titles, notes)
+    ("hero: 3,411 / 5,318 / 4,932 / 817 / 783 / 33 / 374.4 MB", (n["step_jaxpr"], n["step_shlo"], n["step_hlo"], n["step_kernels"], n["step_fusions"], n["step_dots"], n["xla_peak_mb"]) == (3411, 5318, 4932, 817, 783, 33, 374.4)),
+    # the root's Compiler lab prose prints 1,057 (its old counter); its lab output now counts top-level kernels (816), so check the arithmetic and the 816
+    ("root reconciliation: 1,057 = 816 + 241 reducer bodies", n["root_entry_kernels"] == 816 and 1057 - 816 == 241),
+    ("attention block forms: 61, 90, 133, then 13 kernels", (gen["low"]["fcounts"]["jaxpr_eqns"], gen["low"]["fcounts"]["stablehlo_ops"], gen["low"]["fcounts"]["hlo_instructions"], gen["low"]["fcounts"]["opt_kernels"]) == (61, 90, 133, 13)),
+    ("stair note: cse 4,681 to 3,758; fusion 3,677 to 2,006", any(pd["step"]["steps"][i][2] == "cse" and pd["step"]["steps"][i - 1][3] == 4681 and pd["step"]["steps"][i][3] == 3758 for i in range(1, len(pd["step"]["steps"])))
+     and any(pd["step"]["steps"][i][2] == "fusion" and pd["step"]["steps"][i - 1][3] == 3677 and pd["step"]["steps"][i][3] == 2006 for i in range(1, len(pd["step"]["steps"])))),
+    ("softmax title: 4 kernels default, 6 library off, 6 fusion off", [[b for b in gen["fuse"]["breakers"] if b["key"] == "softmax"][0]["s"][k]["k"] for k in ("default", "no_library", "no_fusion")] == [4, 6, 6]),
+    ("duplicate card: 2 kernels (mul), 3 kernels (exp)", [[b for b in gen["fuse"]["breakers"] if b["key"] == k][0]["s"]["default"]["k"] for k in ("mul_two_users", "exp_two_users")] == [2, 3]),
+    ("10.57 GB against 2.52 GB", (n["bytes_nofusion_gb"], n["bytes_default_gb"]) == (10.57, 2.52)),
+    ("peak 374.4 MB, 0.3% from the reconstruction", n["xla_peak_mb"] == 374.4 and n["peak_diff_pct"] == 0.3),
+    ("peak attribution: divisions 28%, erfc 17.9%", n["peak_div_pct"] == 28 and n["peak_erfc_pct"] == 17.9),
+    ("storm: 64 compilations against 4", (n["storm_exact_compiles"], n["storm_bucket_compiles"]) == (64, 4)),
 ]
 for name, ok in checks:
     print(("ok  " if ok else "FAIL"), name)

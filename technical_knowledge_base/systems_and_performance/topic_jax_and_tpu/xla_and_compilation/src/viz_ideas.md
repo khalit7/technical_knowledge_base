@@ -20,12 +20,19 @@ The question the page keeps returning to: **what did the compiler do to my train
 | 12 | Profile reader tab: mini trace viewer with zoom, kernels joined to phases | own tab | `profile_lab.py` + fusion catalogue | Reading a trace on the running example; what each xprof view returns on CPU | 9 |
 | 13 | Tables: cache cases, export per platform, flag settings, in-place check | Reading s6, s8, s9, s12 | the lab scripts | Each a measured answer to a question people get wrong | n/a |
 
+| 14 | Hero: six forms, owners and levers (static) | Reading top | data counts | The whiteboard picture the page elaborates (2026-10-23) | n/a |
+| 15 | PJRT structure (static) | Reading s2 | source structure, measured backends | Structure had no picture | n/a |
+| 16 | One producer, two consumers (toggle) | Reading s4 | `mul_two_users`, `exp_two_users` breakers | The duplication rule seen, not described | n/a |
+| 17 | TPU tile padding (one slider) | Reading s5 | derived from docs/tiled_layout.md | Parameter with a crossover at multiples of 128; default reproduces the page's 1.97x by construction | n/a |
+| 18 | The two caches (static flow) | Reading s8 | cache_key.py, cache runs | What a hit skips at each level | n/a |
+
 ## Rejected
 
 - Rebuilding the root's five-forms stepper and MLP-block fusion animation: owned by the root's Compiler lab, linked instead.
 - A GPU or TPU pass diff: cannot run here (no device; TPU compiler closed). The GPU-only passes are listed from source instead.
 - A compile-time breakdown per pass: XLA did not report per-pass timing with the flags used; skipped rather than estimated.
 - Animating Inductor against XLA on the PyTorch twin: owned by the CUDA topic's compiler-stack page.
+- A real image (TPU board, XLA's architecture figure): this page is about a compiler, not a physical object; the hero diagram is the better tool (2026-10-23).
 - xprof's op profile and memory profile views: empty on CPU (recorded on the page as a finding).
 
 ## What the methodology lacked

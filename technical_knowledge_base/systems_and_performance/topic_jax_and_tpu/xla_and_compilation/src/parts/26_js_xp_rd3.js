@@ -28,10 +28,10 @@
     const maxv=Math.max(...ST.calls_exact.map(c=>c[3]),...ST.calls_bucket.map(c=>c[3]));
     const lg=v=>Math.log10(1+v), y=v=>H-pb-(H-pb-pt)*lg(v)/lg(maxv);
     let s='';
-    [1,10,100].forEach(v=>{if(v<=maxv)s+='<line x1="'+pl+'" x2="'+(W-4)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(pl-4,y(v)+3,v+' ms',{a:'end',fs:10})});
+    [1,10,100].forEach(v=>{if(v<=maxv)s+='<line x1="'+pl+'" x2="'+(W-4)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(pl-4,y(v)+3,v+' ms',{a:'end',fs:11})});
     const upto=Math.min(n,(i+1)*2);
     for(let k=0;k<upto;k++){const c=C[k];s+='<rect x="'+(pl+k*bw+0.5)+'" y="'+y(c[3])+'" width="'+Math.max(1,bw-1)+'" height="'+(H-pb-y(c[3]))+'" fill="'+(c[2]?'var(--c2)':'var(--c3)')+'"><title>L='+c[0]+' shape '+c[1]+': '+c[3]+' ms'+(c[2]?' (compiled)':'')+'</title></rect>'}
-    s+=RD.t(pl,H-6,'call 1',{fs:10})+RD.t(W-6,H-6,'call 64 (L = 64)',{a:'end',fs:10});
+    s+=RD.t(pl,H-6,'call 1',{fs:11})+RD.t(W-6,H-6,'call 64 (L = 64)',{a:'end',fs:11});
     sh.innerHTML=RD.svg(W,H,s,'Time per call, log scale');
     let comp=0,tot=0;for(let k=0;k<upto;k++){comp+=C[k][2];tot+=C[k][3]}
     const R=ST.runs.map(r=>r[smode==='exact'?'exact':'bucketed']);
@@ -61,6 +61,4 @@
   // mistakes: real errors
   const sc2=k=>D.rec.sc.find(s=>s.key===k);
   document.getElementById('xp-mis-unhash').textContent=sc2('unhashable').error;
-  document.getElementById('xp-mis-aot').textContent=E.aot.wrong_shape_error;
-  document.getElementById('xp-mis-tpu').textContent=fr.tpu_only_on_cpu_error;
 })();
