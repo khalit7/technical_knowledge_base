@@ -16,7 +16,7 @@ m1 = {r["seq"]: r for r in R["m1"]}
 st = R["states"]
 need = [
     # section 1
-    (f"6N = {L[8192]['six_n'] / G:.1f} GFLOP", "6N"), (f"{L[8192]['traced_total'] / G:.1f} GFLOP at 8,192", "traced 8K, one screen"),
+    (f"against {L[8192]['six_n'] / G:.1f} for 6N", "6N"),
     (f"<b>{L[8192]['traced_total'] / G:.2f}</b>", "ledger total"), (f">{L[8192]['six_n'] / G:.2f}<", "ledger 6N"),
     (f">{L[8192]['proj'] / G:.2f}<", "proj"), (f">{L[8192]['mlp'] / G:.2f}<", "mlp"), (f">{L[8192]['head'] / G:.2f}<", "head"),
     (f">{L[8192]['core_fwd'] / G:.2f}<", "core fwd"), (f">{L[8192]['core_bwd_flash'] / G:.2f}<", "core bwd"),
@@ -39,7 +39,7 @@ need = [
     (f"LoRA adapters {st['l8']['A'] / 1e6:.1f}M and {st['l70']['A'] / 1e6:.1f}M", "adapters"),
     (f"the 128.5 GB is {R['states_fsdp8_GB']:.1f} GB per GPU", "fsdp8"),
     # section 3
-    (f"that is {R['act_layers_flash_GB']:.1f} GB for the 32 layers plus <b>{R['act_post_GB']:.2f} GB for the output</b>", "act layers"),
+    (f"{R['act_layers_flash_GB']:.1f} GB for the 32 layers at 8,192 tokens and micro-batch 1, plus <b>{R['act_post_GB']:.2f} GB for the output</b>", "act layers"),
     (f"Total <b>{R['act_total_flash_GB']:.1f} GB</b>, against the {R['korthikanti_34_GB']:.1f} GB", "act total"),
     (f"{R['act_layer_eager_GB'] - R['act_layer_flash_B'] / G:.1f} GB <i>per layer</i>, {R['act_total_eager_GB']:.0f} GB in all", "eager"),
     (f"6.6 GB, most of it the logits", "ckpt"), (f"{R['act_ckpt_total_GB']:.1f}", "ckpt value"),
@@ -47,7 +47,7 @@ need = [
     (f"about {R['anim_peaks_GB']['ckpt']:.0f} GB but", "anim ckpt"),
     (f"{R['act_layer_flash_per_tok_h']:.0f} bytes per token per hidden unit", "49h"),
     # section 4
-    (f"<b>{R['hfu_ratio_ckpt']:.2f} times</b>", "hfu ratio"), (f"the recompute is {R['recompute_TF']:.1f} TFLOP, not the layers' full {R['fwd_layers_TF']:.1f} TFLOP forward ({R['down_proj_TF']:.1f} TFLOP", "recompute"),
+    (f"<b>{R['hfu_ratio_ckpt']:.2f} times</b>", "hfu ratio"), (f"The recompute is {R['recompute_TF']:.1f} TFLOP, not the layers' full {R['fwd_layers_TF']:.1f} TFLOP forward ({R['down_proj_TF']:.1f} TFLOP", "recompute"),
     (f">{R['palm_tf_tok']:.3f} TFLOP (paper: 3.28)", "palm tf"), (f">{pc(R['palm_mfu'])} (paper: 46.2%)", "palm mfu"),
     (f">{R['palm_hw_tf_tok_ours'] - R['palm_tf_tok']:.3f} TFLOP<", "palm remat"), (f">{pc(R['palm_hfu_ours'])} (paper: 57.8%)", "palm hfu"),
     (f"{R['palm_hw_tf_tok_ours']:.3f} TFLOP, against Table 22", "palm hw"), (f"that is {R['kor_530_ratio']:.3f}", "kor ratio"),
@@ -76,6 +76,15 @@ need = [
     (f"{R['card_gpuh_l8'] / R['gpuh_h100']:.1f} times our {R['gpuh_h100'] / 1e3:.0f}K: at list price ${R['card_usd_l8'] / 1e6:.1f}M", "card"),
     (f"takes {R['ft_1b_hours']:.1f} hours", "ft hours"), (f"about ${R['ft_1b_usd']:.0f} at list", "ft usd"),
     (f"about {R['serve_capacity_h100']:.0f} H100s at batch 64, or {R['serve_capacity_h100_b1']:.0f} at batch 1", "capacity"),
+    # section 2 (roofline) and section 7 (run cost), added 2026-10-23
+    (f"finishes the arithmetic in {R['roof_ex']['1']['t_compute_us']:.3f} &micro;s and then waits {R['roof_ex']['1']['t_read_us']:.1f} &micro;s", "roof b1"),
+    (f"{R['roof_ex']['1']['flops'] / 1e6:.1f} MFLOP for {R['roof_ex']['1']['bytes'] / 1e6:.1f} MB moved", "roof b1 bytes"),
+    (f"{R['roof_ex']['8192']['flops'] / 1e9:.0f} GFLOP for {R['roof_ex']['8192']['bytes'] / 1e6:.1f} MB moved, {c(R['roof_mm']['8192']['I'])} FLOPs per byte: {R['roof_ex']['8192']['t_compute_us']:.1f} &micro;s of arithmetic against {R['roof_ex']['8192']['t_read_us']:.1f} &micro;s", "roof 8K"),
+    (f"about {R['roof_m_ridge']:.0f} tokens per read", "roof ridge m"), (f"ridge {R['ridge_h100']:.0f} FLOPs per byte", "ridge"),
+    (f"ridge {R['ridge_m1']:.0f}.", "ridge m1"), (f"a BF16 add reaches {R['roof_add_tf']:.2f} TFLOP/s", "add"),
+    (f"= {R['cost_presets']['l405']['flops'] / 1e25:.2f} &times; 10<sup>25</sup> FLOPs", "405 flops"),
+    (f"({100 * R['cost_presets']['l405']['mfu']:.1f}% MFU; the table prints 41%) that is {R['cost_presets']['l405']['hours'] / 1e6:.1f}M GPU-hours: {R['cost_presets']['l405']['days']:.0f} days on 16,384 GPUs, ${R['cost_presets']['l405']['usd'] / 1e6:.0f}M", "405 hours"),
+    (f"30.84M H100-hours, {R['cost_presets']['l405']['ratio_pub']:.2f} times the estimate", "405 ratio"),
     # drills
     (f"{L[8192]['six_n'] * 8192 / 1e12:.0f} TFLOP; counted, {R['step_tf_8k']:.0f} TFLOP", "drill 1"), (f"that is {R['anim_time_s']['flash']:.2f} s", "drill 1 time"),
     (f"= {R['act_layer_flash_B'] / G:.2f} GB, &times; 32 layers = {R['act_layers_flash_GB']:.1f} GB", "drill 2"),

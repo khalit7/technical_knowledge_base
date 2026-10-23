@@ -59,7 +59,7 @@ window.PMA=(function(){
       RD.stat('Time at 40% MFU',X.sig((s.fl+s.flr)/peak,3)+' s','one H100');
   }
   const an=RD.anim({card:'rd-mem-card',ctl:'rd-mem-ctl',n:runs.flash.steps.length,draw:draw,ms:520,label:'Step of the training step'});
-  RD.seg(document.getElementById('rd-mem-mode'),v=>{mode=v;an.reset(runs[v].steps.length);an.play()});
+  RD.seg(document.getElementById('rd-mem-mode'),v=>{mode=v;an.reset(runs[v].steps.length)});  // a mode switch resets to step 0 and waits for the reader
   const z=document.createElement('label');z.className='chk';z.innerHTML='<input type="checkbox" id="rd-mem-zoom"> zoom to 100 GB';
   document.getElementById('rd-mem-mode').after(z);document.getElementById('rd-mem-zoom').addEventListener('change',e=>{zoom=e.target.checked;an.redraw()});
   RD.onResize(()=>an.redraw());

@@ -31,6 +31,8 @@ const js = await p.evaluate(() => {
   const s = Q.serve({ model: 'l8', chip: 'h100', n: 1, fmt: 'bf16', kvb: 2, ctx: 4096, eff: 1, price: 3.99 });
   out.serve = { b1: s[0], b64: s[6] };
   out.cross = L.crossT(X.M.l8, 'full', 'flash');
+  const F = window.PMF, C = window.PMD.cost_presets; out.roof = { ridge: F.ridge, i1: F.mmI(1), i64: F.mmI(64), i8k: F.mmI(8192), iR: F.mmI(window.PMD.roof_m_ridge) };
+  out.cost = {}; for (const k in C) { const fl = 6 * C[k].N * C[k].D; out.cost[k] = { fl, h: F.costHours({ flops: fl }, C[k].mfu) }; }
   return out;
 });
 await b.close();
@@ -49,5 +51,7 @@ close(js.run.gpuh, rc.gpuh_h100, 'gpuh h100'); close(js.run.cost / 0.9 * 0.9, rc
 close(js.run.gpus, rc.gpus_30d_h100, 'gpus 30d'); close(js.run.gpuh_b, rc.gpuh_b200, 'gpuh b200'); close(js.run.cost_b, rc.usd_b200_good90, 'usd b200');
 close(js.serve.b1.usd, rc.usd_mtok_b1, 'usd b1'); close(js.serve.b64.usd, rc.usd_mtok_b64, 'usd b64'); close(js.serve.b64.B, 64, 'batch 64 row');
 close(js.serve.b1.t_ms, rc.tpot_b1_ms, 'tpot b1'); close(js.serve.b64.total, rc.tps_b64, 'tps b64');
+close(js.roof.ridge, rc.ridge_h100, 'ridge'); close(js.roof.i1, rc.roof_mm['1'].I, 'I m=1'); close(js.roof.i64, rc.roof_mm['64'].I, 'I m=64'); close(js.roof.i8k, rc.roof_mm['8192'].I, 'I m=8192'); close(js.roof.iR, rc.ridge_h100, 'm at ridge');
+for (const k in rc.cost_presets) { close(js.cost[k].fl, rc.cost_presets[k].flops, 'cost flops ' + k); close(js.cost[k].h, rc.cost_presets[k].hours, 'cost hours ' + k); }
 console.log(`check_page: ${n - bad} of ${n} comparisons match` + (bad ? `, ${bad} MISMATCH` : ''));
 process.exit(bad ? 1 : 0);

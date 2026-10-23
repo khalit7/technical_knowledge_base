@@ -290,6 +290,36 @@ R["ep_bytes_tok_layer_dsv3"] = 2 * DS["k"] * DS["h"] * 2         # dispatch + co
 R["comm_tp8_step_mb_GB"] = R["comm_tp8_layer_mb_GB"] * L8["L"]
 R["serve_capacity_h100"] = (1e6 / 60) / R["tps_b64"]
 R["serve_capacity_h100_b1"] = (1e6 / 60) / R["tps_b1"]
+
+# ---------------- roofline (Reading section 2) and the run-cost presets (section 7), added 2026-10-23 ----------------
+PK, BW = H100["peak"]["bf16"] * 1e12, H100["bw"] * 1e9
+R["ridge_h100"] = PK / BW                                     # FLOPs per byte where the two roofs meet
+R["ridge_m1"] = M1["peak"] / M1["bw"]
+def mm_I(m, k=4096, n=4096, b=2):
+    """Arithmetic intensity of an (m x k) by (k x n) BF16 matmul: 2mkn FLOPs over reading both inputs and writing the output."""
+    return 2 * m * k * n / (b * (m * k + k * n + m * n))
+R["roof_mm"] = {str(m): dict(I=mm_I(m), att_tf=min(PK, mm_I(m) * BW) / 1e12, share=min(PK, mm_I(m) * BW) / PK) for m in (1, 64, 8192)}
+R["roof_m_ridge"] = R["ridge_h100"] * 4096 / (4096 - 2 * R["ridge_h100"])   # tokens per weight read where the matmul reaches the ridge
+R["roof_add_I"] = 1 / 6                                       # BF16 elementwise add: 1 FLOP per 2 reads and 1 write of 2 bytes
+R["roof_add_tf"] = R["roof_add_I"] * BW / 1e12
+assert abs(mm_I(R["roof_m_ridge"]) - R["ridge_h100"]) < 1e-6
+R["roof_ex"] = {}
+for m in (1, 8192):
+    fl, by = 2 * m * 4096 * 4096, 2 * (m * 4096 + 4096 * 4096 + m * 4096)
+    R["roof_ex"][str(m)] = dict(flops=fl, bytes=by, t_compute_us=fl / PK * 1e6, t_read_us=by / BW * 1e6)
+# Run cost: GPU-hours = 6 N D / (peak x MFU) / 3600, against what each lab published
+CP = {}
+CP["l405"] = dict(name="Llama 3 405B", N=L405["P"], D=15.6e12, mfu=400 / 989.5, price=H100["price"], gpus=16384,
+                  pub_flops=3.8e25, pub_hours=30.84e6)
+CP["l8"] = dict(name="Llama 3.1 8B", N=L8["P"], D=15e12, mfu=0.40, price=H100["price"], gpus=None, pub_flops=None, pub_hours=1.46e6)
+CP["dsv3"] = dict(name="DeepSeek-V3", N=DS["Pact"], D=14.8e12, mfu=R["dsv3_mfu_bf16"], price=2.0, gpus=2048, pub_flops=None, pub_hours=2.664e6)
+for k, c in CP.items():
+    c["flops"] = 6 * c["N"] * c["D"]
+    c["hours"] = c["flops"] / (PK * c["mfu"]) / 3600
+    c["usd"] = c["hours"] * c["price"]
+    c["ratio_pub"] = c["pub_hours"] / c["hours"]
+    c["days"] = c["hours"] / c["gpus"] / 24 if c["gpus"] else None
+R["cost_presets"] = CP
 json.dump(R, open(os.path.join(OUT, "recompute.json"), "w"), indent=1)
 if __name__ == "__main__":
     for k in ("attn_8k_full_over_6n", "attn_8k_causal_over_matmul", "act_layer_flash_per_tok_h", "act_total_flash_GB", "act_total_eager_GB",
