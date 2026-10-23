@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Triton and Gluon: block-level kernels, autotuning, what the compiler does</h1>
-<div class="sub">Writing GPU kernels in Triton from zero (vector add, softmax, matmul, FlashAttention), what num_warps, num_stages and autotuning do, every stage and pass of the Triton compiler with real output for NVIDIA sm_80, sm_90a, sm_100a, sm_120 and AMD gfx942, gfx950, layouts, how torch.compile writes Triton, and Gluon, the lower-level language on the same compiler. Kernels checked on the CPU with Triton's interpreter and compiled with Triton 3.8.0 without a GPU; nothing here ran on an NVIDIA or AMD GPU. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a>. Data as of October 2026.</div>
+<div class="sub">Writing GPU kernels in Triton (vector add, softmax, matmul, FlashAttention), what num_warps, num_stages and autotuning do, every stage of the Triton compiler with real output for NVIDIA sm_80, sm_90a, sm_100a, sm_120 and AMD gfx942, gfx950, layouts, how torch.compile writes Triton, and Gluon. Kernels checked on the CPU with Triton's interpreter and compiled with Triton 3.8.0 without a GPU; nothing here ran on an NVIDIA or AMD GPU. A child of <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a>. Data as of October 2026. <span id="rd-time">Reading: 37 min, plus 8 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-ir" aria-selected="false">Compiler stages</button><button role="tab" data-t="t-cfg" aria-selected="false">Config explorer</button><button role="tab" data-t="t-lay" aria-selected="false">Layout explorer</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-ir" aria-selected="false">Compiler stages</button><button role="tab" data-t="t-cfg" aria-selected="false">Config explorer</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -178,18 +178,50 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read .corr .t{font-weight:600;color:var(--bad);font-size:13px}
 @media (max-width:520px){#t-read .bars .row{grid-template-columns:minmax(0,8.5em) minmax(0,1fr) 5.6em}}
 </style>
+<style>
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:14px 0 10px}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4,#t-read .card h4{margin:0 0 4px;font-size:14.5px}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px;font-size:14px}
+#ly-card .ly-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:8px 14px;margin:10px 0}
+#ly-card .ly-ctl label{font-size:13px;display:block}#ly-card select{width:100%}
+#ly-card .ly-grid{overflow:auto;max-width:100%;margin:8px 0}
+#ly-card pre{font:11.5px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;white-space:pre;margin:6px 0}
+#ly-card .ok{color:var(--good);font-weight:600}#ly-card .bad{color:var(--bad);font-weight:600}
+#ly-card .stat .v{font-size:16px}
+#ly-card .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
+#ly-card .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute)}
+#t-read .at-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:5px;margin:8px 0}
+#t-read .at-grid>div{border:1px solid var(--line);border-left:4px solid var(--dim);border-radius:6px;padding:4px 8px;font-size:12px;min-width:0;line-height:1.35;background:var(--bg)}
+#t-read .at-grid>div.on{border-left-color:var(--acc)}#t-read .at-grid>div.out{border-left-color:var(--bad);opacity:.75}#t-read .at-grid>div.tm{border-left-color:var(--good)}
+#t-read .at-grid>div b{display:block;font-size:12.5px}
+#t-read .at-grid .x{color:var(--bad);font-weight:600}#t-read .at-grid .ok{color:var(--good);font-weight:600}
+</style>
 <nav class="nav" id="rd-nav">
-<a href="#rd-one">In one screen</a><a href="#rd-s1">1 Blocks</a><a href="#rd-s2">2 Softmax</a><a href="#rd-s3">3 Matmul</a><a href="#rd-s4">4 Attention</a><a href="#rd-s5">5 Warps, stages</a><a href="#rd-s6">6 Autotuning</a><a href="#rd-s7">7 The compiler</a><a href="#rd-s8">8 Layouts</a><a href="#rd-s9">9 torch.compile</a><a href="#rd-s10">10 Gluon</a><a href="#rd-s11">11 AMD, others</a><a href="#rd-s12">12 Mistakes</a><a href="#rd-s13">13 Interview</a>
+<a href="#rd-one">The idea</a><a href="#rd-s1">1 Blocks</a><a href="#rd-s2">2 Softmax</a><a href="#rd-s3">3 Matmul</a><a href="#rd-s4">4 Attention</a><a href="#rd-s5">5 Warps, stages</a><a href="#rd-s6">6 Autotuning</a><a href="#rd-s7">7 The compiler</a><a href="#rd-s8">8 Layouts</a><a href="#rd-s9">9 torch.compile</a><a href="#rd-s10">10 Gluon</a><a href="#rd-s11">11 Which tool</a><a href="#rd-s12">12 Mistakes</a>
 </nav>
 <section id="rd-one">
-<p class="lead" style="margin-top:14px"><b>Triton</b> is a Python language for writing GPU kernels in which you describe what one <b>program</b> does to whole <b>blocks</b> of numbers, and a compiler decides how the threads, registers, shared memory and tensor cores of a particular GPU carry it out. It is what <code>torch.compile</code> writes for you, what many open training and inference kernels are written in (<a href="https://github.com/linkedin/Liger-Kernel" target="_blank" rel="noopener noreferrer">Liger Kernel</a>, Unsloth, parts of vLLM and SGLang; <a href="#rd-s11">section 11</a>), and the shortest road from "I use PyTorch" to "I wrote a fused kernel". <b>Gluon</b> is a lower-level language on the same compiler for the cases where Triton's choices leave speed behind.</p>
-<p>This page assumes you have read the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Triton section</a> (section 6 of its Reading tab) or nothing at all: every term is explained at first use. It owns Triton itself and what its compiler does. The CUDA C++ versions of the same kernels are on <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>; threads, warps and occupancy are on <a href="https://app.notion.com/p/3c65c17b0d0d8162865eec15d9dae87e" target="_blank" rel="noopener noreferrer">The CUDA programming model</a>; coalescing, shared memory and spills on <a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a>.</p>
-<div class="ladder">
-<div style="--sc:var(--c3)"><b>torch.compile</b>You write PyTorch. Inductor fuses operations and <em>writes Triton for you</em>; matmuls go to a library. Start here. <a href="#rd-s9">Section 9</a></div>
-<div style="--sc:var(--c1)"><b>Triton</b>You write one program over blocks. The compiler picks layouts, vector widths, shared memory, pipelining and the tensor-core instruction. For what torch.compile cannot express: attention variants, quantised or mixed-format matmuls, fused MoE routing, fused losses. <a href="#rd-s1">Sections 1 to 8</a></div>
-<div style="--sc:var(--c4)"><b>Gluon</b>Same compiler, same launch, but you choose the layouts, shared memory, asynchronous copies, barriers and warp roles yourself. <a href="#rd-s10">Section 10</a></div>
-<div style="--sc:var(--c2)"><b>CUDA C++, CUTLASS, CuTe DSL</b>You write what each thread does. Everything is yours: explicit warp roles, swizzles, clusters, persistent scheduling, any device API, C++ deployment without Python. <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>, <a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">Libraries and tensor cores</a></div>
-</div>
+<p class="core">In Triton you write what one <b>program</b> does to whole <b>blocks</b> of numbers; <span class="hl">the compiler decides</span>, separately for each GPU, which thread holds which element, how wide each load is, what goes into shared memory, how deep the copy pipeline runs and which tensor-core instruction does the multiply. <b>Gluon</b> is the same compiler with those decisions handed back to you.</p>
+<div class="hero" id="rd-hero-card"><h4>One source, decided per GPU: what you write, what the compiler chooses, what each GPU runs</h4>
+<div class="tgviz" id="rd-hero"></div>
+<p class="small" id="rd-hero-cap">Every instruction listed is real compiler output <span class="ev cmp">compiled here</span>: the same 128 x 128 x 32 FP16 <code>tl.dot</code> became <code>mma.sync</code> on sm_80 and sm_120, <code>wgmma</code> on sm_90a, <code>tcgen05.mma</code> on sm_100a and MFMA on gfx942 and gfx950 (section 3). The middle column is the compiler's pipeline (section 7); the <span class="hl">highlighted</span> TTGIR box holds the decisions this page is about. Gluon programs start at TTGIR, the level where those decisions are written down (section 10).</p></div>
+<p><b>You need:</b> threads, warps, thread blocks (CTAs) and occupancy (<a href="https://app.notion.com/p/3c65c17b0d0d8162865eec15d9dae87e" target="_blank" rel="noopener noreferrer">The CUDA programming model</a>), and coalescing, shared memory and spills (<a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a>). The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Triton section</a> (section 6 of its Reading tab) is a one-screen preview of this page; the CUDA C++ versions of the same kernels are on <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>.</p>
+<dl class="terms">
+<dt>Program</dt><dd>one instance of the kernel; it owns one block of the data and becomes one CUDA thread block (CTA) of num_warps x 32 threads.</dd>
+<dt>Block</dt><dd>a small array, every dimension a power of two, that a program loads, computes on and stores as a whole.</dd>
+<dt>Grid</dt><dd>the number of programs launched; each asks <code>tl.program_id</code> which one it is.</dd>
+<dt>Layout</dt><dd>the rule saying which register of which thread of which warp holds each element of a block.</dd>
+<dt>num_warps, num_stages</dt><dd>the two compile options on every launch: warps per program, and the depth of the copy pipeline.</dd>
+<dt>TTIR, TTGIR</dt><dd>Triton's two MLIR levels: whole-block operations, then the same program with layouts, shared memory and the tensor-core instruction chosen.</dd>
+<dt>Gluon</dt><dd>a lower-level language on the same compiler in which you write the layouts, shared memory and warp roles yourself.</dd>
+</dl>
 <div class="tw"><table class="cmp">
 <thead><tr><th>Who decides</th><th>Triton</th><th>Gluon</th><th>CUDA C++</th></tr></thead>
 <tbody>
@@ -201,15 +233,13 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>Tensor-core instruction (mma, wgmma, tcgen05, MFMA)</td><td>compiler, per target</td><td>you</td><td>you, or a library</td></tr>
 <tr><td>Barriers and warp roles (warp specialisation)</td><td>compiler (limited)</td><td>you</td><td>you</td></tr>
 </tbody></table></div>
-<p class="small">The usual advice, which this page shares: write no kernel until a profile shows a gap, prototype in Triton, and go lower only for the kernels that dominate the profile. The old page's "a competent Triton kernel lands within 0 to 20% of expert CUDA in about a tenth of the lines" is a rule of thumb with no source we could find <span class="ev not">unconfirmed</span>.</p>
-<p class="small mute">How each claim on this page was checked: <span class="ev run">interpreter</span> run on this laptop's CPU with <code>TRITON_INTERPRET=1</code> against PyTorch; <span class="ev cmp">compiled here</span> by Triton 3.8.0 in the <code>kb-gpu-lab:1</code> image (CUDA 13.4.2 tools) for a GPU that is not present; <span class="ev pub">published</span> by the Triton or PyTorch project, with a link; <span class="ev der">derived</span> by arithmetic shown; <span class="ev not">not run here</span>. No timing on this page comes from an NVIDIA or AMD GPU.</p>
-<div class="co key"><div class="t">Versions</div>Triton <b>3.8.0</b> (released August 28, 2026, <a href="https://github.com/triton-lang/triton/releases/tag/v3.8.0" target="_blank" rel="noopener noreferrer">GitHub release</a>) is the version PyTorch 2.14 pins (<a href="https://github.com/pytorch/pytorch/blob/v2.14.0/.ci/docker/triton_version.txt" target="_blank" rel="noopener noreferrer">triton_version.txt</a>), and the one used everywhere on this page. Releases so far in 2026: 3.6.0 (January 21), 3.7.0 (May 7), 3.7.1 (June 18), 3.8.0 (August 28) (<a href="https://github.com/triton-lang/triton/releases" target="_blank" rel="noopener noreferrer">releases</a>).</div>
+<p class="small mute">How each claim was checked: <span class="ev run">interpreter</span> run on a laptop CPU with <code>TRITON_INTERPRET=1</code> against PyTorch; <span class="ev cmp">compiled here</span> by Triton 3.8.0 in the <code>kb-gpu-lab:1</code> image (CUDA 13.4.2 tools) for a GPU that is not present; <span class="ev pub">published</span> by the Triton or PyTorch project, with a link; <span class="ev der">derived</span> by arithmetic shown; <span class="ev not">not run here</span>. No timing on this page comes from an NVIDIA or AMD GPU.</p>
+<details class="dp"><summary>Versions used <span class="mute">(reference)</span></summary><div class="b">Triton <b>3.8.0</b> (released August 28, 2026, <a href="https://github.com/triton-lang/triton/releases/tag/v3.8.0" target="_blank" rel="noopener noreferrer">GitHub release</a>) is the version PyTorch 2.14 pins (<a href="https://github.com/pytorch/pytorch/blob/v2.14.0/.ci/docker/triton_version.txt" target="_blank" rel="noopener noreferrer">triton_version.txt</a>), and the one used everywhere on this page. Releases so far in 2026: 3.6.0 (January 21), 3.7.0 (May 7), 3.7.1 (June 18), 3.8.0 (August 28) (<a href="https://github.com/triton-lang/triton/releases" target="_blank" rel="noopener noreferrer">releases</a>).</div></details>
 </section>
 
 <section id="rd-s1">
-<h2>1. Blocks, not threads: vector add from zero</h2>
-<p><b>The problem.</b> A GPU runs thousands of threads at once. In CUDA C++ you write the code of <em>one thread</em> and arrange how threads cooperate. That is a lot of bookkeeping before any maths happens, and most of it (vector widths, shared memory, which instruction feeds the tensor cores) changes from one GPU generation to the next.</p>
-<p><b>Triton's answer</b> (<a href="https://www.eecs.harvard.edu/~htk/publication/2019-mapl-tillet-kung-cox.pdf" target="_blank" rel="noopener noreferrer">Tillet, Kung and Cox, MAPL 2019</a>): you write one <dfn>program</dfn> that works on a <dfn>block</dfn> (a small array, every dimension a power of two) and launch a <dfn>grid</dfn> of copies of it. Each copy asks <code>tl.program_id(0)</code> which block it owns. One program becomes one CUDA thread block (a <dfn>CTA</dfn>) of <code>num_warps</code> x 32 threads; which of those threads holds which element is the compiler's business.</p>
+<h2>1. Blocks, not threads: vector add</h2>
+<p>In CUDA C++ you write the code of <em>one thread</em> and arrange how threads cooperate, and much of that bookkeeping (vector widths, shared memory, which instruction feeds the tensor cores) changes with each GPU generation. Triton's answer (<a href="https://www.eecs.harvard.edu/~htk/publication/2019-mapl-tillet-kung-cox.pdf" target="_blank" rel="noopener noreferrer">Tillet, Kung and Cox, MAPL 2019</a>): write one <dfn>program</dfn> over a <dfn>block</dfn>, launch a <dfn>grid</dfn> of copies, and let each ask <code>tl.program_id(0)</code> which block it owns.</p>
 <div class="rd-two">
 <div><div class="small mute">The kernel (<code>src/code/kernels_tg.py</code>)</div><pre class="code" id="rd-src-vadd"></pre></div>
 <div><div class="small mute">Launching it from PyTorch</div><pre class="code">n = 1000
@@ -218,50 +248,53 @@ c = torch.empty(n)
 grid = (triton.cdiv(n, 256),)   <span class="c"># 4 programs</span>
 vadd[grid](a, b, c, n, BLOCK=256)
 <span class="c"># tensors arrive as pointers to their first element</span></pre>
-<p class="small">Line by line: <code>offs</code> is a block of 256 indices, so <code>a_ptr + offs</code> is a block of 256 addresses and <code>tl.load</code> reads all of them. The vector has 1,000 elements and the grid covers 1,024, so the last program's <code>mask</code> switches off 24 lanes: masked lanes neither read nor write. <span class="ev run">interpreter</span> exact match with <code>a + b</code> (<span id="rd-int-vadd"></span>).</p></div>
+<p class="small"><code>offs</code> is a block of 256 indices, so <code>a_ptr + offs</code> is a block of 256 addresses and <code>tl.load</code> reads all of them. The grid covers 1,024 elements for a vector of 1,000, so the last program's <code>mask</code> switches off 24 lanes: masked lanes neither read nor write. <span class="ev run">interpreter</span> exact match with <code>a + b</code> (<span id="rd-int-vadd"></span>).</p></div>
 </div>
-<p><b>What happens at the first call.</b> Triton looks at the arguments, builds a <dfn>specialisation key</dfn> and compiles (or fetches from its cache, by default <code>~/.triton/cache</code>, set by <code>TRITON_CACHE_DIR</code>; <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/knobs.py" target="_blank" rel="noopener noreferrer">knobs.py</a>). The key includes every <code>tl.constexpr</code> value (here <code>BLOCK</code>), each argument's type, whether each pointer and integer is divisible by 16 (it then carries a <code>tt.divisibility = 16</code> hint; <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/backends/compiler.py" target="_blank" rel="noopener noreferrer">backends/compiler.py</a>), and two special cases checked here: an integer equal to 1 becomes a compile-time constant, and an integer of 2<sup>31</sup> or more becomes <code>i64</code> instead of <code>i32</code> <span class="ev cmp">checked here</span> with <code>triton.runtime.jit.mangle_type</code>. A new key means a new compilation, which costs time at the first call of every new shape class (<a href="#rd-s12">section 12</a>).</p>
+<p><b>The first call compiles.</b> Triton builds a <dfn>specialisation key</dfn> from the arguments and compiles, or fetches the binary from its cache. The key holds every <code>tl.constexpr</code> value (here <code>BLOCK</code>), each argument's type, and whether each pointer and integer is divisible by 16, in which case it carries a <code>tt.divisibility = 16</code> hint (<a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/backends/compiler.py" target="_blank" rel="noopener noreferrer">backends/compiler.py</a>). A new key means a new compilation (<a href="#rd-s12">section 12</a>).</p>
+<details class="dp"><summary>Two special cases in the key, and where the cache lives <span class="mute">(depth)</span></summary><div class="b">An integer argument equal to 1 becomes a compile-time constant, and an integer of 2<sup>31</sup> or more becomes <code>i64</code> instead of <code>i32</code> <span class="ev cmp">checked here</span> with <code>triton.runtime.jit.mangle_type</code>. Compiled kernels are cached in <code>~/.triton/cache</code> by default, set by <code>TRITON_CACHE_DIR</code> (<a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/knobs.py" target="_blank" rel="noopener noreferrer">knobs.py</a>).</div></details>
 <h3>What the compiler made of those eight lines</h3>
-<p>Compiled for sm_90a (H100) with <code>BLOCK=1024</code> and 4 warps, the program has 128 threads for 1,024 elements, so each thread owns <b><span id="rd-va-ept"></span></b> elements per input. The compiler chose a layout in which each thread owns runs of 4 neighbouring floats (16 bytes), so each run is one 128-bit load. Step through what it did, on this exact kernel. The toggle shows two other specialisations of the same source: <code>n = 1,000</code>, which is not a multiple of 16 so <code>n</code> loses its divisibility hint, and no hints at all (as when the tensors start at odd offsets).</p>
+<p>Compiled for sm_90a (H100) with <code>BLOCK=1024</code> and 4 warps, one program has 128 threads for 1,024 elements, so each thread owns <b><span id="rd-va-ept"></span></b> elements per input. Predict before stepping: will each thread's elements be neighbours or 128 apart? The toggle runs the same source under two other specialisations: <code>n = 1,000</code> (not a multiple of 16, so <code>n</code> loses its hint) and no hints at all (as when tensors start at odd offsets).</p>
 <div class="card" id="rd-va-card">
+<h4>The layout passes turn 1-element loads into 16-byte loads, unless a hint is missing</h4>
 <div class="seg" id="rd-va-mode"><button data-m="hint" class="on">Aligned pointers, n = 992</button><button data-m="n1000">Aligned pointers, n = 1,000</button><button data-m="nohint">No alignment hints</button></div>
 <div class="tgviz" id="rd-va-svg"></div>
 <div class="an-cap" id="rd-va-cap"></div>
 <div class="an-cnt" id="rd-va-cnt"></div>
 <div class="an-ctl" id="rd-va-ctl"></div>
-<p class="small mute">Real compiled output: the layouts are copied from the IR before and after each pass (<code>src/out/passes.json</code>) and the instruction counts from the SASS of both builds (<code>src/out/compile.json</code>). Drawn: one program's 1,024 elements as 8 rows of 128, coloured by warp; the selected thread's elements outlined.</p>
+<p class="small mute">Real compiled output: layouts copied from the IR before and after each pass (<code>src/out/passes.json</code>), instruction counts from the SASS of each build (<code>src/out/compile.json</code>). One program's 1,024 elements as 8 rows of 128, coloured by warp; thread 0's elements outlined.</p>
 </div>
-<p><b>Why this matters for you.</b> A 128-bit load moves 4 floats per instruction instead of 1, so the hinted build issues a quarter of the load instructions: <span id="rd-va-ldg"></span> <span class="ev cmp">compiled here</span>. The surprise is the middle case: with aligned pointers but <code>n = 1,000</code>, the layout still gives each thread runs of 4, yet the loads are scalar, because the mask <code>offs &lt; n</code> could now end in the middle of a run and the compiler cannot prove a whole run is in or out. The length of your tensor changed the machine code. Both versions read the same bytes, and on a memory-bound kernel the GPU's memory system can often hide the difference; the <a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a> page measured 4-, 8- and 16-byte accesses on the M1 Pro at about the same bandwidth. Where it does matter is instruction issue on wide kernels, and in everything downstream that the compiler can only do when it knows alignment (asynchronous 16-byte copies into shared memory, for one). Triton takes these hints from the arguments automatically; you lose them when you pass a sliced tensor with an odd offset or a stride that is not a multiple of 16.</p>
+<p><b>What it means.</b> A 128-bit load moves 4 floats per instruction, so the hinted build issues a quarter of the load instructions: <span id="rd-va-ldg"></span> <span class="ev cmp">compiled here</span>. The surprise is the middle case: the layout still gives each thread runs of 4, yet the loads are scalar, because the mask <code>offs &lt; n</code> could now end inside a run and the compiler cannot prove a whole run is in or out. <b>The length of your tensor changed the machine code.</b> The compiler learns how many offsets are contiguous and aligned from an axis analysis that starts from these hints. On a memory-bound kernel the memory system often hides the difference (the <a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a> page measured 4-, 8- and 16-byte accesses on the M1 Pro at about the same bandwidth); it matters for instruction issue on wide kernels, and for what the compiler can only do with known alignment, such as 16-byte asynchronous copies into shared memory. You lose the hints by passing a sliced tensor at an odd offset or a stride that is not a multiple of 16.</p>
 <div class="pr" id="rd-pr1"><div class="q">Predict: <code>BLOCK=1000</code> instead of 1024 (exactly the vector length, so no mask needed). What happens?</div>
 <div class="opts"><button data-a="0">Works, slightly faster</button><button data-a="1">Error before it runs</button><button data-a="0">Works, but reads past the end</button></div>
 <div class="ans" hidden>Error: block shapes must be powers of two. The interpreter says <code id="rd-mist-pow2"></code> <span class="ev run">interpreter</span>. Round up with <code>triton.next_power_of_2</code> and mask the tail.</div></div>
 </section>
 <section id="rd-s2">
 <h2>2. Softmax: a reduction in one line, and where blocks stop fitting</h2>
-<p><b>The problem.</b> Row softmax needs two reductions per row (the maximum, then the sum of exponentials) before it can write anything. In CUDA C++ a reduction is a small project: each thread reduces its share, warps combine with shuffles, warps combine through shared memory with a barrier (<a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a> builds it step by step). In Triton it is <code>tl.max(x, axis=0)</code>.</p>
+<p>Row softmax needs two reductions per row (the maximum, then the sum of exponentials) before it writes anything. In CUDA C++ a reduction is a small project of per-thread sums, warp shuffles and a shared-memory barrier (<a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a> builds it); in Triton it is <code>tl.max(x, axis=0)</code>, and the compiler writes the rest.</p>
 <div class="rd-two">
 <div><div class="small mute">One program per row; the whole row is one block</div><pre class="code" id="rd-src-soft"></pre></div>
-<div><p class="small"><b>How it works.</b> <code>BLOCK</code> is the next power of two at or above the row length, so a row of 1,000 uses a block of 1,024; the 24 extra lanes load <code>-inf</code> (the <code>other=</code> value), which leaves the maximum alone and adds <code>exp(-inf) = 0</code> to the sum. The row is read once and written once: this is the "fused softmax" of <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/02-fused-softmax.py" target="_blank" rel="noopener noreferrer">Triton tutorial 02</a>, which counts 5MN + 2M reads and 3MN + 2M writes for the unfused PyTorch version against MN and MN here. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Kernel lab</a> tab measured the same idea on the M1 Pro GPU. <span class="ev run">interpreter</span> 37 rows of 1,000: <span id="rd-int-soft"></span> against <code>torch.softmax</code>.</p>
-<p class="small"><b>What <code>tl.max</code> became</b> on sm_90a <span class="ev cmp">compiled here</span>: <span id="rd-soft-ops"></span>. That is the textbook two-level reduction: 5 butterfly shuffle steps across the 32 lanes of a warp (log<sub>2</sub> 32 = 5), then the 4 warps' partial results meet in shared memory behind a barrier and finish in 2 more steps (log<sub>2</sub> 4 = 2), twice (max and sum): 2 x (5 + 2) = 14 <span class="ev der">derived</span>. <code>tl.exp</code> became <code>MUFU.EX2</code>, the hardware 2<sup>x</sup> unit, after a multiply by log<sub>2</sub> e.</p></div>
+<div><p class="small"><code>BLOCK</code> is the next power of two at or above the row length, so a row of 1,000 uses a block of 1,024; the 24 extra lanes load <code>-inf</code> (the <code>other=</code> value), which leaves the maximum alone and adds <code>exp(-inf) = 0</code> to the sum. The row is read once and written once: the "fused softmax" of <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/02-fused-softmax.py" target="_blank" rel="noopener noreferrer">Triton tutorial 02</a>, which counts 5MN + 2M reads and 3MN + 2M writes for the unfused PyTorch version against MN and MN here (the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Kernel lab</a> measured the same idea on the M1 Pro GPU). <span class="ev run">interpreter</span> 37 rows of 1,000: <span id="rd-int-soft"></span> against <code>torch.softmax</code>.</p>
+<p class="small"><b>What <code>tl.max</code> became</b> on sm_90a <span class="ev cmp">compiled here</span>: <span id="rd-soft-ops"></span>. The textbook two-level reduction: 5 butterfly shuffle steps across a warp's 32 lanes (log<sub>2</sub> 32 = 5), then the 4 warps' partial results meet in shared memory behind a barrier and finish in 2 more steps (log<sub>2</sub> 4 = 2), twice (max and sum): 2 x (5 + 2) = 14 <span class="ev der">derived</span>. <code>tl.exp</code> became <code>MUFU.EX2</code>, the hardware 2<sup>x</sup> unit, after a multiply by log<sub>2</sub> e.</p></div>
 </div>
 <div class="pr" id="rd-pr2"><div class="q">Predict: a row of 1,000 columns, but someone passes <code>BLOCK=512</code>. What happens?</div>
 <div class="opts"><button data-a="0">Compile error</button><button data-a="0">Out-of-bounds read</button><button data-a="1">Runs, wrong answer, no error</button></div>
 <div class="ans" hidden>Runs without complaint and is wrong: <span id="rd-mist-512"></span> <span class="ev run">interpreter</span>. Columns 512 to 999 are never read, so each row is normalised over its first half only. Nothing in Triton checks that your block covers your data: that is what the mask and a test against a reference are for.</div></div>
 <h3>Where a block stops fitting: the register cliff</h3>
-<p>A block lives in <dfn>registers</dfn>, the fastest storage, private to each thread, at most 255 per thread. Each thread holds BLOCK / (32 x num_warps) elements, so a long row in few warps runs out of registers and the compiler <dfn>spills</dfn> to <dfn>local memory</dfn> (slow, off-chip memory private to the thread; the <a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a> page explains spills). The same softmax compiled for sm_90a at seven block sizes and four warp counts <span class="ev cmp">compiled here</span>:</p>
-<div class="card"><div class="tw" id="rd-soft-grid"></div>
-<p class="small mute">Each cell: registers per thread, and the stack frame in bytes per thread when there is one (stack holds spilled values). Elements per thread shown in grey. From <code>cuobjdump -res-usage</code> on each compiled kernel.</p></div>
-<p><b>Reading it.</b> At 32,768 columns with 4 warps each thread would hold 256 floats: instead of registers the compiler gives each thread a 2,728-byte stack frame in local memory (and the register count falls to 32, because the values now live in memory). With 8 warps each thread holds 128 and they fit in 170 registers. The cliff is not one number: at 65,536 columns even 16 warps (128 per thread again) spilled. Read the compiler's report rather than guess. The fix is more warps per program, which is why <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/02-fused-softmax.py" target="_blank" rel="noopener noreferrer">tutorial 02</a> launches its softmax with 8 warps, asks the compiled kernel for its register count (<code>kernel.n_regs</code>) and launches only as many <dfn>persistent</dfn> programs as fit on the GPU at once, each looping over many rows. Rows too long for any block need a different algorithm: the online softmax, which reads the row in chunks (<a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a> and the parent's Kernel lab).</p>
+<p>A block lives in <dfn>registers</dfn>, at most 255 per thread. Each thread holds BLOCK / (32 x num_warps) elements, so a long row in few warps runs out and the compiler <dfn>spills</dfn> to <dfn>local memory</dfn> (slow, off-chip, private to the thread). Predict where the cliff is for 4 warps, then read the grid:</p>
+<div class="card"><h4>Too many elements per thread, and the row moves from registers to a stack in memory</h4><div class="tw" id="rd-soft-grid"></div>
+<p class="small mute">The same softmax compiled for sm_90a at seven block sizes and four warp counts <span class="ev cmp">compiled here</span>. Each cell: registers per thread, plus the stack frame in bytes per thread when there is one (spilled values live there); elements per thread in grey. From <code>cuobjdump -res-usage</code>.</p></div>
+<p>At 32,768 columns with 4 warps each thread would hold 256 floats: the compiler gives each thread a 2,728-byte stack frame instead (and the register count falls to 32, because the values now live in memory). With 8 warps each thread holds 128 and they fit in 170 registers. The cliff is not one number: at 65,536 columns even 16 warps (128 per thread again) spilled, so read the compiler's report rather than guess. The fix is more warps per program, which is why <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/02-fused-softmax.py" target="_blank" rel="noopener noreferrer">tutorial 02</a> uses 8 warps, reads the compiled kernel's register count (<code>kernel.n_regs</code>) and launches only as many <dfn>persistent</dfn> programs as fit on the GPU at once, each looping over many rows. Rows too long for any block need the online softmax, which reads the row in chunks (<a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>).</p>
 </section>
 
 <section id="rd-s3">
 <h2>3. Matmul: tiles, tl.dot, and the order of programs</h2>
-<p><b>The idea.</b> Each program computes one <dfn>tile</dfn> of C, a BM x BN block. It walks along K in steps of BK, loading a BM x BK tile of A and a BK x BN tile of B and multiplying them into an accumulator kept in registers in FP32. <code>tl.dot</code> is the block multiply; the compiler turns it into tensor-core instructions. This is <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/03-matrix-multiplication.py" target="_blank" rel="noopener noreferrer">tutorial 03</a> almost line for line.</p>
+<p>Each program computes one <dfn>tile</dfn> of C, a BM x BN block. It walks along K in steps of BK, loading a BM x BK tile of A and a BK x BN tile of B and multiplying them into an FP32 accumulator in registers. <code>tl.dot</code> is the block multiply; the compiler turns it into tensor-core instructions. This is <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/03-matrix-multiplication.py" target="_blank" rel="noopener noreferrer">tutorial 03</a> almost line for line.</p>
 <pre class="code" id="rd-src-mm"></pre>
-<p class="small">Details worth knowing: <code>% M</code> on the row offsets wraps edge tiles back into the matrix so loads stay in bounds (the extra rows are computed and then dropped by the store mask); the K tail is masked with <code>other=0.0</code> so it adds nothing; anything you want to do to C before it is written (bias, activation, a cast to FP16) goes after the loop while the accumulator is still FP32 and on chip, which is called an <dfn>epilogue</dfn> and is free fusion. <span class="ev run">interpreter</span> 200 x 150 x 130 (no size a multiple of its tile): <span id="rd-int-mm"></span>.</p>
+<p class="small"><code>% M</code> on the row offsets wraps edge tiles back into the matrix so loads stay in bounds (the extra rows are computed, then dropped by the store mask); the K tail is masked with <code>other=0.0</code> so it adds nothing. Anything done to C before it is written (bias, activation, a cast to FP16) goes after the loop while the accumulator is still FP32 and on chip: the <dfn>epilogue</dfn>, free fusion. <span class="ev run">interpreter</span> 200 x 150 x 130 (no size a multiple of its tile): <span id="rd-int-mm"></span>.</p>
 <h3>Why the order of programs matters: grouped ordering</h3>
-<p>Programs that run at the same time share the GPU's <dfn>L2 cache</dfn>. If they need the same tiles of A and B, the second one finds them in L2 instead of memory. Launching tiles row by row makes the first 9 programs share one row of A but need 9 different columns of B; launching them in groups of GROUP_M rows makes them share both. Same input, both orders:</p>
+<p>Programs that run at the same time share the GPU's <dfn>L2 cache</dfn>, so tiles one has loaded are cheap for the others. Launched row by row, the first 9 programs share one row of A but need 9 different columns of B; launched in groups of GROUP_M rows, they share both. Same input, both orders:</p>
 <div class="card" id="rd-gr-card">
+<h4>Grouping the launch order: 54 tiles instead of 90 for the first 9 programs</h4>
 <div class="seg" id="rd-gr-mode"><button data-m="row" class="on">Row-major order</button><button data-m="grouped">Grouped, GROUP_M = 3</button></div>
 <div class="tgviz" id="rd-gr-svg"></div>
 <div class="an-cap" id="rd-gr-cap"></div>
@@ -270,37 +303,40 @@ vadd[grid](a, b, c, n, BLOCK=256)
 <p class="small mute">A, B and C each 9 x 9 tiles. The counter is the number of distinct A and B tiles the programs launched so far need (each needs 9 of A and 9 of B). Defaults reproduce tutorial 03's "90 blocks" against "54 blocks" for the first 9 output tiles, by construction (the same count, computed in <code>src/code/recompute.py</code>). The tutorial reports "more than 10%" on some hardware, "220 to 245 TFLOPS on A100" <span class="ev pub">published</span> <span class="ev not">not run here</span>.</p>
 </div>
 <h3>One tl.dot, six instructions</h3>
-<p>The same source (128 x 128 x 32 tiles, FP16 inputs, 4 warps, <code>num_stages=4</code>) compiled for six targets <span class="ev cmp">compiled here</span>. The compiler picked a different tensor-core instruction for each, and a different way of feeding it:</p>
+<p>The same source (128 x 128 x 32 tiles, FP16 inputs, 4 warps, <code>num_stages=4</code>) compiled for six targets <span class="ev cmp">compiled here</span>: a different tensor-core instruction for each, fed a different way.</p>
 <div class="tw" id="rd-mm-tbl"></div>
-<p class="small">"Per K step" is <span class="ev der">derived</span>: 128 x 128 x 32 multiply-adds divided by the instruction's shape. "In the listing" is the static count in the compiled code, which includes copies of the loop body the pipeliner makes for its prologue and epilogue. The warp-level <code>mma.sync</code> (A100, RTX 5090) is issued by every warp; Hopper's <code>wgmma</code> by a <dfn>warpgroup</dfn> (4 warps together) reading A and B straight from shared memory; Blackwell's <code>tcgen05.mma</code> by one thread for the whole CTA, accumulating in <dfn>tensor memory</dfn> (TMEM, a 256 KB per-SM store next to the tensor cores; note the <code>LDTM</code>/<code>STTM</code> instructions that move the accumulator in and out); AMD's MFMA per 64-lane <dfn>wavefront</dfn>. Instruction depth lives on <a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">Libraries and tensor cores</a>. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Compiler explorer</a> found the same choices for its plainer matmul.</p>
-<div class="co warn"><div class="t">An FP32 tl.dot is not FP32 by default</div>For FP32 inputs on NVIDIA, <code>tl.dot</code> defaults to <code>input_precision="tf32"</code>: inputs rounded to TF32 (10 mantissa bits) on the tensor cores. Pass <code>input_precision="ieee"</code> for true FP32 or <code>"tf32x3"</code> for a three-pass TF32 split that recovers most of the accuracy; on AMD the default is <code>"ieee"</code> except CDNA3, which also offers TF32 (<a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/language/core.py" target="_blank" rel="noopener noreferrer">tl.dot docstring, language/core.py</a>). <code>TRITON_F32_DEFAULT</code> changes the default for a whole process. PyTorch's own default for FP32 matmuls on Ampere and later is not TF32 unless you allow it, so a Triton kernel and <code>torch.matmul</code> can disagree in the third or fourth digit for this reason alone.</div>
+<p class="small">"Per K step" is <span class="ev der">derived</span>: 128 x 128 x 32 multiply-adds divided by the instruction's shape. "In the listing" is the static count in the compiled code, which includes the copies of the loop body the pipeliner makes for its prologue and epilogue. Warp-level <code>mma.sync</code> (A100, RTX 5090) is issued by every warp; Hopper's <code>wgmma</code> by a <dfn>warpgroup</dfn> (4 warps together) reading A and B straight from shared memory; Blackwell's <code>tcgen05.mma</code> by one thread for the whole CTA, accumulating in <dfn>tensor memory</dfn> (TMEM, a 256 KB per-SM store beside the tensor cores; the <code>LDTM</code>/<code>STTM</code> instructions move the accumulator in and out); AMD's MFMA per 64-lane <dfn>wavefront</dfn>. The instructions themselves are on <a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">Libraries and tensor cores</a>; the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Compiler explorer</a> found the same choices for its plainer matmul.</p>
+<div class="co warn"><div class="t">An FP32 tl.dot is not FP32 by default</div>For FP32 inputs on NVIDIA, <code>tl.dot</code> defaults to <code>input_precision="tf32"</code>: inputs rounded to TF32 (10 mantissa bits) on the tensor cores. Pass <code>input_precision="ieee"</code> for true FP32 or <code>"tf32x3"</code> for a three-pass TF32 split that recovers most of the accuracy; on AMD the default is <code>"ieee"</code> except CDNA3, which also offers TF32 (<a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/language/core.py" target="_blank" rel="noopener noreferrer">tl.dot docstring, language/core.py</a>). <code>TRITON_F32_DEFAULT</code> changes the default for a whole process. PyTorch's own FP32 matmul on Ampere and later is not TF32 unless you allow it, so a Triton kernel and <code>torch.matmul</code> can disagree in the third or fourth digit for this reason alone.</div>
 </section>
 <section id="rd-s4">
 <h2>4. Attention: FlashAttention forward in about 35 lines</h2>
-<p><b>The problem.</b> Attention computes softmax(QK<sup>T</sup> x scale) V. Done naively it writes an N x N score matrix to memory per head, which at N = 8,192 is 64 M numbers read and written several times. FlashAttention never stores it: one program takes BM query rows, streams K and V through in tiles of BN rows, and keeps a running maximum, a running sum and a running output that it rescales as the maximum grows (the <dfn>online softmax</dfn>). The derivation, the CUDA C++ version and FlashAttention 1, 2 and 3 are on <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>, the original paper on the <a href="https://app.notion.com/p/3c65c17b0d0d81e4a3e8e7a2c4771381" target="_blank" rel="noopener noreferrer">FlashAttention paper page</a>; the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Kernel lab</a> animates the online softmax and measured it on the M1 Pro GPU. Here is the Triton version:</p>
+<p>Attention computes softmax(QK<sup>T</sup> x scale) V. Done naively it writes an N x N score matrix to memory per head, which at N = 8,192 is 64 M numbers read and written several times. FlashAttention never stores it: one program takes BM query rows, streams K and V through in tiles of BN rows, and keeps a running maximum, sum and output that it rescales as the maximum grows (the <dfn>online softmax</dfn>; derived, in CUDA C++, with FlashAttention 1 to 3 on <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>; the paper on the <a href="https://app.notion.com/p/3c65c17b0d0d81e4a3e8e7a2c4771381" target="_blank" rel="noopener noreferrer">FlashAttention paper page</a>; animated in the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Kernel lab</a>). The Triton version:</p>
 <pre class="code" id="rd-src-attn"></pre>
-<p class="small"><b>What is Triton-specific.</b> Two <code>tl.dot</code> calls per tile (scores, then P V), with P cast to FP16 so the second one also runs on tensor cores; <code>exp2</code> with the scale and log<sub>2</sub> e folded into one multiply (the hardware unit computes 2<sup>x</sup>, as in section 2); causal masking in two parts, a loop bound that never visits K tiles entirely above the diagonal and a <code>tl.where</code> for the tile that straddles it. With BM = BN, a causal program visits (n<sub>b</sub> + 1) / 2n<sub>b</sub> of the tiles a full one does, <span id="rd-causal"></span> <span class="ev der">derived</span>. <span class="ev run">interpreter</span> 2 heads x 200 x 64, FP16 inputs against PyTorch's attention in FP32: <span id="rd-int-attn"></span>.</p>
+<p class="small"><b>What is Triton-specific.</b> Two <code>tl.dot</code> calls per tile (scores, then P V), with P cast to FP16 so the second also runs on tensor cores; <code>exp2</code> with the scale and log<sub>2</sub> e folded into one multiply (the hardware unit computes 2<sup>x</sup>, as in section 2); causal masking in two parts, drawn below. <span class="ev run">interpreter</span> 2 heads x 200 x 64, FP16 inputs against PyTorch's attention in FP32: <span id="rd-int-attn"></span>.</p>
+<div class="card" id="rd-causal-card"><h4>A causal program never visits the K tiles above the diagonal: about half the work</h4>
+<div class="tgviz" id="rd-causal-svg"></div>
+<p class="small">Query tiles down, K tiles across, n<sub>b</sub> = 8 tiles each way <span class="ev der">illustrative size</span>. The loop bound stops each program at its diagonal tile, which is the only one needing the elementwise <code>tl.where</code> mask. With BM = BN a causal program visits (n<sub>b</sub> + 1) / 2n<sub>b</sub> of the tiles a full one does: 36 of 64 here, and <span id="rd-causal"></span> <span class="ev der">derived</span>.</p></div>
 <div class="tw" id="rd-attn-tbl"></div>
-<p class="small">Compiled with BM = 128, BN = 64, head dim 64, causal, 4 warps <span class="ev cmp">compiled here</span>. sm_80 and sm_120 reach the 255-register ceiling: the program holds a 128 x 64 FP32 accumulator, a 128 x 64 score tile and Q, which is why production kernels pick their tile sizes per GPU (autotuning, section 6). The parent's plainer attention kernel (no causal mask, <code>exp</code>) compiled to 254 and 198 registers on sm_80 and sm_90a. What <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/06-fused-attention.py" target="_blank" rel="noopener noreferrer">tutorial 06</a> adds beyond this kernel: the backward pass, FP8, tensor descriptors (TMA) and, on Blackwell, <code>tl.range(..., warp_specialize=True)</code>; section 5 compiles the last two.</p>
+<p class="small">Compiled with BM = 128, BN = 64, head dim 64, causal, 4 warps <span class="ev cmp">compiled here</span>. sm_80 and sm_120 reach the 255-register ceiling: the program holds a 128 x 64 FP32 accumulator, a 128 x 64 score tile and Q, which is why production kernels pick tile sizes per GPU (section 6). The parent's plainer attention kernel (no causal mask, <code>exp</code>) compiled to 254 and 198 registers on sm_80 and sm_90a. <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/06-fused-attention.py" target="_blank" rel="noopener noreferrer">Tutorial 06</a> adds the backward pass, FP8, tensor descriptors (TMA) and, on Blackwell, <code>tl.range(..., warp_specialize=True)</code>; section 5 compiles the last two.</p>
 </section>
 
 <section id="rd-s5">
 <h2>5. num_warps and num_stages: the two knobs on every launch</h2>
 <p>Every launch takes two compilation options besides your <code>constexpr</code> values; <code>triton.Config</code> defaults them to <code>num_warps=4</code> and <code>num_stages=3</code> <span class="ev cmp">checked here</span>.</p>
-<p><b><code>num_warps</code></b> is how many warps (groups of 32 threads) one program gets, so how finely the block is divided. More warps means fewer elements, and fewer registers, per thread; fewer warps means more work per thread and more programs fitting on an SM. It also decides which instructions are possible: Hopper's <code>wgmma</code> is issued by a warpgroup of 4 warps, so with 1 or 2 warps the compiler falls back to the older <code>mma.sync</code>. The same 128 x 128 x 64 FP16 matmul at five warp counts <span class="ev cmp">compiled here</span>:</p>
+<p><b><code>num_warps</code></b> is how many warps one program gets. More warps means fewer elements, and fewer registers, per thread; fewer means more work per thread and more programs per SM. It also decides which instructions are possible: Hopper's <code>wgmma</code> is issued by a warpgroup of 4 warps, so with 1 or 2 warps the compiler falls back to the older <code>mma.sync</code>. The same 128 x 128 x 64 FP16 matmul at five warp counts <span class="ev cmp">compiled here</span>:</p>
 <div class="tw" id="rd-warps-tbl"></div>
-<p><b><code>num_stages</code></b> is how deep the <dfn>software pipeline</dfn> is: while the tensor cores multiply tile k, the copies for the next tiles are already in flight, each into its own shared-memory buffer. The <a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a> page animates a 1-to-4-stage pipeline; here is what the Triton compiler allocates for it. Sweeping <code>num_stages</code> on the same matmul gives an exact rule <span class="ev cmp">compiled here</span>:</p>
-<div class="card"><div class="tgviz" id="rd-stage-chart"></div>
+<p><b><code>num_stages</code></b> is the depth of the <dfn>software pipeline</dfn>: while the tensor cores multiply tile k, the copies for the next tiles are already in flight, each into its own shared-memory buffer (the <a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a> page animates a 1-to-4-stage pipeline). Predict: does each extra stage add a fixed amount of shared memory, and is it the same on every GPU? Sweeping it on the same matmul <span class="ev cmp">compiled here</span>:</p>
+<div class="card"><h4>Each stage adds one 32 KB buffer, and past a GPU's limit the kernel cannot launch</h4><div class="tgviz" id="rd-stage-chart"></div>
 <p class="small mute">Shared memory per program against num_stages, 128 x 128 x 64 FP16 tiles, 4 warps. Dashed lines: the largest block each GPU accepts (99 KB on sm_120, 163 KB on sm_80, 227 KB on sm_90a and sm_100a; CUDA Programming Guide v13.4.2 Tables 30 and 31).</p></div>
-<p>The rule, matching every compiled point exactly: one stage's buffer holds one tile of A and one of B, (BM x BK + BK x BN) x 2 bytes = 32 KB here. When the MMA reads its operands straight from shared memory (<code>wgmma</code>, <code>tcgen05</code>) the compiler allocates <b>num_stages</b> buffers; when <code>mma.sync</code> first copies operands into registers, it allocates <b>num_stages - 1</b> (at least 1); Blackwell adds 8 or 16 bytes of barriers <span class="ev der">derived from the compiled sizes</span>. Check it in the IR: the matmul's TTGIR on sm_90a allocates <code>memdesc&lt;4x128x32xf16&gt;</code> for A at <code>num_stages=4</code>, sm_80 allocates <code>3x128x32</code> (<a href="#" data-tab="t-ir">Compiler stages</a>).</p>
-<p><b>Why you care.</b> Shared memory per program decides how many programs fit on one SM (with registers), and past the GPU's per-block limit the kernel compiles fine and then refuses to launch: Triton checks <code>metadata.shared</code> against the device when it loads the binary and raises <code>OutOfResources</code> (<a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/compiler/compiler.py" target="_blank" rel="noopener noreferrer">compiler.py</a>). A configuration tuned on an H100 with 6 stages (192 KB) cannot run on an RTX 5090 at all. The <a href="#" data-tab="t-cfg">Config explorer</a> tab shows registers, shared memory, spills and blocks per SM for every configuration of tutorial 03 on each GPU.</p>
-<h3>Tensor descriptors (TMA) and warp specialisation, from Triton</h3>
-<p>Two newer features change what the compiler emits. A <dfn>tensor descriptor</dfn> (<code>tl.make_tensor_descriptor</code>, then <code>desc.load([row, col])</code>) describes a whole 2D tile, so on Hopper and Blackwell the copy is done by the <dfn>TMA</dfn> (Tensor Memory Accelerator), a copy engine that moves a tile with one instruction instead of every thread computing addresses. <code>tl.range(..., warp_specialize=True)</code> asks the compiler to split the loop between warps with different jobs, producers that copy and consumers that multiply. The same matmul written with descriptors, compiled <span class="ev cmp">compiled here</span>: <span id="rd-tma-ops"></span> <span class="ev run">interpreter</span> 256 x 256 x 256: <span id="rd-int-tma"></span>.</p>
+<p>The rule, matching every compiled point exactly: one stage's buffer holds one tile of A and one of B, (BM x BK + BK x BN) x 2 bytes = 32 KB here. When the MMA reads its operands straight from shared memory (<code>wgmma</code>, <code>tcgen05</code>) the compiler allocates <b>num_stages</b> buffers; when <code>mma.sync</code> first copies operands into registers, <b>num_stages - 1</b> (at least 1); Blackwell adds 8 or 16 bytes of barriers <span class="ev der">derived from the compiled sizes</span>. In the IR: the matmul's TTGIR on sm_90a allocates <code>memdesc&lt;4x128x32xf16&gt;</code> for A at <code>num_stages=4</code>, sm_80 allocates <code>3x128x32</code> (<a href="#" data-tab="t-ir">Compiler stages</a>).</p>
+<p><b>Why you care.</b> Shared memory per program, with registers, decides how many programs fit on one SM, and past the GPU's per-block limit the kernel compiles fine and then refuses to launch: Triton checks <code>metadata.shared</code> against the device when it loads the binary and raises <code>OutOfResources</code> (<a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/compiler/compiler.py" target="_blank" rel="noopener noreferrer">compiler.py</a>). A configuration tuned on an H100 with 6 stages (192 KB) cannot run on an RTX 5090 at all. The <a href="#" data-tab="t-cfg">Config explorer</a> tab gives registers, shared memory, spills and blocks per SM for every configuration of tutorial 03 on each GPU, and predicts shared memory for any tile.</p>
+<h3>Tensor descriptors (TMA) and warp specialisation</h3>
+<p>A <dfn>tensor descriptor</dfn> (<code>tl.make_tensor_descriptor</code>, then <code>desc.load([row, col])</code>) describes a whole 2D tile, so on Hopper and Blackwell the copy is done by the <dfn>TMA</dfn> (Tensor Memory Accelerator), a copy engine that moves a tile with one instruction instead of every thread computing addresses. <code>tl.range(..., warp_specialize=True)</code> asks the compiler to split the loop between warps with different jobs: producers that copy, consumers that multiply. The same matmul written with descriptors <span class="ev cmp">compiled here</span>: <span id="rd-tma-ops"></span> <span class="ev run">interpreter</span> 256 x 256 x 256: <span id="rd-int-tma"></span>.</p>
 </section>
 
 <section id="rd-s6">
 <h2>6. Autotuning: let the GPU pick the tile</h2>
-<p><b>The problem.</b> The best BM, BN, BK, <code>num_warps</code> and <code>num_stages</code> depend on the GPU, the shapes and the data type, and the compiler cannot predict them. Triton's answer is to try several and keep the fastest:</p>
+<p>The best BM, BN, BK, <code>num_warps</code> and <code>num_stages</code> depend on the GPU, the shapes and the data type, and the compiler cannot predict them. So Triton tries several and keeps the fastest:</p>
 <pre class="code">@triton.autotune(
     configs=[triton.Config({"BM": 128, "BN": 256, "BK": 64, "GROUP_M": 8}, num_stages=3, num_warps=8),
              triton.Config({"BM": 64,  "BN": 256, "BK": 32, "GROUP_M": 8}, num_stages=4, num_warps=4),
@@ -312,23 +348,31 @@ vadd[grid](a, b, c, n, BLOCK=256)
 def matmul(a_ptr, b_ptr, c_ptr, M, N, K, ..., BM: tl.constexpr, BN: tl.constexpr, BK: tl.constexpr, GROUP_M: tl.constexpr):
     ...
 matmul[lambda META: (triton.cdiv(M, META["BM"]) * triton.cdiv(N, META["BN"]),)](a, b, c, M, N, K, ...)</pre>
-<p><b>How it works</b> (<a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/runtime/autotuner.py" target="_blank" rel="noopener noreferrer">runtime/autotuner.py</a>, read for this page): at a call, the tuner builds a key from the values of the <code>key</code> arguments plus the dtype of every tensor argument. On a new key it compiles every configuration and times each with <code>triton.testing.do_bench</code> (by default about 25 ms of warm-up and 100 ms of timed runs per configuration, clearing the L2 cache before each timed run), then stores the winner in memory; later calls with that key go straight to it. A configuration that fails to compile or does not fit (<code>OutOfResources</code>) is timed as infinitely slow and skipped. The grid is a function of the chosen meta-parameters, hence the <code>lambda META</code>.</p>
-<div class="mech">
+<p class="small">The grid is a function of the chosen meta-parameters, hence the <code>lambda META</code>. What the tuner does at a call, from <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/runtime/autotuner.py" target="_blank" rel="noopener noreferrer">runtime/autotuner.py</a> (read for this page), stepped through with tutorial 03's 16 real configurations compiled for sm_90a:</p>
+<div class="card" id="rd-at-card">
+<h4>One new key costs every configuration a compile and a timing; the next call with that key costs nothing</h4>
+<div class="at-grid" id="rd-at-grid"></div>
+<div class="an-cap" id="rd-at-cap"></div>
+<div class="an-cnt" id="rd-at-cnt"></div>
+<div class="an-ctl" id="rd-at-ctl"></div>
+<p class="small mute">Configurations, registers and shared memory are tutorial 03's, compiled here for sm_90a (FP16); the 227 KB per-block limit is the CUDA Programming Guide's. On each of sm_80, sm_90a, sm_100a and sm_120, <span id="rd-fit"></span> of the 16 fit their GPU's limit. In words: the key is the values of the <code>key</code> arguments plus the dtype of every tensor argument; each configuration is timed with <code>triton.testing.do_bench</code> (by default about 25 ms of warm-up and 100 ms of timed runs, clearing the L2 cache before each timed run); one that fails to compile or does not fit is timed as infinitely slow; the winner is stored in memory under the key. Timings are the tuner's defaults, not measured: which configuration wins needs a GPU <span class="ev not">not run here</span>.</p>
+</div>
+<div class="cost"><div class="t">What it costs</div>Tuning happens at the first call of every new key: N configurations x (compile + about 125 ms of timing). Tutorial 03's 16 configurations are therefore a few seconds per new (M, N, K, dtypes) <span class="ev der">derived</span> <span class="ev not">not timed here</span>. A key that changes on every call (a sequence length in inference, say) re-tunes forever: bucket it (round to a power of two in the wrapper) or leave it out of <code>key</code>. In distributed training, ranks can pick different winners from timing noise; that is harmless for speed, but results can then differ slightly between ranks when configurations sum in different orders (our reasoning, not measured).</div>
+<details class="dp"><summary>The tuner's other options <span class="mute">(depth)</span></summary><div class="b"><div class="mech">
 <div><b>Prune before timing</b><code>prune_configs_by={"early_config_prune": f, "perf_model": m, "top_k": k}</code>: drop configurations by rule or by a cost model before any run.</div>
 <div><b>Kernels that write their inputs</b>Every configuration runs on the same tensors, so an in-place or accumulating kernel corrupts them: list them in <code>reset_to_zero</code> or <code>restore_value</code>.</div>
 <div><b>See the choice</b><code>TRITON_PRINT_AUTOTUNING=1</code> prints the winner and timings; 3.8.0 added a listener that reports them programmatically (<a href="https://github.com/triton-lang/triton/releases/tag/v3.8.0" target="_blank" rel="noopener noreferrer">release notes</a>).</div>
 <div><b>Keep results across runs</b><code>cache_results=True</code> or <code>TRITON_CACHE_AUTOTUNING=1</code> writes the timings to Triton's cache directory.</div>
-</div>
-<div class="cost"><div class="t">What it costs</div>Tuning happens at the first call of every new key: N configurations x (compile + about 125 ms of timing). Tutorial 03's 16 configurations are therefore a few seconds per new (M, N, K, dtypes) <span class="ev der">derived</span> <span class="ev not">not timed here</span>. A key that changes on every call (a sequence length in inference, say) re-tunes forever: bucket it (round to a power of two in the wrapper) or leave it out of <code>key</code>. In distributed training, ranks can pick different winners from timing noise; that is harmless for speed, but the numbers can then differ slightly between ranks when configurations sum in different orders (our reasoning, not measured).</div>
-<p><b>The tutorial's 16 configurations on four GPUs.</b> On each of sm_80, sm_90a, sm_100a and sm_120, <span id="rd-fit"></span> of the 16 fit the per-block shared-memory limit; the others compile and are then skipped at launch. Which ones, and what each costs in registers and occupancy, is in the <a href="#" data-tab="t-cfg">Config explorer</a>.</p>
+</div></div></details>
 </section>
 <section id="rd-s7">
 <h2>7. What the compiler does, stage by stage</h2>
 <p>When performance surprises you, the answer is in one of five files the compiler writes for every kernel. Each is a lower <dfn>intermediate representation</dfn> (IR) of the same program; the first two are <dfn>MLIR</dfn> dialects (MLIR is LLVM's framework for building compilers out of custom IRs and passes over them).</p>
 <div class="stepbox" id="rd-stages"></div>
-<p class="small mute">Line counts are for the tutorial-style FP16 matmul compiled for sm_90a <span class="ev cmp">compiled here</span>. Gluon (section 10) skips the first box: a Gluon kernel is written directly at the TTGIR level, and its compile produces no TTIR at all.</p>
+<p class="small mute">Line counts are for the tutorial-style FP16 matmul compiled for sm_90a <span class="ev cmp">compiled here</span>. A Gluon kernel (section 10) is written directly at the TTGIR level, and its compile produces no TTIR at all.</p>
 <p><b>The passes.</b> Between TTIR and LLVM IR the compiler runs a fixed sequence of passes. Dumping the IR before each one (<code>MLIR_ENABLE_DUMP=1</code>) for the matmul on sm_90a gives <span id="rd-npass"></span>. Click a cell to see what that pass did to this kernel:</p>
 <div class="card" id="rd-pass-card">
+<h4>Most passes are clean-up; a handful choose the layout, the MMA and the pipeline</h4>
 <div class="seg" id="rd-pass-k"><button data-m="matmul.sm_90a" class="on">matmul, sm_90a</button><button data-m="matmul.sm_80">matmul, sm_80</button><button data-m="vadd.sm_90a">vector add, sm_90a</button></div>
 <div class="tgviz" id="rd-pass-strip"></div>
 <div class="an-cap" id="rd-pass-cap"></div>
@@ -336,13 +380,14 @@ matmul[lambda META: (triton.cdiv(M, META["BM"]) * triton.cdiv(N, META["BN"]),)](
 </div>
 <h3>Before and after the two passes that matter most for a matmul</h3>
 <div class="card" id="rd-ba-card">
+<h4>accelerate-matmul picks the tensor-core instruction; pipeline turns num_stages into buffers</h4>
 <div class="seg" id="rd-ba-mode"><button data-m="acc" class="on">accelerate-matmul</button><button data-m="pipe">pipeline</button></div>
 <div class="seg" id="rd-ba-side"><button data-m="before" class="on">Before</button><button data-m="after">After</button></div>
 <pre class="tg-pre" id="rd-ba-ir" style="max-height:340px;overflow:auto"></pre>
 <div class="an-cap" id="rd-ba-cap"></div>
-<p class="small mute">The matmul's TTGIR on sm_90a, debug locations removed, long lines cut; for the larger IR only layout definitions and the lines with the operations discussed are kept. Full stages for every kernel and target are in the <a href="#" data-tab="t-ir">Compiler stages</a> tab.</p>
+<p class="small mute">The matmul's TTGIR on sm_90a, debug locations removed, long lines cut; for the larger IR only layout definitions and the lines with the operations discussed are kept. Every stage for every kernel and target is in the <a href="#" data-tab="t-ir">Compiler stages</a> tab.</p>
 </div>
-<h3>Looking yourself</h3>
+<details class="dp"><summary>Looking yourself: the commands and environment variables <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="tbl-sm">
 <thead><tr><th>You want</th><th>Do this</th></tr></thead>
 <tbody>
@@ -354,71 +399,97 @@ matmul[lambda META: (triton.cdiv(M, META["BM"]) * triton.cdiv(N, META["BN"]),)](
 <tr><td>Force recompiling, or edit the IR and run that</td><td><code>TRITON_ALWAYS_COMPILE=1</code>; <code>TRITON_KERNEL_OVERRIDE=1</code> loads stages you edited from the override directory.</td></tr>
 </tbody></table></div>
 <p class="small">Environment variables as defined in <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/knobs.py" target="_blank" rel="noopener noreferrer">knobs.py</a> (3.8.0); the SASS is from NVIDIA's <code>cuobjdump</code>, the same way the <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Compiler explorer</a> on the parent page reads CUDA C++. PTX, SASS, NVRTC and LLVM's NVPTX back end as such are the subject of <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a>.</p>
+</div></details>
 </section>
 
 <section id="rd-s8">
 <h2>8. Layouts: the idea Triton hides and Gluon exposes</h2>
-<p>Every block in TTGIR carries a <dfn>layout</dfn>: the rule that says which register of which thread of which warp holds each element. The vector add of section 1 had the simplest, <code>#ttg.blocked&lt;{sizePerThread = [4], threadsPerWarp = [32], warpsPerCTA = [4], order = [0]}&gt;</code>. For 2D blocks the four fields read like this (from Gluon's <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/gluon/02-layouts.py" target="_blank" rel="noopener noreferrer">layouts tutorial</a>): each thread owns a <code>sizePerThread</code> sub-tile; threads tile it <code>threadsPerWarp</code> times; warps tile that <code>warpsPerCTA</code> times; <code>order</code> says which dimension is filled first (<code>[1, 0]</code>: along rows, as row-major). If the tensor is larger than the resulting block, each thread gets more registers; if it is smaller, elements are duplicated across threads (<dfn>broadcast</dfn>).</p>
-<div class="rd-two">
-<div><p class="small"><b>One rule for every layout.</b> Triton converts every layout to a <dfn>linear layout</dfn>: a list of <em>bases</em>, one per bit of the register, lane and warp index. The element a (warp, lane, register) holds is the XOR of the bases whose bits are set. For <code>sizePerThread=[2,4]</code>, <code>threadsPerWarp=[16,2]</code>, <code>warpsPerCTA=[2,2]</code>, <code>order=[1,0]</code> on a 64 x 16 tensor, Triton itself prints <span class="ev cmp">compiled here</span>, via Gluon's <code>to_linear_layout</code>:</p><pre class="tg-pre" id="rd-ll-print"></pre></div>
-<div><p class="small">Register bits 0 and 1 step along the row ([0,1], [0,2]), register bit 2 one row down ([1,0]); lane bit 0 jumps 4 columns, lane bits 1 to 4 go down the rows; the warps tile the rest. The <a href="#" data-tab="t-lay">Layout explorer</a> draws any blocked layout from its four fields with this rule; its JavaScript matches Triton's printed bases on all 8 layouts tried, including broadcast ones, and reproduces the tutorial's printed table (first row <code id="rd-ll-row"></code>).</p>
-<p class="small"><b>Broadcast, concretely.</b> The same layout on a 32 x 8 tensor (smaller than its 64 x 16 block) prints warp bases <code>[[0,0],[0,0]]</code>: all four warps hold the same data, so element (0, 0) lives in threads 0, 32, 64 and 96. Four times the registers for the same tensor, which is why a block shape that is too small for <code>num_warps</code> wastes the GPU.</p></div>
+<p>Every block in TTGIR carries a <dfn>layout</dfn>. The vector add of section 1 had the simplest, <code>#ttg.blocked&lt;{sizePerThread = [4], threadsPerWarp = [32], warpsPerCTA = [4], order = [0]}&gt;</code>. For 2D blocks the four fields read like this (Gluon's <a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/gluon/02-layouts.py" target="_blank" rel="noopener noreferrer">layouts tutorial</a>): each thread owns a <code>sizePerThread</code> sub-tile; threads tile it <code>threadsPerWarp</code> times; warps tile that <code>warpsPerCTA</code> times; <code>order</code> says which dimension is filled first (<code>[1, 0]</code>: along rows, as row-major). A tensor larger than the resulting block gives each thread more registers; a smaller one is duplicated across threads (<dfn>broadcast</dfn>). Change one field at a time and watch who owns what:</p>
+<div class="card" id="ly-card">
+<h4>Which thread holds which element: four fields decide, and a tensor smaller than the block is held several times</h4>
+<div class="ly-ctl">
+<label>Preset <select id="ly-pre"></select></label>
+<label>sizePerThread <select id="ly-spt"></select></label>
+<label>threadsPerWarp <select id="ly-tpw"></select></label>
+<label>warpsPerCTA <select id="ly-wpc"></select></label>
+<label>order <select id="ly-ord"><option value="1,0">[1, 0] (rows first, row-major)</option><option value="0,1">[0, 1] (columns first)</option></select></label>
+<label>Tensor shape <select id="ly-shape"></select></label>
+<label>Highlight thread <input type="range" id="ly-thr" min="0" max="127" value="0" step="1"><b id="ly-thrv">0</b></label>
 </div>
-<p><b>The other layouts you will meet in TTGIR</b> (all visible in the <a href="#" data-tab="t-ir">Compiler stages</a> tab):</p>
-<div class="mech">
+<div class="out" id="ly-stats"></div>
+<div class="leg" id="ly-leg"></div>
+<div class="ly-grid" id="ly-grid"></div>
+<div id="ly-check"></div>
+<pre id="ly-bases"></pre>
+<p class="small mute">Each cell is one tensor element, coloured by warp, labelled T(thread):register when there is room; outlined cells belong to the highlighted thread; a number in the corner counts broadcast copies. The bases are built the way Triton converts a blocked layout to a linear layout (below): register bits for <code>sizePerThread</code>, then lane bits, then warp bits, each in <code>order</code>, then extra register bits for repeats; a basis that falls outside the tensor becomes [0, 0], which is broadcast. Checked against Triton 3.8.0's own <code>to_linear_layout</code> output for the 8 presets marked "Triton printed" (<code>src/out/gluon.json</code>), and against the table printed in Gluon tutorial 02.</p>
+</div>
+<div class="rd-two">
+<div><p class="small"><b>One rule for every layout.</b> Triton converts every layout to a <dfn>linear layout</dfn>: a list of <em>bases</em>, one per bit of the register, lane and warp index. The element a (warp, lane, register) holds is the XOR of the bases whose bits are set. That is why block dimensions must be powers of two: every layout is a product of power-of-two factors, so it can be written as bases over index bits. For <code>sizePerThread=[2,4]</code>, <code>threadsPerWarp=[16,2]</code>, <code>warpsPerCTA=[2,2]</code>, <code>order=[1,0]</code> on a 64 x 16 tensor, Triton itself prints <span class="ev cmp">compiled here</span>, via Gluon's <code>to_linear_layout</code>:</p><pre class="tg-pre" id="rd-ll-print"></pre></div>
+<div><p class="small">Register bits 0 and 1 step along the row ([0,1], [0,2]), register bit 2 one row down ([1,0]); lane bit 0 jumps 4 columns, lane bits 1 to 4 go down the rows; the warps tile the rest. The explorer above uses this rule; its JavaScript matches Triton's printed bases on all 8 layouts tried, including broadcast ones, and reproduces the tutorial's printed table (first row <code id="rd-ll-row"></code>).</p>
+<p class="small"><b>Broadcast, concretely.</b> The same layout on a 32 x 8 tensor (smaller than its 64 x 16 block) prints warp bases <code>[[0,0],[0,0]]</code>: all four warps hold the same data, so element (0, 0) lives in threads 0, 32, 64 and 96. Four times the registers for the same tensor, which is why a block shape too small for <code>num_warps</code> wastes the GPU.</p></div>
+</div>
+<p><b>Moving a block between layouts costs.</b> A <code>convert_layout</code> means threads exchanging data through shared memory or shuffles; the remove-layout-conversions pass exists to delete as many as possible, and one left in a hot loop is a classic hidden cost.</p>
+<details class="dp"><summary>The other layouts you will meet in TTGIR <span class="mute">(reference; all visible in the Compiler stages tab)</span></summary><div class="b"><div class="mech">
 <div><b>slice</b><code>#ttg.slice&lt;{dim = 1, parent = #blocked}&gt;</code>: a 1D block derived from a 2D layout by dropping a dimension, e.g. the row offsets <code>offs_am</code> before <code>[:, None]</code>.</div>
 <div><b>nvidia_mma, amd_mfma</b>The accumulator layout the tensor-core instruction dictates: <code>versionMajor = 2</code>, <code>instrShape = [16, 8]</code> for mma.sync; <code>versionMajor = 3</code>, <code>[16, 128, 16]</code> for wgmma; <code>amd_mfma</code> with <code>instrShape = [32, 32, 8]</code> on gfx942.</div>
 <div><b>dot_op</b>The layout an operand of <code>tl.dot</code> must be in when it comes from registers (mma.sync, MFMA): which thread feeds which part of the instruction.</div>
 <div><b>shared</b><code>swizzled_shared&lt;{vec = 8, perPhase = 2, maxPhase = 4}&gt;</code> for tiles read with ldmatrix; <code>nvmma_shared&lt;{swizzlingByteWidth = 128}&gt;</code> for tiles read by wgmma, tcgen05 or written by TMA. Both XOR-swizzle addresses so 32 lanes hit 32 different banks (<a href="https://app.notion.com/p/3c65c17b0d0d814a8edef7bd21c303d3" target="_blank" rel="noopener noreferrer">GPU memory hierarchy</a>).</div>
 <div><b>tensor_memory_encoding</b>Blackwell only: <code>#ttng.tensor_memory_encoding&lt;blockM = 128, blockN = 128&gt;</code>, the accumulator living in TMEM.</div>
-<div><b>convert_layout</b>Not a layout but the cost of two: moving a block from one layout to another means threads exchanging data, through shared memory or shuffles. The remove-layout-conversions pass exists to delete as many as possible; one left in a hot loop is a classic hidden cost.</div>
-</div>
+</div></div></details>
 </section>
 <section id="rd-s9">
 <h2>9. torch.compile writes Triton for you</h2>
-<p><code>torch.compile</code> captures your PyTorch code as a graph and hands it to <dfn>Inductor</dfn>, its code generator, which groups operations that can share one pass over memory and writes a Triton kernel for each group. Without a GPU, Inductor's CUDA path cannot run, but it can be told to emit Triton for CPU tensors (<code>torch._inductor.config.cpu_backend = "triton"</code>); Triton's wheel has no CPU back end, so these kernels are written but cannot execute. The code below is real Inductor output from PyTorch 2.14.1 <span class="ev cmp">generated here</span> (<code>src/code/inductor_tg.py</code>); on a CUDA device the same graph gives kernels of the same form with GPU-specific block sizes and heuristics. The whole torch.compile stack (Dynamo, AOTAutograd, Inductor) is the subject of <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a>.</p>
+<p><code>torch.compile</code> captures your PyTorch code as a graph and hands it to <dfn>Inductor</dfn>, its code generator, which groups operations that can share one pass over memory and writes a Triton kernel for each group. The code below is real Inductor output from PyTorch 2.14.1 <span class="ev cmp">generated here</span> (<code>src/code/inductor_tg.py</code>): without a GPU, Inductor can be told to emit Triton for CPU tensors (<code>torch._inductor.config.cpu_backend = "triton"</code>), and Triton's wheel has no CPU back end, so these kernels are written but cannot execute. On a CUDA device the same graph gives kernels of the same form with GPU-specific block sizes. The whole stack (Dynamo, AOTAutograd, Inductor) is <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a>'s subject.</p>
 <div class="rd-two">
 <div><div class="small mute"><code>gelu(x) * sigmoid(x) + 1</code> on a 64 x 256 tensor: three PyTorch operations, one kernel</div><pre class="code" id="rd-ind-pw"></pre></div>
-<div><p class="small"><b>Reading generated code.</b> The name says what it is: <code>triton_poi_</code> is a pointwise kernel, <code>triton_per_</code> a <em>persistent reduction</em> (the whole reduced dimension in one block, like section 2's softmax), <code>triton_red_</code> a looped reduction; then <code>fused_</code> and the ATen operations inside. <code>xnumel = 16384</code> is baked in because shapes were static. <code>XBLOCK</code> is left as a <code>constexpr</code> that Inductor's own launcher tunes from <code>size_hints</code> (the decorator lines above the kernel, cut here). <code>tmp0</code> to <code>tmp11</code> are the fused operations in order: the exact GELU through <code>erf</code>, then the sigmoid, the product and the +1, with one load and one store.</p>
+<div><p class="small"><b>Reading generated code.</b> The name says what it is: <code>triton_poi_</code> is a pointwise kernel, <code>triton_per_</code> a <em>persistent reduction</em> (the whole reduced dimension in one block, like section 2's softmax), <code>triton_red_</code> a looped reduction; then <code>fused_</code> and the ATen operations inside. <code>xnumel = 16384</code> is baked in because shapes were static. <code>XBLOCK</code> is a <code>constexpr</code> that Inductor's own launcher tunes from <code>size_hints</code> (the decorator lines, cut here). <code>tmp0</code> to <code>tmp11</code> are the fused operations in order: the exact GELU through <code>erf</code>, the sigmoid, the product and the +1, with one load and one store.</p>
 <p class="small"><b>The attention-like graph</b> <code>softmax(x * 0.125) @ w</code> became one Triton kernel for the scaled softmax and a call to <code>extern_kernels.mm</code> for the matmul:</p><pre class="code" id="rd-ind-call" style="max-height:220px"></pre></div>
 </div>
-<details class="mist"><summary>The softmax kernel Inductor wrote (64 lines, shown in full)</summary><div class="b"><pre class="code" id="rd-ind-soft" style="max-height:420px"></pre><p class="small">Note what it did with the 0.125: it computes the row maximum of the <em>unscaled</em> input and applies the scale after subtracting, guarded by a check that every scaled value is finite (the <code>abs</code>, <code>eq</code>, <code>ne</code>, <code>any</code> in the code and in the kernel's name), falling back to the plain formula otherwise. That is an algebraic rewrite you would not think to write by hand, read directly from the generated code.</p></div></details>
-<div class="mech">
-<div><b>Matmuls go to a library by default</b>Inductor considers its Triton matmul templates (<code>mm_template</code>, persistent and TMA variants in <code>torch/_inductor/kernel/mm.py</code>) only under <code>mode="max-autotune"</code> or <code>max_autotune_gemm</code> (<a href="https://github.com/pytorch/pytorch/blob/v2.14.0/torch/_inductor/utils.py" target="_blank" rel="noopener noreferrer">use_triton_template in _inductor/utils.py</a>), where it times them against cuBLAS.</div>
-<div><b>See what it wrote</b><code>TORCH_LOGS="output_code"</code> prints every generated kernel and the Python wrapper that launches them; the files also sit in Inductor's cache directory.</div>
-<div><b>Your Triton kernel inside a compiled graph</b><code>@torch.library.triton_op</code> plus <code>torch.library.wrap_triton(kernel)[grid](...)</code> registers a hand-written Triton kernel as an operator that torch.compile can see through instead of breaking the graph (both present in PyTorch 2.14).</div>
-</div>
+<details class="mist"><summary>The softmax kernel Inductor wrote (64 lines, shown in full)</summary><div class="b"><pre class="code" id="rd-ind-soft" style="max-height:420px"></pre><p class="small">What it did with the 0.125: it computes the row maximum of the <em>unscaled</em> input and applies the scale after subtracting, guarded by a check that every scaled value is finite (the <code>abs</code>, <code>eq</code>, <code>ne</code>, <code>any</code> in the code and in the kernel's name), falling back to the plain formula otherwise. An algebraic rewrite you would not think to write by hand, read directly from the generated code.</p></div></details>
+<p><b>Matmuls go to a library by default.</b> Inductor considers its Triton matmul templates (<code>mm_template</code>, persistent and TMA variants in <code>torch/_inductor/kernel/mm.py</code>) only under <code>mode="max-autotune"</code> or <code>max_autotune_gemm</code> (<a href="https://github.com/pytorch/pytorch/blob/v2.14.0/torch/_inductor/utils.py" target="_blank" rel="noopener noreferrer">use_triton_template in _inductor/utils.py</a>), where it times them against cuBLAS.</p>
+<details class="dp"><summary>Seeing what Inductor wrote, and putting your own kernel in a compiled graph <span class="mute">(depth)</span></summary><div class="b"><code>TORCH_LOGS="output_code"</code> prints every generated kernel and the Python wrapper that launches them (the files also sit in Inductor's cache directory). A hand-written kernel joins a compiled graph through <code>@torch.library.triton_op</code> plus <code>torch.library.wrap_triton(kernel)[grid](...)</code>, which registers it as an operator torch.compile can see through instead of breaking the graph (both present in PyTorch 2.14).</div></details>
 </section>
 
 <section id="rd-s10">
 <h2>10. Gluon: the same compiler, your layouts</h2>
-<p>"Gluon is a GPU programming language based on the same compiler stack as Triton. But unlike Triton, Gluon is a lower-level language that gives the user more control and responsibility when implementing kernels" (<a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/gluon/01-intro.py" target="_blank" rel="noopener noreferrer">Gluon tutorial 01, v3.8.0</a>). The tutorial's reason: Triton's compiler "can be beaten by hand-tuned low-level code. When this happens, there is little the user can do", because layouts, memory allocation, data movement and asynchrony are hidden. Gluon exposes them. It lives in <code>triton.experimental.gluon</code> (experimental, by its import path), uses the same <code>@jit</code>-style decorator, launch syntax and <code>@triton.autotune</code>, and ships 14 tutorials in 3.8.0: intro, layouts, async copy, TMA, wgmma, tcgen05, persistence, warp specialisation, TMA gather and scatter, tcgen05 copy, scaled tcgen05 MMA, cluster launch control, an im2col convolution and multi-CTA kernels.</p>
+<p>"Gluon is a GPU programming language based on the same compiler stack as Triton. But unlike Triton, Gluon is a lower-level language that gives the user more control and responsibility when implementing kernels" (<a href="https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/gluon/01-intro.py" target="_blank" rel="noopener noreferrer">Gluon tutorial 01, v3.8.0</a>). The reason given: Triton's compiler "can be beaten by hand-tuned low-level code. When this happens, there is little the user can do", because layouts, memory allocation, data movement and asynchrony are hidden. Gluon exposes them. It lives in <code>triton.experimental.gluon</code> (experimental, by its import path) and uses the same <code>@jit</code>-style decorator, launch syntax and <code>@triton.autotune</code>.</p>
 <div class="rd-two">
 <div><div class="small mute">Vector add in Gluon: the layout is now yours</div><pre class="code" id="rd-src-glv"></pre></div>
-<div><p class="small"><b>What changed from section 1.</b> One line: <code>gl.BlockedLayout([4], [32], [num_warps], [0])</code>, exactly the layout Triton's coalesce pass chose by itself, now written by hand and attached to <code>gl.arange</code>; every tensor derived from it inherits it. Compiled for sm_90a <span class="ev cmp">compiled here</span>, the Gluon kernel's stages are <code id="rd-gl-stages"></code>: there is no TTIR, because a Gluon program <em>is</em> TTGIR (layouts included) from the start, and none of Triton's layout passes need to guess.</p>
-<p class="small"><b>What else is exposed</b> (module contents checked here): shared memory you allocate (<code>gl.allocate_shared_memory</code>) with layouts you choose (<code>NVMMASharedLayout</code>, <code>SwizzledSharedLayout</code>, <code>PaddedSharedLayout</code>); for Hopper <code>tma</code>, <code>mbarrier</code>, <code>warpgroup_mma</code>; for Blackwell also <code>allocate_tensor_memory</code>, <code>tcgen05_mma</code>, <code>tcgen05_commit</code>, cluster launch control (<code>clc</code>); <code>gl.warp_specialize</code> to give warps different functions; AMD modules for CDNA3, CDNA4, CDNA5 and RDNA3/4; and a new <code>rubin</code> module in 3.8.0.</p></div>
+<div><p class="small"><b>What changed from section 1.</b> One line: <code>gl.BlockedLayout([4], [32], [num_warps], [0])</code>, exactly the layout Triton's coalesce pass chose by itself, now written by hand and attached to <code>gl.arange</code>; every tensor derived from it inherits it. Compiled for sm_90a <span class="ev cmp">compiled here</span>, the Gluon kernel's stages are <code id="rd-gl-stages"></code>: no TTIR, because a Gluon program <em>is</em> TTGIR, layouts included, from the start, and none of Triton's layout passes need to guess.</p>
+</div>
 </div>
 <h3>Tutorial 02's experiment, recompiled</h3>
-<p>Gluon tutorial 02 copies memory with the layout <code>BlockedLayout([R], [32], [4], [0])</code> for R = 1 to 16 and reports the throughput on a GB200, then explains the differences by the load instructions. We cannot time it, but we can compile the same kernel for sm_100a and count the instructions it explains them with:</p>
+<p>Gluon tutorial 02 copies memory with the layout <code>BlockedLayout([R], [32], [4], [0])</code> for R = 1 to 16, reports the throughput on a GB200, and explains the differences by the load instructions. We cannot time it, but we can compile the same kernel for sm_100a and count those instructions. Predict first: do the widest loads copy fastest?</p>
 <div class="tw" id="rd-gl-tbl"></div>
-<p class="small">Throughput <span class="ev pub">published</span> in the tutorial for GB200, XBLOCK 2,048, 4 warps, about 8 GB copied <span class="ev not">not run here</span>. Instructions <span class="ev cmp">compiled here</span>: per thread, from the SASS. The instruction widths match the tutorial's table (32, 64, then 128 bits from R = 4 on, with R = 8 and 16 issuing their 128-bit loads in pairs and fours at 16-byte offsets). The lesson of the tutorial, and the reason Gluon exists: the layout changed throughput by about 5% at XBLOCK 2,048 and by 20% at XBLOCK 1,024 (R = 16) in their runs, the widest loads were not the fastest, and only a profiler could say why; their best was R = 1 with XBLOCK 8,192 (6.606 TB/s).</p>
-<div class="co"><div class="t">Who uses it</div>SGLang's MLA decode path for AMD imports <code>triton.experimental.gluon</code> and AMD's aiter <code>mla_gluon</code> kernel when Triton is 3.7 or newer (<a href="https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/attention/aiter_mla_gluon.py" target="_blank" rel="noopener noreferrer">aiter_mla_gluon.py</a>). Triton 3.8.0 also reworked an experimental Triton-to-Gluon translator (<a href="https://github.com/triton-lang/triton/releases/tag/v3.8.0" target="_blank" rel="noopener noreferrer">release notes</a>). The old page's "OpenAI publicly runs Triton/Gluon on both NVIDIA and AMD" is <span class="ev not">unconfirmed</span>: what is public is OpenAI's gpt-oss reference implementation using Triton (its MoE kernel from Triton's <code>triton_kernels</code>; <a href="https://github.com/openai/gpt-oss" target="_blank" rel="noopener noreferrer">gpt-oss README</a>).</div>
+<p class="small">Throughput <span class="ev pub">published</span> in the tutorial for GB200, XBLOCK 2,048, 4 warps, about 8 GB copied <span class="ev not">not run here</span>. Instructions <span class="ev cmp">compiled here</span>: per thread, from the SASS. The widths match the tutorial's table (32, 64, then 128 bits from R = 4 on, with R = 8 and 16 issuing their 128-bit loads in pairs and fours at 16-byte offsets). The lesson, and the reason Gluon exists: the layout changed throughput by about 5% at XBLOCK 2,048 and by 20% at XBLOCK 1,024 (R = 16) in their runs, the widest loads were not the fastest, and only a profiler could say why; their best was R = 1 with XBLOCK 8,192 (6.606 TB/s).</p>
+<details class="dp"><summary>What else Gluon exposes, its tutorials, and who uses it <span class="mute">(depth)</span></summary><div class="b"><p><b>What else is yours</b> (module contents checked here): shared memory you allocate (<code>gl.allocate_shared_memory</code>) with layouts you choose (<code>NVMMASharedLayout</code>, <code>SwizzledSharedLayout</code>, <code>PaddedSharedLayout</code>); for Hopper <code>tma</code>, <code>mbarrier</code>, <code>warpgroup_mma</code>; for Blackwell also <code>allocate_tensor_memory</code>, <code>tcgen05_mma</code>, <code>tcgen05_commit</code> and cluster launch control (<code>clc</code>); <code>gl.warp_specialize</code> to give warps different functions; AMD modules for CDNA3, CDNA4, CDNA5 and RDNA3/4; and a new <code>rubin</code> module in 3.8.0.</p><p>Triton 3.8.0 ships 14 Gluon tutorials: intro, layouts, async copy, TMA, wgmma, tcgen05, persistence, warp specialisation, TMA gather and scatter, tcgen05 copy, scaled tcgen05 MMA, cluster launch control, an im2col convolution and multi-CTA kernels.</p>
+<p>SGLang's MLA decode path for AMD imports <code>triton.experimental.gluon</code> and AMD's aiter <code>mla_gluon</code> kernel when Triton is 3.7 or newer (<a href="https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/attention/aiter_mla_gluon.py" target="_blank" rel="noopener noreferrer">aiter_mla_gluon.py</a>). Triton 3.8.0 also reworked an experimental Triton-to-Gluon translator (<a href="https://github.com/triton-lang/triton/releases/tag/v3.8.0" target="_blank" rel="noopener noreferrer">release notes</a>). The old page's "OpenAI publicly runs Triton/Gluon on both NVIDIA and AMD" is <span class="ev not">unconfirmed</span>: what is public is OpenAI's gpt-oss reference implementation using Triton (its MoE kernel from Triton's <code>triton_kernels</code>; <a href="https://github.com/openai/gpt-oss" target="_blank" rel="noopener noreferrer">gpt-oss README</a>).</p></div></details>
 </section>
 
 <section id="rd-s11">
-<h2>11. Beyond NVIDIA, and Triton's neighbours</h2>
-<p><b>AMD.</b> The standard Triton wheel contains an AMD back end and the LLVM it needs, so the page's kernels compile for <code>gfx942</code> (MI300X) and <code>gfx950</code> (MI355X) on this laptop <span class="ev cmp">compiled here</span>. What differs: a <dfn>wavefront</dfn> is 64 lanes, not 32 (the vector add's layout became <code>threadsPerWarp = [64]</code>); shared memory is called <dfn>LDS</dfn>; tensor cores are <dfn>MFMA</dfn> instructions (<code>v_mfma_f32_32x32x8_f16</code> on gfx942, the doubled-K <code>v_mfma_f32_32x32x16_f16</code> on gfx950; section 3's table); registers are VGPRs (and AGPRs for accumulators). Tutorial 03 ships a separate AMD configuration list (8 warps, 2 stages, <code>matrix_instr_nonkdim = 16</code>), a reminder that tuned configurations do not transfer between vendors. The ROCm stack itself, including the old page's ROCm 10.0 claims, is on the parent page, section 10. <b>Intel</b> GPUs are served by a separate repository, <a href="https://github.com/intel/intel-xpu-backend-for-triton" target="_blank" rel="noopener noreferrer">intel-xpu-backend-for-triton</a> ("OpenAI Triton backend for Intel GPUs"), not by the standard wheel used here <span class="ev not">not compiled here</span>.</p>
+<h2>11. Which tool: torch.compile, Triton, Gluon or CUDA</h2>
+<p>Each step down hands you more of the decisions in the hero figure, and more of the work.</p>
+<div class="ladder">
+<div style="--sc:var(--c3)"><b>torch.compile</b>You write PyTorch. Inductor fuses operations and <em>writes Triton for you</em>; matmuls go to a library. Start here. <a href="#rd-s9">Section 9</a></div>
+<div style="--sc:var(--c1)"><b>Triton</b>You write one program over blocks; the compiler picks layouts, vector widths, shared memory, pipelining and the tensor-core instruction. For what torch.compile cannot express: attention variants, quantised or mixed-format matmuls, fused MoE routing, fused losses. <a href="#rd-s1">Sections 1 to 8</a></div>
+<div style="--sc:var(--c4)"><b>Gluon</b>Same compiler and launch, but you choose the layouts, shared memory, asynchronous copies, barriers and warp roles. <a href="#rd-s10">Section 10</a></div>
+<div style="--sc:var(--c2)"><b>CUDA C++, CUTLASS, CuTe DSL</b>You write what each thread does: explicit warp roles, swizzles, clusters, persistent scheduling, any device API, C++ deployment without Python. <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>, <a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">Libraries and tensor cores</a></div>
+</div>
+<p><b>When Triton is enough, and when it is not.</b> Write no kernel until a profile shows a gap; prototype in Triton; go lower only for the kernels that dominate the profile. Go to Gluon or CUDA when the kernel is far from the hardware limit and the cause is something Triton decides for you: the layout, the shared-memory plan, the pipelining or warp roles, Blackwell's tensor memory or cluster features. Gluon keeps Triton's front end and lets you choose those; CUDA C++ or the CuTe DSL give you everything else. The old page's "a competent Triton kernel lands within 0 to 20% of expert CUDA in about a tenth of the lines" is a rule of thumb with no source we could find <span class="ev not">unconfirmed</span>.</p>
+<h3>Beyond NVIDIA</h3>
+<p><b>AMD.</b> The standard Triton wheel contains an AMD back end and the LLVM it needs, so the page's kernels compile for <code>gfx942</code> (MI300X) and <code>gfx950</code> (MI355X) <span class="ev cmp">compiled here</span>. What differs: a <dfn>wavefront</dfn> is 64 lanes, not 32 (the vector add's layout became <code>threadsPerWarp = [64]</code>); shared memory is called <dfn>LDS</dfn>; tensor cores are <dfn>MFMA</dfn> instructions (<code>v_mfma_f32_32x32x8_f16</code> on gfx942, the doubled-K <code>v_mfma_f32_32x32x16_f16</code> on gfx950; section 3's table); registers are VGPRs (and AGPRs for accumulators). Tutorial 03 ships a separate AMD configuration list (8 warps, 2 stages, <code>matrix_instr_nonkdim = 16</code>): tuned configurations do not transfer between vendors.</p>
 <div class="corr"><div class="t">Correction to the old page: the CUDA Tile IR back end</div>The old page said "NVIDIA contributed a CUDA Tile IR backend so Triton picks up new Blackwell-generation tensor-core features without source changes." What exists is an <em>incubator</em> repository in the triton-lang organisation, <a href="https://github.com/triton-lang/Triton-to-tile-IR" target="_blank" rel="noopener noreferrer">Triton-to-tile-IR</a> (created December 2025, last commit September 23, 2026): a separate build of Triton 3.7 enabled with <code>ENABLE_TILE=1</code>, validated on B200 with CUDA 13.4, with documented gaps (poor small-GEMM performance, the tensor-of-pointers load and store style "exhibits poor performance", <code>num_warps</code> accepted but not obeyed; a new <code>occupancy</code> hint). It is not part of the Triton 3.8.0 release used on this page.</div>
-<div class="mech">
+<details class="dp"><summary>Triton's neighbours, and where Triton is used <span class="mute">(depth)</span></summary><div class="b"><div class="mech">
+<div><b>ROCm and Intel</b>The ROCm stack, including the old page's ROCm 10.0 claims, is on the parent page, section 10. <b>Intel</b> GPUs are served by a separate repository, <a href="https://github.com/intel/intel-xpu-backend-for-triton" target="_blank" rel="noopener noreferrer">intel-xpu-backend-for-triton</a> ("OpenAI Triton backend for Intel GPUs"), not by the standard wheel <span class="ev not">not compiled here</span>.</div>
 <div><b>cuTile (NVIDIA)</b>NVIDIA's own tile-level language on CUDA Tile IR: <a href="https://github.com/NVIDIA/cutile-python" target="_blank" rel="noopener noreferrer">cutile-python</a>, and cutile-rs for Rust (on the parent page, section 10); Julia has cuTile.jl. Same idea as Triton: you write tiles, the compiler maps them.</div>
 <div><b>Helion (PyTorch)</b>A higher-level kernel language from the PyTorch team that compiles to Triton and autotunes over "hundreds of potential Triton implementations" in about 10 minutes, by its README (v1.4.0, July 29, 2026; <a href="https://github.com/pytorch/helion" target="_blank" rel="noopener noreferrer">pytorch/helion</a>).</div>
 <div><b>CuTe DSL (NVIDIA)</b>The Python face of CUTLASS 4: explicit layouts and instructions, closer to Gluon than to Triton. On <a href="https://app.notion.com/p/3c65c17b0d0d81a7adcaebee2f44a087" target="_blank" rel="noopener noreferrer">Libraries and tensor cores</a>.</div>
 <div><b>Where Triton is used</b><a href="https://github.com/linkedin/Liger-Kernel" target="_blank" rel="noopener noreferrer">Liger Kernel</a> ("Efficient Triton Kernels for LLM Training"), Unsloth, vLLM's Triton attention back end and fused MoE kernels, SGLang, gpt-oss's reference implementation, and every <code>torch.compile</code> user. The <a href="https://github.com/gpu-mode/lectures" target="_blank" rel="noopener noreferrer">GPU MODE</a> lectures and kernel leaderboard are the community around it.</div>
-</div>
+</div></div></details>
 </section>
 <section id="rd-s12">
 <h2>12. Mistakes, each with its evidence</h2>
-<p>Every item below was either reproduced on this page or read in Triton's source; the tag says which.</p>
+<p class="small">Closed by default: most are the sections above seen from the failure side. Each was reproduced on this page or read in Triton's source; the tag says which.</p>
 <details class="mist"><summary>Assuming the tensor's length does not change the code <span class="ev cmp">compiled here</span></summary><div class="b">A length that is not a multiple of 16 removes the divisibility hint on <code>n</code>, and the mask can then cut a run of 4, so a perfectly aligned vector add drops from 16-byte to 4-byte loads (section 1: <span id="rd-m-n1000"></span>). Pad allocations to a multiple of 16 when you can, or give the ragged tail its own small launch.</div></details>
 <details class="mist"><summary>Passing sliced or offset tensors <span class="ev cmp">compiled here</span></summary><div class="b"><code>x[1:]</code> starts 4 bytes into the allocation: the pointer is no longer divisible by 16, the hint is gone and so are the vector loads (the no-hint build in section 1). Strides that are not multiples of 16 do the same to 2D tiles.</div></details>
 <details class="mist"><summary>A block size that is not a power of two <span class="ev run">interpreter</span></summary><div class="b"><code>tl.arange(0, 1000)</code> is rejected: block dimensions must be powers of two. Round up with <code>triton.next_power_of_2</code> and mask.</div></details>
@@ -431,21 +502,6 @@ matmul[lambda META: (triton.cdiv(M, META["BM"]) * triton.cdiv(N, META["BN"]),)](
 <details class="mist"><summary>An autotune key that never repeats, or a kernel that writes its inputs <span class="ev pub">source</span></summary><div class="b">Every new key value re-runs every configuration (section 6), and every configuration runs on the same tensors: bucket the key, and list in-place or accumulated outputs in <code>reset_to_zero</code> or <code>restore_value</code>.</div></details>
 <details class="mist"><summary>Timing the first call <span class="ev pub">source</span></summary><div class="b">The first call compiles (and autotunes); later calls with a new specialisation key compile again. Time with <code>triton.testing.do_bench</code> after a warm-up, which also clears the L2 cache between runs (it zeroes a 256 MB buffer before each one and returns the mean by default); the rest of honest timing is section 2 of <a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a>. Small kernels are often dominated by launch overhead instead, which CUDA graphs remove (<a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU</a>).</div></details>
 <details class="mist"><summary>Trusting the interpreter for more than the maths <span class="ev pub">source</span></summary><div class="b"><code>TRITON_INTERPRET=1</code> runs programs one after another in NumPy. It finds indexing, masking and numerical mistakes; it cannot show a race between programs, an atomic ordering problem, a layout conversion, a spill or a compiler bug. Compile for the real target too, as this page does.</div></details>
-</section>
-
-<section id="rd-s13">
-<h2>13. Interview questions, with short answers</h2>
-<details class="qa"><summary>What is a Triton program, and how does it relate to CUDA?</summary><div>One instance of the kernel working on blocks of values; it becomes one CUDA thread block of num_warps x 32 threads. You index blocks with <code>program_id</code>; the compiler maps elements to threads through a layout.</div></details>
-<details class="qa"><summary>Why do block sizes have to be powers of two?</summary><div><code>tl.arange</code> requires it, and every layout is built from power-of-two factors (elements per thread x threads per warp x warps), which is what lets the compiler describe any layout as bases over the bits of the register, lane and warp index.</div></details>
-<details class="qa"><summary>What do num_warps and num_stages do?</summary><div>num_warps: threads per program, hence elements and registers per thread, and whether warpgroup instructions are possible. num_stages: software-pipeline depth, one shared-memory buffer per stage (minus one on the mma.sync path), so it trades shared memory, and occupancy, for latency hiding.</div></details>
-<details class="qa"><summary>How does Triton get vectorised, coalesced loads?</summary><div>An axis analysis works out how many consecutive offsets are contiguous and how aligned they are, using the 16-byte divisibility hints Triton attaches to arguments at launch; the coalesce pass then gives each thread runs of up to 16 bytes. Lose a hint (odd offset, odd length) and the loads narrow.</div></details>
-<details class="qa"><summary>My Triton FP32 matmul disagrees with torch.matmul in the fourth digit. Why?</summary><div>tl.dot uses TF32 by default for FP32 inputs on NVIDIA; PyTorch's FP32 matmul does not unless allowed. Set <code>input_precision="ieee"</code> to compare like with like.</div></details>
-<details class="qa"><summary>Why does grouped program ordering speed up a matmul?</summary><div>Programs running at the same time share L2; grouping tile rows makes them share tiles of both A and B. For 9 x 9 tiles the first 9 programs need 54 tiles grouped against 90 row-major (tutorial 03).</div></details>
-<details class="qa"><summary>What does the Triton compiler do between your Python and PTX?</summary><div>Python to TTIR (tensor ops, no threads), TTGIR (layouts, shared memory, the MMA instruction, software pipelining, about 70 passes), LLVM IR (per-thread code), then PTX and ptxas to SASS, or AMDGCN on AMD.</div></details>
-<details class="qa"><summary>When would you write Gluon or CUDA instead of Triton?</summary><div>When a profile shows the kernel is far from the hardware limit and the cause is something Triton decides for you: the layout, the shared-memory plan, the pipelining or warp roles, Blackwell's tensor memory or cluster features. Gluon keeps Triton's front end and lets you choose those; CUDA C++ or CuTe DSL give you everything else.</div></details>
-<details class="qa"><summary>How does torch.compile use Triton?</summary><div>Inductor fuses pointwise and reduction operations into Triton kernels it writes (named triton_poi_, triton_per_, triton_red_) and launches from a generated Python wrapper; matmuls go to cuBLAS unless max-autotune lets it time its Triton templates against it. Custom kernels join the graph through <code>torch.library.triton_op</code>.</div></details>
-<details class="qa"><summary>How does @triton.autotune decide?</summary><div>On the first call with a new key (the key arguments' values plus tensor dtypes) it compiles and times every configuration with do_bench, keeps the fastest, and treats configurations that fail to compile or do not fit as infinitely slow.</div></details>
-<p class="small mute" style="margin-top:14px">Not run here: nothing on this page ran on an NVIDIA or AMD GPU, so it has no Triton timings of its own. For timings of the same ideas, the parent's <a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Kernel lab</a> measured Metal kernels on the M1 Pro GPU; for how to time Triton kernels honestly on a real GPU, <a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a>.</p>
 </section>
 </div>
 <div class="tab" id="t-ir" role="tabpanel" hidden>
@@ -506,36 +562,6 @@ matmul[lambda META: (triton.cdiv(M, META["BM"]) * triton.cdiv(N, META["BN"]),)](
 <div id="cf-pred"></div>
 </div>
 </div>
-<div class="tab" id="t-lay" role="tabpanel" hidden>
-<style>
-#t-lay .ly-ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:8px 14px;margin:10px 0}
-#t-lay .ly-ctl label{font-size:13px;display:block}#t-lay select{width:100%}
-#t-lay .ly-grid{overflow:auto;max-width:100%;margin:8px 0}
-#t-lay pre{font:11.5px/1.45 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;white-space:pre;margin:6px 0}
-#t-lay .ok{color:var(--good);font-weight:600}#t-lay .bad{color:var(--bad);font-weight:600}
-#t-lay .stat .v{font-size:16px}
-#t-lay .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
-#t-lay .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute)}
-</style>
-<p class="lead" style="margin-top:14px">Which thread holds which element: draw any 2D blocked layout from its four fields, on any tensor shape, and see each thread's registers, broadcast copies and the linear-layout bases Triton uses internally.</p>
-<div class="card">
-<div class="ly-ctl">
-<label>Preset <select id="ly-pre"></select></label>
-<label>sizePerThread <select id="ly-spt"></select></label>
-<label>threadsPerWarp <select id="ly-tpw"></select></label>
-<label>warpsPerCTA <select id="ly-wpc"></select></label>
-<label>order <select id="ly-ord"><option value="1,0">[1, 0] (rows first, row-major)</option><option value="0,1">[0, 1] (columns first)</option></select></label>
-<label>Tensor shape <select id="ly-shape"></select></label>
-<label>Highlight thread <input type="range" id="ly-thr" min="0" max="127" value="0" step="1"><b id="ly-thrv">0</b></label>
-</div>
-<div class="out" id="ly-stats"></div>
-<div class="leg" id="ly-leg"></div>
-<div class="ly-grid" id="ly-grid"></div>
-<div id="ly-check"></div>
-<pre id="ly-bases"></pre>
-<p class="small mute">Each cell is one tensor element, coloured by warp, labelled T(thread):register when there is room; outlined cells belong to the highlighted thread; a number in the corner counts broadcast copies (several threads holding the same element). The bases are built the way Triton converts a blocked layout to a linear layout: register bits for <code>sizePerThread</code>, then lane bits, then warp bits, each in <code>order</code>, then extra register bits for repeats; a basis that falls outside the tensor becomes [0, 0], which is broadcast. Element of (warp, lane, register) = XOR of the bases of its set bits. Checked against Triton 3.8.0's own <code>to_linear_layout</code> output for the 8 presets marked "Triton printed" (<code>src/out/gluon.json</code>), and against the table printed in Gluon tutorial 02.</p>
-</div>
-</div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more">
 <p class="lead" style="margin-top:14px">The tabs of this page, the knowledge base pages around it, and the best outside resources, each with an approximate time. Links checked on 2026-10-05.</p>
@@ -543,7 +569,7 @@ matmul[lambda META: (triton.cdiv(M, META["BM"]) * triton.cdiv(N, META["BN"]),)](
 <div class="grid">
 <div class="sp"><div class="n"><a href="#" data-tab="t-ir">Compiler stages</a></div><p>Four kernels x six GPUs x six stages, from Python to SASS or AMDGCN, with metadata. <span class="rt">15 min</span></p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-cfg">Config explorer</a></div><p>Tutorial 03's configurations and two sweeps: registers, spills, shared memory, launchability, programs per SM; a shared-memory predictor. <span class="rt">10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-lay">Layout explorer</a></div><p>Any blocked layout drawn element by element, with its linear-layout bases, checked against Triton's own output. <span class="rt">10 min</span></p></div>
+<div class="sp"><div class="n">Layout explorer (<a href="#" data-tab="t-read">Reading</a>, section 8)</div><p>Any blocked layout drawn element by element, with its linear-layout bases, checked against Triton's own output. <span class="rt">10 min</span></p></div>
 </div>
 <h3>The parent and siblings</h3>
 <div class="grid">
@@ -580,9 +606,9 @@ matmul[lambda META: (triton.cdiv(M, META["BM"]) * triton.cdiv(N, META["BN"]),)](
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab: shared helpers, copied from Topic: hardware and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -613,7 +639,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -700,7 +726,7 @@ window.TGD={"gl_pub":{"source":"https://github.com/triton-lang/triton/blob/v3.8.
       g+='<rect x="'+x.toFixed(2)+'" y="'+y.toFixed(1)+'" width="'+Math.max(cw-0.3,0.6).toFixed(2)+'" height="'+(ch-1.5).toFixed(1)+'" fill="'+(masked?'var(--bg)':fill)+'" fill-opacity="'+op.toFixed(2)+'"'+(masked?' stroke="var(--bad)" stroke-width="0.6"':'')+'/>';
       if(thr===sel)g+='<rect x="'+(x-0.6).toFixed(2)+'" y="'+(y-0.8).toFixed(1)+'" width="'+(cw+0.6).toFixed(2)+'" height="'+(ch).toFixed(1)+'" fill="none" stroke="var(--ink)" stroke-width="1.3"/>';
     }
-    for(let r=0;r<8;r++)g+=RD.t(L-4,14+r*ch+ch*0.7,String(r*128),{a:'end',fs:9.5,fill:'var(--mute)'});
+    for(let r=0;r<8;r++)g+=RD.t(L-4,14+r*ch+ch*0.7,String(r*128),{a:'end',fs:11,fill:'var(--mute)'});
     g+=RD.t(L,10,s.spt?'colour = warp (4 warps x 32 threads); outlined = thread 0':'one block of 1,024 values (no threads yet)',{fs:10.5,fill:'var(--mute)'});
     box.innerHTML=RD.svg(W,H,g,'1,024 elements of one program');
     $('rd-va-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S.length+': '+esc(s.t)+'</div><p>'+esc(s.p)+'</p><pre class="tg-pre" style="margin:4px 0">'+s.ir.map(esc).join('\n')+'</pre>';
@@ -918,6 +944,80 @@ window.TGD={"gl_pub":{"source":"https://github.com/triton-lang/triton/blob/v3.8.
 (function(){const D=window.TGD,m={};D.main.forEach(r=>m[r.key+'.'+r.target]=r);const a=m['vadd.sm_90a'],b=m['vadd_n1000.sm_90a'],el=document.getElementById('rd-m-n1000');
   if(el)el.textContent=a.ops['LDG.E.128']+' LDG.E.128 became '+b.ops['LDG.E']+' LDG.E per thread on sm_90a';})();
 </script>
+<script>/* 28_js_rd_hero.js */
+// ---- Reading top: the hero figure (static annotated diagram): what you write, what the compiler decides, what each GPU runs ----
+// Instruction shapes come from window.TGD.exp.mma_per_kstep (compiled here); nothing on the figure moves.
+(function(){
+  const D=window.TGD,box=document.getElementById('rd-hero');if(!box||!D)return;
+  const M=D.exp.mma_per_kstep,sh=k=>M[k].instr_shape;
+  const T=[['sm_80','A100','mma.sync m'+sh('sm_80')[0]+'n'+sh('sm_80')[1]+'k'+sh('sm_80')[2]],
+    ['sm_90a','H100','wgmma m'+sh('sm_90a')[0]+'n'+sh('sm_90a')[1]+'k'+sh('sm_90a')[2]],
+    ['sm_100a','B200','tcgen05.mma '+sh('sm_100a').join('x')],
+    ['sm_120','RTX 5090','mma.sync m'+sh('sm_120')[0]+'n'+sh('sm_120')[1]+'k'+sh('sm_120')[2]],
+    ['gfx942','MI300X','v_mfma '+sh('gfx942').join('x')],
+    ['gfx950','MI355X','v_mfma '+sh('gfx950').join('x')]];
+  const CODE=['pid = tl.program_id(0)','offs = pid*B + tl.arange(0, B)','a = tl.load(a_ptr + offs, mask=m)','acc += tl.dot(a, b)','tl.store(c_ptr + offs, acc)'];
+  const ST=[['TTIR','whole-block ops, no threads'],['TTGIR','',1],['LLVM IR','per-thread code'],['PTX / AMDGCN','assembly'],['SASS / hsaco','machine code']];
+  const DEC=['layout: which thread holds what','load width, from 16-byte hints','shared buffers: num_stages','tensor-core instruction'];
+  const t=RD.t,mono='font-family="ui-monospace,Menlo,Consolas,monospace"';
+  const rect=(x,y,w,h,o)=>{o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="6" fill="'+(o.fill||'var(--soft)')+'" stroke="'+(o.stroke||'var(--line)')+'" stroke-width="'+(o.sw||1)+'"'+(o.dash?' stroke-dasharray="4 3"':'')+'/>'};
+  const arrowR=(x1,y,x2)=>'<line x1="'+x1+'" y1="'+y+'" x2="'+(x2-6)+'" y2="'+y+'" stroke="var(--mute)" stroke-width="1.5"/><path d="M'+(x2-7)+' '+(y-4)+' L'+x2+' '+y+' L'+(x2-7)+' '+(y+4)+'Z" fill="var(--mute)"/>';
+  const arrowD=(x,y1,y2)=>'<line x1="'+x+'" y1="'+y1+'" x2="'+x+'" y2="'+(y2-6)+'" stroke="var(--mute)" stroke-width="1.5"/><path d="M'+(x-4)+' '+(y2-7)+' L'+x+' '+y2+' L'+(x+4)+' '+(y2-7)+'Z" fill="var(--mute)"/>';
+  // each column drawn at (x, y) with width w; returns [svg, height]
+  function colCode(x,y,w){let g=t(x,y+12,'You write (Triton)',{w:600,fs:12.5});
+    const h=CODE.length*16+14;g+=rect(x,y+20,w,h);
+    CODE.forEach((l,i)=>{g+='<text x="'+(x+8)+'" y="'+(y+38+i*16)+'" font-size="11" '+mono+' fill="var(--ink)">'+RD.esc(l)+'</text>'});
+    g+=t(x,y+20+h+15,'one program, whole blocks;',{fs:11,fill:'var(--mute)'})+t(x,y+20+h+29,'no threads, no shared memory',{fs:11,fill:'var(--mute)'});
+    return [g,20+h+34]}
+  function colComp(x,y,w){let g=t(x,y+12,'The compiler decides',{w:600,fs:12.5,fill:'var(--acc)'});let yy=y+20;
+    ST.forEach((s,i)=>{if(s[2]){const h=18+DEC.length*15+6;g+=rect(x,yy,w,h,{fill:'var(--bg)',stroke:'var(--acc)',sw:2});
+        g+=t(x+8,yy+14,s[0]+': + decisions',{w:600,fs:11.5});
+        DEC.forEach((d,j)=>{g+=t(x+12,yy+30+j*15,'• '+d,{fs:11,fill:'var(--acc)'})});
+        yy+=h}
+      else{g+=rect(x,yy,w,22);g+=t(x+8,yy+15,s[0],{w:600,fs:11.5})+t(x+w-6,yy+15,s[1],{a:'end',fs:11,fill:'var(--mute)'});yy+=22}
+      if(i<ST.length-1){g+=arrowD(x+w/2,yy,yy+10);yy+=10}});
+    return [g,yy-y]}
+  function colGpu(x,y,w){let g=t(x,y+12,'Each GPU runs (one tl.dot)',{w:600,fs:12.5});let yy=y+20;
+    T.forEach(r=>{g+=rect(x,yy,w,26,{fill:'var(--bg)'});g+=t(x+8,yy+17,r[0],{w:600,fs:11.5})+t(x+64,yy+17,r[1],{fs:11,fill:'var(--mute)'});
+      g+='<text x="'+(x+w-6)+'" y="'+(yy+17)+'" font-size="11" text-anchor="end" '+mono+' fill="var(--ink)">'+RD.esc(r[2])+'</text>';yy+=30});
+    return [g,yy-y]}
+  function draw(){
+    const W=Math.min(900,RD.width(box));let g='',H;
+    if(W>=820){const gap=30,c1=Math.round(W*0.33),c3=Math.round(W*0.35),c2=W-c1-c3-2*gap-2;
+      const a=colCode(1,0,c1),b=colComp(c1+gap+1,0,c2),c=colGpu(c1+c2+2*gap+1,0,c3);
+      g=a[0]+b[0]+c[0];H=Math.max(a[1],b[1],c[1])+20;
+      g+=arrowR(c1+4,64,c1+gap-2)+arrowR(c1+c2+gap+4,64,c1+c2+2*gap-2);
+      g+=t(c1+gap+1+c2/2,H-4,'Gluon starts at TTGIR: you write the decisions',{a:'middle',fs:11,fill:'var(--c4)'});H+=4}
+    else{const w=W-2;const a=colCode(1,0,w);g+=a[0];let y=a[1]+2;g+=arrowD(W/2,y,y+14);y+=16;
+      const b=colComp(1,y,w);g+=b[0];y+=b[1]+4;g+=t(1,y+12,'Gluon starts at TTGIR: you write the decisions',{fs:11,fill:'var(--c4)'});y+=18;
+      g+=arrowD(W/2,y,y+14);y+=16;const c=colGpu(1,y,w);g+=c[0];H=y+c[1]+4}
+    box.innerHTML=RD.svg(W,H,g,'Triton source, the compiler stages with its four decisions at TTGIR, and the tensor-core instruction each of six GPUs runs');
+  }
+  draw();RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
+<script>/* 29_js_rd_causal.js */
+// ---- Reading section 4: which K tiles a causal attention program visits (static diagram, n_b = 8, illustrative) ----
+(function(){
+  const box=document.getElementById('rd-causal-svg');if(!box)return;
+  const NB=8,t=RD.t;
+  function draw(){
+    const W=Math.min(640,RD.width(box)),wide=W>=480,L=22,Tp=26,cs=Math.floor(Math.min(30,((wide?W*0.55:W)-L-4)/NB)),gw=cs*NB;
+    let g=t(L,12,'K and V tiles →',{fs:11,fill:'var(--mute)'});
+    g+='<text x="12" y="'+(Tp+gw/2)+'" font-size="11" fill="var(--mute)" text-anchor="middle" transform="rotate(-90 12 '+(Tp+gw/2)+')">query tiles (one program each)</text>';
+    let n=[0,0,0];
+    for(let i=0;i<NB;i++)for(let j=0;j<NB;j++){const x=L+j*cs,y=Tp+i*cs,k=j<i?0:(j===i?1:2);n[k]++;
+      g+='<rect x="'+(x+1)+'" y="'+(y+1)+'" width="'+(cs-2)+'" height="'+(cs-2)+'" rx="2" '+(k===0?'fill="var(--c1)" fill-opacity="0.75"':k===1?'fill="var(--acc)" fill-opacity="0.85"':'fill="none" stroke="var(--line)" stroke-dasharray="3 2"')+'/>'}
+    const lx=wide?L+gw+18:L,ly=wide?Tp+8:Tp+gw+14,sw=(c,dash)=>'<rect width="12" height="12" rx="2" '+(dash?'fill="none" stroke="var(--line)" stroke-dasharray="3 2"':'fill="'+c+'"')+'/>';
+    const items=[[sw('var(--c1)'),'visited, no mask: '+n[0]],[sw('var(--acc)'),'diagonal, tl.where mask: '+n[1]],[sw('',1),'skipped by the loop bound: '+n[2]]];
+    items.forEach((it,k)=>{const y=ly+k*20;g+='<g transform="translate('+lx+','+y+')">'+it[0]+'</g>'+t(lx+18,y+10,it[1],{fs:11})});
+    const ty=ly+3*20+8;g+=t(lx,ty,'visited: '+(n[0]+n[1])+' of '+NB*NB,{fs:11.5,w:600});
+    const H=Math.max(Tp+gw+4,ty+6);
+    box.innerHTML=RD.svg(W,H,g,'Causal attention tile grid: tiles below the diagonal visited, diagonal masked, above skipped');
+  }
+  draw();RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
 <script>/* 31_js_ir.js */
 // ---- Compiler stages tab (t-ir) ----
 (function(){
@@ -1008,7 +1108,7 @@ window.TG_smem=(asyncmma,ns,bm,bn,bk,b)=>(asyncmma?ns:Math.max(ns-1,1))*(bm*bk+b
 })();
 </script>
 <script>/* 33_js_lay.js */
-// ---- Layout explorer tab (t-lay) ----
+// ---- Layout explorer (Reading section 8, card #ly-card; was a tab until 2026-10-23) ----
 // TG_bases: blocked layout -> linear-layout bases (row, col), as Triton converts it; checked against Triton's printed
 // to_linear_layout output (src/out/gluon.json) by src/check/check_js.mjs and live on the tab.
 window.TG_bases=function(spt,tpw,wpc,order,shape){
@@ -1047,14 +1147,14 @@ window.TG_owners=function(B,shape){
     $('ly-stats').innerHTML=RD.stat('Block covered by one layout tile',(spt[0]*tpw[0]*wpc[0])+' x '+(spt[1]*tpw[1]*wpc[1]))+RD.stat('Registers per thread for this tensor',regs,'elements per thread')+RD.stat('Threads',nT,wpc[0]*wpc[1]+' warps')+RD.stat('Copies of each element',dup,dup>1?'broadcast: duplicated data':'no duplication');
     $('ly-leg').innerHTML=Array.from({length:wpc[0]*wpc[1]},(_,w)=>'<span style="--sw:'+COL[w%8]+'">warp '+w+'</span>').join('');
     const box=$('ly-grid'),W=Math.max(280,Math.min(880,RD.width(box))),cs=Math.max(2,Math.min(44,Math.floor((W-30)/shape[1]))),Hh=shape[0]*cs+18,Ww=shape[1]*cs+28;
-    const lab=cs>=34;
+    const lab=cs>=44;
     let g='';
     for(let y=0;y<shape[0];y++)for(let x=0;x<shape[1];x++){const o=G.get(y*shape[1]+x)||[],f=o[0],mine=o.some(t=>t[0]===T);
       const w=f?f[0]>>5:0,ln=f?f[0]&31:0;
       g+='<rect x="'+(24+x*cs)+'" y="'+(14+y*cs)+'" width="'+(cs-(cs>3?1:0))+'" height="'+(cs-(cs>3?1:0))+'" fill="'+COL[w%8]+'" fill-opacity="'+(0.35+0.5*((ln%8)/7)).toFixed(2)+'"'+(mine?' stroke="var(--ink)" stroke-width="'+(cs>6?2:1)+'"':'')+'/>';
-      if(lab)g+='<text x="'+(24+x*cs+cs/2)+'" y="'+(14+y*cs+cs/2+3.5)+'" text-anchor="middle" font-size="9.5">T'+f[0]+':'+f[1]+'</text>';
-      if(o.length>1&&cs>=14)g+='<text x="'+(24+x*cs+cs-3)+'" y="'+(14+y*cs+9)+'" text-anchor="end" font-size="8" fill="var(--bad)">'+o.length+'</text>'}
-    for(let y=0;y<shape[0];y+=Math.max(1,Math.round(16/cs)*2||1))if(cs>=8||y%8===0)g+=RD.t(20,14+y*cs+Math.min(cs,12)*0.8,String(y),{a:'end',fs:9,fill:'var(--mute)'});
+      if(lab)g+='<text x="'+(24+x*cs+cs/2)+'" y="'+(14+y*cs+cs/2+3.5)+'" text-anchor="middle" font-size="11">T'+f[0]+':'+f[1]+'</text>';
+      if(o.length>1&&cs>=22)g+='<text x="'+(24+x*cs+cs-3)+'" y="'+(14+y*cs+11)+'" text-anchor="end" font-size="11" fill="var(--bad)">'+o.length+'</text>'}
+    for(let y=0;y<shape[0];y+=(cs>=14?1:8))g+=RD.t(20,14+y*cs+Math.min(cs,12)*0.8,String(y),{a:'end',fs:11,fill:'var(--mute)'});
     box.innerHTML=RD.svg(Ww,Hh,g,'Layout map');
     const fm=b=>'['+b.map(x=>'['+x.join(',')+']').join(', ')+']';
     $('ly-bases').textContent='reg_bases  = '+fm(B.reg)+'\nlane_bases = '+fm(B.lane)+'\nwarp_bases = '+fm(B.warp);
@@ -1068,12 +1168,43 @@ window.TG_owners=function(B,shape){
   ['ly-spt','ly-tpw','ly-wpc','ly-ord','ly-shape'].forEach(id=>$(id).addEventListener('change',()=>{const i=+$('ly-pre').value;render();if(i>=0&&!$('ly-check').innerHTML)$('ly-pre').value='-1'}));
   $('ly-thr').addEventListener('input',render);
   $('ly-pre').value='0';$('ly-pre').dispatchEvent(new Event('change'));
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-lay']=window.TAB_RENDER['t-lay']||[]).push(render);
-  RD.onResize&&addEventListener('resize',()=>{const t=$('t-lay');if(t&&!t.hidden)render()});
+  RD.onRender(render);RD.onResize(render);
+})();
+</script>
+<script>/* 34_js_rd_at.js */
+// ---- Reading section 6: what @triton.autotune does at a call (stepper over tutorial 03's 16 configurations, compiled for sm_90a) ----
+// Data: window.TGD.sweep rows 'mm_*' for sm_90a (registers, shared memory), TG_ARCH (per-block limit, from 32_js_cfg.js).
+// Timing per configuration is the do_bench default (about 25 ms warm-up + 100 ms timed), not a measurement.
+(function(){
+  const D=window.TGD,$=id=>document.getElementById(id);if(!$('rd-at-card')||!D||!window.TG_ARCH)return;
+  const T='sm_90a',lim=TG_ARCH[T].smemBlock,kb=b=>(b/1024).toFixed(b%1024?1:0)+' KB';
+  const rows=D.sweep.filter(r=>r.t===T&&r.k.startsWith('mm_'));
+  const over=rows.filter(r=>r.smem>lim).length,fit=rows.length-over,ms=125;
+  const regs=rows.map(r=>r.regs),sm=rows.map(r=>r.smem);
+  const S=[
+    {t:'A call arrives with a key the tuner has not seen',p:'The key is the values of the key arguments (M, N, K) plus the dtype of every tensor argument. Nothing is stored for this one, so the tuner must choose.',c:[0,0,0,0],show:0},
+    {t:'Every configuration is compiled',p:'Each configuration is a different set of constexpr values, so a different specialisation and a different binary (section 1). Here registers run from '+Math.min(...regs)+' to '+Math.max(...regs)+' per thread and shared memory from '+kb(Math.min(...sm))+' to '+kb(Math.max(...sm))+'.',c:[rows.length,0,0,0],show:1},
+    {t:over+' configurations cannot launch on this GPU',p:'Their shared memory is over the '+kb(lim)+' per-block limit. They compiled fine; loading them raises OutOfResources, which the tuner times as infinitely slow and skips, silently.',c:[rows.length,over,0,0],show:2},
+    {t:'The '+fit+' that fit are timed',p:'Each runs under triton.testing.do_bench: about 25 ms of warm-up and 100 ms of timed runs, clearing the L2 cache before each timed run, on the same tensors (so a kernel that writes its inputs needs reset_to_zero or restore_value).',c:[rows.length,over,fit,fit*ms],show:3},
+    {t:'The fastest is kept, in memory, under the key',p:'Which one wins depends on the shapes and needs a GPU: not run here. The launch grid is then computed from the winner\'s BM and BN (the lambda META).',c:[rows.length,over,fit,fit*ms],show:4},
+    {t:'The next call with the same key costs nothing',p:'A dictionary lookup: no compile, no timing, straight to the stored winner.',c:[rows.length,over,fit,fit*ms],show:5},
+    {t:'A call with a new key starts again from step 2',p:'Every distinct (M, N, K, dtypes) pays the compile and the timing again. A key that changes on every call, such as a sequence length, re-tunes forever: bucket it or leave it out of key.',c:[rows.length*2,over*2,fit*2,fit*ms*2],show:6}];
+  function draw(i){
+    const s=S[i];
+    $('rd-at-grid').innerHTML=rows.map((r,j)=>{const c=r.cx,bad=r.smem>lim;
+      let cls='';if(s.show>=1)cls='on';if(s.show>=2&&bad)cls='out';if(s.show>=3&&!bad)cls='tm';
+      return '<div class="'+cls+'"><b>'+c.BM+' x '+c.BN+' x '+c.BK+'</b>'+r.nw+' warps, '+r.ns+' stages'+
+        (s.show>=1?'<br>'+r.regs+' regs, '+kb(r.smem):'')+
+        (s.show>=2&&bad?'<br><span class="x">OutOfResources</span>':'')+(s.show>=3&&!bad?'<br><span class="ok">timed</span>':'')+'</div>'}).join('');
+    $('rd-at-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S.length+': '+RD.esc(s.t)+'</div><p>'+RD.esc(s.p)+'</p>';
+    const c=s.c;
+    $('rd-at-cnt').innerHTML=RD.stat('compiled',c[0])+RD.stat('skipped (OutOfResources)',c[1])+RD.stat('timed',c[2])+RD.stat('timing, derived',(c[3]/1000).toFixed(c[3]?1:0)+' s','configs timed x 125 ms');
+  }
+  RD.anim({card:'rd-at-card',ctl:'rd-at-ctl',n:S.length,draw,ms:3600,label:'Autotuning step'});
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace tg-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1091,6 +1222,8 @@ window.TG_owners=function(B,shape){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('tg-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

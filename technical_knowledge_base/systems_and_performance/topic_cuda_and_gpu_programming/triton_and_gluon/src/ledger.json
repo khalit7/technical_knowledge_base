@@ -1,0 +1,2919 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Triton and Gluon: block-level kernels, autotuning, what the compiler does Triton and Gluon: block-level kernels, autotuning, what the compiler does Writing GPU kernels in Triton from zero (vector add, softmax, matmul, FlashAttention), what num_warps, num_stages and autotuning do, every stage and pass of the Triton compiler with real output for NVIDIA sm_80, sm_90a, sm_100a, sm_120 and AMD gfx942, gfx950, layouts, how torch.compile writes Triton, and Gluon, the lower-level language on the same compiler.",
+  "label": "core",
+  "key": "Triton and Gluon: block-level kernels",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Kernels checked on the CPU with Triton's interpreter and compiled with Triton 3.8.0 without a GPU; nothing here ran on an NVIDIA or AMD GPU.",
+  "label": "core",
+  "key": "nothing here ran on an NVIDIA or AMD GPU",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "A child of Topic: cuda-and-gpu-programming .",
+  "label": "core",
+  "key": "A child of",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Compiler stages Config explorer Layout explorer Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen 1 Blocks 2 Softmax 3 Matmul 4 Attention 5 Warps, stages 6 Autotuning 7 The compiler 8 Layouts 9 torch.compile 10 Gluon 11 AMD, others 12 Mistakes 13 Interview Triton is a Python language for writing GPU kernels in which you describe what one program does to whole blocks of numbers, and a compiler decides how the threads, registers, shared memory and tensor cores of a particular GPU carry it out.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "nav"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "It is what torch.compile writes for you, what many open training and inference kernels are written in ( Liger Kernel , Unsloth, parts of vLLM and SGLang; section 11 ), and the shortest road from \"I use PyTorch\" to \"I wrote a fused kernel\".",
+  "label": "core",
+  "key": "writes Triton for you",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "Gluon is a lower-level language on the same compiler for the cases where Triton's choices leave speed behind.",
+  "label": "core",
+  "key": "Gluon is the same compiler with those decisions handed back to you",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page assumes you have read the parent's Triton section (section 6 of its Reading tab) or nothing at all: every term is explained at first use.",
+  "label": "core",
+  "key": "one-screen preview of this page",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "It owns Triton itself and what its compiler does.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "owner statement; OWNERS.md"
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "The CUDA C++ versions of the same kernels are on Writing kernels ; threads, warps and occupancy are on The CUDA programming model ; coalescing, shared memory and spills on GPU memory hierarchy . torch.compile You write PyTorch.",
+  "label": "core",
+  "key": "threads, warps, thread blocks (CTAs) and occupancy",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "Inductor fuses operations and writes Triton for you ; matmuls go to a library.",
+  "label": "core",
+  "key": "matmuls go to a library",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "Section 9 Triton You write one program over blocks.",
+  "label": "core",
+  "key": "You write one program over blocks",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "",
+  "text": "The compiler picks layouts, vector widths, shared memory, pipelining and the tensor-core instruction.",
+  "label": "core",
+  "key": "the compiler picks layouts, vector widths, shared memory, pipelining",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "",
+  "text": "For what torch.compile cannot express: attention variants, quantised or mixed-format matmuls, fused MoE routing, fused losses.",
+  "label": "core",
+  "key": "fused MoE routing, fused losses",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "",
+  "text": "Sections 1 to 8 Gluon Same compiler, same launch, but you choose the layouts, shared memory, asynchronous copies, barriers and warp roles yourself.",
+  "label": "core",
+  "key": "you choose the layouts, shared memory, asynchronous copies, barriers and warp roles",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "",
+  "text": "Section 10 CUDA C++, CUTLASS, CuTe DSL You write what each thread does.",
+  "label": "core",
+  "key": "You write what each thread does",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "",
+  "text": "Everything is yours: explicit warp roles, swizzles, clusters, persistent scheduling, any device API, C++ deployment without Python.",
+  "label": "core",
+  "key": "C++ deployment without Python",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "",
+  "text": "Writing kernels , Libraries and tensor cores Who decides Triton Gluon CUDA C++ Which block of data a program owns you ( program_id ) you you ( blockIdx ) Which thread holds which element (the layout ) compiler you you Vector width of loads and stores compiler, from alignment hints you, via the layout you Shared memory: what, where, swizzle compiler you you Prefetching tiles ahead (pipelining) compiler, depth = num_stages you you Tensor-core instruction (mma, wgmma, tcgen05, MFMA) compiler, per target you you, or a library Barriers and warp roles (warp specialisation) compiler (limited) you you The usual advice, which this page shares: write no kernel until a profile shows a gap, prototype in Triton, and go lower only for the kernels that dominate the profile.",
+  "label": "core",
+  "key": "Barriers and warp roles (warp specialisation)",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "",
+  "text": "The old page's \"a competent Triton kernel lands within 0 to 20% of expert CUDA in about a tenth of the lines\" is a rule of thumb with no source we could find unconfirmed .",
+  "label": "core",
+  "key": "0 to 20% of expert CUDA",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "",
+  "text": "How each claim on this page was checked: interpreter run on this laptop's CPU with TRITON_INTERPRET=1 against PyTorch; compiled here by Triton 3.8.0 in the kb-gpu-lab:1 image (CUDA 13.4.2 tools) for a GPU that is not present; published by the Triton or PyTorch project, with a link; derived by arithmetic shown; not run here .",
+  "label": "core",
+  "key": "How each claim was checked",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "",
+  "text": "No timing on this page comes from an NVIDIA or AMD GPU.",
+  "label": "core",
+  "key": "No timing on this page comes from an NVIDIA or AMD GPU",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "",
+  "text": "Versions Triton 3.8.0 (released August 28, 2026, GitHub release ) is the version PyTorch 2.14 pins ( triton_version.txt ), and the one used everywhere on this page.",
+  "label": "depth",
+  "key": "is the version PyTorch 2.14 pins",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "",
+  "text": "Releases so far in 2026: 3.6.0 (January 21), 3.7.0 (May 7), 3.7.1 (June 18), 3.8.0 (August 28) ( releases ).",
+  "label": "depth",
+  "key": "3.7.1 (June 18)",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Blocks, not threads: vector add from zero The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "A GPU runs thousands of threads at once.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "In CUDA C++ you write the code of one thread and arrange how threads cooperate.",
+  "label": "core",
+  "key": "write the code of one thread",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "That is a lot of bookkeeping before any maths happens, and most of it (vector widths, shared memory, which instruction feeds the tensor cores) changes from one GPU generation to the next.",
+  "label": "core",
+  "key": "changes with each GPU generation",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Triton's answer ( Tillet, Kung and Cox, MAPL 2019 ): you write one program that works on a block (a small array, every dimension a power of two) and launch a grid of copies of it.",
+  "label": "core",
+  "key": "Tillet, Kung and Cox, MAPL 2019",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Each copy asks tl.program_id(0) which block it owns.",
+  "label": "core",
+  "key": "which block it owns",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "One program becomes one CUDA thread block (a CTA ) of num_warps x 32 threads; which of those threads holds which element is the compiler's business.",
+  "label": "core",
+  "key": "num_warps x 32 threads",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "The kernel ( src/code/kernels_tg.py ) Launching it from PyTorch n = 1000 a, b = torch.randn(n), torch.randn(n) c = torch.empty(n) grid = (triton.cdiv(n, 256),) # 4 programs vadd[grid](a, b, c, n, BLOCK=256) # tensors arrive as pointers to their first element Line by line: offs is a block of 256 indices, so a_ptr + offs is a block of 256 addresses and tl.load reads all of them.",
+  "label": "core",
+  "key": "# 4 programs",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "The vector has 1,000 elements and the grid covers 1,024, so the last program's mask switches off 24 lanes: masked lanes neither read nor write. interpreter exact match with a + b ( ).",
+  "label": "core",
+  "key": "masked lanes neither read nor write",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "What happens at the first call.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Triton looks at the arguments, builds a specialisation key and compiles (or fetches from its cache, by default ~/.triton/cache , set by TRITON_CACHE_DIR ; knobs.py ).",
+  "label": "depth",
+  "key": "TRITON_CACHE_DIR",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "The key includes every tl.constexpr value (here BLOCK ), each argument's type, whether each pointer and integer is divisible by 16 (it then carries a tt.divisibility = 16 hint; backends/compiler.py ), and two special cases checked here: an integer equal to 1 becomes a compile-time constant, and an integer of 2 31 or more becomes i64 instead of i32 checked here with triton.runtime.jit.mangle_type .",
+  "label": "core",
+  "key": "tt.divisibility = 16",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "A new key means a new compilation, which costs time at the first call of every new shape class ( section 12 ).",
+  "label": "core",
+  "key": "A new key means a new compilation",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "What the compiler made of those eight lines Compiled for sm_90a (H100) with BLOCK=1024 and 4 warps, the program has 128 threads for 1,024 elements, so each thread owns elements per input.",
+  "label": "core",
+  "key": "so each thread owns",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "The compiler chose a layout in which each thread owns runs of 4 neighbouring floats (16 bytes), so each run is one 128-bit load.",
+  "label": "core",
+  "key": "The layout passes turn 1-element loads into 16-byte loads",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Step through what it did, on this exact kernel.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "instruction"
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "The toggle shows two other specialisations of the same source: n = 1,000 , which is not a multiple of 16 so n loses its divisibility hint, and no hints at all (as when the tensors start at odd offsets).",
+  "label": "core",
+  "key": "loses its hint",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Aligned pointers, n = 992 Aligned pointers, n = 1,000 No alignment hints Real compiled output: the layouts are copied from the IR before and after each pass ( src/out/passes.json ) and the instruction counts from the SASS of both builds ( src/out/compile.json ).",
+  "label": "core",
+  "key": "Real compiled output: layouts copied from the IR",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Drawn: one program's 1,024 elements as 8 rows of 128, coloured by warp; the selected thread's elements outlined.",
+  "label": "core",
+  "key": "8 rows of 128",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Why this matters for you.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "A 128-bit load moves 4 floats per instruction instead of 1, so the hinted build issues a quarter of the load instructions: compiled here .",
+  "label": "core",
+  "key": "issues a quarter of the load instructions",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "The surprise is the middle case: with aligned pointers but n = 1,000 , the layout still gives each thread runs of 4, yet the loads are scalar, because the mask offs < n could now end in the middle of a run and the compiler cannot prove a whole run is in or out.",
+  "label": "core",
+  "key": "could now end inside a run",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "The length of your tensor changed the machine code.",
+  "label": "core",
+  "key": "The length of your tensor changed the machine code",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Both versions read the same bytes, and on a memory-bound kernel the GPU's memory system can often hide the difference; the GPU memory hierarchy page measured 4-, 8- and 16-byte accesses on the M1 Pro at about the same bandwidth.",
+  "label": "core",
+  "key": "4-, 8- and 16-byte accesses on the M1 Pro",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Where it does matter is instruction issue on wide kernels, and in everything downstream that the compiler can only do when it knows alignment (asynchronous 16-byte copies into shared memory, for one).",
+  "label": "core",
+  "key": "16-byte asynchronous copies into shared memory",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Triton takes these hints from the arguments automatically; you lose them when you pass a sliced tensor with an odd offset or a stride that is not a multiple of 16.",
+  "label": "core",
+  "key": "odd offset or a stride that is not a multiple of 16",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Predict: BLOCK=1000 instead of 1024 (exactly the vector length, so no mask needed).",
+  "label": "core",
+  "key": "exactly the vector length, so no mask needed",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Works, slightly faster Error before it runs Works, but reads past the end Error: block shapes must be powers of two.",
+  "label": "core",
+  "key": "block shapes must be powers of two",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "The interpreter says interpreter .",
+  "label": "core",
+  "key": "The interpreter says",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. blocks, not threads: vector add from zero",
+  "text": "Round up with triton.next_power_of_2 and mask the tail.",
+  "label": "core",
+  "key": "triton.next_power_of_2",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "Softmax: a reduction in one line, and where blocks stop fitting The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "Row softmax needs two reductions per row (the maximum, then the sum of exponentials) before it can write anything.",
+  "label": "core",
+  "key": "two reductions per row",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "In CUDA C++ a reduction is a small project: each thread reduces its share, warps combine with shuffles, warps combine through shared memory with a barrier ( Writing kernels builds it step by step).",
+  "label": "core",
+  "key": "warp shuffles and a shared-memory barrier",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "In Triton it is tl.max(x, axis=0) .",
+  "label": "core",
+  "key": "tl.max(x, axis=0)",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "One program per row; the whole row is one block How it works.",
+  "label": "core",
+  "key": "One program per row; the whole row is one block",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "BLOCK is the next power of two at or above the row length, so a row of 1,000 uses a block of 1,024; the 24 extra lanes load -inf (the other= value), which leaves the maximum alone and adds exp(-inf) = 0 to the sum.",
+  "label": "core",
+  "key": "exp(-inf) = 0",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "The row is read once and written once: this is the \"fused softmax\" of Triton tutorial 02 , which counts 5MN + 2M reads and 3MN + 2M writes for the unfused PyTorch version against MN and MN here.",
+  "label": "core",
+  "key": "5MN + 2M reads",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "The parent's Kernel lab tab measured the same idea on the M1 Pro GPU. interpreter 37 rows of 1,000: against torch.softmax .",
+  "label": "core",
+  "key": "37 rows of 1,000",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "What tl.max became on sm_90a compiled here : .",
+  "label": "core",
+  "key": "What tl.max became",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "That is the textbook two-level reduction: 5 butterfly shuffle steps across the 32 lanes of a warp (log 2 32 = 5), then the 4 warps' partial results meet in shared memory behind a barrier and finish in 2 more steps (log 2 4 = 2), twice (max and sum): 2 x (5 + 2) = 14 derived . tl.exp became MUFU.EX2 , the hardware 2 x unit, after a multiply by log 2 e.",
+  "label": "core",
+  "key": "2 x (5 + 2) = 14",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "Predict: a row of 1,000 columns, but someone passes BLOCK=512 .",
+  "label": "core",
+  "key": "someone passes BLOCK=512",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "Compile error Out-of-bounds read Runs, wrong answer, no error Runs without complaint and is wrong: interpreter .",
+  "label": "core",
+  "key": "Runs, wrong answer, no error",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "Columns 512 to 999 are never read, so each row is normalised over its first half only.",
+  "label": "core",
+  "key": "normalised over its first half only",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "Nothing in Triton checks that your block covers your data: that is what the mask and a test against a reference are for.",
+  "label": "core",
+  "key": "Nothing in Triton checks that your block covers your data",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "Where a block stops fitting: the register cliff A block lives in registers , the fastest storage, private to each thread, at most 255 per thread.",
+  "label": "core",
+  "key": "at most 255 per thread",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "Each thread holds BLOCK / (32 x num_warps) elements, so a long row in few warps runs out of registers and the compiler spills to local memory (slow, off-chip memory private to the thread; the GPU memory hierarchy page explains spills).",
+  "label": "core",
+  "key": "BLOCK / (32 x num_warps)",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "The same softmax compiled for sm_90a at seven block sizes and four warp counts compiled here : Each cell: registers per thread, and the stack frame in bytes per thread when there is one (stack holds spilled values).",
+  "label": "core",
+  "key": "seven block sizes and four warp counts",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "Elements per thread shown in grey.",
+  "label": "core",
+  "key": "elements per thread in grey",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "From cuobjdump -res-usage on each compiled kernel.",
+  "label": "core",
+  "key": "cuobjdump -res-usage",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "At 32,768 columns with 4 warps each thread would hold 256 floats: instead of registers the compiler gives each thread a 2,728-byte stack frame in local memory (and the register count falls to 32, because the values now live in memory).",
+  "label": "core",
+  "key": "2,728-byte stack frame",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "With 8 warps each thread holds 128 and they fit in 170 registers.",
+  "label": "core",
+  "key": "they fit in 170 registers",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "The cliff is not one number: at 65,536 columns even 16 warps (128 per thread again) spilled.",
+  "label": "core",
+  "key": "at 65,536 columns even 16 warps",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "Read the compiler's report rather than guess.",
+  "label": "core",
+  "key": "read the compiler's report rather than guess",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "The fix is more warps per program, which is why tutorial 02 launches its softmax with 8 warps, asks the compiled kernel for its register count ( kernel.n_regs ) and launches only as many persistent programs as fit on the GPU at once, each looping over many rows.",
+  "label": "core",
+  "key": "kernel.n_regs",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. softmax: a reduction in one line, and where blocks stop fitting",
+  "text": "Rows too long for any block need a different algorithm: the online softmax, which reads the row in chunks ( Writing kernels and the parent's Kernel lab).",
+  "label": "core",
+  "key": "Rows too long for any block need the online softmax",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "Matmul: tiles, tl.dot, and the order of programs The idea.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "Each program computes one tile of C, a BM x BN block.",
+  "label": "core",
+  "key": "one tile of C, a BM x BN block",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "It walks along K in steps of BK, loading a BM x BK tile of A and a BK x BN tile of B and multiplying them into an accumulator kept in registers in FP32. tl.dot is the block multiply; the compiler turns it into tensor-core instructions.",
+  "label": "core",
+  "key": "FP32 accumulator in registers",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "This is tutorial 03 almost line for line.",
+  "label": "core",
+  "key": "almost line for line",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "Details worth knowing: % M on the row offsets wraps edge tiles back into the matrix so loads stay in bounds (the extra rows are computed and then dropped by the store mask); the K tail is masked with other=0.0 so it adds nothing; anything you want to do to C before it is written (bias, activation, a cast to FP16) goes after the loop while the accumulator is still FP32 and on chip, which is called an epilogue and is free fusion. interpreter 200 x 150 x 130 (no size a multiple of its tile): .",
+  "label": "core",
+  "key": "free fusion",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "Why the order of programs matters: grouped ordering Programs that run at the same time share the GPU's L2 cache .",
+  "label": "core",
+  "key": "share the GPU's L2 cache",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "If they need the same tiles of A and B, the second one finds them in L2 instead of memory.",
+  "label": "core",
+  "key": "tiles one has loaded are cheap for the others",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "Launching tiles row by row makes the first 9 programs share one row of A but need 9 different columns of B; launching them in groups of GROUP_M rows makes them share both.",
+  "label": "core",
+  "key": "9 different columns of B",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "Same input, both orders: Row-major order Grouped, GROUP_M = 3 A, B and C each 9 x 9 tiles.",
+  "label": "core",
+  "key": "Grouped, GROUP_M = 3",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "The counter is the number of distinct A and B tiles the programs launched so far need (each needs 9 of A and 9 of B).",
+  "label": "core",
+  "key": "each needs 9 of A and 9 of B",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "Defaults reproduce tutorial 03's \"90 blocks\" against \"54 blocks\" for the first 9 output tiles, by construction (the same count, computed in src/code/recompute.py ).",
+  "label": "core",
+  "key": "\"90 blocks\" against \"54 blocks\"",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "The tutorial reports \"more than 10%\" on some hardware, \"220 to 245 TFLOPS on A100\" published not run here .",
+  "label": "core",
+  "key": "220 to 245 TFLOPS on A100",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "One tl.dot, six instructions The same source (128 x 128 x 32 tiles, FP16 inputs, 4 warps, num_stages=4 ) compiled for six targets compiled here .",
+  "label": "core",
+  "key": "compiled for six targets",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "The compiler picked a different tensor-core instruction for each, and a different way of feeding it: \"Per K step\" is derived : 128 x 128 x 32 multiply-adds divided by the instruction's shape. \"In the listing\" is the static count in the compiled code, which includes copies of the loop body the pipeliner makes for its prologue and epilogue.",
+  "label": "core",
+  "key": "divided by the instruction's shape",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "The warp-level mma.sync (A100, RTX 5090) is issued by every warp; Hopper's wgmma by a warpgroup (4 warps together) reading A and B straight from shared memory; Blackwell's tcgen05.mma by one thread for the whole CTA, accumulating in tensor memory (TMEM, a 256 KB per-SM store next to the tensor cores; note the LDTM / STTM instructions that move the accumulator in and out); AMD's MFMA per 64-lane wavefront .",
+  "label": "core",
+  "key": "LDTM",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "Instruction depth lives on Libraries and tensor cores .",
+  "label": "core",
+  "key": "The instructions themselves are on",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "The parent's Compiler explorer found the same choices for its plainer matmul.",
+  "label": "core",
+  "key": "found the same choices for its plainer matmul",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "An FP32 tl.dot is not FP32 by default For FP32 inputs on NVIDIA, tl.dot defaults to input_precision=\"tf32\" : inputs rounded to TF32 (10 mantissa bits) on the tensor cores.",
+  "label": "core",
+  "key": "An FP32 tl.dot is not FP32 by default",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "Pass input_precision=\"ieee\" for true FP32 or \"tf32x3\" for a three-pass TF32 split that recovers most of the accuracy; on AMD the default is \"ieee\" except CDNA3, which also offers TF32 ( tl.dot docstring, language/core.py ).",
+  "label": "core",
+  "key": "tf32x3",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "TRITON_F32_DEFAULT changes the default for a whole process.",
+  "label": "core",
+  "key": "TRITON_F32_DEFAULT",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. matmul: tiles, tl.dot, and the order of programs",
+  "text": "PyTorch's own default for FP32 matmuls on Ampere and later is not TF32 unless you allow it, so a Triton kernel and torch.matmul can disagree in the third or fourth digit for this reason alone.",
+  "label": "core",
+  "key": "third or fourth digit",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. attention: flashattention forward in about 35 lines",
+  "text": "Attention: FlashAttention forward in about 35 lines The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. attention: flashattention forward in about 35 lines",
+  "text": "Attention computes softmax(QK T x scale) V.",
+  "label": "core",
+  "key": "softmax(QK",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. attention: flashattention forward in about 35 lines",
+  "text": "Done naively it writes an N x N score matrix to memory per head, which at N = 8,192 is 64 M numbers read and written several times.",
+  "label": "core",
+  "key": "64 M numbers",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. attention: flashattention forward in about 35 lines",
+  "text": "FlashAttention never stores it: one program takes BM query rows, streams K and V through in tiles of BN rows, and keeps a running maximum, a running sum and a running output that it rescales as the maximum grows (the online softmax ).",
+  "label": "core",
+  "key": "running maximum, sum and output",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. attention: flashattention forward in about 35 lines",
+  "text": "The derivation, the CUDA C++ version and FlashAttention 1, 2 and 3 are on Writing kernels , the original paper on the FlashAttention paper page ; the parent's Kernel lab animates the online softmax and measured it on the M1 Pro GPU.",
+  "label": "core",
+  "key": "FlashAttention 1 to 3",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. attention: flashattention forward in about 35 lines",
+  "text": "Here is the Triton version: What is Triton-specific.",
+  "label": "core",
+  "key": "What is Triton-specific",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. attention: flashattention forward in about 35 lines",
+  "text": "Two tl.dot calls per tile (scores, then P V), with P cast to FP16 so the second one also runs on tensor cores; exp2 with the scale and log 2 e folded into one multiply (the hardware unit computes 2 x , as in section 2); causal masking in two parts, a loop bound that never visits K tiles entirely above the diagonal and a tl.where for the tile that straddles it.",
+  "label": "core",
+  "key": "P cast to FP16",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. attention: flashattention forward in about 35 lines",
+  "text": "With BM = BN, a causal program visits (n b + 1) / 2n b of the tiles a full one does, derived . interpreter 2 heads x 200 x 64, FP16 inputs against PyTorch's attention in FP32: .",
+  "label": "core",
+  "key": "(n b + 1) / 2n b",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. attention: flashattention forward in about 35 lines",
+  "text": "Compiled with BM = 128, BN = 64, head dim 64, causal, 4 warps compiled here . sm_80 and sm_120 reach the 255-register ceiling: the program holds a 128 x 64 FP32 accumulator, a 128 x 64 score tile and Q, which is why production kernels pick their tile sizes per GPU (autotuning, section 6).",
+  "label": "core",
+  "key": "reach the 255-register ceiling",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. attention: flashattention forward in about 35 lines",
+  "text": "The parent's plainer attention kernel (no causal mask, exp ) compiled to 254 and 198 registers on sm_80 and sm_90a.",
+  "label": "core",
+  "key": "254 and 198 registers",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. attention: flashattention forward in about 35 lines",
+  "text": "What tutorial 06 adds beyond this kernel: the backward pass, FP8, tensor descriptors (TMA) and, on Blackwell, tl.range(..., warp_specialize=True) ; section 5 compiles the last two.",
+  "label": "core",
+  "key": "adds the backward pass, FP8",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "5. num_warps and num_stages: the two knobs on every launch Every launch takes two compilation options besides your constexpr values; triton.Config defaults them to num_warps=4 and num_stages=3 checked here . num_warps is how many warps (groups of 32 threads) one program gets, so how finely the block is divided.",
+  "label": "core",
+  "key": "num_stages=3",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "More warps means fewer elements, and fewer registers, per thread; fewer warps means more work per thread and more programs fitting on an SM.",
+  "label": "core",
+  "key": "more programs per SM",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "It also decides which instructions are possible: Hopper's wgmma is issued by a warpgroup of 4 warps, so with 1 or 2 warps the compiler falls back to the older mma.sync .",
+  "label": "core",
+  "key": "falls back to the older mma.sync",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "The same 128 x 128 x 64 FP16 matmul at five warp counts compiled here : num_stages is how deep the software pipeline is: while the tensor cores multiply tile k, the copies for the next tiles are already in flight, each into its own shared-memory buffer.",
+  "label": "core",
+  "key": "depth of the software pipeline",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "The GPU memory hierarchy page animates a 1-to-4-stage pipeline; here is what the Triton compiler allocates for it.",
+  "label": "core",
+  "key": "animates a 1-to-4-stage pipeline",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "Sweeping num_stages on the same matmul gives an exact rule compiled here : Shared memory per program against num_stages, 128 x 128 x 64 FP16 tiles, 4 warps.",
+  "label": "core",
+  "key": "Shared memory per program against num_stages",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "Dashed lines: the largest block each GPU accepts (99 KB on sm_120, 163 KB on sm_80, 227 KB on sm_90a and sm_100a; CUDA Programming Guide v13.4.2 Tables 30 and 31).",
+  "label": "core",
+  "key": "99 KB on sm_120, 163 KB on sm_80",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "The rule, matching every compiled point exactly: one stage's buffer holds one tile of A and one of B, (BM x BK + BK x BN) x 2 bytes = 32 KB here.",
+  "label": "core",
+  "key": "= 32 KB here",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "When the MMA reads its operands straight from shared memory ( wgmma , tcgen05 ) the compiler allocates num_stages buffers; when mma.sync first copies operands into registers, it allocates num_stages - 1 (at least 1); Blackwell adds 8 or 16 bytes of barriers derived from the compiled sizes .",
+  "label": "core",
+  "key": "num_stages - 1",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "Check it in the IR: the matmul's TTGIR on sm_90a allocates memdesc<4x128x32xf16> for A at num_stages=4 , sm_80 allocates 3x128x32 ( Compiler stages ).",
+  "label": "core",
+  "key": "memdesc<4x128x32xf16>",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "Shared memory per program decides how many programs fit on one SM (with registers), and past the GPU's per-block limit the kernel compiles fine and then refuses to launch: Triton checks metadata.shared against the device when it loads the binary and raises OutOfResources ( compiler.py ).",
+  "label": "core",
+  "key": "raises OutOfResources",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "A configuration tuned on an H100 with 6 stages (192 KB) cannot run on an RTX 5090 at all.",
+  "label": "core",
+  "key": "6 stages (192 KB)",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "The Config explorer tab shows registers, shared memory, spills and blocks per SM for every configuration of tutorial 03 on each GPU.",
+  "label": "core",
+  "key": "for every configuration of tutorial 03 on each GPU",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "Tensor descriptors (TMA) and warp specialisation, from Triton Two newer features change what the compiler emits.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "A tensor descriptor ( tl.make_tensor_descriptor , then desc.load([row, col]) ) describes a whole 2D tile, so on Hopper and Blackwell the copy is done by the TMA (Tensor Memory Accelerator), a copy engine that moves a tile with one instruction instead of every thread computing addresses. tl.range(..., warp_specialize=True) asks the compiler to split the loop between warps with different jobs, producers that copy and consumers that multiply.",
+  "label": "core",
+  "key": "Tensor Memory Accelerator",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "5. num_warps and num_stages: the two knobs on every launch",
+  "text": "The same matmul written with descriptors, compiled compiled here : interpreter 256 x 256 x 256: .",
+  "label": "core",
+  "key": "256 x 256 x 256",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "Autotuning: let the GPU pick the tile The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "The best BM, BN, BK, num_warps and num_stages depend on the GPU, the shapes and the data type, and the compiler cannot predict them.",
+  "label": "core",
+  "key": "the compiler cannot predict them",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "Triton's answer is to try several and keep the fastest: @triton.autotune( configs=[triton.Config({\"BM\": 128, \"BN\": 256, \"BK\": 64, \"GROUP_M\": 8}, num_stages=3, num_warps=8), triton.Config({\"BM\": 64, \"BN\": 256, \"BK\": 32, \"GROUP_M\": 8}, num_stages=4, num_warps=4), # ...",
+  "label": "core",
+  "key": "keeps the fastest",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "14 more in tutorial 03 ], key=[\"M\", \"N\", \"K\"], # re-tune when these change ) @triton.jit def matmul(a_ptr, b_ptr, c_ptr, M, N, K, ..., BM: tl.constexpr, BN: tl.constexpr, BK: tl.constexpr, GROUP_M: tl.constexpr): ... matmul[lambda META: (triton.cdiv(M, META[\"BM\"]) * triton.cdiv(N, META[\"BN\"]),)](a, b, c, M, N, K, ...) How it works ( runtime/autotuner.py , read for this page): at a call, the tuner builds a key from the values of the key arguments plus the dtype of every tensor argument.",
+  "label": "core",
+  "key": "# re-tune when these change",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "On a new key it compiles every configuration and times each with triton.testing.do_bench (by default about 25 ms of warm-up and 100 ms of timed runs per configuration, clearing the L2 cache before each timed run), then stores the winner in memory; later calls with that key go straight to it.",
+  "label": "core",
+  "key": "about 25 ms of warm-up and 100 ms of timed runs",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "A configuration that fails to compile or does not fit ( OutOfResources ) is timed as infinitely slow and skipped.",
+  "label": "core",
+  "key": "timed as infinitely slow",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "The grid is a function of the chosen meta-parameters, hence the lambda META .",
+  "label": "core",
+  "key": "hence the lambda META",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "Prune before timing prune_configs_by={\"early_config_prune\": f, \"perf_model\": m, \"top_k\": k} : drop configurations by rule or by a cost model before any run.",
+  "label": "depth",
+  "key": "early_config_prune",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "Kernels that write their inputs Every configuration runs on the same tensors, so an in-place or accumulating kernel corrupts them: list them in reset_to_zero or restore_value .",
+  "label": "core",
+  "key": "reset_to_zero",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "See the choice TRITON_PRINT_AUTOTUNING=1 prints the winner and timings; 3.8.0 added a listener that reports them programmatically ( release notes ).",
+  "label": "depth",
+  "key": "TRITON_PRINT_AUTOTUNING=1",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "Keep results across runs cache_results=True or TRITON_CACHE_AUTOTUNING=1 writes the timings to Triton's cache directory.",
+  "label": "depth",
+  "key": "TRITON_CACHE_AUTOTUNING=1",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "What it costs Tuning happens at the first call of every new key: N configurations x (compile + about 125 ms of timing).",
+  "label": "core",
+  "key": "about 125 ms of timing",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "Tutorial 03's 16 configurations are therefore a few seconds per new (M, N, K, dtypes) derived not timed here .",
+  "label": "core",
+  "key": "a few seconds per new (M, N, K, dtypes)",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "A key that changes on every call (a sequence length in inference, say) re-tunes forever: bucket it (round to a power of two in the wrapper) or leave it out of key .",
+  "label": "core",
+  "key": "re-tunes forever",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "In distributed training, ranks can pick different winners from timing noise; that is harmless for speed, but the numbers can then differ slightly between ranks when configurations sum in different orders (our reasoning, not measured).",
+  "label": "core",
+  "key": "ranks can pick different winners",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "The tutorial's 16 configurations on four GPUs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "On each of sm_80, sm_90a, sm_100a and sm_120, of the 16 fit the per-block shared-memory limit; the others compile and are then skipped at launch.",
+  "label": "core",
+  "key": "of the 16 fit their GPU's limit",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "6. autotuning: let the gpu pick the tile",
+  "text": "Which ones, and what each costs in registers and occupancy, is in the Config explorer .",
+  "label": "core",
+  "key": "Config explorer",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "What the compiler does, stage by stage When performance surprises you, the answer is in one of five files the compiler writes for every kernel.",
+  "label": "core",
+  "key": "one of five files the compiler writes",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Each is a lower intermediate representation (IR) of the same program; the first two are MLIR dialects (MLIR is LLVM's framework for building compilers out of custom IRs and passes over them).",
+  "label": "core",
+  "key": "LLVM's framework for building compilers",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Line counts are for the tutorial-style FP16 matmul compiled for sm_90a compiled here .",
+  "label": "core",
+  "key": "tutorial-style FP16 matmul compiled for sm_90a",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Gluon (section 10) skips the first box: a Gluon kernel is written directly at the TTGIR level, and its compile produces no TTIR at all.",
+  "label": "core",
+  "key": "its compile produces no TTIR at all",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Between TTIR and LLVM IR the compiler runs a fixed sequence of passes.",
+  "label": "core",
+  "key": "fixed sequence of passes",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Dumping the IR before each one ( MLIR_ENABLE_DUMP=1 ) for the matmul on sm_90a gives .",
+  "label": "core",
+  "key": "MLIR_ENABLE_DUMP=1",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Click a cell to see what that pass did to this kernel: matmul, sm_90a matmul, sm_80 vector add, sm_90a One cell per pass, in order.",
+  "label": "core",
+  "key": "Click a cell to see what that pass did",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Filled: the IR changed.",
+  "label": "core",
+  "key": "Filled: the IR changed",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Colour: TTIR clean-up (grey), layouts (blue), matmul and operands (orange), loops and pipelining (green), memory allocation and barriers (purple), lowering to LLVM (yellow).",
+  "label": "core",
+  "key": "memory allocation and barriers (purple)",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Descriptions are our reading of each pass's effect on these kernels' IR.",
+  "label": "core",
+  "key": "our reading of each pass's effect",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Before and after the two passes that matter most for a matmul accelerate-matmul pipeline Before After The matmul's TTGIR on sm_90a, debug locations removed, long lines cut; for the larger IR only layout definitions and the lines with the operations discussed are kept.",
+  "label": "core",
+  "key": "debug locations removed, long lines cut",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Full stages for every kernel and target are in the Compiler stages tab.",
+  "label": "core",
+  "key": "Every stage for every kernel and target",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Looking yourself You want Do this Check the maths on a laptop, no GPU TRITON_INTERPRET=1 : runs the kernel body in NumPy, one program at a time; print and breakpoints work.",
+  "label": "depth",
+  "key": "runs the kernel body in NumPy",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "It cannot find races, speed or compiler bugs.",
+  "label": "depth",
+  "key": "It cannot find races, speed or compiler bugs",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Every stage of a compiled kernel k = kernel[grid](...) returns the compiled kernel; k.asm has \"ttir\" , \"ttgir\" , \"llir\" , \"ptx\" , \"cubin\" (AMD: \"amdgcn\" , \"hsaco\" ; Gluon tutorial 02 also reads \"sass\" on a machine with a GPU); k.metadata.shared , k.n_regs , k.n_spills after loading.",
+  "label": "depth",
+  "key": "k.n_spills",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Compile for a GPU you do not have triton.compile(ASTSource(fn, signature, constexprs, attrs), target=GPUTarget(\"cuda\", 90, 32)) : how every compiled number on this page was made ( src/code/compile_tg.py ).",
+  "label": "depth",
+  "key": "GPUTarget(\"cuda\", 90, 32)",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "The IR before every pass MLIR_ENABLE_DUMP=1 (to stderr); TRITON_KERNEL_DUMP=1 writes each stage to TRITON_DUMP_DIR .",
+  "label": "depth",
+  "key": "TRITON_KERNEL_DUMP=1",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Profile it on a GPU Nsight Compute and Nsight Systems see Triton kernels like any other ( Profiling, benchmarking and correctness ); Triton also bundles its own profiler, Proton ( triton.profiler , importable in 3.8.0 here) not run here .",
+  "label": "depth",
+  "key": "Proton",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Force recompiling, or edit the IR and run that TRITON_ALWAYS_COMPILE=1 ; TRITON_KERNEL_OVERRIDE=1 loads stages you edited from the override directory.",
+  "label": "depth",
+  "key": "TRITON_KERNEL_OVERRIDE=1",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "Environment variables as defined in knobs.py (3.8.0); the SASS is from NVIDIA's cuobjdump , the same way the Compiler explorer on the parent page reads CUDA C++.",
+  "label": "depth",
+  "key": "the same way the",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "7. what the compiler does, stage by stage",
+  "text": "PTX, SASS, NVRTC and LLVM's NVPTX back end as such are the subject of The compiler stack .",
+  "label": "depth",
+  "key": "LLVM's NVPTX back end as such",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "Layouts: the idea Triton hides and Gluon exposes Every block in TTGIR carries a layout : the rule that says which register of which thread of which warp holds each element.",
+  "label": "core",
+  "key": "Every block in TTGIR carries a",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "The vector add of section 1 had the simplest, #ttg.blocked<{sizePerThread = [4], threadsPerWarp = [32], warpsPerCTA = [4], order = [0]}> .",
+  "label": "core",
+  "key": "#ttg.blocked<{sizePerThread = [4]",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "For 2D blocks the four fields read like this (from Gluon's layouts tutorial ): each thread owns a sizePerThread sub-tile; threads tile it threadsPerWarp times; warps tile that warpsPerCTA times; order says which dimension is filled first ( [1, 0] : along rows, as row-major).",
+  "label": "core",
+  "key": "threads tile it",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "If the tensor is larger than the resulting block, each thread gets more registers; if it is smaller, elements are duplicated across threads ( broadcast ).",
+  "label": "core",
+  "key": "duplicated across threads",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "One rule for every layout.",
+  "label": "core",
+  "key": "One rule for every layout",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "Triton converts every layout to a linear layout : a list of bases , one per bit of the register, lane and warp index.",
+  "label": "core",
+  "key": "one per bit of the register, lane and warp index",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "The element a (warp, lane, register) holds is the XOR of the bases whose bits are set.",
+  "label": "core",
+  "key": "the XOR of the bases whose bits are set",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "For sizePerThread=[2,4] , threadsPerWarp=[16,2] , warpsPerCTA=[2,2] , order=[1,0] on a 64 x 16 tensor, Triton itself prints compiled here , via Gluon's to_linear_layout : Register bits 0 and 1 step along the row ([0,1], [0,2]), register bit 2 one row down ([1,0]); lane bit 0 jumps 4 columns, lane bits 1 to 4 go down the rows; the warps tile the rest.",
+  "label": "core",
+  "key": "sizePerThread=[2,4]",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "The Layout explorer draws any blocked layout from its four fields with this rule; its JavaScript matches Triton's printed bases on all 8 layouts tried, including broadcast ones, and reproduces the tutorial's printed table (first row ).",
+  "label": "core",
+  "key": "matches Triton's printed bases on all 8 layouts tried",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "The same layout on a 32 x 8 tensor (smaller than its 64 x 16 block) prints warp bases [[0,0],[0,0]] : all four warps hold the same data, so element (0, 0) lives in threads 0, 32, 64 and 96.",
+  "label": "core",
+  "key": "prints warp bases",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "Four times the registers for the same tensor, which is why a block shape that is too small for num_warps wastes the GPU.",
+  "label": "core",
+  "key": "Four times the registers for the same tensor",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "The other layouts you will meet in TTGIR (all visible in the Compiler stages tab): slice #ttg.slice<{dim = 1, parent = #blocked}> : a 1D block derived from a 2D layout by dropping a dimension, e.g. the row offsets offs_am before [:, None] . nvidia_mma, amd_mfma The accumulator layout the tensor-core instruction dictates: versionMajor = 2 , instrShape = [16, 8] for mma.sync; versionMajor = 3 , [16, 128, 16] for wgmma; amd_mfma with instrShape = [32, 32, 8] on gfx942. dot_op The layout an operand of tl.dot must be in when it comes from registers (mma.sync, MFMA): which thread feeds which part of the instruction. shared swizzled_shared<{vec = 8, perPhase = 2, maxPhase = 4}> for tiles read with ldmatrix; nvmma_shared<{swizzlingByteWidth = 128}> for tiles read by wgmma, tcgen05 or written by TMA.",
+  "label": "depth",
+  "key": "#ttg.slice<{dim = 1, parent = #blocked}>",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "Both XOR-swizzle addresses so 32 lanes hit 32 different banks ( GPU memory hierarchy ). tensor_memory_encoding Blackwell only: #ttng.tensor_memory_encoding<blockM = 128, blockN = 128> , the accumulator living in TMEM. convert_layout Not a layout but the cost of two: moving a block from one layout to another means threads exchanging data, through shared memory or shuffles.",
+  "label": "depth",
+  "key": "tensor_memory_encoding<blockM = 128",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "8. layouts: the idea triton hides and gluon exposes",
+  "text": "The remove-layout-conversions pass exists to delete as many as possible; one left in a hot loop is a classic hidden cost.",
+  "label": "core",
+  "key": "remove-layout-conversions pass exists to delete",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "9. torch.compile writes triton for you",
+  "text": "9. torch.compile writes Triton for you torch.compile captures your PyTorch code as a graph and hands it to Inductor , its code generator, which groups operations that can share one pass over memory and writes a Triton kernel for each group.",
+  "label": "core",
+  "key": "groups operations that can share one pass over memory",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "9. torch.compile writes triton for you",
+  "text": "Without a GPU, Inductor's CUDA path cannot run, but it can be told to emit Triton for CPU tensors ( torch._inductor.config.cpu_backend = \"triton\" ); Triton's wheel has no CPU back end, so these kernels are written but cannot execute.",
+  "label": "core",
+  "key": "cpu_backend = \"triton\"",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "9. torch.compile writes triton for you",
+  "text": "The code below is real Inductor output from PyTorch 2.14.1 generated here ( src/code/inductor_tg.py ); on a CUDA device the same graph gives kernels of the same form with GPU-specific block sizes and heuristics.",
+  "label": "core",
+  "key": "real Inductor output from PyTorch 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "9. torch.compile writes triton for you",
+  "text": "The whole torch.compile stack (Dynamo, AOTAutograd, Inductor) is the subject of The compiler stack . gelu(x) * sigmoid(x) + 1 on a 64 x 256 tensor: three PyTorch operations, one kernel Reading generated code.",
+  "label": "core",
+  "key": "Dynamo, AOTAutograd, Inductor",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "9. torch.compile writes triton for you",
+  "text": "The name says what it is: triton_poi_ is a pointwise kernel, triton_per_ a persistent reduction (the whole reduced dimension in one block, like section 2's softmax), triton_red_ a looped reduction; then fused_ and the ATen operations inside. xnumel = 16384 is baked in because shapes were static.",
+  "label": "core",
+  "key": "triton_red_",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "9. torch.compile writes triton for you",
+  "text": "XBLOCK is left as a constexpr that Inductor's own launcher tunes from size_hints (the decorator lines above the kernel, cut here). tmp0 to tmp11 are the fused operations in order: the exact GELU through erf , then the sigmoid, the product and the +1, with one load and one store.",
+  "label": "core",
+  "key": "size_hints",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "9. torch.compile writes triton for you",
+  "text": "The attention-like graph softmax(x * 0.125) @ w became one Triton kernel for the scaled softmax and a call to extern_kernels.mm for the matmul: The softmax kernel Inductor wrote (64 lines, shown in full) Note what it did with the 0.125: it computes the row maximum of the unscaled input and applies the scale after subtracting, guarded by a check that every scaled value is finite (the abs , eq , ne , any in the code and in the kernel's name), falling back to the plain formula otherwise.",
+  "label": "core",
+  "key": "extern_kernels.mm",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "9. torch.compile writes triton for you",
+  "text": "That is an algebraic rewrite you would not think to write by hand, read directly from the generated code.",
+  "label": "depth",
+  "key": "An algebraic rewrite you would not think to write by hand",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "9. torch.compile writes triton for you",
+  "text": "Matmuls go to a library by default Inductor considers its Triton matmul templates ( mm_template , persistent and TMA variants in torch/_inductor/kernel/mm.py ) only under mode=\"max-autotune\" or max_autotune_gemm ( use_triton_template in _inductor/utils.py ), where it times them against cuBLAS.",
+  "label": "core",
+  "key": "max_autotune_gemm",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "9. torch.compile writes triton for you",
+  "text": "See what it wrote TORCH_LOGS=\"output_code\" prints every generated kernel and the Python wrapper that launches them; the files also sit in Inductor's cache directory.",
+  "label": "depth",
+  "key": "TORCH_LOGS=\"output_code\"",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "9. torch.compile writes triton for you",
+  "text": "Your Triton kernel inside a compiled graph @torch.library.triton_op plus torch.library.wrap_triton(kernel)[grid](...) registers a hand-written Triton kernel as an operator that torch.compile can see through instead of breaking the graph (both present in PyTorch 2.14).",
+  "label": "depth",
+  "key": "torch.library.wrap_triton",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "Gluon: the same compiler, your layouts \"Gluon is a GPU programming language based on the same compiler stack as Triton.",
+  "label": "core",
+  "key": "Gluon is a GPU programming language based on the same compiler stack as Triton",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "But unlike Triton, Gluon is a lower-level language that gives the user more control and responsibility when implementing kernels\" ( Gluon tutorial 01, v3.8.0 ).",
+  "label": "core",
+  "key": "more control and responsibility",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "The tutorial's reason: Triton's compiler \"can be beaten by hand-tuned low-level code.",
+  "label": "core",
+  "key": "can be beaten by hand-tuned low-level code",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "When this happens, there is little the user can do\", because layouts, memory allocation, data movement and asynchrony are hidden.",
+  "label": "core",
+  "key": "there is little the user can do",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "It lives in triton.experimental.gluon (experimental, by its import path), uses the same @jit -style decorator, launch syntax and @triton.autotune , and ships 14 tutorials in 3.8.0: intro, layouts, async copy, TMA, wgmma, tcgen05, persistence, warp specialisation, TMA gather and scatter, tcgen05 copy, scaled tcgen05 MMA, cluster launch control, an im2col convolution and multi-CTA kernels.",
+  "label": "core",
+  "key": "triton.experimental.gluon",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "Vector add in Gluon: the layout is now yours What changed from section 1.",
+  "label": "core",
+  "key": "What changed from section 1",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "One line: gl.BlockedLayout([4], [32], [num_warps], [0]) , exactly the layout Triton's coalesce pass chose by itself, now written by hand and attached to gl.arange ; every tensor derived from it inherits it.",
+  "label": "core",
+  "key": "gl.BlockedLayout([4], [32], [num_warps], [0])",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "Compiled for sm_90a compiled here , the Gluon kernel's stages are : there is no TTIR, because a Gluon program is TTGIR (layouts included) from the start, and none of Triton's layout passes need to guess.",
+  "label": "core",
+  "key": "a Gluon program is TTGIR",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "What else is exposed (module contents checked here): shared memory you allocate ( gl.allocate_shared_memory ) with layouts you choose ( NVMMASharedLayout , SwizzledSharedLayout , PaddedSharedLayout ); for Hopper tma , mbarrier , warpgroup_mma ; for Blackwell also allocate_tensor_memory , tcgen05_mma , tcgen05_commit , cluster launch control ( clc ); gl.warp_specialize to give warps different functions; AMD modules for CDNA3, CDNA4, CDNA5 and RDNA3/4; and a new rubin module in 3.8.0.",
+  "label": "depth",
+  "key": "PaddedSharedLayout",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "Tutorial 02's experiment, recompiled Gluon tutorial 02 copies memory with the layout BlockedLayout([R], [32], [4], [0]) for R = 1 to 16 and reports the throughput on a GB200, then explains the differences by the load instructions.",
+  "label": "core",
+  "key": "reports the throughput on a GB200",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "We cannot time it, but we can compile the same kernel for sm_100a and count the instructions it explains them with: Throughput published in the tutorial for GB200, XBLOCK 2,048, 4 warps, about 8 GB copied not run here .",
+  "label": "core",
+  "key": "about 8 GB copied",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "Instructions compiled here : per thread, from the SASS.",
+  "label": "core",
+  "key": "per thread, from the SASS",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "The instruction widths match the tutorial's table (32, 64, then 128 bits from R = 4 on, with R = 8 and 16 issuing their 128-bit loads in pairs and fours at 16-byte offsets).",
+  "label": "core",
+  "key": "in pairs and fours at 16-byte offsets",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "The lesson of the tutorial, and the reason Gluon exists: the layout changed throughput by about 5% at XBLOCK 2,048 and by 20% at XBLOCK 1,024 (R = 16) in their runs, the widest loads were not the fastest, and only a profiler could say why; their best was R = 1 with XBLOCK 8,192 (6.606 TB/s).",
+  "label": "core",
+  "key": "6.606 TB/s",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "Who uses it SGLang's MLA decode path for AMD imports triton.experimental.gluon and AMD's aiter mla_gluon kernel when Triton is 3.7 or newer ( aiter_mla_gluon.py ).",
+  "label": "depth",
+  "key": "mla_gluon",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "Triton 3.8.0 also reworked an experimental Triton-to-Gluon translator ( release notes ).",
+  "label": "depth",
+  "key": "Triton-to-Gluon translator",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "10. gluon: the same compiler, your layouts",
+  "text": "The old page's \"OpenAI publicly runs Triton/Gluon on both NVIDIA and AMD\" is unconfirmed : what is public is OpenAI's gpt-oss reference implementation using Triton (its MoE kernel from Triton's triton_kernels ; gpt-oss README ).",
+  "label": "depth",
+  "key": "OpenAI publicly runs Triton/Gluon",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "Beyond NVIDIA, and Triton's neighbours AMD.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "The standard Triton wheel contains an AMD back end and the LLVM it needs, so the page's kernels compile for gfx942 (MI300X) and gfx950 (MI355X) on this laptop compiled here .",
+  "label": "core",
+  "key": "The standard Triton wheel contains an AMD back end",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "What differs: a wavefront is 64 lanes, not 32 (the vector add's layout became threadsPerWarp = [64] ); shared memory is called LDS ; tensor cores are MFMA instructions ( v_mfma_f32_32x32x8_f16 on gfx942, the doubled-K v_mfma_f32_32x32x16_f16 on gfx950; section 3's table); registers are VGPRs (and AGPRs for accumulators).",
+  "label": "core",
+  "key": "v_mfma_f32_32x32x16_f16",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "Tutorial 03 ships a separate AMD configuration list (8 warps, 2 stages, matrix_instr_nonkdim = 16 ), a reminder that tuned configurations do not transfer between vendors.",
+  "label": "core",
+  "key": "matrix_instr_nonkdim = 16",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "The ROCm stack itself, including the old page's ROCm 10.0 claims, is on the parent page, section 10.",
+  "label": "depth",
+  "key": "ROCm 10.0",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "Intel GPUs are served by a separate repository, intel-xpu-backend-for-triton (\"OpenAI Triton backend for Intel GPUs\"), not by the standard wheel used here not compiled here .",
+  "label": "depth",
+  "key": "intel-xpu-backend-for-triton",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "Correction to the old page: the CUDA Tile IR back end The old page said \"NVIDIA contributed a CUDA Tile IR backend so Triton picks up new Blackwell-generation tensor-core features without source changes.\" What exists is an incubator repository in the triton-lang organisation, Triton-to-tile-IR (created December 2025, last commit September 23, 2026): a separate build of Triton 3.7 enabled with ENABLE_TILE=1 , validated on B200 with CUDA 13.4, with documented gaps (poor small-GEMM performance, the tensor-of-pointers load and store style \"exhibits poor performance\", num_warps accepted but not obeyed; a new occupancy hint).",
+  "label": "core",
+  "key": "Correction to the old page: the CUDA Tile IR back end",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "It is not part of the Triton 3.8.0 release used on this page. cuTile (NVIDIA) NVIDIA's own tile-level language on CUDA Tile IR: cutile-python , and cutile-rs for Rust (on the parent page, section 10); Julia has cuTile.jl.",
+  "label": "depth",
+  "key": "cuTile.jl",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "Same idea as Triton: you write tiles, the compiler maps them.",
+  "label": "depth",
+  "key": "you write tiles, the compiler maps them",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "Helion (PyTorch) A higher-level kernel language from the PyTorch team that compiles to Triton and autotunes over \"hundreds of potential Triton implementations\" in about 10 minutes, by its README (v1.4.0, July 29, 2026; pytorch/helion ).",
+  "label": "depth",
+  "key": "hundreds of potential Triton implementations",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "CuTe DSL (NVIDIA) The Python face of CUTLASS 4: explicit layouts and instructions, closer to Gluon than to Triton.",
+  "label": "depth",
+  "key": "The Python face of CUTLASS 4",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "On Libraries and tensor cores .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "link"
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "Where Triton is used Liger Kernel (\"Efficient Triton Kernels for LLM Training\"), Unsloth, vLLM's Triton attention back end and fused MoE kernels, SGLang, gpt-oss's reference implementation, and every torch.compile user.",
+  "label": "depth",
+  "key": "Efficient Triton Kernels for LLM Training",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "11. beyond nvidia, and triton's neighbours",
+  "text": "The GPU MODE lectures and kernel leaderboard are the community around it.",
+  "label": "depth",
+  "key": "kernel leaderboard are the community",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Mistakes, each with its evidence Every item below was either reproduced on this page or read in Triton's source; the tag says which.",
+  "label": "core",
+  "key": "Each was reproduced on this page or read in Triton's source",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Assuming the tensor's length does not change the code compiled here A length that is not a multiple of 16 removes the divisibility hint on n , and the mask can then cut a run of 4, so a perfectly aligned vector add drops from 16-byte to 4-byte loads (section 1: ).",
+  "label": "depth",
+  "key": "Assuming the tensor's length does not change the code",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Pad allocations to a multiple of 16 when you can, or give the ragged tail its own small launch.",
+  "label": "depth",
+  "key": "Pad allocations to a multiple of 16",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Passing sliced or offset tensors compiled here x[1:] starts 4 bytes into the allocation: the pointer is no longer divisible by 16, the hint is gone and so are the vector loads (the no-hint build in section 1).",
+  "label": "depth",
+  "key": "starts 4 bytes into the allocation",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Strides that are not multiples of 16 do the same to 2D tiles.",
+  "label": "depth",
+  "key": "Strides that are not multiples of 16 do the same to 2D tiles",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "A block size that is not a power of two interpreter tl.arange(0, 1000) is rejected: block dimensions must be powers of two.",
+  "label": "depth",
+  "key": "tl.arange(0, 1000)",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Round up with triton.next_power_of_2 and mask.",
+  "label": "depth",
+  "key": "Round up with triton.next_power_of_2 and mask.",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "A block smaller than the data, silently interpreter Nothing checks that BLOCK covers the row.",
+  "label": "depth",
+  "key": "A block smaller than the data, silently",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Section 2's softmax with BLOCK 512 on 1,000 columns ran and was wrong by 0.9.",
+  "label": "depth",
+  "key": "wrong by 0.9",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Assert it in the Python wrapper, and always compare with a PyTorch reference (tolerances per data type, and why the last digits move, are in the Numerics lab tab of Profiling, benchmarking and correctness ).",
+  "label": "depth",
+  "key": "Numerics lab",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Too many elements per thread: spills compiled here Each thread holds BLOCK / (32 x num_warps) elements per block.",
+  "label": "depth",
+  "key": "Too many elements per thread: spills",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Past a couple of hundred floats the compiler spills (section 2's grid; section 5's 1- and 2-warp matmuls spilled kilobytes per thread).",
+  "label": "depth",
+  "key": "Past a couple of hundred floats",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Raise num_warps or shrink the block.",
+  "label": "depth",
+  "key": "Raise num_warps or shrink the block",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "A configuration that compiles but cannot launch compiled here Shared memory is checked only when the binary is loaded on a device.",
+  "label": "depth",
+  "key": "Shared memory is checked only when the binary is loaded",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "5 of tutorial 03's 16 configurations exceed each GPU's per-block limit; on an RTX 5090 (99 KB) 5 stages of 128 x 128 x 64 FP16 tiles (128 KB) do not fit.",
+  "label": "depth",
+  "key": "5 of tutorial 03's 16 configurations",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Autotune skips them silently; a fixed configuration copied from an H100 kernel raises OutOfResources .",
+  "label": "depth",
+  "key": "a fixed configuration copied from an H100 kernel",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Fewer than 4 warps on Hopper or Blackwell compiled here With 1 or 2 warps the compiler cannot form a warpgroup and falls back from wgmma or tcgen05 to mma.sync (section 5's table), and the 128 x 128 accumulator no longer fits in registers.",
+  "label": "depth",
+  "key": "cannot form a warpgroup",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Expecting FP32 from an FP32 tl.dot source The default is TF32 on NVIDIA (section 3).",
+  "label": "depth",
+  "key": "Expecting FP32 from an FP32 tl.dot",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "If you compare with torch.matmul in FP32, pass input_precision=\"ieee\" or loosen the tolerance knowingly.",
+  "label": "depth",
+  "key": "loosen the tolerance knowingly",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "32-bit offsets on huge tensors derived tl.program_id is a 32-bit integer and so is pid * BLOCK ; past 2 31 = 2,147,483,648 elements (8 GiB of FP32) offsets wrap around.",
+  "label": "depth",
+  "key": "2,147,483,648 elements",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Integer arguments of 2 31 or more are passed as i64 (section 1), but offsets you compute from program_id are not: cast with tl.program_id(0).to(tl.int64) for tensors that large.",
+  "label": "depth",
+  "key": "tl.program_id(0).to(tl.int64)",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "An autotune key that never repeats, or a kernel that writes its inputs source Every new key value re-runs every configuration (section 6), and every configuration runs on the same tensors: bucket the key, and list in-place or accumulated outputs in reset_to_zero or restore_value .",
+  "label": "depth",
+  "key": "An autotune key that never repeats",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Timing the first call source The first call compiles (and autotunes); later calls with a new specialisation key compile again.",
+  "label": "depth",
+  "key": "Timing the first call",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Time with triton.testing.do_bench after a warm-up, which also clears the L2 cache between runs (it zeroes a 256 MB buffer before each one and returns the mean by default); the rest of honest timing is section 2 of Profiling, benchmarking and correctness .",
+  "label": "depth",
+  "key": "zeroes a 256 MB buffer",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Small kernels are often dominated by launch overhead instead, which CUDA graphs remove ( Streams, CUDA graphs and multi-GPU ).",
+  "label": "depth",
+  "key": "which CUDA graphs remove",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Trusting the interpreter for more than the maths source TRITON_INTERPRET=1 runs programs one after another in NumPy.",
+  "label": "depth",
+  "key": "runs programs one after another in NumPy",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "It finds indexing, masking and numerical mistakes; it cannot show a race between programs, an atomic ordering problem, a layout conversion, a spill or a compiler bug.",
+  "label": "depth",
+  "key": "an atomic ordering problem",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "12. mistakes, each with its evidence",
+  "text": "Compile for the real target too, as this page does.",
+  "label": "depth",
+  "key": "Compile for the real target too",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "Interview questions, with short answers What is a Triton program, and how does it relate to CUDA?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview restates section 1"
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "One instance of the kernel working on blocks of values; it becomes one CUDA thread block of num_warps x 32 threads.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates terms"
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "You index blocks with program_id ; the compiler maps elements to threads through a layout.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates s1"
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "Why do block sizes have to be powers of two? tl.arange requires it, and every layout is built from power-of-two factors (elements per thread x threads per warp x warps), which is what lets the compiler describe any layout as bases over the bits of the register, lane and warp index.",
+  "label": "core",
+  "key": "every layout is a product of power-of-two factors",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "What do num_warps and num_stages do? num_warps: threads per program, hence elements and registers per thread, and whether warpgroup instructions are possible. num_stages: software-pipeline depth, one shared-memory buffer per stage (minus one on the mma.sync path), so it trades shared memory, and occupancy, for latency hiding.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates s5"
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "How does Triton get vectorised, coalesced loads?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "q"
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "An axis analysis works out how many consecutive offsets are contiguous and how aligned they are, using the 16-byte divisibility hints Triton attaches to arguments at launch; the coalesce pass then gives each thread runs of up to 16 bytes.",
+  "label": "core",
+  "key": "axis analysis",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "Lose a hint (odd offset, odd length) and the loads narrow.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates s1"
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "My Triton FP32 matmul disagrees with torch.matmul in the fourth digit.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "q"
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "Why? tl.dot uses TF32 by default for FP32 inputs on NVIDIA; PyTorch's FP32 matmul does not unless allowed.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates s3 box"
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "Set input_precision=\"ieee\" to compare like with like.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates"
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "Why does grouped program ordering speed up a matmul?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "q"
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "Programs running at the same time share L2; grouping tile rows makes them share tiles of both A and B.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates s3"
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "For 9 x 9 tiles the first 9 programs need 54 tiles grouped against 90 row-major (tutorial 03).",
+  "label": "core",
+  "key": "54 tiles instead of 90",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "What does the Triton compiler do between your Python and PTX?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "q"
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "Python to TTIR (tensor ops, no threads), TTGIR (layouts, shared memory, the MMA instruction, software pipelining, about 70 passes), LLVM IR (per-thread code), then PTX and ptxas to SASS, or AMDGCN on AMD.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates s7"
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "When would you write Gluon or CUDA instead of Triton?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "q"
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "When a profile shows the kernel is far from the hardware limit and the cause is something Triton decides for you: the layout, the shared-memory plan, the pipelining or warp roles, Blackwell's tensor memory or cluster features.",
+  "label": "core",
+  "key": "far from the hardware limit and the cause is something Triton decides for you",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "Gluon keeps Triton's front end and lets you choose those; CUDA C++ or CuTe DSL give you everything else.",
+  "label": "core",
+  "key": "CUDA C++ or the CuTe DSL give you everything else",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "How does torch.compile use Triton?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "q"
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "Inductor fuses pointwise and reduction operations into Triton kernels it writes (named triton_poi_, triton_per_, triton_red_) and launches from a generated Python wrapper; matmuls go to cuBLAS unless max-autotune lets it time its Triton templates against it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates s9"
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "Custom kernels join the graph through torch.library.triton_op .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates s9"
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "How does @triton.autotune decide?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "q"
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "On the first call with a new key (the key arguments' values plus tensor dtypes) it compiles and times every configuration with do_bench, keeps the fastest, and treats configurations that fail to compile or do not fit as infinitely slow.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates s6"
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "Not run here: nothing on this page ran on an NVIDIA or AMD GPU, so it has no Triton timings of its own.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the top note"
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "13. interview questions, with short answers",
+  "text": "For timings of the same ideas, the parent's Kernel lab measured Metal kernels on the M1 Pro GPU; for how to time Triton kernels honestly on a real GPU, Profiling, benchmarking and correctness .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointers repeated in s2 and Further reading"
+ },
+ {
+  "id": 277,
+  "tab": "t-ir",
+  "section": "",
+  "text": "The four kernels of the Reading tab compiled by Triton 3.8.0 for six GPUs, at every stage.",
+  "label": "core",
+  "key": "compiled by Triton 3.8.0 for six GPUs, at every stage",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-ir",
+  "section": "",
+  "text": "Pick a kernel, a target and a stage; the operations the Reading tab discusses are highlighted.",
+  "label": "core",
+  "key": "Pick a kernel, a target and a stage",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-ir",
+  "section": "",
+  "text": "Kernel Vector add (section 1) Row softmax (section 2) Matmul 128 x 128 x 32, 4 stages (section 3) Attention forward, causal (section 4) Target sm_80 (A100) sm_90a (H100, H200) sm_100a (B200, GB200) sm_120 (RTX 5090) gfx942 (MI300X) gfx950 (MI355X) Source TTIR TTGIR LLVM IR PTX / AMDGCN SASS All output is real and compiled without a GPU ( src/code/compile_tg.py in the kb-gpu-lab:1 image: Triton 3.8.0, its bundled ptxas and LLVM, CUDA 13.4.2's cuobjdump for SASS and resource usage).",
+  "label": "core",
+  "key": "Attention forward, causal (section 4)",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-ir",
+  "section": "",
+  "text": "To keep the page small, long stages show only the layout definitions and the lines carrying the operations discussed (one line per distinct instruction form for PTX, AMDGCN and SASS); debug locations are removed and long lines cut.",
+  "label": "core",
+  "key": "one line per distinct instruction",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-ir",
+  "section": "",
+  "text": "TTIR does not depend on the NVIDIA target, so one copy is kept for NVIDIA and one for AMD.",
+  "label": "core",
+  "key": "one copy is kept for NVIDIA and one for AMD",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-ir",
+  "section": "",
+  "text": "Full files: src/out/ir/ (the large ones are regenerated by src/run_all.sh ).",
+  "label": "core",
+  "key": "src/out/ir/",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-ir",
+  "section": "",
+  "text": "AMD targets have no SASS; their machine code is the AMDGCN stage.",
+  "label": "core",
+  "key": "AMD targets have no SASS",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-cfg",
+  "section": "",
+  "text": "What an autotuning configuration costs before it ever runs.",
+  "label": "core",
+  "key": "What an autotuning configuration costs before it ever runs",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-cfg",
+  "section": "",
+  "text": "Every configuration of Triton tutorial 03's matmul, and two sweeps, compiled for four NVIDIA GPUs: registers, spills, shared memory, whether it can launch, and how many programs fit on one SM.",
+  "label": "core",
+  "key": "compiled for four NVIDIA GPUs",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-cfg",
+  "section": "",
+  "text": "GPU sm_80 (A100) sm_90a (H100) sm_100a (B200) sm_120 (RTX 5090) Set Tutorial 03's 16 CUDA configurations num_stages 1 to 6 (128 x 128 x 64, 4 warps) num_warps 1 to 16 (128 x 128 x 64, 3 stages) Compiled with Triton 3.8.0 for FP16 inputs (the tutorial's last 8 configurations are labelled for FP8 inputs; compiled here with FP16, so their shared memory is twice an FP8 build's).",
+  "label": "core",
+  "key": "num_stages 1 to 6 (128 x 128 x 64, 4 warps)",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-cfg",
+  "section": "",
+  "text": "Registers and stack from cuobjdump -res-usage ; shared memory is Triton's metadata.shared , the number the launcher checks.",
+  "label": "core",
+  "key": "the number the launcher checks",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-cfg",
+  "section": "",
+  "text": "Blocks per SM: NVIDIA's occupancy rules ( cuda_occupancy.h , as ported and validated on the parent page) with the per-SM limits of the CUDA Programming Guide v13.4.2, Tables 30 and 31, and the 1 KB per block the system reserves; Blackwell's tensor memory (512 columns per SM, 128 used per program here) is not modelled.",
+  "label": "core",
+  "key": "cuda_occupancy.h",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-cfg",
+  "section": "",
+  "text": "Nothing was timed: which configuration is fastest needs a GPU.",
+  "label": "core",
+  "key": "which configuration is fastest needs a GPU",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-cfg",
+  "section": "",
+  "text": "Predict shared memory before compiling The rule found in Reading section 5, which matches every compiled point on this tab: stages x (BM x BK + BK x BN) x bytes per element, with one buffer fewer on the mma.sync path.",
+  "label": "core",
+  "key": "Predict shared memory before compiling",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-cfg",
+  "section": "",
+  "text": "BM 32 64 128 256 BN 32 64 128 256 BK 32 64 128 num_stages 1 2 3 4 5 6 Input type FP16 / BF16 (2 bytes) FP8 (1 byte) FP32 / TF32 (4 bytes)",
+  "label": "core",
+  "key": "FP8 (1 byte)",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-lay",
+  "section": "",
+  "text": "Which thread holds which element: draw any 2D blocked layout from its four fields, on any tensor shape, and see each thread's registers, broadcast copies and the linear-layout bases Triton uses internally.",
+  "label": "core",
+  "key": "Which thread holds which element: four fields decide",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-lay",
+  "section": "",
+  "text": "Preset sizePerThread threadsPerWarp warpsPerCTA order [1, 0] (rows first, row-major) [0, 1] (columns first) Tensor shape Highlight thread 0 Each cell is one tensor element, coloured by warp, labelled T(thread):register when there is room; outlined cells belong to the highlighted thread; a number in the corner counts broadcast copies (several threads holding the same element).",
+  "label": "core",
+  "key": "labelled T(thread):register",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-lay",
+  "section": "",
+  "text": "The bases are built the way Triton converts a blocked layout to a linear layout: register bits for sizePerThread , then lane bits, then warp bits, each in order , then extra register bits for repeats; a basis that falls outside the tensor becomes [0, 0], which is broadcast.",
+  "label": "core",
+  "key": "register bits for sizePerThread",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-lay",
+  "section": "",
+  "text": "Element of (warp, lane, register) = XOR of the bases of its set bits.",
+  "label": "core",
+  "key": "XOR of the bases whose bits are set",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-lay",
+  "section": "",
+  "text": "Checked against Triton 3.8.0's own to_linear_layout output for the 8 presets marked \"Triton printed\" ( src/out/gluon.json ), and against the table printed in Gluon tutorial 02.",
+  "label": "core",
+  "key": "8 presets marked \"Triton printed\"",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-more",
+  "section": "",
+  "text": "The tabs of this page, the knowledge base pages around it, and the best outside resources, each with an approximate time.",
+  "label": "core",
+  "key": "each with an approximate time",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 2026-10-05.",
+  "label": "core",
+  "key": "Links checked on 2026-10-05",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page Compiler stages Four kernels x six GPUs x six stages, from Python to SASS or AMDGCN, with metadata.",
+  "label": "core",
+  "key": "Four kernels x six GPUs x six stages",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Config explorer Tutorial 03's configurations and two sweeps: registers, spills, shared memory, launchability, programs per SM; a shared-memory predictor.",
+  "label": "core",
+  "key": "a shared-memory predictor",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min Layout explorer Any blocked layout drawn element by element, with its linear-layout bases, checked against Triton's own output.",
+  "label": "core",
+  "key": "Any blocked layout drawn element by element",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min The parent and siblings Topic: cuda-and-gpu-programming about 45 min The root: one softmax and a multiply by V from PyTorch to the instructions.",
+  "label": "core",
+  "key": "one softmax and a multiply by V",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-more",
+  "section": "",
+  "text": "Section 6 is Triton in one screen; its Compiler explorer has Triton and CUDA SASS side by side; its Kernel lab runs Triton under the interpreter next to M1 Pro Metal kernels.",
+  "label": "core",
+  "key": "Section 6 is Triton in one screen",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-more",
+  "section": "",
+  "text": "Writing kernels 37 min The CUDA C++ versions of this page's kernels: reductions, softmax, the matmul ladder, fusion, FlashAttention 1 to 3 with the online softmax derived.",
+  "label": "core",
+  "key": "The CUDA C++ versions of this page's kernels",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-more",
+  "section": "",
+  "text": "Read side by side with sections 2 to 4.",
+  "label": "core",
+  "key": "Read side by side with sections 2 to 4",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-more",
+  "section": "",
+  "text": "The CUDA programming model 37 min Threads, warps, blocks, launches and occupancy: what a Triton program becomes.",
+  "label": "core",
+  "key": "what a Triton program becomes",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-more",
+  "section": "",
+  "text": "GPU memory hierarchy 30 min Coalescing, shared memory and bank conflicts, spills, async copies and its pipeline animation: what Triton's passes optimise.",
+  "label": "core",
+  "key": "what Triton's passes optimise",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-more",
+  "section": "",
+  "text": "Libraries and tensor cores 33 min cuBLAS, CUTLASS, CuTe and the CuTe DSL; mma, wgmma, TMA and tcgen05 as instructions.",
+  "label": "core",
+  "key": "as instructions",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-more",
+  "section": "",
+  "text": "The compiler stack 28 min PTX, SASS, NVRTC, and torch.compile with Inductor end to end (section 9 here is the Triton slice of it).",
+  "label": "core",
+  "key": "section 9 here is the Triton slice of it",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-more",
+  "section": "",
+  "text": "Profiling, benchmarking and correctness 29 min Nsight, do_bench and honest timing, tolerances for checking kernels.",
+  "label": "core",
+  "key": "honest timing, tolerances",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-more",
+  "section": "",
+  "text": "Streams, CUDA graphs and multi-GPU 36 min Launch overhead and CUDA graphs, which matter for small Triton kernels.",
+  "label": "core",
+  "key": "which matter for small Triton kernels",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-more",
+  "section": "",
+  "text": "Elsewhere in the knowledge base FlashAttention (paper page) The IO-aware attention algorithm section 4 implements. paper page GPU architecture about 28 min SMs, tensor cores, TMEM and caches physically, per generation (Topic: hardware).",
+  "label": "core",
+  "key": "The IO-aware attention algorithm section 4 implements",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-more",
+  "section": "",
+  "text": "Topic: pytorch-ecosystem torch.compile from the user's side.",
+  "label": "core",
+  "key": "torch.compile from the user's side",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Distributed Training Where fused kernels such as Liger's sit in a training step. training child Best outside resources Official Triton tutorials 01 vector add, 02 fused softmax, 03 matmul, 06 fused attention: the core curriculum, each with a benchmark against PyTorch.",
+  "label": "core",
+  "key": "Where fused kernels such as Liger's sit",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-more",
+  "section": "",
+  "text": "Sources for v3.8.0 are in the repository's python/tutorials/ . about 3 h for 01, 02, 03, 06 Gluon tutorials (14) From layouts to TMA, wgmma, tcgen05, warp specialisation and multi-CTA kernels; read 01 and 02 first. about 4 h Triton paper (Tillet, Kung and Cox, MAPL 2019) The block-level design rationale in 10 pages.",
+  "label": "core",
+  "key": "about 3 h for 01, 02, 03, 06",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-more",
+  "section": "",
+  "text": "45 min GPU MODE lectures 14 and 29 \"Practitioner's Guide to Triton\" and \"Triton Internals\" (also 34, low-bit Triton kernels, and 78, multi-GPU Triton); recordings on the GPU MODE YouTube channel . about 1 h 30 min each Triton-Puzzles and GPU Puzzles Sasha Rush's exercises; Triton-Puzzles runs on the interpreter, so it works on this laptop. about 3 h each triton-lang/triton releases The 3.8.0 notes list what the compiler gained (Rubin, multi-CTA, FpSan and GSan sanitisers, Gluon APIs).",
+  "label": "core",
+  "key": "Practitioner's Guide to Triton",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min GPU MODE kernel leaderboard Competitive Triton and CUDA kernel problems for practice.",
+  "label": "core",
+  "key": "Competitive Triton and CUDA kernel problems",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min to look, hours to play Liger Kernel Production Triton kernels for LLM training (RMSNorm, RoPE, SwiGLU, fused linear cross-entropy): the best real code to read after the tutorials.",
+  "label": "core",
+  "key": "fused linear cross-entropy",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-more",
+  "section": "",
+  "text": "1 h to read two kernels Built from src/ of this page: kernels in src/code/kernels_tg.py , every compiled and interpreted output in src/out/ , reproduced by src/run_all.sh .",
+  "label": "core",
+  "key": "Built from src/ of this page",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-more",
+  "section": "",
+  "text": "Old written page \"Triton\" saved in src/live.md ; where each of its claims went is in src/coverage.json .",
+  "label": "core",
+  "key": "saved in src/live.md",
+  "where": ""
+ }
+]
