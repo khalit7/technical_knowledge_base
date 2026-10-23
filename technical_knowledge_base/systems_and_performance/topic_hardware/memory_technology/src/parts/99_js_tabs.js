@@ -1,4 +1,4 @@
-// ---- Tabs ----
+// ---- Tabs ---- (replace hwmem-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};

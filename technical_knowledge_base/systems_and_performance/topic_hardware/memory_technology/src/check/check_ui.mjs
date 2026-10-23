@@ -1,5 +1,5 @@
 // (1) The page's JavaScript (BANKSIM) against out/expected.json from code/build_data.py.
-// (2) Every control at 390 px dark and 920 px light: no page errors, NaN/undefined text or sideways scroll; screenshots.
+// (2) Every control (Reading and Further reading tabs) at 390 px dark and 920 px light: no page errors, NaN/undefined text or sideways scroll; screenshots.
 // Run from the repo root: node technical_knowledge_base/systems_and_performance/topic_hardware/memory_technology/src/check/check_ui.mjs <shots dir>
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -70,17 +70,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const tab = async t => { await p.$eval('#tabs button[data-t="' + t + '"]', e => e.click()); await sleep(250) };
   // Reading
   await tab('t-read');
-  for (const s of ['rd-gen-mode', 'rd-lad-mode', 'rd-ladder-mode']) await segs(s);
+  for (const s of ['rd-gen-mode', 'rd-lad-mode', 'rd-ladder-mode', 'rd-kv-mode']) await segs(s);
+  await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true)); await sleep(100);
   await segs('rd-bank-mode', async () => ctl('rd-bank-ctl'));
   await p.$$eval('#t-read .pr .opts button', bs => bs.forEach(b => b.click()));
   await check('t-read', scheme + ' read');
   await p.screenshot({ path: path.join(out, 'read-' + scheme + '-' + width + '.png'), fullPage: true });
-  // Memory lab
-  await tab('t-lab');
-  await segs('lab-ws-mode'); await segs('lab-kv-mode');
-  await p.$$eval('#lab-ws-mode button', bs => bs[0].click()); await sleep(50);
-  await check('t-lab', scheme + ' lab');
-  await p.screenshot({ path: path.join(out, 'lab-' + scheme + '-' + width + '.png'), fullPage: true });
+  // the Memory lab tab was folded into Reading on 2026-10-23 (its charts are now in sections 2, 3, 6 and 7)
   await tab('t-more'); await check('t-more', scheme + ' more');
   console.log(scheme, width, errs.length ? 'ERRORS:\n  ' + errs.join('\n  ') : 'ok');
   bad += errs.length; await p.close();

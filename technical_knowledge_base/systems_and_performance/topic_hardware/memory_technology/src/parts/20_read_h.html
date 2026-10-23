@@ -1,0 +1,21 @@
+<section id="rd-s7">
+<h2>7. Offload and tiering: using the slower rungs on purpose</h2>
+<p>State that does not fit in HBM can live one rung down (CPU memory, then NVMe) and be brought in when needed. That pays only if the move costs less than what it saves, or hides behind compute. The arithmetic is always bytes / bandwidth of the slower link:</p>
+<div class="tw"><table class="tbl-sm">
+<thead><tr><th>What moves</th><th class="num">Bytes</th><th>Over</th><th class="num">Time, one way</th></tr></thead>
+<tbody>
+<tr><td rowspan="3">Llama 3.1 8B optimizer state (FP32 master weights and two moments, 12 bytes per parameter)</td><td class="num" rowspan="3">96.4 GB</td><td>PCIe Gen5 x16, 64 GB/s each way</td><td class="num">1.51 s</td></tr>
+<tr><td>NVLink-C2C (GH200), 450 GB/s each way</td><td class="num">0.21 s</td></tr>
+<tr><td>this laptop's SSD, 5.76 GB/s measured</td><td class="num">16.7 s</td></tr>
+<tr><td rowspan="2">KV cache of one 32,768-token conversation, Llama 3.1 70B (BF16)</td><td class="num" rowspan="2">10.7 GB</td><td>PCIe Gen5 x16, back into HBM</td><td class="num">168 ms</td></tr>
+<tr><td>recompute it instead (prefill 2 &times; 70.6B &times; 32,768 FLOPs on one H100 at an assumed 50% of 989.5 TFLOP/s)</td><td class="num">9.3 s</td></tr>
+</tbody></table></div>
+<p class="small mute">All <span class="der">derived</span>: bytes / bandwidth. C2C's 900 GB/s is split evenly between directions here (an assumption); PCIe Gen5 x16 is 128 GB/s both directions on the {{H100 page|https://www.nvidia.com/en-us/data-center/h100/}}; the 50% utilisation is <span class="ill">illustrative</span>, and the prefill count ignores attention FLOPs, which only make recomputing slower. The SSD figure is the median of three sequential reads of a 4 GiB file with the page cache bypassed <span class="meas">measured here</span>.</p>
+<p><b>Training: ZeRO-Offload and ZeRO-Infinity.</b> The optimizer step touches each parameter's state once per step, so keeping the state in CPU memory (or NVMe) and running the update there costs one transfer per step. ZeRO-Infinity puts GPU, CPU and NVMe memory behind one interface and reports over 25 petaflops on 512 V100s (40% of peak) for models far beyond GPU memory ({{Rajbhandari et al. 2021|https://arxiv.org/abs/2104.07857}}). At 1.5 s per direction, offloading the 8B model's optimizer pays only when a step already takes seconds (large batches) or the alternative is not training at all; over a GH200-style coherent link it takes a fifth of a second. With GPUs to spare, sharding (ZeRO, FSDP) is usually cheaper: {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}.</p>
+<p><b>Inference: weights and KV offload.</b> FlexGen ran OPT-175B on a single 16 GB GPU by streaming weights and cache from CPU memory and disk, reaching 1 token per second with an effective batch of 144: throughput, not latency ({{Sheng et al. 2023|https://arxiv.org/abs/2303.06865}}). For the KV cache the table shows why offload wins: reloading a 32K conversation's cache over PCIe takes 168 ms, recomputing it about 9 s. So paused conversations' caches belong in CPU memory or on SSD, reloaded when the user returns. Offload buys capacity with time; it is the right trade only when the transfer overlaps compute or replaces something slower.</p>
+<details class="dp"><summary>The SSD, measured: sequential against random reads</summary><div>
+<div class="tw"><table class="tbl-sm" id="rd-ssd"></table></div>
+<p class="small mute">A 4 GiB file of random bytes, written and read with <code>F_NOCACHE</code> so neither the write nor the reads leave pages in memory; one reader, one request at a time (queue depth 1), so small random reads are latency-bound. The first attempt, before the write path also bypassed the cache, read 9.2 to 11.0 GB/s because the just-written pages were still in memory (<code>out/ssd_cached_attempt.txt</code>): storage numbers must bypass the page cache ({{Storage and file systems|n:3f05c17b0d0d8141be7acc1313570cbf}} explains it).</p>
+</div></details>
+<p><b>Check:</b> measure the link, not the label. <code>nvidia-smi topo -m</code> shows how GPUs and NICs are attached; a pinned-memory <code>tensor.to('cuda', non_blocking=True)</code> of 1 GB timed with CUDA events gives the achieved host-to-device rate.</p>
+</section>
