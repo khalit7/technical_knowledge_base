@@ -62,6 +62,7 @@ Rules for every visual (Mayer's coherence, signalling and contiguity principles)
 - **Photos** (hardware, a die shot, a rack) from Wikimedia Commons or another licensed source, credited with author and licence.
 - **AI-generated images never for a mechanism**: they draw plausible wrong labels. At most a non-technical illustration, and rarely.
 - Images are files in the page's `img/` folder, WebP, small (under about 200 KB each), referenced by relative path, with `alt` text that says what the image shows.
+- Each image is credited under it (author, licence, link) and listed in `img/CREDITS.md`; download with `curl`, convert with `cwebp`. Pages about physical things (hardware, clusters, data centres) should use one to four real photos; mechanism pages rarely need any.
 
 ## Sources
 Mayer, *Multimedia Learning* (3rd ed., 2020); Pashler et al. 2008 (learning styles); Höffler and Leutner 2007; Berney and Betrancourt 2016; Tversky, Morrison and Betrancourt 2002; Rey et al. 2019 (segmenting); Kalyuga 2007 (expertise reversal); Fyfe et al. 2014 (concreteness fading); Victor 2011 (explorable explanations).
