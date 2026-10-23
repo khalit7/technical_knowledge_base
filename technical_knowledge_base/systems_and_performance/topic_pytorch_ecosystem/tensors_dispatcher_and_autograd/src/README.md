@@ -38,7 +38,7 @@ Everything except `timing.json` is deterministic, except where the page says oth
 
 | Tab | Parts | What |
 |---|---|---|
-| Reading `t-read` | `20_read_a` (styles), `20_read_b` (nav, the idea in one screen: core sentence, hero, you need, new terms; section 1 tensors), `20_read_c` (section 2 dispatcher), `20_read_d` (section 3 autograd), `20_read_e` (section 4 modules and the loop, all closed; depth: GPUs, mistakes, interview), `20_read_z`; JS: `21_js_rd_common.js` (the skill template, never autoplays), `22_tda_data.js` (TDA), `23_tda_rd_ten.js` (helpers, the strides before/after, tensor tables), `24_tda_rd_dsp.js` (key ladder, the two-situation walk stepper, slot statistics, aten-call explorer), `25_tda_rd_ag.js` (autograd and module tables), `26_tda_rd_eng.js` (graph built in forward, run in backward), `27_tda_rd_ver.js` (version-counter lab and mechanism figure), `28_tda_rd_hero.js`, `29_tda_rd_figs.js` (custom Function diagram, checkpoint bars) | sections 1 to 3 core with their visuals, section 4 and the depth section closed |
+| Reading `t-read` | `20_read_a` (styles), `20_read_b` (nav, the idea in one screen: core sentence, hero, you need, new terms; section 1 tensors), `20_read_c` (section 2 dispatcher), `20_read_d` (section 3 autograd), `20_read_e` (section 4, a pointer: modules and the loop now live on Making training fast; depth: GPUs, mistakes, interview), `20_read_z`; JS: `21_js_rd_common.js` (the skill template, never autoplays), `22_tda_data.js` (TDA), `23_tda_rd_ten.js` (helpers, the strides before/after, tensor tables), `24_tda_rd_dsp.js` (key ladder, the two-situation walk stepper, slot statistics, aten-call explorer), `25_tda_rd_ag.js` (autograd tables), `26_tda_rd_eng.js` (graph built in forward, run in backward), `27_tda_rd_ver.js` (version-counter lab and mechanism figure), `28_tda_rd_hero.js`, `29_tda_rd_figs.js` (custom Function diagram, checkpoint bars) | sections 1 to 3 core with their visuals, section 4 a short pointer, the depth section closed |
 | Stride explorer `t-tda-str` | `31_tab_str.html`, `31_tda_str.js` | unchanged: 36 recorded tensors plus 8 from the running example, every address |
 | Further reading `t-more` | `39_tab_more.html` | |
 
@@ -62,12 +62,20 @@ Storage key `tda-tab`.
 - **No autoplay**: `21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (storage key kept); `check_controls.mjs` reports nothing playing under reduced motion.
 - **British spelling** in prose (functionalisation, materialise, initialisation, optimiser); API names unchanged.
 
+## Close of the topic (2026-10-23): modules and the loop handed to Making training fast
+
+- Section 4 shrank to one paragraph: what nn.Module adds (a parameter is a leaf with an `AccumulateGrad` node, a state_dict is names over storages, module backward hooks are autograd hooks), the tied-weight load trap stated in this page's terms (one storage, two names), and a link to Making training fast: Reading section 7 (the loop and the module), section 6 (the GradScaler), section 4's closed block (workers and seeds). Its six closed blocks (registration, loading, forward hooks, the loop with the float16 drill, determinism, DataLoader) and their scripts in `25_tda_rd_ag.js` were removed; Making training fast carries them with the same recorded data (`module.json`, `dataloader.json`, still embedded here and checked by `check_data.py`).
+- Depth: the five loop mistakes (strict loading, tied weights, accumulation, clipping before unscaling, manual_seed), the two loop interview questions (GradScaler, state_dict count) and the determinism and float16 rows of the carry-over table went with them (Making training fast has each). Mistakes 13 to 8, interview questions 12 to 10.
+- Ledger: 32 units relabelled `owned:systems_and_performance/topic_pytorch_ecosystem/making_training_fast` after checking each key is in its built page; six were re-keyed to the wording there (191 `persistent=False`, 192 `walk that tree`, 200 `leave the later one`, 205 `must be unscaled before clipping`, 216 `deterministic mode raises on ops without a deterministic kernel`, 227 `tied weights break safetensors`), and unit 65 to `hold, counting each entry's tensor` because Making training fast writes its derivation from a script. Unit 201 (loading an untied checkpoint into a tied architecture) is not on Making training fast, so it stays here, in section 4's paragraph.
+- Reading time from a fresh audit: 24 min core (5,407 words), 29 min closed (6,599 words); before this change 24 and 37.
+- Sibling and neighbour times in Further reading set to each page's header; Memory allocators states no time, so its time was dropped. A stale "Version-counter lab" pointer in 3.3's closed block now points to the stepper above it.
+
 ## Length judgement
 
 | | Before (audit 2026-10-23) | After |
 |---|---|---|
-| Reading, core (230 words a minute, `html_utils/audit_pages.mjs`) | 54 min (12,307 words) | 24 min (5,455 words) |
-| Reading, closed details | 3 min | 37 min |
+| Reading, core (230 words a minute, `html_utils/audit_pages.mjs`) | 54 min (12,307 words) | 24 min (5,407 words after the close of the topic; 5,455 before) |
+| Reading, closed details | 3 min | 29 min (37 before the loop material moved) |
 | Other tabs, core | 10 min (four labs and Further reading) | 5 min (Stride explorer 2.5, Further reading 2.8) |
 | Visuals drawn in Reading (svg, canvas, img) | 0 | 10 |
 
@@ -75,9 +83,9 @@ Why 24 minutes is right: the core now carries exactly the three machines this pa
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 
-369 units: core 188, depth 154, fat 27, owned 0, volatile 0. 337 were drafted from the old page by `ledger.py init`; 32 were added by hand for script-rendered tables and visuals, each with a key written into a static caption or a closed block's summary. Fat units carry a `note` saying why. No unit is labelled `owned:` because no owner page carries these keys today (see the report on nn.Module and the loop).
+369 units: core 187, depth 123, fat 27, owned 32 (to Making training fast; see the close of the topic above), volatile 0. 337 were drafted from the old page by `ledger.py init`; 32 were added by hand for script-rendered tables and visuals, each with a key written into a static caption or a closed block's summary. Fat units carry a `note` saying why.
 
 ## Departures from the page-kind shape, and why
 
 - No "in production" section: the subject is the runtime itself.
-- Section 4 (modules and the loop) is a short core paragraph over closed blocks: OWNERS.md gives this page the internals (tensors, dispatcher, autograd), not nn.Module or the loop, but no other page carries these measurements, so they stay here, closed, until an owner is named.
+- Section 4 (modules and the loop) is a pointer paragraph: OWNERS.md gives this page the internals (tensors, dispatcher, autograd); nn.Module and the loop are owned by Making training fast since 2026-10-23.

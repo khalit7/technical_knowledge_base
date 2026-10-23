@@ -103,7 +103,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Tensors, the dispatcher and autograd</h1>
-<div class="sub">What happens between one line of PyTorch and the kernel that runs it: a tensor as a header over bytes, the dispatcher's walk down its keys, and the graph autograd records in forward and runs in backward. Every trace and error recorded with torch 2.14.1 on an Apple M1 Pro (CPU and MPS); C++ quoted from the v2.14.1 tag. A child of Topic: pytorch-ecosystem. Data as of October 2026. <span id="rd-time">Reading: 24 min, plus 37 in closed details.</span></div>
+<div class="sub">What happens between one line of PyTorch and the kernel that runs it: a tensor as a header over bytes, the dispatcher's walk down its keys, and the graph autograd records in forward and runs in backward. Every trace and error recorded with torch 2.14.1 on an Apple M1 Pro (CPU and MPS); C++ quoted from the v2.14.1 tag. A child of Topic: pytorch-ecosystem. Data as of October 2026. <span id="rd-time">Reading: 24 min, plus 29 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-tda-str" aria-selected="false">Stride explorer</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
@@ -591,58 +591,7 @@ torch.autograd.gradgradcheck(MyGelu.apply, (x,))  # its backward is differentiab
 </section>
 <section id="rd-s4">
 <h2>4. Modules and the loop sit on top</h2>
-<p><code>nn.Module</code> adds bookkeeping, not a new machine: a parameter is a leaf tensor with <code>requires_grad=True</code> (an <code>AccumulateGrad</code> node waits for it), and a <code>state_dict</code> is names over storages. The consequences follow from sections 1 and 3. A tied weight is one Parameter under two names, so <code>parameters()</code> counts 52 tensors and the <code>state_dict</code> 53 (3,197,952 elements against 3,186,944); safetensors refuses to save the shared storage, two different values loaded under the two names leave the later one, and <code>to_empty</code> unties them (2.5). In the loop, gradients accumulate into <code>.grad</code> across backwards, so micro-batch losses must be divided; a GradScaler's scaled gradients must be unscaled before clipping. The measured details are below, for when you save, load or write a loop.</p>
-<details class="dp"><summary>What a Module registers, and the tied weight one level deeper <span class="mute">(measured)</span></summary><div class="b">
-<p>An <code>nn.Module</code> is a Python object whose attribute assignments are intercepted: assigning an <code>nn.Parameter</code> registers a <dfn>parameter</dfn> (a leaf tensor with <code>requires_grad=True</code> that optimisers will update), assigning a module registers a <dfn>sub-module</dfn>, and <code>register_buffer</code> registers a <dfn>buffer</dfn> (state that is saved but not trained, such as running statistics; <code>persistent=False</code> keeps it out of the state_dict). Everything else (<code>parameters()</code>, <code>.to()</code>, <code>state_dict()</code>, <code>train()</code>/<code>eval()</code>) walks that tree. On the running example:</p>
-<div id="tda-reg" class="tw"></div>
-<p><code>head.weight</code> is <code>tok.weight</code>: one Parameter reachable under two names. <code>parameters()</code> de-duplicates by object, the state_dict does not, so every tool that walks names sees two tensors sharing one storage. Measured consequences:</p>
-<div id="tda-tie" class="tw"></div>
-<p class="small">safetensors: "Some tensors share memory, this will lead to duplicate memory on disk and potential differences when loading them again"; <code>save_model</code> writes 52 tensors and drops <code>tok.weight</code>, and <code>load_model</code> restores the tie.</p>
-<div class="pr" data-pr><div class="q">Predict: how many bytes does the running example's <code>state_dict</code> hold, counting each entry's tensor?</div>
-<div class="opts"><button>12,747,776 (3,186,944 &times; 4)</button><button data-ok>12,791,808</button><button>25,495,552</button></div>
-<div class="ans" hidden>12,791,808 <span class="der">derived</span>: the state_dict has 53 entries totalling 3,197,952 elements, because the tied <code>tok.weight</code> and <code>head.weight</code> (43 &times; 256 = 11,008 elements) appear under both names. They are one storage, so the real memory is 12,747,776 bytes; code that sums a state_dict overcounts.</div></div>
-</div></details>
-<details class="dp"><summary>Loading: strict, missing and unexpected keys <span class="mute">(measured)</span></summary><div class="b">
-<p><code>load_state_dict</code> matches by name. With the default <code>strict=True</code>, a renamed key (here <code>blocks.0.ln1.weight</code> saved as <code>blocks.0.ln_1.weight</code>) raised:</p>
-<div class="tda-out tda-err" id="tda-ld-err"></div>
-<p>With <code>strict=False</code> nothing is raised and the call returns <code><span id="tda-ld-ret"></span></code>; the missing parameter silently keeps its initial value. Check the return value, always. A shape mismatch is an error even with <code>strict=False</code>: <span class="tda-err">"size mismatch for blocks.0.mlp.fc.weight: copying a param with shape torch.Size([512, 256]) from checkpoint, the shape in current model is torch.Size([1024, 256])."</span></p>
-<div class="pr" data-pr><div class="q">Predict: you load a state_dict whose <code>tok.weight</code> is all 1.0 and whose <code>head.weight</code> is all 2.0 into the tied model. What is <code>model.tok.weight[0, 0]</code> afterwards?</div>
-<div class="opts"><button>1.0</button><button data-ok>2.0</button><button>An error: two values for one tensor</button></div>
-<div class="ans" hidden>2.0 (measured). Both names copy into the same storage, in state_dict order, and <code>head.weight</code> comes after <code>tok.weight</code>, so the last one wins and no warning is given. This happens when you load an untied checkpoint (a model trained without tying) into a tied architecture.</div></div>
-</div></details>
-<details class="dp"><summary>Forward hooks <span class="mute">(measured)</span></summary><div class="b">
-<p><code>register_forward_pre_hook</code> sees a module's inputs before forward, <code>register_forward_hook</code> its inputs and output after; both may replace them. They are the standard way to read activations without editing the model: one hook per block of the running example, one batch, collected the output standard deviation per block, 0.0495, 0.0659, 0.0799 and 0.0924 <span class="meas">measured</span>, the residual stream growing block by block as expected at initialisation. Backward hooks on modules are in section 3's hooks block.</p>
-</div></details>
-<details class="dp"><summary>The loop, line by line, with a float16 drill <span class="mute">(measured)</span></summary><div class="b">
-<div class="code">model.train()
-opt = torch.optim.AdamW(groups, lr=6e-4, betas=(0.9, 0.95), weight_decay=0.1, fused=True)
-scaler = torch.amp.GradScaler("cuda", enabled=(amp_dtype == torch.float16))   # only float16 needs it
-for step in range(steps):
-    for micro in range(accum):                                   # gradient accumulation
-        x, y = get_batch(cfg, step * accum + micro, device)      # batch k is the same on every run
-        with torch.autocast(device_type, dtype=amp_dtype):        # bf16 or fp16 for chosen ops
-            _, loss = model(x, y)
-        scaler.scale(loss / accum).backward()                    # .grad adds up across micro-batches
-    scaler.unscale_(opt)                                         # clip the true gradient, not the scaled one
-    total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-    scaler.step(opt)                                             # skipped if any gradient is inf or NaN
-    scaler.update()
-    opt.zero_grad(set_to_none=True)                              # free the gradients</div>
-<p>Each line, with what was measured on the running example:</p>
-<ul class="tight" id="tda-loop"></ul>
-<p class="small">Measured: four micro-batches of 2 with each loss divided by 4 gave the same gradient as one batch of 8 (norm 11.1032); without the division the norm was 44.41, exactly 4.00 times too large. <code>clip_grad_norm_</code> returned the norm before clipping (11.1032 at step 0). <code>zero_grad</code> freed 12,747,776 bytes of gradients.</p>
-<div class="pr" data-pr><div class="q">Predict: of the running example's 3,186,944 gradient values at step 0, how many would be flushed to zero if stored in float16 without a scaler?</div>
-<div class="opts"><button>None: the gradients are not that small</button><button data-ok>About 1,600</button><button>About 400,000</button></div>
-<div class="ans" hidden>1,636 (measured on the fp32 gradients of step 0) are below 2<sup>&minus;24</sup>, float16's smallest subnormal, so they would round to 0 or to that one value; 436,592 are below the smallest normal 2<sup>&minus;14</sup> and lose precision. Multiplied by 65,536 those counts fall to 58 and 1,031, while the largest gradient becomes 33,812, still under float16's maximum of 65,504. bfloat16 has float32's exponent range, so none of this happens and no scaler is needed.</div></div>
-</div></details>
-<details class="dp"><summary>Determinism and seeds <span class="mute">(measured)</span></summary><div class="b">
-<div id="tda-det"></div>
-<p class="small">In short: CPU with a fixed thread count was bit-for-bit repeatable; 1 against 4 threads differed in the last bits (max parameter difference 1.46e-06); MPS was not bit-repeatable even with <code>use_deterministic_algorithms(True)</code>, which raised nothing.</p>
-</div></details>
-<details class="dp"><summary>DataLoader workers, seeds and pin_memory <span class="mute">(measured)</span></summary><div class="b">
-<div id="tda-dl"></div>
-<p class="small">In short: workers on macOS start with <code>spawn</code>; each worker seeds torch, <code>random</code> and NumPy; in the main process <code>torch.manual_seed</code> does not seed Python's <code>random</code> or NumPy.</p>
-</div></details>
+<p><code>nn.Module</code> adds bookkeeping, not a new machine: a parameter is a leaf tensor with <code>requires_grad=True</code> (an <code>AccumulateGrad</code> node waits for it), a <code>state_dict</code> is names over storages, and a module's backward hooks are autograd hooks on its outputs (section 3's hooks block). A tied weight is one storage under two names (section 1), so when you load an untied checkpoint (a model trained without tying) into a tied architecture, both names copy into that one storage and the later one silently wins. The modules, saving and loading, the training loop (accumulation, clipping, the GradScaler), determinism and DataLoader seeding, all measured on this running example, are taught on <a href="https://app.notion.com/p/3c65c17b0d0d810d9e1fdf9ec942c20d" target="_blank" rel="noopener noreferrer">Making training fast</a>: Reading section 7 for the loop and the module, section 6 for the GradScaler, section 4's closed block for workers and seeds.</p>
 </section>
 
 <section id="rd-mis">
@@ -656,11 +605,9 @@ for step in range(steps):
 <tr><td>Autograd graph, saved tensors, engine order</td><td><b>Same graph and order for the same code</b>, with CUDA's own kernels (attention saves what the CUDA SDPA backend needs). The CUDA device thread runs the GPU part of backward, as MPS's did here.</td></tr>
 <tr><td>Per-call dispatch overhead in microseconds</td><td><b>Different numbers, same lesson:</b> on a GPU the overhead shows up as gaps between short kernels. See <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU</a>.</td></tr>
 <tr><td>Pinned memory: no effect on this Mac's unified memory</td><td><b>Matters:</b> pinned host buffers let host-to-device copies run asynchronously.</td></tr>
-<tr><td>Determinism: CPU repeatable, MPS not</td><td>Deterministic mode exists and raises on ops without a deterministic kernel; not run here.</td></tr>
-<tr><td>float16 gradient underflow counts</td><td><b>Same arithmetic</b> (the counts are properties of the gradients, not the device).</td></tr>
 </tbody></table></div>
 </div></details>
-<details class="dp"><summary>Common mistakes, each with the section that shows it <span class="mute">(13)</span></summary><div class="b">
+<details class="dp"><summary>Common mistakes, each with the section that shows it <span class="mute">(8)</span></summary><div class="b">
 <ul class="tight">
 <li><b>Assuming <code>.view()</code> after a transpose or permute will work.</b> It fails whenever the strides cannot describe the new shape; <code>.reshape()</code> works and may copy (1).</li>
 <li><b>Writing in place into something backward needs:</b> <code>nn.ReLU(inplace=True)</code> after a sigmoid, <code>x += ...</code> on a saved activation, an optimiser step or EMA update between forward and backward. The version check catches it: "modified by an inplace operation" (3.3).</li>
@@ -668,16 +615,11 @@ for step in range(steps):
 <li><b>Thinking <code>no_grad</code> stops version counting, or that it removes keys.</b> It only tells the autograd kernel not to record; in-place writes still bump counters and the autograd key still runs (2.2, 3.3).</li>
 <li><b>Returning a tensor made under <code>inference_mode</code> into training code.</b> "Inference tensors cannot be saved for backward" as soon as an op needs to save it; clone it first or use no_grad (3.5).</li>
 <li><b>Calling <code>checkpoint</code> without <code>use_reentrant</code>.</b> At 2.14.1 it still means the reentrant variant: no gradient when no input requires grad, no <code>torch.autograd.grad</code>, full recompute (3.6).</li>
-<li><b>Ignoring <code>load_state_dict(strict=False)</code>'s return value.</b> Missing keys keep their random initialisation silently (4).</li>
-<li><b>Forgetting tied weights when saving, loading or materialising.</b> safetensors refuses shared tensors, two values loaded under the two names means the last wins, and <code>to_empty</code> unties them (4, 2.5).</li>
-<li><b>Accumulating gradients without dividing the loss.</b> The gradient comes out exactly the number of micro-batches times too large (4).</li>
-<li><b>Clipping before unscaling with a GradScaler.</b> You clip the scaled gradient (65,536 times too large at the default scale) and the threshold means nothing. Call <code>scaler.unscale_(opt)</code> first.</li>
-<li><b>Assuming <code>torch.manual_seed</code> seeds everything.</b> It does not seed Python's <code>random</code> or NumPy in the main process (4); DataLoader workers seed all three for you.</li>
 <li><b>Expecting autocast to make the model bfloat16.</b> Only the listed ops run in the lower dtype; norms, adds and the loss stay float32, and the weights are re-cast every forward (2.4).</li>
 <li><b>A custom op without an autograd registration.</b> The autograd fallback lets backward run with only a warning, and the gradient is wrong (2.3).</li>
 </ul>
 </div></details>
-<details class="dp"><summary>Interview rehearsal: twelve questions with short answers <span class="mute">(optional)</span></summary><div class="b">
+<details class="dp"><summary>Interview rehearsal: ten questions with short answers <span class="mute">(optional)</span></summary><div class="b">
 <details class="qa"><summary>What is the difference between a tensor and a storage? When do two tensors share memory?</summary><div>The storage is the bytes on a device; the tensor is sizes, strides, offset and dtype over it. Views (slicing, transpose, view, expand, split) share storage; compare <code>untyped_storage().data_ptr()</code>. flip, advanced indexing and contiguous() on a non-contiguous tensor copy.</div></details>
 <details class="qa"><summary>Why can <code>expand</code> make a 1,000 &times; 1,000 tensor from 1,000 numbers?</summary><div>Stride 0 on the expanded dimension: every row reads the same memory. Writing into it in place is an error for that reason.</div></details>
 <details class="qa"><summary>Walk through what happens in <code>torch.mm(x, w)</code> with w requiring grad, under autocast.</summary><div>Key set = keys of x and w, plus the thread's included set, minus excluded. AutocastCPU runs first (autocast removed its exclusion) and casts both to bf16, then calls mm again with Autocast excluded; AutogradCPU records MmBackward0 saving both inputs and redispatches below autograd; ADInplaceOrView is a fallthrough for mm; the CPU kernel computes. Measured: 2 _to_copy calls and a bf16 mm (section 2.6's aten-call explorer).</div></details>
@@ -687,8 +629,6 @@ for step in range(steps):
 <details class="qa"><summary>How does PyTorch detect "modified by an inplace operation"?</summary><div>A version counter per storage, shared by views, bumped by every in-place op (ADInplaceOrView kernels); saved tensors record the version at save time and compare at unpack. It is skipped for .data writes and when saved-tensor hooks are installed.</div></details>
 <details class="qa"><summary>What does create_graph=True cost and when do you need it?</summary><div>It records backward as a graph so you can differentiate the gradient (penalties, Hessian-vector products, meta-learning). It keeps more saved tensors and more ops: 15 against 50 aten calls on a small MLP here.</div></details>
 <details class="qa"><summary>Reentrant or non-reentrant checkpointing?</summary><div>Non-reentrant: works when inputs do not require grad, works with autograd.grad and keyword args, stops recomputing early (12 of 16 matmuls here). Reentrant is the old default, still the fallback at 2.14.1 if you pass nothing.</div></details>
-<details class="qa"><summary>Why does only float16 need a GradScaler?</summary><div>float16 has 5 exponent bits: gradients below about 6e-8 vanish (1,636 of 3.19 million here) and the maximum is 65,504. bfloat16 has float32's 8 exponent bits, so its range is the same as float32's.</div></details>
-<details class="qa"><summary>Your parameter count from the state_dict is higher than from parameters(). Why?</summary><div>Tied (shared) parameters appear once per name in the state_dict: 3,197,952 against 3,186,944 elements here.</div></details>
 <details class="qa"><summary>How would you see every operator a model calls, and what can fool you?</summary><div>A TorchDispatchMode logging func. What it sees depends on grad mode: in training F.linear arrives decomposed (t + addmm), under inference_mode as linear. The profiler sees still more (calls inside kernels).</div></details>
 </div></details>
 </section>
@@ -737,30 +677,30 @@ for step in range(steps):
 <p class="lead">This page's tabs, the parent topic and its tabs, the sibling pages, the knowledge base pages next door, and the best outside resources, each with an approximate time. Links checked on 2026-10-13.</p>
 <h3>This page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>A tensor as a header over bytes, the dispatcher's walk down its keys (autocast, autograd, view bookkeeping, Python, the device kernel), the autograd graph built in forward and run by the engine, version counters, custom Functions, checkpointing; modules and the loop in closed blocks. <span class="rt">24 min, plus 37 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>A tensor as a header over bytes, the dispatcher's walk down its keys (autocast, autograd, view bookkeeping, Python, the device kernel), the autograd graph built in forward and run by the engine, version counters, custom Functions, checkpointing; a pointer to where modules and the loop are taught. <span class="rt">24 min, plus 29 in closed details</span></p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-tda-str">Stride explorer</a></div><p>36 recorded tensors (2-D, 3-D, 4-D and channels_last) plus 8 from the running example's attention with every element's storage address, plus your own strides. <span class="rt">10 to 15 min</span></p></div>
 </div>
 <h3>The parent topic and its tabs</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Topic: pytorch-ecosystem</a></div><p>The map: sections 1 to 4 of its Reading tab are the intuition this page deepens. <span class="rt">40 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Inside one step (tab of the root)</a></div><p>All 923 calls of one real training step with routes, the full graph, memory over time, checkpointing and no_grad on the whole step. <span class="rt">30 to 45 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Compile lab and Ecosystem map (tabs of the root)</a></div><p>What torch.compile does to the same model; the same three losses through four frameworks. <span class="rt">30 min each</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Topic: pytorch-ecosystem</a></div><p>The map: sections 1 to 4 of its Reading tab are the intuition this page deepens. <span class="rt">26 min, plus 15 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Inside one step (tab of the root)</a></div><p>All 923 calls of one real training step with routes, the full graph, memory over time, checkpointing and no_grad on the whole step. <span class="rt">12 min, plus 4 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Compile lab and Ecosystem map (tabs of the root)</a></div><p>What torch.compile does to the same model; the same three losses through four frameworks. <span class="rt">19 min, plus 9 in closed details; 14 min, plus 1 in closed details</span></p></div>
 </div>
 <h3>Sibling pages</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8123a232d75bd7339ecb" target="_blank" rel="noopener noreferrer">torch.compile from the user's side</a></div><p>Dynamo, guards, graph breaks, AOTAutograd (which uses the functionalization and fake tensors of section 2), Inductor, export. <span class="rt">32 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f85c17b0d0d8158a7addcd3d601d72a" target="_blank" rel="noopener noreferrer">Extending PyTorch</a></div><p>custom_op, register_fake, register_autograd, tensor subclasses and dispatch modes: building on the dispatcher. <span class="rt">33 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d810d9e1fdf9ec942c20d" target="_blank" rel="noopener noreferrer">Making training fast</a></div><p>Profiler, memory snapshot, attention backends, selective checkpointing, torchao. <span class="rt">26 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a></div><p>c10d, DDP, FSDP2, DTensor (a tensor subclass at the Python key), TP, PP, DCP. <span class="rt">30 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81019d98f99978dc26f6" target="_blank" rel="noopener noreferrer">Libraries on top of PyTorch</a></div><p>The loops frameworks run for you, and their defaults. <span class="rt">29 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8123a232d75bd7339ecb" target="_blank" rel="noopener noreferrer">torch.compile from the user's side</a></div><p>Dynamo, guards, graph breaks, AOTAutograd (which uses the functionalization and fake tensors of section 2), Inductor, export. <span class="rt">32 min, plus 14 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f85c17b0d0d8158a7addcd3d601d72a" target="_blank" rel="noopener noreferrer">Extending PyTorch</a></div><p>custom_op, register_fake, register_autograd, tensor subclasses and dispatch modes: building on the dispatcher. <span class="rt">31 min, plus 13 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d810d9e1fdf9ec942c20d" target="_blank" rel="noopener noreferrer">Making training fast</a></div><p>Profiler, memory snapshot, attention backends, selective checkpointing, torchao; and nn.Module, state_dict, the training loop, determinism and DataLoader seeding, measured on the running example (its section 7). <span class="rt">32 min, plus 19 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a></div><p>c10d, DDP, FSDP2, DTensor (a tensor subclass at the Python key), TP, PP, DCP. <span class="rt">30 min, plus 19 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81019d98f99978dc26f6" target="_blank" rel="noopener noreferrer">Libraries on top of PyTorch</a></div><p>The loops frameworks run for you, and their defaults. <span class="rt">23 min, plus 12 in closed details</span></p></div>
 </div>
 <h3>Next door in the knowledge base</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817080bbc90954681d09" target="_blank" rel="noopener noreferrer">Optimisers</a></div><p>What AdamW does with the gradients this page computes. <span class="rt">35 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a></div><p>float16, bfloat16, FP8 and integer formats in depth. <span class="rt">23 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a></div><p>PyTorch's caching allocator: why freed activation memory stays reserved on CUDA. <span class="rt">34 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU</a></div><p>Pinned memory, async copies and launch overhead on NVIDIA GPUs. <span class="rt">36 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a></div><p>Activation memory formulas for real models, and what to do when one GPU is not enough. <span class="rt">22 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a></div><p>float16, bfloat16, FP8 and integer formats in depth. <span class="rt">25 min, plus 10 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a></div><p>PyTorch's caching allocator: why freed activation memory stays reserved on CUDA.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU</a></div><p>Pinned memory, async copies and launch overhead on NVIDIA GPUs. <span class="rt">30 min, plus 15 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a></div><p>Activation memory formulas for real models, and what to do when one GPU is not enough. <span class="rt">27 min, plus 5 in closed details</span></p></div>
 </div>
 <h3>Outside resources</h3>
 <div class="grid">
@@ -1058,7 +998,7 @@ $('tda-howto-code').textContent=D.how.code;$('tda-howto-out').textContent=D.how.
 })();
 </script>
 <script>/* 25_tda_rd_ag.js */
-// ---- Reading sections 3 and 4 (autograd, modules and the loop) ----
+// ---- Reading section 3 (autograd); the modules-and-loop tables moved to Making training fast ----
 (function(){
 const D=window.TDA, A=D.ag, G=D.eng, M=D.mod, E=RD.esc, U=window.TDAU, $=id=>document.getElementById(id);
 const fl=a=>'['+a.map(v=>+(+v).toFixed(4)).join(', ')+']';
@@ -1070,7 +1010,7 @@ const fl=a=>'['+a.map(v=>+(+v).toFixed(4)).join(', ')+']';
   const rows=n.filter(x=>x.saved.length).map(x=>{const own=x.saved.filter(s=>!s.is_param||s.is_param==='x (input)');return ['<code>'+x.name+'</code>',x.saved.map(s=>s.name+(s.is_param&&s.is_param!=='x (input)'?' <span class="mute">(weight)</span>':'')).join(', '),U.fmt(own.reduce((a,s)=>a+s.bytes,0))]});
   $('tda-gsaved').innerHTML=U.table(['node','saved','bytes (activations; shared storages counted per node)'],rows);})();
 // 3.4 version summary
-(function(){const L=A.version_lab;$('tda-versum').innerHTML=U.table(['case','outcome'],L.map(c=>[E(c.title),c.status==='error'?'<span class="tda-err">'+E(c.error.text.split('. Hint')[0].slice(0,140))+(c.error.text.length>140?'&hellip;':'')+'</span>':'<b style="color:var(--good)">runs</b>'+(c.grad_x?', x.grad = '+fl(c.grad_x):'')]))+'<p class="small mute">Each snippet run for real with torch 2.14.1 (src/exp/autograd_lab.py); step through any of them in the Version-counter lab.</p>';
+(function(){const L=A.version_lab;$('tda-versum').innerHTML=U.table(['case','outcome'],L.map(c=>[E(c.title),c.status==='error'?'<span class="tda-err">'+E(c.error.text.split('. Hint')[0].slice(0,140))+(c.error.text.length>140?'&hellip;':'')+'</span>':'<b style="color:var(--good)">runs</b>'+(c.grad_x?', x.grad = '+fl(c.grad_x):'')]))+'<p class="small mute">Each snippet run for real with torch 2.14.1 (src/exp/autograd_lab.py); step through any of them in the stepper above.</p>';
 })();
 // 3.6
 (function(){const c=A.custom_function;$('tda-cf-out').textContent='gradcheck: '+c.gradcheck_good+'   gradgradcheck: '+c.gradgradcheck_good+'   grad_fn: '+c.grad_fn+'\nmax |gradient - autograd through F.gelu(approximate="tanh")| = '+c.matches_builtin.toExponential(2);})();
@@ -1088,48 +1028,6 @@ $('tda-gm').innerHTML=U.table(['context','y.requires_grad','y.grad_fn','inferenc
   const ck=A.checkpoint_variants;
   $('tda-ck').innerHTML=U.table(['variant','live after forward','forward calls','backward calls','addmm in backward','gradients vs plain'],['plain','non-reentrant','reentrant','unspecified'].map(k=>{const r=ck[k];return ['<code>'+(k==='unspecified'?'checkpoint(b, h)':k==='plain'?'b(h)':'use_reentrant='+(k==='reentrant'?'True':'False'))+'</code>',U.mb(r.live_after_forward),r.forward_calls,r.backward_calls,r.addmm_in_backward,k==='plain'?'reference':'max diff '+r.max_grad_diff]}));
 })();
-// 4.1
-(function(){const r=M.registered;$('tda-reg').innerHTML=U.table(['query','result'],[['<code>len(list(m.parameters()))</code>',r.parameters],['<code>len(list(m.named_parameters(remove_duplicate=False)))</code>',r.named_parameters_remove_duplicate_false],['<code>len(m.state_dict())</code>',r.state_dict_entries],['elements: parameters / state_dict',U.fmt(r.numel_parameters)+' / '+U.fmt(r.numel_state_dict)],['<code>m.head.weight is m.tok.weight</code>',r.tied_same_object],['modules in the tree',r.modules],['buffers of the attn="manual" variant',r.manual_buffers.length+' causal masks, persistent=False: in state_dict? '+r.manual_state_dict_has_mask]]);
-  const s=M.saving,l=M.load;
-  $('tda-tie').innerHTML=U.table(['operation','what happened'],[
-   ['<code>torch.save(m.state_dict())</code>',U.fmt(s.torch_save_bytes)+' bytes on disk for '+U.fmt(s.param_bytes)+' bytes of parameters: the shared storage is written once; after <code>torch.load</code> the two names still share it ('+s.loaded_shares+')'],
-   ['<code>safetensors.torch.save_file(m.state_dict(), ...)</code>','<span class="tda-err">'+E(s.safetensors_save_file.split(': [')[0])+'</span> (safetensors '+s.safetensors_version+')'],
-   ['<code>safetensors.torch.save_model(m, ...)</code>',s.safetensors_save_model_keys+' tensors written, dropped: '+s.safetensors_dropped.join(', ')+'; <code>load_model</code> restores the tie ('+s.safetensors_load_model_tied+') and the values ('+s.safetensors_load_model_equal+')'],
-   ['<code>load_state_dict</code> with different values under the two names','the later name wins: tok.weight[0, 0] = '+l.tied_load_value+'; still tied: '+l.tied_still_tied],
-   ['<code>to_empty</code> after building on meta','tie broken (section 2.5)']]);
-  $('tda-ld-err').textContent=l.strict_error.join('\n');
-  $('tda-ld-ret').textContent='_IncompatibleKeys(missing_keys='+JSON.stringify(l.strict_false_returns.missing_keys)+', unexpected_keys='+JSON.stringify(l.strict_false_returns.unexpected_keys)+')';
-})();
-// 4.4 the loop
-(function(){const z=M.zero_grad,a=M.accumulation,p=M.amp,sc=p.fp16_scaler_cpu;
-  const it=[
-   '<b><code>model.train()</code></b> flips <code>self.training</code> on every sub-module; dropout and batch norm read it. It does not touch gradients.',
-   '<b>Gradient accumulation.</b> Four micro-batches of 2 with each loss divided by 4 gave the same gradient as one batch of 8 (max difference '+a.divided.max_abs_diff_vs_full.toExponential(1)+', norm '+a.divided.norm.toFixed(4)+' against '+a.full_norm.toFixed(4)+'). Without the division the gradient norm was '+a.not_divided.norm.toFixed(2)+': exactly '+a.not_divided.ratio.toFixed(2)+' times too large <span class="meas">measured</span>.',
-   '<b>Clipping.</b> <code>clip_grad_norm_</code> returns the norm <i>before</i> clipping ('+a.clip.returned_total_norm.toFixed(4)+' at step 0) and scales every gradient so the total becomes the threshold ('+a.clip.norm_after.toFixed(6)+' after clipping to '+a.clip.max_norm+'). Log the returned value: it is the cheapest training-health signal you have. Under a GradScaler, unscale first or you clip the scaled gradient.',
-   '<b>Autocast bfloat16.</b> On the CPU the step ran with '+p.bf16_cpu.logits_dtype+' logits, a '+p.bf16_cpu.param_dtype+' loss and '+p.bf16_cpu.grad_dtype+' gradients on '+p.bf16_cpu.param_dtype+' parameters: autocast changes the compute, not the weights or the optimizer.',
-   '<b>float16 and the GradScaler.</b> float16 has 5 exponent bits: below 2<sup>&minus;14</sup> it loses precision and below 2<sup>&minus;24</sup> it cannot represent a value at all. The scaler multiplies the loss by a scale (default 2<sup>16</sup> = 65,536), so every gradient is 65,536 times larger while in float16, then divides it out before the optimizer step; if any gradient overflowed to inf or NaN it skips the step and halves the scale, and every 2,000 clean steps it doubles it. Four steps of the running example with float16 autocast on the CPU: losses '+sc.map(s=>s.loss).join(', ')+', scale '+sc[sc.length-1].scale_after+' throughout (no overflow, and far from 2,000 steps).',
-   '<b><code>zero_grad(set_to_none=True)</code></b> (the default) sets every <code>.grad</code> to None ('+z.default_set_to_none+'), freeing '+U.fmt(z.grad_bytes)+' bytes here until the next backward allocates them again; <code>set_to_none=False</code> fills them with zeros (all zero: '+z.set_to_none_false_all_zero+'). Code that reads <code>p.grad</code> after zero_grad must handle None.'];
-  const gs=D.src.scaler;it.splice(5,0,'<b>Scaler defaults</b> from the source: <code>'+E(gs.text.replace(/\s+/g,' ').trim())+'</code> (<a href="'+gs.url+'" target="_blank" rel="noopener noreferrer">grad_scaler.py L'+gs.start+'&ndash;'+gs.end+'</a>).');
-  $('tda-loop').innerHTML=it.map(x=>'<li>'+x+'</li>').join('');
-})();
-// 4.5 determinism
-(function(){const d=M.determinism;
-  $('tda-det').innerHTML='<p>Three training steps of the running example, run several ways <span class="meas">measured on Apple M1 Pro</span>:</p>'+U.table(['comparison','result'],[
-   ['CPU, 4 threads, run twice','bitwise identical: '+d.cpu_4threads_twice_bitwise_equal],
-   ['CPU, 1 thread against 4 threads','max parameter difference '+d.cpu_1_vs_4_threads_max_param_diff.toExponential(2)+'; step-1 loss '+d.cpu_1_vs_4_threads_losses[1][1].toFixed(7)+' against '+d.cpu_1_vs_4_threads_losses[0][1].toFixed(7)],
-   ['CPU with torch.use_deterministic_algorithms(True)','identical to without: '+d.cpu_deterministic_flag_equal],
-   ['MPS, run twice','bitwise identical: '+d.mps_twice_bitwise_equal+' (max difference '+d.mps_twice_max_param_diff.toExponential(2)+'); 5 more runs equal to the first: '+d.mps_5_more_runs_equal_to_first],
-   ['MPS with use_deterministic_algorithms(True), twice','bitwise identical: '+d.mps_deterministic_flag_twice_bitwise_equal+' (no error raised)'],
-   ['MPS against CPU','max parameter difference '+d.mps_vs_cpu_max_param_diff.toExponential(2)]])+
-   '<p>What this says: on the CPU with a fixed thread count the run is bit-for-bit repeatable, and the thread count changes the order of floating-point sums, hence the last bits. On MPS this run was not bit-repeatable even with the deterministic flag, which raised nothing. On CUDA, <code>torch.use_deterministic_algorithms(True)</code> swaps in deterministic kernels where they exist and raises a <code>RuntimeError</code> for operations without one (the 2.14 docs list, for example, <code>torch.histc</code> on CUDA), and <code>torch.backends.cudnn.benchmark = False</code> stops cuDNN from picking algorithms by timing (<a href="https://docs.pytorch.org/docs/2.14/notes/randomness.html" target="_blank" rel="noopener noreferrer">Reproducibility notes, 2.14</a>; <a href="https://docs.pytorch.org/docs/2.14/generated/torch.use_deterministic_algorithms.html" target="_blank" rel="noopener noreferrer">use_deterministic_algorithms</a>); not run here. Seed with <code>torch.manual_seed</code> and make the data order a function of the step, as the running example\'s <code>get_batch(cfg, step)</code> does: that is what made its first three losses identical across a plain loop and three frameworks on the root\'s <a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Ecosystem map</a> tab.</p>';})();
-// 4.6 dataloader
-(function(){const d=D.dl, w=D.src.worker_seed;
-  $('tda-dl').innerHTML='<p>Workers are separate processes; on macOS they start with <code>'+d.start_method+'</code> (a fresh interpreter that re-imports your script, so the training code must sit under <code>if __name__ == "__main__":</code>). Each worker seeds Python\'s <code>random</code>, torch and NumPy from a base seed drawn from the parent\'s torch generator plus its worker id:</p><div class="tda-q" data-q="worker_seed"></div>'+
-  U.table(['item','worker','torch.rand','random.random','np.random.rand'],d.two_workers.map(r=>[r[0],r[1],r[2],r[3],r[4]]))+
-  '<p>Two workers, after <code>torch.manual_seed(0)</code>: every RNG differs between workers, and the run repeats exactly when the parent is reseeded (same values on a second pass: '+d.same_seed_same_values+'). In the main process (<code>num_workers=0</code>) it is different: <code>torch.manual_seed</code> does not seed Python\'s <code>random</code> or NumPy. Two separate runs gave the same torch values ('+d.no_workers_two_processes[0].map(r=>r[2]).join(', ')+') but different <code>random.random()</code> values ('+d.no_workers_two_processes[0].map(r=>r[3]).join(', ')+' then '+d.no_workers_two_processes[1].map(r=>r[3]).join(', ')+') <span class="meas">measured</span>. Seed all three yourself, or pass a <code>generator</code> and a <code>worker_init_fn</code> as the reproducibility notes show.</p>'+
-  '<p><code>pin_memory=True</code> makes the loader copy each batch into pinned host memory in a background thread, so the <code>.to("cuda", non_blocking=True)</code> that follows can overlap with compute. On this Mac it warned and did nothing (section 1, devices block). Defaults worth knowing at 2.14.1: <code>prefetch_factor</code> 2 batches per worker when <code>num_workers &gt; 0</code> (dataloader.py L293), workers restarted every epoch unless <code>persistent_workers=True</code>. Finding a data bottleneck is on the sibling <a href="https://app.notion.com/p/3c65c17b0d0d810d9e1fdf9ec942c20d" target="_blank" rel="noopener noreferrer">Making training fast</a>.</p>';
-  // the quote div was inserted after the global quote pass: render it now
-  const el=document.querySelector('#tda-dl .tda-q');el.innerHTML='<div class="cap">'+E(w.caption)+' <a href="'+w.url+'" target="_blank" rel="noopener noreferrer">worker.py L'+w.start+'&ndash;'+w.end+' @ v2.14.1</a></div><pre>'+E(w.text)+'</pre>';})();
 })();
 </script>
 <script>/* 26_tda_rd_eng.js */

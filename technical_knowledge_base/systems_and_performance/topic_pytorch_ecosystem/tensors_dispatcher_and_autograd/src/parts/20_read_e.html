@@ -1,57 +1,6 @@
 <section id="rd-s4">
 <h2>4. Modules and the loop sit on top</h2>
-<p><code>nn.Module</code> adds bookkeeping, not a new machine: a parameter is a leaf tensor with <code>requires_grad=True</code> (an <code>AccumulateGrad</code> node waits for it), and a <code>state_dict</code> is names over storages. The consequences follow from sections 1 and 3. A tied weight is one Parameter under two names, so <code>parameters()</code> counts 52 tensors and the <code>state_dict</code> 53 (3,197,952 elements against 3,186,944); safetensors refuses to save the shared storage, two different values loaded under the two names leave the later one, and <code>to_empty</code> unties them (2.5). In the loop, gradients accumulate into <code>.grad</code> across backwards, so micro-batch losses must be divided; a GradScaler's scaled gradients must be unscaled before clipping. The measured details are below, for when you save, load or write a loop.</p>
-<details class="dp"><summary>What a Module registers, and the tied weight one level deeper <span class="mute">(measured)</span></summary><div class="b">
-<p>An <code>nn.Module</code> is a Python object whose attribute assignments are intercepted: assigning an <code>nn.Parameter</code> registers a <dfn>parameter</dfn> (a leaf tensor with <code>requires_grad=True</code> that optimisers will update), assigning a module registers a <dfn>sub-module</dfn>, and <code>register_buffer</code> registers a <dfn>buffer</dfn> (state that is saved but not trained, such as running statistics; <code>persistent=False</code> keeps it out of the state_dict). Everything else (<code>parameters()</code>, <code>.to()</code>, <code>state_dict()</code>, <code>train()</code>/<code>eval()</code>) walks that tree. On the running example:</p>
-<div id="tda-reg" class="tw"></div>
-<p><code>head.weight</code> is <code>tok.weight</code>: one Parameter reachable under two names. <code>parameters()</code> de-duplicates by object, the state_dict does not, so every tool that walks names sees two tensors sharing one storage. Measured consequences:</p>
-<div id="tda-tie" class="tw"></div>
-<p class="small">safetensors: "Some tensors share memory, this will lead to duplicate memory on disk and potential differences when loading them again"; <code>save_model</code> writes 52 tensors and drops <code>tok.weight</code>, and <code>load_model</code> restores the tie.</p>
-<div class="pr" data-pr><div class="q">Predict: how many bytes does the running example's <code>state_dict</code> hold, counting each entry's tensor?</div>
-<div class="opts"><button>12,747,776 (3,186,944 &times; 4)</button><button data-ok>12,791,808</button><button>25,495,552</button></div>
-<div class="ans" hidden>12,791,808 <span class="der">derived</span>: the state_dict has 53 entries totalling 3,197,952 elements, because the tied <code>tok.weight</code> and <code>head.weight</code> (43 &times; 256 = 11,008 elements) appear under both names. They are one storage, so the real memory is 12,747,776 bytes; code that sums a state_dict overcounts.</div></div>
-</div></details>
-<details class="dp"><summary>Loading: strict, missing and unexpected keys <span class="mute">(measured)</span></summary><div class="b">
-<p><code>load_state_dict</code> matches by name. With the default <code>strict=True</code>, a renamed key (here <code>blocks.0.ln1.weight</code> saved as <code>blocks.0.ln_1.weight</code>) raised:</p>
-<div class="tda-out tda-err" id="tda-ld-err"></div>
-<p>With <code>strict=False</code> nothing is raised and the call returns <code><span id="tda-ld-ret"></span></code>; the missing parameter silently keeps its initial value. Check the return value, always. A shape mismatch is an error even with <code>strict=False</code>: <span class="tda-err">"size mismatch for blocks.0.mlp.fc.weight: copying a param with shape torch.Size([512, 256]) from checkpoint, the shape in current model is torch.Size([1024, 256])."</span></p>
-<div class="pr" data-pr><div class="q">Predict: you load a state_dict whose <code>tok.weight</code> is all 1.0 and whose <code>head.weight</code> is all 2.0 into the tied model. What is <code>model.tok.weight[0, 0]</code> afterwards?</div>
-<div class="opts"><button>1.0</button><button data-ok>2.0</button><button>An error: two values for one tensor</button></div>
-<div class="ans" hidden>2.0 (measured). Both names copy into the same storage, in state_dict order, and <code>head.weight</code> comes after <code>tok.weight</code>, so the last one wins and no warning is given. This happens when you load an untied checkpoint (a model trained without tying) into a tied architecture.</div></div>
-</div></details>
-<details class="dp"><summary>Forward hooks <span class="mute">(measured)</span></summary><div class="b">
-<p><code>register_forward_pre_hook</code> sees a module's inputs before forward, <code>register_forward_hook</code> its inputs and output after; both may replace them. They are the standard way to read activations without editing the model: one hook per block of the running example, one batch, collected the output standard deviation per block, 0.0495, 0.0659, 0.0799 and 0.0924 <span class="meas">measured</span>, the residual stream growing block by block as expected at initialisation. Backward hooks on modules are in section 3's hooks block.</p>
-</div></details>
-<details class="dp"><summary>The loop, line by line, with a float16 drill <span class="mute">(measured)</span></summary><div class="b">
-<div class="code">model.train()
-opt = torch.optim.AdamW(groups, lr=6e-4, betas=(0.9, 0.95), weight_decay=0.1, fused=True)
-scaler = torch.amp.GradScaler("cuda", enabled=(amp_dtype == torch.float16))   # only float16 needs it
-for step in range(steps):
-    for micro in range(accum):                                   # gradient accumulation
-        x, y = get_batch(cfg, step * accum + micro, device)      # batch k is the same on every run
-        with torch.autocast(device_type, dtype=amp_dtype):        # bf16 or fp16 for chosen ops
-            _, loss = model(x, y)
-        scaler.scale(loss / accum).backward()                    # .grad adds up across micro-batches
-    scaler.unscale_(opt)                                         # clip the true gradient, not the scaled one
-    total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-    scaler.step(opt)                                             # skipped if any gradient is inf or NaN
-    scaler.update()
-    opt.zero_grad(set_to_none=True)                              # free the gradients</div>
-<p>Each line, with what was measured on the running example:</p>
-<ul class="tight" id="tda-loop"></ul>
-<p class="small">Measured: four micro-batches of 2 with each loss divided by 4 gave the same gradient as one batch of 8 (norm 11.1032); without the division the norm was 44.41, exactly 4.00 times too large. <code>clip_grad_norm_</code> returned the norm before clipping (11.1032 at step 0). <code>zero_grad</code> freed 12,747,776 bytes of gradients.</p>
-<div class="pr" data-pr><div class="q">Predict: of the running example's 3,186,944 gradient values at step 0, how many would be flushed to zero if stored in float16 without a scaler?</div>
-<div class="opts"><button>None: the gradients are not that small</button><button data-ok>About 1,600</button><button>About 400,000</button></div>
-<div class="ans" hidden>1,636 (measured on the fp32 gradients of step 0) are below 2<sup>&minus;24</sup>, float16's smallest subnormal, so they would round to 0 or to that one value; 436,592 are below the smallest normal 2<sup>&minus;14</sup> and lose precision. Multiplied by 65,536 those counts fall to 58 and 1,031, while the largest gradient becomes 33,812, still under float16's maximum of 65,504. bfloat16 has float32's exponent range, so none of this happens and no scaler is needed.</div></div>
-</div></details>
-<details class="dp"><summary>Determinism and seeds <span class="mute">(measured)</span></summary><div class="b">
-<div id="tda-det"></div>
-<p class="small">In short: CPU with a fixed thread count was bit-for-bit repeatable; 1 against 4 threads differed in the last bits (max parameter difference 1.46e-06); MPS was not bit-repeatable even with <code>use_deterministic_algorithms(True)</code>, which raised nothing.</p>
-</div></details>
-<details class="dp"><summary>DataLoader workers, seeds and pin_memory <span class="mute">(measured)</span></summary><div class="b">
-<div id="tda-dl"></div>
-<p class="small">In short: workers on macOS start with <code>spawn</code>; each worker seeds torch, <code>random</code> and NumPy; in the main process <code>torch.manual_seed</code> does not seed Python's <code>random</code> or NumPy.</p>
-</div></details>
+<p><code>nn.Module</code> adds bookkeeping, not a new machine: a parameter is a leaf tensor with <code>requires_grad=True</code> (an <code>AccumulateGrad</code> node waits for it), a <code>state_dict</code> is names over storages, and a module's backward hooks are autograd hooks on its outputs (section 3's hooks block). A tied weight is one storage under two names (section 1), so when you load an untied checkpoint (a model trained without tying) into a tied architecture, both names copy into that one storage and the later one silently wins. The modules, saving and loading, the training loop (accumulation, clipping, the GradScaler), determinism and DataLoader seeding, all measured on this running example, are taught on {{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}}: Reading section 7 for the loop and the module, section 6 for the GradScaler, section 4's closed block for workers and seeds.</p>
 </section>
 
 <section id="rd-mis">
@@ -65,11 +14,9 @@ for step in range(steps):
 <tr><td>Autograd graph, saved tensors, engine order</td><td><b>Same graph and order for the same code</b>, with CUDA's own kernels (attention saves what the CUDA SDPA backend needs). The CUDA device thread runs the GPU part of backward, as MPS's did here.</td></tr>
 <tr><td>Per-call dispatch overhead in microseconds</td><td><b>Different numbers, same lesson:</b> on a GPU the overhead shows up as gaps between short kernels. See {{Streams, CUDA graphs and multi-GPU|n:3f05c17b0d0d81b19a6acab65c370b75}}.</td></tr>
 <tr><td>Pinned memory: no effect on this Mac's unified memory</td><td><b>Matters:</b> pinned host buffers let host-to-device copies run asynchronously.</td></tr>
-<tr><td>Determinism: CPU repeatable, MPS not</td><td>Deterministic mode exists and raises on ops without a deterministic kernel; not run here.</td></tr>
-<tr><td>float16 gradient underflow counts</td><td><b>Same arithmetic</b> (the counts are properties of the gradients, not the device).</td></tr>
 </tbody></table></div>
 </div></details>
-<details class="dp"><summary>Common mistakes, each with the section that shows it <span class="mute">(13)</span></summary><div class="b">
+<details class="dp"><summary>Common mistakes, each with the section that shows it <span class="mute">(8)</span></summary><div class="b">
 <ul class="tight">
 <li><b>Assuming <code>.view()</code> after a transpose or permute will work.</b> It fails whenever the strides cannot describe the new shape; <code>.reshape()</code> works and may copy (1).</li>
 <li><b>Writing in place into something backward needs:</b> <code>nn.ReLU(inplace=True)</code> after a sigmoid, <code>x += ...</code> on a saved activation, an optimiser step or EMA update between forward and backward. The version check catches it: "modified by an inplace operation" (3.3).</li>
@@ -77,16 +24,11 @@ for step in range(steps):
 <li><b>Thinking <code>no_grad</code> stops version counting, or that it removes keys.</b> It only tells the autograd kernel not to record; in-place writes still bump counters and the autograd key still runs (2.2, 3.3).</li>
 <li><b>Returning a tensor made under <code>inference_mode</code> into training code.</b> "Inference tensors cannot be saved for backward" as soon as an op needs to save it; clone it first or use no_grad (3.5).</li>
 <li><b>Calling <code>checkpoint</code> without <code>use_reentrant</code>.</b> At 2.14.1 it still means the reentrant variant: no gradient when no input requires grad, no <code>torch.autograd.grad</code>, full recompute (3.6).</li>
-<li><b>Ignoring <code>load_state_dict(strict=False)</code>'s return value.</b> Missing keys keep their random initialisation silently (4).</li>
-<li><b>Forgetting tied weights when saving, loading or materialising.</b> safetensors refuses shared tensors, two values loaded under the two names means the last wins, and <code>to_empty</code> unties them (4, 2.5).</li>
-<li><b>Accumulating gradients without dividing the loss.</b> The gradient comes out exactly the number of micro-batches times too large (4).</li>
-<li><b>Clipping before unscaling with a GradScaler.</b> You clip the scaled gradient (65,536 times too large at the default scale) and the threshold means nothing. Call <code>scaler.unscale_(opt)</code> first.</li>
-<li><b>Assuming <code>torch.manual_seed</code> seeds everything.</b> It does not seed Python's <code>random</code> or NumPy in the main process (4); DataLoader workers seed all three for you.</li>
 <li><b>Expecting autocast to make the model bfloat16.</b> Only the listed ops run in the lower dtype; norms, adds and the loss stay float32, and the weights are re-cast every forward (2.4).</li>
 <li><b>A custom op without an autograd registration.</b> The autograd fallback lets backward run with only a warning, and the gradient is wrong (2.3).</li>
 </ul>
 </div></details>
-<details class="dp"><summary>Interview rehearsal: twelve questions with short answers <span class="mute">(optional)</span></summary><div class="b">
+<details class="dp"><summary>Interview rehearsal: ten questions with short answers <span class="mute">(optional)</span></summary><div class="b">
 <details class="qa"><summary>What is the difference between a tensor and a storage? When do two tensors share memory?</summary><div>The storage is the bytes on a device; the tensor is sizes, strides, offset and dtype over it. Views (slicing, transpose, view, expand, split) share storage; compare <code>untyped_storage().data_ptr()</code>. flip, advanced indexing and contiguous() on a non-contiguous tensor copy.</div></details>
 <details class="qa"><summary>Why can <code>expand</code> make a 1,000 &times; 1,000 tensor from 1,000 numbers?</summary><div>Stride 0 on the expanded dimension: every row reads the same memory. Writing into it in place is an error for that reason.</div></details>
 <details class="qa"><summary>Walk through what happens in <code>torch.mm(x, w)</code> with w requiring grad, under autocast.</summary><div>Key set = keys of x and w, plus the thread's included set, minus excluded. AutocastCPU runs first (autocast removed its exclusion) and casts both to bf16, then calls mm again with Autocast excluded; AutogradCPU records MmBackward0 saving both inputs and redispatches below autograd; ADInplaceOrView is a fallthrough for mm; the CPU kernel computes. Measured: 2 _to_copy calls and a bf16 mm (section 2.6's aten-call explorer).</div></details>
@@ -96,8 +38,6 @@ for step in range(steps):
 <details class="qa"><summary>How does PyTorch detect "modified by an inplace operation"?</summary><div>A version counter per storage, shared by views, bumped by every in-place op (ADInplaceOrView kernels); saved tensors record the version at save time and compare at unpack. It is skipped for .data writes and when saved-tensor hooks are installed.</div></details>
 <details class="qa"><summary>What does create_graph=True cost and when do you need it?</summary><div>It records backward as a graph so you can differentiate the gradient (penalties, Hessian-vector products, meta-learning). It keeps more saved tensors and more ops: 15 against 50 aten calls on a small MLP here.</div></details>
 <details class="qa"><summary>Reentrant or non-reentrant checkpointing?</summary><div>Non-reentrant: works when inputs do not require grad, works with autograd.grad and keyword args, stops recomputing early (12 of 16 matmuls here). Reentrant is the old default, still the fallback at 2.14.1 if you pass nothing.</div></details>
-<details class="qa"><summary>Why does only float16 need a GradScaler?</summary><div>float16 has 5 exponent bits: gradients below about 6e-8 vanish (1,636 of 3.19 million here) and the maximum is 65,504. bfloat16 has float32's 8 exponent bits, so its range is the same as float32's.</div></details>
-<details class="qa"><summary>Your parameter count from the state_dict is higher than from parameters(). Why?</summary><div>Tied (shared) parameters appear once per name in the state_dict: 3,197,952 against 3,186,944 elements here.</div></details>
 <details class="qa"><summary>How would you see every operator a model calls, and what can fool you?</summary><div>A TorchDispatchMode logging func. What it sees depends on grad mode: in training F.linear arrives decomposed (t + addmm), under inference_mode as linear. The profiler sees still more (calls inside kernels).</div></details>
 </div></details>
 </section>
