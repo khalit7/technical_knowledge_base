@@ -68,13 +68,13 @@
   function bank(){const el=$('ll-bank');const f=sw?C.swz(sw,3,3):(x=>x);const w=RD.width(el);
     const cs=Math.max(22,Math.min(48,Math.floor((w-70)/8))),rows=8,cols=8;let b='';const groups=[];
     for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){const off=f(r*64+c*8);const chunk=(off>>3)&7;if(c===0)groups.push(chunk);
-      b+='<rect x="'+(60+c*cs)+'" y="'+(r*24+2)+'" width="'+(cs-2)+'" height="22" rx="3" fill="hsl('+(chunk*45)+',55%,'+(dark()?'34%':'80%')+')"'+(c===0?' stroke="var(--ink)" stroke-width="1.5"':'')+'><title>row '+r+', chunk '+c+': banks '+(chunk*4)+' to '+(chunk*4+3)+'</title></rect>'+RD.t(60+c*cs+cs/2-1,r*24+17,'b'+chunk*4,{a:'middle',fs:10})}
-      b+=RD.t(52,r*24+17,'row '+r,{a:'end',fs:10.5})}
+      b+='<rect x="'+(60+c*cs)+'" y="'+(r*24+2)+'" width="'+(cs-2)+'" height="22" rx="3" fill="hsl('+(chunk*45)+',55%,'+(dark()?'34%':'80%')+')"'+(c===0?' stroke="var(--ink)" stroke-width="1.5"':'')+'><title>row '+r+', chunk '+c+': banks '+(chunk*4)+' to '+(chunk*4+3)+'</title></rect>'+RD.t(60+c*cs+cs/2-1,r*24+17,'b'+chunk*4,{a:'middle',fs:11})}
+      b+=RD.t(52,r*24+17,'row '+r,{a:'end',fs:11})}
     el.innerHTML=RD.svg(60+cols*cs+4,rows*24+6,b,'bank groups');
     const distinct=new Set(groups).size;$('ll-bankx').innerHTML='Column 0 down the 8 rows (outlined) touches <b>'+distinct+'</b> distinct bank groups: '+(distinct===8?'conflict-free':'an '+(8/distinct)+'-way conflict')+'. Each 128-byte row covers all 32 banks once, so without a swizzle every row starts at bank 0.'}
   RD.seg($('ll-swsel'),m=>{sw=+m;bank()});
   // --- TV layouts ---
-  const TVD={sm80_m16n8k16_C:[16,8],sm80_m16n8k16_A:[16,16],sm80_m16n8k8_tf32_A:[16,8],sm90_m64n64k16_C:[64,64]};let tvs='sm80_m16n8k16_C',sel=0;
+  const TVD={sm80_m16n8k16_C:[16,8],sm80_m16n8k16_A:[16,16],sm80_m16n8k8_tf32_A:[16,8],sm90_m64n64k16_C:[64,64]};let tvs='sm90_m64n64k16_C',sel=0;  // the m16n8k16 map is also drawn in Reading section 5
   function tv(){const d=TVD[tvs],l=C.parse(L.cute[tvs].txt),T=C.size(l.s[0]),V=C.size(l.s[1]);const R=d[0],Q=d[1];const own=new Array(R*Q).fill(null);
     for(let t=0;t<T;t++)for(let v=0;v<V;v++){const idx=C.at(l,t+T*v);own[(idx%R)*Q+Math.floor(idx/R)]={t,v}}
     const el=$('ll-tv');const w=RD.width(el);const cs=Math.max(6,Math.min(30,Math.floor((w-4)/Q)));let b='';
@@ -86,8 +86,10 @@
   RD.seg($('ll-tvsel'),m=>{tvs=m;sel=0;tv()});
   $('ll-tiled').textContent='ThrLayoutVMNK '+L.cute_tiled;
   pre.value='8';{const p=P[8];$('ll-op').value=p[1];$('ll-a').value=p[2];$('ll-b').value=p[3];$('ll-m').value=p[4]}
-  const render=()=>{run();bank();tv()};
+  const render=()=>{run();tv()};
   (window.TAB_RENDER=window.TAB_RENDER||{})['t-layout']=[render];
+  // the bank view sits in Reading section 7 (moved from this tab on 2026-10-23)
+  RD.onRender(bank);RD.onResize(bank);bank();
   addEventListener('resize',()=>{const t=$('t-layout');if(t&&!t.hidden)render()});
   render();
 })();

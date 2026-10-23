@@ -1,0 +1,2687 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Libraries and tensor cores: cuBLAS, cuDNN, CUTLASS and CuTe, mma, wgmma, TMA, tcgen05 Libraries and tensor cores: cuBLAS, cuDNN, CUTLASS and CuTe, mma, wgmma, TMA, tcgen05 The fast end of GPU programming, taught from zero: when to call a library and which one, what cuBLAS and cuBLASLt really pick (and their epilogues), how a GEMM is cut into tiles and waves (split-K, Stream-K), cuDNN and attention, the tensor-core instruction of each generation (mma.sync, wgmma, tcgen05 with TMEM) and the TMA copies that feed it, CUTLASS 4.8 and CuTe layouts, and the FP8 and FP4 paths; every instruction compiled to real SASS with CUDA 13.4.2.",
+  "label": "core",
+  "key": "cudnn, cutlass and cute, mma, wgmma, tma, tcgen05 libraries",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Child of Topic: cuda-and-gpu-programming.",
+  "label": "core",
+  "key": "child of topic: cuda-and-gpu-programming",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Layout lab Instruction atlas GEMM scheduler Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar; the GEMM scheduler tab became part of Reading section 3"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen Library first cuBLAS and cuBLASLt Tiles and waves cuDNN Tensor cores TMA and pipelines CUTLASS and CuTe FP8 and FP4 Choosing, mistakes, interview",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section navigation, rewritten"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "In one screen Almost every FLOP of a training run is a matrix multiply (a GEMM , general matrix multiply: D = αAB + βC ), and almost every GEMM you run is a kernel somebody else wrote: a library.",
+  "label": "core",
+  "key": "almost every flop of a training run is a",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "This page is about those libraries and the hardware instructions they are built on, so that you can tell which one ran, why it was fast or slow, and when it is worth writing your own.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the core-idea sentence replaces it"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "The running example Y = GELU(X·W + b) in BF16 with FP32 accumulation, X = 8,192 tokens × 4,096 features, W = 4,096 × 14,336: the shape of the MLP up-projection of a Llama-3-8B-sized layer ( config.json : hidden_size 4096, intermediate_size 14336).",
+  "label": "core",
+  "key": "running example y = gelu(x·w + b) in bf16",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "One forward call is 2 · 8,192 · 14,336 · 4,096 = 962.1 GFLOP derived .",
+  "label": "core",
+  "key": "one forward call is 2 · 8,192 · 14,336",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Llama itself uses SwiGLU, not GELU; we use GELU because cuBLASLt can apply it inside the GEMM, and SwiGLU is exactly the kind of fusion that pushes people to write their own kernel (section 9).",
+  "label": "core",
+  "key": "pushes people to write their own kernel (section 9)",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "in one screen",
+  "text": "Layer What it is How PyTorch reaches it Section cuBLAS NVIDIA's closed-source dense linear algebra; thousands of prebuilt GEMM kernels and a heuristic that picks one torch.mm , torch.matmul , bmm 2, 3 cuBLASLt The descriptor-based layer of cuBLAS: the same kernels plus epilogues (bias, ReLU, GELU, their gradients) and FP8/FP4 scaling F.linear with a 1-D bias ( addmm ), torch._scaled_mm 2, 8 cuDNN Deep-learning primitives behind a graph API: convolutions, normalisations, fused attention convolutions; one of four SDPA attention backends 4 CUTLASS / CuTe NVIDIA's open-source C++ templates for GEMM, convolution and attention; CuTe is its layout algebra not directly; through extensions (FlashAttention, vLLM, DeepGEMM-style kernels) 7 CuTe DSL CUTLASS 4.x's Python front end: CuTe kernels written in Python, compiled just in time through DLPack tensors; FlashAttention-4 is written in it 7 CCCL (Thrust, CUB, libcudacxx) Parallel primitives: block- and device-wide reduce, scan, sort, load and store inside PyTorch's sorts and scans (its at::cuda::cub wrappers); CUB is also called from your own kernels Writing kernels Tensor-core instructions mma.sync (Ampere on), wgmma (Hopper only), tcgen05.mma (datacenter Blackwell); fed by ldmatrix , cp.async and TMA never directly; every library above ends in one of them 5, 6 Followed down one level at a time, the example becomes: PyTorch F.gelu(F.linear(x, w, b), approximate=\"tanh\") , or torch._addmm_activation(b, x, w.t(), use_gelu=True) , which hands the GELU to cuBLASLt cuBLASLt cublasLtMatmul with epilogue CUBLASLT_EPILOGUE_GELU_BIAS ; a heuristic ranks candidate kernels for this shape, type and GPU One prebuilt kernel on an H100, a name like sm90_xmma_gemm_bf16bf16_bf16f32_f32_tn_n_tilesize128x128x64_cgasize1x1x1_..._execute_segment_k_off_kernel__5x_cublas (section 2 decodes it) Tensor-core instruction Ampere HMMA.16816.F32.BF16 ; Hopper HGMMA.64x128x16.F32.BF16 ; B200 UTCHMMA into tensor memory; RTX 5090 back to HMMA Evidence on this page is tagged: compiled here real CUDA 13.4.2 compiler output in the Docker image kb-gpu-lab:1, no GPU; measured on M1 Pro timed on the Apple M1 Pro GPU through MLX 0.32.3; vendor NVIDIA documentation, headers or source; independent third-party measurement; derived arithmetic shown; not run here needs an NVIDIA GPU, which this knowledge base does not have.",
+  "label": "depth",
+  "key": "that picks one torch.mm , torch.matmul , bmm 2",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "Use a library first, and know what it is doing for you A GEMM that runs near the tensor cores' peak is not one clever loop.",
+  "label": "core",
+  "key": "use a library first, and know what it is",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "It is six things working together, and every later section of this page is one of them: Tiles on chip : each thread block computes one output tile (say 128 × 256) and stages slices of A and B in shared memory, laid out ( swizzled ) so reads hit different banks (section 7; the bank rules are on GPU memory hierarchy ).",
+  "label": "core",
+  "key": "tiles staged in swizzled shared memory",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "The right tensor-core instruction for the generation, with operands arranged in exactly the register or shared-memory layout it expects (section 5).",
+  "label": "core",
+  "key": "the generation's tensor-core instruction",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "An asynchronous pipeline : copies for the next K slice are in flight while the tensor cores chew on this one ( cp.async on Ampere, TMA on Hopper and Blackwell; section 6).",
+  "label": "core",
+  "key": "are in flight while the tensor cores",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "Warp roles on Hopper and Blackwell: a producer warp only issues copies, consumer warps only issue MMAs, and registers are moved from one to the other (section 6).",
+  "label": "core",
+  "key": "moves registers between warpgroups",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "A tile shape and schedule that fit this problem shape to this GPU's SM count, so the last wave is not mostly idle (section 3).",
+  "label": "core",
+  "key": "a schedule fitted to the sm count",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "An epilogue : bias, activation, scaling and conversion done while the tile is still on chip, instead of writing it out and reading it back (sections 2 and 7).",
+  "label": "core",
+  "key": "bias, activation, scaling",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "How far does hand-writing get you?",
+  "label": "core",
+  "key": "how far does hand-writing get you?",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "Simon Boehm's worklog builds an FP32 matmul in ten steps on an RTX A6000 and ends at 21,779.3 GFLOP/s against cuBLAS's 23,249.6: 93.7% , without tensor cores at all ( How to Optimize a CUDA Matmul Kernel , December 2022) independent .",
+  "label": "core",
+  "key": "simon boehm's worklog builds an fp32 matmul in ten",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "The CUDA root's Kernel lab reproduces the same climb on the M1: the best hand-written Metal kernel reached 3,371 GFLOP/s against MLX's library matmul at 4,048 ( Topic: cuda-and-gpu-programming , Kernel lab tab) measured on M1 Pro .",
+  "label": "core",
+  "key": "4,048 ( topic: cuda-and-gpu-programming , kernel lab tab) measured",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "With tensor cores the gap is wider, because ingredients 2 to 4 change every generation.",
+  "label": "core",
+  "key": "with tensor cores the gap is wider, because",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "The full hand-written ladder, step by step, is on Writing kernels ; this page is about the libraries at the top of it and the instructions at the bottom.",
+  "label": "core",
+  "key": "hand-written ladder, step by step, is on writing kernels",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "Predict: how many GPU kernels does libcublasLt (cuBLAS 13.8, shipped with CUDA 13.4.2) contain, counting each architecture's copy separately?",
+  "label": "core",
+  "key": "predict: how many gpu kernels does libcublaslt (cublas 13.8",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. use a library first, and know what it is doing for you",
+  "text": "About 50 About 500 About 5,000 About 50,000 52,148 kernel text sections across 13 architecture targets, listed with cuobjdump -ltext from the library itself compiled here . \"Calling cuBLAS\" means choosing one of them; section 2 opens the box.",
+  "label": "core",
+  "key": "about 50 about 500 about 5,000 about 50,000 52,148",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "2. cuBLAS and cuBLASLt: the call, the heuristic, the epilogue The classic API, and the column-major trap cuBLAS follows Fortran BLAS: matrices are column-major (consecutive elements go down a column).",
+  "label": "core",
+  "key": "2. cublas and cublaslt: the call, the heuristic, the",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "PyTorch tensors are row-major.",
+  "label": "core",
+  "key": "pytorch tensors are row-major",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "A row-major M × K matrix has exactly the bytes of a column-major K × M matrix, its transpose, so libraries compute Y T = W T X T and never copy anything: the classic call is cublasGemmEx(handle, opA, opB, m, n, k, α, A, typeA, lda, B, typeB, ldb, β, C, typeC, ldc, computeType, algo) with A = W, B = X and m = 14,336, n = 8,192.",
+  "label": "core",
+  "key": "= w, b = x and m = 14,336",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Getting lda or an op flag wrong is the most common first cuBLAS bug: the call succeeds and computes the wrong product.",
+  "label": "core",
+  "key": "getting lda or an op flag wrong is the",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "The tn / nt letters in kernel names below are these op flags. cuBLASLt: descriptors, a ranked list, and a workspace cuBLASLt (the \"lightweight\" API) splits the call into objects: a matmul descriptor (compute type, transposes, epilogue, scale pointers), a layout per matrix (type, rows, columns, leading dimension, batch), and a preference (how much scratch workspace memory you allow). cublasLtMatmulAlgoGetHeuristic then returns a ranked list of algorithms for exactly this problem on exactly this GPU, and cublasLtMatmul runs the one you pass.",
+  "label": "core",
+  "key": "the tn / nt letters in kernel names below",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Our program for the running example ( src/cuda/host/lt_gelu_bias.cu , 50 lines) compiles against cuBLASLt 13.8 in the image compiled here ; run without a GPU it stops at the first call that needs the driver: Workspace matters: some algorithms (split-K, section 3) need scratch memory, and the heuristic only offers those that fit the workspace you declared.",
+  "label": "depth",
+  "key": "program for the running example ( src/cuda/host/lt_gelu_bias.cu , 50",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "PyTorch 2.14.1 gives cuBLAS a default workspace of 32 MiB on compute capability 9.x to 12.x (Hopper and Blackwell) and about 8 MiB on older GPUs, overridable with CUBLAS_WORKSPACE_CONFIG , and sizes cuBLASLt's with CUBLASLT_WORKSPACE_SIZE ( CublasHandlePool.cpp ) vendor .",
+  "label": "depth",
+  "key": "pytorch 2.14.1 gives cublas a default workspace of 32",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Too little workspace silently removes the faster choices.",
+  "label": "core",
+  "key": "too little workspace silently removes the faster choices",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Epilogues: fusion you get for free An epilogue is what the kernel does to an output tile after the K loop and before the tile leaves the chip. cuBLASLt's menu, read from cublasLt.h in CUDA 13.4.2 vendor : Epilogue What it does Where it appears in training BIAS , RELU_BIAS , GELU_BIAS add a broadcast bias vector, then the activation forward of a linear layer with bias RELU_AUX , GELU_AUX (and _AUX_BIAS ) also write an auxiliary output: the ReLU bit mask, or the pre-activation for GELU saved for the backward pass DRELU , DGELU (and _BGRAD ) multiply the incoming gradient by the activation's derivative, read from the aux output; optionally reduce it to the bias gradient backward of the same layer BGRADA , BGRADB bias gradient as a reduction over A's or B's columns backward, weight-gradient GEMM When PyTorch uses it , from the PyTorch 2.14.1 source vendor : torch.mm and matmul go to classic cuBLAS by default on NVIDIA GPUs ( blasDefaultBackend() returns Cublas except on AMD Instinct; torch.backends.cuda.preferred_blas_library(\"cublaslt\") switches); addmm , which is what F.linear with a bias calls, takes the cuBLASLt path with the bias in the epilogue when the bias is 1-D and contiguous, the output 2-D and contiguous, β = 1, the type FP32, FP16, BF16 or FP64, and neither matrix dimension is 1 ( isInputCompliesAddmmCudaLt in aten/src/ATen/native/cuda/Blas.cpp ); DISABLE_ADDMM_CUDA_LT=1 turns it off.",
+  "label": "core",
+  "key": "chip. cublaslt's menu, read from cublaslt.h in cuda 13.4.2",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "The GELU epilogue is reached through torch._addmm_activation(..., use_gelu=True) , which compilers emit; an eager F.gelu after F.linear is a separate kernel.",
+  "label": "depth",
+  "key": "the gelu epilogue is reached through torch._addmm_activation(..., use_gelu=true)",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "What it is worth.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Unfused, the running example writes Y (BF16), reads it for the bias, writes it, reads it for GELU: 4 × 2 bytes × 8,192 × 14,336 = 0.94 GB of extra traffic.",
+  "label": "core",
+  "key": "unfused, the running example writes y (bf16), reads it",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "On an H100 that is about 0.28 ms at 3.35 TB/s, against about 1.34 ms for the GEMM itself at the ~720 TFLOP/s that SemiAnalysis measured for BF16 GEMMs ( SemiAnalysis, Dec 2024 ) derived : about 21 % on top, gone when the epilogue is fused.",
+  "label": "core",
+  "key": "on an h100 that is about 0.28 ms at",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "We cannot time that on an NVIDIA GPU here; the M1 shows the same effect with MLX, whose addmm also puts the bias inside the GEMM: 4,096 × 4,096 output, FP16, median of 3 runs (spread in the tooltip), load average 9.7 to 10.2 measured on M1 Pro . \"Eager\" evaluates the GEMM, the bias add and GELU as separate steps, and eager GELU is itself about eight elementwise kernels; \"fused bias+GELU\" is mx.compile (the GEMM, then one fused elementwise kernel); \"bias in GEMM\" is mx.addmm followed by a compiled GELU.",
+  "label": "core",
+  "key": "time that on an nvidia gpu here; the m1",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Largest error against an FP32 reference: 0.003 .",
+  "label": "core",
+  "key": "largest error against an fp32 reference: 0.003",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "The lesson in the chart: the extra kernels cost a roughly fixed amount (they move the M × N output), so fusion matters most when K is small and the GEMM itself is short: at K = 256 the eager version is 3.7 × the GEMM, at K = 4,096 it is 1.19 ×.",
+  "label": "core",
+  "key": "at k = 256 the eager version is 3.7",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Inside the box: what cuBLAS ships cuBLAS has no GEMM \"algorithm\" in the textbook sense: it ships prebuilt kernels, one per combination of data types, transposes, tile shape, cluster shape, epilogue and K-splitting strategy, compiled separately for each GPU architecture, and the heuristic picks one at run time.",
+  "label": "core",
+  "key": "inside the box: what cublas ships cublas has no",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Listing the kernel sections of libcublasLt.so.13.8.0.4 (648 MB) from CUDA 13.4.2 compiled here : Kernel text sections per architecture target in libcublasLt, as cuobjdump -ltext lists them; the hatched part has names replaced by an opaque hash (for example _ZN4xmma-33604 ).",
+  "label": "core",
+  "key": "listing the kernel sections of libcublaslt.so.13.8.0.4 (648 mb) from",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Hopper's tensor-core GEMMs sit in the \"sm_90a\" build because wgmma only exists there (section 5).",
+  "label": "core",
+  "key": "hopper's tensor-core gemms sit in the \"sm_90a\" build because",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "A surprise on Blackwell.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading; the Blackwell findings are in a closed block"
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Scanning the SASS of every listed kernel (the Instruction atlas tab has the table) finds HGMMA in 1,540 Hopper kernels, but tcgen05 instructions in only 8 kernels of the sm_100 build: integer MMAs ( UTCIMMA ) in kernels named cublasLt_fused_imma_dgemm_* , which by their name emulate FP64 GEMMs with INT8 arithmetic.",
+  "label": "depth",
+  "key": "tcgen05 instructions in only 8 kernels of the sm_100",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "The Blackwell tensor-core GEMMs are in the file only as names: 5,015 distinct strings in CUTLASS 3.x's naming scheme ( 4,679 for sm100, 240 for sm103, 96 for sm120), such as which reads as a block-scaled NVFP4 GEMM (E2M1 values, UE4M3 scales every 16 elements: vs16 ), a 256 × 128 tile on two SMs ( 2sm ), a bias-then-GELU epilogue in BF16, and a Stream-K schedule (section 3).",
+  "label": "depth",
+  "key": "gemms are in the file only as names: 5,015",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Of the sm100 names, 2,201 are Stream-K variants, 1,508 use the two-SM MMA and 1,936 carry a GELU epilogue compiled here .",
+  "label": "depth",
+  "key": "of the sm100 names, 2,201 are stream-k variants, 1,508",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "So on Blackwell cuBLAS ships CUTLASS-generated kernels, stored in a form cuobjdump does not list; how they are stored and loaded we could not determine unconfirmed .",
+  "label": "depth",
+  "key": "so on blackwell cublas ships cutlass-generated kernels, stored in",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Consumer Blackwell is different again: its listed SASS has FP8 QMMA in 375 kernels but HMMA in only 20 , and the library also carries 5,588 PTX kernels for sm_120 containing 14,544 mma.sync instructions (and no wgmma or tcgen05 ), which the CUDA driver just-in-time compiles to SASS on an RTX 50-series GPU before first use and keeps in its compute cache (standard handling of PTX without matching SASS; the mechanism is on The compiler stack ) compiled here .",
+  "label": "depth",
+  "key": "blackwell is different again: its listed sass has fp8",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Expect a one-time compilation cost the first time after a driver or library change.",
+  "label": "depth",
+  "key": "expect a one-time compilation cost the first time after",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Hopper's GEMM kernels keep readable names, and the names are a specification.",
+  "label": "core",
+  "key": "hopper's gemm kernels keep readable names, and the names",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Of the 2,920 sm90_xmma_gemm_* kernels, 744 write an auxiliary output, 420 apply a GELU derivative and 1,041 are split-K variants: each epilogue and each splitting strategy is a separately compiled kernel.",
+  "label": "core",
+  "key": "of the 2,920 sm90_xmma_gemm_* kernels, 744 write an auxiliary",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "Click a part of the name: Reading of the name: ours, from the patterns across all 2,920 names; NVIDIA does not document it unconfirmed .",
+  "label": "core",
+  "key": "the name: ours, from the patterns across all 2,920",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "The tile-size field is unambiguous: the most common tiles are 64 × 64 × 64, then 128 × 128, 64 × 128, 128 × 64 (× 64), with the largest 128 × 256 and 256 × 128.",
+  "label": "core",
+  "key": "field is unambiguous: the most common tiles are 64",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "How to see which kernel ran: the kernel name appears in an Nsight Systems timeline or a torch.profiler trace (the method is on Profiling and correctness ).",
+  "label": "core",
+  "key": "how to see which kernel ran: the kernel name",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. cublas and cublaslt: the call, the heuristic, the epilogue",
+  "text": "If a GEMM in your trace is named ..._splitK... or comes with a separate splitKreduce_kernel ( 402 of those per architecture in this build), the heuristic split K; if a bias add and a GELU follow every GEMM as separate kernels, the epilogue was not fused.",
+  "label": "core",
+  "key": "_splitk... or comes with a separate splitkreduce_kernel ( 402",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "Tiles, waves, split-K and Stream-K: cutting one GEMM into work for the SMs A GEMM kernel gives each thread block (each CTA , cooperative thread array) one output tile of B M × B N elements; the block loops over K in slices of B K , each slice being one MAC-loop iteration (multiply-accumulate).",
+  "label": "core",
+  "key": "tiles, waves, split-k and stream-k: cutting one gemm into",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "With T tiles and P SMs, the tiles run in waves of P (the basics of waves and occupancy are on The CUDA programming model ).",
+  "label": "core",
+  "key": "with t tiles and p sms, the tiles run",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "When T is a little over a multiple of P, the last wave is mostly empty: wave quantization .",
+  "label": "core",
+  "key": "when t is a little over a multiple of",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "NVIDIA's own example, reproduced: on an A100 (108 SMs) with 256 × 128 tiles, M = 2,304 and N = 1,536 make 9 × 12 = 108 tiles, exactly one wave; N = 1,544 makes 9 × 13 = 117 tiles, two waves, and NVIDIA's guide reports the GFLOPS \"roughly halve\" ( Matrix Multiplication Background guide ) vendor .",
+  "label": "core",
+  "key": "nvidia's own example, reproduced: on an a100 (108 sms)",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "The tile counts follow from the formula by construction derived ; the halving is NVIDIA's measurement, not ours.",
+  "label": "core",
+  "key": "the tile counts follow from the formula by construction",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "The running example with 128 × 256 tiles: 64 × 56 = 3,584 tiles, which is 27.15 waves on an H100 (132 SMs, last wave 15% full, 97.0 % of the time useful), 24.22 on a B200 (148 SMs) and 21.08 on an RTX 5090 (170 SMs) derived .",
+  "label": "core",
+  "key": "the running example with 128 × 256 tiles: 64",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "Big training GEMMs barely notice; small ones do: decode with a small batch, the per-expert GEMMs of a mixture-of-experts layer, and the backward weight-gradient GEMMs of a thin layer.",
+  "label": "core",
+  "key": "big training gemms barely notice; small ones do: decode",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "Predict: M = N = 1,024, K = 16,384 on an H100 with 128 × 256 tiles.",
+  "label": "core",
+  "key": "predict: m = n = 1,024, k = 16,384",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "What fraction of the 132 SMs has work?",
+  "label": "core",
+  "key": "what fraction of the 132 sms has work?",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "All of them About half About a quarter Under 5% 8 × 4 = 32 tiles for 132 SMs: 24% busy, and each busy SM runs a long K loop of 256 iterations.",
+  "label": "core",
+  "key": "of them about half about a quarter under 5%",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "Splitting K four ways gives 128 work units (97% of the SMs), at the cost of combining partial sums.",
+  "label": "core",
+  "key": "splitting k four ways gives 128 work units (97%",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "Try it in the GEMM scheduler tab.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed GEMM scheduler tab; the scheduler is now inline"
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "Three ways to hand out the work Data-parallel (the default): one CTA per output tile, the whole K loop inside it.",
+  "label": "core",
+  "key": "three ways to hand out the work data-parallel (the",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "No extra traffic; suffers from quantization.",
+  "label": "core",
+  "key": "no extra traffic; suffers from quantization",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "Split-K : cut K into s pieces; s CTAs compute partial sums of the same tile into a workspace, and a reduction (a separate splitKreduce_kernel in cuBLAS, or atomics, or a \"serial\" in-kernel fix-up) adds them.",
+  "label": "core",
+  "key": "split-k : cut k into s pieces; s ctas",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "More work units, but s partial tiles of FP32 written and read.",
+  "label": "core",
+  "key": "more work units, but s partial tiles of fp32",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "This is why cuBLAS wants workspace.",
+  "label": "core",
+  "key": "this is why cublas wants workspace",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "Stream-K (Osama, Merrill, Cecka, Garland and Owens, January 2023): instead of tiles, divide the total MAC-loop iterations evenly among the SMs; an SM may finish one tile's K loop half-way and start the next, and tiles split between SMs are fixed up through a small workspace.",
+  "label": "core",
+  "key": "instead of tiles, divide the total mac-loop iterations evenly",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "The paper reports \"a peak speedup of up to 14× and 6.7×\" and more consistent performance \"across 32,824 GEMM problem geometries than ...",
+  "label": "depth",
+  "key": "paper reports \"a peak speedup of up to 14×",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "CUTLASS and cuBLAS\", \"from a single tile size configuration per floating-point precision\" ( arXiv 2301.03598 ) paper .",
+  "label": "depth",
+  "key": "tile size configuration per floating-point precision\" ( arxiv 2301.03598",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "In practice it is used as a hybrid: whole tiles data-parallel for the full waves, Stream-K for the remainder.",
+  "label": "core",
+  "key": "in practice it is used as a hybrid: whole",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "Same bits only on the same GPU.",
+  "label": "core",
+  "key": "same bits only on the same gpu",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "Split-K and Stream-K change the order in which partial sums are added, and the heuristic picks the schedule from the GPU it sees.",
+  "label": "core",
+  "key": "split-k and stream-k change the order in which partial",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "So cuBLAS promises bitwise-identical results from run to run only for one toolkit version on GPUs with the same architecture and the same number of SMs (cuBLAS documentation, CUDA 13.4, \"Results reproducibility\") vendor .",
+  "label": "core",
+  "key": "the same number of sms (cublas documentation, cuda 13.4",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "An H100 PCIe (114 SMs) and an H100 SXM (132 SMs), or a MIG slice and a whole GPU, may legitimately disagree in the last bits; why that is harmless, and how to test with a tolerance instead, is in Profiling, benchmarking and correctness , section 5.",
+  "label": "core",
+  "key": "an h100 pcie (114 sms) and an h100 sxm",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "Persistent kernels make these schedules possible: instead of launching one CTA per tile, launch about one CTA per SM (or per cluster) and let each loop over work units handed out by a tile scheduler .",
+  "label": "core",
+  "key": "persistent kernels make these schedules possible: instead of launching",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "That also lets a CTA start loading the next tile while its epilogue stores the last one.",
+  "label": "core",
+  "key": "that also lets a cta start loading the next",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "CUTLASS 4.8.0 ships the schedulers as headers you can read: sm90_tile_scheduler_stream_k.hpp and sm100_tile_scheduler_stream_k.hpp in include/cutlass/gemm/kernel/ , and example 74_blackwell_gemm_streamk vendor .",
+  "label": "depth",
+  "key": "cutlass 4.8.0 ships the schedulers as headers you can",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. tiles, waves, split-k and stream-k: cutting one gemm into work for the sms",
+  "text": "Go deeper: the GEMM scheduler tab lays one GEMM onto the SMs of five GPUs under the three schedules and animates the timeline, with the work, waves and extra traffic of each.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed GEMM scheduler tab"
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "4. cudnn: a graph in, an engine out",
+  "text": "4. cuDNN: a graph in, an engine out cuDNN started as a list of functions (one call per convolution algorithm).",
+  "label": "core",
+  "key": "main interface since version 8 is a graph api",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "4. cudnn: a graph in, an engine out",
+  "text": "Since version 8 its main interface is a graph API : you describe a small computation graph (tensors with shapes, strides and types; operations such as matmul, pointwise, reduction, normalisation, convolution, scaled dot-product attention), and cuDNN looks for an engine that can run the whole graph as one fused kernel or a few.",
+  "label": "core",
+  "key": "is a graph api : you describe a small",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "4. cudnn: a graph in, an engine out",
+  "text": "Some engines are prebuilt (\"Pre-Compiled Single Operation Engines\"); others are \"runtime fusion engines that generate the kernel (or kernels) at runtime based on the graph pattern\" ( cuDNN Graph API ) vendor .",
+  "label": "core",
+  "key": "some engines are prebuilt (\"pre-compiled single operation engines\"); others",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "4. cudnn: a graph in, an engine out",
+  "text": "The workflow, from the cuDNN frontend's Python API (version 1.30.0 with cuDNN 9.27.0.42, installed in the image; method names read from the module) compiled here : g = cudnn.pygraph(...) # describe the computation o, stats = g.sdpa(q, k, v, ...) # or g.matmul, g.pointwise, g.rmsnorm, g.conv_fprop ... g.validate(); g.build_operation_graph() g.create_execution_plans([cudnn.heur_mode.A, cudnn.heur_mode.FALLBACK]) # heuristics rank engine configs g.check_support(); g.build_plans() # runtime-fusion engines compile here g.execute(variant_pack, workspace, handle) The heuristic modes the module exposes are A , B , FALLBACK and OPENSOURCE ; creating a handle without a GPU fails with \"cudnnHandle Create failed cudaGetDeviceCount(&count) != cudaSuccess\" not run here .",
+  "label": "core",
+  "key": "workflow, from the cudnn frontend's python api (version 1.30.0",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "4. cudnn: a graph in, an engine out",
+  "text": "The pattern is the same as cuBLASLt (describe, ask a heuristic, run a plan), with the extra step that a plan may be compiled when you build it, so the first call of a new shape can be slow; frameworks cache plans by shape. cuDNN as PyTorch's attention F.scaled_dot_product_attention has four CUDA backends: FlashAttention, memory-efficient attention, the math fallback and cuDNN.",
+  "label": "core",
+  "key": "the pattern is the same as cublaslt (describe, ask",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "4. cudnn: a graph in, an engine out",
+  "text": "In PyTorch 2.14.1 the default order is flash, efficient, math, cuDNN, but on compute capability 9.x and 10.x (H100, B200, B300) with cuDNN newer than 9.15.0 the order is reset to cuDNN first , then flash, efficient, math; the environment variable TORCH_CUDNN_SDPA_DEPRIORITIZED=1 undoes it. cuDNN's attention then accepts head dimensions up to 256 on those GPUs (newer than cuDNN 9.22) in multiples of 8 ( sdp_utils.cpp , Context.h ) vendor .",
+  "label": "core",
+  "key": "in pytorch 2.14.1 the default order is flash, efficient",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "4. cudnn: a graph in, an engine out",
+  "text": "An RTX 5090 (compute capability 12.0) is not in that list, so it keeps the flash-first order.",
+  "label": "core",
+  "key": "an rtx 5090 (compute capability 12.0) is not in",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "4. cudnn: a graph in, an engine out",
+  "text": "To see which backend ran, look for the kernel name in a trace, or force one with torch.nn.attention.sdpa_kernel([SDPBackend.CUDNN_ATTENTION]) and compare.",
+  "label": "core",
+  "key": "to see which backend ran, look for the kernel",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "4. cudnn: a graph in, an engine out",
+  "text": "How FlashAttention itself works is on Writing kernels .",
+  "label": "core",
+  "key": "how the algorithm works (tiling the softmax",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "4. cudnn: a graph in, an engine out",
+  "text": "Corrected from the old page: it said cuDNN is the \"backend of F.scaled_dot_product_attention on Hopper/Blackwell\".",
+  "label": "core",
+  "key": "corrected from the old page: it said cudnn is",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. cudnn: a graph in, an engine out",
+  "text": "That holds for datacenter Hopper and Blackwell in PyTorch 2.14.1 under the version condition above; consumer Blackwell (sm_120) and Ampere still try FlashAttention first.",
+  "label": "core",
+  "key": "holds for datacenter hopper and blackwell in pytorch 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Tensor cores from the programmer's side: one instruction per generation A tensor core computes D = A·B + C on a small tile in one instruction.",
+  "label": "core",
+  "key": "tensor cores from the programmer's side: one instruction per",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "What it is physically, and how many FLOPs per clock each generation does, is on GPU architecture .",
+  "label": "core",
+  "key": "what it is physically, and how many flops per",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "What changes for the programmer is three questions: who issues the instruction (one warp, four warps, one thread), where the operands live (registers, shared memory, tensor memory), and how the next operands arrive .",
+  "label": "core",
+  "key": "what changes for the programmer is three questions: who",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Every generation answered them differently, which is why a Hopper kernel does not run on a Blackwell chip and why libraries ship a build per architecture. mma.sync: one warp, everything in registers (Ampere onward) mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32 multiplies a 16 × 16 tile of A by a 16 × 8 tile of B into a 16 × 8 FP32 tile, as one instruction for the whole warp.",
+  "label": "core",
+  "key": "mma.sync: one warp, everything in registers (ampere onward) mma.sync.aligned.m16n8k16.row.col.f32.bf16.bf16.f32",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "No thread holds a row or a column: the 32 lanes each hold a scattered fragment : 4 registers of A (8 BF16 values), 2 of B (4 values) and 4 of C (4 floats), in a pattern fixed by the hardware.",
+  "label": "core",
+  "key": "thread holds a row or a column: the 32",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Click a lane to see which elements of C it owns (the map is computed by this page's CuTe algebra from CuTe's own SM80_16x8x16_F32F16F16F32_TN layout, ((4,8),(2,2)):((32,1),(16,8)) , and checked value by value against CuTe's output compiled here ): C (16 × 8) A (16 × 16) B (16 × 8, K × N) So data cannot simply be copied from shared memory into registers row by row; it has to land in this pattern. ldmatrix does exactly that: each lane supplies the address of one 16-byte row, and the warp receives four 8 × 8 tiles already distributed as mma fragments ( .trans transposes on the way).",
+  "label": "core",
+  "key": "by this page's cute algebra from cute's own sm80_16x8x16_f32f16f16f32_tn",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "It compiles to LDSM.16.M88.4 and LDSM.16.MT88.4 on every target; the reverse, stmatrix ( STSM.16.M88.4 ), used by epilogues, exists from sm_90 on compiled here .",
+  "label": "core",
+  "key": "it compiles to ldsm.16.m88.4 and ldsm.16.mt88.4 on every target",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "The same mma.sync source compiled for eight targets compiled here : Input type PTX shape sm_80 (A100) sm_89 (RTX 4090) sm_90a (H100) sm_100a (B200) sm_120 (RTX 5090) FP4 rows need the a target, sm_120a (section 8).",
+  "label": "core",
+  "key": "compiled here : input type ptx shape sm_80 (a100)",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Hopper and datacenter Blackwell still run mma.sync , but it is not their fast path: Luo et al. measured mma at 62.9% of Hopper's tensor-core peak on average against 96.4% for wgmma FP16 (729.3 of 756.5 TFLOP/s on an H800 PCIe) ( arXiv 2402.13499 ) independent .",
+  "label": "core",
+  "key": "fast path: luo et al. measured mma at 62.9%",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "And FP8 mma.sync is not even native there: ptxas unpacks the FP8 values to FP16 ( F2FP.F16.E4M3.UNPACK_B , 12 of them) and issues two FP16 HMMA s.",
+  "label": "core",
+  "key": "and fp8 mma.sync is not even native there: ptxas",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "CUDA C++'s portable warp-matrix API ( nvcuda::wmma::fragment , mma_sync on 16 × 16 × 16 tiles) compiles to the very same HMMA.16816.F32 on sm_80, sm_90a, sm_100a and sm_120 (the CUDA root's Compiler explorer, kernel k6) compiled here .",
+  "label": "depth",
+  "key": "portable warp-matrix api ( nvcuda::wmma::fragment , mma_sync on 16",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "The old page called it \"portable but slow, ignore\"; more precisely it is limited : its fragment layout is opaque, so you cannot load fragments with ldmatrix patterns or address individual accumulators, and it has no route to wgmma or tcgen05 .",
+  "label": "depth",
+  "key": "and it has no route to wgmma or tcgen05",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Libraries use mma.sync and newer instructions directly.",
+  "label": "depth",
+  "key": "libraries use mma.sync and newer instructions directly",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Two corrections to the old page FP8 did not \"arrive\" with Hopper's wgmma : the FP8 mma.sync needs sm_89 (ptxas on sm_80: \"Feature 'mma with FP8 floating point type' requires .target sm_89 or higher\"), so Ada (RTX 4090, L40S) has FP8 tensor cores too, and Hopper added the warpgroup FP8 path.",
+  "label": "core",
+  "key": "two corrections to the old page fp8 did not",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "And \"5th generation tensor core\" does not mean tcgen05 : NVIDIA's RTX Blackwell whitepaper also calls the RTX 5090's tensor cores \"5th Gen\" (Appendix A), yet sm_120 rejects every tcgen05 instruction.",
+  "label": "core",
+  "key": "and \"5th generation tensor core\" does not mean tcgen05",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Marketing generations, compute capabilities and instruction sets are three different numberings. wgmma: four warps, operands from shared memory, asynchronous (Hopper only) Hopper added the warpgroup : four consecutive warps (128 threads) issue one wgmma.mma_async together, for a 64 × N × 16 tile (N from 8 to 256 in steps of 8; K is 32 for FP8).",
+  "label": "core",
+  "key": "hopper added the warpgroup : four consecutive warps (128",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "B, and usually A, are not in registers at all: each is described by a 64-bit matrix descriptor (shared-memory start address, two strides, a swizzle mode) and the tensor core reads shared memory itself.",
+  "label": "core",
+  "key": "registers at all: each is described by a 64-bit",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "The instruction is asynchronous : threads continue while it runs, and the code brackets it with wgmma.fence , wgmma.commit_group and wgmma.wait_group N (wait until at most N groups are outstanding), so the next tile's MMAs can be issued before the previous ones finish.",
+  "label": "core",
+  "key": "the instruction is asynchronous : threads continue while it",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "The accumulators are still registers: a 64 × 256 FP32 tile spread over 128 threads is 128 registers per thread, and ptxas reports 154 registers per thread for our one-instruction m64n256k16 kernel (and 90 for m64n128k16) compiled here .",
+  "label": "core",
+  "key": "the accumulators are still registers: a 64 × 256",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "In SASS it is HGMMA.64x128x16.F32 (FP8: QGMMA.64x128x32.F32.E4M3.E4M3 ), and for any other target ptxas refuses it: Instruction 'wgmma.fence' not supported on .target 'sm_100a' . tcgen05: one thread, accumulators in tensor memory (datacenter Blackwell) Blackwell's fifth-generation tensor core moved the accumulator out of the register file into tensor memory ( TMEM ): 512 columns × 128 lanes of 32-bit cells per SM, 256 KB, the same size as the register file ( PTX ISA 9.4 ) vendor .",
+  "label": "core",
+  "key": "in sass it is hgmma.64x128x16.f32 (fp8: qgmma.64x128x32.f32.e4m3.e4m3 ), and",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "A kernel allocates TMEM columns (a power of two, at least 32), and a single thread issues tcgen05.mma for a tile of up to 128 × 256 × 16 with operands read from shared memory through descriptors.",
+  "label": "core",
+  "key": "tmem columns (a power of two, at least 32)",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Completion is signalled on a shared-memory barrier by tcgen05.commit , and the epilogue copies results from TMEM to registers with tcgen05.ld .",
+  "label": "core",
+  "key": "completion is signalled on a shared-memory barrier by tcgen05.commit",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "The register file is free for the epilogue and for addressing: each of our tcgen05 kernels (one 128-row MMA whose accumulator stays in TMEM until an 8-column tcgen05.ld ) uses 16 registers per thread, against 90 for the m64n128 wgmma one, whose 64 accumulators per thread must live in registers.",
+  "label": "core",
+  "key": "the epilogue and for addressing: each of our tcgen05",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "With cta_group::2 , one instruction spans the two SMs of a cluster pair, each holding half of the tile.",
+  "label": "core",
+  "key": "with cta_group::2 , one instruction spans the two sms",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "What each piece compiles to compiled here : PTX SASS (sm_100a) What it does tcgen05.alloc / dealloc UTCATOMSWS.FIND_AND_SET.ALIGN , UTCATOMSWS.AND claim and release TMEM columns tcgen05.mma ... kind::f16 , kind::tf32 UTCHMMA gdesc[..], gdesc[..], tmem[..], tmem[..], idesc[..] the MMA; operands by descriptor, accumulator in TMEM kind::f8f6f4 , kind::mxf8f6f4.block_scale UTCQMMA FP8, FP6, FP4 (type in the instruction descriptor), with or without MX block scales kind::mxf4nvf4.block_scale.scale_vec::4X UTCOMMA.4X (sm_103a: UTCOMMA.BLOCK16 ) NVFP4: one scale per 16 elements tcgen05.commit UTCBAR arrive on an mbarrier when the MMAs finish tcgen05.ld LDTM TMEM to registers for the epilogue cta_group::2 UTCHMMA.2CTA , UTCBAR.2CTA one MMA over a pair of SMs tcgen05 assembles for sm_100a, sm_100f, sm_103a, sm_110a and sm_107a, and for nothing else: not sm_90a, not sm_120a, not sm_121a compiled here .",
+  "label": "depth",
+  "key": "ptx sass (sm_100a) what it does tcgen05.alloc /",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "CUTLASS 4.8.0's changelog lists Rubin kernels as \"sm107\" and says Rubin extends \"TMEM size from 512 COL to 576 COL\" and allows \"Larger shared memory allocations (328KB)\" ( CUTLASS CHANGELOG ) vendor , which matches the 328 KB per SM the CUDA Programming Guide lists for compute capability 10.7.",
+  "label": "depth",
+  "key": "cutlass 4.8.0's changelog lists rubin kernels as \"sm107\" and",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Consumer Blackwell (RTX 5090, DGX Spark): back to mma.sync, plus FP4 The RTX 5090 (compute capability 12.0) and the GB10 in DGX Spark (12.1) ( CUDA GPUs list ) vendor share the Blackwell name with the B200 but not its tensor-core programming model.",
+  "label": "core",
+  "key": "consumer blackwell (rtx 5090, dgx spark): back to mma.sync",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Compiled for sm_120 and sm_120a compiled here : no wgmma , no tcgen05 , no TMEM; mma.sync as on Ampere, with native FP8 ( QMMA.16832.F32.E4M3.E4M3 ) and, on sm_120a only, FP4 ( QMMA.16832.F32.E2M1.E2M1 ) and block-scaled FP4 ( OMMA.SF.16864.F32.E2M1.E2M1.E8 , which also assembles for sm_121a); TMA and clusters, yes; the register hand-off setmaxnreg only with the a suffix.",
+  "label": "core",
+  "key": "compiled for sm_120 and sm_120a compiled here : no",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "TMA multicast assembles on sm_120 but ptxas warns it \"should be used on .target 'sm_90a/sm_100a/...' instead of .target 'sm_120' as this feature is expected to have substantially reduced performance\", and the SASS contains no multicast copy, only a call through a function pointer ( CALL.ABS.NOINC ) where sm_90a has UTMALDG.2D.MULTICAST .",
+  "label": "depth",
+  "key": "tma multicast assembles on sm_120 but ptxas warns it",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "So the old page's claim stands, now with compiler evidence: kernels for the 5090 look like Ampere and Ada kernels (register accumulators, ldmatrix , mma.sync ) fed by TMA, and Hopper tutorials built on wgmma do not run on it.",
+  "label": "core",
+  "key": "(register accumulators, ldmatrix , mma.sync ) fed by tma",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "The suffixes: sm_90a, sm_100f, sm_120 From compute capability 9.0 on, features that may not survive into the next generation are only available when compiling for an architecture-specific target with an a suffix, and such code \"can only be run on the exact compute capability it was compiled for\".",
+  "label": "core",
+  "key": "the suffixes: sm_90a, sm_100f, sm_120 from compute capability 9.0",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "From 10.0 on, a family-specific f target covers several: compute_100f runs on 10.0, 10.3 and 10.7, compute_120f on 12.0 and 12.1 ( CUDA Programming Guide, compute capabilities ) vendor .",
+  "label": "core",
+  "key": "from 10.0 on, a family-specific f target covers several",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "The compiler shows what that means compiled here : tcgen05 compiles for sm_100f, but the NVFP4 form with scale_vec::4X does not (\"Feature '.scale_vec::4X' not supported on .target 'sm_100f'\") while sm_100a and sm_103a accept it, as different SASS ( UTCOMMA.4X against UTCOMMA.BLOCK16 ): a family target gets only what every member shares.",
+  "label": "depth",
+  "key": "tcgen05 compiles for sm_100f, but the nvfp4 form",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Plain sm_120 rejects setmaxnreg and the FP4 mma kinds that sm_120a accepts.",
+  "label": "depth",
+  "key": "plain sm_120 rejects setmaxnreg and the fp4 mma kinds",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "This is why every architecture-specific library build is separate, and why code compiled only for sm_90a (with no portable PTX alongside) will not run on a B200.",
+  "label": "core",
+  "key": "is separate, and why code compiled only for sm_90a",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "The same tile on three generations One thread block computing one 128 × 128 output tile in BF16 with FP32 accumulation, one 64-wide K slice at a time, as an Ampere, a Hopper and a datacenter Blackwell kernel would issue it.",
+  "label": "core",
+  "key": "on three generations one thread block computing one 128",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "The counters are per K slice and follow from the instruction shapes derived ; they reproduce by construction the counts compiled for Triton's 128 × 128 × 32 tile in the CUDA root (64 HMMA per warp on sm_80, 4 HGMMA on sm_90a).",
+  "label": "core",
+  "key": "reproduce by construction the counts compiled for triton's 128",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Ampere: mma.sync Hopper: TMA + wgmma Blackwell: TMA + tcgen05 Read across the three: the MMA instructions per K slice fall from 512 to 8 to 4, the threads that must cooperate to issue them from 128 to 128 per warpgroup to 1, and the registers holding the accumulator from 128 per thread to 64 to none.",
+  "label": "core",
+  "key": "mma.sync hopper: tma + wgmma blackwell: tma + tcgen05",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Each step frees the SM's threads for something else: on Hopper for the producer and the epilogue, on Blackwell for whole epilogue warps running while the next tile's MMAs proceed.",
+  "label": "core",
+  "key": "on hopper for the producer and the epilogue, on",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. tensor cores from the programmer's side: one instruction per generation",
+  "text": "Go deeper: the Instruction atlas tab has all 20 kernels × 8 targets of this section, with ptxas's exact messages, registers and the SASS of each cell; the Layout lab tab shows the fragment layouts of more instructions.",
+  "label": "core",
+  "key": "go deeper: the instruction atlas tab has all 20",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "TMA, barriers and warp specialisation: keeping the tensor cores fed An Ampere kernel moves its tiles with cp.async : every thread computes addresses and issues 16-byte copies, 2,048 of them per K slice for our 128 × 128 tile (the instruction itself, and why it bypasses registers, is on GPU memory hierarchy , section 6).",
+  "label": "core",
+  "key": "cp.async : every thread computes addresses and issues 16-byte",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "Hopper's Tensor Memory Accelerator (TMA) replaces that with one instruction from one thread: \"copy this box of this tensor into shared memory\", described by a tensor map .",
+  "label": "core",
+  "key": "hopper's tensor memory accelerator (tma) replaces that with one",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "The descriptor, built on the host A CUtensorMap is a 128-byte opaque object ( sizeof 128, alignment 128, printed by our program) holding the tensor's base address, sizes and strides (up to five dimensions), the box to copy, the swizzle mode, the L2 promotion and the out-of-bounds fill.",
+  "label": "core",
+  "key": "a cutensormap is a 128-byte opaque object ( sizeof",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "It is built by the driver function cuTensorMapEncodeTiled and passed to the kernel as a const __grid_constant__ parameter.",
+  "label": "core",
+  "key": "by the driver function cutensormapencodetiled and passed to the",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "Our program encodes a 64 × 64 BF16 box of an 8,192 × 4,096 matrix with CU_TENSOR_MAP_SWIZZLE_128B ; it compiles compiled here , and run against the toolkit's driver stub every driver call returns 34, CUDA_ERROR_STUB_LIBRARY not run here .",
+  "label": "depth",
+  "key": "our program encodes a 64 × 64 bf16 box",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "Out-of-bounds elements of a box are filled with \"zero or a special NaN constant\" (the oobFill argument, documented in CUDA 13.4.2's cuda.h ) vendor , which is why TMA kernels need no edge masking for ragged M, N or K.",
+  "label": "core",
+  "key": "nan constant\" (the oobfill argument, documented in cuda 13.4.2's",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "Error 34 is CUDA_ERROR_STUB_LIBRARY in the same header.",
+  "label": "depth",
+  "key": "cuda_error_stub_library in the same header",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "Three TMA forms, compiled PTX SASS Use cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes UTMALDG.2D load a tile; the bytes that land are counted on an mbarrier the same with .multicast::cluster and a CTA mask UTMALDG.2D.MULTICAST (sm_90a, sm_100a); a function call on sm_120 one L2 read lands in the shared memory of several CTAs of a cluster, for tiles they all need cp.async.bulk.tensor.2d.global.shared::cta.bulk_group UTMASTG.2D store an output tile from shared memory (the epilogue) mbarrier.arrive.expect_tx , mbarrier.try_wait.parity SYNCS.ARRIVE.TRANS64 , SYNCS.PHASECHK.TRANS64.TRYWAIT \"expect this many bytes\", then wait until they have arrived One kernel, launched as a 2-CTA cluster, compiled for eight targets compiled here ; it is refused on sm_80 and sm_89 (no clusters).",
+  "label": "depth",
+  "key": "ptx sass use cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes utmaldg.2d load a tile; the",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "A pipeline of stages Shared memory is cut into stages , each holding one K slice of A and B.",
+  "label": "core",
+  "key": "shared memory is cut into stages , each holding",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "With 128 × 256 tiles and 64-wide K slices in BF16, a stage is (128 + 256) × 64 × 2 bytes = 48 KB, so an H100 block (227 KB) fits 4 stages and an RTX 5090 block (99 KB) only 2 derived (limits from the CUDA Programming Guide; on the RTX the epilogue's shared memory has to fit too, so real kernels there use smaller tiles).",
+  "label": "core",
+  "key": "with 128 × 256 tiles and 64-wide k slices",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "Each stage has two barriers: full (the TMA bytes have landed) and empty (the MMAs that read it are done).",
+  "label": "core",
+  "key": "each stage has two barriers: full (the tma bytes",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "The producer waits on empty and issues TMA; the consumers wait on full, issue MMAs and arrive on empty.",
+  "label": "core",
+  "key": "the producer waits on empty and issues tma; the",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "With 3 or 4 stages, three or four loads are in flight while the tensor cores work.",
+  "label": "core",
+  "key": "with 3 or 4 stages, three or four loads",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "Warp specialisation and the register hand-off Once copies are one instruction, the warps that issue them need almost no registers, while the MMA warps need many for accumulators.",
+  "label": "core",
+  "key": "once copies are one instruction, the warps that issue",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "Hopper's setmaxnreg moves registers between warpgroups at run time.",
+  "label": "core",
+  "key": "hopper's setmaxnreg moves registers between warpgroups at run time",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "CUTLASS's own Hopper example 48 (a TF32 GEMM, 128 × 128 × 32 tile, a 4 × 2 cluster; 168 registers at launch, the cap for 384 threads), compiled for sm_90a, shows the whole structure in its SASS compiled here : the producer warpgroup executes USETMAXREG.DEALLOC.CTAPOOL 0x28 (down to 40 registers), the consumer warpgroups USETMAXREG.TRY_ALLOC.CTAPOOL 0xe8 (up to 232), with 8 HGMMA.64x128x8.F32.TF32 instructions, UTMALDG for the loads and 51 barrier operations.",
+  "label": "depth",
+  "key": "compiled here : the producer warpgroup executes usetmaxreg.dealloc.ctapool 0x28",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "The budget closes exactly: 128 threads × 40 + 256 × 232 = 64,512 of the SM's 65,536 registers derived .",
+  "label": "core",
+  "key": "the budget closes exactly: 128 threads × 40 +",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "CUTLASS calls the two arrangements of consumers KernelTmaWarpSpecializedCooperative (both consumer warpgroups on one tile) and ...Pingpong (they alternate tiles, so one runs its epilogue while the other runs MMAs).",
+  "label": "core",
+  "key": "cutlass calls the two arrangements of consumers kerneltmawarpspecializedcooperative (both",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. tma, barriers and warp specialisation: keeping the tensor cores fed",
+  "text": "FlashAttention-3 is built the same way ( arXiv 2407.08608 ); its algorithm is on Writing kernels .",
+  "label": "core",
+  "key": "flashattention-3 is built the same way ( arxiv 2407.08608",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "CUTLASS and CuTe: the open-source way to build these kernels CUTLASS is NVIDIA's open-source, header-only C++ template library for GEMM, convolution and attention; version 4.8.0 is dated 2026-09-17 in its changelog and was published on GitHub on September 22 ( releases ) vendor , with the Python CuTe DSL on PyPI as nvidia-cutlass-dsl 4.8.0.",
+  "label": "core",
+  "key": "template library for gemm, convolution and attention; version 4.8.0",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "Where cuBLAS gives you a fixed menu, CUTLASS gives you the parts: you choose types, layouts, tile and cluster shapes, the kernel schedule and the epilogue, and the compiler builds that one kernel.",
+  "label": "core",
+  "key": "where cublas gives you a fixed menu, cutlass gives",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "This is how the custom GEMMs of the last few years were made: grouped GEMMs for mixture-of-experts, GEMMs with dequantisation in the mainloop, block-scaled FP8 and FP4, FlashAttention-3.",
+  "label": "core",
+  "key": "mixture-of-experts, gemms with dequantisation in the mainloop, block-scaled fp8",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "A CUTLASS 3 and 4 GEMM, assembled // from examples/48_hopper_warp_specialized_gemm (CUTLASS 4.8.0), abridged using TileShape = Shape<_128,_128,_32>; // one CTA's output tile, and the K slice using ClusterShape = Shape<_4,_2,_1>; // CTAs that share tiles by TMA multicast using CollectiveMainloop = typename cutlass::gemm::collective::CollectiveBuilder< cutlass::arch::Sm90, cutlass::arch::OpClassTensorOp, ElementA, LayoutA, AlignmentA, ElementB, LayoutB, AlignmentB, ElementAccumulator, TileShape, ClusterShape, StageCountAutoCarveout<sizeof(CollectiveEpilogue::SharedStorage)>, // as many stages as fit KernelScheduleAuto>::CollectiveOp; // picks a warp-specialised schedule using GemmKernel = cutlass::gemm::kernel::GemmUniversal<Shape<int,int,int>, CollectiveMainloop, CollectiveEpilogue>; using Gemm = cutlass::gemm::device::GemmUniversalAdapter<GemmKernel>; // the host-side handle Three layers: a collective mainloop (the K loop: TMA, barriers, MMAs), a collective epilogue (what happens to the tile afterwards; CUTLASS's epilogue visitor tree lets you compose bias, activations, scaling, reductions and extra outputs as a tree of nodes, in include/cutlass/epilogue/fusion/sm90_visitor_*.hpp and the sm100 and sm120 equivalents), and a kernel with its tile scheduler (section 3).",
+  "label": "core",
+  "key": "// from examples/48_hopper_warp_specialized_gemm (cutlass 4.8.0), abridged using tileshape =",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "The builders choose the tensor-core instruction, the swizzled shared-memory layouts and the stage count from the architecture tag.",
+  "label": "core",
+  "key": "the builders choose the tensor-core instruction, the swizzled shared-memory",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "Compiling CUTLASS's own examples and CuTe tutorials in the image compiled here : Example (target) Compile s Regs SASS instr.",
+  "label": "depth",
+  "key": "compiling cutlass's own examples and cute tutorials in the",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "Matrix and copy instructions in the GEMM kernel One kernel per example (the one with tensor-core instructions), single target, 2 CPUs in Docker; compile times are wall-clock seconds with other jobs running.",
+  "label": "depth",
+  "key": "example (the one with tensor-core instructions), single target, 2",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "Regs is ptxas's report at launch (a warp-specialised kernel then moves registers between warpgroups).",
+  "label": "depth",
+  "key": "regs is ptxas's report at launch (a warp-specialised kernel",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "None of these was run.",
+  "label": "depth",
+  "key": "none of these was run",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "Read the last column as a summary of sections 5 and 6: the Ampere tutorial is LDGSTS (cp.async), LDSM and HMMA ; the Hopper ones swap in HGMMA and UTMALDG , and example 48 adds USETMAXREG ; the Blackwell ones issue UTCHMMA , read accumulators with LDTM and store with UTMASTG ; example 70 picked the two-SM form ( UTCHMMA.2CTA ) on its own for its 256 × 128 tile; the RTX 5090 NVFP4 example 79a is OMMA with LDSM , TMA and the register hand-off.",
+  "label": "depth",
+  "key": "the last column as a summary of sections 5",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "CuTe: layouts from zero Underneath CUTLASS 3 and 4 is CuTe , a small algebra that describes every arrangement of data and threads in one notation.",
+  "label": "core",
+  "key": "cute: layouts from zero underneath cutlass 3 and 4",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "A layout is a shape and a stride : (4,8):(1,4) is a 4 × 8 array where moving one step down a column adds 1 to the offset and one step along a row adds 4 (column-major); (4,8):(8,1) is the row-major version; (4,8):(1,5) pads each column by one element, the classic way to dodge shared-memory bank conflicts.",
+  "label": "core",
+  "key": "layout is a shape and a stride : (4,8):(1,4)",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "A layout is a function from coordinates (or a single index, counted with the leftmost mode fastest ) to an offset, and shapes can nest: ((2,2),(2,4)):((1,8),(2,16)) is still 4 × 8, but each mode is itself two modes, which is how a tile of tiles is written. column-major row-major padded nested Four operations do almost all the work, and the page's JavaScript implements them following include/cute/layout.hpp ; every case below was checked against CuTe's own printed result, compiled and run in the image ( 21 cases, 6,326 values, 0 differences) compiled here : Composition A ∘ B: use B to choose coordinates, A to turn them into offsets.",
+  "label": "core",
+  "key": ") to an offset, and shapes can nest: ((2,2),(2,4)):((1,8),(2,16))",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "(6,2):(8,2) ∘ (4,3):(3,1) = ((2,2),3):((24,2),8) , the example in CuTe's documentation.",
+  "label": "core",
+  "key": "(6,2):(8,2) ∘ (4,3):(3,1) = ((2,2),3):((24,2),8) , the example in",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "Complement : the layout that fills the holes. complement((2,2):(1,6), 24) = (3,2):(2,12) .",
+  "label": "core",
+  "key": "the layout that fills the holes",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "Logical divide by a tiler: split a layout into (tile, rest).",
+  "label": "core",
+  "key": "logical divide by a tiler: split a layout into",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "An 8 × 8 column-major matrix divided by 2 × 4 tiles is ((2,4),(4,2)):((1,2),(8,32)) ; zipped_divide regroups the same thing as ((inside a tile), (which tile)), which is how a kernel picks its CTA's tile: local_tile .",
+  "label": "core",
+  "key": "an 8 × 8 column-major matrix divided by 2",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "Products ( blocked_product , raked_product ): repeat a layout over a grid, used to lay threads or values over a tile.",
+  "label": "core",
+  "key": "to lay threads or values over a tile",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "Two more ideas complete the picture.",
+  "label": "core",
+  "key": "two more ideas complete the picture",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "A swizzle Sw<B,M,S> XORs B bits of an offset into B lower bits: CUTLASS's 128-byte Hopper shared-memory atom for 16-bit types is Sw<3,4,3> o (8,64):(64,1) on byte addresses, which XORs a row's 16-byte chunk index with the row number modulo 8, so eight rows read in the same column land in eight different 16-byte bank groups (the bank arithmetic is on GPU memory hierarchy ).",
+  "label": "core",
+  "key": "of an offset into b lower bits: cutlass's 128-byte",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "A thread-value (TV) layout maps (thread, value) to a position in a tile: the mma.sync fragment map in section 5 is CuTe's ((4,8),(2,2)):((32,1),(16,8)) .",
+  "label": "core",
+  "key": "a tile: the mma.sync fragment map in section 5",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "With these, a CUTLASS kernel reads as: local_tile the global tensors to this CTA's tile, partition it across threads with a tiled copy and a tiled MMA ( make_tiled_mma , partition_A ), then copy and gemm on the pieces.",
+  "label": "core",
+  "key": "with these, a cutlass kernel reads as: local_tile the",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "CuTe DSL writes the same thing in Python.",
+  "label": "core",
+  "key": "cute dsl writes the same thing in python",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "Installed in the image without a GPU, it printed the same layouts as the C++ ( ((2,2),3):((24,2),8) for the composition above) and compiled a small kernel to PTX for sm_90a and a cubin, through its own bundled NVVM (\"release 13.4, V13.4.59\") compiled here ; running it needs a GPU not run here .",
+  "label": "core",
+  "key": "printed the same layouts as the c++ ( ((2,2),3):((24,2),8)",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "FlashAttention-4 and many of CUTLASS's newest examples are written in it.",
+  "label": "core",
+  "key": "flashattention-4 and many of cutlass's newest examples are written",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "7. cutlass and cute: the open-source way to build these kernels",
+  "text": "Go deeper: the Layout lab tab evaluates any layout you type, composes, divides, swizzles and shows thread-value maps of four tensor-core instructions, with every preset checked against CuTe.",
+  "label": "core",
+  "key": "go deeper: the layout lab tab evaluates any layout",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "8. fp8 and fp4: the low-precision paths",
+  "text": "FP8 and FP4: the low-precision paths What the formats are (E4M3, E5M2, E2M1, the MX and NVFP4 block formats) and how much each generation's tensor cores gain from them is on Topic: hardware (numeric formats) and numerical computing .",
+  "label": "core",
+  "key": "fp8 and fp4: the low-precision paths what the formats",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "8. fp8 and fp4: the low-precision paths",
+  "text": "The programmer's side is two questions: which instruction does the arithmetic, and where do the scale factors come from (FP8 and FP4 have so little range that every tensor, row or block carries a multiplier).",
+  "label": "core",
+  "key": "(fp8 and fp4 have so little range that every",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "8. fp8 and fp4: the low-precision paths",
+  "text": "Target FP8 (E4M3) FP4 (E2M1) Block-scaled sm_89 (Ada) mma.sync → QMMA.16832 no no sm_90a (Hopper) wgmma → QGMMA.64x128x32 ; mma.sync is emulated (F2FP + 2 HMMA) no no (scales applied in the epilogue or on CUDA cores) sm_100a (B200) tcgen05 kind::f8f6f4 → UTCQMMA same instruction, type in the descriptor kind::mxf8f6f4 → UTCQMMA ; NVFP4 kind::mxf4nvf4 ... scale_vec::4X → UTCOMMA.4X sm_120a (RTX 5090) mma.sync → QMMA.16832 kind::f8f6f4 → QMMA.16832.F32.E2M1.E2M1 kind::mxf4 ... block_scale → OMMA.SF.16864 (CUTLASS's NVFP4 example: OMMA.SF.16864.F32.E2M1.E2M1.UE4M3.4X ) All from the compiles in section 5 and the CUTLASS example 79a compiled here .",
+  "label": "core",
+  "key": "target fp8 (e4m3) fp4 (e2m1) block-scaled sm_89 (ada) mma.sync",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "8. fp8 and fp4: the low-precision paths",
+  "text": "On sm_100a the block scales are read from TMEM (copied there with tcgen05.cp ); on sm_120a they ride in registers next to the operands.",
+  "label": "core",
+  "key": "on sm_100a the block scales are read from tmem",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "8. fp8 and fp4: the low-precision paths",
+  "text": "Scaling granularity, as the libraries spell it Granularity cuBLASLt scale mode (cublasLt.h 13.8) torch._scaled_mm recipe (PyTorch 2.14.1) one FP32 scale per tensor SCALAR_32F tensorwise one FP32 scale per row of A and per column of B OUTER_VEC_32F rowwise one FP32 scale per 128 elements along K (1 × 128), or per 128 × 128 block VEC128_32F , BLK128x128_32F block_1x128_128x128 and variants, checked by a function PyTorch calls check_deepseek_recipe MX: one power-of-two UE8M0 scale per 32 elements VEC32_UE8M0 mxfp8, mxfp4 NVFP4: one E4M3 scale per 16 elements (plus a per-tensor FP32 scale) VEC16_UE4M3 nvfp4 ScaledBlas.cpp and the CUDA 13.4.2 header vendor .",
+  "label": "core",
+  "key": "libraries spell it granularity cublaslt scale mode (cublaslt.h 13.8)",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "8. fp8 and fp4: the low-precision paths",
+  "text": "PyTorch notes in the same file that \"cuBLAS only started supporting row-wise scaling in version 12.9, and only for compute capability 9.0+.",
+  "label": "core",
+  "key": "\"cublas only started supporting row-wise scaling in version 12.9",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "8. fp8 and fp4: the low-precision paths",
+  "text": "In other cases we use CUTLASS.\" Why the block recipe exists: DeepSeek-V3 trained in FP8 on H800s with activations scaled per 1 × 128 tile (\"per token per 128 channels\") and weights per 128 × 128 block, and found that \"the accumulation precision of FP8 GEMM on NVIDIA H800 GPUs is limited to retaining around 14 bits\"; with K = 4,096 that gave \"a maximum relative error of nearly 2%\" in their test.",
+  "label": "core",
+  "key": "we use cutlass.\" why the block recipe exists: deepseek-v3",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "8. fp8 and fp4: the low-precision paths",
+  "text": "Their fix: every N C = 128 elements of K, copy the tensor-core partial sums to FP32 registers and accumulate there (\"promotion to CUDA Cores\") ( DeepSeek-V3 report, section 3.3 ) independent .",
+  "label": "depth",
+  "key": "their fix: every n c = 128 elements of",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "8. fp8 and fp4: the low-precision paths",
+  "text": "That is a mainloop change no library offered at the time, which is why it was a custom kernel ( DeepGEMM ) before it was a cuBLAS scale mode; the report itself is summarised on the DeepSeek-V3 paper page .",
+  "label": "depth",
+  "key": "the report itself is summarised on the deepseek-v3 paper",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "8. fp8 and fp4: the low-precision paths",
+  "text": "Blackwell's block-scaled instructions move the per-block scaling into the tensor core itself.",
+  "label": "core",
+  "key": "blackwell's block-scaled instructions move the per-block scaling into the",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Choosing, common mistakes, interview questions cuBLAS, cuBLASLt, CUTLASS, CuTe DSL or Triton?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Situation Use Why A plain GEMM, any standard type cuBLAS (what torch.matmul does) thousands of tuned kernels and a heuristic; you will not beat it on standard shapes GEMM + bias + ReLU/GELU, or their backward cuBLASLt epilogue ( F.linear , torch.compile ) fused for free; check the trace for separate bias and activation kernels FP8 or FP4 with a standard scaling recipe torch._scaled_mm (cuBLASLt, or CUTLASS inside PyTorch) the scale modes above are built in Attention SDPA (cuDNN or FlashAttention backends) beat it only with a different algorithm, not a re-implementation A GEMM with something inside the K loop (dequantisation, a new scaling scheme), grouped GEMMs for MoE, SwiGLU fused into the GEMM CUTLASS or CuTe DSL; Triton first if you can accept less than peak the libraries cannot express it; CUTLASS reaches the newest instructions (tcgen05, block scales) first A new fused elementwise or reduction-heavy op Triton ( Triton and Gluon ) block-level programming, autotuning, much less code Raw PTX ( mma , wgmma , tcgen05 ) in inline assembly almost never write it; learn to read it CUTLASS's atoms wrap every instruction; reading SASS tells you what any library actually issued Common mistakes Treating column-major cuBLAS like row-major PyTorch The call succeeds and computes the wrong thing (or the transpose).",
+  "label": "core",
+  "key": "the trace for separate bias and activation kernels fp8",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Compute Y T = W T X T by swapping the operands, as in section 2; check against torch.matmul on small sizes first.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restated section 2; its one new tip (check against torch.matmul on small sizes) moved into section 2"
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Shapes that defeat the heuristic Dimensions not divisible by 8 (16 bytes of FP16/BF16) block the vectorised and TMA paths; a tile count just past a multiple of the SM count wastes a wave.",
+  "label": "depth",
+  "key": "dimensions not divisible by 8 (16 bytes of fp16/bf16)",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Pad vocabulary and hidden sizes to multiples of 64 or 128; compare against a padded shape before blaming the library.",
+  "label": "depth",
+  "key": "pad vocabulary and hidden sizes to multiples of 64",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "On the M1, MLX's library GEMM loses 4.9 % when N goes from 4,096 to 4,095 (median of 3 runs) measured on M1 Pro ; the effect on NVIDIA GPUs, where alignment decides whether TMA and 16-byte vector paths are usable, is not measured here not run here .",
+  "label": "depth",
+  "key": "on the m1, mlx's library gemm loses 4.9 %",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "A decode-shaped GEMM (M = 8 rows) is a different problem altogether: it reads the 32 MiB weight matrix for almost no arithmetic, and the M1 library call streamed it at only 67.5 GB/s against the 146 to 163 GB/s that plain copies reach on the same GPU ( GPU memory hierarchy ).",
+  "label": "depth",
+  "key": "a decode-shaped gemm (m = 8 rows) is a",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Expecting a Hopper kernel to run on an RTX 5090 or a B200 wgmma code compiled for sm_90a runs only on compute capability 9.0.",
+  "label": "core",
+  "key": "before renting a gpu for it",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Check what a wheel contains with cuobjdump -lelf before renting a GPU for it.",
+  "label": "core",
+  "key": "check what a wheel contains with cuobjdump -lelf before",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Starving cuBLASLt of workspace A small workspace removes split-K and some Stream-K algorithms from the heuristic's list without any error.",
+  "label": "depth",
+  "key": "give each the same workspace",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "When comparing libraries, give each the same workspace.",
+  "label": "depth",
+  "key": "when comparing libraries, give each the same workspace",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Timing the first call cuDNN runtime-fusion plans and Triton or CuTe DSL kernels compile on first use; cuBLAS loads modules lazily.",
+  "label": "depth",
+  "key": "cudnn runtime-fusion plans and triton or cute dsl kernels",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Warm up, then time (the method is on Profiling and correctness ).",
+  "label": "depth",
+  "key": "warm up, then time (the method is on profiling",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Trusting FP8 accumulation over a long K Section 8: tensor-core FP8 accumulation on Hopper keeps about 14 bits; use libraries that promote partial sums to FP32 or test your kernel's error against an FP32 reference at the real K.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restated section 8; its advice (test against an FP32 reference at the real K) is now in section 8"
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "How to check what ran Kernel names in Nsight Systems or torch.profiler : sm90_xmma_gemm_...",
+  "label": "core",
+  "key": "kernel names in nsight systems or torch.profiler : sm90_xmma_gemm_",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "(cuBLAS on Hopper), cutlass::...",
+  "label": "core",
+  "key": "(cublas on hopper), cutlass",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "(CUTLASS inside a library), triton_...",
+  "label": "core",
+  "key": "(cutlass inside a library), triton_",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "(Inductor), splitKreduce_kernel (cuBLAS chose split-K).",
+  "label": "core",
+  "key": "(inductor), splitkreduce_kernel (cublas chose split-k)",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "What a binary contains: cuobjdump -lelf (which architectures), cuobjdump -sass and a grep for HMMA , HGMMA , UTCHMMA , UTMALDG , as in this page's Instruction atlas .",
+  "label": "core",
+  "key": "what a binary contains: cuobjdump -lelf (which architectures), cuobjdump",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Which SDPA backend: force one with torch.nn.attention.sdpa_kernel and compare times and kernel names against the default.",
+  "label": "core",
+  "key": "which sdpa backend: force one with torch.nn.attention.sdpa_kernel and compare",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Interview questions, with short answers Why can't you just write a fast GEMM in CUDA in an afternoon?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Peak needs on-chip tiling with swizzled layouts, the generation's tensor-core instruction with its operand layouts, an asynchronous multi-stage pipeline, warp specialisation on Hopper/Blackwell, a schedule matched to the SM count, and a fused epilogue.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Each changes per generation; cuBLAS ships 52,148 kernels in its Lt library alone.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "What is the difference between cuBLAS and cuBLASLt?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Same kernels; Lt exposes descriptors, a ranked heuristic list, a workspace, epilogues (bias, ReLU, GELU and their gradients) and FP8/FP4 scale modes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "PyTorch uses classic cuBLAS for mm by default and Lt for addmm with a 1-D bias and for scaled matmuls. mma.sync vs wgmma vs tcgen05?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "One warp, operands and accumulators in registers (Ampere on); four warps, async, operands from shared memory by descriptor, accumulators in registers (Hopper only); one thread, async, operands from shared memory, accumulators in tensor memory, optionally across two SMs (datacenter Blackwell).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "The RTX 5090 uses the first.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "What does TMA buy over cp.async?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "One instruction from one thread moves a whole multi-dimensional tile with hardware address generation, swizzling, out-of-bounds fill and byte-counted completion on an mbarrier, optionally multicast to a cluster; the other warps are free for math.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "What is wave quantization and what fixes it?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Tiles run in waves of one per SM; a tile count just above a multiple of the SM count leaves the last wave mostly idle (108 vs 117 tiles on an A100 halves throughput in NVIDIA's example).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Fixes: a different tile shape, split-K, Stream-K, or padding the problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "What is a CuTe layout?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "A shape and a stride, a function from coordinates to offsets with the leftmost mode fastest; composition, complement, divide and product build tiles, thread mappings, swizzled shared memory and instruction fragments from it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Why did DeepSeek-V3 need a custom FP8 GEMM?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Per-128-element block scaling and FP32 promotion of tensor-core partial sums every 128 elements of K, because Hopper's FP8 accumulation keeps about 14 bits.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "That changes the mainloop, which no library exposed then.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview block deleted: each answer restated a section (s1, s2, s5, s6, s3, s7, s8)"
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Built from: CUDA 13.4.2 (nvcc V13.4.92), cuBLAS 13.8.0.4, CUTLASS 4.8.0 (commit 098de2a), nvidia-cutlass-dsl 4.8.0, cuDNN 9.27.0.42 with frontend 1.30.0, PyTorch 2.14.1 source, MLX 0.32.3 on an Apple M1 Pro; all compiles in the Docker image kb-gpu-lab:1 without a GPU.",
+  "label": "core",
+  "key": "built from: cuda 13.4.2 (nvcc v13.4.92), cublas 13.8.0.4, cutlass",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "9. choosing, common mistakes, interview questions",
+  "text": "Scripts and raw outputs: src/ of this page.",
+  "label": "core",
+  "key": "scripts and raw outputs: src/ of this page",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-layout",
+  "section": "layout lab: cute's algebra, checked against cute",
+  "text": "Layout lab: CuTe's algebra, checked against CuTe Type a layout as shape:stride (nested parentheses allowed), pick an operation, and see the result as CuTe prints it and as a grid of offsets (rows are mode 0, columns the rest, index counted with the leftmost mode fastest).",
+  "label": "core",
+  "key": "as a grid of offsets (rows are mode 0",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-layout",
+  "section": "layout lab: cute's algebra, checked against cute",
+  "text": "The algebra is this page's JavaScript port of include/cute/layout.hpp from CUTLASS 4.8.0; every preset was also computed by CuTe itself, compiled and run in the CUDA 13.4.2 image, and the badge says whether the two agree compiled here .",
+  "label": "core",
+  "key": "this page's javascript port of include/cute/layout.hpp from cutlass 4.8.0",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-layout",
+  "section": "layout lab: cute's algebra, checked against cute",
+  "text": "Section 7 of the Reading tab explains each operation.",
+  "label": "core",
+  "key": "section 7 of the reading tab explains each operation",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-layout",
+  "section": "layout lab: cute's algebra, checked against cute",
+  "text": "Preset Operation evaluate A coalesce(A) composition A ∘ B complement(A, M) logical_divide(A, tiler) zipped_divide(A, tiler) blocked_product(A, B) raked_product(A, B) Swizzle<B,M,S> ∘ A Layout A B, or a tiler (one layout per mode, separated by ; ) M (complement) or B,M,S (swizzle) Swizzles and banks Eight rows of 64 BF16 values (128 bytes each) in shared memory.",
+  "label": "core",
+  "key": "eight rows of 64 bf16 values (128 bytes each)",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-layout",
+  "section": "layout lab: cute's algebra, checked against cute",
+  "text": "Each cell is a 16-byte chunk, coloured by the group of four 4-byte banks it lands in; reading one column of chunks down the eight rows (what an MMA operand load does) is conflict-free only if the eight colours differ.",
+  "label": "core",
+  "key": "each cell is a 16-byte chunk, coloured by the",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-layout",
+  "section": "layout lab: cute's algebra, checked against cute",
+  "text": "Compare no swizzle with CuTe's Sw<3,3,3> (in 16-bit elements; Sw<3,4,3> on byte addresses, CUTLASS's 128-byte atom). no swizzle Sw<1,3,3> (32 B) Sw<2,3,3> (64 B) Sw<3,3,3> (128 B) Thread-value layouts of tensor-core instructions Which thread holds which element of an instruction's operand tile, from CuTe's MMA_Traits (printed by CuTe in the image).",
+  "label": "core",
+  "key": "thread-value layouts of tensor-core instructions which thread holds which",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-layout",
+  "section": "layout lab: cute's algebra, checked against cute",
+  "text": "Hover or tap a cell; the colour is the thread. mma m16n8k16: C m16n8k16: A m16n8k8 TF32: A wgmma m64n64k16: C (128 threads) CuTe also printed the tiled MMA CUTLASS builds from 2 × 2 warps of the m16n8k16 atom: .",
+  "label": "core",
+  "key": "a cell; the colour is the thread. mma m16n8k16",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-atlas",
+  "section": "instruction atlas: 20 kernels, 8 targets, real compiler output",
+  "text": "Instruction atlas: 20 kernels, 8 targets, real compiler output Each row is one small CUDA kernel written around one tensor-core, copy or synchronisation instruction (in inline PTX); each column a compilation target.",
+  "label": "core",
+  "key": "instruction atlas: 20 kernels, 8 targets, real compiler output",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-atlas",
+  "section": "instruction atlas: 20 kernels, 8 targets, real compiler output",
+  "text": "Every cell is a real nvcc and ptxas run from CUDA 13.4.2 in the Docker image kb-gpu-lab:1, without a GPU compiled here : green if it assembled (the cell names the SASS opcode), grey with the reason if ptxas refused.",
+  "label": "core",
+  "key": "a real nvcc and ptxas run from cuda 13.4.2",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-atlas",
+  "section": "instruction atlas: 20 kernels, 8 targets, real compiler output",
+  "text": "Click a cell for the PTX, ptxas's report and the SASS lines.",
+  "label": "core",
+  "key": "click a cell for the ptx, ptxas's report and",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-atlas",
+  "section": "instruction atlas: 20 kernels, 8 targets, real compiler output",
+  "text": "Nothing here was run; numerical results are not verified.",
+  "label": "core",
+  "key": "nothing here was run; numerical results are not verified",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-atlas",
+  "section": "instruction atlas: 20 kernels, 8 targets, real compiler output",
+  "text": "Targets: sm_80 A100; sm_89 RTX 4090 / L40S; sm_90a H100 and H200 (architecture-specific); sm_100a B200 and GB200; sm_100f the 10.x family; sm_103a B300 and GB300; sm_120 RTX 5090 (portable); sm_120a RTX 5090 (architecture-specific).",
+  "label": "core",
+  "key": "targets: sm_80 a100; sm_89 rtx 4090 / l40s; sm_90a",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-atlas",
+  "section": "instruction atlas: 20 kernels, 8 targets, real compiler output",
+  "text": "Compute capabilities per NVIDIA's list .",
+  "label": "core",
+  "key": "compute capabilities per nvidia's list",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-atlas",
+  "section": "instruction atlas: 20 kernels, 8 targets, real compiler output",
+  "text": "Three more targets, for the newest instructions The same tcgen05, wgmma, FP4 and register hand-off kernels for sm_107a (Rubin, per CUTLASS 4.8.0's changelog), sm_110a (Jetson T5000 and T4000) and sm_121a (GB10 in DGX Spark): What cuBLAS itself issues Scanning the SASS of every kernel in libcublasLt.so.13.8.0.4 for the same opcodes (how many kernels contain at least one) compiled here :",
+  "label": "core",
+  "key": "more targets, for the newest instructions the same tcgen05",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-sched",
+  "section": "gemm scheduler: tiles, waves, split-k and stream-k on real sm counts",
+  "text": "GEMM scheduler: tiles, waves, split-K and Stream-K on real SM counts Lay one GEMM's output tiles onto a GPU's SMs under four schedules (section 3 of the Reading tab explains them).",
+  "label": "core",
+  "key": "the same gemm on the same sms",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-sched",
+  "section": "gemm scheduler: tiles, waves, split-k and stream-k on real sm counts",
+  "text": "The unit of work is one MAC-loop iteration : one K slice of 64 for one output tile; time is counted in iterations, so the chart shows how evenly the work is spread, not seconds.",
+  "label": "core",
+  "key": "k slices of 64",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-sched",
+  "section": "gemm scheduler: tiles, waves, split-k and stream-k on real sm counts",
+  "text": "Partial-sum traffic is counted separately in bytes (FP32 partial tiles written and read back).",
+  "label": "core",
+  "key": "fp32 partial-tile traffic",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-sched",
+  "section": "gemm scheduler: tiles, waves, split-k and stream-k on real sm counts",
+  "text": "It is a model derived : it ignores the epilogue, the fix-up's own time, memory bandwidth and clock differences, which real libraries also weigh.",
+  "label": "core",
+  "key": "it counts work and fp32",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-sched",
+  "section": "gemm scheduler: tiles, waves, split-k and stream-k on real sm counts",
+  "text": "SM counts are vendor figures (A100 108, H100 SXM 132, B200 148, RTX 5090 170).",
+  "label": "core",
+  "key": "sm counts are vendor figures",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-sched",
+  "section": "gemm scheduler: tiles, waves, split-k and stream-k on real sm counts",
+  "text": "Preset GPU A100 (108 SMs) H100 SXM (132 SMs) B200 (148 SMs) RTX 5090 (170 SMs) Tile (M x N) 64 x 64 128 x 128 128 x 256 256 x 128 Schedule data-parallel split-K, 2 ways split-K, 4 ways split-K, 8 ways Stream-K data-parallel + Stream-K remainder M N K ▶ Play Each row is an SM, time runs left to right; colour is the output tile, so a tile split between SMs shows the same colour on two rows.",
+  "label": "core",
+  "key": "preset gpu a100 (108 sms) h100 sxm (132 sms)",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-sched",
+  "section": "gemm scheduler: tiles, waves, split-k and stream-k on real sm counts",
+  "text": "Presets 1 and 2 reproduce NVIDIA's wave-quantization example by construction (108 and 117 tiles on an A100); the halving of throughput NVIDIA reports there is their measurement, not this model's.",
+  "label": "core",
+  "key": "presets 1 and 2 reproduce nvidia's",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading On this page Layout lab Type a CuTe layout, compose, divide, swizzle; bank groups; thread-value maps of four instructions.",
+  "label": "depth",
+  "key": "further reading on this page layout lab type a",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 255,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min Instruction atlas 20 kernels × 8 targets of real ptxas output, three newer targets, and what cuBLAS's own SASS contains.",
+  "label": "depth",
+  "key": "10 min instruction atlas 20 kernels × 8 targets",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 256,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min GEMM scheduler Tiles and waves under data-parallel, split-K and Stream-K schedules on five SM counts, animated.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further-reading card of the removed scheduler tab"
+ },
+ {
+  "id": 257,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min The CUDA topic and its siblings Topic: cuda-and-gpu-programming The parent: one softmax-times-V followed from PyTorch to SASS; GPU simulator, Compiler explorer (sections 4 and 6 show one HMMA against one FMA) and Kernel lab tabs. about 45 min The CUDA programming model Threads, warps, blocks, clusters, occupancy and waves: the vocabulary sections 3 and 6 use.",
+  "label": "depth",
+  "key": "pytorch to sass; gpu simulator, compiler explorer (sections 4",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 258,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "37 min GPU memory hierarchy Coalescing, shared-memory banks and swizzles, registers and spills, cp.async: what TMA and ldmatrix build on.",
+  "label": "depth",
+  "key": "37 min gpu memory hierarchy coalescing, shared-memory banks and",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 259,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Writing kernels The hand-written matmul ladder and FlashAttention 1 to 3, step by step.",
+  "label": "depth",
+  "key": "30 min writing kernels the hand-written matmul ladder and",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 260,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "37 min Triton and Gluon The block-level alternative to CUTLASS; what tl.dot compiles to on each generation.",
+  "label": "depth",
+  "key": "37 min triton and gluon the block-level alternative to",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 261,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "29 min Profiling and correctness Reading kernel names in traces, honest timing, FP8 error checks.",
+  "label": "depth",
+  "key": "29 min profiling and correctness reading kernel names in",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 262,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "29 min The compiler stack PTX, SASS, fatbinaries and the a and f targets from the compiler's side.",
+  "label": "depth",
+  "key": "29 min the compiler stack ptx, sass, fatbinaries and",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 263,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "28 min Streams, CUDA graphs and multi-GPU programming Streams, launch overhead and CUDA graphs, NCCL: how the GEMMs on this page are launched, overlapped and fed across GPUs.",
+  "label": "depth",
+  "key": "28 min streams, cuda graphs and multi-gpu programming streams",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 264,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "36 min GPU architecture Tensor cores, TMEM and the SM physically, generation by generation, with their throughput. about 28 min Topic: hardware Numeric formats in hardware (FP8, FP4, MX, NVFP4), chips and their peaks.",
+  "label": "depth",
+  "key": "36 min gpu architecture tensor cores, tmem and the",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 265,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "37 min Quantization and Precision FP8 and low-bit training and inference from the model's side.",
+  "label": "depth",
+  "key": "and low-bit training and inference from the model's side",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 266,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "23 min DeepSeek-V3 Technical Report (paper page) The FP8 recipe of section 8 in context: tile scaling, 14-bit accumulation, promotion.",
+  "label": "depth",
+  "key": "23 min deepseek-v3 technical report (paper page) the fp8",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 267,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "26 min FlashAttention (paper page) The algorithm cuDNN and FlashAttention backends implement.",
+  "label": "depth",
+  "key": "26 min flashattention (paper page) the algorithm cudnn and",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 268,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min Topic: inference-and-serving Where these kernels land in production engines.",
+  "label": "depth",
+  "key": "20 min topic: inference-and-serving where these kernels land in",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 269,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "43 min Best resources CUTLASS documentation C++ templates and the CuTe DSL; start with CuTe's layout and layout-algebra pages ( layout algebra ).",
+  "label": "depth",
+  "key": "43 min best resources cutlass documentation c++ templates and",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 270,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2 h for the core pages NVIDIA/cutlass on GitHub Read examples/cute/tutorial (Ampere, Hopper and five Blackwell steps), then examples 48 and 70; all compiled on this page.",
+  "label": "depth",
+  "key": "2 h for the core pages nvidia/cutlass on github",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 271,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min for the entry path Colfax Research blog The clearest written series on CuTe layouts, wgmma , TMA and FlashAttention-3-style pipelines.",
+  "label": "depth",
+  "key": "45 min for the entry path colfax research blog",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 272,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "6 h for the series GPU MODE lectures Video lectures, several on CUTLASS and CuTe by their developers.",
+  "label": "depth",
+  "key": "6 h for the series gpu mode lectures video",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 273,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "1 h 30 min each; about 4 h 30 min for the CUTLASS set cuBLAS documentation Especially the cuBLASLt API : descriptors, heuristics, epilogues, scale modes.",
+  "label": "depth",
+  "key": "1 h 30 min each; about 4 h 30",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 274,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "1 h 30 min cuDNN documentation The graph API and the frontend; the attention section.",
+  "label": "depth",
+  "key": "1 h 30 min cudnn documentation the graph api",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 275,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "1 h 30 min PTX ISA Ground truth for mma , wgmma , tcgen05 , TMA and mbarriers; read the matrix-instruction sections.",
+  "label": "depth",
+  "key": "1 h 30 min ptx isa ground truth for",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 276,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "1 h for the mma sections How to Optimize a CUDA Matmul Kernel Simon Boehm's ten-step FP32 ladder to 93.7% of cuBLAS.",
+  "label": "depth",
+  "key": "1 h for the mma sections how to optimize",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 277,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "1 h Stream-K paper Work-centric GEMM decomposition (section 3).",
+  "label": "depth",
+  "key": "1 h stream-k paper work-centric gemm decomposition (section 3)",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 278,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "1 h Benchmarking and Dissecting the Nvidia Hopper GPU Architecture Independent measurements of mma against wgmma, DSMEM and TMA.",
+  "label": "depth",
+  "key": "1 h benchmarking and dissecting the nvidia hopper gpu",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 279,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "1 h DeepGEMM A readable FP8 GEMM with fine-grained scaling for Hopper and Blackwell.",
+  "label": "depth",
+  "key": "1 h deepgemm a readable fp8 gemm with fine-grained",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 280,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "1 h FlashAttention repository FlashAttention-2 in CUDA, -3 for Hopper, -4 in the CuTe DSL.",
+  "label": "depth",
+  "key": "1 h flashattention repository flashattention-2 in cuda, -3 for",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 281,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "1 h to find your way",
+  "label": "depth",
+  "key": "1 h to find your way",
+  "where": "",
+  "note": "further reading"
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "top",
+  "text": "The core idea in one sentence (new)",
+  "label": "core",
+  "key": "almost every flop of a training run is a matrix multiply",
+  "where": "",
+  "note": "added 2026-10-23 for script-rendered or new content"
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "top",
+  "text": "Hero: one PyTorch call down four layers to the tensor-core instruction of each generation (new static diagram, script-drawn)",
+  "label": "core",
+  "key": "only the bottom one changes with every gpu generation",
+  "where": "",
+  "note": "added 2026-10-23 for script-rendered or new content"
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "top",
+  "text": "New terms list (new)",
+  "label": "core",
+  "key": "four consecutive warps (128 threads) that issue one hopper",
+  "where": "",
+  "note": "added 2026-10-23 for script-rendered or new content"
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "5",
+  "text": "MMA tile shapes to scale: 2,048, 262,144 and 524,288 multiply-adds per instruction (new, derived from PTX ISA shapes)",
+  "label": "core",
+  "key": "524,288",
+  "where": "",
+  "note": "added 2026-10-23 for script-rendered or new content"
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "5",
+  "text": "mma.sync across five targets: per-type SASS table rendered by script from the compile matrix",
+  "label": "core",
+  "key": "fp4 rows need the a target",
+  "where": "",
+  "note": "added 2026-10-23 for script-rendered or new content"
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "5",
+  "text": "Tile animation counters: 512, 8, 4 MMA per K slice; accumulator 128, 64, 0 registers (script)",
+  "label": "core",
+  "key": "fall from 512 to 8 to 4",
+  "where": "",
+  "note": "added 2026-10-23 for script-rendered or new content"
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "6",
+  "text": "What fits on one SM: four 48 KB stages on H100 (35 KB left), two on RTX 5090 (3 KB left); register split 5,120 + 59,392 + 1,024 unused (new, drawn to scale)",
+  "label": "core",
+  "key": "four 48 kb stages on an h100",
+  "where": "",
+  "note": "added 2026-10-23 for script-rendered or new content"
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "3",
+  "text": "GEMM scheduler presets and the schedules compared, script-rendered (moved from its tab)",
+  "label": "core",
+  "key": "presets 1 and 2 reproduce nvidia",
+  "where": "",
+  "note": "added 2026-10-23 for script-rendered or new content"
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "7",
+  "text": "Swizzle bank view moved from the Layout lab into section 7",
+  "label": "core",
+  "key": "column 0 of eight rows hits one bank group eight times",
+  "where": "",
+  "note": "added 2026-10-23 for script-rendered or new content"
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "4",
+  "text": "FlashAttention as a library: FA-2 in CUDA, FA-3 for Hopper, FA-4 in the CuTe DSL (gathered from the old Further reading and section 7)",
+  "label": "core",
+  "key": "flashattention outside pytorch",
+  "where": "",
+  "note": "added 2026-10-23 for script-rendered or new content"
+ }
+]
