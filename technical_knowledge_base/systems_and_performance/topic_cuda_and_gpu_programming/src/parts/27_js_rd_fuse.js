@@ -46,7 +46,7 @@
       RD.stat('Memory time (H100)',tm.toFixed(3)+' ms','so far')+RD.stat('Compute time (H100)',tc.toFixed(3)+' ms','whole attention, both modes')+
       RD.stat('Bound, unfused / fused',(Math.max(allU/BW*1e3,tc)/Math.max(allF/BW*1e3,tc)).toFixed(1)+'x',(allU/allF).toFixed(0)+'x fewer bytes fused');
   }
-  RD.seg(document.getElementById('rd-fu-mode'),m=>{mode=m;an.reset(4);an.play()});
+  RD.seg(document.getElementById('rd-fu-mode'),m=>{mode=m;an.reset(4)});
   an=RD.anim({card:'rd-fu-card',ctl:'rd-fu-ctl',n:4,draw,ms:2000,label:'Attention step'});
   [nS,dS,hS].forEach(e=>e.addEventListener('change',()=>an.redraw()));
   RD.onResize(()=>an.redraw());

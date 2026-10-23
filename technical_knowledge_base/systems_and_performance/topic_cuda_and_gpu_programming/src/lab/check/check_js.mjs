@@ -32,12 +32,16 @@ const on = C.online(row.s, row.v, 4), nv = C.naive(row.s, row.v);
 ok(close(on[on.length - 1].out, exp.demo.online_out, 1e-12) && close(nv.out, exp.demo.naive_out, 1e-12), 'demo outputs'); n++;
 // hand-written numbers in the tab's HTML
 const tabHtml = fs.readFileSync(path.join(parts, '33_tab_lab.html'), 'utf8'), R = data.roof;
-const claims = [['ridge point of about 30', Math.round(R.peak_fp32_gf / R.copy_gbs) === 30],
+const claims = [
   ['about 20 times the memory bandwidth', Math.round(3350 / R.copy_gbs) === 20],
   ['about 200 times the matrix throughput', Math.abs(989.5e3 / R.peak_fp32_gf - 200) < 5],
-  ['17.2 billion floating-point operations', (2 * 2048 ** 3 / 1e9).toFixed(1) === '17.2'],
+];
+for (const [t, c] of claims) { ok(tabHtml.includes(t), 'text present: ' + t); ok(c, 'claim holds: ' + t); n += 2 }
+// sections 1 and 2 (the softmax and matmul ladders) left this tab on 2026-10-23 for Writing kernels; their text is in
+// ../retired/parts/33_tab_lab.html and their arithmetic is still checked here
+const retired = fs.readFileSync(path.join(lab, '..', 'retired', 'parts', '33_tab_lab.html'), 'utf8');
+for (const [t, c] of [['ridge point of about 30', Math.round(R.peak_fp32_gf / R.copy_gbs) === 30], ['17.2 billion floating-point operations', (2 * 2048 ** 3 / 1e9).toFixed(1) === '17.2'],
   ['about 340 operations per byte', Math.round(2 * 2048 ** 3 / (12 * 2048 ** 2)) === 341],
   ['on 48 MiB of data', 12 * 2048 ** 2 / 2 ** 20 === 48],
-  ['256 MiB in, 256 MiB out', 4 * s6.R * s6.C / 2 ** 20 === 256]];
-for (const [t, c] of claims) { ok(tabHtml.includes(t), 'text present: ' + t); ok(c, 'claim holds: ' + t); n += 2 }
+  ['256 MiB in, 256 MiB out', 4 * s6.R * s6.C / 2 ** 20 === 256]]) { ok(retired.includes(t), 'retired text: ' + t); ok(c, 'claim holds: ' + t); n += 2 }
 console.log('checks', n, 'fail', fail); process.exit(fail ? 1 : 0);

@@ -68,7 +68,7 @@
   }
   const A=U.anim({card:'sim-div-card',ctl:'sim-div-ctl',n:Math.max(S.warps[0].rows.length,S.warps[1].rows.length),draw,ms:800,label:'Issue slot'});
   function update(){S=cur();A.reset(Math.max(S.warps[0].rows.length,S.warps[1].rows.length))}
-  U.seg($('sim-div-mode'),m=>{mode=m;$('sim-div-free').hidden=m!=='free';update();A.play()});
+  U.seg($('sim-div-mode'),m=>{mode=m;$('sim-div-free').hidden=m!=='free';update()});
   $('sim-div-cond').addEventListener('change',e=>{cond=e.target.value;update()});
   $('sim-div-la').addEventListener('input',e=>{la=+e.target.value;$('sim-div-lav').textContent=la;update()});
   $('sim-div-lb').addEventListener('input',e=>{lb=+e.target.value;$('sim-div-lbv').textContent=lb;update()});

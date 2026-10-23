@@ -1,6 +1,5 @@
 // ---- GPU simulator (t-sim): shared UI helpers (step animation, segmented buttons, SVG text, widths). ----
-// Every animation animates only while its card is on screen in the visible tab, plays once the first time
-// it scrolls into view, and never autoplays under prefers-reduced-motion.
+// Every animation animates only while its card is on screen in the visible tab and never moves before the reader acts (2026-10-23).
 window.SIMU=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const $=id=>document.getElementById(id);
@@ -41,7 +40,7 @@ window.SIMU=(function(){
     g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&tabVisible()&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+      kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();setTimeout(kick,50)});
     return {

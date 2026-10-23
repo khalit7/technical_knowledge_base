@@ -36,7 +36,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const wide = await p.evaluate(() => { const W = document.getElementById('t-lab').getBoundingClientRect().right + 1; return [...document.querySelectorAll('#t-lab *')].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > W && !e.closest('pre,.tw,.nav') }).slice(0, 5).map(e => e.tagName + '#' + e.id + '.' + e.className + ' ' + Math.round(e.getBoundingClientRect().right)) });
   if (wide.length) bad.push('wide: ' + wide.join(' | '));
   await p.evaluate(() => window.scrollTo(0, 0));
-  for (const id of ['lab-s0','lab-s1','lab-s2','lab-s3','lab-s4','lab-s5','lab-s6','lab-s7']) { const e = await p.$('#' + id); await e.screenshot({ path: `${out}/${w}_${id}.png` }); }
+  for (const id of ['lab-s0','lab-s3','lab-s4','lab-s5','lab-s6','lab-s7']) { const e = await p.$('#' + id); await e.screenshot({ path: `${out}/${w}_${id}.png` }); }
   console.log(w, scheme, 'controls', nb, 'errors', errs.length, errs.slice(0, 3), 'bad', bad);
   fails += errs.length + bad.length;
   await p.close();

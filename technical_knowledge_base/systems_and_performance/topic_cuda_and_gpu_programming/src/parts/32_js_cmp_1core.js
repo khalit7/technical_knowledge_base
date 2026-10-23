@@ -11,7 +11,7 @@ window.CMPX=(function(){
   function seg(el,f){el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!el.contains(b))return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)})}
   const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
   // Step animation: play, pause, step, scrub, speed. Animates only while on screen in the visible tab;
-  // never autoplays under prefers-reduced-motion.
+  // never moves before the reader acts (2026-10-23).
   function anim(o){
     const card=$(o.card),ctl=$(o.ctl);
     const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
@@ -36,7 +36,7 @@ window.CMPX=(function(){
     g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&visible()){st.started=true;if(!RM)setPlay(true)}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+      kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     return {reset(n){setPlay(false);st.n=n;st.i=0;show()},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},redraw(){o.draw(st.i)},get i(){return st.i}};

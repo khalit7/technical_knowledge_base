@@ -59,7 +59,7 @@
   const A=U.anim({card:'sim-lat-card',ctl:'sim-lat-ctl',n:Math.ceil(T/step),draw,ms:160,label:'Cycle'});
   function update(){compute();A.reset(Math.ceil(T/step))}
   function lbl(){$('sim-lat-wv').textContent=S.w;$('sim-lat-cv').textContent=S.c;$('sim-lat-lv').textContent=S.l;$('sim-lat-kv').textContent=S.k}
-  U.seg($('sim-lat-mode'),m=>{S.mode=m;$('sim-lat-free').hidden=$('sim-lat-pre').hidden=m!=='free';update();A.play()});
+  U.seg($('sim-lat-mode'),m=>{S.mode=m;$('sim-lat-free').hidden=$('sim-lat-pre').hidden=m!=='free';update()});
   [['w','sim-lat-w'],['c','sim-lat-c'],['l','sim-lat-l'],['k','sim-lat-k']].forEach(([k,id])=>$(id).addEventListener('input',e=>{S[k]=+e.target.value;lbl();update()}));
   U.seg($('sim-lat-lp'),m=>{S.l=+m;$('sim-lat-l').value=S.l;lbl();update()});
   lbl();U.onResize(()=>A.redraw());

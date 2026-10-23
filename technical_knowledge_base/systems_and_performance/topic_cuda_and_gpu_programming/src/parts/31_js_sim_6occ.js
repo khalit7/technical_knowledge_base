@@ -103,7 +103,7 @@
   }
   const RA=U.anim({card:'sim-rf-card',ctl:'sim-rf-ctl',n:P.warps.length+1,draw:rfDraw,ms:450,label:'Warp placed'});
   function rfUpdate(){P=plan();RA.reset(P.warps.length+1)}
-  U.seg($('sim-rf-mode'),m=>{rfMode=+m;rfUpdate();RA.play()});
+  U.seg($('sim-rf-mode'),m=>{rfMode=+m;rfUpdate()});
   $('sim-rf-arch').addEventListener('change',e=>{rfArch=e.target.value;rfUpdate()});
   document.querySelectorAll('#t-sim .sim-acc-r').forEach(e=>{if(acc)e.textContent=acc.by_arch.sm_90a.regs});
   U.onResize(()=>RA.redraw());
