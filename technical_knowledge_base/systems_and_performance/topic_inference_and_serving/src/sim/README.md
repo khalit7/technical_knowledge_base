@@ -1,6 +1,6 @@
 # Serving simulator tab (t-sim): sources, scripts, checks
 
-Built 2026-10-08. The tab's parts are `parts/31_tab_sim.html` and `parts/31_js_sim_*.js` (0core: the engine model; 1data: generated; 2util: helpers and the step-animation controller; 3anim: section 1; 4lab: section 2; 5more: sections 3 and 4; 6val: section 5). Ids and classes use the `sim-` prefix; CSS is scoped under `#t-sim`.
+Built 2026-10-08. The tab's parts are `parts/31_tab_sim.html` and `parts/31_js_sim_*.js` (0core: the engine model; 1data: generated; 2util: helpers and the step-animation controller; 3anim: the old section 1, retired 2026-10-23 to `../retired/parts/` because Batching, KV cache and scheduling draws static against continuous and contiguous against paged in its sections 1 and 2; 4lab: section 1 (was 2); 5more: sections 2 and 3 (were 3 and 4); 6val: section 4 (was 5); the step-time model is section 5). Ids and classes use the `sim-` prefix; CSS is scoped under `#t-sim`.
 
 ## Files
 | File | What it does |

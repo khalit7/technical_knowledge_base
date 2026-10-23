@@ -31,16 +31,8 @@ async function scan(where) {
   if (r.side) bad.push(where + ': sideways scroll');
 }
 const click = sel => p.evaluate(s => { const e = document.querySelector(s); if (!e) throw new Error('missing ' + s); e.click(); }, sel);
-// section 1
-for (const bat of ['static', 'cont']) for (const kv of ['contig', 'paged']) {
-  await click(`#sim-a-bat button[data-v="${bat}"]`); await click(`#sim-a-kv button[data-v="${kv}"]`);
-  const n = await p.evaluate(() => +document.getElementById('sim-a-ctl-s').max);
-  for (let i = 0; i <= n; i += Math.max(1, Math.floor(n / 12))) { await p.evaluate(i => { const s = document.getElementById('sim-a-ctl-s'); s.value = i; s.dispatchEvent(new Event('input')); }, i); }
-  await click('#sim-a-ctl-f'); await click('#sim-a-ctl-b'); await click('#sim-a-ctl-p'); await click('#sim-a-ctl-p');
-  await scan('anim ' + bat + ' ' + kv);
-}
-for (const id of ['sim-pr1', 'sim-pr2']) for (const a of [0, 1, 2]) { await click(`#${id} button[data-a="${a}"]`); await scan(id); }
-// section 2
+// section 1 (the 20-request animation) retired 2026-10-23: the Batching child draws it
+// section 1 (was 2): the lab
 const hws = await p.evaluate(() => [...document.querySelectorAll('#sim-hw option')].map(o => o.value));
 const scns = await p.evaluate(() => [...document.querySelectorAll('#sim-scn option')].map(o => o.value));
 const cmps = ['mode', 'kv', 'pc', 'chunk', 'pre', 'admit', 'dep', 'clear'];

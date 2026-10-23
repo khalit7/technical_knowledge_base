@@ -17,7 +17,7 @@ L, M, C = D["life"], D["meas"], D["cost"]
 kv = {r["k"]: r for r in D["kv"]}
 B = {b["B"]: b for b in D["batch"]}
 f0 = lambda x: f"{round(x):,}"
-expect = [  # (text that must appear in the Reading prose, why)
+expect = [  # (text that must appear in the Reading prose, why); since 2026-10-23 the vLLM preemption run and the expected-tokens formula live on their owners (Batching section 6, Speculative decoding section 4)
     (f'{L["weights_gb"]} GB', "FP8 weights of Llama 3.1 70B"),
     (f'{L["t_dec_ms"]} ms', "single-user decode step"),
     (f'{L["t_pre_ms"]} ms', "prefill of 2,000 tokens"),
@@ -31,9 +31,6 @@ expect = [  # (text that must appear in the Reading prose, why)
     (f'{M["pp512_06q4"]} tokens per second', "pp512"),
     (f'generates at {M["tg_06q4"]}', "tg128"),
     (f'{M["pfxOff"]} ms to {M["pfxOn"]} ms', "prefix cache"),
-    (f'{M["vllmPreempt"]} preemptions', "vLLM preemptions"),
-    (f'{M["vllmTok8"]} to {M["vllmTok16"]}', "vLLM throughput 8 to 16 users"),
-    (f'{M["vllmKvTok"]}-token cache', "vLLM KV tokens"),
     (f'{D["stream"]["tpot_ms"]} ms', "measured mean TPOT"),
     (f'{D["stream"]["itl_med_ms"]} ms', "measured median ITL"),
     (f'{D["stream"]["itl_max_ms"]:.0f} ms', "measured longest gap"),
@@ -46,7 +43,6 @@ expect = [  # (text that must appear in the Reading prose, why)
     (f'{C["lam_slo"]} requests per second', "rate per GPU within SLO"),
     (f'TTFT p99 {C["ttft_p99_s"]:.2f} s', "TTFT at operating point"),
     (f'TPOT {C["tpot_ms"]} ms', "TPOT at operating point"),
-    (f'{D["spec"]["a0.7_k4"]:.2f} at a = 0.7', "expected tokens per pass"),
     (f'from 10 GPUs to {C["relax_gpus"]} (${C["relax_cost_h"]:.2f}', "fleet at 100 ms TPOT"),
 ]
 for s, why in expect:
