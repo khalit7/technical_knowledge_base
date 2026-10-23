@@ -1,22 +1,21 @@
+
 <section id="rd-s6">
-<h2>6. Measuring MFU yourself, and predicting it operator by operator</h2>
-<p><b>The problem.</b> A published MFU is someone else's run. To check your own you need a clean timing, the FLOP count from section 1, and the right peak; to know what to fix you need to know where the time goes. Both were done here on a real GPU: this laptop's Apple M1 Pro.</p>
-<h3>How to measure</h3>
-<ol>
-<li>Warm up (the first iterations compile kernels and fill allocator caches), then time many steps.</li>
-<li>Synchronise before reading the clock: GPU calls return before the work finishes (<code>torch.cuda.synchronize()</code>, here <code>torch.mps.synchronize()</code>).</li>
-<li>Take the median, repeat the whole run, and report the spread and what else was running.</li>
-<li>MFU = model FLOPs of the step / time / dense peak. Get the FLOPs from <code>torch.utils.flop_counter.FlopCounterMode</code> or from section 1's formulas; they agree.</li>
-</ol>
-<h3>Measured: two Llama 3.1 8B layers on the M1 Pro GPU</h3>
-<p>Two decoder layers with the real 8B shapes (436M parameters; the 128K-vocabulary embedding and head left out to fit the shared laptop's memory), FP16, forward and backward, batch 1, PyTorch 2.14.1 on the MPS backend <span class="meas">measured</span>:</p>
-<div class="tw"><table class="tbl-sm" id="rd-m1t"></table></div>
-<div class="card"><div class="rd-chart" id="rd-m1"></div>
-<p class="small mute">Peak 5.06 TFLOP/s (FP16 fused multiply-add) and bandwidth 165 GB/s are the parent's {{Roofline lab|n:3c65c17b0d0d8118beeefaed56da6f8e}} measurements on this GPU. Each run is the median of 8 timed steps after 3 warm-up steps; 3 runs, 20 s apart, with the 1-minute load average of the shared machine recorded. At 2,048 tokens the first run hit memory swapping (41.7 s) and is excluded by taking the median of the three runs. Script: <code>src/code/m1_step.py</code>.</p></div>
-<p><b>72 to 75% MFU on one GPU.</b> With large matrices, no communication and no tensor cores (the M1's FP16 runs at the same rate as FP32 through ordinary ALUs, so its ridge point is only about 31 FLOPs per byte), almost every operator is compute-bound and the GPU runs near its own matmul speed. That is the first lesson: a single GPU on big matmuls reaches high MFU; the losses in section 5 come from elsewhere.</p>
-<h3>Predicting the step from its operators</h3>
-<p>The same step was run once more with a <code>TorchDispatchMode</code> recording every operator PyTorch launched (447 per step, 315 of which compute or move data): its FLOPs and the bytes it reads and writes. Each operator gets a roofline time, max(FLOPs / peak, bytes / bandwidth), and the step's prediction is the sum. The measurement takes 14 to 22% longer than the prediction: the overhead of launching each kernel and of matmuls that do not quite reach the FMA peak.</p>
-<div class="co key"><div class="t">The same operators on an H100: why fusion matters more on faster chips</div><p id="rd-m1-h100"></p></div>
-<p>That projection is a roofline estimate, not a run. It is why the operator count matters for training performance: torch.compile and hand-written fused kernels (FlashAttention, fused norms, fused cross-entropy) exist to remove exactly this traffic, and it matters wherever the ridge is high: 295 FLOPs per byte for an H100 at BF16, twice that at FP8. Writing such kernels is the {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}} root's subject.</p>
-<div class="deepnote"><b>Go deeper (optional).</b> The roofline itself, measured on this GPU with real kernels: the parent's {{Roofline lab|n:3c65c17b0d0d8118beeefaed56da6f8e}}. Timing honestly with CUDA events and the profiler: the CUDA root's {{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}} child page.</div>
+<h2>6. Serving: prefill, decode, and tokens per second</h2>
+<p>A served request has two phases on opposite sides of section 2's ridge. <dfn>Prefill</dfn> runs the whole prompt through the model at once: thousands of tokens per weight read, compute-bound. <dfn>Decode</dfn> then produces one token per step, and each step must read every weight it uses plus the conversation's KV cache (the keys and values of every earlier token, which attention needs): one token per weight read, memory-bound.</p>
+<div class="fm"><div class="eq">time to first token &asymp; prefill FLOPs / (peak &times; efficiency) &nbsp;&nbsp;&nbsp; time per output token &asymp; bytes read per step / bandwidth</div>
+<dl><dt>prefill FLOPs</dt><dd>2N per prompt token, plus attention over the prompt (causal: about half the score square)</dd><dt>bytes per step</dt><dd>weights used (all of them for a dense model) plus every sequence's KV cache</dd></dl></div>
+<div class="tw"><table class="tbl-sm">
+<tr><th>Llama 3.1 8B, BF16, one H100</th><th class="num">Value</th><th>Arithmetic</th></tr>
+<tr><td>Prefill of a 4,096-token prompt</td><td class="num">70.9 ms</td><td>at 100% of 989.5 TFLOP/s; 141.9 ms at 50%</td></tr>
+<tr><td>KV cache of one 4,096-token conversation</td><td class="num">0.54 GB</td><td>2 (K and V) &times; 32 layers &times; 8 heads &times; 128 &times; 2 bytes = 128 KiB per token</td></tr>
+<tr><td>Decode step, batch 1</td><td class="num">4.95 ms</td><td>(16.06 GB weights + 0.54 GB cache) / 3.35 TB/s: <b>202 tokens/s</b> at most</td></tr>
+<tr><td>Decode step, batch 64</td><td class="num">15.1 ms</td><td>weights read once, 64 caches read: 4,252 tokens/s in total, 66 per user; memory 50.4 GB</td></tr>
+<tr><td>Cost per million output tokens at $3.99 per GPU-hour</td><td class="num">$5.49 / $0.26</td><td>batch 1 / batch 64: price / (tokens/s &times; 3,600) &times; 10<sup>6</sup></td></tr>
+</table></div>
+<p class="small mute">The parent's calculator functions (decode, prefill), copied unchanged; ceilings at full bandwidth or full peak, real serving reaches less <span class="der">derived</span>. Lambda on-demand H100 price fetched 2026-10-05.</p>
+<p><b>Batching is the whole economics of serving.</b> Each step reads the weights once whatever the batch, so 64 users share the 16 GB read and cost 21 times less per token, at the price of each user waiting 3 times longer per token. The cache does not share: at long contexts each conversation's KV reads dominate and batching stops helping, the reason grouped-query attention, latent attention and FP8 caches exist. Cache sizing is {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}'s subject; the step at batch 1 and 64 is animated in the parent's {{Performance calculator|n:3c65c17b0d0d8118beeefaed56da6f8e}}, and tokens per second against cost for any model, chip and batch is the {{Run and serving planner|#t-plan}} tab.</p>
+<p><b>Mixture of experts.</b> At batch 1 a decode step reads only the routed experts: DeepSeek-V3 in FP8 reads 37.6 GB of its 671 GB. But 64 tokens with 8 of 256 experts each touch about 222 experts per layer (uniform routing, 256 &times; (1 &minus; (1 &minus; 8/256)<sup>64</sup>)), so the step reads 585 GB: an MoE's bandwidth advantage disappears at the batch sizes that make serving cheap, while its FLOP advantage stays <span class="der">derived</span>.</p>
+<details class="dp"><summary>Long prompts: prefill grows faster than the prompt <span class="mute">(under a minute)</span></summary><div class="b">
+<p>Llama 3.1 70B with a 32,768-token prompt on 8 H100s at 50% of peak: 1.52 s before the first token, and attention is 23% of those FLOPs (causal count). Prefill time grows faster than linearly with the prompt. Scheduling, paged caches and speculative decoding are {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}'s.</p>
+</div></details>
 </section>

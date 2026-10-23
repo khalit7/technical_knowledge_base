@@ -37,6 +37,13 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   }
   await page.evaluate(() => { const s = document.getElementById('rd-mem-ctl-s'); s.value = 66; s.dispatchEvent(new Event('input')); });
   await bad('mem end');
+  // Reading: the roofline slider over every position, the run-cost presets at both MFU ends (added 2026-10-23)
+  for (let v = 0; v <= 14; v++) { await setVal('rd-roof-m', v); await bad('roof ' + v); if (v === 9 || v === 14) { const el = await page.$('#rd-roof-card'); await el.screenshot({ path: `${shots}/rd-roof-${v}-${w}-${scheme}.png` }); } }
+  await setVal('rd-roof-m', 0);
+  for (const pr of ['l8', 'dsv3', 'l405']) { await page.evaluate(pr => document.querySelector('#rd-cost-p button[data-m="' + pr + '"]').click(), pr);
+    for (const v of [0.1, 0.6]) { await setVal('rd-cost-mfu', v); await bad('cost ' + pr + ' ' + v); }
+    const el = await page.$('#rd-cost-card'); await el.screenshot({ path: `${shots}/rd-cost-${pr}-${w}-${scheme}.png` }); }
+  await page.evaluate(() => document.querySelector('#rd-cost-p button[data-m="l405"]').click());
   await page.evaluate(() => document.querySelectorAll('#t-read .pr .opts button').forEach(b => b.click()));
   await bad('read drills');
   for (const id of ['rd-led-card']) { const el = await page.$('#' + id); await el.screenshot({ path: `${shots}/${id}-${w}-${scheme}.png` }); }
@@ -65,6 +72,15 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   if (errs.length) { fails++; console.log('ERRORS', w, scheme, errs.slice(0, 5)); }
   await page.close();
 }
+// nothing moves before the reader acts: normal motion, the animation card on screen for 3 s, still on step 0
+{ const page = await browser.newPage(); await page.setViewport({ width: 920, height: 900 });
+  await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (e) {} });
+  await page.goto(url, { waitUntil: 'load' });
+  await page.evaluate(() => document.getElementById('rd-mem-card').scrollIntoView()); await new Promise(r => setTimeout(r, 3000));
+  checks++; const v = await page.$eval('#rd-mem-ctl-s', e => +e.value); if (v !== 0) { fails++; console.log('FAIL autoplay: step', v); }
+  await page.evaluate(() => document.querySelector('#rd-mem-mode button[data-m="eager"]').click()); await new Promise(r => setTimeout(r, 2000));
+  checks++; const v2 = await page.$eval('#rd-mem-ctl-s', e => +e.value); if (v2 !== 0) { fails++; console.log('FAIL autoplay after mode switch: step', v2); }
+  await page.close(); }
 await browser.close();
 console.log(fails ? 'UI FAIL ' + fails + ' of ' + checks : 'UI OK, ' + checks + ' states checked');
 process.exit(fails ? 1 : 0);

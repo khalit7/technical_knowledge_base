@@ -17,6 +17,16 @@ The parent's Performance calculator already has the training, inference and comm
 | 7 | Run planner (chips for a deadline, cost with goodput) and serving frontier (per-user against total tokens/s, $ per M tokens, out-of-memory points) | tab | 2 | 1 | 2 (x2) | 2 | 2 (batching is the economics; MoE loses its bandwidth edge at batch) | 0 | 13 |
 | 8 | Ten predict-then-reveal drills (different from the parent's ten) | Reading s10 | 1 | 1 | 2 (x2) | 1 | 2 | 0 | 10 |
 
+## Added 2026-10-23 (teaching-contract rebuild)
+| Idea | Placement | Kind | Why |
+|---|---|---|---|
+| Hero: four divisions on the running example | top | static annotated diagram | the whiteboard picture of the core idea; every number from `out/recompute.json` |
+| Roofline with one movable matmul (tokens per weight read) | Reading s2 | one slider | the page owns the roofline and did not draw it; derived from vendor specs, no published figure to land on (said in the caption) |
+| MFU of real runs as bars, HFU hatched, best GEMM dashed | Reading s4 | static drawn-to-scale | replaced four text cards; the band (30 to 46%) and the card-implied 13.9% are seen at once |
+| Run cost against published GPU-hours, three presets, MFU slider | Reading s7 | calculator with residuals | defaults reproduce Llama 3's 3.8e25 FLOPs independently; DeepSeek by construction, said so |
+
+Rejected in the rebuild: a 16-bytes-per-parameter strip (the ZeRO paper page steps through it; linked); a GPU photo (decoration on an arithmetic page); a chip selector on the roofline (a second variable; the planner tab has chips).
+
 ## Rejected
 - Repeating the parent's training/inference calculators, step and decode animations: linked by name instead.
 - A per-chip cost leaderboard: list prices from two providers only; the planner shows the chosen chip's cost (the parent rejected the same).
