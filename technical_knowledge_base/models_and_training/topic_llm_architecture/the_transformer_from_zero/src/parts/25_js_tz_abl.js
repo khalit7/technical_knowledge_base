@@ -1,4 +1,4 @@
-// Ablation explorer tab (data: TZD.abl from src/train/out/runs, TZD.floors, TZD.pieces)
+// Reading section 11: ablation curves, the running sequence through baseline and ablation, samples (data: TZD.abl from src/train/out/runs, TZD.floors, TZD.pieces). Moved from the Ablation explorer tab on 2026-10-23.
 (function(){
   const D=window.TZD,$=id=>document.getElementById(id);if(!D||!$('tza-plot')||!window.RD||!window.TZ)return;
   const esc=RD.esc,A=D.abl,base=A.find(a=>a.key==='base');
@@ -38,7 +38,7 @@
       '<b>Difference</b> (ablation minus baseline): red where the ablation is more surprised. Largest increases: '+order.join(', ')+'.';
     $('tza-cnt').innerHTML=RD.stat('Baseline',TZ.fmt(base.seq,3),'mean nats, running sequence')+RD.stat(esc(a.label),TZ.fmt(a.seq,3),'mean nats')+RD.stat('Tokens over 1 nat worse',worse,'of 255 ('+better+' over 1 nat better)');
   }
-  an=RD.anim({card:'tza-tok',ctl:'tza-ctl',n:3,draw:drawSeq,ms:2600,label:'Before, after, difference'});
+  an=RD.anim({card:'tza-seq',ctl:'tza-ctl',n:3,draw:drawSeq,ms:2600,label:'Before, after, difference'});
   $('tza-pick').addEventListener('change',e=>{cur=withTok.find(a=>a.key===e.target.value);an.reset(3)});
   $('tza-tok').addEventListener('click',e=>{const sp=e.target.closest('span[data-i]');if(sp)$('tza-info').textContent='"'+D.pieces[+sp.dataset.i]+'" (position '+sp.dataset.i+'): '+sp.title});
   // samples
@@ -46,7 +46,7 @@
   function samp(){const i=+$('tza-prompt').value;
     $('tza-samp').innerHTML=[base,cur].map(a=>'<div><h4>'+esc(a.label)+' <span class="k">held-out '+a.val.toFixed(3)+'</span></h4><p class="k">'+esc(D.prompts[i])+'</p><p><span class="k">greedy:</span> '+(a.samples[i].greedy.trim()?esc(a.samples[i].greedy):'<i>(empty: the first token chosen was end-of-text)</i>')+'</p><p><span class="k">T 0.8:</span> '+(a.samples[i].t08.trim()?esc(a.samples[i].t08):'<i>(empty: the first token drawn was end-of-text)</i>')+'</p></div>').join('')}
   $('tza-prompt').addEventListener('change',samp);$('tza-pick').addEventListener('change',samp);
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-abl']=window.TAB_RENDER['t-abl']||[]).push(()=>{plot();an.redraw();samp()});
-  let rt=0;addEventListener('resize',()=>{if($('t-abl').hidden)return;clearTimeout(rt);rt=setTimeout(plot,80)});
+  RD.onRender(()=>{plot();an.redraw();samp()});
+  RD.onResize(plot);
   plot();samp();
 })();

@@ -20,3 +20,23 @@ Scores 0 to 2 on the criteria of the explainer-page skill (visuals/choosing.md);
 - A param-matched "no FFN" run (18 attention-only layers): would separate the FFN's role from its parameter count, but triples attention cost per step; the confound is stated instead. Candidate for a later run (about 8 min).
 - A no-causal-mask training run: the Families and objectives child measured the leak (0.21 under the leak, 7.02 under the mask); linked.
 - Timing per operation on MPS: laptop timings teach little (Block lab rejected it too).
+
+## 2026-10-23 rebuild (teaching contract)
+| visual | kind | where | why |
+|---|---|---|---|
+| Hero: the tiny GPT end to end, shapes, parameters, ablation tags, boxes link to sections | static annotated diagram | top | the whiteboard picture; ties every section and section 11's results to one figure |
+| Two lookups and a sum | static | section 2 | the position table's job, with the measured cosine 0.433 and difference 0.0 |
+| One head: score, mask, softmax, mix, edit test | stepper (5 frames) | section 3 | a process; the edit test is why one pass is T examples |
+| Largest softmax weight, scaled against unscaled | static bars | section 3 | the scale's effect from measured numbers |
+| Split, attend, merge | static shape diagram | section 4 | reshape and transpose are structure |
+| FFN matrices to scale: GELU, SwiGLU, Llama | toggle-compare | section 5 | the 2/3 rule and 3.5 D seen as area |
+| Pre-norm block with init numbers | static | section 6 | structure; replaces prose about where the norm sits |
+| Targets shifted by one | static, real tokens | section 7 | the shift is the loss |
+| Recompute against KV cache, same 10 tokens | before/after stepper, derived FLOPs | section 9 | a method against the one it replaced; nobody else draws it |
+| One block's matrices to scale, tiny GPT against Llama 3.1 8B | toggle-compare | section 10 | 12D^2 and why GQA and SwiGLU break it (the predict's answer) |
+| Ablation curves and per-token before/after | moved from the Ablation explorer tab | section 11 | inline beside the claim |
+| Shapes and counts | tool tab (was a quiz) | tab | used by every section; quizzes retired by the contract |
+
+Rejected in the rebuild: real attention weights in the one-head grid (needs the trained checkpoint, which lives in scratch; a
+CPU extract of layer 1's weights for ten tokens would take seconds and is proposed for the next run); a FLOPs slider over
+context (the root Block lab owns it); a parameter-share bar per model (the root's section 3 figure draws it).

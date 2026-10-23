@@ -36,11 +36,19 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push(box);
   console.log(scheme, width, errs.length ? errs : 'clean'); bad += errs.length; await p.close();
 }
-const p = await b.newPage();
-await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
-await p.setViewport({ width: 920, height: 900 }); await p.goto(file); await sleep(300);
-await p.evaluate(() => document.getElementById('tz-trn').scrollIntoView()); await sleep(2500);
-const playing = await p.$$eval('.an-play', bs => bs.filter(x => /Pause/.test(x.textContent)).length);
-console.log('reduced motion: animations playing =', playing); if (playing) bad++;
-await p.close(); await b.close();
+// nothing may move before the reader acts: scroll every animation into view, wait, and check every controller is still on
+// step 0 and paused, with reduced motion and without
+for (const rm of ['reduce', 'no-preference']) {
+  const p = await b.newPage();
+  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
+  await p.setViewport({ width: 920, height: 900 }); await p.goto(file); await sleep(300);
+  for (const id of await p.$$eval('#t-read .an-ctl', cs => cs.map(c => c.id))) {
+    await p.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await sleep(1800);
+  }
+  const playing = await p.$$eval('.an-play', bs => bs.filter(x => /Pause/.test(x.textContent)).length);
+  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.filter(r => +r.value !== 0).length);
+  console.log(rm + ' motion: animations playing =', playing, ', scrubbers off step 0 =', moved); if (playing || moved) bad++;
+  await p.close();
+}
+await b.close();
 process.exit(bad ? 1 : 0);

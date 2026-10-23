@@ -4,7 +4,8 @@ Notion: https://app.notion.com/p/3fd5c17b0d0d8174980ddde4a20c7b3c
 
 Child page of Topic: llm-architecture. `index.html` is the whole Notion page, built from `src/` with `sh src/build.sh`.
 
-Tabs: Reading (the decoder written from an empty file in nine steps, each with shapes and a test; training and the
-loss curve; sampling; parameters and FLOPs by hand checked against the code and nine real configs; six ablations at an
-equal budget; mistakes; interview questions), Build it up (stepper over the file), Ablation explorer (recorded runs),
-Shape drill (questions over real configs), Further reading. How it was built: `src/README.md`.
+Tabs (rebuilt 2026-10-23 to the teaching contract): Reading (the core idea and a hero of the whole model with shapes,
+parameters and ablation results; the decoder in nine steps, each with its figure and its tested code in a closed block;
+training and the loss curve; sampling with and without a KV cache; parameters and FLOPs by hand against the code and nine
+real configs; six ablations at an equal budget; mistakes and interview rehearsal closed), Shapes and counts (every weight
+and activation shape of ten configs), Further reading. How it was built: `src/README.md`.
