@@ -43,7 +43,7 @@
   }
   compute();
   const A=RD.anim({card:'kl',ctl:'klC',n:STEPS+1,ms:260,label:'Gradient step',draw});
-  $('klM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...$('klM').children].forEach(x=>x.classList.toggle('on',x===b));A.reset(STEPS+1);A.play()});
+  $('klM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...$('klM').children].forEach(x=>x.classList.toggle('on',x===b));A.reset(STEPS+1)});
   ['klW','klS'].forEach(id=>$(id).addEventListener('input',()=>{compute();A.reset(STEPS+1)}));
   addEventListener('resize',()=>{if($('kl').offsetParent)A.redraw()});
 })();

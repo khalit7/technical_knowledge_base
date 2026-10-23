@@ -37,6 +37,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await clickAll('#rlM button'); await shot('rl');
   for (let i = 0; i < 9; i++) { await p.evaluate(i => { const r = document.querySelector('#bdSvg rect[data-i="' + i + '"]'); if (r) r.dispatchEvent(new MouseEvent('click', { bubbles: true })) }, i); await wait(30) } await shot('bd');
   await clickAll('#hp .opts button'); await shot('hp'); await shot('tk');
+  await shot('hero'); for (const m of ['w', 'd', 't', 'w']) { await p.click(`#prM button[data-m=${m}]`); await wait(40) } await shot('pr');
   // Toy
   await tab('t-toy');
   for (const m of ['1', '2', '3', '4', '5']) { await p.select('#tyM', m); for (const x of ['0', '10']) { await p.select('#tyX', x); for (const d of ['m', 'a']) { await p.select('#tyD', d); await wait(30) } } }
@@ -64,5 +65,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   console.log(scheme, width, errs.length ? JSON.stringify([...new Set(errs.map(e => e.replace(/\("[^)]*\)/g, '(..)')))], null, 1) : 'ok'); bad += errs.length;
   await p.close();
 }
+// no animation may move before the reader acts (normal motion, every card scrolled into view)
+{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + file); await p.click('button[data-t=t-read]');
+  for (const c of ['kl', 'fl']) { await p.$eval('#' + c, e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 2500)) }
+  const moved = await p.$$eval('#klC-s,#flC-s', es => es.filter(e => +e.value !== 0).map(e => e.id));
+  for (const m of ['r', 'b']) { await p.click(`#klM button[data-m=${m}]`) } await new Promise(r => setTimeout(r, 1500));
+  const moved2 = await p.$eval('#klC-s', e => +e.value);
+  console.log('autoplay', moved.length || moved2 ? 'MOVED ' + moved.join(',') + ' ' + moved2 : 'none'); if (moved.length || moved2) bad++; await p.close() }
 await b.close();
 process.exit(bad ? 1 : 0);
