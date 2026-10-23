@@ -1,4 +1,4 @@
-// ---- Expert load over training: before/after animation (no balancing against a chosen scheme), a per-layer heat map
+// ---- Reading section 3 (moved from the retired Expert load tab on 2026-10-23): before/after animation (no balancing against a chosen scheme), a per-layer heat map
 // and MaxVio / aux / dropped curves, all decoded from the training logs (window.MXD.runs[*].log.load). ----
 (function(){
   const M=window.MX;if(!M||!window.RD||!M.$('ld-anim'))return;const {D,$,f,pct,tx,svg,esc,EC,RC}=M;
@@ -24,7 +24,7 @@
   const mv=(k,i)=>{const a=D.runs[k].log.load.maxvio,r=a[Math.min(i,a.length-1)];return r.reduce((x,y)=>x+y,0)/r.length};
   const anim=RD.anim({card:'ld-anim',ctl:'ld-ctl',n:N,draw,ms:180,label:'Training step'});
   M.seg($('ld-right'),RIGHT.map(k=>[k,D.runs[k].short]),right,m=>{right=m;anim.redraw()});
-  M.onTab('t-load',()=>anim.redraw());
+  RD.onResize(()=>anim.redraw());
   // heat map
   let hr=hasNone?'none':RUNS[0],hl=0;
   function heat(){const sh=shares(hr),n=sh.length,E=sh[0][0].length,el=$('ld-hm'),W=M.width(el),pl=30,cw=(W-pl-4)/n,ch=E>8?9:14,H=E*ch+26;let s='';
@@ -34,7 +34,7 @@
     el.innerHTML=svg(W,H,s,'Expert share heat map')}
   M.seg($('ld-hrun'),RUNS.map(k=>[k,D.runs[k].short]),hr,m=>{hr=m;heat()});
   M.seg($('ld-hlay'),Array.from({length:6},(_,i)=>[String(i),'layer '+(i+1)]),'0',m=>{hl=+m;heat()});
-  M.onTab('t-load',heat);
+  RD.onRender(heat);RD.onResize(heat);
   // lines
   let met='maxvio';
   function lines(){const se=RUNS.filter(k=>met!=='aux'||D.runs[k].log.config.balance==='aux').filter(k=>met!=='dropped'||k==='cap1').map(k=>{const ld=D.runs[k].log.load;
@@ -43,5 +43,7 @@
     M.lines($('ld-lines'),se,{xt:[0,250,500,750,1000,1250,1500],xl:'training step',yd:met==='maxvio'?1:3,y0:0,label:'Imbalance over training'});
     $('ld-lines-cap').innerHTML=met==='maxvio'?'MaxVio per logged step (one training batch of 8,192 tokens), averaged over layers.':met==='aux'?'The auxiliary loss before its coefficient (the tiny GPT\'s per-layer Switch loss summed over the 6 layers: 6 at perfect balance).':'Fraction of assignments dropped per training step at capacity factor 1.0, averaged over layers.'}
   M.seg($('ld-met'),[['maxvio','MaxVio'],['aux','auxiliary loss'],['dropped','dropped (CF 1.0 run)']],met,m=>{met=m;lines()});
-  M.onTab('t-load',lines);
+  RD.onRender(lines);RD.onResize(lines);
+  // heat map and curves sit in a closed block: draw at the real width when it opens
+  const det=$('ld-hm').closest('details');if(det)det.addEventListener('toggle',()=>{if(det.open){heat();lines()}});
 })();

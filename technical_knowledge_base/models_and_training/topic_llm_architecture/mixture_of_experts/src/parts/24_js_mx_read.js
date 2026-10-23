@@ -75,7 +75,8 @@
         s+=tx(x0+E*bw/2,H-pb+14,(nar?'L':'layer ')+(j+1),{a:'middle',fs:10.5,fill:'var(--mute)'})+tx(x0+E*bw/2,H-pb+27,(nar?'':'MaxVio ')+f(r.heldout.maxvio[j],2),{a:'middle',fs:10,fill:'var(--mute)'})});
       el.innerHTML=svg(W,H,s,'Expert load per layer');
       $('mx-bal-cap').innerHTML='<b>'+esc(r.label)+'</b>: held-out loss '+f(r.heldout.loss,3)+', MaxVio averaged over layers '+f(r.heldout.maxvio.reduce((a,b)=>a+b,0)/L,2)+' (perfect balance 0; with top 2 the ceiling is 3, one expert in every token\'s pair).'}
-    RD.onRender(draw);RD.onResize(draw);draw()}
+    RD.onRender(draw);RD.onResize(draw);draw();
+    const det=$('mx-bal').closest('details');if(det)det.addEventListener('toggle',()=>{if(det.open)draw()})}
   }
   // 4. capacity sweep at inference -------------------------------------------------------------------------------
   if($('mx-cf')){
@@ -83,9 +84,9 @@
     if(keys.length){M.seg($('mx-cf-m'),[['loss','held-out loss'],['drop','assignments dropped']],met,m=>{met=m;draw()});
     const CF=['0.5','0.75','1.0','1.25','1.5','2.0','None'];
     function draw(){const se=keys.map(k=>({name:D.runs[k].short,color:RC[k],dots:true,pts:CF.map((c,i)=>[i,D.runs[k].iv.cf[c][met]])}));
-      M.lines($('mx-cf-svg'),se,{x0:0,x1:6,xt:[0,1,2,3,4,5,6],xf:i=>CF[i]==='None'?'dropless':CF[i],xl:'capacity factor at inference',yd:met==='loss'?2:2,y0:met==='drop'?0:undefined,label:'Loss against capacity factor'});
+      M.lines($('mx-cf-svg'),se,{x0:0,x1:6,xt:[0,1,2,3,4,5,6],xf:i=>CF[i]==='None'?(M.width($('mx-cf-svg'))<520?'none':'dropless'):CF[i],xl:'capacity factor at inference',yd:met==='loss'?2:2,y0:met==='drop'?0:undefined,label:'Loss against capacity factor'});
       const m=D.runs.moe8.iv.cf;$('mx-cf-cap').innerHTML='moe8top2: dropless '+f(m.None.loss,3)+'; CF 1.25 '+f(m['1.25'].loss,3)+' ('+pct(m['1.25'].drop)+' of assignments dropped); CF 1.0 '+f(m['1.0'].loss,3)+' ('+pct(m['1.0'].drop)+'); CF 0.5 '+f(m['0.5'].loss,3)+' ('+pct(m['0.5'].drop)+').'}
-    M.onTab('t-read',draw);RD.onRender(draw);draw()}
+    RD.onRender(draw);RD.onResize(draw);draw()}
   }
   // 5. dense vs MoE curves and table --------------------------------------------------------------------------------
   if($('mx-cmp')){
