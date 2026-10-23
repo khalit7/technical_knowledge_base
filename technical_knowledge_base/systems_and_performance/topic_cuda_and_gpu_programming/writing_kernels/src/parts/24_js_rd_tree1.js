@@ -1,5 +1,6 @@
-// ---- Reduce and scan, animated (t-tree): drawing and controls ----
+// ---- Reading section 2: reduce and scan on a toy GPU (moved from the old t-tree tab): drawing and controls ----
 (function(){
+  if(!document.getElementById('tr-card'))return;
   const T=window.WKT, fig=document.getElementById('tr-fig'), cap=document.getElementById('tr-cap'), cnt=document.getElementById('tr-cnt');
   const NAMES={r1:'Interleaved (R1)',r2:'Strided (R2)',r3:'Sequential (R3)',r5:'Warp shuffle',hs:'Scan: Hillis-Steele',bl:'Scan: Blelloch'};
   const INTRO={r1:'Harris rung 1: at stride s, threads whose index is a multiple of 2s work.',r2:'Harris rung 2: contiguous threads, strided addresses.',
@@ -20,7 +21,7 @@
       s+='<rect x="'+(x+1).toFixed(1)+'" y="'+(top+ch+4)+'" width="'+(cw-2).toFixed(1)+'" height="6" fill="'+(state==='act'?'var(--good)':state==='idle'?'var(--bad)':'var(--dim)')+'" rx="1"/>';
       s+='<rect x="'+(x+1).toFixed(1)+'" y="'+top+'" width="'+(cw-2).toFixed(1)+'" height="'+ch.toFixed(1)+'" fill="var(--soft)" stroke="'+WC[w]+'" stroke-width="1.5" rx="3"/>';
       s+=RD.t((x+cw/2).toFixed(1),(top+ch/2+4).toFixed(1),a[t],{a:'middle',w:600});
-      s+=RD.t((x+cw/2).toFixed(1),top+ch+24,'b'+(t%T.NB),{a:'middle',fill:'var(--mute)',fs:9});
+      s+=RD.t((x+cw/2).toFixed(1),top+ch+24,'b'+(t%T.NB),{a:'middle',fill:'var(--mute)',fs:10.5});
     }
     // arrows: source to destination
     if(st)st.ops.forEach(o=>{if(o.s<0)return;const x1=pad+o.s*cw+cw/2,x2=pad+o.d*cw+cw/2;
@@ -40,10 +41,9 @@
     cnt.innerHTML=RD.stat('Additions',c.adds)+RD.stat('Idle lanes',c.idle)+RD.stat('Barriers',c.barrier)+RD.stat('Shuffles',c.shfl)+RD.stat('Shared-mem transactions',c.tx)+RD.stat('Worst bank conflict',c.worst+'-way');
   }
   const A=RD.anim({card:'tr-card',ctl:'tr-ctl',n:R.S.length+1,draw,ms:1500,label:'Step'});
-  RD.seg(document.getElementById('tr-mode'),m=>{mode=m;R=T.run(m);A.reset(R.S.length+1);table();A.play()});
+  RD.seg(document.getElementById('tr-mode'),m=>{mode=m;R=T.run(m);A.reset(R.S.length+1);table()});
   function table(){const rows=['r1','r2','r3','r5','hs','bl'].map(m=>{const t=T.run(m).tot;return '<tr'+(m===mode?' class="on"':'')+'><td>'+NAMES[m]+'</td><td class="num">'+t.steps+'</td><td class="num">'+t.adds+'</td><td class="num">'+t.active+'</td><td class="num">'+t.idle+'</td><td class="num">'+t.barrier+'</td><td class="num">'+t.shfl+'</td><td class="num">'+t.tx+'</td><td class="num">'+t.worst+'-way</td></tr>'}).join('');
     document.getElementById('tr-tab').innerHTML='<tr><th>Method</th><th class="num">steps</th><th class="num">additions</th><th class="num">active lanes</th><th class="num">idle lanes</th><th class="num">barriers</th><th class="num">shuffles</th><th class="num">smem transactions</th><th class="num">worst conflict</th></tr>'+rows}
   table();
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-tree']=window.TAB_RENDER['t-tree']||[]).push(()=>A.redraw());
-  addEventListener('resize',()=>{if(!document.getElementById('t-tree').hidden)A.redraw()});
+  RD.onResize(()=>A.redraw());
 })();

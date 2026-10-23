@@ -1,9 +1,9 @@
-// From src/: run the page's model code (parts/31_js_tree0.js, parts/32_js_fa.js) in node and compare with the
+// From src/: run the page's model code (parts/24_js_rd_tree0.js, parts/25_js_rd_fa.js) in node and compare with the
 // independent Python implementations (tree_model.py -> out/tree_expected.json, fa_model.py -> out/fa_expected.json).
 import fs from 'fs';
 globalThis.window = globalThis; globalThis.document = { getElementById: () => null };
-eval(fs.readFileSync('parts/31_js_tree0.js', 'utf8'));
-const fa = fs.readFileSync('parts/32_js_fa.js', 'utf8'); eval(fa.slice(0, fa.indexOf('(function(){\n  const F=')));
+eval(fs.readFileSync('parts/24_js_rd_tree0.js', 'utf8'));
+const fa = fs.readFileSync('parts/25_js_rd_fa.js', 'utf8'); eval(fa.slice(0, fa.indexOf('(function(){\n  if(!document')));
 let bad = 0, n = 0;
 const T = JSON.parse(fs.readFileSync('out/tree_expected.json', 'utf8'));
 for (const [m, e] of Object.entries(T)) { const r = WKT.run(m); n++;
