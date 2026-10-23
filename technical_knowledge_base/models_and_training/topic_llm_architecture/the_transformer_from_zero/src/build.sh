@@ -7,7 +7,6 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/
 # Links {{text|url}} (n:<notion id>, #t-<tab>, or https://...); then fill.py resolves [[...]] placeholders (facts, code refs).
 cd "$(dirname "$0")"
 python3 make_page_data.py || exit 1
-python3 journey/journey_data.py || exit 1   # the Token's journey extract (journey/out/journey.json) to parts/34_js_tj_0data.js
 { cat parts/01_head.html parts/10_header.html parts/20_read_*.html
   for f in parts/3*_tab_*.html; do cat "$f"; done
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
