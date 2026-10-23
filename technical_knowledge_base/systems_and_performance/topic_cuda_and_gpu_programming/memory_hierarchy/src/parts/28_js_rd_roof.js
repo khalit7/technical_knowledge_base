@@ -1,4 +1,4 @@
-// ---- Reading section 8: the measured M1 roofline, real kernels placed on it, and a calculator ----
+// ---- Reading section 9 (closed block): the measured M1 roofline, real kernels placed on it, and a calculator ----
 (function(){
   const D=window.MHD,f=MC.fmtN,$=id=>document.getElementById(id);
   const roof=D.m1.roof;
@@ -15,7 +15,7 @@
     MC.line($('rd-roof'),series,{logx:true,logy:true,xl:'arithmetic intensity, FLOP per byte (log)',yl:'GFLOP/s (log)',xticks:[0.3,1,3,10,30,100,300,1000],
       xfmt:v=>f(v,v<1?1:0),yfmt:v=>f(v,v<1?1:0),label:'Measured roofline of the M1 Pro GPU',h:300});
   }
-  chart();RD.onRender(chart);RD.onResize(chart);
+  chart();RD.onRender(chart);RD.onResize(()=>{if($('rd-roofdet').open)chart()});$('rd-roofdet').addEventListener('toggle',()=>{if($('rd-roofdet').open)chart()});
   $('rd-rooftbl').innerHTML='<table class="tbl-sm"><thead><tr><th>Kernel (parent\'s Kernel lab)</th><th class="num">ms</th><th class="num">FLOP/byte</th><th class="num">GB/s (min bytes)</th><th class="num">GFLOP/s</th><th>Under which roof, how far</th></tr></thead><tbody>'+
     LAB.map(l=>{const x=D.lab[l[0]],p=pt(l[0]),lim=Math.min(pk,p.ai*bw);return '<tr><td>'+l[1]+'</td><td class="num">'+f(x.ms,2)+'</td><td class="num">'+f(p.ai,p.ai<1?3:0)+'</td><td class="num">'+f(p.gb,1)+'</td><td class="num">'+f(p.gf,0)+'</td><td>'+(p.ai<pk/bw?'bandwidth':'compute')+' roof, '+f(100*p.gf/lim,0)+'% of it</td></tr>'}).join('')+'</tbody></table>'+
     '<p class="small mute">Minimum bytes: softmax reads and writes 16,384 &times; 4,096 floats once (536.9 MB) and does about 5 FLOPs per element; a 2,048 matmul reads A and B and writes C once (50.3 MB) for 2N&sup3; = 17.2 GFLOP. <span class="der">derived</span> from the parent\'s <span class="meas">measured</span> times. The fused softmax slightly exceeds this sweep\'s bandwidth roof because its roof is the sweep\'s median; the parent measured a plain copy at 164.7 GB/s.</p>';

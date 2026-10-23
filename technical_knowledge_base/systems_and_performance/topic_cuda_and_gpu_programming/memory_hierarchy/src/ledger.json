@@ -1,0 +1,2893 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "GPU memory hierarchy: coalescing, shared memory, bank conflicts, registers and spills GPU memory hierarchy: coalescing, shared memory, bank conflicts, registers and spills The programmer's side of GPU memory: how one warp's load becomes 32-byte sectors, how to steer the caches, how to use shared memory without conflicts, when registers spill and arrays fall into \"local\" memory, constant memory, asynchronous copies, pinned and managed host memory, and how to place your own kernel on a roofline.",
+  "label": "core",
+  "key": "gpu memory hierarchy: coalescing, shared memory, bank conflicts,",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Real CUDA 13.4.2 compiler output for sm_80, sm_90a and sm_120; measurements on this laptop's Apple M1 Pro GPU; no NVIDIA GPU was used.",
+  "label": "core",
+  "key": "real cuda 13.4.2 compiler output",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "A child of Topic: cuda-and-gpu-programming .",
+  "label": "core",
+  "key": "a child of topic: cuda-and-gpu-programming .",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026.",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Access lab Memory instructions Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar of the old layout"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen 1 Global loads 2 Caches 3 Shared memory 4 Registers, spills 5 Constant 6 Async copies 7 Host memory 8 Your roofline 9 Mistakes, interview A kernel is fast when the bytes it needs are already close to the arithmetic.",
+  "label": "core",
+  "key": "a kernel is fast when the bytes it",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page is the programmer's view of where bytes live on an NVIDIA GPU and how your code decides it: which instruction a line of CUDA becomes, how many bytes the hardware really moves for it, and which mistakes make it move more.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by the core-idea sentence"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "Everything marked compiled here is real output of NVIDIA's CUDA 13.4.2 compiler (no GPU is needed to compile); everything marked measured on Apple M1 Pro GPU was run on this laptop, whose GPU is also a SIMT machine with 32-wide SIMD-groups and a programmer-managed on-chip memory, so the shapes transfer even where the numbers do not.",
+  "label": "core",
+  "key": "everything marked compiled here is real output of",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "The parent Topic: cuda-and-gpu-programming gives the intuition in its section 3 (the ladder, coalescing, banks, tiling, one spill) and its GPU simulator tab has the stride, bank-conflict, transpose, occupancy and tiling simulators; this page does not redo them.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to simulators that now live on this page"
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "What the memory physically is (SRAM against DRAM, HBM stacks, the M1's measured cache ladder) belongs to Memory technology ; the SM's insides to GPU architecture .",
+  "label": "core",
+  "key": "memory technology ; the sm's insides",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen: the memory spaces you write code for Space You get it by Who sees it, how long Where it physically is In the SASS The trap Registers local scalars, small arrays indexed by constants one thread, one kernel the SM's register file: 65,536 × 32-bit per SM, at most 255 per thread operands R0 to R254 more than the budget spills to local memory Local memory the compiler: spills, arrays indexed at run time, big structs one thread device DRAM, cached in L1 and L2 LDL , STL \"local\" is the scope, not the place: it is as far away as global memory Shared memory __shared__ arrays, or extern __shared__ sized at launch one block (and its cluster, on Hopper and later) SRAM inside the SM, the same pool as L1 LDS , STS , LDGSTS bank conflicts; over 48 KB per block needs an opt-in Constant memory __constant__ (64 KB in all), and every kernel parameter the whole grid, read-only device DRAM behind a small constant cache per SM an operand like c[0x3][0xc] , or LDC lanes reading different addresses are served one address at a time Global memory cudaMalloc ; every PyTorch CUDA tensor every thread of every kernel, and the host through copies HBM or GDDR, through L2 (whole GPU) and L1 (per SM) LDG , STG with width and cache suffixes uncoalesced or misaligned access fetches bytes nobody uses Pinned host memory cudaMallocHost , tensor.pin_memory() the host process; the GPU's copy engines host DRAM, locked in place (copies, not instructions) required for truly asynchronous copies; too much starves the OS Managed memory cudaMallocManaged host and device, one pointer wherever the page last migrated ordinary LDG , plus page faults silent page migration on first touch Sizes: CUDA Programming Guide, compute capabilities and writing CUDA kernels, memory spaces (v13.4.2, last updated Sep 10, 2026) vendor docs .",
+  "label": "depth",
+  "key": "space you get it by who sees it,",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "Latencies of each rung (shared 29.0, L1 40.7, L2 263.0, global 478.8 cycles on an H800) are in the parent's section 3, from Luo et al. independent .",
+  "label": "core",
+  "key": "(shared 29.0, l1 40.7, l2 263.0, global 478.8",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "Three questions for every array in a kernel Where does it live (which row of the table)?",
+  "label": "core",
+  "key": "three questions for every array in a kernel",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "",
+  "text": "How many times is each byte read (once: stream it; many times: stage it on chip)?",
+  "label": "core",
+  "key": "how many times is each byte read (once:",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "",
+  "text": "In what order do neighbouring threads touch it (neighbours on neighbouring addresses, or not)?",
+  "label": "core",
+  "key": "in what order do neighbouring threads touch it",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "",
+  "text": "Every section below is one of these questions answered for one space.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the old section layout"
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Global loads: what one warp's load really fetches The problem.",
+  "label": "core",
+  "key": "global loads: what one warp's load really fetches",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "A thread asks for 4 bytes, but DRAM and the caches do not deal in 4 bytes.",
+  "label": "core",
+  "key": "a thread asks for 4 bytes, but dram",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "NVIDIA's rule: \"Global memory is accessed via 32-byte memory transactions\", and the warp \"coalesces the memory requests from all the threads in that warp into the number of memory transactions necessary\" ( Programming Guide 2.3.4.1 ).",
+  "label": "core",
+  "key": "nvidia's rule: \"global memory is accessed via 32-byte",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "A 32-byte piece is a sector ; four sectors make a 128-byte cache line.",
+  "label": "core",
+  "key": "make a 128-byte cache",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "So the cost of a load is not how many bytes the threads want but how many distinct sectors their 32 addresses fall in.",
+  "label": "core",
+  "key": "so the cost of a load",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "32 lanes reading 32 consecutive floats: 128 bytes, four sectors, nothing wasted.",
+  "label": "core",
+  "key": "32 lanes reading 32 consecutive floats: 128 bytes,",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "32 lanes each 32 bytes or more apart: 32 sectors, 1,024 bytes moved for 128 used.",
+  "label": "core",
+  "key": "32 lanes each 32 bytes or more apart:",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "The parent's GPU simulator sweeps the stride.",
+  "label": "core",
+  "key": "the parent's gpu simulator",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Three other ways to waste sectors come up in real ML code and are animated here on one warp: a struct field (array of structs), a misaligned start, and narrow loads.",
+  "label": "core",
+  "key": "three other ways to waste sectors come up",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Array of structs against struct of arrays Misaligned against aligned 4-byte loads against 16-byte loads Before After One warp, drawn to scale: each small box is 4 bytes, each outlined group of eight is one 32-byte sector, each row is 128 bytes.",
+  "label": "core",
+  "key": "array of structs against struct of arrays misaligned",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "A sector turns shaded when the warp fetches it; blue words are wanted by some lane, orange ones by the lanes of the current step, grey ones fetched but unused. derived from the 32-byte rule above; the same counts come out of the Access lab , which lets you type any pattern.",
+  "label": "core",
+  "key": "a sector turns shaded when the warp fetches",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Predict: particles stored as a struct of eight floats (32 bytes each).",
+  "label": "core",
+  "key": "predict: particles stored as a struct of eight",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "A kernel reads only p[i].x .",
+  "label": "core",
+  "key": "a kernel reads only p[i].x .",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "How many sectors does one warp fetch, and what fraction of the fetched bytes is used?",
+  "label": "core",
+  "key": "how many sectors does one warp fetch, and",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "4 sectors, 100% 8 sectors, 50% 32 sectors, 12.5% 32 sectors, 1,024 bytes fetched for 128 used.",
+  "label": "core",
+  "key": "4 sectors, 100% 8 sectors, 50% 32 sectors,",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Each lane's 4 bytes sit in its own 32-byte struct, so every lane needs its own sector.",
+  "label": "core",
+  "key": "each lane's 4 bytes sit in its own",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Store each field as its own array (struct of arrays) and the same warp needs 4 sectors.",
+  "label": "core",
+  "key": "store each field as its own array (struct",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "What the M1 says measured on Apple M1 Pro GPU : 16M particles of 32 bytes (512 MB), median of 3 runs of 7 trials, load average 9.2 to 9.8 while other agents worked; each bar gives the median and, in brackets, the fastest and slowest run.",
+  "label": "core",
+  "key": "measured on apple m1 pro gpu : 16m",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Reading one field from the structs took 3.66 ms , the same as reading all eight fields ( 3.66 ms ): the GPU fetched every byte of every struct either way.",
+  "label": "core",
+  "key": "one field from the structs took 3.66 ms",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "The same field kept in its own array took 1.03 ms , 3.6 times faster.",
+  "label": "core",
+  "key": "in its own array took 1.03 ms ,",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "The ratio of bytes moved (512 MB read + 64 MB written against 64 + 64 MB) is 4.5; the gap is the smaller transfer's fixed costs. derived : 3.66 / 1.03 and 576 / 128.",
+  "label": "core",
+  "key": "the ratio of bytes moved (512 mb read",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Misalignment and vector width Misaligned.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "If a warp's 128 contiguous bytes start in the middle of a sector, they span five sectors instead of four.",
+  "label": "core",
+  "key": "span five sectors",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "NVIDIA's Best Practices Guide measured exactly this on a V100: \"we would expect approximately 4/5th of the memory throughput\", but got about 9/10 \"because adjacent warps reuse the cache lines their neighbors fetched\" ( Best Practices Guide 10.2.1.3 ) vendor measurement .",
+  "label": "depth",
+  "key": "this on a v100: \"we would expect approximately",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "The parent's simulator found no measurable penalty for an offset of one float on the M1.",
+  "label": "depth",
+  "key": "the parent's simulator found no measurable penalty for",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Allocation keeps you aligned by default: \"Memory allocated through the CUDA Runtime API, such as via cudaMalloc(), is guaranteed to be aligned to at least 256 bytes\" (same guide).",
+  "label": "core",
+  "key": "\"memory allocated through the cuda runtime api, such",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "The misalignment comes from you: a tensor view with a storage offset ( x[:, 1:] ), a block size that is not a multiple of 32, a packed header in front of the data.",
+  "label": "core",
+  "key": "view with a storage offset ( x[:, 1:]",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "A thread can load 4, 8 or 16 bytes in one instruction. compiled here for sm_90a, the same copy written with float , float2 and float4 becomes: Same bytes, a quarter of the load instructions, and each instruction keeps four times as many bytes in flight.",
+  "label": "core",
+  "key": "a thread can load 4, 8 or 16",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "NVIDIA's advice: vectorised loads \"reduce the total number of instructions, reduces latency, and improves bandwidth utilization\", but \"These instructions require aligned data\" and \"using vectorized loads increases register pressure and reduces overall parallelism\" ( CUDA Pro Tip: vectorized memory access , updated Aug 4, 2025).",
+  "label": "core",
+  "key": "vectorised loads \"reduce the total number of instructions,",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Note the .CONSTANT : the pointers were const __restrict__ , section 2 explains it. measured on Apple M1 Pro GPU : a 256 MB copy ran at about the same speed with 4-, 8- and 16-byte accesses (the bars above; spread across runs 145 to 169 GB/s).",
+  "label": "depth",
+  "key": "measured on apple m1 pro gpu : a",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "With 64 million threads in flight there is enough memory parallelism either way, so on a plain copy the M1 is limited by DRAM, not by instructions.",
+  "label": "depth",
+  "key": "with 64 million threads in flight there is",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Width pays off when a kernel has few threads per byte or many other instructions competing for issue slots: the case in matmul and attention kernels, which is why they load 16 bytes at a time (and why section 6's asynchronous copy is 16 bytes wide).",
+  "label": "depth",
+  "key": "width pays off when a kernel has few",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "When it matters for training, and how to check Layouts.",
+  "label": "core",
+  "key": "when it matters for training, and how to",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "A fused QKV projection stored as [tokens, 3, heads, dim] and read one head at a time; channels-last against channels-first; a transposed weight read along the wrong axis.",
+  "label": "core",
+  "key": "a fused qkv projection stored as [tokens, 3,",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "If the innermost index your threads walk is not the innermost dimension in memory, you pay the stride.",
+  "label": "core",
+  "key": "if the innermost index your threads walk is",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Slicing makes a tensor non-contiguous or misaligned; PyTorch's elementwise kernels check alignment before using vector loads ( can_vectorize_up_to in ATen's MemoryAccess.cuh ) and fall back to narrow loads; .contiguous() costs one copy and can make every later kernel faster.",
+  "label": "core",
+  "key": "slicing makes a tensor non-contiguous or misaligned; pytorch's",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. global loads: what one warp's load really fetches",
+  "text": "Check: in Nsight Compute's Memory Workload Analysis, sectors per request for global loads (ideal: 4 for a full warp of 32-bit loads, 16 for 128-bit loads, by the rule above) and the \"uncoalesced global accesses\" advice; details on Profiling, benchmarking and correctness .",
+  "label": "core",
+  "key": "nsight compute's memory workload analysis, sectors per request",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "The caches, and the few ways to steer them The problem.",
+  "label": "core",
+  "key": "the caches, and the few ways to steer",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "You do not allocate cache; the hardware decides what stays.",
+  "label": "core",
+  "key": "you do not allocate cache; the hardware decides",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "But two caches sit between your loads and DRAM, they behave differently, and the compiler gives you a handful of hints.",
+  "label": "core",
+  "key": "but two caches sit between your loads and",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "Knowing them explains suffixes you will see in every disassembly and one class of bug.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "L1 (per SM) shares its SRAM with shared memory (section 3); caches global and local loads for that SM only.",
+  "label": "core",
+  "key": "l1 (per sm) shares its sram with shared",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "Not kept coherent with other SMs: \"multiple L1 caches are not coherent for global data\" ( PTX ISA 9.4, cache operators ).",
+  "label": "core",
+  "key": "not kept coherent with other sms: \"multiple l1",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "L2 (whole GPU) every DRAM access goes through it, so it is where all SMs agree: \"Global data is coherent at the L2 level\" (same table).",
+  "label": "core",
+  "key": "l2 (whole gpu) every dram access goes through",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "40 MB on A100, 50 MB on H100 SXM, 96 MB on RTX 5090 vendor spec .",
+  "label": "core",
+  "key": "40 mb on a100, 50 mb on h100",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "Read-only path a load the compiler may serve from the non-coherent texture/L1 path because nothing writes the data during the kernel.",
+  "label": "core",
+  "key": "read-only path a load the compiler may serve",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "You ask for it with const T* __restrict__ or __ldg() .",
+  "label": "core",
+  "key": "you ask for it with const t* __restrict__",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "The read-only path. \"Accesses to __global__ function const pointers marked with __restrict__ are compiled as read-only cache loads, similar to the PTX ld.global.nc or __ldg()\" ( C++ language extensions ). compiled here : a plain const float* load becomes LDG.E ; the same load with __restrict__ , or written __ldg(p) , becomes LDG.E.CONSTANT .",
+  "label": "core",
+  "key": "the read-only path. \"accesses to __global__ function const",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "The promise behind __restrict__ is that no other pointer in the kernel touches that memory.",
+  "label": "core",
+  "key": "the promise behind __restrict__ is that no other",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "If you lie (an in-place kernel whose input and output alias), the compiler may reorder or cache, and the result is silently wrong.",
+  "label": "core",
+  "key": "if you lie (an in-place kernel whose input",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "Every load and store can carry a hint.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "The intrinsics map to PTX operators, and the table shows what CUDA 13.4.2 turned each into on three generations compiled here .",
+  "label": "depth",
+  "key": "what cuda 13.4.2 turned each",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "The meanings are quoted from the PTX ISA; the reading of the SASS suffixes (EF for evict-first, STRONG.GPU for \"performed at the L2, the GPU's point of coherence\") is an inference from the names and the PTX definitions, since NVIDIA does not document SASS.",
+  "label": "depth",
+  "key": "the meanings are quoted from the ptx isa;",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "In practice: __ldcs / __stcs (evict-first) suit data read or written exactly once, such as a large activation streamed through an elementwise kernel, so it does not push out data that will be reused; __ldcg skips L1, useful when another block may have just written the data; .lu exists mainly for restoring spills.",
+  "label": "core",
+  "key": "data read or written exactly once, such as",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "They are hints: \"Cache operators on load or store instructions are treated as performance hints only\" (PTX ISA).",
+  "label": "core",
+  "key": "\"cache operators on load or store instructions are",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "Most ML kernels never use them; you will meet them in hand-tuned kernels (FlashAttention, vLLM, ggml-cuda) and in Triton's eviction_policy argument to tl.load .",
+  "label": "core",
+  "key": "meet them in hand-tuned kernels (flashattention, vllm, ggml-cuda)",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "Keeping a buffer in L2 on purpose Since compute capability 8.0 you can reserve part of L2 for one address range: \"A portion of the L2 cache can be set aside to be used for persisting data accesses to global memory\" ( Programming Guide 4.14, L2 cache control ).",
+  "label": "depth",
+  "key": "\"a portion of the l2 cache can be",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "Two calls, from that page: size_t size = min(int(prop.l2CacheSize * 0.75), prop.persistingL2CacheMaxSize); cudaDeviceSetLimit(cudaLimitPersistingL2CacheSize, size); // set aside up to 3/4 of L2 stream_attribute.accessPolicyWindow.base_ptr = ptr; // the hot buffer stream_attribute.accessPolicyWindow.num_bytes = num_bytes; stream_attribute.accessPolicyWindow.hitRatio = 0.6; // fraction of accesses marked persisting stream_attribute.accessPolicyWindow.hitProp = cudaAccessPropertyPersisting; stream_attribute.accessPolicyWindow.missProp = cudaAccessPropertyStreaming; cudaStreamSetAttribute(stream, cudaStreamAttributeAccessPolicyWindow, &stream_attribute); It is disabled under MIG, and fixed at server start under MPS (same page).",
+  "label": "depth",
+  "key": "two calls, from that page: size_t size =",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "It helps when a few tens of MB are read by many consecutive kernels in one stream while other data streams past; it cannot help data larger than the set-aside. not run here: no NVIDIA GPU.",
+  "label": "depth",
+  "key": "it helps when a few tens of mb",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "The free way to use L2: order the work.",
+  "label": "core",
+  "key": "the free way to use l2: order the",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "Blocks that run at the same time share L2.",
+  "label": "core",
+  "key": "blocks that run at the same time share",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "A tiled matmul that launches its output tiles row by row reads each B column panel once per row of tiles; launching them in groups of rows (\"grouped\" or \"swizzled\" block order) lets concurrently running blocks reuse the same A and B panels from L2.",
+  "label": "core",
+  "key": "a tiled matmul that launches its output tiles",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "Triton's matmul tutorial shows the reordering as \"L2 cache optimizations\"; Writing kernels builds it.",
+  "label": "core",
+  "key": "we only need to load 54 blocks",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "2. the caches, and the few ways to steer them",
+  "text": "How fast each cache rung is on this laptop's GPU (about 1,239 GB/s for working sets up to 128 KB, 579 at 1 MB, 318 at 32 MB, 127.5 at 1 GB) is measured on Memory technology , section 3.",
+  "label": "core",
+  "key": "how fast each cache rung is on this",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Shared memory in practice: declaring it, sizing it, wide accesses, swizzles The problem it solves (the parent's section 3 has the full motivation): data that many threads of a block read many times should be fetched from DRAM once and then read from on-chip SRAM.",
+  "label": "core",
+  "key": "the block fetches each element once per tile",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Shared memory is that SRAM, managed by your code.",
+  "label": "core",
+  "key": "managed by your code.",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Three ways to declare it, as the compiler sees them Kernel Declaration ptxas -v (sm_90a) padded transpose tile __shared__ float t[32][33]; swizzled transpose tile __shared__ float t[32][32]; indexed t[y][x ^ y] dynamic extern __shared__ float4 s[]; sized by the third launch parameter <<<grid, block, bytes>>> compiled here : static arrays show up in the compiler's report (32 × 33 × 4 = 4,224 bytes; the swizzle saves the padding column); dynamic shared memory is invisible at compile time, so the occupancy calculator must be told the launch size.",
+  "label": "depth",
+  "key": "kernel declaration ptxas -v (sm_90a) padded transpose tile",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Sizes and the opt-in.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Per SM: 164 KB on A100 (compute capability 8.0), 228 KB on H100 and B200 (9.0, 10.0), 100 KB on RTX 3090, 4090 and 5090 (8.6, 8.9, 12.0); one block may use 1 KB less, which CUDA reserves per block ( compute capabilities ).",
+  "label": "core",
+  "key": "per sm: 164 kb on a100 (compute capability",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "But \"Kernels relying on shared memory allocations over 48 KB per block are architecture-specific.",
+  "label": "core",
+  "key": "but \"kernels relying on shared memory allocations over",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "As such they must use dynamic shared memory rather than statically-sized arrays and require an explicit opt-in\" ( Programming Guide 3.2, L1/shared balance ): cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, 200 * 1024); cudaFuncSetAttribute(kernel, cudaFuncAttributePreferredSharedMemoryCarveout, cudaSharedmemCarveoutMaxShared); kernel<<<grid, block, 200 * 1024>>>(...); The carveout splits the SM's SRAM between L1 and shared memory, and only some splits exist: \"for devices of compute capability 12.0, which have a maximum shared memory capacity of 100KB, setting the carveout to 50% will result in 64KB of shared memory, not 50KB, because devices of compute capability 12.0 support shared memory sizes of 0, 8, 16, 32, 64, and 100\" (same page).",
+  "label": "core",
+  "key": "as such they must use dynamic shared memory",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Whatever shared memory takes, L1 loses.",
+  "label": "core",
+  "key": "whatever shared memory takes, l1 loses.",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "In Triton you never write these calls; a block size and num_stages that need too much raise OutOfResources for shared memory at compile time ( triton/runtime/errors.py ).",
+  "label": "core",
+  "key": "in triton you never write these calls; a",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "More shared memory is not free.",
+  "label": "core",
+  "key": "reserved for the whole kernel",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "What a block takes is reserved for the whole kernel, so it sets how many blocks share an SM.",
+  "label": "core",
+  "key": "what a block takes is reserved for the",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Writing kernels , section 5, measured it on the M1 Pro measured on Apple M1 Pro GPU : a 16 KB staging tile added to a fused matmul epilogue tripled the kernel's threadgroup memory (8 KB to 24 KB), fewer threadgroups fit on each GPU core, and the fused kernel ran slower than not fusing at all.",
+  "label": "depth",
+  "key": "measured on apple m1 pro gpu : a",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Banks with wide accesses The rule (32 banks, \"successive 32-bit words map to successive banks\", \"Each bank has a bandwidth of 32 bits per clock cycle\") and the classic 32 × 32 transpose are in the parent's GPU simulator .",
+  "label": "core",
+  "key": "\"each bank has a bandwidth of 32 bits",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Real kernels load 8 or 16 bytes per lane, and the rule then gives a floor, not a conflict-free promise: a warp asking for 32 × 16 = 512 bytes needs at least 512 / 128 = 4 passes, since 32 banks deliver 128 bytes per pass.",
+  "label": "core",
+  "key": "real kernels load 8 or 16 bytes per",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "The cost is the number of passes the busiest bank needs.",
+  "label": "core",
+  "key": "passes of the busiest bank",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "NVIDIA's own example: with 16-byte (int4) elements \"each set of eight threads loads a row\", and a column-wise store \"must be serialized, resulting in eight store transactions, giving an eight-way bank conflict\" ( Programming Guide 4.12, asynchronous copies, TMA swizzle ).",
+  "label": "core",
+  "key": "nvidia's own example: with 16-byte (int4) elements \"each",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "The current guide does not spell out how 8-byte accesses are split; the Access lab counts passes from the 32-bit rule alone and says so.",
+  "label": "core",
+  "key": "the current guide does not spell out how",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Predict: each lane reads one float4 (16 bytes) from shared memory, lanes 128 bytes apart (lane l reads element 8l).",
+  "label": "core",
+  "key": "predict: each lane reads one float4 (16 bytes)",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "How many passes against the ideal 4?",
+  "label": "core",
+  "key": "how many passes against the ideal 4?",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "4: no conflict, the lanes read different words 8: a 2-way conflict 32: every lane in the same 4 banks Lane l's 16 bytes are words 32l to 32l + 3, which are banks 0 to 3 for every lane.",
+  "label": "core",
+  "key": "4: no conflict, the lanes read different words",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Banks 0 to 3 each serve 32 different words: 32 passes, 8 times the ideal.",
+  "label": "core",
+  "key": "banks 0 to 3 each serve 32 different",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "A stride of 9 elements (144 bytes) spreads them out again. measured on Apple M1 Pro GPU : bytes per second read from threadgroup memory (Apple's shared memory) by 131,072 threads, 16 KB per threadgroup, median of 3 runs.",
+  "label": "core",
+  "key": "a stride of 9 elements (144 bytes) spreads",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "With 16-byte elements: 1,893 GB/s at a lane stride of 1 element, 1,049 at 4, 565 at 8, and 1,905 at 9, the signature of 4-byte banks that the rule predicts (Apple documents neither its bank count nor width; this is inference from the measurement).",
+  "label": "core",
+  "key": "with 16-byte elements: 1,893 gb/s at a lane",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Wide reads also moved more bytes per second than 4-byte reads ( 1,108 GB/s at stride 1, noisy under load), so on chip as well as off chip, fewer and wider accesses win.",
+  "label": "core",
+  "key": "wide reads also moved more bytes per second",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Swizzles: the libraries' answer Padding ( [32][33] ) breaks the alignment that 16-byte and TMA copies need and wastes memory, so libraries permute instead: element (r, c) is stored at column c XOR f(r), which keeps every row and every column on distinct banks.",
+  "label": "core",
+  "key": "breaks the alignment that 16-byte and tma copies",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "Hopper's TMA engine writes tiles already swizzled: \"the TMA engine can be instructed to 'swizzle' the data before storing it in shared memory\", and with CU_TENSOR_MAP_SWIZZLE_128B \"each matrix element is from a different bank for both the rows and columns\" (same page).",
+  "label": "core",
+  "key": "hopper's tma engine writes tiles already swizzled: \"the",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "The Access lab shows plain, padded and XOR layouts side by side; CUTLASS's layout algebra that generalises this is on Libraries and tensor cores .",
+  "label": "core",
+  "key": "cutlass's layout algebra that generalises this is on",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "3. shared memory in practice: declaring it, sizing it, wide accesses, swizzles",
+  "text": "On Hopper and later, blocks of a cluster can read each other's shared memory (distributed shared memory, about 180 cycles in Luo et al.'s H800 measurements against 29 for local shared memory independent ); the hardware side is on GPU architecture , section 8, the launch side on The CUDA programming model .",
+  "label": "depth",
+  "key": "on hopper and later, blocks of a cluster",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Registers, spills, and arrays that fall into local memory The problem.",
+  "label": "core",
+  "key": "registers, spills, and arrays that fall into local",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Registers are the only storage the arithmetic units read directly, and they are rationed: 65,536 32-bit registers per SM on every current NVIDIA GPU, shared by all resident threads, at most 255 per thread.",
+  "label": "core",
+  "key": "registers are the only storage the arithmetic units",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "A thread that keeps more values alive than it has registers must park some in memory.",
+  "label": "core",
+  "key": "a thread that keeps more values alive than",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Fast kernels (register-tiled matmul, FlashAttention) deliberately keep large pieces of the output in registers, so they live right at this edge.",
+  "label": "core",
+  "key": "keep large pieces of the output",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Reading the compiler's report Compile with -Xptxas -v (or --resource-usage ) and ptxas prints, per kernel, a line like this one compiled here : Used N registers : per thread.",
+  "label": "core",
+  "key": "compile with -xptxas -v (or --resource-usage ) and",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Multiply by 32 for a warp, round up to 256: that is what each warp takes from the register file, and what decides how many warps fit (the parent's occupancy calculator in the GPU simulator ports NVIDIA's rules). spill stores / spill loads : bytes per thread written to and read back from local memory because registers ran out. stack frame : bytes per thread of local memory for any reason: spills, or an array the compiler could not keep in registers.",
+  "label": "core",
+  "key": "what each warp takes from the register file,",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "One kernel under eight register caps The kernel keeps 128 running sums per thread (the shape of a register-tiled matmul's accumulator).",
+  "label": "core",
+  "key": "one kernel under eight register caps the kernel",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Compiled with no cap, ptxas uses registers and spills nothing.",
+  "label": "core",
+  "key": "ptxas uses registers and spills nothing.",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Then the same file under -maxrregcount from 32 to 255: sm_80 (A100) sm_90a (H100) sm_120 (RTX 5090) Two lessons.",
+  "label": "core",
+  "key": "then the same file under -maxrregcount from 32",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Below what the kernel needs, every register removed becomes spill traffic: at a cap of 32 each thread writes and rereads over a kilobyte per pass through the loop body's live values.",
+  "label": "core",
+  "key": "below what the kernel needs, every register removed",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Above it, ptxas does not stop at what it needs: on sm_90a it used every register it was allowed (192, 224, 255), presumably to schedule loads earlier, and each extra register lowers how many warps fit.",
+  "label": "core",
+  "key": "above it, ptxas does not stop at what",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "The documented version of this behaviour is for launch bounds: \"If both minBlocksPerMultiprocessor and maxThreadsPerBlock are specified, the compiler may increase register usage up to L in order to reduce the number of instructions and better hide the latency\" ( C++ language extensions, launch bounds ); the same happening under -maxrregcount is observed here, not documented.",
+  "label": "depth",
+  "key": "for launch bounds: \"if both minblockspermultiprocessor and maxthreadsperblock",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Prefer __launch_bounds__(maxThreadsPerBlock, minBlocksPerSM) per kernel over a per-file -maxrregcount (both named in the Best Practices Guide, register pressure ), and measure: a few spilled bytes that hit L1 can cost less than the occupancy they buy back.",
+  "label": "core",
+  "key": "prefer __launch_bounds__(maxthreadsperblock, minblockspersm) per kernel over a per-file",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Local memory without any register pressure The surprise for most people: an array can land in local memory while the kernel uses only a few registers.",
+  "label": "core",
+  "key": "an array can land in local memory while",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "The guide lists what the compiler puts there: \"Arrays for which it cannot determine that they are indexed with constant quantities, Large structures or arrays that would consume too much register space, Any variable if the kernel uses more registers than available\" ( Programming Guide 2.3.3.4, local memory ).",
+  "label": "core",
+  "key": "\"arrays for which it cannot determine that they",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Registers have no addresses, so h[b] with b known only at run time needs memory.",
+  "label": "core",
+  "key": "registers have no addresses, so h[b] with b",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Two versions of a per-thread 16-bin histogram, compiled here for sm_90a: Run-time index: h[bins[k * 4096 + t] & 15] += 1.f; Constant indices only: for (j = 0; j < 16; ++j) h[j] += (b == j) ?",
+  "label": "core",
+  "key": "two versions of a per-thread 16-bin histogram, compiled",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "1.f : 0.f; The first uses ; the four STL.128 zero the 64-byte array in local memory and every update is an LDL and an STL .",
+  "label": "core",
+  "key": "1.f : 0.f; the first uses ; the",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "The second does 16 compare-and-adds per update but keeps all 16 bins in registers ( ).",
+  "label": "core",
+  "key": "the second does 16 compare-and-adds per update but",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Local memory is laid out so that \"consecutive 32-bit words are accessed by consecutive thread IDs.",
+  "label": "core",
+  "key": "so that \"consecutive 32-bit words are accessed by",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Accesses are therefore fully coalesced as long as all threads in a warp access the same relative address\" (same section); here every lane picks its own bin, so the accesses scatter too. measured on Apple M1 Pro GPU : the same two kernels in Metal, 262,144 threads × 1,024 updates each: 7.08 ms with the run-time index against 4.49 ms with constant indices, 1.58 times slower despite doing a sixteenth of the arithmetic.",
+  "label": "core",
+  "key": "accesses are therefore fully coalesced as long as",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Apple's compiler faces the same problem (registers are not addressable) and makes the same choice.",
+  "label": "core",
+  "key": "apple's compiler faces the same problem (registers are",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Predict: ptxas reports \"64 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads, Used 22 registers\".",
+  "label": "core",
+  "key": "predict: ptxas reports \"64 bytes stack frame, 0",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "What is in the 64 bytes?",
+  "label": "core",
+  "key": "what is in the 64 bytes?",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Spilled registers An array indexed at run time Shared memory Zero spill bytes, yet a stack frame: an array the compiler could not promote to registers, here 16 floats = 64 bytes.",
+  "label": "core",
+  "key": "spilled registers an array indexed at run time",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "Fix it by making every index a compile-time constant (unrolled loops, selects), or move the array to shared memory if lanes need different entries.",
+  "label": "core",
+  "key": "fix it by making every index a compile-time",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "What you cannot control: register bank conflicts inside the SM. \"The compiler and hardware thread scheduler will schedule instructions as optimally as possible to avoid register memory bank conflicts.",
+  "label": "depth",
+  "key": "\"the compiler and hardware thread scheduler will schedule",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "An application has no direct control over these bank conflicts.",
+  "label": "depth",
+  "key": "an application has no direct control over these",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "4. registers, spills, and arrays that fall into local memory",
+  "text": "In particular, there is no register-related reason to pack data into vector data types such as float4\" ( Best Practices Guide 10.2.7 ).",
+  "label": "depth",
+  "key": "in particular, there is no register-related reason to",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. constant memory and kernel parameters",
+  "text": "Constant memory and kernel parameters What it is. \"There is a total of 64 KB constant memory on a device.",
+  "label": "core",
+  "key": "\"there is a total of 64 kb constant",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. constant memory and kernel parameters",
+  "text": "The constant memory space is cached ...",
+  "label": "core",
+  "key": "the constant memory space is cached ...",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. constant memory and kernel parameters",
+  "text": "Accesses to different addresses by threads within a warp are serialized, thus the cost scales linearly with the number of unique addresses read by all threads within a warp ...",
+  "label": "core",
+  "key": "accesses to different addresses by threads within a",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. constant memory and kernel parameters",
+  "text": "If all threads of a warp access the same location, then constant memory can be as fast as a register access\" ( Best Practices Guide 10.2.6 ).",
+  "label": "core",
+  "key": "if all threads of a warp access the",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. constant memory and kernel parameters",
+  "text": "So it suits values every lane reads at once: a scale, a bias, filter taps, a small lookup indexed by loop counter, not by lane.",
+  "label": "core",
+  "key": "so it suits values every lane reads at",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. constant memory and kernel parameters",
+  "text": "You use it more than you think, because every kernel argument lives there . compiled here , sm_90a, from a __constant__ float c_tab[1024] and a kernel taking a small struct by value: How to read it (bank numbers inferred from consistent use across these kernels, since SASS is undocumented): bank c[0x0] holds the launch's parameters and built-ins ( c[0x0][0x0] is the block size, read for blockDim.x ); bank c[0x3] holds the module's __constant__ data.",
+  "label": "core",
+  "key": "you use it more than you think, because",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. constant memory and kernel parameters",
+  "text": "With an index known at compile time, the value goes into a uniform register ( ULDC , one copy for the whole warp) and straight into the FFMA.",
+  "label": "core",
+  "key": "goes into a uniform register ( uldc ,",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "5. constant memory and kernel parameters",
+  "text": "With an index known only at run time, it takes an LDC , which is where the per-address serialisation applies if lanes disagree.",
+  "label": "core",
+  "key": "where the per-address serialisation applies if lanes disagree.",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "5. constant memory and kernel parameters",
+  "text": "On sm_80 the compiler even used a parameter directly as an FFMA operand ( ).",
+  "label": "depth",
+  "key": "on sm_80 the compiler even used a parameter",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "5. constant memory and kernel parameters",
+  "text": "Texture memory is the other read-only cached path: \"optimized for 2D spatial locality\" with hardware filtering and boundary handling ( Best Practices Guide 10.2.5 ).",
+  "label": "depth",
+  "key": "texture memory is the other read-only cached path:",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "5. constant memory and kernel parameters",
+  "text": "It matters for image resampling; ML kernels almost never use it, and const __restrict__ loads already use the same cache.",
+  "label": "depth",
+  "key": "it matters for image resampling; ml kernels almost",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "5. constant memory and kernel parameters",
+  "text": "A constant-address-space experiment on the M1 was tried and dropped: MLX passes buffers to custom kernels in Metal's device address space, and a program-scope constant table is a different mechanism, so the comparison did not isolate the NVIDIA behaviour described here.",
+  "label": "depth",
+  "key": "a constant-address-space experiment on the m1 was tried",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "Asynchronous copies: loading the next tile while computing this one The problem.",
+  "label": "core",
+  "key": "asynchronous copies: loading the next tile while computing",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "A tiled kernel loops: load a tile of A and B into shared memory, wait, compute on it, wait, load the next.",
+  "label": "core",
+  "key": "written plainly",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "Written plainly, every load goes global memory to a register, then register to shared memory, and the SM sits idle for a full memory latency (about 479 cycles on an H800, from the parent's table) at the start of every tile.",
+  "label": "core",
+  "key": "global memory to a register, then register to",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "Two costs: idle time, and registers held just to carry data in transit.",
+  "label": "core",
+  "key": "registers held just to carry data in transit.",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "Since Ampere (compute capability 8.0) one instruction copies global to shared memory directly, without a register in between, and the thread does not wait for it: \"This not only reduces register usage by copying the data directly to shared memory, but also ensures all loads from global memory are in-flight\" ( Programming Guide 4.12.1, LDGSTS ).",
+  "label": "core",
+  "key": "since ampere (compute capability 8.0) one instruction copies",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "With two or more shared-memory buffers (stages), the copy for tile t + 1 runs while the math on tile t proceeds. compiled here for sm_90a, the same tile loop written both ways: Synchronous: s[tid] = a[t * 256 + tid]; Two stages: __pipeline_memcpy_async , __pipeline_commit , __pipeline_wait_prior(1) On the left, the compiler already unrolled the loop and issued four 16-byte loads ahead, each parked in four registers until its STS.128 : it hides latency by spending registers.",
+  "label": "core",
+  "key": "the copy for tile t + 1 runs",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "On the right, LDGSTS writes shared memory directly; LDGDEPBAR closes a group of copies (the commit) and DEPBAR.LE SB0, 0x1 waits until at most one group is still in flight (the wait_prior(1) ).",
+  "label": "core",
+  "key": "ldgsts writes shared memory directly; ldgdepbar closes a",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "The .BYPASS matches the guide: \"copying 16-bytes enables the L1 BYPASS mode, in which case the L1 is not polluted\" (same section).",
+  "label": "core",
+  "key": "the .bypass matches the guide: \"copying 16-bytes enables",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "The copies are per thread, so a __syncthreads() is still needed before other threads read the tile.",
+  "label": "core",
+  "key": "the copies are per thread, so a __syncthreads()",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "Synchronous (1 buffer) 2 stages 3 stages 4 stages One block's loop over 8 tiles.",
+  "label": "core",
+  "key": "synchronous (1 buffer) 2 stages 3 stages 4",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "Top row: copies in flight (each lasts one memory latency); bottom row: the SM computing.",
+  "label": "core",
+  "key": "copies in flight (each lasts one memory latency);",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "A copy can start only when its buffer is free (the tile that last used it has been computed); a tile can be computed only when its copy has landed. illustrative : 479 cycles per copy (H800 global latency, Luo et al.) and 200 cycles of math per tile, chosen to show the effect; it ignores bandwidth limits and the other blocks on the SM, which also hide latency.",
+  "label": "core",
+  "key": "a copy can start only when its buffer",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "The schedule is checked against a Python reference ( src/code/reference.py ).",
+  "label": "core",
+  "key": "the schedule is checked against a python reference",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "Each stage is another tile of shared memory, so stages trade against block size and occupancy (section 3's limits): this is exactly Triton's num_stages , and Triton 3.8.0 compiles a plain matmul's tile loads to LDGSTS on sm_80 (the parent's Compiler explorer ).",
+  "label": "core",
+  "key": "each stage is another tile of shared memory,",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "Hopper's TMA goes one step further: one thread issues a copy of a whole multi-dimensional tile (up to 5 dimensions), completion is signalled on a shared-memory barrier, and the tile can land swizzled (section 3).",
+  "label": "core",
+  "key": "further: one thread issues a copy of a",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "6. asynchronous copies: loading the next tile while computing this one",
+  "text": "The TMA programming model and the warp-specialised producer/consumer kernels built on it are on Libraries and tensor cores ; a full pipelined matmul on Writing kernels ; the copy engines inside the SM on GPU architecture , section 8.",
+  "label": "core",
+  "key": "the tma programming model and the warp-specialised producer/consumer",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "Host memory: pinned, mapped and managed The problem.",
+  "label": "core",
+  "key": "host memory: pinned, mapped and managed",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "Training data and checkpoints start in host RAM; a GPU's copy engines move them over PCIe or NVLink-C2C by DMA, and DMA needs physical pages that will not move.",
+  "label": "core",
+  "key": "training data and checkpoints start in host ram;",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "Ordinary malloc memory can be swapped or relocated by the OS, so it cannot be the DMA target.",
+  "label": "core",
+  "key": "ordinary malloc memory can be swapped or relocated",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "How CUDA bridges that decides whether your input pipeline overlaps with compute.",
+  "label": "core",
+  "key": "how cuda bridges that decides whether your input",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "Pageable (default) \"When CUDA sends pageable data from CPU to GPU, it must first create a page-locked copy of that data before making the transfer\" ( PyTorch, non_blocking and pin_memory , Apr 1, 2026): an extra CPU memcpy, and the call cannot run in the background.",
+  "label": "core",
+  "key": "pageable (default) \"when cuda sends pageable data from",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "Pinned (page-locked) cudaMallocHost / cudaHostAlloc , or cudaHostRegister on existing memory. \"Page-locked host memory is required for asynchronous copies between the CPU and GPU\" and \"also improves performance of synchronous copies\" ( Programming Guide 2.6.3 ).",
+  "label": "core",
+  "key": "pinned (page-locked) cudamallochost / cudahostalloc , or cudahostregister",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "Mapped (zero copy) pinned memory the GPU reads directly over the interconnect, uncached on the GPU. \"On integrated GPUs ... mapped pinned memory is always a performance gain ...",
+  "label": "core",
+  "key": "mapped (zero copy) pinned memory the gpu reads",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "On discrete GPUs, mapped pinned memory is advantageous only in certain cases\" ( Best Practices Guide 10.1.3 ).",
+  "label": "core",
+  "key": "on discrete gpus, mapped pinned memory is advantageous",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "Managed (unified) cudaMallocManaged : one pointer for both sides; pages migrate on first touch.",
+  "label": "core",
+  "key": "managed (unified) cudamallocmanaged : one pointer for both",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "Prefetch with cudaMemPrefetchAsync and give hints with cudaMemAdvise , or it is slow; the driver's fault path is on Virtualization and the GPU driver stack , section 11.",
+  "label": "core",
+  "key": "prefetch with cudamemprefetchasync and give hints with cudamemadvise",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "The Best Practices Guide's own example is dated: \"On PCIe x16 Gen3 cards, for example, pinned memory can attain roughly 12 GB/s transfer rates\" vendor figure ; today's links are faster (PCIe Gen5 x16 and NVLink-C2C on Interconnects and scaling ), but the rule is the same.",
+  "label": "depth",
+  "key": "the best practices guide's own example is dated:",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "And pinning has a price: \"Pinned memory should not be overused ... the pinning of system memory is a heavyweight operation\" (same guide); pinned pages count against the locked-memory limit ( Virtual memory , section 9). not run here: this laptop has no discrete GPU.",
+  "label": "depth",
+  "key": "pinning has a price: \"pinned memory should not",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "In PyTorch DataLoader(..., pin_memory=True) pins each batch in a background thread; then batch.to(\"cuda\", non_blocking=True) returns at once and the copy overlaps with the previous step's compute (stream ordering keeps it safe for kernels that use the batch; overlap itself is on Streams, CUDA graphs and multi-GPU programming ).",
+  "label": "core",
+  "key": "dataloader(..., pin_memory=true) pins each batch in a background",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "Pinning by hand on the critical path does not help: \"Using tensor.pin_memory().to(device, non_blocking=True) can be up to twice as slow as a straightforward tensor.to(device)\" (PyTorch tutorial above), because the pin is itself a copy.",
+  "label": "core",
+  "key": "pinning by hand on the critical path does",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "The other direction is a correctness trap: after cuda_tensor.to(\"cpu\", non_blocking=True) \"there is no guarantee that the data read on GPU is valid without explicit synchronization\" (same tutorial; it means the CPU-side data); synchronise (or wait on an event) before reading it.",
+  "label": "core",
+  "key": "the other direction is a correctness trap: after",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "Device allocation is not free either. \"Device memory allocation and de-allocation via cudaMalloc() and cudaFree() are expensive operations.",
+  "label": "depth",
+  "key": "device allocation is not free either. \"device memory",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "It is recommended to use cudaMallocAsync() and cudaFreeAsync() which are stream ordered pool allocators\" ( Best Practices Guide 10.3 ).",
+  "label": "depth",
+  "key": "it is recommended to use cudamallocasync() and cudafreeasync()",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "PyTorch goes further with its own caching allocator, which is why nvidia-smi shows memory \"used\" after tensors are freed; it is simulated from its source on Memory allocators , section 9.",
+  "label": "depth",
+  "key": "pytorch goes further with its own caching allocator,",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "On this laptop there is no host-device copy to make: \"Apple silicon has a unified memory architecture.",
+  "label": "depth",
+  "key": "on this laptop there is no host-device copy",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "The CPU and GPU have direct access to the same memory pool\" ( MLX, unified memory ).",
+  "label": "depth",
+  "key": "the cpu and gpu have direct access to",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "That is the integrated case of the zero-copy rule above, and why every M1 number on this page measures the GPU's own memory system with no PCIe in the way.",
+  "label": "depth",
+  "key": "that is the integrated case of the zero-copy",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "7. host memory: pinned, mapped and managed",
+  "text": "Grace Hopper and Grace Blackwell get part of the way on NVIDIA with a coherent CPU-GPU link ( Memory technology , section 7).",
+  "label": "depth",
+  "key": "grace hopper and grace blackwell get part of",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Your kernel on a roofline: from bytes and FLOPs to a verdict The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "After all the rules above you still need one number: is this kernel close to what the GPU can do, and which limit is it against?",
+  "label": "core",
+  "key": "close to what the gpu can do, and",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "The roofline answers it (the model itself, ridge points per chip and MFU are on Topic: hardware and Performance math ); here is the programmer's recipe for one kernel.",
+  "label": "core",
+  "key": "ridge points per chip and mfu are on",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Count the bytes the kernel must move if every input is read once and every output written once (not what it actually moves: that is what you are judging).",
+  "label": "core",
+  "key": "count the bytes the kernel must move if",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Count the FLOPs (an FMA is 2).",
+  "label": "core",
+  "key": "the flops (an fma is 2).",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Time it honestly (warm-up, many repetitions, synchronise: Profiling, benchmarking and correctness ).",
+  "label": "core",
+  "key": "time it honestly (warm-up, many repetitions, synchronise: profiling,",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Divide : achieved bandwidth = bytes / time, achieved FLOP/s = FLOPs / time, arithmetic intensity = FLOPs / bytes.",
+  "label": "core",
+  "key": ": achieved bandwidth = bytes / time, achieved",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Compare with the roof at that intensity: min(peak FLOP/s, intensity × peak bandwidth).",
+  "label": "core",
+  "key": "compare with the roof at that",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Near the slanted part: memory-bound, so move fewer bytes (fuse, use smaller types).",
+  "label": "core",
+  "key": "near the slanted part: memory-bound, so move fewer",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Near the flat part: compute-bound, so use tensor cores or do less math.",
+  "label": "core",
+  "key": "near the flat part: compute-bound, so use tensor",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Far below both: neither; the access pattern or latency hiding is broken, and sections 1 to 6 are where to look.",
+  "label": "core",
+  "key": "the access pattern or latency hiding is broken,",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "To see a real roof rather than a datasheet one, this page measured it: a kernel that reads one float4 per thread, does F steps of 8 independent FMAs, and writes one float, for F from 1 to 1,024, so its intensity runs from 1.35 to 820 FLOP per byte. measured on Apple M1 Pro GPU : dots are the sweep (median of 3 runs; whiskers span the runs), dashed lines are the roofs it implies: 156 GB/s (median bandwidth of the sweep's points up to F = 16) and 4,992 GFLOP/s (its best point), a ridge at 32 FLOP per byte derived : 4,992 / 156.3.",
+  "label": "depth",
+  "key": "a kernel that reads one float4 per thread,",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Both agree with the independent measurements in Topic: hardware (about 5.0 TFLOP/s FMA, 143 to 165 GB/s streaming) and sit at 94% of the 5,308 GFLOP/s that 16 cores × 128 ALUs × 2 × 1.296 GHz gives ( metal-benchmarks ).",
+  "label": "depth",
+  "key": "both agree with the independent measurements in topic:",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "The single coloured points are kernels from the parent's Kernel lab placed by the recipe above, with their minimum bytes.",
+  "label": "depth",
+  "key": "the single coloured points are kernels from the",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "The two softmaxes do the same math on the same data; the eager one sits at a quarter of the bandwidth roof because, counted against the minimum bytes, it moves the tensor several times (five kernels, each a full pass).",
+  "label": "core",
+  "key": "sits at a quarter of the bandwidth roof",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "The naive matmul has an intensity of 341 FLOP per byte, ten times the ridge, yet runs at a fraction of the compute roof: by the recipe it is \"far below both\", and indeed its threads re-read A and B from memory for every output (no tiles, section 3 of the parent).",
+  "label": "core",
+  "key": "the naive matmul has an intensity of 341",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Tiles and registers (the 4 × 4 per thread kernel) and then the matrix instructions in MLX's library close the gap.",
+  "label": "depth",
+  "key": "tiles and registers (the 4 × 4 per",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Place a kernel Peaks in the calculator: H100 SXM BF16 dense 989.5 TFLOP/s and FP32 67, 3.35 TB/s; A100 SXM BF16 312, FP32 19.5, 2,039 GB/s; RTX 5090 BF16 with FP32 accumulate 209.5, FP32 104.8, 1,792 GB/s vendor spec (shared facts of this topic, from NVIDIA H100 , A100 and the RTX Blackwell whitepaper ); M1 Pro: this page's measured roofs.",
+  "label": "depth",
+  "key": "place a kernel peaks in the calculator: h100",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "8. your kernel on a roofline: from bytes and flops to a verdict",
+  "text": "Datasheet peaks are rarely reached: SemiAnalysis measured about 720 of the H100's 989.5 BF16 TFLOP/s on large GEMMs ( Dec 2024 ) independent , so judge against an achievable roof when you have one.",
+  "label": "depth",
+  "key": "datasheet peaks are rarely reached: semianalysis measured about",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Common mistakes, how to check, interview questions Belief What is true Section \"Local memory is fast, it is local.\" It lives in device DRAM; \"local\" is the scope.",
+  "label": "core",
+  "key": "the name is its scope, not its place",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "It is cached, but a spill or a run-time-indexed array costs real memory traffic.",
+  "label": "core",
+  "key": "spills, or an array the compiler could not keep in registers",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "4 \"Reading one field of a struct reads 4 bytes.\" The warp fetches whole 32-byte sectors: one field of a 32-byte struct costs as much as the whole struct (measured: same time).",
+  "label": "core",
+  "key": "the same as all eight fields",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "1 \"More registers per thread is always faster.\" Each register costs resident warps; ptxas will use whatever cap you allow.",
+  "label": "core",
+  "key": "used every register it was allowed",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Measure both sides of the spill/occupancy trade.",
+  "label": "core",
+  "key": "a few spilled bytes that hit L1",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "4 \"Padding is the way to fix bank conflicts.\" It works for 4-byte accesses, but breaks the alignment 16-byte and TMA copies need; libraries swizzle.",
+  "label": "core",
+  "key": "16-byte and tma copies",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "3 \"A bank conflict-free layout for floats stays conflict-free for float4.\" Wide accesses need several passes anyway and a different stride condition; count passes for the width you load.",
+  "label": "core",
+  "key": "a floor, not a conflict-free promise",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "3 \" __restrict__ is just documentation.\" It changes the load to the read-only path ( LDG.E.CONSTANT ); if the pointers alias, results can be wrong.",
+  "label": "core",
+  "key": "silently wrong",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "2 \" __constant__ is a fast table for any lookup.\" Only when the lanes of a warp read the same address; different addresses are served one at a time.",
+  "label": "depth",
+  "key": "lanes of a warp read",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "5 \" pin_memory() before every .to(device) speeds things up.\" Pinning is a copy; done on the critical path it can be up to twice as slow.",
+  "label": "core",
+  "key": "can be up to twice as",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Let the DataLoader pin in the background.",
+  "label": "core",
+  "key": "pins each batch in a background thread",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "7 \"A kernel at 15% of peak FLOP/s is badly written.\" Only if it is compute-bound.",
+  "label": "core",
+  "key": "at 15% of peak flop/s",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Place it on the roofline first: a softmax at the bandwidth roof is done.",
+  "label": "core",
+  "key": "a softmax at the bandwidth roof",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "8 \"cudaMalloc in the loop is fine.\" Allocation is expensive and can synchronise; use pools ( cudaMallocAsync ) or a caching allocator.",
+  "label": "depth",
+  "key": "stream ordered pool allocators",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "7 How to check, without guessing nvcc -Xptxas -v (or cuobjdump --dump-resource-usage ): registers, stack frame, spill bytes, static shared memory per kernel.",
+  "label": "core",
+  "key": "how to check, without guessing nvcc -xptxas -v",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "In Triton, kernel.n_regs and kernel.n_spills on the compiled kernel, or the parent's Compiler explorer . cuobjdump -sass : LDL / STL mean local memory; LDG.E.128 means vectorised; LDGSTS means asynchronous copy; .CONSTANT means the read-only path.",
+  "label": "core",
+  "key": "in triton, kernel.n_regs and kernel.n_spills on the compiled",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "This page's Memory instructions tab has every example.",
+  "label": "core",
+  "key": "this page's memory instructions tab has every example.",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Nsight Compute: Memory Workload Analysis (sectors per request, shared-memory wavefronts against ideal, L1/L2 hit rates), Speed of Light (fraction of peak memory and compute: the roofline position).",
+  "label": "core",
+  "key": "nsight compute: memory workload analysis (sectors per request,",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "From NVIDIA's docs; not run here.",
+  "label": "core",
+  "key": "from nvidia's docs; not run here.",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Back-of-envelope first: bytes and FLOPs by hand, then section 8's recipe.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the section 9 recipe"
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Interview questions, with short answers What does \"coalesced\" mean, precisely?",
+  "label": "depth",
+  "key": "what does \"coalesced\" mean, precisely?",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "The 32 addresses of one warp's load fall in as few 32-byte sectors as possible, so the bytes fetched equal the bytes used.",
+  "label": "depth",
+  "key": "the 32 addresses of one warp's load fall",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Consecutive lanes on consecutive 4-byte words: 4 sectors for 128 bytes.",
+  "label": "depth",
+  "key": "consecutive lanes on consecutive 4-byte words: 4 sectors",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "It is about sectors, not about order: any permutation within the same sectors is equally good.",
+  "label": "depth",
+  "key": "it is about sectors, not about order: any",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "A kernel reads a [N, 3] float array of xyz points, one point per thread.",
+  "label": "depth",
+  "key": "a kernel reads a [n, 3] float array",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "What is wrong and how do you fix it?",
+  "label": "depth",
+  "key": "what is wrong and how do you fix",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Each lane reads 12 bytes at a 12-byte stride: three narrow loads per lane, misaligned for vector loads, each field read strided.",
+  "label": "depth",
+  "key": "each lane reads 12 bytes at a 12-byte",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Store x, y, z as separate arrays (struct of arrays), or pad to float4 and load 16 bytes per lane. ptxas says \"0 bytes spill stores\" but \"64 bytes stack frame\".",
+  "label": "depth",
+  "key": "store x, y, z as separate arrays (struct",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "What is going on?",
+  "label": "depth",
+  "key": "64 bytes stack frame",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "A local array indexed with a value known only at run time; registers cannot be indexed, so it lives in local memory.",
+  "label": "depth",
+  "key": "a local array indexed with a value known",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Make the indices compile-time constants (unroll, select) or use shared memory.",
+  "label": "depth",
+  "key": "make the indices compile-time constants (unroll, select) or",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Why would capping registers make a kernel faster, and why might it make it slower?",
+  "label": "depth",
+  "key": "why would capping registers make a kernel faster,",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Faster: fewer registers per thread fits more warps per SM, which hides memory latency.",
+  "label": "depth",
+  "key": "faster: fewer registers per thread fits more warps",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Slower: values that no longer fit spill to local memory, adding loads and stores.",
+  "label": "depth",
+  "key": "slower: values that no longer fit spill to",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Which wins depends on whether the kernel was latency-bound; measure.",
+  "label": "depth",
+  "key": "which wins depends on whether the kernel was",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Shared memory tile float[32][32] read by columns: what happens, and give two fixes.",
+  "label": "depth",
+  "key": "shared memory tile float[32][32] read by columns: what",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "All 32 lanes hit the same bank: a 32-way conflict, 32 passes.",
+  "label": "depth",
+  "key": "all 32 lanes hit the same bank: a",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Pad to [32][33] (row r starts in bank r), or swizzle the column index with XOR of the row (no wasted memory, keeps alignment).",
+  "label": "depth",
+  "key": "pad to [32][33] (row r starts in bank",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "What does cp.async (LDGSTS) buy over a normal load followed by a shared-memory store?",
+  "label": "depth",
+  "key": "what does cp.async (ldgsts) buy over a normal",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "The data goes global to shared without occupying registers, the thread continues immediately, and with several shared buffers the next tile's copy overlaps this tile's math.",
+  "label": "depth",
+  "key": "the data goes global to shared without occupying",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "The price is shared memory per stage.",
+  "label": "depth",
+  "key": "the price is shared memory per stage.",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "When is __constant__ memory the right choice?",
+  "label": "depth",
+  "key": "when is __constant__ memory the right choice?",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Small read-only data that all lanes of a warp read at the same address at the same time (a scale, coefficients indexed by loop counter).",
+  "label": "depth",
+  "key": "small read-only data that all lanes of a",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Lanes reading different entries are serialised by the number of distinct addresses.",
+  "label": "depth",
+  "key": "lanes reading different entries are serialised by the",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Why does pinned memory matter for a training input pipeline?",
+  "label": "depth",
+  "key": "why does pinned memory matter for a training",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Copies from pageable memory are staged through a pinned buffer by the driver and cannot run asynchronously; with pinned batches (DataLoader pin_memory=True) and non_blocking=True, the host-to-device copy overlaps the previous step's compute.",
+  "label": "depth",
+  "key": "copies from pageable memory are staged through a",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Your layernorm kernel runs at 85% of DRAM bandwidth.",
+  "label": "depth",
+  "key": "your layernorm kernel runs at 85% of dram",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Should you optimise it further?",
+  "label": "depth",
+  "key": "should you optimise it further?",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Not its inner loop: it is memory-bound and near the roof.",
+  "label": "depth",
+  "key": "not its inner loop: it is memory-bound and",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "9. common mistakes, how to check, interview questions",
+  "text": "Only moving fewer bytes helps: fuse it with the neighbouring op (residual add, the next matmul's prologue) or use a smaller dtype.",
+  "label": "depth",
+  "key": "only moving fewer bytes helps: fuse it with",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-acc",
+  "section": "access lab: count what one warp's access costs",
+  "text": "Access lab: count what one warp's access costs Type any access pattern and see what NVIDIA's documented rules make of it.",
+  "label": "core",
+  "key": "Type any pattern",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-acc",
+  "section": "access lab: count what one warp's access costs",
+  "text": "Global memory: 32-byte sectors per warp-wide load ( Programming Guide 2.3.4.1 ).",
+  "label": "core",
+  "key": "( programming guide 2.3.4.1 ).",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-acc",
+  "section": "access lab: count what one warp's access costs",
+  "text": "Shared memory: 32 banks of 4 bytes, one distinct word per bank per pass, same word broadcast (2.3.4.2).",
+  "label": "core",
+  "key": "successive 32-bit words map to successive banks",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-acc",
+  "section": "access lab: count what one warp's access costs",
+  "text": "Both models are checked against a Python reference on 1,000 patterns ( src/check/check_js.mjs ).",
+  "label": "core",
+  "key": "models are checked against a python reference on",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-acc",
+  "section": "access lab: count what one warp's access costs",
+  "text": "They count transactions, not time: caches, other warps and DRAM pages decide how much a wasted sector costs, as the Reading tab's M1 measurements show.",
+  "label": "core",
+  "key": "caches catch some wasted bytes",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-acc",
+  "section": "access lab: count what one warp's access costs",
+  "text": "Global memory: one warp-wide load Preset Bytes per lane 1 2 4 8 16 Lane stride (bytes) Start offset (bytes) Shared memory: one warp's access, bank by bank Pattern lane l reads element l × s lane l reads column c of a 32 × 32 float tile Element bytes 4 8 16 Stride s (elements) Layout plain [32][32] padded [32][33] XOR swizzle c ^ r Column c Each box is one distinct word a bank must deliver, stacked by pass: blue boxes fit within the ideal number of passes, orange ones are extra.",
+  "label": "core",
+  "key": "preset bytes per lane 1 2 4 8",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-acc",
+  "section": "access lab: count what one warp's access costs",
+  "text": "For 8- and 16-byte elements the pass count is the floor that the 32-bit rule implies (each bank delivers 4 bytes per pass, so 32 lanes × 16 bytes need at least 4 passes).",
+  "label": "core",
+  "key": "for 8- and 16-byte elements the pass count",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-acc",
+  "section": "access lab: count what one warp's access costs",
+  "text": "NVIDIA's guide documents 16-byte accesses as groups of eight lanes (its TMA swizzle example) but does not spell out the split for 8-byte accesses; this lab does not model the split, only the bank load. measured on Apple M1 Pro GPU for comparison, 16-byte elements at strides 1, 2, 4, 8, 9: GB/s.",
+  "label": "core",
+  "key": "does not model how the hardware splits",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-sass",
+  "section": "memory instructions: every kernel on this page, compiled",
+  "text": "Memory instructions: every kernel on this page, compiled The seven CUDA files behind the Reading tab, compiled with inside the topic's Docker image (no GPU needed to compile) for sm_80 (A100), sm_90a (H100) and sm_120 (RTX 5090), with -O3 -Xptxas -v .",
+  "label": "core",
+  "key": "memory instructions: every kernel on this page, compiled",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-sass",
+  "section": "memory instructions: every kernel on this page, compiled",
+  "text": "For each kernel: what ptxas reports, and the memory instructions in program order (loads, stores, shared-memory and constant-bank accesses, barriers). compiled here ; scripts in src/code/compile_all.sh , raw reports in src/out/cc/ .",
+  "label": "core",
+  "key": "for each kernel: what ptxas reports, and the",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-sass",
+  "section": "memory instructions: every kernel on this page, compiled",
+  "text": "The parent's Compiler explorer has full SASS with source lines for its own kernels.",
+  "label": "core",
+  "key": "the parent's compiler explorer has full sass with",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-sass",
+  "section": "memory instructions: every kernel on this page, compiled",
+  "text": "File Target sm_80 sm_90a sm_120 Source",
+  "label": "core",
+  "key": "file target sm_80 sm_90a sm_120 source",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-more",
+  "section": "",
+  "text": "The tabs of this page, the knowledge base pages it leans on, and the best outside resources, each with an approximate time.",
+  "label": "core",
+  "key": "the tabs of this page, the knowledge base",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 2026-10-05.",
+  "label": "core",
+  "key": "Links checked on 2026-10-05",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page Access lab Type any global or shared-memory access pattern and count sectors, passes and conflicts by NVIDIA's rules.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Access lab tab removed; its widgets are now inline in sections 1 and 4"
+ },
+ {
+  "id": 272,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min Memory instructions The seven kernels behind the Reading tab, compiled for sm_80, sm_90a and sm_120: ptxas reports and memory instructions.",
+  "label": "core",
+  "key": "memory instructions the seven kernels behind the reading",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min The parent and siblings Topic: cuda-and-gpu-programming about 45 min The root: one softmax and a multiply by V followed from PyTorch to the instructions.",
+  "label": "core",
+  "key": "10 min the parent and siblings topic: cuda-and-gpu-programming",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-more",
+  "section": "",
+  "text": "Section 3 is this page in one screen; its GPU simulator tab has the stride, bank-conflict, transpose, occupancy, latency and tiling simulators; its Compiler explorer has full SASS; its Kernel lab the M1 softmax and matmul ladders.",
+  "label": "core",
+  "key": "its compiler explorer has full sass; its kernel",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-more",
+  "section": "",
+  "text": "The CUDA programming model 37 min Threads, warps, blocks, launches and occupancy: the execution side of everything here.",
+  "label": "core",
+  "key": "the cuda programming model 37 min threads, warps,",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-more",
+  "section": "",
+  "text": "Writing kernels 37 min Reductions, softmax, the tiled matmul ladder, fusion and FlashAttention: these memory rules put to work.",
+  "label": "core",
+  "key": "writing kernels 37 min reductions, softmax, the tiled",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-more",
+  "section": "",
+  "text": "Triton and Gluon 29 min Block-level kernels where the compiler chooses layouts, swizzles and stages for you.",
+  "label": "core",
+  "key": "triton and gluon 29 min block-level kernels where",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-more",
+  "section": "",
+  "text": "Libraries and tensor cores 33 min CUTLASS and CuTe layouts, ldmatrix, TMA and the warp-specialised pipelines.",
+  "label": "core",
+  "key": "libraries and tensor cores 33 min cutlass and",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-more",
+  "section": "",
+  "text": "Profiling, benchmarking and correctness 29 min Nsight Compute's memory tables and Speed of Light, and honest timing.",
+  "label": "core",
+  "key": "profiling, benchmarking and correctness 29 min nsight compute's",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-more",
+  "section": "",
+  "text": "The compiler stack 28 min PTX against SASS, and how to read a disassembly like the ones on this page.",
+  "label": "core",
+  "key": "the compiler stack 28 min ptx against sass,",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-more",
+  "section": "",
+  "text": "Streams, CUDA graphs and multi-GPU programming 36 min Overlapping pinned-memory copies with compute.",
+  "label": "core",
+  "key": "streams, cuda graphs and multi-gpu programming 36 min",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-more",
+  "section": "",
+  "text": "Other knowledge base pages Memory technology SRAM against DRAM, HBM and GDDR physically, and this laptop's GPU cache ladder and DRAM latency measured.",
+  "label": "core",
+  "key": "other knowledge base pages memory technology sram against",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-more",
+  "section": "",
+  "text": "24 min GPU architecture about 28 min The SM, the memory ladder inside the chip and the copy engines (async copy, TMA, clusters, TMEM).",
+  "label": "core",
+  "key": "24 min gpu architecture about 28 min the",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-more",
+  "section": "",
+  "text": "Topic: hardware The roofline as a model, ridge points per chip, MFU.",
+  "label": "core",
+  "key": "topic: hardware the roofline as a model, ridge",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-more",
+  "section": "",
+  "text": "37 min Virtual memory Pages, the TLB, and locked and pinned memory (section 9).",
+  "label": "core",
+  "key": "37 min virtual memory pages, the tlb, and",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-more",
+  "section": "",
+  "text": "36 min Memory allocators PyTorch's CUDA caching allocator, simulated from its source.",
+  "label": "core",
+  "key": "36 min memory allocators pytorch's cuda caching allocator,",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-more",
+  "section": "",
+  "text": "34 min Virtualization and the GPU driver stack GPU memory from the operating system's side: managed memory faults, pinned memory, GPUDirect.",
+  "label": "core",
+  "key": "34 min virtualization and the gpu driver stack",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-more",
+  "section": "",
+  "text": "51 min C++: the machine underneath The same ideas on a CPU: caches, SIMD and a measured roofline on the M1's CPU.",
+  "label": "core",
+  "key": "51 min c++: the machine underneath the same",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-more",
+  "section": "",
+  "text": "Part 2 FlashAttention (paper page) The IO-aware tiling argument: an algorithm designed from the memory hierarchy.",
+  "label": "core",
+  "key": "part 2 flashattention (paper page) the io-aware tiling",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min Best outside resources CUDA Programming Guide: writing kernels, memory spaces and access patterns NVIDIA's rules for coalescing, banks, local and constant memory (v13.4.2).",
+  "label": "core",
+  "key": "20 min best outside resources cuda programming guide:",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-more",
+  "section": "",
+  "text": "45 min CUDA C++ Best Practices Guide, memory optimizations Pinned memory, misaligned and strided access measured, L2 windows, constant and texture memory.",
+  "label": "core",
+  "key": "45 min cuda c++ best practices guide, memory",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-more",
+  "section": "",
+  "text": "60 min Programming Guide 4.12: asynchronous data copies LDGSTS, TMA and swizzle modes with complete examples.",
+  "label": "core",
+  "key": "60 min programming guide 4.12: asynchronous data copies",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-more",
+  "section": "",
+  "text": "60 min PTX ISA: cache operators Section 9.7.10: what .ca, .cg, .cs, .lu, .cv and .wt mean.",
+  "label": "core",
+  "key": "60 min ptx isa: cache operators section 9.7.10:",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Simon Boehm, How to Optimize a CUDA Matmul Kernel Coalescing, shared-memory tiles, register tiles and vector loads, measured step by step on an A6000.",
+  "label": "core",
+  "key": "15 min simon boehm, how to optimize a",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-more",
+  "section": "",
+  "text": "90 min Horace He, Making Deep Learning Go Brrrr From First Principles Compute-bound, memory-bound and overhead-bound, for ML people.",
+  "label": "core",
+  "key": "90 min horace he, making deep learning go",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min CUDA Pro Tip: vectorized memory access float2 and float4 loads, alignment, and when not to.",
+  "label": "core",
+  "key": "25 min cuda pro tip: vectorized memory access",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min PyTorch: non_blocking and pin_memory Pinned memory and asynchronous copies in PyTorch, measured, with the traps.",
+  "label": "core",
+  "key": "10 min pytorch: non_blocking and pin_memory pinned memory",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Luo et al., Benchmarking and Dissecting the Nvidia Hopper GPU Architecture Independent latencies and bandwidths of every memory level on A100, H800 and RTX 4090.",
+  "label": "core",
+  "key": "30 min luo et al., benchmarking and dissecting",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-more",
+  "section": "",
+  "text": "60 min Modal GPU Glossary Short, accurate definitions of every term on this page.",
+  "label": "core",
+  "key": "60 min modal gpu glossary short, accurate definitions",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-more",
+  "section": "",
+  "text": "45 min Williams, Waterman and Patterson, Roofline The original roofline paper (CACM 2009).",
+  "label": "core",
+  "key": "45 min williams, waterman and patterson, roofline the",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-more",
+  "section": "",
+  "text": "45 min Programming Massively Parallel Processors, 5th ed.",
+  "label": "core",
+  "key": "45 min programming massively parallel processors, 5th ed.",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-more",
+  "section": "",
+  "text": "Chapters on memory architecture and tiling (Hwu, Kirk, El Hajj).",
+  "label": "core",
+  "key": "chapters on memory architecture and tiling (hwu, kirk,",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-more",
+  "section": "",
+  "text": "90 min for those chapters",
+  "label": "core",
+  "key": "90 min for those chapters",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Cache-operator table: intrinsic, PTX, quoted meaning, SASS on sm_80, sm_90a, sm_120",
+  "label": "depth",
+  "key": "Every cache operator, its PTX meaning",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Register-cap chart: registers, warps per SM and spill bytes under eight caps on three targets",
+  "label": "core",
+  "key": "One kernel under eight register caps",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Constant-bank SASS for four constant reads (sm_90a)",
+  "label": "depth",
+  "key": "The SASS for four constant reads",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Roofline table: five parent Kernel lab kernels, ms, FLOP/byte, GB/s, GFLOP/s, which roof and how far",
+  "label": "depth",
+  "key": "five real kernels on it",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Roofline calculator with H100, A100, RTX 5090 and measured M1 peaks",
+  "label": "depth",
+  "key": "Place a kernel",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-sass",
+  "section": "script-rendered",
+  "text": "Every kernel compiled for three targets: ptxas report, memory instructions, source",
+  "label": "core",
+  "key": "every kernel on this page, compiled",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "ptxas line of hist_dynamic, histogram SASS, async SASS, width SASS",
+  "label": "core",
+  "key": "a line like this",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "From the parent root section 3: thread k reads float 32k moves 1,024 bytes to use 128; make threadIdx.x walk the contiguous dimension",
+  "label": "core",
+  "key": "walk along the contiguous dimension",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "From the parent root: M1 bandwidth by float stride (129 GB/s at 1, 22 at 32, 6.0 times), random gather 1.5 GB/s",
+  "label": "core",
+  "key": "useful bandwidth by float stride",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "From the parent root: naive 2,048 matmul 229 ms uncoalesced, 47.5 ms coalesced on M1",
+  "label": "core",
+  "key": "47.5",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "From the parent root: shared memory tiling pattern, cooperative copy, __syncthreads, reuse; tile animation 4 x 4 block, K = 8",
+  "label": "core",
+  "key": "cooperatively copy a tile",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "From the parent root: global loads per block fall from 2T^2K to 2TK",
+  "label": "core",
+  "key": "global loads per block fall from",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "From the parent root: M1 matmul 353 GFLOP/s untiled, 677 with 8 x 8 tiles, 478 with 32 x 32; bigger tiles cost occupancy",
+  "label": "core",
+  "key": "677",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "From the parent root: 32 banks of 4 bytes, column of float tile[32][32] is a 32-way conflict, [32][33] fixes it",
+  "label": "core",
+  "key": "puts all 32 lanes in one bank",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "absorbed",
+  "text": "From the parent root: M1 threadgroup reads 113 billion per second at stride 32, 318 at 1, 394 at 33",
+  "label": "core",
+  "key": "394",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "new",
+  "text": "Grouped launch order: 9 x 9 blocks, row-major 90 blocks loaded for the first 9 outputs, grouped 54 (Triton tutorial)",
+  "label": "core",
+  "key": "90 against 54 blocks loaded",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "new",
+  "text": "Hero: the ladder with sizes, latencies and SASS per rung",
+  "label": "core",
+  "key": "Every byte comes up the same ladder",
+  "where": ""
+ }
+]

@@ -1,23 +1,49 @@
-<section id="rd-s8">
-<h2>8. Your kernel on a roofline: from bytes and FLOPs to a verdict</h2>
-<p><b>The problem.</b> After all the rules above you still need one number: is this kernel close to what the GPU can do, and which limit is it against? The roofline answers it (the model itself, ridge points per chip and MFU are on {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}} and {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}); here is the programmer's recipe for one kernel.</p>
-<ol>
-<li><b>Count the bytes the kernel must move</b> if every input is read once and every output written once (not what it actually moves: that is what you are judging).</li>
-<li><b>Count the FLOPs</b> (an FMA is 2).</li>
-<li><b>Time it</b> honestly (warm-up, many repetitions, synchronise: {{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}}).</li>
-<li><b>Divide</b>: achieved bandwidth = bytes / time, achieved FLOP/s = FLOPs / time, arithmetic intensity = FLOPs / bytes.</li>
-<li><b>Compare</b> with the roof at that intensity: min(peak FLOP/s, intensity &times; peak bandwidth). Near the slanted part: memory-bound, so move fewer bytes (fuse, use smaller types). Near the flat part: compute-bound, so use tensor cores or do less math. Far below both: neither; the access pattern or latency hiding is broken, and sections 1 to 6 are where to look.</li>
-</ol>
-<p>To see a real roof rather than a datasheet one, this page measured it: a kernel that reads one float4 per thread, does F steps of 8 independent FMAs, and writes one float, for F from 1 to 1,024, so its intensity runs from 1.35 to 820 FLOP per byte.</p>
-<div class="rd-chart" id="rd-roof"></div>
-<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: dots are the sweep (median of 3 runs; whiskers span the runs), dashed lines are the roofs it implies: <b>156 GB/s</b> (median bandwidth of the sweep's points up to F = 16) and <b>4,992 GFLOP/s</b> (its best point), a ridge at <b>32 FLOP per byte</b> <span class="der">derived</span>: 4,992 / 156.3. Both agree with the independent measurements in {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}} (about 5.0 TFLOP/s FMA, 143 to 165 GB/s streaming) and sit at 94% of the 5,308 GFLOP/s that 16 cores &times; 128 ALUs &times; 2 &times; 1.296 GHz gives ({{metal-benchmarks|https://github.com/philipturner/metal-benchmarks}}). The single coloured points are kernels from the parent's {{Kernel lab|n:3c65c17b0d0d81c39f34d5e070d783c1}} placed by the recipe above, with their minimum bytes.</p>
-<div class="tw" id="rd-rooftbl"></div>
-<p>The two softmaxes do the same math on the same data; the eager one sits at a quarter of the bandwidth roof because, counted against the minimum bytes, it moves the tensor several times (five kernels, each a full pass). The naive matmul has an intensity of 341 FLOP per byte, ten times the ridge, yet runs at a fraction of the compute roof: by the recipe it is "far below both", and indeed its threads re-read A and B from memory for every output (no tiles, section 3 of the parent). Tiles and registers (the 4 &times; 4 per thread kernel) and then the matrix instructions in MLX's library close the gap.</p>
-<div class="card" id="rd-ccard">
-<h3 style="margin-top:0">Place a kernel</h3>
-<div class="ctl" id="rd-calc"></div>
-<div class="an-cnt" id="rd-calcout"></div>
-<p class="small mute" id="rd-calcnote"></p>
+<section id="rd-s5">
+<h2>5. Registers, spills, and arrays that fall into local memory</h2>
+<p>Registers are the only storage the arithmetic units read directly, and they are rationed: 65,536 32-bit registers per SM on every current NVIDIA GPU, shared by all resident threads, at most 255 per thread. A thread that keeps more values alive than it has registers <span class="hl">spills</span> some to local memory. Fast kernels (register-tiled matmul, FlashAttention) keep large pieces of the output in registers on purpose, so they live right at this edge.</p>
+<p>Compile with <code>-Xptxas -v</code> (or <code>--resource-usage</code>) and ptxas prints, per kernel, a line like this <span class="der">compiled here</span>:</p>
+<pre class="sass" id="rd-ptxasline"></pre>
+<ul>
+<li><b>Used N registers</b>: per thread. Times 32 for a warp, rounded up to 256: what each warp takes from the register file, and so how many warps fit (the parent's occupancy calculator in the {{GPU simulator|n:3c65c17b0d0d81c39f34d5e070d783c1}} ports NVIDIA's rules).</li>
+<li><b>spill stores / spill loads</b>: bytes per thread written to and read back from local memory because registers ran out.</li>
+<li><b>stack frame</b>: bytes per thread of local memory for any reason: spills, or an array the compiler could not keep in registers.</li>
+</ul>
+<h3>One kernel under eight register caps</h3>
+<p>The kernel keeps 128 running sums per thread (the shape of a register-tiled matmul's accumulator). Uncapped, ptxas uses <span id="rd-rdef"></span> registers and spills nothing. Then the same file under <code>-maxrregcount</code> from 32 to 255:</p>
+<div class="seg" id="rd-rcseg"><button data-m="sm_80">sm_80 (A100)</button><button data-m="sm_90a" class="on">sm_90a (H100)</button><button data-m="sm_120">sm_120 (RTX 5090)</button></div>
+<div class="rd-chart" id="rd-rcchart"></div>
+<p class="small" id="rd-rcnote"></p>
+<p>Two lessons. Below what the kernel needs, every register removed becomes spill traffic: at a cap of 32 each thread writes and rereads over a kilobyte. Above it, ptxas does not stop at what it needs: on sm_90a it used every register it was allowed (192, 224, 255), presumably to schedule loads earlier, and each extra register lowers how many warps fit. Prefer <code>__launch_bounds__(maxThreadsPerBlock, minBlocksPerSM)</code> per kernel over a per-file <code>-maxrregcount</code> (both in the {{Best Practices Guide, register pressure|https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html}}), and measure: a few spilled bytes that hit L1 can cost less than the occupancy they buy back.</p>
+<details class="dp"><summary>Is "uses every register it is allowed" documented? <span class="mute">(only for launch bounds)</span></summary><div class="b">
+<p>NVIDIA documents it for launch bounds: "If both minBlocksPerMultiprocessor and maxThreadsPerBlock are specified, the compiler may increase register usage up to L in order to reduce the number of instructions and better hide the latency" ({{C++ language extensions, launch bounds|https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html}}); the same happening under <code>-maxrregcount</code> is observed here, not documented.</p>
+</div></details>
+<h3>Local memory without any register pressure</h3>
+<p>An array can land in local memory while the kernel uses only a few registers. The compiler puts there "Arrays for which it cannot determine that they are indexed with constant quantities, Large structures or arrays that would consume too much register space, Any variable if the kernel uses more registers than available" ({{Programming Guide 2.3.3.4, local memory|https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html}}). Registers have no addresses, so <code>h[b]</code> with <code>b</code> known only at run time needs memory. Two versions of a per-thread 16-bin histogram, <span class="der">compiled here</span> for sm_90a:</p>
+<div class="rd-two">
+<div><b>Run-time index:</b> <code>h[bins[k * 4096 + t] &amp; 15] += 1.f;</code>
+<pre class="sass" id="rd-hdyn"></pre></div>
+<div><b>Constant indices only:</b> <code>for (j = 0; j &lt; 16; ++j) h[j] += (b == j) ? 1.f : 0.f;</code>
+<pre class="sass" id="rd-hsel"></pre></div>
 </div>
-<p class="small mute">Peaks in the calculator: H100 SXM BF16 dense 989.5 TFLOP/s and FP32 67, 3.35 TB/s; A100 SXM BF16 312, FP32 19.5, 2,039 GB/s; RTX 5090 BF16 with FP32 accumulate 209.5, FP32 104.8, 1,792 GB/s <span class="vend">vendor spec</span> (shared facts of this topic, from {{NVIDIA H100|https://www.nvidia.com/en-us/data-center/h100/}}, {{A100|https://www.nvidia.com/en-us/data-center/a100/}} and the {{RTX Blackwell whitepaper|https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwell-gpu-architecture.pdf}}); M1 Pro: this page's measured roofs. Datasheet peaks are rarely reached: SemiAnalysis measured about 720 of the H100's 989.5 BF16 TFLOP/s on large GEMMs ({{Dec 2024|https://semianalysis.com/2024/12/22/mi300x-vs-h100-vs-h200-benchmark-part-1-training/}}) <span class="indep">independent</span>, so judge against an achievable roof when you have one.</p>
+<p>The first uses <span id="rd-hdynregs"></span>; the four <code>STL.128</code> zero the 64-byte array in local memory and every update is an <code>LDL</code> and an <code>STL</code>. The second does 16 compare-and-adds per update but keeps all 16 bins in registers (<span id="rd-hselregs"></span>). Local memory is interleaved so that "consecutive 32-bit words are accessed by consecutive thread IDs. Accesses are therefore fully coalesced as long as all threads in a warp access the same relative address" (same section); here every lane picks its own bin, so the accesses scatter too.</p>
+<div class="bars" id="rd-localbars"></div>
+<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: the same two kernels in Metal, 262,144 threads &times; 1,024 updates each: <b>7.08 ms</b> with the run-time index against <b>4.49 ms</b> with constant indices, 1.58 times slower despite a sixteenth of the arithmetic. Apple's compiler faces the same problem (registers are not addressable) and makes the same choice.</p>
+<div class="pr" id="rd-pr3"><div class="q">Predict: ptxas reports "64 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads, Used 22 registers". What is in the 64 bytes?</div>
+<div class="opts"><button data-a="0">Spilled registers</button><button data-a="1" data-right="1">An array indexed at run time</button><button data-a="2">Shared memory</button></div>
+<div class="ans" hidden>Zero spill bytes, yet a stack frame: an array the compiler could not promote to registers, here 16 floats = 64 bytes. Fix it by making every index a compile-time constant (unrolled loops, selects), or move the array to shared memory if lanes need different entries.</div></div>
+<details class="dp"><summary>What you cannot control: register bank conflicts</summary><div class="b">
+<p>"The compiler and hardware thread scheduler will schedule instructions as optimally as possible to avoid register memory bank conflicts. An application has no direct control over these bank conflicts. In particular, there is no register-related reason to pack data into vector data types such as float4" ({{Best Practices Guide 10.2.7|https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html}}).</p>
+</div></details>
+</section>
+
+<section id="rd-s6">
+<h2>6. Constant memory and kernel parameters</h2>
+<p>"There is a total of 64 KB constant memory on a device. The constant memory space is cached ... Accesses to different addresses by threads within a warp are serialized, thus the cost scales linearly with the number of unique addresses read by all threads within a warp ... If all threads of a warp access the same location, then constant memory can be as fast as a register access" ({{Best Practices Guide 10.2.6|https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html}}). So it suits values every lane reads at once (a scale, a bias, filter taps, a lookup indexed by loop counter, not by lane), and you use it more than you think, because <b>every kernel argument lives there</b>. In the SASS, a constant indexed at compile time goes into a uniform register (<code>ULDC</code>, one copy for the whole warp) and straight into the FFMA; an index known only at run time takes an <code>LDC</code>, where the per-address serialisation applies if lanes disagree.</p>
+<details class="dp"><summary>The SASS for four constant reads, and how to read the banks <span class="mute">(compiled here, sm_90a)</span></summary><div class="b">
+<p class="small"><span class="der">compiled here</span>, from a <code>__constant__ float c_tab[1024]</code> and a kernel taking a small struct by value:</p>
+<div class="tw" id="rd-consttbl"></div>
+<p>Bank numbers are inferred from consistent use across these kernels, since SASS is undocumented: bank <code>c[0x0]</code> holds the launch's parameters and built-ins (<code>c[0x0][0x0]</code> is the block size, read for <code>blockDim.x</code>); bank <code>c[0x3]</code> holds the module's <code>__constant__</code> data. On sm_80 the compiler even used a parameter directly as an FFMA operand (<code id="rd-c80"></code>).</p>
+<p><b>Texture memory</b> is the other read-only cached path: "optimized for 2D spatial locality" with hardware filtering and boundary handling ({{Best Practices Guide 10.2.5|https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html}}). It matters for image resampling; ML kernels almost never use it, and <code>const __restrict__</code> loads already use the same cache.</p>
+<p class="small mute">A constant-address-space experiment on the M1 was tried and dropped: MLX passes buffers to custom kernels in Metal's device address space, and a program-scope constant table is a different mechanism, so the comparison did not isolate the NVIDIA behaviour described here.</p>
+</div></details>
 </section>

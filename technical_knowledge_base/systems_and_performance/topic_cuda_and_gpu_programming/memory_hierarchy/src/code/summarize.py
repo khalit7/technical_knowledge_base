@@ -116,6 +116,18 @@ for c in LAB["cases"]:
             N = c["n"]; byts, flops = 3 * 4 * N * N, 2 * N ** 3     # A, B read once and C written once; 2N^3 FLOPs
         D["lab"][k] = {"name": c["name"], "ms": round(c["ms"], 3), "bytes": byts, "flops": flops}
 
+# ---- quoted from the parent's GPU simulator runs (../../src/sim/out/data.json, M1 Pro, median of 3 runs) and its Kernel lab:
+#      coalescing by stride, a random gather, matmul with and without threadgroup tiles, threadgroup reads by lane stride.
+#      This page owns coalescing, tiling and banks since 2026-10-23, so these numbers are taught here; they are quoted, not re-measured.
+SIM = json.load(open("../../src/sim/out/data.json"))["m"]
+gs = lambda k, n: next(x for x in SIM[k] if x["name"] == n)
+D["root"] = {"coal": [{"stride": x["stride"], "gbps": x["gbps"]} for x in SIM["coalesce"] if x["offset"] == 0 and x["stride"] > 0],
+             "gather_gbps": gs("coalesce", "random gather")["gbps"],
+             "tiling": [{"name": x["name"], "gflops": x["gflops"]} for x in SIM["tiling"]],
+             "banks": [{"stride": x["stride"], "greads": x["greads"]} for x in SIM["banks"]],
+             "mm_uncoal_ms": round(next(c["ms"] for c in LAB["cases"] if c["name"] == "M1 naive, uncoalesced"), 1),
+             "mm_coal_ms": round(next(c["ms"] for c in LAB["cases"] if c["name"] == "M2 naive, coalesced"), 1)}
+
 with open("out/data.json", "w") as fh:
     json.dump(D, fh, indent=1, sort_keys=True)
 with open("parts/22_js_data.js", "w") as fh:

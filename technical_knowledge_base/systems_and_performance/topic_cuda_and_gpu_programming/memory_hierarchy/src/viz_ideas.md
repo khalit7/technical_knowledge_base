@@ -21,3 +21,9 @@ What the text needs: the sector rule applied to patterns the parent does not cov
 
 ## What the methodology lacked
 A rule for "compiler output as evidence": real SASS is exact for what instructions exist, but says nothing about timing; the page labels it "compiled here" and never infers speed from it alone.
+
+## 2026-10-23 rebuild
+- Built: **hero ladder** (static annotated diagram: rungs, sizes, latencies, SASS); **launch order and L2 reuse** (toggle-compare, 90 against 54 blocks, Triton tutorial's numbers derived).
+- Moved inline: the Access lab's global widget (section 1) and shared-memory widget (section 4); the root's tiling before/after animation (section 3), since this page owns tiling.
+- Moved to a closed block: the M1 roofline and calculator (the roofline is owned by Performance math and the hardware root's Roofline lab).
+- Rejected: a separate stride stepper (the global widget plus the measured stride bars already show it); a new hero animation (the ladder is a structure: static).

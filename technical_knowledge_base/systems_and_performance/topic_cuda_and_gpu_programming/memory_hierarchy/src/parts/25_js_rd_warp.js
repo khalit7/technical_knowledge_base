@@ -23,7 +23,7 @@
     const W=RD.width(svgEl),L=W<500?44:56,cw=(W-L-6)/32,ch=Math.max(9,Math.min(14,cw*0.9)),gap=5;
     const H=rows*(ch+gap)+6;let s='';
     for(let r=0;r<rows;r++){
-      const y=6+r*(ch+gap);s+=RD.t(L-6,y+ch-1,'+'+r*128+' B',{a:'end',fs:10,fill:'var(--mute)'});
+      const y=6+r*(ch+gap);s+=RD.t(L-6,y+ch-1,'+'+r*128+' B',{a:'end',fs:11,fill:'var(--mute)'});
       for(let q=0;q<4;q++){const id=r*4+q,x=L+q*8*cw;s+='<rect x="'+x.toFixed(1)+'" y="'+(y-1.5)+'" width="'+(8*cw-1).toFixed(1)+'" height="'+(ch+3)+'" rx="2" style="fill:'+(sec.has(id)?'var(--acc2)':'none')+';stroke:'+(sec.has(id)?'var(--acc)':'var(--line)')+'"/>'}
       for(let c=0;c<32;c++){const wd=r*32+c,x=L+c*cw+1;
         const col=cur.has(wd)?'var(--c2)':usedW.has(wd)?'var(--acc)':sec.has(Math.floor(wd/8))?'var(--dim)':'var(--soft)';
@@ -40,8 +40,8 @@
     cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
   }
   const an=RD.anim({card:'rd-wcard',ctl:'rd-wctl',n:9,draw:draw,ms:900,label:'Step of the warp load'});
-  RD.seg(document.getElementById('rd-wseg'),v=>{mode=v;setup();an.reset(9);an.play()});
-  RD.seg(document.getElementById('rd-wba'),v=>{ba=+v;setup();an.reset(9);an.play()});
+  RD.seg(document.getElementById('rd-wseg'),v=>{mode=v;setup();an.reset(9)});
+  RD.seg(document.getElementById('rd-wba'),v=>{ba=+v;setup();an.reset(9)});
   RD.onResize(()=>an.redraw());
 
   // predict-then-reveal boxes

@@ -18,14 +18,14 @@
       if(r.issue[k]>t)continue;
       const y=top+(k%lanes)*(rh+gap),x0=X(r.issue[k]),x1=X(Math.min(t,r.land[k]));
       s+='<rect x="'+x0.toFixed(1)+'" y="'+y+'" width="'+Math.max(1,x1-x0).toFixed(1)+'" height="'+rh+'" rx="2" style="fill:'+COL[k%4]+';opacity:.35;stroke:'+COL[k%4]+'"/>';
-      if(x1-x0>18)s+=RD.t(x0+4,y+rh-4,'tile '+k,{fs:10});
+      if(x1-x0>18)s+=RD.t(x0+4,y+rh-4,'tile '+k,{fs:11});
       if(r.cs[k]<t){const a=X(r.cs[k]),b=X(Math.min(t,r.ce[k]));s+='<rect x="'+a.toFixed(1)+'" y="'+(top+copyH)+'" width="'+Math.max(1,b-a).toFixed(1)+'" height="'+rh+'" style="fill:'+COL[k%4]+'"/>'}
     }
     const xt=X(t);s+='<line x1="'+xt+'" x2="'+xt+'" y1="'+(top-6)+'" y2="'+(top+copyH+rh+2)+'" style="stroke:var(--bad)"/>';
     // axis
     const ay=top+copyH+rh+gap+8;s+='<line x1="'+Lm+'" x2="'+(W-R)+'" y1="'+ay+'" y2="'+ay+'" style="stroke:var(--line)"/>';
-    for(let v=0;v<=scale;v+=1000){const x=X(v);s+='<line x1="'+x+'" x2="'+x+'" y1="'+ay+'" y2="'+(ay+4)+'" style="stroke:var(--mute)"/>'+RD.t(x,ay+15,f(v,0),{a:'middle',fs:10,fill:'var(--mute)'})}
-    s+=RD.t(W-R,ay+27,'cycles',{a:'end',fs:10,fill:'var(--mute)'});
+    for(let v=0;v<=scale;v+=1000){const x=X(v);s+='<line x1="'+x+'" x2="'+x+'" y1="'+ay+'" y2="'+(ay+4)+'" style="stroke:var(--mute)"/>'+RD.t(x,ay+15,f(v,0),{a:'middle',fs:11,fill:'var(--mute)'})}
+    s+=RD.t(W-R,ay+27,'cycles',{a:'end',fs:11,fill:'var(--mute)'});
     el.innerHTML=RD.svg(W,H,s,'Copy and compute timeline');
     const done=i,busy=done*C;
     cnt.innerHTML=RD.stat('Cycles so far',f(t,0),i===N?'finished':'')+RD.stat('Tiles computed',done+' of '+N,'')+RD.stat('SM busy',t?f(100*busy/t,0)+'%':'-','math time / elapsed')+RD.stat('Shared memory',S+' tile buffer'+(S>1?'s':''),'the cost of the stages');
@@ -39,6 +39,6 @@
     cap.innerHTML='<div class="t">'+tt+'</div><p>'+p+'</p>';
   }
   const an=RD.anim({card:'rd-pcard',ctl:'rd-pctl',n:N+1,draw:draw,ms:900,label:'Tile'});
-  RD.seg(document.getElementById('rd-pseg'),v=>{S=+v;r=M.pipeline(S,L,C,N);an.reset(N+1);an.play()});
+  RD.seg(document.getElementById('rd-pseg'),v=>{S=+v;r=M.pipeline(S,L,C,N);an.reset(N+1)});
   RD.onResize(()=>an.redraw());
 })();
