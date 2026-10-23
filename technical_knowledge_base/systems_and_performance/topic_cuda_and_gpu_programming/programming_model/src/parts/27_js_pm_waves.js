@@ -34,7 +34,7 @@
     cnt.innerHTML=RD.stat('Tiles done',(S.end?c.tiles:S.done)+' / '+c.tiles)+RD.stat('Elapsed',el?el+' tile time'+(el===1?'':'s'):'0')+
       RD.stat('SM utilisation',el?Math.round(util*1000)/10+'%':'...')+RD.stat('Throughput vs N = 1,536',rel===null?'...':Math.round(rel*100)+'%','work done per unit time')}
   const A=RD.anim({card:'pm-wq-card',ctl:'pm-wq-ctl',n:D.before.length,draw,ms:1500,label:'Wave step'});
-  RD.seg(document.getElementById('pm-wq-mode'),m=>{mode=m;A.reset(D[m].length);A.play()});
+  RD.seg(document.getElementById('pm-wq-mode'),m=>{mode=m;A.reset(D[m].length)});
   RD.onResize(()=>A.redraw());
   window.PM_WQ=D;
 })();

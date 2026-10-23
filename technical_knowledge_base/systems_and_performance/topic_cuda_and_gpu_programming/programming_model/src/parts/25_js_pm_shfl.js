@@ -33,6 +33,6 @@
     cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
     cnt.innerHTML=RD.stat('SHFL',c.SHFL)+RD.stat('LDS (shared loads)',c.LDS)+RD.stat('STS (shared stores)',c.STS)+RD.stat('BAR (barriers)',c.BAR)}
   const A=RD.anim({card:'pm-sh-card',ctl:'pm-sh-ctl',n:6,draw,ms:1500,label:'Reduction step'});
-  RD.seg(document.getElementById('pm-sh-mode'),m=>{mode=m;A.reset(6);A.play()});
+  RD.seg(document.getElementById('pm-sh-mode'),m=>{mode=m;A.reset(6)});
   RD.onResize(()=>A.redraw());
 })();

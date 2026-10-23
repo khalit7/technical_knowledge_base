@@ -1,6 +1,19 @@
 <section id="pm-s9">
-<h2>9. The same kernels from Python</h2>
-<p>You will rarely write a <code>main()</code>. The programming model is the same from Python; only the spelling changes. Four routes, each tried here for real in the container with the CUDA toolkit and no GPU, so each says how far it got.</p>
+<h2>9. The same model from Python, and in Metal</h2>
+<p>You will rarely write a <code>main()</code>. The model is the same from Python; only the spelling changes. Each route was tried here for real, in the container with the CUDA toolkit and no GPU, so each says how far it got (closed block):</p>
+<div class="tw"><table>
+<thead><tr><th>Route</th><th>Launch</th><th>Index</th><th>Block barrier</th><th>How far it got here</th></tr></thead>
+<tbody>
+<tr><td>CUDA C++</td><td><code>k&lt;&lt;&lt;grid, block&gt;&gt;&gt;(args)</code></td><td><code>blockIdx.x * blockDim.x + threadIdx.x</code></td><td><code>__syncthreads()</code></td><td>compiled for four targets</td></tr>
+<tr><td>Numba CUDA</td><td><code>k[grid, block](args)</code></td><td><code>cuda.grid(1)</code></td><td><code>cuda.syncthreads()</code></td><td>ran in the simulator; PTX compiled</td></tr>
+<tr><td>CuPy <code>RawKernel</code></td><td><code>k((grid,), (block,), (args))</code></td><td>CUDA C++ in a string</td><td><code>__syncthreads()</code></td><td>needs a driver even to compile</td></tr>
+<tr><td><code>torch.utils.cpp_extension</code></td><td><code>&lt;&lt;&lt;&gt;&gt;&gt;</code> inside a C++ function</td><td>CUDA C++</td><td><code>__syncthreads()</code></td><td>needs a CUDA build of PyTorch</td></tr>
+<tr><td>Triton</td><td><code>k[grid](args)</code>, grid of programs</td><td><code>tl.program_id(0)</code>: blocks, not threads</td><td>none: the compiler decides</td><td>see {{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}}</td></tr>
+<tr><td>Metal (MLX)</td><td><code>grid=</code>, <code>threadgroup=</code> (grid counts <b>threads</b>)</td><td><code>thread_position_in_grid</code></td><td><code>threadgroup_barrier(...)</code></td><td>every M1 measurement on this page</td></tr>
+</tbody></table></div>
+<p><b>Triton changes the model itself:</b> you write the program of one <b>block</b> on whole tiles (<code>tl.load</code> of 1,024 elements at once), and the compiler decides threads, warps, shared memory and synchronisation; everything on this page still happens, Triton does it for you, the rung the parent page's ladder puts right after calling a library. <b>Metal</b>: every measurement on this page ran as a Metal kernel through <code>mx.fast.metal_kernel</code> in MLX. Apple's GPU is a SIMT GPU with the same structure under different names (SIMD-group for warp, threadgroup for block), which is why the ideas transfer and the numbers do not.</p>
+<p><b>What transfers and what does not.</b> Warp-sized SIMD groups, barriers, races, the cost of launch-and-wait, and waves on a fixed number of cores all behaved as the CUDA model predicts. Absolute numbers do not transfer: the M1 Pro has 16 cores where an H100 has 132 SMs, about 160 GB/s where an H100 has 3.35 TB/s, and its compiler and driver are Apple's, so occupancy limits, atomic throughput and launch overheads differ.</p>
+<details class="dp"><summary>Numba, CuPy and PyTorch extension code with what each run printed; the CUDA to Metal dictionary <span class="mute">(depth)</span></summary><div class="b">
 <h3>Numba CUDA: Python syntax, CUDA semantics</h3>
 <pre class="rd-code">from numba import cuda, float32
 @cuda.jit
@@ -49,12 +62,7 @@ m = load_inline("pm_scale", cpp_sources="torch::Tensor scale(torch::Tensor x, do
                 cuda_sources=cuda_src, functions=["scale"])   <span class="c"># nvcc + ninja, then import</span></pre>
 <p id="pm-torch-res"></p>
 <p>On a CUDA build of PyTorch with a GPU, <code>load_inline</code> writes the sources to a build directory, compiles them with nvcc and ninja, and imports the result as a Python module ({{PyTorch C++ extension docs|https://docs.pytorch.org/docs/2.14/cpp_extension.html}}). A production version also launches on PyTorch's current stream, checks devices and dtypes, and registers the function with <code>torch.library</code> so <code>torch.compile</code> can see it; that is {{pytorch-ecosystem|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} territory.</p>
-<h3>Triton: blocks, not threads</h3>
-<p>Triton changes the model itself: you write the program of one <b>block</b> on whole tiles (<code>tl.load</code> of 1,024 elements at once), and the compiler decides threads, warps, shared memory and synchronisation. Everything on this page still happens; Triton does it for you. That is {{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}}, the rung the parent page's ladder puts right after calling a library.</p>
-</section>
-<section id="pm-s10">
-<h2>10. The same model in Metal, on the M1</h2>
-<p>Every measurement on this page ran as a Metal kernel through <code>mx.fast.metal_kernel</code> in MLX. Apple's GPU is a SIMT GPU with the same structure under different names, which is why the ideas transfer and the numbers do not.</p>
+<h3>CUDA to Metal</h3>
 <div class="tw"><table>
 <thead><tr><th>CUDA</th><th>Metal (MSL)</th><th>Note</th></tr></thead>
 <tbody>
@@ -69,5 +77,5 @@ m = load_inline("pm_scale", cpp_sources="torch::Tensor scale(torch::Tensor x, do
 <tr><td>stream</td><td>command queue and command buffers</td><td>MLX batches launches into command buffers</td></tr>
 </tbody></table></div>
 <p class="small mute">Names from the {{Metal Shading Language Specification|https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf}}; those marked "used here" compiled and ran in <code>src/m1/measure.py</code> (MLX <span data-pmv="m1.meta.0.mlx">0.32.3</span>) <span class="rd-meas">measured on Apple M1 Pro GPU</span>. MLX's grid convention is from its {{custom Metal kernels guide|https://ml-explore.github.io/mlx/build/html/dev/custom_metal_kernels.html}}.</p>
-<p><b>What transfers and what does not.</b> Warp-sized SIMD groups, barriers, races, the cost of launch-and-wait, and waves on a fixed number of cores all behaved as the CUDA model predicts. Absolute numbers do not transfer: the M1 Pro has 16 cores where an H100 has 132 SMs, about 160 GB/s where an H100 has 3.35 TB/s, and its compiler and driver are Apple's, so occupancy limits, atomic throughput and launch overheads differ.</p>
+</div></details>
 </section>

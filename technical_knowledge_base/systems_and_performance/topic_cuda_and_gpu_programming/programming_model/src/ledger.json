@@ -1,0 +1,3297 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "The CUDA programming model: threads, warps, blocks, launches, occupancy The CUDA programming model: threads, warps, blocks, launches, occupancy How you tell a GPU what to run, taught from zero: a complete CUDA program, how thousands of threads find their data, warps and the warp-level instructions, every level of synchronisation from a warp to the whole GPU, choosing a launch configuration, occupancy and waves, error handling, the memory API, what a launch costs, and the same kernels from Python and in Metal.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "header subtitle rewritten; title kept"
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Child of Topic: cuda-and-gpu-programming.",
+  "label": "core",
+  "key": "child of topic: cuda-and-gpu-programming.",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026.",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Launch planner Further reading",
+  "label": "core",
+  "key": "reading launch planner further reading",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen 1 A program 2 Indexing 3 Warps 4 Synchronisation 5 Launch config 6 Errors 7 Memory API 8 Launch cost 9 From Python 10 Metal Mistakes, interview A GPU runs one function, the kernel , on tens of thousands of threads at once.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "nav labels plus a sentence restated by the core idea sentence"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "The programming model is the contract between you and the hardware: how you launch those threads, how each one finds its piece of data, which threads may talk to each other and how they wait for each other, and what the launch costs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "framing restated by the core idea sentence"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page teaches that contract from zero with real CUDA code compiled by NVIDIA's own compiler, and real runs on a real GPU (an Apple M1 Pro, the only GPU available here; every number says where it comes from).",
+  "label": "core",
+  "key": "no nvidia gpu was used",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "Attention scores s , a 4,096 by 4,096 float32 matrix, need two things on the way to a softmax: an elementwise step (scale every score, e = a * s : every element independent) and a reduction (the sum of each row: many elements combine into one).",
+  "label": "core",
+  "key": "attention scores s , a 4,096 by",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "The elementwise step teaches launches and indexing; the reduction forces threads to cooperate, which teaches warps, shared memory, barriers and atomics.",
+  "label": "core",
+  "key": "the elementwise step teaches launches and indexing;",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "The parent page, Topic: cuda-and-gpu-programming , follows the full softmax and attention from PyTorch down to the instructions; this page owns the model underneath.",
+  "label": "core",
+  "key": "softmax and attention from pytorch down to",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "Idea In one line How to check it Section Kernel, launch A __global__ function; k<<<grid, block>>>(args) starts grid × block threads and returns at once. cudaGetLastError() after the launch 1 Thread, block, grid Each thread reads blockIdx , blockDim , threadIdx to compute which element is its job. a bounds check on every index 2 Warp 32 threads with consecutive ids, issued together; they can swap registers (shuffles) and vote.",
+  "label": "depth",
+  "key": "idea in one line how to check",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "SASS: SHFL , VOTE 3 Synchronisation Warp: __syncwarp .",
+  "label": "depth",
+  "key": "sass: shfl , vote 3 synchronisation warp:",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "Block: __syncthreads + shared memory.",
+  "label": "depth",
+  "key": "block: __syncthreads + shared memory.",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "",
+  "text": "Whole grid: end the kernel (or a cooperative launch).",
+  "label": "depth",
+  "key": "whole grid: end the kernel (or a",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "",
+  "text": "Any thread: atomics. compute-sanitizer --tool racecheck 4 Launch configuration Block size (a multiple of 32, usually 128 to 256), grid size, shared memory; together with registers they set occupancy , and grid / (SMs × blocks per SM) sets the number of waves . ptxas -v , the occupancy API, the Launch planner 5 Errors Return codes, not exceptions; kernel errors appear at a later call; some poison the whole process. a CUDA_CHECK macro, CUDA_LAUNCH_BLOCKING=1 6 Memory API cudaMalloc , cudaMemcpy , pinned and managed memory, the stream-ordered allocator. torch.cuda.memory_allocated() vs memory_reserved() 7 Launch cost Microseconds of CPU work per launch; tiny kernels leave the GPU idle between them. a profiler timeline (gaps between kernels) 8 How evidence is labelled (no NVIDIA GPU was used to build this page) compiled here : real output of NVIDIA's CUDA toolkit ( release 13.4, V13.4.92 ) in a Linux container with no GPU: nvcc , ptxas -v (registers, shared memory, spills) and SASS, the GPU's real machine code, for four generations: sm_80 (A100), sm_90a (H100), sm_100a (B200) and sm_120 (RTX 5090).",
+  "label": "core",
+  "key": "grid / (sms × blocks per sm)",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "",
+  "text": "Host programs were also run there, so their error output is real. measured on Apple M1 Pro GPU : the same ideas as Metal kernels (Apple's SIMD-groups are 32 threads wide, like warps) timed through MLX 0.32.3, three runs on a shared laptop, load average 5.0 to 6.3 ; what transfers to NVIDIA is said each time. vendor doc : NVIDIA documentation fetched 2026-10-05. published : papers and blogs. derived : computed by the formula shown. illustrative : an input chosen for drawing.",
+  "label": "core",
+  "key": "so their error output is real. measured",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "",
+  "text": "Who owns what: what an SM physically contains, latency hiding, the per-generation occupancy limits and divergence costs are on GPU architecture (sections 3 to 5); coalescing, shared-memory banks and spills are on GPU memory hierarchy ; streams, events and CUDA graphs are on Streams, CUDA graphs and multi-GPU programming ; how nvcc turns this code into PTX and SASS is on The compiler stack .",
+  "label": "core",
+  "key": "nearby owners:",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page links them rather than repeating them.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the owners line"
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "A complete CUDA program, line by line The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "The CPU (the host ) and the GPU (the device ) have separate memories and run separate code.",
+  "label": "core",
+  "key": "device ) have separate memories and run",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "A CUDA program is ordinary C++ for the host plus functions marked to run on the device, and it must move data across, start the work, wait for it and move results back.",
+  "label": "core",
+  "key": "a cuda program is ordinary c++ for",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "Here is the whole of it for the elementwise step, y = a * x on a million floats.",
+  "label": "core",
+  "key": "here is the whole of it for",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "It is a real file, compiled here with nvcc for sm_90a (H100) compiled here . __global__ void scale(const float* x, float* y, float a, int n) { // runs on the GPU int i = blockIdx.x * blockDim.x + threadIdx.x; if (i < n) y[i] = a * x[i]; } int main() { const int n = 1 << 20; // 1,048,576 elements std::vector<float> hx(n), hy(n); // host arrays float *dx, *dy; // device pointers: not usable on the CPU CUDA_CHECK(cudaMalloc(&dx, n * sizeof(float))); // 1 allocate GPU memory CUDA_CHECK(cudaMalloc(&dy, n * sizeof(float))); CUDA_CHECK(cudaMemcpy(dx, hx.data(), n * sizeof(float), cudaMemcpyHostToDevice)); // 2 copy in int block = 256, grid = (n + block - 1) / block; // 3 choose the launch: 4,096 blocks of 256 scale<<<grid, block>>>(dx, dy, 2.0f, n); // 4 launch (returns at once) CUDA_CHECK(cudaGetLastError()); // was the launch itself valid?",
+  "label": "core",
+  "key": "compiled here with nvcc for sm_90a (h100)",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "CUDA_CHECK(cudaMemcpy(hy.data(), dy, n * sizeof(float), cudaMemcpyDeviceToHost)); // 5 copy out (waits) // 6 compare hy with 2 * hx on the CPU; 7 cudaFree(dx); cudaFree(dy); } Full source with the CUDA_CHECK macro and the CPU check: src/cuda/host/first_program.cu .",
+  "label": "core",
+  "key": "cuda_check(cudamemcpy(hy.data(), dy, n * sizeof(float), cudamemcpydevicetohost)); //",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "Compiled with exit code 0 ; run in the container, which has no GPU or driver, it stopped at its first CUDA call (line 19, the first cudaMalloc ) with CUDA driver version is insufficient for CUDA runtime version , exactly as the error check is meant to.",
+  "label": "depth",
+  "key": "compiled with exit code 0 ; run",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "Compiling needs no GPU; running does.",
+  "label": "depth",
+  "key": "compiling needs no gpu; running does.",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "The three function markers. __global__ marks a kernel : it runs on the device and is launched from the host (it returns void ; results go through pointers). __device__ marks a helper that runs on the device and is called only from device code. __host__ __device__ compiles a function for both sides, the usual way to share small maths (the CUDA Programming Guide, section 2.1 vendor doc ). nvcc splits the file: host code goes to the normal C++ compiler, device code to NVIDIA's compiler, and the device machine code is embedded in the executable ( The compiler stack has the details).",
+  "label": "core",
+  "key": "for both sides, the usual way to",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "The launch. scale<<<grid, block>>>(...) is the execution configuration : grid blocks of block threads each, here 4,096 × 256 = 1,048,576 threads, one per element.",
+  "label": "core",
+  "key": "grid blocks of block threads",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "Two more optional arguments follow: bytes of dynamic shared memory per block and the stream to queue on, <<<grid, block, smemBytes, stream>>> . \"Kernel launches are asynchronous with respect to the host thread\" (Programming Guide, 2.1.4): the call queues the work and returns.",
+  "label": "core",
+  "key": "bytes of dynamic shared memory per block",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "That is why step 5 is where the program waits: \"The cudaMemcpy API is synchronous.",
+  "label": "core",
+  "key": "\"the cudamemcpy api is synchronous.",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "That is, it does not return until the copy has completed\" (2.1.3.2), and a copy queued after the kernel on the same stream starts only after the kernel ends.",
+  "label": "core",
+  "key": "that is, it does not return until",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "What the GPU actually runs.",
+  "label": "depth",
+  "key": "what the gpu actually",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "Below is the real SASS (the GPU's machine code) ptxas produced for scale on sm_90a, the whole kernel.",
+  "label": "depth",
+  "key": "the real sass of scale",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "Read it once: it shows that the \"thread index\" is just two special registers and one multiply-add.",
+  "label": "core",
+  "key": "two special-register reads and one multiply-add",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "S2R R0, SR_TID.X and S2UR UR4, SR_CTAID.X read threadIdx.x and blockIdx.x from special registers; LDC R7, c[0x0][RZ] loads blockDim.x from the constant bank where the launch put it; IMAD is the index; ISETP and @P0 EXIT are the bounds check (threads past n simply exit); c[0x0][0x210] and up are the kernel's arguments, also delivered in the constant bank; LDG , FMUL , STG are the load, multiply and store.",
+  "label": "depth",
+  "key": "s2r r0, sr_tid.x and s2ur ur4, sr_ctaid.x",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "Each instruction is issued once per warp of 32 threads. compiled here Predict: n = 1,000,000 and block = 256.",
+  "label": "core",
+  "key": "predict: n = 1,000,000 and block =",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "How many threads does the launch start, and how many do no work?",
+  "label": "core",
+  "key": "how many threads does the launch start,",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "1,000,000 and 0 1,000,192 and 192 1,000,448 and 448 grid = ceil(1,000,000 / 256) = 3,907 blocks, so 3,907 × 256 = 1,000,192 threads derived .",
+  "label": "core",
+  "key": "1,000,000 and 0 1,000,192 and 192 1,000,448",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "The last 192 fail i < n and exit at once.",
+  "label": "core",
+  "key": "the last 192 fail i < n",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "Without that check they would read and write past the end of the arrays: the classic first-kernel bug (section 6).",
+  "label": "core",
+  "key": "without that check they would read and",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. a complete cuda program, line by line",
+  "text": "Go deeper: the same vadd kernel compiled for four generations, with PTX and SASS side by side, is in the root's Compiler explorer tab; how a launch reaches the device through the driver is on Virtualization and the GPU driver stack .",
+  "label": "core",
+  "key": "virtualization and the gpu driver stack",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "How each thread finds its data: indexing The problem.",
+  "label": "core",
+  "key": "how each thread finds its data: indexing",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "All threads run the same code, so the only thing that makes thread 77,000 different from thread 3 is a handful of read-only built-in variables.",
+  "label": "core",
+  "key": "the only thing that makes thread 77,000",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Turning them into \"my element\" is the first thing every kernel does.",
+  "label": "core",
+  "key": "turning them into \"my element\" is the",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Built-in Meaning Limit vendor doc threadIdx.{x,y,z} this thread's position inside its block block x, y ≤ 1,024; z ≤ 64; x·y·z ≤ 1,024 blockDim.{x,y,z} the block's shape, as launched same blockIdx.{x,y,z} this block's position in the grid grid x ≤ 2 31 −1; y, z ≤ 65,535 gridDim.{x,y,z} the grid's shape same warpSize threads per warp 32 on every GPU so far Limits from the CUDA Programming Guide, Table 30 (v13.4.2, updated Sep 10, 2026), identical for every compute capability it lists.",
+  "label": "core",
+  "key": "built-in meaning limit vendor doc threadidx.{x,y,z} this",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Shapes are dim3 values: dim3 block(32, 8) is 32 × 8 = 256 threads.",
+  "label": "core",
+  "key": "shapes are dim3 values: dim3 block(32, 8)",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Three patterns cover almost every kernel // 1 one thread per element (the host launches ceil(n / block) blocks) int i = blockIdx.x * blockDim.x + threadIdx.x; if (i < n) y[i] = a * x[i]; // 2 grid-stride loop: any grid size covers any n for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; i += gridDim.x * blockDim.x) y[i] = a * x[i]; // 3 a 2D grid over a matrix: x walks columns, so neighbouring threads touch neighbouring addresses int c = blockIdx.x * blockDim.x + threadIdx.x, r = blockIdx.y * blockDim.y + threadIdx.y; if (r < rows && c < cols) y[r * cols + c] = a * x[r * cols + c]; // host: dim3 block(32, 8); dim3 grid((cols + 31) / 32, (rows + 7) / 8); All three are in src/cuda/kernels/p1_index.cu and compile for all four targets.",
+  "label": "core",
+  "key": "three patterns cover almost every kernel //",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "On sm_90a, ptxas gives the one-per-element and 2D kernels 10 registers per thread and the grid-stride kernel 14 (it carries the loop) compiled here .",
+  "label": "core",
+  "key": "on sm_90a, ptxas gives the one-per-element and",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "For the running example, the 4,096 × 4,096 scores take pattern 3 with a 128 by 512 grid of 32 × 8 blocks, or pattern 1 on the flattened 16,777,216 elements: for an elementwise step the shape does not matter as long as consecutive threads touch consecutive addresses.",
+  "label": "core",
+  "key": "for the running example, the 4,096 ×",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Why the grid-stride loop is worth knowing.",
+  "label": "core",
+  "key": "why the grid-stride loop is worth knowing.",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "The grid size no longer depends on n : you can launch exactly as many blocks as fit on the GPU at once and let each thread do several elements (a persistent grid), run with one block of one thread to debug serially, and let per-thread setup (loading a constant, computing a base pointer) happen once per thread instead of once per element.",
+  "label": "core",
+  "key": "launch exactly as many blocks as fit",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Mark Harris's \"CUDA Pro Tip: Write Flexible Kernels with Grid-Stride Loops\" (NVIDIA, 2013) is the classic reference published .",
+  "label": "core",
+  "key": "\"cuda pro tip: write flexible kernels with",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "It does not remove the tail effect of section 5: the last iteration is still uneven.",
+  "label": "core",
+  "key": "it does not remove the tail effect",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Integer overflow. int stops at 2 31 −1 = 2,147,483,647.",
+  "label": "core",
+  "key": "integer overflow. int stops at 2 31",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "A tensor of 16 × 32 × 4,096 × 4,096 attention scores has 8,589,934,592 elements, so blockIdx.x * blockDim.x + threadIdx.x computed in int wraps around silently derived .",
+  "label": "core",
+  "key": "a tensor of 16 × 32 ×",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Use 64-bit arithmetic ( (long long)blockIdx.x * blockDim.x , or size_t ) whenever an index can pass two billion.",
+  "label": "core",
+  "key": "use 64-bit arithmetic ( (long long)blockidx.x *",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Which threads form a warp The hardware groups a block's threads into warps of 32 by a single linear thread id : \"the first index x moves the fastest, followed by y and then z \", and \"each warp contains threads of consecutive, increasing thread IDs with the first warp containing thread 0\" ( Programming Guide 2.3.2 ; 3.2, Hardware Implementation ).",
+  "label": "core",
+  "key": "which threads form a warp the hardware",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "So the linear id is x + y·Dx + z·Dx·Dy , and warp w holds linear ids 32 w to 32 w +31.",
+  "label": "core",
+  "key": ", and warp w holds linear ids",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "The block's shape therefore decides which matrix elements one warp touches together.",
+  "label": "core",
+  "key": "decides which matrix elements one warp touches",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Pick a 256-thread shape over a row-major float32 matrix: 32 × 8 16 × 16 8 × 32 4 × 64 1 × 256 Each cell is one thread of the block placed on the matrix element it handles (columns across, rows down), coloured by warp.",
+  "label": "core",
+  "key": "pick a 256-thread shape over a row-major",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Click a cell to see that thread's numbers.",
+  "label": "core",
+  "key": "click a cell to see that thread's",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Sectors: the 32-byte pieces of memory one warp's load touches, if the rows start 32-byte aligned and are more than a block wide derived: rows touched × ceil(columns per row × 4 B / 32 B) .",
+  "label": "core",
+  "key": "sectors: the 32-byte pieces of memory one",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "32 × 8, 16 × 16 and 8 × 32 all touch 4 sectors per warp load, every byte used; narrower than 8 columns, sectors are half empty and the same load costs 8, then 32 sectors.",
+  "label": "core",
+  "key": "32 × 8, 16 × 16 and",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Why sectors are the unit, and what it costs, is the subject of GPU memory hierarchy (coalescing).",
+  "label": "core",
+  "key": "why sectors are the unit, and what",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "The rule to keep: make threadIdx.x walk the contiguous dimension.",
+  "label": "core",
+  "key": "the rule to keep: make threadidx.x walk",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Predict: a 16 × 16 block.",
+  "label": "core",
+  "key": "predict: a 16 × 16 block.",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Which threads are in warp 1?",
+  "label": "core",
+  "key": "which threads are in warp 1?",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Column 1, all 16 rows Rows 2 and 3, all 16 columns Threads 16 to 31 of row 0 Linear ids 32 to 63 are x + 16y for y = 2 and 3, so rows 2 and 3 of the block, all 16 columns each.",
+  "label": "core",
+  "key": "column 1, all 16 rows rows 2",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Warp 0 is rows 0 and 1.",
+  "label": "core",
+  "key": "warp 0 is rows 0 and 1.",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. how each thread finds its data: indexing",
+  "text": "Try the 16 × 16 button above and click any cell of rows 2 to 3.",
+  "label": "core",
+  "key": "try the 16 × 16 button above",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "Warps from the programmer's side Recap.",
+  "label": "core",
+  "key": "warps from the programmer's side",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "The hardware issues one instruction for 32 threads at a time, the warp ; if the threads of a warp disagree on a branch, both paths run in turn with the inactive lanes masked off ( divergence ).",
+  "label": "core",
+  "key": "the hardware issues one instruction for 32",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "The parent page's section 2 animates this, and GPU architecture (section 5) measures its cost.",
+  "label": "core",
+  "key": "the parent's section 2 animates it",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "This section is about what the warp lets you do : the 32 lanes of a warp can read each other's registers and vote, with no shared memory and no barrier.",
+  "label": "core",
+  "key": "what the warp lets you do :",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "In a one-dimensional block, a thread's lane (its position in the warp) is threadIdx.x % 32 , written threadIdx.x & 31 , and its warp is threadIdx.x / 32 ( >> 5 ).",
+  "label": "core",
+  "key": "threadidx.x / 32 ( >> 5 ).",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "Warp-level function What it does SASS seen here __shfl_sync(m, v, src) , _up , _down , _xor Each lane receives v from another lane: a fixed one, lane − d , lane + d (\"shifting value down the warp by delta lanes\") or lane xor d .",
+  "label": "depth",
+  "key": "warp-level function what it does sass seen",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "SHFL.DOWN , SHFL.BFLY __all_sync , __any_sync , __ballot_sync(m, p) Votes: is p true in every lane, in any lane; or a 32-bit word whose bit N is lane N 's p .",
+  "label": "depth",
+  "key": "shfl.down , shfl.bfly __all_sync , __any_sync ,",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "VOTE __reduce_add_sync(m, v) (and min, max, and, or, xor) Sum of an integer over the warp in one instruction; compute capability 8.x or higher.",
+  "label": "depth",
+  "key": "vote __reduce_add_sync(m, v) (and min, max, and,",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "REDUX.SUM.S32 __syncwarp(m) The lanes in m wait for each other and their memory accesses are ordered.",
+  "label": "core",
+  "key": "wait for each other",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "WARPSYNC (in the grid-sync kernel of section 4; a full-mask __syncwarp right after __reduce_add_sync compiled to nothing) __activemask() , __match_any_sync Which lanes are executing here; which lanes hold the same value.",
+  "label": "depth",
+  "key": "warpsync (in the grid-sync kernel of section",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "Descriptions from the CUDA C++ language extensions appendix vendor doc .",
+  "label": "depth",
+  "key": "descriptions from the cuda c++ language extensions",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "The first argument m is the mask of lanes taking part, usually 0xffffffff (all 32); every lane named in it must reach the same call.",
+  "label": "depth",
+  "key": "every lane named in the mask",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "The row sum of the running example needs 4,096 numbers added into one.",
+  "label": "core",
+  "key": "the row sum of the running example",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "Inside a warp, five shuffles do it: add the value 16 lanes away, then 8, 4, 2, 1, and lane 0 holds the sum of all 32.",
+  "label": "core",
+  "key": "inside a warp, five shuffles do it:",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "Compare it with the same step done through shared memory, the way a block-wide sum must: Shuffles: registers only Shared memory and barriers One warp, lane i starting with the value i + 1 (sum 528) illustrative input .",
+  "label": "core",
+  "key": "shuffles: registers only shared memory and barriers",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "Instruction counts per step come from the real SASS of warp_sum (5 SHFL ) and block_sum (per level: 2 LDS , 1 STS , 1 BAR ) on sm_90a compiled here . extern \"C\" __global__ void warp_sum(const float* x, float* out) { float v = x[blockIdx.x * blockDim.x + threadIdx.x]; for (int off = 16; off > 0; off >>= 1) v += __shfl_down_sync(0xffffffffu, v, off); if ((threadIdx.x & 31) == 0) atomicAdd(out, v); // one atomic per warp, not per thread } ptxas unrolls the loop into 5 SHFL instructions and one REDG (a reduction in global memory, the atomic add whose result nobody reads), using 12 registers and no shared memory compiled here .",
+  "label": "core",
+  "key": "instruction counts per step come from the",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "The cooperative-groups version, cg::reduce(tile, v, cg::plus<float>()) , compiles to the same five shuffles in the butterfly ( xor ) pattern, after which every lane, not just lane 0, holds the sum.",
+  "label": "core",
+  "key": "()) , compiles to the same five",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "Independent thread scheduling: why the mask and __syncwarp exist Before Volta (2017), a warp had one program counter, so code could assume the 32 lanes ran in lockstep and skip synchronisation inside a warp (\"warp-synchronous\" code, common in old reduction kernels with volatile shared memory).",
+  "label": "core",
+  "key": "a warp had one program counter, so",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "Since Volta each thread has its own program counter and \"threads can now diverge and reconverge at sub-warp granularity\"; NVIDIA's instruction is that \"developers should explicitly synchronize such code using __syncwarp() to ensure correct behavior across all GPU generations\" ( Programming Guide 3.2 ) vendor doc .",
+  "label": "core",
+  "key": "since volta each thread has its own",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "This is why every warp function since CUDA 9 takes a mask and has _sync in its name: \"the legacy warp-level primitives are deprecated starting in CUDA 9.0\" and \"implicit warp-synchronous programming is unsafe\" (Lin and Grover, \"Using CUDA Warp-Level Primitives\" , NVIDIA, Jan 15, 2018) published .",
+  "label": "core",
+  "key": "why every warp function",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "When you read old kernels (pre-2017 tutorials, some ggml or Caffe-era code) and see warp-level tricks without _sync , that is the pattern that is no longer guaranteed.",
+  "label": "core",
+  "key": "old kernels (pre-2017 tutorials, some ggml or",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "The compiler already aggregates your atomics The naive way to count the positive scores is one atomic per thread: if (x[i] > 0.f) atomicAdd(out, 1); .",
+  "label": "core",
+  "key": "if (x[i] > 0.f) atomicadd(out, 1);",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "Thousands of threads hitting one address should serialise.",
+  "label": "depth",
+  "key": "thousands of threads hitting one address",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "The real SASS ptxas emits for it on sm_90a shows what happens instead compiled here : VOTEU.ANY collects which lanes are active, UFLO picks the first of them, POPC counts them, and only that one lane issues REDG.E.ADD with the count: one atomic per warp instead of up to 32.",
+  "label": "core",
+  "key": "one atomic per warp instead of",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "This is warp-aggregated atomics , done for you, and it is the same thing the explicit __ballot_sync + __popc kernel does by hand (its SASS: one VOTE.ANY for the ballot, one POPC , one REDG ); __reduce_add_sync gives a third spelling, a single REDUX.SUM.S32 .",
+  "label": "depth",
+  "key": "the same thing the explicit __ballot_sync +",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "On the M1 Pro the three versions of a 16 Mi-element count (one atomic per positive thread, one per SIMD-group after simd_sum , one per threadgroup) took 1.18 , 1.08 and 1.10 ms (medians of 3 runs; runs of the first varied from 1.095 to 1.49 ) measured on Apple M1 Pro GPU : no reliable difference, all close to the time to read 64 MiB.",
+  "label": "core",
+  "key": ") measured on apple m1 pro gpu",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "Whether Apple's compiler aggregates the same way is not documented; the result is consistent with it.",
+  "label": "depth",
+  "key": "whether apple's compiler aggregates the same way",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "The lesson that transfers: write the simple atomic first, read the SASS, and measure before hand-optimising.",
+  "label": "core",
+  "key": "write the simple atomic first, read the",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. warps from the programmer's side",
+  "text": "Go deeper: full reductions (tree, shuffles, CUB's BlockReduce ), scans and the softmax built from them are on Writing kernels ; the divergence simulation with measurements is in the root's GPU simulator tab.",
+  "label": "depth",
+  "key": "full reductions (tree, shuffles, cub's blockreduce ),",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Synchronisation, from a warp to the whole GPU The problem.",
+  "label": "core",
+  "key": "synchronisation, from a warp to the whole",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "A row sum needs threads to combine their partial results, and a thread may only read another thread's result after it has been written.",
+  "label": "core",
+  "key": "a row sum needs threads to combine",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "GPUs give a different tool at each scope, and each scope has a price: the wider it is, the more expensive (or the more restricted) waiting becomes.",
+  "label": "core",
+  "key": "the more expensive (or",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Choosing the narrowest scope that works is most of the design of a reduction, a softmax or an attention kernel.",
+  "label": "core",
+  "key": "choosing the narrowest scope that works is",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Scope Tool What it costs or requires Real SASS (sm_90a) compiled here Warp (32 threads) shuffles, votes, __syncwarp (section 3) registers only; no memory SHFL , VOTE , REDUX Block (up to 1,024) __syncthreads() + __shared__ memory a hardware barrier per SM; every thread of the block must reach the same barrier BAR.SYNC , STS / LDS Cluster (up to 8 blocks portably; sm_90 and later) cluster.sync() , another block's shared memory via cluster.map_shared_rank the blocks of a cluster are scheduled together on neighbouring SMs UCGABAR_ARV , UCGABAR_WAIT ; remote read is a generic LD Grid (all blocks) end the kernel; or a cooperative launch with grid.sync() kernel boundary: a launch; grid.sync() : every block must be resident at once barrier, MEMBAR.ALL.GPU , ATOM.E.ADD on a counter, a spin loop Any threads , no waiting atomics ( atomicAdd , atomicCAS , ...), fences __threadfence_block/()/_system contention on one address serialises; fences order memory, they do not wait for anyone REDG , ATOM , ATOMS , MEMBAR Portable cluster size 8 and \"hardware-supported synchronization across the cluster\": Programming Guide 2.1.10 ; fence scopes (block, device, system): language extensions vendor doc .",
+  "label": "core",
+  "key": "scope tool what it costs or requires",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Host-side ordering (streams, events) is on Streams, CUDA graphs and multi-GPU programming .",
+  "label": "core",
+  "key": "host-side ordering (streams, events) is on streams,",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "The block barrier, and what happens without it The block-wide row sum puts each thread's value in shared memory, then halves the active threads level by level: at level k , thread t < k adds s[t + k] into s[t] .",
+  "label": "core",
+  "key": "the block barrier, and what happens without",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Between levels every thread must wait until all the writes of the previous level have landed; that is __syncthreads() , which makes threads \"wait until all non-exited threads in the thread block simultaneously reach the same __syncthreads() \" ( language extensions ).",
+  "label": "core",
+  "key": "between levels every thread must wait until",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Leave it out and the code still compiles, still runs, and is wrong whenever one warp falls behind another: With __syncthreads() Without the barrier A toy block of 16 threads drawn as two warps of 8 so it fits (real warps have 32); warp 1's load from global memory arrives one step late, as a slow memory access would.",
+  "label": "core",
+  "key": "leave it out and the code still",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Shared memory starts empty (drawn as · and read as 0; real uninitialised shared memory holds whatever was there before) illustrative input: 3 1 4 1 5 9 2 6 5 3 5 8 9 7 9 3, sum 80 .",
+  "label": "core",
+  "key": "shared memory starts empty (drawn as ·",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "The same 256-thread tree sum over 65,536 blocks of small integers, as a Metal kernel with and without threadgroup_barrier (Metal's __syncthreads ): with the barrier, 0 wrong blocks in 15 repetitions; without it, 10.4 % to 80.4 % of the blocks were wrong in each repetition (median 47.4 %), a different set every time measured on Apple M1 Pro GPU .",
+  "label": "core",
+  "key": "the same 256-thread tree sum over 65,536",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "A race is not \"usually fine\": it is wrong at a rate that depends on timing, which is why it survives small tests.",
+  "label": "core",
+  "key": "a race is not \"usually fine\": it",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "The compiler makes it worse.",
+  "label": "core",
+  "key": "the compiler makes it worse.",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Without a barrier, nothing tells the compiler that another thread may have changed s[t] , so it may keep its own copy in a register.",
+  "label": "core",
+  "key": "without a barrier, nothing tells the compiler",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "The real SASS shows it did: the correct block_sum reads shared memory 17 times (two loads per level, eight levels, plus the result) with 9 BAR.SYNC ; the barrier-free version reads it only 9 times, because s[t] never gets re-read compiled here .",
+  "label": "core",
+  "key": "the real sass shows it did: the",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "The barrier is also a compiler fence: it is what makes the write of another thread visible at all.",
+  "label": "core",
+  "key": "the barrier is also a compiler fence:",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "The rules of __syncthreads() It is \"permitted in conditional code, but only if the condition evaluates uniformly across the entire thread block.",
+  "label": "core",
+  "key": "the rules of __syncthreads() it is \"permitted",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Otherwise, execution may hang or produce unintended side effects\" ( language extensions ).",
+  "label": "core",
+  "key": "otherwise, execution may hang or produce unintended",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "So if (t < k) { ...; __syncthreads(); } is a bug: put the barrier outside the if , as in the code above.",
+  "label": "core",
+  "key": "if (t < k) { ...; __syncthreads();",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Threads that exit early are fine (\"non-exited threads\").",
+  "label": "core",
+  "key": "threads that exit early are fine",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "To find races and bad barriers, run the program under compute-sanitizer with --tool racecheck (\"shared memory data access hazards\") and --tool synccheck (\"invalid usages of synchronization primitives\") vendor doc, v2026.3.0 .",
+  "label": "core",
+  "key": "--tool racecheck (\"shared memory data access hazards\")",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Atomics: combining without waiting An atomic is a read-modify-write that no other thread can interleave with: atomicAdd(&h[bin], 1) is correct even when thousands of threads hit the same bin.",
+  "label": "core",
+  "key": "atomics: combining without waiting an atomic is",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Atomics do not wait for other threads, so they are how blocks combine results without a grid barrier: each block reduces its part with shuffles and shared memory, then issues one atomicAdd to the global total.",
+  "label": "core",
+  "key": "so they are how blocks combine results",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "The cost is contention: atomics to one address are processed one after another.",
+  "label": "core",
+  "key": "the cost is contention: atomics to one",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Two standard fixes, both in p2_sync.cu : aggregate first (one atomic per warp, done automatically in the case shown in section 3), and privatise (a histogram in shared memory per block, ATOMS in SASS, merged into global memory once per block).",
+  "label": "depth",
+  "key": "fixes, both in p2_sync.cu : aggregate first",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Floating-point atomics add in whatever order the threads arrive, so a float sum by atomics can differ in the last bits from run to run; if you need bit-identical results, reduce in a fixed order ( Profiling, benchmarking and correctness covers tolerances).",
+  "label": "core",
+  "key": "( profiling, benchmarking and correctness",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Wider than a block: cooperative groups, grid sync, clusters Cooperative groups ( #include <cooperative_groups.h> ) turn each scope into an object with sync() , size() and thread_rank() : this_thread_block() , tiled_partition<32>(block) for a warp, this_cluster() , this_grid() .",
+  "label": "core",
+  "key": ") turn each scope into an object",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "The kernel below normalises an array by its own total: phase 1 sums, a grid-wide barrier, phase 2 divides. cg::grid_group grid = cg::this_grid(); float v = 0.f; for (int i = grid.thread_rank(); i < n; i += grid.size()) v += x[i]; v = cg::reduce(cg::tiled_partition<32>(cg::this_thread_block()), v, cg::plus<float>()); if ((threadIdx.x & 31) == 0) atomicAdd(&partial[0], v); grid.sync(); // every block has added before anyone reads float total = partial[0]; for (int i = grid.thread_rank(); i < n; i += grid.size()) x[i] /= total; Here is how grid.sync() is implemented, from the real SASS (the relevant instructions in order) compiled here : Every block meets at its block barrier; one thread per block issues a GPU-wide memory fence and an atomic add on a counter in global memory, then spins ( LD.E.STRONG.GPU in a loop with YIELD ) until the counter shows every block has arrived; then the block barrier releases the rest.",
+  "label": "core",
+  "key": ": every block meets at its block",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "A spinning block occupies its SM.",
+  "label": "core",
+  "key": "a spinning block occupies its",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "If some blocks of the grid were still waiting to be scheduled, they could never start, and the resident ones would spin forever.",
+  "label": "core",
+  "key": "blocks not yet scheduled could never start",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "That is why a grid barrier needs a cooperative launch ( cudaLaunchCooperativeKernel ) that refuses grids larger than what fits at once, failing with cudaErrorCooperativeLaunchTooLarge , which the runtime's own header defines as more blocks than \" cudaOccupancyMaxActiveBlocksPerMultiprocessor ... times the number of multiprocessors\" ( driver_types.h , CUDA 13.4.2).",
+  "label": "core",
+  "key": "that refuses grids larger than what fits",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "For this kernel on an H100 with 256-thread blocks: 8 blocks per SM × 132 SMs = 1,056 blocks at most derived with NVIDIA's occupancy rules .",
+  "label": "core",
+  "key": "on an h100 with 256-thread blocks: 8",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "In practice most code takes the cheaper route: end the kernel and launch a second one.",
+  "label": "core",
+  "key": "most code takes the cheaper route: end",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Clusters (compute capability 9.0 and later) sit between block and grid. __cluster_dims__(2, 1, 1) pairs blocks; cluster.map_shared_rank(s, other) returns a pointer into the partner block's shared memory ( distributed shared memory ), and cluster.sync() compiles to the hardware cluster barrier UCGABAR_ARV / UCGABAR_WAIT , the same on sm_90a, sm_100a and sm_120.",
+  "label": "core",
+  "key": "clusters (compute capability 9.0 and later) sit",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "For sm_80 the compiler refuses: __cluster_dims__ is not supported for this GPU architecture compiled here .",
+  "label": "depth",
+  "key": "for sm_80 the compiler refuses: __cluster_dims__ is",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "The second cluster.sync() in p4_cluster.cu matters: a block must not exit while its partner may still read its shared memory.",
+  "label": "depth",
+  "key": "the second cluster.sync() in p4_cluster.cu matters: a",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "4. synchronisation, from a warp to the whole gpu",
+  "text": "Clusters are how Hopper and Blackwell kernels share tiles between SMs (TMA multicast, FlashAttention-3); that use is on Libraries and tensor cores , and the hardware (how DSMEM is wired) on GPU architecture .",
+  "label": "core",
+  "key": "share tiles between sms (tma multicast,",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Choosing a launch: block size, occupancy, waves The problem.",
+  "label": "core",
+  "key": "choosing a launch: block size, occupancy, waves",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "The same kernel can be launched in thousands of ways, and the launch decides how much of the GPU works.",
+  "label": "core",
+  "key": "the same kernel can be launched in",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "You choose the block size , the grid size and the dynamic shared memory ; the compiler chooses registers per thread , which you can steer.",
+  "label": "core",
+  "key": "you choose the block size , the",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Two consequences follow, both explained below: how many blocks fit on one SM at once ( occupancy ), and how many rounds the grid needs to get through the SMs ( waves ).",
+  "label": "core",
+  "key": "how many blocks fit on one sm",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Occupancy, from your side of the launch Occupancy is resident warps per SM divided by the maximum the SM can hold (64 on A100, H100 and B200; 48 on the RTX 5090).",
+  "label": "core",
+  "key": "occupancy is resident warps per sm divided",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "A block is placed on an SM only if all of its resources fit: its warps, its registers (registers per thread × threads), its shared memory, and a free block slot.",
+  "label": "core",
+  "key": "a block is placed on an sm",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "The per-generation limits, and why occupancy hides latency, are on GPU architecture (sections 3 and 4).",
+  "label": "core",
+  "key": "are on gpu architecture (sections 3 and",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "What matters here is which of your choices moves it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "transition"
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "One kernel with many live values per thread (96 accumulators), compiled three ways: __global__ void heavy_plain(...) // the compiler picks registers freely __global__ void __launch_bounds__ (1024) heavy_lb1024(...) // \"I will launch up to 1,024 threads per block\" __global__ void __launch_bounds__ (256, 8) heavy_lb256x8(...) // \"256 threads, and I want 8 blocks per SM\" Registers and spills: ptxas -v , CUDA 13.4.2 compiled here .",
+  "label": "core",
+  "key": "one kernel with many live values per",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Occupancy at 256 threads per block: NVIDIA's rules from cuda_occupancy.h derived . \"Spill\" bytes are values that did not fit in registers and went to local memory , which lives in the GPU's main memory behind the caches ( GPU memory hierarchy ).",
+  "label": "core",
+  "key": "occupancy at 256 threads per block: nvidia's",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Read the table as a trade. __launch_bounds__(maxThreadsPerBlock, minBlocksPerMultiprocessor) tells ptxas the launch you promise, so it caps registers to make that launch fit: 1,024 threads in 65,536 registers leaves 64 per thread, and 8 blocks of 256 leaves 32.",
+  "label": "core",
+  "key": "__launch_bounds__(maxthreadsperblock, minblockspermultiprocessor) tells ptxas the launch you",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Occupancy goes up; so do spills.",
+  "label": "core",
+  "key": "occupancy goes up; so do spills.",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Which one wins is a measurement, not a rule; for matmul and attention kernels, which reuse values held in registers, the answer is usually fewer warps and no spills.",
+  "label": "core",
+  "key": "for matmul and attention kernels, which reuse",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Two real details: on sm_120 ptxas printed Value of threads per SM for entry heavy_lb256x8 is out of range. .minnctapersm will be ignored (8 × 256 = 2,048 threads, but an sm_120 SM holds 1,536) and kept 128 registers; and heavy_plain launched with 1,024 threads would need 128 × 1,024 = 131,072 registers, twice an SM's 65,536, so the launch fails with cudaErrorLaunchOutOfResources , \"too many resources requested for launch\", which the runtime header explains as \"the kernel launch specifies too many threads for the kernel's register count\".",
+  "label": "depth",
+  "key": "on sm_120 ptxas printed value of threads",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "The command-line alternative, -maxrregcount=N , caps every kernel in the file at once.",
+  "label": "core",
+  "key": "caps every kernel in the file",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "What a register cap does to one kernel step by step (a 128-accumulator kernel needs 160 registers on sm_90a; capped at 128 it spills 84 bytes, capped at 32 it spills 1,240), where the spilled values go, and how spills look in SASS, is section 4 of GPU memory hierarchy and its Memory instructions tab.",
+  "label": "core",
+  "key": "what a register cap does to one",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Letting CUDA suggest a block size. cudaOccupancyMaxPotentialBlockSize(&minGrid, &block, kernel) returns the block size with the highest occupancy and the smallest grid that fills the GPU.",
+  "label": "core",
+  "key": "letting cuda suggest a block size. cudaoccupancymaxpotentialblocksize(&mingrid,",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "NVIDIA ships the same logic as a host-only header, cuda_occupancy.h , so it runs without a GPU: compiled and run here for this page's kernels on four GPUs, and checked against this page's JavaScript port, the two agree on 1,155 of 1,155 values ( 0 mismatches) compiled and run here .",
+  "label": "depth",
+  "key": "nvidia ships the same logic as a",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Its answer for the simple scale kernel is 1,024 threads on H100 and 768 on the RTX 5090: it searches from the largest block size down and keeps the first that reaches the highest occupancy.",
+  "label": "core",
+  "key": "1,024 threads on h100 and 768 on",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "That maximises occupancy, not speed; treat it as a starting point.",
+  "label": "core",
+  "key": "that maximises occupancy, not",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Block size in practice.",
+  "label": "core",
+  "key": "block size in practice.",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Always a multiple of 32 (a partial warp wastes lanes).",
+  "label": "core",
+  "key": "always a multiple of 32 (a partial",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Too small hits the block-slot cap: 32-thread blocks on an H100 give at most 32 blocks of one warp, 50 % occupancy derived .",
+  "label": "core",
+  "key": "too small hits the block-slot cap: 32-thread",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Too large makes each block a big unit to schedule and synchronise.",
+  "label": "core",
+  "key": "too large makes each block a big",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "128 to 256 is the usual default.",
+  "label": "core",
+  "key": "128 to 256 is the usual default.",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "On the M1 Pro, a memory-bound y = 2x over 64 Mi floats ran at 156.9 to 161.5 GB/s for every threadgroup size from 32 to 1,024 measured on Apple M1 Pro GPU : once enough threads are in flight overall, a simple kernel does not care.",
+  "label": "core",
+  "key": "a memory-bound y = 2x over 64",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Kernels that use shared memory per block or synchronise inside the block do care, and are tuned by measurement (the autotuning in Triton and Gluon is exactly this search).",
+  "label": "core",
+  "key": "kernels that use shared memory per block",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Waves and the tail Blocks are handed to SMs as slots free up.",
+  "label": "core",
+  "key": "waves and the tail blocks are handed",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "If a grid has B blocks and the GPU holds S SMs × k blocks per SM at once, the grid runs in ceil( B / ( S · k )) waves , and the last wave may be nearly empty while it costs nearly a full wave of time.",
+  "label": "core",
+  "key": "if a grid has b blocks and",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "NVIDIA's own example is a matrix multiply on an A100 (108 SMs) with 256 × 128 output tiles, one tile per block, one block per SM, M = 2,304, K = 4,096 ( NVIDIA Matrix Multiplication Background guide, \"Wave quantization\" ) vendor doc .",
+  "label": "core",
+  "key": "nvidia's own example is a matrix multiply",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Growing N from 1,536 to 1,544 adds 0.5% more work: N = 1,536: 108 tiles N = 1,544: 117 tiles Each square is one of the 108 SMs, drawn to scale in count; time is in units of one tile's run time, assumed equal for every tile derived: tiles = ceil(M/256) × ceil(N/128); waves = ceil(tiles / 108) .",
+  "label": "core",
+  "key": "growing n from 1,536 to 1,544 adds",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "NVIDIA reports that \"GFLOPS roughly halve and duration roughly doubles from N=1536 to N=1544\".",
+  "label": "core",
+  "key": "nvidia reports that \"gflops roughly halve and",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Measured on a real GPU.",
+  "label": "core",
+  "key": "measured on a real gpu.",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "A compute-only Metal kernel with 1,024-thread threadgroups, each doing the same work, launched with 1 to 72 threadgroups on the M1 Pro's 16 GPU cores measured on Apple M1 Pro GPU : Median of 3 runs (dots: each run); time rises in steps at 17 , 33 , 49 and 65 threadgroups, about 1.31 ms per extra wave: 16 threadgroups of this size run at once, one per core.",
+  "label": "core",
+  "key": "a compute-only metal kernel with 1,024-thread threadgroups,",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "17 threadgroups take as long as 32.",
+  "label": "core",
+  "key": "17 threadgroups take as long as 32.",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "The scattered points at the left are the first launches of runs 1 and 3, slowed by warm-up and by other jobs on the laptop.",
+  "label": "core",
+  "key": "the scattered points at the left are",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "When it matters for training.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "Waves matter when each block is long, which is the case for matmul tiles and attention: a GEMM whose tile count is just over a multiple of the SM count wastes most of its last wave, and cuBLAS heuristics choose tile shapes (and techniques such as split-K and Stream-K) partly to avoid it ( Libraries and tensor cores ).",
+  "label": "core",
+  "key": "a gemm whose tile count is just",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "For the running example, a row sum with one 256-thread block per row has 4,096 blocks; an H100 holds 1,056 such blocks at once, so 4 waves, the last 87.9 % full derived : fine.",
+  "label": "core",
+  "key": "for the running example, a row sum",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "With hundreds of thousands of small blocks, the tail is a rounding error.",
+  "label": "core",
+  "key": "with hundreds of thousands of small",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "5. choosing a launch: block size, occupancy, waves",
+  "text": "The Launch planner tab computes occupancy, the limiting resource and waves for this page's real kernels on four GPUs.",
+  "label": "core",
+  "key": "the launch planner tab computes occupancy, the",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "When things go wrong: CUDA's error model The problem.",
+  "label": "core",
+  "key": "when things go wrong: cuda's error model",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "CUDA functions return an error code ( cudaError_t ) instead of throwing, a kernel launch returns nothing at all, and a kernel that crashes is noticed only by some later call.",
+  "label": "core",
+  "key": "cuda functions return an error code (",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "Without a habit of checking, a bad launch looks like garbage output three functions later.",
+  "label": "core",
+  "key": "without a habit of checking, a bad",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "Three kinds of error, three places to catch them.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "transition"
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "API errors , returned by the call itself: a bad argument to cudaMemcpy , out of memory in cudaMalloc .",
+  "label": "core",
+  "key": "api errors , returned by the call",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "Wrap every call in a check macro (below).",
+  "label": "core",
+  "key": "wrap every call in a check macro",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "Launch errors : an impossible configuration (more than 1,024 threads per block, too much shared memory: cudaErrorInvalidConfiguration ; too many registers for the block: cudaErrorLaunchOutOfResources ).",
+  "label": "core",
+  "key": "launch errors : an impossible configuration (more",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "The launch statement cannot return them, so ask right after it: cudaGetLastError() , which \"returns current error state and then resets it to cudaSuccess \" ( cudaPeekAtLastError() returns it \"without resetting it\").",
+  "label": "core",
+  "key": "the launch statement cannot return them, so",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "Execution errors , raised while the kernel runs: an out-of-bounds or misaligned access, a device-side assert , a timeout.",
+  "label": "core",
+  "key": "execution errors , raised while the kernel",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "They surface at the next call that waits for the GPU ( cudaDeviceSynchronize , a cudaMemcpy , or any later call), \"returned by every CUDA runtime API until the error state has been cleared\" ( Programming Guide 2.1.7 ) vendor doc . #define CUDA_CHECK(call) do { cudaError_t e_ = (call); if (e_ != cudaSuccess) \\ printf(\"%s:%d %s failed: %s (%s, code %d)\\n\", __FILE__, __LINE__, #call, \\ cudaGetErrorName(e_), cudaGetErrorString(e_), (int)e_); } while (0) CUDA_CHECK(cudaGetDeviceCount(&n)); CUDA_CHECK(cudaMalloc(&d, 1024)); k<<<1, 256>>>(d); CUDA_CHECK(cudaGetLastError()); // launch-time errors CUDA_CHECK(cudaDeviceSynchronize()); // errors raised while the kernel ran This program ( src/cuda/host/errors.cu ) was compiled and run in the container, which has the CUDA runtime but no GPU and no driver; its real output run here : Without a driver, every call fails with code 35, not with \"no CUDA-capable device\" (code 100): the runtime cannot even ask.",
+  "label": "core",
+  "key": "they surface at the next call that",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "The same program printed the runtime's own name and message for the errors a kernel author meets most, shown with the comment that explains each in driver_types.h (CUDA 13.4.2) where it is quoted here: Sticky errors: some errors end the process's use of the GPU For an illegal address (700) and an unspecified launch failure (719) the header says: \"This leaves the process in an inconsistent state and any further CUDA work will return the same error.",
+  "label": "core",
+  "key": "sticky errors: some errors end the process's",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "To continue using CUDA, the process must be terminated and relaunched.\" In a training job this is the familiar CUDA error: an illegal memory access was encountered that no try / except can recover from: the worker must restart, which is why elastic training restarts processes rather than retrying the step ( Distributed Training ).",
+  "label": "core",
+  "key": "to continue using cuda, the process must",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "Finding the line that failed.",
+  "label": "core",
+  "key": "finding the line that failed.",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "Because errors surface late, the reported location is often wrong.",
+  "label": "core",
+  "key": "because errors surface late, the reported location",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "Three tools fix that: CUDA_LAUNCH_BLOCKING=1 makes every launch synchronous, so the error appears at the guilty launch.",
+  "label": "core",
+  "key": "three tools fix that: cuda_launch_blocking=1 makes every",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "PyTorch's CUDA semantics notes : set it \"to debug GPU errors or force synchronous behavior\", for \"more accurate\" stack traces.",
+  "label": "core",
+  "key": "pytorch's cuda semantics notes : set it",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "Slow; for debugging only. compute-sanitizer (default tool memcheck: \"out of bounds and misaligned memory access errors\"; also racecheck, initcheck for reads of uninitialised global memory, synccheck) names the kernel, thread, block and address of the first bad access ( Compute Sanitizer docs v2026.3.0 ).",
+  "label": "core",
+  "key": "slow; for debugging only. compute-sanitizer (default tool",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "It runs the program much more slowly; use it on a small input.",
+  "label": "core",
+  "key": "much more slowly; use it on a",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "A device-side assert(i < n) in the kernel stops it with error 710, whose runtime message is exactly device-side assert triggered (printed by the program above), and whose header comment reads \"The device cannot be used again.",
+  "label": "core",
+  "key": "a device-side assert(i < n)",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "All existing allocations are invalid\": another sticky error.",
+  "label": "depth",
+  "key": "all existing allocations are",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "PyTorch's kernels assert on their inputs (its loss kernels check CUDA_KERNEL_ASSERT(INDEX >= 0 && INDEX < N_CLASSES) in Loss.cu , read 2026-10-05), which is where this message comes from in training: usually a label outside the number of classes.",
+  "label": "core",
+  "key": "a label outside the number of",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "When it matters for training: a crash with an illegal-address error mid-run is almost always an out-of-range index (embedding ids, labels, gather indices) or a custom kernel's bounds check.",
+  "label": "core",
+  "key": "mid-run is almost always an out-of-range index",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "6. when things go wrong: cuda's error model",
+  "text": "Re-run the failing step with CUDA_LAUNCH_BLOCKING=1 , then under compute-sanitizer if it is your kernel.",
+  "label": "core",
+  "key": "re-run the failing step with cuda_launch_blocking=1 ,",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "The host-side memory API, the basics The problem.",
+  "label": "core",
+  "key": "the host-side memory api, the basics",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "A device pointer is an address in GPU memory: the CPU cannot dereference it, and a kernel cannot dereference an ordinary CPU pointer.",
+  "label": "core",
+  "key": "a device pointer is an address in",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "Every byte a kernel touches must be allocated on the device and brought there.",
+  "label": "core",
+  "key": "allocated on the device and brought there.",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "Five calls cover nearly everything; PyTorch makes the same calls for you.",
+  "label": "core",
+  "key": "pytorch makes the same calls for",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "Call What it does Watch out for PyTorch's version cudaMalloc / cudaFree allocate and free device memory slow calls; \" cudaFree operations synchronize the entire device\" the caching allocator: freed tensors keep their memory for reuse cudaMemcpy copy host to device, device to host, or device to device \"synchronous\": it returns when the copy is done, after earlier work on the stream t.to(\"cuda\") , t.cpu() , .item() cudaMallocHost (pinned) page-locked host memory the GPU can read directly a copy from ordinary (pageable) memory is staged through a pinned buffer by the driver; too much pinned memory starves the OS pin_memory=True in a DataLoader; t.to(\"cuda\", non_blocking=True) cudaMemcpyAsync a copy queued on a stream, returning at once overlaps with other work only from pinned memory non_blocking=True cudaMallocManaged one pointer valid on host and device; pages move on demand convenient, but page faults on first touch can be slow rarely used in training cudaMallocAsync / cudaFreeAsync stream-ordered allocation (CUDA 11.2): no device-wide synchronisation memory is reused in stream order PYTORCH_ALLOC_CONF=backend:cudaMallocAsync (CUDA 11.4 or newer) Sources: Programming Guide 2.1.3 ( cudaMemcpy \"is synchronous\") and the stream-ordered allocator post ( NVIDIA blog, Jul 27, 2021 : introduced in CUDA 11.2; \" cudaFree ... synchronize[s] the entire device\") vendor doc ; pageable copies \"must first allocate a temporary page-locked, or pinned, host array\" and \"you should not over-allocate pinned memory\" (Mark Harris, \"How to Optimize Data Transfers in CUDA C/C++\" , 2012) published ; PyTorch behaviour from its CUDA semantics notes (2.14).",
+  "label": "core",
+  "key": "call what it does watch out for",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "Why nvidia-smi shows your memory as used.",
+  "label": "core",
+  "key": "why nvidia-smi shows your memory as used.",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "PyTorch never calls cudaFree when a tensor dies: its caching allocator keeps the block for the next tensor, because cudaMalloc and cudaFree are slow and synchronising.",
+  "label": "core",
+  "key": "pytorch never calls cudafree when a tensor",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "The PyTorch notes: unused cached memory \"still appears occupied in nvidia-smi \"; torch.cuda.memory_allocated() counts live tensors and memory_reserved() counts everything the allocator holds; empty_cache() returns the unused part.",
+  "label": "core",
+  "key": "the pytorch notes: unused cached memory \"still",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "When a run reports out-of-memory with plenty \"reserved but unallocated\", the cause is fragmentation, not a leak.",
+  "label": "core",
+  "key": "when a run reports out-of-memory with plenty",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "Shared memory is not allocated with this API.",
+  "label": "core",
+  "key": "shared memory is not allocated with this",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "It is declared in the kernel: __shared__ float s[256]; (static, size known at compile time; ptxas reports \"1024 bytes smem\" for block_sum ) or extern __shared__ float s[]; with the size given as the third launch argument (dynamic).",
+  "label": "core",
+  "key": ") or extern __shared__ float s[];",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "Static shared memory \"remain[s] limited to 48 KB\", and \"an explicit opt-in is also required to enable dynamic allocations above this limit\" ( cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, bytes) ); \"the H100 GPU enables a single thread block to address up to 227 KB of shared memory\" ( Hopper tuning guide ) vendor doc .",
+  "label": "depth",
+  "key": "static shared memory \"remain[s] limited to 48",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "7. the host-side memory api, the basics",
+  "text": "Everything about using it well (banks, tiling) is on GPU memory hierarchy .",
+  "label": "core",
+  "key": "using it well (banks, tiling) is on",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "What a launch costs The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "Every kernel launch is CPU work: the runtime and driver check the configuration, copy the arguments, and write a command for the GPU into a queue.",
+  "label": "core",
+  "key": "launch is cpu work: the runtime and",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "If kernels are short, the GPU finishes each one before the CPU has queued the next, and sits idle.",
+  "label": "core",
+  "key": "if kernels are short, the gpu finishes",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "Eager PyTorch launches at least one kernel per operation, so a model made of many small operations can be limited by launches rather than by the GPU, the regime Horace He calls overhead-bound ( \"Making Deep Learning Go Brrrr\" ).",
+  "label": "core",
+  "key": "eager pytorch launches at least one kernel",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "What travels with a launch.",
+  "label": "depth",
+  "key": "what travels with a launch.",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "The grid and block shapes, the shared memory size, the stream, and the arguments by value.",
+  "label": "depth",
+  "key": "the grid and block shapes, the shared",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "Arguments were limited to 4,096 bytes; CUDA 12.1 raised the limit to 32,764 bytes on Volta and later ( NVIDIA blog, Jun 5, 2023 ) vendor doc .",
+  "label": "depth",
+  "key": "arguments were limited to 4,096 bytes; cuda",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "Checked here with a pointer plus a struct argument: 8 + 32,756 = 32,764 bytes compiles; 8 + 32,760 fails with compiled here .",
+  "label": "depth",
+  "key": "checked here with a pointer plus a",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "In SASS the arguments are read from a constant bank (the c[0x0][0x210] loads of section 1).",
+  "label": "depth",
+  "key": "in sass the arguments are read from",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "NVIDIA's CUDA Graphs post measured a 2.9 µs kernel taking 9.6 µs per kernel when the CPU waited after each launch, 3.4 µs with CUDA Graphs ( NVIDIA blog, 2019, V100 ) published .",
+  "label": "core",
+  "key": "nvidia's cuda graphs post measured a 2.9",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "The asynchronous launch is what lets the CPU run ahead: queue many kernels, wait once.",
+  "label": "core",
+  "key": "the asynchronous launch is what lets the",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "On the M1 Pro, through MLX, the same tiny Metal kernel (1,024 threads) measured on Apple M1 Pro GPU : Median of 3 runs (each the median of 7 trials).",
+  "label": "core",
+  "key": "on the m1 pro, through mlx, the",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "Launch and wait each time: 179.5 µs per kernel (runs 192.7 , 179.5 , 146.5 ).",
+  "label": "core",
+  "key": "launch and wait each time: 179.5 µs",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "200 launches queued, each reading the previous one's output, then one wait: 5.8 µs per kernel, about 31 times less.",
+  "label": "core",
+  "key": "200 launches queued, each reading the previous",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "Both include MLX's Python and graph bookkeeping, so they are not CUDA numbers; the ratio is the lesson.",
+  "label": "core",
+  "key": "both include mlx's python and graph bookkeeping,",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "Three consequences for training code.",
+  "label": "core",
+  "key": "three consequences for training code.",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "Never synchronise in the hot loop without need ( .item() , print(loss) , a .cpu() every step: each one drains the queue).",
+  "label": "core",
+  "key": "never synchronise in the hot loop without",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "Fewer, larger kernels win when kernels are small: fusion, by hand or by torch.compile ( Writing kernels , The compiler stack ).",
+  "label": "core",
+  "key": "fewer, larger kernels win when kernels are",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "And when the sequence of kernels repeats exactly, as in LLM decoding, record it once and replay it as a CUDA graph ( Streams, CUDA graphs and multi-GPU programming ).",
+  "label": "core",
+  "key": "and when the sequence of kernels repeats",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "8. what a launch costs",
+  "text": "How to check: a profiler timeline shows gaps between kernels on the GPU row; if the gaps are as long as the kernels, you are overhead-bound ( Profiling, benchmarking and correctness ).",
+  "label": "core",
+  "key": "how to check: a profiler timeline shows",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "9. the same kernels from python",
+  "text": "The same kernels from Python You will rarely write a main() .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "9. the same kernels from python",
+  "text": "The programming model is the same from Python; only the spelling changes.",
+  "label": "core",
+  "key": "model is the same from python; only",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "9. the same kernels from python",
+  "text": "Four routes, each tried here for real in the container with the CUDA toolkit and no GPU, so each says how far it got.",
+  "label": "core",
+  "key": "in the container with the cuda toolkit",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "9. the same kernels from python",
+  "text": "Numba CUDA: Python syntax, CUDA semantics from numba import cuda, float32 @cuda.jit def scale(x, y, a): i = cuda.grid(1) # = blockIdx.x * blockDim.x + threadIdx.x if i < x.size: y[i] = a * x[i] @cuda.jit def block_sum(x, out): s = cuda.shared.array(256, dtype=float32) # __shared__ float s[256] t = cuda.threadIdx.x s[t] = x[cuda.blockIdx.x * 256 + t] cuda.syncthreads() # __syncthreads() k = 128 while k > 0: if t < k: s[t] += s[t + k] cuda.syncthreads() k //= 2 if t == 0: out[cuda.blockIdx.x] = s[0] scale[grid, block](x, y, 2.0) # the launch: [grid, block] instead of <<<>>> Numba-CUDA is now a separate package maintained by NVIDIA ( numba-cuda docs ).",
+  "label": "core",
+  "key": "= blockidx.x * blockdim.x + threadidx.x",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "9. the same kernels from python",
+  "text": "Its simulator executes kernels \"one block at a time.",
+  "label": "depth",
+  "key": "its simulator executes kernels \"one block at",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "9. the same kernels from python",
+  "text": "One thread is spawned for each thread in the block, and scheduling of the execution of these threads is left up to the operating system\", and it \"does not implement warp-level operations\" ( simulator docs ): good for checking indexing and barriers, useless for timing.",
+  "label": "depth",
+  "key": "one thread is spawned for each thread",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "9. the same kernels from python",
+  "text": "CuPy RawKernel: CUDA C++ in a string import cupy as cp k = cp.RawKernel(r''' extern \"C\" __global__ void scale(const float* x, float* y, float a, int n) { int i = blockIdx.x * blockDim.x + threadIdx.x; if (i < n) y[i] = a * x[i]; }''', \"scale\") k((grid,), (block,), (x, y, cp.float32(2.0), cp.int32(n))) # grid, block, arguments torch.utils.cpp_extension: a CUDA kernel as a PyTorch function from torch.utils.cpp_extension import load_inline cuda_src = r''' #include <torch/extension.h> __global__ void scale_kernel(const float* x, float* y, float a, int n) { ... } torch::Tensor scale(torch::Tensor x, double a) { auto y = torch::empty_like(x); int n = x.numel(), block = 256, grid = (n + block - 1) / block; scale_kernel<<<grid, block>>>(x.data_ptr<float>(), y.data_ptr<float>(), (float)a, n); return y; }''' m = load_inline(\"pm_scale\", cpp_sources=\"torch::Tensor scale(torch::Tensor x, double a);\", cuda_sources=cuda_src, functions=[\"scale\"]) # nvcc + ninja, then import On a CUDA build of PyTorch with a GPU, load_inline writes the sources to a build directory, compiles them with nvcc and ninja, and imports the result as a Python module ( PyTorch C++ extension docs ).",
+  "label": "core",
+  "key": "__global__ void scale(const float* x, float* y,",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "9. the same kernels from python",
+  "text": "A production version also launches on PyTorch's current stream, checks devices and dtypes, and registers the function with torch.library so torch.compile can see it; that is pytorch-ecosystem territory.",
+  "label": "depth",
+  "key": "a production version also launches on pytorch's",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "9. the same kernels from python",
+  "text": "Triton: blocks, not threads Triton changes the model itself: you write the program of one block on whole tiles ( tl.load of 1,024 elements at once), and the compiler decides threads, warps, shared memory and synchronisation.",
+  "label": "core",
+  "key": "triton changes the model itself: you write",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "9. the same kernels from python",
+  "text": "Everything on this page still happens; Triton does it for you.",
+  "label": "core",
+  "key": "everything on this page still",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "9. the same kernels from python",
+  "text": "That is Triton and Gluon , the rung the parent page's ladder puts right after calling a library.",
+  "label": "core",
+  "key": ", the rung the parent page's ladder",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "10. the same model in metal, on the m1",
+  "text": "The same model in Metal, on the M1 Every measurement on this page ran as a Metal kernel through mx.fast.metal_kernel in MLX.",
+  "label": "core",
+  "key": "every measurement on this page ran as",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "10. the same model in metal, on the m1",
+  "text": "Apple's GPU is a SIMT GPU with the same structure under different names, which is why the ideas transfer and the numbers do not.",
+  "label": "core",
+  "key": "apple's gpu is a simt gpu with",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "10. the same model in metal, on the m1",
+  "text": "CUDA Metal (MSL) Note warp (32 threads) SIMD-group 32 threads on the M1 Pro ( threads_per_simdgroup , measured by the root's simulator agent) block, __shared__ threadgroup, threadgroup memory up to 1,024 threads and 32 KB per threadgroup on Apple7 (M1), Apple's Metal feature set tables threadIdx , blockIdx , global index thread_position_in_threadgroup , threadgroup_position_in_grid , thread_position_in_grid the global index is built in lane, warp id thread_index_in_simdgroup , simdgroup_index_in_threadgroup used in the atomics kernels here __syncthreads() threadgroup_barrier(mem_flags::mem_threadgroup) the race measurement of section 4 warp shuffle reduction simd_sum (also simd_shuffle_down , simd_ballot ) simd_sum used here atomicAdd atomic_fetch_add_explicit(..., memory_order_relaxed) used here k<<<grid, block>>> (grid counts blocks ) dispatch with grid= , threadgroup= (MLX's grid counts threads ) an easy off-by-a-factor mistake when porting stream command queue and command buffers MLX batches launches into command buffers Names from the Metal Shading Language Specification ; those marked \"used here\" compiled and ran in src/m1/measure.py (MLX 0.32.3 ) measured on Apple M1 Pro GPU .",
+  "label": "core",
+  "key": ") measured on apple m1 pro gpu",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "10. the same model in metal, on the m1",
+  "text": "MLX's grid convention is from its custom Metal kernels guide .",
+  "label": "depth",
+  "key": "mlx's grid convention is from its custom",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "10. the same model in metal, on the m1",
+  "text": "What transfers and what does not.",
+  "label": "core",
+  "key": "what transfers and what does not.",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "10. the same model in metal, on the m1",
+  "text": "Warp-sized SIMD groups, barriers, races, the cost of launch-and-wait, and waves on a fixed number of cores all behaved as the CUDA model predicts.",
+  "label": "core",
+  "key": "warp-sized simd groups, barriers, races, the cost",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "10. the same model in metal, on the m1",
+  "text": "Absolute numbers do not transfer: the M1 Pro has 16 cores where an H100 has 132 SMs, about 160 GB/s where an H100 has 3.35 TB/s, and its compiler and driver are Apple's, so occupancy limits, atomic throughput and launch overheads differ.",
+  "label": "core",
+  "key": "absolute numbers do not transfer: the m1",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Common mistakes, a first-kernel checklist, interview questions Common mistakes No bounds check, or the wrong one The grid is rounded up to whole blocks, so the last block runs past n (192 extra threads for n = 1,000,000 with 256-thread blocks).",
+  "label": "core",
+  "key": "192 fail",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Without if (i < n) they read and write past the arrays; sometimes nothing visible happens, which is worse. compute-sanitizer's memcheck finds it.",
+  "label": "core",
+  "key": "sometimes nothing visible happens, which is worse",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Timing or error-checking the launch line The launch returns before the kernel runs.",
+  "label": "core",
+  "key": "returns before the kernel",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "A CPU timer around it measures the launch; an error check right after it sees only configuration errors.",
+  "label": "depth",
+  "key": "a cpu timer around it measures the",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Synchronise (or use events) to time, and check after the next synchronising call for execution errors. __syncthreads() inside a branch that not every thread takes The barrier waits for all non-exited threads of the block; if some never arrive, the block hangs or misbehaves.",
+  "label": "depth",
+  "key": "synchronise (or use events) to time, and",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Hoist it out of the branch (section 4).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the rules box of section 4"
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Assuming warps run in lockstep Since Volta, lanes of a warp can be at different instructions.",
+  "label": "core",
+  "key": "can be at different",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Old warp-synchronous code that drops __syncwarp or uses the deprecated non- _sync intrinsics can break on new GPUs or new compilers.",
+  "label": "core",
+  "key": "no longer guaranteed to work",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Expecting blocks to run in some order, or to wait for each other \"No ordering guarantees are made by the scheduler\" ( Programming Guide 2.3.7 ).",
+  "label": "core",
+  "key": "wait for each other",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "A block that spins waiting for a later block can deadlock if that block is never scheduled; only a cooperative launch guarantees co-residency.",
+  "label": "depth",
+  "key": "a block that spins waiting for a",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Chasing 100% occupancy Forcing registers down with __launch_bounds__ raised occupancy from 25% to 100% in section 5 and created 3 KB of spills per thread.",
+  "label": "core",
+  "key": "both capped kernels spill",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Occupancy is a means to hide latency; measure time. int indices on huge tensors Past 2,147,483,647 elements a 32-bit index wraps.",
+  "label": "core",
+  "key": "2,147,483,647",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Attention scores for 16 × 32 × 4,096 × 4,096 are 8.6 billion elements.",
+  "label": "core",
+  "key": "8,589,934,592",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Block size not a multiple of 32, or a 2D block with threadIdx.x on the wrong dimension A 100-thread block wastes 28 lanes of its fourth warp.",
+  "label": "depth",
+  "key": "block size not a multiple of 32,",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Making threadIdx.y walk the contiguous dimension spreads each warp's load over 32 rows (32 sectors instead of 4: the 1 × 256 case in section 2).",
+  "label": "core",
+  "key": "walk the contiguous dimension",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Treating a sticky error as recoverable After an illegal address or a device-side assert, every later CUDA call fails; restart the process.",
+  "label": "core",
+  "key": "the process must be terminated and relaunched",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Checklist for a first kernel Index with blockIdx.x * blockDim.x + threadIdx.x and the ceiling-division grid; always bounds-check; 64-bit indices for very large tensors.",
+  "label": "core",
+  "key": "blockidx.x * blockdim.x + threadidx.x",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Block size a multiple of 32, start at 128 or 256; tune by measurement.",
+  "label": "depth",
+  "key": "block size a multiple of 32, start",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Wrap every runtime call in CUDA_CHECK ; cudaGetLastError() after each launch while developing.",
+  "label": "depth",
+  "key": "wrap every runtime call in cuda_check ;",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Compile for your GPU: -arch=sm_90a for H100 features, -arch=sm_120 for an RTX 5090 (CUDA 12.8 or later), or -arch=native ; current toolkit 13.4.2.",
+  "label": "core",
+  "key": "compile for your gpu:",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Look at -Xptxas -v for registers and spills.",
+  "label": "depth",
+  "key": "look at -xptxas -v for registers and",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Check results against a CPU or PyTorch reference before timing anything; run once under compute-sanitizer .",
+  "label": "depth",
+  "key": "check results against a cpu or pytorch",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Corrections to the old version of this page \"Current toolkit: 13.3\": the current release is 13.4.2 (Docker Hub tag 2026-09-29; Programming Guide v13.4.2). \"Compile for your GPU: RTX 5090\": no NVIDIA GPU is used for this knowledge base; the checklist now names targets. \"Matmul and attention deliberately run at 25 to 50% occupancy\": the principle is kept (section 5 shows a real 25%-occupancy kernel), the range is unconfirmed and dropped. \"64 warps per SM on recent architectures\": true for A100, H100 and B200, but consumer GPUs (sm_86, sm_89, sm_120, including the RTX 5090) hold 48 ( Programming Guide, Table 31 ). \"A laptop GPU with 20 SMs\": unconfirmed , dropped. \"Launch overhead is a few microseconds\": kept with NVIDIA's measured numbers.",
+  "label": "core",
+  "key": "corrections to the old version of this",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "The old saxpy example is replaced by kernels compiled here.",
+  "label": "core",
+  "key": "the old saxpy example is replaced by",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Everything else on the old page is carried and now sourced; see src/coverage.json .",
+  "label": "core",
+  "key": "everything else on the old page is",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Interview questions, short answers Why must blocks be independent?",
+  "label": "depth",
+  "key": "why must blocks be independent?",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "So the hardware can run them in any order on any number of SMs: the same binary scales from a laptop GPU to a 170-SM card.",
+  "label": "depth",
+  "key": "so the hardware can run them in",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Cross-block cooperation goes through atomics, a second kernel, a cooperative launch or (sm_90+) clusters.",
+  "label": "depth",
+  "key": "cross-block cooperation goes through atomics, a second",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "What is a warp and why is it 32?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating the warp definition"
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "The 32 threads issued together by one instruction; it is the hardware's SIMD width and has been 32 on every NVIDIA GPU.",
+  "label": "core",
+  "key": "32 on every gpu so far",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Divergence, coalescing and shuffles are all defined per warp.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 3"
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "How do you sum 4,096 numbers in one block?",
+  "label": "depth",
+  "key": "how do you sum 4,096 numbers in",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Each thread sums its share (grid-stride), each warp reduces with 5 shuffles, warp leaders write to shared memory, __syncthreads() , one warp reduces the partials.",
+  "label": "depth",
+  "key": "each thread sums its share (grid-stride), each",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "One barrier instead of eight.",
+  "label": "depth",
+  "key": "one barrier instead of eight.",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "How do you synchronise all blocks?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question; the answer is section 4"
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "End the kernel and launch another (the usual way), or a cooperative launch with grid.sync() , whose grid must fit on the GPU at once because it is a spin barrier on a global counter.",
+  "label": "core",
+  "key": "or a cooperative launch with grid.sync()",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "What limits occupancy, and is higher always better?",
+  "label": "depth",
+  "key": "what limits occupancy, and is higher always",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Registers per thread, shared memory per block, threads per block and the block-slot cap, whichever runs out first.",
+  "label": "depth",
+  "key": "registers per thread, shared memory per block,",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "No: matmul-like kernels trade warps for registers and reuse; spills to reach high occupancy usually lose.",
+  "label": "depth",
+  "key": "no: matmul-like kernels trade warps for registers",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "What does __launch_bounds__ do?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question; the answer is section 5"
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Promises a maximum block size (and optionally a minimum number of resident blocks per SM) so ptxas caps registers to make that launch fit, possibly spilling.",
+  "label": "core",
+  "key": "caps registers to make",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "A launch above the promised size fails.",
+  "label": "core",
+  "key": "a launch above the promised size fails",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Your kernel takes 5 µs and the step is slow.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 8"
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Launch overhead: the CPU cannot queue kernels fast enough and the GPU idles.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 8"
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Fuse kernels, avoid synchronisations, use CUDA graphs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 8"
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "What is wave quantization?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question; the answer is the waves animation"
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "A grid of B blocks runs in ceil(B / (SMs × blocks per SM)) waves; a last wave with few blocks costs nearly a full wave.",
+  "label": "core",
+  "key": "/ (sms × blocks per sm))",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "NVIDIA's A100 example: 108 tiles run in one wave, 117 in two, about twice the time for 0.5% more work.",
+  "label": "core",
+  "key": "0.5% more work",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "An illegal memory access error appears at a cudaMemcpy.",
+  "label": "core",
+  "key": "an illegal memory access",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Is the copy wrong?",
+  "label": "depth",
+  "key": "is the copy wrong?",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Probably not: execution errors surface at the next synchronising call.",
+  "label": "core",
+  "key": "surface at the next",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "11. common mistakes, a first-kernel checklist, interview questions",
+  "text": "Re-run with CUDA_LAUNCH_BLOCKING=1 or under compute-sanitizer to find the kernel; the process must restart.",
+  "label": "depth",
+  "key": "re-run with cuda_launch_blocking=1 or under compute-sanitizer to",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-plan",
+  "section": "launch planner",
+  "text": "Launch planner Pick a GPU and a kernel, then a block size and a problem size: the planner shows how many blocks fit on one SM and which resource stops more from fitting, the occupancy for every block size, the block size CUDA's occupancy API would suggest, and how many waves the grid needs.",
+  "label": "core",
+  "key": "launch planner pick a gpu and a",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-plan",
+  "section": "launch planner",
+  "text": "The presets are this page's kernels with their real ptxas -v reports (CUDA 13.4.2) compiled here ; \"Custom\" lets you type your own.",
+  "label": "core",
+  "key": "the presets are this page's kernels with",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-plan",
+  "section": "launch planner",
+  "text": "GPU Kernel Registers per thread: Shared memory per block (bytes): Barriers used 0 1 Max threads (launch bounds) 1024 512 256 128 Block size: Work: one thread per element one block per row grid-stride, grid = what fits at once Elements or rows How the numbers are computed, and checked Blocks per SM follow NVIDIA's cuda_occupancy.h (CUDA 13.4.2), ported line by line: registers are allocated per warp in units of 256 and split over 4 SM sub-partitions; each block uses its shared memory plus 1 KB reserved by the system, rounded up to 128 bytes, against the SM's maximum carveout; plus the warp limit, the block-slot limit and the barrier limit; per-SM limits from the CUDA Programming Guide, Tables 30 and 31 .",
+  "label": "core",
+  "key": "gpu kernel registers per thread: shared memory",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-plan",
+  "section": "launch planner",
+  "text": "The suggested block size follows cudaOccMaxPotentialOccupancyBlockSize : from 1,024 down, the first block size reaching the highest number of resident threads.",
+  "label": "core",
+  "key": "the suggested block size follows cudaoccmaxpotentialoccupancyblocksize :",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-plan",
+  "section": "launch planner",
+  "text": "For the presets, the header itself was compiled and run without a GPU: it agrees with this page on .",
+  "label": "core",
+  "key": "for the presets, the header itself was",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-plan",
+  "section": "launch planner",
+  "text": "Waves = ceil(grid / (SMs × blocks per SM)) derived ; they assume every block takes the same time.",
+  "label": "core",
+  "key": "waves = ceil(grid / (sms × blocks",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-plan",
+  "section": "launch planner",
+  "text": "SM counts: A100 108, H100 SXM 132 (NVIDIA architecture blogs), B200 148 (independent measurement paper, arXiv 2512.02189), RTX 5090 170 (NVIDIA whitepaper).",
+  "label": "core",
+  "key": "sm counts: a100 108, h100 sxm 132",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-plan",
+  "section": "launch planner",
+  "text": "Occupancy is not speed: see section 5 of the Reading tab.",
+  "label": "core",
+  "key": "occupancy is not speed: see section 5",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Every link opens in a new tab; times are reading or watching estimates.",
+  "label": "core",
+  "key": "further reading every link opens in a",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "On this page Launch planner 10 min Occupancy, the limiting resource, the suggested block size and waves for this page's real kernels on A100, H100, B200 and RTX 5090, checked against NVIDIA's occupancy header.",
+  "label": "core",
+  "key": "occupancy, the limiting resource, the suggested block size and waves",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The parent topic and its tabs Topic: cuda-and-gpu-programming about 45 min One operation (softmax, then a multiply by V) from PyTorch to the instructions.",
+  "label": "core",
+  "key": "the parent topic and its tabs topic:",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Its tabs: GPU simulator (divergence, coalescing, bank conflicts, occupancy, latency hiding, tiling), Compiler explorer (real PTX and SASS for four generations), Kernel lab (softmax, matmul and attention ladders measured on the M1 Pro).",
+  "label": "core",
+  "key": "its tabs: gpu simulator (divergence, coalescing, bank",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Sibling pages (children of the same topic) GPU memory hierarchy 30 min Coalescing and sectors, shared memory and bank conflicts, registers and spills, async copies, pinned and unified memory.",
+  "label": "core",
+  "key": "sibling pages (children of the same topic)",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Writing kernels 37 min Reductions, scans, softmax, the matmul ladder, fusion, FlashAttention.",
+  "label": "core",
+  "key": "writing kernels 37 min reductions, scans, softmax,",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Triton and Gluon 29 min Block-level kernels, autotuning, what the Triton compiler does.",
+  "label": "core",
+  "key": "triton and gluon 29 min block-level kernels,",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Libraries and tensor cores 33 min cuBLAS, cuDNN, CUTLASS and CuTe; mma, wgmma, TMA, tcgen05; clusters in use.",
+  "label": "core",
+  "key": "libraries and tensor cores 33 min cublas,",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Profiling, benchmarking and correctness 29 min Nsight Systems and Compute, honest timing, numerical checks.",
+  "label": "core",
+  "key": "profiling, benchmarking and correctness 29 min nsight",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The compiler stack 28 min nvcc phases, PTX, SASS, NVRTC, torch.compile and Inductor.",
+  "label": "core",
+  "key": "the compiler stack 28 min nvcc phases,",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Streams, CUDA graphs and multi-GPU programming 36 min Streams and events, overlap, CUDA graphs, NCCL as an API.",
+  "label": "core",
+  "key": "streams, cuda graphs and multi-gpu programming 36",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Elsewhere in the knowledge base GPU architecture about 28 min The SM from zero, latency hiding and Little's law, occupancy limits per generation, divergence measured, tensor cores, Ampere to Rubin.",
+  "label": "core",
+  "key": "elsewhere in the knowledge base gpu architecture",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Topic: hardware Chips, memory technology, interconnects, roofline and MFU, costing hardware.",
+  "label": "core",
+  "key": "topic: hardware chips, memory technology, interconnects, roofline",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Virtualization and the GPU driver stack What a launch does below the runtime: the driver, the kernel module, the device queues.",
+  "label": "core",
+  "key": "virtualization and the gpu driver stack what",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "C++ page Part 2: CPU caches and SIMD, the CPU side of SIMT; Part 3: llama.cpp and ggml-cuda.",
+  "label": "core",
+  "key": "c++ page part 2: cpu caches and",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Distributed Training Where sticky errors and restarts meet elastic training; NCCL streams overlapping backward.",
+  "label": "core",
+  "key": "distributed training where sticky errors and restarts",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Topic: pytorch-ecosystem Custom ops, torch.library , the caching allocator in depth.",
+  "label": "core",
+  "key": "topic: pytorch-ecosystem custom ops, torch.library , the",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Best resources CUDA Programming Guide v13.4.2 1 h for parts 2.1 to 2.3 NVIDIA's reference, reorganised in CUDA 13: introduction, writing kernels, thread hierarchy; appendices for limits and language extensions.",
+  "label": "core",
+  "key": "40 min best resources cuda programming guide",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "CUDA C++ Best Practices Guide 2 h The optimisation checklist NVIDIA maintains.",
+  "label": "core",
+  "key": "cuda c++ best practices guide 2 h",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Programming Massively Parallel Processors, 5th ed.",
+  "label": "core",
+  "key": "programming massively parallel processors, 5th ed.",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2 h 15 min for ch.",
+  "label": "core",
+  "key": "2 h 15 min for ch.",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2 to 4 Hwu, Kirk and El Hajj.",
+  "label": "core",
+  "key": "2 to 4 hwu, kirk and el",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Threads, blocks and scheduling; the best teaching treatment.",
+  "label": "core",
+  "key": "threads, blocks and scheduling; the best teaching",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "GPU MODE lectures 1 h 30 min for lecture 2 Lecture 2 covers PMPP chapters 1 to 3; Christian Mills's notes (30 min).",
+  "label": "core",
+  "key": "gpu mode lectures 1 h 30 min",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Modal GPU Glossary 45 min Short, precise definitions of SIMT, warp, occupancy and the rest.",
+  "label": "core",
+  "key": "modal gpu glossary 45 min short, precise",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Using CUDA Warp-Level Primitives 20 min Lin and Grover, 2018: the _sync functions, masks, independent thread scheduling.",
+  "label": "core",
+  "key": "using cuda warp-level primitives 20 min lin",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Cooperative Groups 20 min NVIDIA's introduction to groups as objects, tiles and grid synchronisation.",
+  "label": "core",
+  "key": "cooperative groups 20 min nvidia's introduction to",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Grid-stride loops 8 min Mark Harris, 2013.",
+  "label": "core",
+  "key": "grid-stride loops 8 min mark harris, 2013.",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Matrix multiplication background: wave quantization 30 min Tiles, waves and why GEMM shapes matter, with NVIDIA's measured curves.",
+  "label": "core",
+  "key": "matrix multiplication background: wave quantization 30 min",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Compute Sanitizer 30 min memcheck, racecheck, initcheck, synccheck.",
+  "label": "core",
+  "key": "compute sanitizer 30 min memcheck, racecheck, initcheck,",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "CUDA Graphs 15 min Launch overhead measured, and the fix.",
+  "label": "core",
+  "key": "cuda graphs 15 min launch overhead measured,",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Making Deep Learning Go Brrrr 25 min Horace He: compute-, memory- and overhead-bound.",
+  "label": "core",
+  "key": "making deep learning go brrrr 25 min",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Large kernel parameters (CUDA 12.1) 8 min Why the 4 KB argument limit went, and what it saved.",
+  "label": "core",
+  "key": "large kernel parameters (cuda 12.1) 8 min",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Stream-ordered memory allocator 15 min cudaMallocAsync and why cudaFree synchronises. numba-cuda · CuPy kernels · PyTorch C++ extensions 20 min each The three Python routes of section 9.",
+  "label": "core",
+  "key": "stream-ordered memory allocator 15 min cudamallocasync and",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Metal Shading Language Specification · MLX custom Metal kernels reference For running the same experiments on a Mac.",
+  "label": "core",
+  "key": "metal shading language specification · mlx custom",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "hero: one launch unpacked (grid, block, warp, thread; how each cooperates and where it runs)",
+  "label": "core",
+  "key": "i = 9 × 256 + 37 = 2,341",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "host and device stepper: memory and CPU/GPU timelines, launch returns at once, copies wait",
+  "label": "core",
+  "key": "hatched = the cpu is blocked waiting for the gpu",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "error stepper: execution error reported by cudaMemcpy two calls after the launch; sticky 700",
+  "label": "core",
+  "key": "two calls after the guilty launch",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "occupancy figure: one H100 SM, registers per thread slider, 2 / 4 / 8 blocks at 128 / 64 / 32 registers",
+  "label": "core",
+  "key": "16 of 64 warps, 25%",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "launch-bounds table (script): registers, spill bytes and occupancy for three kernels on four targets",
+  "label": "core",
+  "key": "2,328 to 4,260 bytes of spill stores",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "shuffle against shared-memory animation counters",
+  "label": "core",
+  "key": "10 loads, 6 stores and 6 barriers",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "race animation: 80 with the barrier, 31 and 8 stale reads without",
+  "label": "core",
+  "key": "sum 80",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "wave quantization animation: 108 tiles one wave, 117 tiles two waves",
+  "label": "core",
+  "key": "waves = ceil(tiles / 108)",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "M1 staircase chart, steps every 16 threadgroups",
+  "label": "core",
+  "key": "ms per extra wave",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "M1 launch-cost bars",
+  "label": "core",
+  "key": "times less",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "warp-shape widget: sectors per warp load per block shape",
+  "label": "core",
+  "key": "32-byte pieces of memory one warp",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "SASS listing of the warp-aggregated atomic (script-rendered)",
+  "label": "depth",
+  "key": "voteu.any",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "SASS listing of grid.sync (script-rendered)",
+  "label": "depth",
+  "key": "ld.e.strong.gpu",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "real output of errors.cu without a driver (script-rendered)",
+  "label": "depth",
+  "key": "every call fails with code 35",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "table of 15 error codes with runtime messages and driver_types.h comments (script-rendered)",
+  "label": "depth",
+  "key": "the errors a kernel author meets most",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "Python routes table: how far each route got here (Numba simulator ran; CuPy needs a driver to compile; torch extension needs a CUDA build)",
+  "label": "core",
+  "key": "needs a driver even to compile",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-read",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "Numba, CuPy, torch extension run results (script-rendered: versions, PTX lines, errors)",
+  "label": "depth",
+  "key": "numba-cuda is now a separate package",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-plan",
+  "section": "added by hand: script-rendered or new visual",
+  "text": "Launch planner tab: occupancy, limiter, suggestion and waves for real kernels on four GPUs",
+  "label": "core",
+  "key": "ported line by line",
+  "where": ""
+ }
+]
