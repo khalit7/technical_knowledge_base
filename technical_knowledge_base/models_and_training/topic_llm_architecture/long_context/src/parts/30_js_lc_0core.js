@@ -1,6 +1,6 @@
 // Long context page: shared helpers for the lab tabs (window.LC). The step controller is RD.anim's, made tab-aware:
 // it registers its redraw on the tab that holds its card, animates only while the card is on screen in the visible
-// tab, plays once when first scrolled into view, and never autoplays under prefers-reduced-motion.
+// tab, and never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.LC=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const $=id=>document.getElementById(id);
@@ -41,7 +41,7 @@ window.LC=(function(){
     q('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     q('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&visible(card)){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onTab(o.tab,()=>{show();kick()});
     show();

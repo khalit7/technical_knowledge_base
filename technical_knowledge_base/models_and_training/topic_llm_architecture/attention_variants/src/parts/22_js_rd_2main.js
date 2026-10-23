@@ -11,7 +11,6 @@
       {logx:true,xt:[8,16,32,64,128,256],ymin:0.3,ymax:1,yt:[0.4,0.6,0.8,0.9,1],yf:v=>Math.round(v*100)+'%',xlab:'directions kept (r), of 512',ylab:'variance kept',label:'variance of keys and values captured by top r directions'});
     $('av-spec-leg').innerHTML=KR.spectrum.map((r,i)=>'<span style="--sw:'+C[i]+'">layer '+r.layer+'</span>').join('');
     const s64=KR.spectrum.map(r=>r.kv['64']),s128=KR.spectrum.map(r=>r.kv['128']),k32=KR.spectrum.map(r=>r.k['32']);
-    $('av-spec-say').innerHTML='Keys and values together span 512 numbers per token per layer, yet 64 directions hold '+(100*Math.min(...s64)).toFixed(1)+'% to '+(100*Math.max(...s64)).toFixed(1)+'% of their variance and 128 hold '+(100*Math.min(...s128)).toFixed(1)+'% to '+(100*Math.max(...s128)).toFixed(2)+'%. Keys alone: 32 directions (what MQA keeps) hold '+Math.round(100*Math.min(...k32))+'% to '+Math.round(100*Math.max(...k32))+'%. Variance is not loss, so the next chart tests it.';
   }
   function conv(){
     const rows=[{label:'MHA as trained (512 numbers)',v:KR.held_out_20win,color:'var(--c1)'}];
@@ -96,7 +95,16 @@
   function code(){const Q=A.code;if(!Q)return;$('av-tfv').textContent=Q.transformers;
     const order=[['tiny_mla_cache','The tiny GPT\'s MLA caches the latent and the RoPE key, not K and V'],['tiny_window','The tiny GPT\'s window and its global layers'],['swa_mask','transformers: the sliding-window mask (W keys, the query included)'],['gemma3_pattern','transformers: Gemma 3\'s default layer pattern (every 6th layer global)'],['gptoss_pattern','transformers: gpt-oss alternates local and global'],['tiny_sink','The tiny GPT\'s learned sink column'],['gptoss_sinks','transformers: gpt-oss concatenates a sink logit per head'],['gptoss_sinks_drop','... and drops it after the softmax'],['qwen3next_gate_split','transformers: Qwen3-Next computes the gate with the query'],['qwen3next_gate_apply','... and applies it before the output projection'],['dsa_relu','transformers: DSA indexer scores use ReLU'],['dsa_topk','... and attention reads the top k'],['diff_lambda_init','transformers: DiffLlama\'s lambda_init'],['diff_combine','... and the subtraction, then the per-head norm']];
     $('av-code').innerHTML=order.filter(([k])=>Q.quotes[k]).map(([k,t])=>{const q=Q.quotes[k];return '<p class="small" style="margin:10px 0 2px"><b>'+esc(t)+'</b>: <code>'+esc(q.file)+'</code> line '+q.line+'</p><pre>'+esc(q.code)+'</pre>'}).join('');}
+  // section 5's closed table: top-k, block and window mass per layer (moved from the Which keys are read tab)
+  let mod='smollm2';
+  function ktable(){const K=window.AVK;if(!K||!$('ky-tab'))return;const S=K.stats[mod];const ks=Object.keys(S.layers[0].topk);
+    let h='<thead><tr><th>Layer</th>'+ks.map(k=>'<th class="num">top '+k+'</th>').join('')+'<th class="num">top 16 without position 0</th><th class="num">top 4 blocks of '+S.block+'</th><th class="num">position 0</th><th class="num">last 64</th><th class="num">last 64 + position 0</th></tr></thead><tbody>';
+    for(const r of S.layers)h+='<tr><td>'+r.layer+'</td>'+ks.map(k=>'<td class="num">'+(100*r.topk[k]).toFixed(0)+'%</td>').join('')+'<td class="num">'+(100*r.topk_no_tok0['16']).toFixed(0)+'%</td><td class="num">'+(100*r.top_blocks['4']).toFixed(0)+'%</td><td class="num">'+(100*r.tok0).toFixed(1)+'%</td><td class="num">'+(100*r.window64).toFixed(0)+'%</td><td class="num">'+(100*r.window64_plus_tok0).toFixed(0)+'%</td></tr>';
+    $('ky-tab').innerHTML=h+'</tbody>';$('ky-say').innerHTML=K.say[mod];}
+  if($('ky-mod'))RD.seg($('ky-mod'),m=>{mod=m;ktable()});
   let done=false;
-  function all(){spec();conv();mla();win();sinks();if(!done){code();done=true}first=false}
+  function all(){spec();conv();mla();win();sinks();ktable();if(!done){code();done=true}first=false}
   RD.onRender(all);RD.onResize(all);all();
+  // charts inside closed blocks were drawn at a fallback width: redraw when a block opens
+  document.querySelectorAll('#t-read details.dp').forEach(d=>d.addEventListener('toggle',()=>{if(d.open)all()}));
 })();

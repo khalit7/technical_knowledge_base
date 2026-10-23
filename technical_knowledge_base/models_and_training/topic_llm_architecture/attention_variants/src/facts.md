@@ -16,3 +16,8 @@
 - DeepSeek-V3 shape at 32,768 tokens, per layer per decoded token: absorbed 9.85 GFLOP over 37.7 MB (260.9 FLOP/B incl. query and output folds); expanded cache 2.68 GFLOP over 2.15 GB; re-expand 1.10 TFLOP.
 - MLA runs (100 windows): at_mla 2.2554, latent 128 2.2205, RoPE key 32 2.2239 (more in out/runs_eval.json).
 - SmolLM2-135M, 1,024 tokens, queries >= 256: top-16 keys hold 75% to 94% of attention in layers 13 to 30; last 64 + token 0 46% to 76%.
+
+## Absorbed 2026-10-23 (from the DeepSeek page's verified text and the root's lab data, sources as cited there)
+- DeepSeek-V4 report (arXiv 2606.19348): CSA m = 4 with overlapping 2m = 8-token blocks (two weight series), top-k 1,024 (Pro) / 512 (Flash), indexer 64 heads of 128 in FP4; HCA m' = 128, no overlap, dense; window 128; shared-KV MQA (64 / 128 heads); query latent 1,024 / 1,536; grouped output 8 / 16 groups to 1,024; partial RoPE on the last 64 dims; sink logit; Flash 43 layers, Pro 61; FP8 entries with BF16 RoPE dims; about 2% of BF16 GQA-8 at 1M; vs V3.2 at 1M: Pro 27% FLOPs and 10% cache, Flash 10% and 7%. V4-Pro config compress_ratios: 30 at 4, 31 at 128 (read 2026-10-18). Derived: 4,939.5 bytes per token (FP4 indexer keys), 1.98% of 249,856; FP8 2.17%, none 1.78%.
+- DeepSeek-V3.2 (arXiv 2512.02556): DSA shipped in V3.2-Exp on 2025-09-29; dense warm-up 1,000 steps (2.1B tokens, model frozen, KL to summed and normalised attention); sparse stage 943.7B tokens, indexer detached; MLA MHA mode for training and prefill, MQA mode for decode (appendix A).
+- Root Attention lab (MPS, fp16, batch 4, 32,768 tokens, one layer at Llama 3.1 8B's shape): MHA 17.49 ms, GQA-8 5.97, MLA absorbed 3.43, MQA 1.54, GQA-8 via repeat_kv 38.13; GQA-2 with repeat instead of repeat_interleave 2.1025 to 2.9907.

@@ -41,11 +41,11 @@
     if(pf)s+=' A short continuation at the longer length fixes what inference-time scaling cannot: with PI and 300 steps at 1,024 tokens the loss is '+pf['0-255'].toFixed(2)+' in the first 256 positions and '+pf['512-1023'].toFixed(2)+' at 512 to 1,023'+(pp?'; with plain RoPE and the same 300 steps, '+pp['512-1023'].toFixed(2)+' at 512 to 1,023 and '+pp['1024-2047'].toFixed(2)+' past the new length':'')+'.';
     const sw=runs.find(r=>r.model==='at_swa64');if(sw)s+=' The sliding-window model (window 64) has no wall: '+sw['0-255'].toFixed(2)+' in range and '+sw['1024-2047'].toFixed(2)+' at 1,024 to 2,047, because it never attends past 64 tokens.';
     s+=' These are local-modelling losses on concatenated short stories: they show the position wall, not whether the model uses distant context (section 3 tests that).';
-    $('ef-text').textContent=s;
+    if($('ef-text'))$('ef-text').textContent=s;
     const pr=$('ef-pr1');pr.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{pr.classList.add('done');pr.querySelectorAll('.opts button').forEach(x=>x.classList.add(x.dataset.ok?'right':'wrong'))}));
     $('ef-pr1-a').textContent='YaRN: '+ya['1024-2047'].toFixed(2)+' at positions 1,024 to 2,047 against '+ya['0-255'].toFixed(2)+' in the trained range; NTK '+nt['1024-2047'].toFixed(2)+', linear x8 '+g('at_mha','linear x8')['1024-2047'].toFixed(2)+', plain '+pl['1024-2047'].toFixed(2)+'. Linear interpolation is the tempting answer because it never shows the model an unseen angle, but it compresses the fine positional detail every token needs (its in-length loss is '+g('at_mha','linear x8')['0-255'].toFixed(2)+' at x8). Published practice agrees: YaRN-style scaling is what gpt-oss (x32 from 4,096) and Qwen3 ship, with continued training at length.';
   }
-  if(E.past&&E.past.learned_error)$('ef-err').textContent='>>> model(ids)   # ref_baseline_s1500, learned positions, 300 tokens\n'+E.past.learned_error;
+  if(E.past&&E.past.learned_error&&$('ef-err'))$('ef-err').textContent='>>> model(ids)   # ref_baseline_s1500, learned positions, 300 tokens\n'+E.past.learned_error;
   // ---------- 2. distance histogram
   function dist(){
     const el=$('ef-dist'),W=LC.width(el),H=150,L=38,R=10,T=8,B=28,n=256,d=+$('ef-d').value;
@@ -71,5 +71,5 @@
     $('ef-hm').innerHTML=h+'</tbody>';
     $('ef-mtext').textContent='SmolLM2-135M, '+((window.LCF&&LCF.map_text)||'')+' * marks lengths past max_position_embeddings.';
   }
-  LC.onTab('t-eff',()=>{chart();dist();map()});LC.onResize($('t-eff'),()=>{chart();dist()});chart();dist();map();
+  LC.onTab('t-read',()=>{chart();dist();map()});LC.onResize($('t-read'),()=>{chart();dist()});chart();dist();map();
 })();

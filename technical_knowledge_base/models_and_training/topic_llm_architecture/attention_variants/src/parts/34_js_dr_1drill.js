@@ -1,4 +1,4 @@
-// Design drill: seven questions; reveals computed with the Cache ladder's arithmetic (AVLC) or read from recorded data (AVR, AVK).
+// Design questions (a closed block in Reading section 8): seven questions; reveals computed with the Cache ladder's arithmetic (AVLC) or read from recorded data (AVR, AVK).
 (function(){
   if(!window.AVL||!window.AVLC||!document.getElementById('dr-list'))return;
   const $=id=>document.getElementById(id),C=window.AVLC,A=window.AVR||{},K=window.AVK||{};
@@ -21,7 +21,7 @@
    {t:'Make an MHA model cheaper to serve, this month',q:'You own a trained MHA model and need a 4x smaller cache. Training budget: a few percent of the original run. Which plan?',
     o:[['Average KV heads into GQA-2 and ship',0],['Average into GQA-2, then uptrain about 5%',1],['Train GQA-2 from scratch',0]],
     a:()=>{const U=A.uptrain;const kr=A.kv_rank;if(!U||!kr)return '<p>pending</p>';const g2=U.rows.find(r=>r.kv_heads===2);const u=s=>g2.uptrain.find(x=>x.steps===s);
-      return '<p>The tiny GPT (held-out 2.137): averaged GQA-2 '+g2.converted_no_training.toFixed(3)+'; after 75 uptraining steps (5%) '+u(75).held_out_20win.toFixed(3)+(u(150)?'; 150 steps '+u(150).held_out_20win.toFixed(3):'')+'; trained from scratch for 1,500 steps '+(run('at_gqa2')?run('at_gqa2').val_loss_20win.toFixed(3):'')+'. <span class="meas">measured</span> Uptraining recovers most of the loss for a twentieth of the cost of training again, but here not all of it; the GQA paper, at T5-XXL scale with 5%, came within 0.1 of MHA\'s average. Plan for a quality check, and for FP8 KV quantisation as the no-training alternative.</p>'}},
+      return '<p>The tiny GPT (held-out 2.137): averaged GQA-2 '+g2.converted_no_training.toFixed(3)+'; after 75 uptraining steps (5%) '+u(75).held_out_20win.toFixed(3)+(u(150)?'; 150 steps '+u(150).held_out_20win.toFixed(3):'')+'; trained from scratch for 1,500 steps '+(run('at_gqa2')?run('at_gqa2').val_loss_20win.toFixed(3):'')+'. <span class="meas">measured</span> Uptraining recovers most of the loss for a twentieth of the cost of training again, but here not all of it; the GQA paper, at T5-XXL scale with 5%, came within 0.1 of MHA\'s average. Plan for a quality check. Alternatives: FP8 or INT4 KV quantisation (no retraining, 2x to 4x), or an SVD-based conversion to an MLA-like latent, which keeps more of the model before uptraining (section 2\'s projection: +0.009 at 128 numbers) but needs MLA kernels to pay off.</p>'}},
    {t:'Pick the window for local layers',q:'Your small model will use all-local layers to bound memory. Training context 256, 6 layers. The tiny GPT\'s sweep: which window is the smallest that stays within seed noise (0.016) of full attention?',
     o:[['16',0],['32',0],['64',1],['128',0]],
     a:()=>{const S=A.window_sweep;if(!S)return '<p>pending</p>';const tr=S.filter(r=>r.served==='as trained'&&!r.global_every);const full=tr.find(r=>!r.trained_window);
@@ -44,5 +44,5 @@
       const a=el.querySelector('.ans');a.hidden=false;a.innerHTML=x.a();
       if(first){answered++;if(b.dataset.ok==='1')right++;$('dr-score').textContent=right+' of '+answered+' answered right so far.'}})});
   }
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-drill']=window.TAB_RENDER['t-drill']||[]).push(init);
+  if(window.RD)RD.onRender(init);
 })();
