@@ -17,7 +17,7 @@ window.POD=(function(){
   return {G,slice};
 })();
 (function(){
-  const tab=document.getElementById('t-pod');if(!tab)return;
+  const tab=document.getElementById('pd-card');if(!tab)return;
   const $=id=>document.getElementById(id);
   const DIMS=[1,2,4,8,12,16,20,24,28,32];const VS=[1e6,4e6,16e6,64e6,256e6,1e9,2e9,4e9,8e9,16.06e9,32e9,64e9,128e9];
   ['pd-x','pd-y','pd-z'].forEach((id,i)=>{$(id).innerHTML=DIMS.map(v=>'<option>'+v+'</option>').join('');$(id).value=String([4,4,4][i])});
@@ -45,17 +45,16 @@ window.POD=(function(){
     const pw=nx*s,ph=ny*s,per=Math.max(1,Math.floor((w-16+gap)/(pw+gap)));
     let h='',x0=8,y0=18;
     for(let z=0;z<show;z++){const px=x0+(z%per)*(pw+gap),py=y0+Math.floor(z/per)*(ph+26);
-      h+=RD.t(px,py-5,(u===4?'cube layer ':'layer z=')+(z+1),{fs:10,fill:'var(--mute)'});
+      h+=RD.t(px,py-5,(u===4?'cube layer ':'layer z=')+(z+1),{fs:11,fill:'var(--mute)'});
       for(let y=0;y<ny;y++)for(let x=0;x<nx;x++)h+='<rect x="'+(px+x*s)+'" y="'+(py+y*s)+'" width="'+(s-1)+'" height="'+(s-1)+'" rx="1" fill="'+(u===4?'var(--acc2)':'var(--soft)')+'" stroke="'+(u===4?'var(--acc)':'var(--mute)')+'" stroke-width=".7"/>';
       if(r.wrap[0]||r.wrap[1])h+='<rect x="'+(px-2.5)+'" y="'+(py-2.5)+'" width="'+(pw+4)+'" height="'+(ph+4)+'" fill="none" stroke="var(--c5)" stroke-dasharray="4 3"/>'}
     const rows=Math.ceil(show/per);const H=y0+rows*(ph+26)+6;
-    h+=RD.t(8,H-6,(u===4?'Each square is a 4 x 4 x 4 cube of 64 chips ('+(nx*ny*nz)+' cubes)':'Each square is one chip')+(nz>show?'; first '+show+' of '+nz+' layers':'')+(r.wrap.some(Boolean)?'; dashed: wraparound':''),{fs:10.5,fill:'var(--mute)'});
+    h+=RD.t(8,H-6,(u===4?'Each square is a 4 x 4 x 4 cube of 64 chips ('+(nx*ny*nz)+' cubes)':'Each square is one chip')+(nz>show?'; first '+show+' of '+nz+' layers':'')+(r.wrap.some(Boolean)?'; dashed: wraparound':''),{fs:11,fill:'var(--mute)'});
     el.innerHTML=RD.svg(w,H+4,h,'Slice layout by layer');
   }
   ['pd-gen','pd-x','pd-y','pd-z','pd-ax0','pd-ax1','pd-ax2'].forEach(id=>$(id).addEventListener('change',draw));
   $('pd-v').addEventListener('input',draw);
   $('pd-pre').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const p=b.dataset.p.split(',');['pd-x','pd-y','pd-z'].forEach((id,i)=>$(id).value=p[i]);draw()});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-pod']=[draw];
-  addEventListener('resize',()=>{if(!tab.hidden)draw()});
+  RD.onRender(draw);RD.onResize(draw);
   draw();
 })();

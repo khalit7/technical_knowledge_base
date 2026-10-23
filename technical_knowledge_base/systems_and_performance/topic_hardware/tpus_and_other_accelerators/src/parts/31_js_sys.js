@@ -1,6 +1,6 @@
 // ---- Systolic array lab tab ----
 (function(){
-  const tab=document.getElementById('t-sys');if(!tab)return;
+  const tab=document.getElementById('sy-card');if(!tab)return;
   const $=id=>document.getElementById(id);
   const MV=[1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384];
   const st={m:13,k:4096,n:14336,r:128,sweep:'kn'};
@@ -26,10 +26,10 @@
     for(let i=0;i<=npts;i++){const v=st.sweep==='kn'?Math.round(X0+(X1-X0)*i/npts):Math.round(Math.pow(2,Math.log2(X0)+(Math.log2(X1)-Math.log2(X0))*i/npts));xs.push(v)}
     const sx=v=>st.sweep==='kn'?pl+(w-pl-pr)*(v-X0)/(X1-X0):pl+(w-pl-pr)*(Math.log2(v)-Math.log2(X0))/(Math.log2(X1)-Math.log2(X0));
     const sy=u=>pt+(h-pt-pb)*(1-u);
-    for(let g=0;g<=4;g++){const y=sy(g/4);body+='<line x1="'+pl+'" x2="'+(w-pr)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/>'+RD.t(pl-4,y+4,(g*25)+'%',{a:'end',fs:10,fill:'var(--mute)'})}
-    const ticks=st.sweep==='kn'?[128,256,384,512,640,768,896,1024]:[1,8,64,512,4096,16384];
-    ticks.forEach(v=>{const x=sx(v);body+='<line x1="'+x+'" x2="'+x+'" y1="'+(h-pb)+'" y2="'+(h-pb+4)+'" stroke="var(--mute)"/>'+RD.t(x,h-pb+15,fmt(v),{a:v===ticks[ticks.length-1]?'end':'middle',fs:10,fill:'var(--mute)'})});
-    body+=RD.t((pl+w-pr)/2,h-4,st.sweep==='kn'?'K = N (with M = 8,192)':'M, tokens per array (log scale; K = 4,096, N = 14,336)',{a:'middle',fs:10.5,fill:'var(--mute)'});
+    for(let g=0;g<=4;g++){const y=sy(g/4);body+='<line x1="'+pl+'" x2="'+(w-pr)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)"/>'+RD.t(pl-4,y+4,(g*25)+'%',{a:'end',fs:11,fill:'var(--mute)'})}
+    const ticks=st.sweep==='kn'?(w<480?[128,384,640,1024]:[128,256,384,512,640,768,896,1024]):(w<480?[1,8,64,512,16384]:[1,8,64,512,4096,16384]);
+    ticks.forEach(v=>{const x=sx(v);body+='<line x1="'+x+'" x2="'+x+'" y1="'+(h-pb)+'" y2="'+(h-pb+4)+'" stroke="var(--mute)"/>'+RD.t(x,h-pb+15,fmt(v),{a:v===ticks[ticks.length-1]?'end':'middle',fs:11,fill:'var(--mute)'})});
+    body+=RD.t((pl+w-pr)/2,h-4,st.sweep==='kn'?'K = N (with M = 8,192)':'M, tokens per array (log scale; K = 4,096, N = 14,336)',{a:'middle',fs:11,fill:'var(--mute)'});
     Rs.forEach((R,j)=>{let d='';xs.forEach((v,i)=>{const t=st.sweep==='kn'?SYS.tiled(8192,v,v,R,R):SYS.tiled(v,4096,14336,R,R);d+=(i?'L':'M')+sx(v).toFixed(1)+' '+sy(t.util).toFixed(1)});
       body+='<path d="'+d+'" fill="none" stroke="'+cols[j]+'" stroke-width="1.8"/>'+RD.t(pl+8+j*96,pt+12,R+' x '+R,{fs:11,w:600,fill:cols[j]})});
     // current point
@@ -56,15 +56,16 @@
   function drawA(i){const el=$('sy-anim');const K=X[0].length,N=W[0].length,M=X.length;const w=RD.width(el);const s=Math.max(16,Math.min(40,Math.floor((w-20)/N)));
     const f=sim.frames[i];let h='';
     for(let k=0;k<K;k++)for(let n=0;n<N;n++){const pe=f.pe[k][n];const c=pe?'hsl('+(200+pe.m*137%160)+',55%,'+(document.documentElement&&matchMedia('(prefers-color-scheme: dark)').matches?'45%':'70%')+')':'var(--soft)';
-      h+='<rect x="'+(10+n*s)+'" y="'+(10+k*s)+'" width="'+(s-2)+'" height="'+(s-2)+'" rx="2" fill="'+c+'" stroke="var(--line)"/>'+(pe&&s>=22?RD.t(10+n*s+s/2-1,10+k*s+s/2+3,'x'+pe.m,{a:'middle',fs:Math.max(8,Math.round(s*0.3))}):'')}
+      h+='<rect x="'+(10+n*s)+'" y="'+(10+k*s)+'" width="'+(s-2)+'" height="'+(s-2)+'" rx="2" fill="'+c+'" stroke="var(--line)"/>'+(pe&&s>=30?RD.t(10+n*s+s/2-1,10+k*s+s/2+4,'x'+pe.m,{a:'middle',fs:11}):'')}
     el.innerHTML=RD.svg(Math.max(w,10+N*s+10),10+K*s+8,h,'Cells busy this cycle');
     let macs=0;for(let j=0;j<=i;j++)macs+=sim.frames[j].act;
-    $('sy-acap').innerHTML='<b>Cycle '+(i+1)+' of '+sim.cycles+'</b> (M + K + N &minus; 2 = '+(M+K+N-2)+'): '+f.act+' of '+(K*N)+' cells busy; each colour is one row of X (label x<i>m</i>) moving right and down as a diagonal band. Multiply-adds so far '+macs+' of '+(M*K*N)+'; whole tile utilisation '+Math.round(100*M*K*N/(K*N*sim.cycles))+'%. Result '+(sim.ok?'<span class="ok">matches the plain matrix multiply</span>':'<span class="bad">does not match</span>')+'.'}
+    $('sy-acap').innerHTML='<b>Cycle '+(i+1)+' of '+sim.cycles+'</b> (M + K + N &minus; 2 = '+(M+K+N-2)+'): '+f.act+' of '+(K*N)+' cells busy; each colour is one row of X moving right and down as a diagonal band. Multiply-adds so far '+macs+' of '+(M*K*N)+'; whole tile utilisation '+Math.round(100*M*K*N/(K*N*sim.cycles))+'%. Result '+(sim.ok?'<span class="ok">matches the plain matrix multiply</span>':'<span class="bad">does not match</span>')+'.'}
   build();
   const A=RD.anim({card:'sy-anim-card',ctl:'sy-actl',n:sim.cycles,ms:700,label:'Cycle',draw:drawA});
   ['sy-am','sy-ak','sy-an'].forEach(id=>$(id).addEventListener('input',()=>{A.reset(build())}));
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-sys']=[()=>{out();A.redraw()}];
-  addEventListener('resize',()=>{if(!tab.hidden){chart();A.redraw()}});
+  RD.onRender(()=>{out();A.redraw()});
+  RD.onResize(()=>{chart();A.redraw()});
+  $('sy-det').addEventListener('toggle',()=>{if($('sy-det').open)A.redraw()});
   out();
   window.__tpuSys={tiled:SYS.tiled,reads:reads,simulate:SYS.simulate};
 })();

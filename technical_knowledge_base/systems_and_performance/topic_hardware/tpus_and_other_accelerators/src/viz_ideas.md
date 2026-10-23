@@ -13,6 +13,17 @@ The question the page keeps returning to: **how many times is each operand fetch
 | 6 | **Chips needed to hold the weights** (Llama 3.1 8B/70B/405B, bf16 or 8-bit) for Groq TSP, Groq 3 LPU, WSE-3, H100, B200, MI355X, TPU7x | Reading s7 | 11 | HF safetensors parameter counts; reproduces Cerebras's "70B models fit on as few as four systems" independently (141.1 GB / 44 GB -> 4) |
 | 7 | Predict-then-reveal: fetches per weight (8,192), QK^T head-dim 128 on a 256 array (half) | Reading | 7 | Derived |
 
+## Rebuild of 2026-10-23 (teaching contract)
+| # | Idea | Placement | Data and checks |
+|---|---|---|---|
+| 8 | **Hero: memory per chip (log, HBM against SRAM, Llama 3.1 70B bf16 marked) beside chips per fast fabric (log)** for B200, TPU7x, MI355X, Trainium2, Gaudi 3, Groq 3 LPU, WSE-3 | Reading top | Numbers quoted in sections 3 to 9; GiB conversions in recompute.py; check_ui logs the page's values |
+| 9 | **AMD 8-GPU board against an NVSwitch board** (toggle: all-reduce uses 7 links, one copy uses 1) | Reading s5 | CDNA 3 and 4 white papers' link rates; 28 links derived |
+| 10 | **Cerebras weight streaming**, static annotated diagram (was rejected as an animation: no timings) | Reading s8 | Cerebras training docs; nothing drawn to scale |
+| 11 | **Photos**: TPU v4 package and board (s2), eight racks of a v4 pod (s4), CC BY 4.0 | Reading | img/CREDITS.md |
+| moved | Systolic array lab (#2) and Pod builder (#5) | from own tabs into Reading s1 and s4 | each explained one mechanism; the cycle-by-cycle simulator is a closed block |
+
+Rejected in the rebuild: a Gaudi output-stationary animation (section 1's weight-stationary animation already shows the systolic idea; one sentence names the difference); a SambaNova dataflow animation (no published schedule); photos of Cerebras, Groq, AMD or Trainium hardware (none openly licensed on Wikimedia Commons).
+
 ## Rejected
 - **Output-stationary and row-stationary dataflow toggles** (Eyeriss): would teach dataflow taxonomy but the page's chips are all weight-stationary per their docs; adds a second mechanism with no published figure to reproduce.
 - **A TPU-vs-GPU spec comparison tab**: the root's Chip atlas already holds every chip, dense and sparse, with prices; linked instead.
