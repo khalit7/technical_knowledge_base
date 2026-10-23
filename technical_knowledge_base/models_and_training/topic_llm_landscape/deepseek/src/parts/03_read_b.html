@@ -1,45 +1,7 @@
 
 <section id="s-csa">
-<h3 style="font-size:17px">Compressed attention in V4: CSA and HCA</h3>
-<p>V4 (<a href="https://arxiv.org/pdf/2606.19348" target="_blank" rel="noopener noreferrer">DeepSeek-V4 report</a>) changes what is <i>stored</i>, not only what is read, with two attention types interleaved through the stack.</p>
-<p><b>Compression.</b> Each layer computes per-token KV entries <span class="m"><i>C<sub>j</sub></i></span> of dimension <span class="m"><i>c</i> = 512</span> and a compression weight for each, then merges every block of tokens into one entry:</p>
-<div class="fm"><math display="block"><msubsup><mi>C</mi><mi>i</mi><mtext>Comp</mtext></msubsup><mo>=</mo><munder><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><mtext>block</mtext><mspace width="0.25em"/><mi>i</mi></mrow></munder><msub><mi>S</mi><mi>j</mi></msub><mo>⊙</mo><msub><mi>C</mi><mi>j</mi></msub></math><math display="block"><msub><mi>S</mi><mrow><mtext>block</mtext><mspace width="0.25em"/><mi>i</mi></mrow></msub><mo>=</mo><msub><mi>Softmax</mi><mtext>row</mtext></msub><mrow><mo>(</mo><msub><mi>Z</mi><mrow><mtext>block</mtext><mspace width="0.25em"/><mi>i</mi></mrow></msub><mo>+</mo><mi>B</mi><mo>)</mo></mrow></math>
-<dl><dt>Z<sub>j</sub> = W<sup>Z</sup>h<sub>j</sub></dt><dd>learned compression logits</dd><dt>B</dt><dd>a learned per-position bias within the block</dd><dt>Softmax<sub>row</sub></dt><dd>runs across the tokens of the block, separately for each channel</dd><dt>⊙</dt><dd>elementwise product</dd></dl>
-<p class="wh">The compressed entry is a learned weighted average of the block, channel by channel.</p></div>
-<ul>
-<li><b>CSA (Compressed Sparse Attention)</b> compresses every <span class="m"><i>m</i> = 4</span> tokens into one entry, with overlapping blocks (each entry is built from 2<i>m</i> = 8 tokens through two weight series), then applies DSA to the compressed entries: the lightning indexer scores them and each query attends to the top-k only, 512 in V4-Flash and 1,024 in V4-Pro. The indexer has 64 heads of dimension 128 and runs in FP4.</li>
-<li><b>HCA (Heavily Compressed Attention)</b> compresses every <span class="m"><i>m′</i> = 128</span> tokens into one entry, without overlap, and attends densely to all of them.</li>
-</ul>
-<p>Both add the same four pieces around the compressed entries:</p>
-<ul>
-<li><b>A sliding window of <span class="m"><i>n</i><sub>win</sub> = 128</span> uncompressed recent tokens.</b> A query may only attend to <i>completed</i> blocks, so without the window it could not see the tokens in its own unfinished block, which are usually the most relevant ones.</li>
-<li><b>Shared-KV multi-query attention.</b> Each entry serves as both key and value for every query head (64 heads in Flash, 128 in Pro), the MQA shape MLA already used in decode.</li>
-<li><b>Low-rank queries and a grouped output projection.</b> Queries come from a compressed latent (dimension 1,024 in Flash, 1,536 in Pro), MLA's query trick; the heads' outputs are projected in 8 (Flash) or 16 (Pro) groups to 1,024 dimensions each before the final projection, because <span class="m"><i>c</i> · <i>n<sub>h</sub></i></span> is large.</li>
-<li><b>Partial RoPE and an attention sink.</b> RoPE is applied to the last 64 dimensions of queries and entries, and, because an entry is also a value, the output is rotated back by the query's position so that it carries relative rather than absolute position. A learned sink logit per head lets the attention weights sum to less than one.</li>
-</ul>
-<p><b>Layout and storage.</b> V4-Flash has 43 layers, the first two pure sliding-window, the rest alternating CSA and HCA; V4-Pro has 61, the first two HCA, the rest alternating. Entries are stored in FP8 except the 64 RoPE dimensions, which stay BF16, nearly halving the cache against pure BF16.</p>
-<p><b>Reported efficiency.</b> Against BF16 GQA with 8 groups and head dimension 128, DeepSeek report the V4 cache at about 2% at a 1M-token context. Against V3.2 at 1M tokens, V4-Pro needs 27% of the single-token FLOPs and 10% of the KV cache, and V4-Flash 10% and 7% (<a href="https://arxiv.org/pdf/2606.19348" target="_blank" rel="noopener noreferrer">V4 report</a>).</p>
-<p><b>Worked example: reproducing the 2%.</b> An estimate from the configuration above, with two stated inputs: how V4-Pro's 59 alternating layers split between CSA and HCA, which its <a href="https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/blob/main/config.json" target="_blank" rel="noopener noreferrer">config.json</a> confirms (<code>compress_ratios</code>: 30 layers at 4, 31 at 128, read 2026-10-18), and the precision of the indexer keys, which remains an assumption.</p>
-<p class="try"><b>Try:</b> the defaults (30 CSA and 29 HCA, so 31 HCA with the first two; indexer keys at FP4, half a byte per dimension) reproduce the reported figure. Change either input: FP8 indexer keys give 2.17% and none 1.78%, so the reported "about 2%" is robust to it.</p>
-<div class="card"><div class="ctl">
-<label>Indexer key precision <select id="v4Ix" style="width:100%"><option value="0.5" selected>FP4 (0.5 byte per dimension)</option><option value="1">FP8 (1 byte)</option><option value="0">Not stored</option></select></label>
-<label>Split of the 59 alternating layers <select id="v4Sp" style="width:100%"><option value="30" selected>30 CSA, 29 HCA</option><option value="29">29 CSA, 30 HCA</option></select></label></div>
-<ol class="small" id="v4Steps" style="margin:6px 0"></ol>
-<div class="out" id="v4Out"></div></div>
-<p><b>Stored against read.</b> This is the distinction that separates the three generations: dense attention reads everything it stores; DSA stores everything and reads a few; compression stores less.</p>
-<p class="try"><b>Try:</b> at 1M tokens the bars match the table below. Drop the context to 8K: below <i>k</i> = 2,048 there is nothing for DSA to skip, and the dense cache is already small.</p>
-<div class="card"><div class="ctl"><label>Context: <b id="srTv">1,000,000 tokens</b><input type="range" id="srT" min="0" max="7" value="7"></label>
-<label>CSA top-k <select id="srK" style="width:100%"><option value="1024" selected>1,024 (V4-Pro)</option><option value="512">512 (V4-Flash)</option></select></label></div>
-<div id="srBars"></div>
-<div class="leg"><span><i style="background:var(--dim)"></i>entries stored (resident)</span><span><i style="background:var(--acc)"></i>entries read per decoded token</span><span>Per layer, log scale.</span></div></div>
-<div class="tw"><table>
-<tr><th>Attention, per layer at 1M tokens</th><th class="num">Entries stored</th><th class="num">Read per decoded token</th><th>Exact?</th></tr>
-<tr><td>MHA, GQA or MLA (dense)</td><td class="num">1,000,000</td><td class="num">1,000,000</td><td>Yes (MLA up to its low-rank bottleneck)</td></tr>
-<tr><td>DSA (V3.2)</td><td class="num">1,000,000</td><td class="num">2,048, plus the indexer scoring all 1,000,000</td><td>No: selection</td></tr>
-<tr><td>CSA (V4-Pro)</td><td class="num">250,000 compressed + 128 in the window</td><td class="num">1,024 + 128</td><td>No: compression and selection</td></tr>
-<tr><td>HCA (V4)</td><td class="num">7,813 compressed + 128 in the window</td><td class="num">All 7,941</td><td>No: heavy compression</td></tr>
-</table></div>
-<p>Sparse selection still needs the whole cache resident so that something can be selected from it, whereas compression shrinks what is resident. HCA reads every one of its entries, yet reads fewer than DSA stores by two orders of magnitude, because there are so few of them. Running both gives a cache that is precise nearby (the window, and CSA's fine blocks chosen by the indexer) and cheap far away (HCA's coarse summaries of everything).</p>
+<h3 style="font-size:17px">CSA and HCA (V4): store less</h3>
+<p>V4 (<a href="https://arxiv.org/pdf/2606.19348" target="_blank" rel="noopener noreferrer">DeepSeek-V4 report</a>) shrinks what is stored, not only what is read. <b>CSA</b> layers merge every 4 tokens into one entry and run DSA's selection over the merged entries (top 1,024 in V4-Pro, 512 in V4-Flash); <b>HCA</b> layers merge every 128 tokens and read all of them; both keep a 128-token exact window. V4-Pro interleaves 30 CSA and 31 HCA layers. DeepSeek report the cache at about 2% of BF16 GQA-8 at 1M tokens (a baseline already 16 times smaller than MHA), and, against V3.2 at 1M tokens, 10% of the cache and 27% of the single-token FLOPs for V4-Pro, 7% and 10% for V4-Flash. <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a> reproduces the 2% from the config and shows stored against read per layer; <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv" target="_blank" rel="noopener noreferrer">Long context</a> sets every DeepSeek generation side by side against context length.</p>
 </section>
 
 <section id="s-enc">

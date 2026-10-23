@@ -24,7 +24,7 @@
     S_('6. The K3 stack','K3 keeps 24 such layers and makes the other 69 KDA. An all-MLA 93-layer stack of the same shape would store 93 × 576 = 53,568 numbers per token; K3 stores 13,824 per token plus 69 fixed states, a 74.0% cut at 1M tokens counted in numbers (73.8% in bytes with an FP32 state).')];
   const WIDE={W:720,H:372,ht:[14,52],proj:[84,64,100,52],grid:[262,62],right:[478,44,232,236],lat:[214,62],cache:[258,40,452,206],qd:[84,214],bars:[14,322]};
   const NAR={W:360,H:600,ht:[10,40],proj:[78,46,104,48],grid:[118,152],right:[10,320,340,190],lat:[198,40],cache:[10,140,340,176],qd:[10,334],bars:[10,550]};
-  const st={m:'kda',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
+  const st={m:'kda',k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
   const steps=()=>st.m==='kda'?SK:SM;
   const cl=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v),lerp=(a,b,u)=>a+(b-a)*u;
   // toy head state (illustrative values, real layout): 16 x 16 squares, each one 8 x 8 numbers
@@ -146,7 +146,7 @@
   $('kxScrub').addEventListener('input',e=>{pause();const n=steps().length,v=+e.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl(v/100-st.k);if(v>=n*100){st.k=n-1;st.t=1}draw()});
   $('kxSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   const seg=$('kxM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM&&!st.play){st.play=true}draw();kick()}));
+    st.m=b.dataset.m;st.k=0;st.t=1;pause();draw()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=0;addEventListener('resize',()=>{const w=card.clientWidth<600;if(w!==rw){rw=w;draw()}});rw=card.clientWidth<600;

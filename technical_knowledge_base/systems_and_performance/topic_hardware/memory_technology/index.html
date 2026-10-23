@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Memory technology: HBM, GDDR, SRAM, capacity against bandwidth, the KV cache</h1>
-<div class="sub">Why the memory, not the arithmetic, sets the speed of most ML work: how a DRAM cell and an SRAM cell store a bit, how HBM, GDDR7 and LPDDR are packaged and why bandwidth costs power, the ladder from registers to SSD measured on this laptop's GPU, what the weights and the KV cache need on real model configs, and offload and tiering. A child of <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a>. Data as of October 2026.</div>
+<div class="sub">Why the memory, not the arithmetic, sets the speed of most ML work: how a DRAM cell and an SRAM cell store a bit, how HBM, GDDR7 and LPDDR are packaged and why bandwidth costs power, the ladder from registers to SSD measured on this laptop's GPU, what the weights and the KV cache need on real model configs, and offload and tiering. A child of <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Topic: hardware</a>. Data as of October 2026. Reading: 25 min, plus 2 in closed details.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-lab" aria-selected="false">Memory lab</button><button role="tab" data-t="t-kv" aria-selected="false">KV cache across models</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-lab" aria-selected="false">Memory lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -310,17 +310,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <h2>6. What lives in memory: weights, training state, the KV cache</h2>
 <p><b>Weights and training state.</b> Serving needs the weights: 2 bytes per parameter in BF16, 1 in FP8, about 0.5 in 4-bit formats (plus their scales). Training with mixed-precision Adam needs about 16 bytes per parameter (BF16 weights and gradients, FP32 master weights and two FP32 moments) plus activations: 128.5 GB of state for Llama 3.1 8B, more than one 80 GB H100 holds. The parent's <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Performance calculator</a> computes these for any model and recipe; <a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a> derives them. This section is about the one item whose size depends on the conversation, not the model.</p>
 <p><b>The KV cache.</b> When a transformer generates token <i>t</i>, each attention layer compares its query with the keys of all earlier tokens and mixes their values. Recomputing every earlier key and value at every step would repeat the whole prefix, so they are kept in memory: the <dfn id="g-kv">KV cache</dfn>. Its size is fixed by the attention layout in <code>config.json</code>:</p>
-<div class="fm"><div class="eq">KV bytes per token = 2 &times; layers &times; KV heads &times; head dimension &times; bytes per value</div>
-<dl><dt>2</dt><dd>one key and one value vector</dd><dt>KV heads</dt><dd>32 for Llama 2 7B (one per query head, "MHA"); 8 for Llama 3.1 8B (grouped-query attention, "GQA": 4 query heads share each KV head)</dd></dl></div>
-<p>Llama 3.1 8B: 2 &times; 32 &times; 8 &times; 128 &times; 2 bytes = <b>128 KiB per token</b>; a 32,768-token conversation holds 4.29 GB, a quarter of the weights; 4 such conversations hold more than the weights. Llama 2 7B, with 32 KV heads, needs 512 KiB per token: 17.18 GB at the same 32K context <span class="der">derived from config.json</span>.</p>
-<p>Architectures since 2023 attack this number in four ways, each a different trade:</p>
-<div class="mech">
-<div><b>Fewer KV heads (GQA, MQA)</b>Share each key/value head among several query heads: 8 KV heads in Llama 3.1, 4 in Qwen3 235B, 1 in multi-query attention. 4&times; to 32&times; less cache than MHA.</div>
-<div><b>Compress the cache (MLA)</b>DeepSeek's multi-head latent attention caches one 512-value latent plus a 64-value RoPE key per layer instead of full keys and values: (d<sub>c</sub> + d<sub>h</sub><sup>R</sup>) &times; layers (<a href="https://arxiv.org/html/2405.04434v5" target="_blank" rel="noopener noreferrer">DeepSeek-V2, Table 1</a>). DeepSeek-V3: 68.6 KiB per token for a 671B model. Animated on the <a href="https://app.notion.com/p/3c65c17b0d0d81a2ae7ec6796947a235" target="_blank" rel="noopener noreferrer">DeepSeek page</a>.</div>
-<div><b>Forget old tokens (sliding windows)</b>Some layers attend only to the last W tokens and keep only those: every layer of Mistral 7B v0.1 (W = 4,096), five of every six layers of Gemma 3 (W = 1,024), half the layers of gpt-oss (W = 128). The cache of those layers stops growing.</div>
-<div><b>Replace attention (linear and state-space layers)</b>Qwen3-Next uses Gated DeltaNet in three of every four layers: a fixed-size state per sequence instead of a growing cache. Only 12 of its 48 layers keep a KV cache: 24 KiB per token.</div>
-</div>
-<div class="co"><div class="t">The same conversation on thirteen real configs</div>The <a href="#" data-tab="t-kv">KV cache across models</a> tab computes the cache of 13 released models from their <code>config.json</code> at any context, animates one conversation growing on the architecture you pick (drawn to scale against the weights), and counts how many such conversations fit on a chosen GPU after the weights.</div>
+<p>Per token it costs 2 (key and value) &times; layers &times; KV heads &times; head dimension &times; bytes per value. Llama 3.1 8B (8 KV heads, grouped-query attention): 2 &times; 32 &times; 8 &times; 128 &times; 2 bytes = <b>128 KiB per token</b>; a 32,768-token conversation holds 4.29 GB, a quarter of the weights; 4 such conversations hold more than the weights <span class="der">derived from config.json</span>. Architectures since 2023 shrink this number four ways, each a trade: fewer KV heads, a compressed latent, sliding windows, recurrent layers (<a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a> explains each). The <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv" target="_blank" rel="noopener noreferrer">KV-cache calculator</a> sizes the cache of 45 released models at any context against the weights and a chosen GPU's memory, including how many conversations fit.</p>
 <p><b>Quantising the cache.</b> Storing keys and values in FP8 halves the cache; vLLM's <code>cache_dtype</code> option does it (<a href="https://github.com/vllm-project/vllm/blob/74c5cbcd7b6fa07fa5568ba7f7dfbfedc502964e/vllm/config/cache.py" target="_blank" rel="noopener noreferrer">vLLM cache config</a>). Quality effects are on <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>.</p>
 <p><b>Allocating the cache.</b> A server does not know how long each answer will be. Reserving the maximum length per request wasted most of the memory: in the systems measured by the PagedAttention paper only 20.4% to 38.2% of KV memory held actual tokens. vLLM stores the cache in fixed blocks (default 16 tokens) allocated on demand, limiting waste to one partly filled block per request, and improved throughput 2 to 4&times; (<a href="https://arxiv.org/abs/2309.06180" target="_blank" rel="noopener noreferrer">Kwon et al. 2023</a>). The same idea as virtual memory pages (<a href="https://app.notion.com/p/3f05c17b0d0d81a48892cea154ce950b" target="_blank" rel="noopener noreferrer">Virtual memory</a>). By default vLLM claims 92% of GPU memory for weights, activations and these blocks (<code>gpu_memory_utilization = 0.92</code> in the source above). The before/after animation of contiguous against paged allocation is on the <a href="https://app.notion.com/p/3c65c17b0d0d81bf8b90ca93fee19f5f" target="_blank" rel="noopener noreferrer">PagedAttention paper page</a> (tab "Simulate the KV cache").</p>
 <h3>Decode is bound by these bytes</h3>
@@ -435,67 +425,13 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 </div>
 <p class="small mute">Reproduce: <code>src/run_all.sh</code> (needs a Python with MLX; three GPU runs of about 15 seconds each, then the SSD test and <code>code/build_data.py</code>). Raw outputs in <code>src/out/</code>. The laptop was shared with other jobs during the runs (load averages in the box above), so single slow trials appear in the spreads.</p>
 </div>
-<div class="tab" id="t-kv" role="tabpanel" hidden>
-<style>
-#t-kv .kv-chart{width:100%;overflow:hidden;margin:6px 0}
-#t-kv .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-kv .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
-#t-kv .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
-#t-kv .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-kv .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}#t-kv .an-ctl select{padding:3px 6px}#t-kv .an-play{min-width:6.4em}
-#t-kv .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
-#t-kv .an-cap .t{font-weight:600;font-size:14px}#t-kv .an-cap p{margin:2px 0;font-size:13.5px}
-#t-kv .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
-#t-kv .an-cnt .stat .v{font-size:15px}
-#t-kv .der{font-size:11.5px;color:var(--c5);font-weight:600}
-#t-kv .ctl select{width:100%}
-</style>
-<p class="lead" style="margin-top:14px">The KV cache of thirteen released models, computed from their <code>config.json</code> files, and what it does to a GPU's memory. Every model's cache follows one rule: keys and values per token per layer, times the layers that keep them, times the tokens they keep. <span class="der">derived from config.json</span></p>
-
-<h3>1. One conversation grows (before/after on the same input)</h3>
-<p>The same conversation, from 1K to 128K tokens, on one model at a time, drawn to scale inside one GPU's memory with the model's weights. Switch the architecture and replay: the conversation is the same; only how the model stores it changes.</p>
-<div class="card" id="kv-an-card">
-<div class="seg" id="kv-an-model"></div>
-<div class="ctl"><label>GPU <select id="kv-an-chip"></select></label></div>
-<div class="kv-chart" id="kv-an-svg"></div>
-<div class="an-cap" id="kv-an-cap"></div>
-<div class="an-ctl" id="kv-an-ctl"></div>
-<div class="an-cnt" id="kv-an-cnt"></div>
-<p class="small mute">One GPU's memory to scale; the weights are bytes as released (a model larger than the GPU overflows the bar: it needs several GPUs). KV in BF16. Decode time per token at batch 1 = (weights + this conversation's cache) / bandwidth, a ceiling that ignores everything else <span class="der">derived</span>.</p>
-</div>
-
-<h3>2. KV cache against context, all thirteen</h3>
-<div class="card" id="kv-c-card">
-<div class="seg" id="kv-c-pick"></div>
-<div class="kv-chart" id="kv-c-svg"></div>
-<p class="small mute">One sequence, BF16 cache, log scales. Lines that bend flat are windows filling (Mistral at 4,096 tokens) or layers whose cache stops growing (Gemma 3's local layers at 1,024; gpt-oss's at 128); Qwen3-Next starts above zero because of its fixed linear-attention state (assumed 2 bytes per value).</p>
-</div>
-<div class="tw"><table class="tbl-sm" id="kv-tbl"></table></div>
-<p class="small mute" id="kv-tbl-note"></p>
-
-<h3>3. How many conversations fit</h3>
-<div class="card" id="kv-p-card">
-<div class="ctl">
-<label>Model <select id="kv-p-model"></select></label>
-<label>GPU <select id="kv-p-chip"></select></label>
-<label>GPUs <b id="kv-p-nv">8</b><input type="range" id="kv-p-n" min="1" max="72" value="8"></label>
-<label>Context per conversation <b id="kv-p-cv">32,768</b> tokens<input type="range" id="kv-p-ctx" min="10" max="18" value="15" step="0.5"></label>
-<label>KV format <select id="kv-p-kvb"><option value="2">BF16 / FP16 (2 bytes)</option><option value="1">FP8 (1 byte)</option></select></label>
-<label>Weights <select id="kv-p-ws"><option value="1">as released</option><option value="0.5">half the bytes (e.g. BF16 to FP8)</option><option value="0.25">a quarter (e.g. BF16 to 4-bit)</option></select></label>
-<label>Memory the server may use <b id="kv-p-uv">92%</b><input type="range" id="kv-p-u" min="50" max="100" value="92"></label>
-</div>
-<div class="out" id="kv-p-out"></div>
-<div class="bars" id="kv-p-bar"></div>
-<p class="small mute" id="kv-p-note"></p>
-</div>
-<p class="small mute">Assumptions, all ceilings: memory = GPUs &times; capacity &times; the fraction the server may use (vLLM's default <code>gpu_memory_utilization</code> is 0.92), minus the weights, split evenly; activations and the CUDA context are not modelled beyond that fraction. A decode step reads every weight byte once and every sequence's cache once, at the GPUs' combined bandwidth; real servers land below it, and a mixture-of-experts model reads fewer weight bytes at small batch (the parent's <a href="https://app.notion.com/p/3c65c17b0d0d8118beeefaed56da6f8e" target="_blank" rel="noopener noreferrer">Performance calculator</a> models expert routing and tensor-parallel communication; this tab does not). The JavaScript is checked against <code>code/build_data.py</code> on 1,170 cases.</p>
-</div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more">
 <p class="lead" style="margin-top:14px">The tabs of this page, the knowledge base pages it leans on, and the best outside resources, each with an approximate time. Links checked on 2026-10-05.</p>
 <h3>This page</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="#" data-tab="t-lab">Memory lab</a></div><p>This laptop's GPU measured: bandwidth and latency at every working-set size, random blocks, decode attention against the KV cache, the SSD. <span class="rt">15 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-kv">KV cache across models</a></div><p>Thirteen released configs: one conversation growing on each architecture, KV against context, and how many conversations fit on a GPU. <span class="rt">15 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv" target="_blank" rel="noopener noreferrer">KV-cache calculator (Long context)</a></div><p>The cache of 45 released models at any context, against the weights and any GPU's memory, with how many conversations fit; it replaced this page's own KV tab on 2026-10-23.</p></div>
 </div>
 <h3>The parent and siblings</h3>
 <div class="grid">
@@ -542,7 +478,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <script>/* 21_js_rd_common.js */
 // ---- Reading tab: shared helpers, copied from Topic: hardware and the step-animation controller (play, pause, step, scrub, speed) ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -573,7 +509,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -774,7 +710,7 @@ window.BANKSIM=function(mode,P){
     cnt.innerHTML=RD.stat('Time',tn+' ns','of '+sim.end+' ns for all 16')+RD.stat('Rows opened',acts,'activates')+RD.stat('Bytes opened / used',MC.fmtN(acts*P.row/1024,0)+' KB / '+MC.fmtN(k*P.req/1024,2)+' KB','activation energy follows rows opened')+RD.stat('Effective rate',k?MC.fmtN(k*P.req/tn,2)+' GB/s':'-','bytes delivered / time');
   }
   const A=RD.anim({card:'rd-bank-card',ctl:'rd-bank-ctl',n:P.n+1,draw,ms:700,label:'Read'});
-  RD.seg(document.getElementById('rd-bank-mode'),m=>{mode=m;sim=BANKSIM(mode,P);A.reset(P.n+1);A.play()});
+  RD.seg(document.getElementById('rd-bank-mode'),m=>{mode=m;sim=BANKSIM(mode,P);A.reset(P.n+1)});
   RD.onResize(()=>A.redraw());
 })();
 </script>
@@ -826,85 +762,6 @@ window.BANKSIM=function(mode,P){
   let t=0;addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(all,80)});
 })();
 </script>
-<script>/* 32_js_kv.js */
-// ---- KV cache across models tab (t-kv) ----
-// KVM.kvSeq and KVM.plan mirror kv_seq() and plan() in code/build_data.py; check/check_js.mjs compares them.
-window.KVM={
-  kvSeq:(m,ctx,kvb)=>kvb*(m.el*m.full*ctx+m.el*m.slide*Math.min(ctx,m.window))+m.fixed,
-  plan(m,chip,n,util,ctx,kvb,wscale){
-    const mem=chip.gb*1e9*n*util,w=m.wbytes*wscale,s=KVM.kvSeq(m,ctx,kvb);
-    const fit=mem>w?Math.floor((mem-w)/s):0,b=Math.max(fit,1);
-    const t1=(w+s)/(chip.tbs*1e12*n),tb=(w+b*s)/(chip.tbs*1e12*n);
-    return {fit,w,s,free:mem-w,t1_ms:t1*1e3,tb_ms:tb*1e3,user_tps:1/tb,agg_tps:b/tb};
-  }
-};
-(function(){
-  const D=MEMD,MS=D.models,CH=D.chips,byId={};MS.forEach(m=>byId[m.id]=m);const chipBy={};CH.forEach(c=>chipBy[c.id]=c);
-  const reg=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-kv']=window.TAB_RENDER['t-kv']||[]).push(f)};
-  const live=()=>{const t=document.getElementById('t-kv');return t&&!t.hidden};
-  const pal6=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)'];
-  const sty=i=>({color:pal6[i%6],dash:i>=12?'2 3':i>=6?'7 4':null});
-  const kindTxt={mha:'MHA',gqa:'GQA',swa_all:'GQA + sliding window',gemma3:'local/global windows',alt:'alternating window/full',qnext:'hybrid linear + full',mla:'MLA'};
-  const GB=b=>MC.gb(b);
-  // ---------- 1. animation ----------
-  const anIds=['l2','l8','mis','g27','oss','qn','ds3'];let anM=byId.l8;const CTX=[1024,2048,4096,8192,16384,32768,65536,131072];
-  const segM=document.getElementById('kv-an-model');segM.innerHTML=anIds.map(id=>'<button data-m="'+id+'"'+(id==='l8'?' class="on"':'')+'>'+byId[id].name+'</button>').join('');
-  const selC=document.getElementById('kv-an-chip');selC.innerHTML=CH.map(c=>'<option value="'+c.id+'"'+(c.id==='h100'?' selected':'')+'>'+c.name+' ('+c.gb+' GB, '+(+c.tbs.toPrecision(3))+' TB/s)</option>').join('');
-  const svgA=document.getElementById('kv-an-svg');
-  function drawA(k){const chip=chipBy[selC.value],ctx=CTX[k],W=RD.width(svgA),H=96,L=4,R=4;
-    const cap=chip.gb*1e9,w=anM.wbytes,kv=KVM.kvSeq(anM,ctx,2);const scale=(W-L-R)/Math.max(cap,w+kv);
-    let s='<rect x="'+L+'" y="22" width="'+(cap*scale)+'" height="34" rx="4" style="fill:var(--soft);stroke:var(--mute)"/>';
-    s+='<rect x="'+L+'" y="22" width="'+(w*scale)+'" height="34" style="fill:var(--c4);opacity:.75"/>';
-    s+='<rect x="'+(L+w*scale)+'" y="22" width="'+Math.max(1,kv*scale)+'" height="34" style="fill:var(--c2)"/>';
-    s+=RD.t(L,15,chip.name+': '+chip.gb+' GB',{fs:11,fill:'var(--mute)'});
-    s+=RD.t(L,74,'weights '+GB(w),{fs:11,fill:'var(--c4)'})+RD.t(Math.min(W-R,L+(w+kv)*scale),90,'KV '+GB(kv),{a:'end',fs:11,fill:'var(--c2)'});
-    if(w+kv>cap)s+=RD.t(W-R,15,'does not fit on one GPU',{a:'end',fs:11,fill:'var(--bad)'});
-    svgA.innerHTML=RD.svg(W,H,s,'Memory of one GPU');
-    const p=KVM.plan(anM,chip,1,0.92,ctx,2,1);const tok=(w+kv)/(chip.tbs*1e12)*1e3;
-    let txt=anM.name+' ('+kindTxt[anM.kind]+'): '+anM.note+'.';
-    if(anM.slide&&ctx>anM.window)txt+=' Past '+MC.fmtN(anM.window,0)+' tokens the windowed layers stop growing; only '+anM.full+' of '+anM.L+' layers keep every token.';
-    if(anM.kind==='swa_all'&&ctx>anM.window)txt+=' Every layer is windowed, so the cache is now constant: the model can no longer attend to the start of the conversation directly.';
-    if(anM.fixed)txt+=' The '+MC.fmtN(anM.fixed/1e6,1)+' MB linear-attention state is the same at every length.';
-    document.getElementById('kv-an-cap').innerHTML='<div class="t">'+MC.fmtN(ctx,0)+' tokens</div><p>'+txt+'</p>';
-    document.getElementById('kv-an-cnt').innerHTML=RD.stat('KV cache, this conversation',GB(kv),MC.fmtN(kv/ctx/1024,1)+' KiB per token on average')+
-      RD.stat('KV / weights',(kv/w*100<0.1?(kv/w*100).toPrecision(2):MC.fmtN(kv/w*100,kv/w<0.1?1:0))+'%','')+RD.stat('Batch-1 decode ceiling',w+kv>cap?'-':MC.fmtN(1000/tok,0)+' tok/s',w+kv>cap?'needs more GPUs':MC.fmtN(tok,2)+' ms per token')+
-      RD.stat('Such conversations that fit',p.fit,'at 92% of '+chip.gb+' GB');
-  }
-  const A=RD.anim({card:'kv-an-card',ctl:'kv-an-ctl',n:CTX.length,draw:drawA,ms:1100,label:'Context'});
-  RD.seg(segM,id=>{anM=byId[id];A.reset(CTX.length);A.play()});selC.addEventListener('change',()=>A.redraw());
-  // ---------- 2. chart and table ----------
-  const pick=new Set(['l2','l8','mis','g27','oss','qn','ds3','l70']);const segP=document.getElementById('kv-c-pick');
-  segP.innerHTML=MS.map(m=>'<button data-m="'+m.id+'"'+(pick.has(m.id)?' class="on"':'')+'>'+m.name+'</button>').join('');
-  segP.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const id=b.dataset.m;if(pick.has(id)){if(pick.size>1)pick.delete(id)}else pick.add(id);b.classList.toggle('on',pick.has(id));drawC()});
-  const xs=[];for(let e=8;e<=18;e+=0.5)xs.push(Math.round(Math.pow(2,e)));
-  function drawC(){const ser=MS.filter(m=>pick.has(m.id)).map(m=>({name:m.name,color:sty(MS.indexOf(m)).color,dash:sty(MS.indexOf(m)).dash,pts:xs.map(c=>({x:c,y:KVM.kvSeq(m,c,2)/1e9}))}));
-    MC.line(document.getElementById('kv-c-svg'),ser.map(s=>Object.assign({},s,{name:''})),{logx:true,logy:true,xticks:[256,1024,4096,16384,65536,262144],xfmt:v=>v>=1024?MC.fmtN(v/1024,0)+'K':String(v),yfmt:v=>v>=1?MC.fmtN(v,0):String(+v.toPrecision(1)),xl:'context (tokens)',yl:'GB per sequence',label:'KV against context',h:310});
-    // legend as HTML (long names wrap at phone width)
-    const lg=document.getElementById('kv-c-leg')||(()=>{const d=document.createElement('div');d.id='kv-c-leg';d.className='hmleg';document.getElementById('kv-c-svg').after(d);return d})();
-    lg.innerHTML=ser.map(s=>'<span><svg width="20" height="6"><line x1="0" x2="20" y1="3" y2="3" stroke-width="2.5"'+(s.dash?' stroke-dasharray="'+s.dash+'"':'')+' style="stroke:'+s.color+'"/></svg>'+s.name+'</span>').join('')}
-  document.getElementById('kv-tbl').innerHTML='<thead><tr><th>Model</th><th>Attention</th><th class="num">Layers with a growing cache</th><th class="num">KV per token</th><th class="num">at 8K</th><th class="num">at 32K</th><th class="num">at 128K</th><th class="num">Weights</th><th class="num">Cache = weights at</th></tr></thead><tbody>'+
-    MS.map(m=>{let eq='-';for(let e=8;e<=22;e+=0.25){const c=Math.round(Math.pow(2,e));if(KVM.kvSeq(m,c,2)>=m.wbytes){eq=MC.fmtN(c/1024,0)+'K tokens';break}}if(eq==='-')eq='beyond 4M';
-      return '<tr><td><a href="'+m.src+'" target="_blank" rel="noopener noreferrer">'+m.name+'</a></td><td>'+kindTxt[m.kind]+'</td><td class="num">'+m.full+' of '+m.L+'</td><td class="num">'+MC.fmtN(m.kv_tok0_bf16/1024,1)+' KiB'+(m.slide?'<br><span class="mute">then '+MC.fmtN(m.kv_tok_bf16/1024,1)+'</span>':'')+'</td><td class="num">'+GB(m.kv['8192'])+'</td><td class="num">'+GB(m.kv['32768'])+'</td><td class="num">'+GB(m.kv['131072'])+'</td><td class="num">'+GB(m.wbytes)+'<br><span class="mute">'+m.wfmt+'</span></td><td class="num">'+eq+'</td></tr>'}).join('')+'</tbody>';
-  document.getElementById('kv-tbl-note').innerHTML='BF16 cache for one sequence; "then" is the cost per token once every window is full. Max context in each config: '+MS.map(m=>m.name+' '+MC.fmtN(m.ctx,0)).join(', ')+' (the 8K to 128K columns go past it for Llama 2, Mistral and Qwen3 to keep one scale). Weights are the bytes of the released safetensors (DeepSeek-V3 and Llama 3.1 405B counted from the config by the parent\'s calculator, because DeepSeek-V3\'s index lists twice its FP8 size). Qwen3-Next\'s linear-attention state is an assumption (2 bytes per value). Configs: links in the first column; the 405B config comes from an open mirror whose architecture fields match Meta\'s gated repository. <span class="der">derived</span>';
-  // ---------- 3. planner ----------
-  const $=id=>document.getElementById(id);
-  $('kv-p-model').innerHTML=MS.map(m=>'<option value="'+m.id+'"'+(m.id==='l70'?' selected':'')+'>'+m.name+'</option>').join('');
-  $('kv-p-chip').innerHTML=CH.map(c=>'<option value="'+c.id+'"'+(c.id==='h100'?' selected':'')+'>'+c.name+'</option>').join('');
-  function drawP(){const m=byId[$('kv-p-model').value],c=chipBy[$('kv-p-chip').value],n=+$('kv-p-n').value,ctx=Math.round(Math.pow(2,+$('kv-p-ctx').value)),kvb=+$('kv-p-kvb').value,ws=+$('kv-p-ws').value,u=+$('kv-p-u').value/100;
-    $('kv-p-nv').textContent=n;$('kv-p-cv').textContent=MC.fmtN(ctx,0);$('kv-p-uv').textContent=Math.round(u*100)+'%';
-    const p=KVM.plan(m,c,n,u,ctx,kvb,ws);const mem=c.gb*1e9*n;
-    $('kv-p-out').innerHTML=RD.stat('Conversations that fit',p.fit,p.fit?'each '+GB(p.s)+' of cache':'the weights alone need '+GB(p.w)+' of '+GB(mem*u))+
-      RD.stat('Decode step at that batch',p.fit?MC.fmtN(p.tb_ms,1)+' ms':'-',p.fit?'reads '+GB(p.w+p.fit*p.s):'')+
-      RD.stat('Per conversation',p.fit?MC.fmtN(p.user_tps,1)+' tok/s':'-','ceiling')+RD.stat('All conversations',p.fit?MC.fmtN(p.agg_tps,0)+' tok/s':'-','ceiling')+
-      RD.stat('At batch 1',p.free>0?MC.fmtN(1000/p.t1_ms,0)+' tok/s':'-','ceiling, same context');
-    const used=p.fit*p.s;MC.bars($('kv-p-bar'),[{name:'weights',v:Math.max(1,p.w),label:GB(p.w),color:'var(--c4)'},{name:'KV, '+p.fit+' conversations',v:Math.max(1,used),label:GB(used),color:'var(--c2)'},{name:'left over',v:Math.max(1,mem-p.w-used),label:GB(Math.max(0,mem-p.w-used)),color:'var(--dim)'}]);
-    $('kv-p-note').innerHTML=c.name+': '+c.gb+' GB and '+(+c.tbs.toPrecision(3))+' TB/s per GPU (<a href="'+c.src+'" target="_blank" rel="noopener noreferrer">source</a>); '+n+' of them hold '+GB(mem)+'. '+(p.fit?'Going from batch 1 to '+p.fit+' raises total throughput '+MC.fmtN(p.agg_tps*p.t1_ms/1000,0)+'&times; but slows each conversation: the cache bytes add to every step.':'')}
-  ['kv-p-model','kv-p-chip','kv-p-n','kv-p-ctx','kv-p-kvb','kv-p-ws','kv-p-u'].forEach(id=>$(id).addEventListener('input',drawP));
-  reg(()=>{A.redraw();drawC();drawP()});
-  let t=0;addEventListener('resize',()=>{if(!live())return;clearTimeout(t);t=setTimeout(()=>{A.redraw();drawC()},80)});
-  drawP();
-})();
-</script>
 <script>/* 99_js_tabs.js */
 // ---- Tabs ----
 (function(){
@@ -924,6 +781,8 @@ window.KVM={
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('hwmem-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

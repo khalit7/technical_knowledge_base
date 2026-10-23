@@ -9,7 +9,7 @@ How to read a 2026 open model's card and `config.json` in thirty seconds, and th
 that differ between models, for every entry of Sebastian Raschka's LLM Architecture Gallery that has a readable config
 (105 of 109), drawn as per-layer strips (mixer, FFN, position) with the KV cache rebuilt layer by layer.
 
-Tabs: Reading (`t-read`), Decode a config (`t-dec`), Compare architectures (`t-cmp`), Cache at context (`t-ctx`),
+Tabs: Reading (`t-read`), Decode a config (`t-dec`), Compare architectures (`t-cmp`),
 Further reading (`t-more`).
 
 ## Files
@@ -59,3 +59,14 @@ node <page>/src/checks/check_controls.mjs <page>/index.html
   every old claim went.
 - No local training or model runs: the subject is configs; "measured" means a script parsed configs on the Mac.
 - The running example (the tiny GPT) appears as one row of the gallery, decoded by the same code, rather than as a lab.
+
+## 2026-10-23 pilot: one owner per concept
+Attention mechanisms now have one owner, Attention variants, and whole-model KV-cache sizing has one, Long context (teaching contract, "one owner per concept"). This page repeated both, so:
+- **Moved to Attention variants:** section 5's seven-design attention ladder animation (`25_js_ag_ladder.js`, removed) and its per-layer 128K numbers; its hero figure now carries what each variant leaves behind. Section 5 is now one paragraph, "Seven answers to one question", that names the answers and links the owners (Attention variants; Beyond attention for the recurrent ones). The Motif 3 "field name as a cache design" mistake (530 KiB per token) is carried there too; Motif's correction in section 1 stays here.
+- **Moved to Long context:** the Cache at context tab (`33_tab_ctx.html`, `33_js_ag_ctx.js`, removed): the memory-per-request formula, the one-request animation, the compare-models plot and its defaults (Gemma 3 27B 10.41 GiB, gpt-oss-120b 4.50 GiB, Qwen3-Next's 72 MiB state). Links that pointed at `#t-ctx` now point at the KV-cache calculator (`#t-kv`) on Long context.
+- **Kept here:** the ratio-count surveys, section 7's window counts and the Llama 4 chunk drill (with a link added for the mechanism), the corrections of the gallery's figures, the Gemma 3 placement sentence in section 4 (it explains the strips).
+- `src/ledger.json` lists only the removed units with the key string that proves the owner carries each (`python3 html_utils/ledger.py check`: problems 0).
+- Also: animations no longer autoplay (`21_js_rd_common.js` replaced from the skill template; the same autoplay start removed from `anim` in `23_js_ag_1core.js`, used by the Decode a config tab); the tab script opens a tab named in the URL hash; the header reads "Reading: 30 min, plus 3 in closed details.", measured with `html_utils/audit_pages.mjs` (it counts script-rendered text, so it is set by hand; the build's own counter, which does not, gives 22 and 4).
+- Not changed, flagged: section 13 says two Nemotron configs make the root Config calculator throw a TypeError. Re-running `checks/cc_agree.mjs` on 2026-10-23 gives a different picture: the calculator now rejects four Nemotron 3 configs with an explicit "Nemotron MoE layers ... are not modelled here" error, 42 of 46 models agree. The sentence and `out/cc_agree.json` were left as they were for the full rebuild.
+- Length: the Reading tab stays at 30 minutes of core text (most of the ladder's words were step captions shown one at a time), the page loses the Cache at context tab (about 3 minutes) and 32 KB. What left is carried by the owners; what stays is this page's own survey of released configs. Side effect to fix in the full rebuild: the ladder was the Reading tab's only SVG figure, so the audit now counts no inline visual there (the strips and tables are HTML).
+

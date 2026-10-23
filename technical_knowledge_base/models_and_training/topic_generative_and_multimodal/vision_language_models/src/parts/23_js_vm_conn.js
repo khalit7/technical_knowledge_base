@@ -25,7 +25,7 @@
      params:'12.6M (counted from the checkpoint) <span class="meas">measured</span>'}];
   const STEPS=['The image','Encoder: patch vectors','The connector','Tokens out (to scale)','Where the language model reads them'];
   let cur=DES[0];const TEXT=20;
-  V.seg(V.$('vm-conn-seg'),DES.map(d=>[d.k,d.name]),'llava',k=>{cur=DES.find(d=>d.k===k);A.reset(STEPS.length);A.play()});
+  V.seg(V.$('vm-conn-seg'),DES.map(d=>[d.k,d.name]),'llava',k=>{cur=DES.find(d=>d.k===k);A.reset(STEPS.length)});
   function cap(i){const d=cur;const t=[
       'One 512 &#215; 512 photo (the root&#8217;s test cat, CC0) goes into every design. What differs is how many vectors the encoder makes and how the connector turns them into tokens.',
       d.enc, d.op,

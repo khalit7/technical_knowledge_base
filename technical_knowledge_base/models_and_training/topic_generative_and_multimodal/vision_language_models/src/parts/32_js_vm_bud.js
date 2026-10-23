@@ -1,4 +1,4 @@
-// ---- Tab: Token and cache budget. Rules ported from transformers v5.20.1 and checked by runs/check_rules.mjs ----
+// ---- Tab: Token budget (cache sizing moved to Long context's KV-cache calculator, 2026-10-23). Rules ported from transformers v5.20.1 and checked by runs/check_rules.mjs ----
 window.VMB=(function(){
   // SmolVLM (Idefics3 processor): copied from the root VLM lab's port (src/parts/35_js_vl_1core.js), checked there on 36 counts
   function smol(W,H,N){const tile=512,split=N>1;let w=W,h=H;
@@ -31,44 +31,34 @@ window.VMB=(function(){
 })();
 (function(){
   const V=VM,B=VMB,el=V.$('t-vmbud');if(!el)return;const TAB='t-vmbud';
-  const R=(V.D.runs||{}),kvS=R.smol&&R.smol.kv,kvQ=R.qwen&&R.qwen.kv;
-  // cache per token: configs (derived); for the two models run here, measured by summing the cache after prefill
-  function perTok(kv,fallback){if(!kv||kv.runs.length<2)return fallback;const a=kv.runs[0],b=kv.runs[kv.runs.length-1];
-    const slope=(b.total_bytes-a.total_bytes)/(b.prompt_tokens-a.prompt_tokens),fixed=a.total_bytes-slope*a.prompt_tokens;return {slope:Math.round(slope),fixed:Math.max(0,Math.round(fixed)),meas:true}}
-  const M=[
-    {k:'smol',name:'SmolVLM-500M',ctx:8192,kv:perTok(kvS,{slope:40960,fixed:0}),cfg:'2 x 32 layers x 5 KV heads x 64 x 2 bytes = 40,960'},
-    {k:'qwen',name:'Qwen3.5-0.8B',ctx:262144,kv:perTok(kvQ,{slope:12288,fixed:0}),cfg:'attention layers only: 2 x 6 x 2 x 256 x 2 = 12,288, plus a fixed linear-attention state'},
-    {k:'ivl',name:'InternVL3-1B',ctx:32768,kv:{slope:12288,fixed:0},cfg:'2 x 24 x 2 x 64 x 2 = 12,288 (config)'},
-    {k:'llava',name:'LLaVA-1.5-7B',ctx:4096,kv:{slope:524288,fixed:0},cfg:'2 x 32 x 32 x 128 x 2 = 524,288 (config; Llama defaults)'}];
+  const M=[{name:'SmolVLM-500M',ctx:8192},{name:'Qwen3.5-0.8B',ctx:262144},{name:'InternVL3-1B',ctx:32768},{name:'LLaVA-1.5-7B',ctx:4096}];
   const PRE=[['64x64','icon 64 x 64'],['512x512','photo 512 x 512'],['1920x1080','1,920 x 1,080'],['1170x2532','phone 1,170 x 2,532'],['1240x1754','A4 page at 150 dpi'],['3840x2160','4K frame']];
   V.seg(V.$('vm-bd-pre'),PRE,'1920x1080',v=>{const p=v.split('x');V.$('vm-bd-w').value=p[0];V.$('vm-bd-h').value=p[1];draw()});
   ['vm-bd-w','vm-bd-h','vm-bd-n','vm-bd-sn','vm-bd-qm','vm-bd-vs','vm-bd-vf','vm-bd-vw','vm-bd-vh'].forEach(id=>V.$(id).addEventListener('input',draw));
-  const mb=b=>b>=1e9?(b/1e9).toFixed(2)+' GB':(b/1e6).toFixed(1)+' MB';
   const num=(id,lo,hi,d)=>{const x=+V.$(id).value;return isFinite(x)&&x>0?Math.max(lo,Math.min(hi,Math.round(x))):d};
   function draw(){const W=num('vm-bd-w',16,20000,1920),H=num('vm-bd-h',16,20000,1080),n=num('vm-bd-n',1,200,1),sn=+V.$('vm-bd-sn').value,qm=+V.$('vm-bd-qm').value;
     if(Math.max(W,H)/Math.min(W,H)>200){V.$('vm-bd-tab').innerHTML='<tr><td>Aspect ratio over 200: the Qwen processor refuses such images (ValueError in smart_resize).</td></tr>';return}
     const s=B.smol(W,H,sn),q=B.qwen(W,H,qm),iv=B.ivl(W,H),rows=[
       [M[0],s.tokens,s.views+(s.views>1?' views':' view')+(s.rows?' ('+s.rows+' rows x '+s.cols+' columns + global)':''),s.rows>6||s.cols>6?'tile tags past 6 are not single tokens':''],
       [M[1],q.tokens,'resized to '+q.w+' x '+q.h,''],[M[2],iv.tokens,iv.views+(iv.views>1?' views ('+iv.rows+' rows x '+iv.cols+' columns + thumbnail)':' view'),''],[M[3],576,'squashed to 336 x 336','']];
-    let h='<thead><tr><th>Model</th><th class="num">Tokens per image</th><th>How</th><th class="num">All images</th><th class="num">Share of context</th><th class="num">Cache</th></tr></thead><tbody>';
-    rows.forEach(r=>{const tot=r[1]*n,kv=r[0].kv.slope*tot,share=tot/r[0].ctx;
-      h+='<tr><td>'+r[0].name+'</td><td class="num">'+V.comma(r[1])+'</td><td>'+r[2]+(r[3]?' <span class="der">'+r[3]+'</span>':'')+'</td><td class="num">'+V.comma(tot)+'</td><td class="num">'+(share>1?'<b>'+V.pct(share)+' (over)</b>':V.pct(share,1))+'</td><td class="num">'+mb(kv)+(r[0].kv.fixed?' + '+mb(r[0].kv.fixed)+' fixed':'')+'</td></tr>'});
+    let h='<thead><tr><th>Model</th><th class="num">Tokens per image</th><th>How</th><th class="num">All images</th><th class="num">Share of context</th></tr></thead><tbody>';
+    rows.forEach(r=>{const tot=r[1]*n,share=tot/r[0].ctx;
+      h+='<tr><td>'+r[0].name+'</td><td class="num">'+V.comma(r[1])+'</td><td>'+r[2]+(r[3]?' <span class="der">'+r[3]+'</span>':'')+'</td><td class="num">'+V.comma(tot)+'</td><td class="num">'+(share>1?'<b>'+V.pct(share)+' (over)</b>':V.pct(share,1))+'</td></tr>'});
     V.$('vm-bd-tab').innerHTML=h+'</tbody>';
     V.$('vm-bd-stats').innerHTML=RD.stat('Pixels',V.comma(W*H),'')+RD.stat('Qwen3.5 patches',V.comma(q.tokens*4),'16 x 16 pixels each')+RD.stat('One token covers (Qwen3.5)','32 x 32 px','of the resized image');
     bars(rows,n);
-    V.$('vm-bd-note').innerHTML='Cache per token: '+M.map(m=>m.name+' '+V.comma(m.kv.slope)+' bytes'+(m.kv.meas?' <span class="meas">measured</span>':' <span class="der">config</span>')).join('; ')+'. Config arithmetic: '+M.map(m=>m.name+': '+m.cfg).join('; ')+
-      '. Context windows from the configs (max_position_embeddings): 8,192, 262,144, 32,768, 4,096. InternVL as its processor tiles by default (crop_to_patches true in InternVLProcessor); LLaVA-1.5 always squashes to one 336 view. Flamingo-style models put 64 visual tokens per image outside the context instead.';
+    V.$('vm-bd-note').innerHTML='Context windows from the configs (max_position_embeddings): 8,192, 262,144, 32,768, 4,096. InternVL as its processor tiles by default (crop_to_patches true in InternVLProcessor); LLaVA-1.5 always squashes to one 336 view. Flamingo-style models put 64 visual tokens per image outside the context instead.';
     video()}
-  function bars(rows,n){const fig=V.$('vm-bd-fig'),W=Math.min(V.width(fig),760),lh=24,H=rows.length*lh*2+34,{g}=V.canvas(fig,W,H);const lab=W<480?96:130,bw=W-lab-70;
-    const mt=Math.max(...rows.map(r=>r[1]*n)),mk=Math.max(...rows.map(r=>r[0].kv.slope*r[1]*n+(r[0].kv.fixed||0)));
-    g.fillStyle=V.css('--mute');g.fillText('image tokens (top) and cache bytes (bottom), each scaled to its largest',4,10);
-    rows.forEach((r,i)=>{const y=22+i*lh*2;g.fillStyle=V.css('--ink');g.fillText(r[0].name,4,y+lh/2);
-      const t=r[1]*n,k=r[0].kv.slope*t+(r[0].kv.fixed||0);g.fillStyle=V.css('--acc');g.fillRect(lab,y+3,Math.max(1,bw*t/mt),lh-8);g.fillStyle=V.css('--c4');g.fillRect(lab,y+lh,Math.max(1,bw*k/mk),lh-8);
-      g.fillStyle=V.css('--ink');g.fillText(V.comma(t),lab+Math.max(1,bw*t/mt)+4,y+lh/2);g.fillText(mb(k),lab+Math.max(1,bw*k/mk)+4,y+lh*1.5-2)})}
+  function bars(rows,n){const fig=V.$('vm-bd-fig'),W=Math.min(V.width(fig),760),lh=24,H=rows.length*lh+34,{g}=V.canvas(fig,W,H);const lab=W<480?96:130,bw=W-lab-70;
+    const mt=Math.max(...rows.map(r=>r[1]*n));
+    g.fillStyle=V.css('--mute');g.fillText('image tokens, scaled to the largest',4,10);
+    rows.forEach((r,i)=>{const y=22+i*lh;g.fillStyle=V.css('--ink');g.fillText(r[0].name,4,y+lh/2);
+      const t=r[1]*n;g.fillStyle=V.css('--acc');g.fillRect(lab,y+3,Math.max(1,bw*t/mt),lh-8);
+      g.fillStyle=V.css('--ink');g.fillText(V.comma(t),lab+Math.max(1,bw*t/mt)+4,y+lh/2)})}
   function video(){const s=num('vm-bd-vs',1,7200,60),f=+V.$('vm-bd-vf').value,w=num('vm-bd-vw',32,4000,640),h=num('vm-bd-vh',32,4000,360);
     const r=B.vrule(s,f,w,h),vq=(V.D.runs&&V.D.runs.qwen&&V.D.runs.qwen.video)||null,ts=V.D.videoTs||0;
     V.$('vm-bd-vid').innerHTML=RD.stat('Frames sampled',V.comma(r.nf),'4 to 768')+RD.stat('Temporal patches',V.comma(r.groups),'2 frames each')+RD.stat('Tokens per patch',V.comma(r.per),r.wb+' x '+r.hb+' per frame')+
-      RD.stat('Video tokens',V.comma(r.tok),ts?'plus about '+V.comma(r.groups*ts)+' timestamp tokens':'')+RD.stat('Qwen3.5 cache',mb(r.tok*M[1].kv.slope),'attention layers');
+      RD.stat('Video tokens',V.comma(r.tok),ts?'plus about '+V.comma(r.groups*ts)+' timestamp tokens':'');
     V.$('vm-bd-vnote').innerHTML='Qwen3.5&#8217;s video processor ported: frames = seconds x fps, clamped to 4 to 768; each frame resized by smart_resize under a per-frame budget of min(768 tokens, 25,165,824 pixels / frames) (the reference behaviour, cap_pixels_per_frame on); one token per 2 frames x 32 x 32 pixels. Checked against the processor on the clip shapes in out/token_rules.json'+(vq?'; on this page&#8217;s 4-second 320 x 240 clips at 2 fps the processor gave '+vq.rows[0].video_tokens+' video tokens <span class="meas">measured</span>':'')+'. SmolVLM-500M (this checkpoint) and LLaVA-1.5 take no video input.'}
   // accuracy against tokens, measured
   function acc(){const fig=V.$('vm-bd-acc'),pts=V.D.accPts||[];if(!pts.length){fig.innerHTML='<p class="vm-small">Measurements pending.</p>';return}

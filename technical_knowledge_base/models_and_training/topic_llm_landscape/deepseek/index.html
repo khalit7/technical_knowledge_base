@@ -128,20 +128,15 @@ math{font-family:"Cambria Math","STIX Two Math",math}
 .pbar .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
 .leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
 .leg i{display:inline-block;width:12px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
-.mlx-top{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px}
-.mlx-svg{margin:4px 0}.mlx-svg svg{max-width:780px;margin:0 auto}
-.mlx-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:6px 0}
-.mlx-ctl input[type=range]{flex:1 1 150px;width:auto;min-width:0}.mlx-ctl select{padding:3px 6px}
-.mlx-play{min-width:6.6em}
-.mlx-cap{min-height:6.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
-.mlx-cap .t{font-weight:600;font-size:14px}.mlx-cap p{margin:2px 0;font-size:13.5px}
-.mlx-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:6px}
 @media (max-width:520px){.lt td:first-child{white-space:normal;min-width:6.5em}.fm math[display=block]{font-size:14.5px}.mx td{width:44px;height:26px;font-size:11.5px}}
+.golink{display:block;border:2px solid var(--acc);border-radius:10px;padding:12px 14px;margin:14px 0;background:var(--soft);color:var(--ink);text-decoration:none}
+.golink:hover{text-decoration:none;border-color:var(--ink)}
+.golink .t{display:block;font-weight:700;font-size:16px;color:var(--acc)}.golink .d{display:block;font-size:13.5px;color:var(--mute);margin-top:3px}
 </style></head><body><div class="w">
 <h1>DeepSeek</h1>
-<div class="sub">DeepSeek's model line, and what each of its named ideas does differently from the standard transformer. Every figure links to its source; data as of October 2026. <span id="rt">⏱ About 36 min to read the Reading tab · +11h 39m of resources.</span></div>
+<div class="sub">DeepSeek's model line, and what each of its named ideas does differently from the standard transformer. Every figure links to its source; data as of October 2026. <span id="rt">Reading: 30 min, plus 1 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-cache" aria-selected="false">Cache across generations</button><button role="tab" data-t="t-line" aria-selected="false">Lineage</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-line" aria-selected="false">Lineage</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <nav class="nav" id="nav">
@@ -166,118 +161,28 @@ math{font-family:"Cambria Math","STIX Two Math",math}
 <tr><td><a href="#s-sys">Numerics</a></td><td>BF16 training</td><td>FP8 training with fine-grained scaling; FP4 expert weights</td><td>V3 (FP8), V4 (FP4)</td></tr>
 <tr><td><a href="#s-rl">RL</a></td><td>PPO with a learned critic</td><td>GRPO: the baseline is the mean score of a group of samples</td><td>DeepSeekMath, then R1</td></tr>
 </table></div>
-<p class="small mute">Scope: the generic mechanisms (grouped-query attention, top-k routing, auxiliary balancing losses, expert parallelism) are owned by <a href="https://app.notion.com/p/3c65c17b0d0d81be8a07f2562fa2030a" target="_blank" rel="noopener noreferrer">LLM Architecture Gallery and the architectural deltas that matter</a> and <a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a>, and are summarised here only as far as DeepSeek's variants need them. The variants themselves are explained here in full. Release dates are on the <a href="#" data-tab="t-line">Lineage</a> tab.</p>
+<p class="small mute">Scope: attention mechanisms, DeepSeek's MLA, DSA and V4 compression included, are taught on <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a> and whole-model cache sizes on <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a>; this page keeps what DeepSeek chose and why. The generic MoE mechanisms (top-k routing, auxiliary balancing losses, expert parallelism) are owned by <a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a>; DeepSeek's own MoE, numerics, systems and RL variants are explained here in full. Release dates are on the <a href="#" data-tab="t-line">Lineage</a> tab.</p>
 </section>
 
 <section id="s-att">
 <h2>Attention: MLA, then DSA, then compressed attention</h2>
-<p><b>The problem.</b> Multi-head attention caches one key and one value vector per head per token. Decode reads the whole cache one token at a time, so the size of this <b>KV cache</b> sets serving throughput: how many sequences fit on a GPU, and what each decoded token costs in memory bandwidth. Every DeepSeek attention variant attacks that number. For head <span class="m"><i>i</i></span> of a query token <span class="m"><i>t</i></span>, standard attention computes</p>
-<div class="fm"><math display="block"><msub><mi>𝐨</mi><mrow><mi>t</mi><mo>,</mo><mi>i</mi></mrow></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mi>t</mi></munderover><msub><mi>softmax</mi><mi>j</mi></msub><mrow><mo>(</mo><mfrac><mrow><msubsup><mi>𝐪</mi><mrow><mi>t</mi><mo>,</mo><mi>i</mi></mrow><mo>⊤</mo></msubsup><msub><mi>𝐤</mi><mrow><mi>j</mi><mo>,</mo><mi>i</mi></mrow></msub></mrow><msqrt><msub><mi>d</mi><mi>h</mi></msub></msqrt></mfrac><mo>)</mo></mrow><msub><mi>𝐯</mi><mrow><mi>j</mi><mo>,</mo><mi>i</mi></mrow></msub></math>
-<dl><dt>q<sub>t,i</sub></dt><dd>head <i>i</i>'s query at position <i>t</i></dd><dt>k<sub>j,i</sub>, v<sub>j,i</sub></dt><dd>head <i>i</i>'s key and value at an earlier position <i>j</i>, each of dimension <i>d<sub>h</sub></i></dd><dt>softmax<sub>j</sub></dt><dd>runs over all <i>j</i> ≤ <i>t</i> (the causal mask)</dd></dl></div>
-<p>The keys and values of every earlier token are cached so they are not recomputed. The cache per token, counted in elements, is</p>
-<div class="fm"><math display="block"><msub><mtext>KV</mtext><mtext>MHA</mtext></msub><mo>=</mo><mn>2</mn><msub><mi>n</mi><mi>h</mi></msub><msub><mi>d</mi><mi>h</mi></msub><mi>l</mi></math><math display="block"><msub><mtext>KV</mtext><mtext>GQA</mtext></msub><mo>=</mo><mn>2</mn><msub><mi>n</mi><mi>g</mi></msub><msub><mi>d</mi><mi>h</mi></msub><mi>l</mi></math><math display="block"><msub><mtext>KV</mtext><mtext>MQA</mtext></msub><mo>=</mo><mn>2</mn><msub><mi>d</mi><mi>h</mi></msub><mi>l</mi></math>
-<dl><dt>n<sub>h</sub></dt><dd>number of attention heads</dd><dt>n<sub>g</sub></dt><dd>number of key/value groups in GQA</dd><dt>l</dt><dd>number of layers</dd><dt>2</dt><dd>one key and one value</dd></dl>
-<p class="wh">Multiply by the bytes per element (2 for BF16) and by the context length to get the memory one sequence needs.</p></div>
-<p><b>The prior answer.</b> Multi-Query Attention (MQA) shares one K/V head across all query heads; Grouped-Query Attention (GQA) keeps one per group of query heads. Both shrink the cache linearly in the sharing factor and both pay in representational capacity: the keys and values are genuinely shared, so heads lose independent memory and quality degrades as the ratio is pushed. These, and sliding-window and linear attention across the field, are on <a href="https://app.notion.com/p/3c65c17b0d0d81be8a07f2562fa2030a" target="_blank" rel="noopener noreferrer">LLM Architecture Gallery</a>.</p>
+<p>Decode reads every cached key and value once per new token, so the size of the <b>KV cache</b> decides how many sequences fit on a GPU and what each decoded token costs. DeepSeek attacked that number three times, each time on a different factor: how big each entry is (MLA, V2), how many entries a token reads (DSA, V3.2-Exp) and how many are stored at all (CSA and HCA, V4). The mechanisms (formulas, absorption, the decoupled RoPE key, the indexer, compression, with measurements) are taught once, on <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a>; whole-model cache sizes against context length, with DeepSeek's generations among the presets, are in the <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv" target="_blank" rel="noopener noreferrer">KV-cache calculator on Long context</a>. This section keeps what DeepSeek chose and what each choice bought it.</p>
+<a class="golink" href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer"><span class="t">See MLA step by step on Attention variants &#8594;</span><span class="d">The before/after animation first built for this page: one token through one attention layer at DeepSeek-V3's dimensions, MLA against standard MHA. At the write step MLA stores 9 squares where MHA stores 512.</span></a>
 </section>
 
 <section id="s-mla">
-<h3 style="font-size:17px">MLA: cache one latent per token, rebuild the heads from it</h3>
-<p><b>Multi-head Latent Attention (MLA)</b>, from V2 (<a href="https://arxiv.org/abs/2405.04434" target="_blank" rel="noopener noreferrer">DeepSeek-V2 paper</a>), refuses the GQA trade. It projects the token's hidden state into one low-rank <i>latent</i> vector, caches only that, and reconstructs each head's keys and values through learned up-projections:</p>
-<div class="fm"><math display="block"><msubsup><mi>𝐜</mi><mi>t</mi><mrow><mi>K</mi><mi>V</mi></mrow></msubsup><mo>=</mo><msup><mi>W</mi><mrow><mi>D</mi><mi>K</mi><mi>V</mi></mrow></msup><msub><mi>𝐡</mi><mi>t</mi></msub></math><math display="block"><msubsup><mi>𝐤</mi><mi>t</mi><mi>C</mi></msubsup><mo>=</mo><msup><mi>W</mi><mrow><mi>U</mi><mi>K</mi></mrow></msup><msubsup><mi>𝐜</mi><mi>t</mi><mrow><mi>K</mi><mi>V</mi></mrow></msubsup></math><math display="block"><msubsup><mi>𝐯</mi><mi>t</mi><mi>C</mi></msubsup><mo>=</mo><msup><mi>W</mi><mrow><mi>U</mi><mi>V</mi></mrow></msup><msubsup><mi>𝐜</mi><mi>t</mi><mrow><mi>K</mi><mi>V</mi></mrow></msubsup></math>
-<dl><dt>h<sub>t</sub></dt><dd>the token's hidden state, dimension <i>d</i></dd><dt>c<sup>KV</sup><sub>t</sub></dt><dd>the latent, dimension <i>d<sub>c</sub></i> ≪ <i>n<sub>h</sub>d<sub>h</sub></i>; this is what is cached</dd><dt>W<sup>DKV</sup></dt><dd>the down-projection (<i>d<sub>c</sub></i> × <i>d</i>)</dd><dt>W<sup>UK</sup>, W<sup>UV</sup></dt><dd>the up-projections (<i>n<sub>h</sub>d<sub>h</sub></i> × <i>d<sub>c</sub></i>), whose outputs are sliced into the <i>n<sub>h</sub></i> per-head keys and values</dd></dl></div>
-<p>Nothing is shared between heads: each head has its own slice of <span class="m"><i>W</i><sup>UK</sup></span> and <span class="m"><i>W</i><sup>UV</sup></span>, reading its own directions out of the latent. The per-head structure still exists, stored compressed.</p>
-<p><b>Why decompression costs no extra pass.</b> Matrix multiplication is associative, so the key up-projection can move onto the query side:</p>
-<div class="fm"><math display="block"><msubsup><mi>𝐪</mi><mrow><mi>t</mi><mo>,</mo><mi>i</mi></mrow><mo>⊤</mo></msubsup><msubsup><mi>𝐤</mi><mrow><mi>j</mi><mo>,</mo><mi>i</mi></mrow><mi>C</mi></msubsup><mo>=</mo><msubsup><mi>𝐪</mi><mrow><mi>t</mi><mo>,</mo><mi>i</mi></mrow><mo>⊤</mo></msubsup><msubsup><mi>W</mi><mi>i</mi><mrow><mi>U</mi><mi>K</mi></mrow></msubsup><msubsup><mi>𝐜</mi><mi>j</mi><mrow><mi>K</mi><mi>V</mi></mrow></msubsup><mo>=</mo><msup><mrow><mo>(</mo><msubsup><mi>W</mi><mi>i</mi><mrow><mi>U</mi><mi>K</mi><mo>⊤</mo></mrow></msubsup><msub><mi>𝐪</mi><mrow><mi>t</mi><mo>,</mo><mi>i</mi></mrow></msub><mo>)</mo></mrow><mo>⊤</mo></msup><msubsup><mi>𝐜</mi><mi>j</mi><mrow><mi>K</mi><mi>V</mi></mrow></msubsup></math>
-<dl><dt>W<sup>UK</sup><sub>i</sub></dt><dd>head <i>i</i>'s <i>d<sub>h</sub></i> × <i>d<sub>c</sub></i> slice of the key up-projection</dd></dl></div>
-<p>The query is projected once into latent space and scored directly against the cached latents, so the full keys are never materialised. Values work the same way: head <span class="m"><i>i</i></span>'s output is <span class="m"><i>W</i><sup>UV</sup><sub><i>i</i></sub> ∑<sub><i>j</i></sub> <i>a</i><sub><i>t,j,i</i></sub> <b>c</b><sup>KV</sup><sub><i>j</i></sub></span>, with <span class="m"><i>a</i><sub><i>t,j,i</i></sub></span> the attention weights, so <span class="m"><i>W</i><sup>UV</sup><sub><i>i</i></sub></span> folds into the output projection <span class="m"><i>W</i><sup>O</sup></span>. The V2 paper calls this absorbing <span class="m"><i>W</i><sup>UK</sup></span> into <span class="m"><i>W</i><sup>Q</sup></span> and <span class="m"><i>W</i><sup>UV</sup></span> into <span class="m"><i>W</i><sup>O</sup></span>.</p>
-<p><b>Why RoPE needs a separate key.</b> Rotary position embeddings (RoPE) rotate queries and keys by an angle proportional to position. Applied to <span class="m"><b>k</b><sup>C</sup><sub><i>j</i></sub></span>, a position-dependent rotation would sit between <span class="m"><b>q</b><sub><i>t,i</i></sub></span> and <span class="m"><i>W</i><sup>UK</sup><sub><i>i</i></sub></span> in the product above, and because matrix products do not commute the absorbed matrix would differ for every pair of positions: the keys of the whole prefix would have to be recomputed at every step. MLA therefore keeps the latent path position-free and adds a small <i>decoupled</i> path that carries RoPE:</p>
-<div class="fm"><math display="block"><msub><mi>𝐪</mi><mrow><mi>t</mi><mo>,</mo><mi>i</mi></mrow></msub><mo>=</mo><mrow><mo>[</mo><msubsup><mi>𝐪</mi><mrow><mi>t</mi><mo>,</mo><mi>i</mi></mrow><mi>C</mi></msubsup><mo>;</mo><msubsup><mi>𝐪</mi><mrow><mi>t</mi><mo>,</mo><mi>i</mi></mrow><mi>R</mi></msubsup><mo>]</mo></mrow></math><math display="block"><msub><mi>𝐤</mi><mrow><mi>j</mi><mo>,</mo><mi>i</mi></mrow></msub><mo>=</mo><mrow><mo>[</mo><msubsup><mi>𝐤</mi><mrow><mi>j</mi><mo>,</mo><mi>i</mi></mrow><mi>C</mi></msubsup><mo>;</mo><msubsup><mi>𝐤</mi><mi>j</mi><mi>R</mi></msubsup><mo>]</mo></mrow></math><math display="block"><msubsup><mi>𝐤</mi><mi>j</mi><mi>R</mi></msubsup><mo>=</mo><mi>RoPE</mi><mrow><mo>(</mo><msup><mi>W</mi><mrow><mi>K</mi><mi>R</mi></mrow></msup><msub><mi>𝐡</mi><mi>j</mi></msub><mo>)</mo></mrow></math>
-<dl><dt>[ · ; · ]</dt><dd>concatenation</dd><dt>q<sup>R</sup><sub>t,i</sub></dt><dd>a per-head rotated query of dimension <i>d<sup>R</sup><sub>h</sub></i></dd><dt>k<sup>R</sup><sub>j</sub></dt><dd>a single rotated key of dimension <i>d<sup>R</sup><sub>h</sub></i>, <b>shared by all heads</b> and cached beside the latent</dd></dl>
-<p class="wh">The softmax scale becomes 1/√(<i>d<sub>h</sub></i> + <i>d<sup>R</sup><sub>h</sub></i>), and the cache per token is</p>
-<math display="block"><msub><mtext>KV</mtext><mtext>MLA</mtext></msub><mo>=</mo><mrow><mo>(</mo><msub><mi>d</mi><mi>c</mi></msub><mo>+</mo><msubsup><mi>d</mi><mi>h</mi><mi>R</mi></msubsup><mo>)</mo></mrow><mi>l</mi></math>
-<p class="wh">elements. MLA also compresses the queries through a second latent of dimension <i>d′<sub>c</sub></i>; that saves activation memory in training and does not change the cache.</p></div>
-<p><b>Two modes of the same layer.</b> In training and prefill, where attention is compute-bound and many queries are processed at once, MLA materialises the per-head keys and values and runs as ordinary multi-head attention ("MHA mode"). In decode it runs absorbed ("MQA mode"): every one of the <span class="m"><i>n<sub>h</sub></i></span> query heads, after projection into latent space, attends to the same cached entry of <span class="m"><i>d<sub>c</sub></i> + <i>d<sup>R</sup><sub>h</sub></i></span> dimensions, which serves as the shared key, and its first <span class="m"><i>d<sub>c</sub></i></span> dimensions as the shared value (<a href="https://arxiv.org/abs/2512.02556" target="_blank" rel="noopener noreferrer">DeepSeek-V3.2 paper</a>, appendix A).</p>
-<p class="try"><b>Try:</b> switch between the two modes. In prefill the latent is expanded into per-head keys and values; in decode nothing is expanded, and every head reads the one cached entry.</p>
-<div class="seg" id="mlaM"><button class="on" data-m="pre">Prefill and training: MHA mode</button><button data-m="dec">Decode: MQA mode</button></div>
-<div class="card"><div class="tw"><div id="mlaSvg" style="min-width:600px"></div></div><p class="small mute" id="mlaCap" style="margin:4px 0 0"></p></div>
-<p><b>One token through the layer, step by step.</b> The animation follows a single token through one attention layer at V3's dimensions, first through MLA and then, with the toggle, through standard multi-head attention, so the two caches can be compared square for square.</p>
-<p class="try"><b>Try:</b> let it play, or step through it. Watch the counter at the write step: MLA stores 9 squares where MHA stores 512. Switch to standard MHA and run it again.</p>
-<div class="card" id="mlx">
-<div class="mlx-top"><div class="seg" id="mlxM" role="group" aria-label="Attention type"><button class="on" data-m="mla" aria-pressed="true">MLA</button><button data-m="mha" aria-pressed="false">Standard MHA</button></div>
-<span class="small mute">Each square is 64 numbers.</span></div>
-<div id="mlxSvg" class="mlx-svg"></div>
-<div class="mlx-ctl"><button id="mlxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="mlxPlay" aria-label="Play" title="Play or pause" class="mlx-play">&#9654; Play</button><button id="mlxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="mlxScrub" min="0" max="700" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="mlxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="mlx-cap" aria-live="polite"><div class="t" id="mlxStep"></div><p id="mlxCap"></p></div>
-<div class="mlx-cnt" id="mlxCnt"></div>
-<p class="small mute" style="margin:6px 0 0">Dimensions: hidden size 7,168, 61 layers, <i>n<sub>h</sub></i> = 128 heads of <i>d<sub>h</sub></i> = 128, <i>d<sub>c</sub></i> = 512, <i>d<sup>R</sup><sub>h</sub></i> = 64 (<a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener noreferrer">V3 report</a>). Projections, absorption and the decoupled RoPE key: <a href="https://arxiv.org/abs/2405.04434" target="_blank" rel="noopener noreferrer">V2 paper</a>, section 2.1; the MHA and MQA modes: <a href="https://arxiv.org/abs/2512.02556" target="_blank" rel="noopener noreferrer">V3.2 paper</a>, appendix A. Counts are elements; bytes assume BF16 (2 bytes each). The animation stops when it is off screen, and starts paused, one step at a time, if your system asks for reduced motion.</p>
-</div>
-<p>So in decode MLA <i>is</i> multi-query attention, over one wide entry instead of one narrow head, with per-head projections on either side that GQA does not have. That is why its quality holds where MQA's does not: the V2 paper reports MLA's cache equal to GQA with only 2.25 groups while its performance is stronger than MHA (<a href="https://arxiv.org/abs/2405.04434" target="_blank" rel="noopener noreferrer">V2 paper</a>).</p>
-<p><b>Worked example: the cache per token with V3's dimensions.</b> V2 and V3 both use <span class="m"><i>n<sub>h</sub></i> = 128</span> heads of <span class="m"><i>d<sub>h</sub></i> = 128</span>, a KV latent of <span class="m"><i>d<sub>c</sub></i> = 512</span>, a query latent of <span class="m"><i>d′<sub>c</sub></i> = 1536</span> and a decoupled RoPE dimension <span class="m"><i>d<sup>R</sup><sub>h</sub></i> = 64</span>; V3 has <span class="m"><i>l</i> = 61</span> layers (<a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener noreferrer">DeepSeek-V3 report</a>).</p>
-<p class="try"><b>Try:</b> the bars are the per-layer formulas above at V3's dimensions. Slide the GQA group count to 2, then 3. MLA's 576 elements fall between them: 576 = 2 × 2.25 × 128, the V2 paper's "GQA with 2.25 groups". MQA is one group.</p>
-<div class="card"><div class="ctl"><label>GQA groups <i>n<sub>g</sub></i>: <b id="mlaGv">8</b><input type="range" id="mlaG" min="0" max="8" value="4"></label></div>
-<div class="bars" id="mlaBars"></div></div>
-<p>Across 61 layers in BF16 (2 bytes per element): MHA needs 32,768 × 61 × 2 = 3,997,696 bytes per token (3.81 MiB), GQA-8 needs 249,856 bytes (244 KiB), and MLA needs 576 × 61 × 2 = 70,272 bytes (68.6 KiB). MLA is about 57 times smaller than MHA with these dimensions and about 3.6 times smaller than 8-group GQA. At a 128K-token context (131,072 tokens), one sequence's MLA cache is 70,272 × 131,072 ≈ 9.21 × 10<sup>9</sup> bytes, 8.58 GiB, where MHA would need 488 GiB. The <a href="#" data-tab="t-cache">Cache across generations</a> tab plots these against context length beside V4 and V4.1-Flash.</p>
-<p>Against DeepSeek's own previous dense model, DeepSeek 67B, V2 reported a 93.3% smaller KV cache and 5.76 times the maximum generation throughput: over 50K tokens per second on one 8-GPU H800 node, with the cache further quantised to about 6 bits per element (<a href="https://arxiv.org/abs/2405.04434" target="_blank" rel="noopener noreferrer">V2 paper</a>).</p>
-<p>MLA costs extra projection FLOPs per attention call and a fussier kernel (the absorbed and unabsorbed paths, plus the decoupled RoPE key), and buys long contexts that are affordable to serve without GQA's quality tax.</p>
+<h3 style="font-size:17px">MLA (V2): one latent per token instead of per-head keys and values</h3>
+<p>V2 caches a 512-number latent plus a 64-number RoPE key per token per layer, 576 numbers where MHA with V2 and V3's 128 heads of 128 would cache 32,768. At V3's 61 layers in BF16 that is 70,272 bytes per token (68.6 KiB), against 3.81 MiB for MHA and 244 KiB for 8-group GQA. Every head still rebuilds its own keys and values from the latent, so DeepSeek got a cache smaller than GQA's without GQA's sharing; in decode the up-projections are absorbed and MLA runs as multi-query attention over one wide entry. Against DeepSeek's own dense 67B, V2 reported a 93.3% smaller cache and 5.76 times the maximum generation throughput (<a href="https://arxiv.org/abs/2405.04434" target="_blank" rel="noopener noreferrer">V2 paper</a>). The price is extra projection arithmetic and kernels of its own, which is why later DeepSeek attention (DSA, V4's CSA) is built on MLA's decode shape rather than on GQA.</p>
 </section>
 
 <section id="s-dsa">
-<h3 style="font-size:17px">DSA: keep the whole cache, read only the top-k</h3>
-<p><b>DeepSeek Sparse Attention (DSA)</b>, shipped in V3.2-Exp on 29 September 2025, attacks the other half of the bill: even a small cache is read in full by every decoded token, so cost grows linearly with context length. A cheap scoring function, the <b>lightning indexer</b>, ranks every cached entry against the current query (<a href="https://arxiv.org/abs/2512.02556" target="_blank" rel="noopener noreferrer">DeepSeek-V3.2 paper</a>):</p>
-<div class="fm"><math display="block"><msub><mi>I</mi><mrow><mi>t</mi><mo>,</mo><mi>s</mi></mrow></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><msup><mi>H</mi><mi>I</mi></msup></munderover><msubsup><mi>w</mi><mrow><mi>t</mi><mo>,</mo><mi>j</mi></mrow><mi>I</mi></msubsup><mspace width="0.2em"/><mi>ReLU</mi><mrow><mo>(</mo><msubsup><mi>𝐪</mi><mrow><mi>t</mi><mo>,</mo><mi>j</mi></mrow><mi>I</mi></msubsup><mo>·</mo><msubsup><mi>𝐤</mi><mi>s</mi><mi>I</mi></msubsup><mo>)</mo></mrow></math><math display="block"><msub><mi>𝐮</mi><mi>t</mi></msub><mo>=</mo><mi>Attn</mi><mrow><mo>(</mo><msub><mi>𝐡</mi><mi>t</mi></msub><mo>,</mo><mspace width="0.3em"/><mrow><mo>{</mo><msub><mi>𝐜</mi><mi>s</mi></msub><mo>:</mo><msub><mi>I</mi><mrow><mi>t</mi><mo>,</mo><mi>s</mi></mrow></msub><mo>∈</mo><mtext>Top-k</mtext><mo>(</mo><msub><mi>I</mi><mrow><mi>t</mi><mo>,</mo><mo>:</mo></mrow></msub><mo>)</mo><mo>}</mo></mrow><mo>)</mo></mrow></math>
-<dl><dt>I<sub>t,s</sub></dt><dd>the index score of earlier token <i>s</i> for query token <i>t</i></dd><dt>H<sup>I</sup></dt><dd>the (small) number of indexer heads</dd><dt>q<sup>I</sup><sub>t,j</sub>, w<sup>I</sup><sub>t,j</sub></dt><dd>indexer query and weight, from the query token</dd><dt>k<sup>I</sup><sub>s</sub></dt><dd>a small indexer key cached for token <i>s</i></dd><dt>c<sub>s</sub></dt><dd>the MLA cache entry of token <i>s</i></dd></dl>
-<p class="wh">ReLU is used instead of a softmax for throughput, and the indexer runs in FP8. Core attention then runs only over the top-k entries; V3.2 selects <i>k</i> = 2,048.</p></div>
-<p>DSA is built on MLA's MQA mode, because a selected entry must be shared by all query heads for the kernel to be efficient. Two things make or break it. The indexer must be genuinely cheap (few heads, low precision), because it still scores every entry and so remains quadratic in context length overall; DSA turns <i>core</i> attention from <span class="m"><i>O</i>(<i>L</i><sup>2</sup>)</span> into <span class="m"><i>O</i>(<i>Lk</i>)</span>, with <span class="m"><i>L</i></span> the sequence length. And the model must be trained with the sparsity in place, so it does not depend on entries the indexer will drop. V3.2 was continued from V3.1-Terminus in two stages:</p>
-<ol><li><b>Dense warm-up:</b> freeze the model and train only the indexer, for 1,000 steps (2.1B tokens), to match the main attention distribution (the attention scores summed over heads and normalised, fitted with a KL-divergence loss).</li>
-<li><b>Sparse stage:</b> 943.7B tokens in which the whole model adapts to top-2,048 selection, while the indexer, detached from the main graph, keeps fitting the attention distribution over the selected set.</li></ol>
-<p><b>Worked example.</b> At a 128K context, core attention for one decoded token reads 2,048 of 131,072 cached entries, 1.56%; the indexer still scores all 131,072, but with a handful of FP8 heads rather than 128 full ones. Nothing is removed from memory: every entry stays resident so that it can be selected later.</p>
-<p>Unlike MLA, which is exact up to the low-rank bottleneck, DSA is an approximation. DeepSeek reported V3.2-Exp at parity with V3.1-Terminus on standard and long-context benchmarks, and cut API prices by more than 50% when it shipped (<a href="https://api-docs.deepseek.com/news/news250929/" target="_blank" rel="noopener noreferrer">DeepSeek announcement</a>).</p>
+<h3 style="font-size:17px">DSA (V3.2-Exp): keep the whole cache, read the top 2,048</h3>
+<p>V3.2-Exp (29 September 2025) left MLA's cache in place and cut what each decoded token reads: a <b>lightning indexer</b>, a few small heads in FP8 with ReLU instead of a softmax for throughput, scores every cached entry, and attention reads only the top 2,048. It is an approximation, so it was trained in, continued from V3.1-Terminus, and DeepSeek reported parity with V3.1-Terminus on standard and long-context benchmarks; every entry stays resident and the indexer still scores them all. DeepSeek cut API prices by more than 50% when it shipped (<a href="https://api-docs.deepseek.com/news/news250929/" target="_blank" rel="noopener noreferrer">DeepSeek announcement</a>).</p>
 </section>
 
 <section id="s-csa">
-<h3 style="font-size:17px">Compressed attention in V4: CSA and HCA</h3>
-<p>V4 (<a href="https://arxiv.org/pdf/2606.19348" target="_blank" rel="noopener noreferrer">DeepSeek-V4 report</a>) changes what is <i>stored</i>, not only what is read, with two attention types interleaved through the stack.</p>
-<p><b>Compression.</b> Each layer computes per-token KV entries <span class="m"><i>C<sub>j</sub></i></span> of dimension <span class="m"><i>c</i> = 512</span> and a compression weight for each, then merges every block of tokens into one entry:</p>
-<div class="fm"><math display="block"><msubsup><mi>C</mi><mi>i</mi><mtext>Comp</mtext></msubsup><mo>=</mo><munder><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><mtext>block</mtext><mspace width="0.25em"/><mi>i</mi></mrow></munder><msub><mi>S</mi><mi>j</mi></msub><mo>⊙</mo><msub><mi>C</mi><mi>j</mi></msub></math><math display="block"><msub><mi>S</mi><mrow><mtext>block</mtext><mspace width="0.25em"/><mi>i</mi></mrow></msub><mo>=</mo><msub><mi>Softmax</mi><mtext>row</mtext></msub><mrow><mo>(</mo><msub><mi>Z</mi><mrow><mtext>block</mtext><mspace width="0.25em"/><mi>i</mi></mrow></msub><mo>+</mo><mi>B</mi><mo>)</mo></mrow></math>
-<dl><dt>Z<sub>j</sub> = W<sup>Z</sup>h<sub>j</sub></dt><dd>learned compression logits</dd><dt>B</dt><dd>a learned per-position bias within the block</dd><dt>Softmax<sub>row</sub></dt><dd>runs across the tokens of the block, separately for each channel</dd><dt>⊙</dt><dd>elementwise product</dd></dl>
-<p class="wh">The compressed entry is a learned weighted average of the block, channel by channel.</p></div>
-<ul>
-<li><b>CSA (Compressed Sparse Attention)</b> compresses every <span class="m"><i>m</i> = 4</span> tokens into one entry, with overlapping blocks (each entry is built from 2<i>m</i> = 8 tokens through two weight series), then applies DSA to the compressed entries: the lightning indexer scores them and each query attends to the top-k only, 512 in V4-Flash and 1,024 in V4-Pro. The indexer has 64 heads of dimension 128 and runs in FP4.</li>
-<li><b>HCA (Heavily Compressed Attention)</b> compresses every <span class="m"><i>m′</i> = 128</span> tokens into one entry, without overlap, and attends densely to all of them.</li>
-</ul>
-<p>Both add the same four pieces around the compressed entries:</p>
-<ul>
-<li><b>A sliding window of <span class="m"><i>n</i><sub>win</sub> = 128</span> uncompressed recent tokens.</b> A query may only attend to <i>completed</i> blocks, so without the window it could not see the tokens in its own unfinished block, which are usually the most relevant ones.</li>
-<li><b>Shared-KV multi-query attention.</b> Each entry serves as both key and value for every query head (64 heads in Flash, 128 in Pro), the MQA shape MLA already used in decode.</li>
-<li><b>Low-rank queries and a grouped output projection.</b> Queries come from a compressed latent (dimension 1,024 in Flash, 1,536 in Pro), MLA's query trick; the heads' outputs are projected in 8 (Flash) or 16 (Pro) groups to 1,024 dimensions each before the final projection, because <span class="m"><i>c</i> · <i>n<sub>h</sub></i></span> is large.</li>
-<li><b>Partial RoPE and an attention sink.</b> RoPE is applied to the last 64 dimensions of queries and entries, and, because an entry is also a value, the output is rotated back by the query's position so that it carries relative rather than absolute position. A learned sink logit per head lets the attention weights sum to less than one.</li>
-</ul>
-<p><b>Layout and storage.</b> V4-Flash has 43 layers, the first two pure sliding-window, the rest alternating CSA and HCA; V4-Pro has 61, the first two HCA, the rest alternating. Entries are stored in FP8 except the 64 RoPE dimensions, which stay BF16, nearly halving the cache against pure BF16.</p>
-<p><b>Reported efficiency.</b> Against BF16 GQA with 8 groups and head dimension 128, DeepSeek report the V4 cache at about 2% at a 1M-token context. Against V3.2 at 1M tokens, V4-Pro needs 27% of the single-token FLOPs and 10% of the KV cache, and V4-Flash 10% and 7% (<a href="https://arxiv.org/pdf/2606.19348" target="_blank" rel="noopener noreferrer">V4 report</a>).</p>
-<p><b>Worked example: reproducing the 2%.</b> An estimate from the configuration above, with two stated inputs: how V4-Pro's 59 alternating layers split between CSA and HCA, which its <a href="https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/blob/main/config.json" target="_blank" rel="noopener noreferrer">config.json</a> confirms (<code>compress_ratios</code>: 30 layers at 4, 31 at 128, read 2026-10-18), and the precision of the indexer keys, which remains an assumption.</p>
-<p class="try"><b>Try:</b> the defaults (30 CSA and 29 HCA, so 31 HCA with the first two; indexer keys at FP4, half a byte per dimension) reproduce the reported figure. Change either input: FP8 indexer keys give 2.17% and none 1.78%, so the reported "about 2%" is robust to it.</p>
-<div class="card"><div class="ctl">
-<label>Indexer key precision <select id="v4Ix" style="width:100%"><option value="0.5" selected>FP4 (0.5 byte per dimension)</option><option value="1">FP8 (1 byte)</option><option value="0">Not stored</option></select></label>
-<label>Split of the 59 alternating layers <select id="v4Sp" style="width:100%"><option value="30" selected>30 CSA, 29 HCA</option><option value="29">29 CSA, 30 HCA</option></select></label></div>
-<ol class="small" id="v4Steps" style="margin:6px 0"></ol>
-<div class="out" id="v4Out"></div></div>
-<p><b>Stored against read.</b> This is the distinction that separates the three generations: dense attention reads everything it stores; DSA stores everything and reads a few; compression stores less.</p>
-<p class="try"><b>Try:</b> at 1M tokens the bars match the table below. Drop the context to 8K: below <i>k</i> = 2,048 there is nothing for DSA to skip, and the dense cache is already small.</p>
-<div class="card"><div class="ctl"><label>Context: <b id="srTv">1,000,000 tokens</b><input type="range" id="srT" min="0" max="7" value="7"></label>
-<label>CSA top-k <select id="srK" style="width:100%"><option value="1024" selected>1,024 (V4-Pro)</option><option value="512">512 (V4-Flash)</option></select></label></div>
-<div id="srBars"></div>
-<div class="leg"><span><i style="background:var(--dim)"></i>entries stored (resident)</span><span><i style="background:var(--acc)"></i>entries read per decoded token</span><span>Per layer, log scale.</span></div></div>
-<div class="tw"><table>
-<tr><th>Attention, per layer at 1M tokens</th><th class="num">Entries stored</th><th class="num">Read per decoded token</th><th>Exact?</th></tr>
-<tr><td>MHA, GQA or MLA (dense)</td><td class="num">1,000,000</td><td class="num">1,000,000</td><td>Yes (MLA up to its low-rank bottleneck)</td></tr>
-<tr><td>DSA (V3.2)</td><td class="num">1,000,000</td><td class="num">2,048, plus the indexer scoring all 1,000,000</td><td>No: selection</td></tr>
-<tr><td>CSA (V4-Pro)</td><td class="num">250,000 compressed + 128 in the window</td><td class="num">1,024 + 128</td><td>No: compression and selection</td></tr>
-<tr><td>HCA (V4)</td><td class="num">7,813 compressed + 128 in the window</td><td class="num">All 7,941</td><td>No: heavy compression</td></tr>
-</table></div>
-<p>Sparse selection still needs the whole cache resident so that something can be selected from it, whereas compression shrinks what is resident. HCA reads every one of its entries, yet reads fewer than DSA stores by two orders of magnitude, because there are so few of them. Running both gives a cache that is precise nearby (the window, and CSA's fine blocks chosen by the indexer) and cheap far away (HCA's coarse summaries of everything).</p>
+<h3 style="font-size:17px">CSA and HCA (V4): store less</h3>
+<p>V4 (<a href="https://arxiv.org/pdf/2606.19348" target="_blank" rel="noopener noreferrer">DeepSeek-V4 report</a>) shrinks what is stored, not only what is read. <b>CSA</b> layers merge every 4 tokens into one entry and run DSA's selection over the merged entries (top 1,024 in V4-Pro, 512 in V4-Flash); <b>HCA</b> layers merge every 128 tokens and read all of them; both keep a 128-token exact window. V4-Pro interleaves 30 CSA and 31 HCA layers. DeepSeek report the cache at about 2% of BF16 GQA-8 at 1M tokens (a baseline already 16 times smaller than MHA), and, against V3.2 at 1M tokens, 10% of the cache and 27% of the single-token FLOPs for V4-Pro, 7% and 10% for V4-Flash. <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a> reproduces the 2% from the config and shows stored against read per layer; <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv" target="_blank" rel="noopener noreferrer">Long context</a> sets every DeepSeek generation side by side against context length.</p>
 </section>
 
 <section id="s-enc">
@@ -442,29 +347,11 @@ math{font-family:"Cambria Math","STIX Two Math",math}
 
 <section id="s-mist">
 <h2>Common mistakes and misconceptions</h2>
-<details class="mist"><summary>"MLA is a kind of GQA."</summary><div class="b">GQA shares identical keys and values between heads. MLA shares a latent from which every head reads its own keys and values through its own projections; only in decode, after absorption, does it take the multi-query shape, and then over a 576-dimensional entry with per-head projections either side.</div></details>
-<details class="mist"><summary>"MLA decompresses the cache at every step."</summary><div class="b">The up-projections are absorbed into the query and output projections, so decode never builds the full keys and values.</div></details>
-<details class="mist"><summary>"DSA shrinks the KV cache."</summary><div class="b">It shrinks what each token reads. Every entry stays resident so the indexer can choose it later; V4's compression is what shrinks what is stored.</div></details>
-<details class="mist"><summary>"V4's cache is 2% of a vanilla transformer's."</summary><div class="b">The baseline DeepSeek state is BF16 grouped-query attention with 8 groups and head dimension 128 at a 1M-token context, which is already 16 times smaller than full MHA with 128 heads of the same size. Against V3.2 the reported figures are 10% (Pro) and 7% (Flash).</div></details>
-<details class="mist"><summary>"HCA is sparse attention."</summary><div class="b">HCA attends densely to all of its compressed entries; CSA is the one that also selects.</div></details>
 <details class="mist"><summary>"The aux-loss-free bias changes the expert's output."</summary><div class="b">The bias only decides which experts are chosen; the gate weight comes from the unbiased affinity, so the bias never appears in the gradient.</div></details>
 <details class="mist"><summary>"V4.1-Flash has 16B active parameters."</summary><div class="b">It has 8B during prefill and 16B during decode; one active count does not describe an encoder-decoder, and capacity plans built on one figure mislead.</div></details>
 <details class="mist"><summary>"The $5.6M figure is what V3 cost."</summary><div class="b">It is the official training run, 2,788K H800 GPU hours (2,664K of pre-training, 119K of context extension and 5K of post-training) priced at an assumed $2 per H800 hour, so $5.576M, and DeepSeek say it excludes prior research and ablations (<a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener noreferrer">V3 report</a>, Table 1). R1's own training added a reported 147K hours, $294K at the same rate (<a href="https://arxiv.org/abs/2501.12948v2" target="_blank" rel="noopener noreferrer">R1 paper, v2</a>, appendix B.4.4), while SemiAnalysis estimate the hardware available to DeepSeek at about 50,000 Hopper GPUs and $1.6B of server capex, an outside estimate (<a href="https://newsletter.semianalysis.com/p/deepseek-debates" target="_blank" rel="noopener noreferrer">SemiAnalysis</a>).</div></details>
 <details class="mist"><summary>"DeepSeek's serving runs at a 545% margin."</summary><div class="b">That is DeepSeek's theoretical figure for one day in February 2025 if every token had been billed at R1's prices; they say actual revenue was substantially lower, because V3 is cheaper, web and app use is free and night-time discounts applied (<a href="https://github.com/deepseek-ai/open-infra-index/blob/main/202502OpenSourceWeek/day_6_one_more_thing_deepseekV3R1_inference_system_overview.md" target="_blank" rel="noopener noreferrer">day 6</a>). On their figures the day (27 to 28 February 2025) cost $87,072, an average of 226.75 H800 nodes at $2 per GPU-hour, against a theoretical $562,027 of revenue (<a href="https://github.com/deepseek-ai/open-infra-index/blob/main/202502OpenSourceWeek/day_6_one_more_thing_deepseekV3R1_inference_system_overview.md" target="_blank" rel="noopener noreferrer">day 6</a>).</div></details>
 <details class="mist"><summary>"The V4 Flash vision model is DeepSeek's only image model."</summary><div class="b">It was, from 21 August 2026. V4.1-Flash has native vision, and since 14 September the <code>deepseek-v4-flash-vision-exp</code> name routes to it (<a href="https://api-docs.deepseek.com/updates/" target="_blank" rel="noopener noreferrer">API changelog</a>).</div></details>
-</section>
-</div>
-
-<div class="tab" id="t-cache" role="tabpanel" hidden>
-<section>
-<h2>Cache across generations</h2>
-<p>The KV cache one sequence needs, against context length, for each of DeepSeek's attention designs and the two standard baselines, all computed from the per-token figures on the Reading tab. This is the single number every DeepSeek attention generation attacks.</p>
-<p class="try"><b>Try:</b> read the pinned line first: DeepSeek's first generation reproduces the model card's "437-fold" reduction. Then move the context to 1M: at V3's dimensions MHA would need about 3.6 TiB for one sequence and GQA-8 233 GiB; MLA brings it to 65 GiB, V4-Pro's compressed attention to 4.6 GiB, and V4.1-Flash under 1 GiB. Change the budget to see how many sequences fit. Hover or tap a line's label for its arithmetic.</p>
-<div class="card"><div class="ctl"><label>Context: <b id="ccTv">1,000,000 tokens</b><input type="range" id="ccT" min="0" max="8" value="8"></label>
-<label>Cache budget for the "sequences that fit" column (<span class="ill">illustrative</span>) <select id="ccB" style="width:100%"><option value="40">40 GB</option><option value="80" selected>80 GB (one 80GB accelerator, all of it)</option><option value="640">640 GB (eight such accelerators)</option></select></label></div>
-<div class="co key" id="ccPin" style="margin:6px 0"></div><div class="tw"><div id="ccPlot" class="plot" style="min-width:560px"></div></div>
-<div class="tw"><table id="ccTab"></table></div>
-<p class="small mute">Per-token sizes: MHA, GQA-8 and MLA at V3's dimensions (128 heads of 128, <i>d<sub>c</sub></i> = 512, <i>d<sup>R</sup><sub>h</sub></i> = 64, 61 layers, BF16), from the <a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener noreferrer">V3 report</a>; V3.2's DSA stores the same MLA cache. V4-Pro is the estimate reproduced on the Reading tab (30 CSA and 31 HCA layers, FP4 indexer keys) plus its fixed sliding windows (128 × 576 bytes × 61 layers), from the <a href="https://arxiv.org/pdf/2606.19348" target="_blank" rel="noopener noreferrer">V4 report</a>'s configuration. V4-Flash is an <span class="ill">estimate</span> on the same method, with its layer split read from its <a href="https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash/blob/main/config.json" target="_blank" rel="noopener noreferrer">config.json</a>: <code>compress_ratios</code> lists 21 layers at 4 (CSA) and 20 at 128 (HCA), layers 0 and 1 window-only (ratio 0) and the multi-token-prediction layer, so 3,450 bytes per token plus 43 layers of windows (read 2026-10-18); against it, V4.1-Flash's reported 890 bytes per token (<a href="https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash" target="_blank" rel="noopener noreferrer">model card</a>) is 26%, consistent with "roughly a quarter". DeepSeek LLM 67B, the first generation, is plain grouped-query attention with 8 key/value heads of dimension 128 over 95 layers in BF16 (<a href="https://huggingface.co/deepseek-ai/deepseek-llm-67b-base/blob/main/config.json" target="_blank" rel="noopener noreferrer">config.json</a>). DeepSeek's own chart of these generations (<a href="https://api-docs.deepseek.com/news/news260910/" target="_blank" rel="noopener noreferrer">V4.1-Flash announcement</a>) gives V4-Flash 3,514 bytes per token, 1.9% above the 3,450 estimated here, and V3.2 48,068 bytes, smaller than the BF16 MLA line here because V3.2 decodes from an FP8 cache (<a href="https://github.com/deepseek-ai/FlashMLA" target="_blank" rel="noopener noreferrer">FlashMLA</a>'s FP8 sparse decoding kernel). 1M means 1,000,000 tokens; GiB is 2<sup>30</sup> bytes.</p></div>
 </section>
 </div>
 
@@ -540,7 +427,9 @@ math{font-family:"Cambria Math","STIX Two Math",math}
 <h3>Related pages in the knowledge base</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286" target="_blank" rel="noopener noreferrer">Topic: llm-landscape</a></div><p>The parent: the provider map DeepSeek sits in, and how its line compares with the other open and closed families. <span class="rt">(20 min read · +6h 27m resources)</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81be8a07f2562fa2030a" target="_blank" rel="noopener noreferrer">LLM Architecture Gallery (rasbt) and the architectural deltas that matter</a></div><p>GQA, sliding-window, trained sparse and linear attention across the field, how to read a model card's KV-cache figure, and MLA, DSA and CSA/HCA beside everyone else's variants. <span class="rt">(22 min read · +2h resources)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a></div><p>Where MLA, DSA and V4's CSA and HCA are taught, beside MHA, GQA, windows and sinks, with the step-by-step MLA animation first built for this page. <span class="rt">(28 min read)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv" target="_blank" rel="noopener noreferrer">Long context</a></div><p>Whole-model KV-cache sizes against context length, DeepSeek's generations among the presets, and the published-figure reconciliations that used to sit on this page's cache tab. <span class="rt">(22 min read)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81be8a07f2562fa2030a" target="_blank" rel="noopener noreferrer">LLM Architecture Gallery (rasbt) and the architectural deltas that matter</a></div><p>Open models' architectures side by side: layer layouts, ratio counts and the deltas that matter, DeepSeek's among them. <span class="rt">(22 min read · +2h resources)</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58" target="_blank" rel="noopener noreferrer">Mixture of experts</a></div><p>The generic MoE mechanism, auxiliary losses, capacity factors, expert parallelism and serving problems, and other labs' expert counts. <span class="rt">(37 min read · +3h 25m resources)</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d812d9e00f6ec89965286" target="_blank" rel="noopener noreferrer">Topic: llm-landscape (Deeper: test-time compute)</a></div><p>R1's role in the reasoning era, and how test-time compute is spent. <span class="rt">(17 min read · +4h 15m resources)</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs: RLHF, GRPO, RLVR</a></div><p>The full GRPO objective, RLVR, and the successors that fixed GRPO's normalisation biases. <span class="rt">(42 min read · +8h 40m resources)</span></p></div>
@@ -563,7 +452,7 @@ math{font-family:"Cambria Math","STIX Two Math",math}
 <h3>Going further</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2405.04434" target="_blank" rel="noopener noreferrer">DeepSeek-V2 paper</a></div><p>Where MLA and DeepSeekMoE were introduced; section 2.1 and appendix C have MLA's full equations and the cache comparison table. <span class="rt">(about 1h)</span></p></div>
-<div class="sp"><div class="n"><a href="https://www.youtube.com/watch?v=0VLAoVGf_74" target="_blank" rel="noopener noreferrer">Welch Labs: How DeepSeek Rewrote the Transformer [MLA] (video)</a></div><p>An animated video explainer of MLA: why the KV cache limits serving, and how one cached latent replaces every head's keys and values. The inspiration for the step-by-step MLA animation on the Reading tab. <span class="rt">(18 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://www.youtube.com/watch?v=0VLAoVGf_74" target="_blank" rel="noopener noreferrer">Welch Labs: How DeepSeek Rewrote the Transformer [MLA] (video)</a></div><p>An animated video explainer of MLA: why the KV cache limits serving, and how one cached latent replaces every head's keys and values. The inspiration for the step-by-step MLA animation, now on <a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a>. <span class="rt">(18 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://huggingface.co/blog/NormalUhr/mla-explanation" target="_blank" rel="noopener noreferrer">Hugging Face blog (Yihua Zhang): MLA, redefining the KV cache through low-rank projections</a></div><p>A long written explainer of MLA: low-rank projection, on-demand decompression against absorption, the RoPE problem, and a minimal PyTorch example with naive and absorbed modes. <span class="rt">(about 35 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2512.02556" target="_blank" rel="noopener noreferrer">DeepSeek-V3.2 paper</a></div><p>DSA, the indexer's two training stages, and MLA's MHA and MQA modes in appendix A. <span class="rt">(about 45 min)</span></p></div>
 <div class="sp"><div class="n"><a href="https://zartbot.github.io/blog/model_arch/dsv41flash_arch/en.html" target="_blank" rel="noopener noreferrer">zartbot: DeepSeek V4.1-Flash architecture breakdown</a></div><p>The detailed public walkthrough of the encoder-decoder, index reuse and the cache arithmetic. <span class="rt">(146 min)</span></p></div>
@@ -618,95 +507,7 @@ function logFrame(o){const {W,H,pl,pr,pt,pb}=o,lg=Math.log10;
 // end labels for lines, pushed apart so they do not overlap
 function endLabels(ends,x,gap){ends.sort((a,b)=>a.y-b.y);let last=-99,s='';ends.forEach(e=>{e.ly=Math.max(e.y,last+(gap||14));last=e.ly});ends.forEach(e=>{s+='<text x="'+x+'" y="'+(e.ly+4)+'" font-size="11" fill="'+e.c+'" style="cursor:help"><title>'+e.how+'</title>'+e.n+'</text>'});return s}
 </script>
-<script>/* 11_js_mla.js */
-// ---- MLA: the two modes, and the per-layer cache at V3's dimensions ----
-(function(){
-  function draw(m){
-    let s='';
-    // the cache, common to both modes
-    s+='<text x="262" y="16" font-size="11.5" text-anchor="middle" fill="var(--good)">KV cache: 512 + 64 = 576 per token per layer</text>';
-    if(m==='pre'){
-      s+=bx(6,95,104,46,'box',['hₜ','hidden state']);
-      s+=bx(140,40,92,40,'box',['Wᴰᴷⱽ','down-projection']);
-      s+=bx(140,160,92,40,'box',['Wᴷᴿ, RoPE','decoupled key']);
-      s+=bx(262,30,100,58,'boxc',['latent cᴷⱽₜ','512, cached']);
-      s+=bx(256,152,112,56,'boxc',['RoPE key kᴿₜ','64, all heads'],11.5);
-      s+=ar(110,110,138,64)+ar(110,126,138,178)+ar(232,60,260,60)+ar(232,180,260,180);
-      for(let i=0;i<3;i++){const y=26+i*48;s+=bx(400,y,112,38,'boxa',['Wᵁᴷᵢ, Wᵁⱽᵢ → kᵢ, vᵢ','head '+(i===2?'128':i+1)],11.5);s+=ar(362,59,398,y+19)}
-      s+='<text x="456" y="178" font-size="12" text-anchor="middle" fill="var(--mute)">… one slice per head</text>';
-      s+=bx(536,50,100,90,'box',['MHA mode','each head attends','with its own kᵢ, vᵢ','plus kᴿ'],11.5);
-      s+=ar(512,45,534,80)+ar(512,93,534,100)+ar(512,141,534,120);
-      s+='<polyline points="368,190 586,190 586,143" fill="none" stroke="var(--mute)" stroke-width="1.4" stroke-dasharray="4 3" marker-end="MARK"/>';
-    }else{
-      s+=bx(6,30,108,58,'box',['queries qᵢ','128 heads']);
-      s+=bx(140,24,104,70,'boxa',['absorb:','Wᵁᴷᵢᵀ qᵢ','into latent space'],11.5);
-      s+=bx(262,40,100,150,'boxc',['one cached entry','[cᴷⱽⱼ ; kᴿⱼ]','576 dims:','shared key;','first 512 =','shared value'],11.5);
-      s+=bx(6,150,108,40,'box',['qᴿᵢ','rotated part']);
-      s+=bx(392,60,108,70,'box',['MQA mode','every head reads','the same entry'],11.5);
-      s+=bx(526,40,110,46,'boxa',['Σ aⱼ cᴷⱽⱼ','512 dims'],11.5);
-      s+=bx(526,120,110,56,'boxa',['Wᵁⱽᵢ folded','into Wᴼ'],11.5);
-      s+=ar(114,59,138,59)+ar(244,59,260,80)+ar(114,170,260,150)+ar(362,95,390,95)+ar(500,80,524,63)+ar(581,86,581,118);
-    }
-    $('mlaSvg').innerHTML=svgEl(640,215,s,'MLA '+(m==='pre'?'prefill':'decode')+' data flow');
-    $('mlaCap').textContent=m==='pre'
-      ?'Prefill and training are compute-bound with many queries at once, so the latent is expanded through each head\'s own slice of the up-projections and attention runs as ordinary multi-head attention. Only the green boxes are cached.'
-      :'Decode reads one token at a time, so nothing is expanded: each query head is projected into latent space (Wᵁᴷ absorbed into the query side) and all 128 heads score the same 576-dimensional cached entry, whose first 512 dimensions also serve as the value; Wᵁⱽ folds into the output projection.';
-  }
-  segBind('mlaM',draw);draw('pre');
-
-  const nh=128,dh=128,dc=512,dr=64,L=61,G=[1,2,3,4,8,16,32,64,128];
-  function bars(){
-    const g=G[+$('mlaG').value];$('mlaGv').textContent=g;
-    const rows=[['MHA','2 × 128 × 128',2*nh*dh,'var(--bad)'],['GQA, '+g+(g===1?' group':' groups'),'2 × '+g+' × 128',2*g*dh,'var(--c5)'],['MQA','2 × 128',2*dh,'var(--mute)'],['MLA','512 + 64',dc+dr,'var(--good)']];
-    const max=2*nh*dh;
-    $('mlaBars').innerHTML=rows.map(r=>'<div class="row'+(r[0]==='MLA'?' hl':'')+'"><span class="nm" title="'+r[1]+'">'+r[0]+'</span><span class="track"><span class="fill" style="width:'+Math.max(0.4,100*r[2]/max).toFixed(2)+'%;background:'+r[3]+'"></span></span><span class="val">'+fmt(r[2])+'</span></div>').join('')+
-      '<p class="small mute" style="margin:6px 0 0">Elements cached per token per layer. Across 61 layers in BF16 that is '+rows.map(r=>r[0].split(',')[0]+' '+fmtBytes(r[2]*L*2)).join(', ')+' per token. MLA is '+(2*g*dh/(dc+dr)).toFixed(2)+' times smaller than this GQA and '+(max/(dc+dr)).toFixed(1)+' times smaller than MHA.</p>';
-  }
-  $('mlaG').addEventListener('input',bars);bars();
-})();
-</script>
 <script>/* 12_js_attn.js */
-// ---- V4: reproducing the 2% ----
-(function(){
-  function calc(){
-    const ix=+$('v4Ix').value, nC=+$('v4Sp').value, nH=59-nC+2;
-    const entry=448*1+64*2, csa=entry/4+128*ix/4, hca=entry/128, tot=nC*csa+nH*hca, base=2*8*128*2*61;
-    const ixTxt=ix===0?'no indexer keys stored':'one indexer key of 128 dimensions per 4 tokens, 128 × '+ix+' / 4 = '+fmt(128*ix/4)+' bytes';
-    $('v4Steps').innerHTML=[
-      'One stored entry: 448 FP8 dimensions at 1 byte plus 64 BF16 RoPE dimensions at 2 bytes = <b>576 bytes</b>.',
-      'A CSA layer stores one entry per 4 tokens, 576 / 4 = 144 bytes per token, plus '+ixTxt+': <b>'+fmt(csa)+' bytes per token</b>.',
-      'An HCA layer stores 576 / 128 = <b>4.5 bytes per token</b>.',
-      'V4-Pro: '+nC+' × '+fmt(csa)+' + '+nH+' × 4.5 = <b>'+fmt(tot,1)+' bytes per token</b>.',
-      'Baseline, GQA-8 in BF16 with the same 61 layers: 2 × 8 × 128 × 2 = 4,096 bytes per layer, <b>249,856 bytes per token</b>.'
-    ].map(t=>'<li>'+t+'</li>').join('');
-    const T=1e6;
-    $('v4Out').innerHTML=
-      '<div class="stat"><div class="k">V4-Pro against GQA-8</div><div class="v">'+(100*tot/base).toFixed(2)+'%</div><div class="d">reported: about 2%</div></div>'+
-      '<div class="stat"><div class="k">One sequence at 1M tokens</div><div class="v">'+(tot*T/GiB).toFixed(1)+' GiB</div><div class="d">GQA-8 '+(base*T/GiB).toFixed(0)+' GiB · V3 MLA '+(70272*T/GiB).toFixed(0)+' GiB</div></div>'+
-      '<div class="stat"><div class="k">Sliding windows, fixed</div><div class="v">'+(128*576*61/1e6).toFixed(1)+' MB</div><div class="d">128 × 576 × 61 per sequence, whatever its length</div></div>';
-  }
-  ['v4Ix','v4Sp'].forEach(id=>$(id).addEventListener('change',calc));calc();
-})();
-
-// ---- Stored against read, per layer ----
-(function(){
-  const Ts=[4096,8192,16384,65536,131072,262144,524288,1000000];
-  function draw(){
-    const T=Ts[+$('srT').value],k=+$('srK').value;
-    $('srTv').textContent=fmt(T)+' tokens';
-    const csaS=Math.ceil(T/4),hcaS=Math.ceil(T/128),w=Math.min(T,128);
-    const rows=[
-      ['Dense (MHA, GQA, MLA)',T,T,'reads every stored entry'],
-      ['DSA (V3.2)',T,Math.min(T,2048),'plus the indexer scoring all '+fmt(T)],
-      ['CSA (V4)',csaS+w,Math.min(k,csaS)+w,fmt(csaS)+' compressed + '+w+' window; reads top-'+fmt(Math.min(k,csaS))+' + '+w],
-      ['HCA (V4)',hcaS+w,hcaS+w,fmt(hcaS)+' compressed + '+w+' window; reads all']
-    ];
-    const lg=v=>Math.log10(Math.max(1,v))/Math.log10(1.2e6)*100;
-    $('srBars').innerHTML='<div class="bars">'+rows.map(r=>'<div class="row" style="grid-template-columns:minmax(0,10.5em) minmax(0,1fr) 6.4em;margin:7px 0"><span class="nm" style="white-space:normal;line-height:1.2">'+r[0]+'<span class="small mute" style="display:block;font-size:11.5px">'+r[3]+'</span></span><span><span class="track" style="display:block;height:9px"><span class="fill" style="width:'+lg(r[1]).toFixed(1)+'%;background:var(--dim)"></span></span><span class="track" style="display:block;height:9px;margin-top:3px"><span class="fill" style="width:'+lg(r[2]).toFixed(1)+'%;background:var(--acc)"></span></span></span><span class="val" style="font-size:12px;line-height:1.35">'+fmt(r[1])+'<br><b>'+fmt(r[2])+'</b></span></div>').join('')+'</div>';
-  }
-  $('srT').addEventListener('input',draw);$('srK').addEventListener('change',draw);draw();
-})();
-
 // ---- V4.1-Flash: which layers a position passes through ----
 (function(){
   function draw(m){
@@ -845,46 +646,6 @@ function endLabels(ends,x,gap){ends.sort((a,b)=>a.y-b.y);let last=-99,s='';ends.
 })();
 </script>
 <script>/* 15_js_cache.js */
-// ---- Cache across generations: bytes per sequence against context ----
-(function(){
-  const Ts=[4096,8192,16384,32768,65536,131072,262144,524288,1000000];
-  const S=[
-    {n:'DeepSeek LLM 67B',c:'var(--ink)',per:389120,fix:0,dash:'2 3',how:'2 × 8 KV heads × 128 × 95 layers × 2 bytes = 389,120 bytes per token (GQA-8, first generation)'},
-    {n:'MHA (V3 dims)',c:'var(--bad)',per:3997696,fix:0,how:'2 × 128 × 128 × 61 layers × 2 bytes = 3,997,696 bytes per token'},
-    {n:'GQA-8 (V3 dims)',c:'var(--c5)',per:249856,fix:0,how:'2 × 8 × 128 × 61 × 2 = 249,856 bytes per token'},
-    {n:'MLA: V2, V3, V3.2',c:'var(--c4)',per:70272,fix:0,how:'(512 + 64) × 61 × 2 = 70,272 bytes per token; DSA keeps all of it resident'},
-    {n:'V4-Pro CSA + HCA',c:'var(--acc)',per:4939.5,fix:128*576*61,how:'30 × 160 + 31 × 4.5 = 4,939.5 bytes per token, plus 4.5 MB of windows'},
-    {n:'V4-Flash (estimate)',c:'var(--c6)',per:3450,fix:128*576*43,est:1,how:'21 × 160 + 20 × 4.5 = 3,450 bytes per token (21 CSA and 20 HCA layers, from config.json compress_ratios), plus 3.2 MB of windows'},
-    {n:'V4.1-Flash (reported)',c:'var(--good)',per:890,fix:0,how:'890 bytes per token as reported'}
-  ];
-  function draw(){
-    const ti=+$('ccT').value,T=Ts[ti],B=+$('ccB').value*1e9;
-    $('ccTv').textContent=fmt(T)+' tokens';
-    const W=640,H=300,pl=52,pr=150,pt=14,pb=34;
-    const lx=v=>pl+(W-pl-pr)*(Math.log2(v)-12)/(Math.log2(1e6)-12);
-    const ymin=Math.log10(2**20),ymax=Math.log10(8*2**40),ly=v=>pt+(H-pt-pb)*(1-(Math.log10(v)-ymin)/(ymax-ymin));
-    let s='';
-    [[2**20,'1 MiB'],[10*2**20,'10 MiB'],[100*2**20,'100 MiB'],[2**30,'1 GiB'],[10*2**30,'10 GiB'],[100*2**30,'100 GiB'],[2**40,'1 TiB']].forEach(([v,lab])=>{s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+ly(v)+'" y2="'+ly(v)+'" stroke="var(--line)"/><text x="'+(pl-6)+'" y="'+(ly(v)+4)+'" font-size="10.5" text-anchor="end" fill="var(--mute)">'+lab+'</text>'});
-    [4096,16384,65536,262144,1000000].forEach(v=>{s+='<text x="'+lx(v)+'" y="'+(H-pb+16)+'" font-size="10.5" text-anchor="middle" fill="var(--mute)">'+(v>=1e6?'1M':(v/1024)+'K')+'</text>'});
-    s+='<text x="'+((pl+W-pr)/2)+'" y="'+(H-4)+'" font-size="11" text-anchor="middle" fill="var(--mute)">context length, tokens (log scale)</text>';
-    s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+ly(B)+'" y2="'+ly(B)+'" stroke="var(--ink)" stroke-dasharray="5 4"/><text x="'+(pl+4)+'" y="'+(ly(B)-4)+'" font-size="10.5">'+(B/1e9)+' GB budget</text>';
-    s+='<line x1="'+lx(T)+'" x2="'+lx(T)+'" y1="'+pt+'" y2="'+(H-pb)+'" stroke="var(--mute)" stroke-dasharray="2 3"/>';
-    const ends=[];
-    S.forEach(q=>{const pts=[];for(let e=12;e<=Math.log2(1e6)+1e-9;e+=0.25){const t=Math.min(2**e,1e6);pts.push(lx(t).toFixed(1)+','+ly(q.per*t+q.fix).toFixed(1))}pts.push(lx(1e6).toFixed(1)+','+ly(q.per*1e6+q.fix).toFixed(1));
-      s+='<path d="M'+pts.join('L')+'" fill="none" stroke="'+q.c+'" stroke-width="2"'+(q.est?' stroke-dasharray="6 3"':q.dash?' stroke-dasharray="'+q.dash+'"':'')+'/>';
-      s+='<circle cx="'+lx(T)+'" cy="'+ly(q.per*T+q.fix)+'" r="3.5" fill="'+q.c+'"/>';
-      ends.push({y:ly(q.per*1e6+q.fix),q})});
-    ends.sort((a,b)=>a.y-b.y);let last=-99;ends.forEach(e=>{e.ly=Math.max(e.y,last+15);last=e.ly});
-    ends.forEach(e=>{s+='<text x="'+(W-pr+6)+'" y="'+(e.ly+4)+'" font-size="11" fill="'+e.q.c+'"><title>'+e.q.how+'</title>'+e.q.n+'</text>'});
-    $('ccPin').innerHTML='<div class="t">Defaults reproduce the "437-fold" reduction</div>DeepSeek LLM 67B caches 2 × 8 × 128 × 95 × 2 = '+fmt(389120)+' bytes per token; V4.1-Flash reports 890. '+fmt(389120)+' ÷ 890 = <b>'+(389120/890).toFixed(1)+'</b>, the model card\'s "437-fold" (<a href="https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash" target="_blank" rel="noopener noreferrer">model card</a>, Figure 1(b); <a href="https://huggingface.co/deepseek-ai/deepseek-llm-67b-base/blob/main/config.json" target="_blank" rel="noopener noreferrer">67B config</a>). At '+(T>=1e6?'1M':fmt(T))+' tokens one 67B sequence needs '+fmtBytes(389120*T)+' against V4.1-Flash\'s '+fmtBytes(890*T)+'.';
-    $('ccPlot').innerHTML=svgEl(W,H,s,'KV cache per sequence against context length');
-    $('ccTab').innerHTML='<tr><th>Design</th><th class="num">Bytes per token</th><th class="num">One sequence at '+(T>=1e6?'1M':fmt(T))+'</th><th class="num">vs GQA-8</th><th class="num">Sequences in '+(B/1e9)+' GB</th></tr>'+
-      S.map(q=>{const tot=q.per*T+q.fix,g=249856*T;return '<tr><td><span style="color:'+q.c+'">●</span> '+q.n+'<div class="small mute">'+q.how+'</div></td><td class="num">'+fmt(q.per,q.per%1?1:0)+'</td><td class="num">'+fmtBytes(tot)+'</td><td class="num">'+(100*tot/g).toFixed(tot/g<0.1?1:0)+'%</td><td class="num">'+fmt(Math.floor(B/tot))+'</td></tr>'}).join('');
-  }
-  $('ccT').addEventListener('input',draw);$('ccB').addEventListener('change',draw);
-  onTab('t-cache',draw);
-})();
-
 // ---- Lineage: timeline dots and parameter bars ----
 (function(){
   const E=[['L-llm','2023-11-29','LLM',67],['L-v2','2024-05-06','V2',236],['L-v3','2024-12-26','V3',671],['L-r1','2025-01-20','R1',671],['L-v31','2025-08-21','V3.1',0],['L-v32','2025-09-29','V3.2-Exp',0],['L-v4','2026-04-24','V4',1600],['L-vis','2026-08-21','V4 vision',0],['L-v41','2026-09-10','V4.1-Flash',552],['L-v41b','2026-10-17','1017',0]];
@@ -901,154 +662,6 @@ function endLabels(ends,x,gap){ends.sort((a,b)=>a.y-b.y);let last=-99,s='';ends.
     $('tlSvg').querySelectorAll('.tld').forEach(g=>{const go=()=>{document.querySelectorAll('.tl-item').forEach(c=>c.classList.toggle('sel',c.id===g.dataset.id));$(g.dataset.id).scrollIntoView({block:'start',behavior:'smooth'})};g.addEventListener('click',go);g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();go()}})});
   }
   onTab('t-line',draw);
-})();
-</script>
-<script>/* 18_js_mlx.js */
-// ---- MLA explainer: one token through one layer, animated (MLA against standard MHA) ----
-(function(){
-  const card=$('mlx');if(!card)return;
-  const P=7,C=6,DUR=3400,MOVE=0.62; // cell pitch and size (one cell = 64 numbers), ms per step at 1x, share of a step spent moving
-  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const nums={mla:576,mha:32768},LAY=61;
-  const H=(t,c)=>({t,c});
-  const SM=[
-    H('1. A token arrives','Token <i>t</i> enters one of V3\'s 61 attention layers as its hidden state <b>h</b><sub><i>t</i></sub>: 7,168 numbers, 112 squares. Nothing of it is cached yet; the cache on the right already holds the entries of every earlier token.'),
-    H('2. Compress into the latent','The down-projection <i>W</i><sup>DKV</sup> maps <b>h</b><sub><i>t</i></sub> to the latent <b>c</b><sup>KV</sup><sub><i>t</i></sub> of <i>d<sub>c</sub></i> = 512 numbers. This one vector stands in for the keys and values of all 128 heads, which is where the saving comes from: 512 instead of 2 × 128 × 128.'),
-    H('3. Add the decoupled RoPE key','Rotary position embeddings cannot pass through the absorbed product (it would differ for every pair of positions), so a separate key <b>k</b><sup>R</sup><sub><i>t</i></sub> = RoPE(<i>W</i><sup>KR</sup><b>h</b><sub><i>t</i></sub>) carries position: <i>d<sup>R</sup><sub>h</sub></i> = 64 numbers, one copy shared by all 128 heads.'),
-    H('4. Write 576 numbers to the cache','Only [<b>c</b><sup>KV</sup><sub><i>t</i></sub> ; <b>k</b><sup>R</sup><sub><i>t</i></sub>], 512 + 64 = 576 numbers, is written to this layer\'s cache. That is the whole per-token cost of MLA: (<i>d<sub>c</sub></i> + <i>d<sup>R</sup><sub>h</sub></i>) × <i>l</i> = 576 × 61 = 35,136 numbers, 70,272 bytes in BF16.'),
-    H('5. Prefill: rebuild the heads (MHA mode)','In training and prefill attention is compute-bound and many queries run at once, so each head\'s own slice of <i>W</i><sup>UK</sup> and <i>W</i><sup>UV</sup> rebuilds its 128-number key and value from the latent, and every key is extended by the shared <b>k</b><sup>R</sup>. These 2 × 128 × 128 = 32,768 numbers per token (dashed) are computed, used and discarded: never cached.'),
-    H('6. Decode: absorb, every head reads one entry (MQA mode)','In decode <i>W</i><sup>UK</sup><sub><i>i</i></sub> moves onto the query side, (<i>W</i><sup>UK</sup><sub><i>i</i></sub>)<sup>⊤</sup><b>q</b><sub><i>t,i</i></sub> scored straight against <b>c</b><sup>KV</sup><sub><i>j</i></sub>, and <i>W</i><sup>UV</sup><sub><i>i</i></sub> folds into <i>W</i><sup>O</sup>. All 128 query heads read the same 576-number entry of every earlier token, its first 512 serving as the value: nothing is expanded, so a decoded token reads 576 numbers per earlier token per layer, not 32,768.'),
-    H('7. Compare with standard MHA','Per token per layer MLA caches 576 numbers where standard MHA with V3\'s 128 heads of 128 would cache 2 × 128 × 128 = 32,768: about 57 times fewer, the size of GQA with only 2.25 groups (V2 paper). Over 61 layers that is 68.6 KiB per token against 3.81 MiB.')];
-  const SH=[
-    H('1. A token arrives','Token <i>t</i> enters one attention layer as its hidden state <b>h</b><sub><i>t</i></sub>: 7,168 numbers, 112 squares. Behind it, the cache holds the keys and values of every earlier token.'),
-    H('2. Project the keys','<i>W</i><sup>K</sup> projects <b>h</b><sub><i>t</i></sub> into one 128-number key per head: 128 × 128 = 16,384 numbers, 256 squares.'),
-    H('3. Project the values','<i>W</i><sup>V</sup> does the same for the values: another 16,384 numbers. Every head\'s key and value are its own; nothing is shared between heads.'),
-    H('4. Write 32,768 numbers to the cache','All of it is cached, because every later token attends to every earlier key and value: 2<i>n<sub>h</sub>d<sub>h</sub></i> = 32,768 numbers in this layer, 1,998,848 over 61 layers, 3,997,696 bytes (3.81 MiB) per token in BF16.'),
-    H('5. Decode: each head reads its own keys and values','Each decoded token\'s 128 query heads read their own keys and values for every earlier token: 32,768 numbers per earlier token per layer, all moved from memory for every decoded token. That read sets serving throughput, and it is the number MLA attacks.'),
-    H('6. Compare with MLA','Standard MHA caches 32,768 numbers per token per layer; MLA at the same 128 heads of 128 caches 576, about 57 times fewer. Over 61 layers: 3.81 MiB against 68.6 KiB per token.')];
-  const WIDE={W:660,H:352,ht:[14,62],pA:[90,60,84,40],pB:[90,150,84,40],pK:[90,60,84,40],pV:[90,196,84,40],cc:[214,50],kr:[214,166],gK:[196,40],gV:[196,176],
-    up:[318,118,58,58],upA:[[392,128,378,142],[318,140,311,96],[318,156,311,232]],qd:[196,48],o1:[196,150,112,40],o2:[196,212,112,40],oA:[[388,70,310,166],[252,190,252,210]],
-    cache:[384,24,264,274],col0:[394,58],cK:[394,46],cV:[522,46],bus:[390,52],busH:[392,102],qOut:'right',qTxt:[196,120],bars:[14,316]};
-  const NAR={W:360,H:520,ht:[10,46],pA:[76,52,80,40],pB:[76,120,80,40],pK:[76,52,80,40],pV:[76,176,80,40],cc:[188,40],kr:[188,118],gK:[170,30],gV:[170,160],
-    up:[292,120,58,58],upA:[[321,300,321,180],[292,149,286,95],[292,149,286,215]],qd:[170,40],o1:[10,212,150,40],o2:[10,152,150,40],oA:[[60,306,60,254],[60,212,60,194]],
-    cache:[8,286,344,172],col0:[20,318],cK:[20,306],cV:[150,306],bus:[226,312],busH:[76,304],qOut:'down',qTxt:[10,206],bars:[10,484]};
-  const st={m:'mla',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
-  const steps=()=>st.m==='mla'?SM:SH;
-  const cl=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v),lerp=(a,b,u)=>a+(b-a)*u;
-  // n cells of a grid as one path
-  function cells(x,y,cols,n,fill,op,dash){let d='';for(let i=0;i<n;i++)d+='M'+(x+(i%cols)*P)+' '+(y+Math.floor(i/cols)*P)+'h'+C+'v'+C+'h-'+C+'z';
-    return n>0?'<path d="'+d+'" fill="'+fill+'"'+(op!=null?' fill-opacity="'+op+'"':'')+'/>':''}
-  const frame=(x,y,cols,rows,col,op)=>'<rect x="'+(x-2.5)+'" y="'+(y-2.5)+'" width="'+(cols*P+4)+'" height="'+(rows*P+4)+'" rx="3" fill="none" stroke="'+col+'" stroke-dasharray="4 3" opacity="'+(op==null?1:op)+'"/>';
-  const T=(x,y,s,o)=>'<text x="'+x+'" y="'+y+'" font-size="'+((o&&o.fs)||11.5)+'"'+(o&&o.a?' text-anchor="'+o.a+'"':'')+(o&&o.c?' fill="'+o.c+'"':'')+(o&&o.op!=null?' opacity="'+o.op+'"':'')+'>'+s+'</text>';
-  const G=(op,s)=>'<g opacity="'+op.toFixed(3)+'">'+s+'</g>';
-  const box=(b,lines,cls,op)=>G(op==null?1:op,bx(b[0],b[1],b[2],b[3],cls||'box',lines,11.5));
-  const arr=(a,op,dash)=>G(op==null?1:op,ar(a[0],a[1],a[2],a[3],dash));
-  function packets(pts,u,col){let s='';const seg=[];let tot=0;for(let i=1;i<pts.length;i++){const l=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);seg.push(l);tot+=l}
-    for(let j=0;j<6;j++){const f=cl(u*1.7-j*.14);if(f<=0||f>=1)continue;let d=f*tot,i=0;while(i<seg.length-1&&d>seg[i]){d-=seg[i];i++}
-      const r=seg[i]?d/seg[i]:0,x=lerp(pts[i][0],pts[i+1][0],r),y=lerp(pts[i][1],pts[i+1][1],r);s+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="3" fill="'+col+'" opacity="'+(1-Math.abs(f-.5)).toFixed(2)+'"/>'}
-    return s}
-  const ctr=b=>[b[0]+b[2]/2,b[1]+b[3]/2];
-  function draw(){
-    const L=card.clientWidth<560?NAR:WIDE,k=st.k,e=RM?1:ease(cl(st.t/MOVE)),ph=RM?-1:(st.t*2.2)%1,mla=st.m==='mla';
-    const cK='var(--c2)',cV='var(--c4)',cC='var(--good)',cR='var(--c6)',cH='var(--acc)';
-    let s='';
-    const writeK=3,cmpK=mla?6:5,decK=mla?5:4;
-    // cache region
-    const cb=L.cache;s+='<rect x="'+cb[0]+'" y="'+cb[1]+'" width="'+cb[2]+'" height="'+cb[3]+'" rx="8" fill="var(--soft)" stroke="var(--line)"/>';
-    s+=T(cb[0]+8,cb[1]+14,'KV cache of this layer (1 of 61)',{c:'var(--mute)',fs:11});
-    const nx=L.col0[0]+20*12; // the new token's column (MLA)
-    if(mla){for(let j=0;j<20;j++){const x=L.col0[0]+j*12;s+=cells(x,L.col0[1],1,8,cC,.45)+cells(x,L.col0[1]+58,1,1,cR,.45)}
-      s+=T(L.col0[0],L.col0[1]+80,'earlier tokens: 9 squares (576 numbers) each',{c:'var(--mute)',fs:10.5});
-      s+=T(nx+3,L.col0[1]+80,'t',{a:'middle',fs:10.5,op:k>=writeK?1:.35});
-      s+='<rect x="'+(nx-2)+'" y="'+(L.col0[1]-2)+'" width="10" height="69" rx="2" fill="none" stroke="var(--mute)" stroke-dasharray="2 2" opacity="'+(k>=writeK?0:.6)+'"/>';
-    }else{for(let g=2;g>=1;g--){const o=g*5;s+=G(.5,frame(L.cK[0]+o,L.cK[1]+o,16,16,'var(--mute)')+frame(L.cV[0]+o,L.cV[1]+o,16,16,'var(--mute)'))}
-      s+=T(L.cK[0],L.cK[1]+134,'keys 16,384',{fs:10.5,c:'var(--mute)'})+T(L.cV[0],L.cV[1]+134,'values 16,384',{fs:10.5,c:'var(--mute)'});
-      s+=T(L.cK[0],L.cK[1]+148,'behind: every earlier token, 512 squares each',{fs:10.5,c:'var(--mute)'});
-      if(k<writeK)s+=frame(L.cK[0],L.cK[1],16,16,'var(--mute)',.6)+frame(L.cV[0],L.cV[1],16,16,'var(--mute)',.6);}
-    // hidden state
-    const htOp=k===0?1:(k>=(mla?4:4)?.3:.85),htN=k===0?Math.round(112*e):112;
-    s+=G(htOp,cells(L.ht[0],L.ht[1],8,htN,cH,.7)+T(L.ht[0],L.ht[1]-8,'hₜ · 7,168',{fs:12}));
-    if(mla){
-      const pOp=k<1?0:k===1?e:k>=4?(k===4?.3:0):1;
-      s+=box(L.pA,['Wᴰᴷⱽ','down-projection'],'box',pOp);
-      s+=box(L.pB,['Wᴷᴿ, RoPE','decoupled key'],'box',k<2?0:k===2?e:k>=4?(k===4?.3:0):1);
-      const hO=[L.ht[0]+56,L.ht[1]+49];
-      if(k===1&&!RM)s+=packets([hO,ctr(L.pA),[L.cc[0]+3,L.cc[1]+28]],e,cC);
-      if(k===2&&!RM)s+=packets([hO,ctr(L.pB),[L.kr[0]+3,L.kr[1]+3]],e,cR);
-      // latent and RoPE key: made, then moved into the cache
-      if(k>=1){const u=k===writeK?e:(k>writeK?1:0),x=lerp(L.cc[0],nx,u),y=lerp(L.cc[1],L.col0[1],u),n=k===1?Math.round(8*cl((e-.35)/.65)):8;
-        s+=cells(x,y,1,n,cC);if(k<writeK)s+=T(L.cc[0]+14,L.cc[1]+26,'cᴷⱽₜ',{fs:12})+T(L.cc[0]+14,L.cc[1]+41,'512 numbers',{fs:10.5,c:'var(--mute)'})}
-      if(k>=2){const u=k===writeK?e:(k>writeK?1:0),x=lerp(L.kr[0],nx,u),y=lerp(L.kr[1],L.col0[1]+58,u),op=k===2?cl((e-.4)/.6):1;
-        s+=G(op,cells(x,y,1,1,cR));if(k<writeK)s+=G(op,T(L.kr[0]+14,L.kr[1]+7,'kᴿₜ · 64, all heads',{fs:11}))}
-      if(k===writeK)s+=G(cl(e*3),T(nx+3,L.col0[1]-6,'+576',{a:'middle',fs:11,c:cC}));
-      if(k===4){ // prefill: rebuild per-head keys and values, not cached
-        s+=box(L.up,['Wᵁᴷᵢ','Wᵁⱽᵢ'],'boxa',cl(e*2));L.upA.forEach(a=>s+=arr(a,cl(e*2)));
-        const n=Math.round(256*e);s+=cells(L.gK[0],L.gK[1],16,n,cK,.35)+cells(L.gV[0],L.gV[1],16,n,cV,.35)+frame(L.gK[0],L.gK[1],16,16,cK)+frame(L.gV[0],L.gV[1],16,16,cV);
-        s+=T(L.gK[0],L.gK[1]-6,'kᵢ = [kᶜᵢ ; kᴿ], 128 heads',{fs:10.5})+T(L.gV[0],L.gV[1]-6,'vᵢ, 128 heads: not cached',{fs:10.5});
-      }
-      if(k===decK){ // decode: absorbed queries all read the same entries
-        const q=L.qd,op=cl(e*2);let ln='';
-        s+=G(op,cells(q[0],q[1],16,128,cH,.8)+T(q[0],q[1]-6,'128 heads, (Wᵁᴷᵢ)ᵀqᵢ',{fs:10.5}));
-        const pts=[];for(let r=0;r<8;r++)pts.push(L.qOut==='right'?[q[0]+16*P,q[1]+3+r*P]:[q[0]+3+r*14,q[1]+8*P]);
-        pts.forEach(p=>{ln+='<line x1="'+p[0]+'" y1="'+p[1]+'" x2="'+L.bus[0]+'" y2="'+L.bus[1]+'" stroke="'+cH+'" stroke-width="1" opacity=".55"/>';if(ph>=0)ln+='<circle cx="'+lerp(p[0],L.bus[0],ph).toFixed(1)+'" cy="'+lerp(p[1],L.bus[1],ph).toFixed(1)+'" r="2.4" fill="'+cH+'"/>'});
-        const bx0=L.col0[0]-2,bx1=nx+8,by=L.col0[1]-5;ln+='<path d="M'+bx0+' '+(by+4)+'V'+by+'H'+bx1+'V'+(by+4)+'" fill="none" stroke="'+cH+'" stroke-width="1.6"/>';
-        if(L.qOut!=='right')ln+='<line x1="'+L.bus[0]+'" y1="'+L.bus[1]+'" x2="'+L.bus[0]+'" y2="'+by+'" stroke="'+cH+'"/>';
-        s+=G(op,ln);
-        s+=G(cl(e*2-.4),bx(L.o1[0],L.o1[1],L.o1[2],L.o1[3],'boxa',['Σⱼ aⱼ cᴷⱽⱼ','512, per head'],11)+bx(L.o2[0],L.o2[1],L.o2[2],L.o2[3],'box',['Wᵁⱽᵢ folded','into Wᴼ'],11));
-        L.oA.forEach(a=>s+=arr(a,cl(e*2-.4)));
-      }
-    }else{
-      s+=box(L.pK,['Wᴷ','keys, per head'],'box',k<1?0:k===1?e:k>=4?0:1);
-      s+=box(L.pV,['Wⱽ','values, per head'],'box',k<2?0:k===2?e:k>=4?0:1);
-      const hO=[L.ht[0]+56,L.ht[1]+49];
-      if(k===1&&!RM)s+=packets([hO,ctr(L.pK),[L.gK[0]+56,L.gK[1]+56]],e,cK);
-      if(k===2&&!RM)s+=packets([hO,ctr(L.pV),[L.gV[0]+56,L.gV[1]+56]],e,cV);
-      if(k>=1){const u=k===writeK?e:(k>writeK?1:0),n=k===1?Math.round(256*cl((e-.3)/.7)):256;
-        s+=cells(lerp(L.gK[0],L.cK[0],u),lerp(L.gK[1],L.cK[1],u),16,n,cK,.85);if(k<writeK)s+=T(L.gK[0],L.gK[1]-6,'k₁ … k₁₂₈ · 16,384',{fs:10.5})}
-      if(k>=2){const u=k===writeK?e:(k>writeK?1:0),n=k===2?Math.round(256*cl((e-.3)/.7)):256;
-        s+=cells(lerp(L.gV[0],L.cV[0],u),lerp(L.gV[1],L.cV[1],u),16,n,cV,.85);if(k<writeK)s+=T(L.gV[0],L.gV[1]-6,'v₁ … v₁₂₈ · 16,384',{fs:10.5})}
-      if(k===writeK)s+=G(cl(e*3),T(L.cV[0]+112,L.cK[1]-4,'+32,768',{a:'end',fs:11,c:cK}));
-      if(k===decK){const q=L.qd,op=cl(e*2);let ln='';
-        s+=G(op,cells(q[0],q[1],16,128,cH,.8)+T(q[0],q[1]-6,'128 query heads',{fs:10.5}));
-        const pts=[];for(let r=0;r<8;r++)pts.push(L.qOut==='right'?[q[0]+16*P,q[1]+3+r*P]:[q[0]+3+r*14,q[1]+8*P]);
-        pts.forEach(p=>{ln+='<line x1="'+p[0]+'" y1="'+p[1]+'" x2="'+L.busH[0]+'" y2="'+L.busH[1]+'" stroke="'+cH+'" stroke-width="1" opacity=".55"/>';if(ph>=0)ln+='<circle cx="'+lerp(p[0],L.busH[0],ph).toFixed(1)+'" cy="'+lerp(p[1],L.busH[1],ph).toFixed(1)+'" r="2.4" fill="'+cH+'"/>'});
-        ln+=frame(L.cK[0],L.cK[1],16,16,cH)+frame(L.cV[0],L.cV[1],16,16,cH);
-        s+=G(op,ln)+G(cl(e*2-.4),T(L.qTxt[0],L.qTxt[1],'head i reads its own kᵢ, vᵢ',{fs:10.5})+T(L.qTxt[0],L.qTxt[1]+14,'for every earlier token',{fs:10.5,c:'var(--mute)'}));
-      }
-    }
-    // to-scale bars: numbers cached per token per layer
-    const b=L.bars,x0=b[0]+104,x1=L.W-12,wB=x1-x0,cur=cntNow();
-    s+=T(b[0],b[1]-4,'Cached per token per layer, to scale',{fs:11,c:'var(--mute)'});
-    const row=(y,name,val,full,col,op)=>G(op,T(b[0],y+9,name,{fs:11})+'<rect x="'+x0+'" y="'+y+'" width="'+wB+'" height="10" rx="2" fill="var(--soft)"/>'+'<rect x="'+x0+'" y="'+y+'" width="'+Math.max(val?1.5:0,wB*val/32768).toFixed(1)+'" height="10" rx="2" fill="'+col+'"/>'+(full?'':T(x0+Math.max(4,wB*val/32768)+6,y+9,fmt(val),{fs:10.5})));
-    const mhaV=mla?(k===cmpK?Math.round(32768*e):0):cur,mlaV=mla?cur:(k===cmpK?Math.round(576*e):0);
-    s+=row(b[1]+2,'MHA '+fmt(mhaV),mhaV,mhaV>20000,cK,mla?(k===cmpK?1:.35):1);
-    s+=row(b[1]+18,'MLA '+fmt(mlaV),mlaV,false,cC,mla?1:(k===cmpK?1:.35));
-    if(k===cmpK)s+=G(cl(e*2-.5),T(L.W-12,b[1]-4,'about 57 times fewer',{a:'end',fs:11,c:cC}));
-    $('mlxSvg').innerHTML=svgEl(L.W,L.H,s,'One token through '+(mla?'multi-head latent attention':'standard multi-head attention')+', step '+(k+1));
-    // text: step caption only when the step changes, counter every frame
-    if(st.lk!==k||st.lm!==st.m){const S=steps()[k];$('mlxStep').innerHTML='Step '+(k+1)+' of '+steps().length+': '+S.t.replace(/^\d+\. /,'');$('mlxCap').innerHTML=S.c;st.lk=k;st.lm=st.m}
-    const c=cur;$('mlxCnt').innerHTML=stat('Numbers cached for this token, this layer',fmt(c),mla?'MLA writes 512 + 64':'MHA writes 2 × 128 × 128')+stat('Over all 61 layers',fmt(c*LAY),'numbers per token')+stat('In BF16',fmtBytes(c*LAY*2),fmt(c*LAY*2)+' bytes per token');
-    const n=steps().length,sc=$('mlxScrub');sc.max=n*100;sc.value=Math.round((k+st.t)*100);
-    const pb=$('mlxPlay'),end=k===n-1&&st.t>=1;pb.innerHTML=st.play?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',st.play?'Pause':end?'Replay':'Play');
-  }
-  function cntNow(){const k=st.k,e=RM?1:ease(cl(st.t/MOVE)),N=nums[st.m];return k<3?0:k===3?Math.round(N*e):N}
-  const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
-  function tick(now){st.raf=0;if(!st.play||!live())return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
-    st.t+=dt*st.spd/DUR;const n=steps().length;if(st.t>=1){if(st.k<n-1){st.k++;st.t=0}else{st.t=1;st.play=false}}
-    card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
-  function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
-  const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
-  $('mlxPlay').addEventListener('click',()=>{if(st.play){pause()}else{const n=steps().length;if(st.k===n-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<n-1){st.k++;st.t=0}st.play=true;kick()}draw()});
-  $('mlxFwd').addEventListener('click',()=>{pause();st.k=Math.min(steps().length-1,st.k+1);st.t=1;draw()});
-  $('mlxBack').addEventListener('click',()=>{pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
-  $('mlxScrub').addEventListener('input',e=>{pause();const n=steps().length,v=+e.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl(v/100-st.k);draw()});
-  $('mlxSpd').addEventListener('change',e=>{st.spd=+e.target.value});
-  const seg=$('mlxM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM&&!st.play){st.play=true}draw();kick()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
-  document.addEventListener('visibilitychange',kick);
-  let rw=0;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});rw=card.clientWidth<560;
-  draw();
 })();
 </script>
 <script>/* 20_js_pipe.js */
@@ -1329,6 +942,8 @@ function rebalance(w,nrep,ng,nn,ngpu){if(ng%nn!==0){ng=1;nn=1}
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);const g=a.dataset.go&&document.getElementById(a.dataset.go);(g||bar).scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('ds-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

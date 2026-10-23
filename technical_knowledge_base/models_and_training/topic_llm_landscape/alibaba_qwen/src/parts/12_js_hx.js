@@ -10,7 +10,7 @@
   const IDX=128/4;              // indexer: one 128-dim key per 4-token block, i.e. 32 numbers per token (assumed cached compressed)
   const BUD=2048, NC=512;       // QSA token budget; cells per lane
   const TS=[4096,32768,262144,1000000];
-  const st={m:'hyb',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',ti:1};
+  const st={m:'hyb',k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',ti:1};
   const T=()=>TS[st.ti];
   const H=(t,c)=>({t,c});
   const tk=()=>fmt(T());
@@ -137,7 +137,7 @@
   $('hxSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   $('hxT').addEventListener('change',e=>{st.ti=+e.target.value;st.lk=-1;draw()});
   const seg=$('hxM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM&&!st.play){st.play=true}draw();kick()}));
+    st.m=b.dataset.m;st.k=0;st.t=1;pause();draw()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=0;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});rw=card.clientWidth<560;
