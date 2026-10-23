@@ -1,6 +1,6 @@
-// ---- Quant ladder tab (t-quant): quality against size, speed against size, table. Data: LO.q (scripts/collect_q.py, gen_data.py) ----
+// ---- Reading: the quant ladder drawn inline (speed against size in section 1, quality against size and every file in section 5). Data: LO.q (scripts/collect_q.py, gen_data.py) ----
 (function(){
-  const tab=document.getElementById('t-quant');if(!tab||!window.LO||!LO.q)return;
+  if(!document.getElementById('lo-ql-svg')||!window.LO||!LO.q)return;
   const Q=LO.q,$=id=>document.getElementById(id);
   let xmode='bpw',metric='kld',filt='all',smode='tg',tfilt='m17',sortK='bpw',sortD=1,sel=null;
   const fam=[{k:'m17',name:'Qwen3-1.7B GGUF',c:'var(--c1)',sh:'c'},{k:'m4',name:'Qwen3-4B GGUF',c:'var(--c2)',sh:'s'},{k:'mlx',name:'Qwen3-1.7B MLX',c:'var(--c3)',sh:'t'}];
@@ -79,6 +79,5 @@
   }
   RD.seg($('lo-qt-f'),m=>{tfilt=m;drawT()});
   function all(){drawQ();drawS();drawT()}
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-quant']=window.TAB_RENDER['t-quant']||[]).push(all);
-  let rt=0;addEventListener('resize',()=>{if(tab.hidden)return;clearTimeout(rt);rt=setTimeout(()=>{drawQ();drawS()},80)});
+  all();RD.onRender(all);RD.onResize(()=>{drawQ();drawS()});
 })();

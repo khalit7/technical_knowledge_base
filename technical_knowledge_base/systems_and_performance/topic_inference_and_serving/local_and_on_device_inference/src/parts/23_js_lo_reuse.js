@@ -38,6 +38,6 @@
     const M=R[mode];document.getElementById('lo-cr-cnt').innerHTML=RD.stat('tokens reused',i>=4?M.cache_n:'&ndash;','from the slot')+RD.stat('tokens computed',i>=3?M.prompt_n:'&ndash;','prefill work')+RD.stat('prefill time',i>=3?M.prompt_ms+' ms':'&ndash;','measured, first repeat');
   }
   const AN=RD.anim({card:'lo-cr',ctl:'lo-cr-ctl',n:5,draw,ms:1900,label:'Cache reuse step'});
-  RD.seg(document.getElementById('lo-cr-seg'),m=>{mode=m;AN.reset(5);AN.play()});
+  RD.seg(document.getElementById('lo-cr-seg'),m=>{mode=m;AN.reset(5)});
   RD.onResize(()=>AN.redraw());
 })();

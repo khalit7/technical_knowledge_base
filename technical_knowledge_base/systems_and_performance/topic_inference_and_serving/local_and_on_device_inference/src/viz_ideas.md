@@ -23,3 +23,10 @@ Method: `.claude/skills/explainer-page/visuals/choosing.md`. The reader is new t
 
 ## What the methodology lacked
 Nothing structural; the useful addition was "reuse the parent's planner functions for model shapes" so the fit tab cannot disagree with the Capacity planner.
+
+## 2026-10-23 rebuild (teaching contract; Model formats folded in)
+- **Built: hero figure** (`26_js_lo_hero.js`, static): Qwen3-4B Q4_K_M+i on this 16 GB M1 Pro. Memory to scale (weights 2.49 GB measured file, F16 KV at 40,960 tokens 6.04 GB derived, GPU working set 12.7 GB measured, macOS share), then bytes read per token with the ceilings 200/2.49 = 80 and 200/8.53 = 23 tok/s against the measured 43.2. One picture for fit and speed, the page's two questions.
+- **Moved inline:** speed against size (section 1, beside the bandwidth claim), quality against size (section 5), every-file table (closed block in section 5), all llama-server lab runs (closed blocks in sections 1, 6, 8), and from Model formats the conversion map (section 3; default node now GGUF BF16, two routes, one lossless and one lossy). The Quant ladder and llama-server lab tabs and the Model formats Conversion map tab are gone.
+- **Kept as tabs:** Fit and speed (a calculator used across sections 1, 2 and 9) and File explorer (a dataset view of three real files, used across section 3).
+- **Absorbed from Model formats** (its viz_ideas.md is in `formats/viz_ideas.md`): repo bar, dtype bits widget, pickle machine stepper, safetensors hex, GGUF file map, Q4_K_M type mix bars, Q4_K block decode (closed), GGUF block against MLX groups, ONNX operator bars (closed), load-time bars, file sizes (closed).
+- **Rejected:** a second memory calculator in Reading (the hero plus the Fit and speed tab cover it); redrawing the Q4_K super-block twice (the block animation teaches it; the hand decode is a closed block).
