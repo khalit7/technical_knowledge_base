@@ -44,12 +44,12 @@ CHECKS = [
     ("6 stages (192 KB)", sweep["mmstages_s6.sm_90a"]["smem"] == 196608),
     ("5 stages of 128 x 128 x 64 FP16 tiles (128 KB) do not fit", sweep["mmstages_s5.sm_120"]["smem"] == 131072 > 99 * 1024),
     ("5 of tutorial 03's 16 configurations", all(v == 11 for v in D["exp"]["tutorial_fit_counts"].values())),
-    ("need 54 tiles grouped against 90 row-major", D["exp"]["grouped"]["row_major_9"] == 90 and D["exp"]["grouped"]["grouped_9"] == 54),
+    ("54 tiles instead of 90 for the first 9 programs", D["exp"]["grouped"]["row_major_9"] == 90 and D["exp"]["grouped"]["grouped_9"] == 54),
     ("their best was R = 1 with XBLOCK 8,192 (6.606 TB/s)", max(max(v) for v in pub["xblock_sweep_TBps"].values()) == 6.606),
     ("by about 5% at XBLOCK 2,048", round((6.574 - 6.214) / 6.574 * 100) == 5 and pub["xblock_2048_TBps"]["16"] == 6.214),
     ("by 20% at XBLOCK 1,024 (R = 16)", round((6.566 - 5.226) / 6.566 * 100) == 20),
     ("2<sup>31</sup> = 2,147,483,648 elements (8 GiB of FP32)", 2 ** 31 == 2147483648 and 2 ** 31 * 4 == 8 * 2 ** 30),
-    ("ships 14 tutorials in 3.8.0", True),   # listed from the GitHub contents API, v3.8.0 (src/README.md)
+    ("Triton 3.8.0 ships 14 Gluon tutorials", True),   # listed from the GitHub contents API, v3.8.0 (src/README.md)
     ("The parent's plainer attention kernel (no causal mask, <code>exp</code>) compiled to 254 and 198 registers", True),  # FACTS.md, cuda-lab agent
     ("Releases so far in 2026: 3.6.0 (January 21), 3.7.0 (May 7), 3.7.1 (June 18), 3.8.0 (August 28)", True),  # GitHub releases API
     ("1,024 elements", True),

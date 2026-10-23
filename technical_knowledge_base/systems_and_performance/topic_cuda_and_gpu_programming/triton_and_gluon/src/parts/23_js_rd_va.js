@@ -49,7 +49,7 @@
       g+='<rect x="'+x.toFixed(2)+'" y="'+y.toFixed(1)+'" width="'+Math.max(cw-0.3,0.6).toFixed(2)+'" height="'+(ch-1.5).toFixed(1)+'" fill="'+(masked?'var(--bg)':fill)+'" fill-opacity="'+op.toFixed(2)+'"'+(masked?' stroke="var(--bad)" stroke-width="0.6"':'')+'/>';
       if(thr===sel)g+='<rect x="'+(x-0.6).toFixed(2)+'" y="'+(y-0.8).toFixed(1)+'" width="'+(cw+0.6).toFixed(2)+'" height="'+(ch).toFixed(1)+'" fill="none" stroke="var(--ink)" stroke-width="1.3"/>';
     }
-    for(let r=0;r<8;r++)g+=RD.t(L-4,14+r*ch+ch*0.7,String(r*128),{a:'end',fs:9.5,fill:'var(--mute)'});
+    for(let r=0;r<8;r++)g+=RD.t(L-4,14+r*ch+ch*0.7,String(r*128),{a:'end',fs:11,fill:'var(--mute)'});
     g+=RD.t(L,10,s.spt?'colour = warp (4 warps x 32 threads); outlined = thread 0':'one block of 1,024 values (no threads yet)',{fs:10.5,fill:'var(--mute)'});
     box.innerHTML=RD.svg(W,H,g,'1,024 elements of one program');
     $('rd-va-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S.length+': '+esc(s.t)+'</div><p>'+esc(s.p)+'</p><pre class="tg-pre" style="margin:4px 0">'+s.ir.map(esc).join('\n')+'</pre>';

@@ -28,3 +28,11 @@ What the text needs to be understood: (1) what "a program over blocks" becomes i
 
 ## What the methodology lacked
 A rule for "compiled but not run" evidence: this page needed a fifth evidence class beside measured, published, derived and not run. Used: "compiled here" (real compiler output for a GPU that is not present), with its own colour.
+
+## Added 2026-10-23 (teaching-contract rebuild)
+| # | Visual | Where | Kind | Data |
+|---|---|---|---|---|
+| 13 | Hero: source, compiler decisions at TTGIR, instruction per target | Reading top | static annotated diagram | `TGD.exp.mma_per_kstep` |
+| 14 | Causal tile grid (visited, masked diagonal, skipped) | Reading s4 | static diagram | n_b = 8 illustrative; 8,192 fraction from `TGD.exp.causal_tiles_8192_128` |
+| 15 | Autotuning stepper over tutorial 03's 16 configurations on sm_90a | Reading s6 | stepper (process) | `TGD.sweep` mm_* rows, 227 KB limit; timing from do_bench defaults (derived) |
+Moved: Layout explorer (10) from its tab into Reading s8.

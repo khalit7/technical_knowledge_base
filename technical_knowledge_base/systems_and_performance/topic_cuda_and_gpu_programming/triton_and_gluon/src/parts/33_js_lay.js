@@ -1,4 +1,4 @@
-// ---- Layout explorer tab (t-lay) ----
+// ---- Layout explorer (Reading section 8, card #ly-card; was a tab until 2026-10-23) ----
 // TG_bases: blocked layout -> linear-layout bases (row, col), as Triton converts it; checked against Triton's printed
 // to_linear_layout output (src/out/gluon.json) by src/check/check_js.mjs and live on the tab.
 window.TG_bases=function(spt,tpw,wpc,order,shape){
@@ -37,14 +37,14 @@ window.TG_owners=function(B,shape){
     $('ly-stats').innerHTML=RD.stat('Block covered by one layout tile',(spt[0]*tpw[0]*wpc[0])+' x '+(spt[1]*tpw[1]*wpc[1]))+RD.stat('Registers per thread for this tensor',regs,'elements per thread')+RD.stat('Threads',nT,wpc[0]*wpc[1]+' warps')+RD.stat('Copies of each element',dup,dup>1?'broadcast: duplicated data':'no duplication');
     $('ly-leg').innerHTML=Array.from({length:wpc[0]*wpc[1]},(_,w)=>'<span style="--sw:'+COL[w%8]+'">warp '+w+'</span>').join('');
     const box=$('ly-grid'),W=Math.max(280,Math.min(880,RD.width(box))),cs=Math.max(2,Math.min(44,Math.floor((W-30)/shape[1]))),Hh=shape[0]*cs+18,Ww=shape[1]*cs+28;
-    const lab=cs>=34;
+    const lab=cs>=44;
     let g='';
     for(let y=0;y<shape[0];y++)for(let x=0;x<shape[1];x++){const o=G.get(y*shape[1]+x)||[],f=o[0],mine=o.some(t=>t[0]===T);
       const w=f?f[0]>>5:0,ln=f?f[0]&31:0;
       g+='<rect x="'+(24+x*cs)+'" y="'+(14+y*cs)+'" width="'+(cs-(cs>3?1:0))+'" height="'+(cs-(cs>3?1:0))+'" fill="'+COL[w%8]+'" fill-opacity="'+(0.35+0.5*((ln%8)/7)).toFixed(2)+'"'+(mine?' stroke="var(--ink)" stroke-width="'+(cs>6?2:1)+'"':'')+'/>';
-      if(lab)g+='<text x="'+(24+x*cs+cs/2)+'" y="'+(14+y*cs+cs/2+3.5)+'" text-anchor="middle" font-size="9.5">T'+f[0]+':'+f[1]+'</text>';
-      if(o.length>1&&cs>=14)g+='<text x="'+(24+x*cs+cs-3)+'" y="'+(14+y*cs+9)+'" text-anchor="end" font-size="8" fill="var(--bad)">'+o.length+'</text>'}
-    for(let y=0;y<shape[0];y+=Math.max(1,Math.round(16/cs)*2||1))if(cs>=8||y%8===0)g+=RD.t(20,14+y*cs+Math.min(cs,12)*0.8,String(y),{a:'end',fs:9,fill:'var(--mute)'});
+      if(lab)g+='<text x="'+(24+x*cs+cs/2)+'" y="'+(14+y*cs+cs/2+3.5)+'" text-anchor="middle" font-size="11">T'+f[0]+':'+f[1]+'</text>';
+      if(o.length>1&&cs>=22)g+='<text x="'+(24+x*cs+cs-3)+'" y="'+(14+y*cs+11)+'" text-anchor="end" font-size="11" fill="var(--bad)">'+o.length+'</text>'}
+    for(let y=0;y<shape[0];y+=(cs>=14?1:8))g+=RD.t(20,14+y*cs+Math.min(cs,12)*0.8,String(y),{a:'end',fs:11,fill:'var(--mute)'});
     box.innerHTML=RD.svg(Ww,Hh,g,'Layout map');
     const fm=b=>'['+b.map(x=>'['+x.join(',')+']').join(', ')+']';
     $('ly-bases').textContent='reg_bases  = '+fm(B.reg)+'\nlane_bases = '+fm(B.lane)+'\nwarp_bases = '+fm(B.warp);
@@ -58,6 +58,5 @@ window.TG_owners=function(B,shape){
   ['ly-spt','ly-tpw','ly-wpc','ly-ord','ly-shape'].forEach(id=>$(id).addEventListener('change',()=>{const i=+$('ly-pre').value;render();if(i>=0&&!$('ly-check').innerHTML)$('ly-pre').value='-1'}));
   $('ly-thr').addEventListener('input',render);
   $('ly-pre').value='0';$('ly-pre').dispatchEvent(new Event('change'));
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-lay']=window.TAB_RENDER['t-lay']||[]).push(render);
-  RD.onResize&&addEventListener('resize',()=>{const t=$('t-lay');if(t&&!t.hidden)render()});
+  RD.onRender(render);RD.onResize(render);
 })();
