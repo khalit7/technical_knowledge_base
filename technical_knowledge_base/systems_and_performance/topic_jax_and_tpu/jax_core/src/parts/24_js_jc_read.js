@@ -1,4 +1,4 @@
-// ---- JAX core page, Reading tab: tables built from the recorded runs, the map, the promotion table,
+// ---- JAX core page, Reading tab: tables built from the recorded runs, the hero, the async timeline, the jit cache key, the promotion table,
 // the dispatch animation, the annotated jaxpr, the Jacobian heatmap, the residual bars and the primitive stepper.
 (function(){
 const J=window.JC, U=window.JCU, esc=RD.esc, $=id=>document.getElementById(id);
@@ -6,46 +6,70 @@ const fmtv=v=>Array.isArray(v)?'['+v.map(fmtv).join(', ')+']':(typeof v==='numbe
 // arrays and booleans in data-k spans: re-fill with readable formatting
 document.querySelectorAll('[data-k]').forEach(el=>{const v=U.get(el.dataset.k);if(Array.isArray(v)||typeof v==='boolean')el.textContent=fmtv(v)});
 
-// ---------------------------------------------------------------- map
-function drawMap(){const el=$('jc-map');if(!el)return;const w=RD.width(el.parentNode);const narrow=w<600;
-  const B=[ // id, label, sub, section
-    ['arr','Arrays and pytrees','jax.Array, dtypes, pytrees','s-arr'],
-    ['trace','Tracing','tracers, abstract values, traces','s-trace'],
-    ['jaxpr','Jaxpr','typed program of primitives','s-jaxpr'],
-    ['cf','Control flow','cond, scan, while: sub-jaxprs','s-cf'],
-    ['jit','jit','DynamicJaxprTrace, then XLA','s-trace'],
-    ['ad','grad, jvp, vjp','linearize, transpose; custom rules','s-ad'],
-    ['vm','vmap','batching rules, axis names','s-vmap'],
-    ['prim','Primitives','impl, abstract eval, lowering, JVP, transpose, batching','s-prim'],
-    ['key','Random keys','counter-based, splittable','s-prng']];
-  let body='',pos={};const bh=46;
-  if(!narrow){const cw=(w-40)/4;
-    pos.arr=[10,10,cw,bh];pos.key=[10,70,cw,bh];pos.trace=[20+cw,40,cw,bh];pos.jaxpr=[30+2*cw,40,cw,bh];pos.cf=[30+2*cw,100,cw,bh];
-    pos.jit=[40+3*cw-10,0,cw,bh];pos.ad=[40+3*cw-10,52,cw,bh];pos.vm=[40+3*cw-10,104,cw,bh];pos.prim=[20+cw,160,3*cw+10,bh];
-  } else {const cw=w-20;let y=0;['arr','key','trace','jaxpr','cf','jit','ad','vm','prim'].forEach(k=>{pos[k]=[10,y,cw,bh];y+=bh+8})}
-  const H=Math.max(...Object.values(pos).map(p=>p[1]+p[3]))+4;
-  const arrow=(a,b)=>{const p=pos[a],q=pos[b];let x1,y1,x2,y2;
-    if(!narrow){x1=p[0]+p[2];y1=p[1]+p[3]/2;x2=q[0];y2=q[1]+q[3]/2}else{x1=p[0]+p[2]/2;y1=p[1]+p[3];x2=q[0]+q[2]/2;y2=q[1]}
-    return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--mute)" stroke-width="1.2" marker-end="url(#jcah)"/>'};
-  body+='<defs><marker id="jcah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker></defs>';
-  if(!narrow){body+=arrow('arr','trace')+arrow('trace','jaxpr')+arrow('jaxpr','jit')+arrow('jaxpr','ad')+arrow('jaxpr','vm')}
-  B.forEach(([k,l,s,sec])=>{const p=pos[k];body+='<g class="jcmapb" data-sec="'+sec+'" style="cursor:pointer"><rect x="'+p[0]+'" y="'+p[1]+'" width="'+p[2]+'" height="'+p[3]+'" rx="7" fill="var(--soft)" stroke="var(--acc)"/>'+
-    RD.t(p[0]+8,p[1]+19,esc(l),{fs:12.5,w:600})+RD.t(p[0]+8,p[1]+36,esc(s),{fs:10.5,fill:'var(--mute)'})+'</g>'});
-  el.setAttribute('viewBox','0 0 '+w+' '+H);el.setAttribute('width',w);el.setAttribute('height',H);el.innerHTML=body;
+// ---------------------------------------------------------------- hero: one sin, four interpreters
+function drawHero(){const el=$('jc-hero');if(!el)return;const w=RD.width(el.parentNode);const narrow=w<620;
+  const R=[['EvalTrace','no transformation','runs sin now on real numbers','s-trace'],
+    ['DynamicJaxprTrace','jit, make_jaxpr','records b:f32[2,3] = sin a; jaxpr to XLA','s-jit'],
+    ['JVPTrace, LinearizeTrace','jvp, grad','emits sin(x) and cos(x) * t','s-ad'],
+    ['BatchTrace','vmap','applies sin to the whole batch','s-vmap']];
+  let b='<defs><marker id="jcah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker></defs>';
+  const box=(x,y,bw,bh,l1,l2,hl,sec)=>'<g'+(sec?' class="jcmapb" data-sec="'+sec+'" style="cursor:pointer"':'')+'><rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="7" fill="'+(hl?'var(--acc2)':'var(--soft)')+'" stroke="'+(hl?'var(--acc)':'var(--line)')+'" stroke-width="'+(hl?2:1)+'"/>'+
+    RD.t(x+8,y+18,l1,{fs:12.5,w:600})+(l2?RD.t(x+8,y+35,l2,{fs:11.5,fill:'var(--mute)'}):'')+'</g>';
+  const arr=(x1,y1,x2,y2)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--mute)" stroke-width="1.2" marker-end="url(#jcah)"/>';
+  let H;
+  if(!narrow){const lw=Math.min(250,w*0.3),rx=lw+60,rw=w-rx-6,rh=44,gap=8;H=4*rh+3*gap+8;
+    const ay=8,by=H/2+4;
+    b+=box(4,ay,lw,44,'your Python: f(x) = sin(x).sum()','runs once, on tracers',0);
+    b+=arr(4+lw/2,ay+44,4+lw/2,by-2);
+    b+=box(4,by,lw,48,'sin_p.bind(x)','asks the current trace',1);
+    R.forEach((r,i)=>{const y=4+i*(rh+gap);b+=arr(4+lw,by+24,rx-2,y+rh/2);
+      b+=box(rx,y,rw,rh,r[0]+'  ('+r[1]+')',r[2],0,r[3])})}
+  else{const bw=w-8;let y=4;b+=box(4,y,bw,44,'f(x) = sin(x).sum()','your Python, run once on tracers',0);y+=44;b+=arr(w/2,y,w/2,y+14);y+=16;
+    b+=box(4,y,bw,44,'sin_p.bind(x)','asks the current trace',1);y+=44;
+    const top=y;y+=10;let mid=0;R.forEach(r=>{b+=arr(14,y+22,26,y+22);b+=box(28,y,bw-24,44,r[0],r[1]+': '+r[2],0,r[3]);mid=y+22;y+=50});
+    b+='<line x1="14" y1="'+top+'" x2="14" y2="'+mid+'" stroke="var(--mute)" stroke-width="1.2"/>';H=y}
+  el.setAttribute('viewBox','0 0 '+w+' '+H);el.setAttribute('width',w);el.setAttribute('height',H);el.innerHTML=b;
   el.querySelectorAll('.jcmapb').forEach(g=>g.addEventListener('click',()=>{const s=$(g.dataset.sec);if(s)s.scrollIntoView({block:'start'})}));
 }
-drawMap();RD.onRender(drawMap);RD.onResize(drawMap);
+drawHero();RD.onRender(drawHero);RD.onResize(drawHero);
+
+// ---------------------------------------------------------------- async dispatch timeline
+function drawAsync(){const el=$('jc-async');if(!el)return;const A=J.arr.async;const w=RD.width(el.parentNode),narrow=w<520;
+  const T=A.dispatch_and_block_ms,lx=narrow?62:84,x=t=>lx+(t/(T*1.12))*(w-lx-8),H=118;
+  let b=RD.t(4,34,'Python',{fs:12,w:600})+RD.t(4,80,'Device',{fs:12,w:600});
+  b+='<rect x="'+lx+'" y="22" width="'+Math.max(3,x(A.dispatch_only_ms)-lx)+'" height="16" fill="var(--acc)"/>';
+  b+='<line x1="'+(lx+4)+'" y1="30" x2="'+x(T*0.45)+'" y2="30" stroke="var(--mute)" stroke-dasharray="4 3"/>';
+  b+='<rect x="'+x(T*0.45)+'" y="22" width="'+(x(T)-x(T*0.45))+'" height="16" rx="3" fill="var(--hl)" stroke="var(--line)"/>';
+  b+=RD.t(lx+6,16,'call returns after '+A.dispatch_only_ms.toFixed(3)+' ms',{fs:11.5});
+  if(!narrow)b+=RD.t(lx+6,52,'Python runs ahead',{fs:11.5,fill:'var(--mute)'});
+  b+=RD.t(x(T*0.45)+4,52,narrow?'block_until_ready()':'block_until_ready() waits',{fs:11.5,fill:'var(--mute)'});
+  b+='<rect x="'+lx+'" y="68" width="'+(x(T)-lx)+'" height="16" rx="3" fill="var(--c1)" opacity=".55"/>';
+  b+=RD.t(lx+6,100,narrow?'tanh(a @ b) runs':'the compiled tanh(a @ b) runs on the device',{fs:11.5});
+  b+='<line x1="'+x(T)+'" y1="14" x2="'+x(T)+'" y2="90" stroke="var(--acc)" stroke-width="1.5"/>';
+  b+=RD.t(x(T)-2,112,'ready: '+T.toFixed(1)+' ms',{fs:11.5,a:'end',w:600});
+  el.setAttribute('viewBox','0 0 '+w+' '+H);el.setAttribute('width',w);el.setAttribute('height',H);el.innerHTML=b}
+drawAsync();RD.onRender(drawAsync);RD.onResize(drawAsync);
+
+// ---------------------------------------------------------------- the jit cache key and the drills (absorbed from the root's Transforms lab)
+(function(){const D=J.rc.drills;if(!$('jc-rc'))return;
+  const seg={values:'none',batch16:'aval',back:'none',seqlen:'aval',bf16:'aval',numpy:'none',int64:'none',pyfloat:'none',static:'static',weak:'aval',pytree:'tree',lambda:'fn',inline:'none',global:'none'};
+  let show=false,sel=-1;
+  function draw(){$('jc-rc').innerHTML='<thead><tr><th>between calls, this changed</th><th class="num">new compiles</th></tr></thead><tbody>'+D.map((d,i)=>'<tr class="jc-click'+(i===sel?' jc-sel':'')+'" data-i="'+i+'"><td>'+esc(d.title)+'</td><td class="num">'+(show||i===sel?d.compiles:'?')+'</td></tr>').join('')+'</tbody>';
+    document.querySelectorAll('#jc-key .seg2').forEach(e=>e.classList.toggle('on',sel>=0&&e.dataset.s===seg[D[sel].id]&&seg[D[sel].id]!=='none'));
+    if(sel>=0){const d=D[sel];$('jc-rc-why').innerHTML='<b>'+esc(d.title)+': '+d.compiles+' new compile'+(d.compiles===1?'':'s')+', '+d.traces+' trace'+(d.traces===1?'':'s')+'.</b> '+esc(d.why)+'<pre class="jc-code">'+esc(d.code)+'</pre>'+(d.explain?'<pre class="jc-code jc-out wrap">'+esc(d.explain)+'</pre>':'')}}
+  $('jc-rc').addEventListener('click',e=>{const r=e.target.closest('tr[data-i]');if(!r)return;sel=+r.dataset.i;draw()});
+  $('jc-rc-show').addEventListener('change',e=>{show=e.target.checked;draw()});draw()})();
 
 // ---------------------------------------------------------------- section 1
 $('jc-ready').textContent=J.arr.async.is_ready_right_after_dispatch.every(v=>!v)?'False':'mixed';
 (function(){const P=J.prom,names=P.names;
-  const abbr=v=>v==='float'?'py float':v==='int'?'py int':v.replace('bfloat16','bf16').replace('float','f').replace('uint','u').replace('int','i').replace('bool','b');let x64='off',show='jax',only=false;
+  const abbr=v=>v==='float'?'py float':v==='int'?'py int':v.replace('bfloat16','bf16').replace('float','f').replace('uint','u').replace('int','i').replace('bool','b');let x64='off',show='jax',only=true;
   function draw(){const T=P['x64_'+x64];let nd=0,h='<table class="jc-pm"><thead><tr><th>x + y</th>'+names.map(n=>'<th>'+esc(n)+'</th>').join('')+'</tr></thead><tbody>';
     names.forEach(a=>{h+='<tr><th>'+esc(a)+'</th>';names.forEach(b=>{const c=T[a+'|'+b];const d=c.jax!==c.numpy&&c.numpy!=='n/a';if(d)nd++;
       const v=show==='jax'?c.jax:c.numpy;const cls=d?'diff':(a===b?'self':'same');
       h+='<td class="'+cls+'" title="JAX '+esc(c.jax)+' | NumPy '+esc(c.numpy)+'">'+((only&&!d)?'':esc(abbr(v)))+'</td>'});h+='</tr>'});
     $('jc-prom').innerHTML=h+'</tbody></table>';
-    $('jc-prom-cap').innerHTML='Showing '+(show==='jax'?'JAX':'NumPy')+' results with x64 '+x64+'. <b>'+nd+'</b> of '+(names.length*names.length)+' cells differ (highlighted; NumPy has no bfloat16, shown n/a). * marks a weakly typed JAX result. Abbreviations: f32 = float32, i8 = int8, u8 = uint8, bf16 = bfloat16, b = bool; "py int" and "py float" are Python scalars. With x64 off, JAX truncates int64 and float64 operands to 32 bits on creation, which is most of the differences; with x64 on, the remaining ones are JAX\'s own lattice (for example int32 + float16 = float16 in JAX, float64 in NumPy). Hover a cell for both results. Source: <code>run_array.py</code>.'}
+    $('jc-prom-cap').innerHTML='<b>'+nd+'</b> of '+(names.length*names.length)+' cells differ with x64 '+x64+' (showing '+(show==='jax'?'JAX':'NumPy')+'; NumPy has no bfloat16, n/a; * marks a weakly typed JAX result; "py int" and "py float" are Python scalars; hover a cell for both). With x64 off most differences are JAX truncating 64-bit operands to 32 bits; with x64 on the rest are JAX\'s own lattice (int32 + float16 is float16 in JAX, float64 in NumPy). <code>run_array.py</code>.'}
   RD.seg($('jc-prom-x64'),m=>{x64=m;draw()});RD.seg($('jc-prom-show'),m=>{show=m;draw()});$('jc-prom-only').addEventListener('change',e=>{only=e.target.checked;draw()});draw()})();
 
 // ---------------------------------------------------------------- section 2
@@ -81,7 +105,7 @@ $('jc-trlist').innerHTML=J.src.trace_classes.map(t=>'<code>'+esc(t.name)+'</code
     const calls=mode==='t'?L.slice(0,st.i===undefined?(st.final?L.length:0):st.i+1).length:(i>0?1:0);
     $('jc-disp-cnt').innerHTML=RD.stat('process_primitive calls',calls,'logged in the run')+RD.stat('equations recorded',mode==='t'?st.rec:0,'by DynamicJaxprTrace')+RD.stat('Python sin calls',1,'in your code')}
   const an=RD.anim({card:'jc-disp-card',ctl:'jc-disp-ctl',n:S.length,draw,ms:2200,label:'Dispatch step'});
-  RD.seg($('jc-disp-mode'),m=>{mode=m;S=m==='t'?stepsT():stepsE();an.reset(S.length);an.play()})})();
+  RD.seg($('jc-disp-mode'),m=>{mode=m;S=m==='t'?stepsT():stepsE();an.reset(S.length)})})();
 
 // annotated jaxpr
 (function(){const txt=J.ex.items.cf.text;const leg=[['jc-k-const','constvars (closed-over arrays)'],['jc-k-in','invars'],['jc-k-prim','primitive'],['jc-k-par','params'],['jc-k-lit','literals'],['jc-k-out','outvars'],['jc-k-sub','sub-jaxpr (a param)']];

@@ -1,4 +1,4 @@
-// ---- Autodiff tape tab (t-jcad): block 0's MLP through reverse mode (forward pass filling the tape, then the
+// ---- Reading section 6 (moved from the Autodiff tape tab, 2026-10-23): block 0's MLP through reverse mode (forward pass filling the tape, then the
 // linear program before and after transposition, stage by stage) and forward mode, from the recorded jaxprs.
 (function(){
 const J=window.JC, U=window.JCU, esc=RD.esc, $=id=>document.getElementById(id), T=J.tape, A=J.ad.mlp;
@@ -57,7 +57,7 @@ function draw(i){const st=S[i]||S[0];const el=$('jcad-svg');
     RD.stat('on the tape now',mode==='rev'?(onTape/1e3).toFixed(1)+' KB':'0 KB',mode==='rev'?(who==='jax'?'JAX residuals':'PyTorch saved tensors')+' not yet used':'forward mode keeps nothing')+
     RD.stat('weight gradients',mode==='rev'?grads+' of 4':'n/a',mode==='rev'?'':'a JVP gives one direction')+
     RD.stat('program FLOPs',((mode==='rev'?A.flops['vjp (forward + backward)']:A.flops.jvp)/1e6).toFixed(2)+' M','XLA cost analysis')}
-const an=U.anim({card:'jcad-card',ctl:'jcad-ctl',n:S.length,draw,ms:2600,label:'Autodiff step'},'t-jcad');
+const an=U.anim({card:'jcad-card',ctl:'jcad-ctl',n:S.length,draw,ms:2600,label:'Autodiff step'});
 RD.seg($('jcad-mode'),m=>{mode=m;S=steps();an.reset(S.length)});
 RD.seg($('jcad-who'),m=>{who=m;an.redraw()});
 })();

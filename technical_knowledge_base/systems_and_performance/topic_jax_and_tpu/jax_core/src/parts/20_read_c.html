@@ -1,34 +1,24 @@
 <section id="s-trace">
-<h2>2. Tracing in depth: abstract values, traces and how transformations nest</h2>
-<p><b>The problem.</b> One Python function has to become several different programs: a compiled one (jit), one that also computes derivatives (grad), one that works on a batch (vmap), and any composition of these. PyTorch's eager mode cannot do this, because it only ever sees one operation at a time on real numbers. JAX instead runs your Python on <b>tracers</b> and lets an <b>interpreter</b> decide what each operation means.</p>
+<h2>2. Tracing: abstract values, interpreters, and how transformations nest</h2>
+<p>One Python function has to become several programs: a compiled one (jit), one that also computes derivatives (grad), one that works on a batch (vmap), and any composition of these. PyTorch's eager mode cannot do this, because it only ever sees one operation at a time on real numbers. JAX runs your Python on <b>tracers</b> and lets an <b>interpreter</b> decide what each operation means.</p>
 
 <h3>Abstract values</h3>
-<p>An <b>abstract value</b> (an "aval") describes a set of possible arrays: everything about an array except its numbers. For arrays it is a <code>ShapedArray</code>, and its fields are exactly what a compiled program may depend on. <span class="jc-lbl s">source</span></p>
-<div class="jc-srcx" data-id="shapedarray"></div>
-<p>Shape, dtype and weak type you met in section 1; <code>sharding</code> is the logical layout over a mesh, <code>manual_axis_type</code> records, inside <code>shard_map</code>, over which mesh axes a value varies or is still unreduced (a sum not yet taken), <code>memory_space</code> and <code>layout</code> describe where and how the buffer sits. <code>jax.typeof(x)</code> gives the aval of anything (<span class="jc-lbl m">measured here</span>):</p>
+<p>An <b>abstract value</b> (aval) describes a set of possible arrays: everything about an array except its numbers. For arrays it is a <code>ShapedArray</code>: shape, dtype, weak type, sharding and a few layout fields (expanded in the source block below), exactly what a compiled program may depend on. <code>jax.typeof(x)</code> gives the aval of anything <span class="jc-lbl m">measured here</span>:</p>
 <div class="tw"><table class="jc-t" id="jc-avals"></table></div>
-<p>A typed PRNG key is an array whose dtype is a key type (<code>key&lt;fry&gt;</code>), section 9. The shapes are static: they are part of the aval, so they are known while tracing, which is why <code>x.shape[0]</code> is a plain Python int inside a jitted function and why no shape may depend on data.</p>
+<details class="mist"><summary>ShapedArray's fields in the source</summary><div class="b"><p><code>sharding</code> is the logical layout over a mesh; <code>manual_axis_type</code> records, inside <code>shard_map</code>, over which mesh axes a value varies or is still unreduced (a sum not yet taken); <code>memory_space</code> and <code>layout</code> describe where and how the buffer sits.</p><div class="jc-srcx" data-id="shapedarray"></div></div></details>
+<p>Shapes are part of the aval, so they are known while tracing: <code>x.shape[0]</code> is a plain Python int inside a jitted function, and no shape may depend on data. A typed PRNG key is an array whose dtype is a key type (<code>key&lt;fry&gt;</code>, section 10).</p>
 
-<h3>Traces and tracers</h3>
-<p>A <b>trace</b> is an interpreter. It has one method that matters, <code>process_primitive(primitive, tracers, params)</code>, which says what applying a primitive means in that interpretation. A <b>tracer</b> is a value that belongs to a trace; it has an aval and whatever the interpreter needs (a JVP tracer carries a primal and a tangent, a batch tracer carries a value and the index of its batch dimension). <span class="jc-lbl s">source</span> the interface:</p>
-<div class="jc-srcx" data-id="trace"></div>
-<p>The pinned source has <b id="jc-ntr"></b> classes that derive directly from <code>Trace</code>: <span id="jc-trlist"></span>. The five you meet every day:</p>
+<h3>Traces, tracers, and one call through three of them</h3>
+<p>A <b>trace</b> is an interpreter with one method that matters, <code>process_primitive(primitive, tracers, params)</code>. A <b>tracer</b> belongs to one trace and carries an aval plus whatever its interpreter needs. Every <code>jnp</code> or <code>lax</code> function ends in <code>Primitive.bind</code>, which hands the operation to the <b>current trace</b>, held in a thread-local context rather than in the data. Each transforming trace keeps a <code>parent_trace</code>: it computes what it needs and binds the resulting operations on its parent, with the parent set as current. The pinned source has <b id="jc-ntr"></b> classes that derive directly from <code>Trace</code>; the five you meet every day:</p>
 <div class="tw"><table class="jc-t"><thead><tr><th>trace</th><th>used by</th><th>process_primitive does</th></tr></thead><tbody>
 <tr><td><code>EvalTrace</code></td><td>no transformation</td><td>runs the primitive's <code>impl</code> on real arrays (each op compiled and dispatched on its own)</td></tr>
 <tr><td><code>DynamicJaxprTrace</code></td><td>jit, make_jaxpr, the inside of cond, scan, while</td><td>runs the abstract evaluation rule to get output avals, appends an equation to the jaxpr, returns new tracers</td></tr>
 <tr><td><code>JVPTrace</code></td><td><code>jax.jvp</code>, <code>jacfwd</code></td><td>calls the primitive's JVP rule on (primal, tangent)</td></tr>
-<tr><td><code>LinearizeTrace</code></td><td><code>jax.grad</code>, <code>vjp</code>, <code>linearize</code></td><td>computes the primal now and records the linear tangent computation into a separate jaxpr, to be transposed later (section 5)</td></tr>
+<tr><td><code>LinearizeTrace</code></td><td><code>jax.grad</code>, <code>vjp</code>, <code>linearize</code></td><td>computes the primal now and records the linear tangent computation into a separate jaxpr, to be transposed later (section 6)</td></tr>
 <tr><td><code>BatchTrace</code></td><td><code>jax.vmap</code></td><td>calls the primitive's batching rule with the batch dimension of each input</td></tr>
 </tbody></table></div>
 
-<h3>How one call finds its interpreter</h3>
-<p>Every <code>jnp</code> or <code>lax</code> function ends in <code>Primitive.bind</code>, which looks up the <b>current trace</b> and hands it the operation. <span class="jc-lbl s">source</span></p>
-<div class="jc-srcx" data-id="bind" data-open="1"></div>
-<p>The current trace lives in a thread-local context, not in the data: <span class="jc-lbl s">source</span></p>
-<div class="jc-srcx" data-id="ctx"></div>
-<p>Each transforming trace keeps a <code>parent_trace</code>. When it handles a primitive it computes what it needs and binds the resulting operations on its parent, with the parent set as current. So under <code>jit(vmap(jvp(f)))</code>, a <code>sin</code> in <code>f</code> goes to the JVP trace, which asks its parent (the batch trace) for <code>sin</code>, <code>cos</code> and <code>mul</code>, which asks its parent (the jaxpr trace) for batched versions, which records them. The animation below replays the real calls, logged by wrapping <code>process_primitive</code> of every trace class during the run (<code>run_trace.py</code>).</p>
-
-<div class="jc-box" id="jc-disp-card"><h4>One primitive through three interpreters, against the same call with none</h4>
+<div class="jc-box" id="jc-disp-card"><h4>One sin under jit(vmap(jvp(f))) becomes three recorded equations; with no transformation it is one dispatch</h4>
 <div class="jc-sel"><span class="seg" id="jc-disp-mode"><button data-m="t" class="on">jit(vmap(jvp(sin)))</button><button data-m="e">no transformation</button></span></div>
 <pre class="jc-code" data-code="tr.dispatch_log.code"></pre>
 <div class="jc-two"><div class="jc-pane"><div class="h">The trace stack (innermost at the top)</div><div id="jc-disp-stack" style="padding:6px 8px"></div></div>
@@ -36,42 +26,50 @@
 <div class="jc-capt" id="jc-disp-cap"></div>
 <div class="jc-cnt" id="jc-disp-cnt"></div>
 <div class="jc-anctl" id="jc-disp-ctl"></div>
+<div class="jc-cap">Each step replays a real call, logged by wrapping <code>process_primitive</code> of every trace class during the run (<code>run_trace.py</code>): the JVP trace asks the batch trace for <code>sin</code>, <code>cos</code> and <code>mul</code>, which asks the jaxpr trace for batched versions, which records them.</div>
 </div>
 
-<p>Before December 2024 this dispatch was decided by <b>levels</b>: every trace had a level on a global stack ("main traces"), every tracer remembered its level, and <code>bind</code> picked the highest level among its arguments. JAX 0.4.36 (2024-12-05) replaced it: <span class="jc-lbl s">source</span> the CHANGELOG says the release "lands 'stackless' ... trace dispatch purely a function of context rather than a function of both context and data. This let us delete a lot of machinery for managing data-dependent tracing: levels, sublevels, <code>post_process_call</code>, <code>new_base_main</code>, <code>custom_bind</code>". The original {{Autodidax|https://docs.jax.dev/en/latest/autodidax.html}} still builds the level stack (its <code>MainTrace(level, ...)</code>); {{Autodidax2, part 1|https://docs.jax.dev/en/latest/autodidax2_part1.html}} rebuilds the current, context-based design. Read the second if you want to match today's source.</p>
-
-<h3>What each function sees under nested transformations</h3>
 <p>Inside <code>f</code>, the argument is a tracer of the <b>innermost</b> transformation, and its primal or value is a tracer of the next one out, down to a real array or a jaxpr variable. <span class="jc-lbl m">measured here</span> by walking that chain inside <code>f(x) = sin(x).sum()</code> for an <code>x</code> of shape (2, 3):</p>
 <div class="tw"><table class="jc-t" id="jc-chains"></table></div>
 <div class="jc-pr" data-ans="c"><div class="q">Predict: under <code>jax.grad(lambda x: jax.vmap(f)(x).sum())</code>, what is the aval of the tracer <code>f</code> receives, for <code>x</code> of shape (2, 3)?</div>
 <div class="opts"><button data-o="a">float32[2,3], the whole batch</button><button data-o="b">a LinearizeTracer of float32[3]</button><button data-o="c">a BatchTracer of float32[3], wrapping a LinearizeTracer of float32[2,3]</button></div>
-<div class="ans" hidden>The innermost transformation here is vmap, so <code>f</code> sees a <b>BatchTracer</b> whose aval is the per-example shape <b>float32[3]</b>; inside it sits grad's tracer with the full float32[2,3]. That is why per-example code works under vmap: every shape <code>f</code> can observe is the per-example shape. Row "grad(vmap(f))" in the table.</div></div>
+<div class="ans" hidden>The innermost transformation here is vmap, so <code>f</code> sees a <b>BatchTracer</b> whose aval is the per-example shape <b>float32[3]</b>; inside it sits grad's tracer with the full float32[2,3]. That is why per-example code works under vmap: every shape <code>f</code> can observe is the per-example shape. Row "grad(vmap(f))" in the table. Note also the last column: under grad alone the bottom is a concrete array, so Python can branch on values there; only jit's bottom is a jaxpr variable with no numbers.</div></div>
+<p><b>Cost.</b> Tracing is Python: every primitive goes through <code>bind</code> and one <code>process_primitive</code> per nested transformation, so tracing time grows with (primitive calls) x (nesting depth). It is paid once per jit cache miss (next section), which is why it hurts only when something retraces and why large models scan over layers (section 5). <b>How to check:</b> <code>jax.make_jaxpr(f)(*args)</code> shows the program; <code>print(x)</code> inside <code>f</code> shows the tracer, once, at trace time; <code>jax_check_tracer_leaks</code> finds tracers that escaped (slow, debugging only).</p>
 
-<h3>Cost, and how to check</h3>
-<p><b>Cost.</b> Tracing is Python: every primitive goes through <code>bind</code> and one <code>process_primitive</code> per trace level, so tracing time grows with (number of primitive calls) x (number of nested transformations). It is paid once per cache miss, which is why it hurts only when something retraces (the root's {{Transforms lab|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} counts retraces; its section 2 measures trace time against model depth) and why large models scan over layers (section 4). <b>How to check:</b> <code>jax.make_jaxpr(f)(*args)</code> shows the program; <code>print(jax.typeof(x))</code> or <code>print(x)</code> inside <code>f</code> shows the tracer (once, at trace time); <code>jax.config.update("jax_check_tracer_leaks", True)</code> finds tracers that escaped (slow, debugging only).</p>
+<details class="mist"><summary>Read it in the source: the Trace interface, bind and the trace context</summary><div class="b">
+<p>The classes deriving from <code>Trace</code> in the pinned source: <span id="jc-trlist"></span>.</p>
+<div class="jc-srcx" data-id="trace"></div>
+<div class="jc-srcx" data-id="bind"></div>
+<div class="jc-srcx" data-id="ctx"></div></div></details>
+<details class="mist"><summary>History: levels before December 2024, and which Autodidax to read</summary><div class="b">Before December 2024 this dispatch was decided by <b>levels</b>: every trace had a level on a global stack ("main traces"), every tracer remembered its level, and <code>bind</code> picked the highest level among its arguments. JAX 0.4.36 (2024-12-05) replaced it: <span class="jc-lbl s">source</span> the CHANGELOG says the release "lands 'stackless' ... trace dispatch purely a function of context rather than a function of both context and data. This let us delete a lot of machinery for managing data-dependent tracing: levels, sublevels, <code>post_process_call</code>, <code>new_base_main</code>, <code>custom_bind</code>". The original {{Autodidax|https://docs.jax.dev/en/latest/autodidax.html}} still builds the level stack (its <code>MainTrace(level, ...)</code>); {{Autodidax2, part 1|https://docs.jax.dev/en/latest/autodidax2_part1.html}} rebuilds the current, context-based design. Read the second to match today's source.</div></details>
 </section>
 
-<section id="s-jaxpr">
-<h2>3. Jaxprs: the program every transformation reads and writes</h2>
-<p><b>The problem.</b> A transformation needs the computation as data it can inspect and rewrite. The jaxpr is that data: small (a few dozen primitives cover most models), typed (every variable has an aval), and pure (no Python, no side effects except declared effects). PyTorch counterpart: an FX graph or the aten graph that <code>torch.export</code> produces.</p>
-<h3>Anatomy</h3>
-<p>A printed jaxpr reads <code>{ lambda constvars ; invars . let equations in (outvars) }</code>. Each equation is <code>outvars = primitive[params] invars</code>. Hover or tap the legend to find each part in a real jaxpr (the function <code>cf</code> of the <a href="#" data-tab="t-jcx">Jaxpr explorer</a>):</p>
-<div class="jc-leg" id="jc-ann-leg"></div>
-<div class="jc-ann" id="jc-ann"></div>
-<div class="jc-cap">Printed by <code>jax.make_jaxpr(cf, static_argnums=1)(jnp.ones(16), 4)</code> in <code>run_trace.py</code>; code in the Jaxpr explorer.</div>
-<ul>
-<li><b>invars and outvars</b>: one variable per array leaf of the inputs and outputs (a pytree of four weights becomes four invars).</li>
-<li><b>constvars</b> (before the semicolon): arrays the function closed over. Here the NumPy array <code>big_np</code> became a constvar; a scalar like <code>3.0</code> became a <b>literal</b>, written into the equation with its type (<code>3.0:f32[]</code>).</li>
-<li><b>equations</b>: a primitive, its inputs, its outputs with avals, and <b>params</b>: static, hashable values such as <code>axes=(0,)</code> or <code>dimension_numbers</code> for a matmul.</li>
-<li><b>sub-jaxprs as params</b>: higher-order primitives carry whole programs. <code>cond</code> has <code>branches</code> (listed false first: index 0), <code>scan</code> a <code>jaxpr</code> for the body, <code>while</code> a <code>cond_jaxpr</code> and a <code>body_jaxpr</code>, a nested <code>jax.jit</code> a primitive named <code>jit</code> with its own <code>jaxpr</code> (older printouts call it <code>pjit</code>), <code>custom_jvp_call</code> a <code>call_jaxpr</code> plus the rule, <code>jax.checkpoint</code> a <code>remat2</code>.</li>
-<li><b>effects</b>: <code>jax.debug.print</code> becomes a <code>debug_print</code> equation with no outputs and a declared effect, so dead-code elimination cannot remove it.</li>
-<li><b><code>_</code></b>: an output nobody reads (a "drop var").</li>
-</ul>
-<p>Two changes in recent versions, read in the pinned source <span class="jc-lbl s">source</span>. First, <b>a closed jaxpr is now just a jaxpr</b>: the class that used to pair a jaxpr with its constant values was merged into <code>Jaxpr</code>, which now carries its <code>consts</code>.</p>
-<div class="jc-srcx" data-id="jaxpr_merged"></div>
-<p>Second, how closed-over constants are handled is changing. JAX's internals note ({{Handling of closed-over constants|https://docs.jax.dev/en/latest/internals/constants.html}}, dated "As of April 2026") says that today large closed-over arrays become constvars and are embedded in the compiled program, which can bloat HLO, slow compilation through constant folding and lose a constant's sharding; a future default (opt-in now with <code>JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS=True</code>) keeps them as literals and passes them to the compiled program as extra arguments. <span class="jc-lbl m">measured here</span>: in this run, closing over a NumPy array and a jax.Array gave <span data-k="tr.constants.n_consts"></span> constvars:</p>
-<pre class="jc-code" data-code="tr.constants.src"></pre>
-<pre class="jc-code jc-out" data-code="tr.constants.jaxpr"></pre>
-<p><code>jnp.full((16,), 142.0)</code> did not become a constant: it was <b>staged</b> as a <code>broadcast_in_dim</code> equation, because it is a JAX operation. Rule of thumb: build constants with <code>jnp</code> inside the function, or pass big arrays as arguments; setting <code>JAX_CAPTURED_CONSTANTS_WARN_BYTES</code> logs every captured constant above a size.</p>
-<div class="deepnote"><b>Go deeper.</b> The <a href="#" data-tab="t-jcx">Jaxpr explorer</a> tab shows six real jaxprs of the running example (MLP, LayerNorm, attention, a gradient, control flow, nested jit with effects); click any equation to see its inputs, outputs, params, the Python line that produced it, and which equations feed it and use it. JAX's own reference: {{Understanding jaxprs|https://docs.jax.dev/en/latest/601/jaxpr.html}}. What XLA does with the jaxpr after lowering is the {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}} child page.</div>
+<section id="s-jit">
+<h2>3. jit and its cache: trace once per key, then run the compiled program</h2>
+<p><code>jax.jit(f)</code> returns a wrapper. On each call a C++ fast path builds a <b>cache key</b> from the arguments and looks it up; on a miss, Python traces <code>f</code> (section 2), lowers the jaxpr and asks XLA to compile it, then stores the executable. Everything about recompiles follows from what is in the key, read from the pinned source by the root's Transforms lab:</p>
+<div class="jc-key" id="jc-key">
+<div class="seg2" data-s="fn"><b>the Python function object</b><small>and the jit options</small></div>
+<div class="seg2" data-s="static"><b>values of static arguments</b><small><code>static_argnums</code>, <code>static_argnames</code>; hashed</small></div>
+<div class="seg2" data-s="tree"><b>pytree structure</b><small>keys, nesting, leaf count, aux data (section 9)</small></div>
+<div class="seg2" data-s="aval"><b>each leaf's abstract value</b><small>shape, dtype, weak type, sharding</small></div>
+<div class="seg2 off" data-s="none"><b>not in the key</b><small>the numbers in the arrays; globals (read once, while tracing)</small></div>
+</div>
+<div class="jc-cap">The jit cache key, segment by segment. Click a row of the table to light the segment that call changed. Counts are deterministic; recorded by the root's Transforms lab (<code>src/xf/run_recompile.py</code>, jax 0.11.2), traces counted inside the function and XLA compiles by JAX's monitoring event <code>/jax/core/compile/backend_compile_duration</code>, after one warm-up call.</div>
+<div class="jc-sel"><label class="chk"><input type="checkbox" id="jc-rc-show"> show the answers (predict first)</label></div>
+<div class="tw"><table class="jc-t" id="jc-rc"></table></div>
+<div class="jc-capt" id="jc-rc-why">Pick a row: what changed, how many new compiles it cost, and why.</div>
+<p>Three rows teach the rules. A Python float passed as an ordinary argument is traced as a weakly typed <code>~float32[]</code>, so a new value is data, not a new program; the same float marked static compiles once per value. A new lambda per step is a function never seen before, so every step compiles. And a global changed between calls gives a <b>stale answer, not a recompile</b>: it was read once, while tracing, and baked in as a constant. In practice: pad to a few bucket shapes instead of feeding ragged lengths; mark an argument static only when it changes the program (a flag, a layer count); jit once, outside the loop; pass anything that varies as an argument. To watch a running job: <code>jax.config.update("jax_explain_cache_misses", True)</code> logs every miss with its reason (the table's explanations are that log), and <code>jax_log_compiles</code> logs each compile.</p>
+
+<h3>Static and traced values; side effects run once</h3>
+<p>While tracing, a value is either <b>static</b> (known to Python now: shapes, dtypes, Python numbers the function closes over, static arguments) or <b>traced</b> (known only when the compiled program runs). Python may branch on static values freely, and the branch taken is baked into the program; a Python <code>if</code> on a traced value has no value to test and raises <code>TracerBoolConversionError</code>, and a shape that depends on data raises <code>ConcretizationTypeError</code> (section 5 gives the primitives that replace both). For the same reason a jitted function must be <b>pure</b>: its Python body runs only while tracing, so anything done on the side happens once. <span class="jc-lbl m">measured</span> by the root's Transforms lab (<code>run_basics.py</code>), one jitted function called three times:</p>
+<pre class="jc-code">log, count = [], [0]
+@jax.jit
+def f_side(x):
+    count[0] += 1                  # Python side effect
+    log.append(x)                  # keeps a reference to a tracer
+    jax.debug.print("debug.print sees x[0] = {v}", v=x[0])
+    return x * 2
+for i in range(3): f_side(jnp.full(4, float(i)))</pre>
+<div class="jc-cap">After 3 calls: <code>count</code> was <b>1</b>, <code>log</code> held 1 entry, a <code>JitTracer(~float32[4])</code>, and <code>jax.debug.print</code> printed 3 times. Using the saved tracer later raised <code>UnexpectedTracerError</code> (a tracer leak). Inside jit, <code>x + np.random.rand()</code> returned the same number on three calls (NumPy drew once, while tracing) and <code>x + time.time()</code> the same value on two calls 50 ms apart. Safe ways to look inside: <code>jax.debug.print</code>, <code>jax.debug.callback</code>, or returning values as extra outputs (<code>has_aux</code>).</div>
+<details class="mist"><summary>The two tracing errors, as JAX printed them</summary><div class="b"><pre class="jc-code jc-err wrap" data-code="rt.cf_errors.if_under_jit"></pre><pre class="jc-code jc-err wrap" data-code="rt.cf_errors.int_under_jit"></pre></div></details>
 </section>

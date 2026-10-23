@@ -79,6 +79,16 @@ JC = {
            "model": ad["model"], "jac": ad["jac_grid"], "hess": ad["hessian"], "misc": ad["misc"], "mem": adm},
     "cf": cf, "cv": cv, "vm": vm, "pt": pt, "pr": pr, "pm": pm, "src": src,
 }
+# absorbed from the root's Transforms lab (2026-10-23): jit cache drills, side effects, key reuse, tracer errors.
+# Recorded there by src/xf/run_recompile.py, run_basics.py and run_trace.py; copied into ../inputs/ (see its provenance fields).
+def I(name):
+    with open(os.path.join(HERE, "..", "inputs", name + ".json"), encoding="utf-8") as f:
+        return json.load(f)
+
+
+JC["rc"] = I("root_xf_recompile")
+JC["rb"] = I("root_xf_basics")
+JC["rt"] = I("root_xf_trace")
 def clean(o):
     """Non-finite floats become the strings 'nan', 'inf', '-inf' (JSON has no NaN)."""
     if isinstance(o, float) and o != o:

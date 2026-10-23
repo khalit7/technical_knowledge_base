@@ -1,4 +1,4 @@
-// ---- Custom derivatives tab (t-jccv): swept values and gradients of each variant, NaN/inf marked; the fixed point and clip cases.
+// ---- Reading section 7 (moved from the Custom derivatives tab, 2026-10-23): swept values and gradients of each variant, NaN/inf marked; the fixed point and clip cases.
 (function(){
 const J=window.JC, U=window.JCU, esc=RD.esc, $=id=>document.getElementById(id), C=J.cv;
 const CASES={
@@ -40,5 +40,5 @@ function draw(){const c=CASES[cur],B=$('jccv-body');
   else {const K=C.clip;B.innerHTML='<p>A <code>custom_vjp</code> can leave the forward pass alone and change only what flows back: here an identity whose backward clips the cotangent to [-1, 1]. The unclipped gradient '+esc(JSON.stringify(K.unclipped))+' became <b>'+esc(JSON.stringify(K.grad))+'</b>. The same pattern gives straight-through estimators (round in the forward pass, identity in the backward) and gradient reversal layers.</p><pre class="jc-code">'+esc(K.code)+'</pre><p class="small">In the jaxpr the function becomes a <code>custom_vjp_call</code> carrying <code>fwd</code> and <code>bwd</code>:</p><pre class="jc-code">'+esc(J.cv.custom_vjp_jaxpr)+'</pre><p class="small">and a <code>custom_jvp</code> function a <code>custom_jvp_call</code> carrying its rule (still differentiable in reverse mode: grad of the softplus with a custom JVP at x = 100 is '+esc(String(J.cv.custom_jvp_reverse_ok))+'):</p><pre class="jc-code">'+esc(J.cv.custom_jvp_jaxpr)+'</pre>'}}
 $('jccv-pick').innerHTML='<span class="seg" id="jccv-seg">'+Object.keys(CASES).map((k,i)=>'<button data-m="'+k+'"'+(i===0?' class="on"':'')+'>'+esc(CASES[k].t)+'</button>').join('')+'</span>';
 RD.seg($('jccv-seg'),m=>{cur=m;xi=null;draw()});
-U.onTab('t-jccv',draw);U.onResize('t-jccv',draw);draw();
+RD.onRender(draw);RD.onResize(draw);draw();
 })();
