@@ -44,11 +44,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   };
   await check('initial');
   const counts = {};
-  // section 1: every spec, every step
-  const nspec = await p.$$eval('#sh-tile-spec button', x => x.length);
-  counts.tile = 0;
-  for (let i = 0; i < nspec; i++) { await p.evaluate(i => document.querySelectorAll('#sh-tile-spec button')[i].click(), i); counts.tile += await range('sh-tile-ctl-s', 'tile ' + i) }
-  counts.tileBtns = await clickAll('#sh-tile-ctl button', 'tile btn');
+  // section 1's sharded-weight animation was retired 2026-10-23 (now Sharding and scale, section 1)
   // section 2: all 108 combinations
   const nx = await p.$$eval('#sh-pg-x button', x => x.length), nw = await p.$$eval('#sh-pg-w button', x => x.length), no = await p.$$eval('#sh-pg-o button', x => x.length);
   counts.pg = 0;
@@ -77,7 +73,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   counts.mist = await clickAll('#t-shard details.mist summary', 'details');
   await p.evaluate(() => document.querySelector('#sh-ring-k button').click());
   await p.evaluate(() => { const s = document.getElementById('sh-ring-n'); s.value = 8; s.dispatchEvent(new Event('input')) });
-  await p.evaluate(() => { document.querySelectorAll('#sh-st-t tr[data-id]')[4].click(); document.querySelectorAll('#sh-pg-x button')[3].click(); document.querySelectorAll('#sh-pg-w button')[2].click(); document.querySelectorAll('#sh-pg-o button')[0].click(); const s = document.getElementById('sh-tile-ctl-s'); s.value = 2; s.dispatchEvent(new Event('input')); const r = document.getElementById('sh-ring-ctl-s'); r.value = 5; r.dispatchEvent(new Event('input')) });
+  await p.evaluate(() => { document.querySelectorAll('#sh-st-t tr[data-id]')[4].click(); document.querySelectorAll('#sh-pg-x button')[3].click(); document.querySelectorAll('#sh-pg-w button')[2].click(); document.querySelectorAll('#sh-pg-o button')[0].click(); const r = document.getElementById('sh-ring-ctl-s'); r.value = 5; r.dispatchEvent(new Event('input')) });
   await sleep(1000);
   console.log('visible tab', await p.evaluate(() => [...document.querySelectorAll('.tab')].filter(t => !t.hidden).map(t => t.id).join(',')));
   await p.evaluate(() => document.querySelector('button[data-t=t-shard]').click());

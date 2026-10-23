@@ -36,7 +36,7 @@ window.SH=(function(){
     g('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
     g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&card.offsetParent){st.started=true;/* never autoplays (2026-10-23) */}kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});show();
     return {reset(n){setPlay(false);st.n=n;st.i=0;show()},redraw(){o.draw(st.i)},play(){if(!RM)setPlay(true)},get i(){return st.i},get n(){return st.n}};
@@ -47,7 +47,7 @@ window.SH=(function(){
 // ---- static fills ----
 (function(){
   const S=window.SH,D=S.D,$=S.$,esc=S.esc;if(!D||!$('t-shard'))return;
-  $('sh-viz').textContent=(D.viz||'');
+  if($('sh-viz'))$('sh-viz').textContent=(D.viz||'');
   $('sh-defaults').innerHTML='<code>jax.make_mesh</code> axis types '+esc(D.ex.make_mesh_default.join(', '))+'; <code>Mesh(...)</code> axis types '+esc(D.ex.Mesh_default.join(', '));
   // jax.typeof on an Explicit mesh
   const m0=D.ex.matmul[0];

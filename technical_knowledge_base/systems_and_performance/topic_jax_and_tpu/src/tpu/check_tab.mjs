@@ -53,11 +53,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   };
   await check('initial');
   const counts = {};
-  counts.core = await clickAll('#tp-core-gen button', 'core gen');
   counts.pr = await clickAll('#t-tpu .tp-opts button', 'predict');
-  // MXU: every op x both sides, scrub through
-  counts.mx = await selectAll('tp-mx-op', 'mx op', async () => { let c = 0; for (let s = 0; s < 2; s++) { await p.evaluate(s => document.querySelectorAll('#tp-mx-side button')[s].click(), s); c += await range('tp-mx-ctl-s', 'mx step', 7) } return c });
-  counts.mxBtns = await clickAll('#tp-mx-ctl button', 'mx btn');
+  // the TensorCore drawing and the MXU tile animation were retired 2026-10-23 (now TPU programming and performance)
   // roofline: gens x dtypes x tokens
   counts.rf = 0;
   for (let g = 0; g < 5; g++) for (let d = 0; d < 2; d++) { await p.evaluate((g, d) => { document.querySelectorAll('#tp-rf-gen button')[g].click(); document.querySelectorAll('#tp-rf-dt button')[d].click() }, g, d); counts.rf += await range('tp-rf-tok', 'rf ' + g + d) }
@@ -83,7 +80,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     D.gens.forEach(g => { if (!near(T.roofCalc.stepBound(g) * 1e6, D.roof.per_gen[g.gen].t_dots_us, 1e-3)) out.push('stepBound ' + g.gen) });
     D.roof.seven.forEach(r => { const s = T.roofCalc.seven(r.tokens); if (s.fl !== r.flops || s.by !== r.bytes) out.push('seven ' + r.tokens);
       D.gens.forEach(g => { if (!near(T.roofCalc.best(s.fl, s.by, g) * 1e3, r[g.gen].ms, 2e-3)) out.push('seven ms ' + r.tokens + g.gen) }) });
-    D.roof.ops.forEach((o, i) => { [128, 256].forEach(s => { if (!near(T.mxuUtil(i, s), o.mxu_util[String(s)], 1e-3)) out.push('util ' + i + ' ' + s) }) });
+    // T.mxuUtil left with the retired MXU animation (2026-10-23); the utilisations quoted in section 2 come from D.roof.ops[i].mxu_util
     D.pal.traffic.forEach(t => { const a = T.gridAccount([t.bm, t.bn, t.bk]); if (a.steps !== t.steps || a.hbm !== t.hbm_bytes || a.copies.join() !== t.copies.join()) out.push('traffic ' + [t.bm, t.bn, t.bk]) });
     // the recorded 1-core walk is the lexicographic order the animator draws
     const lex = []; for (let i = 0; i < 8; i++) for (let k = 0; k < 4; k++) lex.push([i, 0, k, 0]);
@@ -93,7 +90,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     return out;
   });
   if (ar.length) problems.push('arithmetic ' + ar.join(', '));
-  await p.evaluate(() => { document.querySelectorAll('#tp-mx-op option')[11] && (document.getElementById('tp-mx-op').value = '11'); document.getElementById('tp-mx-op').dispatchEvent(new Event('change')); document.querySelectorAll('#tp-gr-cfg button')[2].click(); const s = document.getElementById('tp-gr-ctl-s'); s.value = 6; s.dispatchEvent(new Event('input')); const m = document.getElementById('tp-mx-ctl-s'); m.value = 1; m.dispatchEvent(new Event('input')) });
+  await p.evaluate(() => { document.querySelectorAll('#tp-gr-cfg button')[2].click(); const s = document.getElementById('tp-gr-ctl-s'); s.value = 6; s.dispatchEvent(new Event('input')); });
   await sleep(500);
   for (const id of ['tp-s1', 'tp-s2', 'tp-s3', 'tp-s4', 'tp-s5', 'tp-s6', 'tp-s7', 'tp-s9', 'tp-s11']) {
     const el = await p.$('#' + id); await el.screenshot({ path: path.join(outdir, `${id}_${width}_${scheme}.png`) });

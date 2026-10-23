@@ -108,19 +108,7 @@
 </section>
 
 <section id="xc-s3">
-<h3>3. The passes, watched one at a time</h3>
-<p>XLA optimises by running <b>passes</b>, each a rewrite of the whole HLO program. With <code>XLA_FLAGS=--xla_dump_to=DIR --xla_dump_hlo_pass_re=.*</code> it writes the program after every pass that changed it. Below, the number of top-level instructions after each dumped pass (instructions inside a fusion are counted once, as the fusion).</p>
-<div class="seg" id="xc-ps-seg"><button data-v="train_step" class="on" aria-pressed="true">Train step</button><button data-v="mlp_block" aria-pressed="false">MLP sub-block</button></div>
-<div class="xc-plot" id="xc-ps-plot"></div>
-<div id="xc-ps-top"></div>
-<p class="xc-small" id="xc-ps-note"></p>
-<div class="tw"><table class="xc-tbl xc-cards"><thead><tr><th>Pass</th><th>What it does</th><th>Seen here</th></tr></thead><tbody>
-<tr><td><b>algsimp</b> (algebraic simplification)</td><td>Rewrites by algebra: <code>x*1</code> to <code>x</code>, a division by a constant to a multiplication, transposes folded into dots, reshapes moved. Runs many times.</td><td>Repeated drops in the "simplification" pipeline</td></tr>
-<tr><td><b>cse</b> (common-subexpression elimination)</td><td>Computes identical expressions once. Tracing happily records the same work twice.</td><td>The single largest drop in the train step: <span data-xc="passes.train_step.cse.removed"></span> instructions. The gradient norm is computed twice, once inside <code>clip_by_global_norm</code> and once for logging, so 69 squares, 69 sums and 69 adds (one per parameter array) go; so do the repeated broadcasts of the same scalars into each of the 69 updates</td></tr>
-<tr><td><b>dce</b> (dead-code elimination)</td><td>Removes values nothing uses.</td><td>Small drops after each simplification</td></tr>
-<tr><td><b>layout-assignment</b></td><td>Chooses each array's memory order (which dimension is contiguous) so that dots and reductions read memory efficiently. On TPU, layouts also carry tiling, which pads small dimensions (the {{TPU and Pallas lab|#t-tpu}} covers it).</td><td>Layouts appear as <code>{2,1,0}</code> in the optimised HLO</td></tr>
-<tr><td><b>fusion</b></td><td>Merges producer and consumer instructions into kernels (section 2).</td><td>The cliff: thousands of instructions become hundreds of fusions</td></tr>
-<tr><td><b>copy-insertion</b> and buffer assignment</td><td>Adds copies where an in-place update would be unsafe, removes those it can, then assigns every value a buffer, letting values whose lifetimes do not overlap share memory. Its result is <code>memory_analysis()</code> (section 4).</td><td>The bump and fall at the end</td></tr>
-</tbody></table></div>
-<p>XLA also has an HLO <b>rematerialisation</b> pass, which recomputes values to fit a memory limit; it did not appear in this CPU pipeline. The rematerialisation you control is <code>jax.checkpoint</code> (section 5).</p>
+<h3>3. The passes</h3>
+<p>XLA optimises by running <b>passes</b>, each a rewrite of the whole HLO program: algebraic simplification, common-subexpression elimination (the largest single drop in this step: the gradient norm is computed twice, once inside <code>clip_by_global_norm</code> and once for logging), dead-code elimination, layout assignment, fusion (the cliff, section 2), then copy insertion and buffer assignment (section 4). <code>XLA_FLAGS=--xla_dump_to=DIR --xla_dump_hlo_pass_re=.*</code> writes the program after every pass that changed it.</p>
+<p class="deepnote"><b>Moved to {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}}</b>: the pass pipeline counted pass by pass (section 3, with its Pass diff viewer tab), how fusion decides (section 4) and buffer assignment (section 6).</p>
 </section>

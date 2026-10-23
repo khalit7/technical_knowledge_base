@@ -29,8 +29,7 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
       else{e.click();c++}
       await new Promise(r=>setTimeout(r,3));
     }
-    // hover a port line
-    const l=root.querySelector('.tr-port div.l[data-k]');l.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));c++;
+    // the port panes were retired 2026-10-23 (now PyTorch to JAX, section 1)
     return c});
   const bad=await p.evaluate(()=>{const s=document.getElementById('t-train').innerText;return (s.match(/\bNaN\b|\bundefined\b|Infinity|\bnull\b/g)||[])});
   const sw=await p.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);

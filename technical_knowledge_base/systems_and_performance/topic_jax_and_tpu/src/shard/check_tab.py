@@ -44,7 +44,7 @@ st, pg, co = load("strategies.json"), load("playground.json"), load("collectives
 S = {r["id"]: r for r in st["strategies"]}
 html = "".join(open(os.path.join(PARTS, f)).read() for f in sorted(os.listdir(PARTS)) if f.startswith("34_tab_shard"))
 ok(st["params_total"] == 826368 and "826,368-parameter" in html, "826,368 parameters")
-ok(128 * 512 * 4 == 262144 and "256 KiB" in html, "fc1.w is 256 KiB")
+# the 256 KiB sharded-weight card was retired 2026-10-23 (now Sharding and scale, section 1)
 naive = S["fsdp_naive"]["grouped"]
 ag = {}
 for k, ph, g, b, n in naive:

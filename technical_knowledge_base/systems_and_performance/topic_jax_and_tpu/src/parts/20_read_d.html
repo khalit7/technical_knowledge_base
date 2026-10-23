@@ -1,6 +1,6 @@
 <section id="rd-s4">
 <h2>4. The training stack</h2>
-<p>JAX itself has no layers, optimisers or checkpoints. Four libraries supply them, each a separate install, and together they are what Google calls the JAX AI stack ({{docs.jaxstack.ai|https://docs.jaxstack.ai/}}). Versions are the latest on PyPI on 2026-10-15.</p>
+<p>JAX has no layers, optimisers or checkpoints. Four libraries supply them, together what Google calls the JAX AI stack ({{docs.jaxstack.ai|https://docs.jaxstack.ai/}}); versions are the latest on PyPI on 2026-10-15.</p>
 <div class="tw"><table class="rd-cmp">
 <thead><tr><th>PyTorch</th><th>JAX stack</th><th>The difference that matters</th></tr></thead>
 <tbody>
@@ -9,9 +9,9 @@
 <tr><td><code>torch.save</code>, DCP</td><td><b>orbax</b> (orbax-checkpoint 0.12.7)</td><td>Asynchronous and sharded by default: each host writes its own shards and restores straight into a target sharding; the counterpart of <code>torch.distributed.checkpoint</code>, but the default path.</td></tr>
 <tr><td><code>DataLoader</code></td><td><b>grain</b> (0.2.18)</td><td>Deterministic shuffling and an iterator whose position is saved with the checkpoint, so a preempted run resumes mid-epoch on exactly the next batch.</td></tr>
 </tbody></table></div>
-<p><b>Which neural-network library.</b> Flax's own docs: "Flax NNX is an evolution of the previous Flax Linen API", "new users are encouraged to use Flax NNX", and Linen "is not going to be deprecated in the near future as most of Flax users still rely on this API" ({{Flax docs|https://flax.readthedocs.io/en/latest/}}). <b>Linen</b> modules hold no state: <code>model.init(key, x)</code> returns a parameter dict and <code>model.apply(params, x)</code> runs it, so most JAX code written before 2025 reads like that. <b>Equinox</b> (0.13.8) makes a model itself a pytree, minimal and popular in research. <b>Haiku</b>: "As of July 2023 Google DeepMind recommends that new projects adopt Flax instead of Haiku"; it is in maintenance mode, bug fixes and JAX compatibility only, though still released (0.0.17, 2026-07-27) ({{Haiku README|https://github.com/google-deepmind/dm-haiku}}). For a PyTorch user writing new code: NNX, and learn to read Linen.</p>
-<p><b>Mixed precision.</b> The common recipe is the same as in PyTorch, written explicitly: float32 master parameters and optimiser state, a bf16 copy for the forward and backward matmuls, float32 for reductions such as softmax and the loss. On TPUs bf16 is native and no loss scaling is needed.</p>
-<p><b>A whole train step</b>, in the running example's JAX twin:</p>
+<p><b>Which neural-network library.</b> For new code, Flax NNX: "new users are encouraged to use Flax NNX", and Linen "is not going to be deprecated in the near future as most of Flax users still rely on this API" ({{Flax docs|https://flax.readthedocs.io/en/latest/}}). Learn to read <b>Linen</b> (stateless modules: <code>model.init(key, x)</code> returns a parameter dict, <code>model.apply(params, x)</code> runs it), the style of most JAX code written before 2025. <b>Equinox</b> (0.13.8) makes a model itself a pytree, popular in research. <b>Haiku</b> is in maintenance mode: "As of July 2023 Google DeepMind recommends that new projects adopt Flax instead of Haiku", though still released (0.0.17, 2026-07-27) ({{Haiku README|https://github.com/google-deepmind/dm-haiku}}).</p>
+<p><b>Mixed precision</b> is the PyTorch recipe written out: float32 master parameters and optimiser state, bf16 for the matmuls, float32 for softmax and the loss. On TPUs bf16 is native and no loss scaling is needed.</p>
+<details class="dp"><summary>A whole train step in the running example's Flax NNX twin, run</summary><div>
 <!--CODE:step--><pre class="rd-code">import jax, optax
 from flax import nnx
 import common as C, model_nnx as M                # the running example (src/data)
@@ -36,5 +36,6 @@ for step in range(3):
 0 (32, 128) 4.200614929199219
 1 (32, 128) 4.168322563171387
 2 (32, 128) 4.115612506866455</pre><p class="rd-codecap">Ran with jax 0.11.2 and flax 0.12.10 on Apple M1 Pro (CPU); output as printed. The model and optimiser come from <code>src/data/model_nnx.py</code> (AdamW with warmup, global-norm clipping and weight decay on weight matrices only); <code>nnx.jit</code> donates nothing unless asked, hence <code>donate_argnames</code>; <code>float(...)</code> forces a host sync, fine for three steps and a mistake in a real loop.</p><!--/CODE:step-->
-<div class="deepnote"><b>Go deeper.</b> The {{Training lab|#t-train}} trains both twins and overlays their loss curves, checks optax's AdamW against PyTorch's on the same gradients, resumes from an orbax checkpoint bit for bit and builds optax chains; child pages {{The JAX training stack|n:3c65c17b0d0d817ea0ace9a2ca8677ec}} and {{PyTorch to JAX: porting a small LM|n:3fa5c17b0d0d81c5abb9fedab418578d}}.</div>
+</div></details>
+<div class="deepnote"><b>Go deeper.</b> {{The JAX training stack|n:3c65c17b0d0d817ea0ace9a2ca8677ec}} owns the libraries: NNX state (section 1) and transforms (2), Linen and Equinox (3), optax (4), orbax (5), grain (6), float16 loss scaling (7). {{PyTorch to JAX|n:3fa5c17b0d0d81c5abb9fedab418578d}} owns the port: four differences on one step (section 1), every default that differs (2), the equivalence test (4) and its Divergence hunter. The {{Training lab|#t-train}} keeps what spans both: the four module libraries side by side, optax against PyTorch's AdamW, both twins trained 4,000 steps, an orbax resume bit for bit, grain and three precisions.</div>
 </section>

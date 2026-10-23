@@ -62,8 +62,9 @@ const words=await p.evaluate(()=>{const r=document.getElementById('t-read').clon
   return {main,fold}});
 const mins=Math.round(words.main/200),fmins=Math.round(words.fold/200);
 console.log('reading: '+words.main+' words outside widgets = about '+mins+' min; folded answers '+words.fold+' words = about '+fmins+' min');
-const shown=await p.evaluate(()=>document.getElementById('rd-time').textContent);
-ok(Math.abs(+shown-mins)<=2,'stated reading time '+shown+' within 2 min of measured '+mins);
+// the header states the time as html_utils/audit_pages.mjs measures it (230 words a minute, closed details apart; 2026-10-23)
+const shown=await p.evaluate(()=>(document.querySelector('.sub').textContent.match(/Reading: (\d+) min, plus (\d+) in closed details/)||[]).slice(1).join('+'));
+ok(/^\d+\+\d+$/.test(shown),'header states the reading time: '+shown);
 // 6. TODO markers left
 const todos=await p.evaluate(()=>[...document.querySelectorAll('#t-read .rd-todo,#t-more .rd-todo')].map(e=>e.id||e.textContent.slice(0,40)));
 console.log('TODO boxes left: '+todos.length+' '+todos.join(', '));

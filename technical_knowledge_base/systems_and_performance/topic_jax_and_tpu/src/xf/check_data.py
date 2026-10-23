@@ -30,7 +30,8 @@ n_params = D["pytree"]["n_params"]
 ok("826,368" in prose and n_params == 826368, f"parameter count in prose = data ({n_params})")
 ok("Ten Python lines" in prose and len(D["trace"]["attention"]["src"]) == 10, "attention source is ten lines")
 ok("5.656854152679443" in prose and any("5.656854152679443" in e for e in D["trace"]["attention"]["eqns"]), "folded constant appears in the jaxpr")
-ok(abs(0.9 * 0.9 + 0.1 * 0.1 - 0.82) < 1e-12 and "82%" in prose, "independent-mask agreement formula 0.82")
+# section 6 (keys) moved to JAX core on 2026-10-23, with the 82% formula; the stub quotes the two agreements
+ok("100% of 4,096 positions" in prose and "81.8%" in prose, "key-reuse stub quotes the recorded agreements")
 ok("4,096 tokens" in prose and D["vmap"]["mlp_anim"]["batch"]["head"].count("4096") >= 1, "vmap batch is 4,096 tokens")
 ok(D["vmap"]["B"] == 32 and D["vmap"]["T"] == 128 and "32 sequences of 128" in prose, "per-example run is 32 x 128")
 ok("32544801" in prose and D["source"]["commit"].startswith("32544801"), "pinned commit in prose = source data")

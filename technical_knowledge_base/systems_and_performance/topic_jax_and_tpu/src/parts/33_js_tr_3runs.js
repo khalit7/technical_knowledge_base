@@ -18,31 +18,7 @@
     $('tr-def-wd').innerHTML='after '+O.n+' identical steps the LayerNorm scales differ by '+fmt(O.defaults.diff[O.n-1],'e1')+' (above); in a 300-step training run, validation loss '+fmt(D.pit.v.wd_default.val,'4')+' against '+fmt(D.pit.torch_val300,'4')+' (section 4)';
     onRender(draw);onResize(draw)})();
 
-  // the port, line by line
-  (function(){const P=D.port;let side='nnx',cur=null;
-    const pane=(arr,el)=>{el.innerHTML=arr.map(([l,k])=>l==='...'?'<div class="l gap">...</div>':'<div class="l'+(k?' k':'')+'"'+(k?' data-k="'+k+'"':'')+'>'+esc(l)+'</div>').join('')};
-    function render(){pane(P.torch,$('tr-port-l'));pane(P[side],$('tr-port-r'));$('tr-port-rh').textContent=side==='nnx'?'Flax NNX: model_nnx.py':'plain JAX + optax: model_jax.py';if(cur)hl(cur)}
-    function hl(k,from){cur=k;document.querySelectorAll('#t-train .tr-port div.l').forEach(d=>d.classList.toggle('on',d.dataset.k===k));$('tr-port-note').textContent=P.notes[k]||'';
-      ['tr-port-l','tr-port-r'].forEach(id=>{if(id===from)return;const pn=$(id),d=pn.querySelector('div.l.on');if(d)pn.scrollTop=Math.max(0,d.offsetTop-40)})}
-    ['tr-port-l','tr-port-r'].forEach(id=>{const el=$(id);const f=e=>{const d=e.target.closest('div.l[data-k]');if(d&&d.dataset.k!==cur)hl(d.dataset.k,id)};el.addEventListener('mouseover',f);el.addEventListener('click',f)});
-    seg($('tr-portseg'),m=>{side=m;render()});render()})();
-
-  // pitfalls
-  (function(){const P=D.pit,keys=Object.keys(P.v),cols=['var(--ink)','var(--c2)','var(--c6)','var(--c4)','var(--c3)','var(--c5)','#d64b8a','var(--c1)'];
-    const on={correct:1,transpose:1,ln_eps:1,b2_default:1};let mode='diff';
-    $('tr-pit-list').innerHTML=keys.map((k,i)=>'<label><input type="checkbox" data-k="'+k+'"'+(on[k]?' checked':'')+'><span class="sw" style="background:'+cols[i]+'"></span><span>'+esc(P.v[k].label)+'</span></label>').join('');
-    $('tr-pit-tab').innerHTML='<tr><td>PyTorch twin (reference)</td><td class="num">0</td><td class="num">'+fmt(P.torch_val300,'4')+'</td><td class="num"></td></tr>'+
-      keys.map(k=>{const v=P.v[k],dv=v.val-P.torch_val300;return '<tr><td>'+esc(v.label)+'</td><td class="num">'+fmt(v.d0,'e1')+'</td><td class="num">'+fmt(v.val,'4')+'</td><td class="num">'+(dv>=0?'+':'&#8722;')+Math.abs(dv).toFixed(4)+'</td></tr>'}).join('');
-    function draw(){const el=$('tr-pit-plot'),W=width(el),n=P.torch.length;const ser=[];
-      if(mode==='loss'){ser.push({pts:P.torch.map((v,i)=>[i,v]),color:'var(--mute)',w:4,op:.35});
-        keys.forEach((k,i)=>{if(on[k])ser.push({pts:P.v[k].loss.map((v,j)=>[j,v]),color:cols[i],w:1.4})});
-        el.innerHTML=chart(W,240,{xmin:0,xmax:n,ymin:2,ymax:4.8,yticks:[2,2.5,3,3.5,4,4.5],yfmt:v=>v.toFixed(1),xticks:[0,100,200,300],xlabel:'step (thick grey: PyTorch)',series:ser,label:'Training loss with porting mistakes'})}
-      else{const wm=a=>{const o=[];for(let j=0;j<a.length;j+=5){o.push([j,Math.max(1e-7,...a.slice(j,j+5))])}return o};keys.forEach((k,i)=>{if(on[k])ser.push({pts:wm(P.v[k].loss.map((v,j)=>Math.abs(v-P.torch[j]))),color:cols[i],w:1.5})});
-        el.innerHTML=chart(W,240,{xmin:0,xmax:n,ymin:1e-7,ymax:1,logy:1,yticks:pow10(-7,0),yfmt:efmt,xticks:[0,100,200,300],xlabel:'step: largest |loss minus PyTorch| per 5 steps',series:ser,label:'Difference from PyTorch loss'})}}
-    $('tr-pit-list').addEventListener('change',e=>{const k=e.target.dataset.k;if(!k)return;on[k]=e.target.checked?1:0;draw()});
-    seg($('tr-pit-mode'),m=>{mode=m;draw()});
-    $('tr-pit-cap').innerHTML='Plain-JAX twin, 300 steps each, the shared weights and batches; the PyTorch curve is the setup run\'s. Losses are stored to 6 decimals, so differences below about 1e-6 are rounding. Logit difference: largest |logit| difference from PyTorch on training batch 0 before any training (largest logit about 1.1). <span class="tr-meas">measured</span> (<code>src/train/pitfalls.py</code>)';
-    onRender(draw);onResize(draw)})();
+  // the port panes and the pitfall runs were retired 2026-10-23 (now PyTorch to JAX, section 1 and its Divergence hunter tab)
 
   // the long twin run: animated overlay
   (function(){const T=D.twin,E=T.every,n=T.steps,F=Math.round(n/100)+1;let mode='tj';
