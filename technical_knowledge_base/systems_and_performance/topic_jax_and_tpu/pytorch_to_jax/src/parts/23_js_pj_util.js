@@ -29,8 +29,10 @@ window.PJU=(function(){
   function srcBlocks(root){
     const ex={};(J.source.excerpts||[]).forEach(e=>ex[e.id]=e);
     (root||document).querySelectorAll('.pj-srcx[data-id]').forEach(el=>{const e=ex[el.dataset.id];if(!e){el.textContent='?';return}
-      el.innerHTML='<details class="pj-src"'+(el.dataset.open?' open':'')+'><summary>'+esc(e.title)+' <span class="f">'+esc(e.file)+':'+e.start+(e.end>e.start?'-'+e.end:'')+'</span></summary>'+
-        '<pre class="pj-code">'+esc(e.text)+'</pre><div class="pj-cap">'+esc(e.label)+(J.source.commits[e.repo]&&J.source.commits[e.repo].length===40?' (commit '+J.source.commits[e.repo].slice(0,8)+')':'')+', lines located by pattern in <code>src/runs/read_source.py</code>. <a href="'+e.url+'" target="_blank" rel="noopener noreferrer">Open on GitHub</a></div></details>'})}
+      // inside a closed block already: a plain heading and the excerpt; elsewhere its own closed block
+      const head=esc(e.title)+' <span class="f">'+esc(e.file)+':'+e.start+(e.end>e.start?'-'+e.end:'')+'</span>';
+      const body='<pre class="pj-code">'+esc(e.text)+'</pre><div class="pj-cap">'+esc(e.label)+(J.source.commits[e.repo]&&J.source.commits[e.repo].length===40?' (commit '+J.source.commits[e.repo].slice(0,8)+')':'')+', lines located by pattern in <code>src/runs/read_source.py</code>. <a href="'+e.url+'" target="_blank" rel="noopener noreferrer">Open on GitHub</a></div>';
+      el.innerHTML=el.parentElement.closest('details')?'<div class="pj-src"><div class="small"><b>'+head+'</b></div>'+body+'</div>':'<details class="pj-src"'+(el.dataset.open?' open':'')+'><summary>'+head+'</summary>'+body+'</details>'})}
   function predicts(root){(root||document).querySelectorAll('.pj-pr').forEach(pr=>{const ans=pr.querySelector('.ans'),right=pr.dataset.ans;
     pr.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{pr.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.o===right)x.classList.add('right')});
       if(b.dataset.o!==right)b.classList.add('wrong');ans.hidden=false}))})}

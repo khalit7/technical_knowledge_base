@@ -1,5 +1,5 @@
-// ---- Weight conversion tab: the real name map and a transpose animation on a real tile
-(function(){
+// ---- Reading section 3 (moved from the old Weight conversion tab, 2026-10-23): a transpose animation on a real tile, and the real name map
+(function(){if(!document.getElementById('pjwc-tile'))return;
   const C=window.PJ.convert,G=window.PJ.gpt2,esc=RD.esc;
   // ---------------- the tile animation
   let src='lin';const el=document.getElementById('pjwc-tile'),cap=document.getElementById('pjwc-cap');
@@ -23,9 +23,8 @@
     if(src==='lin')cap.innerHTML=i===0?'PyTorch stores <code>'+esc(C.tile.name)+'</code> as [out, in] = [128, 128] and computes x W<sup>T</sup>. Flax\'s kernel is [in, out] and computes x W. Press play: each stored row becomes a column.':
       (i<=R?'Row '+(i-1)+' of the PyTorch weight (output feature '+(i-1)+'\'s weights over the inputs) becomes column '+(i-1)+' of the Flax kernel. This matrix is square, so if you forget the transpose nothing complains: the logits come out wrong by '+PJU.fmt(PJ.hunt.variants.transpose.rungs.logits,'s2')+' (Divergence hunter).':'Done: all '+C.n_transposed+' Linear kernels get this treatment; biases, LayerNorm scales and embeddings are copied as they are.');
     else cap.innerHTML='GPT-2\'s <code>'+esc(G.tile.name)+'</code> is a Hugging Face Conv1D weight, stored [in, out] already: the JAX port uses it as stored, and nothing moves. Transposing it "because it is PyTorch" makes the logits wrong by '+PJU.fmt(G.mistakes.transpose.logits_maxdiff,'s2')+'; the non-square c_attn and c_fc would fail on shape instead.'}
-  const a=PJU.anim({card:'pjwc-card',ctl:'pjwc-ctl',n:R+2,draw,ms:1100,label:'Row'},'t-pjwc');
+  const a=PJU.anim({card:'pjwc-card',ctl:'pjwc-ctl',n:R+2,draw,ms:1100,label:'Row'});RD.onResize(()=>a.redraw());
   RD.seg(document.getElementById('pjwc-src'),m=>{src=m;a.reset(m==='lin'?R+2:1)});
-  PJU.onResize('t-pjwc',()=>a.redraw());
   // ---------------- the name list
   const names=document.getElementById('pjwc-names'),det=document.getElementById('pjwc-det');let filt='all';
   function list(){let rows;
@@ -39,8 +38,4 @@
       '<dl><dt>PyTorch</dt><dd><code>'+esc(r.torch)+'</code> '+r.ts.join(' x ')+'</dd><dt>Flax NNX</dt><dd><code>'+esc(r.nnx)+'</code> '+r.ns.join(' x ')+'</dd><dt>rule</dt><dd>'+(r.tr?'kernel &larr; weight<sup>T</sup> (a Linear layer)':/scale$/.test(r.nnx)?'scale &larr; weight (LayerNorm)':/embedding$/.test(r.nnx)?'embedding &larr; weight':'bias &larr; bias')+'</dd><dt>elements</dt><dd>'+(r.n||0).toLocaleString('en-US')+'</dd></dl>'});
   RD.seg(document.getElementById('pjwc-filter'),m=>{filt=m;list();det.textContent='Click a row.'});
   list();
-  document.getElementById('pjwc-checks').innerHTML=RD.stat('Names used',C.n_tensors+' of '+C.n_tensors,'unused PyTorch keys: '+(C.unused_torch_keys.length||'none'))+
-    RD.stat('Logits, PyTorch vs converted NNX',PJU.fmt(C.torch_to_nnx_logits_maxdiff,'s2'),'argmax agreement '+PJU.fmt(C.torch_to_nnx_argmax_agree,'pct'))+
-    RD.stat('NNX back to PyTorch',C.roundtrip_bitwise_equal?'bit for bit':'differs','strict load: '+C.roundtrip_strict_load)+
-    RD.stat('safetensors file',(C.file_bytes/1e6).toFixed(2)+' MB','header '+C.header_bytes.toLocaleString('en-US')+' bytes');
 })();

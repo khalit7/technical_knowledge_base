@@ -19,7 +19,7 @@
         h+='<div class="rl">'+r[1]+'<br><span class="mute small">&le; '+r[2].toExponential().replace('e-','e-')+'</span></div><div class="c '+cls(a)+(cur?' cur':'')+'">'+(show?txt(a):'?')+'</div><div class="c '+cls(b)+(cur?' cur':'')+'">'+(show?txt(b):'?')+'</div>'});
       lad.innerHTML=h;
       let m;
-      if(i===0)m='Both ports start from the PyTorch twin\'s initial weights and see batch 0. Each step compares one more thing with PyTorch; press play or step.';
+      if(i===0)m='Both ports start from the PyTorch twin\'s initial weights and see batch 0. Each step compares one more thing with PyTorch; press play or step. Change the port to see where a different bug first fails.';
       else{const r=RUNGS[i-1],b=val(v,r[0]),ok=pass(b,r[2]);
         const first=RUNGS.findIndex(rr=>!pass(val(v,rr[0]),rr[2]));
         m='<b>'+r[1]+'</b> checks '+r[3]+'. This port: '+txt(b)+(ok?', within the threshold.':', <b>fails</b>.')+(i-1===first?' This is the first failing rung: look at '+r[3]+'.':'');
@@ -27,7 +27,7 @@
           if(r[0]==='curve'&&(v.rungs.step1!=null&&v.rungs.step1<5e-5&&v.rungs.step1>1e-6))m+=' Note the one-step rung: Adam\'s first update is the learning rate times the sign of the gradient, so it hides how large a gradient difference was.'}}
       cap.innerHTML=m}
     const a=RD.anim({card:'pj-lad-card',ctl:'pj-lad-ctl',n:RUNGS.length+1,draw,ms:1500,label:'Ladder rung'});
-    sel.value='ln_eps';sel.addEventListener('change',()=>{a.reset(RUNGS.length+1);a.play()});a.redraw()}
+    sel.value='ln_eps';sel.addEventListener('change',()=>a.reset(RUNGS.length+1));a.redraw()}
 
   // ---------------- tolerance table by dtype
   const tol=document.getElementById('pj-tol');
@@ -98,5 +98,5 @@
       ['How do you test a port of a model that uses dropout?','Turn dropout off and run the whole ladder; masks come from different generators and can never match. Then turn it on and compare statistics against seed-to-seed variation, and check keys are not reused and eval mode is set.'],
       ['Design: your team will move a 7B PyTorch training codebase to TPUs. Plan the port.','1) Try torchax or PyTorch/XLA (TorchTPU when public) to see if the model runs at all and what it costs; 2) if porting, pick the target (MaxText or Tunix configs before hand-written code); 3) write the weight conversion as a rule with shape asserts and a bitwise round trip; 4) list every default (norm epsilon, activation, init, masks, optimiser decay and mask, clipping, schedule count, loss reduction) and set them explicitly; 5) ladder test on CPU in float32 and float64 on a small config, then on one TPU host with HIGHEST precision; 6) short twin runs, judged against seed variation; 7) only then bfloat16 and sharding, each its own comparison.'],
       ['When would you not port?','When the gain is not in JAX: GPU serving (vLLM, SGLang are PyTorch-first), dependence on PyTorch-only kernels, a codebase you only read, or a one-off TPU trial that torchax can run. Porting buys the compiler, sharding and TPU ecosystem at the cost of a second code base and a test you must keep.']];
-    iq.innerHTML=Q.map(q=>'<details class="pj-box"><summary><b>'+q[0]+'</b></summary><p class="small">'+q[1]+'</p></details>').join('')}
+    iq.innerHTML=Q.map(q=>'<p><b>'+q[0]+'</b><br><span class="small">'+q[1]+'</span></p>').join('')}
 })();

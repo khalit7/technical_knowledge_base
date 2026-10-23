@@ -8,7 +8,7 @@ const puppeteer=require('puppeteer');
 const page_path=path.resolve(process.argv[2]),shots=process.argv[3];
 const b=await puppeteer.launch({headless:'shell'});
 let fail=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)fail++};
-const TABS=['t-read','t-pjdh','t-pjwc','t-pjdr','t-more'];
+const TABS=['t-read','t-pjdh','t-pjdr','t-more'];
 for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   const p=await b.newPage();const errs=[];
   p.on('pageerror',e=>errs.push(String(e)));p.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
@@ -34,7 +34,7 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
       }
       const q=s=>root.querySelectorAll(s);const sleep=()=>new Promise(r=>setTimeout(r,3));
       if(t==='t-pjdr'){const sel=root.querySelector('#pjdr-pick');for(const o of [...sel.options]){sel.value=o.value;sel.dispatchEvent(new Event('change'));await sleep();for(const b of [...q('.cand')]){b.click();c++;await sleep()}}}
-      if(t==='t-pjwc'){for(const b of [...q('#pjwc-filter button')]){b.click();await sleep();for(const d of [...q('#pjwc-names div[data-i]')]){d.click();c++}}
+      if(t==='t-read'){for(const b of [...q('#pjwc-filter button')]){b.click();await sleep();for(const d of [...q('#pjwc-names div[data-i]')]){d.click();c++}}
         for(const b of [...q('#pjwc-src button')]){b.click();await sleep();const f=root.querySelector('#pjwc-ctl-f');for(let i=0;i<9;i++){f.click();c++;await sleep()}}}
       if(t==='t-read'){const sel=root.querySelector('#pj-lad-v');for(const o of [...sel.options]){sel.value=o.value;sel.dispatchEvent(new Event('change'));const f=root.querySelector('#pj-lad-ctl-f');for(let i=0;i<6;i++){f.click();c++}await sleep()}}
       return c},tab);

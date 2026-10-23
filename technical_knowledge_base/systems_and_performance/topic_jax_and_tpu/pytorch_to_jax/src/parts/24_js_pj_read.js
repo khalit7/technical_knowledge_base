@@ -23,28 +23,47 @@ window.PJV=(function(){
   return {line,logbars,smooth};
 })();
 
-// ---- map of the page
-(function(){const el=document.getElementById('pj-map');if(!el)return;
-  const st=[['1','Translate','modules, optimiser, loop','s-tr'],['2','Set defaults','a dozen differ silently','s-def'],['3','Convert weights','rule on the path, safetensors','s-conv'],['4','Climb the ladder','logits, loss, grads, step, curves','s-eq'],['5','Judge the drift','rounding or bug','s-drift']];
-  function draw(){const W=RD.width(el.parentElement),v=W<600;const bw=v?W-20:(W-20-4*14)/5,bh=58,H=v?st.length*(bh+12)+4:bh+10;let b='';
-    st.forEach((s,i)=>{const x=v?10:10+i*(bw+14),y=v?4+i*(bh+12):4;
-      b+='<g class="pj-mapbox" data-s="'+s[3]+'" style="cursor:pointer"><rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="8" fill="var(--soft)" stroke="var(--acc)"/>'+
-        RD.t(x+10,y+20,s[0]+'. '+s[1],{fs:13,w:600})+RD.t(x+10,y+40,s[2],{fs:11,fill:'var(--mute)'})+'</g>';
-      if(i<st.length-1)b+=v?'<path d="M'+(W/2)+' '+(y+bh+1)+' v10" stroke="var(--mute)"/>':'<path d="M'+(x+bw+1)+' '+(y+bh/2)+' h12" stroke="var(--mute)"/>'});
-    el.setAttribute('viewBox','0 0 '+W+' '+H);el.setAttribute('width',W);el.setAttribute('height',H);el.innerHTML=b}
-  el.addEventListener('click',e=>{const gg=e.target.closest('.pj-mapbox');if(gg)document.getElementById(gg.dataset.s).scrollIntoView({block:'start'})});
+// ---- hero: the same step, PyTorch's hidden state against JAX's explicit state (static, drawn at the measured width)
+(function(){const el=document.getElementById('pj-hero');if(!el)return;
+  const mix=c=>'color-mix(in srgb,'+c+' 20%,var(--bg))';
+  const box=(x,y,w,h,c,dash)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(c?mix(c):'var(--soft)')+'" stroke="'+(c||'var(--line)')+'"'+(dash?' stroke-dasharray="4 3"':'')+'/>';
+  const arr=(x1,y1,x2,y2,c,dash)=>'<path d="M'+x1+' '+y1+' L'+x2+' '+y2+'" stroke="'+(c||'var(--mute)')+'" stroke-width="1.4" fill="none" marker-end="url(#pjh-ah)"'+(dash?' stroke-dasharray="4 3"':'')+'/>';
+  const ST=[['weights','in nn.Module','var(--c1)'],['gradients','in p.grad','var(--c2)'],['optimiser state','in opt, sched','var(--c3)'],['random state','global generator','var(--c4)']];
+  function torchPanel(x,y,w){let b=RD.t(x,y+14,'PyTorch: state lives inside objects',{fs:13,w:600,fill:'var(--ink)'});
+    const by=y+26,bh=30;b+=box(x,by,w,bh,null)+RD.t(x+w/2,by+19,'train_step(model, opt, sched, x, y)',{a:'middle',fs:11.5,fill:'var(--ink)'});
+    const gw=(w-10)/2,gh=40,gy=by+bh+40;
+    ST.forEach((s,i)=>{const gx=x+(i%2)*(gw+10),yy=gy+Math.floor(i/2)*(gh+10);
+      b+=box(gx,yy,gw,gh,s[2],true)+RD.t(gx+8,yy+16,s[0],{fs:12,w:600,fill:'var(--ink)'})+RD.t(gx+8,yy+32,s[1],{fs:11,fill:'var(--mute)'});
+      if(i<2)b+=arr(gx+gw/2,by+bh+2,gx+gw/2,gy-3,s[2],true)});
+    b+=RD.t(x+w/2,by+bh+24,'changed in place',{a:'middle',fs:11,fill:'var(--mute)'});
+    const ey=gy+2*(gh+10)+6;b+=RD.t(x,ey+12,'returns loss.item(): a Python number',{fs:11,fill:'var(--mute)'});
+    return {svg:b,h:ey+18-y}}
+  function jaxPanel(x,y,w){let b=RD.t(x,y+14,'JAX: state goes in and comes out',{fs:13,w:600,fill:'var(--ink)'});
+    const IN=[['params','var(--c1)'],['opt_state','var(--c3)'],['key','var(--c4)'],['x, y',null]],OUT=[['new params','var(--c1)'],['new opt_state','var(--c3)'],['loss',null]];
+    const row=(items,yy)=>{const cw=(w-6*(items.length-1))/items.length;let r='';items.forEach((it,i)=>{const cx=x+i*(cw+6);r+=box(cx,yy,cw,26,it[1])+RD.t(cx+cw/2,yy+17,it[0],{a:'middle',fs:11.5,fill:'var(--ink)'})});return {r,cw}};
+    const iy=y+26,a1=row(IN,iy);b+=a1.r;
+    const by=iy+26+22,bh=62;b+=box(x,by,w,bh,'var(--acc)')+RD.t(x+10,by+18,'jax.jit(train_step): one pure function',{fs:12,w:600,fill:'var(--ink)'});
+    b+=box(x+10,by+28,w-20,24,'var(--c2)')+RD.t(x+w/2,by+44,w<400?'grads: a value inside':'grads = value_and_grad(loss_fn)(...): a value inside',{a:'middle',fs:11,fill:'var(--ink)'});
+    IN.forEach((_,i)=>{const cx=x+i*(a1.cw+6)+a1.cw/2;b+=arr(cx,iy+27,cx,by-3,IN[i][1])});
+    const oy=by+bh+22,a2=row(OUT,oy);b+=a2.r;OUT.forEach((_,i)=>{const cx=x+i*(a2.cw+6)+a2.cw/2;b+=arr(cx,by+bh+1,cx,oy-3,OUT[i][1])});
+    b+=RD.t(x,oy+26+16,'the caller passes them into the next step',{fs:11,fill:'var(--mute)'});
+    return {svg:b,h:oy+26+22-y}}
+  function draw(){const W=RD.width(el.parentElement),wide=W>=640,gap=28;
+    const defs='<defs><marker id="pjh-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--mute)"/></marker></defs>';
+    let svg,H;
+    if(wide){const pw=(W-gap)/2-2,a=torchPanel(1,2,pw),b=jaxPanel(pw+gap,2,pw);H=Math.max(a.h,b.h)+6;
+      svg=defs+a.svg+'<line x1="'+(pw+gap/2)+'" y1="4" x2="'+(pw+gap/2)+'" y2="'+(H-4)+'" stroke="var(--line)"/>'+b.svg}
+    else{const pw=W-2,a=torchPanel(1,2,pw),b=jaxPanel(1,a.h+22,pw);H=a.h+22+b.h+6;svg=defs+a.svg+'<line x1="0" y1="'+(a.h+11)+'" x2="'+W+'" y2="'+(a.h+11)+'" stroke="var(--line)"/>'+b.svg}
+    el.setAttribute('viewBox','0 0 '+W+' '+H);el.setAttribute('width',W);el.setAttribute('height',H);el.innerHTML=svg}
   draw();RD.onRender(draw);RD.onResize(draw)})();
 
-// ---- in one screen: stats
-(function(){const J=window.PJ,g=PJU.get,el=document.getElementById('pj-one-stats');if(!el)return;
-  const nDef=document.querySelectorAll('#pj-deftab tbody tr').length-document.querySelectorAll('#pj-deftab tbody td.pj-grp').length;
-  const newRuns=Object.values(J.hunt.variants).filter(v=>v.src.indexOf('this page')===0).length;
-  el.innerHTML=RD.stat('Logits, correct port',PJU.fmt(g('hunt.variants.correct.rungs.logits'),'s2'),'largest logit '+PJU.fmt(J.hunt.ref.max_abs_logit,'f2'))+
-    RD.stat('Defaults that differ',nDef,'each measured alone (section 2)')+
-    RD.stat('Port variants trained',Object.keys(J.hunt.variants).length-1,newRuns+' new here, 7 reused from the root')+
-    RD.stat('Weights round trip','bit for bit',J.convert.n_tensors+' tensors, '+J.convert.n_transposed+' transposed')+
-    RD.stat('GPT-2 by hand',PJU.fmt(J.gpt2.logits_maxdiff,'s2'),'max logit gap at |logit| '+PJU.fmt(J.gpt2.max_abs_logit,'f0'))+
-    RD.stat('Twins after '+J.root.twin_steps+' steps',PJU.fmt(J.root.twin_max_abs.torch_vs_jax,'s2'),'largest training-loss gap (root run)')})();
+// ---- section 1: the two twins' code, one difference per step (lines highlighted in both panes; captions are static HTML)
+(function(){const card=document.getElementById('pj-cs-card');if(!card)return;
+  const lines=[...card.querySelectorAll('.pj-lines div')],caps=[...document.querySelectorAll('#pj-cs-cap>div')];
+  function draw(i){lines.forEach(d=>{const s=(d.dataset.s||'').split(' ').filter(Boolean);const on=i===0?s.length>0:s.indexOf(String(i))>=0;
+      d.classList.toggle('on',on);d.classList.toggle('dim',i>0&&!on)});
+    caps.forEach(c=>c.hidden=+c.dataset.i!==i)}
+  RD.anim({card:'pj-cs-card',ctl:'pj-cs-ctl',n:6,draw,ms:4500,label:'Difference'})})();
 
 // ---- conversion stats
 (function(){const J=window.PJ.convert,el=document.getElementById('pj-conv-stats');if(!el)return;
@@ -72,4 +91,4 @@ window.PJV=(function(){
   draw();RD.onRender(draw);RD.onResize(draw);
   const f=v=>PJU.fmt(v,'f4'),sm=PJ.dropout.summary;
   cap.innerHTML='Validation after 300 steps (dropout off for evaluation): PyTorch '+f(D.torch.val_300)+', JAX fresh keys '+f(D.jax_fresh.val_300)+(D.jax_fresh_seed1?', JAX another seed '+f(D.jax_fresh_seed1.val_300):'')+', JAX reused key '+f(D.jax_reuse.val_300)+', no dropout '+f(D.jax_off.val_300)+
-    '. Step 0 differs by '+PJU.fmt(sm.step0_torch_vs_jax_fresh,'s2')+' already (different masks). The PyTorch and JAX dropout runs differ in validation loss by '+PJU.fmt(Math.abs(D.torch.val_300-D.jax_fresh.val_300),'s2')+', less than two JAX seeds differ from each other ('+PJU.fmt(Math.abs(sm.val_seed_noise),'s2')+'): that is the test a dropout port can pass. The reused key trains one fixed sub-network instead of a fresh one each step; at 300 steps its validation loss is still within seed noise, so a loss curve will not catch it: check that the masks change between steps. Evaluating with dropout left on (the forgotten <code>model.eval()</code>) gives '+f(D.torch.val_300_dropout_left_on)+' instead of '+f(D.torch.val_300)+' for PyTorch. Measured on Apple M1 Pro (CPU), <code>src/runs/pj_dropout.py</code>.'})();
+    '. Step 0 differs by '+PJU.fmt(sm.step0_torch_vs_jax_fresh,'s2')+' already (different masks). The PyTorch and JAX dropout runs differ in validation loss by '+PJU.fmt(Math.abs(D.torch.val_300-D.jax_fresh.val_300),'s2')+', less than two JAX seeds differ from each other ('+PJU.fmt(Math.abs(sm.val_seed_noise),'s2')+'): that is the test a dropout port can pass. The reused key trains one fixed sub-network instead of a fresh one each step; at 300 steps its validation loss is still within seed noise, so a loss curve will not catch it. Evaluating with dropout left on (the forgotten <code>model.eval()</code>) gives '+f(D.torch.val_300_dropout_left_on)+' instead of '+f(D.torch.val_300)+' for PyTorch. Measured on Apple M1 Pro (CPU), <code>src/runs/pj_dropout.py</code>.'})();

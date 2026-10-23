@@ -198,6 +198,11 @@ table.pj-t td.hl{background:var(--hl)}
 
 .pj-sub{margin:4px 0 4px 10px;border-left:2px solid var(--c4);padding-left:6px}
 /* ---- pj additions ---- */
+#pj-hero{display:block;width:100%;margin:6px 0 2px}
+.pj-check li{margin:3px 0}
+#pj-cs-card .pj-lines{max-height:none;overflow-x:hidden}
+#pj-cs-card .pj-lines div{white-space:pre-wrap;overflow-wrap:anywhere;padding-left:calc(8px + 2.6em);text-indent:-2.6em}
+#pj-cs-card .pj-lines .ln{width:2.6em;text-indent:0}
 .pj-ladder{display:grid;grid-template-columns:minmax(0,8em) repeat(2,minmax(0,1fr));gap:4px;margin:8px 0;font-size:12.5px}
 .pj-ladder .h{font-weight:600;color:var(--mute);font-size:11.5px;text-align:center}
 .pj-ladder .rl{color:var(--ink);padding:5px 4px}
@@ -236,44 +241,111 @@ table.pj-t td.hl{background:var(--hl)}
 .pj-drill .res code{white-space:pre-wrap;overflow-wrap:anywhere}
 </style>
 <h1>PyTorch to JAX: porting a small LM</h1>
-<div class="sub">The running example of <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a> ported from PyTorch to JAX end to end, as a case study: the line-by-line translation, every default that differs (measured one at a time), converting weights both ways, the equivalence test that tells rounding from bugs, porting a Hugging Face model (GPT-2, by hand), interop without porting, and when not to port. Every run on an Apple M1 Pro CPU with jax 0.11.2, flax 0.12.10, optax 0.2.8 and torch 2.14.1. Data as of October 2026.</div>
+<div class="sub">Reading: 25 min, plus 17 in closed details. The running example of <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a> ported from PyTorch to JAX as a case study: the four kinds of hidden state that become arguments, every default that differs (measured one at a time), weights converted both ways, the ladder test that tells rounding from bugs, GPT-2 by hand, interop, and a porting checklist. Every run on an Apple M1 Pro CPU with jax 0.11.2, flax 0.12.10, optax 0.2.8 and torch 2.14.1. Data as of October 2026.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-pjdh" aria-selected="false">Divergence hunter</button><button role="tab" data-t="t-pjwc" aria-selected="false">Weight conversion</button><button role="tab" data-t="t-pjdr" aria-selected="false">Port drills</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-pjdh" aria-selected="false">Divergence hunter</button><button role="tab" data-t="t-pjdr" aria-selected="false">Port drills</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
-<nav class="nav" id="rd-nav"><a href="#s-one">In one screen</a><a href="#s-tr">1 Translation</a><a href="#s-def">2 Defaults</a><a href="#s-conv">3 Weights</a><a href="#s-eq">4 Equivalence test</a><a href="#s-drift">5 Drift</a><a href="#s-hf">6 Hugging Face</a><a href="#s-io">7 Interop</a><a href="#s-when">8 When not to port</a><a href="#s-mist">Mistakes</a><a href="#s-iq">Interview</a></nav>
+<nav class="nav" id="rd-nav"><a href="#s-one">The idea</a><a href="#s-tr">1 Four differences</a><a href="#s-def">2 Defaults</a><a href="#s-conv">3 Weights</a><a href="#s-eq">4 Ladder test</a><a href="#s-drift">5 Drift</a><a href="#s-hf">6 GPT-2</a><a href="#s-io">7 Interop</a><a href="#s-when">8 Checklist</a></nav>
 
 <section id="s-one">
-<p class="lead">You know PyTorch; you need a model in JAX. This page ports one, the running example of <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a> (a 4-layer character transformer, <span data-k="root.n_params" data-f="int"></span> parameters), and treats the port as an engineering problem with a test, not a translation exercise. The root's <b>Training lab</b> showed the port's panes and seven pitfalls; this page goes further: every default that differs, measured alone; weights converted both ways through a file; a test that tells a rounding difference from a bug; a real Hugging Face model (GPT-2) ported by hand; and the ways to avoid porting at all.</p>
+<div class="co key"><div class="t">The core idea</div>
+PyTorch keeps four kinds of state hidden inside objects (the weights in modules, the gradients in <code>.grad</code>, the optimiser's moments in the optimiser, the random generator's position in a global), and JAX makes each of them an <b>argument and a return value of one pure, compiled training step</b>. A port is that rewrite plus a test: about twenty defaults differ between the libraries without a warning, so a port is correct only when one fixed batch gives PyTorch's logits, loss, gradients and first optimiser step.</div>
 
-<div class="co key"><div class="t">The whole method in five lines</div>
-<b>1. Translate</b> the code (modules become pure functions or NNX modules, the optimiser becomes an optax chain, the loop becomes one jitted step). <b>2. Set every default explicitly</b> on both sides, because a dozen of them differ silently. <b>3. Copy the weights</b> by a rule (rename, transpose <code>[out, in]</code> to <code>[in, out]</code>), never by hand. <b>4. Climb the ladder</b> on one fixed batch: logits, loss, gradients, one optimiser step, then curves; stop at the first rung that fails. <b>5. Judge the drift</b>: in float32 two correct ports separate slowly anyway; in float64 they should not.</div>
+<svg id="pj-hero" role="img" aria-label="Left, PyTorch: train_step(model, opt, sched, x, y) changes weights, .grad, the optimiser's moments and the global random generator in place and returns loss.item(). Right, JAX: the same four kinds of state enter jax.jit(train_step) as arguments and leave as return values; the gradients exist only inside the step."></svg>
+<div class="pj-cap"><b>The same training step, two homes for its state.</b> Left, PyTorch: the step changes four kinds of state in place (dashed arrows). Right, JAX: params, opt_state and the random key go in and new ones come out; the gradients are a value inside the step, never stored. Colours are the same state on both sides. Section 1 steps through the real code of both twins line by line.</div>
 
-<svg id="pj-map" role="img" aria-label="The port as five stages: translate, set defaults, convert weights, ladder test, train and judge drift; each stage names the page section and tab that covers it."></svg>
-<div class="pj-cap">The page in one picture. Click a stage to jump to its section.</div>
+<p><b>You need</b>: PyTorch at the level of writing a training loop, and the running example of <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a> (a 4-layer character transformer, <span data-k="root.n_params" data-f="int">826,368</span> parameters; the root's <b>Training lab</b> shows its three versions as linked panes). Why JAX insists on pure functions (tracing, the jit cache, pytrees, random keys) is taught on <a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a>; how <code>.grad</code> accumulates and what autograd records is on <a href="https://app.notion.com/p/3f85c17b0d0d81138595c1c6cd52f795" target="_blank" rel="noopener noreferrer">Tensors, the dispatcher and autograd</a>. This page uses those ideas and owns only the translation.</p>
 
-<h3>What the case study measured</h3>
-<div class="pj-cnt" id="pj-one-stats"></div>
-<div class="pj-cap">All measured on Apple M1 Pro (CPU) with the scripts in this page's <code>src/runs/</code>; the 4,000-step figures are the root Training lab's run (<code>src/train/out/twin_long.json</code>), cited, not rerun.</div>
-
-<h3>The words this page uses</h3>
+<h3>New terms</h3>
 <div class="tw"><table class="pj-t">
-<thead><tr><th>Term</th><th>Meaning here</th><th>PyTorch counterpart</th></tr></thead>
+<thead><tr><th>Term</th><th>Meaning here</th></tr></thead>
 <tbody>
-<tr><td>twin</td><td>the same model written in both frameworks, started from identical weights and fed identical batches</td><td>(none: a testing set-up)</td></tr>
-<tr><td>pytree</td><td>a nested container (dicts, lists, tuples, dataclasses) whose leaves are arrays; JAX's parameters live in one</td><td><code>state_dict()</code>, flattened</td></tr>
-<tr><td>Flax NNX module</td><td>a Python object holding <code>nnx.Param</code> variables, written like an <code>nn.Module</code>; <code>nnx.split</code> turns it into a pytree for jit</td><td><code>nn.Module</code></td></tr>
-<tr><td>optax chain</td><td>an optimiser built from pure gradient transformations (<code>clip</code>, <code>adamw</code>, ...), applied in order</td><td><code>torch.optim.AdamW</code> plus <code>clip_grad_norm_</code></td></tr>
-<tr><td>rung</td><td>one comparison in the equivalence test: logits, loss, gradients, one step, curves</td><td>(none)</td></tr>
-<tr><td>ulp</td><td>unit in the last place: the gap between a float and the next one; float32 has about 7 decimal digits, so 1 ulp at 4.2 is <span data-k="ladder.correct_float32.loss0" data-f="s2"></span></td><td>same</td></tr>
-<tr><td>safetensors</td><td>a flat file of named tensors with a JSON header; readable from torch, numpy and JAX without pickle</td><td><code>torch.save</code> (pickle)</td></tr>
+<tr><td>twin</td><td>the same model written in both frameworks, started from identical weights and fed identical batches</td></tr>
+<tr><td>rung</td><td>one comparison in the equivalence test: logits, loss, gradients, one optimiser step, curves (section 4)</td></tr>
+<tr><td>optax chain</td><td>an optimiser built from pure gradient transformations (<code>clip</code>, <code>adamw</code>, ...), applied in order; PyTorch's <code>AdamW</code> plus <code>clip_grad_norm_</code></td></tr>
+<tr><td>Flax NNX module</td><td>a Python object holding <code>nnx.Param</code> variables, written like an <code>nn.Module</code>; <code>nnx.split</code> turns it into a pytree (a nested container of arrays) for jit</td></tr>
+<tr><td>ulp</td><td>unit in the last place: the gap between a float and the next one; float32 has about 7 decimal digits, so 1 ulp at 4.2 is <span data-k="ladder.correct_float32.loss0" data-f="s2">4.8e-7</span></td></tr>
+<tr><td>safetensors</td><td>a flat file of named tensors with a JSON header, readable from torch, numpy and JAX without pickle</td></tr>
 </tbody></table></div>
+
+<p class="small">The sections follow the order of a port: <a href="#s-tr">translate</a>, <a href="#s-def">set every default</a>, <a href="#s-conv">convert the weights by a rule</a>, <a href="#s-eq">climb the ladder</a> on one fixed batch, <a href="#s-drift">judge the drift</a>; then GPT-2, interop and <a href="#s-when">the checklist</a>. All measured on an Apple M1 Pro CPU with the scripts in this page's <code>src/runs/</code>; the 4,000-step figures are the root Training lab's run (<code>src/train/out/twin_long.json</code>), cited, not rerun.</p>
 </section>
 
 <section id="s-tr">
-<h2>1. The translation, line by line</h2>
-<p><b>The problem.</b> A PyTorch training script mixes four things that JAX keeps apart: the model's arithmetic, its state (weights), the optimiser's state, and the random generator. JAX wants the arithmetic as a <b>pure function</b> (output depends only on inputs; no hidden state changes), so that <code>jax.jit</code> can trace it once into a program and <code>jax.grad</code> can differentiate it. Every row below is that one idea applied to one part of the script.</p>
-<p><b>How it works.</b> The table walks the ten parts of a training script. The middle column is Flax NNX (closest to PyTorch: objects with state), the right one plain JAX plus optax (state passed explicitly). Both are the root's real files, <code>src/data/model_nnx.py</code> and <code>model_jax.py</code>; the root's <b>Training lab</b>, section 3, shows them as linked panes (<a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a>, tab Training lab).</p>
+<h2>1. Four differences, on one training step</h2>
+<p>Both panes are the root's real files, cut to the lines that matter: <code>src/data/model_torch.py</code> and <code>model_jax.py</code> (plain JAX plus optax, state passed explicitly). Step through: each step lights the lines of one difference on both sides.</p>
+<div class="pj-box" id="pj-cs-card">
+<div class="pj-anctl" id="pj-cs-ctl"></div>
+<div class="pj-capt" id="pj-cs-cap">
+<div data-i="0">Highlighted lines differ between the twins; every other line is the same arithmetic. Press play or step to take the four kinds of state, then compilation, one at a time.</div>
+<div data-i="1" hidden><b>Weights: a module owns them; a function receives them.</b> <code>nn.Linear</code> creates and keeps its weight inside the object; in JAX <code>init_params</code> returns a dict (a pytree) and every layer is a function of <code>p</code>, so the weights are an argument of <code>train_step</code> and come back out of it. The weight is stored <code>[in, out]</code> (<code>x @ p["w"]</code>), the transpose of PyTorch's <code>[out, in]</code>: section 3. Flax NNX keeps PyTorch's object style (<code>class Block(nnx.Module)</code>), and <code>nnx.jit</code> splits it into the same pytree at the boundary.</div>
+<div data-i="2" hidden><b>Randomness: a global generator against explicit keys.</b> <code>torch.manual_seed</code> sets a hidden generator that advances by itself on every draw. A JAX key is a value: drawing twice with the same key gives the same numbers, so <code>init_params</code> splits it into one key per tensor. This model has no dropout, so its step takes no key; with dropout the key becomes one more argument, split or folded with the step number each step (section 2, Dropout).</div>
+<div data-i="3" hidden><b>Gradients: accumulated into <code>.grad</code> against returned.</b> <code>loss.backward()</code> adds into each parameter's <code>.grad</code>, which is why the step starts with <code>zero_grad</code>. <code>jax.value_and_grad</code> returns the gradients as a pytree shaped like <code>params</code>; nothing is stored, so there is nothing to zero, and gradient accumulation is an explicit sum.</div>
+<div data-i="4" hidden><b>Optimiser state: inside the optimiser against passed through.</b> <code>opt.step()</code> updates Adam's moments in place and <code>sched.step()</code> advances a hidden counter. <code>tx.update(grads, opt_state, params)</code> returns new updates and a new <code>opt_state</code>; the schedule is a function of the update count. Parameter groups become a <b>mask</b> pytree (<code>mask=decay_mask</code>), and clipping becomes a link in the chain, before <code>adamw</code>: the order matters (section 2).</div>
+<div data-i="5" hidden><b>Eager against traced.</b> PyTorch runs each line as it is called and <code>loss.item()</code> returns a number. <code>jax.jit</code> runs the Python once per input shape to record a program, then reruns only that program: a Python <code>if</code> on an array value or a <code>print</code> inside the step sees a tracer, not a number (<a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a>, sections 2 and 3). <code>donate_argnums=(0, 1)</code> lets XLA reuse the old <code>params</code> and <code>opt_state</code> buffers, which is safe only because the caller never touches them again. <code>float(loss)</code> blocks until the device finishes: log every N steps.</div>
+</div>
+<div class="pj-two">
+<div class="pj-pane"><div class="h">PyTorch: model_torch.py</div><div class="pj-lines" id="pj-cs-t">
+<div data-s="1"><span class="ln">15</span>class Attention(nn.Module):</div>
+<div><span class="ln">16</span>    def __init__(self, d, h):</div>
+<div><span class="ln">17</span>        super().__init__()</div>
+<div><span class="ln">18</span>        self.h, self.dh = h, d // h</div>
+<div data-s="1"><span class="ln">19</span>        self.wq, self.wk, self.wv, self.wo = (nn.Linear(d, d) for _ in range(4))</div>
+<div data-s="1"><span class="ln">21</span>    def forward(self, x):                # x [B, T, D]</div>
+<div class="t"><span class="ln"></span>    ...</div>
+<div><span class="ln">87</span>def make_model(cfg, seed=0):</div>
+<div data-s="2"><span class="ln">88</span>    torch.manual_seed(seed)</div>
+<div><span class="ln">89</span>    return TinyLM(cfg)</div>
+<div class="t"><span class="ln"></span>    ...</div>
+<div><span class="ln">92</span>def make_optimizer(model, cfg, lr_at):</div>
+<div data-s="4"><span class="ln">95</span>    decay = [p for n, p in model.named_parameters() if decay_mask_name(n)]</div>
+<div data-s="4"><span class="ln">96</span>    rest = [p for n, p in model.named_parameters() if not decay_mask_name(n)]</div>
+<div data-s="4"><span class="ln">97</span>    opt = torch.optim.AdamW([{"params": decay, "weight_decay": cfg["weight_decay"]},</div>
+<div data-s="4"><span class="ln">98</span>                             {"params": rest, "weight_decay": 0.0}],</div>
+<div><span class="ln">99</span>                            lr=cfg["lr"], betas=cfg["betas"], eps=cfg["adam_eps"])</div>
+<div data-s="4"><span class="ln">100</span>    sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: lr_at(s) / cfg["lr"])</div>
+<div><span class="ln">101</span>    return opt, sched</div>
+<div><span class="ln"></span></div>
+<div data-s="5"><span class="ln">104</span>def train_step(model, opt, sched, x, y, clip):</div>
+<div data-s="3"><span class="ln">105</span>    opt.zero_grad(set_to_none=True)</div>
+<div><span class="ln">106</span>    loss = loss_fn(model, x, y)</div>
+<div data-s="3"><span class="ln">107</span>    loss.backward()</div>
+<div data-s="4"><span class="ln">108</span>    gnorm = torch.nn.utils.clip_grad_norm_(model.parameters(), clip)</div>
+<div data-s="4"><span class="ln">109</span>    opt.step()</div>
+<div data-s="4"><span class="ln">110</span>    sched.step()</div>
+<div data-s="5"><span class="ln">111</span>    return loss.item(), gnorm.item()</div>
+</div></div>
+<div class="pj-pane"><div class="h">JAX + optax: model_jax.py</div><div class="pj-lines" id="pj-cs-j">
+<div data-s="1 2"><span class="ln">16</span>def init_params(cfg, key):</div>
+<div class="t"><span class="ln"></span>    ...</div>
+<div data-s="2"><span class="ln">19</span>    keys = iter(jax.random.split(key, 3 + 6 * cfg["n_layers"]))</div>
+<div data-s="2"><span class="ln">20</span>    n = lambda shape: 0.02 * jax.random.normal(next(keys), shape, jnp.float32)</div>
+<div data-s="1"><span class="ln">21</span>    lin = lambda i, o: {"w": n((i, o)), "b": jnp.zeros((o,), jnp.float32)}</div>
+<div class="t"><span class="ln"></span>    ...</div>
+<div data-s="1"><span class="ln">54</span>def attention(p, x, n_heads):            # x [B, T, D]</div>
+<div class="t"><span class="ln"></span>    ...</div>
+<div><span class="ln">112</span>def make_optimizer(cfg, lr_at):</div>
+<div data-s="4"><span class="ln">113</span>    return optax.chain(</div>
+<div data-s="4"><span class="ln">114</span>        optax.clip_by_global_norm(cfg["clip"]),</div>
+<div data-s="4"><span class="ln">115</span>        optax.adamw(learning_rate=lambda count: cfg["lr"] * jnp.minimum(1.0, (count + 1) / cfg["warmup"]),</div>
+<div><span class="ln">116</span>                    b1=cfg["betas"][0], b2=cfg["betas"][1], eps=cfg["adam_eps"],</div>
+<div data-s="4"><span class="ln">117</span>                    weight_decay=cfg["weight_decay"], mask=decay_mask))</div>
+<div><span class="ln"></span></div>
+<div><span class="ln">120</span>def make_train_step(cfg, tx):</div>
+<div data-s="1 4 5"><span class="ln">121</span>    def train_step(params, opt_state, x, y):</div>
+<div data-s="3"><span class="ln">122</span>        loss, grads = jax.value_and_grad(loss_fn)(params, x, y, cfg)</div>
+<div data-s="4"><span class="ln">123</span>        updates, opt_state = tx.update(grads, opt_state, params)</div>
+<div data-s="4"><span class="ln">124</span>        params = optax.apply_updates(params, updates)</div>
+<div data-s="1 4 5"><span class="ln">125</span>        return params, opt_state, loss, optax.global_norm(grads)</div>
+<div data-s="5"><span class="ln">126</span>    return jax.jit(train_step, donate_argnums=(0, 1))</div>
+</div></div>
+</div>
+</div>
+<p><b>What it costs.</b> The model translated almost mechanically (the three files are 116 to 148 lines each). The cost is not typing; the result looks right and is subtly different, which is what the next three sections are for. <b>How to check:</b> run both twins on one batch from the same weights and compare logits before anything else; the root's twins agree to <span data-k="hunt.variants.correct.rungs.logits" data-f="s2">8.3e-7</span> (largest logit <span data-k="hunt.ref.max_abs_logit" data-f="f2">1.11</span>).</p>
+
+<details class="mist"><summary>The whole script, part by part, in PyTorch, Flax NNX and plain JAX (13 rows)</summary><div class="b">
+<p>The middle column is Flax NNX (closest to PyTorch: objects with state), the right one plain JAX plus optax. Both are the root's real files, <code>src/data/model_nnx.py</code> and <code>model_jax.py</code>.</p>
 <div class="tw"><table class="pj-t" id="pj-trtab">
 <thead><tr><th>Part</th><th>PyTorch</th><th>Flax NNX</th><th>plain JAX + optax</th><th>What changes</th></tr></thead>
 <tbody>
@@ -283,49 +355,47 @@ table.pj-t td.hl{background:var(--hl)}
 <tr><td>Forward</td><td class="mono">def forward(self, x)</td><td class="mono">def __call__(self, x)</td><td class="mono">apply(params, idx, cfg)</td><td>no in-place ops (<code>x.at[i].set(v)</code>); <code>.transpose</code> takes a full permutation; masks as <code>jnp.where</code></td></tr>
 <tr><td>Loss</td><td class="mono">F.cross_entropy(lg, y)</td><td colspan="2" class="mono">optax.softmax_cross_entropy_with_integer_labels(lg, y).mean()</td><td>per-example losses, you reduce; no <code>ignore_index</code></td></tr>
 <tr><td>Gradients</td><td class="mono">loss.backward()</td><td class="mono">nnx.value_and_grad(loss_fn)(model, x, y)</td><td class="mono">jax.value_and_grad(loss_fn)(params, x, y)</td><td>gradients are returned, not accumulated in <code>.grad</code>: nothing to zero</td></tr>
-<tr><td>Optimiser</td><td class="mono">AdamW(groups, ...); clip_grad_norm_</td><td class="mono">nnx.Optimizer(model, tx, wrt=nnx.Param)</td><td class="mono">tx = optax.chain(clip, adamw(mask=...))</td><td>weight-decay groups become a <b>mask</b> pytree; clipping is a link in the chain, and order matters</td></tr>
+<tr><td>Optimiser</td><td class="mono">AdamW(groups, ...); clip_grad_norm_</td><td class="mono">nnx.Optimizer(model, tx, wrt=nnx.Param)</td><td class="mono">tx = optax.chain(clip, adamw(mask=...))</td><td>weight-decay groups become a mask pytree; clipping is a link in the chain, and order matters</td></tr>
 <tr><td>Schedule</td><td class="mono">LambdaLR(opt, f)</td><td colspan="2" class="mono">adamw(learning_rate=lambda count: ...)</td><td>a function of the update count, starting at 0; no <code>sched.step()</code></td></tr>
 <tr><td>Data</td><td class="mono">DataLoader(ds, shuffle=True)</td><td colspan="2" class="mono">numpy batches (here), or grain</td><td>host-side numpy arrays; the root's twins share one framework-free batch function</td></tr>
 <tr><td>Train step</td><td class="mono">zero_grad, backward, step</td><td class="mono">@nnx.jit train_step(model, opt, x, y)</td><td class="mono">jax.jit(train_step, donate_argnums=(0, 1))</td><td>one compiled function; donation lets XLA reuse the old parameter buffers</td></tr>
 <tr><td>Randomness</td><td class="mono">torch.manual_seed(0)</td><td class="mono">nnx.Rngs(0, dropout=1)</td><td class="mono">key = jax.random.key(0); split</td><td>explicit keys; a key reused gives the same numbers (section 2)</td></tr>
 <tr><td>Checkpoint</td><td class="mono">torch.save(sd); load_state_dict</td><td colspan="2" class="mono">orbax CheckpointManager (save, restore)</td><td>sharded, async; see <a href="https://app.notion.com/p/3c65c17b0d0d817ea0ace9a2ca8677ec" target="_blank" rel="noopener noreferrer">The JAX training stack</a>. Interchange with PyTorch: safetensors (section 3)</td></tr>
 <tr><td>Logging</td><td class="mono">loss.item()</td><td colspan="2" class="mono">float(loss) (after the step)</td><td><code>float()</code> blocks until the device finishes: log every N steps, or keep the step asynchronous</td></tr>
-</tbody></table></div>
-<p><b>What it costs.</b> The model itself translated almost mechanically (the three files are 116 to 148 lines each). The cost is not typing; it is that the result looks right and is subtly different. Section 2 is that list.</p>
-<p><b>How to check.</b> Run both twins on one batch from the same weights and compare logits before anything else; the root's twins agree to <span data-k="hunt.variants.correct.rungs.logits" data-f="s2"></span> (largest logit <span data-k="hunt.ref.max_abs_logit" data-f="f2"></span>). Section 4 builds the whole test.</p>
+</tbody></table></div></div></details>
 </section>
 <section id="s-def">
 <h2>2. Every default that differs</h2>
-<p><b>The problem.</b> A port that raises an error is easy. The dangerous port runs, trains, and produces a slightly different model, because a layer or an optimiser was left at a default that differs between the libraries. None of these produce a warning. The table lists every one this page found, with both defaults read from the installed objects (<code>src/runs/pj_defaults.py</code>, not typed from memory), what each did when measured alone, and the source line. The training effect of each, as a curve, is on the <a href="#" data-tab="t-pjdh">Divergence hunter</a> tab.</p>
+<p>A port that raises an error is easy. The dangerous one runs, trains and produces a slightly different model, because a layer or the optimiser was left at a default that differs between the libraries; none of these warn. Every row below was read from the installed objects (<code>src/runs/pj_defaults.py</code>, not typed from memory) and measured alone; the training curve of each is on the <a href="#" data-tab="t-pjdh">Divergence hunter</a> tab, and the source lines are in the closed block under the table.</p>
 
 <div class="tw"><table class="pj-t" id="pj-deftab">
 <thead><tr><th>Default</th><th>PyTorch 2.14.1</th><th>JAX 0.11.2 / Flax 0.12.10 / optax 0.2.8</th><th>Measured here</th></tr></thead>
 <tbody>
 <tr><td colspan="4" class="pj-grp">Layers</td></tr>
-<tr><td>LayerNorm epsilon</td><td><span data-k="defaults.ln_eps.torch"></span></td><td><code>nnx.LayerNorm</code>: <span data-k="defaults.ln_eps.flax"></span></td><td>at init the block-0 input has variance <span data-k="defaults.ln_eps.block0_input_var_median" data-f="s2"></span> (median), so the smaller epsilon scales the output by <span data-k="defaults.ln_eps.ln_output_scale_ratio_median" data-f="f4"></span>; logits move <span data-k="hunt.variants.ln_eps.rungs.logits" data-f="s2"></span>. At variance 1 the same change is invisible (<span data-k="defaults.ln_eps.trained_var_note"></span>)</td></tr>
-<tr><td>LayerNorm variance</td><td>two-pass: mean of <code>(x - mean)^2</code></td><td><code>use_fast_variance=<span data-k="defaults.fast_variance.flax_default"></span></code>: <code>E[x^2] - E[x]^2</code></td><td>exact enough on this model (the NNX twin uses it and agrees to <span data-k="hunt.variants.fast_var.rungs.logits" data-f="s2"></span>); catastrophic when the mean is large against the spread: chart below</td></tr>
-<tr><td>GELU</td><td>exact (<code>approximate="<span data-k="defaults.gelu.torch"></span>"</code>)</td><td><code>jax.nn.gelu(approximate=True)</code>: tanh formula; <code>nnx.gelu</code> is the same function</td><td>largest gap <span data-k="defaults.gelu.max_abs_diff_tanh_vs_erf" data-f="s2"></span> at x = <span data-k="defaults.gelu.at_x" data-f="f2"></span>; logits <span data-k="hunt.variants.gelu.rungs.logits" data-f="s2"></span>. GPT-2 wants the tanh form (section 6)</td></tr>
-<tr><td>Linear weight init</td><td>uniform in &plusmn;1/&radic;in: std <span data-k="defaults.init.linear_weight.torch_std" data-f="f3"></span> at in = 128</td><td>lecun_normal: std <span data-k="defaults.init.linear_weight.flax_std" data-f="f3"></span></td><td>&radic;3 apart (formulas give <span data-k="defaults.init.linear_weight.predicted_torch" data-f="f3"></span> and <span data-k="defaults.init.linear_weight.predicted_flax" data-f="f3"></span>); only matters if you train from scratch without copying weights</td></tr>
-<tr><td>Linear bias init</td><td>uniform in &plusmn;1/&radic;in (largest here <span data-k="defaults.init.linear_bias.torch_absmax" data-f="f3"></span>)</td><td>zeros</td><td></td></tr>
-<tr><td>Embedding init</td><td>N(0, 1): std <span data-k="defaults.init.embedding.torch_std" data-f="f2"></span></td><td>variance_scaling(1, fan_in): std <span data-k="defaults.init.embedding.flax_std" data-f="f3"></span> = 1/&radic;128</td><td>an 11x difference in the residual stream's starting scale</td></tr>
-<tr><td>Weight layout</td><td>Linear <span data-k="defaults.layout.linear_torch"></span> (out, in); Conv <span data-k="defaults.layout.conv_torch"></span>; inputs NCHW</td><td>Linear <span data-k="defaults.layout.linear_flax"></span> (in, out); Conv <span data-k="defaults.layout.conv_flax"></span>; inputs NHWC</td><td>a square matrix copied without the transpose loads silently: logits off by <span data-k="hunt.variants.transpose.rungs.logits" data-f="s2"></span></td></tr>
-<tr><td>BatchNorm momentum</td><td><span data-k="defaults.batchnorm.torch_momentum"></span>, the weight of the NEW batch</td><td><span data-k="defaults.batchnorm.flax_momentum"></span>, the weight of the OLD average</td><td>after one batch of ones the running mean is <span data-k="defaults.batchnorm.running_mean_after_one_batch_of_ones.torch" data-f="f2"></span> against <span data-k="defaults.batchnorm.running_mean_after_one_batch_of_ones.flax" data-f="f2"></span>: torch 0.1 is Flax 0.9 (not in this model)</td></tr>
-<tr><td>Dropout</td><td><code>p</code> = drop probability; generator advances by itself; <code>model.eval()</code></td><td><code>rate</code> = drop probability; NNX draws a fresh key per call; <code>model.eval()</code> exists</td><td>a raw JAX key reused gives the same mask every time (measured: <span data-k="defaults.dropout.raw_key_reused_same_mask"></span>); see "Dropout" below</td></tr>
+<tr><td>LayerNorm epsilon</td><td><span data-k="defaults.ln_eps.torch">0.00001</span></td><td><code>nnx.LayerNorm</code>: <span data-k="defaults.ln_eps.flax">0.000001</span></td><td>at init the block-0 input has variance <span data-k="defaults.ln_eps.block0_input_var_median" data-f="s2">7.9e-4</span> (median), so the smaller epsilon scales the output by <span data-k="defaults.ln_eps.ln_output_scale_ratio_median" data-f="f4">0.9944</span>; logits move <span data-k="hunt.variants.ln_eps.rungs.logits" data-f="s2">0.0052</span>. At variance 1 the same change is invisible (<span data-k="defaults.ln_eps.trained_var_note">same ratio at var = 1 (a trained model's residual stream is larger): 0.9999955</span>)</td></tr>
+<tr><td>LayerNorm variance</td><td>two-pass: mean of <code>(x - mean)^2</code></td><td><code>use_fast_variance=<span data-k="defaults.fast_variance.flax_default">true</span></code>: <code>E[x^2] - E[x]^2</code></td><td>exact enough on this model (the NNX twin uses it and agrees to <span data-k="hunt.variants.fast_var.rungs.logits" data-f="s2">8.3e-7</span>); catastrophic when the mean is large against the spread (chart in the closed block below the cards)</td></tr>
+<tr><td>GELU</td><td>exact (<code>approximate="<span data-k="defaults.gelu.torch">none</span>"</code>)</td><td><code>jax.nn.gelu(approximate=True)</code>: tanh formula; <code>nnx.gelu</code> is the same function</td><td>largest gap <span data-k="defaults.gelu.max_abs_diff_tanh_vs_erf" data-f="s2">4.7e-4</span> at x = <span data-k="defaults.gelu.at_x" data-f="f2">2.69</span>; logits <span data-k="hunt.variants.gelu.rungs.logits" data-f="s2">7.0e-5</span>. GPT-2 wants the tanh form (section 6)</td></tr>
+<tr><td>Linear weight init</td><td>uniform in &plusmn;1/&radic;in: std <span data-k="defaults.init.linear_weight.torch_std" data-f="f3">0.051</span> at in = 128</td><td>lecun_normal: std <span data-k="defaults.init.linear_weight.flax_std" data-f="f3">0.089</span></td><td>&radic;3 apart (formulas give <span data-k="defaults.init.linear_weight.predicted_torch" data-f="f3">0.051</span> and <span data-k="defaults.init.linear_weight.predicted_flax" data-f="f3">0.088</span>); only matters if you train from scratch without copying weights</td></tr>
+<tr><td>Linear bias init</td><td>uniform in &plusmn;1/&radic;in (largest here <span data-k="defaults.init.linear_bias.torch_absmax" data-f="f3">0.088</span>)</td><td>zeros</td><td></td></tr>
+<tr><td>Embedding init</td><td>N(0, 1): std <span data-k="defaults.init.embedding.torch_std" data-f="f2">1.01</span></td><td>variance_scaling(1, fan_in): std <span data-k="defaults.init.embedding.flax_std" data-f="f3">0.089</span> = 1/&radic;128</td><td>an 11x difference in the residual stream's starting scale</td></tr>
+<tr><td>Weight layout</td><td>Linear <span data-k="defaults.layout.linear_torch">512,128</span> (out, in); Conv <span data-k="defaults.layout.conv_torch">16,3,5,5</span>; inputs NCHW</td><td>Linear <span data-k="defaults.layout.linear_flax">128,512</span> (in, out); Conv <span data-k="defaults.layout.conv_flax">5,5,3,16</span>; inputs NHWC</td><td>a square matrix copied without the transpose loads silently: logits off by <span data-k="hunt.variants.transpose.rungs.logits" data-f="s2">1.2</span></td></tr>
+<tr><td>BatchNorm momentum</td><td><span data-k="defaults.batchnorm.torch_momentum">0.1</span>, the weight of the NEW batch</td><td><span data-k="defaults.batchnorm.flax_momentum">0.99</span>, the weight of the OLD average</td><td>after one batch of ones the running mean is <span data-k="defaults.batchnorm.running_mean_after_one_batch_of_ones.torch" data-f="f2">0.10</span> against <span data-k="defaults.batchnorm.running_mean_after_one_batch_of_ones.flax" data-f="f2">0.01</span>: torch 0.1 is Flax 0.9 (not in this model)</td></tr>
+<tr><td>Dropout</td><td><code>p</code> = drop probability; generator advances by itself; <code>model.eval()</code></td><td><code>rate</code> = drop probability; NNX draws a fresh key per call; <code>model.eval()</code> exists</td><td>a raw JAX key reused gives the same mask every time (measured: <span data-k="defaults.dropout.raw_key_reused_same_mask">true</span>); see "Dropout" below</td></tr>
 <tr><td colspan="4" class="pj-grp">Attention</td></tr>
 <tr><td>Boolean mask meaning</td><td><code>scaled_dot_product_attention</code>: True = attend. <code>nn.MultiheadAttention</code>: True = <b>blocked</b></td><td><code>jax.nn.dot_product_attention</code>, Flax: True = attend</td><td>the same lower-triangular tensor is causal in one API and anti-causal in the other: cards below</td></tr>
 <tr><td>A row with nothing to attend to</td><td>hand-written <code>-inf</code> softmax: NaN; SDPA returns zeros</td><td>hand-written <code>-inf</code>: NaN; <code>dot_product_attention</code> and Flax fill with <code>finfo.min</code>: uniform weights, the mean of the values</td><td>left padding produces such rows; three libraries, three answers (<code>masked_row</code> in <code>defaults.json</code>)</td></tr>
 <tr><td colspan="4" class="pj-grp">Loss and indexing</td></tr>
-<tr><td>Cross-entropy</td><td>mean over the batch; <code>ignore_index=-100</code>; label out of range raises <code>"<span data-k="defaults.cross_entropy.torch_label_70"></span>"</code></td><td>optax returns per-example losses; no ignore index</td><td>label -100 or 70 (vocabulary 65): that row is NaN, so the mean is NaN, with no error</td></tr>
-<tr><td>Out-of-bounds index</td><td>raises <code>IndexError</code></td><td>clamps: <code>jnp.arange(10.)[12]</code> = <span data-k="defaults.oob.jax_get" data-f="f1"></span>; <code>.at[12].set</code> is dropped</td><td>an embedding lookup of id 70 returns row 64 (<span data-k="defaults.oob.jax_embed_lookup_row70_equals_row64"></span>): a tokenizer mismatch trains silently</td></tr>
-<tr><td>Integer and float types</td><td><code>arange</code> gives <span data-k="defaults.dtypes.torch_arange"></span>; float64 on request</td><td><span data-k="defaults.dtypes.jnp_arange"></span>; a float64 request gives <span data-k="defaults.dtypes.float64_request"></span> and a warning unless <code>jax_enable_x64</code></td><td>section 4 uses x64 deliberately</td></tr>
-<tr><td><code>var</code>, <code>std</code></td><td>unbiased (divide by n - 1): var of 1..4 = <span data-k="defaults.dtypes.torch_var_default" data-f="f3"></span></td><td><code>ddof=0</code> (divide by n): <span data-k="defaults.dtypes.jnp_var_default" data-f="f3"></span></td><td>a hand-written norm layer ported with <code>jnp.var</code> is not the PyTorch one</td></tr>
+<tr><td>Cross-entropy</td><td>mean over the batch; <code>ignore_index=-100</code>; label out of range raises <code>"<span data-k="defaults.cross_entropy.torch_label_70">IndexError: Target 70 is out of bounds.</span>"</code></td><td>optax returns per-example losses; no ignore index</td><td>label -100 or 70 (vocabulary 65): that row is NaN, so the mean is NaN, with no error</td></tr>
+<tr><td>Out-of-bounds index</td><td>raises <code>IndexError</code></td><td>clamps: <code>jnp.arange(10.)[12]</code> = <span data-k="defaults.oob.jax_get" data-f="f1">9.0</span>; <code>.at[12].set</code> is dropped</td><td>an embedding lookup of id 70 returns row 64 (<span data-k="defaults.oob.jax_embed_lookup_row70_equals_row64">true</span>): a tokenizer mismatch trains silently</td></tr>
+<tr><td>Integer and float types</td><td><code>arange</code> gives <span data-k="defaults.dtypes.torch_arange">torch.int64</span>; float64 on request</td><td><span data-k="defaults.dtypes.jnp_arange">int32</span>; a float64 request gives <span data-k="defaults.dtypes.float64_request">float32</span> and a warning unless <code>jax_enable_x64</code></td><td>section 4 uses x64 deliberately</td></tr>
+<tr><td><code>var</code>, <code>std</code></td><td>unbiased (divide by n - 1): var of 1..4 = <span data-k="defaults.dtypes.torch_var_default" data-f="f3">1.667</span></td><td><code>ddof=0</code> (divide by n): <span data-k="defaults.dtypes.jnp_var_default" data-f="f3">1.250</span></td><td>a hand-written norm layer ported with <code>jnp.var</code> is not the PyTorch one</td></tr>
 <tr><td colspan="4" class="pj-grp">Optimiser</td></tr>
-<tr><td>AdamW weight decay</td><td><span data-k="defaults.adamw.torch.weight_decay"></span>, on every parameter in the group</td><td><span data-k="defaults.adamw.optax.weight_decay"></span>, on every leaf unless <code>mask</code></td><td>the root's pitfall run: <span data-k="hunt.variants.wd_default.val_300" data-f="f4"></span> vs <span data-k="hunt.variants.correct.val_300" data-f="f4"></span> validation after 300 steps</td></tr>
-<tr><td>Clipping formula</td><td><code>max_norm / (norm + 1e-6)</code>, clamped to 1</td><td><code>max_norm / norm</code> when <code>norm &gt;= max_norm</code></td><td>scales differ by one part in a million; trained with PyTorch's formula in JAX the curves agree to <span data-k="hunt.variants.clip_eps.max_abs_loss_diff_vs_torch" data-f="s2"></span>: the one difference that does not matter</td></tr>
-<tr><td>Where clipping sits</td><td>a separate call before <code>opt.step()</code></td><td>a link in the chain: <code>chain(clip, adamw)</code>, not <code>chain(adamw, clip)</code></td><td>the wrong order clips Adam's updates: loss off by up to <span data-k="hunt.variants.clip_after.max_abs_loss_diff_vs_torch" data-f="s2"></span></td></tr>
-<tr><td>Schedule step count</td><td><code>LambdaLR</code> evaluates <code>f(0)</code> for the first update</td><td>optax passes the count, starting at 0</td><td>identical if the same function is used; <code>lr(count)</code> written as warmup from 0 makes the first update zero: loss off by <span data-k="hunt.variants.sched_off.max_abs_loss_diff_vs_torch" data-f="s2"></span></td></tr>
+<tr><td>AdamW weight decay</td><td><span data-k="defaults.adamw.torch.weight_decay">0.01</span>, on every parameter in the group</td><td><span data-k="defaults.adamw.optax.weight_decay">0.0001</span>, on every leaf unless <code>mask</code></td><td>the root's pitfall run: <span data-k="hunt.variants.wd_default.val_300" data-f="f4">2.2594</span> vs <span data-k="hunt.variants.correct.val_300" data-f="f4">2.2635</span> validation after 300 steps</td></tr>
+<tr><td>Clipping formula</td><td><code>max_norm / (norm + 1e-6)</code>, clamped to 1</td><td><code>max_norm / norm</code> when <code>norm &gt;= max_norm</code></td><td>scales differ by one part in a million; trained with PyTorch's formula in JAX the curves agree to <span data-k="hunt.variants.clip_eps.max_abs_loss_diff_vs_torch" data-f="s2">2.0e-6</span>: the one difference that does not matter</td></tr>
+<tr><td>Where clipping sits</td><td>a separate call before <code>opt.step()</code></td><td>a link in the chain: <code>chain(clip, adamw)</code>, not <code>chain(adamw, clip)</code></td><td>the wrong order clips Adam's updates: loss off by up to <span data-k="hunt.variants.clip_after.max_abs_loss_diff_vs_torch" data-f="s2">0.078</span></td></tr>
+<tr><td>Schedule step count</td><td><code>LambdaLR</code> evaluates <code>f(0)</code> for the first update</td><td>optax passes the count, starting at 0</td><td>identical if the same function is used; <code>lr(count)</code> written as warmup from 0 makes the first update zero: loss off by <span data-k="hunt.variants.sched_off.max_abs_loss_diff_vs_torch" data-f="s2">0.088</span></td></tr>
 <tr><td colspan="4" class="pj-grp">Hardware numerics</td></tr>
-<tr><td>float32 matmul precision</td><td>CPU: float32; CUDA: <code>allow_tf32</code> False for matmuls since 1.12 (<a href="https://docs.pytorch.org/docs/2.14/notes/cuda.html" target="_blank" rel="noopener noreferrer">PyTorch CUDA notes</a>)</td><td>CPU: float32. TPU <code>DEFAULT</code>: one bfloat16 pass (<code>lax.Precision</code> docstring, FACTS "jc")</td><td>emulated here (matmul inputs rounded to bfloat16): logits <span data-k="defaults.matmul_precision.emulated_bf16_inputs_init_max_logit_diff" data-f="s2"></span> at init, <span data-k="defaults.matmul_precision.emulated_bf16_inputs_trained500_max_logit_diff" data-f="s2"></span> on the 500-step weights; the CPU flag changes nothing (<span data-k="defaults.matmul_precision.cpu_flag_bfloat16_changes_logits" data-f="s2"></span>). Not run on a TPU</td></tr>
+<tr><td>float32 matmul precision</td><td>CPU: float32; CUDA: <code>allow_tf32</code> False for matmuls since 1.12 (<a href="https://docs.pytorch.org/docs/2.14/notes/cuda.html" target="_blank" rel="noopener noreferrer">PyTorch CUDA notes</a>)</td><td>CPU: float32. TPU <code>DEFAULT</code>: one bfloat16 pass (<code>lax.Precision</code> docstring, FACTS "jc")</td><td>emulated here (matmul inputs rounded to bfloat16): logits <span data-k="defaults.matmul_precision.emulated_bf16_inputs_init_max_logit_diff" data-f="s2">0.0062</span> at init, <span data-k="defaults.matmul_precision.emulated_bf16_inputs_trained500_max_logit_diff" data-f="s2">0.087</span> on the 500-step weights; the CPU flag changes nothing (<span data-k="defaults.matmul_precision.cpu_flag_bfloat16_changes_logits" data-f="s2">0</span>). Not run on a TPU</td></tr>
 </tbody></table></div>
 
 <details class="pj-src"><summary>The source lines behind the table, at the pinned versions</summary>
@@ -343,26 +413,34 @@ table.pj-t td.hl{background:var(--hl)}
 <h3>One boolean tensor, three meanings</h3>
 <p>The cards take the same 4 x 4 lower-triangular boolean tensor (<code>torch.ones(4, 4).tril().bool()</code>) and colour the cells each API lets a query attend to. A green cell is "query row may look at key column".</p>
 <div id="pj-masks"></div>
-<div class="pj-cap">Measured in <code>pj_defaults.py</code>: with this tensor, <code>nn.MultiheadAttention</code>'s first row puts weight <span data-k="defaults.attn_mask.mha_tril_weights_row0"></span> on the five positions (it attends only to the future), and with the inverted tensor <span data-k="defaults.attn_mask.mha_inverted_weights_row0"></span> (correct). <code>jax.nn.dot_product_attention</code> with the tril mask matches SDPA's causal output to <span data-k="defaults.attn_mask.jax_mask_vs_torch" data-f="s2"></span>.</div>
+<div class="pj-cap">Measured in <code>pj_defaults.py</code>: with this tensor, <code>nn.MultiheadAttention</code>'s first row puts weight <span data-k="defaults.attn_mask.mha_tril_weights_row0">0,0.2626,0.2612,0.2907,0.1855</span> on the five positions (it attends only to the future), and with the inverted tensor <span data-k="defaults.attn_mask.mha_inverted_weights_row0">1,0,0,0,0</span> (correct). <code>jax.nn.dot_product_attention</code> with the tril mask matches SDPA's causal output to <span data-k="defaults.attn_mask.jax_mask_vs_torch" data-f="s2">2.4e-7</span>.</div>
 
 <div class="pj-pr" data-ans="b"><div class="q">Predict: you flip the mask convention in a JAX port, so each position attends only to positions after it, with <code>-inf</code> fill. What happens at step 0?</div>
 <div class="opts"><button data-o="a">The loss is a little high</button><button data-o="b">The loss is NaN</button><button data-o="c">The loss is suspiciously low</button></div>
-<div class="ans" hidden>NaN, at step <span data-k="hunt.variants.mask_inverted.first_nan_step"></span>: the last position has no later position, its row is all <code>-inf</code>, and softmax of that is 0/0. With Flax's <code>finfo.min</code> fill instead there is no NaN: the row averages every value, the model learns to read the future, training loss falls to <span data-k="hunt.variants.mask_inverted_finfo.val_300_own_mask" data-f="f3"></span> on validation with its own mask, and with the correct causal mask the same weights score <span data-k="hunt.variants.mask_inverted_finfo.val_300" data-f="f2"></span>. The NaN is the lucky outcome.</div></div>
+<div class="ans" hidden>NaN, at step <span data-k="hunt.variants.mask_inverted.first_nan_step">0</span>: the last position has no later position, its row is all <code>-inf</code>, and softmax of that is 0/0. With Flax's <code>finfo.min</code> fill instead there is no NaN: the row averages every value, the model learns to read the future, training loss falls to <span data-k="hunt.variants.mask_inverted_finfo.val_300_own_mask" data-f="f3">0.024</span> on validation with its own mask, and with the correct causal mask the same weights score <span data-k="hunt.variants.mask_inverted_finfo.val_300" data-f="f2">6.83</span>. The NaN is the lucky outcome.</div></div>
 
-<h3>Fast variance: fine until the mean is large</h3>
+<details class="mist"><summary>Fast variance: fine until the mean is large (chart)</summary><div class="b">
 <p>Flax computes a LayerNorm's variance in one pass as E[x<sup>2</sup>] - E[x]<sup>2</sup>, which subtracts two large, nearly equal numbers when the mean is large against the spread. The bars are the largest error of the normalised output against PyTorch in float64, for N(0, 1) data shifted by a mean, in float32, log scale.</p>
 <div id="pj-fastvar"></div>
 <div class="pj-cap">From <code>pj_defaults.py</code>. A residual stream with a mean of 1,000 and unit spread is unusual, but outlier features and un-normalised inputs (pixel values, raw sensor data) get there; <code>use_fast_variance=False</code> costs one more pass over the data.</div>
+</div></details>
 
 <h3>Dropout: compare distributions, not values</h3>
-<p>Dropout masks come from each framework's own random generator, so a PyTorch twin and a JAX twin with dropout can never agree bit for bit. Test the port with dropout off (as the running example is), then turn it on and compare statistics. The run below adds dropout 0.1 to both residual branches and trains 300 steps: PyTorch, JAX with a fresh key per step (<code>fold_in(key, step)</code>), JAX with the same key every step (the classic bug: PyTorch's generator advances by itself, a JAX key does not), and the no-dropout anchor.</p>
+<p>Dropout masks come from each framework's own generator, so twins with dropout can never agree bit for bit: test the port with dropout off (as the running example is), then turn it on and compare statistics. <b>Predict</b> before reading the chart: a JAX port reuses one key for every step's dropout mask (PyTorch's generator advances by itself; a JAX key does not). Will the loss curve show it? The run adds dropout 0.1 to both residual branches and trains 300 steps: PyTorch, JAX with a fresh key per step (<code>fold_in(key, step)</code>), JAX with the same key every step, and the no-dropout anchor.</p>
 <div id="pj-drop"></div>
-<div class="pj-cap" id="pj-drop-cap"></div>
+<div class="pj-cap"><b>The reused key is invisible in the loss: check that the masks change between steps.</b> <span id="pj-drop-cap"></span></div>
 </section>
 <section id="s-conv">
 <h2>3. Converting the weights, both ways</h2>
-<p><b>The problem.</b> A PyTorch checkpoint is a flat dictionary of names (<code>blocks.0.attn.wq.weight</code>) to tensors; an NNX model's state is a nested tree of paths (<code>blocks/0/attn/wq/kernel</code>) to arrays, with every Linear weight transposed. Copying by hand, one assignment per tensor, is how the silent square-matrix bug gets in.</p>
-<p><b>How it works.</b> Write the conversion as a <b>rule on the path</b>, apply it to every leaf, and let shape checks fail loudly. Here the whole rule is a four-entry table: <code>kernel</code> becomes <code>weight</code> and is transposed; <code>bias</code>, <code>scale</code> (to <code>weight</code>) and <code>embedding</code> (to <code>weight</code>) are copied. The file in between is <b>safetensors</b>: a JSON header (names, dtypes, shapes, byte offsets) followed by raw bytes, readable by torch, numpy and JAX, with no pickle and so no code executed on load.</p>
+<p>A PyTorch checkpoint is a flat dictionary of names (<code>blocks.0.attn.wq.weight</code>) to tensors; an NNX model's state is a nested tree of paths (<code>blocks/0/attn/wq/kernel</code>) to arrays, with every Linear weight transposed. Watch what the transpose does to a real corner of one weight, then the same animation on GPT-2's checkpoint, where nothing should move.</p>
+<div class="pj-box" id="pjwc-card">
+<div class="seg" id="pjwc-src"><button data-m="lin" class="on">running example: nn.Linear</button><button data-m="gpt2">GPT-2: Conv1D</button></div>
+<div id="pjwc-tile"></div>
+<div class="pj-anctl" id="pjwc-ctl"></div>
+<div class="pj-capt" id="pjwc-cap"></div>
+</div>
+<div class="pj-cap"><b>Each element keeps its value; only its position changes, and a square matrix loaded without the transpose raises nothing.</b> Values are the real top-left corner (6 rows by 8 columns as stored) of <code>blocks.0.attn.wq.weight</code> after 500 training steps, and of GPT-2's <code>h.0.attn.c_proj.weight</code>; colour by value (blue negative, orange positive).</div>
+<p><b>The fix is a rule, not a hand copy.</b> Write the conversion as a rule on the path, apply it to every leaf, and let shape checks fail loudly. Here the whole rule is a four-entry table: <code>kernel</code> becomes <code>weight</code> and is transposed; <code>bias</code>, <code>scale</code> (to <code>weight</code>) and <code>embedding</code> (to <code>weight</code>) are copied. The file in between is <b>safetensors</b>: a JSON header (names, dtypes, shapes, byte offsets) followed by raw bytes, with no pickle and so no code executed on load.</p>
 <pre class="pj-code">def torch_name(path):                  # ('blocks', 0, 'attn', 'wq', 'kernel') -> ('blocks.0.attn.wq.weight', True)
     *mods, leaf = [str(p) for p in path]
     tname, transpose = {"kernel": ("weight", True), "bias": ("bias", False),
@@ -380,37 +458,41 @@ for path, var in nnx.to_flat_state(state):
 nnx.update(model, nnx.from_flat_state(leaves))</pre>
 <div class="pj-cap">From <code>src/runs/pj_convert.py</code>, run on the running example's 500-step weights.</div>
 <div class="pj-cnt" id="pj-conv-stats"></div>
-<p><b>What it costs.</b> Nothing measurable at this size (the file is <span data-k="convert.file_bytes" data-f="int"></span> bytes for <span data-k="convert.param_bytes" data-f="int"></span> bytes of float32 weights: the header is <span data-k="convert.header_bytes" data-f="int"></span> bytes). At 70B parameters the same loop needs the model sharded while it loads; Tunix and MaxText do exactly this with a regex table (section 6).</p>
-<p><b>How to check.</b> Three checks, all passed here: every name used exactly once (unused PyTorch keys: <span data-k="convert.unused_torch_keys.length" data-f="int"></span>), logits within float32 noise of the source, and the reverse trip back to PyTorch loading with <code>strict=True</code> and comparing bit for bit (<span data-k="convert.roundtrip_bitwise_equal"></span>: a transpose is exact, so anything but bitwise equality is a bug). The <a href="#" data-tab="t-pjwc">Weight conversion</a> tab shows all <span data-k="convert.n_tensors"></span> tensors and animates the transpose on a real tile.</p>
-<div class="co warn"><div class="t">The conversion errors you will meet (real messages)</div>
+<p><b>How to check</b>, all three passed here: every name used exactly once (unused PyTorch keys: <span data-k="convert.unused_torch_keys.length" data-f="int">0</span>), logits within float32 noise of the source, and the reverse trip back to PyTorch loading with <code>strict=True</code> and comparing bit for bit (<span data-k="convert.roundtrip_bitwise_equal">true</span>: a transpose is exact, so anything but bitwise equality is a bug). <b>Cost</b>: nothing measurable at this size (the file is <span data-k="convert.file_bytes" data-f="int">3,311,552</span> bytes for <span data-k="convert.param_bytes" data-f="int">3,305,472</span> bytes of float32 weights; the header is <span data-k="convert.header_bytes" data-f="int">6,072</span> bytes). At 70B parameters the same loop needs the model sharded while it loads; Tunix and MaxText do exactly this with a regex table (section 6).</p>
+<details class="mist"><summary>All <span data-k="convert.n_tensors">69</span> tensors and where each lands (explorer)</summary><div class="b">
+<p>By the four-entry rule above (<code>src/runs/pj_convert.py</code>). Rows marked &#8635; are transposed. Click a row to see its shapes and rule.</p>
+<div class="pj-sel"><span class="small">Show</span> <span class="seg" id="pjwc-filter"><button data-m="all" class="on">all</button><button data-m="tr">transposed only</button><button data-m="gpt2">GPT-2 (block 0 and globals)</button></span></div>
+<div class="pj-names" id="pjwc-names"></div>
+<div class="pj-detail" id="pjwc-det" style="margin-top:8px">Click a row.</div>
+</div></details>
+<details class="mist"><summary>The conversion errors you will meet (real messages)</summary><div class="b">
 <ul class="small">
-<li><code>save_file</code> on a transposed view: <code data-k="convert.errors.noncontiguous_save"></code> Fix: <code>.contiguous()</code>.</li>
-<li>bfloat16 through numpy: <code data-k="convert.errors.bf16_numpy"></code>. numpy has no bfloat16; go through safetensors' flax loader (dtype <span data-k="convert.errors.bf16_via_safetensors_flax.dtype"></span>, bit-equal: <span data-k="convert.errors.bf16_via_safetensors_flax.equal_to_torch_bf16"></span>), DLPack (<span data-k="convert.errors.bf16_via_dlpack.equal"></span>), or <code>.view(torch.int16)</code> then <code>.view(jnp.bfloat16)</code> (<span data-k="convert.errors.bf16_via_view_int16.ok"></span>).</li>
-<li>Assigning a <code>[512, 128]</code> PyTorch weight into a <code>[128, 512]</code> kernel: <code data-k="convert.errors.wrong_shape_slice_assign"></code></li>
-<li>The same wrong shape through <code>nnx.update</code>: <span data-k="convert.errors.wrong_shape_update"></span>; the error only comes at the first call, <code data-k="convert.errors.wrong_shape_update_then_call"></code>. Hence the explicit <code>assert</code> above.</li>
-<li>A missing key in PyTorch: <code>strict=True</code> raises <code data-k="convert.errors.torch_strict_missing"></code>; <code>strict=False</code> only returns <code data-k="convert.errors.torch_nonstrict_missing"></code>, which most code ignores.</li>
-</ul></div>
+<li><code>save_file</code> on a transposed view: <code data-k="convert.errors.noncontiguous_save">ValueError: You are trying to save a non contiguous tensor: `w` which is not allowed. It either means you are trying to save tensors which are reference of each other in which case it's recommended to save only the full tensors, and reslice at load time, or simply call `.contiguous()` on your tensor to pack it before saving.</code> Fix: <code>.contiguous()</code>.</li>
+<li>bfloat16 through numpy: <code data-k="convert.errors.bf16_numpy">TypeError: Got unsupported ScalarType BFloat16</code>. numpy has no bfloat16; go through safetensors' flax loader (dtype <span data-k="convert.errors.bf16_via_safetensors_flax.dtype">bfloat16</span>, bit-equal: <span data-k="convert.errors.bf16_via_safetensors_flax.equal_to_torch_bf16">true</span>), DLPack (<span data-k="convert.errors.bf16_via_dlpack.equal">true</span>), or <code>.view(torch.int16)</code> then <code>.view(jnp.bfloat16)</code> (<span data-k="convert.errors.bf16_via_view_int16.ok">true</span>).</li>
+<li>Assigning a <code>[512, 128]</code> PyTorch weight into a <code>[128, 512]</code> kernel: <code data-k="convert.errors.wrong_shape_slice_assign">ValueError: Incompatible types for broadcasting: input type=float32[512,128] and requested type=float32[128,512]</code></li>
+<li>The same wrong shape through <code>nnx.update</code>: <span data-k="convert.errors.wrong_shape_update">no error at update time</span>; the error only comes at the first call, <code data-k="convert.errors.wrong_shape_update_then_call">TypeError: dot_general requires contracting dimensions to have the same shape, got (128,) and (512,).</code>. Hence the explicit <code>assert</code> above.</li>
+<li>A missing key in PyTorch: <code>strict=True</code> raises <code data-k="convert.errors.torch_strict_missing">RuntimeError: Error(s) in loading state_dict for TinyLM:
+	Missing key(s) in state_dict: &quot;ln_f.bias&quot;.</code>; <code>strict=False</code> only returns <code data-k="convert.errors.torch_nonstrict_missing">_IncompatibleKeys(missing_keys=['ln_f.bias'], unexpected_keys=[])</code>, which most code ignores.</li>
+</ul></div></details>
 </section>
 
 <section id="s-eq">
 <h2>4. The equivalence test: is the gap rounding or a bug?</h2>
-<p><b>The problem.</b> Two correct ports never agree exactly. Matrix multiplies and reductions add the same numbers in a different order in each library, and float32 addition is not associative, so every operation can differ in its last bit. The test has to separate that noise from a real difference, and find the first place a real difference appears.</p>
-<p><b>How it works: the ladder.</b> Fix one batch and one set of weights, then compare five things in order, each a superset of the one before: <b>logits</b> (the forward pass), <b>loss</b> (the reduction), <b>gradients</b> (the backward pass), <b>parameters after one optimiser step</b> (the optimiser and its defaults) and <b>training curves</b> (everything, over time). The first rung that fails names the part that is wrong. Forward bugs fail at the first rung; optimiser bugs pass three rungs and fail at the fourth or fifth.</p>
-
+<p>Two correct ports never agree exactly: matrix multiplies and reductions add the same numbers in a different order in each library, and float32 addition is not associative, so every operation can differ in its last bit. The test separates that noise from a real difference and finds where the difference first appears. <b>The ladder</b>: fix one batch and one set of weights, then compare five things in order, each a superset of the one before: <b>logits</b> (the forward pass), <b>loss</b> (the reduction), <b>gradients</b> (the backward pass), <b>parameters after one optimiser step</b> (the optimiser and its defaults) and <b>training curves</b> (everything, over time). The first rung that fails names the part that is wrong: forward bugs fail at the first rung; optimiser bugs pass three rungs and fail at the fourth or fifth. Pick a port and step up the ladder.</p>
 <div class="pj-box" id="pj-lad-card">
 <div class="pj-sel"><span class="small">Port:</span> <select id="pj-lad-v" aria-label="Which port"></select></div>
 <div class="pj-ladder" id="pj-lad"></div>
 <div class="pj-anctl" id="pj-lad-ctl"></div>
 <div class="pj-capt" id="pj-lad-cap"></div>
 </div>
-<div class="pj-cap">Every number is a real measurement from <code>src/runs/pj_hunt.py</code> against the PyTorch twin, same weights, same batch 0. Pass thresholds (this page's choice, 4 to 45 times the correct port's own float32 differences): logits 1e-5, loss 1e-5, gradients 1e-5, one step 1e-6, curves 1e-4 over 300 steps. Gradients exclude the key biases (explained below).</div>
+<div class="pj-cap">Every number is a real measurement from <code>src/runs/pj_hunt.py</code> against the PyTorch twin, same weights, same batch 0. Pass thresholds (this page's choice, 4 to 45 times the correct port's own float32 differences): logits 1e-5, loss 1e-5, gradients 1e-5, one step 1e-6, curves 1e-4 over 300 steps. Gradients exclude the key biases (the key-bias puzzle, closed block at the end of this section).</div>
 
 <div class="pj-pr" data-ans="c"><div class="q">Predict: a port sums the per-character losses instead of averaging them, so every gradient is 4,096 times larger. The run clips gradients to norm 1 and uses AdamW. What happens to training?</div>
 <div class="opts"><button data-o="a">It diverges: steps 4,096 times too large</button><button data-o="b">Nothing: Adam divides by the gradient's scale</button><button data-o="c">It trains, but differently from PyTorch</button></div>
-<div class="ans" hidden>It trains, differently: validation <span data-k="hunt.variants.loss_sum.val_300" data-f="f4"></span> against <span data-k="hunt.variants.correct.val_300" data-f="f4"></span>, curves apart from step <span data-k="hunt.variants.loss_sum.first_step_over_1e-4"></span>. Adam alone would barely notice the scale (it divides by the running root-mean-square of the gradient), but clipping happens first: with gradients 4,096 times larger, every step is clipped to norm 1, while the correct run is clipped only when its norm exceeds 1. The fourth rung (one step) does not catch it, because Adam's first update is the learning rate times the sign of the gradient, whatever the gradient's size (for gradients well above Adam's eps of 1e-8).</div></div>
+<div class="ans" hidden>It trains, differently: validation <span data-k="hunt.variants.loss_sum.val_300" data-f="f4">2.2746</span> against <span data-k="hunt.variants.correct.val_300" data-f="f4">2.2635</span>, curves apart from step <span data-k="hunt.variants.loss_sum.first_step_over_1e-4">33</span>. Adam alone would barely notice the scale (it divides by the running root-mean-square of the gradient), but clipping happens first: with gradients 4,096 times larger, every step is clipped to norm 1, while the correct run is clipped only when its norm exceeds 1. The fourth rung (one step) does not catch it, because Adam's first update is the learning rate times the sign of the gradient, whatever the gradient's size (for gradients well above Adam's eps of 1e-8).</div></div>
 
 <h3>Tolerances depend on the dtype</h3>
-<p>"Close enough" is a multiple of the dtype's <b>machine epsilon</b> (the gap between 1 and the next float) times the size of the numbers compared, times a factor for how many operations accumulate. The epsilons: float64 <span data-k="ladder.eps.float64" data-f="s2"></span>, float32 <span data-k="ladder.eps.float32" data-f="s2"></span>, float16 <span data-k="ladder.eps.float16" data-f="s2"></span>, bfloat16 <span data-k="ladder.eps.bfloat16" data-f="s2"></span>.</p>
+<p>"Close enough" is a multiple of the dtype's <b>machine epsilon</b> (the gap between 1 and the next float) times the size of the numbers compared, times a factor for how many operations accumulate. The epsilons: float64 <span data-k="ladder.eps.float64" data-f="s2">2.2e-16</span>, float32 <span data-k="ladder.eps.float32" data-f="s2">1.2e-7</span>, float16 <span data-k="ladder.eps.float16" data-f="s2">9.8e-4</span>, bfloat16 <span data-k="ladder.eps.bfloat16" data-f="s2">0.0078</span>.</p>
 <div class="tw"><table class="pj-t" id="pj-tol"></table></div>
 <div class="pj-cap">From <code>src/runs/pj_ladder.py</code> (both twins in float32, then both in float64; one batch, then 100 training steps). The bfloat16 row runs both twins with weights and activations in bfloat16, against the float32 PyTorch logits.</div>
 
@@ -418,57 +500,78 @@ nnx.update(model, nnx.from_flat_state(leaves))</pre>
 <p>Rerun both twins in float64 (<code>model.double()</code>, <code>jax.config.update("jax_enable_x64", True)</code>). Rounding noise shrinks by about nine orders of magnitude; a real difference stays the same size. The bars show each rung for the correct port and for one real bug (the tanh GELU), in float32 and float64, log scale.</p>
 <div id="pj-f64"></div>
 <div class="pj-cap">Bars on a log scale from 1e-17 (left edge) to 1e-3 (right edge); an empty bar is an exact 0. From <code>src/runs/pj_ladder.py</code>.</div>
-<div class="co key" id="pj-f64-note"><div class="t">Why a correct port still drifts in float64</div><span id="pj-f64-txt"></span></div>
-
-<h3>The key-bias puzzle, explained</h3>
-<p>Every comparison above skips one group of parameters: the biases of the key projections. Adding the same vector b to every key adds the same number q.b to every score in a query's row, and softmax ignores a constant added to a whole row, so <b>the true gradient of a key bias is exactly zero</b>. Computed, it is float noise: <span data-k="ladder.correct_float32.keybias_grad_torch" data-f="s2"></span> (PyTorch) and <span data-k="ladder.correct_float32.keybias_grad_jax" data-f="s2"></span> (JAX) in float32, and <span data-k="ladder.correct_float64.keybias_grad_torch" data-f="s2"></span> and <span data-k="ladder.correct_float64.keybias_grad_jax" data-f="s2"></span> in float64. The two frameworks' noise is unrelated, so their key biases take unrelated paths; the root's run measured them as the largest weight difference at 500 steps, with no effect on outputs (the root's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a>, Training lab, section 5).</p>
-<p>A refinement of the usual story ("Adam turns the noise into full-size steps"). With <code>eps = 1e-8</code> and gradients near 1e-11, Adam's update is about lr x g / eps: around 2e-6 per step at the full learning rate of 1e-3, some five hundred times smaller than a normal step of about lr. What makes key biases drift is that nothing pulls them back (no gradient restores them, and they are not decayed), so the two frameworks' unrelated noise accumulates. Measured: after one step the key biases differ by <span data-k="ladder.correct_float32.step1_keybias" data-f="s2"></span>, other weights by <span data-k="ladder.correct_float32.step1" data-f="s2"></span>; after 100 steps the key biases differ by <span data-k="ladder.correct_float32.stepN_keybias" data-f="s2"></span> while every other weight still agrees to <span data-k="ladder.correct_float32.stepN_params" data-f="s2"></span>. By 4,000 steps the ordinary weights have drifted further than the key biases anyway (the root's <code>twin_long.json</code>).</p>
+<p class="small">The correct port shrinks to the float64 floor at the first three rungs; the tanh-GELU bug stays the same size. One surprise: in float64 the correct port's one-step and curve gaps do not fall to the floor, because Adam amplifies last-bit gradient differences on near-zero gradients (closed block below).</p>
+<details class="mist"><summary>Why a correct port still drifts in float64: Adam multiplies tiny gradient differences by lr / eps = 2,000</summary><div class="b"><span id="pj-f64-txt"></span></div></details>
+<details class="mist"><summary>The key-bias puzzle: why every comparison skips the key projections' biases</summary><div class="b">
+<p>Adding the same vector b to every key adds the same number q.b to every score in a query's row, and softmax ignores a constant added to a whole row, so <b>the true gradient of a key bias is exactly zero</b>. Computed, it is float noise: <span data-k="ladder.correct_float32.keybias_grad_torch" data-f="s2">2.2e-11</span> (PyTorch) and <span data-k="ladder.correct_float32.keybias_grad_jax" data-f="s2">2.5e-11</span> (JAX) in float32, and <span data-k="ladder.correct_float64.keybias_grad_torch" data-f="s2">3.1e-20</span> and <span data-k="ladder.correct_float64.keybias_grad_jax" data-f="s2">4.1e-20</span> in float64. The two frameworks' noise is unrelated, so their key biases take unrelated paths; the root's run measured them as the largest weight difference at 500 steps, with no effect on outputs (the root's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a>, Training lab, section 5).</p>
+<p>A refinement of the usual story ("Adam turns the noise into full-size steps"). With <code>eps = 1e-8</code> and gradients near 1e-11, Adam's update is about lr x g / eps: around 2e-6 per step at the full learning rate of 1e-3, some five hundred times smaller than a normal step of about lr. What makes key biases drift is that nothing pulls them back (no gradient restores them, and they are not decayed), so the two frameworks' unrelated noise accumulates. Measured: after one step the key biases differ by <span data-k="ladder.correct_float32.step1_keybias" data-f="s2">8.1e-9</span>, other weights by <span data-k="ladder.correct_float32.step1" data-f="s2">2.1e-7</span>; after 100 steps the key biases differ by <span data-k="ladder.correct_float32.stepN_keybias" data-f="s2">7.2e-5</span> while every other weight still agrees to <span data-k="ladder.correct_float32.stepN_params" data-f="s2">3.6e-7</span>. By 4,000 steps the ordinary weights have drifted further than the key biases anyway (the root's <code>twin_long.json</code>).</p>
+</div></details>
 </section>
 
 <section id="s-drift">
 <h2>5. Training both, and judging the drift</h2>
-<p>The root's Training lab trained the PyTorch, plain-JAX and NNX twins for <span data-k="root.twin_steps" data-f="int"></span> steps on identical batches; this page cites it rather than rerunning it. The curves agree to 1e-5 until step <span data-k="root.twin_first_over.1e-05"></span> and to 1e-4 until step <span data-k="root.twin_first_over.0.0001"></span>, and never differ by 1e-3 (largest <span data-k="root.twin_max_abs.torch_vs_jax" data-f="s2"></span>). The gap grows steadily, window by window:</p>
+<p>The root's Training lab trained the PyTorch, plain-JAX and NNX twins for <span data-k="root.twin_steps" data-f="int">4,000</span> steps on identical batches; cited, not rerun. The curves agree to 1e-5 until step <span data-k="root.twin_first_over.1e-05">312</span> and to 1e-4 until step <span data-k="root.twin_first_over.0.0001">1446</span>, and never differ by 1e-3 (largest <span data-k="root.twin_max_abs.torch_vs_jax" data-f="s2">9.5e-4</span>). The gap grows steadily, window by window:</p>
 <div id="pj-drift"></div>
 <div class="pj-cap" id="pj-drift-cap"></div>
-<p><b>How to judge it.</b> Drift that grows smoothly from float noise and stays orders of magnitude below the run-to-run variation of a different seed is not a bug; training is a chaotic iteration that amplifies last-bit differences. Drift that appears at step 0, or jumps at a step, is. Plain JAX and NNX lower to nearly the same XLA program and stay within <span data-k="root.twin_max_abs.jax_vs_nnx" data-f="s2"></span> of each other over the whole run, an order of magnitude closer than PyTorch and JAX: the size of the drift tracks how different the two programs are, which is what rounding predicts.</p>
-<p><b>Measured on Apple M1 Pro (CPU), shared machine:</b> median step time <span data-k="root.twin_step_time.torch" data-f="f3"></span> s (PyTorch), <span data-k="root.twin_step_time.jax" data-f="f3"></span> s (plain JAX), <span data-k="root.twin_step_time.nnx" data-f="f3"></span> s (NNX). Not a framework comparison: a tiny model on a loaded CPU, where each framework calls a different matmul library. What transfers to TPU and GPU is the method and the drift's shape; not the step times, and not the bit patterns (a TPU's default matmul precision is bfloat16, section 2).</p>
+<p><b>How to judge it.</b> Drift that grows smoothly from float noise and stays orders of magnitude below the run-to-run variation of a different seed is not a bug; training is a chaotic iteration that amplifies last-bit differences. Drift that appears at step 0, or jumps at a step, is. Plain JAX and NNX lower to nearly the same XLA program and stay within <span data-k="root.twin_max_abs.jax_vs_nnx" data-f="s2">2.7e-5</span> of each other over the whole run, an order of magnitude closer than PyTorch and JAX: the size of the drift tracks how different the two programs are, which is what rounding predicts.</p>
+<details class="mist"><summary>Step times of the three twins, and what transfers</summary><div class="b"><p>Measured on Apple M1 Pro (CPU), shared machine: median step time <span data-k="root.twin_step_time.torch" data-f="f3">0.164</span> s (PyTorch), <span data-k="root.twin_step_time.jax" data-f="f3">0.193</span> s (plain JAX), <span data-k="root.twin_step_time.nnx" data-f="f3">0.225</span> s (NNX). Not a framework comparison: a tiny model on a loaded CPU, where each framework calls a different matmul library. What transfers to TPU and GPU is the method and the drift's shape; not the step times, and not the bit patterns (a TPU's default matmul precision is bfloat16, section 2).</p></div></details>
 </section>
 <section id="s-hf">
 <h2>6. Porting a Hugging Face model: GPT-2 by hand</h2>
-<p><b>The status first.</b> For years the easy path was <code>FlaxGPT2LMHeadModel.from_pretrained</code>. That path is closing: Hugging Face's transformers v5 announcement (1 December 2025) says they are "sunsetting our Flax/TensorFlow support in favor of focusing on PyTorch as the sole backend", while "working with partners in the Jax ecosystem", naming MaxText (<a href="https://huggingface.co/blog/transformers-v5" target="_blank" rel="noopener noreferrer">Hugging Face blog</a>). Measured here: transformers <span data-k="gpt2.versions.transformers"></span> exports <span data-k="gpt2.flax_classes_in_transformers.length" data-f="int"></span> names starting with "Flax". The checkpoints remain (the GPT-2 repository still carries a <code>flax_model.msgpack</code>), and safetensors files load into JAX directly, so a port today is: read the safetensors, write the forward pass, check it against transformers' PyTorch model.</p>
-<p><b>How it works.</b> GPT-2 small, from <code>openai-community/gpt2</code> at revision <code>607a30d7</code> (<span data-k="gpt2.n_params" data-f="int"></span> parameters in <span data-k="gpt2.n_tensors"></span> tensors, of which <span data-k="gpt2.mask_buffers_in_file"></span> are causal-mask buffers, not weights), ported in about 25 lines of plain JAX (<code>src/runs/pj_gpt2.py</code>). Three facts of this checkpoint decide the port, and each contradicts a habit from the running example:</p>
+<p><b>Why by hand.</b> The old easy path, <code>FlaxGPT2LMHeadModel.from_pretrained</code>, is closing: Hugging Face's transformers v5 announcement (1 December 2025) says they are "sunsetting our Flax/TensorFlow support in favor of focusing on PyTorch as the sole backend", while "working with partners in the Jax ecosystem", naming MaxText (<a href="https://huggingface.co/blog/transformers-v5" target="_blank" rel="noopener noreferrer">Hugging Face blog</a>). Measured here: transformers <span data-k="gpt2.versions.transformers">5.19.0</span> exports <span data-k="gpt2.flax_classes_in_transformers.length" data-f="int">0</span> names starting with "Flax". The checkpoints remain (the GPT-2 repository still carries a <code>flax_model.msgpack</code>), and safetensors files load into JAX directly, so a port today is: read the safetensors, write the forward pass, check it against transformers' PyTorch model.</p>
+<p>GPT-2 small, from <code>openai-community/gpt2</code> at revision <code>607a30d7</code> (<span data-k="gpt2.n_params" data-f="int">124,439,808</span> parameters in <span data-k="gpt2.n_tensors">160</span> tensors, of which <span data-k="gpt2.mask_buffers_in_file">12</span> are causal-mask buffers, not weights), ported in about 25 lines of plain JAX (<code>src/runs/pj_gpt2.py</code>). Three facts of this checkpoint decide the port, and each contradicts a habit from the running example:</p>
 <ul>
-<li><b>No transpose.</b> GPT-2's projections are Hugging Face's <code>Conv1D</code>, whose weight is stored <code>[in, out]</code>, already JAX's layout (excerpt below). Transposing "because PyTorch is [out, in]" breaks it.</li>
-<li><b>Tanh GELU.</b> The config says <code>"activation_function": "<span data-k="gpt2.config.activation_function"></span>"</code>, the tanh approximation: here <code>jax.nn.gelu</code>'s default is the right one.</li>
-<li><b>Tied head.</b> There is no <code>lm_head.weight</code> in the file: the output projection is the token embedding transposed (<code>x @ wte.T</code>). transformers' model shares the tensor (tied: <span data-k="gpt2.hf_tied"></span>).</li>
+<li><b>No transpose.</b> GPT-2's projections are Hugging Face's <code>Conv1D</code>, whose weight is stored <code>[in, out]</code>, already JAX's layout (excerpt in the closed block below). Transposing "because PyTorch is [out, in]" breaks it.</li>
+<li><b>Tanh GELU.</b> The config says <code>"activation_function": "<span data-k="gpt2.config.activation_function">gelu_new</span>"</code>, the tanh approximation: here <code>jax.nn.gelu</code>'s default is the right one.</li>
+<li><b>Tied head.</b> There is no <code>lm_head.weight</code> in the file: the output projection is the token embedding transposed (<code>x @ wte.T</code>). transformers' model shares the tensor (tied: <span data-k="gpt2.hf_tied">true</span>).</li>
 </ul>
-<div class="pj-srcx" data-id="hf_conv1d"></div>
 <div class="pj-cnt" id="pj-hf-stats"></div>
 <div class="tw"><table class="pj-t" id="pj-hf-tab"></table></div>
-<div class="pj-cap">Prompt "<span data-k="gpt2.prompt"></span>", greedy decoding of 20 tokens, float32, both on Apple M1 Pro (CPU). The JAX port runs eagerly without a KV cache (<span data-k="gpt2.greedy_jax_s" data-f="f1"></span> s against transformers' <span data-k="gpt2.greedy_torch_s" data-f="f1"></span> s): fine for a check, not for serving.</div>
-<div class="co warn"><div class="t">Greedy text is a weak test</div>The exact-GELU mistake moves the logits by <span data-k="gpt2.mistakes.exact_gelu.logits_maxdiff" data-f="s2"></span> and still produces identical greedy text; the epsilon mistake likewise. Only the transpose mistake shows in text ("<span data-k="gpt2.mistakes.transpose.greedy"></span>"). Compare logits with a tolerance; read text only as a smoke test.</div>
-<p><b>Where the real ports live.</b> At scale nobody writes a forward pass per checkpoint by hand without a table. Tunix (v0.1.7) loads Hugging Face safetensors into NNX models with a regex from each PyTorch name to a JAX path plus a permutation and reshape (excerpt below); MaxText converts both ways with <code>checkpoint_conversion/to_maxtext.py</code> and <code>to_huggingface.py</code> (<a href="https://github.com/AI-Hypercomputer/maxtext/tree/1a95d1e5371021aab8d0574c53d2cca425474318/src/maxtext/checkpoint_conversion" target="_blank" rel="noopener noreferrer">MaxText at 1a95d1e5</a>). Both are the same idea as section 3's four-entry rule, grown to whole model families; <a href="https://app.notion.com/p/3fa5c17b0d0d81f8bd5ad523e9f2dde0" target="_blank" rel="noopener noreferrer">JAX LLM codebases</a> reads them in depth.</p>
+<div class="pj-cap">Prompt "<span data-k="gpt2.prompt">The quick brown fox</span>", greedy decoding of 20 tokens, float32, both on Apple M1 Pro (CPU). The JAX port runs eagerly without a KV cache (<span data-k="gpt2.greedy_jax_s" data-f="f1">29.5</span> s against transformers' <span data-k="gpt2.greedy_torch_s" data-f="f1">2.2</span> s): fine for a check, not for serving.</div>
+<div class="co warn"><div class="t">Greedy text is a weak test</div>The exact-GELU mistake moves the logits by <span data-k="gpt2.mistakes.exact_gelu.logits_maxdiff" data-f="s2">0.075</span> and still produces identical greedy text; the epsilon mistake likewise. Only the transpose mistake shows in text ("<span data-k="gpt2.mistakes.transpose.greedy">The quick brown fox. the the the the the the the the the the the the the the the the the the the</span>"). Compare logits with a tolerance; read text only as a smoke test.</div>
+<details class="mist"><summary>Where the real ports live: Tunix and MaxText converters, and the source excerpts</summary><div class="b">
+<div class="pj-srcx" data-id="hf_conv1d"></div>
+<p>At scale nobody writes a forward pass per checkpoint by hand without a table. Tunix (v0.1.7) loads Hugging Face safetensors into NNX models with a regex from each PyTorch name to a JAX path plus a permutation and reshape (excerpt below); MaxText converts both ways with <code>checkpoint_conversion/to_maxtext.py</code> and <code>to_huggingface.py</code> (<a href="https://github.com/AI-Hypercomputer/maxtext/tree/1a95d1e5371021aab8d0574c53d2cca425474318/src/maxtext/checkpoint_conversion" target="_blank" rel="noopener noreferrer">MaxText at 1a95d1e5</a>). Both are the same idea as section 3's four-entry rule, grown to whole model families; <a href="https://app.notion.com/p/3fa5c17b0d0d81f8bd5ad523e9f2dde0" target="_blank" rel="noopener noreferrer">JAX LLM codebases</a> reads them in depth.</p>
 <div class="pj-srcx" data-id="tunix_map"></div><div class="pj-srcx" data-id="tunix_head"></div>
-<p>Saving the transformers model back with safetensors' plain <code>save_file</code> fails on the tie: <code data-k="gpt2.tied_save_error"></code></p>
+<p>Saving the transformers model back with safetensors' plain <code>save_file</code> fails on the tie: <code data-k="gpt2.tied_save_error">RuntimeError: Some tensors share memory, this will lead to duplicate memory on disk and potential differences when loading them again: [{'transformer.wte.weight', 'lm_head.weight'}].
+            A potential way to correctly save your model is to use `save_model`.</code></p>
+</div></details>
 </section>
 
 <section id="s-io">
 <h2>7. Interop: using PyTorch code from JAX without porting it</h2>
-<p><b>The problem.</b> Sometimes only one piece needs to be in the other framework: a JAX loss inside a PyTorch training loop, a PyTorch model evaluated inside a JAX pipeline, or a PyTorch codebase that must run on TPUs. Four tools, all tried here on the running example:</p>
+<p>Sometimes only one piece needs to be in the other framework: a JAX loss inside a PyTorch training loop, a PyTorch model evaluated inside a JAX pipeline, or a PyTorch codebase that must run on TPUs. Four tools, all tried here on the running example (measurements in the closed block below):</p>
 <div class="tw"><table class="pj-t">
-<thead><tr><th>Tool</th><th>What it does</th><th>Measured here</th><th>Use it when</th></tr></thead>
+<thead><tr><th>Tool</th><th>What it does</th><th>Use it when</th></tr></thead>
 <tbody>
-<tr><td><b>DLPack</b> (<code>jax.dlpack.from_dlpack</code>, <code>torch.from_dlpack</code>)</td><td>hands a buffer from one framework to the other without copying</td><td>same pointer both ways (<span data-k="interop.t2j.same_pointer"></span>, <span data-k="interop.j2t.same_pointer"></span>). A later in-place <code>add_</code> in torch changed the JAX array from <span data-k="interop.t2j.jax_value_before" data-f="f0"></span> to <span data-k="interop.t2j.jax_value_after_torch_inplace_add" data-f="f0"></span>, breaking JAX's assumption that arrays never change. A strided batch slice is refused: <code data-k="interop.t2j_strided_batch.error"></code> A tensor that requires grad: <code data-k="interop.t2j_requires_grad"></code></td><td>moving activations or batches between frameworks on one device; copy (<code>.clone()</code>) if either side may mutate</td></tr>
-<tr><td><b>A jax2torch bridge</b> (a <code>torch.autograd.Function</code> calling a jitted JAX function)</td><td>forward runs JAX, backward returns JAX's gradients to autograd</td><td>the JAX loss of the running example, called from PyTorch: loss <span data-k="interop.bridge.loss_bridge" data-f="f6"></span> against <span data-k="interop.bridge.loss_torch" data-f="f6"></span>, gradients within <span data-k="interop.bridge.grad_maxdiff" data-f="s2"></span> over all <span data-k="interop.bridge.n_tensors"></span> tensors</td><td>a JAX-only component (a loss, a sampler, a kernel) inside a PyTorch loop</td></tr>
-<tr><td><b>torchax</b> (google/torchax)</td><td>runs PyTorch modules with JAX arrays underneath; <code>torchax.extract_jax(module)</code> returns the weights as a pytree and the forward as a pure JAX function</td><td>torchax 0.0.13 from PyPI does not import with torch 2.14.1: <code data-k="interop.torchax_0013_import"></code>. GitHub main (<code>d95b0a5b</code>, 2026-10-11) works: logits within <span data-k="interop.torchax_logits_maxdiff" data-f="s2"></span> of PyTorch, <code>jax.grad</code> through the PyTorch code within <span data-k="interop.torchax_grad.grad_maxdiff" data-f="s2"></span>; its jaxpr has <span data-k="interop.torchax_jaxpr.eqns"></span> equations against <span data-k="interop.native_jaxpr_eqns"></span> for the hand port; weights stay in PyTorch's layout (<code>head.weight</code> <span data-k="interop.torchax_states.head_shape"></span>)</td><td>trying a PyTorch model on TPU, or under jit, grad and sharding, before deciding to port; pin the torch version it was tested with</td></tr>
-<tr><td><b>PyTorch/XLA</b> and its successor</td><td>PyTorch's own TPU backend (lazy tensors lowered to XLA)</td><td>not run here (no TPU). Its README says "Once TorchTPU is public it will replace PyTorch/XLA" (note dated 2026-04-22); TorchTPU was not public on 2026-10-15 (FACTS "map")</td><td>an existing PyTorch TPU codebase; check TorchTPU's status before starting a new one</td></tr>
+<tr><td><b>DLPack</b> (<code>jax.dlpack.from_dlpack</code>, <code>torch.from_dlpack</code>)</td><td>hands a buffer from one framework to the other without copying; an in-place op on one side changes the other</td><td>moving activations or batches between frameworks on one device; copy (<code>.clone()</code>) if either side may mutate</td></tr>
+<tr><td><b>A jax2torch bridge</b> (a <code>torch.autograd.Function</code> calling a jitted JAX function)</td><td>forward runs JAX, backward returns JAX's gradients to autograd</td><td>a JAX-only component (a loss, a sampler, a kernel) inside a PyTorch loop</td></tr>
+<tr><td><b>torchax</b> (google/torchax)</td><td>runs PyTorch modules with JAX arrays underneath; <code>torchax.extract_jax(module)</code> returns the weights as a pytree and the forward as a pure JAX function</td><td>trying a PyTorch model on TPU, or under jit, grad and sharding, before deciding to port; pin the torch version it was tested with</td></tr>
+<tr><td><b>PyTorch/XLA</b> and its successor</td><td>PyTorch's own TPU backend (lazy tensors lowered to XLA)</td><td>an existing PyTorch TPU codebase; check TorchTPU's status before starting a new one</td></tr>
 </tbody></table></div>
-<p><b>How to check an interop boundary.</b> The same ladder: the bridge's loss and gradients against the native ones, which is what the table reports. Two costs the table does not show: every crossing is a host-side Python call (no fusion across the boundary), and under <code>jax.jit</code> a PyTorch call needs <code>jax.pure_callback</code>, which XLA cannot optimise or differentiate unless you supply the rule.</p>
+<p><b>How to check an interop boundary.</b> The same ladder: the bridge's loss and gradients against the native ones. Two costs: every crossing is a host-side Python call (no fusion across the boundary), and under <code>jax.jit</code> a PyTorch call needs <code>jax.pure_callback</code>, which XLA cannot optimise or differentiate unless you supply the rule.</p>
+<details class="mist"><summary>What each tool did on the running example (measured, versions pinned)</summary><div class="b"><ul class="small">
+<li><b>DLPack</b>: same pointer both ways (<span data-k="interop.t2j.same_pointer">true</span>, <span data-k="interop.j2t.same_pointer">true</span>). A later in-place <code>add_</code> in torch changed the JAX array from <span data-k="interop.t2j.jax_value_before" data-f="f0">5</span> to <span data-k="interop.t2j.jax_value_after_torch_inplace_add" data-f="f0">105</span>, breaking JAX's assumption that arrays never change. A strided batch slice is refused: <code data-k="interop.t2j_strided_batch.error">JaxRuntimeError: UNIMPLEMENTED: Only DLPack tensors with trivial (compact) striding are supported; i.e., tensors whose striding represents a transposition of the underlying buffer but not broadcasting. Dimensions were: [32,128], strides were [129,1].</code> A tensor that requires grad: <code data-k="interop.t2j_requires_grad">BufferError: Can't export tensors that require gradient, use tensor.detach()</code></li>
+<li><b>jax2torch bridge</b>: the JAX loss of the running example, called from PyTorch: loss <span data-k="interop.bridge.loss_bridge" data-f="f6">4.211679935455322</span> against <span data-k="interop.bridge.loss_torch" data-f="f6">4.2116804122924805</span>, gradients within <span data-k="interop.bridge.grad_maxdiff" data-f="s2">2.3e-7</span> over all <span data-k="interop.bridge.n_tensors">69</span> tensors.</li>
+<li><b>torchax</b>: 0.0.13 from PyPI does not import with torch 2.14.1: <code data-k="interop.torchax_0013_import">AttributeError: The underlying op of 'aten.prod' has no overload name 'dim_Dimname'</code>. GitHub main (<code>d95b0a5b</code>, 2026-10-11) works: logits within <span data-k="interop.torchax_logits_maxdiff" data-f="s2">8.3e-7</span> of PyTorch, <code>jax.grad</code> through the PyTorch code within <span data-k="interop.torchax_grad.grad_maxdiff" data-f="s2">2.4e-7</span>; its jaxpr has <span data-k="interop.torchax_jaxpr.eqns">381</span> equations against <span data-k="interop.native_jaxpr_eqns">352</span> for the hand port; weights stay in PyTorch's layout (<code>head.weight</code> <span data-k="interop.torchax_states.head_shape">65,128</span>).</li>
+<li><b>PyTorch/XLA</b>: not run here (no TPU). Its README says "Once TorchTPU is public it will replace PyTorch/XLA" (note dated 2026-04-22); TorchTPU was not public on 2026-10-15 (FACTS "map").</li>
+</ul></div></details>
 </section>
 
 <section id="s-when">
-<h2>8. When not to port</h2>
-<p>A port costs the translation, the equivalence test, and from then on two code bases (or one you know less well). It pays when the target gives something the source cannot. Judgement, labelled as such:</p>
+<h2>8. The porting checklist, and when not to port</h2>
+<p>The whole page as the order to work in. Each item names the failure it prevents and where it was measured.</p>
+<ol class="pj-check">
+<li><b>Decide whether to port at all</b> (table below): try torchax or PyTorch/XLA first if the goal is one TPU run.</li>
+<li><b>Translate state, not syntax</b>: weights, gradients, optimiser state and keys become arguments and return values of one jitted step (section 1).</li>
+<li><b>Write every default explicitly on both sides</b>: norm epsilon and variance, GELU form, initialisers, mask convention and fill, loss reduction and ignored labels, weight decay and its mask, clip position, schedule count, matmul precision (section 2).</li>
+<li><b>Convert weights by a rule on the path</b>, with a shape assert per tensor, every name used once, and a bitwise round trip (section 3).</li>
+<li><b>Climb the ladder on one batch</b> with dropout off: logits, loss, gradients, one step, curves; stop at the first failing rung (section 4).</li>
+<li><b>Repeat in float64</b> when a gap is near the thresholds: rounding shrinks by about nine orders of magnitude, a bug does not (section 4).</li>
+<li><b>Judge curves against seed-to-seed variation</b>, not against zero; turn dropout on last and compare statistics (sections 2 and 5).</li>
+<li><b>Only then change precision or sharding</b>, each as its own comparison, with <code>precision=HIGHEST</code> for the equivalence run on a TPU (section 2, hardware numerics).</li>
+</ol>
+<p><b>When not to port.</b> A port costs the translation, the equivalence test and, from then on, two code bases (or one you know less well). It pays when the target gives something the source cannot. Judgement, labelled as such:</p>
 <div class="tw"><table class="pj-t">
 <thead><tr><th>Situation</th><th>Advice</th><th>Why</th></tr></thead>
 <tbody>
@@ -479,23 +582,18 @@ nnx.update(model, nnx.from_flat_state(leaves))</pre>
 <tr><td>You want a functional component (per-example gradients, Hessians, vmap over seeds)</td><td>bridge it, or use <code>torch.func</code></td><td>PyTorch has <code>vmap</code> and <code>grad</code> in <code>torch.func</code>; JAX is not the only way</td></tr>
 <tr><td>A research codebase you will read more than run</td><td>port only what you change</td><td>a faithful port is a lot of work to get exactly right, as this page shows</td></tr>
 </tbody></table></div>
-</section>
 
-<section id="s-mist">
-<h2>Common mistakes, with the messages they produce</h2>
+<details class="mist"><summary>Common traps with the messages they produce (12 rows)</summary><div class="b">
 <div class="tw"><table class="pj-t" id="pj-mist"></table></div>
-<div class="pj-cap">Messages captured by <code>src/runs/pj_drills.py</code> and <code>pj_convert.py</code> (paths removed). The <a href="#" data-tab="t-pjdr">Port drills</a> tab turns each into a question.</div>
-</section>
-
-<section id="s-iq">
-<h2>Interview questions</h2>
-<div id="pj-iq"></div>
+<div class="pj-cap">Messages captured by <code>src/runs/pj_drills.py</code> and <code>pj_convert.py</code> (paths removed). The <a href="#" data-tab="t-pjdr">Port drills</a> tab turns each into a question. The silent ones (no error, wrong numbers) are the reason for the ladder: padding labels give a NaN loss, <code>jnp.var</code> divides by n, a reused key repeats its numbers, an <code>nn.MultiheadAttention</code> mask attends to the future, and a token id past the vocabulary clamps to the last row.</div>
+</div></details>
+<details class="mist"><summary>Interview rehearsal (8 questions with answers)</summary><div class="b"><div id="pj-iq"></div></div></details>
 </section>
 <div class="foot">Reading tab of the PyTorch to JAX child page of Topic: jax-and-tpu, built 2026-10-15. Every run used jax 0.11.2, jaxlib 0.11.2, flax 0.12.10, optax 0.2.8, torch 2.14.1 and Python 3.12.11 on an Apple M1 Pro, CPU only, low priority on a shared machine; transformers 5.19.0, safetensors 0.8.0 and torchax (PyPI 0.0.13 and GitHub main d95b0a5b) were installed beside the shared environment for this page only. Scripts and recorded outputs are in this page's <code>src/runs/</code>.</div>
 </div>
 <div class="tab" id="t-pjdh" role="tabpanel" hidden>
 <h2 style="margin-top:14px">Divergence hunter</h2>
-<p>Every switch is one porting difference, trained alone for 300 steps from the PyTorch twin's initial weights on the same batches (<code>src/runs/pj_hunt.py</code>). Seven of them were trained by the root's Training lab and are reused here (marked "root"); the rest were trained for this page with the same harness, which first reproduced the root's correct-port curve exactly (largest difference <span data-k="hunt.harness_check.max_abs_vs_root_correct" data-f="s2"></span>). <b>Turn switches on</b> to overlay how far each run's training loss is from PyTorch's, then press play to watch the curves separate step by step. The table under the chart gives each run's evidence ladder: the first rung that fails tells you where to look.</p>
+<p>Every switch is one porting difference, trained alone for 300 steps from the PyTorch twin's initial weights on the same batches (<code>src/runs/pj_hunt.py</code>). Seven of them were trained by the root's Training lab and are reused here (marked "root"); the rest were trained for this page with the same harness, which first reproduced the root's correct-port curve exactly (largest difference <span data-k="hunt.harness_check.max_abs_vs_root_correct" data-f="s2">0</span>). <b>Turn switches on</b> to overlay how far each run's training loss is from PyTorch's, then press play to watch the curves separate step by step. The table under the chart gives each run's evidence ladder: the first rung that fails tells you where to look.</p>
 <div class="pj-grp">Show</div>
 <div class="seg" id="pjdh-view"><button data-m="diff" class="on">|loss - PyTorch loss| (log)</button><button data-m="loss">training loss</button></div>
 <div id="pjdh-togs"></div>
@@ -505,30 +603,13 @@ nnx.update(model, nnx.from_flat_state(leaves))</pre>
 <div class="pj-capt" id="pjdh-cap"></div>
 </div>
 <div class="tw"><table class="pj-t" id="pjdh-tab"></table></div>
-<div class="pj-cap">Rung thresholds as in the Reading tab, section 4: logits, loss and gradients 1e-5, one step 1e-6, curve 1e-4. A dash means the rung could not be computed (the loss was already NaN). Validation is the mean over 8 fixed batches with the causal mask; for the mask variants the second number uses the run's own (wrong) mask, which is what its training loss reflects. Measured on Apple M1 Pro (CPU); new runs took <span id="pjdh-time"></span> of CPU each at a 1-minute load average of <span data-k="hunt.load_start" data-f="f0"></span> to <span data-k="hunt.load_end" data-f="f0"></span>.</div>
+<div class="pj-cap">Rung thresholds as in the Reading tab, section 4: logits, loss and gradients 1e-5, one step 1e-6, curve 1e-4. A dash means the rung could not be computed (the loss was already NaN). Validation is the mean over 8 fixed batches with the causal mask; for the mask variants the second number uses the run's own (wrong) mask, which is what its training loss reflects. Measured on Apple M1 Pro (CPU); new runs took <span id="pjdh-time"></span> of CPU each at a 1-minute load average of <span data-k="hunt.load_start" data-f="f0">32</span> to <span data-k="hunt.load_end" data-f="f0">36</span>.</div>
 <div class="co key"><div class="t">What the runs say</div><ul class="small">
 <li><b>Forward-pass differences show at step 0.</b> The epsilon, GELU, bfloat16 and mask switches all fail the logits rung; one batch of logits from copied weights catches every one of them before any training.</li>
 <li><b>Optimiser differences pass three rungs.</b> Weight decay, b2, clip position and the schedule's off-by-one leave logits and gradients identical and only appear at the one-step rung or in the curves.</li>
 <li><b>Two differences are harmless.</b> PyTorch's clipping formula and Flax's fast variance stay within the correct port's own noise for all 300 steps; the ladder passes them, which is the point of having thresholds.</li>
-<li><b>A wrong mask can look like success.</b> Without the causal mask the training loss collapses (the model reads the answer), validation with a proper mask is <span data-k="hunt.variants.no_mask.val_300" data-f="f2"></span> against <span data-k="hunt.variants.correct.val_300" data-f="f2"></span>.</li>
+<li><b>A wrong mask can look like success.</b> Without the causal mask the training loss collapses (the model reads the answer), validation with a proper mask is <span data-k="hunt.variants.no_mask.val_300" data-f="f2">5.79</span> against <span data-k="hunt.variants.correct.val_300" data-f="f2">2.26</span>.</li>
 </ul></div>
-</div>
-<div class="tab" id="t-pjwc" role="tabpanel" hidden>
-<h2 style="margin-top:14px">Weight conversion</h2>
-<p>The running example's <span data-k="convert.n_tensors"></span> PyTorch tensors and where each lands in the Flax NNX model, by the four-entry rule of the Reading tab's section 3 (<code>src/runs/pj_convert.py</code>). Rows marked &#8635; are transposed. <b>Click a row</b> to see its shapes; the animation below moves a real corner of one weight matrix from PyTorch's layout to Flax's, and the switch runs the same animation on GPT-2's checkpoint, where nothing should move.</p>
-<div class="pj-box" id="pjwc-card">
-<div class="seg" id="pjwc-src"><button data-m="lin" class="on">running example: nn.Linear</button><button data-m="gpt2">GPT-2: Conv1D</button></div>
-<div id="pjwc-tile"></div>
-<div class="pj-anctl" id="pjwc-ctl"></div>
-<div class="pj-capt" id="pjwc-cap"></div>
-</div>
-<div class="pj-cap">Values are the real top-left corner (6 rows by 8 columns as stored) of <code>blocks.0.attn.wq.weight</code> after 500 training steps, and of GPT-2's <code>h.0.attn.c_proj.weight</code>; colour by value (blue negative, orange positive). Each element keeps its value; only its position changes.</div>
-<h3>Every tensor</h3>
-<div class="pj-sel"><span class="small">Show</span> <span class="seg" id="pjwc-filter"><button data-m="all" class="on">all</button><button data-m="tr">transposed only</button><button data-m="gpt2">GPT-2 (block 0 and globals)</button></span></div>
-<div class="pj-names" id="pjwc-names"></div>
-<div class="pj-detail" id="pjwc-det" style="margin-top:8px">Click a row.</div>
-<h3>The checks that passed</h3>
-<div class="pj-cnt" id="pjwc-checks"></div>
 </div>
 <div class="tab" id="t-pjdr" role="tabpanel" hidden>
 <h2 style="margin-top:14px">Port drills</h2>
@@ -542,24 +623,24 @@ nnx.update(model, nnx.from_flat_state(leaves))</pre>
 <div id="s-more">
 <h3>This page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>The translation, every default that differs, weight conversion, the equivalence ladder and the float64 test, drift, GPT-2 by hand, interop, when not to port, mistakes, interview questions. <span class="rt" id="pj-rt-read">about 40 min, plus 10 for source excerpts and folded answers</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-pjdh">Divergence hunter</a></div><p>Seventeen porting differences, each trained alone for 300 steps, overlaid against PyTorch with their evidence ladders. <span class="rt">about 10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-pjwc">Weight conversion</a></div><p>All 69 tensors mapped from PyTorch names to NNX paths, a real tile transposed step by step, GPT-2's Conv1D layout for contrast. <span class="rt">about 5 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-pjdr">Port drills</a></div><p>Eleven PyTorch snippets, each with two or three JAX ports that really ran; pick one, see every output. <span class="rt">about 10 min</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>The four kinds of hidden state on one training step, every default that differs, weight conversion with the transpose animation, the ladder and the float64 test, drift, GPT-2 by hand, interop, the porting checklist. <span class="rt">25 min, plus 17 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-pjdh">Divergence hunter</a></div><p>Seventeen porting differences, each trained alone for 300 steps, overlaid against PyTorch with their evidence ladders. <span class="rt">3 min to read, more to explore</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-pjdr">Port drills</a></div><p>Eleven PyTorch snippets, each with two or three JAX ports that really ran; pick one, see every output. <span class="rt">1 min to read, about 10 to work through</span></p></div>
 </div>
 <h3>The parent topic and the other child pages</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a></div><p>The root: the comparison and the overview, and the running example. Its <b>Training lab</b> tab has the port as linked panes, the seven pitfalls this page extends, the 4,000-step twins and the optax-against-torch check. <span class="rt">about 27 min reading; Training lab about 28 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817ea0ace9a2ca8677ec" target="_blank" rel="noopener noreferrer">The JAX training stack</a></div><p>Flax NNX, optax, orbax and grain in depth: everything the translated script is built from. <span class="rt">see the page</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a></div><p>Why the port has to be pure: tracing, jit, grad, vmap, pytrees and random keys from the inside. <span class="rt">about 40 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fa5c17b0d0d8135adcedefac9e1bb48" target="_blank" rel="noopener noreferrer">XLA and compilation</a></div><p>What happens to the ported train step after jit, and how it compares with torch.compile. <span class="rt">see the page</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a></div><p>The next step after a correct single-device port: the same model on a mesh. <span class="rt">see the page</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817ea0ace9a2ca8677ec" target="_blank" rel="noopener noreferrer">The JAX training stack</a></div><p>Flax NNX, optax, orbax and grain in depth: everything the translated script is built from. <span class="rt">29 min, plus 20 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a></div><p>Why the port has to be pure: tracing, jit, grad, vmap, pytrees and random keys from the inside. <span class="rt">38 min, plus 25 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fa5c17b0d0d8135adcedefac9e1bb48" target="_blank" rel="noopener noreferrer">XLA and compilation</a></div><p>What happens to the ported train step after jit, and how it compares with torch.compile. <span class="rt">34 min, plus 14 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a></div><p>The next step after a correct single-device port: the same model on a mesh. <span class="rt">33 min, plus 21 in closed details</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fa5c17b0d0d81f8bd5ad523e9f2dde0" target="_blank" rel="noopener noreferrer">JAX LLM codebases</a></div><p>MaxText and Tunix, including the checkpoint converters section 6 points to. <span class="rt">see the page</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8129b0a5fd82e44ecf6e" target="_blank" rel="noopener noreferrer">TPU programming and performance</a></div><p>Matmul precision, bfloat16 and padding on the hardware a port usually targets. <span class="rt">see the page</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fa5c17b0d0d817699fcf65d085402e7" target="_blank" rel="noopener noreferrer">Pallas kernels</a></div><p>What to do with a PyTorch model's custom kernels. <span class="rt">see the page</span></p></div>
 </div>
 <h3>The PyTorch side</h3>
 <div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f85c17b0d0d81138595c1c6cd52f795" target="_blank" rel="noopener noreferrer">Tensors, the dispatcher and autograd</a></div><p>What PyTorch keeps hidden that a port makes explicit: storage, <code>.grad</code> accumulation, the autograd graph. <span class="rt">24 min, plus 29 in closed details</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Topic: pytorch-ecosystem</a></div><p>The source framework, compared with its neighbours. <span class="rt">see the page</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8123a232d75bd7339ecb" target="_blank" rel="noopener noreferrer">torch.compile from the user's side</a></div><p>PyTorch's own compiler: often the alternative to porting for speed. <span class="rt">see the page</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a></div><p>DDP, FSDP2, DTensor: what the sharding of a ported model replaces. <span class="rt">see the page</span></p></div>
@@ -585,9 +666,9 @@ nnx.update(model, nnx.from_flat_state(leaves))</pre>
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab (Topic: evaluation-and-llm-judges): shared helpers, copied from Topic: benchmarks and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -618,7 +699,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -685,8 +766,10 @@ window.PJU=(function(){
   function srcBlocks(root){
     const ex={};(J.source.excerpts||[]).forEach(e=>ex[e.id]=e);
     (root||document).querySelectorAll('.pj-srcx[data-id]').forEach(el=>{const e=ex[el.dataset.id];if(!e){el.textContent='?';return}
-      el.innerHTML='<details class="pj-src"'+(el.dataset.open?' open':'')+'><summary>'+esc(e.title)+' <span class="f">'+esc(e.file)+':'+e.start+(e.end>e.start?'-'+e.end:'')+'</span></summary>'+
-        '<pre class="pj-code">'+esc(e.text)+'</pre><div class="pj-cap">'+esc(e.label)+(J.source.commits[e.repo]&&J.source.commits[e.repo].length===40?' (commit '+J.source.commits[e.repo].slice(0,8)+')':'')+', lines located by pattern in <code>src/runs/read_source.py</code>. <a href="'+e.url+'" target="_blank" rel="noopener noreferrer">Open on GitHub</a></div></details>'})}
+      // inside a closed block already: a plain heading and the excerpt; elsewhere its own closed block
+      const head=esc(e.title)+' <span class="f">'+esc(e.file)+':'+e.start+(e.end>e.start?'-'+e.end:'')+'</span>';
+      const body='<pre class="pj-code">'+esc(e.text)+'</pre><div class="pj-cap">'+esc(e.label)+(J.source.commits[e.repo]&&J.source.commits[e.repo].length===40?' (commit '+J.source.commits[e.repo].slice(0,8)+')':'')+', lines located by pattern in <code>src/runs/read_source.py</code>. <a href="'+e.url+'" target="_blank" rel="noopener noreferrer">Open on GitHub</a></div>';
+      el.innerHTML=el.parentElement.closest('details')?'<div class="pj-src"><div class="small"><b>'+head+'</b></div>'+body+'</div>':'<details class="pj-src"'+(el.dataset.open?' open':'')+'><summary>'+head+'</summary>'+body+'</details>'})}
   function predicts(root){(root||document).querySelectorAll('.pj-pr').forEach(pr=>{const ans=pr.querySelector('.ans'),right=pr.dataset.ans;
     pr.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{pr.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.o===right)x.classList.add('right')});
       if(b.dataset.o!==right)b.classList.add('wrong');ans.hidden=false}))})}
@@ -728,28 +811,47 @@ window.PJV=(function(){
   return {line,logbars,smooth};
 })();
 
-// ---- map of the page
-(function(){const el=document.getElementById('pj-map');if(!el)return;
-  const st=[['1','Translate','modules, optimiser, loop','s-tr'],['2','Set defaults','a dozen differ silently','s-def'],['3','Convert weights','rule on the path, safetensors','s-conv'],['4','Climb the ladder','logits, loss, grads, step, curves','s-eq'],['5','Judge the drift','rounding or bug','s-drift']];
-  function draw(){const W=RD.width(el.parentElement),v=W<600;const bw=v?W-20:(W-20-4*14)/5,bh=58,H=v?st.length*(bh+12)+4:bh+10;let b='';
-    st.forEach((s,i)=>{const x=v?10:10+i*(bw+14),y=v?4+i*(bh+12):4;
-      b+='<g class="pj-mapbox" data-s="'+s[3]+'" style="cursor:pointer"><rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="8" fill="var(--soft)" stroke="var(--acc)"/>'+
-        RD.t(x+10,y+20,s[0]+'. '+s[1],{fs:13,w:600})+RD.t(x+10,y+40,s[2],{fs:11,fill:'var(--mute)'})+'</g>';
-      if(i<st.length-1)b+=v?'<path d="M'+(W/2)+' '+(y+bh+1)+' v10" stroke="var(--mute)"/>':'<path d="M'+(x+bw+1)+' '+(y+bh/2)+' h12" stroke="var(--mute)"/>'});
-    el.setAttribute('viewBox','0 0 '+W+' '+H);el.setAttribute('width',W);el.setAttribute('height',H);el.innerHTML=b}
-  el.addEventListener('click',e=>{const gg=e.target.closest('.pj-mapbox');if(gg)document.getElementById(gg.dataset.s).scrollIntoView({block:'start'})});
+// ---- hero: the same step, PyTorch's hidden state against JAX's explicit state (static, drawn at the measured width)
+(function(){const el=document.getElementById('pj-hero');if(!el)return;
+  const mix=c=>'color-mix(in srgb,'+c+' 20%,var(--bg))';
+  const box=(x,y,w,h,c,dash)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(c?mix(c):'var(--soft)')+'" stroke="'+(c||'var(--line)')+'"'+(dash?' stroke-dasharray="4 3"':'')+'/>';
+  const arr=(x1,y1,x2,y2,c,dash)=>'<path d="M'+x1+' '+y1+' L'+x2+' '+y2+'" stroke="'+(c||'var(--mute)')+'" stroke-width="1.4" fill="none" marker-end="url(#pjh-ah)"'+(dash?' stroke-dasharray="4 3"':'')+'/>';
+  const ST=[['weights','in nn.Module','var(--c1)'],['gradients','in p.grad','var(--c2)'],['optimiser state','in opt, sched','var(--c3)'],['random state','global generator','var(--c4)']];
+  function torchPanel(x,y,w){let b=RD.t(x,y+14,'PyTorch: state lives inside objects',{fs:13,w:600,fill:'var(--ink)'});
+    const by=y+26,bh=30;b+=box(x,by,w,bh,null)+RD.t(x+w/2,by+19,'train_step(model, opt, sched, x, y)',{a:'middle',fs:11.5,fill:'var(--ink)'});
+    const gw=(w-10)/2,gh=40,gy=by+bh+40;
+    ST.forEach((s,i)=>{const gx=x+(i%2)*(gw+10),yy=gy+Math.floor(i/2)*(gh+10);
+      b+=box(gx,yy,gw,gh,s[2],true)+RD.t(gx+8,yy+16,s[0],{fs:12,w:600,fill:'var(--ink)'})+RD.t(gx+8,yy+32,s[1],{fs:11,fill:'var(--mute)'});
+      if(i<2)b+=arr(gx+gw/2,by+bh+2,gx+gw/2,gy-3,s[2],true)});
+    b+=RD.t(x+w/2,by+bh+24,'changed in place',{a:'middle',fs:11,fill:'var(--mute)'});
+    const ey=gy+2*(gh+10)+6;b+=RD.t(x,ey+12,'returns loss.item(): a Python number',{fs:11,fill:'var(--mute)'});
+    return {svg:b,h:ey+18-y}}
+  function jaxPanel(x,y,w){let b=RD.t(x,y+14,'JAX: state goes in and comes out',{fs:13,w:600,fill:'var(--ink)'});
+    const IN=[['params','var(--c1)'],['opt_state','var(--c3)'],['key','var(--c4)'],['x, y',null]],OUT=[['new params','var(--c1)'],['new opt_state','var(--c3)'],['loss',null]];
+    const row=(items,yy)=>{const cw=(w-6*(items.length-1))/items.length;let r='';items.forEach((it,i)=>{const cx=x+i*(cw+6);r+=box(cx,yy,cw,26,it[1])+RD.t(cx+cw/2,yy+17,it[0],{a:'middle',fs:11.5,fill:'var(--ink)'})});return {r,cw}};
+    const iy=y+26,a1=row(IN,iy);b+=a1.r;
+    const by=iy+26+22,bh=62;b+=box(x,by,w,bh,'var(--acc)')+RD.t(x+10,by+18,'jax.jit(train_step): one pure function',{fs:12,w:600,fill:'var(--ink)'});
+    b+=box(x+10,by+28,w-20,24,'var(--c2)')+RD.t(x+w/2,by+44,w<400?'grads: a value inside':'grads = value_and_grad(loss_fn)(...): a value inside',{a:'middle',fs:11,fill:'var(--ink)'});
+    IN.forEach((_,i)=>{const cx=x+i*(a1.cw+6)+a1.cw/2;b+=arr(cx,iy+27,cx,by-3,IN[i][1])});
+    const oy=by+bh+22,a2=row(OUT,oy);b+=a2.r;OUT.forEach((_,i)=>{const cx=x+i*(a2.cw+6)+a2.cw/2;b+=arr(cx,by+bh+1,cx,oy-3,OUT[i][1])});
+    b+=RD.t(x,oy+26+16,'the caller passes them into the next step',{fs:11,fill:'var(--mute)'});
+    return {svg:b,h:oy+26+22-y}}
+  function draw(){const W=RD.width(el.parentElement),wide=W>=640,gap=28;
+    const defs='<defs><marker id="pjh-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--mute)"/></marker></defs>';
+    let svg,H;
+    if(wide){const pw=(W-gap)/2-2,a=torchPanel(1,2,pw),b=jaxPanel(pw+gap,2,pw);H=Math.max(a.h,b.h)+6;
+      svg=defs+a.svg+'<line x1="'+(pw+gap/2)+'" y1="4" x2="'+(pw+gap/2)+'" y2="'+(H-4)+'" stroke="var(--line)"/>'+b.svg}
+    else{const pw=W-2,a=torchPanel(1,2,pw),b=jaxPanel(1,a.h+22,pw);H=a.h+22+b.h+6;svg=defs+a.svg+'<line x1="0" y1="'+(a.h+11)+'" x2="'+W+'" y2="'+(a.h+11)+'" stroke="var(--line)"/>'+b.svg}
+    el.setAttribute('viewBox','0 0 '+W+' '+H);el.setAttribute('width',W);el.setAttribute('height',H);el.innerHTML=svg}
   draw();RD.onRender(draw);RD.onResize(draw)})();
 
-// ---- in one screen: stats
-(function(){const J=window.PJ,g=PJU.get,el=document.getElementById('pj-one-stats');if(!el)return;
-  const nDef=document.querySelectorAll('#pj-deftab tbody tr').length-document.querySelectorAll('#pj-deftab tbody td.pj-grp').length;
-  const newRuns=Object.values(J.hunt.variants).filter(v=>v.src.indexOf('this page')===0).length;
-  el.innerHTML=RD.stat('Logits, correct port',PJU.fmt(g('hunt.variants.correct.rungs.logits'),'s2'),'largest logit '+PJU.fmt(J.hunt.ref.max_abs_logit,'f2'))+
-    RD.stat('Defaults that differ',nDef,'each measured alone (section 2)')+
-    RD.stat('Port variants trained',Object.keys(J.hunt.variants).length-1,newRuns+' new here, 7 reused from the root')+
-    RD.stat('Weights round trip','bit for bit',J.convert.n_tensors+' tensors, '+J.convert.n_transposed+' transposed')+
-    RD.stat('GPT-2 by hand',PJU.fmt(J.gpt2.logits_maxdiff,'s2'),'max logit gap at |logit| '+PJU.fmt(J.gpt2.max_abs_logit,'f0'))+
-    RD.stat('Twins after '+J.root.twin_steps+' steps',PJU.fmt(J.root.twin_max_abs.torch_vs_jax,'s2'),'largest training-loss gap (root run)')})();
+// ---- section 1: the two twins' code, one difference per step (lines highlighted in both panes; captions are static HTML)
+(function(){const card=document.getElementById('pj-cs-card');if(!card)return;
+  const lines=[...card.querySelectorAll('.pj-lines div')],caps=[...document.querySelectorAll('#pj-cs-cap>div')];
+  function draw(i){lines.forEach(d=>{const s=(d.dataset.s||'').split(' ').filter(Boolean);const on=i===0?s.length>0:s.indexOf(String(i))>=0;
+      d.classList.toggle('on',on);d.classList.toggle('dim',i>0&&!on)});
+    caps.forEach(c=>c.hidden=+c.dataset.i!==i)}
+  RD.anim({card:'pj-cs-card',ctl:'pj-cs-ctl',n:6,draw,ms:4500,label:'Difference'})})();
 
 // ---- conversion stats
 (function(){const J=window.PJ.convert,el=document.getElementById('pj-conv-stats');if(!el)return;
@@ -777,7 +879,7 @@ window.PJV=(function(){
   draw();RD.onRender(draw);RD.onResize(draw);
   const f=v=>PJU.fmt(v,'f4'),sm=PJ.dropout.summary;
   cap.innerHTML='Validation after 300 steps (dropout off for evaluation): PyTorch '+f(D.torch.val_300)+', JAX fresh keys '+f(D.jax_fresh.val_300)+(D.jax_fresh_seed1?', JAX another seed '+f(D.jax_fresh_seed1.val_300):'')+', JAX reused key '+f(D.jax_reuse.val_300)+', no dropout '+f(D.jax_off.val_300)+
-    '. Step 0 differs by '+PJU.fmt(sm.step0_torch_vs_jax_fresh,'s2')+' already (different masks). The PyTorch and JAX dropout runs differ in validation loss by '+PJU.fmt(Math.abs(D.torch.val_300-D.jax_fresh.val_300),'s2')+', less than two JAX seeds differ from each other ('+PJU.fmt(Math.abs(sm.val_seed_noise),'s2')+'): that is the test a dropout port can pass. The reused key trains one fixed sub-network instead of a fresh one each step; at 300 steps its validation loss is still within seed noise, so a loss curve will not catch it: check that the masks change between steps. Evaluating with dropout left on (the forgotten <code>model.eval()</code>) gives '+f(D.torch.val_300_dropout_left_on)+' instead of '+f(D.torch.val_300)+' for PyTorch. Measured on Apple M1 Pro (CPU), <code>src/runs/pj_dropout.py</code>.'})();
+    '. Step 0 differs by '+PJU.fmt(sm.step0_torch_vs_jax_fresh,'s2')+' already (different masks). The PyTorch and JAX dropout runs differ in validation loss by '+PJU.fmt(Math.abs(D.torch.val_300-D.jax_fresh.val_300),'s2')+', less than two JAX seeds differ from each other ('+PJU.fmt(Math.abs(sm.val_seed_noise),'s2')+'): that is the test a dropout port can pass. The reused key trains one fixed sub-network instead of a fresh one each step; at 300 steps its validation loss is still within seed noise, so a loss curve will not catch it. Evaluating with dropout left on (the forgotten <code>model.eval()</code>) gives '+f(D.torch.val_300_dropout_left_on)+' instead of '+f(D.torch.val_300)+' for PyTorch. Measured on Apple M1 Pro (CPU), <code>src/runs/pj_dropout.py</code>.'})();
 </script>
 <script>/* 25_js_pj_read2.js */
 // ---- PyTorch to JAX page: the ladder animation, tolerances, float64, drift, GPT-2, mistakes, interview questions.
@@ -801,7 +903,7 @@ window.PJV=(function(){
         h+='<div class="rl">'+r[1]+'<br><span class="mute small">&le; '+r[2].toExponential().replace('e-','e-')+'</span></div><div class="c '+cls(a)+(cur?' cur':'')+'">'+(show?txt(a):'?')+'</div><div class="c '+cls(b)+(cur?' cur':'')+'">'+(show?txt(b):'?')+'</div>'});
       lad.innerHTML=h;
       let m;
-      if(i===0)m='Both ports start from the PyTorch twin\'s initial weights and see batch 0. Each step compares one more thing with PyTorch; press play or step.';
+      if(i===0)m='Both ports start from the PyTorch twin\'s initial weights and see batch 0. Each step compares one more thing with PyTorch; press play or step. Change the port to see where a different bug first fails.';
       else{const r=RUNGS[i-1],b=val(v,r[0]),ok=pass(b,r[2]);
         const first=RUNGS.findIndex(rr=>!pass(val(v,rr[0]),rr[2]));
         m='<b>'+r[1]+'</b> checks '+r[3]+'. This port: '+txt(b)+(ok?', within the threshold.':', <b>fails</b>.')+(i-1===first?' This is the first failing rung: look at '+r[3]+'.':'');
@@ -809,7 +911,7 @@ window.PJV=(function(){
           if(r[0]==='curve'&&(v.rungs.step1!=null&&v.rungs.step1<5e-5&&v.rungs.step1>1e-6))m+=' Note the one-step rung: Adam\'s first update is the learning rate times the sign of the gradient, so it hides how large a gradient difference was.'}}
       cap.innerHTML=m}
     const a=RD.anim({card:'pj-lad-card',ctl:'pj-lad-ctl',n:RUNGS.length+1,draw,ms:1500,label:'Ladder rung'});
-    sel.value='ln_eps';sel.addEventListener('change',()=>{a.reset(RUNGS.length+1);a.play()});a.redraw()}
+    sel.value='ln_eps';sel.addEventListener('change',()=>a.reset(RUNGS.length+1));a.redraw()}
 
   // ---------------- tolerance table by dtype
   const tol=document.getElementById('pj-tol');
@@ -880,7 +982,50 @@ window.PJV=(function(){
       ['How do you test a port of a model that uses dropout?','Turn dropout off and run the whole ladder; masks come from different generators and can never match. Then turn it on and compare statistics against seed-to-seed variation, and check keys are not reused and eval mode is set.'],
       ['Design: your team will move a 7B PyTorch training codebase to TPUs. Plan the port.','1) Try torchax or PyTorch/XLA (TorchTPU when public) to see if the model runs at all and what it costs; 2) if porting, pick the target (MaxText or Tunix configs before hand-written code); 3) write the weight conversion as a rule with shape asserts and a bitwise round trip; 4) list every default (norm epsilon, activation, init, masks, optimiser decay and mask, clipping, schedule count, loss reduction) and set them explicitly; 5) ladder test on CPU in float32 and float64 on a small config, then on one TPU host with HIGHEST precision; 6) short twin runs, judged against seed variation; 7) only then bfloat16 and sharding, each its own comparison.'],
       ['When would you not port?','When the gain is not in JAX: GPU serving (vLLM, SGLang are PyTorch-first), dependence on PyTorch-only kernels, a codebase you only read, or a one-off TPU trial that torchax can run. Porting buys the compiler, sharding and TPU ecosystem at the cost of a second code base and a test you must keep.']];
-    iq.innerHTML=Q.map(q=>'<details class="pj-box"><summary><b>'+q[0]+'</b></summary><p class="small">'+q[1]+'</p></details>').join('')}
+    iq.innerHTML=Q.map(q=>'<p><b>'+q[0]+'</b><br><span class="small">'+q[1]+'</span></p>').join('')}
+})();
+</script>
+<script>/* 26_js_pj_conv.js */
+// ---- Reading section 3 (moved from the old Weight conversion tab, 2026-10-23): a transpose animation on a real tile, and the real name map
+(function(){if(!document.getElementById('pjwc-tile'))return;
+  const C=window.PJ.convert,G=window.PJ.gpt2,esc=RD.esc;
+  // ---------------- the tile animation
+  let src='lin';const el=document.getElementById('pjwc-tile'),cap=document.getElementById('pjwc-cap');
+  const R=6,K=8;
+  function colr(v,m){const t=Math.max(-1,Math.min(1,v/m));const a=Math.abs(t);return t<0?'color-mix(in srgb,var(--c1) '+(15+70*a).toFixed(0)+'%,var(--bg))':'color-mix(in srgb,var(--c2) '+(15+70*a).toFixed(0)+'%,var(--bg))'}
+  function draw(i){const W=RD.width(el),tile=src==='lin'?C.tile.torch_corner:G.tile.stored_corner;
+    const m=Math.max(...tile.flat().map(Math.abs));const gap=W<520?18:40;const cs=Math.max(18,Math.min(46,Math.floor((W-gap-20)/(K+R))));
+    const ox2=10+K*cs+gap,Hh=Math.max(R,K)*cs+40;let b='';
+    b+=RD.t(10,14,src==='lin'?'as stored by PyTorch: [out, in]':'as stored by Conv1D: [in, out]',{fs:11,fill:'var(--mute)'})+RD.t(ox2,14,src==='lin'?'as Flax needs it: [in, out]':'as JAX needs it: [in, out]',{fs:11,fill:'var(--mute)'});
+    // left: the stored matrix; rows already moved fade
+    for(let r=0;r<R;r++)for(let c=0;c<K;c++){const moved=src==='lin'?r<i:true;const v=tile[r][c];
+      b+='<rect x="'+(10+c*cs)+'" y="'+(22+r*cs)+'" width="'+(cs-2)+'" height="'+(cs-2)+'" rx="3" fill="'+colr(v,m)+'" opacity="'+(moved&&src==='lin'?0.25:1)+'" stroke="'+(src==='lin'&&r===i-1?'var(--acc)':'none')+'"/>';
+      if(cs>=34)b+=RD.t(10+c*cs+cs/2-1,22+r*cs+cs/2+3,v.toFixed(2),{a:'middle',fs:9})}
+    // right: the target layout, filled as rows arrive (row r of PyTorch becomes column r)
+    const n=src==='lin'?Math.min(i,R):R,tr=src==='lin';
+    const rr=tr?K:R,cc=tr?R:K;
+    for(let r=0;r<rr;r++)for(let c=0;c<cc;c++){const has=tr?c<n:true;const v=tr?tile[c][r]:tile[r][c];
+      b+='<rect x="'+(ox2+c*cs)+'" y="'+(22+r*cs)+'" width="'+(cs-2)+'" height="'+(cs-2)+'" rx="3" fill="'+(has?colr(v,m):'var(--soft)')+'" stroke="'+(tr&&c===n-1&&i>0&&i<=R?'var(--acc)':'var(--line)')+'"/>';
+      if(has&&cs>=34)b+=RD.t(ox2+c*cs+cs/2-1,22+r*cs+cs/2+3,v.toFixed(2),{a:'middle',fs:9})}
+    el.innerHTML=RD.svg(Math.max(W,ox2+Math.max(cc,K)*cs+10),Hh,b,'tile transpose');
+    if(src==='lin')cap.innerHTML=i===0?'PyTorch stores <code>'+esc(C.tile.name)+'</code> as [out, in] = [128, 128] and computes x W<sup>T</sup>. Flax\'s kernel is [in, out] and computes x W. Press play: each stored row becomes a column.':
+      (i<=R?'Row '+(i-1)+' of the PyTorch weight (output feature '+(i-1)+'\'s weights over the inputs) becomes column '+(i-1)+' of the Flax kernel. This matrix is square, so if you forget the transpose nothing complains: the logits come out wrong by '+PJU.fmt(PJ.hunt.variants.transpose.rungs.logits,'s2')+' (Divergence hunter).':'Done: all '+C.n_transposed+' Linear kernels get this treatment; biases, LayerNorm scales and embeddings are copied as they are.');
+    else cap.innerHTML='GPT-2\'s <code>'+esc(G.tile.name)+'</code> is a Hugging Face Conv1D weight, stored [in, out] already: the JAX port uses it as stored, and nothing moves. Transposing it "because it is PyTorch" makes the logits wrong by '+PJU.fmt(G.mistakes.transpose.logits_maxdiff,'s2')+'; the non-square c_attn and c_fc would fail on shape instead.'}
+  const a=PJU.anim({card:'pjwc-card',ctl:'pjwc-ctl',n:R+2,draw,ms:1100,label:'Row'});RD.onResize(()=>a.redraw());
+  RD.seg(document.getElementById('pjwc-src'),m=>{src=m;a.reset(m==='lin'?R+2:1)});
+  // ---------------- the name list
+  const names=document.getElementById('pjwc-names'),det=document.getElementById('pjwc-det');let filt='all';
+  function list(){let rows;
+    if(filt==='gpt2')rows=G.tensors_shown.map(t=>({torch:t.name,ts:t.shape,nnx:'(same name, same layout)',ns:t.shape,tr:false,g:true}));
+    else rows=C.tensors.filter(t=>filt==='all'||t.transpose).map(t=>({torch:t.torch,ts:t.torch_shape,nnx:t.nnx,ns:t.nnx_shape,tr:t.transpose,n:t.n}));
+    names.innerHTML=rows.map((r,i)=>'<div class="'+(r.tr?'tr':'')+'" data-i="'+i+'" tabindex="0"><span>'+esc(r.torch)+'</span><span class="sh">'+r.ts.join('x')+'</span><span class="ar">'+(r.tr?'&#8635;':'&rarr;')+'</span><span>'+esc(r.nnx)+'</span><span class="sh">'+r.ns.join('x')+'</span></div>').join('');
+    names._rows=rows}
+  names.addEventListener('click',e=>{const d=e.target.closest('div[data-i]');if(!d)return;names.querySelectorAll('div.on').forEach(x=>x.classList.remove('on'));d.classList.add('on');
+    const r=names._rows[+d.dataset.i];
+    det.innerHTML=r.g?'<b>'+esc(r.torch)+'</b> '+r.ts.join(' x ')+(/c_attn\.weight|c_fc\.weight|c_proj\.weight/.test(r.torch)?': a Conv1D weight, already [in, out]; used as stored.':/wte/.test(r.torch)?': the token embedding, and (transposed in the matmul, x @ wte.T) the output head too.':': copied as stored.'):
+      '<dl><dt>PyTorch</dt><dd><code>'+esc(r.torch)+'</code> '+r.ts.join(' x ')+'</dd><dt>Flax NNX</dt><dd><code>'+esc(r.nnx)+'</code> '+r.ns.join(' x ')+'</dd><dt>rule</dt><dd>'+(r.tr?'kernel &larr; weight<sup>T</sup> (a Linear layer)':/scale$/.test(r.nnx)?'scale &larr; weight (LayerNorm)':/embedding$/.test(r.nnx)?'embedding &larr; weight':'bias &larr; bias')+'</dd><dt>elements</dt><dd>'+(r.n||0).toLocaleString('en-US')+'</dd></dl>'});
+  RD.seg(document.getElementById('pjwc-filter'),m=>{filt=m;list();det.textContent='Click a row.'});
+  list();
 })();
 </script>
 <script>/* 31_js_pjdh.js */
@@ -919,54 +1064,6 @@ window.PJV=(function(){
   const cpu=keys.filter(k=>V[k].cpu_s).map(k=>V[k].cpu_s);document.getElementById('pjdh-time').textContent=Math.round(Math.min(...cpu))+' to '+Math.round(Math.max(...cpu))+' s';
 })();
 </script>
-<script>/* 32_js_pjwc.js */
-// ---- Weight conversion tab: the real name map and a transpose animation on a real tile
-(function(){
-  const C=window.PJ.convert,G=window.PJ.gpt2,esc=RD.esc;
-  // ---------------- the tile animation
-  let src='lin';const el=document.getElementById('pjwc-tile'),cap=document.getElementById('pjwc-cap');
-  const R=6,K=8;
-  function colr(v,m){const t=Math.max(-1,Math.min(1,v/m));const a=Math.abs(t);return t<0?'color-mix(in srgb,var(--c1) '+(15+70*a).toFixed(0)+'%,var(--bg))':'color-mix(in srgb,var(--c2) '+(15+70*a).toFixed(0)+'%,var(--bg))'}
-  function draw(i){const W=RD.width(el),tile=src==='lin'?C.tile.torch_corner:G.tile.stored_corner;
-    const m=Math.max(...tile.flat().map(Math.abs));const gap=W<520?18:40;const cs=Math.max(18,Math.min(46,Math.floor((W-gap-20)/(K+R))));
-    const ox2=10+K*cs+gap,Hh=Math.max(R,K)*cs+40;let b='';
-    b+=RD.t(10,14,src==='lin'?'as stored by PyTorch: [out, in]':'as stored by Conv1D: [in, out]',{fs:11,fill:'var(--mute)'})+RD.t(ox2,14,src==='lin'?'as Flax needs it: [in, out]':'as JAX needs it: [in, out]',{fs:11,fill:'var(--mute)'});
-    // left: the stored matrix; rows already moved fade
-    for(let r=0;r<R;r++)for(let c=0;c<K;c++){const moved=src==='lin'?r<i:true;const v=tile[r][c];
-      b+='<rect x="'+(10+c*cs)+'" y="'+(22+r*cs)+'" width="'+(cs-2)+'" height="'+(cs-2)+'" rx="3" fill="'+colr(v,m)+'" opacity="'+(moved&&src==='lin'?0.25:1)+'" stroke="'+(src==='lin'&&r===i-1?'var(--acc)':'none')+'"/>';
-      if(cs>=34)b+=RD.t(10+c*cs+cs/2-1,22+r*cs+cs/2+3,v.toFixed(2),{a:'middle',fs:9})}
-    // right: the target layout, filled as rows arrive (row r of PyTorch becomes column r)
-    const n=src==='lin'?Math.min(i,R):R,tr=src==='lin';
-    const rr=tr?K:R,cc=tr?R:K;
-    for(let r=0;r<rr;r++)for(let c=0;c<cc;c++){const has=tr?c<n:true;const v=tr?tile[c][r]:tile[r][c];
-      b+='<rect x="'+(ox2+c*cs)+'" y="'+(22+r*cs)+'" width="'+(cs-2)+'" height="'+(cs-2)+'" rx="3" fill="'+(has?colr(v,m):'var(--soft)')+'" stroke="'+(tr&&c===n-1&&i>0&&i<=R?'var(--acc)':'var(--line)')+'"/>';
-      if(has&&cs>=34)b+=RD.t(ox2+c*cs+cs/2-1,22+r*cs+cs/2+3,v.toFixed(2),{a:'middle',fs:9})}
-    el.innerHTML=RD.svg(Math.max(W,ox2+Math.max(cc,K)*cs+10),Hh,b,'tile transpose');
-    if(src==='lin')cap.innerHTML=i===0?'PyTorch stores <code>'+esc(C.tile.name)+'</code> as [out, in] = [128, 128] and computes x W<sup>T</sup>. Flax\'s kernel is [in, out] and computes x W. Press play: each stored row becomes a column.':
-      (i<=R?'Row '+(i-1)+' of the PyTorch weight (output feature '+(i-1)+'\'s weights over the inputs) becomes column '+(i-1)+' of the Flax kernel. This matrix is square, so if you forget the transpose nothing complains: the logits come out wrong by '+PJU.fmt(PJ.hunt.variants.transpose.rungs.logits,'s2')+' (Divergence hunter).':'Done: all '+C.n_transposed+' Linear kernels get this treatment; biases, LayerNorm scales and embeddings are copied as they are.');
-    else cap.innerHTML='GPT-2\'s <code>'+esc(G.tile.name)+'</code> is a Hugging Face Conv1D weight, stored [in, out] already: the JAX port uses it as stored, and nothing moves. Transposing it "because it is PyTorch" makes the logits wrong by '+PJU.fmt(G.mistakes.transpose.logits_maxdiff,'s2')+'; the non-square c_attn and c_fc would fail on shape instead.'}
-  const a=PJU.anim({card:'pjwc-card',ctl:'pjwc-ctl',n:R+2,draw,ms:1100,label:'Row'},'t-pjwc');
-  RD.seg(document.getElementById('pjwc-src'),m=>{src=m;a.reset(m==='lin'?R+2:1)});
-  PJU.onResize('t-pjwc',()=>a.redraw());
-  // ---------------- the name list
-  const names=document.getElementById('pjwc-names'),det=document.getElementById('pjwc-det');let filt='all';
-  function list(){let rows;
-    if(filt==='gpt2')rows=G.tensors_shown.map(t=>({torch:t.name,ts:t.shape,nnx:'(same name, same layout)',ns:t.shape,tr:false,g:true}));
-    else rows=C.tensors.filter(t=>filt==='all'||t.transpose).map(t=>({torch:t.torch,ts:t.torch_shape,nnx:t.nnx,ns:t.nnx_shape,tr:t.transpose,n:t.n}));
-    names.innerHTML=rows.map((r,i)=>'<div class="'+(r.tr?'tr':'')+'" data-i="'+i+'" tabindex="0"><span>'+esc(r.torch)+'</span><span class="sh">'+r.ts.join('x')+'</span><span class="ar">'+(r.tr?'&#8635;':'&rarr;')+'</span><span>'+esc(r.nnx)+'</span><span class="sh">'+r.ns.join('x')+'</span></div>').join('');
-    names._rows=rows}
-  names.addEventListener('click',e=>{const d=e.target.closest('div[data-i]');if(!d)return;names.querySelectorAll('div.on').forEach(x=>x.classList.remove('on'));d.classList.add('on');
-    const r=names._rows[+d.dataset.i];
-    det.innerHTML=r.g?'<b>'+esc(r.torch)+'</b> '+r.ts.join(' x ')+(/c_attn\.weight|c_fc\.weight|c_proj\.weight/.test(r.torch)?': a Conv1D weight, already [in, out]; used as stored.':/wte/.test(r.torch)?': the token embedding, and (transposed in the matmul, x @ wte.T) the output head too.':': copied as stored.'):
-      '<dl><dt>PyTorch</dt><dd><code>'+esc(r.torch)+'</code> '+r.ts.join(' x ')+'</dd><dt>Flax NNX</dt><dd><code>'+esc(r.nnx)+'</code> '+r.ns.join(' x ')+'</dd><dt>rule</dt><dd>'+(r.tr?'kernel &larr; weight<sup>T</sup> (a Linear layer)':/scale$/.test(r.nnx)?'scale &larr; weight (LayerNorm)':/embedding$/.test(r.nnx)?'embedding &larr; weight':'bias &larr; bias')+'</dd><dt>elements</dt><dd>'+(r.n||0).toLocaleString('en-US')+'</dd></dl>'});
-  RD.seg(document.getElementById('pjwc-filter'),m=>{filt=m;list();det.textContent='Click a row.'});
-  list();
-  document.getElementById('pjwc-checks').innerHTML=RD.stat('Names used',C.n_tensors+' of '+C.n_tensors,'unused PyTorch keys: '+(C.unused_torch_keys.length||'none'))+
-    RD.stat('Logits, PyTorch vs converted NNX',PJU.fmt(C.torch_to_nnx_logits_maxdiff,'s2'),'argmax agreement '+PJU.fmt(C.torch_to_nnx_argmax_agree,'pct'))+
-    RD.stat('NNX back to PyTorch',C.roundtrip_bitwise_equal?'bit for bit':'differs','strict load: '+C.roundtrip_strict_load)+
-    RD.stat('safetensors file',(C.file_bytes/1e6).toFixed(2)+' MB','header '+C.header_bytes.toLocaleString('en-US')+' bytes');
-})();
-</script>
 <script>/* 33_js_pjdr.js */
 // ---- Port drills tab: real snippets and their real outputs (src/runs/out/drills.json)
 (function(){
@@ -991,7 +1088,7 @@ window.PJV=(function(){
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace pj-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1009,6 +1106,8 @@ window.PJV=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('pj-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>
