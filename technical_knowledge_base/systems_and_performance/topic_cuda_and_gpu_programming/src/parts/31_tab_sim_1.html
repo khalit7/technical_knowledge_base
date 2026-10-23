@@ -51,7 +51,7 @@
 @media (max-width:520px){#t-sim .sim-gl{grid-template-columns:minmax(0,1fr)}#t-sim .sim-gl dd{margin:0 0 6px}}
 </style>
 
-<p class="sim-lead">Six small machines that show what the GPU does with the code you write: how a warp runs a branch, how 32 addresses turn into memory traffic, how shared memory's banks serialise, how many warps fit on an SM, how warps hide memory latency, and why tiles make a matmul fast. Each runs in your browser, step by step, on one input you can change. Where the Apple M1 Pro GPU this page was built on can show the same effect for real, the measured number sits next to the simulation.</p>
+<p class="sim-lead">Three small machines that show how an SM runs the code you write: how a warp runs a branch, how many warps fit on an SM, and how warps hide memory latency. Coalescing, shared-memory banks, the 32 by 32 transpose and tiling, with their M1 Pro measurements, are taught where they are owned: {{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}}, sections 1, 3 and 4. Each runs in your browser, step by step, on one input you can change. Where the Apple M1 Pro GPU this page was built on can show the same effect for real, the measured number sits next to the simulation.</p>
 
 <div class="sim-leg"><span><span class="sim-tag sim">SIMULATED</span>a deterministic model of the rule NVIDIA documents, checked case by case against a Python reference</span><span><span class="sim-tag meas">MEASURED</span>timed on the Apple M1 Pro GPU (16 cores) with custom Metal kernels</span><span><span class="sim-tag doc">PUBLISHED</span>NVIDIA documentation or an independent paper, dated</span><span><span class="sim-tag der">DERIVED</span>computed from the above with the formula shown</span></div>
 
@@ -68,7 +68,7 @@
 </dl></div></details>
 
 <div class="sim-chips" role="navigation" aria-label="Simulators on this tab">
-<button data-sim-go="sim-s1">1 Divergence</button><button data-sim-go="sim-s2">2 Coalescing</button><button data-sim-go="sim-s3">3 Bank conflicts</button><button data-sim-go="sim-s4">4 Occupancy</button><button data-sim-go="sim-s5">5 Latency hiding</button><button data-sim-go="sim-s6">6 Tiling and reuse</button><button data-sim-go="sim-s7">Interview questions</button>
+<button data-sim-go="sim-s1">1 Divergence</button><button data-sim-go="sim-s4">2 Occupancy</button><button data-sim-go="sim-s5">3 Latency hiding</button><button data-sim-go="sim-s7">Interview questions</button>
 </div>
 
 <!-- ============================ 1 DIVERGENCE ============================ -->
@@ -105,40 +105,4 @@
 <p style="margin:0">Check in Nsight Compute: the Source Counters section reports branch efficiency per line; <code>derived__avg_thread_executed</code> (thread instructions per warp instruction) is 32 when no lane is ever idle (<a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Nsight Compute Profiling Guide</a>, last updated 2026-08-27).</p></div>
 </section>
 
-<!-- ============================ 2 COALESCING ============================ -->
-<section id="sim-s2">
-<h2>2. Thirty-two addresses become memory traffic: coalescing</h2>
-<p><b>The problem.</b> When a warp executes a load, its 32 lanes each ask for one address. Memory is not delivered address by address: "global memory is accessed via 32-byte memory transactions", and the warp combines (<b>coalesces</b>) its 32 requests into as few 32-byte pieces, called <b>sectors</b>, as it can (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html#coalesced-global-memory-access" target="_blank" rel="noopener noreferrer">Programming Guide 2.3.4.1</a>). Four sectors make a 128-byte cache line. If neighbouring lanes read neighbouring 4-byte words, 32 lanes need 128 bytes, exactly 4 sectors: 100% of what moves is used. If they read words 32 bytes or more apart, every lane needs its own sector: 1,024 bytes move to deliver 128, which the guide calls "12.5%" utilisation.</p>
-<p><b>How to read the picture.</b> Each row is one 128-byte line of memory, cut into 4 sectors (thick borders) of 8 words. A coloured word was requested by a lane (hover or tap for its lane number); every sector that holds at least one requested word is shaded and moves in full. Only lines the warp touches are drawn.</p>
-<div class="card" id="sim-coal-card">
-<div class="sim-bar">
-<label>Pattern <select id="sim-coal-pat" aria-label="Access pattern"><option value="contiguous">a[i]: consecutive</option><option value="offset">a[i + k]: shifted by k elements</option><option value="stride" selected>a[i * s]: stride s</option><option value="column">a[i * W]: a column of a row-major W-wide matrix</option><option value="random">a[random]: a gather</option><option value="broadcast">a[0]: every lane the same address</option></select></label>
-<label id="sim-coal-plab">s = <input type="range" id="sim-coal-par" min="1" max="40" value="2" aria-label="Pattern parameter"> <b id="sim-coal-parv">2</b></label>
-</div>
-<div class="sim-bar"><span class="small mute">Element size</span><div class="seg" id="sim-coal-el" role="group" aria-label="Element size"><button data-m="2">2 B (bf16)</button><button data-m="4" class="on">4 B (float)</button><button data-m="8">8 B (double, float2)</button><button data-m="16">16 B (float4)</button></div></div>
-<div class="sim-fig" id="sim-coal-fig"></div>
-<div class="sim-out" id="sim-coal-out"></div>
-<div class="sim-note" id="sim-coal-note"></div>
-</div>
 
-<h3>Before and after on one input: transposing a 32 by 32 tile</h3>
-<p>Transposing a matrix reads rows and writes columns, so one of the two sides is always strided. The guide's fix is to stage the tile in shared memory: read a row of input, write it into shared memory, wait at <code>__syncthreads()</code>, then read a column of the shared tile and write it out as a row, so both global sides are coalesced (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html#matrix-transpose-example-using-shared-memory" target="_blank" rel="noopener noreferrer">Programming Guide 2.3.4.2.1</a>; <a href="https://developer.nvidia.com/blog/efficient-matrix-transpose-cuda-cc/" target="_blank" rel="noopener noreferrer">Harris, 2013</a>). The animation moves one 32 by 32 fp32 tile of a 4,096-wide matrix, one warp instruction (one row of 32 lanes) per step.</p>
-<div class="card" id="sim-tr-card">
-<div class="sim-bar"><div class="seg" id="sim-tr-mode" role="group" aria-label="Naive or staged"><button data-m="naive" class="on">Before: naive</button><button data-m="tiled">After: staged in shared memory</button></div></div>
-<div class="sim-fig" id="sim-tr-fig"></div>
-<div class="sim-ctl" id="sim-tr-ctl"></div>
-<div class="sim-cap" id="sim-tr-cap"></div>
-<div class="sim-out" id="sim-tr-out"></div>
-</div>
-
-<div class="sim-meas" id="sim-coal-meas"><h4><span class="sim-tag meas">MEASURED</span>Strided reads and the transpose on the Apple M1 Pro GPU</h4><div id="sim-coal-meas-body"></div></div>
-
-<div class="sim-xfer"><h4>What transfers, what does not</h4>
-<ul class="tight"><li><b>Transfers:</b> neighbouring threads should touch neighbouring addresses. On both GPUs a stride costs bandwidth and a random gather is the worst case.</li>
-<li><b>Does not transfer:</b> the exact curve. NVIDIA documents 32-byte sectors, so the simulator's efficiency stops falling at a stride of 32 bytes (8 floats): beyond that each lane already has its own sector. The M1 kept slowing past that point, halving with each doubling of the stride, which says its memory system moves larger pieces than 32 bytes for scattered requests; Apple does not document the size, so the page does not guess it.</li>
-<li><b>Misalignment</b> (the <code>a[i + 1]</code> case) costs at most one extra sector per warp in the model and was free within noise on the M1.</li></ul></div>
-
-<div class="sim-chk"><h4>When it matters for training, and how to check</h4>
-<p style="margin:0 0 6px">Every elementwise, normalisation, activation, optimizer and softmax kernel is limited by memory bandwidth, so wasted sectors are wasted time. It shows up as layout: a transposed or sliced tensor whose last dimension is not contiguous (PyTorch's <code>.is_contiguous()</code> is False and a kernel may copy it first), channels-first against channels-last convolutions, or a hand-written kernel whose thread index walks the slow dimension.</p>
-<p style="margin:0">Check in Nsight Compute: the Memory Workload Analysis tables give <b>Sectors/Req</b>; with 32 active lanes "the optimal ratios per access size are: 32-bit: 4, 64-bit: 8, 128-bit: 16", and 32 for 32-bit loads means every lane hit its own sector (<a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide</a>). The simulator's "sectors" card is that number for one request.</p></div>
-</section>

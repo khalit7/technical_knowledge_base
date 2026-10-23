@@ -8,4 +8,4 @@
 - `check/check_read.mjs` (from the repo root): puppeteer, every control at 390 px dark and 920 px light; errors, NaN, undefined, sideways scroll; screenshots.
 - `viz_ideas.md`: visuals built and rejected.
 
-Reading parts: `../parts/20_read.html` (tab wrapper, CSS, section nav), `20_read_a.html` to `20_read_i.html`, `23_js_rd_journey.js`, `24_js_rd_grid.js`, `25_js_rd_mem.js`, `26_js_rd_ladder.js`, `27_js_rd_fuse.js`, `22_js_rd_data.js` (generated); Further reading `39_tab_more.html`.
+Reading parts (since the 2026-10-23 rebuild, see `../README.md`): `../parts/20_read.html` (tab wrapper, CSS, section nav), `20_read_a.html` (top and section 1) to `20_read_f.html` (section 10), `21_js_rd_common.js` (skill template), `23_js_rd_journey.js`, `27_js_rd_fuse.js`, `22_js_rd_data.js` (generated); Further reading `39_tab_more.html`. Retired parts (`20_read_g` to `20_read_i`, `24_js_rd_grid.js`, `25_js_rd_mem.js`, `26_js_rd_ladder.js`) are in `../retired/parts/`; `summarize.py` still rewrites the `data-rdv` spans of whatever Reading parts exist.

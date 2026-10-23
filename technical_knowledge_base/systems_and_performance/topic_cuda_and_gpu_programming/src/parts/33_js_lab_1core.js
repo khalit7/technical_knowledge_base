@@ -45,7 +45,7 @@ window.LABX=(function(){
     demoRow:()=>{const r=calc.rng(7);const s=[],v=[];for(let i=0;i<32;i++){s.push(Math.round((r()*6-2+(i===13?3:0)+(i===27?4:0))*100)/100);v.push(Math.round((r()*2-1)*100)/100)}return {s,v}}
   };
   // ---- step-animation controller (play, pause, step, scrub, speed); animates only while on screen in the
-  // visible tab; plays once when first scrolled into view; never autoplays under prefers-reduced-motion ----
+  // visible tab; never moves before the reader acts (2026-10-23) ----
   function anim(o){
     const card=$(o.card),ctl=$(o.ctl);
     const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
@@ -69,7 +69,7 @@ window.LABX=(function(){
     g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{es.forEach(e=>{st.vis=e.isIntersecting;
-      if(st.vis&&!st.started&&!RM&&visible()){st.started=true;setPlay(true)}else if(st.vis&&st.play&&!st.timer){st.timer=setTimeout(tick,400)}})},{threshold:.3}).observe(card)}
+      if(st.vis&&st.play&&!st.timer){st.timer=setTimeout(tick,400)}})},{threshold:.3}).observe(card)}
     document.addEventListener('visibilitychange',()=>{if(!document.hidden&&st.play&&!st.timer)st.timer=setTimeout(tick,400)});
     return {reset(n){setPlay(false);st.n=n;st.i=0;show()},show,setPlay,get i(){return st.i},get n(){return st.n}};
   }

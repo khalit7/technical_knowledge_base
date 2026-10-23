@@ -46,7 +46,7 @@
     document.getElementById('rd-jr-cnt').innerHTML=RD.stat('Kernel launches',M[mode].launch[i])+RD.stat('Memory traffic',(by/1048576).toFixed(0)+' MiB',rw+' passes of 256 MiB')+
       RD.stat('At H100 bandwidth',(by/BW_H100*1e3).toFixed(2)+' ms','bytes / 3.35 TB/s')+RD.stat('At M1 Pro softmax rate',(by/BW_M1*1e3).toFixed(1)+' ms','bytes / '+(BW_M1/1e9).toFixed(0)+' GB/s measured');
   }
-  RD.seg(document.getElementById('rd-jr-mode'),m=>{mode=m;an.reset(M[mode].steps.length);an.play()});
+  RD.seg(document.getElementById('rd-jr-mode'),m=>{mode=m;an.reset(M[mode].steps.length)});
   an=RD.anim({card:'rd-jr-card',ctl:'rd-jr-ctl',n:4,draw,ms:2200,label:'Timeline step'});
   RD.onResize(()=>an.redraw());
 })();
