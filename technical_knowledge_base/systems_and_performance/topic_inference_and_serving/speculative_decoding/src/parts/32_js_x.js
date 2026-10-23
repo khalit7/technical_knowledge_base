@@ -1,6 +1,6 @@
-// ---- Tab: Batch crossover lab (t-sdx) ----
+// ---- Reading section 5: the crossover cost model and the measured server runs (was the Batch crossover lab tab until 2026-10-23) ----
 (function(){
-  const D=SD.D,X=D.xover,tab=document.getElementById('t-sdx');if(!tab||!D.cost||!D.cost.q4b)return;
+  const D=SD.D,X=D.xover;if(!document.getElementById('sdx-svg')||!D.cost||!D.cost.q4b)return;
   const $=id=>document.getElementById(id);
   const CTX=[256,512,1024,2048,4096,8192,16384,32768];
   let hw='m1',pre=X?'d3':null;
@@ -37,7 +37,7 @@
     $('sdx-mnote').innerHTML='<span class="meas">measured here</span> Table: total tokens per second (mean of 2 repetitions) and, in brackets, the ratio to no draft at the same B. '+D.facts.xLoad;
   }
   if(X)SD.segs($('sdx-mm'),[['agg','Total tokens/s'],['user','Tokens/s per user']],'agg',m=>{mm=m;mdraw()});
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-sdx']=window.TAB_RENDER['t-sdx']||[]).push(()=>{draw();mdraw()});
-  addEventListener('resize',()=>{if(!tab.hidden){draw();mdraw()}});
+  RD.onRender(()=>{draw();mdraw()});RD.onResize(()=>{draw();mdraw()});
+  const det=$('sdx-msvg').closest('details');if(det)det.addEventListener('toggle',()=>{if(det.open)mdraw()});
   if(X&&pre)setPre(pre);else draw();mdraw();
 })();

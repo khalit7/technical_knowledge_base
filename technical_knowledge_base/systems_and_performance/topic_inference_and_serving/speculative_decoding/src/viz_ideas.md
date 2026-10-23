@@ -37,3 +37,12 @@ method it replaced (+1). Reproduce and compute count double; build cost subtract
 What the methodology lacked for this page: a rule for **statistical claims about exactness**. The test here states
 its sample size, the binning rule (expected count at least 5, the rest pooled), and includes a deliberately broken
 rule as a positive control, so a pass means something.
+
+## 2026-10-23 rebuild
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 13 | Hero: four tokens as four target passes against one draft-and-verify step, time to scale under stated illustrative costs (static annotated diagram) | Reading, top | built |
+| 14 | Alpha slider over expected tokens per pass for k = 1 to 8 with the cap 1/(1 - alpha); default lands on the worked example 3.36 (derived) | Reading 4 | built |
+| 5, 6, 4 | Moved from the Acceptance rule lab into Reading 3 and 4 (the exactness bars into a closed block) | Reading | moved |
+| 9 | Moved from the Batch crossover lab into Reading 5 (measured-run chart and table into a closed block) | Reading 5 | moved |
+| R6 | A stepper for draft, verify, accept | | rejected: the hero shows the step and the real step strip shows it on real text; a third drawing would repeat them |
