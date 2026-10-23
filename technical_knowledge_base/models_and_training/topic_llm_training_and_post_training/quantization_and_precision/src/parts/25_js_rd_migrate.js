@@ -99,7 +99,7 @@
     $('rd-mgN').innerHTML=h;
   }
   A=RD.anim({card:'rd-mg',ctl:'rd-mgC',n:5,draw,ms:2600,label:'Step'});
-  $('rd-mgM').addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(!b)return;mi=+b.dataset.i;A.reset(5);A.play()});
+  $('rd-mgM').addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(!b)return;mi=+b.dataset.i;A.reset(5)});
   $('rd-mgA').addEventListener('input',e=>{alpha=+e.target.value;$('rd-mgAv').textContent=alpha.toFixed(2);A.redraw()});
   addEventListener('resize',()=>A.redraw());
 })();

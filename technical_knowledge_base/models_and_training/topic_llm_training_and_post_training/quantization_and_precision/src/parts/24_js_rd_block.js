@@ -76,7 +76,7 @@
     else $('rd-bkX').hidden=true;
   }
   A=RD.anim({card:'rd-bk',ctl:'rd-bkC',n:5,draw,ms:2300,label:'Step'});
-  $('rd-bkM').addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(!b)return;mi=+b.dataset.i;A.reset(5);A.play()});
+  $('rd-bkM').addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(!b)return;mi=+b.dataset.i;A.reset(5)});
   $('rd-bkR').addEventListener('change',e=>{ri=+e.target.value;A.go(4)});
   $('rd-bkB').addEventListener('input',e=>{bi=+e.target.value;$('rd-bkBv').textContent=bi;A.go(4)});
   addEventListener('resize',()=>A.redraw());
