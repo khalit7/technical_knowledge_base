@@ -21,13 +21,6 @@ window.TKR=(function(){
   if($('tk-snTrain')){const r=N.sweep.find(x=>x.V_target===4096);
     $('tk-snTrain').textContent='tok = Tokenizer(models.BPE())\ntok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)\ntok.decoder = decoders.ByteLevel()\ntr = trainers.BpeTrainer(vocab_size=V, special_tokens=["<|endoftext|>"], min_frequency=2,\n                         initial_alphabet=pre_tokenizers.ByteLevel.alphabet(), show_progress=False)\ntok.train_from_iterator(train, trainer=tr)   # 529,875 TinyStories stories\ntok.save(path)';
     $('tk-snTrainOut').textContent='# recorded in src/out/bpe_sweep.json for V = 4096 (Apple M1 Pro, 4 threads)\nV '+r.V+', merges '+r.merges+', train_seconds '+r.train_seconds+', val_chars_per_token '+r.val_chars_per_token+',\nsame_as_committed '+(r.same_as_committed?'True':'False')+'   # sha256 of the saved file equals the committed tokenizer.json'}
-  // stats in one screen
-  if($('tk-overStats')){const r=N.bpe.run,s4=N.sweep.find(x=>x.V_target===4096);
-    $('tk-overStats').innerHTML=[RD.stat('Vocabulary',fmt(4096),'1 special + 256 bytes + '+fmt(N.bpe.n_merges)+' merges'),
-      RD.stat('Characters per token',s4.val_chars_per_token.toFixed(2),'TinyStories validation, '+fmt(N.sweepMeta.val_chars/1e6,1)+'M characters'),
-      RD.stat('Running text',fmt(r.n_tokens)+' tokens',fmt(r.chars)+' characters, '+(r.chars/r.n_tokens).toFixed(2)+' per token'),
-      RD.stat('Embedding table','1.05M','of 5.84M parameters (tied)'),
-      RD.stat('Never seen in training',fmt(N.freq.n_zero)+' entries','of 4,096, measured on 122M tokens')].join('')}
   // first merges
   if($('tk-mergeList')){const sp=s=>esc(s).replace(/ /g,'␣');
     $('tk-mergeList').innerHTML='<div class="tks">'+N.bpe.first.map(m=>'<span class="tk a" title="merge '+m.rank+': '+esc(m.a)+' + '+esc(m.b)+'"><span class="ws">'+m.rank+'</span> '+sp(m.new)+'</span>').join('')+'</div>'}

@@ -1,4 +1,4 @@
-// ---- Tab: Grow a vocabulary (replay the running example's merges, cost per size, inspect a string) ----
+// ---- Reading, BPE section: replay the running example's merges, cost per size; failure modes: inspect a string ----
 window.TKG=(function(){
   if(!window.TKN)return null;
   const B=window.TKN.bpe,M=B.merges,rank=new Map();M.forEach((p,r)=>rank.set(p[0]*8192+p[1],r));
@@ -52,7 +52,6 @@ window.TKG=(function(){
   $('tk-growK').addEventListener('input',e=>{k=+e.target.value;draw();insp()});
   RD.seg($('tk-growJump'),v=>{k=+v;draw();insp()});
   $('tk-inspIn').addEventListener('input',insp);
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-grow']=window.TAB_RENDER['t-grow']||[]).push(()=>{draw();insp()});
-  addEventListener('resize',()=>{if($('t-grow').offsetParent!==null)drawCost()});
+  RD.onRender(()=>{draw();insp()});RD.onResize(drawCost);
   draw();insp();
 })();

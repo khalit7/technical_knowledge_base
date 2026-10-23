@@ -1,4 +1,4 @@
-// ---- Tab: Vocabulary size (timeline, embedding share, calculator, tokens saved) ----
+// ---- Vocabulary timeline tab (timeline); Reading tab (embedding share, calculator, tokens saved) ----
 (function(){
   const {esc,fmt,TK,SHORT,LAB}=TKV,V=TD.voc,$=id=>document.getElementById(id);
   const FAMC={OpenAI:'var(--c2)','GPT-2':'var(--c2)','gpt-oss':'var(--c2)',Llama:'var(--c1)',Gemma:'var(--c3)',Qwen:'var(--c4)',DeepSeek:'var(--c6)',Mistral:'var(--c5)',Kimi:'var(--ib)'};
@@ -49,7 +49,7 @@
 
   // tokens saved
   const FL=TD.fl,ix=Object.fromEntries(TK.map((k,i)=>[k,4+i])),nV=Object.fromEntries(TD.tok.map(t=>[t.k,t.n]));
-  $('tk-vsL').innerHTML='<option value="all">All 204 languages</option><option value="noeng">All except English</option>'+FL.map(r=>'<option value="'+r[0]+'"'+(r[0]==='eng_Latn'?'':'')+'>'+esc(r[1])+'</option>').join('');
+  $('tk-vsL').innerHTML='<option value="all">All 204 languages</option><option value="noeng">All except English</option>'+FL.map(r=>'<option value="'+r[0]+'" label="'+esc(r[1])+'"></option>').join('');
   function drawS(){const el=$('tk-vsPlot'),W=RD.width(el),H=Math.round(Math.min(320,Math.max(230,W*0.45))),ml=42,mr=12,mt=12,mb=30,L=$('tk-vsL').value;
     const tot=k=>L==='all'?FL.reduce((s,r)=>s+r[ix[k]],0):L==='noeng'?FL.reduce((s,r)=>s+(r[0]==='eng_Latn'?0:r[ix[k]]),0):FL.find(r=>r[0]===L)[ix[k]];
     const eng=k=>FL.find(r=>r[0]==='eng_Latn')[ix[k]];
@@ -66,7 +66,7 @@
     $('tk-vsNote').innerHTML='Gemma 3\'s 262K vocabulary needs '+(100*a).toFixed(0)+'% of GPT-2\'s tokens for this text and '+(100*b).toFixed(0)+'% for English. Not a controlled experiment: each tokenizer was trained on different data, by different rules (Llama 2\'s 32K SentencePiece splits digits and adds a leading space, which is why it sits above GPT-2 on English). It shows what the deployed tokenizers do, not what vocabulary size alone does.'}
   $('tk-vsL').addEventListener('change',drawS);
   const all=()=>{drawT();hiRow();drawS()};
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-voc']=[all];
-  addEventListener('resize',()=>{if(!$('t-voc').hidden)all()});
+  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-voc']=window.TAB_RENDER['t-voc']||[]).push(()=>{drawT();hiRow()});RD.onRender(drawS);
+  addEventListener('resize',()=>{if(!$('t-voc').hidden){drawT();hiRow()}});RD.onResize(drawS);
   all();
 })();
