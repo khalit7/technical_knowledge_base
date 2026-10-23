@@ -1,4 +1,4 @@
-// ---- Scheduling lab (t-sch): tables and charts from BKD.sch (src/sched/gen_sched.py), BKD.regress, BKD.meas ----
+// ---- Reading sections 5, 6 and 7 (formerly the Scheduling lab tab): tables and charts from BKD.sch (src/sched/gen_sched.py), BKD.regress, BKD.meas ----
 (function(){
   const S=BKD.sch;if(!document.getElementById('sc1-tbl'))return;
   const $=id=>document.getElementById(id),fN=v=>v.toLocaleString('en-US');
@@ -20,7 +20,7 @@
     d.rows.forEach(r=>{const m=meas?M.rows.find(x=>x.budget===r.budget):null;
       h+='<tr><td class="num">'+(r.budget?fN(r.budget):'no chunking')+'</td><td class="num">'+ms(r.long_ttft)+'</td><td class="num">'+ms(r.max_gap)+'</td><td class="num">'+ms(r.mean_gap_during)+'</td><td class="num">'+ms(r.p50_gap)+'</td>'+(meas?('<td class="num">'+(m?ms(m.ttft_med):'')+'</td><td class="num">'+(m?ms(m.maxgap_med):'')+'</td>'):'')+'</tr>'});
     $('sc1-tbl').innerHTML=h+'</tbody>';
-    $('sc1-note').innerHTML='<span class="sc-der">derived</span> '+d.desc+'.'+(meas?' <span class="sc-meas">measured here</span>: median of '+M.reps+' runs per budget on llama-server (build 11146, Metal), the same requests; see the Reading tab\'s section 5 for the spread.':'');
+    $('sc1-note').innerHTML='<span class="sc-der">derived</span> '+d.desc+'.'+(meas?' <span class="sc-meas">measured here</span>: median of '+M.reps+' runs per budget on llama-server (build 11146, Metal), the same requests; the spread is given below the table.':'');
     const P=S.chunk_poisson.rows;
     lineChart($('sc1-plot'),P.map(r=>r.budget),[{c:'var(--c2)',v:P.map(r=>r.itl_p99)},{c:'var(--c1)',v:P.map(r=>r.ttft_p99)},{c:'var(--c3)',v:P.map(r=>r.ttft_p50)}],
       {ymin:0.005,ymax:3,ticks:[0.01,0.03,0.1,0.3,1],xl:v=>fN(v),xt:'token budget per step (max_num_batched_tokens)',label:'budget sweep'});
@@ -53,7 +53,7 @@
   }
   $('sc1-case').addEventListener('change',s1);$('sc2-sc').addEventListener('change',s2);
   const all=()=>{s1();s2();s3();s4();s5()};
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-sch']=[all];
-  let tm=0;addEventListener('resize',()=>{if($('t-sch').hidden)return;clearTimeout(tm);tm=setTimeout(()=>{s1();s3()},80)});
+  RD.onRender(all);
+  let tm=0;addEventListener('resize',()=>{if($('t-read').hidden)return;clearTimeout(tm);tm=setTimeout(()=>{s1();s3()},80)});
   all();
 })();

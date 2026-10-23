@@ -23,7 +23,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await page.goto('file://' + file); await page.evaluate(() => { try { localStorage.clear() } catch (e) {} });
   await page.reload(); await sleep(400);
   let total = 0, badAll = [], wideAll = [], sideAll = false;
-  for (const tab of ['t-read', 't-ev', 't-sch', 't-kvc', 't-more']) {
+  for (const tab of ['t-read', 't-more']) {
     await page.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), tab); await sleep(300);
     const h = await page.evaluate(() => document.body.scrollHeight);
     for (let y = 0; y < h; y += 700) { await page.evaluate(y => scrollTo(0, y), y); await sleep(30); }

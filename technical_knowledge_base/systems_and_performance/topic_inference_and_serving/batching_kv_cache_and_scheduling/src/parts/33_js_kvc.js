@@ -1,4 +1,4 @@
-// ---- KV compression experiment (t-kvc): charts and tables from BKD.kvc (src/kvc/summarize.py) ----
+// ---- Reading section 8 (formerly the KV compression experiment tab): charts and tables from BKD.kvc (src/kvc/summarize.py) ----
 (function(){
   const K=BKD.kvc,$=id=>document.getElementById(id);if(!$('kc-pa'))return;
   if(!K)return;
@@ -25,18 +25,18 @@
   }
   function table(){
     const r=+$('kc-r').value;
-    let h='<thead><tr><th>Policy</th><th>Selection</th><th class="num">Task A accuracy</th><th class="num">Needle line kept</th><th class="num">Task B perplexity</th><th class="num">Freeable in place</th><th class="num">With compaction</th></tr></thead><tbody>';
-    h+='<tr><td>Full cache</td><td>none</td><td class="num">'+(100*K.A.full_acc).toFixed(0)+'%</td><td class="num">100%</td><td class="num">'+K.B.full_ppl.toFixed(1)+'</td><td class="num">0%</td><td class="num">0%</td></tr>';
+    let h='<thead><tr><th>Policy</th><th>Selection</th><th class="num">Freeable in place</th><th class="num">With compaction</th><th class="num">Task A accuracy</th><th class="num">Needle line kept</th><th class="num">Task B perplexity</th></tr></thead><tbody>';
+    h+='<tr><td>Full cache</td><td>none</td><td class="num">0%</td><td class="num">0%</td><td class="num">'+(100*K.A.full_acc).toFixed(0)+'%</td><td class="num">100%</td><td class="num">'+K.B.full_ppl.toFixed(1)+'</td></tr>';
     PL.forEach(p=>{const a=rowA(p[0],r),b=rowB(p[0],r),uni=!(p[0]==='random_head'||p[0]==='snapkv'||p[0]==='h2o');
-      h+='<tr><td>'+p[1]+'</td><td>'+(uni?'same everywhere':'per layer and head')+'</td><td class="num">'+(100*a.acc).toFixed(0)+'%'+(a.seeds>1?' <span class="mute">('+(100*a.acc_min).toFixed(0)+' to '+(100*a.acc_max).toFixed(0)+')</span>':'')+'</td><td class="num">'+(100*a.needle).toFixed(0)+'%</td><td class="num">'+b.ppl.toFixed(1)+(b.seeds>1?' <span class="mute">('+b.ppl_min.toFixed(1)+' to '+b.ppl_max.toFixed(1)+')</span>':'')+'</td><td class="num">'+(100*b.free).toFixed(0)+'%</td><td class="num">'+(uni?(100*(1-r)).toFixed(0)+'%':'0%')+'</td></tr>'});
+      h+='<tr><td>'+p[1]+'</td><td>'+(uni?'same everywhere':'per layer and head')+'</td><td class="num">'+(100*b.free).toFixed(0)+'%</td><td class="num">'+(uni?(100*(1-r)).toFixed(0)+'%':'0%')+'</td><td class="num">'+(100*a.acc).toFixed(0)+'%'+(a.seeds>1?' <span class="mute">('+(100*a.acc_min).toFixed(0)+' to '+(100*a.acc_max).toFixed(0)+')</span>':'')+'</td><td class="num">'+(100*a.needle).toFixed(0)+'%</td><td class="num">'+b.ppl.toFixed(1)+(b.seeds>1?' <span class="mute">('+b.ppl_min.toFixed(1)+' to '+b.ppl_max.toFixed(1)+')</span>':'')+'</td></tr>'});
     $('kc-tbl').innerHTML=h+'</tbody>';
   }
   function cov(){
     const E=K.example,el=$('kc-cov'),W=Math.max(280,Math.min(860,wid(el))),L=W<480?110:170,rh=16,H=10+PL.length*(rh+6)+16;
-    let b='';const C=E.C,x=i=>L+(W-L-6)*i/C;
+    let b='';const C=E.C,RM=44,x=i=>L+(W-L-RM)*i/C;
     PL.forEach((p,k)=>{const m=E.masks[p[0]];if(!m)return;const y=10+k*(rh+6);
       b+=RD.t(0,y+rh-4,p[1].length>(W<480?16:28)?p[1].slice(0,W<480?15:27)+'.':p[1],{fs:10.5});
-      const bw=(W-L-6)/C;
+      const bw=(W-L-RM)/C;
       for(let i=0;i<C;i++){const v=m[i];if(v<=0)continue;b+='<rect x="'+x(i).toFixed(2)+'" y="'+y+'" width="'+Math.max(0.6,bw).toFixed(2)+'" height="'+rh+'" fill="'+p[2]+'" opacity="'+(0.15+0.85*v).toFixed(2)+'"/>'}
       b+=RD.t(W-4,y+rh-4,E.ok[p[0]]?'right':'wrong',{a:'end',fs:10,fill:E.ok[p[0]]?'var(--good)':'var(--bad)'});
     });
@@ -47,7 +47,8 @@
   const sel=$('kc-r');R.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=(r*100)+'% kept';if(r===0.25)o.selected=true;sel.appendChild(o)});
   sel.addEventListener('change',table);
   const all=()=>{plots();table();cov()};
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-kvc']=[all];
-  let tm=0;addEventListener('resize',()=>{if($('t-kvc').hidden)return;clearTimeout(tm);tm=setTimeout(()=>{plots();cov()},80)});
+  RD.onRender(all);
+  const det=$('kc-pa').closest('details');if(det)det.addEventListener('toggle',()=>{if(det.open)plots()});
+  let tm=0;addEventListener('resize',()=>{if($('t-read').hidden)return;clearTimeout(tm);tm=setTimeout(()=>{plots();cov()},80)});
   all();
 })();
