@@ -1,39 +1,58 @@
 <section id="s-hf">
 <h2>6. Porting a Hugging Face model: GPT-2 by hand</h2>
-<p><b>The status first.</b> For years the easy path was <code>FlaxGPT2LMHeadModel.from_pretrained</code>. That path is closing: Hugging Face's transformers v5 announcement (1 December 2025) says they are "sunsetting our Flax/TensorFlow support in favor of focusing on PyTorch as the sole backend", while "working with partners in the Jax ecosystem", naming MaxText ({{Hugging Face blog|https://huggingface.co/blog/transformers-v5}}). Measured here: transformers <span data-k="gpt2.versions.transformers"></span> exports <span data-k="gpt2.flax_classes_in_transformers.length" data-f="int"></span> names starting with "Flax". The checkpoints remain (the GPT-2 repository still carries a <code>flax_model.msgpack</code>), and safetensors files load into JAX directly, so a port today is: read the safetensors, write the forward pass, check it against transformers' PyTorch model.</p>
-<p><b>How it works.</b> GPT-2 small, from <code>openai-community/gpt2</code> at revision <code>607a30d7</code> (<span data-k="gpt2.n_params" data-f="int"></span> parameters in <span data-k="gpt2.n_tensors"></span> tensors, of which <span data-k="gpt2.mask_buffers_in_file"></span> are causal-mask buffers, not weights), ported in about 25 lines of plain JAX (<code>src/runs/pj_gpt2.py</code>). Three facts of this checkpoint decide the port, and each contradicts a habit from the running example:</p>
+<p><b>Why by hand.</b> The old easy path, <code>FlaxGPT2LMHeadModel.from_pretrained</code>, is closing: Hugging Face's transformers v5 announcement (1 December 2025) says they are "sunsetting our Flax/TensorFlow support in favor of focusing on PyTorch as the sole backend", while "working with partners in the Jax ecosystem", naming MaxText ({{Hugging Face blog|https://huggingface.co/blog/transformers-v5}}). Measured here: transformers <span data-k="gpt2.versions.transformers"></span> exports <span data-k="gpt2.flax_classes_in_transformers.length" data-f="int"></span> names starting with "Flax". The checkpoints remain (the GPT-2 repository still carries a <code>flax_model.msgpack</code>), and safetensors files load into JAX directly, so a port today is: read the safetensors, write the forward pass, check it against transformers' PyTorch model.</p>
+<p>GPT-2 small, from <code>openai-community/gpt2</code> at revision <code>607a30d7</code> (<span data-k="gpt2.n_params" data-f="int"></span> parameters in <span data-k="gpt2.n_tensors"></span> tensors, of which <span data-k="gpt2.mask_buffers_in_file"></span> are causal-mask buffers, not weights), ported in about 25 lines of plain JAX (<code>src/runs/pj_gpt2.py</code>). Three facts of this checkpoint decide the port, and each contradicts a habit from the running example:</p>
 <ul>
-<li><b>No transpose.</b> GPT-2's projections are Hugging Face's <code>Conv1D</code>, whose weight is stored <code>[in, out]</code>, already JAX's layout (excerpt below). Transposing "because PyTorch is [out, in]" breaks it.</li>
+<li><b>No transpose.</b> GPT-2's projections are Hugging Face's <code>Conv1D</code>, whose weight is stored <code>[in, out]</code>, already JAX's layout (excerpt in the closed block below). Transposing "because PyTorch is [out, in]" breaks it.</li>
 <li><b>Tanh GELU.</b> The config says <code>"activation_function": "<span data-k="gpt2.config.activation_function"></span>"</code>, the tanh approximation: here <code>jax.nn.gelu</code>'s default is the right one.</li>
 <li><b>Tied head.</b> There is no <code>lm_head.weight</code> in the file: the output projection is the token embedding transposed (<code>x @ wte.T</code>). transformers' model shares the tensor (tied: <span data-k="gpt2.hf_tied"></span>).</li>
 </ul>
-<div class="pj-srcx" data-id="hf_conv1d"></div>
 <div class="pj-cnt" id="pj-hf-stats"></div>
 <div class="tw"><table class="pj-t" id="pj-hf-tab"></table></div>
 <div class="pj-cap">Prompt "<span data-k="gpt2.prompt"></span>", greedy decoding of 20 tokens, float32, both on Apple M1 Pro (CPU). The JAX port runs eagerly without a KV cache (<span data-k="gpt2.greedy_jax_s" data-f="f1"></span> s against transformers' <span data-k="gpt2.greedy_torch_s" data-f="f1"></span> s): fine for a check, not for serving.</div>
 <div class="co warn"><div class="t">Greedy text is a weak test</div>The exact-GELU mistake moves the logits by <span data-k="gpt2.mistakes.exact_gelu.logits_maxdiff" data-f="s2"></span> and still produces identical greedy text; the epsilon mistake likewise. Only the transpose mistake shows in text ("<span data-k="gpt2.mistakes.transpose.greedy"></span>"). Compare logits with a tolerance; read text only as a smoke test.</div>
-<p><b>Where the real ports live.</b> At scale nobody writes a forward pass per checkpoint by hand without a table. Tunix (v0.1.7) loads Hugging Face safetensors into NNX models with a regex from each PyTorch name to a JAX path plus a permutation and reshape (excerpt below); MaxText converts both ways with <code>checkpoint_conversion/to_maxtext.py</code> and <code>to_huggingface.py</code> ({{MaxText at 1a95d1e5|https://github.com/AI-Hypercomputer/maxtext/tree/1a95d1e5371021aab8d0574c53d2cca425474318/src/maxtext/checkpoint_conversion}}). Both are the same idea as section 3's four-entry rule, grown to whole model families; {{JAX LLM codebases|n:3fa5c17b0d0d81f8bd5ad523e9f2dde0}} reads them in depth.</p>
+<details class="mist"><summary>Where the real ports live: Tunix and MaxText converters, and the source excerpts</summary><div class="b">
+<div class="pj-srcx" data-id="hf_conv1d"></div>
+<p>At scale nobody writes a forward pass per checkpoint by hand without a table. Tunix (v0.1.7) loads Hugging Face safetensors into NNX models with a regex from each PyTorch name to a JAX path plus a permutation and reshape (excerpt below); MaxText converts both ways with <code>checkpoint_conversion/to_maxtext.py</code> and <code>to_huggingface.py</code> ({{MaxText at 1a95d1e5|https://github.com/AI-Hypercomputer/maxtext/tree/1a95d1e5371021aab8d0574c53d2cca425474318/src/maxtext/checkpoint_conversion}}). Both are the same idea as section 3's four-entry rule, grown to whole model families; {{JAX LLM codebases|n:3fa5c17b0d0d81f8bd5ad523e9f2dde0}} reads them in depth.</p>
 <div class="pj-srcx" data-id="tunix_map"></div><div class="pj-srcx" data-id="tunix_head"></div>
 <p>Saving the transformers model back with safetensors' plain <code>save_file</code> fails on the tie: <code data-k="gpt2.tied_save_error"></code></p>
+</div></details>
 </section>
 
 <section id="s-io">
 <h2>7. Interop: using PyTorch code from JAX without porting it</h2>
-<p><b>The problem.</b> Sometimes only one piece needs to be in the other framework: a JAX loss inside a PyTorch training loop, a PyTorch model evaluated inside a JAX pipeline, or a PyTorch codebase that must run on TPUs. Four tools, all tried here on the running example:</p>
+<p>Sometimes only one piece needs to be in the other framework: a JAX loss inside a PyTorch training loop, a PyTorch model evaluated inside a JAX pipeline, or a PyTorch codebase that must run on TPUs. Four tools, all tried here on the running example (measurements in the closed block below):</p>
 <div class="tw"><table class="pj-t">
-<thead><tr><th>Tool</th><th>What it does</th><th>Measured here</th><th>Use it when</th></tr></thead>
+<thead><tr><th>Tool</th><th>What it does</th><th>Use it when</th></tr></thead>
 <tbody>
-<tr><td><b>DLPack</b> (<code>jax.dlpack.from_dlpack</code>, <code>torch.from_dlpack</code>)</td><td>hands a buffer from one framework to the other without copying</td><td>same pointer both ways (<span data-k="interop.t2j.same_pointer"></span>, <span data-k="interop.j2t.same_pointer"></span>). A later in-place <code>add_</code> in torch changed the JAX array from <span data-k="interop.t2j.jax_value_before" data-f="f0"></span> to <span data-k="interop.t2j.jax_value_after_torch_inplace_add" data-f="f0"></span>, breaking JAX's assumption that arrays never change. A strided batch slice is refused: <code data-k="interop.t2j_strided_batch.error"></code> A tensor that requires grad: <code data-k="interop.t2j_requires_grad"></code></td><td>moving activations or batches between frameworks on one device; copy (<code>.clone()</code>) if either side may mutate</td></tr>
-<tr><td><b>A jax2torch bridge</b> (a <code>torch.autograd.Function</code> calling a jitted JAX function)</td><td>forward runs JAX, backward returns JAX's gradients to autograd</td><td>the JAX loss of the running example, called from PyTorch: loss <span data-k="interop.bridge.loss_bridge" data-f="f6"></span> against <span data-k="interop.bridge.loss_torch" data-f="f6"></span>, gradients within <span data-k="interop.bridge.grad_maxdiff" data-f="s2"></span> over all <span data-k="interop.bridge.n_tensors"></span> tensors</td><td>a JAX-only component (a loss, a sampler, a kernel) inside a PyTorch loop</td></tr>
-<tr><td><b>torchax</b> (google/torchax)</td><td>runs PyTorch modules with JAX arrays underneath; <code>torchax.extract_jax(module)</code> returns the weights as a pytree and the forward as a pure JAX function</td><td>torchax 0.0.13 from PyPI does not import with torch 2.14.1: <code data-k="interop.torchax_0013_import"></code>. GitHub main (<code>d95b0a5b</code>, 2026-10-11) works: logits within <span data-k="interop.torchax_logits_maxdiff" data-f="s2"></span> of PyTorch, <code>jax.grad</code> through the PyTorch code within <span data-k="interop.torchax_grad.grad_maxdiff" data-f="s2"></span>; its jaxpr has <span data-k="interop.torchax_jaxpr.eqns"></span> equations against <span data-k="interop.native_jaxpr_eqns"></span> for the hand port; weights stay in PyTorch's layout (<code>head.weight</code> <span data-k="interop.torchax_states.head_shape"></span>)</td><td>trying a PyTorch model on TPU, or under jit, grad and sharding, before deciding to port; pin the torch version it was tested with</td></tr>
-<tr><td><b>PyTorch/XLA</b> and its successor</td><td>PyTorch's own TPU backend (lazy tensors lowered to XLA)</td><td>not run here (no TPU). Its README says "Once TorchTPU is public it will replace PyTorch/XLA" (note dated 2026-04-22); TorchTPU was not public on 2026-10-15 (FACTS "map")</td><td>an existing PyTorch TPU codebase; check TorchTPU's status before starting a new one</td></tr>
+<tr><td><b>DLPack</b> (<code>jax.dlpack.from_dlpack</code>, <code>torch.from_dlpack</code>)</td><td>hands a buffer from one framework to the other without copying; an in-place op on one side changes the other</td><td>moving activations or batches between frameworks on one device; copy (<code>.clone()</code>) if either side may mutate</td></tr>
+<tr><td><b>A jax2torch bridge</b> (a <code>torch.autograd.Function</code> calling a jitted JAX function)</td><td>forward runs JAX, backward returns JAX's gradients to autograd</td><td>a JAX-only component (a loss, a sampler, a kernel) inside a PyTorch loop</td></tr>
+<tr><td><b>torchax</b> (google/torchax)</td><td>runs PyTorch modules with JAX arrays underneath; <code>torchax.extract_jax(module)</code> returns the weights as a pytree and the forward as a pure JAX function</td><td>trying a PyTorch model on TPU, or under jit, grad and sharding, before deciding to port; pin the torch version it was tested with</td></tr>
+<tr><td><b>PyTorch/XLA</b> and its successor</td><td>PyTorch's own TPU backend (lazy tensors lowered to XLA)</td><td>an existing PyTorch TPU codebase; check TorchTPU's status before starting a new one</td></tr>
 </tbody></table></div>
-<p><b>How to check an interop boundary.</b> The same ladder: the bridge's loss and gradients against the native ones, which is what the table reports. Two costs the table does not show: every crossing is a host-side Python call (no fusion across the boundary), and under <code>jax.jit</code> a PyTorch call needs <code>jax.pure_callback</code>, which XLA cannot optimise or differentiate unless you supply the rule.</p>
+<p><b>How to check an interop boundary.</b> The same ladder: the bridge's loss and gradients against the native ones. Two costs: every crossing is a host-side Python call (no fusion across the boundary), and under <code>jax.jit</code> a PyTorch call needs <code>jax.pure_callback</code>, which XLA cannot optimise or differentiate unless you supply the rule.</p>
+<details class="mist"><summary>What each tool did on the running example (measured, versions pinned)</summary><div class="b"><ul class="small">
+<li><b>DLPack</b>: same pointer both ways (<span data-k="interop.t2j.same_pointer"></span>, <span data-k="interop.j2t.same_pointer"></span>). A later in-place <code>add_</code> in torch changed the JAX array from <span data-k="interop.t2j.jax_value_before" data-f="f0"></span> to <span data-k="interop.t2j.jax_value_after_torch_inplace_add" data-f="f0"></span>, breaking JAX's assumption that arrays never change. A strided batch slice is refused: <code data-k="interop.t2j_strided_batch.error"></code> A tensor that requires grad: <code data-k="interop.t2j_requires_grad"></code></li>
+<li><b>jax2torch bridge</b>: the JAX loss of the running example, called from PyTorch: loss <span data-k="interop.bridge.loss_bridge" data-f="f6"></span> against <span data-k="interop.bridge.loss_torch" data-f="f6"></span>, gradients within <span data-k="interop.bridge.grad_maxdiff" data-f="s2"></span> over all <span data-k="interop.bridge.n_tensors"></span> tensors.</li>
+<li><b>torchax</b>: 0.0.13 from PyPI does not import with torch 2.14.1: <code data-k="interop.torchax_0013_import"></code>. GitHub main (<code>d95b0a5b</code>, 2026-10-11) works: logits within <span data-k="interop.torchax_logits_maxdiff" data-f="s2"></span> of PyTorch, <code>jax.grad</code> through the PyTorch code within <span data-k="interop.torchax_grad.grad_maxdiff" data-f="s2"></span>; its jaxpr has <span data-k="interop.torchax_jaxpr.eqns"></span> equations against <span data-k="interop.native_jaxpr_eqns"></span> for the hand port; weights stay in PyTorch's layout (<code>head.weight</code> <span data-k="interop.torchax_states.head_shape"></span>).</li>
+<li><b>PyTorch/XLA</b>: not run here (no TPU). Its README says "Once TorchTPU is public it will replace PyTorch/XLA" (note dated 2026-04-22); TorchTPU was not public on 2026-10-15 (FACTS "map").</li>
+</ul></div></details>
 </section>
 
 <section id="s-when">
-<h2>8. When not to port</h2>
-<p>A port costs the translation, the equivalence test, and from then on two code bases (or one you know less well). It pays when the target gives something the source cannot. Judgement, labelled as such:</p>
+<h2>8. The porting checklist, and when not to port</h2>
+<p>The whole page as the order to work in. Each item names the failure it prevents and where it was measured.</p>
+<ol class="pj-check">
+<li><b>Decide whether to port at all</b> (table below): try torchax or PyTorch/XLA first if the goal is one TPU run.</li>
+<li><b>Translate state, not syntax</b>: weights, gradients, optimiser state and keys become arguments and return values of one jitted step (section 1).</li>
+<li><b>Write every default explicitly on both sides</b>: norm epsilon and variance, GELU form, initialisers, mask convention and fill, loss reduction and ignored labels, weight decay and its mask, clip position, schedule count, matmul precision (section 2).</li>
+<li><b>Convert weights by a rule on the path</b>, with a shape assert per tensor, every name used once, and a bitwise round trip (section 3).</li>
+<li><b>Climb the ladder on one batch</b> with dropout off: logits, loss, gradients, one step, curves; stop at the first failing rung (section 4).</li>
+<li><b>Repeat in float64</b> when a gap is near the thresholds: rounding shrinks by about nine orders of magnitude, a bug does not (section 4).</li>
+<li><b>Judge curves against seed-to-seed variation</b>, not against zero; turn dropout on last and compare statistics (sections 2 and 5).</li>
+<li><b>Only then change precision or sharding</b>, each as its own comparison, with <code>precision=HIGHEST</code> for the equivalence run on a TPU (section 2, hardware numerics).</li>
+</ol>
+<p><b>When not to port.</b> A port costs the translation, the equivalence test and, from then on, two code bases (or one you know less well). It pays when the target gives something the source cannot. Judgement, labelled as such:</p>
 <div class="tw"><table class="pj-t">
 <thead><tr><th>Situation</th><th>Advice</th><th>Why</th></tr></thead>
 <tbody>
@@ -44,17 +63,12 @@
 <tr><td>You want a functional component (per-example gradients, Hessians, vmap over seeds)</td><td>bridge it, or use <code>torch.func</code></td><td>PyTorch has <code>vmap</code> and <code>grad</code> in <code>torch.func</code>; JAX is not the only way</td></tr>
 <tr><td>A research codebase you will read more than run</td><td>port only what you change</td><td>a faithful port is a lot of work to get exactly right, as this page shows</td></tr>
 </tbody></table></div>
-</section>
 
-<section id="s-mist">
-<h2>Common mistakes, with the messages they produce</h2>
+<details class="mist"><summary>Common traps with the messages they produce (12 rows)</summary><div class="b">
 <div class="tw"><table class="pj-t" id="pj-mist"></table></div>
-<div class="pj-cap">Messages captured by <code>src/runs/pj_drills.py</code> and <code>pj_convert.py</code> (paths removed). The {{Port drills|#t-pjdr}} tab turns each into a question.</div>
-</section>
-
-<section id="s-iq">
-<h2>Interview questions</h2>
-<div id="pj-iq"></div>
+<div class="pj-cap">Messages captured by <code>src/runs/pj_drills.py</code> and <code>pj_convert.py</code> (paths removed). The {{Port drills|#t-pjdr}} tab turns each into a question. The silent ones (no error, wrong numbers) are the reason for the ladder: padding labels give a NaN loss, <code>jnp.var</code> divides by n, a reused key repeats its numbers, an <code>nn.MultiheadAttention</code> mask attends to the future, and a token id past the vocabulary clamps to the last row.</div>
+</div></details>
+<details class="mist"><summary>Interview rehearsal (8 questions with answers)</summary><div class="b"><div id="pj-iq"></div></div></details>
 </section>
 <div class="foot">Reading tab of the PyTorch to JAX child page of Topic: jax-and-tpu, built 2026-10-15. Every run used jax 0.11.2, jaxlib 0.11.2, flax 0.12.10, optax 0.2.8, torch 2.14.1 and Python 3.12.11 on an Apple M1 Pro, CPU only, low priority on a shared machine; transformers 5.19.0, safetensors 0.8.0 and torchax (PyPI 0.0.13 and GitHub main d95b0a5b) were installed beside the shared environment for this page only. Scripts and recorded outputs are in this page's <code>src/runs/</code>.</div>
 </div>

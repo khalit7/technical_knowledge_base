@@ -1,0 +1,1944 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "PyTorch to JAX: porting a small LM PyTorch to JAX: porting a small LM The running example of Topic: jax-and-tpu ported from PyTorch to JAX end to end, as a case study: the line-by-line translation, every default that differs (measured one at a time), converting weights both ways, the equivalence test that tells rounding from bugs, porting a Hugging Face model (GPT-2, by hand), interop without porting, and when not to port.",
+  "label": "core",
+  "key": "PyTorch to JAX: porting a small LM",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Every run on an Apple M1 Pro CPU with jax 0.11.2, flax 0.12.10, optax 0.2.8 and torch 2.14.1.",
+  "label": "core",
+  "key": "jax 0.11.2, flax 0.12.10, optax 0.2.8 and torch 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Divergence hunter Weight conversion Port drills Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen 1 Translation 2 Defaults 3 Weights 4 Equivalence test 5 Drift 6 Hugging Face 7 Interop 8 When not to port Mistakes Interview You know PyTorch; you need a model in JAX.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "navigation and a wind-up"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page ports one, the running example of Topic: jax-and-tpu (a 4-layer character transformer, parameters), and treats the port as an engineering problem with a test, not a translation exercise.",
+  "label": "core",
+  "key": "a 4-layer character transformer",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "The root's Training lab showed the port's panes and seven pitfalls; this page goes further: every default that differs, measured alone; weights converted both ways through a file; a test that tells a rounding difference from a bug; a real Hugging Face model (GPT-2) ported by hand; and the ways to avoid porting at all.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "overview restating the sections; the core idea and the order of a port replace it"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "The whole method in five lines 1.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "Translate the code (modules become pure functions or NNX modules, the optimiser becomes an optax chain, the loop becomes one jitted step).",
+  "label": "core",
+  "key": "one jitted step",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "Set every default explicitly on both sides, because a dozen of them differ silently.",
+  "label": "core",
+  "key": "Write every default explicitly on both sides",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "Copy the weights by a rule (rename, transpose [out, in] to [in, out] ), never by hand.",
+  "label": "core",
+  "key": "convert the weights by a rule",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "Climb the ladder on one fixed batch: logits, loss, gradients, one optimiser step, then curves; stop at the first rung that fails.",
+  "label": "core",
+  "key": "stop at the first failing rung",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "Judge the drift : in float32 two correct ports separate slowly anyway; in float64 they should not.",
+  "label": "core",
+  "key": "nine orders of magnitude",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "",
+  "text": "The page in one picture.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "map caption; the map was navigation"
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "",
+  "text": "Click a stage to jump to its section.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "map caption"
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "",
+  "text": "What the case study measured All measured on Apple M1 Pro (CPU) with the scripts in this page's src/runs/ ; the 4,000-step figures are the root Training lab's run ( src/train/out/twin_long.json ), cited, not rerun.",
+  "label": "core",
+  "key": "cited, not rerun",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "",
+  "text": "The words this page uses Term Meaning here PyTorch counterpart twin the same model written in both frameworks, started from identical weights and fed identical batches (none: a testing set-up) pytree a nested container (dicts, lists, tuples, dataclasses) whose leaves are arrays; JAX's parameters live in one state_dict() , flattened Flax NNX module a Python object holding nnx.Param variables, written like an nn.Module ; nnx.split turns it into a pytree for jit nn.Module optax chain an optimiser built from pure gradient transformations ( clip , adamw , ...), applied in order torch.optim.AdamW plus clip_grad_norm_ rung one comparison in the equivalence test: logits, loss, gradients, one step, curves (none) ulp unit in the last place: the gap between a float and the next one; float32 has about 7 decimal digits, so 1 ulp at 4.2 is same safetensors a flat file of named tensors with a JSON header; readable from torch, numpy and JAX without pickle torch.save (pickle)",
+  "label": "core",
+  "key": "started from identical weights and fed identical batches",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "The translation, line by line The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "A PyTorch training script mixes four things that JAX keeps apart: the model's arithmetic, its state (weights), the optimiser's state, and the random generator.",
+  "label": "core",
+  "key": "four kinds of state",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "JAX wants the arithmetic as a pure function (output depends only on inputs; no hidden state changes), so that jax.jit can trace it once into a program and jax.grad can differentiate it.",
+  "label": "core",
+  "key": "pure, compiled training step",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "Every row below is that one idea applied to one part of the script.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the table"
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "The table walks the ten parts of a training script.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the table"
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "The middle column is Flax NNX (closest to PyTorch: objects with state), the right one plain JAX plus optax (state passed explicitly).",
+  "label": "depth",
+  "key": "closest to PyTorch: objects with state",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "Both are the root's real files, src/data/model_nnx.py and model_jax.py ; the root's Training lab , section 3, shows them as linked panes ( Topic: jax-and-tpu , tab Training lab).",
+  "label": "depth",
+  "key": "src/data/model_nnx.py",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "Part PyTorch Flax NNX plain JAX + optax What changes Module class Block(nn.Module) class Block(nnx.Module) def block(p, x, cfg) NNX keeps the object; plain JAX makes parameters an argument (a pytree) Layers nn.Linear(d, f) nnx.Linear(d, f, rngs=rngs) x @ p[\"w\"] + p[\"b\"] weight stored [in, out] , not [out, in] ; a random-key stream is passed in at construction Init nn.init.normal_(p, 0, .02) kernel_init=normal(.02) .02 * jax.random.normal(key, shape) every default initialiser differs (section 2); explicit keys instead of a global seed Forward def forward(self, x) def __call__(self, x) apply(params, idx, cfg) no in-place ops ( x.at[i].set(v) ); .transpose takes a full permutation; masks as jnp.where Loss F.cross_entropy(lg, y) optax.softmax_cross_entropy_with_integer_labels(lg, y).mean() per-example losses, you reduce; no ignore_index Gradients loss.backward() nnx.value_and_grad(loss_fn)(model, x, y) jax.value_and_grad(loss_fn)(params, x, y) gradients are returned, not accumulated in .grad : nothing to zero Optimiser AdamW(groups, ...); clip_grad_norm_ nnx.Optimizer(model, tx, wrt=nnx.Param) tx = optax.chain(clip, adamw(mask=...)) weight-decay groups become a mask pytree; clipping is a link in the chain, and order matters Schedule LambdaLR(opt, f) adamw(learning_rate=lambda count: ...) a function of the update count, starting at 0; no sched.step() Data DataLoader(ds, shuffle=True) numpy batches (here), or grain host-side numpy arrays; the root's twins share one framework-free batch function Train step zero_grad, backward, step @nnx.jit train_step(model, opt, x, y) jax.jit(train_step, donate_argnums=(0, 1)) one compiled function; donation lets XLA reuse the old parameter buffers Randomness torch.manual_seed(0) nnx.Rngs(0, dropout=1) key = jax.random.key(0); split explicit keys; a key reused gives the same numbers (section 2) Checkpoint torch.save(sd); load_state_dict orbax CheckpointManager (save, restore) sharded, async; see The JAX training stack .",
+  "label": "depth",
+  "key": "donation lets XLA reuse the old parameter buffers",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "Interchange with PyTorch: safetensors (section 3) Logging loss.item() float(loss) (after the step) float() blocks until the device finishes: log every N steps, or keep the step asynchronous What it costs.",
+  "label": "core",
+  "key": "blocks until the device finishes",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "The model itself translated almost mechanically (the three files are 116 to 148 lines each).",
+  "label": "core",
+  "key": "116 to 148 lines each",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "The cost is not typing; it is that the result looks right and is subtly different.",
+  "label": "core",
+  "key": "subtly different",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "Section 2 is that list.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer"
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "Run both twins on one batch from the same weights and compare logits before anything else; the root's twins agree to (largest logit ).",
+  "label": "core",
+  "key": "compare logits before anything else",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. the translation, line by line",
+  "text": "Section 4 builds the whole test.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer"
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "Every default that differs The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "A port that raises an error is easy.",
+  "label": "core",
+  "key": "A port that raises an error is easy",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "The dangerous port runs, trains, and produces a slightly different model, because a layer or an optimiser was left at a default that differs between the libraries.",
+  "label": "core",
+  "key": "produces a slightly different model",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "None of these produce a warning.",
+  "label": "core",
+  "key": "none of these warn",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "The table lists every one this page found, with both defaults read from the installed objects ( src/runs/pj_defaults.py , not typed from memory), what each did when measured alone, and the source line.",
+  "label": "core",
+  "key": "not typed from memory",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "The training effect of each, as a curve, is on the Divergence hunter tab.",
+  "label": "core",
+  "key": "the training curve of each is on the",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "Default PyTorch 2.14.1 JAX 0.11.2 / Flax 0.12.10 / optax 0.2.8 Measured here Layers LayerNorm epsilon nnx.LayerNorm : at init the block-0 input has variance (median), so the smaller epsilon scales the output by ; logits move .",
+  "label": "core",
+  "key": "the smaller epsilon scales the output by",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "At variance 1 the same change is invisible ( ) LayerNorm variance two-pass: mean of (x - mean)^2 use_fast_variance= : E[x^2] - E[x]^2 exact enough on this model (the NNX twin uses it and agrees to ); catastrophic when the mean is large against the spread: chart below GELU exact ( approximate=\" \" ) jax.nn.gelu(approximate=True) : tanh formula; nnx.gelu is the same function largest gap at x = ; logits .",
+  "label": "core",
+  "key": "catastrophic when the mean is large",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "GPT-2 wants the tanh form (section 6) Linear weight init uniform in ±1/√in: std at in = 128 lecun_normal: std √3 apart (formulas give and ); only matters if you train from scratch without copying weights Linear bias init uniform in ±1/√in (largest here ) zeros Embedding init N(0, 1): std variance_scaling(1, fan_in): std = 1/√128 an 11x difference in the residual stream's starting scale Weight layout Linear (out, in); Conv ; inputs NCHW Linear (in, out); Conv ; inputs NHWC a square matrix copied without the transpose loads silently: logits off by BatchNorm momentum , the weight of the NEW batch , the weight of the OLD average after one batch of ones the running mean is against : torch 0.1 is Flax 0.9 (not in this model) Dropout p = drop probability; generator advances by itself; model.eval() rate = drop probability; NNX draws a fresh key per call; model.eval() exists a raw JAX key reused gives the same mask every time (measured: ); see \"Dropout\" below Attention Boolean mask meaning scaled_dot_product_attention : True = attend. nn.MultiheadAttention : True = blocked jax.nn.dot_product_attention , Flax: True = attend the same lower-triangular tensor is causal in one API and anti-causal in the other: cards below A row with nothing to attend to hand-written -inf softmax: NaN; SDPA returns zeros hand-written -inf : NaN; dot_product_attention and Flax fill with finfo.min : uniform weights, the mean of the values left padding produces such rows; three libraries, three answers ( masked_row in defaults.json ) Loss and indexing Cross-entropy mean over the batch; ignore_index=-100 ; label out of range raises \" \" optax returns per-example losses; no ignore index label -100 or 70 (vocabulary 65): that row is NaN, so the mean is NaN, with no error Out-of-bounds index raises IndexError clamps: jnp.arange(10.)[12] = ; .at[12].set is dropped an embedding lookup of id 70 returns row 64 ( ): a tokenizer mismatch trains silently Integer and float types arange gives ; float64 on request ; a float64 request gives and a warning unless jax_enable_x64 section 4 uses x64 deliberately var , std unbiased (divide by n - 1): var of 1..4 = ddof=0 (divide by n): a hand-written norm layer ported with jnp.var is not the PyTorch one Optimiser AdamW weight decay , on every parameter in the group , on every leaf unless mask the root's pitfall run: vs validation after 300 steps Clipping formula max_norm / (norm + 1e-6) , clamped to 1 max_norm / norm when norm >= max_norm scales differ by one part in a million; trained with PyTorch's formula in JAX the curves agree to : the one difference that does not matter Where clipping sits a separate call before opt.step() a link in the chain: chain(clip, adamw) , not chain(adamw, clip) the wrong order clips Adam's updates: loss off by up to Schedule step count LambdaLR evaluates f(0) for the first update optax passes the count, starting at 0 identical if the same function is used; lr(count) written as warmup from 0 makes the first update zero: loss off by Hardware numerics float32 matmul precision CPU: float32; CUDA: allow_tf32 False for matmuls since 1.12 ( PyTorch CUDA notes ) CPU: float32.",
+  "label": "core",
+  "key": "GPT-2 wants the tanh form",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "TPU DEFAULT : one bfloat16 pass ( lax.Precision docstring, FACTS \"jc\") emulated here (matmul inputs rounded to bfloat16): logits at init, on the 500-step weights; the CPU flag changes nothing ( ).",
+  "label": "core",
+  "key": "Not run on a TPU",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "Not run on a TPU The source lines behind the table, at the pinned versions One boolean tensor, three meanings The cards take the same 4 x 4 lower-triangular boolean tensor ( torch.ones(4, 4).tril().bool() ) and colour the cells each API lets a query attend to.",
+  "label": "core",
+  "key": "colour the cells each API lets a query attend to",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "A green cell is \"query row may look at key column\".",
+  "label": "core",
+  "key": "query row may look at key column",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "Measured in pj_defaults.py : with this tensor, nn.MultiheadAttention 's first row puts weight on the five positions (it attends only to the future), and with the inverted tensor (correct). jax.nn.dot_product_attention with the tril mask matches SDPA's causal output to .",
+  "label": "core",
+  "key": "it attends only to the future",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "Predict: you flip the mask convention in a JAX port, so each position attends only to positions after it, with -inf fill.",
+  "label": "core",
+  "key": "you flip the mask convention",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "What happens at step 0?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "question line of the drill"
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "The loss is a little high The loss is NaN The loss is suspiciously low NaN, at step : the last position has no later position, its row is all -inf , and softmax of that is 0/0.",
+  "label": "core",
+  "key": "softmax of that is 0/0",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "With Flax's finfo.min fill instead there is no NaN: the row averages every value, the model learns to read the future, training loss falls to on validation with its own mask, and with the correct causal mask the same weights score .",
+  "label": "core",
+  "key": "the model learns to read the future",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "The NaN is the lucky outcome.",
+  "label": "core",
+  "key": "The NaN is the lucky outcome",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "Fast variance: fine until the mean is large Flax computes a LayerNorm's variance in one pass as E[x 2 ] - E[x] 2 , which subtracts two large, nearly equal numbers when the mean is large against the spread.",
+  "label": "depth",
+  "key": "subtracts two large, nearly equal numbers",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "The bars are the largest error of the normalised output against PyTorch in float64, for N(0, 1) data shifted by a mean, in float32, log scale.",
+  "label": "depth",
+  "key": "for N(0, 1) data shifted by a mean",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "A residual stream with a mean of 1,000 and unit spread is unusual, but outlier features and un-normalised inputs (pixel values, raw sensor data) get there; use_fast_variance=False costs one more pass over the data.",
+  "label": "depth",
+  "key": "costs one more pass over the data",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "Dropout: compare distributions, not values Dropout masks come from each framework's own random generator, so a PyTorch twin and a JAX twin with dropout can never agree bit for bit.",
+  "label": "core",
+  "key": "can never agree bit for bit",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "Test the port with dropout off (as the running example is), then turn it on and compare statistics.",
+  "label": "core",
+  "key": "then turn it on and compare statistics",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. every default that differs",
+  "text": "The run below adds dropout 0.1 to both residual branches and trains 300 steps: PyTorch, JAX with a fresh key per step ( fold_in(key, step) ), JAX with the same key every step (the classic bug: PyTorch's generator advances by itself, a JAX key does not), and the no-dropout anchor.",
+  "label": "core",
+  "key": "fold_in(key, step)",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "Converting the weights, both ways The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "A PyTorch checkpoint is a flat dictionary of names ( blocks.0.attn.wq.weight ) to tensors; an NNX model's state is a nested tree of paths ( blocks/0/attn/wq/kernel ) to arrays, with every Linear weight transposed.",
+  "label": "core",
+  "key": "blocks/0/attn/wq/kernel",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "Copying by hand, one assignment per tensor, is how the silent square-matrix bug gets in.",
+  "label": "core",
+  "key": "not a hand copy",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "Write the conversion as a rule on the path , apply it to every leaf, and let shape checks fail loudly.",
+  "label": "core",
+  "key": "let shape checks fail loudly",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "Here the whole rule is a four-entry table: kernel becomes weight and is transposed; bias , scale (to weight ) and embedding (to weight ) are copied.",
+  "label": "core",
+  "key": "four-entry table",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "The file in between is safetensors : a JSON header (names, dtypes, shapes, byte offsets) followed by raw bytes, readable by torch, numpy and JAX, with no pickle and so no code executed on load. def torch_name(path): # ('blocks', 0, 'attn', 'wq', 'kernel') -> ('blocks.0.attn.wq.weight', True) *mods, leaf = [str(p) for p in path] tname, transpose = {\"kernel\": (\"weight\", True), \"bias\": (\"bias\", False), \"scale\": (\"weight\", False), \"embedding\": (\"weight\", False)}[leaf] return \".\".join(mods + [tname]), transpose flat_in = safetensors.flax.load_file(\"tinylm_torch.safetensors\") # {name: jax.Array} state = nnx.state(model, nnx.Param) leaves = [] for path, var in nnx.to_flat_state(state): name, tr = torch_name(path) w = flat_in[name].T if tr else flat_in[name] assert w.shape == var[...].shape, (name, w.shape, var[...].shape) # the check a hand copy forgets leaves.append((path, var.replace(w))) nnx.update(model, nnx.from_flat_state(leaves)) From src/runs/pj_convert.py , run on the running example's 500-step weights.",
+  "label": "core",
+  "key": "no code executed on load",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "Nothing measurable at this size (the file is bytes for bytes of float32 weights: the header is bytes).",
+  "label": "core",
+  "key": "of float32 weights",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "At 70B parameters the same loop needs the model sharded while it loads; Tunix and MaxText do exactly this with a regex table (section 6).",
+  "label": "core",
+  "key": "needs the model sharded while it loads",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "Three checks, all passed here: every name used exactly once (unused PyTorch keys: ), logits within float32 noise of the source, and the reverse trip back to PyTorch loading with strict=True and comparing bit for bit ( : a transpose is exact, so anything but bitwise equality is a bug).",
+  "label": "core",
+  "key": "anything but bitwise equality is a bug",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "The Weight conversion tab shows all tensors and animates the transpose on a real tile.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the old Weight conversion tab; its animation is now inline in section 3"
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "The conversion errors you will meet (real messages) save_file on a transposed view: Fix: .contiguous() . bfloat16 through numpy: . numpy has no bfloat16; go through safetensors' flax loader (dtype , bit-equal: ), DLPack ( ), or .view(torch.int16) then .view(jnp.bfloat16) ( ).",
+  "label": "depth",
+  "key": "numpy has no bfloat16",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "Assigning a [512, 128] PyTorch weight into a [128, 512] kernel: The same wrong shape through nnx.update : ; the error only comes at the first call, .",
+  "label": "depth",
+  "key": "the error only comes at the first call",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "Hence the explicit assert above.",
+  "label": "depth",
+  "key": "Hence the explicit",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "3. converting the weights, both ways",
+  "text": "A missing key in PyTorch: strict=True raises ; strict=False only returns , which most code ignores.",
+  "label": "depth",
+  "key": "which most code ignores",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "The equivalence test: is the gap rounding or a bug?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Two correct ports never agree exactly.",
+  "label": "core",
+  "key": "Two correct ports never agree exactly",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Matrix multiplies and reductions add the same numbers in a different order in each library, and float32 addition is not associative, so every operation can differ in its last bit.",
+  "label": "core",
+  "key": "float32 addition is not associative",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "The test has to separate that noise from a real difference, and find the first place a real difference appears.",
+  "label": "core",
+  "key": "separates that noise from a real difference",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "How it works: the ladder.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Fix one batch and one set of weights, then compare five things in order, each a superset of the one before: logits (the forward pass), loss (the reduction), gradients (the backward pass), parameters after one optimiser step (the optimiser and its defaults) and training curves (everything, over time).",
+  "label": "core",
+  "key": "each a superset of the one before",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "The first rung that fails names the part that is wrong.",
+  "label": "core",
+  "key": "names the part that is wrong",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Forward bugs fail at the first rung; optimiser bugs pass three rungs and fail at the fourth or fifth.",
+  "label": "core",
+  "key": "optimiser bugs pass three rungs",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Port: Every number is a real measurement from src/runs/pj_hunt.py against the PyTorch twin, same weights, same batch 0.",
+  "label": "core",
+  "key": "same weights, same batch 0",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Pass thresholds (this page's choice, 4 to 45 times the correct port's own float32 differences): logits 1e-5, loss 1e-5, gradients 1e-5, one step 1e-6, curves 1e-4 over 300 steps.",
+  "label": "core",
+  "key": "4 to 45 times the correct port's own float32 differences",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Gradients exclude the key biases (explained below).",
+  "label": "core",
+  "key": "Gradients exclude the key biases",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Predict: a port sums the per-character losses instead of averaging them, so every gradient is 4,096 times larger.",
+  "label": "core",
+  "key": "sums the per-character losses",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "The run clips gradients to norm 1 and uses AdamW.",
+  "label": "core",
+  "key": "clips gradients to norm 1",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "What happens to training?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "question line of the drill"
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "It diverges: steps 4,096 times too large Nothing: Adam divides by the gradient's scale It trains, but differently from PyTorch It trains, differently: validation against , curves apart from step .",
+  "label": "core",
+  "key": "It trains, differently",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Adam alone would barely notice the scale (it divides by the running root-mean-square of the gradient), but clipping happens first: with gradients 4,096 times larger, every step is clipped to norm 1, while the correct run is clipped only when its norm exceeds 1.",
+  "label": "core",
+  "key": "clipping happens first",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "The fourth rung (one step) does not catch it, because Adam's first update is the learning rate times the sign of the gradient, whatever the gradient's size (for gradients well above Adam's eps of 1e-8).",
+  "label": "core",
+  "key": "the learning rate times the sign of the gradient",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Tolerances depend on the dtype \"Close enough\" is a multiple of the dtype's machine epsilon (the gap between 1 and the next float) times the size of the numbers compared, times a factor for how many operations accumulate.",
+  "label": "core",
+  "key": "machine epsilon",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "The epsilons: float64 , float32 , float16 , bfloat16 .",
+  "label": "core",
+  "key": "The epsilons: float64",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "From src/runs/pj_ladder.py (both twins in float32, then both in float64; one batch, then 100 training steps).",
+  "label": "core",
+  "key": "one batch, then 100 training steps",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "The bfloat16 row runs both twins with weights and activations in bfloat16, against the float32 PyTorch logits.",
+  "label": "core",
+  "key": "against the float32 PyTorch logits",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "The float64 test: the cleanest way to tell rounding from a bug Rerun both twins in float64 ( model.double() , jax.config.update(\"jax_enable_x64\", True) ).",
+  "label": "core",
+  "key": "jax_enable_x64",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Rounding noise shrinks by about nine orders of magnitude; a real difference stays the same size.",
+  "label": "core",
+  "key": "nine orders of magnitude",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "The bars show each rung for the correct port and for one real bug (the tanh GELU), in float32 and float64, log scale.",
+  "label": "core",
+  "key": "one real bug (the tanh GELU)",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Bars on a log scale from 1e-17 (left edge) to 1e-3 (right edge); an empty bar is an exact 0.",
+  "label": "core",
+  "key": "an empty bar is an exact 0",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Why a correct port still drifts in float64 The key-bias puzzle, explained Every comparison above skips one group of parameters: the biases of the key projections.",
+  "label": "depth",
+  "key": "The key-bias puzzle",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Adding the same vector b to every key adds the same number q.b to every score in a query's row, and softmax ignores a constant added to a whole row, so the true gradient of a key bias is exactly zero .",
+  "label": "depth",
+  "key": "the true gradient of a key bias is exactly zero",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Computed, it is float noise: (PyTorch) and (JAX) in float32, and and in float64.",
+  "label": "depth",
+  "key": "Computed, it is float noise",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "The two frameworks' noise is unrelated, so their key biases take unrelated paths; the root's run measured them as the largest weight difference at 500 steps, with no effect on outputs (the root's Topic: jax-and-tpu , Training lab, section 5).",
+  "label": "depth",
+  "key": "the largest weight difference at 500 steps",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "A refinement of the usual story (\"Adam turns the noise into full-size steps\").",
+  "label": "depth",
+  "key": "Adam turns the noise into full-size steps",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "With eps = 1e-8 and gradients near 1e-11, Adam's update is about lr x g / eps: around 2e-6 per step at the full learning rate of 1e-3, some five hundred times smaller than a normal step of about lr.",
+  "label": "depth",
+  "key": "some five hundred times smaller",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "What makes key biases drift is that nothing pulls them back (no gradient restores them, and they are not decayed), so the two frameworks' unrelated noise accumulates.",
+  "label": "depth",
+  "key": "nothing pulls them back",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "Measured: after one step the key biases differ by , other weights by ; after 100 steps the key biases differ by while every other weight still agrees to .",
+  "label": "depth",
+  "key": "after 100 steps the key biases differ by",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. the equivalence test: is the gap rounding or a bug?",
+  "text": "By 4,000 steps the ordinary weights have drifted further than the key biases anyway (the root's twin_long.json ).",
+  "label": "depth",
+  "key": "the ordinary weights have drifted further than the key biases",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "5. training both, and judging the drift",
+  "text": "Training both, and judging the drift The root's Training lab trained the PyTorch, plain-JAX and NNX twins for steps on identical batches; this page cites it rather than rerunning it.",
+  "label": "core",
+  "key": "trained the PyTorch, plain-JAX and NNX twins",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "5. training both, and judging the drift",
+  "text": "The curves agree to 1e-5 until step and to 1e-4 until step , and never differ by 1e-3 (largest ).",
+  "label": "core",
+  "key": "never differ by 1e-3",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "5. training both, and judging the drift",
+  "text": "The gap grows steadily, window by window: How to judge it.",
+  "label": "core",
+  "key": "The gap grows steadily",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "5. training both, and judging the drift",
+  "text": "Drift that grows smoothly from float noise and stays orders of magnitude below the run-to-run variation of a different seed is not a bug; training is a chaotic iteration that amplifies last-bit differences.",
+  "label": "core",
+  "key": "chaotic iteration",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "5. training both, and judging the drift",
+  "text": "Drift that appears at step 0, or jumps at a step, is.",
+  "label": "core",
+  "key": "Drift that appears at step 0",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "5. training both, and judging the drift",
+  "text": "Plain JAX and NNX lower to nearly the same XLA program and stay within of each other over the whole run, an order of magnitude closer than PyTorch and JAX: the size of the drift tracks how different the two programs are, which is what rounding predicts.",
+  "label": "core",
+  "key": "the size of the drift tracks how different the two programs are",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "5. training both, and judging the drift",
+  "text": "Measured on Apple M1 Pro (CPU), shared machine: median step time s (PyTorch), s (plain JAX), s (NNX).",
+  "label": "depth",
+  "key": "median step time",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "5. training both, and judging the drift",
+  "text": "Not a framework comparison: a tiny model on a loaded CPU, where each framework calls a different matmul library.",
+  "label": "depth",
+  "key": "Not a framework comparison",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "5. training both, and judging the drift",
+  "text": "What transfers to TPU and GPU is the method and the drift's shape; not the step times, and not the bit patterns (a TPU's default matmul precision is bfloat16, section 2).",
+  "label": "depth",
+  "key": "What transfers to TPU and GPU is the method",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "Porting a Hugging Face model: GPT-2 by hand The status first.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "For years the easy path was FlaxGPT2LMHeadModel.from_pretrained .",
+  "label": "core",
+  "key": "FlaxGPT2LMHeadModel.from_pretrained",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "That path is closing: Hugging Face's transformers v5 announcement (1 December 2025) says they are \"sunsetting our Flax/TensorFlow support in favor of focusing on PyTorch as the sole backend\", while \"working with partners in the Jax ecosystem\", naming MaxText ( Hugging Face blog ).",
+  "label": "core",
+  "key": "sunsetting our Flax/TensorFlow support",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "Measured here: transformers exports names starting with \"Flax\".",
+  "label": "core",
+  "key": "names starting with \"Flax\"",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "The checkpoints remain (the GPT-2 repository still carries a flax_model.msgpack ), and safetensors files load into JAX directly, so a port today is: read the safetensors, write the forward pass, check it against transformers' PyTorch model.",
+  "label": "core",
+  "key": "write the forward pass, check it against",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "GPT-2 small, from openai-community/gpt2 at revision 607a30d7 ( parameters in tensors, of which are causal-mask buffers, not weights), ported in about 25 lines of plain JAX ( src/runs/pj_gpt2.py ).",
+  "label": "core",
+  "key": "openai-community/gpt2",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "Three facts of this checkpoint decide the port, and each contradicts a habit from the running example: No transpose.",
+  "label": "core",
+  "key": "Three facts of this checkpoint decide the port",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "GPT-2's projections are Hugging Face's Conv1D , whose weight is stored [in, out] , already JAX's layout (excerpt below).",
+  "label": "core",
+  "key": "already JAX's layout",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "Transposing \"because PyTorch is [out, in]\" breaks it.",
+  "label": "core",
+  "key": "\"because PyTorch is [out, in]\" breaks it",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "The config says \"activation_function\": \" \" , the tanh approximation: here jax.nn.gelu 's default is the right one.",
+  "label": "core",
+  "key": "the tanh approximation",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "There is no lm_head.weight in the file: the output projection is the token embedding transposed ( x @ wte.T ). transformers' model shares the tensor (tied: ).",
+  "label": "core",
+  "key": "x @ wte.T",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "Prompt \" \", greedy decoding of 20 tokens, float32, both on Apple M1 Pro (CPU).",
+  "label": "core",
+  "key": "greedy decoding of 20 tokens",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "The JAX port runs eagerly without a KV cache ( s against transformers' s): fine for a check, not for serving.",
+  "label": "core",
+  "key": "fine for a check, not for serving",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "Greedy text is a weak test The exact-GELU mistake moves the logits by and still produces identical greedy text; the epsilon mistake likewise.",
+  "label": "core",
+  "key": "Greedy text is a weak test",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "Only the transpose mistake shows in text (\" \").",
+  "label": "core",
+  "key": "Only the transpose mistake shows in text",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "Compare logits with a tolerance; read text only as a smoke test.",
+  "label": "core",
+  "key": "read text only as a smoke test",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "Where the real ports live.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "At scale nobody writes a forward pass per checkpoint by hand without a table.",
+  "label": "depth",
+  "key": "nobody writes a forward pass per checkpoint",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "Tunix (v0.1.7) loads Hugging Face safetensors into NNX models with a regex from each PyTorch name to a JAX path plus a permutation and reshape (excerpt below); MaxText converts both ways with checkpoint_conversion/to_maxtext.py and to_huggingface.py ( MaxText at 1a95d1e5 ).",
+  "label": "depth",
+  "key": "to_huggingface.py",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "Both are the same idea as section 3's four-entry rule, grown to whole model families; JAX LLM codebases reads them in depth.",
+  "label": "depth",
+  "key": "grown to whole model families",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "6. porting a hugging face model: gpt-2 by hand",
+  "text": "Saving the transformers model back with safetensors' plain save_file fails on the tie:",
+  "label": "depth",
+  "key": "fails on the tie",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "7. interop: using pytorch code from jax without porting it",
+  "text": "Interop: using PyTorch code from JAX without porting it The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "7. interop: using pytorch code from jax without porting it",
+  "text": "Sometimes only one piece needs to be in the other framework: a JAX loss inside a PyTorch training loop, a PyTorch model evaluated inside a JAX pipeline, or a PyTorch codebase that must run on TPUs.",
+  "label": "core",
+  "key": "a JAX loss inside a PyTorch training loop",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "7. interop: using pytorch code from jax without porting it",
+  "text": "Four tools, all tried here on the running example: Tool What it does Measured here Use it when DLPack ( jax.dlpack.from_dlpack , torch.from_dlpack ) hands a buffer from one framework to the other without copying same pointer both ways ( , ).",
+  "label": "core",
+  "key": "without copying",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "7. interop: using pytorch code from jax without porting it",
+  "text": "A later in-place add_ in torch changed the JAX array from to , breaking JAX's assumption that arrays never change.",
+  "label": "depth",
+  "key": "breaking JAX's assumption that arrays never change",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "7. interop: using pytorch code from jax without porting it",
+  "text": "A strided batch slice is refused: A tensor that requires grad: moving activations or batches between frameworks on one device; copy ( .clone() ) if either side may mutate A jax2torch bridge (a torch.autograd.Function calling a jitted JAX function) forward runs JAX, backward returns JAX's gradients to autograd the JAX loss of the running example, called from PyTorch: loss against , gradients within over all tensors a JAX-only component (a loss, a sampler, a kernel) inside a PyTorch loop torchax (google/torchax) runs PyTorch modules with JAX arrays underneath; torchax.extract_jax(module) returns the weights as a pytree and the forward as a pure JAX function torchax 0.0.13 from PyPI does not import with torch 2.14.1: .",
+  "label": "depth",
+  "key": "A strided batch slice is refused",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "7. interop: using pytorch code from jax without porting it",
+  "text": "GitHub main ( d95b0a5b , 2026-10-11) works: logits within of PyTorch, jax.grad through the PyTorch code within ; its jaxpr has equations against for the hand port; weights stay in PyTorch's layout ( head.weight ) trying a PyTorch model on TPU, or under jit, grad and sharding, before deciding to port; pin the torch version it was tested with PyTorch/XLA and its successor PyTorch's own TPU backend (lazy tensors lowered to XLA) not run here (no TPU).",
+  "label": "depth",
+  "key": "d95b0a5b",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "7. interop: using pytorch code from jax without porting it",
+  "text": "Its README says \"Once TorchTPU is public it will replace PyTorch/XLA\" (note dated 2026-04-22); TorchTPU was not public on 2026-10-15 (FACTS \"map\") an existing PyTorch TPU codebase; check TorchTPU's status before starting a new one How to check an interop boundary.",
+  "label": "depth",
+  "key": "Once TorchTPU is public",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "7. interop: using pytorch code from jax without porting it",
+  "text": "The same ladder: the bridge's loss and gradients against the native ones, which is what the table reports.",
+  "label": "core",
+  "key": "the bridge's loss and gradients against the native ones",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "7. interop: using pytorch code from jax without porting it",
+  "text": "Two costs the table does not show: every crossing is a host-side Python call (no fusion across the boundary), and under jax.jit a PyTorch call needs jax.pure_callback , which XLA cannot optimise or differentiate unless you supply the rule.",
+  "label": "core",
+  "key": "no fusion across the boundary",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "8. when not to port",
+  "text": "When not to port A port costs the translation, the equivalence test, and from then on two code bases (or one you know less well).",
+  "label": "core",
+  "key": "two code bases",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "8. when not to port",
+  "text": "It pays when the target gives something the source cannot.",
+  "label": "core",
+  "key": "It pays when the target gives something the source cannot",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "8. when not to port",
+  "text": "Judgement, labelled as such: Situation Advice Why You will train on TPUs at scale port (or start in JAX) XLA, GSPMD and Pallas are JAX's home ground; MaxText and Tunix exist for this ( Sharding and scale ) You need one TPU experiment try torchax first an afternoon instead of a week; port if it sticks Your model leans on PyTorch-only kernels or libraries (custom CUDA, FlashAttention builds, bitsandbytes) do not port each needs a JAX or Pallas equivalent and its own test ( Pallas kernels ) Serving on GPUs do not port vLLM and SGLang are PyTorch-first; vLLM's TPU path (tpu-inference) runs PyTorch and JAX models (FACTS \"map\") You want a functional component (per-example gradients, Hessians, vmap over seeds) bridge it, or use torch.func PyTorch has vmap and grad in torch.func ; JAX is not the only way A research codebase you will read more than run port only what you change a faithful port is a lot of work to get exactly right, as this page shows",
+  "label": "core",
+  "key": "port only what you change",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "Common mistakes, with the messages they produce Messages captured by src/runs/pj_drills.py and pj_convert.py (paths removed).",
+  "label": "depth",
+  "key": "paths removed",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "common mistakes, with the messages they produce",
+  "text": "The Port drills tab turns each into a question.",
+  "label": "depth",
+  "key": "turns each into a question",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Interview questions Reading tab of the PyTorch to JAX child page of Topic: jax-and-tpu, built 2026-10-15.",
+  "label": "core",
+  "key": "built 2026-10-15",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Every run used jax 0.11.2, jaxlib 0.11.2, flax 0.12.10, optax 0.2.8, torch 2.14.1 and Python 3.12.11 on an Apple M1 Pro, CPU only, low priority on a shared machine; transformers 5.19.0, safetensors 0.8.0 and torchax (PyPI 0.0.13 and GitHub main d95b0a5b) were installed beside the shared environment for this page only.",
+  "label": "core",
+  "key": "Python 3.12.11",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Scripts and recorded outputs are in this page's src/runs/ .",
+  "label": "core",
+  "key": "Scripts and recorded outputs are in this page's",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "Divergence hunter Every switch is one porting difference, trained alone for 300 steps from the PyTorch twin's initial weights on the same batches ( src/runs/pj_hunt.py ).",
+  "label": "core",
+  "key": "trained alone for 300 steps",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "Seven of them were trained by the root's Training lab and are reused here (marked \"root\"); the rest were trained for this page with the same harness, which first reproduced the root's correct-port curve exactly (largest difference ).",
+  "label": "core",
+  "key": "reproduced the root's correct-port curve exactly",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "Turn switches on to overlay how far each run's training loss is from PyTorch's, then press play to watch the curves separate step by step.",
+  "label": "core",
+  "key": "Turn switches on",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "The table under the chart gives each run's evidence ladder: the first rung that fails tells you where to look.",
+  "label": "core",
+  "key": "the first rung that fails tells you where to look",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "Show |loss - PyTorch loss| (log) training loss Rung thresholds as in the Reading tab, section 4: logits, loss and gradients 1e-5, one step 1e-6, curve 1e-4.",
+  "label": "core",
+  "key": "Rung thresholds as in the Reading tab",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "A dash means the rung could not be computed (the loss was already NaN).",
+  "label": "core",
+  "key": "A dash means",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "Validation is the mean over 8 fixed batches with the causal mask; for the mask variants the second number uses the run's own (wrong) mask, which is what its training loss reflects.",
+  "label": "core",
+  "key": "mean over 8 fixed batches",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "Measured on Apple M1 Pro (CPU); new runs took of CPU each at a 1-minute load average of to .",
+  "label": "core",
+  "key": "new runs took",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "What the runs say Forward-pass differences show at step 0.",
+  "label": "core",
+  "key": "Forward-pass differences show at step 0",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "The epsilon, GELU, bfloat16 and mask switches all fail the logits rung; one batch of logits from copied weights catches every one of them before any training.",
+  "label": "core",
+  "key": "one batch of logits from copied weights catches",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "Optimiser differences pass three rungs.",
+  "label": "core",
+  "key": "Optimiser differences pass three rungs",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "Weight decay, b2, clip position and the schedule's off-by-one leave logits and gradients identical and only appear at the one-step rung or in the curves.",
+  "label": "core",
+  "key": "the schedule's off-by-one",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "Two differences are harmless.",
+  "label": "core",
+  "key": "Two differences are harmless",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "PyTorch's clipping formula and Flax's fast variance stay within the correct port's own noise for all 300 steps; the ladder passes them, which is the point of having thresholds.",
+  "label": "core",
+  "key": "which is the point of having thresholds",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "A wrong mask can look like success.",
+  "label": "core",
+  "key": "A wrong mask can look like success",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-pjdh",
+  "section": "divergence hunter",
+  "text": "Without the causal mask the training loss collapses (the model reads the answer), validation with a proper mask is against .",
+  "label": "core",
+  "key": "the model reads the answer",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-pjwc",
+  "section": "weight conversion",
+  "text": "Weight conversion The running example's PyTorch tensors and where each lands in the Flax NNX model, by the four-entry rule of the Reading tab's section 3 ( src/runs/pj_convert.py ).",
+  "label": "depth",
+  "key": "tensors and where each lands",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-pjwc",
+  "section": "weight conversion",
+  "text": "Rows marked ↻ are transposed.",
+  "label": "depth",
+  "key": "are transposed",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-pjwc",
+  "section": "weight conversion",
+  "text": "Click a row to see its shapes; the animation below moves a real corner of one weight matrix from PyTorch's layout to Flax's, and the switch runs the same animation on GPT-2's checkpoint, where nothing should move. running example: nn.Linear GPT-2: Conv1D Values are the real top-left corner (6 rows by 8 columns as stored) of blocks.0.attn.wq.weight after 500 training steps, and of GPT-2's h.0.attn.c_proj.weight ; colour by value (blue negative, orange positive).",
+  "label": "core",
+  "key": "nothing should move",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-pjwc",
+  "section": "weight conversion",
+  "text": "Each element keeps its value; only its position changes.",
+  "label": "core",
+  "key": "only its position changes",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-pjwc",
+  "section": "weight conversion",
+  "text": "Every tensor Show all transposed only GPT-2 (block 0 and globals) Click a row.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "controls"
+ },
+ {
+  "id": 172,
+  "tab": "t-pjwc",
+  "section": "weight conversion",
+  "text": "The checks that passed",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading of a stats block; the counts are in the section 3 stats and prose"
+ },
+ {
+  "id": 173,
+  "tab": "t-pjdr",
+  "section": "port drills",
+  "text": "Port drills Each drill is a PyTorch snippet and two or three JAX ports of it.",
+  "label": "core",
+  "key": "two or three JAX ports of it",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-pjdr",
+  "section": "port drills",
+  "text": "Pick the port you would write , then see what every candidate actually printed: each snippet and each candidate ran exactly as shown, on the running example's real block-0 activations where an input is needed ( src/runs/pj_drills.py , jax 0.11.2, flax 0.12.10, optax 0.2.8, torch 2.14.1).",
+  "label": "core",
+  "key": "Pick the port you would write",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-pjdr",
+  "section": "port drills",
+  "text": "Several wrong answers raise nothing: that is why they are drills.",
+  "label": "core",
+  "key": "Several wrong answers raise nothing",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-pjdr",
+  "section": "port drills",
+  "text": "Drill Next drill → \"max |diff|\" compares a candidate's output with the PyTorch snippet's output where the two are comparable (same shape, numbers).",
+  "label": "core",
+  "key": "max |diff|",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-pjdr",
+  "section": "port drills",
+  "text": "Random draws cannot match across frameworks by design, so that drill compares candidates with each other.",
+  "label": "core",
+  "key": "Random draws cannot match",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-more",
+  "section": "",
+  "text": "The tabs of this page, the parent topic and its other child pages, the PyTorch pages this one maps onto, and the best outside resources for porting, each with an approximate time.",
+  "label": "core",
+  "key": "the best outside resources for porting",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-more",
+  "section": "",
+  "text": "Outside sources are marked Google (written by JAX's makers), Hugging Face, PyTorch or third-party.",
+  "label": "core",
+  "key": "Outside sources are marked Google",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked and reading times estimated from word counts on 2026-10-15.",
+  "label": "core",
+  "key": "Links checked",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page Reading The translation, every default that differs, weight conversion, the equivalence ladder and the float64 test, drift, GPT-2 by hand, interop, when not to port, mistakes, interview questions. about 40 min, plus 10 for source excerpts and folded answers Divergence hunter Seventeen porting differences, each trained alone for 300 steps, overlaid against PyTorch with their evidence ladders. about 10 min Weight conversion All 69 tensors mapped from PyTorch names to NNX paths, a real tile transposed step by step, GPT-2's Conv1D layout for contrast. about 5 min Port drills Eleven PyTorch snippets, each with two or three JAX ports that really ran; pick one, see every output. about 10 min The parent topic and the other child pages Topic: jax-and-tpu The root: the comparison and the overview, and the running example.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old summary of this page with its old reading time; rewritten"
+ },
+ {
+  "id": 182,
+  "tab": "t-more",
+  "section": "",
+  "text": "Its Training lab tab has the port as linked panes, the seven pitfalls this page extends, the 4,000-step twins and the optax-against-torch check. about 27 min reading; Training lab about 28 min The JAX training stack Flax NNX, optax, orbax and grain in depth: everything the translated script is built from. see the page JAX core Why the port has to be pure: tracing, jit, grad, vmap, pytrees and random keys from the inside. about 40 min XLA and compilation What happens to the ported train step after jit, and how it compares with torch.compile. see the page Sharding and scale The next step after a correct single-device port: the same model on a mesh. see the page JAX LLM codebases MaxText and Tunix, including the checkpoint converters section 6 points to. see the page TPU programming and performance Matmul precision, bfloat16 and padding on the hardware a port usually targets. see the page Pallas kernels What to do with a PyTorch model's custom kernels. see the page The PyTorch side Topic: pytorch-ecosystem The source framework, compared with its neighbours. see the page torch.compile from the user's side PyTorch's own compiler: often the alternative to porting for speed. see the page Distributed PyTorch DDP, FSDP2, DTensor: what the sharding of a ported model replaces. see the page Libraries on top of PyTorch The Hugging Face stack the GPT-2 checkpoint comes from. see the page Outside resources JAX: the sharp bits Pure functions, in-place updates, out-of-bounds indexing, random numbers, control flow, 64-bit types: most of section 2's surprises, from the source.",
+  "label": "core",
+  "key": "the optax-against-torch check",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-more",
+  "section": "",
+  "text": "Google about 30 min Thinking in JAX The mental model behind the translation table.",
+  "label": "core",
+  "key": "Thinking in JAX",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-more",
+  "section": "",
+  "text": "Google about 20 min Default dtypes and the X64 flag Why float64 is off and how to turn it on for the ladder's float64 test.",
+  "label": "core",
+  "key": "Default dtypes and the X64 flag",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-more",
+  "section": "",
+  "text": "Google about 8 min jax.dlpack The zero-copy interchange used in section 7.",
+  "label": "core",
+  "key": "jax.dlpack",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-more",
+  "section": "",
+  "text": "Google about 3 min Flax documentation NNX guides and API, including every layer default quoted here.",
+  "label": "core",
+  "key": "Flax documentation",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-more",
+  "section": "",
+  "text": "Google reference optax documentation Chains, masks, schedules: the optimiser half of the port.",
+  "label": "core",
+  "key": "optax documentation",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-more",
+  "section": "",
+  "text": "Google reference safetensors The format and its torch, numpy and flax loaders.",
+  "label": "core",
+  "key": "torch, numpy and flax loaders",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-more",
+  "section": "",
+  "text": "Hugging Face about 10 min Transformers v5 announcement The end of Flax support in transformers, and the JAX-ecosystem partnerships (2025-12-01).",
+  "label": "core",
+  "key": "Transformers v5 announcement",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-more",
+  "section": "",
+  "text": "Hugging Face about 15 min torchax Running PyTorch modules on JAX and TPUs; pin the torch version (section 7).",
+  "label": "core",
+  "key": "pin the torch version",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-more",
+  "section": "",
+  "text": "Google about 10 min Tunix Post-training in JAX, with safetensors loaders for Hugging Face models (models/*/params.py).",
+  "label": "core",
+  "key": "models/*/params.py",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-more",
+  "section": "",
+  "text": "Google about 15 min for the loaders PyTorch/XLA PyTorch's TPU backend and its note on TorchTPU.",
+  "label": "core",
+  "key": "its note on TorchTPU",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-more",
+  "section": "",
+  "text": "PyTorch and Google about 10 min Numerical accuracy Why the same computation gives different bits in different orders: the reason section 4 needs tolerances.",
+  "label": "core",
+  "key": "Numerical accuracy",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-more",
+  "section": "",
+  "text": "PyTorch about 12 min",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "time tail of the previous card"
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "Embedding init: PyTorch N(0, 1) against Flax variance_scaling(1, fan_in), an 11x difference in the residual stream starting scale.",
+  "label": "core",
+  "key": "an 11x difference",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "BatchNorm momentum is the weight of the new batch in PyTorch and of the old average in Flax: torch 0.1 is Flax 0.9.",
+  "label": "core",
+  "key": "torch 0.1 is Flax 0.9",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "The same lower-triangular boolean mask is causal in SDPA and JAX and anti-causal in nn.MultiheadAttention.",
+  "label": "core",
+  "key": "anti-causal",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "A fully masked row: NaN by hand, zeros from SDPA, uniform weights from JAX and Flax.",
+  "label": "core",
+  "key": "three libraries, three answers",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "Cross-entropy: optax has no ignore index; label -100 or out of range gives a NaN mean with no error.",
+  "label": "core",
+  "key": "so the mean is NaN, with no error",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "Out-of-bounds indexing clamps in JAX; an embedding lookup of id 70 returns row 64.",
+  "label": "core",
+  "key": "a tokenizer mismatch trains silently",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "jnp.var uses ddof=0, torch.var is unbiased.",
+  "label": "core",
+  "key": "is not the PyTorch one",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "optax adamw decays every leaf unless masked.",
+  "label": "core",
+  "key": "on every leaf unless",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "The clipping formulas differ by one part in a million and do not matter.",
+  "label": "core",
+  "key": "the one difference that does not matter",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "chain(adamw, clip) clips Adam updates instead of gradients.",
+  "label": "core",
+  "key": "the wrong order clips Adam's updates",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "A warmup lr(count) from 0 makes the first update zero.",
+  "label": "core",
+  "key": "makes the first update zero",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "float64 needs jax_enable_x64; the ladder uses it deliberately.",
+  "label": "core",
+  "key": "section 4 uses x64 deliberately",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "TPU DEFAULT matmul precision is one bfloat16 pass; emulated here on init and trained weights.",
+  "label": "core",
+  "key": "emulated here (matmul inputs rounded to bfloat16)",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 2. every default that differs",
+  "text": "Dropout chart result (script-rendered caption): the reused key stays within seed noise at 300 steps; check masks change.",
+  "label": "core",
+  "key": "The reused key is invisible in the loss",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 4. the equivalence test",
+  "text": "Float64 amplification by Adam (script-rendered): one-step gap equals gradient gap times lr / eps = 2,000; clip formula is a second, smaller source.",
+  "label": "depth",
+  "key": "lr / eps = 2,000",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "added 2026-10-23: common mistakes",
+  "text": "Mistakes table (script-rendered): item assignment, transpose(1, 2), copied weights, bfloat16 via numpy, non-contiguous save, strided DLPack, padding labels, max unpacking, reused key, var, MHA mask, ids past the vocabulary.",
+  "label": "depth",
+  "key": "a token id past the vocabulary clamps to the last row",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "added 2026-10-23: interview questions",
+  "text": "Interview answers (script-rendered): lower loss is not better, 1e-6 logits, which rung catches optimiser bugs, Linear vs Conv1D, TPU precision, dropout testing, a 7B port plan, when not to port.",
+  "label": "depth",
+  "key": "Interview rehearsal (8 questions with answers)",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 6. porting a hugging face",
+  "text": "GPT-2 port results table (script-rendered): correct port, square c_proj transposed, exact GELU, epsilon 1e-6, all Conv1D transposed.",
+  "label": "core",
+  "key": "Only the transpose mistake shows in text",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "added 2026-10-23: 7. interop",
+  "text": "DLPack shares memory: copy if either side may mutate.",
+  "label": "core",
+  "key": "if either side may mutate",
+  "where": ""
+ }
+]
