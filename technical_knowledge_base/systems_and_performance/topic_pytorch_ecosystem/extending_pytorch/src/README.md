@@ -49,3 +49,7 @@ Why 31 minutes is right: the page teaches six mechanisms that have no other owne
 
 ## Departures from the child-page method
 No old page, so no `live.md`/`coverage.json`; corrections to claims in the old root notes are in `coverage.md`. The "compare everything" pattern became a lab (ten variants side by side) and a chooser, since the subject is choices among mechanisms rather than a dataset.
+
+## Close of the topic (2026-10-23)
+
+Sibling reading times in Further reading set to each page's header; the Which extension point? card for autograd.Function now points to Tensors, the dispatcher and autograd Reading 3.4 (it said 3.6, the checkpointing section).

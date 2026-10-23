@@ -35,7 +35,7 @@
       code:'class StableOp(torch.autograd.Function):\n    @staticmethod\n    def forward(x):\n        return ...\n    @staticmethod\n    def setup_context(ctx, inputs, output):\n        ctx.save_for_backward(inputs[0])\n    @staticmethod\n    def backward(ctx, g):\n        (x,) = ctx.saved_tensors\n        return ...\ny = StableOp.apply(x)',
       reg:['forward, setup_context, backward (static methods)'],
       test:['torch.autograd.gradcheck in float64 (the sibling page shows it)','compiled gradients against eager on one batch'],
-      ev:'Owned by the sibling page, section 3.6: {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}.'},
+      ev:'Owned by the sibling page, Reading 3.4: {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}.'},
     r_cpp:{h:'A C++ (or CUDA) operator: TORCH_LIBRARY, plus a fake and autograd from Python',why:'The dispatcher needs an operator to route to your kernel; the compiler needs a fake; training needs a formula. Register them at import.',
       code:'// C++\nTORCH_LIBRARY(mylib, m) { m.def("op(Tensor x) -> Tensor"); }\nTORCH_LIBRARY_IMPL(mylib, CPU, m) { m.impl("op", &op_cpu); }   // or CUDA\n\n# Python, right after loading the extension\ntorch.library.register_fake("mylib::op")(lambda x: torch.empty_like(x))\ntorch.library.register_autograd("mylib::op", backward, setup_context=setup_context)',
       reg:['schema in C++ (declare mutation as Tensor(a!))','kernel per device key','register_fake','register_autograd (backward made of operators)'],
