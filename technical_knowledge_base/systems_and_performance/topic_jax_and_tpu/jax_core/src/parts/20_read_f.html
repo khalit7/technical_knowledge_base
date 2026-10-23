@@ -1,92 +1,48 @@
-<section id="s-tree">
-<h2>8. Pytrees in depth: registration, static data and the jit cache</h2>
-<p>The root's {{Transforms lab|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} (section 7) explores the running example's parameter pytree and what counts as a leaf. This section is about your own classes, and the one property that causes most surprises: <b>the tree structure, including its static data, is part of the jit cache key</b>.</p>
-<h3>Three ways to make a class a pytree</h3>
-<p>A pytree node type needs two functions: flatten (object to children plus <b>auxiliary data</b>, the static part) and unflatten (back). <span class="jc-lbl m">measured here</span> (<code>run_pytree.py</code>):</p>
-<pre class="jc-code">class Linear:                                      # (a) by hand
-    def __init__(self, w, b, name): ...
-jax.tree_util.register_pytree_node(Linear,
-    lambda m: ((m.w, m.b), m.name),               # children, aux data
-    lambda name, ch: Linear(ch[0], ch[1], name))
-
-@jax.tree_util.register_dataclass                 # (b) a dataclass: static fields are aux data
-@dataclasses.dataclass
-class LayerNorm:
-    scale: jax.Array
-    bias: jax.Array
-    eps: float = dataclasses.field(metadata=dict(static=True), default=1e-5)
-
-class Adam(NamedTuple):                           # (c) NamedTuples are pytrees already
-    mu: dict; nu: dict; count: jax.Array</pre>
-<div class="tw"><table class="jc-t" id="jc-treereg"></table></div>
-<p>The treedef prints the aux data inside the node (<code>Linear[fc1]</code>, <code>LayerNorm[(1e-05,)]</code>), and key paths name each leaf (<code>.scale</code>, <code>.mu['w']</code>), which is what optax masks, orbax checkpoints and sharding rules match on. A hand-registered class without key functions gets flat-index paths; <code>register_pytree_with_keys</code> or a dataclass gives names. Flax NNX modules and Equinox modules are registered the same way, with the static parts (layer sizes, activation functions) as aux data; the {{training stack|n:3c65c17b0d0d817ea0ace9a2ca8677ec}} page covers <code>nnx.split</code> and Equinox's filtered transformations built on this.</p>
-<h3>Static data is part of the cache key</h3>
-<div class="jc-pr" data-ans="b"><div class="q">Predict: a jitted function takes the <code>LayerNorm</code> above. You call it with new scale values, then with <code>eps=1e-6</code>. How many times is it traced in total?</div>
-<div class="opts"><button data-o="a">once: both are just different values</button><button data-o="b">twice: the new eps is a new treedef</button><button data-o="c">three times: any change retraces</button></div>
-<div class="ans" hidden><span class="jc-lbl m">measured here</span> traces after the new scale: <b data-k="pt.static.traces_after_new_values"></b>; after the new eps: <b data-k="pt.static.traces_after_new_eps"></b>. Arrays are traced, so new values hit the cache; aux data is compared by value and baked into the program, so a new eps is a new program. Put hyperparameters that change every step (a learning rate on a schedule) in a leaf, not in static fields.</div></div>
-<p>Because aux data is hashed and compared, it must be hashable with value equality. An array in aux data passes the first call and fails the second, when JAX compares it with the cached one:</p>
-<pre class="jc-code jc-err" data-code="pt.static.unhashable_aux_second_call"></pre>
-<p>A class that is not registered at all is a single opaque leaf: <code>jax.tree.leaves</code> returns the object, and jit and grad refuse it:</p>
-<pre class="jc-code jc-err" data-code="pt.unregistered.jit_error"></pre>
-<h3>None, empty containers, is_leaf and transpose</h3>
-<ul>
-<li><code>None</code> and <code>()</code> are empty subtrees, not leaves: <code data-k="pt.none.treedef"></code> has <span data-k="pt.none.leaves"></span> leaves, and <code>jax.tree.map</code> keeps the Nones in place (<code data-k="pt.none.map_keeps_none"></code>). Use <code>is_leaf=lambda v: v is None</code> to see them (<span data-k="pt.none.leaves_with_none_as_leaf"></span> leaves).</li>
-<li><code>is_leaf</code> also stops descent: a list of (array, array) pairs has <span data-k="pt.is_leaf.default_leaves"></span> leaves by default and <span data-k="pt.is_leaf.tuples_as_leaves"></span> with <code>is_leaf=lambda v: isinstance(v, tuple)</code>.</li>
-<li><code>jax.tree.transpose</code> turns a list of per-step metric dicts into a dict of lists: <code data-k="pt.transpose.out"></code>.</li>
-<li><code>jax.tree_util.tree_map_with_path</code> sees each leaf's path: matching paths ending in <code>['w']</code> picks the <span data-k="pt.map_with_path.n_true"></span> weight matrices of the running example, the same rule its weight-decay mask uses.</li>
-<li><code>jax.flatten_util.ravel_pytree(params)</code> concatenates every leaf into one vector (shape <span data-k="pt.ravel.shape"></span>) and returns the function that undoes it; useful for optimisers written for vectors (L-BFGS, influence functions).</li>
-<li>Structures must match exactly in multi-tree maps; a list against a tuple of the same length is a different structure: <code data-k="pt.list_vs_tuple"></code></li>
-</ul>
-<h3>What flattening costs</h3>
-<p>Every jitted call flattens its arguments in C++ to find the cache entry. <span class="jc-lbl m">measured here</span> on the running example's <span data-k="pt.running_example.n_leaves"></span>-leaf parameter tree (<span data-k="pt.running_example.num_nodes"></span> nodes): flatten <span data-k="pt.running_example.flatten_us" data-f="f1"></span> microseconds, unflatten <span data-k="pt.running_example.unflatten_us" data-f="f1"></span>, an identity <code>tree.map</code> <span data-k="pt.running_example.identity_map_us" data-f="f1"></span>; a jitted call taking the whole tree returned in <span data-k="pt.running_example.jit_call_with_69_leaves_us" data-f="f1"></span> microseconds against <span data-k="pt.running_example.jit_call_with_1_leaf_us" data-f="f1"></span> for one array (measured on Apple M1 Pro (CPU), shared machine, low priority, median of 200). Negligible for a training step; it adds up for tiny functions called in a Python loop with large trees, one reason to jit the whole step rather than its pieces.</p>
-</section>
-
-<section id="s-prng">
-<h2>9. Random keys in depth: typed keys, Threefry and the six implementations</h2>
-<p>The root's Transforms lab (section 6) teaches the rules: keys are values, never reuse one, split or fold in. This section is how keys work and which choices you have.</p>
-<h3>Typed keys against raw keys</h3>
-<p><span class="jc-lbl m">measured here</span>: <code>jax.random.key(0)</code> is a scalar array of a key dtype; the older <code>jax.random.PRNGKey(0)</code> is a plain uint32 array of two words. They give the same stream (<span data-k="pr.keys.same_stream"></span>).</p>
-<div class="tw"><table class="jc-t"><thead><tr><th></th><th><code>jax.random.key(0)</code></th><th><code>jax.random.PRNGKey(0)</code></th></tr></thead><tbody>
-<tr><td>typeof</td><td class="mono" data-k="pr.keys.key(0).typeof"></td><td class="mono" data-k="pr.keys.PRNGKey(0).typeof"></td></tr>
-<tr><td><code>split(k, 3).shape</code></td><td class="mono" data-k="pr.keys.split_shapes.typed"></td><td class="mono" data-k="pr.keys.split_shapes.raw"></td></tr>
-<tr><td><code>k + 1</code></td><td class="mono" data-k="pr.keys.add_to_typed_key"></td><td class="mono" data-k="pr.keys.add_to_raw_key"></td></tr>
-<tr><td>key-reuse checker</td><td>tracked</td><td class="mono" data-k="pr.key_reuse.raw_key_checked"></td></tr>
-</tbody></table></div>
-<p>Typed keys are the recommended form ({{JEP 9263|https://docs.jax.dev/en/latest/jep/9263-typed-keys.html}}): arithmetic on a key is a bug, a batch of keys has the batch shape and nothing else, and the implementation travels with the dtype. <code>jax.random.key_data</code> and <code>wrap_key_data</code> convert both ways (round trip exact: <span data-k="pr.keys.wrap_roundtrip"></span>), for checkpointing or interop.</p>
-<h3>Threefry: a hash, not a generator</h3>
-<p>The default generator is <b>Threefry-2x32</b>, a counter-based PRNG from {{Salmon et al. (2011), Parallel random numbers: as easy as 1, 2, 3|http://www.thesalmons.org/john/random123/papers/random123sc11.pdf}}: random bits are a keyed hash of a counter, <code>bits[i] = threefry(key, i)</code>, built from 32-bit additions, rotations and XORs. There is no state to advance, so any element of any array can be computed independently, on any device, in any order: that is what makes sharded random numbers cheap and reproducible. <span class="jc-lbl s">source</span> the rotation constants and key schedule (0x1BD11BDA is Threefish's parity constant):</p>
-<div class="jc-srcx" data-id="threefry"></div>
-<p>In the jaxpr, <code>jax.random.normal(key, (3,))</code> is a <code>random_bits</code> equation followed by float tricks (shift right 9, OR with the exponent of 1.0, subtract 1: a uniform in [0, 1)) and <code>erf_inv</code>; the Threefry rounds themselves appear only after lowering (<span data-k="pr.threefry_in_stablehlo.threefry_calls"></span> calls to a <code>threefry2x32</code> function in this program's StableHLO).</p>
-<h3>Why split(key)[i] equals fold_in(key, i)</h3>
-<p>The root page observed this as a coincidence. The source says why: <span class="jc-lbl s">source</span> in partitionable mode (the default since JAX 0.5.0), <code>split</code> hashes the counters (0, i) with the key, and <code>fold_in(key, i)</code> hashes the seed made from i, which is the same pair.</p>
-<div class="jc-srcx" data-id="split_fold"></div>
-<p><span class="jc-lbl m">measured here</span>: equal for i = 0, 1, 2: <span data-k="pr.fold_in.fold_in(key, i) == split(key, 3)[i]"></span>. It is an implementation fact of jax 0.11.2 with <code>jax_threefry_partitionable=True</code>, not a documented guarantee; do not build on it.</p>
-<div class="jc-pr" data-ans="a"><div class="q">Predict: is <code>jax.random.normal(key, (4,))[:3]</code> equal to <code>jax.random.normal(key, (3,))</code>?</div>
-<div class="opts"><button data-o="a">yes, with the default settings</button><button data-o="b">no, the shape is hashed in</button></div>
-<div class="ans" hidden><span class="jc-lbl m">measured here</span> with <code>jax_threefry_partitionable=True</code> (default): <b data-k="pr.prefix.partitionable=True.(4,)[:3] equals (3,)"></b>, and row 0 of a (2, 3) draw also equals the (3,) draw (<span data-k="pr.prefix.partitionable=True.(2,3)[0] equals (3,)"></span>): element i depends only on the key and i. With the flag off: <b data-k="pr.prefix.partitionable=False.(4,)[:3] equals (3,)"></b>. Changing the flag changes every random number your code draws, including initialisations.</div></div>
-<h3>Six implementations</h3>
-<p>jax 0.11.2 registers six generators, chosen per key (<code>jax.random.key(0, impl="rbg")</code>) or globally (<code>jax_default_prng_impl</code>, default <code data-k="pr.default_impl"></code>). <span class="jc-lbl m">measured here</span> on CPU (4M normals per call, median of 5, loaded machine; on CPU only, see below):</p>
-<div class="tw"><table class="jc-t" id="jc-prng"></table></div>
-<p><span class="jc-lbl s">source</span> <code>jax.random</code>'s own summary (docstring at the pinned tag) says which to pick and why:</p>
-<div class="jc-srcx" data-id="prng_table" data-open="1"></div>
-<p>The last row is real: <span class="jc-lbl m">measured here</span>, vmapping <code>normal</code> over 8 split <code>rbg</code> keys gave the same numbers as drawing 8 values from the first key alone, exactly the docstring's warning; every counter-based generator matched its own loop. The "fastest on TPU" row is the docstring's claim, <span class="jc-lbl p">published</span>, not run here (no TPU); on this CPU the RBG generators were the slowest. The design is in {{JEP 263|https://docs.jax.dev/en/latest/jep/263-prng.html}}.</p>
-<h3>The key-reuse checker</h3>
-<p><code>jax.config.update("jax_debug_key_reuse", True)</code> tracks typed keys and raises when one is consumed twice. <span class="jc-lbl m">measured here</span>:</p>
-<pre class="jc-code" data-code="pr.key_reuse.code"></pre>
-<pre class="jc-code jc-err" data-code="pr.key_reuse.jit_error"></pre>
-<p>It costs tracing time and is meant for tests and debugging, not production runs.</p>
-</section>
-
-<section id="s-prim">
-<h2>10. Writing a new primitive, one rule at a time</h2>
-<p><b>When you need this.</b> Almost never: a <code>custom_jvp</code> or <code>custom_vjp</code> (section 6) covers new derivatives, <code>jax.pure_callback</code> calls host Python, <code>jax.ffi</code> calls compiled C++ or CUDA through XLA's foreign function interface, and {{Pallas|n:3fa5c17b0d0d817699fcf65d085402e7}} writes kernels. A primitive is what those are built from, and writing one is the best way to see what every transformation needs. The example is <code>multiply_add(x, y, z) = x * y + z</code> from JAX's own {{primitives guide|https://docs.jax.dev/en/latest/601/jax-primitives.html}}, written against the public extension modules of jax 0.11.2.</p>
-<div class="jc-box" id="jc-prim-card"><h4>Each rule unlocks a transformation (real results after each step)</h4>
-<div id="jc-prim-grid"></div>
-<pre class="jc-code" id="jc-prim-code"></pre>
-<div class="jc-capt" id="jc-prim-cap"></div>
-<div class="jc-anctl" id="jc-prim-ctl"></div>
+<section id="s-cust">
+<h2>7. Custom derivative rules: custom_jvp and custom_vjp</h2>
+<p>Autodiff differentiates the program you wrote, not the function you meant. A formula that is correct in exact arithmetic can have a derivative program that overflows, divides by zero or multiplies infinity by zero, and some programs (a <code>while_loop</code> solver) cannot be reverse-differentiated at all. PyTorch's answer is <code>torch.autograd.Function</code> with a hand-written <code>backward</code>; JAX has two decorators.</p>
+<div class="grid">
+<div class="sp"><div class="n"><code>jax.custom_jvp</code> (the default)</div><p>You write the JVP rule (primal out, tangent out), linear in the tangents. JAX linearizes and transposes it for reverse mode, so the function works under <code>jvp</code>, <code>grad</code>, <code>vmap</code> and <code>jit</code> alike.</p></div>
+<div class="sp"><div class="n"><code>jax.custom_vjp</code></div><p>You write a forward that returns residuals and a backward that maps output cotangents to input cotangents, like PyTorch's <code>forward</code>/<code>backward</code>. Use it when the backward should be a different computation (implicit differentiation, saving memory, clipping). It gives up forward mode.</p></div>
 </div>
-<p>The rules, in the order they unlock things: <b>impl</b> (eager evaluation), <b>abstract evaluation</b> (shapes and dtypes: tracing, so <code>make_jaxpr</code>), <b>lowering</b> (StableHLO: jit), <b>JVP</b> (forward mode), <b>transpose</b> (reverse mode, because grad is linearize then transpose; section 5), <b>batching</b> (vmap). Each is a dictionary entry keyed by the primitive: <code>ad.primitive_jvps</code>, <code>ad.primitive_transposes</code>, <code>batching.primitive_batchers</code>, and the lowering registry (this process: <span data-k="vm.rule_tables.mlir lowerings (platform independent)"></span> platform-independent lowerings, plus <span data-k="vm.rule_tables.mlir lowerings (cpu)"></span> CPU-, <span data-k="vm.rule_tables.mlir lowerings (cuda)"></span> CUDA- and <span data-k="vm.rule_tables.mlir lowerings (tpu)"></span> TPU-specific ones). The finished primitive's gradient program shows the transpose rule at work: the backward pass is itself a <code>multiply_add</code>.</p>
-<pre class="jc-code jc-out" data-code="pm.final.grad_jaxpr"></pre>
-<p>Its jit lowers to two StableHLO ops, because the lowering rule traced the impl (<code>mlir.lower_fun</code>): <code>stablehlo.multiply</code> and <code>stablehlo.add</code>. A real primitive (a new matmul variant, a collective) would emit its own ops or a custom call.</p>
+<div class="jc-box"><h4>Correct formulas whose gradients go NaN, and the rule or rewrite that fixes each</h4>
+<div class="jc-sel" id="jccv-pick"></div>
+<div id="jccv-body"></div>
+<div class="jc-cap">Each case swept over its input in float32 with <code>jax.vmap(jax.grad(f))</code> under jit and compared with a float64 NumPy reference of the true function (<code>run_custom.py</code>). Red ticks along the top of a chart mark inputs where a variant returned NaN or inf.</div>
+</div>
+<p><b>softplus</b>, <code>log(1 + exp(x))</code> written naively: <span class="jc-lbl m">measured here</span> its value becomes inf and its gradient NaN from x = <span data-k="cv.softplus.first_nan_grad_x" data-f="f0"></span> on (the sweep steps by 1; exp overflows float32 above ln(3.4e38) = <span data-k="cv.softplus.exp_overflow_f32" data-f="f2"></span>), because the derivative program computes exp(x) / (1 + exp(x)) = inf / inf. A <code>custom_jvp</code> rule returning <code>t * sigmoid(x)</code> fixes the gradient (1.0 at x = 100) but not the value: a rule changes the derivative program only. The rewrite <code>max(x, 0) + log1p(exp(-|x|))</code> fixes both with no rule, but at x = 0 its gradient is <span data-k="cv.softplus.sweep.stable rewrite.grad.120"></span> (true value 0.5), because <code>max</code> and <code>|x|</code> follow conventions at their kinks. <code>jax.nn.softplus</code>, built on <code>logaddexp</code>, is right everywhere.</p>
+<p><b>A norm at zero, and the <code>jnp.where</code> trap.</b> The gradient of sqrt(s) is 0.5 / sqrt(s), infinite at s = 0, and the chain rule multiplies it by 2x = 0: NaN. So <code>jnp.linalg.norm</code> has a NaN gradient at the zero vector in jax 0.11.2 (<span data-k="cv.norm.grad_at_zero_vector.jnp.linalg.norm"></span>); a <code>custom_jvp</code> returning the subgradient 0 at the origin fixes it (<span data-k="cv.norm.grad_at_zero_vector.custom_jvp"></span>), and so does the "double where". It exists because <code>jnp.where(x &gt; 0, jnp.sqrt(x), 0.0)</code> has the right value everywhere and a NaN gradient for every x &lt;= 0: both branches are computed, the untaken branch's derivative is NaN or inf, and the where multiplies it by zero, which leaves NaN. PyTorch behaves the same (<span class="jc-lbl m">measured here</span>, torch <span data-k="cv.where.torch.version"></span>: gradient <span data-k="cv.where.torch.grad"></span> at x = -1, 0, 0.25). The fix makes the untaken branch harmless before it is computed:</p>
+<pre class="jc-code" data-code="cv.where.code"></pre>
+<p><b>A fixed point: when the backward should be a different computation.</b> A layer defined by an equation, z = tanh(W z + x), solved by iterating to convergence (deep equilibrium models, implicit layers, solvers): through a <code>while_loop</code> reverse mode refuses (section 5); through a fixed-length <code>scan</code> it stores every iteration. The implicit function theorem gives the gradient from the solution alone, by solving one more fixed-point equation for the adjoint. <span class="jc-lbl m">measured here</span> with W of 128 x 128 (a contraction), converged in <span data-k="cv.fixed_point.iters_to_converge"></span> iterations: the <code>custom_vjp</code> gradient matches the unrolled one to <span data-k="cv.fixed_point.grad_diff_W" data-f="e1"></span> (W) and <span data-k="cv.fixed_point.grad_diff_x" data-f="e1"></span> (x) and keeps <span data-k="cv.fixed_point.residual_bytes_implicit" data-f="int"></span> bytes of residuals whatever the iteration count, against <span data-k="cv.fixed_point.residual_bytes_unrolled_by_n.15" data-f="int"></span>, <span data-k="cv.fixed_point.residual_bytes_unrolled_by_n.100" data-f="int"></span> and <span data-k="cv.fixed_point.residual_bytes_unrolled_by_n.1000" data-f="int"></span> bytes unrolled for 15, 100 and 1,000 iterations. Its cost is forward mode: <code>jax.jvp</code> of a <code>custom_vjp</code> function raises <code data-k="cv.fixed_point.jvp_of_custom_vjp_error"></code>, so <code>jacfwd</code> and <code>jax.hessian</code> fail on it too. A <code>custom_vjp</code> can also change only the backward pass: an identity whose backward clips the cotangent to [-1, 1] turned the gradient [0.5, 3, -7] into <span data-k="cv.clip.grad"></span>.</p>
+<details class="mist"><summary>The code of each case, how the rule travels in the jaxpr, and the forward-mode refusal in the source</summary><div class="b">
+<pre class="jc-code" data-code="cv.softplus.code"></pre>
+<pre class="jc-code" data-code="cv.fixed_point.code"></pre>
+<p>In the jaxpr, the rule travels with the function: <code>custom_jvp_call</code> carries the primal program as <code>call_jaxpr</code> and the rule as <code>jvp</code>; <code>custom_vjp_call</code> carries <code>fwd</code> and <code>bwd</code> (the "misc" program in the <a href="#" data-tab="t-jcx">Jaxpr explorer</a>). <span class="jc-lbl s">source</span></p>
+<div class="jc-srcx" data-id="cvjp_jvp"></div>
+<p class="small">JAX's tutorial with more cases (including <code>nondiff_argnums</code> and symbolic zeros): {{Custom derivative rules for JAX-transformable Python functions|https://docs.jax.dev/en/latest/notebooks/Custom_derivative_rules_for_Python_code.html}}.</p></div></details>
+</section>
+
+<section id="s-vmap">
+<h2>8. vmap: batch tracers and batching rules, no loop</h2>
+<p>Under <code>jax.vmap</code>, each array is a <code>BatchTracer</code> holding the batched value and <code>batch_dim</code>, the index of the mapped axis (or "not mapped" for arguments the whole batch shares). Every primitive goes to its <b>batching rule</b>, which receives the values with their batch dims and returns one primitive application on the whole batch plus the batch dim of the result. This process has <span data-k="vm.rule_tables.batching.fancy_primitive_batchers"></span> batching rules registered (<code>dot_general</code>'s is <code data-k="vm.dot_general_batcher"></code>). The rule is where the efficiency comes from: two nested vmaps of a vector dot product, one over queries and one over keys, became a single matrix product <span class="jc-lbl m">measured here</span>:</p>
+<div class="jc-two"><pre class="jc-code" data-code="vm.nested.code"></pre><pre class="jc-code jc-out" data-code="vm.nested.jaxpr"></pre></div>
+<div class="jc-cap">Left, the per-pair function and its two vmaps; right, the jaxpr: one <code>dot_general</code>, no loop. The batch dimension does not have to be in front: <code>in_axes=(None, 1)</code> on an input of shape [128, 8] produced a <code>dot_general</code> that contracts axis 0 directly, with no transpose inserted.</div>
+<p><code>in_axes</code> is a pytree prefix of the arguments: <code>0</code> maps every leaf on axis 0, <code>None</code> shares the argument, and a dict can map some leaves and share others. <span class="jc-lbl m">measured here</span>, an ensemble of three MLPs on one shared batch gave shape <span data-k="vm.in_axes.out_shape"></span> and matched a Python loop over the three models to <span data-k="vm.in_axes.matches_loop"></span>. <b>Random keys under vmap</b>: a key closed over by the mapped function is shared, so every example draws the same numbers (rows equal: <span data-k="vm.random.same_key_rows_equal"></span>); map over split keys for independent draws (rows equal: <span data-k="vm.random.split_keys_rows_equal"></span>).</p>
+<h3>axis_name, and pmap as its old multi-device twin</h3>
+<p>Naming the mapped axis lets per-example code talk to the rest of the batch with the same collectives <code>shard_map</code> uses across devices. <span class="jc-lbl m">measured here</span>: <code>normalize(v) = v / lax.psum(v.sum(), axis_name="b")</code>, written for one example and vmapped with <code>axis_name="b"</code> over rows 1, 2, 3, 4 (3 columns each), gave first entries <span data-k="vm.axis_name.out_first_col" data-f="s3"></span> (each divided by the batch total 30), and the <code>psum</code> over the batch axis became a plain <code>psum[axes=(0,)]</code> reduction on the batched array. The same mechanism computes batch statistics from per-example code: Flax NNX's <code>BatchNorm</code> takes an <code>axis_name</code> and averages with <code>lax.pmean</code> over it (flax 0.12.10). <code>jax.pmap</code> was this idea mapped onto devices: one mapped axis, one device per element, collectives by axis name. It is history you meet in old code: since JAX 0.8.0 (2025-10-15) it has been "in maintenance mode", implemented over <code>jit</code> and <code>shard_map</code>, and 0.10.0 (2026-04-16) removed the old implementation (JAX changelog, as read on the root page); new code uses <code>jit</code> with shardings or <code>jax.shard_map</code> ({{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}}).</p>
+<p><b>How to check</b>: <code>jax.make_jaxpr(jax.vmap(f))</code> should show batched primitives and no per-example loop; a <code>select_n</code> where you expected a <code>cond</code> means a batched predicate (section 5). Per-example gradients, <code>vmap(grad(loss), in_axes=(None, 0, 0))</code>, are timed against a loop in the root's Transforms lab, section 9.</p>
+<details class="mist"><summary>in_axes, out_axes and axis_size in detail, with the real errors</summary><div class="b">
+<pre class="jc-code" data-code="vm.in_axes.code"></pre>
+<p><code>out_axes</code> places the batch in the output (<code>out_axes=2</code> on 5 outer products of 3-vectors: shape <span data-k="vm.out_axes.out_axes=2"></span>); <code>out_axes=None</code> is allowed only when the output does not depend on the batch, otherwise: <code data-k="vm.out_axes.out_axes=None error"></code>. <code>axis_size</code> sets the batch size when no input is mapped, and inconsistent sizes are refused with a message that names each argument:</p>
+<pre class="jc-code jc-err" data-code="vm.axis_size.mismatch_error"></pre>
+<pre class="jc-code" data-code="vm.axis_name.code"></pre>
+<p>Called outside a vmap that binds the name: <code data-k="vm.axis_name.unbound_error"></code>.</p>
+<div class="jc-srcx" data-id="batchtrace"></div></div></details>
+<details class="mist"><summary>spmd_axis_name: when the batch axis is also a mesh axis</summary><div class="b">
+<p>When a vmapped function contains sharding annotations (model code often pins activation layouts with <code>with_sharding_constraint</code>), the batching rule must decide how to shard the new batch dimension. <span class="jc-lbl s">source</span> in jax 0.11.2 it leaves that dimension unconstrained, for the partitioner to choose, unless <code>spmd_axis_name</code> names a mesh axis:</p>
+<div class="jc-srcx" data-id="wsc_batch"></div>
+<p><span class="jc-lbl m">measured here</span> on 8 simulated CPU devices, an ensemble of 8 small models with weights and inputs sharded over a mesh axis "data":</p>
+<pre class="jc-code" data-code="arr8.per_model_src"></pre>
+<div class="tw"><table class="jc-t" id="jc-spmd"></table></div>
+<p>Here the partitioner chose the data axis anyway, so both compiled to the same program with no collectives; <code>spmd_axis_name</code> makes the choice explicit instead of relying on propagation, which matters when vmapping over pipeline stages or ensembles on a real mesh.</p></div></details>
 </section>

@@ -82,8 +82,17 @@ ok(J["cv"]["fixed_point"]["iters_to_converge"] == 15, "fixed point converged in 
 ok(len(J["src"]["trace_classes"]) == 8, "8 Trace subclasses")
 ok(J["pt"]["map_with_path"]["n_true"] == 25, "25 weight matrices matched by path")
 ok(J["ad"]["mlp"]["torch_saved"].__len__() == 4 and len(J["ad"]["mlp"]["residuals"]) == 7, "MLP: 7 JAX residuals, 4 PyTorch saved tensors")
+# absorbed from the root's Transforms lab (src/inputs/root_xf_*.json), quoted as static prose
+rb = J["rb"]
+ok(rb["side"]["count"] == 1 and rb["side"]["calls"] == 3 and rb["side"]["log_len"] == 1 and len(rb["side"]["debug_print"]) == 3,
+   "side effects: count 1 after 3 calls, log 1 entry, debug.print 3 times")
+ok(len(set(rb["np_random_in_jit"])) == 1 and rb["time_in_jit_same"] is True, "np.random and time.time frozen at trace time")
+ok(rb["prng"]["reuse_same_mask_frac"] == 1.0 and f"{100 * rb['prng']['split_same_mask_frac']:.1f}" == "81.8", "masks: 100% same key, 81.8% split keys")
+rc = {d["id"]: d for d in J["rc"]["drills"]}
+ok(rc["pyfloat"]["compiles"] == 0 and rc["static"]["compiles"] == 2 and rc["lambda"]["compiles"] == 3 and rc["global"]["compiles"] == 0,
+   "jit drills: python float 0, static 2, lambda 3, global 0 compiles")
 # root facts quoted
 ok("5.8" in html and "826,368" in html, "root figures quoted (5.8, 826,368)")
-ok("—" not in html, "no em-dashes")
+ok("\u2014" not in html, "no em-dashes")
 print("FAILED", fails if fails else "") if fails else print("all checks passed")
 sys.exit(1 if fails else 0)

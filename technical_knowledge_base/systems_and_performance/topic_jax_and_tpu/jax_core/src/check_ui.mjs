@@ -8,7 +8,7 @@ const puppeteer=require('puppeteer');
 const page_path=path.resolve(process.argv[2]),shots=process.argv[3];
 const b=await puppeteer.launch({headless:'shell'});
 let fail=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)fail++};
-const TABS=['t-read','t-jcx','t-jcad','t-jccf','t-jccv','t-more'];
+const TABS=['t-read','t-jcx','t-more'];
 for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   const p=await b.newPage();const errs=[];
   p.on('pageerror',e=>errs.push(String(e)));p.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
@@ -37,11 +37,11 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
       if(t==='t-jcx'){for(const b of [...q('#jcx-seg button')]){b.click();await sleep();const n=q('#jcx-lines div.click').length;
         for(let i=0;i<n;i++){const d=root.querySelector('#jcx-lines div.click[data-i="'+i+'"]');if(d){d.click();c++;await sleep()}
           root.querySelectorAll('#jcx-detail summary').forEach(s=>s.click())}}}
-      if(t==='t-jccv'){for(const b of [...q('#jccv-seg button')]){b.click();await sleep();
+      if(t==='t-read'){for(const b of [...q('#jccv-seg button')]){b.click();await sleep();
         for(const k of [...q('#jccv-vars input')]){const kk=root.querySelector('#jccv-vars input[data-v="'+k.dataset.v+'"]');if(kk){kk.click();c++;await sleep()}}
         for(const k of [...q('#jccv-vars input')]){const kk=root.querySelector('#jccv-vars input[data-v="'+k.dataset.v+'"]');if(kk&&!kk.checked){kk.click();await sleep()}}
         const r=root.querySelector('#jccv-x');if(r){const mx=+r.max;for(let v=0;v<=mx;v+=7){const rr=root.querySelector('#jccv-x');rr.value=v;rr.dispatchEvent(new Event('input'));c++;await sleep()}}}}
-      if(t==='t-jcad'){for(const b of [...q('#jcad-mode button')]){b.click();await sleep();for(const w of [...q('#jcad-who button')]){w.click();
+      if(t==='t-read'){for(const b of [...q('#jcad-mode button')]){b.click();await sleep();for(const w of [...q('#jcad-who button')]){w.click();
         const f=root.querySelector('#jcad-ctl-f');for(let i=0;i<14;i++){f.click();c++;await sleep()}}}}
       return c},tab);
     // back on this tab (a click may have switched tabs) and re-check

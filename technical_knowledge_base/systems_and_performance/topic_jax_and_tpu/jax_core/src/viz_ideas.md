@@ -21,3 +21,14 @@ Central question: what does each transformation do to a program, and what does i
 | jc15 | TPU vs CPU precision chart | | | | | rejected: no TPU here; CPU result plus the Precision docstring, TPU page linked |
 
 What the methodology lacked for this page: nothing to "reproduce" from a publication; the equivalent discipline was that every visual shows a recorded program or an XLA count, and that prose numbers are checked against the data (`check_data.py`).
+
+## 2026-10-23 rebuild (teaching contract)
+| id | Visual | Kind | Decision |
+|---|---|---|---|
+| jc16 | Hero: one `sin` bound to the current trace, four interpreters | static annotated diagram (structure) | built, top of Reading |
+| jc17 | Async dispatch timeline from the recorded times | static diagram (a time relation) | built, section 1 |
+| jc18 | jit cache key segments lit by a drill table (root's recorded counts) | static diagram plus explorer | built, section 3; jc13's recompile drills now owned here as data, the root keeps its own drill UI |
+| jc19 | Stateful generator against counter-based keys | before/after, static | built, section 10 |
+| jc20 | Pytree flatten: leaves against treedef | static diagram | built, section 9 |
+| jc21 | Autodiff tape, loop bars, custom-derivative sweeps | existing tab visuals | moved inline (each explained one mechanism) |
+| jc22 | Real images | | none: a software page with no physical object to show |
