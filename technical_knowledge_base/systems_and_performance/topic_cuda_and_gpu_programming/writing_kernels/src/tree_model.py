@@ -1,4 +1,4 @@
-"""Python reference for the toy machine of the 'Reduce and scan, animated' tab (parts/31_js_tree0.js), written
+"""Python reference for the toy machine of Reading section 2's reduce-and-scan widget (parts/24_js_rd_tree0.js), written
 independently from the same rules: 16 values, warps of 4 lanes, 4 shared-memory banks. Writes
 out/tree_expected.json (final arrays and counter totals per method); check/check_js.mjs compares the page's JS.
 Also checks the arithmetic itself: the reductions must end with the sum at index 0, Hillis-Steele with the inclusive

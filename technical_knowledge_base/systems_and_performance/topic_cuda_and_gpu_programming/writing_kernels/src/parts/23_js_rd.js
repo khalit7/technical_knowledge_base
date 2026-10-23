@@ -55,8 +55,3 @@
   }
   if(host){dec();RD.onRender(dec);RD.onResize(dec)}
 })();
-// Boehm's published table (section 4)
-(function(){const t=document.getElementById('wk-boehm');if(!t)return;const B=window.WKD.pub.boehm;
-  t.innerHTML='<tr><th>Kernel</th><th>Step</th><th class="num">GFLOP/s</th><th class="num">% of cuBLAS</th></tr>'+B.rows.map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td class="num">'+r[2].toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1})+'</td><td class="num">'+r[3].toFixed(1)+'%</td></tr>').join('')+
-  '<tr><td></td><td>cuBLAS</td><td class="num">'+B.cublas.toLocaleString('en-US',{minimumFractionDigits:1})+'</td><td class="num">100%</td></tr>';
-  t.insertAdjacentHTML('afterend','<p class="small mute">'+B.gpu+', '+B.n.toLocaleString('en-US')+' &times; '+B.n.toLocaleString('en-US')+', float32, from the worklog\'s summary table (kernels 7 and 8, two bank-conflict experiments, are not in it).</p>')})();

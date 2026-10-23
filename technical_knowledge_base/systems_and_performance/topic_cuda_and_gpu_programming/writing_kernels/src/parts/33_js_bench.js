@@ -5,13 +5,13 @@
   const tfl=c=>c.flops?(c.flops/(c.ms*1e-3)/1e12).toFixed(2)+' TFLOP/s':'';
   const X=[
     {id:'red',nm:'Reductions',g:'reduce',keys:['R1','R2','R3','R4','R5','R6','A1','L'],rate:gbs(4*(1<<25)),code:['R1','R2','R3','R4','R5','R6','A1'],
-     note:'Sum of 2<sup>25</sup> float32 values (134 MB): Harris\'s ladder as Metal kernels, then a one-launch atomic version and MLX\'s mx.sum. Rate = bytes read / time. Reading section 1.'},
+     note:'Sum of 2<sup>25</sup> float32 values (134 MB): Harris\'s ladder as Metal kernels, then a one-launch atomic version and MLX\'s mx.sum. Rate = bytes read / time. Reading section 2.'},
     {id:'scan',nm:'Scan',g:'scan',keys:['C1','C2','L','copy'],rate:gbs(4*(1<<24)),code:['C1','C2a','C2b','C2c'],
-     note:'Inclusive prefix sum of 2<sup>24</sup> float32 values. Rate = input bytes / time (a scan moves at least twice that). Reading section 2.'},
+     note:'Inclusive prefix sum of 2<sup>24</sup> float32 values. Rate = input bytes / time (a scan moves at least twice that). Reading section 3.'},
     {id:'ln',nm:'LayerNorm',g:'norm',keys:['LE','LC','LL','L_two','L_naive','L_welford'],rate:gbs(2*8192*4096*4),code:['L_two','L_naive','L_welford'],
-     note:'8,192 rows of 4,096 float32, one threadgroup per row, row kept in registers. Rate = one read plus one write / time. The three kernels of ours differ only in how the variance is computed. Reading section 3.'},
+     note:'8,192 rows of 4,096 float32, one threadgroup per row, row kept in registers. Rate = one read plus one write / time. The three kernels of ours differ only in how the variance is computed. Reading section 4.'},
     {id:'rms',nm:'Residual + RMSNorm',g:'norm',keys:['RU','RC','RF'],rate:gbs(4*8192*4096*4),code:['RMS_RESID'],
-     note:'h = x + r, y = rmsnorm(h) &gamma;, 8,192 &times; 4,096 float32. Rate = the fused kernel\'s 4 passes / time, for every row (the unfused pair moves 5). Reading section 3.'},
+     note:'h = x + r, y = rmsnorm(h) &gamma;, 8,192 &times; 4,096 float32. Rate = the fused kernel\'s 4 passes / time, for every row (the unfused pair moves 5). Reading section 4.'},
     {id:'epi',nm:'Epilogue fusion',g:'fuse',keys:['MM','U','F0','Fp','F','E','EC'],K:1,rate:tfl,code:['EPI'],
      note:'y = GELU(xW + b), 4,096 &times; 4,096 outputs. Rate = matmul FLOPs / time. Reading section 5.'},
     {id:'rmm',nm:'RMSNorm into matmul',g:'fuse',keys:['RE','RS','RF0','RF'],K:1,rate:tfl,code:['RMS_PRO','EPI'],

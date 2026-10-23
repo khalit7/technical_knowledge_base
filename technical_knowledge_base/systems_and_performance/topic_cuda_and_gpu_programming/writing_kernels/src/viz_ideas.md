@@ -30,3 +30,13 @@ Scores 0 to 2 per Methodology question (quantity under the reader's control; rep
 | WK.22 | Triton versions of the new kernels | none | | left to the Triton and Gluon sibling page |
 
 What the methodology lacked here: a rule for **lesson cases**. Two of the fused kernels lost to the unfused pair for reasons a reader will meet (occupancy cliff from shared memory, accurate math in a compute-bound kernel); keeping the failed attempts as recorded, timed cases teaches more than showing only the final kernel. And a rule for **side experiments**: quick checks made while debugging (fast vs precise tanh, the padded split-KV) are recorded verbatim in `m1/out/side_experiments.txt` and promoted to recorded runs when the page leans on them.
+
+## 2026-10-23 rebuild to the teaching contract
+| # | Idea | Where | Evidence | Decision |
+|---|---|---|---|---|
+| WK.23 | **Hero: the matmul ladder stepper** (rung by rung: what one block and one thread touch in A, B and C; global and shared bytes per FMA on one axis; Boehm's GFLOP/s; registers; the M1 lab's time) | Reading top | derived traffic (`ladder.py`), published, compiled, measured | built: the audit found no visual in Reading; the progression from naive to tiled, coalesced and vectorised is what this page owns |
+| WK.24 | Softmax ladder bars from the root Kernel lab (absorbed) | Reading s4 | measured | built: one change (a threadgroup per row) is worth 50 times, the rest under 13% |
+| WK.25 | Residual + RMSNorm passes, separate against fused (static before/after) | Reading s4 | derived (5 against 4 passes) | built |
+| WK.26 | Reduce and scan widget | moved from its own tab to Reading s2 | model, checked against Python | moved: it explains one mechanism |
+| WK.27 | Split-K against split-Q, FA-3 schedule | moved from the Attention schedules tab to Reading s7 | derived models | moved: each explains one mechanism |
+| WK.28 | An occupancy slider (registers per thread to blocks per SM) | none | | rejected: the root's GPU simulator owns occupancy; one sentence and the compiled tab carry the two cases |

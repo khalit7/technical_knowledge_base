@@ -6,7 +6,7 @@
 # 2) The CUDA kernels compiled for sm_80, sm_90a and sm_120 inside the kb-gpu-lab:1 image (Dockerfile in
 #    ../../src/compile/image/), no GPU needed; stats extracted by cuda/sass_stats.py.
 # 3) gen_data.py merges everything into parts/22_js_data.js; recompute.py derives every number the prose states and
-#    writes it into the parts; tree_model.py and fa_model.py are the Python references for the two animated tabs;
+#    writes it into the parts; tree_model.py and fa_model.py are the Python references for the reduce-and-scan and attention-schedule widgets (Reading sections 2 and 7); ladder.py builds the hero's matmul ladder (parts/22_js_ladder.js);
 #    the checks compare them with the page. The camp_*.json runs (power-of-two experiment) were made separately:
 #    for i in 1 2 3; do $PY m1/measure.py m1/out/camp_$i.json camp; done
 set -e
@@ -22,6 +22,7 @@ docker run --rm --name wk-cuda --cpus 2 --memory 4g -v "$PWD/cuda":/work kb-gpu-
 python3 cuda/sass_stats.py
 python3 gen_data.py
 python3 recompute.py --fill
+python3 ladder.py
 python3 tree_model.py
 python3 fa_model.py
 sh build.sh

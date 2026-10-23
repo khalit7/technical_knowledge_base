@@ -1,0 +1,3774 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Writing kernels: reductions, softmax, tiled matmul, fusion, FlashAttention Writing kernels: reductions, softmax, tiled matmul, fusion, FlashAttention The practical track of Topic: cuda-and-gpu-programming : the handful of patterns almost every kernel in a transformer is built from, each written, tested and measured, from a sum of numbers to FlashAttention.",
+  "label": "core",
+  "key": "writing kernels: reductions, softmax, tiled matmul,",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Measured on an Apple M1 Pro GPU and compiled for NVIDIA GPUs without one; every number says which.",
+  "label": "core",
+  "key": "measured on an apple m1 pro",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Reduce and scan, animated Attention schedules Kernel bench (M1) Compiled for NVIDIA Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old tab bar; the two animated tabs were merged into Reading"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "In one screen 1 Reductions 2 Scan 3 Softmax, norms 4 Matmul ladder 5 Fusion 6 Decode GEMV 7 FlashAttention 8 Testing Mistakes, interview, path Almost every GPU kernel inside a transformer is one of a handful of patterns: an elementwise map, a reduction (many numbers into one), a scan (running totals), a row normalisation (softmax, LayerNorm, RMSNorm), a tiled matrix multiply , and fusions of these, of which FlashAttention is the famous one.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old section nav"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page writes each of them, tests it against a float64 reference, measures it, and climbs its optimisation ladder, so that you can write the next one yourself and read the ones in FlashAttention, CUTLASS, llama.cpp or vLLM.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "page purpose, restated by the core sentence"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "It assumes the vocabulary of the topic root : a thread runs your kernel function once; 32 threads form a warp that issues one instruction at a time; warps are grouped into a block that shares a small fast shared memory and can wait at a barrier ( __syncthreads() ); blocks run on SMs (streaming multiprocessors) and talk to each other only through the large slow global memory (HBM on a datacenter GPU).",
+  "label": "core",
+  "key": "warps (32 threads issuing together)",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "If any of those is shaky, the root's section 2 and the programming model page build them up; coalescing, bank conflicts and registers are the memory hierarchy page 's.",
+  "label": "core",
+  "key": "programming model page",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "What is real on this page There is no NVIDIA GPU here.",
+  "label": "core",
+  "key": "what is real on this page",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "Every timing was measured on Apple M1 Pro GPU : a real SIMT GPU whose SIMD-groups of 32 threads, threadgroups and threadgroup memory are a warp, a block and shared memory under other names; the kernels are Metal, run through MLX 0.32.3, each checked against float64 before it is timed, 3 runs of 7 trials, median shown, with the machine's load average recorded for every case (other work shared the laptop; the Kernel bench (M1) tab shows the spread).",
+  "label": "core",
+  "key": "SIMD-groups of 32 threads",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "NVIDIA behaviour comes from compiled output (CUDA 13.4.2, the same kernels in CUDA C++, built for sm_80, sm_90a and sm_120 in a container without a GPU: registers, shared memory, instruction mix) and from published papers and talks, each cited.",
+  "label": "core",
+  "key": "built for sm_80, sm_90a and sm_120",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "Arithmetic on these is derived , with its formula.",
+  "label": "core",
+  "key": "arithmetic on these is derived ,",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "What transfers from the M1 is the shape of each result; the absolute speeds do not.",
+  "label": "core",
+  "key": "absolute speeds do not",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "in one screen: the patterns",
+  "text": "In one screen: the patterns Pattern In a transformer What limits it The trick Here Reduce row max and sum in softmax, norms, the loss, gradient norms bytes read; then the cost of combining partial results each thread sums many values in a register; a warp combines 32 with shuffles; one partial per block s1 Scan MoE token routing offsets, top-p sampling, ragged batches, cumsum each output depends on every earlier input scan tiles in parallel, then add each tile's offset; CUB does it in one pass s2 Row normalise softmax, LayerNorm, RMSNorm bytes; and numerics (overflow, cancellation) one block per row, the row kept in registers; online or Welford statistics s3 Tiled matmul every linear layer, QK T and PV arithmetic, if every loaded value is reused enough tiles in shared memory, then in registers, then tensor cores s4 Fuse bias + activation, residual + norm, dequantise + GEMV the round trip of an intermediate through global memory apply the cheap operation while the data is still on chip s5, s6 Attention attention N × N intermediates; then the exponentials; then idle SMs tiles plus online softmax (FlashAttention), then scheduling s7 And one method for all of them, used in every section below: Write the reference first , in float64 NumPy or PyTorch, and a test that compares against it with a tolerance chosen for the data type (section 8).",
+  "label": "depth",
+  "key": "pattern in a transformer what limits",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "in one screen: the patterns",
+  "text": "Write the obvious kernel , make it pass, and measure it against a ceiling : for a memory-bound kernel, the time a plain copy of the same bytes takes; for a compute-bound one, the peak arithmetic rate.",
+  "label": "depth",
+  "key": "write the obvious kernel , make",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "in one screen: the patterns",
+  "text": "The gap is what is left to win.",
+  "label": "depth",
+  "key": "the gap is what is left",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "in one screen: the patterns",
+  "text": "Find what limits it (a profiler on NVIDIA, see the profiling page ; here, counting bytes and reading the compiled instructions), remove that limit, re-test, re-measure.",
+  "label": "depth",
+  "key": "find what limits it (a profiler",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "in one screen: the patterns",
+  "text": "Stop when you reach the ceiling or the library.",
+  "label": "depth",
+  "key": "stop when you reach the ceiling",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Reductions: many numbers into one The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading wind-up"
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Sum 2 25 (33.5 million) floats.",
+  "label": "core",
+  "key": "33.5",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "On a CPU it is one loop.",
+  "label": "core",
+  "key": "on a cpu it is one",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "On a GPU, thousands of threads must each do a part and then combine their parts, and combining is where every difficulty lives: threads in different blocks cannot see each other's shared memory or wait for each other inside one kernel launch.",
+  "label": "core",
+  "key": "on a gpu, thousands of threads",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "The shape of the answer.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading wind-up"
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "A tree : in step 1, half the threads each add two numbers; in step 2, a quarter add two partial sums; after log 2 (256) = 8 steps one thread holds the block's total.",
+  "label": "core",
+  "key": "8 steps one thread holds the block's total",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Each block writes its total, and a second, tiny launch (or an atomic add) combines the block totals.",
+  "label": "core",
+  "key": "each block writes its total, and",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "The Reduce and scan, animated tab runs the tree step by step on one input in four variants, with counters for idle lanes and bank conflicts.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab; the widget is now inline in section 2"
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Harris's ladder, and what is left of it Mark Harris's Optimizing Parallel Reduction in CUDA (NVIDIA, 2007) is the classic warm-up: seven kernels for summing 4M integers on a G80, each fixing one problem, from 2.083 to 62.671 GB/s, 30.04 times faster, and 73 GB/s on 32M elements against the G80's 86.4 GB/s peak published .",
+  "label": "core",
+  "key": "62.671",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "The rungs are worth knowing by name because the problems are still real: 1 Interleaved, divergent At step s, threads with tid % (2s) == 0 add.",
+  "label": "depth",
+  "key": "1 interleaved, divergent at step s,",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Most lanes of every warp sit idle while the warp still issues: divergence (lanes of one warp taking different branches, run one after the other).",
+  "label": "depth",
+  "key": "most lanes of every warp sit",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "2 Strided index Thread t works on element 2st: active threads are now contiguous, but their addresses are strided, so several lanes hit the same shared-memory bank (shared memory is split into 32 banks; lanes hitting the same bank wait in turn).",
+  "label": "depth",
+  "key": "2 strided index thread t works",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "3 Sequential addressing Halve the range each step: thread t adds element t + s.",
+  "label": "depth",
+  "key": "3 sequential addressing halve the range",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Contiguous threads, contiguous addresses.",
+  "label": "depth",
+  "key": "Contiguous threads, contiguous addresses",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "4 First add during load Half the blocks; each thread loads two values and adds them on the way in, so no thread starts idle.",
+  "label": "depth",
+  "key": "4 first add during load half",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "5 Last warp unrolled The last 32 values are summed by one warp.",
+  "label": "depth",
+  "key": "5 last warp unrolled the last",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Harris did it with \"warp-synchronous\" shared memory; today you use shuffles (below).",
+  "label": "core",
+  "key": "warp-synchronous",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "6, 7 Unrolled, many per thread Templates remove loop overhead; then a fixed grid where each thread sums many elements in a register first (a grid-stride loop ), so the tree runs once per thread block, not once per 512 elements.",
+  "label": "core",
+  "key": "grid-stride loop",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "We re-ran the ladder as Metal kernels on 2 25 floats measured on Apple M1 Pro GPU .",
+  "label": "core",
+  "key": "we re-ran the ladder as metal",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Before looking: Harris's last rung was 30 times faster than his first.",
+  "label": "core",
+  "key": "harris's last rung was 30 times",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "How much faster is ours?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up question"
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "On the M1 Pro, R6 (grid-stride, vector loads, SIMD sums) against R1 (interleaved, divergent): about 30× about 8× under 2× Only 1.6 ×: R1 takes 1.61 ms ( 83 GB/s) and R6 1.01 ms ( 133 GB/s), about the speed of MLX's own mx.sum ( 1.04 ms).",
+  "label": "core",
+  "key": "1.61",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Even the worst kernel reads memory at more than half the copy speed.",
+  "label": "core",
+  "key": "even the worst kernel reads memory",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Bars: median of 3 runs; the thin line spans the fastest and slowest of all 21 trials.",
+  "label": "core",
+  "key": "median of 3 runs; the thin",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Each time includes MLX's per-call launch-and-wait overhead, which the topic root measured at about 0.2 ms (its section 1), so the kernels themselves are faster than shown and the differences between them larger in proportion.",
+  "label": "core",
+  "key": "measured at about 0.2 ms (its section 1)",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Why the ladder flattened.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading wind-up"
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "In 2007 the G80 had little on-chip cache and slow integer arithmetic, so the index arithmetic, idle lanes and barriers of the early rungs cost more than the memory traffic.",
+  "label": "core",
+  "key": "G80 had little on-chip cache",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "A modern GPU has far more arithmetic per byte of bandwidth (the ridge point of the hardware root ), so a reduction is limited by reading the input almost however clumsily it combines it; the remaining gap is the 8 barriers per 256 values of R1 to R3.",
+  "label": "core",
+  "key": "8 barriers per 256 values",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "The lesson that survives is the last one: do most of the work in registers, one value per element, and make the tree as small as possible .",
+  "label": "core",
+  "key": "do most of the work in",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "That is what every production reduction does.",
+  "label": "core",
+  "key": "that is what every production reduction",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Inside a warp: shuffles A shuffle moves a register value directly from one lane of a warp to another, with no shared memory and no barrier.",
+  "label": "core",
+  "key": "inside a warp: shuffles a shuffle",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Five of them sum 32 values: __device__ float warp_sum(float v) { for (int o = 16; o > 0; o >>= 1) v += __shfl_down_sync(0xffffffffu, v, o); // add the value held by lane (lane + o) return v; // lane 0 holds the sum of all 32 } Compiled for an H100 (sm_90a) compiled , it is exactly five shuffle-and-add pairs; the mask 0xffffffff says all 32 lanes take part: Correction to old habits: \"warp-synchronous\" code is a bug Harris's rung 5 relied on the 32 lanes of a warp executing in lockstep, reading each other's shared-memory writes with no barrier.",
+  "label": "core",
+  "key": "add the value held by lane",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Since Volta (2017), lanes of a warp can be scheduled independently, and NVIDIA's Volta tuning guide says plainly: \"Assumptions that code is executed in lockstep or that reads/writes from separate threads are visible across a warp without synchronization are invalid.\" Use the *_sync shuffles, or __syncwarp() between shared-memory steps.",
+  "label": "depth",
+  "key": "Assumptions that code is executed in lockstep",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Old tutorials (and old kernels) still contain the volatile trick.",
+  "label": "depth",
+  "key": "old tutorials (and old kernels) still",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Combining blocks: a second launch, an atomic, or one more trick Three ways to turn one partial per block into one number: (1) a second, small launch that reduces the partials (rungs R1 to R6 above); (2) every block does an atomic add of its partial into one output (A1: one launch, 1.05 ms); (3) the last block to finish, detected with an atomic counter, reduces all partials; (4) a cooperative launch, where grid.sync() makes every block wait for all the others (blocks must all be resident at once, which limits the grid size).",
+  "label": "depth",
+  "key": "1.05",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "PyTorch's own reduction kernel uses the third: its Reduce.cuh keeps a global buffer and a semaphore per output when a reduction spans blocks (source excerpt in src/inputs/pytorch_extracts.txt , PyTorch main at commit 8d1d972, read 2026-10-05).",
+  "label": "depth",
+  "key": "pytorch_extracts",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Correction to the old page The old page said \"in library code use CUB ( cub::BlockReduce , cub::DeviceReduce ), which is what PyTorch does\".",
+  "label": "depth",
+  "key": "correction to the old page the",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "For sums, PyTorch does not: torch.sum on CUDA calls its own gpu_reduce_kernel ( ReduceSumProdKernel.cu ).",
+  "label": "depth",
+  "key": "gpu_reduce_kernel",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "It does use CUB for a one-dimensional cumsum (section 2).",
+  "label": "depth",
+  "key": "it does use cub for a",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "CUB is still the right thing to call in your own CUDA code: cub::BlockReduce compiles to the same five shuffles per warp ( Compiled for NVIDIA ).",
+  "label": "depth",
+  "key": "cub is still the right thing",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "The order of additions changes the answer Floating-point addition is not associative: (a + b) + c can differ from a + (b + c) in the last bits.",
+  "label": "depth",
+  "key": "the order of additions changes the",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "A reduction picks an order, and different orders give different sums.",
+  "label": "depth",
+  "key": "different orders give different sums",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Two consequences you will meet in training code: The 2 25 inputs are uniform in [0, 1), so the exact sum is about 16.8 million.",
+  "label": "depth",
+  "key": "exact sum is about 16.8 million",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Add them one by one into a single float32 accumulator, in order.",
+  "label": "depth",
+  "key": "add them one by one into",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "What comes out? the exact sum, to 7 digits off by a few units stuck at 16,777,216 The running sum reaches 2 24 = 16,777,216 , where float32's spacing between neighbouring numbers is 2, and from then on adding any value below 1 rounds back to the same number.",
+  "label": "depth",
+  "key": "16,777,216",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Result 16,777,216 , off by 495 from the float64 sum 16,777,711.32 .",
+  "label": "depth",
+  "key": "16,777,711.32",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "The GPU tree gives 16,777,712 , off by 0.68 : a tree adds numbers of similar size at every level, which is why parallel reductions are usually more accurate than the sequential loop they replace measured on Apple M1 Pro GPU .",
+  "label": "depth",
+  "key": "16,777,712",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "Atomics make the order, and so the bits, change from run to run.",
+  "label": "core",
+  "key": "atomics make the order, and so",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "We ran the atomic kernel A1 30 times on the same input in each of the 3 runs: it gave 7, 6, 8 distinct results (from 16,777,702 to 16,777,718 ), because the blocks arrive in a different order each time; the two-launch tree gave one result every time measured on Apple M1 Pro GPU .",
+  "label": "core",
+  "key": "16,777,702",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "1. reductions: many numbers into one",
+  "text": "This is why torch.use_deterministic_algorithms(True) exists, why two \"identical\" training runs drift apart, and why a test must compare with a tolerance rather than bit for bit (section 8).",
+  "label": "core",
+  "key": "use_deterministic_algorithms",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "Scan: running totals The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading wind-up"
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "An inclusive scan (prefix sum) turns x 0 , x 1 , x 2 , ... into x 0 , x 0 +x 1 , x 0 +x 1 +x 2 , ...; an exclusive scan shifts it by one and starts at 0.",
+  "label": "core",
+  "key": "an inclusive scan (prefix sum) turns",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "It looks sequential, every output depends on every earlier input, yet it is everywhere in model code: a mixture-of-experts layer counts how many tokens go to each expert and scans the counts to find where each expert's tokens start in a packed buffer; top-p sampling scans sorted probabilities; packing variable-length sequences scans their lengths into offsets; torch.cumsum is a scan.",
+  "label": "core",
+  "key": "every output depends on every earlier",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "Two parallel algorithms (from GPU Gems 3, chapter 39 , Harris, Sengupta and Owens): Hillis and Steele Step k: every element adds the one 2 k places to its left. log 2 (n) steps, all elements busy, but O(n log n) additions: for n = 2 24 , 386 million adds against 16.8 million for a loop derived , Σ k<24 (n − 2 k ).",
+  "label": "core",
+  "key": "386",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "Blelloch (work-efficient) An up-sweep builds a tree of partial sums (a reduction), a down-sweep pushes prefixes back down: \"approximately 2 × (n − 1) adds and n − 1 swaps\", 33.6 million for n = 2 24 derived , but twice the steps.",
+  "label": "core",
+  "key": "approximately 2 × (n − 1) adds and n − 1 swaps",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "Both are animated on the same 16 numbers in the Reduce and scan, animated tab.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab; the widget is inline"
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "On a real GPU neither is used across the whole array.",
+  "label": "core",
+  "key": "on a real gpu neither is",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "Inside a warp, a scan is five shuffles ( __shfl_up_sync ; Metal's simd_prefix_exclusive_sum ); across a block, warps exchange totals through shared memory; across blocks comes the hard part, because block 7 needs the total of blocks 0 to 6.",
+  "label": "core",
+  "key": "simd_prefix_exclusive_sum",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "Across blocks: three launches, or one pass with a look-back Reduce, then scan (three launches): (a) each block sums its tile; (b) one block scans the tile sums into offsets; (c) each block scans its tile again and adds its offset.",
+  "label": "core",
+  "key": "(a) each block sums its tile;",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "The input is read twice and the output written once: 3 passes over memory, against 2 for a copy.",
+  "label": "core",
+  "key": "the input is read twice and",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "Decoupled look-back ( Merrill and Garland, NVIDIA, 2016 ) does it in one launch: each block publishes its own total as soon as it has it, and its inclusive prefix once it knows it; a block that needs its offset looks back at its predecessors' published values, summing totals until it meets a published prefix.",
+  "label": "core",
+  "key": "Merrill and Garland",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "It \"requires only ~2n data movement\" and its throughput \"approaches that of copy operations\" published ; it is how cub::DeviceScan works.",
+  "label": "depth",
+  "key": "approaches that of copy operations",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "It relies on earlier blocks making progress while later ones wait, a guarantee Metal does not document, so we did not run it here.",
+  "label": "depth",
+  "key": "it relies on earlier blocks making",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "Measured on 2 24 floats measured on Apple M1 Pro GPU : Hillis and Steele over the whole array, 24 launches each reading and writing everything, takes 18.81 ms; the three-launch scan 1.41 ms, 13.4 times faster and 1.41 times a plain copy ( 1.00 ms), close to the 3 : 2 ratio of passes that counting bytes predicts.",
+  "label": "core",
+  "key": "18.81",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "MLX's library mx.cumsum took 7.78 ms on the same input, 5.5 times slower than our 40 lines: libraries are not always at the ceiling, and the copy time tells you when they are not.",
+  "label": "core",
+  "key": "7.78",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "The kernel code is in the Kernel bench (M1) tab.",
+  "label": "core",
+  "key": "is in the kernel bench (m1)",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "2. scan: running totals",
+  "text": "In PyTorch , a one-dimensional torch.cumsum on CUDA calls cub::inclusive_scan , and a separate inclusive_deterministic_scan for floating-point types when deterministic algorithms are requested ( ScanUtils.cuh , read 2026-10-05): the default single-pass scan can add in an order that depends on timing, for the same reason as the atomic sum of section 1.",
+  "label": "depth",
+  "key": "inclusive_deterministic_scan",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "Row normalisation: softmax, LayerNorm, RMSNorm Softmax, LayerNorm and RMSNorm all do the same thing to each row of a matrix: compute one or two statistics of the row (a reduction), then rewrite every element using them.",
+  "label": "core",
+  "key": "row normalisation: softmax, layernorm, rmsnorm softmax,",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "In a transformer the rows are tokens and a row is a few thousand numbers, so the standard layout is one block per row , the row's elements spread over the block's threads, each thread keeping its share in registers between the statistics and the rewrite, so the row is read from memory once and written once.",
+  "label": "core",
+  "key": "in a transformer the rows are",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "Arithmetic is a handful of operations per element; the speed is set by bytes.",
+  "label": "core",
+  "key": "arithmetic is a handful of operations",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "Softmax: the online trick The topic root's Kernel lab climbs the softmax ladder in seven measured rungs, from one thread per row (177 ms) to the row held on chip (3.27 ms, the speed of a copy), so it is not repeated here ( Kernel lab , section 1).",
+  "label": "core",
+  "key": "177.14",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "The idea to carry forward is the online softmax ( Milakov and Gimelshein, 2018 ): keep a running maximum m and a running sum d of e x − m ; when a larger value arrives, rescale the sum you have. m′ = max(m, x i ) d′ = d · e m − m′ + e x i − m′ merge (m a , d a ) with (m b , d b ): m = max(m a , m b ), d = d a e m a − m + d b e m b − m The second line is what makes it a parallel algorithm: any two partial results, from two lanes, two warps or two tiles, combine exactly, in any order.",
+  "label": "core",
+  "key": "Milakov and Gimelshein",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "Every reduction on this page that is more than a sum needs such a merge.",
+  "label": "core",
+  "key": "every reduction on this page that",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "LayerNorm: the variance is a numerical trap LayerNorm subtracts the row's mean μ and divides by its standard deviation σ: y = (x − μ) / √(σ 2 + ε) · γ + β.",
+  "label": "core",
+  "key": "layernorm: the variance is a numerical",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "The tempting one-pass formula for the variance, σ 2 = E[x 2 ] − E[x] 2 , subtracts two large, nearly equal numbers when the mean is large compared with the spread, and float32 keeps only about 7 significant digits.",
+  "label": "core",
+  "key": "the tempting one-pass formula for the",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "Rows of 4,096 float32 values with standard deviation 1 and mean 3,000.",
+  "label": "core",
+  "key": "standard deviation 1 and mean 3,000",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "Our kernel computes the variance as E[x 2 ] − E[x] 2 .",
+  "label": "core",
+  "key": "our kernel computes the variance as",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "How wrong is the normalised output (largest error against float64)? about 10 −6 , float32 rounding about 10 −2 useless: errors in the hundreds Largest error 1,653 .",
+  "label": "core",
+  "key": "1,653",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "E[x 2 ] is about 9 million, where float32's spacing is 1, so the difference that should be 1 is rounding noise, often 0 or negative (clamped to 0), and dividing by √ε instead of 1 multiplies everything by about 316.",
+  "label": "core",
+  "key": "316",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "The two-pass kernel (mean first, then the mean of (x − μ) 2 from the values still in registers) errs by 6.3e-04 , Welford's by 6.0e-04 measured on Apple M1 Pro GPU .",
+  "label": "core",
+  "key": "6.3e-04",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "Row mean two-pass E[x²] − E[x]² Welford 0 6.8e-07 7.3e-07 9.1e-07 30 5.7e-06 5.4e-04 4.1e-06 300 6.0e-05 6.5e-02 6.5e-05 3,000 6.3e-04 1,653 6.0e-04 Largest absolute error of the normalised output against float64, 256 rows of 4,096, standard deviation 1, γ near 1.",
+  "label": "core",
+  "key": "6.8e-07",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "The remaining error of the good methods grows with the mean because the input itself, stored in float32, only carries about 7 digits: at mean 3,000 each value is already rounded to 0.0002.",
+  "label": "core",
+  "key": "0.0002",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "Welford's algorithm keeps a count n, a mean and M2 (the sum of squared deviations), updating them per value; partial results merge with the pairwise formula of Chan, Golub and LeVeque ( the parallel algorithm, summarised ), which has exactly the shape of the online-softmax merge: δ = μ b − μ a , n = n a + n b , μ = μ a + δ n b /n, M2 = M2 a + M2 b + δ 2 n a n b /n μ, M2 mean and sum of squared deviations of each part; variance = M2 / n When the row fits in registers, as here, two passes over registers are just as cheap and simpler; Welford matters when the row is streamed once from memory, as in a long row or a fused kernel that cannot keep it.",
+  "label": "depth",
+  "key": "welford's algorithm keeps a count n,",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "All three kernels took 1.74 to 1.77 ms on 8,192 rows of 4,096 ( 154 GB/s counting one read and one write), against 1.87 ms for MLX's mx.fast.layer_norm and 9.87 ms for the same formula as seven separate MLX operations ( 6.79 ms under mx.compile ) measured on Apple M1 Pro GPU .",
+  "label": "depth",
+  "key": "layer_norm",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "RMSNorm, fused with the residual add RMSNorm drops the mean: y = x / √(mean(x 2 ) + ε) · γ.",
+  "label": "core",
+  "key": "rmsnorm, fused with the residual add",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "In a pre-norm transformer block it always follows a residual add, h = x + r, and h is needed twice: normalised for the next layer, and raw as the next residual.",
+  "label": "core",
+  "key": "in a pre-norm transformer block it",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "Separately, the add reads x and r and writes h, and the norm reads h and writes y: 5 passes over the activations.",
+  "label": "core",
+  "key": "5 become 4",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "Fused, one kernel reads x and r and writes h and y: 4 passes, so at best 5 : 4 = 1.25 times faster derived .",
+  "label": "core",
+  "key": "1.25",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "Measured: 4.03 ms for MLX's add then mx.fast.rms_norm ( 4.09 ms under mx.compile , which did not fuse them), 3.35 ms fused, 1.20 times measured on Apple M1 Pro GPU .",
+  "label": "core",
+  "key": "rms_norm",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "3. row normalisation: softmax, layernorm, rmsnorm",
+  "text": "Production engines ship exactly this kernel: vLLM declares fused_add_rms_norm(input, residual, weight, epsilon) next to its plain rms_norm ( csrc/ops.h , read 2026-10-05); count passes before writing one, because the best case is set by the byte count before you start.",
+  "label": "core",
+  "key": "fused_add_rms_norm",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "The matmul ladder, as the NVIDIA compiler sees it The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading wind-up"
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "C = AB for n × n float32 matrices does 2n 3 operations on 3n 2 numbers, so in principle each number loaded can be used n times.",
+  "label": "core",
+  "key": "c = ab for n ×",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Whether a kernel gets anywhere near that is a question of reuse : how many multiply-adds each value performs while it sits in a register or in shared memory.",
+  "label": "core",
+  "key": "near that is a question of",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Simon Boehm's worklog (December 2022) climbs from 309 to 21,779 GFLOP/s on an RTX A6000 (1.3% to 93.7% of cuBLAS) in ten kernels published ; the topic root's section 4 summarises it and its Kernel lab times the same ladder on the M1.",
+  "label": "core",
+  "key": "21,779",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "His table, for reference published : Correction to the old page The old page gave kernel 6 as 81% and kernel 9 as 94% of cuBLAS; the worklog's own table says 78.4% and 84.8% (93.7% is kernel 10, warp tiling).",
+  "label": "depth",
+  "key": "kernel 6 as 81%",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "It also said \"expect higher absolute FLOPs but the same ratios on a 5090\": there is no NVIDIA GPU here to check that, so the ratios are compared with the M1 (the Kernel lab) and the binaries with three NVIDIA targets instead.",
+  "label": "depth",
+  "key": "expect higher absolute FLOPs but the same ratios on a 5090",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "So here we do the third thing: write the first six rungs in CUDA C++ and read what nvcc makes of each.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Nothing below was run on an NVIDIA GPU; it is all compiled (CUDA 13.4.2, sm_90a = H100, counts are static: how often an instruction appears in the binary, not how often it runs).",
+  "label": "core",
+  "key": "counts are static",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Rung Change regs FFMA shared loads FFMA per shared load k1 naive one thread per output; threadIdx.x walks rows 32 29 0 n/a k2 coalesced threadIdx.x walks columns 32 29 0 n/a k3 shared tiles 32 × 32 tiles of A and B in shared memory 32 32 48 0.7 k4 1D thread tile each thread 8 outputs of one column 44 64 40 1.6 k5 2D thread tile each thread an 8 × 8 block, outer products 158 512 64 8.0 k6 vectorised A transposed into shared memory, float4 everywhere 127 512 64 8.0 sm_90a.",
+  "label": "depth",
+  "key": "each thread 8 outputs of one column",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "FFMA = fused multiply-add; shared loads = LDS plus LDS.128 instructions.",
+  "label": "depth",
+  "key": "LDS plus LDS.128 instructions",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "The Compiled for NVIDIA tab has the same table for sm_80 and sm_120 and every opcode family; the source is in src/cuda/kernels/m_ladder.cu .",
+  "label": "core",
+  "key": "m_ladder",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Four things the binary says that the source does not: k1 and k2 compile to the same instructions for sm_90a (185 each, 29 FFMA, 58 global loads) and sm_80 (187 each); for sm_120 the compiler happened to unroll them differently (136 and 163), with the same loads per multiply-add.",
+  "label": "core",
+  "key": "185 each",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Coalescing, worth 6.4 times on Boehm's A6000, is invisible in the code: it is only about which addresses the 32 lanes of a warp touch at once.",
+  "label": "core",
+  "key": "worth 6.4 times on Boehm's A6000",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "You find it with a profiler's sectors-per-request metric, or by thinking about threadIdx.x (the memory hierarchy page , section 1).",
+  "label": "core",
+  "key": "you find it with a profiler's",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "The ratio that rises is FFMA per shared load : 0.7 for plain tiles, 1.6 with a column of 8 outputs per thread, 8 with an 8 × 8 block per thread, because each shared value read into a register now feeds 8 multiply-adds.",
+  "label": "core",
+  "key": "0.7 for plain tiles",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Shared-memory bandwidth, not global, limits k3 and k4; registers are the next level of reuse. nvcc already vectorised k5's shared loads (32 of its 64 are LDS.128) before we asked.",
+  "label": "core",
+  "key": "32 of its 64 are LDS.128",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "What k6's explicit float4 code bought is fewer instructions around them (1,047 down to 731: less address arithmetic, 16 STG instead of 64) and fewer registers (158 down to 127).",
+  "label": "core",
+  "key": "1,047",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Here is the inner loop of each: k5, sm_90a k6, sm_90a Registers decide how many blocks fit.",
+  "label": "core",
+  "key": "registers decide how many blocks fit.",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "With NVIDIA's allocation rules (registers per warp rounded up to 256, 64K per SM, as reproduced by the root's GPU simulator ), 158 registers allow 12 warps per SM, one block of 8 warps; 127 registers allow 16 warps, two blocks derived .",
+  "label": "core",
+  "key": "158 registers allow 12 warps per SM",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Two resident blocks let one block compute while the other waits at its barrier.",
+  "label": "core",
+  "key": "two resident blocks let one block",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "The .reuse flags in the listing are the compiler marking an operand it can keep in the register-file cache for the next FFMA.",
+  "label": "depth",
+  "key": "are the compiler marking an operand",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Beyond the CUDA-core ladder.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading wind-up"
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Boehm's last rungs (autotuned tile sizes, then a warp-level tile) reach 93.7% of cuBLAS, and the final shape, block tile, then warp tile, then thread tile, is CUTLASS's.",
+  "label": "core",
+  "key": "the final shape, block tile, then warp tile",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Real training matmuls replace the 8 × 8 FFMA block with tensor-core instructions (mma.sync, wgmma, tcgen05), which the libraries and tensor cores page compiles generation by generation, and load the next tile while computing this one ( memory hierarchy page , section 6).",
+  "label": "core",
+  "key": "real training matmuls replace the 8",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "The rule that does not change: count FLOPs per byte at each level of the hierarchy, and make it larger.",
+  "label": "core",
+  "key": "the rule that does not change:",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "4. the matmul ladder, as the nvidia compiler sees it",
+  "text": "Boehm's other observation also holds: the best tile sizes differ from GPU to GPU, which is why every serious matmul library autotunes, and each rung's fix comes from profiling the previous one, not from a recipe.",
+  "label": "core",
+  "key": "the best tile sizes differ from",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Fusion: keep it on chip The idea.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading wind-up"
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Two kernels in a row hand their intermediate result over through global memory: the first writes it, the second reads it back.",
+  "label": "core",
+  "key": "two kernels in a row hand",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "A fused kernel does both operations while the intermediate is in registers or shared memory.",
+  "label": "core",
+  "key": "while the intermediate is in registers",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Fusion pays exactly when that round trip is a large part of the time, which gives three rules: chains of memory-bound operations (elementwise, norms) fuse to nearly the cost of one; a cheap operation applied to a matmul's output while it is still in registers (an epilogue ) or to its input as it is loaded (a prologue ) removes one round trip of that matrix; and fusing work into a compute-bound loop can lose, because the loop was not waiting for memory in the first place.",
+  "label": "core",
+  "key": "fusion pays exactly when that round",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "We measured all three, with real mistakes along the way.",
+  "label": "core",
+  "key": "with real mistakes along the way.",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Epilogue: matmul, bias, GELU y = GELU(xW + b) for 4,096 tokens, 4,096 outputs, K = 1,024 or 256 inputs, float32.",
+  "label": "core",
+  "key": "4,096 tokens, 4,096 outputs",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Unfused, the matmul writes C (64 MiB) and a second kernel reads it, adds b, applies GELU and writes y: 134 MB of extra traffic, about 0.9 ms at this GPU's copy speed derived .",
+  "label": "core",
+  "key": "about 0.9 ms at this GPU's copy speed",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Our fused kernel is the Kernel lab's fastest matmul (8 × 8 matrix instructions, 64 × 64 tile per threadgroup) with the epilogue added.",
+  "label": "core",
+  "key": "our fused kernel is the kernel",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Three attempts measured on Apple M1 Pro GPU , K = 1,024: Stage the whole tile in shared memory, then apply the epilogue : 13.76 ms, slower than not fusing ( 10.71 ms).",
+  "label": "core",
+  "key": "Three attempts",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "The 16 KB staging buffer tripled the kernel's threadgroup memory (8 KB to 24 KB), so fewer threadgroups fit on each GPU core for the whole matmul, not just the epilogue: the occupancy cliff the hardware topic measured on this GPU ( GPU architecture ).",
+  "label": "core",
+  "key": "the 16 kb staging buffer tripled",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Apply it to the accumulator registers directly , then store as the plain matmul does.",
+  "label": "core",
+  "key": "apply it to the accumulator registers",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Each lane of a SIMD-group holds 2 of the 64 values of every 8 × 8 accumulator; which two is fixed by the hardware, and we read the mapping from MLX's own kernels ( steel/gemm/mma.h , get_coord ).",
+  "label": "core",
+  "key": "get_coord",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "With the accurate precise::tanh : 11.40 ms, still slower.",
+  "label": "core",
+  "key": "11.40",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "In the separate kernel, GELU's arithmetic hid behind memory traffic; inside the matmul it is added to a compute-bound kernel's time.",
+  "label": "core",
+  "key": "in the separate kernel, gelu's arithmetic",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Same, with fast::tanh (it differs from the precise version by at most 5 × 10 −7 , a side experiment in src/m1/out/side_experiments.txt ): 10.07 ms against 9.92 ms for the matmul alone.",
+  "label": "core",
+  "key": "side_experiments",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "The epilogue now costs 0.16 ms and saves 0.64 ms against the unfused pair; at K = 256, where the matmul is shorter and the saved bytes weigh more, 3.45 becomes 2.86 ms.",
+  "label": "core",
+  "key": "The epilogue now costs",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "MLX's eager version (matmul, add and four elementwise operations for GELU, each a kernel) took 17.47 ms and 9.24 ms under mx.compile , which fuses the elementwise chain into one kernel after MLX's matmul (faster than ours).",
+  "label": "core",
+  "key": "17.47",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "This is the baseline the old page warned about: compare a fused kernel against the compiled framework, not against eager mode , which flatters anything.",
+  "label": "core",
+  "key": "compare a fused kernel against the",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "On NVIDIA you rarely write this epilogue yourself: cuBLASLt takes it as a parameter ( CUBLASLT_EPILOGUE_GELU_BIAS , \"apply Bias and then GELU transform\", plus _AUX variants that also save GELU's input for the backward pass and DGELU for the backward itself; cublasLt.h in CUDA 13.4.2, excerpt in src/inputs/ ), and CUTLASS composes epilogues as trees of operations on the accumulator fragments (its epilogue visitor trees), exactly what attempt 3 does by hand; in Triton you write the epilogue as ordinary code after the tl.dot loop.",
+  "label": "depth",
+  "key": "apply Bias and then GELU transform",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "The opposite case, fusing two compute-bound matmuls into one kernel, rarely pays: the tensor cores are already busy, and holding both operands raises register pressure.",
+  "label": "depth",
+  "key": "fusing two compute-bound matmuls into one",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Prologue: RMSNorm into the next matmul rmsnorm(x)W = diag(1/rms(x)) · x · (diag(γ)W).",
+  "label": "core",
+  "key": "prologue: rmsnorm into the next matmul",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Fold γ into W once, offline; the matmul loads every element of each row of x anyway, so it can accumulate the row's sum of squares as the tiles go by, and scale each output row by 1/rms(x) in the epilogue.",
+  "label": "core",
+  "key": "fold γ into w once, offline;",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "The normalised x is never written.",
+  "label": "core",
+  "key": "the normalised x is never written.",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "A neat identity; did it pay measured on Apple M1 Pro GPU ?",
+  "label": "core",
+  "key": "a neat identity; did it pay",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "K = 1,024 ms MLX: mx.fast.rms_norm , then its matmul 8.40 ours, separate: RMSNorm kernel, then our matmul 10.15 ours, fused, first attempt (16 KB staging tile) 15.03 ours, fused, epilogue in registers 10.44 No.",
+  "label": "core",
+  "key": "rms_norm",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "The separate RMSNorm kernel moves only 32 MB and costs about 0.2 ms; the fused version adds shared-memory reads of every A tile to the matmul's inner loop, which is the bottleneck, and loses more than it saves (at K = 256 too: 2.72 separate, 2.83 fused).",
+  "label": "core",
+  "key": "2.72",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "That is the third rule: fusion that adds work to a compute-bound loop loses .",
+  "label": "core",
+  "key": "That is the third rule",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Production kernels that do fuse a norm into a GEMM (for example to quantise activations to FP8 on the way in) do it where the GEMM is memory-bound, at small batch.",
+  "label": "core",
+  "key": "production kernels that do fuse a",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "5. fusion: keep it on chip",
+  "text": "Go deeper (optional): the Kernel bench (M1) tab shows every case with its code, the K = 256 numbers and the spread of each timing; the topic root's Kernel lab fuses softmax into the following matmul, the step that leads to FlashAttention.",
+  "label": "core",
+  "key": "the K = 256 numbers",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Decode: a matrix times one vector, with 4-bit weights The problem.",
+  "label": "core",
+  "key": "decode: a matrix times one vector,",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "When a model generates one token for one user, every linear layer multiplies its weight matrix by a single vector: a GEMV .",
+  "label": "core",
+  "key": "when a model generates one token",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Each weight is read once and used once (one multiply-add), so the time is the bytes of the weights divided by memory bandwidth, and the only way to go faster is to read fewer bytes.",
+  "label": "core",
+  "key": "each weight is read once and",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "That is why decode-time weights are stored in 4 bits.",
+  "label": "core",
+  "key": "that is why decode-time weights are",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "But the GPU cannot multiply 4-bit codes directly; they must be dequantised (code × scale + bias, per group of weights).",
+  "label": "core",
+  "key": "but the gpu cannot multiply 4-bit",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Do it as a separate kernel and you write a full 16-bit copy of the matrix and read it back, three times the bytes you hoped to save.",
+  "label": "core",
+  "key": "do it as a separate kernel",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Do it inside the GEMV, in registers, and only the 4-bit bytes cross the memory bus.",
+  "label": "core",
+  "key": "do it inside the gemv, in",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "The shape is one MLP projection of Llama 3 8B, 14,336 × 4,096, in MLX's own 4-bit format (groups of 64 weights, a float16 scale and bias per group): 117.4 MB in float16, 33.0 MB in 4 bits, 0.5625 bytes per weight, 3.56 times fewer derived , 0.5 + 4/64. measured on Apple M1 Pro GPU .",
+  "label": "core",
+  "key": "14,336",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Every kernel checked against a float64 product with the same dequantised weights.",
+  "label": "core",
+  "key": "every kernel checked against a float64",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "The last bar only reads the 4-bit codes (a sum over them), for scale.",
+  "label": "core",
+  "key": "the last bar only reads the",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Dequantise, then GEMV : 1.84 ms, twice the float16 GEMV ( 1.02 ms ours, 0.94 ms MLX): the worst of both.",
+  "label": "core",
+  "key": "1.84",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Fused, one thread per row : 2.70 ms.",
+  "label": "core",
+  "key": "2.70",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Neighbouring threads read addresses a whole row (2 KB) apart: the uncoalesced pattern again.",
+  "label": "core",
+  "key": "neighbouring threads read addresses a whole",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Fused, one SIMD-group (warp) per row , lane l reading 4-byte words l, l + 32, ...: 0.46 ms, 2.2 times the float16 GEMV.",
+  "label": "core",
+  "key": "0.46",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "A further rung with 16-byte loads did not help ( 0.46 ms); MLX's mx.quantized_matmul took a median 0.67 ms with a best of 0.39 ms, noisy on a shared machine.",
+  "label": "core",
+  "key": "quantized_matmul",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Why 2.2 times and not 3.56?",
+  "label": "core",
+  "key": "3.56",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Merely reading the codes takes 0.38 ms.",
+  "label": "core",
+  "key": "0.38",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Fitting time = t 0 + bytes / bandwidth through that point and the float16 GEMV gives 139 GB/s and a fixed 0.17 ms per call derived , the launch-and-wait overhead the root measured; it predicts 0.41 ms for the fused kernel's bytes.",
+  "label": "core",
+  "key": "0.17",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "So the fused kernel runs at the memory system's speed; the fixed cost of a launch is what keeps a 33 MB kernel from a 3.56× win.",
+  "label": "core",
+  "key": "3.56",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "On a GPU serving a model, a decode step launches hundreds of such kernels, which is why engines capture them in CUDA graphs ( streams and graphs page ).",
+  "label": "core",
+  "key": "a decode step launches hundreds of",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "What the NVIDIA compiler makes of the unpacking compiled : the same kernel in CUDA ( src/cuda/kernels/g_dequant_gemv.cu ) shows, per 4-byte word, a LOP3 (mask) and SHF (shift) per code and an I2FP (integer to float) per code, before the FFMA.",
+  "label": "core",
+  "key": "g_dequant_gemv",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "It also shows a flaw we did not see in the source: the eight float16 activations per word are fetched with eight separate 2-byte loads (LDG.E.U16).",
+  "label": "depth",
+  "key": "it also shows a flaw we",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Production kernels avoid both costs: they load activations in 16-byte vectors, and convert codes to half precision with bit tricks (PRMT and LOP3 on packed pairs) instead of one conversion per code.",
+  "label": "depth",
+  "key": "production kernels avoid both costs: they",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "With a batch of b tokens each weight is used b times, and the kernel turns into a matmul whose arithmetic eventually catches up with the saved bytes.",
+  "label": "depth",
+  "key": "with a batch of b tokens",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "Marlin (Frantar et al., 2024 ) is a 4-bit-weight, 16-bit-activation kernel designed to keep the full win as long as possible: \"batchsizes up to 16-32 can be supported with close to maximum (4×) quantization speedup\", and up to 2.8 times end to end inside vLLM published .",
+  "label": "depth",
+  "key": "batchsizes up to 16-32",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "6. decode: a matrix times one vector, with 4-bit weights",
+  "text": "The quantisation formats themselves (GPTQ, AWQ, GGUF k-quants) are the training topic's quantization page and the C++ page's llama.cpp part; on this toy, 4 bits moved the output by up to 8.5 % of its largest value against float16 weights measured (random weights, round-to-nearest, no calibration).",
+  "label": "depth",
+  "key": "8.5",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "FlashAttention, step by step FlashAttention is sections 1, 3, 4 and 5 composed: it tiles Q, K and V, computes each tile of scores S = QK T on chip, folds it into the output with the online-softmax merge of section 3, and never writes the N × N matrices S and P to memory.",
+  "label": "core",
+  "key": "flashattention, step by step flashattention is",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "The paper page FlashAttention steps through the algorithm on a real input in its Run the kernel tab and follows FA-1 to FA-4 in Then and now ; the topic root's Kernel lab builds a working FlashAttention-style Metal kernel.",
+  "label": "core",
+  "key": "the paper page flashattention steps through",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "This section is about what changed in each version and why, with each change measured where the M1 can show it.",
+  "label": "core",
+  "key": "what changed in each version and",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "FlashAttention-2: three changes The FlashAttention-2 paper ( Dao, July 2023 ) starts from one number: an A100 does \"312 TFLOPs/s of FP16/BF16 matmul, but only 19.5 TFLOPs/s of non-matmul FP32\", so every non-matmul operation (the exponentials, the rescaling, the max) costs 16 matmul FLOPs published .",
+  "label": "core",
+  "key": "19.5",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "It reports about 2× over FA-1 and 50 to 73% of peak on A100, from three changes: Fewer non-matmul operations.",
+  "label": "core",
+  "key": "it reports about 2× over fa-1",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Keep the output unnormalised and divide by the running sum once, at the end, instead of rescaling it every tile; store one number per row for the backward pass, the logsumexp L = m + log ℓ, instead of both m and ℓ.",
+  "label": "core",
+  "key": "keep the output unnormalised and divide",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "The Kernel lab's kernel already works this way.",
+  "label": "core",
+  "key": "the kernel lab's kernel already works",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Parallelise over the sequence, not only batch × heads.",
+  "label": "core",
+  "key": "parallelise over the sequence, not only",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "FA-1 gave each (batch, head) pair one thread block, which loops over all query blocks; with long sequences and small batches, batch × heads is smaller than the 108 SMs of an A100 and most of the GPU idles.",
+  "label": "core",
+  "key": "108",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "FA-2 gives each block of queries its own thread block.",
+  "label": "core",
+  "key": "fa-2 gives each block of queries",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "We measured exactly this switch on the same kernel, 4 heads, d = 64: Log scale. \"FA-1 grid\": one threadgroup per head, 4 in all, for a GPU with 16 cores; \"FA-2 grid\": one per 64 query rows and head, 512 at N = 8,192.",
+  "label": "core",
+  "key": "4 heads, d = 64",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Same kernel, same arithmetic, measured on Apple M1 Pro GPU .",
+  "label": "core",
+  "key": "same kernel, same arithmetic, measured on",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "At N = 8,192 the FA-1 grid takes 214.54 ms and the FA-2 grid 30.62 ms, 7.0 times faster ( 2.24 TFLOP/s): four threadgroups cannot fill sixteen cores, and even a filled core needs several threadgroups to hide memory latency.",
+  "label": "core",
+  "key": "214.54",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Split Q across warps, not K.",
+  "label": "core",
+  "key": "split q across warps, not k.",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Inside one thread block of 4 warps, FA-1 split the K and V tile between warps (\"split-K\"), so each warp held a partial result for every query row and \"all warps need to write their intermediate results out to shared memory, synchronize, then add up\"; FA-2 splits Q, each warp owns its rows outright and reads all of K and V, with \"no need for communication between warps\".",
+  "label": "core",
+  "key": "no need for communication between warps",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "The Attention schedules tab animates both on one tile and counts the shared-memory traffic.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab; the split widget is inline in section 7"
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Causal masks: skip, do not mask In a decoder, query i may only attend to keys j ≤ i.",
+  "label": "core",
+  "key": "causal masks: skip, do not mask",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Masking sets the forbidden scores to −∞ but still computes them; tiles wholly above the diagonal can instead be skipped.",
+  "label": "core",
+  "key": "masking sets the forbidden scores to",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "FA-2 reports \"around 1.7-1.8× speedup compared to attention without the causal mask\" published .",
+  "label": "core",
+  "key": "around 1.7-1.8",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "With 64-row query blocks and 32-key tiles the work falls to (B + 1) / 2B of the tiles for B = N / 64 query blocks, an ideal 1.98 × at N = 8,192 derived .",
+  "label": "core",
+  "key": "(B + 1) / 2B",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Measured: masking only 30.42 ms (the same as no mask), skipping 16.98 ms, 1.79 × measured on Apple M1 Pro GPU .",
+  "label": "core",
+  "key": "30.42",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Not quite 2×, because the blocks near the diagonal (more work) and far from it (less) now take very different times, so the last threadgroups run alone.",
+  "label": "core",
+  "key": "not quite 2×, because the blocks",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "FlashAttention-3's code answers with \"longest-processing-time-first scheduling: the longest remaining tile is assigned to the first SM that's free\" ( hopper/tile_scheduler.hpp , read 2026-10-05).",
+  "label": "core",
+  "key": "tile_scheduler",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "MLX's own causal attention took 12.66 ms.",
+  "label": "core",
+  "key": "12.66",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "FlashAttention-3: the exponentials become the bottleneck On an H100 (Hopper) the tensor cores got faster than everything around them.",
+  "label": "core",
+  "key": "flashattention-3: the exponentials become the bottleneck",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "The FlashAttention-3 paper ( Shah et al., July 2024 ) gives the H100 SXM5 \"989 TFLOPS for FP16 matmul versus 3.9 TFLOPS for special functions\" (the units that compute exponentials), a ratio of 254 published .",
+  "label": "core",
+  "key": "989 TFLOPS for FP16 matmul versus 3.9 TFLOPS",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Each score costs 4d matmul FLOPs (2d for QK T , 2d for PV) and one exponential, so for d = 128 the exponentials take (1 / 3.9) / (512 / 989) = 50 % of the matmul time derived , the paper's \"exponential can take 50% of the cycle compared to matmul\".",
+  "label": "core",
+  "key": "exponential can take 50% of the cycle compared to matmul",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "If they run one after the other, the tensor cores idle a third of the time.",
+  "label": "core",
+  "key": "run one after the other, the",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "FA-3's answer is to overlap them, with Hopper's asynchronous hardware: Warp specialisation : producer warps only issue TMA copies (the tensor memory accelerator, which moves whole tiles from global to shared memory by itself), consumer warpgroups (4 warps each) only compute, and setmaxnreg moves registers from producers to consumers.",
+  "label": "depth",
+  "key": "warp specialisation : producer warps only",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Ping-pong : two consumer warpgroups take turns, one running its softmax while the other's GEMMs run on the tensor cores: \"from approximately 570 TFLOPS to 620-640 TFLOPS\" (head dimension 128, sequence 8,192).",
+  "label": "depth",
+  "key": "from approximately 570 TFLOPS to 620-640 TFLOPS",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Intra-warpgroup pipelining : within one warpgroup, start the next tile's QK T before this tile's softmax is done, at the cost of more registers.",
+  "label": "core",
+  "key": "start the next tile's qk t",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "The ablation: 661 TFLOPS with everything, 582 without this pipelining, 570 without warp specialisation.",
+  "label": "depth",
+  "key": "582 without the pipelining",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "FP8 : block-wise scales and \"incoherent processing\" (multiply Q and K by a random orthogonal Hadamard-based matrix, which spreads outliers) for \"2.6× lower numerical error compared to per-tensor quantization\".",
+  "label": "depth",
+  "key": "incoherent processing",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Headline: FP16 up to 740 TFLOPs/s, 75% of peak; FP8 close to 1.2 PFLOPs/s published .",
+  "label": "depth",
+  "key": "FP8 close to 1.2 PFLOPs/s",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "The Attention schedules tab lays the three schedules out on a time line with the exponential share as a slider.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab; the schedule widget is inline"
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "None of this can be measured on the M1, which has no asynchronous matrix units.",
+  "label": "core",
+  "key": "none of this can be measured",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "FlashAttention-4 and Blackwell On a B200 the tensor cores doubled again while \"other functional units (shared memory bandwidth, exponential units) scale more slowly or remain unchanged\".",
+  "label": "depth",
+  "key": "on a b200 the tensor cores",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "FlashAttention-4 ( Zadouri et al., 2026 ) answers with fully asynchronous MMA pipelines and larger tiles, exponentials partly computed in software on the FMA units, \"conditional softmax rescaling\" (skip the rescale when the running maximum barely moves), and tensor memory plus the 2-CTA MMA mode in the backward pass; up to 1,613 TFLOPs/s on B200 in BF16 (71%), 1.3× over cuDNN 9.13 published , written in the CuTe DSL in Python.",
+  "label": "depth",
+  "key": "conditional softmax rescaling",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Every generation is the same algorithm re-scheduled around whichever unit became the bottleneck.",
+  "label": "depth",
+  "key": "every generation is the same algorithm",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "The backward pass The backward pass never stored P; it recomputes it tile by tile from Q, K and the saved logsumexp L: P = exp(S − L).",
+  "label": "depth",
+  "key": "the backward pass never stored p;",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "FA-2's algorithm first computes D = rowsum(dO ∘ O) (one number per row), then per tile: dV += P T dO; dP = dO V T ; dS = P ∘ (dP − D); dQ += dS K; dK += dS T Q.",
+  "label": "depth",
+  "key": "fa-2's algorithm first computes d =",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "It is parallelised over blocks of keys (\"each worker takes care of a block of columns\"), so several thread blocks add into the same rows of dQ, which FA-2 does \"using atomic adds\", the non-determinism of section 1 again published .",
+  "label": "depth",
+  "key": "each worker takes care of a block of columns",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Recomputing S costs about one more QK T ; storing P would cost N 2 numbers per head.",
+  "label": "depth",
+  "key": "recomputing s costs about one more",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Decode: split the keys Generating a token has one query per head against a long cache of keys and values.",
+  "label": "core",
+  "key": "decode: split the keys generating a",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "A FlashAttention grid over (batch, head, query block) then has batch × heads blocks: \"with a batch size of 1, FlashAttention will use less than 1% of the GPU\" ( published , Flash-Decoding, Dao, Haziza, Massa and Sizov, October 2023 ).",
+  "label": "core",
+  "key": "less than 1% of the GPU",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Flash-Decoding splits the keys into chunks, runs the online softmax on each chunk in parallel, saves each chunk's (m, ℓ, partial output), and merges them with the section-3 rescaling in a tiny second kernel; it reports up to 8× faster generation for CodeLlama-34B at 64K context.",
+  "label": "core",
+  "key": "flash-decoding splits the keys into chunks,",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "We built it: 8 heads, d = 128, float16 cache, one query measured on Apple M1 Pro GPU .",
+  "label": "core",
+  "key": "8 heads, d = 128, float16 cache",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "At 65,536 tokens ( 268 MB of K and V), one threadgroup per head takes 3.85 ms; the best split (S = 4 ) 1.73 ms, 2.2 ×, the same as MLX's own ( 1.73 ms).",
+  "label": "core",
+  "key": "one threadgroup per head takes",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "And a surprise: S = 8 took 6.05 ms, slower than no split.",
+  "label": "core",
+  "key": "6.05",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "With 65,536 keys per head, the 8 chunks of each head start exactly 2 MiB apart; with 512 more keys (66,048) the same kernel takes 1.82 ms at S = 8 against 5.22 at 65,536, three runs each.",
+  "label": "core",
+  "key": "MiB apart",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "The likely cause is that concurrent reads spaced by a power of two land on the same memory channel or bank, since memory controllers pick a channel from address bits; we did not establish the M1's mapping, so treat this as a hypothesis unconfirmed .",
+  "label": "core",
+  "key": "the likely cause is that concurrent",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "The lesson is general: sweep the split size and the problem size , because a performance cliff can sit at the exact power of two everyone benchmarks.",
+  "label": "core",
+  "key": "the lesson is general: sweep the",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "7. flashattention, step by step",
+  "text": "Paged KV caches, GQA and serving-side scheduling are the inference and serving topic's.",
+  "label": "core",
+  "key": "paged kv caches, gqa and serving-side",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Testing a kernel against a reference A fast wrong kernel is worse than a slow right one, and GPU bugs hide: they appear at one size, one in a hundred runs, or only after a different kernel ran first.",
+  "label": "core",
+  "key": "testing a kernel against a reference",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Every kernel on this page went through the same harness before it was timed: run it, compare with a float64 reference computed by NumPy, fail if the largest error exceeds a tolerance.",
+  "label": "core",
+  "key": "every kernel on this page went",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "That harness still let one bug through, and it is the most useful thing on this page to read.",
+  "label": "core",
+  "key": "that harness still let one bug",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "A kernel that wrote nothing passed the test Our first standalone RMSNorm kernel computed its loop count as C / 4 / 256 , which is 0 for rows of 256 floats: it wrote nothing at all.",
+  "label": "core",
+  "key": "C / 4 / 256",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "The check passed, error 4 × 10 −6 (the log line is kept in src/m1/out/side_experiments.txt ).",
+  "label": "core",
+  "key": "side_experiments",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "The output buffer the kernel received was, most likely, memory MLX's allocator had just freed after the library's own RMSNorm of the same shape, still holding the right answer.",
+  "label": "core",
+  "key": "the output buffer the kernel received",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Two cheap defences: poison the output (fill it with NaN before the kernel runs, or make sure it is fresh memory; our harness now empties MLX's buffer cache before every check) and run the reference path after, not before , the kernel under test, so it cannot leave its answer behind.",
+  "label": "core",
+  "key": "two cheap defences: poison the output",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "The fixed kernel then passed for the right reason.",
+  "label": "core",
+  "key": "the fixed kernel then passed for",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "The topic root's Kernel lab kept a second lesson: a barrier that was too weak ( simdgroup_barrier where a threadgroup barrier was needed) gave 1 to 5 wrong rows out of 4,096 at random, and every small test passed.",
+  "label": "core",
+  "key": "simdgroup_barrier",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Test at the real size, and repeat.",
+  "label": "core",
+  "key": "test at the real size, and",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Choosing the tolerance torch.testing.assert_close passes when |actual − expected| ≤ atol + rtol · |expected|, with defaults per data type ( _comparison.py , read 2026-10-05): dtype rtol atol float32 1.3e-6 1e-5 float16 1e-3 1e-5 bfloat16 0.016 1e-5 float64 1e-7 1e-7 These are right for one rounding, not for a sum of thousands of terms, whose error grows with the length of the sum.",
+  "label": "core",
+  "key": "assert_close",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "A practical rule: compute the reference in float64, measure the error of a trusted implementation in your precision (the library, or PyTorch eager) against it, and require your kernel's error to be within a small factor of that.",
+  "label": "core",
+  "key": "a practical rule: compute the reference",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Our matmuls in float32 erred by up to 8 × 10 −6 against float64, like MLX's; the 4-bit GEMV by 9 × 10 −4 against the product with the same dequantised weights, and by far more (section 6) against the unquantised weights, which is a different question (does quantisation hurt the model?) and needs a different test (evaluation).",
+  "label": "core",
+  "key": "our matmuls in float32 erred by",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Inputs that break kernels Sizes that are not a multiple of the tile (4,097 columns, 1 row, 0 rows): the bounds checks.",
+  "label": "depth",
+  "key": "4,097",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Every kernel on this page assumes multiples of its tile; a production kernel must not.",
+  "label": "depth",
+  "key": "every kernel on this page assumes",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Large offsets : rows with mean 3,000 (section 3), logits of 10 4 (softmax without the max subtraction overflows exp above about 88.7 in float32).",
+  "label": "depth",
+  "key": "88.7",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Masks : a row whose keys are all masked gives max = −∞, then exp(−∞ − (−∞)) = NaN.",
+  "label": "depth",
+  "key": "masks : a row whose keys",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Decide what the kernel should return (zeros, or NaN to flag it) and test it.",
+  "label": "depth",
+  "key": "decide what the kernel should return",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Our causal kernel never meets such a row because key 0 is always visible; a padding mask breaks that.",
+  "label": "depth",
+  "key": "our causal kernel never meets such",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Real distributions : real activations have outliers (a few channels 100 times larger than the rest); random normal inputs hide quantisation and overflow problems.",
+  "label": "depth",
+  "key": "a few channels 100 times larger",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Repeated runs : run 10 to 30 times and compare the outputs with each other, which finds races and non-deterministic atomics (section 1).",
+  "label": "depth",
+  "key": "repeated runs : run 10 to",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Tools On NVIDIA, compute-sanitizer (shipped with the toolkit) has four tools, from its own help text (CUDA 13.4.2): memcheck (\"Memory access checking\", the default: out-of-bounds and misaligned accesses), racecheck (\"Shared memory hazard checking\": a missing __syncthreads() ), synccheck (\"Synchronization checking\": a barrier only some threads reach) and initcheck (\"Global memory initialization checking\": reading memory nobody wrote, which would have caught our RMSNorm bug).",
+  "label": "depth",
+  "key": "Global memory initialization checking",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "They slow a kernel by large factors, so run them on small inputs in CI.",
+  "label": "depth",
+  "key": "they slow a kernel by large",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "8. testing a kernel against a reference",
+  "text": "Timing honestly (warm-up, medians, L2 flushing, CUDA events) is section 2 of Profiling, benchmarking and correctness ; its Numerics lab tab shows why a reordered sum or an atomic changes the last digits and which tolerance fits each data type.",
+  "label": "core",
+  "key": "timing honestly (warm-up, medians, l2 flushing,",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Comparing a fused kernel with eager PyTorch Eager mode runs one kernel per operation; anything fused beats it.",
+  "label": "core",
+  "key": "flatters anything",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Compare with torch.compile (or mx.compile ): our GELU epilogue looked 1.7× faster than eager and was 0.92× of compiled MLX (section 5).",
+  "label": "core",
+  "key": "0.92",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Fusing into a compute-bound loop Extra instructions in the inner loop of a matmul cost more than the bytes they save: RMSNorm fused into our matmul lost (section 5).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "common mistake restating section 5's third rule"
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Fuse into memory-bound kernels, or into the epilogue, once.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 5's third rule"
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Using more shared memory \"because it is free\" Shared memory and registers per block decide how many blocks fit on an SM, for the whole kernel.",
+  "label": "core",
+  "key": "Registers decide how many blocks fit",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A 16 KB staging buffer made our fused kernel 28% slower than not fusing.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "28% is 13.76 against 10.71 ms, both shown in section 5"
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Accurate math functions in a fused epilogue precise::tanh cost 1.3 ms inside the matmul; in the separate, memory-bound kernel its cost hid behind the memory traffic.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "1.3 ms is 11.40 against 10.07 ms, both shown in section 5"
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "On NVIDIA the equivalent choice is -use_fast_math or intrinsics like __expf ; check the error you accept.",
+  "label": "core",
+  "key": "use_fast_math",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Warp-synchronous code without _sync Lanes of a warp are not guaranteed to run in lockstep since Volta.",
+  "label": "core",
+  "key": "not guaranteed to run in lockstep",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use __shfl_*_sync and __syncwarp() (section 1).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 2"
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "E[x²] − E[x]² Catastrophic cancellation when the mean is large: errors of 1,653 at mean 3,000 (section 3).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 4's table"
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use two passes over registers or Welford.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 4"
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting bit-identical results Atomics and some scans change the order of additions from run to run.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 2's atomics paragraph"
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Test with tolerances; turn on deterministic algorithms when you must reproduce a run.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates sections 2 and 8"
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Benchmarking only powers of two Our split-KV kernel was nearly 3 times slower at exactly 65,536 keys than at 66,048 (section 7).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7's decode cliff"
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Masking instead of skipping A causal mask applied to every tile costs the same as no mask; skipping tiles above the diagonal nearly halves the work (section 7).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7's causal paragraph"
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Interview questions, with short answers Why is a reduction memory-bound, and what is its ceiling?",
+  "label": "depth",
+  "key": "why is a reduction memory-bound, and",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "One add per 4-byte element is far below any GPU's ridge point; the ceiling is the time to read the input once.",
+  "label": "depth",
+  "key": "one add per 4-byte element is",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "On the M1 the first rung read at 83 GB/s and the last at 133 GB/s, against about 143 GB/s for a plain read measured by the hardware topic's Roofline lab.",
+  "label": "depth",
+  "key": "143 GB/s",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Write a warp sum.",
+  "label": "depth",
+  "key": "Write a warp sum",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why the mask argument?",
+  "label": "depth",
+  "key": "Why the mask argument",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Five __shfl_down_sync(0xffffffff, v, o) for o = 16, 8, 4, 2, 1.",
+  "label": "core",
+  "key": "__shfl_down_sync",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The mask names the lanes that participate and must all reach the call; it exists because lanes are scheduled independently since Volta.",
+  "label": "depth",
+  "key": "the mask names the lanes that",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How do you combine partial sums from different blocks?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question whose answer is section 2's four ways"
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A second launch, an atomic add per block (fast, non-deterministic), or the last block to finish (found with an atomic counter) reduces all partials, as PyTorch's Reduce.cuh does.",
+  "label": "depth",
+  "key": "the last block to finish",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Hillis-Steele: log n steps, O(n log n) adds, fine inside a warp.",
+  "label": "depth",
+  "key": "hillis-steele: log n steps, o(n log",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Blelloch: O(n) adds, 2 log n steps, good for large arrays in shared memory.",
+  "label": "depth",
+  "key": "blelloch: o(n) adds, 2 log n",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Across the GPU, a tiled scan with decoupled look-back reads and writes each element once (CUB).",
+  "label": "depth",
+  "key": "across the gpu, a tiled scan",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What does the online softmax merge, and why does FlashAttention need it?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 4"
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Two partial (max, sum) pairs: rescale each sum by e m i − m and add.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the online softmax merge"
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "It lets tiles of keys be processed one at a time, and partial outputs (Flash-Decoding) be combined, without ever seeing the full row.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7"
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why does FlashAttention-2 split Q across warps instead of K?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 7"
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Split-K leaves every warp with a partial result for every row, which must be written to shared memory, synchronised and summed; split-Q gives each warp its own rows and no communication.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7's split-Q"
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What limits attention on an H100 once the bytes are fixed?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 7"
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The exponentials: 989 TFLOPS of FP16 matmul against 3.9 of special functions, about 50% of the matmul time at d = 128.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7's FA-3 paragraph"
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "FA-3 overlaps them with the GEMMs (warp specialisation, ping-pong).",
+  "label": "core",
+  "key": "FA-3 overlaps them",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why is decode attention slow with plain FlashAttention, and the fix?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 7"
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "One query per head gives batch × heads thread blocks, a few percent of the GPU.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7's decode"
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Split the keys (Flash-Decoding), run chunks in parallel and merge with logsumexp rescaling.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7's decode"
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A 4-bit GEMV is only 2× faster than float16, not 4×.",
+  "label": "depth",
+  "key": "A 4-bit GEMV is only 2",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why might that be?",
+  "label": "depth",
+  "key": "Why might that be",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Fixed launch overhead dominates small kernels (0.17 ms here), dequantisation instructions or scalar activation loads can make it instruction-bound, and scales and biases add bytes (0.5625 bytes per weight here).",
+  "label": "depth",
+  "key": "0.5625 bytes per weight here",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Measure the read of the bytes alone first.",
+  "label": "depth",
+  "key": "measure the read of the bytes",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "When does fusion not help?",
+  "label": "depth",
+  "key": "When does fusion not help",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "When the intermediate's round trip is a small share of the time (compute-bound kernels), when it raises register or shared-memory use and cuts occupancy, or when the compiler already fused it.",
+  "label": "depth",
+  "key": "when the intermediate's round trip is",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "a path through it, without an nvidia gpu at home",
+  "text": "A path through it, without an NVIDIA GPU at home Correction to the old page The old page's project ladder was written \"for the dual-5090 box\"; there is no NVIDIA GPU here.",
+  "label": "depth",
+  "key": "for the dual-5090 box",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "a path through it, without an nvidia gpu at home",
+  "text": "The same ladder, rewritten for a Mac and rented GPU hours: On the Mac : run this page's Metal kernels ( src/m1/ , MLX), change one thing, re-measure.",
+  "label": "depth",
+  "key": "the same ladder, rewritten for a",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "a path through it, without an nvidia gpu at home",
+  "text": "Then write softmax and a sum in Triton and check them with TRITON_INTERPRET=1 ( Triton and Gluon page ).",
+  "label": "depth",
+  "key": "TRITON_INTERPRET",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "a path through it, without an nvidia gpu at home",
+  "text": "Compile CUDA without a GPU : build the kernels in src/cuda/ with nvcc in a container, read ptxas -v and the SASS, and predict which will be fastest ( compiler stack page ).",
+  "label": "depth",
+  "key": "compile cuda without a gpu :",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "a path through it, without an nvidia gpu at home",
+  "text": "Rent one H100 for a day (on-demand at about $3.99 per GPU-hour on Lambda, 2026-10-05): reproduce Boehm's ladder through kernel 6 with Nsight Compute open, then the reduction ladder; keep a table of GFLOP/s or GB/s and the profiler's bottleneck per rung.",
+  "label": "depth",
+  "key": "3.99",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "a path through it, without an nvidia gpu at home",
+  "text": "A fusion that the compiler does not do (residual + RMSNorm + FP8 quantisation, or dequantise + GEMV for a format you use), benchmarked against torch.compile .",
+  "label": "depth",
+  "key": "a fusion that the compiler does",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "a path through it, without an nvidia gpu at home",
+  "text": "A minimal FlashAttention forward in Triton (the official fused-attention tutorial is the reference), checked against F.scaled_dot_product_attention ; then a causal version that skips tiles; then a split-KV decode kernel.",
+  "label": "depth",
+  "key": "scaled_dot_product_attention",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "a path through it, without an nvidia gpu at home",
+  "text": "The same kernels in Rust.",
+  "label": "depth",
+  "key": "The same kernels in Rust",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "a path through it, without an nvidia gpu at home",
+  "text": "The old page described cuda-oxide, NVIDIA's rustc backend that compiles #[kernel] functions to PTX with the same thread, warp and block model; the topic root's section 10 carries the verified details (NVIDIA blog, September 2026: early alpha, no performance benchmarks published).",
+  "label": "depth",
+  "key": "cuda-oxide",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Reduce and scan, animated One input of 16 numbers, six ways to combine them on a toy GPU: warps of 4 lanes (a real warp has 32) and shared memory with 4 banks (a real GPU has 32), so every effect fits on a phone screen at the same proportions.",
+  "label": "core",
+  "key": "16 numbers, six ways to combine",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Pick a method; each step shows which threads work (arrows from the value they read to the value they write), which lanes of an issued warp sit idle, and how many shared-memory transactions the step costs.",
+  "label": "core",
+  "key": "arrows run from the value a thread reads",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Then switch method and play the same input again.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "widget instruction"
+ },
+ {
+  "id": 324,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Try: play Interleaved (R1) and watch the idle lanes counter climb: whole warps issue for one working lane.",
+  "label": "core",
+  "key": "whole warps issue for one working",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Switch to Strided (R2) : no idle lanes, but the worst bank conflict becomes 4-way.",
+  "label": "core",
+  "key": "worst bank conflict becomes 4-way",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Sequential (R3) fixes both.",
+  "label": "core",
+  "key": "R3 fixes both",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Warp shuffle needs one barrier instead of four.",
+  "label": "core",
+  "key": "warp shuffle needs one barrier instead",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Then the scans: Hillis-Steele does 49 additions where Blelloch does 30, in half the steps.",
+  "label": "core",
+  "key": "hillis-steele does 49 additions where blelloch",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Interleaved (R1) Strided (R2) Sequential (R3) Warp shuffle Scan: Hillis-Steele Scan: Blelloch All six on the same input Totals over all steps.",
+  "label": "core",
+  "key": "interleaved (r1) strided (r2) sequential (r3)",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Active lanes: lane-steps doing work.",
+  "label": "depth",
+  "key": "Active lanes: lane-steps doing work",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Idle lanes: lanes of issued warps with nothing to do (divergence).",
+  "label": "depth",
+  "key": "idle lanes: lanes of issued warps",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Barriers: __syncthreads() after each shared-memory step.",
+  "label": "depth",
+  "key": "__syncthreads() after each shared-memory step",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Shuffles: warp shuffle instructions.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "legend for a self-evident counter"
+ },
+ {
+  "id": 334,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Shared-memory transactions: per warp and per access (read source, read destination, write destination), the largest number of distinct addresses in one bank, summed; a value above the number of warp requests means bank conflicts.",
+  "label": "depth",
+  "key": "shared-memory transactions: per warp and per",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "The counts come from the page's model, checked against an independent Python implementation ( src/tree_model.py ).",
+  "label": "core",
+  "key": "tree_model",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "The reductions end with the sum, 48, in element 0; Hillis-Steele with the inclusive scan; Blelloch with the exclusive scan (shifted by one, starting at 0).",
+  "label": "depth",
+  "key": "the reductions end with the sum,",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-tree",
+  "section": "reduce and scan, animated",
+  "text": "Section 1 and 2 of the Reading tab measure the real kernels.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer back to Reading from a removed tab"
+ },
+ {
+  "id": 338,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "Attention schedules: who computes what, and when Two pictures of how a FlashAttention kernel is organised inside one GPU core, each a before/after on the same work.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "intro of a removed tab"
+ },
+ {
+  "id": 339,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "Both are models: the shapes of the work are the papers', the counts are ours, labelled derived ; nothing here was measured on an NVIDIA GPU.",
+  "label": "core",
+  "key": "Counts are values per loop iteration",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "Inside one thread block: split K, or split Q (FlashAttention-1 against -2) One block holds a tile of 64 query rows and, at each step of its loop, a tile of 64 keys and values (head dimension 128), and has 4 warps.",
+  "label": "core",
+  "key": "64 query rows",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "FlashAttention-1 split the keys between the warps (\"split-K\"); FlashAttention-2 splits the queries (\"split-Q\").",
+  "label": "core",
+  "key": "between warps (\"split-K\")",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "Play one loop iteration both ways and compare the shared-memory traffic and barriers.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "widget instruction"
+ },
+ {
+  "id": 343,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "Split K (FA-1) Split Q (FA-2) Counts are values (not bytes) per loop iteration, for B r = B c = 64, d = 128, 4 warps, from the tile shapes alone: split-Q reads 4 times more K and V from shared memory (every warp needs all of it) but never exchanges partial results; split-K must exchange row maxima and then partial outputs through shared memory, with barriers in between.",
+  "label": "core",
+  "key": "per loop iteration from the tile shapes alone",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "Which costs more on a real GPU depends on bandwidths the model does not have; FlashAttention-2 reports that removing the exchange gave a speedup ( FA-2, section 3.3 ).",
+  "label": "core",
+  "key": "removing the exchange gave a speedup",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "On the tensor cores' time line: FlashAttention-3's overlap Each iteration of the loop is three steps: GEMM0 (S = QK T , tensor cores), softmax (exponentials, on the much slower special-function units), GEMM1 (O += PV, tensor cores).",
+  "label": "core",
+  "key": "softmax, GEMM1 (O += PV)",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "On an H100 at head dimension 128 the softmax takes about half as long as the two GEMMs ( FA-3 : 989 against 3.9 TFLOPS).",
+  "label": "core",
+  "key": "of the matmul time",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "Run in order, the tensor cores wait during every softmax.",
+  "label": "core",
+  "key": "the tensor cores idle a third of the time",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "FlashAttention-3 overlaps them two ways: ping-pong between two warpgroups, and pipelining inside one warpgroup (start the next GEMM0 during this softmax).",
+  "label": "core",
+  "key": "and pipelining inside one warpgroup (start",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "In order (one warpgroup) Ping-pong (two warpgroups) Pipelined (one warpgroup) Ping-pong + pipelined Softmax time / GEMM time 0.50 0.5: H100, d = 128 (FA-3).",
+  "label": "core",
+  "key": "0.5: H100, d = 128 (FA-3)",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "About 1.0: tensor cores twice as fast, exponentials not (the Blackwell case FA-4 describes).",
+  "label": "core",
+  "key": "the Blackwell case FA-4 describes",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "A list-scheduling model: 8 tile iterations in all (one warpgroup does 8; two do 4 each), GEMM0 and GEMM1 one unit each, softmax r × 2 units, one tensor-core pipe and one exponential pipe per SM, each task starts when its inputs are ready and its pipe is free, in program order.",
+  "label": "core",
+  "key": "one unit each, softmax r ×",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "It ignores loads (TMA producers hide them in FA-3), register limits (pipelining costs registers) and the rescaling work, and it is greedy, not optimal: at a ratio of 1.0 it does worse with both techniques than with ping-pong alone, a reminder that FA-3's order of instructions is tuned by hand.",
+  "label": "core",
+  "key": "it does worse with both techniques than with ping-pong alone",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "Checked against an independent Python implementation ( src/fa_model.py ).",
+  "label": "core",
+  "key": "fa_model",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-fa",
+  "section": "attention schedules: who computes what, and when",
+  "text": "FlashAttention-3's measured ablation for comparison published : 570 TFLOPS without warp specialisation, 582 without the pipelining, 661 with both (H100, FP16, head dimension 128, sequence 8,448 in that table).",
+  "label": "depth",
+  "key": "sequence 8,448 in that table",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-bench",
+  "section": "kernel bench: every measurement on the m1 pro gpu",
+  "text": "Kernel bench: every measurement on the M1 Pro GPU Every timing quoted on this page, with its spread, the machine's load, the derived rate and the kernel source that was timed.",
+  "label": "core",
+  "key": "kernel bench: every measurement on the",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-bench",
+  "section": "kernel bench: every measurement on the m1 pro gpu",
+  "text": "All measured on Apple M1 Pro GPU (16-core GPU, MLX 0.32.3, custom Metal kernels through mx.fast.metal_kernel ), each kernel first checked against a float64 NumPy reference at the measured size.",
+  "label": "core",
+  "key": "metal_kernel",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-bench",
+  "section": "kernel bench: every measurement on the m1 pro gpu",
+  "text": "Each case: 2 warm-up calls, then 7 trials of enough calls to last about 60 ms; the bar is the median of the three runs' medians, the thin line the fastest and slowest of all 21 trials.",
+  "label": "core",
+  "key": "each case: 2 warm-up calls, then",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-bench",
+  "section": "kernel bench: every measurement on the m1 pro gpu",
+  "text": "Times include MLX's per-call launch-and-wait overhead (about 0.2 ms).",
+  "label": "core",
+  "key": "(about 0.2 ms)",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-bench",
+  "section": "kernel bench: every measurement on the m1 pro gpu",
+  "text": "Kernel source, as timed What transfers to NVIDIA: which variant wins and by roughly what factor when the limit is the same (bytes, launches, idle cores); what does not: absolute times (an H100 has about 20 times this GPU's memory bandwidth), and anything that depends on Apple's memory system, threadgroup memory size (32 KB per threadgroup) or the 8 × 8 matrix instructions.",
+  "label": "core",
+  "key": "kernel source, as timed what transfers",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-bench",
+  "section": "kernel bench: every measurement on the m1 pro gpu",
+  "text": "Reproduce: src/run_all.sh (needs a Python with MLX; see src/README.md ).",
+  "label": "core",
+  "key": "run_all",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-sass",
+  "section": "compiled for nvidia: what nvcc made of each kernel",
+  "text": "Compiled for NVIDIA: what nvcc made of each kernel The page's CUDA kernels (the reduction ladder, CUB's block reduce and scan, Boehm's matmul ladder rewritten, and the 4-bit GEMV) compiled with CUDA 13.4.2 for three GPUs, without a GPU, in the kb-gpu-lab:1 container the topic root built: sm_80 (A100), sm_90a (H100) and sm_120 (RTX 5090).",
+  "label": "core",
+  "key": "kb-gpu-lab:1",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-sass",
+  "section": "compiled for nvidia: what nvcc made of each kernel",
+  "text": "Registers, shared memory and spills come from ptxas -v ; instruction counts from cuobjdump -sass .",
+  "label": "core",
+  "key": "registers, shared memory and spills come",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-sass",
+  "section": "compiled for nvidia: what nvcc made of each kernel",
+  "text": "All compiled , nothing run.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the compiled label"
+ },
+ {
+  "id": 364,
+  "tab": "t-sass",
+  "section": "compiled for nvidia: what nvcc made of each kernel",
+  "text": "Counts are static (how often an instruction appears in the binary; a loop body counts once). sm_80 (A100) sm_90a (H100) sm_120 (RTX 5090) FFMA: fused multiply-add (float32).",
+  "label": "core",
+  "key": "a loop body counts once",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-sass",
+  "section": "compiled for nvidia: what nvcc made of each kernel",
+  "text": "LDS / LDS.128: shared-memory loads, 4 or 16 bytes per lane.",
+  "label": "core",
+  "key": "4 or 16 bytes per lane",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-sass",
+  "section": "compiled for nvidia: what nvcc made of each kernel",
+  "text": "BAR: barriers ( __syncthreads ).",
+  "label": "core",
+  "key": "BAR: barriers",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-sass",
+  "section": "compiled for nvidia: what nvcc made of each kernel",
+  "text": "I2F: integer-to-float conversions. \"FFMA per LDS\" is the reuse ratio of section 4: multiply-adds per shared-memory load instruction.",
+  "label": "core",
+  "key": "FFMA per LDS",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-sass",
+  "section": "compiled for nvidia: what nvcc made of each kernel",
+  "text": "Blocks per SM from registers alone use NVIDIA's allocation rules as reproduced by the topic root's GPU simulator (registers per warp rounded up to 256, 64K per SM, at most 64 warps on sm_80 and sm_90a, 48 on sm_120) derived ; shared memory and the block's other limits can lower it.",
+  "label": "core",
+  "key": "Blocks per SM from registers alone",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-sass",
+  "section": "compiled for nvidia: what nvcc made of each kernel",
+  "text": "Sources, as compiled r_reduce_ladder.cu r_cub.cu m_ladder.cu g_dequant_gemv.cu Toolkit: .",
+  "label": "core",
+  "key": "r_reduce_ladder",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-sass",
+  "section": "compiled for nvidia: what nvcc made of each kernel",
+  "text": "Commands: src/cuda/compile_all.sh ; statistics: src/cuda/sass_stats.py (raw SASS dumps are regenerated, not committed).",
+  "label": "core",
+  "key": "compile_all",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Every link opens in a new tab; times are reading or watching estimates.",
+  "label": "core",
+  "key": "further reading every link opens in",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "On this page Reduce and scan, animated 10 min Six ways to combine 16 numbers on a toy GPU, with idle lanes, barriers and bank conflicts counted.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading entry for a removed tab"
+ },
+ {
+  "id": 373,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Attention schedules 10 min Split-K against split-Q inside a block, and FlashAttention-3's overlap of exponentials and GEMMs on a time line.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading entry for a removed tab"
+ },
+ {
+  "id": 374,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Kernel bench (M1) 15 min Every timing with its spread, load, rate and the exact kernel source.",
+  "label": "core",
+  "key": "kernel bench (m1) 15 min every",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Compiled for NVIDIA 10 min Registers, shared memory and instruction mix of every CUDA kernel for A100, H100 and RTX 5090.",
+  "label": "core",
+  "key": "5090",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The parent topic and its other children Topic: cuda-and-gpu-programming about 45 min The root: one operation from PyTorch to the instructions.",
+  "label": "core",
+  "key": "the parent topic and its other",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Its Kernel lab tab climbs the softmax, matmul and attention ladders that this page extends; its GPU simulator and Compiler explorer tabs show divergence, bank conflicts, occupancy and real SASS.",
+  "label": "core",
+  "key": "its gpu simulator and compiler explorer",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The CUDA programming model 37 min Threads, warps, blocks, launches, synchronisation and occupancy from zero.",
+  "label": "core",
+  "key": "the cuda programming model 37 min",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "GPU memory hierarchy 30 min Coalescing, shared memory and swizzles, registers and spills, asynchronous copies, the roofline from the programmer's side.",
+  "label": "core",
+  "key": "gpu memory hierarchy 30 min coalescing,",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Triton and Gluon 29 min The same kernels written per block instead of per thread; how the Triton compiler lays them out.",
+  "label": "core",
+  "key": "triton and gluon 29 min the",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Libraries and tensor cores 33 min cuBLAS and cuBLASLt epilogues, CUTLASS and CuTe, mma, wgmma, TMA and tcgen05: the bottom rungs of section 4.",
+  "label": "core",
+  "key": "libraries and tensor cores 33 min",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Profiling, benchmarking and correctness 29 min Nsight Systems and Compute, honest timing, numerical checks: the method of every section here.",
+  "label": "core",
+  "key": "profiling, benchmarking and correctness 29 min",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The compiler stack 28 min PTX, SASS, NVRTC, torch.compile and the Triton it generates.",
+  "label": "core",
+  "key": "the compiler stack 28 min ptx,",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Streams, CUDA graphs and multi-GPU 36 min Launch overhead and CUDA graphs, the fixed cost that limited section 6's GEMV.",
+  "label": "core",
+  "key": "streams, cuda graphs and multi-gpu 36",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Elsewhere in the knowledge base FlashAttention (paper page) 20 min The algorithm run on a real input (Run the kernel), its IO proof, and FA-1 to FA-4 (Then and now).",
+  "label": "core",
+  "key": "elsewhere in the knowledge base flashattention",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Topic: hardware and GPU architecture 28 min The chips themselves: SMs, tensor cores, special-function units, memory, the roofline these kernels sit on.",
+  "label": "core",
+  "key": "topic: hardware and gpu architecture 28",
+  "where": ""
+ },
+ {
+  "id": 387,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Numerical computing for ML 45 min Floating point, rounding and summation error: why sections 1 and 3 behave as they do.",
+  "label": "core",
+  "key": "numerical computing for ml 45 min",
+  "where": ""
+ },
+ {
+  "id": 388,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "C++ page 30 min for Part 3 llama.cpp and ggml-cuda, where dequantising GEMV kernels like section 6's live. inference-and-serving varies Paged attention, decode kernels and batching on the serving side. pytorch-ecosystem varies torch.compile, custom operators and where a kernel plugs into PyTorch.",
+  "label": "core",
+  "key": "c++ page 30 min for part",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Best resources Simon Boehm, How to Optimize a CUDA Matmul Kernel for cuBLAS-like Performance 1 h 30 min The canonical worked example, ten kernels from 1.3% to 93.7% of cuBLAS on an RTX A6000 (December 2022).",
+  "label": "core",
+  "key": "1.3% to 93.7% of cuBLAS on an RTX A6000",
+  "where": ""
+ },
+ {
+  "id": 390,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Read it, then reproduce it. salykova, Advanced Matrix Multiplication Optimization on NVIDIA GPUs 1 h 30 min The sequel: vectorisation, double buffering and autotuning, beating cuBLAS SGEMM on an RTX 4090 by the author's account.",
+  "label": "core",
+  "key": "RTX 4090 by the author's account",
+  "where": ""
+ },
+ {
+  "id": 391,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Mark Harris, Optimizing Parallel Reduction in CUDA 45 min The seven-step reduction deck (2007).",
+  "label": "core",
+  "key": "The seven-step reduction deck (2007)",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Read rung 5 with the Volta correction of section 1 in mind.",
+  "label": "core",
+  "key": "read rung 5 with the volta",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Programming Massively Parallel Processors, 5th edition 2 h 15 min Hwu, Kirk and El Hajj: chapter 6 (tiled matmul), chapters 10 and 11 (reduction, scan), later chapters for patterns.",
+  "label": "core",
+  "key": "programming massively parallel processors, 5th edition",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "GPU Gems 3, chapter 39: Parallel Prefix Sum (Scan) with CUDA 40 min Harris, Sengupta and Owens: Hillis-Steele, Blelloch, bank-conflict padding.",
+  "label": "core",
+  "key": "gpu gems 3, chapter 39: parallel",
+  "where": ""
+ },
+ {
+  "id": 395,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Merrill and Garland, Single-pass Parallel Prefix Scan with Decoupled Look-back 45 min The algorithm inside CUB's DeviceScan (NVIDIA, 2016).",
+  "label": "core",
+  "key": "The algorithm inside CUB's DeviceScan",
+  "where": ""
+ },
+ {
+  "id": 396,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "CCCL (CUB, Thrust, libcu++) 20 min Block- and device-wide reduce, scan, sort and histogram you call instead of writing; source at NVIDIA/cccl .",
+  "label": "core",
+  "key": "cccl (cub, thrust, libcu++) 20 min",
+  "where": ""
+ },
+ {
+  "id": 397,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "FlashAttention-2 · FlashAttention-3 · FlashAttention-4 1 h each Work partitioning; Hopper asynchrony and FP8; Blackwell's asymmetric scaling.",
+  "label": "core",
+  "key": "flashattention-2 · flashattention-3 · flashattention-4 1",
+  "where": ""
+ },
+ {
+  "id": 398,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Flash-Decoding for long-context inference 15 min Split-KV decode explained with animations (Dao, Haziza, Massa, Sizov, 2023).",
+  "label": "core",
+  "key": "Dao, Haziza, Massa, Sizov, 2023",
+  "where": ""
+ },
+ {
+  "id": 399,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Triton tutorial: fused softmax · fused attention 30 min each The two kernels of the path's last steps, as reference solutions.",
+  "label": "core",
+  "key": "triton tutorial: fused softmax · fused",
+  "where": ""
+ },
+ {
+  "id": 400,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Marlin 45 min Frantar et al., 2024: 4-bit weight kernels that keep the speedup up to batch 16 to 32.",
+  "label": "core",
+  "key": "Frantar et al., 2024",
+  "where": ""
+ },
+ {
+  "id": 401,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "GPU MODE lectures 3 h for lectures 8 and 12 Lecture 8 (CUDA performance checklist), lecture 12 (FlashAttention), and guest lectures by kernel authors.",
+  "label": "core",
+  "key": "gpu mode lectures 3 h for",
+  "where": ""
+ },
+ {
+  "id": 402,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Compute Sanitizer · cuBLAS and cuBLASLt 20 min each The four sanitizer tools of section 8; the epilogue options of section 5.",
+  "label": "core",
+  "key": "compute sanitizer · cublas and cublaslt",
+  "where": ""
+ },
+ {
+  "id": 403,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Built from the old Notion page \"Writing kernels: the practical track\" (saved in src/live.md ; every claim accounted for in src/coverage.json ), October 2026.",
+  "label": "core",
+  "key": "Writing kernels: the practical track",
+  "where": ""
+ },
+ {
+  "id": 404,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Measurements on an Apple M1 Pro GPU; NVIDIA results compiled, not run.",
+  "label": "core",
+  "key": "measurements on an apple m1 pro",
+  "where": ""
+ },
+ {
+  "id": 405,
+  "tab": "t-read",
+  "section": "absorbed from the root Kernel lab",
+  "text": "The softmax ladder on the M1 Pro: one thread per row 177.14 ms; one threadgroup per row, coalesced, 3.54 ms, 50 times faster; later rungs within 13% of a plain copy; S6 one pass 3.27 ms; eager 13.08 ms, under mx.compile 10.09 ms",
+  "label": "core",
+  "key": "50 times faster",
+  "where": ""
+ },
+ {
+  "id": 406,
+  "tab": "t-read",
+  "section": "absorbed from the root Kernel lab",
+  "text": "A plain copy of the softmax's 512 MiB at the lab's 164.7 GB/s takes 3.26 ms (derived)",
+  "label": "core",
+  "key": "164.7 GB/s takes 3.26 ms",
+  "where": ""
+ },
+ {
+  "id": 407,
+  "tab": "t-read",
+  "section": "absorbed from the root Kernel lab",
+  "text": "The matmul ladder on the M1 Pro at n = 2,048: M1 naive uncoalesced 229.20 ms, M2 coalesced 47.53, M4 32 x 32 tile 36.48, M5 4 x 4 per thread 10.52, M6 8 x 8 + float4 13.43, M7 matrix instructions 5.10, MLX 4.24",
+  "label": "depth",
+  "key": "229.20",
+  "where": ""
+ },
+ {
+  "id": 408,
+  "tab": "t-read",
+  "section": "absorbed from the root Kernel lab",
+  "text": "The M1's 32 x 32 tile is slower than its 16 x 16 tile (36.48 against 26.90 ms): the best tile differs per GPU",
+  "label": "core",
+  "key": "36.48 against 26.90 ms",
+  "where": ""
+ },
+ {
+  "id": 409,
+  "tab": "t-read",
+  "section": "absorbed from the root Kernel lab",
+  "text": "The lab's other matmul cases: M7 with loops not unrolled 174.96 ms, M7a from device memory 5.54 ms",
+  "label": "depth",
+  "key": "174.96",
+  "where": ""
+ },
+ {
+  "id": 410,
+  "tab": "t-read",
+  "section": "new, derived",
+  "text": "Bytes per FMA per rung: global 33 moved (8 asked), 5 moved, 0.25, 0.125, 0.0625, 0.0625; shared 0, 0, 8, 4.5, 1, 1",
+  "label": "depth",
+  "key": "33 (8 asked)",
+  "where": ""
+ },
+ {
+  "id": 411,
+  "tab": "t-read",
+  "section": "new, derived",
+  "text": "Global traffic falls 528 times from rung 1 to rung 6; rung 2 moves 6.6 times fewer bytes than rung 1, against Boehm's measured 6.4",
+  "label": "core",
+  "key": "528",
+  "where": ""
+ },
+ {
+  "id": 412,
+  "tab": "t-read",
+  "section": "script-rendered table, now static",
+  "text": "Boehm's summary table: 309.0, 1,986.5, 2,980.3, 8,474.7, 15,971.7, 18,237.3, 19,721.0, 21,779.3 GFLOP/s; cuBLAS 23,249.6; RTX A6000, 4,092 x 4,092",
+  "label": "depth",
+  "key": "23,249.6",
+  "where": ""
+ },
+ {
+  "id": 413,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "The tree widget's totals: Hillis-Steele 49 additions, Blelloch 30; the reductions end with the sum 48",
+  "label": "core",
+  "key": "49 additions where Blelloch does 30",
+  "where": ""
+ },
+ {
+  "id": 414,
+  "tab": "t-read",
+  "section": "new",
+  "text": "FA-3 ping-pong and pipelining are worth about 16% over neither on H100 (570 to 661 TFLOPS)",
+  "label": "core",
+  "key": "about 16%",
+  "where": ""
+ }
+]

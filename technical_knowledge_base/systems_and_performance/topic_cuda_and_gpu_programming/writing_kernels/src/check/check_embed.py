@@ -1,4 +1,4 @@
-"""From src/: the page embeds exactly out/data.json; every <span data-wk> number in the built page equals
+"""From src/: the page embeds exactly out/data.json and out/ladder.json; every <span data-wk> number in the built page equals
 out/expected.json (recompute.py); no private paths or tokens in the page or the committed sources."""
 import json, os, re, sys, glob
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -8,6 +8,9 @@ m = re.search(r"window\.WKD=(\{.*?\});\n", html, re.S)
 emb = json.loads(m.group(1).replace("{\\u007b", "{{"))
 if emb != json.load(open(os.path.join(HERE, "out/data.json"))):
     ok = False; print("FAIL embedded data differs from out/data.json")
+m = re.search(r"window\.WKL=(\{.*?\});\n", html, re.S)
+if json.loads(m.group(1)) != json.load(open(os.path.join(HERE, "out/ladder.json"))):
+    ok = False; print("FAIL embedded ladder differs from out/ladder.json (run ladder.py)")
 E = json.load(open(os.path.join(HERE, "out/expected.json")))
 spans = re.findall(r'<span data-wk="([\w-]+)">([^<]*)</span>', html)
 bad = [(k, v, E.get(k)) for k, v in spans if E.get(k) != v]

@@ -1,4 +1,4 @@
-// ---- Reduce and scan, animated (t-tree): the model. Pure functions, mirrored by src/tree_model.py ----
+// ---- Reading section 2, reduce and scan on a toy GPU: the model. Pure functions, mirrored by src/tree_model.py ----
 // A toy machine: 16 values, warps of 4 lanes, shared memory with 4 banks (a real GPU: warps of 32, 32 banks).
 // Each method is a list of steps; a step is a list of operations {t: thread, d: destination, s: source, add, swap}.
 window.WKT=(function(){

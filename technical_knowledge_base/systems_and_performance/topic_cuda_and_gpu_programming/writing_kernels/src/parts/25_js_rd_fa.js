@@ -1,4 +1,4 @@
-// ---- Attention schedules (t-fa) ----
+// ---- Reading section 7: attention schedules (moved from the old t-fa tab) ----
 // Part 1: split-K against split-Q inside one block. Part 2: a list-scheduling model of FlashAttention-3's overlap.
 window.WKFA=(function(){
   const Br=64,Bc=64,d=128,nw=4;
@@ -45,6 +45,7 @@ window.WKFA=(function(){
   return {split,schedule,Br,Bc,d,nw};
 })();
 (function(){
+  if(!document.getElementById('fa-card1'))return;
   const F=window.WKFA;
   // ---------- part 1 drawing
   const fig1=document.getElementById('fa-fig1'),cap1=document.getElementById('fa-cap1'),cnt1=document.getElementById('fa-cnt1');
@@ -74,7 +75,7 @@ window.WKFA=(function(){
     cnt1.innerHTML=RD.stat('Shared memory writes',w.toLocaleString('en-US'),'values')+RD.stat('Shared memory reads',r.toLocaleString('en-US'),'values')+RD.stat('Barriers',b)+RD.stat('Exchanges between warps',m1==='k'?Math.max(0,(i>=3)+(i>=5)):0);
   }
   const A1=RD.anim({card:'fa-card1',ctl:'fa-ctl1',n:S1.length+1,draw:draw1,ms:1800,label:'Step'});
-  RD.seg(document.getElementById('fa-split'),m=>{m1=m;S1=F.split(m);A1.reset(S1.length+1);A1.play()});
+  RD.seg(document.getElementById('fa-split'),m=>{m1=m;S1=F.split(m);A1.reset(S1.length+1)});
   // ---------- part 2: time line
   const fig2=document.getElementById('fa-fig2'),cap2=document.getElementById('fa-cap2'),cnt2=document.getElementById('fa-cnt2'),rr=document.getElementById('fa-r');
   let m2='seq',r=0.5,SC=F.schedule(m2,r,8);
@@ -88,9 +89,9 @@ window.WKFA=(function(){
     SC.tasks.forEach(t=>{if(t.st>=now)return;const y=t.res==='tc'?10:10+lane,en=Math.min(t.en,now);
       const col=t.g===0?'var(--c1)':'var(--c3)';
       s+='<rect x="'+x(t.st).toFixed(1)+'" y="'+y+'" width="'+Math.max(0.5,x(en)-x(t.st)-1).toFixed(1)+'" height="'+(lane-6)+'" rx="2" fill="'+col+'" opacity="'+(t.k==='G1'?0.6:0.9)+'"/>';
-      if(x(en)-x(t.st)>22)s+=RD.t(((x(t.st)+x(en))/2).toFixed(1),y+14,({G0:'QK',SM:'exp',G1:'PV'}[t.k])+(t.j+1),{a:'middle',fs:9,fill:'var(--bg)'})});
+      if(x(en)-x(t.st)>22)s+=RD.t(((x(t.st)+x(en))/2).toFixed(1),y+14,({G0:'QK',SM:'exp',G1:'PV'}[t.k])+(t.j+1),{a:'middle',fs:10.5,fill:'var(--bg)'})});
     s+='<line x1="'+x(now).toFixed(1)+'" x2="'+x(now).toFixed(1)+'" y1="6" y2="'+(2*lane+12)+'" stroke="var(--ink)" stroke-dasharray="2 3"/>';
-    for(let t=0;t<=tmax;t+=2)s+=RD.t(x(t).toFixed(1),2*lane+28,t,{a:'middle',fs:9,fill:'var(--mute)'});
+    for(let t=0;t<=tmax;t+=2)s+=RD.t(x(t).toFixed(1),2*lane+28,t,{a:'middle',fs:10.5,fill:'var(--mute)'});
     s+=RD.t(((L+W-R)/2).toFixed(1),2*lane+44,'time (one unit = one GEMM)',{a:'middle',fs:10,fill:'var(--mute)'});
     fig2.innerHTML=RD.svg(W,H,s,NAMES[m2]+' schedule');
     const busy=SC.tasks.filter(t=>t.res==='tc').reduce((q,t)=>q+Math.max(0,Math.min(t.en,now)-Math.min(t.st,now)),0);
@@ -103,9 +104,8 @@ window.WKFA=(function(){
   const A2=RD.anim({card:'fa-card2',ctl:'fa-ctl2',n:TICKS+1,draw:draw2,ms:300,label:'Time'});
   function table(){const rows=['seq','pp','ip','both'].map(m=>{const q=F.schedule(m,r,8);return '<tr'+(m===m2?' style="background:var(--acc2)"':'')+'><td>'+NAMES[m]+'</td><td class="num">'+q.end.toFixed(1)+'</td><td class="num">'+(100*q.util).toFixed(0)+'%</td></tr>'}).join('');
     document.getElementById('fa-tab').innerHTML='<tr><th>Schedule, softmax / GEMM = '+r.toFixed(2)+'</th><th class="num">total time (units)</th><th class="num">tensor cores busy</th></tr>'+rows}
-  RD.seg(document.getElementById('fa-sched'),m=>{m2=m;SC=F.schedule(m2,r,8);A2.reset(TICKS+1);table();A2.play()});
+  RD.seg(document.getElementById('fa-sched'),m=>{m2=m;SC=F.schedule(m2,r,8);A2.reset(TICKS+1);table()});
   rr.addEventListener('input',()=>{r=+rr.value;document.getElementById('fa-rv').textContent=r.toFixed(2);SC=F.schedule(m2,r,8);A2.go(TICKS);table()});
   table();
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-fa']=window.TAB_RENDER['t-fa']||[]).push(()=>{A1.redraw();A2.redraw()});
-  addEventListener('resize',()=>{if(!document.getElementById('t-fa').hidden){A1.redraw();A2.redraw()}});
+  RD.onResize(()=>{A1.redraw();A2.redraw()});
 })();
