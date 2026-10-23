@@ -29,6 +29,22 @@ def spike_score(xs, w=100, k=7.0):
     return hits, n
 
 
+def spike_hits(xs, w=100, k=7.0):
+    """Step numbers (1-based) that the score above flags."""
+    out = []
+    for i in range(w, len(xs)):
+        win = [x for x in xs[i - w:i] if x is not None]
+        if xs[i] is None or len(win) < w:
+            continue
+        mu = sum(win) / w
+        sd = statistics.pstdev(win)
+        if sd > 0 and abs(xs[i] - mu) >= k * sd:
+            out.append(i + 1)
+    return out
+
+
+D["spike_gn"] = {n: {"gn": [r(x, 3) if x is not None else None for x in runs[n]["_gn"]], "hits": spike_hits(runs[n]["_gn"])}
+                 for n in ("ns_pre_lr3e-2_c0", "ns_pre_lr3e-2_c0_qk", "ns_pre_lr3e-3") if n in runs}
 SS = {}
 for n in ("ns_pre_lr3e-3", "ns_pre_lr3e-2_c0", "ns_pre_lr3e-2_c0_qk", "ns_pre_lr3e-2_c0_z", "ns_pre_lr3e-2_c0_cap", "ns_pre_lr3e-2_qk"):
     if n in runs:
@@ -43,15 +59,14 @@ def cell(n):
 
 if have("ns_sand_lr3e-3", "ns_out_lr3e-3"):
     N["place_meas"] = (
-        "<p><b>Measured: four placements at three learning rates</b> (held-out loss after 1,500 steps; the full grid with curves is the "
-        "{{Stability explorer|#t-stab}} tab):</p><div class=\"tw\"><table class=\"rd-narrow\"><thead><tr><th>Placement</th><th class=\"num\">lr 3e-3</th>"
+        "<p>Held-out loss after 1,500 steps; the full grid with curves is the {{Stability explorer|#t-stab}} tab.</p><div class=\"tw\"><table class=\"rd-narrow\"><thead><tr><th>Placement</th><th class=\"num\">lr 3e-3</th>"
         "<th class=\"num\">lr 1e-2</th><th class=\"num\">lr 3e-2</th></tr></thead><tbody>"
         f"<tr><td>Pre-norm</td><td class=\"num\">{cell('bl_pre_lr3e-3')}</td><td class=\"num\">{cell('bl_pre_lr1e-2')}</td><td class=\"num\">{cell('bl_pre_lr3e-2')}</td></tr>"
         f"<tr><td>Post-norm</td><td class=\"num\">{cell('bl_post_lr3e-3')}</td><td class=\"num\">not run</td><td class=\"num\">not run</td></tr>"
         f"<tr><td>Sandwich</td><td class=\"num\">{cell('ns_sand_lr3e-3')}</td><td class=\"num\">{cell('ns_sand_lr1e-2')}</td><td class=\"num\">{cell('ns_sand_lr3e-2')}</td></tr>"
         f"<tr><td>Output norm</td><td class=\"num\">{cell('ns_out_lr3e-3')}</td><td class=\"num\">{cell('ns_out_lr1e-2')}</td><td class=\"num\">{cell('ns_out_lr3e-2')}</td></tr>"
         f"<tr><td>Pre-norm + QK-norm</td><td class=\"num\">{cell('ns_pre_lr3e-3_qk')}</td><td class=\"num\">{cell('ns_pre_lr1e-2_qk')}</td><td class=\"num\">{cell('ns_pre_lr3e-2_qk')}</td></tr>"
-        "</tbody></table></div><p>" + "{%place_say%}" + "</p>")
+        "</tbody></table></div>")
 else:
     N["place_meas"] = PEND
 def ml(n):
@@ -59,15 +74,13 @@ def ml(n):
 qk_o = (f"; with QK-norm added, output norm reaches {cell('ns_out_lr3e-3_qk')} (largest logit {ml('ns_out_lr3e-3_qk')})" if "ns_out_lr3e-3_qk" in runs else "")
 qk_s = (f" and the sandwich {cell('ns_sand_lr3e-3_qk')} (largest logit {ml('ns_sand_lr3e-3_qk')})" if "ns_sand_lr3e-3_qk" in runs else "")
 N["place_say"] = (
-    f"At this scale the two placements that normalise the branch output train <i>worse</i> than pre-norm, and the attention logits say why. "
-    f"With the output norm nothing normalises what attention reads, so q and k grow with the raw stream: the largest logit reaches {ml('ns_out_lr3e-3')} "
-    f"at lr 3e-3 (pre-norm: {ml('ns_pre_lr3e-3')}) and the loss stalls at {cell('ns_out_lr3e-3')}. "
-    f"The sandwich does normalise its input, yet its logits still reach {ml('ns_sand_lr3e-3')} at 3e-3 and {ml('ns_sand_lr1e-2')} at 1e-2. "
-    "Neither placement ships alone: OLMo 2 adds QK-norm to its output norm (its paper: \"in isolation, neither of these changes yield good results, but together\" they help), "
-    f"Gemma 2 adds soft-capping to its sandwich and Gemma 3 QK-norm{qk_o}{qk_s}. "
-    f"QK-norm does not rescue post-norm, whose failure is the gradient, not the logits: post-norm + QK-norm at 3e-3 ends at {cell('ns_post_lr3e-3_qk')}, the unigram level, "
-    f"with a largest logit of only {ml('ns_post_lr3e-3_qk')}. Pre-norm + QK-norm is the most robust row: {cell('ns_pre_lr3e-3_qk')}, {cell('ns_pre_lr1e-2_qk')} and "
-    f"{cell('ns_pre_lr3e-2_qk')} across a tenfold range of rates. Kim et al.'s Peri-LN advantage (below) does not reproduce at 6 layers and 12M tokens; their runs are 400M to 3.2B parameters.")
+    f"The two placements that normalise the branch output train <i>worse</i> than pre-norm at this scale, and the attention logits say why: with the output norm "
+    f"nothing normalises what attention reads, so the largest logit reaches {ml('ns_out_lr3e-3')} at lr 3e-3 (pre-norm: {ml('ns_pre_lr3e-3')}) and the loss stalls at "
+    f"{cell('ns_out_lr3e-3')}; the sandwich's logits still reach {ml('ns_sand_lr3e-3')} at 3e-3 and {ml('ns_sand_lr1e-2')} at 1e-2. Neither ships alone: OLMo 2 adds "
+    "QK-norm to its output norm (its paper: \"in isolation, neither of these changes yield good results, but together\" they help), Gemma 2 adds soft-capping to its "
+    f"sandwich and Gemma 3 QK-norm{qk_o}{qk_s}. QK-norm does not rescue post-norm, whose failure is the gradient, not the logits ({cell('ns_post_lr3e-3_qk')} at 3e-3, "
+    f"largest logit {ml('ns_post_lr3e-3_qk')}). Pre-norm + QK-norm is the most robust: {cell('ns_pre_lr3e-3_qk')}, {cell('ns_pre_lr1e-2_qk')} and "
+    f"{cell('ns_pre_lr3e-2_qk')} across a tenfold range of rates.")
 
 # ---------------------------------------------------------------- mHC toy
 hc = json.load(open(os.path.join(OUT, "hc_toy.json")))
@@ -176,8 +189,7 @@ if "ns_pre_lr3e-2_c0_z" in runs:
     lzh = runs["ns_pre_lr3e-3"]["_probe"][-1]["log_z"]
     N["z_say"] = (f"So at this scale z-loss 1e-4 barely moves log Z ({N['lzend_ns_pre_lr3e-2_c0_z']} against {N['lzend_ns_pre_lr3e-2_c0']}). In the healthy run log Z drifts "
                   f"up to {f(lzh, 2)}, where the penalty is 1e-4 &times; {f(lzh, 2)}<sup>2</sup> = {f(1e-4 * lzh * lzh, 3)} nats, under 1% of the loss: the pull is weak "
-                  "by design, and the drift it prevents shows up over long runs, at scale and in low precision (published), none of which a 1,500-step float32 run has. "
-                  "It also left the attention logits alone (section 4).")
+                  "by design; the drift it prevents shows up over long runs, at scale and in low precision (published), none of which a 1,500-step float32 run has.")
 else:
     N["z_say"] = ""
 
@@ -266,13 +278,9 @@ N["rms_slow"] = f(100 * (runs["ns_rms_lr3e-3"]["_secs"] / runs["ns_pre_lr3e-3"][
 M_ = resid["models"]
 if all(M_[k]["trained"] for k in ("pre", "post", "sandwich", "output", "pre_flat")):
     T_ = {k: M_[k]["trained"]["median_norm"] for k in M_ if M_[k]["trained"]}
-    N["rs_say"] = (f"<p><b>At initialisation</b> the curves separate by construction (section 1 of the Reading tab): pre-norm barely moves ({N['rs_pre_init_first']} to "
-                   f"{N['rs_pre_init_last']}), post-norm sits at 16 after every sub-layer, sandwich and output norm climb to about 16 &radic;12 = {N['sqrt12']}.</p>"
-                   f"<p><b>After training</b> (pre-norm: the root's reference run; post-norm lr 1e-3; sandwich and output norm lr 3e-3) pre-norm grows the most, "
-                   f"{fs(T_['pre'][0])} to {fs(T_['pre'][-1])}; the sandwich reaches {fs(T_['sandwich'][-1])} and the output norm {fs(T_['output'][-1])}; post-norm ends at "
-                   f"{fs(T_['post'][-1])}, set by its last norm's learned gain. Flat init ends at {fs(T_['pre_flat'][-1])}, about where the "
-                   "scaled init ends: training erases the starting scale at this depth. Switch to <i>largest single entry</i>: no placement grows a massive activation "
-                   "(the largest is a few tens, table below).</p>")
+    N["rs_say"] = (f"<p><b>After training</b> pre-norm grows the most ({fs(T_['pre'][0])} to {fs(T_['pre'][-1])}); the sandwich reaches {fs(T_['sandwich'][-1])}, "
+                   f"the output norm {fs(T_['output'][-1])}, and post-norm ends at {fs(T_['post'][-1])}, set by its last norm's learned gain. Flat init ends at "
+                   f"{fs(T_['pre_flat'][-1])}, about where the scaled init ends: training erases the starting scale at this depth.</p>")
 else:
     N["rs_say"] = PEND
 pts = resid["points"]

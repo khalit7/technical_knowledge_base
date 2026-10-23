@@ -243,7 +243,9 @@ avs = {s["run"]: s for s in av["sinks"]}
 N["av_mha_maxres"] = fs(max(avs["at_mha"]["max_abs_resid"])); N["av_gate_maxres"] = fs(max(avs["av_gate"]["max_abs_resid"]))
 N["av_mha_first"] = f(max(avs["at_mha"]["first_token_mass"]), 3); N["av_gate_first"] = f(max(avs["av_gate"]["first_token_mass"]), 3)
 
-D = {"runs": {n: {k: v for k, v in R.items() if not k.startswith("_")} for n, R in runs.items()}, "grid": grid, "spike": spike,
+gnj = json.load(open(os.path.join(BL, "gradnorm.json")))["runs"]   # the root Block lab's per-block gradient norms (gradnorm.py, CPU)
+gradnorm = {n: {w: [r(x, 9) for x in v[w]["per_block"]] for w in ("init", "trained")} for n, v in gnj.items()}
+D = {"gradnorm": gradnorm, "runs": {n: {k: v for k, v in R.items() if not k.startswith("_")} for n, R in runs.items()}, "grid": grid, "spike": spike,
      "resid": resid, "mistakes": mist, "normbench": nb, "code": code}
 exec(open(os.path.join(HERE, "page_text.py")).read())   # captions and production table (uses N, D, runs)
 

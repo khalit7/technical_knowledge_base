@@ -49,6 +49,27 @@ typed = {
     "0.085": ins["smol_sink_below12_max"], "0.31": round(ins["smol_sink_from12_min"], 2), "0.74": round(ins["smol_sink_from12_max"], 2),
     "35.8": round(ins["tiny_max_after"], 1), "6,160": round(ins["qwen_big_max"]), "5.54": round(ins["qwen_med"], 2), "6.006": round(uni, 3),
 }
+# units absorbed from the root's Block lab (2026-10-23): the residual trace, the learning-rate sweep, the gradient by block
+tr = lambda n: json.load(open(os.path.join(TOPIC, "src", "block", "out", "trace_" + n + ".json")))["norms"]
+tp, tq, tf = tr("bl_pre_lr1e-3"), tr("bl_post_lr1e-3"), tr("ref_baseline_s1500")
+blr = lambda n: json.load(open(os.path.join(TOPIC, "src", "block", "out", "runs", n + ".json")))
+gj = json.load(open(os.path.join(TOPIC, "src", "block", "out", "gradnorm.json")))["runs"]
+ok_runs = [gj[k]["trained"]["per_block"] for k in ("bl_pre_lr1e-3", "bl_post_lr1e-3", "bl_post_warm500")]
+typed.update({
+    "0.9": round(tp["stream_token"][0], 1), "14.8": round(tp["stream_token"][-1], 1),
+    "16.0": round(min(tq["stream_token"][1:-1]), 1), "16.4": round(max(tq["stream_token"][1:-1]), 1), "24.6": round(tq["stream_token"][-1], 1),
+    "1.3": round(tf["stream_token"][0], 1), "65.8": round(tf["stream_token"][-1], 1), "53.0": round(tf["branch_token"][1], 1),
+    "40.8": round(max(t[2] for t in blr("bl_pre_lr3e-2")["train"]), 1), "6.04": round([t for t in blr("bl_post_lr3e-3")["train"] if t[0] == 30][0][1], 2),
+    "2.734": round(bl("bl_pre_lr1e-2"), 3), "2.534": round(bl("bl_post_lr1e-3"), 3), "3.215": round(bl("bl_post_lr3e-4"), 3), "4.361": round(bl("bl_pre_lr3e-2"), 3),
+    "0.27": round(min(min(v) for v in ok_runs), 2), "0.92": round(max(max(v) for v in ok_runs), 2),
+    "0.075": round(max(gj["bl_post_lr1e-3"]["init"]["per_block"]), 3), "2.21": round(gj["bl_pre_lr1e-3"]["init"]["per_block"][0], 2),
+    "1.57": round(gj["bl_pre_lr1e-3"]["init"]["per_block"][-1], 2),
+})
+sg = D["spike_gn"]
+if len(sg["ns_pre_lr3e-2_c0"]["hits"]) != 9 or len(sg["ns_pre_lr3e-2_c0_qk"]["hits"]) != 0:
+    bad.append("spike chart title (9 flagged without a fix, 0 with QK-norm) no longer matches the data")
+if [len(sg[n]["hits"]) for n in sg] != [D["spike_scores"][n]["gn"] for n in sg]:
+    bad.append("spike flags differ from the spike-score table")
 for s, v in typed.items():
     want = float(s.replace(",", ""))
     if abs(want - v) > 1e-9:

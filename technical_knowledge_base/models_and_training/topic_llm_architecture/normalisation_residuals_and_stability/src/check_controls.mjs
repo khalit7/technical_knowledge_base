@@ -31,7 +31,7 @@ try {
       const side = await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
       if (m || side) errs.push(`${t}: ${m ? 'text: ' + m[0] : ''} ${side ? 'sideways scroll' : ''}`);
       if (SHOTS) {
-        for (const id of ['sp-card', 'st-grid', 'rs-ch', 'rs-cnt', 'ns-s0', 'ns-s9', 'ns-s2', 'ns-s3', 'ns-s8', 'st-ev', 'st-ml']) {
+        for (const id of ['ns-hero-card', 'rs-card', 'ns-lr-card', 'ns-gn-card', 'ns-mu-card', 'ns-lz-card', 'ns-sg-card', 'sp-card', 'rs-tab', 'st-grid', 'st-ev', 'st-ml']) {
           const el = await p.$('#' + t + ' #' + id); if (!el) continue;
           const vis = await p.evaluate(e => e.offsetParent !== null, el); if (!vis) continue;
           await el.screenshot({ path: path.join(SHOTS, `${id}_${scheme}${width}.png`) });
