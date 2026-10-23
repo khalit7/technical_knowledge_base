@@ -278,7 +278,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>Shared experts</td><td>0, 1 or 2 always-on experts beside the routed ones</td><td>common knowledge in one place; routed experts specialise</td><td>their FLOPs every token</td><td>1 in most; 2 in Kimi K3 (and DeepSeek-V2); none in Qwen3, gpt-oss and MiniMax-M2</td></tr>
 <tr><td>Balancing</td><td>auxiliary loss (Switch); per-expert bias, no loss (DeepSeek-V3); batch or global scope</td><td>prevents collapse onto a few experts</td><td>a loss fights the language-model loss; a bias needs an update in the training loop</td><td>a selection bias in the DeepSeek, Kimi, GLM and MiniMax lines (<code>noaux_tc</code>, <code>use_routing_bias</code>); Qwen3 adopted a global-batch auxiliary loss</td></tr>
 <tr><td>Capacity</td><td>fixed buffer per expert (capacity factor) or dropless</td><td>static shapes, predictable memory</td><td>dropped tokens skip the FFN silently</td><td>dropless (grouped GEMM kernels); DeepSeek-V3 drops no tokens</td></tr>
-<tr><td>Where the experts go</td><td>every layer; first k layers dense; every other layer; hash-routed first layers</td><td>dense early layers route better</td><td>a little compute</td><td>first 1 to 3 dense (DeepSeek, Kimi, GLM); every other layer (Llama 4 Maverick); first 3 hash-routed (DeepSeek-V4-Pro)</td></tr>
+<tr><td>Where the experts go</td><td>every layer; first k layers dense; every other layer; hash-routed first layers</td><td>the first layer balances worst: DeepSeekMoE 16B kept it dense &ldquo;since we observe that the load balance status converges especially slower for the first layer&rdquo; (<a href="https://arxiv.org/abs/2401.06066" target="_blank" rel="noopener noreferrer">Dai et al. 2024, DeepSeekMoE, section 5.1.2</a>)</td><td>a little compute</td><td>first 1 to 3 dense (DeepSeek, Kimi, GLM); every other layer (Llama 4 Maverick); first 3 hash-routed (DeepSeek-V4-Pro)</td></tr>
 <tr><td>Parallelism</td><td>expert parallel (EP) over GPUs, with TP and DP</td><td>experts' memory spread out</td><td>two all-to-alls per MoE layer each way; the busiest GPU sets the pace</td><td>node-limited routing (DeepSeek-V3: at most 4 nodes per token); wide EP at serving time</td></tr>
 </tbody></table></div>
 </div></details>
@@ -398,7 +398,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 </div>
 </div></details>
 <details class="dp"><summary>What the router learned on the running sequence: routing tracks the token, not the topic <span class="mute">(depth, measured)</span></summary><div class="b">
-<p>Mixtral's own analysis: "Surprisingly, we do not observe obvious patterns in the assignment of experts based on the topic" (<a href="https://app.notion.com/p/3c65c17b0d0d81eba72af0ac91ddc6b3" target="_blank" rel="noopener noreferrer">Mixtral</a>, section 5); assignments track syntax and token identity more than subject, and domain specialisation appears mostly with global-batch balancing (section <a href="#mx-s3">3</a>). Measured on the tiny GPT (moe8top2, 40,960 held-out tokens): given only the token id, its most common first-choice expert is right 77% to 98% of the time depending on the layer, against 12.5% for an id-blind router: routing is largely a function of the token itself (see the Router tab's expert-to-token table). Below, each piece of the 256-token running sequence is coloured by its first-choice expert in the chosen layer (Mixtral's Figure 8 does the same for its real model); tap a piece for both experts and their weights in every layer.</p>
+<p>Mixtral's own analysis: "Surprisingly, we do not observe obvious patterns in the assignment of experts based on the topic" (<a href="https://app.notion.com/p/3c65c17b0d0d81eba72af0ac91ddc6b3" target="_blank" rel="noopener noreferrer">Mixtral</a>, section 5); assignments track syntax and token identity more than subject, and domain specialisation appears mostly with global-batch balancing (section <a href="#mx-s3">3</a>). Measured on the tiny GPT (moe8top2, 40,960 held-out tokens): given only the token id, its most common first-choice expert is right 77% to 98% of the time depending on the layer, against 12.5% for an id-blind router: routing is largely a function of the token itself (the expert-to-token table is below). Below, each piece of the 256-token running sequence is coloured by its first-choice expert in the chosen layer (Mixtral's Figure 8 does the same for its real model); tap a piece for both experts and their weights in every layer.</p>
 <div class="seg" id="rt-run2"></div>
 <div class="seg" id="rt-lay2"></div>
 <div class="leg" id="rt-leg"></div>
@@ -671,14 +671,14 @@ max |difference| against the same layer in one process: 0.0</pre>
 </div>
 <h3>Topic: llm-architecture and its other children</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Topic: llm-architecture</a></div><p>The parent: one token through one block, each component's alternatives; its Config calculator supplies this page's parameter formulas, its running example every run here. <span class="rt">(about 22 min)</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8174980ddde4a20c7b3c" target="_blank" rel="noopener noreferrer">The transformer from zero</a></div><p>The dense FFN and SwiGLU that each expert copies, and the tiny GPT built from an empty file. <span class="rt">(about 38 min)</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a></div><p>MLA and sparse attention: the other efficiency axis the sparse MoE models changed. <span class="rt">(about 28 min)</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a></div><p>The KV cache that MoE leaves untouched and that limits serving batch size. <span class="rt">(about 22 min)</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a></div><p>Hybrids (Jamba, Granite 4.0-H, Qwen3-Next, Nemotron 3 Super) that combine SSM layers with MoE FFNs. <span class="rt">(about 38 min)</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8163b50dc5e9d9240e89" target="_blank" rel="noopener noreferrer">Normalisation, residuals and stability</a></div><p>Loss spikes and z-losses beyond the router. <span class="rt">(about 37 min)</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8105b616c17c1439f766" target="_blank" rel="noopener noreferrer">Families and objectives</a></div><p>Multi-token prediction modules, which DeepSeek-V3 and GLM ship beside their MoE layers. <span class="rt">(about 28 min)</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81be8a07f2562fa2030a" target="_blank" rel="noopener noreferrer">LLM Architecture Gallery</a></div><p>Per-layer strips of 2026 open models, MoE layers included. <span class="rt">(about 22 min)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8172b490dc9f9ac281df" target="_blank" rel="noopener noreferrer">Topic: llm-architecture</a></div><p>The parent: one token through one block, each component's alternatives; its Config calculator supplies this page's parameter formulas, its running example every run here. <span class="rt">(23 min, plus 13 in closed details)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8174980ddde4a20c7b3c" target="_blank" rel="noopener noreferrer">The transformer from zero</a></div><p>The dense FFN and SwiGLU that each expert copies, and the tiny GPT built from an empty file. <span class="rt">(32 min, plus 22 in closed details)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8120859ecc2d0236e846" target="_blank" rel="noopener noreferrer">Attention variants</a></div><p>MLA and sparse attention: the other efficiency axis the sparse MoE models changed. <span class="rt">(28 min, plus 28 in closed details)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5" target="_blank" rel="noopener noreferrer">Long context</a></div><p>The KV cache that MoE leaves untouched and that limits serving batch size. <span class="rt">(22 min, plus 13 in closed details)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8142bc9ecac1fc366966" target="_blank" rel="noopener noreferrer">Beyond attention</a></div><p>Hybrids (Jamba, Granite 4.0-H, Qwen3-Next, Nemotron 3 Super) that combine SSM layers with MoE FFNs. <span class="rt">(30 min, plus 17 in closed details)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8163b50dc5e9d9240e89" target="_blank" rel="noopener noreferrer">Normalisation, residuals and stability</a></div><p>Loss spikes and z-losses beyond the router. <span class="rt">(27 min, plus 14 in closed details)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fd5c17b0d0d8105b616c17c1439f766" target="_blank" rel="noopener noreferrer">Families and objectives</a></div><p>Multi-token prediction modules, which DeepSeek-V3 and GLM ship beside their MoE layers. <span class="rt">(27 min, plus 14 in closed details)</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81be8a07f2562fa2030a" target="_blank" rel="noopener noreferrer">LLM Architecture Gallery</a></div><p>Per-layer strips of 2026 open models, MoE layers included. <span class="rt">(22 min, plus 8 in closed details)</span></p></div>
 </div>
 <h3>Around this page in the knowledge base</h3>
 <div class="grid">
@@ -771,7 +771,7 @@ window.CC=(function(){
       s.layers=Array(L).fill({mix,ffn:null,norms:d});return s;
     }
     if(Object.prototype.hasOwnProperty.call(UNSUPPORTED,mt))throw new Error(UNSUPPORTED[mt]);
-    const d=c.hidden_size,L=c.num_hidden_layers,V=c.vocab_size;
+    const d=c.hidden_size,L=c.num_hidden_layers||(c.layers_block_type||[]).length,V=c.vocab_size;
     const nh=c.num_attention_heads,nkv=g(c,['num_key_value_heads'],nh);
     const hd=g(c,['head_dim','attention_head_dim'],nh?Math.floor(d/nh):0);
     const ff=c.intermediate_size;
@@ -820,11 +820,17 @@ window.CC=(function(){
       let pat=c.hybrid_override_pattern;
       if(!pat&&c.layers_block_type){pat=c.layers_block_type.map(x=>NEMOTRON_CODES[x]||'?').join('');s.notes.push('layer pattern read from layers_block_type')}
       if(!pat)throw new Error('nemotron_h config has neither hybrid_override_pattern nor layers_block_type');
-      if(pat.includes('E'))throw new Error('Nemotron MoE layers (E in the pattern, the latent MoE of Nemotron 3) are not modelled here');
+      // Nemotron 3 MoE layers (E): two-matrix squared-ReLU experts, a non-gated shared expert; with moe_latent_size the routed
+      // experts work in a latent space behind two dense projections (counted as dense FFN). See calc.py.
+      const lat=c.moe_latent_size||0;
+      const nmoe={t:'moe',E:c.n_routed_experts||0,k:c.num_experts_per_tok||0,ff:c.moe_intermediate_size||0,
+        sff:(c.n_shared_experts||0)*(c.moe_shared_expert_intermediate_size||0),sgate:false,rbias:false,cbias:false,ebias:false,g:false,lat};
+      if(pat.includes('E')&&(c.num_nextn_predict_layers||0))s.notes.push('MTP layers not counted');
       for(const ch of pat){
         if(ch==='M')layers.push({mix:m2,ffn:null,norms:d});
         else if(ch==='*')layers.push({mix:full(),ffn:null,norms:d});
         else if(ch==='-')layers.push({mix:null,ffn:{t:'mlp',ff,bias:!!c.mlp_bias},norms:d});
+        else if(ch==='E')layers.push({mix:null,ffn:nmoe,norms:d});
         else throw new Error('unknown Nemotron layer code '+JSON.stringify(ch));
       }
       s.layers=layers;return s;
@@ -928,7 +934,7 @@ window.CC=(function(){
     if(!f)return r;
     if(f.t==='glu'){r.dense=3*d*f.ff;r.dense_o=f.bias?2*f.ff+d:0}
     else if(f.t==='mlp'){r.dense=2*d*f.ff;r.dense_o=f.bias?f.ff+d:0}
-    else{const E=f.E;r.routed=E*3*d*f.ff;r.routed_o=f.ebias?E*(2*f.ff+d):0;r.shared=3*d*f.sff+(f.sgate?d:0);r.router=d*E;r.moe_o=(f.rbias?E:0)+(f.cbias?E:0)}
+    else{const E=f.E,nm=f.g===false?2:3,lat=f.lat||0;r.routed=E*nm*(lat||d)*f.ff;r.routed_o=f.ebias?E*(2*f.ff+d):0;r.shared=nm*d*f.sff+(f.sgate?d:0);r.router=d*E;r.moe_o=(f.rbias?E:0)+(f.cbias?E:0);r.dense=2*d*lat}
     return r;
   }
   const sumv=o=>Object.values(o).reduce((a,b)=>a+b,0);
@@ -944,7 +950,7 @@ window.CC=(function(){
       const f=ffnParams(lay.ffn,d);
       b.ffn_dense+=f.dense+f.dense_o;b.moe_routed+=f.routed+f.routed_o;b.moe_shared+=f.shared;b.router+=f.router+f.moe_o;
       mm+=f.dense+f.shared+f.router;
-      if(lay.ffn&&lay.ffn.t==='moe'){const per=(f.routed+f.routed_o)/lay.ffn.E;actR+=per*lay.ffn.k;mm+=3*d*lay.ffn.ff*lay.ffn.k}
+      if(lay.ffn&&lay.ffn.t==='moe'){const per=(f.routed+f.routed_o)/lay.ffn.E;actR+=per*lay.ffn.k;mm+=(lay.ffn.g===false?2:3)*(lay.ffn.lat||d)*lay.ffn.ff*lay.ffn.k}
     }
     const total=sumv(b);const active=Math.round(total-b.moe_routed+actR);
     mm+=V*d;
