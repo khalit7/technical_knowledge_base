@@ -26,6 +26,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     await page.click('#tabs button[data-t="' + t + '"]');
     await new Promise(r => setTimeout(r, 300));
     if (full) {
+      await page.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t);
       const n = await page.$$eval('#' + t + ' button', b => b.length);
       for (let i = 0; i < n; i++) await page.evaluate((t, i) => { const b = document.querySelectorAll('#' + t + ' button')[i]; if (b && b.offsetParent) b.click(); }, t, i);
       await page.evaluate(t => {
@@ -47,5 +48,13 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   if (errs.length) { bad++; console.log('errors', w, errs.slice(0, 10).join('\n')); }
   await page.close();
 }
+// normal motion: nothing may play before the reader acts (2026-10-23)
+{ const page = await browser.newPage(); await page.setViewport({ width: 920, height: 900 });
+  await page.goto('file://' + file, { waitUntil: 'load' });
+  await page.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 600) { scrollTo(0, y); await new Promise(r => setTimeout(r, 120)); } });
+  await new Promise(r => setTimeout(r, 2500));
+  const playing = await page.$$eval('.an-play', bs => bs.filter(b => /Pause/.test(b.textContent)).length);
+  if (playing) { bad++; console.log('autoplay', playing); } else console.log('no autoplay');
+  await page.close(); }
 await browser.close();
 console.log('bad=' + bad);

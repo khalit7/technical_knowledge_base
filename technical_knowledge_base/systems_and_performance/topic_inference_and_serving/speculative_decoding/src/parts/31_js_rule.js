@@ -1,6 +1,6 @@
-// ---- Tab: Acceptance rule lab (t-sdrule) ----
+// ---- Reading sections 3 and 4: your own p and q, alpha along real text, the exactness test (was the Acceptance rule lab tab until 2026-10-23) ----
 (function(){
-  const D=SD.D,tab=document.getElementById('t-sdrule');if(!tab)return;
+  const D=SD.D;if(!document.getElementById('sdr-sl'))return;
   const $=id=>document.getElementById(id);
   // regularised upper incomplete gamma Q(a, x), for chi-square p-values (Numerical Recipes series and continued fraction)
   function lgam(x){const c=[76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,0.1208650973866179e-2,-0.5395239384953e-5];
@@ -56,14 +56,15 @@
     const mx=Math.max(...r.top.map(x=>Math.max(x[1],x[2])))||1;
     bars($('sdr-pbars'),r.top.slice(0,10).map(x=>[SD.esc(JSON.stringify(x[0])),[{v:x[1]/mx,c:'var(--c1)',top:1,bot:8,o:.85},{v:x[2]/mx,c:'var(--c2)',top:9,bot:1,o:.85}],SD.fmt(x[1],2)+' / '+SD.fmt(x[2],2)]));
     const m=rows=>rows.reduce((a,x)=>a+x,0)/rows.length;
-    $('sdr-pnote').innerHTML='<span class="meas">measured here</span> Blue: target p; orange: draft q (top 50 kept on both, the largest shown). Over this whole text: mean &alpha; '+SD.fmt(m(T[ct].map(x=>x.a)),3)+', mean &Sigma; p&middot;q '+SD.fmt(m(T[ct].map(x=>x.spq)),3)+', mean p(top of q) '+SD.fmt(m(T[ct].map(x=>x.pg)),3)+'.'}
+    $('sdr-pnote').innerHTML='Bars: blue target p, orange draft q (top 50 kept on both, the largest shown). Over this whole text: mean &alpha; '+SD.fmt(m(T[ct].map(x=>x.a)),3)+', mean &Sigma; p&middot;q '+SD.fmt(m(T[ct].map(x=>x.spq)),3)+', mean p(top of q) '+SD.fmt(m(T[ct].map(x=>x.pg)),3)+'.'}
   if(tn.length){SD.segs($('sdr-text'),tn.map(n=>[n,tlabel[n]||n]),ct,m=>{ct=m;ci=0;strip()});
     $('sdr-strip').addEventListener('click',e=>{const s=e.target.closest('span[data-i]');if(!s)return;ci=+s.dataset.i;$('sdr-strip').querySelectorAll('span.sel').forEach(x=>x.classList.remove('sel'));s.classList.add('sel');pos()});strip()}
   // ---- 3. exactness test ----
   const E=D.exact;
   const vlab={target:'Sample the target directly (control)',leviathan:'min(1, p/q) with residual',sample_compare:'Sample and compare',greedy_compare:'Greedy draft, accept if target agrees',bug_resample_p:'Bug: on rejection draw from p'};
-  if(E){$('sdr-ex').innerHTML='<thead><tr><th>Rule</th><th class="num">chi-square</th><th class="num">df</th><th class="num">p-value</th><th class="num">guesses kept per step</th><th>verdict</th></tr></thead><tbody>'+
+  if(E){const exHTML='<thead><tr><th>Rule</th><th class="num">chi-square</th><th class="num">df</th><th class="num">p-value</th><th class="num">guesses kept per step</th><th>verdict</th></tr></thead><tbody>'+
       Object.keys(vlab).filter(v=>E.variants[v]).map(v=>{const x=E.variants[v];return '<tr><td>'+vlab[v]+'</td><td class="num">'+SD.fmt(x.chi2,1)+'</td><td class="num">'+x.df+'</td><td class="num">'+(x.p<1e-6?'&lt; 10<sup>&minus;6</sup>':SD.fmt(x.p,2))+'</td><td class="num">'+(v==='target'?'n/a':SD.fmt(x.acc,2))+'</td><td>'+(x.p<0.01?'<b style="color:var(--bad)">not exact</b>':'consistent with exact')+'</td></tr>'}).join('')+'</tbody>';
+    $('sdr-ex').innerHTML=exHTML;if($('sd-ex-tbl'))$('sd-ex-tbl').innerHTML=exHTML;
     let cv='bug_resample_p';
     const exdraw=()=>{const x=E.variants[cv],el=$('sdr-exsvg'),W=Math.max(280,Math.min(860,SD.width(el))),lab=Math.min(170,W*0.38),bw=W-lab-84,rh=20,H=x.top.length*rh+6;
       const mx=Math.max(...x.top.map(r=>Math.max(r[1],r[2])));let s='';
@@ -72,7 +73,7 @@
         '<text x="'+(lab+bw*Math.max(r[1],r[2])/mx+4)+'" y="'+(y+14)+'" font-size="10" fill="var(--mute)">'+r[1]+' / '+SD.fmt(r[2],0)+'</text>'});
       el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="observed against expected openings">'+s+'</svg><div class="sd-leg"><span><i style="background:var(--c1)"></i>expected (target)</span><span><i style="background:var(--good)"></i>observed, exact rule</span><span><i style="background:var(--bad)"></i>observed, failing rule</span></div>'};
     SD.segs($('sdr-exv'),Object.keys(vlab).filter(v=>E.variants[v]).map(v=>[v,vlab[v]]),cv,m=>{cv=m;exdraw()});
-    (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-sdrule']=window.TAB_RENDER['t-sdrule']||[]).push(exdraw);
-    addEventListener('resize',()=>{if(!tab.hidden)exdraw()});exdraw()}
+    RD.onRender(exdraw);RD.onResize(exdraw);
+    const det=$('sdr-exsvg').closest('details');if(det)det.addEventListener('toggle',()=>{if(det.open)exdraw()});exdraw()}
   SD.pred('sd-pr3');
 })();
