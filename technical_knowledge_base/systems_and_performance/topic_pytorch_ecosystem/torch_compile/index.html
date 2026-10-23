@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>torch.compile from the user's side</h1>
-<div class="sub">What happens between <code>torch.compile(model)</code> and the fused kernels, taught from zero on the topic's running example: Dynamo reading bytecode and writing guards, graph breaks and how to remove each kind, recompiles and dynamic shapes, AOTAutograd's partitioner, Inductor's fusion and code, modes, compiled autograd, regional compilation, caches, <code>torch.export</code> and AOTInductor, and the debugging tools. Every graph, log and timing here was recorded with torch 2.14.1 on an Apple M1 Pro (CPU unless marked); GPU numbers are quoted and labelled. Data as of October 2026.</div>
+<div class="sub">What happens between <code>torch.compile(model)</code> and the fused kernels, on the topic's running example: Dynamo, guards, graph breaks, recompiles and dynamic shapes, AOTAutograd's partitioner, Inductor's fusion, modes, compiled autograd, compile time and caches, <code>torch.export</code> and AOTInductor, and debugging. Recorded with torch 2.14.1 on an Apple M1 Pro (CPU unless marked); GPU numbers are quoted and labelled. Data as of October 2026. Reading: 32 min, plus 14 in closed details.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-tcp-brk" aria-selected="false">Graph-break fixer</button><button role="tab" data-t="t-tcp-cache" aria-selected="false">Compile time and caches</button><button role="tab" data-t="t-tcp-part" aria-selected="false">Partitioner explorer</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -132,7 +132,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read .ff{border:1px solid var(--line);border-left:4px solid var(--c4);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:14px;background:var(--soft)}
 #t-read .ff ul{margin:4px 0}#t-read .ff li{font-size:13.5px}
 #t-read dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute);scroll-margin-top:60px}
-#t-read .mech{display:grid;grid-templlate-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:6px;margin:8px 0}
+#t-read .mech{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:6px;margin:8px 0}
 #t-read .mech>div{border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;min-width:0;background:var(--bg)}
 #t-read .mech>div b{display:block;font-size:11.5px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
 #t-read .rd-chart{width:100%;overflow:hidden;margin:6px 0}
@@ -162,7 +162,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read .bars .row{grid-template-columns:minmax(0,10em) minmax(0,1fr) 6.4em;margin:5px 0}#t-read .bars .row .nm{white-space:normal;line-height:1.2}#t-read .bars .ml{display:block;font-size:11px;color:var(--mute);font-weight:400}#t-read .bars .val{line-height:1.2}
 @media (max-width:520px){#t-read .bars .row{grid-template-columns:minmax(0,8.4em) minmax(0,1fr) 5.6em}}
 #t-read .rd-svg{width:100%;overflow:hidden;margin:6px 0}
-#t-read .rd-svg svg text{font-size:11px}
+#t-read .rd-svg svg text:not([font-size]){font-size:11px}
 #t-read .rd-lane{font-size:12px;fill:var(--mute)}
 #t-read .rd-on{fill:var(--acc)}
 #t-read .rd-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;min-width:0}
@@ -231,22 +231,55 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read .tcp-tbl td.num{font-variant-numeric:tabular-nums}
 #t-read .tcp-tbl td.hit{color:var(--good);font-weight:600}#t-read .tcp-tbl td.miss{color:var(--bad);font-weight:600}
 </style>
+<style>
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px;min-width:0}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4{margin:0 0 4px;font-size:14.5px}
+#t-read .rd-svg svg{display:block;max-width:100%}
+#t-read .rd-svg svg text:not([fill]){fill:var(--ink)}
+#t-read .tcpb-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+#t-read .tcpb-cols>div{min-width:0}
+#t-read .tcpb-cols pre{font:12px/1.45 ui-monospace,Menlo,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;margin:4px 0;white-space:pre}
+#t-read .tcpb-err{font:12px/1.4 ui-monospace,Menlo,monospace;color:var(--bad);overflow-wrap:anywhere}
+#t-read .tcpp-jg{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:3px;margin:8px 0}
+#t-read .tcpp-jg button{font:10.5px/1.15 ui-monospace,Menlo,monospace;padding:3px 2px;border-radius:4px;border:1px solid var(--line);background:var(--bg);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;transition:background .3s}
+#t-read .tcpp-jg button.fw{background:var(--acc2)}#t-read .tcpp-jg button.bw{background:var(--soft);color:var(--mute)}
+#t-read .tcpp-jg button.sv{background:var(--c2);color:var(--bg);border-color:var(--c2)}
+#t-read .tcpp-jg button.rc{background:var(--open2);border-color:var(--good);color:var(--ink)}
+#t-read .tcpp-jg button.sel{outline:2px solid var(--ink);outline-offset:1px}
+#t-read .tcpp-info{min-height:3em;font-size:13px;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:6px 0;overflow-wrap:anywhere}
+#t-read .leg.bx span:before{border:1px solid var(--line)}
+</style>
 <nav class="nav" id="rd-nav">
-<a href="#tcp-s0">0 One screen</a><a href="#tcp-s1">1 Dynamo</a><a href="#tcp-s2">2 Guards</a><a href="#tcp-s3">3 Graph breaks</a><a href="#tcp-s4">4 Dynamic shapes</a><a href="#tcp-s5">5 AOTAutograd</a><a href="#tcp-s6">6 Inductor</a><a href="#tcp-s7">7 Modes</a><a href="#tcp-s8">8 Compiled autograd</a><a href="#tcp-s9">9 Regional</a><a href="#tcp-s10">10 Caches</a><a href="#tcp-s11">11 export, AOTI</a><a href="#tcp-s12">12 Debugging</a><a href="#tcp-s13">13 To NVIDIA</a><a href="#tcp-mis">Mistakes</a><a href="#tcp-iq">Interview</a>
+<a href="#tcp-s0">The idea</a><a href="#tcp-s1">1 Dynamo</a><a href="#tcp-s2">2 Guards</a><a href="#tcp-s3">3 Graph breaks</a><a href="#tcp-s4">4 Dynamic shapes</a><a href="#tcp-s5">5 AOTAutograd</a><a href="#tcp-s6">6 Inductor</a><a href="#tcp-s7">7 Modes</a><a href="#tcp-s8">8 Compiled autograd</a><a href="#tcp-s9">9 Regional</a><a href="#tcp-s10">10 Caches</a><a href="#tcp-s11">11 export, AOTI</a><a href="#tcp-s12">12 Debugging</a><a href="#tcp-s13">13 To NVIDIA</a><a href="#tcp-dep">Depth</a>
 </nav>
 <section id="tcp-s0">
-<h2>0. In one screen</h2>
-<p class="lead"><code>torch.compile(model)</code> returns a wrapper and does nothing until the first call. On that call three programs run in turn: <dfn>TorchDynamo</dfn> reads your Python as it executes and writes down the tensor operations as a graph, <dfn>AOTAutograd</dfn> derives the backward graph from it ahead of time and decides what the forward keeps for backward, and <dfn>TorchInductor</dfn> turns both graphs into fused kernels (C++ on a CPU, Triton on NVIDIA and AMD GPUs, Metal on Apple GPUs). The result is cached and reused on every later call whose inputs pass the cached version's <dfn>guards</dfn>, the checks that say "this compiled code is still valid".</p>
-<p>The parent page's <a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Compile lab</a> tab measured what this does to one training step of the topic's running example (the 3,186,944-parameter character GPT: 4 blocks, d 256, batch 8 x 64 tokens): one graph, 59 operations, 0 breaks, 549 guards; no gain on the laptop's CPU (23.20 ms against 22.75 ms) and 1.18 times on its GPU (MPS). This page goes one level down into each stage, on the same model, so that you can predict what compile will do to your code, read what it did, and fix it when it misbehaves.</p>
-<div class="tw"><table class="rd-tbl tcp-tbl">
-<thead><tr><th>Stage</th><th>Takes</th><th>Gives</th><th>On the running example, measured here</th><th>See it with</th></tr></thead>
-<tbody>
-<tr><td>Dynamo</td><td>Python bytecode of each called frame</td><td>FX graph, guards, rewritten bytecode</td><td>MLP: 36 bytecode instructions traced, 3 graph ops, 45 guards (section 1)</td><td><code>TORCH_LOGS=graph_code,guards,bytecode</code></td></tr>
-<tr><td>AOTAutograd</td><td>FX graph</td><td>forward graph + backward graph (functional ATen ops)</td><td>joint graph 646 ops, cut into 271 forward and 427 backward; keeps 34.81 MB for backward (section 5)</td><td><code>TORCH_LOGS=aot_graphs</code></td></tr>
-<tr><td>Inductor</td><td>the ATen graphs</td><td>kernels + a Python wrapper that calls them</td><td>one block's forward: 16 scheduler nodes, fused into 10, written as 4 C++ kernels + 4 matmul calls + 1 attention call (section 6)</td><td><code>TORCH_LOGS=output_code,fusion</code></td></tr>
-<tr><td>torch.export</td><td>a module</td><td>one whole graph, no breaks allowed</td><td>94 ops; 326 after <code>run_decompositions()</code>; AOTInductor package 14,358,669 bytes (section 11)</td><td><code>ep.graph_module</code></td></tr>
-</tbody></table></div>
-<p>The question the page keeps returning to: <b>when does compile pay, what does it cost, and how do you see what it did?</b> Five answers measured here, each with its section:</p>
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core"><code>torch.compile</code> captures your Python as a graph on the first call (<b>Dynamo</b>), derives the backward and chooses what the forward keeps for it (<b>AOTAutograd</b>), fuses both into kernels (<b>Inductor</b>), and reuses that code on every later call whose <b>guards</b> still pass. Everything you tune is one of three things: keep the graph whole, keep the guards passing, pay the compile once.</p>
+<div class="hero" id="tcp-hero-card">
+<h4>The first call runs three compilers; every later call is a guard check</h4>
+<div class="rd-svg" id="tcp-hero"></div>
+<p class="small mute">Numbers are the running example, measured here (torch 2.14.1, CPU): the whole training step for Dynamo and AOTAutograd (the root's Compile lab and section 5), one block's forward for Inductor (section 6), the cold and warm first step for the cache (sections 9 and 10). The off-ramps are the two ways the picture goes wrong: a graph break (section 3) and a recompile (section 4).</p>
+</div>
+<p><code>torch.compile(model)</code> returns a wrapper and does nothing until the first call. The parent page's <a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Compile lab</a> measured what this does to one training step of the running example (the 3,186,944-parameter character GPT: 4 blocks, d 256, batch 8 x 64 tokens): one graph, 59 operations, 0 breaks, 549 guards; no gain on the laptop's CPU (23.20 ms against 22.75 ms) and 1.18 times on its GPU (MPS). This page goes one level down into each stage, on the same model, so you can predict what compile will do to your code, read what it did, and fix it.</p>
+<p><b>You need</b> fake tensors and functionalization (<a href="https://app.notion.com/p/3f85c17b0d0d81138595c1c6cd52f795" target="_blank" rel="noopener noreferrer">Tensors, the dispatcher and autograd</a>, sections 2.7 and 2.8). <b>New terms</b>, each defined again where it is used:</p>
+<dl class="terms">
+<dt>frame, bytecode</dt><dd>one function call, and the stack-machine instructions CPython runs for it</dd>
+<dt>guard</dt><dd>a check that compiled code is still valid for this call (shape, dtype, object identity, global flags)</dd>
+<dt>graph break</dt><dd>a line Dynamo cannot capture: it runs in Python and the graph is split around it</dd>
+<dt>recompile</dt><dd>a guard failed, so another version of the frame is compiled and cached</dd>
+<dt>symbol (backed, unbacked)</dt><dd>a size compiled as a variable; backed from an input size, unbacked from data</dd>
+<dt>joint graph, partitioner</dt><dd>forward and backward as one graph, and the cut that decides what is saved between them</dd>
+<dt>fusion, wrapper</dt><dd>several ops in one kernel; the generated Python that launches the kernels in order</dd>
+</dl>
+<p>The question the page keeps returning to: <b>when does compile pay, what does it cost, and how do you see what it did?</b> Six answers measured here, each with its section:</p>
 <div class="prob">
 <a href="#tcp-s3" style="--sc:var(--c2)"><b>A break inside a loop costs the whole caller</b><span>A <code>print</code> in <code>Block.forward</code> leaves <code>GPT.forward</code> uncompiled; <code>nested_graph_breaks</code> fixes a plain call but not a loop.</span></a>
 <a href="#tcp-s4" style="--sc:var(--c1)"><b>Shapes: one recompile, then a symbol</b><span>T = 64, 32, 48, 16, 1: three compiles by default, five with <code>dynamic=False</code>; a bounded <code>mark_dynamic</code> turns T = 1 into an error.</span></a>
@@ -255,187 +288,221 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <a href="#tcp-s10" style="--sc:var(--c5)"><b>Warm caches turn seconds into under one</b><span>Cold 9.1 s, warm 0.85 s; a mega-cache moved to an empty directory: 5.1 s (the C++ kernels are rebuilt).</span></a>
 <a href="#tcp-s11" style="--sc:var(--c6)"><b>An AOTInductor package trusts your strides</b><span>A non-contiguous input gave a maximum error of 1.81 with no warning; the same input made contiguous: 9.5e-07.</span></a>
 </div>
-<div class="deepnote"><b>Where the neighbours are.</b> The tensor, dispatcher and autograd machinery compile builds on (functionalization, fake tensors) is on <a href="https://app.notion.com/p/3f85c17b0d0d81138595c1c6cd52f795" target="_blank" rel="noopener noreferrer">Tensors, the dispatcher and autograd</a> (sections 2.7 and 2.8); compile's place in a bottleneck hunt, and the activation-memory budget on a larger model, on <a href="https://app.notion.com/p/3c65c17b0d0d810d9e1fdf9ec942c20d" target="_blank" rel="noopener noreferrer">Making training fast</a>; custom ops that remove graph breaks on <a href="https://app.notion.com/p/3f85c17b0d0d8158a7addcd3d601d72a" target="_blank" rel="noopener noreferrer">Extending PyTorch</a>; how PTX and SASS come out of Triton on <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a>; CUDA graphs on <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU</a>.</div>
+<details class="dp"><summary>The stages in one table <span class="mute">(what each takes and gives, measured, and the log that shows it)</span></summary><div class="b">
+<div class="tw"><table class="rd-tbl tcp-tbl">
+<thead><tr><th>Stage</th><th>Takes</th><th>Gives</th><th>On the running example, measured here</th><th>See it with</th></tr></thead>
+<tbody>
+<tr><td>Dynamo</td><td>Python bytecode of each called frame</td><td>FX graph, guards, rewritten bytecode</td><td>MLP: 36 bytecode instructions traced, 3 graph ops, 45 guards (section 1)</td><td><code>TORCH_LOGS=graph_code,guards,bytecode</code></td></tr>
+<tr><td>AOTAutograd</td><td>FX graph</td><td>forward graph + backward graph (functional ATen ops)</td><td>joint graph 646 ops, cut into 271 forward and 427 backward; keeps 34.81 MB for backward (section 5)</td><td><code>TORCH_LOGS=aot_graphs</code></td></tr>
+<tr><td>Inductor</td><td>the ATen graphs</td><td>kernels + a Python wrapper that calls them</td><td>one block's forward: 16 scheduler nodes, fused into 10, written as 4 C++ kernels + 4 matmul calls + 1 attention call (section 6)</td><td><code>TORCH_LOGS=output_code,fusion</code></td></tr>
+<tr><td>torch.export</td><td>a module</td><td>one whole graph, no breaks allowed</td><td>94 ops; 326 after <code>run_decompositions()</code>; AOTInductor package 14,358,669 bytes (section 11)</td><td><code>ep.graph_module</code></td></tr>
+</tbody></table></div>
+</div></details>
+<div class="deepnote"><b>Where the neighbours are.</b> Compile's place in a bottleneck hunt, and the activation-memory budget on a larger model: <a href="https://app.notion.com/p/3c65c17b0d0d810d9e1fdf9ec942c20d" target="_blank" rel="noopener noreferrer">Making training fast</a>; custom ops that remove graph breaks: <a href="https://app.notion.com/p/3f85c17b0d0d8158a7addcd3d601d72a" target="_blank" rel="noopener noreferrer">Extending PyTorch</a>; where Inductor's Triton goes next (PTX, SASS): <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a>, section 1; CUDA graphs: <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU</a>.</div>
 </section>
 <section id="tcp-s1">
 <h2>1. Dynamo: reading your Python as it runs</h2>
-<p><b>The problem.</b> A compiler needs the whole computation as a graph, but a PyTorch model is ordinary Python: loops over layers, attribute lookups, calls into <code>nn.Module.forward</code>, the odd <code>if</code>. Earlier capture tools each gave something up: <code>torch.jit.trace</code> ran the model once and recorded only the path taken, silently wrong when control flow changed; <code>torch.jit.script</code> required a restricted Python dialect; <code>torch.fx.symbolic_trace</code> fails on any data-dependent branch. The PyTorch 2 paper (<a href="https://docs.pytorch.org/assets/pytorch2-2.pdf" target="_blank" rel="noopener noreferrer">Ansel et al., ASPLOS 2024</a>, section 2) reviews them; Dynamo's answer is to keep running Python as Python and capture only what it can prove safe.</p>
-<p><b>How it works, from zero.</b> CPython does not run your source text: it compiles each function to <dfn>bytecode</dfn>, a list of small stack-machine instructions (<code>LOAD_FAST x</code> pushes a local variable, <code>LOAD_ATTR fc</code> replaces the top of the stack with its attribute, <code>CALL 1</code> calls a function with one argument), and evaluates one <dfn>frame</dfn> (one function call) at a time. <a href="https://peps.python.org/pep-0523/" target="_blank" rel="noopener noreferrer">PEP 523</a> lets a C extension replace the function that evaluates frames. When you call a compiled function, Dynamo installs its own (<code>enable_eval_frame_shim</code>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/dynamo/eval_frame.c#L247-L255" target="_blank" rel="noopener noreferrer">torch/csrc/dynamo/eval_frame.c L247-L255 at v2.14.1</a>), so it sees every frame before CPython runs it. For a frame it has compiled before, it runs the guards and, if they pass, jumps to the compiled version. Otherwise it <i>symbolically evaluates</i> the bytecode: the same instructions, but its stack holds <dfn>VariableTrackers</dfn> instead of values.</p>
+<p>A compiler needs the whole computation as a graph, but a model is ordinary Python: loops over layers, attribute lookups, the odd <code>if</code>. Dynamo keeps running Python as Python and captures only what it can prove safe.</p>
+<details class="dp"><summary>Why not the earlier capture tools <span class="mute">(PyTorch 2 paper, section 2)</span></summary><div class="b"><p><code>torch.jit.trace</code> ran the model once and recorded only the path taken, silently wrong when control flow changed; <code>torch.jit.script</code> required a restricted Python dialect; <code>torch.fx.symbolic_trace</code> fails on any data-dependent branch. The PyTorch 2 paper (<a href="https://docs.pytorch.org/assets/pytorch2-2.pdf" target="_blank" rel="noopener noreferrer">Ansel et al., ASPLOS 2024</a>, section 2) reviews them.</p></div></details>
+<p><b>How it works.</b> CPython compiles each function to <dfn>bytecode</dfn>, a list of stack-machine instructions (<code>LOAD_FAST x</code> pushes a local, <code>LOAD_ATTR fc</code> replaces the top of the stack with its attribute, <code>CALL 1</code> calls with one argument), and evaluates one <dfn>frame</dfn> (one function call) at a time. <a href="https://peps.python.org/pep-0523/" target="_blank" rel="noopener noreferrer">PEP 523</a> lets a C extension replace the frame evaluator; Dynamo installs its own (<code>enable_eval_frame_shim</code>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/dynamo/eval_frame.c#L247-L255" target="_blank" rel="noopener noreferrer">eval_frame.c L247-L255 at v2.14.1</a>), so it sees every frame first. For a frame compiled before, it runs the guards and, if they pass, jumps to the compiled version. Otherwise it <i>symbolically evaluates</i> the bytecode: the same instructions, but its stack holds <dfn>VariableTrackers</dfn> instead of values.</p>
 <div class="mech">
-<div><b>TensorVariable</b>A tensor, represented by a <i>fake tensor</i> (shape, dtype, device, no data; <a href="https://app.notion.com/p/3f85c17b0d0d81138595c1c6cd52f795" target="_blank" rel="noopener noreferrer">see 2.8 there</a>) plus a proxy: every operation on it adds a node to the FX graph.</div>
+<div><b>TensorVariable</b>A tensor, as a <i>fake tensor</i> (shape, dtype, device, no data) plus a proxy: every operation on it adds a node to the FX graph.</div>
 <div><b>NNModuleVariable</b>A module such as <code>self.fc</code>. Calling it inlines its <code>forward</code>; its parameters become graph inputs.</div>
-<div><b>LazyVariableTracker</b>A value not inspected yet. It is turned into a real tracker (and guarded) only if the code uses it, which keeps the guard list short.</div>
-<div><b>Constant, builtin, Python module</b>Python values computed at trace time: <code>C // n_head</code> is evaluated now and baked into the graph as a number, with a guard on what it was computed from.</div>
+<div><b>LazyVariableTracker</b>A value not inspected yet; turned into a real tracker (and guarded) only if the code uses it, which keeps the guard list short.</div>
+<div><b>Constant, builtin, Python module</b>Computed at trace time: <code>C // n_head</code> is evaluated now and baked into the graph as a number, with a guard on what it came from.</div>
 </div>
-<p>The output of one frame is three things: an <dfn>FX graph</dfn> (a list of tensor operations with their inputs), the guards, and new bytecode that replaces the frame's: it gathers the inputs, calls the compiled graph, and returns its result. Here is that process on the running example's MLP (block 0: <code>self.proj(F.gelu(self.fc(x)))</code>), recorded instruction by instruction from Dynamo itself (its <code>step()</code> wrapped) and, for comparison, the same call run by CPython with every ATen call caught by a dispatch mode. Same input, (8, 64, 256).</p>
+<p>One frame gives three things: an <dfn>FX graph</dfn> (tensor operations and their inputs), the guards, and new bytecode for the frame that gathers the inputs, calls the compiled graph and returns its result. The running example's MLP (block 0: <code>self.proj(F.gelu(self.fc(x)))</code>), recorded instruction by instruction from Dynamo itself (its <code>step()</code> wrapped), against the same call run by CPython with every ATen call caught by a dispatch mode. Same input, (8, 64, 256). <i>Predict before you step: how many kernels run while Dynamo traces?</i></p>
 <div class="rd-card" id="tcp-walk-card">
-<h4>One MLP call, instruction by instruction: CPython runs it, Dynamo records it</h4>
+<h4>Same instructions: CPython computes as it goes, Dynamo only writes the graph down</h4>
 <div class="seg" id="tcp-walk-seg"><button class="on" data-m="dyn">Dynamo tracing (compile time)</button><button data-m="eager">CPython running it (eager)</button></div>
 <div class="an-ctl" id="tcp-walk-ctl"></div>
 <div class="an-cap" id="tcp-walk-cap"></div>
 <div class="an-cnt" id="tcp-walk-cnt"></div>
 <div class="tcp-cols"><div><h5 id="tcp-walk-fn">Bytecode</h5><div class="tcp-bc" id="tcp-walk-bc"></div></div><div id="tcp-walk-right"></div></div>
-<p class="small mute">Recorded with torch 2.14.1, Python 3.12, CPU (exp/walk.py). Dynamo's copy of <code>MLP.forward</code> has two extra instructions before each call (<code>PUSH_NULL</code>, <code>SWAP</code>): it first rewrites the bytecode slightly into a canonical form. Stack entries are Dynamo's own <code>repr</code>, shortened (<code>Lazy(...)</code> = LazyVariableTracker).</p>
+<p class="small mute">Recorded with torch 2.14.1, Python 3.12, CPU (exp/walk.py). By the end CPython has run 9 ATen calls (two <code>addmm</code>, <code>gelu</code>, and the views and transposes <code>F.linear</code> decomposes into on the CPU); Dynamo has run none: 36 instructions, both <code>Linear.forward</code> calls inlined (depth 1), a graph of three calls (<code>linear</code>, <code>gelu</code>, <code>linear</code>) on five inputs (x and four parameters), and 45 guards. Dynamo's copy of <code>MLP.forward</code> has two extra instructions before each call (<code>PUSH_NULL</code>, <code>SWAP</code>) from rewriting the bytecode into a canonical form. Stack entries are Dynamo's own <code>repr</code>, shortened (<code>Lazy(...)</code> = LazyVariableTracker).</p>
 </div>
-<p>What the two modes show. CPython computes as it goes: by the end, 9 ATen calls have run (two <code>addmm</code> matrix multiplies, <code>gelu</code>, and the views and transposes that <code>F.linear</code> decomposes into on the CPU). Dynamo computes nothing: it walks 36 instructions, inlines both <code>Linear.forward</code> calls (depth 1), and ends with a graph of three calls (<code>linear</code>, <code>gelu</code>, <code>linear</code>) on five inputs (x and four parameters) and 45 guards. Only then is the graph compiled and run. Attribute lookups such as <code>self.fc</code> never reach the graph: they were answered at trace time, and the answer is protected by a guard.</p>
+<p>Attribute lookups such as <code>self.fc</code> never reach the graph: they were answered at trace time, and the answer is protected by a guard.</p>
 <div class="pr" data-ok="1"><div class="q">Predict: inside a compiled function, how many times does <code>self.fc</code> (a Python attribute lookup) run per call after the first?</div>
 <div class="opts"><button data-a="0">Once per call, like eager</button><button data-a="1">Zero: the compiled bytecode never looks it up</button><button data-a="2">Once per guard check</button></div>
 <div class="ans" hidden><b>Zero, as such.</b> The rewritten bytecode (recorded with <code>TORCH_LOGS=bytecode</code>) fetches the parameters straight out of <code>self._modules['fc']._parameters['weight']</code> and passes them to the compiled graph; whether <code>fc</code> is still the same kind of module is the guards' job, and they run in C++ before the call. That is why a module swapped after compilation is caught by a guard and recompiled rather than silently ignored.</div></div>
-<p><b>What it costs.</b> Tracing is Python running Python: for the whole running example, Dynamo's share of the first call ("entire_frame_compile" minus the backend) was about 0.25 s of the roughly 9 s cold compile; the rest is AOTAutograd and Inductor (section 10). Per call afterwards, the cost is the guard check (section 2).</p>
-<p><b>How to check.</b> <code>TORCH_LOGS=bytecode</code> prints the original and rewritten bytecode; <code>TORCH_LOGS=graph_code</code> the FX graph with each line's source; <code>TORCH_LOGS=trace_bytecode</code> every instruction with the tracker stack, exactly what the animation replays. <code>torch._dynamo.explain(fn)(*args)</code> summarises graphs and breaks without reading logs.</p>
+<p><b>Cost.</b> Tracing is Python running Python: for the whole running example, Dynamo's share of the first call ("entire_frame_compile" minus the backend) was about 0.25 s of the roughly 9 s cold compile; the rest is AOTAutograd and Inductor (section 10). Afterwards each call pays only the guard check (section 2). <b>Check</b> with <code>TORCH_LOGS=bytecode</code> (original and rewritten bytecode), <code>graph_code</code> (the FX graph with each line's source), <code>trace_bytecode</code> (every instruction with the tracker stack, what the stepper replays), or <code>torch._dynamo.explain(fn)(*args)</code> for a summary of graphs and breaks.</p>
 </section>
 <section id="tcp-s2">
 <h2>2. Guards: the conditions that keep compiled code valid</h2>
-<p><b>The problem.</b> Everything Dynamo baked in (shapes, dtypes, which module object, the value of a Python flag, whether grad mode was on) must still be true on the next call, or the compiled code would compute the wrong thing. Checking it in Python on every call would cost more than the kernels on small models.</p>
-<p><b>How it works.</b> Each fact Dynamo relied on becomes a guard, organised as a tree keyed by where the value comes from (the frame's locals <code>L['x']</code>, globals <code>G['F']</code>, attributes of those). The tree is a C++ object (<code>GuardManager</code> and <code>RootGuardManager</code>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/dynamo/guards.cpp#L4242" target="_blank" rel="noopener noreferrer">torch/csrc/dynamo/guards.cpp L4242</a>; <code>enable_cpp_guard_manager</code> is on by default), so a check walks each source once and runs its leaf guards. The MLP's tree, as <code>TORCH_LOGS=guards</code> printed it (first lines; paths shortened):</p>
-<pre class="code" id="tcp-guard-tree"></pre>
+<p>Everything Dynamo baked in (shapes, dtypes, which module object, a Python flag, grad mode) must still hold on the next call, or the compiled code computes the wrong thing; checking it in Python each call would cost more than the kernels of a small model. So each fact becomes a guard in a tree keyed by where the value comes from (<code>L['x']</code> for a local, <code>G['F']</code> for a global, attributes of those), built in C++ (<code>GuardManager</code>, <code>RootGuardManager</code>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/csrc/dynamo/guards.cpp#L4242" target="_blank" rel="noopener noreferrer">guards.cpp L4242</a>; <code>enable_cpp_guard_manager</code> is on by default): a check walks each source once and runs its leaf guards. The MLP's tree as <code>TORCH_LOGS=guards</code> printed it (paths shortened), counted by kind:</p>
 <div class="tcp-kv" id="tcp-guard-kinds"></div>
-<p class="small mute">Leaf checks in the printed tree, by kind (53 leaf checks; Dynamo's own guard set for this frame held 45 entries, the number used in the animation).</p>
-<p>Four kinds do most of the work: <b>TENSOR_MATCH</b> (dispatch keys, dtype, device, requires_grad, sizes and strides of a tensor input), <b>ID_MATCH</b> (this exact object: the <code>F</code> module, the <code>gelu</code> builtin), <b>TYPE_MATCH</b>, and <b>GLOBAL_STATE</b> (grad mode, autocast, default dtype, thread count, deterministic flag, all in one check). The marking guards (<code>DIMENSION_DYNAMIC_MARKING_GUARD</code>) make sure a tensor that later gets <code>mark_dynamic</code> is not served by code compiled for a static shape.</p>
-<p><b>What it costs.</b> Dynamo times this tree when it builds it: <b>51.71 microseconds</b> for the MLP in the recorded run (one unlocked measurement, and it varied by about two times between runs here, so treat it as an order of magnitude); the whole model's 549 guards measured 45 to 81 microseconds in the Compile lab. Against a 23 ms CPU step that is nothing; against a 1 ms step of a small model on a GPU, where the kernels launch asynchronously and the CPU's time is the critical path, it is a real overhead. Three 2.14.1 APIs trade safety for speed: <code>torch.compiler.skip_guard_on_inbuilt_nn_modules_unsafe</code>, <code>skip_guard_on_all_nn_modules_unsafe</code> and <code>skip_guard_on_globals_unsafe</code> (all present in <code>torch.compiler</code> at 2.14.1, read from the wheel); their names say what they risk.</p>
-<p><b>When a guard fails.</b> Dynamo compiles again and keeps both versions in a per-frame cache, then checks them in order on each call. That is a <dfn>recompile</dfn> (section 4). <code>torch.compiler.set_stance("fail_on_recompile")</code> turns every recompile into an error, useful in a test that pins the number of compiles; <code>"eager_on_recompile"</code> runs eagerly instead.</p>
+<p class="small mute">Leaf checks in the printed tree, by kind (53 leaf checks; Dynamo's own guard set for this frame held 45 entries, the number used in section 1).</p>
+<details class="dp"><summary>The printed guard tree <span class="mute">(TORCH_LOGS=guards, first lines)</span></summary><div class="b"><pre class="code" id="tcp-guard-tree"></pre></div></details>
+<p>Four kinds do most of the work: <b>TENSOR_MATCH</b> (dispatch keys, dtype, device, requires_grad, sizes and strides of a tensor input), <b>ID_MATCH</b> (this exact object: the <code>F</code> module, the <code>gelu</code> builtin), <b>TYPE_MATCH</b>, and <b>GLOBAL_STATE</b> (grad mode, autocast, default dtype, thread count, deterministic flag, in one check). <code>DIMENSION_DYNAMIC_MARKING_GUARD</code> makes sure a tensor that later gets <code>mark_dynamic</code> is not served by code compiled for a static shape.</p>
+<p><b>Cost.</b> <b>51.71 microseconds</b> for the MLP's tree in the recorded run (one unlocked measurement that varied by about two times between runs: an order of magnitude); the whole model's 549 guards measured 45 to 81 microseconds in the Compile lab. Nothing against a 23 ms CPU step; a real overhead against a 1 ms GPU step, where kernels launch asynchronously and the CPU's time is the critical path. <b>When a guard fails</b>, Dynamo compiles again and keeps both versions in a per-frame cache, checked in order on each call: a <dfn>recompile</dfn> (section 4).</p>
+<details class="dp"><summary>Guard APIs: skipping guards, and failing on recompiles <span class="mute">(torch 2.14.1)</span></summary><div class="b"><p>Three APIs trade safety for speed: <code>torch.compiler.skip_guard_on_inbuilt_nn_modules_unsafe</code>, <code>skip_guard_on_all_nn_modules_unsafe</code> and <code>skip_guard_on_globals_unsafe</code> (all present in <code>torch.compiler</code> at 2.14.1, read from the wheel); their names say what they risk. <code>torch.compiler.set_stance("fail_on_recompile")</code> turns every recompile into an error, useful in a test that pins the number of compiles; <code>"eager_on_recompile"</code> runs eagerly instead.</p></div></details>
 </section>
 <section id="tcp-s3">
 <h2>3. Graph breaks: each kind, and how to remove it</h2>
-<p><b>The problem.</b> When Dynamo meets something it cannot put in a graph, it does not fail by default. It compiles the graph it has so far, emits bytecode that runs the unsupported instruction in ordinary Python, and starts a new graph after it (a <dfn>resume function</dfn>). That split is a <dfn>graph break</dfn>. It costs twice: no fusion across it, and Python plus a guard check between the pieces on every call. The Compile lab measured a <code>print</code> in each block at +7 to 9% step time on the CPU; on a GPU each piece also launches separately and a CUDA graph cannot span the break.</p>
-<p><b>The surprise first.</b> Where the break sits matters more than how many there are. <code>GPT.forward</code> runs the blocks in a <code>for blk in self.blocks</code> loop, and Dynamo cannot resume tracing in the middle of a loop: a break anywhere inside a block makes it give up on the whole <code>GPT.forward</code> frame ("Failed to handle graph break gracefully. Skipping the function and falling back to eager", its own log, read with tlparse in section 12), so the embeddings, final LayerNorm, head and loss run as plain Python and only the two halves of each block are compiled. Every break kind below gives the same picture: 2 or 3 compiled pieces, 8 piece calls per forward instead of 1.</p>
-<p>Can that be avoided? <code>torch._dynamo.config.nested_graph_breaks</code> (off by default, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/config.py#L585-L587" target="_blank" rel="noopener noreferrer">config.py L585-L587 at v2.14.1</a>: "Resume tracing in nested frames if a nested graph break occurs. Old behavior is to bubble up the graph break to the top level frame") keeps the caller compiled. On four small programs with one <code>torch._dynamo.graph_break()</code> in the inner function, run here:</p>
+<p>When Dynamo meets something it cannot put in a graph, it does not fail by default: it compiles the graph so far, emits bytecode that runs the unsupported instruction in plain Python, and starts a new graph after it (a <dfn>resume function</dfn>). That split is a <dfn>graph break</dfn>. It costs twice: no fusion across it, and Python plus a guard check between the pieces on every call. The Compile lab measured a <code>print</code> in each block at +7 to 9% step time on the CPU; on a GPU each piece also launches separately and a CUDA graph cannot span the break.</p>
+<p><b>Where the break sits matters more than how many.</b> <code>GPT.forward</code> runs the blocks in a <code>for blk in self.blocks</code> loop, and Dynamo cannot resume tracing in the middle of a loop: a break anywhere inside a block makes it give up on the whole <code>GPT.forward</code> frame ("Failed to handle graph break gracefully. Skipping the function and falling back to eager", its own log, read with tlparse in section 12). The embeddings, final LayerNorm, head and loss then run as plain Python and only the two halves of each block are compiled: 8 piece calls per forward instead of 1. Pick a line below and play one forward pass broken and fixed.</p>
+<div class="rd-card" id="tcpb-card">
+<h4>One forward pass with a break line in each block: green runs compiled, dashed runs as Python</h4>
+<div class="seg" id="tcpb-kind"></div>
+<div class="tcpb-cols"><div><b>Broken</b><pre id="tcpb-src-b"></pre></div><div><b>Fixed</b> <span class="small mute" id="tcpb-how"></span><pre id="tcpb-src-f"></pre></div></div>
+<div class="seg" id="tcpb-mode"><button class="on" data-m="b">Broken</button><button data-m="f">Fixed</button></div>
+<div class="an-ctl" id="tcpb-ctl"></div>
+<div class="an-cap" id="tcpb-cap"></div>
+<div class="rd-svg" id="tcpb-lane"></div>
+<div class="an-cnt" id="tcpb-cnt"></div>
+<p class="small"><b>Dynamo's reason:</b> <span id="tcpb-reason"></span><br><b>With <code>fullgraph=True</code>:</b> <span class="tcpb-err" id="tcpb-full"></span></p>
+<p class="small mute">Nine lines placed in <code>Block.forward</code> between attention and the MLP, twelve fixes (three lines have two). Counts from <code>torch._dynamo.explain</code>; every fix gives the same output as the unmodified model (maximum difference 0.0, measured; exp/fixer.py). The lane is drawn from the counting backend's record: which compiled pieces exist (ops in each) and how many piece calls one forward makes; the order of the eager segments is the model's (embedding, 4 blocks, final LayerNorm, head and loss).</p>
+</div>
+<p>Can the caller be kept compiled? <code>torch._dynamo.config.nested_graph_breaks</code> (off by default, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/config.py#L585-L587" target="_blank" rel="noopener noreferrer">config.py L585-L587 at v2.14.1</a>: "Resume tracing in nested frames if a nested graph break occurs. Old behavior is to bubble up the graph break to the top level frame") was run on four small programs with one <code>torch._dynamo.graph_break()</code> in the inner function:</p>
 <div class="tw"><table class="rd-tbl tcp-tbl" id="tcp-nested-tbl"></table></div>
-<p>It works for a plain call and for unrolled module calls, and changes nothing inside a <code>for</code> loop, which is how almost every transformer calls its blocks. So on the running example it did not help (2 graphs either way, measured). The practical rule stays: <b>remove the break</b>.</p>
-<p><b>Each kind, broken and fixed.</b> Nine common lines (twelve rows: three of them have two fixes), each put into <code>Block.forward</code> between attention and the MLP, then the fix. Counts from <code>torch._dynamo.explain</code>; every fix gives the same output as the unmodified model (maximum difference 0.0, measured). The <a href="#" data-tab="t-tcp-brk">Graph-break fixer</a> tab shows each one's code side by side, Dynamo's reason, the compiled pieces of one forward and the <code>fullgraph=True</code> error.</p>
-<div class="tw"><table class="rd-tbl tcp-tbl" id="tcp-brk-tbl"></table></div>
+<p>It works for a plain call and for unrolled module calls, and changes nothing inside a <code>for</code> loop, which is how almost every transformer calls its blocks; on the running example it did not help (2 graphs either way, measured). The rule stays: <b>remove the break</b>.</p>
 <div class="pr" data-ok="2"><div class="q">Predict: with <code>torch._dynamo.config.capture_scalar_outputs = True</code>, the block that does <code>s = x.abs().max().item()</code> and then <code>1.0 if s &lt; 1e9 else 0.0</code> compiles to how many graphs?</div>
 <div class="opts"><button data-a="0">1: the scalar is captured, no break</button><button data-a="1">3, as without the flag</button><button data-a="2">2: still one break</button></div>
 <div class="ans" hidden><b>2 graphs, 1 break.</b> The flag lets <code>.item()</code> into the graph as an unbacked symbol (<code>zuf0</code>), but the Python <code>if</code> on it needs its value at trace time, which nobody has: "generic_jump SymNodeVariable()". Under <code>fullgraph=True</code> the same line is an error: "Could not guard on data-dependent expression zuf0 &lt; 1000000000.0". Keeping the comparison a tensor (<code>(s &lt; 1e9).to(x.dtype)</code>) is the fix that gives 1 graph.</div></div>
-<p>Three lessons from the table. <b>(1)</b> Some flags remove a break by changing what a graph may contain: <code>capture_dynamic_output_shape_ops</code> lets boolean-mask indexing in (the selected size becomes a symbol), <code>reorderable_logging_functions = {print}</code> moves the print to after the graph runs (so it prints after the whole region, not at its line). <b>(2)</b> <code>fullgraph=True</code> is stricter than "no breaks" sounds: for the boolean mask it compiled without error, because when one graph is required Dynamo captures the dynamic size instead of breaking, while for <code>.item()</code> followed by an <code>if</code> it raised. <b>(3)</b> A <code>@torch.compiler.disable</code> helper is a deliberate break; call it outside the compiled region, or, for code Dynamo should not trace but whose outputs are plain tensors, register it as a custom op (<a href="https://app.notion.com/p/3f85c17b0d0d8158a7addcd3d601d72a" target="_blank" rel="noopener noreferrer">Extending PyTorch</a> owns that; its root lesson: a <code>.tolist()</code> body gives 3 graphs and 2 breaks, the same body as a custom op 1 and 0).</p>
-<p><b>How to check.</b> <code>torch._dynamo.explain(model)(x, y)</code> returns graph count, break count and each reason with its user stack; <code>TORCH_LOGS=graph_breaks</code> prints them as they happen, each with a link into the graph-break registry (for example <a href="https://meta-pytorch.github.io/compile-graph-break-site/gb/gb7000.html" target="_blank" rel="noopener noreferrer">gb7000</a>, the loop case); <code>fullgraph=True</code> turns the first one into an exception, which is what you want in a training loop you control.</p>
+<p>Three lessons from the twelve rows. <b>(1)</b> Some flags remove a break by changing what a graph may contain: <code>capture_dynamic_output_shape_ops</code> lets boolean-mask indexing in (the selected size becomes a symbol); <code>reorderable_logging_functions = {print}</code> moves the print to after the graph runs (so it prints after the whole region, not at its line). <b>(2)</b> <code>fullgraph=True</code> is not just "no breaks": for the boolean mask it compiled without error, because when one graph is required Dynamo captures the dynamic size instead of breaking, while for <code>.item()</code> followed by an <code>if</code> it raised. <b>(3)</b> A <code>@torch.compiler.disable</code> helper is a deliberate break; call it outside the compiled region, or register the code as a custom op (<a href="https://app.notion.com/p/3f85c17b0d0d8158a7addcd3d601d72a" target="_blank" rel="noopener noreferrer">Extending PyTorch</a> owns that; its root lesson: a <code>.tolist()</code> body gives 3 graphs and 2 breaks, the same body as a custom op 1 and 0).</p>
+<details class="dp"><summary>All twelve rows in one table <span class="mute">(Dynamo's reason, graphs and breaks before and after)</span></summary><div class="b"><div class="tw"><table class="rd-tbl tcp-tbl" id="tcp-brk-tbl"></table></div></div></details>
+<p><b>Check.</b> <code>torch._dynamo.explain(model)(x, y)</code> returns graph count, break count and each reason with its user stack; <code>TORCH_LOGS=graph_breaks</code> prints them as they happen, each with a link into the graph-break registry (for example <a href="https://meta-pytorch.github.io/compile-graph-break-site/gb/gb7000.html" target="_blank" rel="noopener noreferrer">gb7000</a>, the loop case); <code>fullgraph=True</code> turns the first one into an exception, which is what you want in a training loop you control.</p>
 </section>
 <section id="tcp-s4">
 <h2>4. Recompiles and dynamic shapes</h2>
-<p><b>The problem.</b> Sizes are guarded like everything else. A model that sees a new sequence length, a short last batch or a different learning rate passed as a Python number fails a guard and compiles again, at a cost of seconds each time. Compiling for "any size" instead makes kernels that cannot specialise on the size (no fully unrolled loops, extra index arithmetic) and adds symbolic reasoning to every compile.</p>
-<p><b>How it works.</b> By default Dynamo compiles the first call with every size <i>static</i> (a constant). When a size guard fails, <dfn>automatic dynamic shapes</dfn> (<code>automatic_dynamic_shapes</code>, on by default, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/config.py#L188" target="_blank" rel="noopener noreferrer">config.py L188</a>) recompiles with the dimension that changed replaced by a <dfn>symbol</dfn> (s75 below) whose value is read at run time; guards on that symbol are inequalities instead of equalities. Two exceptions are built in: sizes 0 and 1 stay specialised (a dimension of 1 broadcasts, so code valid for "any n" may be wrong for 1; this is <dfn>0/1 specialisation</dfn>), and parameters' shapes are always static (<code>force_parameter_static_shapes</code>). The same six sequence lengths, T = 64, 32, 48, 16, 1, 64, through the running example (forward, eval, CPU), under five strategies:</p>
+<p>Sizes are guarded like everything else: a new sequence length, a short last batch or a learning rate passed as a Python number fails a guard and costs seconds of compiling. Compiling for "any size" instead gives kernels that cannot specialise (no fully unrolled loops, extra index arithmetic) and adds symbolic reasoning to every compile.</p>
+<p><b>How it works.</b> The first call compiles every size <i>static</i>. When a size guard fails, <dfn>automatic dynamic shapes</dfn> (<code>automatic_dynamic_shapes</code>, on by default, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/config.py#L188" target="_blank" rel="noopener noreferrer">config.py L188</a>) recompiles with the changed dimension replaced by a <dfn>symbol</dfn> (s75 below) read at run time, guarded by inequalities instead of equalities. Two exceptions are built in: sizes 0 and 1 stay specialised, because a dimension of 1 broadcasts and code valid for "any n" may be wrong for 1 (<dfn>0/1 specialisation</dfn>); and parameters' shapes are always static (<code>force_parameter_static_shapes</code>). <i>Predict before you look: six calls with T = 64, 32, 48, 16, 1, 64; how many compiles by default?</i></p>
 <div class="rd-card" id="tcp-dyn-card">
-<h4>Compiles per call, and the guard that failed</h4>
+<h4>The same six calls under five strategies: default compiles 3 times, dynamic=False 5</h4>
+<div class="rd-svg" id="tcp-dyn-grid"></div>
+<p class="small mute">The running example, forward, eval, CPU, torch 2.14.1 (exp/dynamic.py). A filled square is a call that compiled (two for <code>dynamic=True</code>'s first call), an empty one reused a version, a red one raised. Pick a strategy for its recompile reasons as logged:</p>
 <div class="seg" id="tcp-dyn-seg"></div>
 <div id="tcp-dyn-out"></div>
 </div>
-<p>What the five runs show, all measured. <b>Default</b>: 3 compiles: T = 64; T = 32 fails the exact-size guard ("tensor 'idx' size mismatch at index 1. expected 64, actual 32") and recompiles with T symbolic, range [2, inf]; 48 and 16 reuse it; T = 1 falls outside "2 &lt;= idx.size()[1]" (0/1 specialisation) and compiles a third version. <b><code>dynamic=False</code></b>: every new length compiles, 5 times. <b><code>mark_dynamic(idx, 1, min=2, max=64)</code></b> before each call: one compile covers 64, 32, 48 and 16, and T = 1 is now an error (<code>ConstraintViolationError</code>), not a recompile: a bound you state is checked. <b><code>dynamic=True</code></b>: symbolic from the first call, yet 4 compiles here; the recompile log blamed a guard that itself raised ("'NoneType' object has no attribute 'size'": some guard read a size from an attribute that is <code>None</code>) and then the 0/1 guard. Recorded; which guard raised was not traced further (<span class="unc">cause unconfirmed</span>), and it looks like a Dynamo bug rather than anything the model does. <b><code>mark_unbacked</code></b> (no 0/1 specialisation, section below) broke tracing at <code>scaled_dot_product_attention</code> inside the block loop, so <code>GPT.forward</code> was skipped and each block frame compiled on its own.</p>
-<p><b>Python numbers behave like sizes.</b> The Compile lab showed a float learning rate compiled at calls 1 and 2 and was symbolic afterwards (<code>specialize_float = False</code>, config.py L162). Values that are not numbers (a string flag, a dtype, a module attribute) are guarded by value with no symbolic fallback. A small function called with ten different strings, here:</p>
+<p><b>Default</b>: T = 32 fails the exact-size guard ("tensor 'idx' size mismatch at index 1. expected 64, actual 32") and recompiles with T symbolic, range [2, inf]; 48 and 16 reuse it; T = 1 falls outside "2 &lt;= idx.size()[1]" (0/1 specialisation) and compiles a third version. <b><code>dynamic=False</code></b>: every new length compiles, 5 times. <b><code>mark_dynamic(idx, 1, min=2, max=64)</code></b> before each call: one compile covers 64, 32, 48 and 16, and T = 1 is now an error (<code>ConstraintViolationError</code>), not a recompile: a bound you state is checked.</p>
+<details class="dp"><summary>The two odd strategies: dynamic=True compiled 4 times, mark_unbacked broke tracing <span class="mute">(measured; one cause unconfirmed)</span></summary><div class="b"><p><b><code>dynamic=True</code></b>: symbolic from the first call, yet 4 compiles here; the recompile log blamed a guard that itself raised ("'NoneType' object has no attribute 'size'": some guard read a size from an attribute that is <code>None</code>) and then the 0/1 guard. Recorded; which guard raised was not traced further (<span class="unc">cause unconfirmed</span>), and it looks like a Dynamo bug rather than anything the model does. <b><code>mark_unbacked</code></b> (no 0/1 specialisation, see unbacked symbols below) broke tracing at <code>scaled_dot_product_attention</code> inside the block loop, so <code>GPT.forward</code> was skipped and each block frame compiled on its own.</p></div></details>
+<p><b>Python numbers behave like sizes</b>: the Compile lab showed a float learning rate compiled at calls 1 and 2 and symbolic afterwards (<code>specialize_float = False</code>, config.py L162). Values that are not numbers (a string flag, a dtype, a module attribute) are guarded by value with no symbolic fallback. A small function called with ten different strings:</p>
 <div class="tcp-kv" id="tcp-limit"></div>
-<p>After <code>recompile_limit</code> (8, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/config.py#L121" target="_blank" rel="noopener noreferrer">config.py L121</a>) versions of one frame, Dynamo stops compiling it and runs it eagerly, with this warning, recorded (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/convert_frame.py#L2000-L2019" target="_blank" rel="noopener noreferrer">convert_frame.py L2000-L2019</a>):</p>
+<p>After <code>recompile_limit</code> (8, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/config.py#L121" target="_blank" rel="noopener noreferrer">config.py L121</a>) versions of one frame, Dynamo stops compiling it and runs it eagerly, with only this warning (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/convert_frame.py#L2000-L2019" target="_blank" rel="noopener noreferrer">convert_frame.py L2000-L2019</a>), recorded:</p>
 <pre class="code" id="tcp-limit-msg"></pre>
-<p>The ninth and tenth calls compiled nothing and ran eagerly, with no error unless <code>fail_on_recompile_limit_hit</code> is set. A silent slowdown is the usual symptom. <code>torch.compile(..., recompile_limit=n)</code> sets it per function at 2.14.1 (a new keyword in its signature), and <code>accumulated_recompile_limit</code> (256) caps all frames together.</p>
+<p>The ninth and tenth calls compiled nothing and ran eagerly, with no error unless <code>fail_on_recompile_limit_hit</code> is set: a silent slowdown is the usual symptom. <code>torch.compile(..., recompile_limit=n)</code> sets it per function at 2.14.1 (a new keyword in its signature), and <code>accumulated_recompile_limit</code> (256) caps all frames together.</p>
 <h3>Unbacked symbols: sizes that come from data</h3>
-<p>A symbol from an input size is <dfn>backed</dfn>: at compile time there is a real example value (a hint) to answer questions like "is s75 &gt; 1?". A symbol from <code>.item()</code> or <code>nonzero()</code> is <dfn>unbacked</dfn>: its value exists only when the graph runs. Dynamo breaks on both by default; with <code>capture_scalar_outputs</code> or <code>capture_dynamic_output_shape_ops</code> it keeps them in the graph as <code>u0</code>, and any branch on them must be answered without a value. On two small functions, the captured graphs (abridged):</p>
-<pre class="code" id="tcp-unb-code"></pre>
-<p>At 2.14.1 slicing by an unbacked size needed no help: Dynamo added the runtime asserts <code>u1 &gt;= 0</code> and <code>u1 &lt;= 64</code> itself. <code>torch._check(n &gt;= 0); torch._check(n &lt;= idx.shape[1])</code> moves the same asserts to your line and tells the compiler facts it can reuse; it is the fix when a branch cannot be decided ("Could not guard on data-dependent expression", the error in section 3). <code>torch.cond</code> is the fix when you really need both branches.</p>
-<p><b>How to check.</b> <code>TORCH_LOGS=recompiles</code> names the failing guard for every recompile; <code>TORCH_LOGS=dynamic</code> shows each symbol as it is created ("create_symbol s75 = 32 for L['idx'].size()[1] [2, int_oo]", recorded) and every guard on it; <code>torch.compiler.set_stance("fail_on_recompile")</code> makes a test fail on any recompile.</p>
-<div class="deepnote"><b>Profile-guided dynamism, measured.</b> <code>automatic_dynamic_local_pgo</code> is on at 2.14.1: Dynamo can remember, in the cache directory, which dimensions turned out dynamic, so the next process compiles them dynamic from the start. But "PGO does nothing (even if explicitly enabled) unless a valid <code>job_id</code> is available" (<code>torch.compiler.config.job_id</code>, torch/compiler/config.py L48-L70 at v2.14.1). Two fresh processes calling T = 64 then 32, sharing one cache directory: <span id="tcp-pgo"></span></div>
+<p>A symbol from an input size is <dfn>backed</dfn>: at compile time there is an example value (a hint) to answer "is s75 &gt; 1?". A symbol from <code>.item()</code> or <code>nonzero()</code> is <dfn>unbacked</dfn>: its value exists only when the graph runs. Dynamo breaks on both by default; with <code>capture_scalar_outputs</code> or <code>capture_dynamic_output_shape_ops</code> it keeps them in the graph as <code>u0</code>, and any branch on them must be answered without a value. <code>torch._check(n &gt;= 0); torch._check(n &lt;= idx.shape[1])</code> states facts the compiler can reuse, the fix when a branch cannot be decided ("Could not guard on data-dependent expression", the error in section 3); <code>torch.cond</code> is the fix when you really need both branches.</p>
+<details class="dp"><summary>The captured graphs with unbacked sizes, and the asserts Dynamo added <span class="mute">(recorded)</span></summary><div class="b"><p>On two small functions, the captured graphs (abridged):</p><pre class="code" id="tcp-unb-code"></pre><p>At 2.14.1 slicing by an unbacked size needed no help: Dynamo added the runtime asserts <code>u1 &gt;= 0</code> and <code>u1 &lt;= 64</code> itself. <code>torch._check</code> moves the same asserts to your line.</p></div></details>
+<p><b>Check.</b> <code>TORCH_LOGS=recompiles</code> names the failing guard for every recompile; <code>TORCH_LOGS=dynamic</code> shows each symbol as it is created ("create_symbol s75 = 32 for L['idx'].size()[1] [2, int_oo]", recorded) and every guard on it; <code>torch.compiler.set_stance("fail_on_recompile")</code> makes a test fail on any recompile.</p>
+<details class="dp"><summary>Profile-guided dynamism across processes needs a job id <span class="mute">(measured)</span></summary><div class="b"><p><code>automatic_dynamic_local_pgo</code> is on at 2.14.1: Dynamo can remember, in the cache directory, which dimensions turned out dynamic, so the next process compiles them dynamic from the start. But "PGO does nothing (even if explicitly enabled) unless a valid <code>job_id</code> is available" (<code>torch.compiler.config.job_id</code>, torch/compiler/config.py L48-L70 at v2.14.1). Two fresh processes calling T = 64 then 32, sharing one cache directory: <span id="tcp-pgo"></span></p></div></details>
 </section>
 <section id="tcp-s5">
 <h2>5. AOTAutograd: the backward graph, and what crosses to it</h2>
-<p><b>The problem.</b> Dynamo captured only the forward. Training also runs a backward, and in eager mode that backward is decided op by op as the forward runs: each operation saves what its own derivative needs. A compiler wants the backward as a graph too, ahead of time, and it wants to choose what is saved rather than accept every op's default.</p>
-<p><b>How it works.</b> AOTAutograd runs the captured forward once more, on fake tensors, through the real autograd machinery, and records forward and backward together as one <dfn>joint graph</dfn> whose inputs are the forward inputs (<code>primals_*</code>) and the incoming gradients (<code>tangents_*</code>). Two rewrites happen on the way: <dfn>functionalization</dfn> replaces in-place and aliasing operations by pure ones (the block's joint graph has no in-place op, measured; the mechanism is section 2.7 of <a href="https://app.notion.com/p/3f85c17b0d0d81138595c1c6cd52f795" target="_blank" rel="noopener noreferrer">Tensors, the dispatcher and autograd</a>), and <dfn>decomposition</dfn> lowers composite ops to a smaller ATen set (<code>F.linear</code> becomes <code>permute</code> + <code>addmm</code>, GELU becomes <code>erf</code>, <code>mul</code>, <code>add</code>). Then a <dfn>partitioner</dfn> cuts the joint graph in two. Every value that crosses the cut is saved by the forward for the backward; everything else the backward needs, it recomputes.</p>
+<p>Dynamo captured only the forward. In eager mode the backward is decided op by op as the forward runs, each op saving what its own derivative needs; a compiler wants the backward as a graph ahead of time, and wants to choose what is saved.</p>
+<p><b>How it works.</b> AOTAutograd runs the captured forward once more, on fake tensors, through the real autograd machinery, and records forward and backward as one <dfn>joint graph</dfn> whose inputs are the forward inputs (<code>primals_*</code>) and the incoming gradients (<code>tangents_*</code>). On the way, <dfn>functionalization</dfn> replaces in-place and aliasing ops by pure ones (the block's joint graph has no in-place op, measured) and <dfn>decomposition</dfn> lowers composite ops to a smaller ATen set (<code>F.linear</code> becomes <code>permute</code> + <code>addmm</code>, GELU becomes <code>erf</code>, <code>mul</code>, <code>add</code>). Then a <dfn>partitioner</dfn> cuts the joint graph in two: every value that crosses the cut is saved by the forward for the backward; everything else the backward needs, it recomputes.</p>
 <div class="mech">
 <div><b>default_partition</b>Save whatever the backward needs that the forward produced; recompute nothing. Close to eager. (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/partitioners.py#L1595" target="_blank" rel="noopener noreferrer">partitioners.py L1595</a>)</div>
-<div><b>min_cut_rematerialization_partition</b>Inductor's default. A max-flow min-cut over the joint graph where cutting an edge means saving that tensor (cost: its bytes) and cheap ops may be recomputed instead; matmuls, reductions and long chains are banned from recompute (<code>ban_recompute_*</code>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/config.py#L159-L174" target="_blank" rel="noopener noreferrer">functorch config.py L159-L174</a>). (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/partitioners.py#L4109" target="_blank" rel="noopener noreferrer">partitioners.py L4109</a>)</div>
-<div><b>activation_memory_budget</b>Below 1.0 (the default, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/config.py#L202" target="_blank" rel="noopener noreferrer">L202</a>) the partitioner may recompute expensive ops too, choosing which by a knapsack (solver "dp", L215) over runtime estimated from FLOPs (L209), until the saved bytes fit the fraction asked for.</div>
+<div><b>min_cut_rematerialization_partition</b>Inductor's default. A max-flow min-cut where cutting an edge means saving that tensor (cost: its bytes) and cheap ops may be recomputed instead; matmuls, reductions and long chains are banned from recompute (<code>ban_recompute_*</code>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/config.py#L159-L174" target="_blank" rel="noopener noreferrer">functorch config.py L159-L174</a>; <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/partitioners.py#L4109" target="_blank" rel="noopener noreferrer">partitioners.py L4109</a>).</div>
+<div><b>activation_memory_budget</b>Below 1.0 (the default, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/config.py#L202" target="_blank" rel="noopener noreferrer">L202</a>) expensive ops may be recomputed too, chosen by a knapsack (solver "dp", L215) over runtime estimated from FLOPs (L209), until the saved bytes fit the fraction asked for.</div>
 </div>
-<p>One block of the running example (training, CPU, input (8, 64, 256)), cut every way, on the real Inductor path (its joint-graph passes, then the partitioner, wrapped to record what it received and returned):</p>
+<p>One block of the running example (training, CPU, input (8, 64, 256)), cut every way on the real Inductor path (its joint-graph passes, then the partitioner, wrapped to record what it received and returned):</p>
 <div class="rd-card" id="tcp-part-card">
-<h4>One block: bytes saved for backward against ops the backward runs</h4>
-<div class="bars" id="tcp-part-bars"></div>
+<h4>Memory is bought with recompute: from 8.40 MB and 88 backward ops to 0 MB and 134</h4>
+<div class="rd-svg" id="tcp-part-svg"></div>
 <p class="small mute" id="tcp-part-note"></p>
 </div>
-<p>Read it from the top. <b>default_partition</b> keeps 8,404,992 bytes, which is eager's number to within 4 bytes (8,404,996 live after one eager block forward, measured on the sibling page), a good check that the accounting is right. <b>Min-cut at budget 1.0</b> keeps 7,880,704 bytes: it noticed that the 524,288-byte <code>.contiguous()</code> copy of the attention output (the input of <code>proj</code>) can be rebuilt in backward from the attention output it saves anyway, and that saving the parameters themselves is free where default saved transposed views of them. So 6% less memory and 10 more backward ops. <b>Lower budgets</b> buy memory with recomputation: at 0.0 nothing but inputs is saved, and the backward reruns the matrix multiplies and the attention, 134 ops instead of 88. The <a href="#" data-tab="t-tcp-part">Partitioner explorer</a> tab draws the block's 144-op joint graph and colours each node by what each cut does with it.</p>
-<p>The whole model behaves the same way: 36,862,468 bytes saved under default_partition (plus 12.63 MB of transposed parameter views, which cost nothing), 34,814,468 at budget 1.0 (the same figure the Compile lab measured), 17,301,504 at 0.5, 6,903,808 at 0.2 and 0 at 0.0, with 427, 578, 593 and 635 backward ops. On a larger configuration <a href="https://app.notion.com/p/3c65c17b0d0d810d9e1fdf9ec942c20d" target="_blank" rel="noopener noreferrer">Making training fast</a> (section 8) measured the same knob at 546.8, 273.0 and 0 MB for budgets 1.0, 0.5 and 0.0.</p>
+<p><b>default_partition</b> keeps 8,404,992 bytes, eager's number to within 4 bytes (8,404,996 live after one eager block forward, measured on the sibling page): the accounting is right. <b>Min-cut at budget 1.0</b> keeps 7,880,704 bytes: the 524,288-byte <code>.contiguous()</code> copy of the attention output (the input of <code>proj</code>) can be rebuilt in backward from the attention output it saves anyway, and saving the parameters themselves is free where default saved transposed views of them. So 6% less memory for 10 more backward ops. <b>Lower budgets</b> buy memory with recomputation: at 0.0 nothing but inputs is saved and the backward reruns the matrix multiplies and the attention. Step through the cuts on the joint graph itself:</p>
+<div class="rd-card" id="tcpp-card">
+<h4>The block's 144-op joint graph: which values each cut saves, and which it recomputes</h4>
+<div class="an-ctl" id="tcpp-ctl"></div>
+<div class="an-cap" id="tcpp-cap"></div>
+<div class="an-cnt" id="tcpp-cnt"></div>
+<div class="leg bx"><span style="--sw:var(--c2)">saved for backward</span><span style="--sw:var(--open2)">computed in forward, recomputed in backward</span><span style="--sw:var(--acc2)">forward only</span><span style="--sw:var(--soft)">backward only</span></div>
+<div class="tcpp-jg" id="tcpp-grid"></div>
+<div class="tcpp-info" id="tcpp-info">Tap an operation.</div>
+<p class="small mute">The joint graph as AOTAutograd handed it to the partitioner after Inductor's joint-graph passes, in order, forward first. Recorded with torch 2.14.1 (exp/aot.py).</p>
+<details class="dp"><summary>What this cut saves, value by value</summary><div class="b"><div class="tw"><table id="tcpp-tbl"></table></div>
+<p class="small mute">Saved values that are graph inputs (the block input, parameters) are kept by the caller anyway and are listed but not counted. default_partition saves transposed views of the weights where min-cut saves the weights themselves; views share the weights' memory, so both cost nothing extra.</p></div></details>
+</div>
 <div class="pr" data-ok="0"><div class="q">Predict: the running example's training step on the CPU with <code>activation_memory_budget = 0.0</code> (save nothing, recompute everything) against the default budget: how much slower?</div>
 <div class="opts"><button data-a="0">Some, well under 2 times</button><button data-a="1">About 2 times: the forward runs twice</button><button data-a="2">Not slower at all</button></div>
 <div class="ans" hidden id="tcp-budget-ans"></div></div>
-<p><b>When it matters.</b> When activations, not parameters, set the batch size you can fit: long sequences, many layers. It is the compiler's version of activation checkpointing (and composes with it: a <code>checkpoint</code>ed region is recomputed whatever the partitioner thinks). On this model the default min-cut barely moves memory; the budget is the lever. <b>How to check:</b> <code>TORCH_LOGS=aot_graphs</code> prints the forward graph (its return statement lists what is saved) and the backward graph; <code>TORCH_LOGS=aot_joint_graph</code> the joint graph.</p>
+<p><b>When it matters</b>: when activations, not parameters, set the batch you can fit (long sequences, many layers). It is the compiler's activation checkpointing, and composes with it: a <code>checkpoint</code>ed region is recomputed whatever the partitioner thinks. On this model the default min-cut barely moves memory; the budget is the lever. <b>Check</b>: <code>TORCH_LOGS=aot_graphs</code> prints the forward graph (its return statement lists what is saved) and the backward graph; <code>TORCH_LOGS=aot_joint_graph</code> the joint graph.</p>
+<details class="dp"><summary>The whole model under each cut, and a larger model <span class="mute">(measured)</span></summary><div class="b"><p>The whole model behaves the same way: 36,862,468 bytes saved under default_partition (plus 12.63 MB of transposed parameter views, which cost nothing), 34,814,468 at budget 1.0 (the same figure the Compile lab measured), 17,301,504 at 0.5, 6,903,808 at 0.2 and 0 at 0.0, with 427, 578, 593 and 635 backward ops. On a larger configuration <a href="https://app.notion.com/p/3c65c17b0d0d810d9e1fdf9ec942c20d" target="_blank" rel="noopener noreferrer">Making training fast</a> (section 8) measured the same knob at 546.8, 273.0 and 0 MB for budgets 1.0, 0.5 and 0.0.</p></div></details>
 </section>
 <section id="tcp-s6">
 <h2>6. Inductor: from ATen graph to fused kernels</h2>
-<p><b>The problem.</b> The graphs AOTAutograd hands over are still one ATen op per line, and running them op by op would be eager mode again. Each element-wise op would read its input from memory and write its output back; the Compile lab's fused GELU moved 4 MiB instead of 36 MiB.</p>
-<p><b>How it works, in three passes.</b></p>
+<p>The graphs AOTAutograd hands over are still one ATen op per line; run op by op, each element-wise op would read its input from memory and write its output back (the Compile lab's fused GELU moved 4 MiB instead of 36 MiB). Inductor works in three passes:</p>
 <div class="stepbox">
-<div style="--sc:var(--c1)"><div class="k">Lowering</div><div class="v">ATen to loops</div><p>Each op becomes a loop body written as a small Python function over indices (Inductor's "define-by-run" IR, <a href="https://docs.pytorch.org/assets/pytorch2-2.pdf" target="_blank" rel="noopener noreferrer">PyTorch 2 paper, section 4</a>). Element-wise ops are <i>inlined into their consumer</i> right here, so a chain like LayerNorm's subtract, multiply, rsqrt never becomes separate nodes. Matmuls and attention become <i>extern</i> nodes: calls to a library.</p></div>
-<div style="--sc:var(--c2)"><div class="k">Scheduling</div><div class="v">fuse nodes</div><p>The scheduler sees the remaining nodes (reductions, pointwise loops, externs) and fuses pairs that can share one loop: a producer with its consumer (vertical), or two nodes reading the same data (horizontal). It refuses when an unfused node would have to run between them, or sizes do not match.</p></div>
+<div style="--sc:var(--c1)"><div class="k">Lowering</div><div class="v">ATen to loops</div><p>Each op becomes a loop body written as a small Python function over indices (Inductor's "define-by-run" IR, <a href="https://docs.pytorch.org/assets/pytorch2-2.pdf" target="_blank" rel="noopener noreferrer">PyTorch 2 paper, section 4</a>). Element-wise ops are <i>inlined into their consumer</i> here, so LayerNorm's subtract, multiply, rsqrt never become separate nodes. Matmuls and attention become <i>extern</i> nodes: library calls.</p></div>
+<div style="--sc:var(--c2)"><div class="k">Scheduling</div><div class="v">fuse nodes</div><p>The scheduler fuses pairs that can share one loop: a producer with its consumer (vertical), or two nodes reading the same data (horizontal). It refuses when an unfused node would have to run between them, or sizes do not match.</p></div>
 <div style="--sc:var(--c3)"><div class="k">Codegen</div><div class="v">kernels + wrapper</div><p>One kernel per fused group: C++ with OpenMP and vector intrinsics on a CPU, Triton on a GPU, Metal on MPS; plus a Python wrapper, <code>call()</code>, that allocates buffers (reusing dead ones) and launches kernels and library calls in order.</p></div>
 </div>
-<p>One block's forward on the CPU (inference, (8, 64, 256)), every scheduler decision recorded with <code>TORCH_LOGS=fusion</code>:</p>
+<p>One block's forward on the CPU (inference, (8, 64, 256)), every scheduler decision recorded with <code>TORCH_LOGS=fusion</code>. <i>Predict before you step: how many kernels does the scheduler end with?</i></p>
 <div class="rd-card" id="tcp-fuse-card">
-<h4>Scheduler nodes of one block, fused round by round</h4>
+<h4>Lowering already did most of the fusing: 16 nodes, 6 fusions, 4 kernels</h4>
 <div class="an-ctl" id="tcp-fuse-ctl"></div>
 <div class="an-cap" id="tcp-fuse-cap"></div>
 <div class="an-cnt" id="tcp-fuse-cnt"></div>
 <div class="tcp-nodes" id="tcp-fuse-nodes"></div>
 <div class="leg"><span style="--sw:var(--c1)">reduction</span><span style="--sw:var(--c3)">pointwise</span><span style="--sw:var(--c2)">extern (library call)</span></div>
 </div>
-<p>Read the result. Lowering had already done most of the work: the 16 nodes it handed to the scheduler contain whole chains (op3 is LayerNorm's normalisation: <code>sub</code>, <code>mul</code>, <code>rsqrt</code>, <code>add</code> folded in; op14 is all of GELU). The scheduler then made 6 fusions in its first round, joining each LayerNorm's two statistics passes and its normalisation into one node, and rejected 27 other pairs, every one for the same reason ("intermediate nodes between node1 &amp; node2"); its second round found nothing. Ten nodes became 4 C++ kernels, 4 <code>addmm</code> calls into the BLAS library and 1 call to the CPU flash-attention kernel. The residual add after attention was fused into the second LayerNorm's kernel (<code>cpp_fused_add_native_layer_norm_view_1</code>): it reads the sum while computing the statistics instead of writing it out first. The wrapper reuses dead buffers 8 times (lines ending <code># reuse</code>).</p>
-<p>The same fused GELU kernel, as Inductor wrote it for the CPU, and as it writes it for a GPU (the code generator of <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a>'s method: Triton 3.8.0 in Docker with a stand-in driver that only answers "which GPU target?"; generated, never run):</p>
+<p>The 16 nodes handed to the scheduler already contain whole chains (op3 is LayerNorm's normalisation with <code>sub</code>, <code>mul</code>, <code>rsqrt</code>, <code>add</code> folded in; op14 is all of GELU). The scheduler made 6 fusions in its first round, joining each LayerNorm's two statistics passes and its normalisation into one node, and rejected 27 other pairs, every one for the same reason ("intermediate nodes between node1 &amp; node2"); its second round found nothing. Ten nodes became 4 C++ kernels, 4 <code>addmm</code> calls into the BLAS library and 1 call to the CPU flash-attention kernel. The residual add after attention was fused into the second LayerNorm's kernel (<code>cpp_fused_add_native_layer_norm_view_1</code>): it reads the sum while computing the statistics instead of writing it out first. The wrapper reuses dead buffers 8 times (lines ending <code># reuse</code>).</p>
+<p>The same fused GELU kernel as Inductor wrote it for the CPU, and as it writes it for a GPU (Triton 3.8.0 in Docker with a stand-in driver that only answers "which GPU target?"; generated, never run; where that Triton goes next is section 1 of <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a>):</p>
 <div class="seg" id="tcp-code-seg"><button class="on" data-m="cpp">C++ (CPU, run here)</button><button data-m="triton">Triton (GPU style, generated only)</button><button data-m="wrap">The wrapper's call()</button></div>
 <pre class="code" id="tcp-code-pre"></pre>
 <p class="small mute" id="tcp-code-note"></p>
-<p>Both kernels do the same arithmetic (0.5 x (1 + erf(x / sqrt 2))) in one pass over 524,288 floats; they differ in how the loop is cut. The C++ splits it across 4 OpenMP threads and steps 4 floats at a time with NEON vectors (<code>Vectorized&lt;float&gt;</code>); the Triton kernel handles one block of <code>XBLOCK</code> elements per program instance and leaves the block size to an autotuner. Triton generated with the same fusion decisions: the same 4 groups (two "per" persistent-reduction kernels for the LayerNorms, two "poi" pointwise kernels).</p>
-<p><b>Knobs.</b> On this block, measured by counting launches in the generated code (training, forward and backward): default 4 + 9 generated kernels, 4 + 8 library matmuls; <code>aggressive_fusion=True</code>, <code>epilogue_fusion=False</code> and <code>pattern_matcher=False</code> changed nothing; <code>cpp_wrapper=True</code> writes the wrapper in C++ instead of Python (611 and 904 lines instead of 491 and 728), removing Python from the per-call path; <code>freezing=True</code> (inference) gave the same 9 launches. The knobs that change a CPU block are few; on a GPU the large ones are <code>max_autotune</code> (try Triton templates against cuBLAS for each matmul), <code>coordinate_descent_tuning</code> and CUDA graphs, which is what the modes bundle (section 7).</p>
-<p><b>How to check.</b> <code>TORCH_LOGS=output_code</code> prints every kernel and the wrapper; <code>TORCH_LOGS=fusion</code> or <code>schedule</code> the decisions; <code>TORCH_LOGS=ir_pre_fusion,ir_post_fusion</code> the scheduler's nodes; kernel names are unique by default at 2.14.1 (<code>TORCHINDUCTOR_UNIQUE_KERNEL_NAMES</code> defaults to 1, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_inductor/config.py#L2102-L2104" target="_blank" rel="noopener noreferrer">inductor config.py L2102-L2104</a>), so a profiler trace maps each kernel back to its source; the old advice to set it is no longer needed.</p>
+<p>Both do the same arithmetic (0.5 x (1 + erf(x / sqrt 2))) in one pass over 524,288 floats and differ in how the loop is cut: the C++ splits it across 4 OpenMP threads and steps 4 floats at a time with NEON vectors (<code>Vectorized&lt;float&gt;</code>); the Triton kernel handles one block of <code>XBLOCK</code> elements per program instance and leaves the block size to an autotuner. Triton came out of the same fusion decisions: the same 4 groups (two "per" persistent-reduction kernels for the LayerNorms, two "poi" pointwise kernels).</p>
+<details class="dp"><summary>Inductor knobs on this block, counted <span class="mute">(measured; most change nothing on a CPU)</span></summary><div class="b"><p>Counting launches in the generated code (training, forward and backward): default 4 + 9 generated kernels, 4 + 8 library matmuls; <code>aggressive_fusion=True</code>, <code>epilogue_fusion=False</code> and <code>pattern_matcher=False</code> changed nothing; <code>cpp_wrapper=True</code> writes the wrapper in C++ instead of Python (611 and 904 lines instead of 491 and 728), removing Python from the per-call path; <code>freezing=True</code> (inference) gave the same 9 launches. On a GPU the large knobs are <code>max_autotune</code> (try Triton templates against cuBLAS for each matmul), <code>coordinate_descent_tuning</code> and CUDA graphs, which is what the modes bundle (section 7).</p></div></details>
+<p><b>Check.</b> <code>TORCH_LOGS=output_code</code> prints every kernel and the wrapper; <code>fusion</code> or <code>schedule</code> the decisions; <code>ir_pre_fusion,ir_post_fusion</code> the scheduler's nodes. Kernel names are unique by default at 2.14.1 (<code>TORCHINDUCTOR_UNIQUE_KERNEL_NAMES</code> defaults to 1, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_inductor/config.py#L2102-L2104" target="_blank" rel="noopener noreferrer">inductor config.py L2102-L2104</a>), so a profiler trace maps each kernel back to its source; the old advice to set it is no longer needed.</p>
 </section>
 <section id="tcp-s7">
 <h2>7. Modes: bundles of Inductor options</h2>
-<p>A <code>mode</code> is only a preset of Inductor config, and <code>torch._inductor.list_mode_options()</code> prints it. At 2.14.1, recorded:</p>
+<p>A <code>mode</code> is only a preset of Inductor config; <code>torch._inductor.list_mode_options()</code> prints it. At 2.14.1, recorded:</p>
 <div class="tw"><table class="rd-tbl tcp-tbl" id="tcp-modes-tbl"></table></div>
-<p>From the docstring at 2.14.1 (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/__init__.py#L3103-L3119" target="_blank" rel="noopener noreferrer">torch/__init__.py L3103-L3119</a>): "reduce-overhead" "reduces the overhead of python with CUDA graphs, useful for small batches", at the cost of memory, and "today, we only reduce overhead for CUDA only graphs which do not mutate inputs"; "max-autotune" "leverages Triton or template based matrix multiplications on supported devices" and "enables CUDA graphs by default on GPU". A fifth preset, <code>"lite"</code>, appears in the table but not in the docstring: it turns most graph passes and buffer reuse off and falls back to eager by default unless a region is marked for compilation (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_inductor/__init__.py#L335-L351" target="_blank" rel="noopener noreferrer">torch/_inductor/__init__.py L335-L351</a>).</p>
-<p><b>What ran here.</b> Not much: the Compile lab measured <code>mode="max-autotune"</code> on the CPU at 23.94 ms against 23.20 default, keeping the BLAS call for every matrix multiply (no template beat it), and <code>"reduce-overhead"</code> at 23.85 ms, doing nothing on a CPU. CUDA graphs (record a whole sequence of kernel launches once, replay it with one call) need an NVIDIA GPU, static shapes and static addresses, and are owned by <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU</a> (its section 4 covers CUDAGraph Trees and Inductor's graph partitions, which split a graph around the parts that cannot be captured; <code>graph_partition</code> is on by default at 2.14.1, read from the config). Not run here: no NVIDIA GPU.</p>
+<p>"reduce-overhead" turns on CUDA graphs (record a whole sequence of kernel launches once, replay it with one call: for small batches, at the cost of memory, and only for CUDA graphs that do not mutate inputs); "max-autotune" adds Triton or template matmuls and also enables CUDA graphs on a GPU. On the laptop's CPU neither did anything: the Compile lab measured <code>mode="max-autotune"</code> at 23.94 ms against 23.20 default (the BLAS call won every matmul) and <code>"reduce-overhead"</code> at 23.85 ms. CUDA graphs need an NVIDIA GPU, static shapes and static addresses, and are owned by <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU</a> (its section 4: CUDAGraph Trees and Inductor's graph partitions, which split a graph around the parts that cannot be captured; <code>graph_partition</code> is on by default at 2.14.1, read from the config). Not run here: no NVIDIA GPU.</p>
+<details class="dp"><summary>The docstring's words, and the undocumented "lite" preset <span class="mute">(torch 2.14.1 source)</span></summary><div class="b"><p>From the docstring at 2.14.1 (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/__init__.py#L3103-L3119" target="_blank" rel="noopener noreferrer">torch/__init__.py L3103-L3119</a>): "reduce-overhead" "reduces the overhead of python with CUDA graphs, useful for small batches", at the cost of memory, and "today, we only reduce overhead for CUDA only graphs which do not mutate inputs"; "max-autotune" "leverages Triton or template based matrix multiplications on supported devices" and "enables CUDA graphs by default on GPU". A fifth preset, <code>"lite"</code>, appears in the table but not in the docstring: it turns most graph passes and buffer reuse off and falls back to eager by default unless a region is marked for compilation (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_inductor/__init__.py#L335-L351" target="_blank" rel="noopener noreferrer">torch/_inductor/__init__.py L335-L351</a>).</p></div></details>
 </section>
 <section id="tcp-s8">
 <h2>8. Compiled autograd: the backward captured when it runs</h2>
-<p><b>The problem.</b> AOTAutograd builds the backward ahead of time, but only for the compiled region. Anything the autograd engine does around it stays eager: gradient hooks, the accumulation into <code>.grad</code>, and in distributed training the communication that DDP and FSDP hook into the backward. A hook on a parameter, for instance, cannot be inside the ahead-of-time graph because it is attached to a tensor, not to code Dynamo traced.</p>
-<p><b>How it works.</b> With <code>torch._dynamo.config.compiled_autograd = True</code> (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/config.py#L770" target="_blank" rel="noopener noreferrer">config.py L770</a>, off by default), when <code>loss.backward()</code> runs inside a compiled function the engine's whole graph is traced at that moment, hooks and accumulation included, into one FX graph that Dynamo and Inductor then compile. The price is that this graph is traced on every backward and guarded on the autograd graph's structure. On the running example's training step, CPU, recorded:</p>
+<p>AOTAutograd builds the backward ahead of time, but only for the compiled region. What the autograd engine does around it stays eager: gradient hooks, accumulation into <code>.grad</code>, and the communication that DDP and FSDP hook into the backward. A hook on a parameter cannot be in the ahead-of-time graph: it is attached to a tensor, not to code Dynamo traced. With <code>torch._dynamo.config.compiled_autograd = True</code> (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/config.py#L770" target="_blank" rel="noopener noreferrer">config.py L770</a>, off by default), when <code>loss.backward()</code> runs inside a compiled function the engine's whole graph is traced at that moment, hooks and accumulation included, into one FX graph that Dynamo and Inductor compile. The price: that graph is traced on every backward and guarded on the autograd graph's structure. The running example's training step, CPU, recorded:</p>
 <div class="tw"><table class="rd-tbl tcp-tbl" id="tcp-ca-tbl"></table></div>
-<p>Without it, a hook on <code>blocks[0].mlp.fc.weight</code> (<code>lambda g: g * 0.5</code>) became a separate one-op graph compiled by Dynamo when the engine called it. With it, the backward is one graph of 730 ops including 52 <code>AccumulateGrad</code> nodes (one per parameter), and the hook is the 731st op inside it. Gradients match eager to 3.6e-07 in every case. Speed on the CPU: the forward-and-backward step 23.36 ms without, 23.57 ms with (medians of 5 x 20 steps under the bench lock): no gain here, because the backward kernels were already compiled and there is no communication to overlap.</p>
-<p><b>When it matters.</b> When the backward contains things worth fusing or overlapping that AOTAutograd cannot see. Dynamo's DDP support documents the trade (<code>optimize_ddp</code>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/config.py#L406-L432" target="_blank" rel="noopener noreferrer">config.py L406-L432</a>): the default "ddp_optimizer" splits the forward graph at DDP's bucket boundaries so that each bucket's all-reduce can start while the rest of the backward runs, and "python_reducer" (experimental) instead "requires the usage of compiled_autograd" to trace the communication without graph breaks. The split is real; on 2 CPU processes (gloo), the compiled DDP model became:</p>
+<p>Without it, a hook on <code>blocks[0].mlp.fc.weight</code> (<code>lambda g: g * 0.5</code>) became a separate one-op graph compiled when the engine called it. With it, the backward is one graph of 730 ops including 52 <code>AccumulateGrad</code> nodes (one per parameter), and the hook is the 731st op inside it. Gradients match eager to 3.6e-07 in every case. Speed on the CPU: 23.36 ms without, 23.57 ms with (medians of 5 x 20 steps, bench lock): no gain, because the backward kernels were already compiled and there is no communication to overlap. <b>When it matters</b>: when the backward holds things worth fusing or overlapping that AOTAutograd cannot see, above all distributed communication.</p>
+<div class="co warn"><div class="t">Correction to the old page</div>It said torchtitan uses compiled autograd for compiled FSDP2. The torchtitan 0.3.0 source has no reference to <code>compiled_autograd</code>; it compiles each transformer block with <code>fullgraph=True</code> (torchtitan/distributed/compile.py L70) and sets <code>capture_scalar_outputs = True</code> for MoE routing (L56).</div>
+<details class="dp"><summary>DDP under compile: ddp_optimizer splits the graph at bucket boundaries <span class="mute">(measured on 2 CPU processes)</span></summary><div class="b"><p>Dynamo's DDP support documents the trade (<code>optimize_ddp</code>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/config.py#L406-L432" target="_blank" rel="noopener noreferrer">config.py L406-L432</a>): the default "ddp_optimizer" splits the forward graph at DDP's bucket boundaries so each bucket's all-reduce can start while the rest of the backward runs, and "python_reducer" (experimental) instead "requires the usage of compiled_autograd" to trace the communication without graph breaks. The split is real; on 2 CPU processes (gloo), the compiled DDP model became:</p>
 <div class="tcp-kv" id="tcp-ddp"></div>
-<p>Correction to the old page: it said torchtitan uses compiled autograd for compiled FSDP2. The torchtitan 0.3.0 source has no reference to <code>compiled_autograd</code>; it compiles each transformer block with <code>fullgraph=True</code> (torchtitan/distributed/compile.py L70) and sets <code>capture_scalar_outputs = True</code> for MoE routing (L56). Distributed internals are owned by <a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a>.</p>
+<p>Distributed internals are owned by <a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a>.</p></div></details>
 </section>
 <section id="tcp-s9">
 <h2>9. Regional compilation: compile the block, not the model</h2>
-<p><b>The problem.</b> Compile time grows with graph size, and an LLM is the same block repeated 32 to 128 times. Compiling the whole model traces and optimises every copy.</p>
-<p><b>How it works.</b> Compile the repeated module instead: <code>for b in model.blocks: b.compile()</code> (<code>nn.Module.compile</code> compiles in place). Dynamo compiles <code>Block.forward</code> once; because parameters are graph inputs (inlined built-in modules, always on at 2.14.1), every other block instance passes the same guards and reuses the code. torchtitan does exactly this with <code>fullgraph=True</code>. A newer variant keeps one compile of the whole model but marks the block as a region compiled once and called many times: <code>torch.compiler.nested_compile_region</code> (in the 2.14.1 API). Cold first training step, fresh process, empty cache, 3 runs each under the bench lock (CPU, 4 threads):</p>
+<p>Compile time grows with graph size, and an LLM is one block repeated 32 to 128 times; compiling the whole model traces and optimises every copy. Compile the repeated module instead: <code>for b in model.blocks: b.compile()</code> (<code>nn.Module.compile</code> compiles in place). Dynamo compiles <code>Block.forward</code> once; because parameters are graph inputs (inlined built-in modules, always on at 2.14.1), every other block instance passes the same guards and reuses the code. torchtitan does exactly this with <code>fullgraph=True</code>. A newer variant keeps one compile of the whole model but marks the block as a region compiled once and called many times: <code>torch.compiler.nested_compile_region</code> (in the 2.14.1 API). Cold first training step, fresh process, empty cache:</p>
 <div class="rd-card" id="tcp-reg-card">
-<h4>Cold compile of the first training step</h4>
-<div class="bars" id="tcp-reg-bars"></div>
+<h4>Per block stays flat as the model doubles; whole-model compile grows</h4>
+<div class="rd-svg" id="tcp-reg-svg"></div>
+<div class="leg"><span style="--sw:var(--c1)">Dynamo tracing</span><span style="--sw:var(--c2)">forward: AOTAutograd + Inductor</span><span style="--sw:var(--c4)">backward compile (at first backward)</span><span style="--sw:var(--dim)">running the step, the rest</span></div>
 <p class="small mute" id="tcp-reg-note"></p>
 </div>
-<p>The whole model went from 9.19 s to 10.85 s when the blocks doubled from 4 to 8; per-block compilation stayed flat (5.72 s, 5.66 s), because the extra blocks cost nothing to compile; <code>nested_compile_region</code> sat between (8.04 s, 8.42 s), since the rest of the model is still traced around the region. Steady-state step time did not suffer here (whole 24.11 ms, regional 23.80, nested 23.91, medians of 5 x 20 steps): the loss of fusion across block boundaries (a residual add that could have joined the next LayerNorm) is too small to see on a CPU. The <a href="#" data-tab="t-tcp-cache">Compile time and caches</a> tab shows each run and its phase breakdown.</p>
-<p><b>When it matters.</b> Always worth trying first on a deep model; the gap grows with depth (here 1.9 times at 8 blocks; production models have tens to hundreds). <b>How to check:</b> the cache counters (<code>fxgraph_cache_miss</code>) were 2 in every variant: one forward and one backward graph compiled, whether that graph is the whole model or one block.</p>
+<p>The whole model went from 9.19 s to 10.85 s when the blocks doubled from 4 to 8; per block stayed flat (5.72 s, 5.66 s) because the extra blocks cost nothing to compile; <code>nested_compile_region</code> sat between (8.04 s, 8.42 s), since the rest of the model is still traced around the region. Steady-state step time did not suffer (whole 24.11 ms, regional 23.80, nested 23.91, medians of 5 x 20 steps): the fusion lost across block boundaries (a residual add that could have joined the next LayerNorm) is too small to see on a CPU. Always worth trying first on a deep model; the gap grows with depth (1.9 times at 8 blocks here; production models have tens to hundreds). <b>Check</b>: the cache counter <code>fxgraph_cache_miss</code> was 2 in every variant: one forward and one backward graph compiled, whether that graph is the whole model or one block.</p>
 </section>
 <section id="tcp-s10">
 <h2>10. Caches: paying the compile once</h2>
-<p><b>The problem.</b> A cold compile of this tiny model's training step takes about 9 seconds on the laptop; real models take minutes, and a job on 1,000 GPUs restarted after a failure would pay it on every rank.</p>
-<p><b>How it works.</b> Several caches on disk, all under <code>TORCHINDUCTOR_CACHE_DIR</code> (a per-user temporary directory by default), each keyed by a hash of its input graph, the config and the versions: the <dfn>FX graph cache</dfn> (Inductor's output for a post-AOTAutograd graph; <code>fx_graph_cache</code>, on, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_inductor/config.py#L109" target="_blank" rel="noopener noreferrer">inductor config.py L109</a>), the <dfn>AOTAutograd cache</dfn> (the forward and backward graphs for a Dynamo graph, so even AOTAutograd is skipped; <code>enable_autograd_cache</code>, on, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/config.py#L71" target="_blank" rel="noopener noreferrer">functorch config.py L71</a>), the compiled kernels themselves (C++ shared objects, Triton binaries) and autotuning results. Dynamo still traces on every new process: guards are not cached by these. <dfn>Mega-cache</dfn> packs the cache entries a process used into one blob: <code>torch.compiler.save_cache_artifacts()</code> returns bytes, <code>load_cache_artifacts(bytes)</code> installs them in another process's cache directory. Measured, whole model, CPU, 3 runs each, each scenario in its own private cache directory:</p>
+<p>A cold compile of this tiny model's step takes about 9 seconds; real models take minutes, and a job on 1,000 GPUs restarted after a failure pays it on every rank. Several caches on disk, all under <code>TORCHINDUCTOR_CACHE_DIR</code> (a per-user temporary directory by default), each keyed by a hash of its input graph, the config and the versions: the <dfn>FX graph cache</dfn> (Inductor's output for a post-AOTAutograd graph; <code>fx_graph_cache</code>, on, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_inductor/config.py#L109" target="_blank" rel="noopener noreferrer">inductor config.py L109</a>), the <dfn>AOTAutograd cache</dfn> (forward and backward graphs for a Dynamo graph, so AOTAutograd is skipped too; <code>enable_autograd_cache</code>, on, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/config.py#L71" target="_blank" rel="noopener noreferrer">functorch config.py L71</a>), the compiled kernels (C++ shared objects, Triton binaries) and autotuning results. Dynamo still traces in every new process: guards are not cached. <dfn>Mega-cache</dfn> packs the entries a process used into one blob: <code>torch.compiler.save_cache_artifacts()</code> returns bytes, <code>load_cache_artifacts(bytes)</code> installs them in another process's cache directory. <i>Predict: a mega-cache loaded into an empty directory, how close to warm?</i></p>
 <div class="rd-card" id="tcp-cache-card">
-<h4>First training step: cold, warm, and from a mega-cache</h4>
-<div class="bars" id="tcp-cache-bars"></div>
+<h4>Warm skips the compile; a mega-cache on a CPU still rebuilds the C++</h4>
+<div class="rd-svg" id="tcp-cache-svg"></div>
 <p class="small mute" id="tcp-cache-note"></p>
 </div>
-<p>Warm, the first step took 0.85 s against 9.08 s cold (medians): both Inductor graphs and the AOTAutograd entry hit, and nothing was compiled. The mega-cache, loaded into an empty directory in a fresh process, gave 5.06 s: the same cache hits (2 FX graph, 1 AOTAutograd), but 4.0 s still went to <code>async_compile.wait</code>, compiling the C++ kernels again. The blob (1,265,370 bytes) carries the generated source, not this machine's compiled <code>.so</code> files, so on a CPU it saves the Python half of the compile and not the C++ half. On a GPU the large win is the Triton kernels and autotuning results it carries (not measured here).</p>
+<p>Warm, the first step took 0.85 s against 9.08 s cold (medians): both Inductor graphs and the AOTAutograd entry hit, nothing was compiled, and what is left is Dynamo tracing again plus loading cached code, the floor of a warm start. The mega-cache gave 5.06 s: the same hits (2 FX graph, 1 AOTAutograd), but 4.0 s still went to <code>async_compile.wait</code>, compiling the C++ kernels again. The blob (1,265,370 bytes) carries generated source, not this machine's compiled <code>.so</code> files, so on a CPU it saves the Python half of the compile and not the C++ half. On a GPU the large win is the Triton kernels and autotuning results it carries (not measured here).</p>
+<details class="dp"><summary>Every timed run, with its phases and cache hits <span class="mute">(3 runs each, bench lock)</span></summary><div class="b">
+<div class="tw"><table class="rd-tbl tcp-tbl" id="tcpc-tbl"></table></div>
+<p class="small mute">Phases are Dynamo's own timers (<code>calculate_time_spent()</code>): Dynamo = <code>entire_frame_compile</code> minus <code>backend_compile</code>; forward = <code>backend_compile</code>; backward = <code>entire_backward_compile</code>; the rest = first-step time minus both. Waiting for the C++ compiler (<code>async_compile.wait</code>) sits inside the forward and backward phases and is listed per run. CPU, 4 threads, torch 2.14.1; the figures above use the run closest to the median of three.</p></div></details>
 <div class="co warn"><div class="t">A cache can serve a wrong program</div>The sibling <a href="https://app.notion.com/p/3f85c17b0d0d8158a7addcd3d601d72a" target="_blank" rel="noopener noreferrer">Extending PyTorch</a> found that the AOTAutograd cache key does not include whether a custom op's autograd formula is registered: a process that registered it late produced a backward that silently dropped gradients, and a later, correct process reading the same cache reused that broken backward. <code>TORCHINDUCTOR_AUTOGRAD_CACHE=0</code> avoided it there. When you change custom-op registrations or other code the key cannot see, use a fresh cache directory.</div>
-<p><b>How to check.</b> The counters <code>torch._dynamo.utils.counters["inductor"]["fxgraph_cache_hit"]</code> and <code>counters["aot_autograd"]["autograd_cache_hit"]</code> (used for the table above); <code>TORCH_LOGS=cache</code>; <code>torch._dynamo.utils.calculate_time_spent()</code> for the phase split. To be sure you are measuring a cold compile, point <code>TORCHINDUCTOR_CACHE_DIR</code> at an empty directory, or set <code>torch.compiler.config.force_disable_caches</code>.</p>
+<p><b>Check.</b> The counters <code>torch._dynamo.utils.counters["inductor"]["fxgraph_cache_hit"]</code> and <code>counters["aot_autograd"]["autograd_cache_hit"]</code> (used for the figure); <code>TORCH_LOGS=cache</code>; <code>torch._dynamo.utils.calculate_time_spent()</code> for the phase split. To be sure you measure a cold compile, point <code>TORCHINDUCTOR_CACHE_DIR</code> at an empty directory, or set <code>torch.compiler.config.force_disable_caches</code>.</p>
 </section>
 <section id="tcp-s11">
 <h2>11. torch.export and AOTInductor: one graph to ship</h2>
-<p><b>The problem.</b> <code>torch.compile</code> is a just-in-time compiler for a Python process: it needs your Python code, falls back to Python at breaks, and recompiles when guards fail. To deploy a model where there is no Python, or to hand a graph to another tool, you need the whole program captured once, ahead of time, with its assumptions written down.</p>
-<p><b>How it works.</b> <code>torch.export.export(model, args, dynamic_shapes=...)</code> captures one graph with no breaks allowed and returns an <dfn>ExportedProgram</dfn>: the graph (ATen ops), a <dfn>graph signature</dfn> saying which inputs are parameters, buffers or user inputs, the <code>state_dict</code>, and <dfn>range constraints</dfn> on every symbolic size. Two tracers: <b>non-strict</b> (the default at 2.14.1, <code>strict=False</code> in its signature) runs your Python normally with fake tensors and records the ATen calls; <b>strict</b> traces through Dynamo, which can reject Python it cannot prove safe. On the running example (logits only, eval) both produced the same 94-op graph, measured; its signature lists 53 parameter inputs (the tied embedding twice, under its two names) and 1 user input. <code>ep.run_decompositions()</code> lowers it to the core ATen set: 326 ops.</p>
+<p><code>torch.compile</code> is a just-in-time compiler inside a Python process: it needs your code, falls back to Python at breaks and recompiles when guards fail. To deploy where there is no Python, or hand a graph to another tool, the whole program must be captured once, ahead of time, with its assumptions written down. <code>torch.export.export(model, args, dynamic_shapes=...)</code> captures one graph with no breaks allowed and returns an <dfn>ExportedProgram</dfn>: the graph (ATen ops), a <dfn>graph signature</dfn> saying which inputs are parameters, buffers or user inputs, the <code>state_dict</code>, and <dfn>range constraints</dfn> on every symbolic size. Two tracers: <b>non-strict</b> (the default at 2.14.1, <code>strict=False</code> in its signature) runs your Python normally with fake tensors and records the ATen calls; <b>strict</b> traces through Dynamo, which can reject Python it cannot prove safe. On the running example (logits only, eval) both gave the same 94-op graph, measured; its signature lists 53 parameter inputs (the tied embedding twice, under its two names) and 1 user input; <code>ep.run_decompositions()</code> lowers it to the core ATen set, 326 ops. What export did with each specification, recorded:</p>
 <div class="tw"><table class="rd-tbl tcp-tbl" id="tcp-exp-tbl"></table></div>
-<p>Four lessons from the table. <b>(1)</b> A dynamic dimension you declare is checked: the reshape to 8 rows made export fail with "You marked batch as dynamic but your code specialized it to be a constant (8)" and a suggested fix. <b>(2)</b> A range is not checked against data: T up to 128 exported fine although the position table has 64 rows; T &gt; 64 would index past it at run time. With the correct range, a T = 100 input was rejected on entry ("Guard failed: idx.size()[1] &lt;= 64", recorded). <b>(3)</b> <code>Dim.AUTO</code> found both dimensions dynamic but from 2, not 1 (0/1 specialisation again). <b>(4)</b> Data-dependent Python control flow cannot be exported in either mode; <code>torch.cond</code> can. <code>torch.export.draft_export</code> exports it anyway and reports the problem; here it picked the branch the example took (<code>cos</code>) and inserted a runtime assert, with the advice to add <code>torch._check</code>.</p>
-<p><b>Saving and AOTInductor.</b> <code>torch.export.save</code> wrote a 12,986,850-byte <code>.pt2</code> archive (52 weight files, since tied weights are stored once, plus the graph as JSON); loading it gave identical outputs. <code>torch._inductor.aoti_compile_and_package(ep)</code> compiles the program ahead of time into a shared library inside a 14,358,669-byte package (the 14,163,036-byte <code>wrapper.so</code> holds the weights) that <code>aoti_load_package</code> runs from Python, or a C++ runner without Python. Outputs matched eager within 1.25e-06 at (8, 64).</p>
+<p>Two lessons. <b>A dynamic dimension you declare is checked</b>: the reshape to 8 rows made export fail with "You marked batch as dynamic but your code specialized it to be a constant (8)" and a suggested fix. <b>A range is not checked against data</b>: T up to 128 exported fine although the position table has 64 rows, so T &gt; 64 would index past it at run time; with the correct range a T = 100 input was rejected on entry ("Guard failed: idx.size()[1] &lt;= 64", recorded). <code>torch._inductor.aoti_compile_and_package(ep)</code> (<dfn>AOTInductor</dfn>) compiles the program ahead of time into a shared library in a 14,358,669-byte package that <code>aoti_load_package</code> runs from Python, or a C++ runner without Python; outputs matched eager within 1.25e-06 at (8, 64).</p>
+<details class="dp"><summary>Dim.AUTO, control flow and draft_export; saving a .pt2; what the package holds <span class="mute">(recorded)</span></summary><div class="b"><p><code>Dim.AUTO</code> found both dimensions dynamic but from 2, not 1 (0/1 specialisation again). Data-dependent Python control flow cannot be exported in either mode; <code>torch.cond</code> can. <code>torch.export.draft_export</code> exports it anyway and reports the problem; here it picked the branch the example took (<code>cos</code>) and inserted a runtime assert, with the advice to add <code>torch._check</code>.</p>
+<p><code>torch.export.save</code> wrote a 12,986,850-byte <code>.pt2</code> archive (52 weight files, since tied weights are stored once, plus the graph as JSON); loading it gave identical outputs. In the AOTInductor package, the 14,163,036-byte <code>wrapper.so</code> holds the weights.</p></div></details>
 <div class="co warn"><div class="t">Measured here: AOTInductor and a non-contiguous input</div>A slice <code>x[:3, :20]</code> of the batch (strides (64, 1), not contiguous) passed to the AOTInductor package returned logits with a maximum error of <b>1.81</b> against eager, with no error or warning; the same input after <code>.contiguous()</code> matched within 9.5e-07, and the exported program's own <code>ep.module()</code> handled the slice exactly (0.0). The compiled library assumed the strides it was compiled for. Call <code>.contiguous()</code> on inputs to an AOTInductor model.</div>
-<p><b>Where it leads.</b> ExecuTorch (on-device) and the ONNX exporter (dynamo-based by default since 2.9) start from <code>torch.export</code>; the file formats are on <a href="https://app.notion.com/p/3cd5c17b0d0d81ea815aedfa052e4919" target="_blank" rel="noopener noreferrer">Model formats</a>.</p>
+<p><b>Where it leads.</b> ExecuTorch (on-device) and the ONNX exporter (dynamo-based by default since 2.9) start from <code>torch.export</code>; what a model file holds in each format is section 3 of <a href="https://app.notion.com/p/3c65c17b0d0d81f7a144fe25d799e811" target="_blank" rel="noopener noreferrer">Local and on-device inference</a>.</p>
 </section>
 <section id="tcp-s12">
 <h2>12. Debugging: a workflow and its tools</h2>
-<p>When compile misbehaves, the symptom is one of four: it is slow to compile, it is not faster, it gives different numbers, or it crashes. The workflow, each step with the tool used on this page:</p>
+<p>The symptom is one of four: slow to compile, not faster, different numbers, or a crash. The workflow, each step with the tool used on this page:</p>
 <ol>
 <li><b>Count graphs and breaks first.</b> <code>torch._dynamo.explain(model)(x, y)</code> (sections 3 and 4). Then <code>TORCH_LOGS="graph_breaks,recompiles"</code> on a real run.</li>
 <li><b>Bisect the stack.</b> <code>backend="eager"</code> runs Dynamo only, <code>"aot_eager"</code> adds AOTAutograd, the default adds Inductor. Whichever first changes the numbers or crashes is the culprit.</li>
@@ -443,13 +510,15 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <li><b>Shrink a crash.</b> <code>torch._dynamo.config.repro_after = "aot"</code> (or <code>"dynamo"</code>) makes a failing compile write a launcher script; running it minifies the graph.</li>
 <li><b>Find where compile time goes.</b> <code>torch._dynamo.utils.calculate_time_spent()</code> (section 10), or the <code>compilation_metrics</code> pages tlparse writes.</li>
 </ol>
-<p><b>tlparse on a real run.</b> The running example with a <code>print</code> in <code>Block.forward</code>, run for two steps with batch 8 then 4 (one recompile), traced and parsed with tlparse 0.4.3 (installed here). The compile ids it lists, <code>[frame/attempt]</code>:</p>
+<details class="dp"><summary>tlparse on a real run: the compile ids of a model with a print in each block <span class="mute">(tlparse 0.4.3, recorded)</span></summary><div class="b">
+<p>The running example with a <code>print</code> in <code>Block.forward</code>, run for two steps with batch 8 then 4 (one recompile), traced and parsed with tlparse 0.4.3 (installed here). The compile ids it lists, <code>[frame/attempt]</code>:</p>
 <div class="tw"><table class="rd-tbl tcp-tbl" id="tcp-tl-tbl"></table></div>
-<p>Frame 0 is <code>GPT.forward</code>: its only artifact is the break ("Failed to handle graph break gracefully. Skipping the function and falling back to eager"), confirming section 3's surprise. Frame 1 is <code>Block.forward</code> before the print, frame 2 the resume function after it ("torch_dynamo_resume_in_blk_print_at_10"); each compiled twice, the second time because "tensor 'x' size mismatch at index 0. expected 8, actual 4". Each compiled frame lists about 30 artifacts, from the Dynamo graph to the cache misses.</p>
-<p><b>The minifier on purpose.</b> Inductor has a test-only switch that makes every <code>relu</code> fail to compile (<code>torch._inductor.config.cpp.inject_relu_bug_TESTING_ONLY = "compile_error"</code>). With <code>repro_after = "aot"</code>, a five-line function (matmul, scale, add, relu, matmul, LayerNorm, sum) crashed with a C++ compile error and left a launcher script; running it, recorded:</p>
+<p>Frame 0 is <code>GPT.forward</code>: its only artifact is the break ("Failed to handle graph break gracefully. Skipping the function and falling back to eager"), confirming section 3. Frame 1 is <code>Block.forward</code> before the print, frame 2 the resume function after it ("torch_dynamo_resume_in_blk_print_at_10"); each compiled twice, the second time because "tensor 'x' size mismatch at index 0. expected 8, actual 4". Each compiled frame lists about 30 artifacts, from the Dynamo graph to the cache misses.</p></div></details>
+<details class="dp"><summary>The minifier on purpose: a crash shrunk to the failing op <span class="mute">(recorded)</span></summary><div class="b">
+<p>Inductor has a test-only switch that makes every <code>relu</code> fail to compile (<code>torch._inductor.config.cpp.inject_relu_bug_TESTING_ONLY = "compile_error"</code>). With <code>repro_after = "aot"</code>, a five-line function (matmul, scale, add, relu, matmul, LayerNorm, sum) crashed with a C++ compile error and left a launcher script; running it, recorded:</p>
 <div class="tcp-kv" id="tcp-mini"></div>
 <pre class="code" id="tcp-mini-code"></pre>
-<p>That is the deliverable you attach to a bug report: a self-contained script whose graph is just the failing op. The minifier's strategies (dead-code elimination, removing inputs and outputs, truncating the graph, delta debugging) ran 25 times; on a large model this takes hours rather than the 65 seconds here, so run it on a small reproduction when you can.</p>
+<p>That is the deliverable you attach to a bug report: a self-contained script whose graph is just the failing op. The minifier's strategies (dead-code elimination, removing inputs and outputs, truncating the graph, delta debugging) ran 25 times; on a large model this takes hours rather than the 65 seconds here, so run it on a small reproduction when you can.</p></div></details>
 </section>
 <section id="tcp-s13">
 <h2>13. What carries over to NVIDIA GPUs, and what does not</h2>
@@ -465,140 +534,39 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>reduce-overhead, max-autotune, CUDA graphs</td><td>Not run here: CUDA only. See <a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU</a>.</td></tr>
 </tbody></table></div>
 </section>
-<section id="tcp-mis">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Logging inside the model with <code>print</code> or <code>.item()</code></summary><div class="b">Each is a graph break; inside the block loop it costs the whole <code>forward</code> (section 3). Log outside the compiled function, or keep values as tensors and read them every N steps.</div></details>
-<details class="mist"><summary>Calling <code>mark_dynamic</code> on one tensor of several that share a dimension</summary><div class="b">The targets carry the same length as the inputs and are guarded too (Compile lab); mark every tensor with the dimension, or give the bound with <code>min</code> and <code>max</code> so violations are errors you see.</div></details>
-<details class="mist"><summary>Assuming <code>nested_graph_breaks</code> keeps a model compiled</summary><div class="b">It did nothing for a break inside a <code>for</code> loop over blocks, measured (section 3).</div></details>
-<details class="mist"><summary>Passing a different Python string, dtype or config value each call</summary><div class="b">Guarded by value with no symbolic fallback: after 8 versions, eager mode with only a warning (section 4).</div></details>
-<details class="mist"><summary>Timing the first call</summary><div class="b">It includes 9 seconds of compiling here; warm up, then time, and synchronise on a GPU (<a href="https://app.notion.com/p/3c65c17b0d0d810d9e1fdf9ec942c20d" target="_blank" rel="noopener noreferrer">Making training fast</a> section 1).</div></details>
-<details class="mist"><summary>Compiling the whole model when compile time hurts</summary><div class="b">Compile the block (section 9): 5.7 s instead of 9.2 s here, and it does not grow with depth.</div></details>
-<details class="mist"><summary>Measuring a "cold" compile with a warm cache</summary><div class="b">The caches are on by default and survive processes: 0.85 s looks like a fast compiler. Use an empty <code>TORCHINDUCTOR_CACHE_DIR</code>.</div></details>
-<details class="mist"><summary>Feeding a sliced tensor to an AOTInductor package</summary><div class="b">Wrong answers with no warning, measured (section 11). Make inputs contiguous.</div></details>
-<details class="mist"><summary>Reading <code>activation_memory_budget</code> from <code>torch._dynamo.config</code></summary><div class="b">It lives in <code>torch._functorch.config</code> at 2.14.1 (the sibling page found the blog's spelling does not exist).</div></details>
+<section id="tcp-dep">
+<h2>Depth: common mistakes and interview rehearsal</h2>
+<details class="dp"><summary>Common mistakes, each measured on this page <span class="mute">(nine)</span></summary><div class="b">
+<p class="small"><b>Logging inside the model with <code>print</code> or <code>.item()</code>.</b> Each is a graph break; inside the block loop it costs the whole <code>forward</code> (section 3). Log outside the compiled function, or keep values as tensors and read them every N steps.</p>
+<p class="small"><b>Calling <code>mark_dynamic</code> on one tensor of several that share a dimension.</b> The targets carry the same length as the inputs and are guarded too (Compile lab); mark every tensor with the dimension, or give the bound with <code>min</code> and <code>max</code> so violations are errors you see.</p>
+<p class="small"><b>Assuming <code>nested_graph_breaks</code> keeps a model compiled.</b> It did nothing for a break inside a <code>for</code> loop over blocks, measured (section 3).</p>
+<p class="small"><b>Passing a different Python string, dtype or config value each call.</b> Guarded by value with no symbolic fallback: after 8 versions, eager mode with only a warning (section 4).</p>
+<p class="small"><b>Timing the first call.</b> It includes 9 seconds of compiling here; warm up, then time, and synchronise on a GPU (<a href="https://app.notion.com/p/3c65c17b0d0d810d9e1fdf9ec942c20d" target="_blank" rel="noopener noreferrer">Making training fast</a> section 1).</p>
+<p class="small"><b>Compiling the whole model when compile time hurts.</b> Compile the block (section 9): 5.7 s instead of 9.2 s here, and it does not grow with depth.</p>
+<p class="small"><b>Measuring a "cold" compile with a warm cache.</b> The caches are on by default and survive processes: 0.85 s looks like a fast compiler. Use an empty <code>TORCHINDUCTOR_CACHE_DIR</code>.</p>
+<p class="small"><b>Feeding a sliced tensor to an AOTInductor package.</b> Wrong answers with no warning, measured (section 11). Make inputs contiguous.</p>
+<p class="small"><b>Reading <code>activation_memory_budget</code> from <code>torch._dynamo.config</code>.</b> It lives in <code>torch._functorch.config</code> at 2.14.1 (the sibling page found the blog's spelling does not exist).</p>
+</div></details>
+<details class="dp"><summary>Interview rehearsal, with short answers <span class="mute">(ten)</span></summary><div class="b">
+<p class="small"><b>How does Dynamo capture a graph without running the model on real data?</b> It installs a PEP 523 frame evaluator and symbolically executes each frame's bytecode with VariableTrackers; tensors are fake tensors carrying shapes, so ops add FX nodes and Python values are computed at trace time and protected by guards.</p>
+<p class="small"><b>What is a guard, and what happens when one fails?</b> A condition the compiled code assumed (shape, dtype, object identity, global state), checked in C++ before each call. On failure Dynamo recompiles and caches another version, up to <code>recompile_limit</code> (8), then runs eagerly.</p>
+<p class="small"><b>Why might one graph break cost the whole model?</b> A break inside a loop cannot be resumed, so Dynamo skips the enclosing frame: everything outside the blocks runs eagerly and the blocks compile in pieces.</p>
+<p class="small"><b>Backed versus unbacked symbolic sizes?</b> Backed come from input sizes and have an example value to answer branches; unbacked come from data (<code>.item()</code>, <code>nonzero</code>) and do not, so branches on them need <code>torch._check</code> or <code>torch.cond</code>.</p>
+<p class="small"><b>What does the min-cut partitioner optimise?</b> Which joint-graph values the forward saves for backward: it minimises saved bytes, recomputing cheap ops; <code>activation_memory_budget</code> lets it recompute expensive ones too.</p>
+<p class="small"><b>Where does Inductor fuse?</b> Mostly at lowering (pointwise ops are inlined into consumers), then in the scheduler (vertical and horizontal fusion of loops); matmuls and attention stay library calls unless autotuning picks a template.</p>
+<p class="small"><b>What do the modes change?</b> Only Inductor config: reduce-overhead turns on CUDA graphs; max-autotune adds matmul autotuning, coordinate-descent tuning and CUDA graphs; -no-cudagraphs drops the graphs.</p>
+<p class="small"><b>Compiled autograd: what and why?</b> Tracing the autograd engine's graph at backward time, including hooks and accumulation, so the backward compiles as one graph and distributed communication can be traced and overlapped.</p>
+<p class="small"><b>How do you cut compile time for a 70B model?</b> Regional compilation of the repeated block, warm caches shared across ranks (mega-cache), avoiding recompiles (mark dynamic dims, stable Python args), and profiling compile time by phase.</p>
+<p class="small"><b>torch.compile versus torch.export?</b> compile is a JIT inside Python that tolerates breaks and recompiles; export captures one full graph with explicit dynamic-shape constraints for deployment (ExecuTorch, AOTInductor, ONNX).</p>
+</div></details>
 </section>
-<section id="tcp-iq">
-<h2>Interview questions, with short answers</h2>
-<details class="qa"><summary>How does Dynamo capture a graph without running the model on real data?</summary><div>It installs a PEP 523 frame evaluator and symbolically executes each frame's bytecode with VariableTrackers; tensors are fake tensors carrying shapes, so ops add FX nodes and Python values are computed at trace time and protected by guards.</div></details>
-<details class="qa"><summary>What is a guard, and what happens when one fails?</summary><div>A condition the compiled code assumed (shape, dtype, object identity, global state), checked in C++ before each call. On failure Dynamo recompiles and caches another version, up to <code>recompile_limit</code> (8), then runs eagerly.</div></details>
-<details class="qa"><summary>Why might one graph break cost the whole model?</summary><div>A break inside a loop cannot be resumed, so Dynamo skips the enclosing frame: everything outside the blocks runs eagerly and the blocks compile in pieces.</div></details>
-<details class="qa"><summary>Backed versus unbacked symbolic sizes?</summary><div>Backed come from input sizes and have an example value to answer branches; unbacked come from data (<code>.item()</code>, <code>nonzero</code>) and do not, so branches on them need <code>torch._check</code> or <code>torch.cond</code>.</div></details>
-<details class="qa"><summary>What does the min-cut partitioner optimise?</summary><div>Which joint-graph values the forward saves for backward: it minimises saved bytes, recomputing cheap ops; <code>activation_memory_budget</code> lets it recompute expensive ones too.</div></details>
-<details class="qa"><summary>Where does Inductor fuse?</summary><div>Mostly at lowering (pointwise ops are inlined into consumers), then in the scheduler (vertical and horizontal fusion of loops); matmuls and attention stay library calls unless autotuning picks a template.</div></details>
-<details class="qa"><summary>What do the modes change?</summary><div>Only Inductor config: reduce-overhead turns on CUDA graphs; max-autotune adds matmul autotuning, coordinate-descent tuning and CUDA graphs; -no-cudagraphs drops the graphs.</div></details>
-<details class="qa"><summary>Compiled autograd: what and why?</summary><div>Tracing the autograd engine's graph at backward time, including hooks and accumulation, so the backward compiles as one graph and distributed communication can be traced and overlapped.</div></details>
-<details class="qa"><summary>How do you cut compile time for a 70B model?</summary><div>Regional compilation of the repeated block, warm caches shared across ranks (mega-cache), avoiding recompiles (mark dynamic dims, stable Python args), and profiling compile time by phase.</div></details>
-<details class="qa"><summary>torch.compile versus torch.export?</summary><div>compile is a JIT inside Python that tolerates breaks and recompiles; export captures one full graph with explicit dynamic-shape constraints for deployment (ExecuTorch, AOTInductor, ONNX).</div></details>
-</section>
-</div>
-<div class="tab" id="t-tcp-brk" role="tabpanel" hidden>
-<style>
-#t-tcp-brk .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-tcp-brk .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
-#t-tcp-brk .an-cap{min-height:4.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
-#t-tcp-brk .an-cap .t{font-weight:600;font-size:14px}#t-tcp-brk .an-cap p{margin:2px 0;font-size:13.5px}
-#t-tcp-brk .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
-#t-tcp-brk .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-tcp-brk .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
-#t-tcp-brk .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
-#t-tcp-brk .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
-#t-tcp-brk .cols>div{min-width:0}
-#t-tcp-brk pre{font:12px/1.45 ui-monospace,Menlo,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;margin:4px 0;white-space:pre}
-#t-tcp-brk .strip{display:flex;flex-wrap:wrap;gap:3px;margin:8px 0}
-#t-tcp-brk .strip span{font-size:11.5px;border-radius:4px;padding:3px 6px;border:1px solid var(--line);min-width:0}
-#t-tcp-brk .strip .c{background:var(--open2);border-color:var(--good)}#t-tcp-brk .strip .e{border-style:dashed;color:var(--mute)}
-#t-tcp-brk .strip .on{outline:2px solid var(--acc);outline-offset:1px}
-#t-tcp-brk .err{font:12px/1.4 ui-monospace,Menlo,monospace;color:var(--bad);overflow-wrap:anywhere}
-</style>
-<h2 style="margin-top:14px">Graph-break fixer</h2>
-<p>Nine lines that break graphs, each placed in the running example's <code>Block.forward</code> between attention and the MLP, and a fix for each (twelve rows: three lines have two different fixes). Pick a kind, then play one forward pass broken and fixed: green pieces run compiled, dashed ones run as plain Python. Every number is recorded (torch 2.14.1, CPU, <code>exp/fixer.py</code>); background in Reading <a href="#" data-tab="t-read">section 3</a>.</p>
-<div class="seg" id="tcpb-kind"></div>
-<div class="cols"><div><b>Broken</b><pre id="tcpb-src-b"></pre></div><div><b>Fixed</b> <span class="small mute" id="tcpb-how"></span><pre id="tcpb-src-f"></pre></div></div>
-<div class="card" id="tcpb-card">
-<div class="seg" id="tcpb-mode"><button class="on" data-m="b">Broken</button><button data-m="f">Fixed</button></div>
-<div class="an-ctl" id="tcpb-ctl"></div>
-<div class="an-cap" id="tcpb-cap"></div>
-<div class="an-cnt" id="tcpb-cnt"></div>
-<div class="strip" id="tcpb-strip"></div>
-</div>
-<p><b>Dynamo's reason:</b> <span id="tcpb-reason"></span></p>
-<p><b>With <code>fullgraph=True</code>:</b> <span class="err" id="tcpb-full"></span></p>
-<p class="small mute">The strip is drawn from the counting backend's record: which compiled pieces exist (ops in each) and how many piece calls one forward makes. The order of the eager segments between them is the model's (embedding, 4 blocks, final LayerNorm, head and loss).</p>
-</div>
-<div class="tab" id="t-tcp-cache" role="tabpanel" hidden>
-<style>
-#t-tcp-cache .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-tcp-cache .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
-#t-tcp-cache .an-cap{min-height:3.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
-#t-tcp-cache .an-cap .t{font-weight:600;font-size:14px}#t-tcp-cache .an-cap p{margin:2px 0;font-size:13.5px}
-#t-tcp-cache .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
-#t-tcp-cache .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-tcp-cache .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
-#t-tcp-cache .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
-#t-tcp-cache .tl .row{display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr) 4.6em;gap:8px;align-items:center;font-size:12.5px;margin:5px 0}
-#t-tcp-cache .tl .tr{height:18px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
-#t-tcp-cache .tl .tr span{position:absolute;top:0;bottom:0}
-#t-tcp-cache .tl .v{text-align:right;font-variant-numeric:tabular-nums}
-#t-tcp-cache .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
-#t-tcp-cache .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw)}
-#t-tcp-cache td.num{font-variant-numeric:tabular-nums}
-#t-tcp-cache .tw table{min-width:600px}
-@media (max-width:520px){#t-tcp-cache .tl .row{grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 3.8em}}
-</style>
-<h2 style="margin-top:14px">Compile time and caches</h2>
-<p>The first training step of the running example in a fresh process, played back in real proportion: where the seconds go, and what each way of compiling or caching removes. Each bar is the run closest to the median of three (CPU, 4 threads, torch 2.14.1, bench lock); the phases are Dynamo's own timers (<code>calculate_time_spent()</code>). Background in Reading <a href="#" data-tab="t-read">sections 9 and 10</a>.</p>
-<div class="card" id="tcpc-card">
-<div class="seg" id="tcpc-set"><button class="on" data-m="cache">Cold, warm, mega-cache</button><button data-m="reg">Whole model against per block (4 and 8 blocks)</button></div>
-<div class="an-ctl" id="tcpc-ctl"></div>
-<div class="an-cap" id="tcpc-cap"></div>
-<div class="an-cnt" id="tcpc-cnt"></div>
-<div class="tl" id="tcpc-tl"></div>
-<div class="leg"><span style="--sw:var(--c1)">Dynamo tracing</span><span style="--sw:var(--c2)">forward: AOTAutograd + Inductor</span><span style="--sw:var(--c4)">backward compile (at first backward)</span><span style="--sw:var(--dim)">running the step, the rest</span></div>
-</div>
-<p class="small mute">How the phases are derived: Dynamo = <code>entire_frame_compile</code> minus <code>backend_compile</code>; forward = <code>backend_compile</code>; backward = <code>entire_backward_compile</code>; the rest = first-step time minus both. Waiting for the C++ compiler (<code>async_compile.wait</code>) sits inside the forward and backward phases; it is listed per run below.</p>
-<h3>Every run</h3>
-<div class="tw"><table id="tcpc-tbl"></table></div>
-<p>What to take away. The warm run did no compiling: its 0.85 s is Dynamo tracing again plus loading cached code, which is why guards and tracing are the floor of a warm start. The mega-cache run hit the same caches but still waited about 4 s for the C++ compiler, because on a CPU the blob carries kernel source, not the built libraries. Per-block compilation cut the cold start by about 40% at 4 blocks and by half at 8, and did not grow with depth.</p>
-</div>
-<div class="tab" id="t-tcp-part" role="tabpanel" hidden>
-<style>
-#t-tcp-part .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-tcp-part .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
-#t-tcp-part .an-cap{min-height:4.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
-#t-tcp-part .an-cap .t{font-weight:600;font-size:14px}#t-tcp-part .an-cap p{margin:2px 0;font-size:13.5px}
-#t-tcp-part .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
-#t-tcp-part .jg{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:3px;margin:8px 0}
-#t-tcp-part .jg button{font:10.5px/1.15 ui-monospace,Menlo,monospace;padding:3px 2px;border-radius:4px;border:1px solid var(--line);background:var(--bg);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;transition:background .3s}
-#t-tcp-part .jg button.fw{background:var(--acc2)}#t-tcp-part .jg button.bw{background:var(--soft);color:var(--mute)}
-#t-tcp-part .jg button.sv{background:var(--c2);color:var(--bg);border-color:var(--c2)}
-#t-tcp-part .jg button.rc{background:var(--open2);border-color:var(--good);color:var(--ink)}
-#t-tcp-part .jg button.sel{outline:2px solid var(--ink);outline-offset:1px}
-#t-tcp-part .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
-#t-tcp-part .leg span:before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;background:var(--sw);border:1px solid var(--line)}
-#t-tcp-part .info{min-height:3em;font-size:13px;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:6px 0;overflow-wrap:anywhere}
-#t-tcp-part td.num{font-variant-numeric:tabular-nums}
-</style>
-<h2 style="margin-top:14px">Partitioner explorer</h2>
-<p>The joint forward-and-backward graph of one block of the running example (training, input (8, 64, 256), CPU), as AOTAutograd handed it to the partitioner after Inductor's joint-graph passes: 144 operations in order, forward first. Play the animation to watch the cut move from "save everything the backward needs" to "save nothing", or tap any operation to see what each partitioner does with it. Recorded with torch 2.14.1 (<code>exp/aot.py</code>); background in Reading <a href="#" data-tab="t-read">section 5</a>.</p>
-<div class="card" id="tcpp-card">
-<div class="an-ctl" id="tcpp-ctl"></div>
-<div class="an-cap" id="tcpp-cap"></div>
-<div class="an-cnt" id="tcpp-cnt"></div>
-<div class="leg"><span style="--sw:var(--c2)">saved for backward</span><span style="--sw:var(--open2)">computed in forward, recomputed in backward</span><span style="--sw:var(--acc2)">forward only</span><span style="--sw:var(--soft)">backward only</span></div>
-<div class="jg" id="tcpp-grid"></div>
-<div class="info" id="tcpp-info">Tap an operation.</div>
-</div>
-<h3>What this cut saves</h3>
-<div class="tw"><table id="tcpp-tbl"></table></div>
-<p class="small mute">Saved values that are graph inputs (the block input, parameters) are kept by the caller anyway and are listed but not counted. default_partition saves transposed views of the weights where min-cut saves the weights themselves; views share the weights' memory, so both cost nothing extra.</p>
 </div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more">
-<p class="lead">This page's tabs, the parent topic and its labs, the sibling pages, neighbouring knowledge base pages and the best outside resources, each with an approximate time. Links checked on 2026-10-13.</p>
+<p class="lead">This page, the parent topic and its labs, the sibling pages, neighbouring knowledge base pages and the best outside resources, each with an approximate time. Links checked on 2026-10-13.</p>
 <h3>This page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>Dynamo, guards, graph breaks, dynamic shapes, AOTAutograd's partitioner, Inductor's fusion and code, modes, compiled autograd, regional compilation, caches, export and AOTInductor, debugging, all on the running example. <span class="rt">about 45 min, plus the animations</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-tcp-brk">Graph-break fixer</a></div><p>Nine break kinds (twelve fixes) in the running example, each with its fix, Dynamo's reason, the fullgraph error and the compiled pieces of one forward, broken and fixed. <span class="rt">10 to 15 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-tcp-cache">Compile time and caches</a></div><p>The first training step played back to scale: cold, warm and mega-cache; whole model against per block at 4 and 8 blocks; every run with its phases and cache hits. <span class="rt">5 to 10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-tcp-part">Partitioner explorer</a></div><p>One block's 144-op joint graph, coloured by what each partitioner saves and recomputes, from default_partition to budget 0.0. <span class="rt">10 min</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>Dynamo, guards, graph breaks (with the graph-break fixer), dynamic shapes, AOTAutograd's partitioner (with the joint-graph explorer), Inductor's fusion and code, modes, compiled autograd, regional compilation, caches, export and AOTInductor, debugging, all on the running example. <span class="rt">32 min, plus 14 in closed details</span></p></div>
 </div>
 <h3>The parent topic and its siblings</h3>
 <div class="grid">
@@ -611,11 +579,11 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 </div>
 <h3>Neighbouring pages</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack: PTX, SASS, NVRTC, torch.compile and Inductor</a></div><p>Below Inductor: Triton to PTX to SASS; its own torch.compile sections on small programs, with every log. <span class="rt">28 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU</a></div><p>CUDA graphs, CUDAGraph Trees and Inductor's graph partitions: what reduce-overhead does on a GPU. <span class="rt">36 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81729d15ed4d1a4461b3" target="_blank" rel="noopener noreferrer">Triton and Gluon</a></div><p>The language Inductor writes for GPUs, and the stand-in driver method used here. <span class="rt">29 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a></div><p>Timing compiled code honestly. <span class="rt">29 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3cd5c17b0d0d81ea815aedfa052e4919" target="_blank" rel="noopener noreferrer">Model formats</a></div><p>What torch.export's programs become: .pt2, ExecuTorch, ONNX. <span class="rt">30 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack: PTX, SASS, NVRTC, torch.compile and Inductor</a></div><p>Below Inductor: Triton to PTX to SASS (its section 1 says where Inductor's Triton goes); its section 8 follows torch.compile on small programs, with every log. <span class="rt">37 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81b19a6acab65c370b75" target="_blank" rel="noopener noreferrer">Streams, CUDA graphs and multi-GPU</a></div><p>CUDA graphs, CUDAGraph Trees and Inductor's graph partitions: what reduce-overhead does on a GPU. <span class="rt">30 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81729d15ed4d1a4461b3" target="_blank" rel="noopener noreferrer">Triton and Gluon</a></div><p>The language Inductor writes for GPUs, and the stand-in driver method used here. <span class="rt">37 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a></div><p>Timing compiled code honestly. <span class="rt">25 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81f7a144fe25d799e811" target="_blank" rel="noopener noreferrer">Local and on-device inference</a></div><p>Section 3: what a model file holds (GGUF, safetensors, ONNX, pickle) and where torch.export's programs end up on devices. <span class="rt">40 min</span></p></div>
 </div>
 <h3>Outside resources</h3>
 <div class="grid">
@@ -638,9 +606,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab: shared helpers (copied from Topic: pytorch-ecosystem, originally Topic: benchmarks) and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -671,7 +639,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -819,7 +787,7 @@ window.TU=(function(){
   // 4. dynamic shapes card
   const SN={default:'default (automatic dynamic)',static:'dynamic=False',dynamic_true:'dynamic=True',mark_dynamic:'mark_dynamic(min=2, max=64)',mark_unbacked:'mark_unbacked'};
   function dyn(k){const S=D.dyn.strat[k];
-    let h='<div class="tw"><table class="rd-tbl tcp-tbl">'+table(['Call','T','Compiled','Result'],S.calls.map((c,i)=>[i+1,c.T,c.compiled?'<b>'+c.compiled+'</b>':'0',c.error?'<span class="ann">'+esc(c.error.split(' (')[0])+'</span>':(c.compiled?'new version':'reused')]))+'</table></div>';
+    const er=S.calls.find(c=>c.error);let h='';if(er)h+='<p class="small">Error at T = '+er.T+': <span class="ann">'+esc(er.error.split(' (')[0])+'</span></p>';
     h+='<p class="small"><b>'+S.calls[S.calls.length-1].total+' compiles in all.</b> Recompile reasons, as logged:</p><ul class="tight">'+(S.reasons.length?S.reasons.map(r=>'<li class="small"><code>'+esc(r.replace(/^Recompiling function forward in [^ ]+ triggered by the following guard failure\(s\): /,'').slice(0,190))+'</code></li>').join(''):'<li class="small">none</li>')+'</ul>';
     if(S.breaks.length)h+='<p class="small">Graph break logged: <code>'+esc(S.breaks[0].where)+'</code>: '+esc(S.breaks[0].explanation.replace('Explanation: ',''))+'</p>';
     $('tcp-dyn-out').innerHTML=h}
@@ -831,10 +799,7 @@ window.TU=(function(){
   // 4. PGO
   if($('tcp-pgo')){const P=D.pgo,f=r=>r.compiles_per_call.join(' + ')+' compiles';$('tcp-pgo').textContent='without a job id, process 1: '+f(P[0])+', process 2: '+f(P[1])+'; with TORCH_COMPILE_JOB_ID set, process 1: '+f(P[2])+', process 2: '+f(P[3])+' (its first graph already had T as the symbol s75). Recorded, exp/pgo.sh.'}
   // 5. partitioner bars and the budget predict answer
-  const B=D.aot.block,K=[['default','default_partition'],['mincut_1.0','min-cut, budget 1.0'],['mincut_0.5','min-cut, budget 0.5'],['mincut_0.2','min-cut, budget 0.2'],['mincut_0.0','min-cut, budget 0.0']];
-  if($('tcp-part-bars')){bars($('tcp-part-bars'),K.map(([k,n],i)=>({nm:n,ml:B[k].bw_ops+' backward ops, '+B[k].recomputed.length+' recomputed',v:B[k].saved_bytes_activations,txt:mb(B[k].saved_bytes_activations),col:i?'var(--c3)':'var(--c2)',hl:k==='mincut_1.0'})),B.default.saved_bytes_activations);
-    $('tcp-part-note').textContent='Bytes of activations kept for backward (parameters and the block input excluded: they are kept anyway). Recorded with torch 2.14.1, CPU, exp/aot.py.'}
-  const st=D.steady,ba=$('tcp-budget-ans');
+    const st=D.steady,ba=$('tcp-budget-ans');
   if(ba)ba.dataset.html='<b>'+(st['budget_0.0'].median_ms/st.whole.median_ms).toFixed(2)+' times: '+st['budget_0.0'].median_ms+' ms against '+st.whole.median_ms+' ms</b> (budget 0.5: '+st['budget_0.5'].median_ms+' ms; medians of 5 x 20 steps, CPU, 4 threads, bench lock, load average about '+st.whole.load.toFixed(0)+'). Well under 2 times: only the forward work that the backward needs is repeated, and the step also holds the rest of the backward and the optimizer. For that it keeps no activation at all (34.81 MB to 0).';
   // 7. modes
   if($('tcp-modes-tbl'))$('tcp-modes-tbl').innerHTML=table(['mode','Inductor options it sets (list_mode_options, 2.14.1)'],Object.entries(D.modes).map(([k,v])=>['<code>'+k+'</code>',typeof v==='string'?esc(v):(Object.keys(v).length?Object.entries(v).map(([a,b])=>'<code>'+a+'='+b+'</code>').join(', '):'nothing (the defaults)')]));
@@ -842,14 +807,6 @@ window.TU=(function(){
   const CN={aot_nohook:'AOTAutograd backward',aot_hook:'AOTAutograd backward + a gradient hook',ca_nohook:'compiled autograd',ca_hook:'compiled autograd + the hook'};
   if($('tcp-ca-tbl'))$('tcp-ca-tbl').innerHTML=table(['Setup','Graphs handed to the backend (ops each)','AccumulateGrad nodes in a graph','Max gradient difference vs eager'],Object.entries(CN).map(([k,n])=>[n,D.ca[k].graphs.length+': '+D.ca[k].graphs.map(g=>g[0]).join(' + '),D.ca[k].graphs.reduce((a,g)=>a+g[1],0),D.ca[k].diff.toExponential(1)]));
   if($('tcp-ddp'))$('tcp-ddp').innerHTML=D.ddp.map(r=>stat(r.optimize_ddp?'ddp_optimizer, buckets '+r.bucket_cap_mb+' MB':'optimize_ddp=False',r.graphs+' graph'+(r.graphs>1?'s':''),'ops: '+r.ops_per_graph.join(' + '))).join('');
-  // 9, 10. compile time bars
-  const C=D.ct,fmt=s=>s.toFixed(2)+' s';
-  if($('tcp-reg-bars')){const R=[['cold_whole_4','Whole model, 4 blocks'],['cold_regional_4','Per block, 4 blocks'],['cold_nested_4','Nested region, 4 blocks'],['cold_whole_8','Whole model, 8 blocks'],['cold_regional_8','Per block, 8 blocks'],['cold_nested_8','Nested region, 8 blocks']];
-    bars($('tcp-reg-bars'),R.map(([k,n])=>({nm:n,ml:'runs '+C[k].runs.map(r=>r.first.toFixed(2)).join(', '),v:C[k].med,txt:fmt(C[k].med),col:/regional/.test(k)?'var(--c3)':/nested/.test(k)?'var(--c4)':'var(--c2)'})));
-    $('tcp-reg-note').textContent='Median of 3 fresh processes, each with an empty cache directory; first step = compile + one training step. CPU, 4 threads, torch 2.14.1, load average '+Math.min(...R.flatMap(([k])=>C[k].runs.map(r=>r.load))).toFixed(1)+' to '+Math.max(...R.flatMap(([k])=>C[k].runs.map(r=>r.load))).toFixed(1)+'.'}
-  if($('tcp-cache-bars')){const R=[['cold_whole_4_save','Cold (empty cache)'],['mega_whole_4','Mega-cache into an empty cache'],['warm_whole_4','Warm (same cache directory)']];
-    bars($('tcp-cache-bars'),R.map(([k,n])=>({nm:n,ml:'FX graph hits '+C[k].runs[0].hit[0]+', AOT hits '+C[k].runs[0].hit[2]+'; C++ compile wait '+(C[k].runs[0].ts['async_compile.wait']||0).toFixed(2)+' s',v:C[k].med,txt:fmt(C[k].med),col:k==='warm_whole_4'?'var(--c3)':k==='mega_whole_4'?'var(--c5)':'var(--c2)'})));
-    $('tcp-cache-note').textContent='Whole model, 4 blocks, median of 3 rounds; each round: a cold run that saved the mega-cache ('+comma(C.cold_whole_4_save.runs[0].mega)+' bytes), a warm run in the same directory, a mega-cache load into a new empty directory. CPU, bench lock.'}
   // 11. export table
   if($('tcp-exp-tbl')){const E=D.exp;const rows=E.dyn.map(d=>[esc(d.label),d.ok?'exported; ranges '+Object.values(d.range_constraints).join(', '):'<span class="ann">'+esc(d.error_type)+'</span>: '+esc(d.error.split('\n').slice(0,2).join(' ').slice(0,170))]);
     Object.entries(E.cf).forEach(([k,v])=>rows.push([esc(k.replace('python_if','Python if on t.sum() > 0').replace('torch_cond','torch.cond').replace('_strict',', strict').replace('_nonstrict',', non-strict')),v.ok?'exported ('+v.ops.length+' ops)':'<span class="ann">'+esc(v.error_type)+'</span>: '+esc(v.error.split('\n')[0].slice(0,140))]));
@@ -898,26 +855,159 @@ window.TU=(function(){
   pre.textContent=I.cpp;note.textContent='cpp_fused_gelu_view_2 as written by Inductor on this Mac (torch 2.14.1, 4 threads); compiled and run.';
 })();
 </script>
-<script>/* 29_tcp_wire.js */
-// ---- predict-then-reveal on every tab (runs after the parts that fill answers) ----
-TU.wirePredict();
-</script>
-<script>/* 31_tcp_brk.js */
-// ---- Graph-break fixer tab ----
+<script>/* 27_tcp_rd_svg.js */
+// ---- Reading: static SVG figures drawn at the measured width: hero (top), dynamic-shape grid (4), partitioner trade-off (5), compile-time phase bars (9, 10) ----
 (function(){
-  const {$,esc}=TU,F=TCP.fix;if(!$('t-tcp-brk'))return;
-  let k=0,mode='b',A;
-  function seq(r){ // the forward as a list of segments
-    const s=[];
-    if(r.graphs===1&&r.breaks===0)return [{c:true,t:'whole forward compiled ('+r.piece_ops[0]+' ops)'}];
-    s.push({c:false,t:'embeddings (eager)'});
+  const {$,esc}=TU,D=TCP;if(!$('t-read'))return;
+  const T=RD.t;
+  const ar=(x1,y1,x2,y2,col,dash)=>{const a=Math.atan2(y2-y1,x2-x1),h=6;
+    return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+col+'" stroke-width="1.6"'+(dash?' stroke-dasharray="4 3"':'')+'/>'+
+      '<path d="M'+x2+' '+y2+' L'+(x2-h*Math.cos(a-0.45)).toFixed(1)+' '+(y2-h*Math.sin(a-0.45)).toFixed(1)+' L'+(x2-h*Math.cos(a+0.45)).toFixed(1)+' '+(y2-h*Math.sin(a+0.45)).toFixed(1)+'Z" fill="'+col+'"/>'};
+  const box=(x,y,w,h,col,o)=>{o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(o.fill||'var(--bg)')+'" stroke="'+col+'" stroke-width="'+(o.sw||1.4)+'"'+(o.dash?' stroke-dasharray="5 3"':'')+'/>'};
+  // ---------- hero ----------
+  const STAGES=[
+    {t:'Your code',c:'var(--mute)',l:['GPT.forward(idx, y)','Python bytecode','first call'],n:['GPT.forward(idx, y): Python bytecode, first call']},
+    {t:'Dynamo',c:'var(--c1)',l:['FX graph: 59 ops','549 guards','sections 1, 2'],n:['FX graph of 59 ops, 549 guards (sections 1, 2)']},
+    {t:'AOTAutograd',c:'var(--c3)',l:['joint graph 646 ops','fwd 271 | bwd 427','saves 34.81 MB (5)'],n:['joint 646 ops, cut to fwd 271 and bwd 427;','saves 34.81 MB for backward (section 5)']},
+    {t:'Inductor',c:'var(--c4)',l:['fuse, write kernels','block fwd: 4 kernels','+ wrapper call() (6)'],n:['fuses; one block forward = 4 kernels','plus a Python wrapper call() (section 6)']},
+    {t:'Cache on disk',c:'var(--c5)',l:['cold step 9.1 s','warm step 0.85 s','sections 9, 10'],n:['cold first step 9.1 s, warm 0.85 s (9, 10)']}];
+  function hero(){
+    const el=$('tcp-hero');if(!el)return;const w=Math.min(RD.width(el),900);let s='';
+    if(w>=700){
+      const pad=2,gap=18,bw=(w-2*pad-4*gap)/5,yA=62,hA=78,yB=196,hB=48,cx=i=>pad+i*(bw+gap);
+      s+=T(cx(0),yA-8,'First call',{fill:'var(--mute)',fs:11.5,w:600});
+      STAGES.forEach((S,i)=>{const x=cx(i);s+=box(x,yA,bw,hA,S.c,{sw:i?1.8:1.2});s+=T(x+bw/2,yA+18,S.t,{a:'middle',fs:13,w:600,fill:S.c});
+        S.l.forEach((l,j)=>{s+=T(x+bw/2,yA+36+j*15,esc(l),{a:'middle',fs:11.5,fill:j===2?'var(--mute)':'var(--ink)'})});
+        if(i<4)s+=ar(x+bw+1,yA+hA/2,x+bw+gap-2,yA+hA/2,'var(--mute)')});
+      // graph break off-ramp above Dynamo
+      const gx=cx(1),gw=bw*2+gap;s+=box(gx,4,gw,36,'var(--bad)',{dash:1,fill:'var(--soft)'});
+      s+=T(gx+gw/2,19,'Graph break: a line Dynamo cannot capture',{a:'middle',fs:11.5,fill:'var(--bad)',w:600});
+      s+=T(gx+gw/2,33,'runs in Python, graph split in two (section 3)',{a:'middle',fs:11,fill:'var(--ink)'});
+      s+=ar(cx(1)+bw/2,yA-2,cx(1)+bw/2,42,'var(--bad)',1);
+      // later call lane
+      s+=T(cx(0),yB-8,'Every later call',{fill:'var(--mute)',fs:11.5,w:600});
+      s+=box(cx(0),yB,bw,hB,'var(--mute)');s+=T(cx(0)+bw/2,yB+20,'same function',{a:'middle',fs:12,w:600});s+=T(cx(0)+bw/2,yB+36,'new inputs',{a:'middle',fs:11.5,fill:'var(--mute)'});
+      s+=ar(cx(0)+bw+1,yB+hB/2,cx(1)-2,yB+hB/2,'var(--mute)');
+      s+=box(cx(1),yB,bw,hB,'var(--acc)',{sw:2,fill:'var(--acc2)'});s+=T(cx(1)+bw/2,yB+20,'guards (C++)',{a:'middle',fs:12.5,w:600});s+=T(cx(1)+bw/2,yB+36,'45 to 81 µs',{a:'middle',fs:11.5});
+      const px=cx(2),pw=bw*3+gap*2;s+=ar(cx(1)+bw+1,yB+hB/2,px-2,yB+hB/2,'var(--good)');
+      s+=box(px,yB,pw,hB,'var(--good)');s+=T(px+pw/2,yB+20,'pass: run the cached kernels, no Python per op',{a:'middle',fs:12,w:600,fill:'var(--good)'});s+=T(px+pw/2,yB+36,'fail: compile another version (recompile, section 4)',{a:'middle',fs:11.5,fill:'var(--bad)'});
+      s+=ar(cx(1)+bw/2,yB-2,cx(1)+bw/2,yA+hA+3,'var(--bad)',1);
+      s+=T(cx(1)+bw/2+6,(yA+hA+yB)/2+4,'fail: recompile',{fs:11,fill:'var(--bad)'});
+      el.innerHTML=RD.svg(w,yB+hB+4,s,'The torch.compile pipeline: Dynamo, AOTAutograd, Inductor, the cache, and the guard check on later calls');
+    }else{
+      const bh=48,gap=16;let y=0;
+      s+=T(0,y+12,'First call',{fill:'var(--mute)',fs:11.5,w:600});y+=20;
+      STAGES.forEach((S,i)=>{const h=S.n.length>1?bh+12:bh;s+=box(1,y,w-2,h,S.c,{sw:i?1.8:1.2});s+=T(10,y+18,S.t,{fs:12.5,w:600,fill:S.c});
+        S.n.forEach((l,j)=>{s+=T(10,y+34+j*14,esc(l),{fs:11})});
+        if(i===1){s+=T(w-10,y+18,'break: section 3',{a:'end',fs:11,fill:'var(--bad)'})}
+        y+=h;if(i<4){s+=ar(w/2,y+1,w/2,y+gap-2,'var(--mute)');y+=gap}});
+      y+=14;s+=T(0,y+12,'Every later call',{fill:'var(--mute)',fs:11.5,w:600});y+=20;
+      s+=box(1,y,w-2,62,'var(--acc)',{sw:2,fill:'var(--acc2)'});s+=T(10,y+18,'guards in C++, 45 to 81 µs',{fs:12.5,w:600});
+      s+=T(10,y+34,'pass: run the cached kernels',{fs:11.5,fill:'var(--good)'});s+=T(10,y+50,'fail: recompile (section 4)',{fs:11.5,fill:'var(--bad)'});y+=64;
+      el.innerHTML=RD.svg(w,y,s,'The torch.compile pipeline: Dynamo, AOTAutograd, Inductor, the cache, and the guard check on later calls');
+    }
+  }
+  // ---------- dynamic shapes grid ----------
+  const DS=[['default','default (automatic dynamic)','default'],['static','dynamic=False','dynamic=False'],['dynamic_true','dynamic=True','dynamic=True'],['mark_dynamic','mark_dynamic(min=2, max=64)','mark_dynamic'],['mark_unbacked','mark_unbacked','mark_unbacked']];
+  function dyn(){
+    const el=$('tcp-dyn-grid');if(!el)return;const w=Math.min(RD.width(el),760),nar=w<520;
+    const lw=nar?92:190,rw=nar?44:70,cols=6,cw=Math.min(54,(w-lw-rw)/cols),cs=Math.min(30,cw-8),rh=cs+12,top=30;let s='';
+    const calls=D.dyn.strat.default.calls;
+    calls.forEach((c,j)=>{const x=lw+j*cw+cw/2;s+=T(x,12,(nar?'':'call '+(j+1)+' ')+'',{a:'middle',fs:10.5,fill:'var(--mute)'});s+=T(x,top-6,'T='+c.T,{a:'middle',fs:11,w:600})});
+    s+=T(lw+cols*cw+rw/2,top-6,nar?'total':'compiles',{a:'middle',fs:11,w:600});
+    DS.forEach(([k,lab,sh],i)=>{const S=D.dyn.strat[k],y=top+i*rh;
+      s+=T(0,y+cs/2+4,esc(nar?sh:lab),{fs:11.5,w:k==='default'?600:400});
+      S.calls.forEach((c,j)=>{const x=lw+j*cw+(cw-cs)/2;
+        if(c.error)s+='<rect x="'+x+'" y="'+y+'" width="'+cs+'" height="'+cs+'" rx="4" fill="var(--bad)"/>'+T(x+cs/2,y+cs/2+4,'err',{a:'middle',fs:10.5,fill:'var(--bg)',w:600});
+        else if(c.compiled)s+='<rect x="'+x+'" y="'+y+'" width="'+cs+'" height="'+cs+'" rx="4" fill="var(--acc)"/>'+(c.compiled>1?T(x+cs/2,y+cs/2+4,'x'+c.compiled,{a:'middle',fs:11,fill:'var(--bg)',w:600}):'');
+        else s+='<rect x="'+(x+0.7)+'" y="'+(y+0.7)+'" width="'+(cs-1.4)+'" height="'+(cs-1.4)+'" rx="4" fill="none" stroke="var(--mute)" stroke-width="1.2"/>'});
+      s+=T(lw+cols*cw+rw/2,y+cs/2+5,String(S.calls[S.calls.length-1].total),{a:'middle',fs:14,w:600,fill:'var(--acc)'})});
+    const y=top+DS.length*rh+6;
+    s+='<rect x="0" y="'+y+'" width="11" height="11" rx="2" fill="var(--acc)"/>'+T(16,y+10,'compiled',{fs:11});
+    s+='<rect x="82" y="'+y+'" width="11" height="11" rx="2" fill="none" stroke="var(--mute)"/>'+T(98,y+10,'reused',{fs:11});
+    s+='<rect x="152" y="'+y+'" width="11" height="11" rx="2" fill="var(--bad)"/>'+T(168,y+10,'error',{fs:11});
+    el.innerHTML=RD.svg(w,y+16,s,'Compiles per call for six sequence lengths under five dynamic-shape strategies');
+  }
+  // ---------- partitioner trade-off ----------
+  const PK=[['default','default_partition'],['mincut_1.0','min-cut, budget 1.0'],['mincut_0.5','budget 0.5'],['mincut_0.2','budget 0.2'],['mincut_0.0','budget 0.0']];
+  function part(){
+    const el=$('tcp-part-svg');if(!el)return;const w=Math.min(RD.width(el),760),nar=w<520,B=D.aot.block;
+    const L=46,R=nar?14:24,Tp=14,H=nar?220:240,Bt=40,pw=w-L-R,ph=H-Tp-Bt;
+    const xmax=9,ymin=80,ymax=140,X=v=>L+pw*v/xmax,Y=v=>Tp+ph*(1-(v-ymin)/(ymax-ymin));let s='';
+    for(let v=0;v<=xmax;v+=nar?3:1){s+='<line x1="'+X(v)+'" x2="'+X(v)+'" y1="'+Tp+'" y2="'+(Tp+ph)+'" stroke="var(--line)"/>'+T(X(v),Tp+ph+14,String(v),{a:'middle',fs:11,fill:'var(--mute)'})}
+    for(let v=ymin;v<=ymax;v+=20){s+='<line x1="'+L+'" x2="'+(L+pw)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+T(L-6,Y(v)+4,String(v),{a:'end',fs:11,fill:'var(--mute)'})}
+    s+=T(L+pw/2,H-6,'activation bytes kept for backward (MB)',{a:'middle',fs:11,fill:'var(--mute)'});
+    s+='<text x="12" y="'+(Tp+ph/2)+'" font-size="11" fill="var(--mute)" text-anchor="middle" transform="rotate(-90 12 '+(Tp+ph/2)+')">backward ops</text>';
+    const pts=PK.map(([k])=>[X(B[k].saved_bytes_activations/1e6),Y(B[k].bw_ops)]);
+    s+='<polyline points="'+pts.map(p=>p.map(v=>v.toFixed(1)).join(',')).join(' ')+'" fill="none" stroke="var(--acc)" stroke-width="1.5" stroke-dasharray="4 3"/>';
+    PK.forEach(([k,n],i)=>{const [x,y]=pts[i],m=B[k].saved_bytes_activations/1e6;
+      s+='<circle cx="'+x+'" cy="'+y+'" r="5.5" fill="'+(i?'var(--c3)':'var(--c2)')+'" stroke="var(--bg)" stroke-width="1.5"/>';
+      const lab=esc(n)+': '+m.toFixed(2)+' MB, '+B[k].bw_ops+' ops';
+      const right=x<L+pw*0.55, dy=k==='mincut_0.2'||k==='mincut_1.0'||k==='default'?16:-9;
+      s+=T(right?x+9:x-9,y+dy,nar?esc(n.replace('min-cut, ','')):lab,{a:right?'start':'end',fs:11,fill:'var(--ink)'})});
+    el.innerHTML=RD.svg(w,H,s,'Bytes saved for backward against backward ops for five partitioner settings on one block');
+    $('tcp-part-note').textContent='One block, training, (8, 64, 256), CPU, torch 2.14.1 (exp/aot.py). Bytes of activations kept for backward; parameters and the block input are excluded (kept anyway). Recomputed ops per cut: '+PK.map(([k,n])=>n+' '+B[k].recomputed.length).join(', ')+'.';
+  }
+  // ---------- compile-time phase bars ----------
+  const C=D.ct;
+  const pickRun=k=>{const R=C[k].runs,m=C[k].med;return R.reduce((a,b)=>Math.abs(b.first-m)<Math.abs(a.first-m)?b:a)};
+  const phases=r=>{const t=r.ts,efc=t.entire_frame_compile||0,bc=t.backend_compile||0,ebc=t.entire_backward_compile||0;
+    return [[efc-bc,'var(--c1)'],[bc,'var(--c2)'],[ebc,'var(--c4)'],[Math.max(0,r.first-efc-ebc),'var(--dim)']]};
+  function pbars(id,rows){
+    const el=$(id);if(!el)return;const w=Math.min(RD.width(el),780),nar=w<520;
+    const lw=nar?104:178,vw=48,bw=w-lw-vw,rh=nar?30:26,top=4,max=11;let s='';
+    for(let v=0;v<=max;v+=nar?2:1){const x=lw+bw*v/max;s+='<line x1="'+x+'" x2="'+x+'" y1="'+top+'" y2="'+(top+rows.length*rh)+'" stroke="var(--line)"/>'+T(x,top+rows.length*rh+13,v+' s',{a:'middle',fs:10.5,fill:'var(--mute)'})}
+    rows.forEach(([k,n,ns],i)=>{const r=pickRun(k),y=top+i*rh;let x=lw;
+      s+=T(0,y+rh/2+4,esc(nar?ns:n),{fs:11.5});
+      phases(r).forEach(([d,c])=>{const ww=bw*d/max;if(ww>0.3)s+='<rect x="'+x.toFixed(1)+'" y="'+(y+5)+'" width="'+ww.toFixed(1)+'" height="'+(rh-10)+'" fill="'+c+'"/>';x+=ww});
+      s+=T(lw+bw*r.first/max+5,y+rh/2+4,r.first.toFixed(2)+' s',{fs:11,w:600})});
+    el.innerHTML=RD.svg(w,top+rows.length*rh+18,s,'First training step split into compile phases');
+  }
+  const loads=ks=>{const L=ks.flatMap(k=>C[k].runs.map(r=>r.load));return Math.min(...L).toFixed(1)+' to '+Math.max(...L).toFixed(1)};
+  function reg(){const R=[['cold_whole_4','Whole model, 4 blocks','Whole, 4'],['cold_regional_4','Per block, 4 blocks','Per block, 4'],['cold_nested_4','Nested region, 4 blocks','Nested, 4'],['cold_whole_8','Whole model, 8 blocks','Whole, 8'],['cold_regional_8','Per block, 8 blocks','Per block, 8'],['cold_nested_8','Nested region, 8 blocks','Nested, 8']];
+    pbars('tcp-reg-svg',R);
+    if($('tcp-reg-note'))$('tcp-reg-note').textContent='The run closest to the median of 3 fresh processes, each with an empty cache directory; first step = compile + one training step. CPU, 4 threads, torch 2.14.1, bench lock, load average '+loads(R.map(r=>r[0]))+'.'}
+  function cache(){const R=[['cold_whole_4_save','Cold (empty cache)','Cold'],['mega_whole_4','Mega-cache, empty dir','Mega-cache'],['warm_whole_4','Warm (same cache dir)','Warm']];
+    pbars('tcp-cache-svg',R);
+    if($('tcp-cache-note'))$('tcp-cache-note').textContent='Whole model, 4 blocks; colours as in section 9. Each of 3 rounds: a cold run that saved the mega-cache ('+TU.comma(C.cold_whole_4_save.runs[0].mega)+' bytes), a warm run in the same directory, a mega-cache load into a new empty directory. Cache hits (FX graph, AOTAutograd): '+R.map(([k,,ns])=>ns+' '+C[k].runs[0].hit[0]+', '+C[k].runs[0].hit[2]).join('; ')+'. CPU, bench lock.'}
+  function all(){hero();dyn();part();reg();cache()}
+  RD.onRender(all);RD.onResize(all);all();
+  // the per-run table (section 10, closed block)
+  if($('tcpc-tbl')){const rows=[];Object.entries(C).forEach(([k,v])=>v.runs.forEach((r,j)=>{const p=phases(r);rows.push([esc(k),j+1,r.first.toFixed(2),p[0][0].toFixed(2),p[1][0].toFixed(2),p[2][0].toFixed(2),(r.ts['async_compile.wait']||0).toFixed(2),r.hit[0]+' / '+r.hit[1],r.hit[2]+' / '+r.hit[3],r.load.toFixed(1)])}));
+    $('tcpc-tbl').innerHTML=TU.table(['Run','#','First step (s)','Dynamo','Forward','Backward','C++ wait','FX graph hit / miss','AOT hit / miss','Load'],rows)}
+})();
+</script>
+<script>/* 28_tcp_rd_brk.js */
+// ---- Reading section 3: the graph-break fixer (one forward pass broken and fixed, drawn as an SVG lane per block) ----
+(function(){
+  const {$,esc}=TU,F=TCP.fix;if(!$('tcpb-card'))return;
+  const T=RD.t;let k=0,mode='b',A;
+  const ROWS=['embeddings','block 0','block 1','block 2','block 3','ln_f, head, loss'];
+  function seq(r){ // the forward as a list of segments, each on a row
+    if(r.graphs===1&&r.breaks===0)return [{c:true,row:-1,ops:r.piece_ops[0],t:'whole forward compiled ('+r.piece_ops[0]+' ops)'}];
+    const s=[{c:false,row:0,t:'embeddings (eager)'}];
     const per=Math.max(1,Math.round(r.pieces_per_forward/4)),ops=r.piece_ops.slice(0,per);
-    for(let b=0;b<4;b++){ops.forEach((n,j)=>{s.push({c:true,t:'block '+b+' piece '+(j+1)+' ('+n+' ops)'});if(j<per-1)s.push({c:false,t:'block '+b+': the break line (eager)'})})}
-    s.push({c:false,t:'ln_f, head, loss (eager)'});return s;
+    for(let b=0;b<4;b++){ops.forEach((n,j)=>{s.push({c:true,row:b+1,ops:n,t:'block '+b+' piece '+(j+1)+' ('+n+' ops)'});if(j<per-1)s.push({c:false,row:b+1,brk:true,t:'block '+b+': the break line (eager)'})})}
+    s.push({c:false,row:5,t:'ln_f, head, loss (eager)'});return s;
+  }
+  function lane(S,i){
+    const el=$('tcpb-lane'),w=Math.min(RD.width(el),760),lw=w<520?78:110,aw=w-lw-4,rh=26,h=ROWS.length*rh+4;let s='';
+    ROWS.forEach((n,j)=>{s+=T(0,j*rh+rh/2+5,n,{fs:11,fill:'var(--mute)'})});
+    const op=(j)=>j>i?' opacity="0.35"':'',hl=j=>j===i?' stroke="var(--acc)" stroke-width="2.4"':'';
+    if(S.length===1&&S[0].row===-1){
+      s+='<rect x="'+lw+'" y="3" width="'+aw+'" height="'+(h-6)+'" rx="6" fill="var(--open2)" stroke="var(--good)" stroke-width="'+(i===0?2.4:1.2)+'"/>'+T(lw+aw/2,h/2+4,esc(S[0].t),{a:'middle',fs:12,w:600});
+    }else{
+      ROWS.forEach((_,row)=>{const segs=S.map((x,j)=>({...x,j})).filter(x=>x.row===row);if(!segs.length)return;
+        const bw=28,tot=segs.reduce((a,x)=>a+(x.c?x.ops:0),0),free=aw-segs.filter(x=>!x.c).length*bw-(segs.length-1)*3;let x=lw;
+        segs.forEach(sg=>{const ww=sg.c?free*sg.ops/tot:(segs.length===1?aw:bw),y=row*rh+3,hh=rh-6;
+          if(sg.c)s+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+ww.toFixed(1)+'" height="'+hh+'" rx="4" fill="var(--open2)" stroke="var(--good)"'+hl(sg.j)+op(sg.j)+'/>'+(ww>44?T(x+ww/2,y+hh/2+4,sg.ops+' ops',{a:'middle',fs:11}):'');
+          else s+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+ww.toFixed(1)+'" height="'+hh+'" rx="4" fill="var(--bg)" stroke="var(--mute)" stroke-dasharray="4 3"'+hl(sg.j)+op(sg.j)+'/>'+(segs.length===1?T(x+ww/2,y+hh/2+4,'Python, eager',{a:'middle',fs:11,fill:'var(--mute)'}):T(x+ww/2,y+hh/2+4,'py',{a:'middle',fs:10.5,fill:'var(--bad)'}));
+          x+=ww+3})});
+    }
+    el.innerHTML=RD.svg(w,h,s,'One forward pass: compiled pieces and eager segments per block');
   }
   function draw(i){const K=F[k],r=mode==='b'?K.b:K.f,S=seq(r);i=Math.min(i,S.length-1);
-    $('tcpb-strip').innerHTML=S.map((x,j)=>'<span class="'+(x.c?'c':'e')+(j===i?' on':'')+'">'+esc(x.t)+'</span>').join('');
-    const done=S.slice(0,i+1);
+    lane(S,i);const done=S.slice(0,i+1);
     $('tcpb-cap').innerHTML='<div class="t">'+esc(S[i].t)+'</div><p>'+(S[i].c?'Compiled code: guards checked, then the generated kernels run.':'Plain Python, op by op, with eager kernels; no fusion across this point.')+'</p>';
     $('tcpb-cnt').innerHTML=TU.stat('Compiled piece calls',done.filter(x=>x.c).length+' / '+S.filter(x=>x.c).length)+TU.stat('Eager segments',done.filter(x=>!x.c).length+' / '+S.filter(x=>!x.c).length)+TU.stat('explain(): graphs / breaks',r.graphs+' / '+r.breaks)+TU.stat('Compiled pieces that exist',r.piece_ops.length,'ops: '+r.piece_ops.join(', '))+TU.stat('Max diff vs original',mode==='f'?r.max_diff_vs_original.toExponential(1):'(broken run)');
   }
@@ -927,40 +1017,14 @@ TU.wirePredict();
     if(A)A.reset(seq(mode==='b'?K.b:K.f).length)}
   TU.seg($('tcpb-kind'),F.map((K,j)=>[String(j),esc(K.label)]),pick,'0');
   A=RD.anim({card:'tcpb-card',ctl:'tcpb-ctl',n:seq(F[0].b).length,draw,ms:900,label:'Segment'});
-  // RD.anim registers redraws on the Reading tab only; this tab redraws itself when shown
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-tcp-brk']=[()=>A.redraw()];
+  RD.onResize(()=>A.redraw());
   RD.seg($('tcpb-mode'),m=>{mode=m;A.reset(seq(mode==='b'?F[k].b:F[k].f).length)});
 })();
 </script>
-<script>/* 32_tcp_cache.js */
-// ---- Compile time and caches tab: first-step timelines to scale ----
+<script>/* 28_tcp_rd_part.js */
+// ---- Reading section 5: the partitioner explorer (one block's joint graph under each cut) ----
 (function(){
-  const {$,esc}=TU,C=TCP.ct;if(!$('t-tcp-cache'))return;
-  const SETS={cache:[['cold_whole_4_save','Cold, empty cache'],['mega_whole_4','Mega-cache, empty dir'],['warm_whole_4','Warm cache']],
-    reg:[['cold_whole_4','Whole, 4 blocks'],['cold_regional_4','Per block, 4'],['cold_nested_4','Nested region, 4'],['cold_whole_8','Whole, 8 blocks'],['cold_regional_8','Per block, 8'],['cold_nested_8','Nested region, 8']]};
-  const pickRun=k=>{const R=C[k].runs,m=C[k].med;return R.reduce((a,b)=>Math.abs(b.first-m)<Math.abs(a.first-m)?b:a)};
-  const phases=r=>{const t=r.ts,efc=t.entire_frame_compile||0,bc=t.backend_compile||0,ebc=t.entire_backward_compile||0;
-    return [[efc-bc,'var(--c1)','Dynamo'],[bc,'var(--c2)','forward compile'],[ebc,'var(--c4)','backward compile'],[Math.max(0,r.first-efc-ebc),'var(--dim)','run and rest']]};
-  let set='cache',A;const N=40;
-  function draw(i){const S=SETS[set],max=Math.max(...S.map(([k])=>pickRun(k).first)),t=max*i/(N-1);
-    $('tcpc-tl').innerHTML=S.map(([k,n])=>{const r=pickRun(k);let x=0,h='';
-      phases(r).forEach(([d,c])=>{const a=Math.min(d,Math.max(0,t-x));if(a>0)h+='<span style="left:'+(100*x/max).toFixed(2)+'%;width:'+(100*a/max).toFixed(2)+'%;background:'+c+'"></span>';x+=d});
-      return '<div class="row"><div>'+esc(n)+'</div><div class="tr">'+h+'</div><div class="v">'+(t>=r.first?r.first.toFixed(2)+' s':'...')+'</div></div>'}).join('');
-    const fin=S.filter(([k])=>pickRun(k).first<=t);
-    $('tcpc-cap').innerHTML='<div class="t">'+t.toFixed(2)+' s after the first call</div><p>'+(fin.length?'Finished: '+fin.map(([,n])=>esc(n)).join(', ')+'.':'Nothing has finished its first step yet.')+'</p>';
-    $('tcpc-cnt').innerHTML=TU.stat('Elapsed',t.toFixed(2)+' s')+TU.stat('First steps done',fin.length+' / '+S.length)+TU.stat('Slowest',max.toFixed(2)+' s');
-  }
-  A=RD.anim({card:'tcpc-card',ctl:'tcpc-ctl',n:N,draw,ms:220,label:'Time'});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-tcp-cache']=[()=>A.redraw()];
-  RD.seg($('tcpc-set'),m=>{set=m;A.reset(N)});
-  const rows=[];Object.entries(C).forEach(([k,v])=>v.runs.forEach((r,j)=>{const p=phases(r);rows.push([esc(k),j+1,r.first.toFixed(2),p[0][0].toFixed(2),p[1][0].toFixed(2),p[2][0].toFixed(2),(r.ts['async_compile.wait']||0).toFixed(2),r.hit[0]+' / '+r.hit[1],r.hit[2]+' / '+r.hit[3],r.load.toFixed(1)])}));
-  $('tcpc-tbl').innerHTML=TU.table(['Run','#','First step (s)','Dynamo','Forward','Backward','C++ wait','FX graph hit / miss','AOT hit / miss','Load'],rows);
-})();
-</script>
-<script>/* 33_tcp_part.js */
-// ---- Partitioner explorer tab ----
-(function(){
-  const {$,esc,comma}=TU,P=TCP.aot;if(!$('t-tcp-part'))return;
+  const {$,esc,comma}=TU,P=TCP.aot;if(!$('tcpp-card'))return;
   const K=[['default','default_partition','Save whatever the backward needs that the forward made; recompute nothing. This is what eager autograd does op by op.'],
     ['mincut_1.0','min-cut, budget 1.0 (default)','Inductor\'s default: recompute cheap pointwise and view ops when that saves bytes. Here it recomputes the GELU intermediates and the reshaped attention output (the input of proj) in backward instead of saving them.'],
     ['mincut_0.5','min-cut, budget 0.5','Allowed half the activation bytes: now some matrix multiplies and the attention are recomputed too.'],
@@ -979,11 +1043,14 @@ TU.wirePredict();
     info()}
   $('tcpp-grid').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sel=+b.dataset.j;draw(cur)});
   const A=RD.anim({card:'tcpp-card',ctl:'tcpp-ctl',n:K.length,draw,ms:2600,label:'Partitioner'});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-tcp-part']=[()=>A.redraw()];
 })();
 </script>
+<script>/* 29_tcp_wire.js */
+// ---- predict-then-reveal on every tab (runs after the parts that fill answers) ----
+TU.wirePredict();
+</script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace tcp-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1001,6 +1068,8 @@ TU.wirePredict();
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('tcp-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

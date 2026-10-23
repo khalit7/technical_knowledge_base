@@ -1,0 +1,3270 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "torch.compile from the user's side torch.compile from the user's side What happens between torch.compile(model) and the fused kernels, taught from zero on the topic's running example: Dynamo reading bytecode and writing guards, graph breaks and how to remove each kind, recompiles and dynamic shapes, AOTAutograd's partitioner, Inductor's fusion and code, modes, compiled autograd, regional compilation, caches, torch.export and AOTInductor, and the debugging tools.",
+  "label": "core",
+  "key": "what happens between torch.compile(model) and the fused kernels",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Every graph, log and timing here was recorded with torch 2.14.1 on an Apple M1 Pro (CPU unless marked); GPU numbers are quoted and labelled.",
+  "label": "core",
+  "key": "on an Apple M1 Pro (CPU unless marked)",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Graph-break fixer Compile time and caches Partitioner explorer Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar labels"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Dynamo 2 Guards 3 Graph breaks 4 Dynamic shapes 5 AOTAutograd 6 Inductor 7 Modes 8 Compiled autograd 9 Regional 10 Caches 11 export, AOTI 12 Debugging 13 To NVIDIA Mistakes Interview",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section nav"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "In one screen torch.compile(model) returns a wrapper and does nothing until the first call.",
+  "label": "core",
+  "key": "does nothing until the first call",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "On that call three programs run in turn: TorchDynamo reads your Python as it executes and writes down the tensor operations as a graph, AOTAutograd derives the backward graph from it ahead of time and decides what the forward keeps for backward, and TorchInductor turns both graphs into fused kernels (C++ on a CPU, Triton on NVIDIA and AMD GPUs, Metal on Apple GPUs).",
+  "label": "core",
+  "key": "captures your Python as a graph on the first call",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The result is cached and reused on every later call whose inputs pass the cached version's guards , the checks that say \"this compiled code is still valid\".",
+  "label": "core",
+  "key": "whose guards still pass",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The parent page's Compile lab tab measured what this does to one training step of the topic's running example (the 3,186,944-parameter character GPT: 4 blocks, d 256, batch 8 x 64 tokens): one graph, 59 operations, 0 breaks, 549 guards; no gain on the laptop's CPU (23.20 ms against 22.75 ms) and 1.18 times on its GPU (MPS).",
+  "label": "core",
+  "key": "3,186,944",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "This page goes one level down into each stage, on the same model, so that you can predict what compile will do to your code, read what it did, and fix it when it misbehaves.",
+  "label": "core",
+  "key": "one level down into each stage",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Stage Takes Gives On the running example, measured here See it with Dynamo Python bytecode of each called frame FX graph, guards, rewritten bytecode MLP: 36 bytecode instructions traced, 3 graph ops, 45 guards (section 1) TORCH_LOGS=graph_code,guards,bytecode AOTAutograd FX graph forward graph + backward graph (functional ATen ops) joint graph 646 ops, cut into 271 forward and 427 backward; keeps 34.81 MB for backward (section 5) TORCH_LOGS=aot_graphs Inductor the ATen graphs kernels + a Python wrapper that calls them one block's forward: 16 scheduler nodes, fused into 10, written as 4 C++ kernels + 4 matmul calls + 1 attention call (section 6) TORCH_LOGS=output_code,fusion torch.export a module one whole graph, no breaks allowed 94 ops; 326 after run_decompositions() ; AOTInductor package 14,358,669 bytes (section 11) ep.graph_module The question the page keeps returning to: when does compile pay, what does it cost, and how do you see what it did?",
+  "label": "depth",
+  "key": "36 bytecode instructions traced",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Five answers measured here, each with its section: A break inside a loop costs the whole caller A print in Block.forward leaves GPT.forward uncompiled; nested_graph_breaks fixes a plain call but not a loop.",
+  "label": "core",
+  "key": "fixes a plain call but not a loop",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Shapes: one recompile, then a symbol T = 64, 32, 48, 16, 1: three compiles by default, five with dynamic=False ; a bounded mark_dynamic turns T = 1 into an error.",
+  "label": "core",
+  "key": "three compiles by default, five with",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The partitioner is a memory knob One block keeps 8.40 MB (save everything), 7.88 MB (min-cut), 0 MB at budget 0.0, paid for with 134 instead of 88 backward ops.",
+  "label": "core",
+  "key": "paid for with 134 instead of 88 backward ops",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Compile one block, not the model Cold first step: 9.2 s whole model, 5.7 s per block, and per block it stays flat from 4 to 8 blocks.",
+  "label": "core",
+  "key": "per block it stays flat from 4 to 8 blocks",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Warm caches turn seconds into under one Cold 9.1 s, warm 0.85 s; a mega-cache moved to an empty directory: 5.1 s (the C++ kernels are rebuilt).",
+  "label": "core",
+  "key": "a mega-cache moved to an empty directory: 5.1 s",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "An AOTInductor package trusts your strides A non-contiguous input gave a maximum error of 1.81 with no warning; the same input made contiguous: 9.5e-07.",
+  "label": "core",
+  "key": "the same input made contiguous: 9.5e-07",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Where the neighbours are.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The tensor, dispatcher and autograd machinery compile builds on (functionalization, fake tensors) is on Tensors, the dispatcher and autograd (sections 2.7 and 2.8); compile's place in a bottleneck hunt, and the activation-memory budget on a larger model, on Making training fast ; custom ops that remove graph breaks on Extending PyTorch ; how PTX and SASS come out of Triton on The compiler stack ; CUDA graphs on Streams, CUDA graphs and multi-GPU .",
+  "label": "core",
+  "key": "sections 2.7 and 2.8",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Dynamo: reading your Python as it runs The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "A compiler needs the whole computation as a graph, but a PyTorch model is ordinary Python: loops over layers, attribute lookups, calls into nn.Module.forward , the odd if .",
+  "label": "core",
+  "key": "a model is ordinary Python",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Earlier capture tools each gave something up: torch.jit.trace ran the model once and recorded only the path taken, silently wrong when control flow changed; torch.jit.script required a restricted Python dialect; torch.fx.symbolic_trace fails on any data-dependent branch.",
+  "label": "depth",
+  "key": "torch.fx.symbolic_trace fails on any data-dependent branch",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "The PyTorch 2 paper ( Ansel et al., ASPLOS 2024 , section 2) reviews them; Dynamo's answer is to keep running Python as Python and capture only what it can prove safe.",
+  "label": "core",
+  "key": "keeps running Python as Python and captures only what it can prove safe",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "How it works, from zero.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "CPython does not run your source text: it compiles each function to bytecode , a list of small stack-machine instructions ( LOAD_FAST x pushes a local variable, LOAD_ATTR fc replaces the top of the stack with its attribute, CALL 1 calls a function with one argument), and evaluates one frame (one function call) at a time.",
+  "label": "core",
+  "key": "LOAD_ATTR fc",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "PEP 523 lets a C extension replace the function that evaluates frames.",
+  "label": "core",
+  "key": "lets a C extension replace the frame evaluator",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "When you call a compiled function, Dynamo installs its own ( enable_eval_frame_shim , torch/csrc/dynamo/eval_frame.c L247-L255 at v2.14.1 ), so it sees every frame before CPython runs it.",
+  "label": "core",
+  "key": "enable_eval_frame_shim",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "For a frame it has compiled before, it runs the guards and, if they pass, jumps to the compiled version.",
+  "label": "core",
+  "key": "For a frame compiled before, it runs the guards",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Otherwise it symbolically evaluates the bytecode: the same instructions, but its stack holds VariableTrackers instead of values.",
+  "label": "core",
+  "key": "its stack holds VariableTrackers instead of values",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "TensorVariable A tensor, represented by a fake tensor (shape, dtype, device, no data; see 2.8 there ) plus a proxy: every operation on it adds a node to the FX graph.",
+  "label": "core",
+  "key": "every operation on it adds a node to the FX graph",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "NNModuleVariable A module such as self.fc .",
+  "label": "core",
+  "key": "Calling it inlines its forward",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Calling it inlines its forward ; its parameters become graph inputs.",
+  "label": "core",
+  "key": "its parameters become graph inputs",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "LazyVariableTracker A value not inspected yet.",
+  "label": "core",
+  "key": "A value not inspected yet",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "It is turned into a real tracker (and guarded) only if the code uses it, which keeps the guard list short.",
+  "label": "core",
+  "key": "keeps the guard list short",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Constant, builtin, Python module Python values computed at trace time: C // n_head is evaluated now and baked into the graph as a number, with a guard on what it was computed from.",
+  "label": "core",
+  "key": "C // n_head",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "The output of one frame is three things: an FX graph (a list of tensor operations with their inputs), the guards, and new bytecode that replaces the frame's: it gathers the inputs, calls the compiled graph, and returns its result.",
+  "label": "core",
+  "key": "gathers the inputs, calls the compiled graph and returns its result",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Here is that process on the running example's MLP (block 0: self.proj(F.gelu(self.fc(x))) ), recorded instruction by instruction from Dynamo itself (its step() wrapped) and, for comparison, the same call run by CPython with every ATen call caught by a dispatch mode.",
+  "label": "core",
+  "key": "its step() wrapped",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Same input, (8, 64, 256).",
+  "label": "core",
+  "key": "Same input, (8, 64, 256)",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "One MLP call, instruction by instruction: CPython runs it, Dynamo records it Dynamo tracing (compile time) CPython running it (eager) Bytecode Recorded with torch 2.14.1, Python 3.12, CPU (exp/walk.py).",
+  "label": "core",
+  "key": "Python 3.12, CPU (exp/walk.py)",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Dynamo's copy of MLP.forward has two extra instructions before each call ( PUSH_NULL , SWAP ): it first rewrites the bytecode slightly into a canonical form.",
+  "label": "core",
+  "key": "into a canonical form",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Stack entries are Dynamo's own repr , shortened ( Lazy(...) = LazyVariableTracker).",
+  "label": "core",
+  "key": "Lazy(...) = LazyVariableTracker",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "What the two modes show.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "CPython computes as it goes: by the end, 9 ATen calls have run (two addmm matrix multiplies, gelu , and the views and transposes that F.linear decomposes into on the CPU).",
+  "label": "core",
+  "key": "CPython has run 9 ATen calls",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Dynamo computes nothing: it walks 36 instructions, inlines both Linear.forward calls (depth 1), and ends with a graph of three calls ( linear , gelu , linear ) on five inputs (x and four parameters) and 45 guards.",
+  "label": "core",
+  "key": "both Linear.forward calls inlined (depth 1)",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Only then is the graph compiled and run.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by the walk stepper's last step"
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Attribute lookups such as self.fc never reach the graph: they were answered at trace time, and the answer is protected by a guard.",
+  "label": "core",
+  "key": "Attribute lookups such as self.fc never reach the graph",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Predict: inside a compiled function, how many times does self.fc (a Python attribute lookup) run per call after the first?",
+  "label": "core",
+  "key": "how many times does self.fc",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Once per call, like eager Zero: the compiled bytecode never looks it up Once per guard check Zero, as such.",
+  "label": "core",
+  "key": "Zero, as such",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "The rewritten bytecode (recorded with TORCH_LOGS=bytecode ) fetches the parameters straight out of self._modules['fc']._parameters['weight'] and passes them to the compiled graph; whether fc is still the same kind of module is the guards' job, and they run in C++ before the call.",
+  "label": "core",
+  "key": "self._modules['fc']._parameters['weight']",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "That is why a module swapped after compilation is caught by a guard and recompiled rather than silently ignored.",
+  "label": "core",
+  "key": "a module swapped after compilation is caught by a guard",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Tracing is Python running Python: for the whole running example, Dynamo's share of the first call (\"entire_frame_compile\" minus the backend) was about 0.25 s of the roughly 9 s cold compile; the rest is AOTAutograd and Inductor (section 10).",
+  "label": "core",
+  "key": "about 0.25 s of the roughly 9 s cold compile",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "Per call afterwards, the cost is the guard check (section 2).",
+  "label": "core",
+  "key": "each call pays only the guard check",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. dynamo: reading your python as it runs",
+  "text": "TORCH_LOGS=bytecode prints the original and rewritten bytecode; TORCH_LOGS=graph_code the FX graph with each line's source; TORCH_LOGS=trace_bytecode every instruction with the tracker stack, exactly what the animation replays. torch._dynamo.explain(fn)(*args) summarises graphs and breaks without reading logs.",
+  "label": "core",
+  "key": "trace_bytecode",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "Guards: the conditions that keep compiled code valid The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "Everything Dynamo baked in (shapes, dtypes, which module object, the value of a Python flag, whether grad mode was on) must still be true on the next call, or the compiled code would compute the wrong thing.",
+  "label": "core",
+  "key": "must still hold on the next call",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "Checking it in Python on every call would cost more than the kernels on small models.",
+  "label": "core",
+  "key": "would cost more than the kernels of a small model",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "Each fact Dynamo relied on becomes a guard, organised as a tree keyed by where the value comes from (the frame's locals L['x'] , globals G['F'] , attributes of those).",
+  "label": "core",
+  "key": "a tree keyed by where the value comes from",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "The tree is a C++ object ( GuardManager and RootGuardManager , torch/csrc/dynamo/guards.cpp L4242 ; enable_cpp_guard_manager is on by default), so a check walks each source once and runs its leaf guards.",
+  "label": "core",
+  "key": "RootGuardManager",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "The MLP's tree, as TORCH_LOGS=guards printed it (first lines; paths shortened): Leaf checks in the printed tree, by kind (53 leaf checks; Dynamo's own guard set for this frame held 45 entries, the number used in the animation).",
+  "label": "core",
+  "key": "53 leaf checks",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "Four kinds do most of the work: TENSOR_MATCH (dispatch keys, dtype, device, requires_grad, sizes and strides of a tensor input), ID_MATCH (this exact object: the F module, the gelu builtin), TYPE_MATCH , and GLOBAL_STATE (grad mode, autocast, default dtype, thread count, deterministic flag, all in one check).",
+  "label": "core",
+  "key": "GLOBAL_STATE",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "The marking guards ( DIMENSION_DYNAMIC_MARKING_GUARD ) make sure a tensor that later gets mark_dynamic is not served by code compiled for a static shape.",
+  "label": "core",
+  "key": "DIMENSION_DYNAMIC_MARKING_GUARD",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "Dynamo times this tree when it builds it: 51.71 microseconds for the MLP in the recorded run (one unlocked measurement, and it varied by about two times between runs here, so treat it as an order of magnitude); the whole model's 549 guards measured 45 to 81 microseconds in the Compile lab.",
+  "label": "core",
+  "key": "51.71 microseconds",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "Against a 23 ms CPU step that is nothing; against a 1 ms step of a small model on a GPU, where the kernels launch asynchronously and the CPU's time is the critical path, it is a real overhead.",
+  "label": "core",
+  "key": "a real overhead against a 1 ms GPU step",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "Three 2.14.1 APIs trade safety for speed: torch.compiler.skip_guard_on_inbuilt_nn_modules_unsafe , skip_guard_on_all_nn_modules_unsafe and skip_guard_on_globals_unsafe (all present in torch.compiler at 2.14.1, read from the wheel); their names say what they risk.",
+  "label": "depth",
+  "key": "skip_guard_on_globals_unsafe",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "When a guard fails.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "Dynamo compiles again and keeps both versions in a per-frame cache, then checks them in order on each call.",
+  "label": "core",
+  "key": "keeps both versions in a per-frame cache",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. guards: the conditions that keep compiled code valid",
+  "text": "That is a recompile (section 4). torch.compiler.set_stance(\"fail_on_recompile\") turns every recompile into an error, useful in a test that pins the number of compiles; \"eager_on_recompile\" runs eagerly instead.",
+  "label": "depth",
+  "key": "eager_on_recompile",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Graph breaks: each kind, and how to remove it The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "When Dynamo meets something it cannot put in a graph, it does not fail by default.",
+  "label": "core",
+  "key": "it does not fail by default",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "It compiles the graph it has so far, emits bytecode that runs the unsupported instruction in ordinary Python, and starts a new graph after it (a resume function ).",
+  "label": "core",
+  "key": "resume function",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "That split is a graph break .",
+  "label": "core",
+  "key": "That split is a graph break",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "It costs twice: no fusion across it, and Python plus a guard check between the pieces on every call.",
+  "label": "core",
+  "key": "It costs twice",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "The Compile lab measured a print in each block at +7 to 9% step time on the CPU; on a GPU each piece also launches separately and a CUDA graph cannot span the break.",
+  "label": "core",
+  "key": "+7 to 9% step time",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Where the break sits matters more than how many there are.",
+  "label": "core",
+  "key": "Where the break sits matters more than how many",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "GPT.forward runs the blocks in a for blk in self.blocks loop, and Dynamo cannot resume tracing in the middle of a loop: a break anywhere inside a block makes it give up on the whole GPT.forward frame (\"Failed to handle graph break gracefully.",
+  "label": "core",
+  "key": "Dynamo cannot resume tracing in the middle of a loop",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Skipping the function and falling back to eager\", its own log, read with tlparse in section 12), so the embeddings, final LayerNorm, head and loss run as plain Python and only the two halves of each block are compiled.",
+  "label": "core",
+  "key": "only the two halves of each block are compiled",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Every break kind below gives the same picture: 2 or 3 compiled pieces, 8 piece calls per forward instead of 1.",
+  "label": "core",
+  "key": "8 piece calls per forward instead of 1",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Can that be avoided? torch._dynamo.config.nested_graph_breaks (off by default, config.py L585-L587 at v2.14.1 : \"Resume tracing in nested frames if a nested graph break occurs.",
+  "label": "core",
+  "key": "Resume tracing in nested frames if a nested graph break occurs",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Old behavior is to bubble up the graph break to the top level frame\") keeps the caller compiled.",
+  "label": "core",
+  "key": "Old behavior is to bubble up the graph break",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "On four small programs with one torch._dynamo.graph_break() in the inner function, run here: It works for a plain call and for unrolled module calls, and changes nothing inside a for loop, which is how almost every transformer calls its blocks.",
+  "label": "core",
+  "key": "changes nothing inside a for loop",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "So on the running example it did not help (2 graphs either way, measured).",
+  "label": "core",
+  "key": "2 graphs either way, measured",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "The practical rule stays: remove the break .",
+  "label": "core",
+  "key": "remove the break",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Each kind, broken and fixed.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Nine common lines (twelve rows: three of them have two fixes), each put into Block.forward between attention and the MLP, then the fix.",
+  "label": "core",
+  "key": "twelve fixes (three lines have two)",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Counts from torch._dynamo.explain ; every fix gives the same output as the unmodified model (maximum difference 0.0, measured).",
+  "label": "core",
+  "key": "maximum difference 0.0, measured",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "The Graph-break fixer tab shows each one's code side by side, Dynamo's reason, the compiled pieces of one forward and the fullgraph=True error.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed Graph-break fixer tab; the fixer is now inline in section 3"
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Predict: with torch._dynamo.config.capture_scalar_outputs = True , the block that does s = x.abs().max().item() and then 1.0 if s < 1e9 else 0.0 compiles to how many graphs?",
+  "label": "core",
+  "key": "s = x.abs().max().item()",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "1: the scalar is captured, no break 3, as without the flag 2: still one break 2 graphs, 1 break.",
+  "label": "core",
+  "key": "2 graphs, 1 break",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "The flag lets .item() into the graph as an unbacked symbol ( zuf0 ), but the Python if on it needs its value at trace time, which nobody has: \"generic_jump SymNodeVariable()\".",
+  "label": "core",
+  "key": "generic_jump SymNodeVariable()",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Under fullgraph=True the same line is an error: \"Could not guard on data-dependent expression zuf0 < 1000000000.0\".",
+  "label": "core",
+  "key": "zuf0 < 1000000000.0",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Keeping the comparison a tensor ( (s < 1e9).to(x.dtype) ) is the fix that gives 1 graph.",
+  "label": "core",
+  "key": "(s < 1e9).to(x.dtype)",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "Three lessons from the table.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "(1) Some flags remove a break by changing what a graph may contain: capture_dynamic_output_shape_ops lets boolean-mask indexing in (the selected size becomes a symbol), reorderable_logging_functions = {print} moves the print to after the graph runs (so it prints after the whole region, not at its line).",
+  "label": "core",
+  "key": "reorderable_logging_functions = {print}",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "(2) fullgraph=True is stricter than \"no breaks\" sounds: for the boolean mask it compiled without error, because when one graph is required Dynamo captures the dynamic size instead of breaking, while for .item() followed by an if it raised.",
+  "label": "core",
+  "key": "Dynamo captures the dynamic size instead of breaking",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "(3) A @torch.compiler.disable helper is a deliberate break; call it outside the compiled region, or, for code Dynamo should not trace but whose outputs are plain tensors, register it as a custom op ( Extending PyTorch owns that; its root lesson: a .tolist() body gives 3 graphs and 2 breaks, the same body as a custom op 1 and 0).",
+  "label": "core",
+  "key": "the same body as a custom op 1 and 0",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. graph breaks: each kind, and how to remove it",
+  "text": "How to check. torch._dynamo.explain(model)(x, y) returns graph count, break count and each reason with its user stack; TORCH_LOGS=graph_breaks prints them as they happen, each with a link into the graph-break registry (for example gb7000 , the loop case); fullgraph=True turns the first one into an exception, which is what you want in a training loop you control.",
+  "label": "core",
+  "key": "gb7000",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "Recompiles and dynamic shapes The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "Sizes are guarded like everything else.",
+  "label": "core",
+  "key": "Sizes are guarded like everything else",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "A model that sees a new sequence length, a short last batch or a different learning rate passed as a Python number fails a guard and compiles again, at a cost of seconds each time.",
+  "label": "core",
+  "key": "a short last batch",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "Compiling for \"any size\" instead makes kernels that cannot specialise on the size (no fully unrolled loops, extra index arithmetic) and adds symbolic reasoning to every compile.",
+  "label": "core",
+  "key": "no fully unrolled loops",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "By default Dynamo compiles the first call with every size static (a constant).",
+  "label": "core",
+  "key": "The first call compiles every size static",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "When a size guard fails, automatic dynamic shapes ( automatic_dynamic_shapes , on by default, config.py L188 ) recompiles with the dimension that changed replaced by a symbol (s75 below) whose value is read at run time; guards on that symbol are inequalities instead of equalities.",
+  "label": "core",
+  "key": "automatic_dynamic_shapes",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "Two exceptions are built in: sizes 0 and 1 stay specialised (a dimension of 1 broadcasts, so code valid for \"any n\" may be wrong for 1; this is 0/1 specialisation ), and parameters' shapes are always static ( force_parameter_static_shapes ).",
+  "label": "core",
+  "key": "force_parameter_static_shapes",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "The same six sequence lengths, T = 64, 32, 48, 16, 1, 64, through the running example (forward, eval, CPU), under five strategies: Compiles per call, and the guard that failed What the five runs show, all measured.",
+  "label": "core",
+  "key": "T = 64, 32, 48, 16, 1, 64",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "Default : 3 compiles: T = 64; T = 32 fails the exact-size guard (\"tensor 'idx' size mismatch at index 1. expected 64, actual 32\") and recompiles with T symbolic, range [2, inf]; 48 and 16 reuse it; T = 1 falls outside \"2 <= idx.size()[1]\" (0/1 specialisation) and compiles a third version. dynamic=False : every new length compiles, 5 times. mark_dynamic(idx, 1, min=2, max=64) before each call: one compile covers 64, 32, 48 and 16, and T = 1 is now an error ( ConstraintViolationError ), not a recompile: a bound you state is checked. dynamic=True : symbolic from the first call, yet 4 compiles here; the recompile log blamed a guard that itself raised (\"'NoneType' object has no attribute 'size'\": some guard read a size from an attribute that is None ) and then the 0/1 guard.",
+  "label": "core",
+  "key": "expected 64, actual 32",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "Recorded; which guard raised was not traced further ( cause unconfirmed ), and it looks like a Dynamo bug rather than anything the model does. mark_unbacked (no 0/1 specialisation, section below) broke tracing at scaled_dot_product_attention inside the block loop, so GPT.forward was skipped and each block frame compiled on its own.",
+  "label": "depth",
+  "key": "scaled_dot_product_attention",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "Python numbers behave like sizes.",
+  "label": "core",
+  "key": "Python numbers behave like sizes",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "The Compile lab showed a float learning rate compiled at calls 1 and 2 and was symbolic afterwards ( specialize_float = False , config.py L162).",
+  "label": "core",
+  "key": "specialize_float = False",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "Values that are not numbers (a string flag, a dtype, a module attribute) are guarded by value with no symbolic fallback.",
+  "label": "core",
+  "key": "guarded by value with no symbolic fallback",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "A small function called with ten different strings, here: After recompile_limit (8, config.py L121 ) versions of one frame, Dynamo stops compiling it and runs it eagerly, with this warning, recorded ( convert_frame.py L2000-L2019 ): The ninth and tenth calls compiled nothing and ran eagerly, with no error unless fail_on_recompile_limit_hit is set.",
+  "label": "core",
+  "key": "The ninth and tenth calls compiled nothing",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "A silent slowdown is the usual symptom. torch.compile(..., recompile_limit=n) sets it per function at 2.14.1 (a new keyword in its signature), and accumulated_recompile_limit (256) caps all frames together.",
+  "label": "core",
+  "key": "accumulated_recompile_limit",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "Unbacked symbols: sizes that come from data A symbol from an input size is backed : at compile time there is a real example value (a hint) to answer questions like \"is s75 > 1?\".",
+  "label": "core",
+  "key": "is s75 > 1?",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "A symbol from .item() or nonzero() is unbacked : its value exists only when the graph runs.",
+  "label": "core",
+  "key": "its value exists only when the graph runs",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "Dynamo breaks on both by default; with capture_scalar_outputs or capture_dynamic_output_shape_ops it keeps them in the graph as u0 , and any branch on them must be answered without a value.",
+  "label": "core",
+  "key": "any branch on them must be answered without a value",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "On two small functions, the captured graphs (abridged): At 2.14.1 slicing by an unbacked size needed no help: Dynamo added the runtime asserts u1 >= 0 and u1 <= 64 itself. torch._check(n >= 0); torch._check(n <= idx.shape[1]) moves the same asserts to your line and tells the compiler facts it can reuse; it is the fix when a branch cannot be decided (\"Could not guard on data-dependent expression\", the error in section 3). torch.cond is the fix when you really need both branches.",
+  "label": "depth",
+  "key": "u1 <= 64",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "TORCH_LOGS=recompiles names the failing guard for every recompile; TORCH_LOGS=dynamic shows each symbol as it is created (\"create_symbol s75 = 32 for L['idx'].size()[1] [2, int_oo]\", recorded) and every guard on it; torch.compiler.set_stance(\"fail_on_recompile\") makes a test fail on any recompile.",
+  "label": "core",
+  "key": "create_symbol s75 = 32",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "Profile-guided dynamism, measured. automatic_dynamic_local_pgo is on at 2.14.1: Dynamo can remember, in the cache directory, which dimensions turned out dynamic, so the next process compiles them dynamic from the start.",
+  "label": "depth",
+  "key": "automatic_dynamic_local_pgo",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "But \"PGO does nothing (even if explicitly enabled) unless a valid job_id is available\" ( torch.compiler.config.job_id , torch/compiler/config.py L48-L70 at v2.14.1).",
+  "label": "depth",
+  "key": "PGO does nothing (even if explicitly enabled)",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. recompiles and dynamic shapes",
+  "text": "Two fresh processes calling T = 64 then 32, sharing one cache directory:",
+  "label": "depth",
+  "key": "sharing one cache directory",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "AOTAutograd: the backward graph, and what crosses to it The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "Dynamo captured only the forward.",
+  "label": "core",
+  "key": "Dynamo captured only the forward",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "Training also runs a backward, and in eager mode that backward is decided op by op as the forward runs: each operation saves what its own derivative needs.",
+  "label": "core",
+  "key": "decided op by op as the forward runs",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "A compiler wants the backward as a graph too, ahead of time, and it wants to choose what is saved rather than accept every op's default.",
+  "label": "core",
+  "key": "wants to choose what is saved",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "AOTAutograd runs the captured forward once more, on fake tensors, through the real autograd machinery, and records forward and backward together as one joint graph whose inputs are the forward inputs ( primals_* ) and the incoming gradients ( tangents_* ).",
+  "label": "core",
+  "key": "primals_*",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "Two rewrites happen on the way: functionalization replaces in-place and aliasing operations by pure ones (the block's joint graph has no in-place op, measured; the mechanism is section 2.7 of Tensors, the dispatcher and autograd ), and decomposition lowers composite ops to a smaller ATen set ( F.linear becomes permute + addmm , GELU becomes erf , mul , add ).",
+  "label": "core",
+  "key": "the block's joint graph has no in-place op, measured",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "Then a partitioner cuts the joint graph in two.",
+  "label": "core",
+  "key": "Then a partitioner cuts the joint graph in two",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "Every value that crosses the cut is saved by the forward for the backward; everything else the backward needs, it recomputes. default_partition Save whatever the backward needs that the forward produced; recompute nothing.",
+  "label": "core",
+  "key": "Save whatever the backward needs that the forward produced",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "( partitioners.py L1595 ) min_cut_rematerialization_partition Inductor's default.",
+  "label": "core",
+  "key": "min_cut_rematerialization_partition",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "A max-flow min-cut over the joint graph where cutting an edge means saving that tensor (cost: its bytes) and cheap ops may be recomputed instead; matmuls, reductions and long chains are banned from recompute ( ban_recompute_* , functorch config.py L159-L174 ).",
+  "label": "core",
+  "key": "ban_recompute_*",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "( partitioners.py L4109 ) activation_memory_budget Below 1.0 (the default, L202 ) the partitioner may recompute expensive ops too, choosing which by a knapsack (solver \"dp\", L215) over runtime estimated from FLOPs (L209), until the saved bytes fit the fraction asked for.",
+  "label": "core",
+  "key": "chosen by a knapsack",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "One block of the running example (training, CPU, input (8, 64, 256)), cut every way, on the real Inductor path (its joint-graph passes, then the partitioner, wrapped to record what it received and returned): One block: bytes saved for backward against ops the backward runs Read it from the top. default_partition keeps 8,404,992 bytes, which is eager's number to within 4 bytes (8,404,996 live after one eager block forward, measured on the sibling page), a good check that the accounting is right.",
+  "label": "core",
+  "key": "wrapped to record what it received and returned",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "Min-cut at budget 1.0 keeps 7,880,704 bytes: it noticed that the 524,288-byte .contiguous() copy of the attention output (the input of proj ) can be rebuilt in backward from the attention output it saves anyway, and that saving the parameters themselves is free where default saved transposed views of them.",
+  "label": "core",
+  "key": "7,880,704",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "So 6% less memory and 10 more backward ops.",
+  "label": "core",
+  "key": "6% less memory for 10 more backward ops",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "Lower budgets buy memory with recomputation: at 0.0 nothing but inputs is saved, and the backward reruns the matrix multiplies and the attention, 134 ops instead of 88.",
+  "label": "core",
+  "key": "the backward reruns the matrix multiplies and the attention",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "The Partitioner explorer tab draws the block's 144-op joint graph and colours each node by what each cut does with it.",
+  "label": "core",
+  "key": "144-op joint graph",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "The whole model behaves the same way: 36,862,468 bytes saved under default_partition (plus 12.63 MB of transposed parameter views, which cost nothing), 34,814,468 at budget 1.0 (the same figure the Compile lab measured), 17,301,504 at 0.5, 6,903,808 at 0.2 and 0 at 0.0, with 427, 578, 593 and 635 backward ops.",
+  "label": "depth",
+  "key": "36,862,468",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "On a larger configuration Making training fast (section 8) measured the same knob at 546.8, 273.0 and 0 MB for budgets 1.0, 0.5 and 0.0.",
+  "label": "depth",
+  "key": "546.8, 273.0 and 0 MB",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "Predict: the running example's training step on the CPU with activation_memory_budget = 0.0 (save nothing, recompute everything) against the default budget: how much slower?",
+  "label": "core",
+  "key": "how much slower?",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "Some, well under 2 times About 2 times: the forward runs twice Not slower at all When it matters.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "predict options plus a heading"
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "When activations, not parameters, set the batch size you can fit: long sequences, many layers.",
+  "label": "core",
+  "key": "when activations, not parameters, set the batch you can fit",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "It is the compiler's version of activation checkpointing (and composes with it: a checkpoint ed region is recomputed whatever the partitioner thinks).",
+  "label": "core",
+  "key": "the compiler's activation checkpointing",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "On this model the default min-cut barely moves memory; the budget is the lever.",
+  "label": "core",
+  "key": "the budget is the lever",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. aotautograd: the backward graph, and what crosses to it",
+  "text": "How to check: TORCH_LOGS=aot_graphs prints the forward graph (its return statement lists what is saved) and the backward graph; TORCH_LOGS=aot_joint_graph the joint graph.",
+  "label": "core",
+  "key": "aot_joint_graph",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "Inductor: from ATen graph to fused kernels The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "The graphs AOTAutograd hands over are still one ATen op per line, and running them op by op would be eager mode again.",
+  "label": "core",
+  "key": "still one ATen op per line",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "Each element-wise op would read its input from memory and write its output back; the Compile lab's fused GELU moved 4 MiB instead of 36 MiB.",
+  "label": "core",
+  "key": "4 MiB instead of 36 MiB",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "How it works, in three passes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "Lowering ATen to loops Each op becomes a loop body written as a small Python function over indices (Inductor's \"define-by-run\" IR, PyTorch 2 paper, section 4 ).",
+  "label": "core",
+  "key": "define-by-run",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "Element-wise ops are inlined into their consumer right here, so a chain like LayerNorm's subtract, multiply, rsqrt never becomes separate nodes.",
+  "label": "core",
+  "key": "inlined into their consumer",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "Matmuls and attention become extern nodes: calls to a library.",
+  "label": "core",
+  "key": "Matmuls and attention become extern nodes",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "Scheduling fuse nodes The scheduler sees the remaining nodes (reductions, pointwise loops, externs) and fuses pairs that can share one loop: a producer with its consumer (vertical), or two nodes reading the same data (horizontal).",
+  "label": "core",
+  "key": "a producer with its consumer (vertical)",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "It refuses when an unfused node would have to run between them, or sizes do not match.",
+  "label": "core",
+  "key": "It refuses when an unfused node would have to run between them",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "Codegen kernels + wrapper One kernel per fused group: C++ with OpenMP and vector intrinsics on a CPU, Triton on a GPU, Metal on MPS; plus a Python wrapper, call() , that allocates buffers (reusing dead ones) and launches kernels and library calls in order.",
+  "label": "core",
+  "key": "Metal on MPS",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "One block's forward on the CPU (inference, (8, 64, 256)), every scheduler decision recorded with TORCH_LOGS=fusion : Scheduler nodes of one block, fused round by round reduction pointwise extern (library call) Read the result.",
+  "label": "core",
+  "key": "every scheduler decision recorded with TORCH_LOGS=fusion",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "Lowering had already done most of the work: the 16 nodes it handed to the scheduler contain whole chains (op3 is LayerNorm's normalisation: sub , mul , rsqrt , add folded in; op14 is all of GELU).",
+  "label": "core",
+  "key": "op14 is all of GELU",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "The scheduler then made 6 fusions in its first round, joining each LayerNorm's two statistics passes and its normalisation into one node, and rejected 27 other pairs, every one for the same reason (\"intermediate nodes between node1 & node2\"); its second round found nothing.",
+  "label": "core",
+  "key": "rejected 27 other pairs",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "Ten nodes became 4 C++ kernels, 4 addmm calls into the BLAS library and 1 call to the CPU flash-attention kernel.",
+  "label": "core",
+  "key": "Ten nodes became 4 C++ kernels",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "The residual add after attention was fused into the second LayerNorm's kernel ( cpp_fused_add_native_layer_norm_view_1 ): it reads the sum while computing the statistics instead of writing it out first.",
+  "label": "core",
+  "key": "cpp_fused_add_native_layer_norm_view_1",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "The wrapper reuses dead buffers 8 times (lines ending # reuse ).",
+  "label": "core",
+  "key": "reuses dead buffers 8 times",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "The same fused GELU kernel, as Inductor wrote it for the CPU, and as it writes it for a GPU (the code generator of The compiler stack 's method: Triton 3.8.0 in Docker with a stand-in driver that only answers \"which GPU target?\"; generated, never run): C++ (CPU, run here) Triton (GPU style, generated only) The wrapper's call() Both kernels do the same arithmetic (0.5 x (1 + erf(x / sqrt 2))) in one pass over 524,288 floats; they differ in how the loop is cut.",
+  "label": "core",
+  "key": "Triton 3.8.0 in Docker",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "The C++ splits it across 4 OpenMP threads and steps 4 floats at a time with NEON vectors ( Vectorized<float> ); the Triton kernel handles one block of XBLOCK elements per program instance and leaves the block size to an autotuner.",
+  "label": "core",
+  "key": "Vectorized<float>",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "Triton generated with the same fusion decisions: the same 4 groups (two \"per\" persistent-reduction kernels for the LayerNorms, two \"poi\" pointwise kernels).",
+  "label": "core",
+  "key": "persistent-reduction kernels for the LayerNorms",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "On this block, measured by counting launches in the generated code (training, forward and backward): default 4 + 9 generated kernels, 4 + 8 library matmuls; aggressive_fusion=True , epilogue_fusion=False and pattern_matcher=False changed nothing; cpp_wrapper=True writes the wrapper in C++ instead of Python (611 and 904 lines instead of 491 and 728), removing Python from the per-call path; freezing=True (inference) gave the same 9 launches.",
+  "label": "depth",
+  "key": "611 and 904 lines",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "The knobs that change a CPU block are few; on a GPU the large ones are max_autotune (try Triton templates against cuBLAS for each matmul), coordinate_descent_tuning and CUDA graphs, which is what the modes bundle (section 7).",
+  "label": "depth",
+  "key": "coordinate_descent_tuning",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "6. inductor: from aten graph to fused kernels",
+  "text": "TORCH_LOGS=output_code prints every kernel and the wrapper; TORCH_LOGS=fusion or schedule the decisions; TORCH_LOGS=ir_pre_fusion,ir_post_fusion the scheduler's nodes; kernel names are unique by default at 2.14.1 ( TORCHINDUCTOR_UNIQUE_KERNEL_NAMES defaults to 1, inductor config.py L2102-L2104 ), so a profiler trace maps each kernel back to its source; the old advice to set it is no longer needed.",
+  "label": "core",
+  "key": "TORCHINDUCTOR_UNIQUE_KERNEL_NAMES",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "7. modes: bundles of inductor options",
+  "text": "Modes: bundles of Inductor options A mode is only a preset of Inductor config, and torch._inductor.list_mode_options() prints it.",
+  "label": "core",
+  "key": "list_mode_options()",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "7. modes: bundles of inductor options",
+  "text": "At 2.14.1, recorded: From the docstring at 2.14.1 ( torch/__init__.py L3103-L3119 ): \"reduce-overhead\" \"reduces the overhead of python with CUDA graphs, useful for small batches\", at the cost of memory, and \"today, we only reduce overhead for CUDA only graphs which do not mutate inputs\"; \"max-autotune\" \"leverages Triton or template based matrix multiplications on supported devices\" and \"enables CUDA graphs by default on GPU\".",
+  "label": "depth",
+  "key": "reduces the overhead of python with CUDA graphs, useful for small batches",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "7. modes: bundles of inductor options",
+  "text": "A fifth preset, \"lite\" , appears in the table but not in the docstring: it turns most graph passes and buffer reuse off and falls back to eager by default unless a region is marked for compilation ( torch/_inductor/__init__.py L335-L351 ).",
+  "label": "depth",
+  "key": "appears in the table but not in the docstring",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "7. modes: bundles of inductor options",
+  "text": "Not much: the Compile lab measured mode=\"max-autotune\" on the CPU at 23.94 ms against 23.20 default, keeping the BLAS call for every matrix multiply (no template beat it), and \"reduce-overhead\" at 23.85 ms, doing nothing on a CPU.",
+  "label": "core",
+  "key": "23.94 ms against 23.20 default",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "7. modes: bundles of inductor options",
+  "text": "CUDA graphs (record a whole sequence of kernel launches once, replay it with one call) need an NVIDIA GPU, static shapes and static addresses, and are owned by Streams, CUDA graphs and multi-GPU (its section 4 covers CUDAGraph Trees and Inductor's graph partitions, which split a graph around the parts that cannot be captured; graph_partition is on by default at 2.14.1, read from the config).",
+  "label": "core",
+  "key": "graph_partition",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "7. modes: bundles of inductor options",
+  "text": "Not run here: no NVIDIA GPU.",
+  "label": "core",
+  "key": "Not run here: no NVIDIA GPU",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "Compiled autograd: the backward captured when it runs The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "AOTAutograd builds the backward ahead of time, but only for the compiled region.",
+  "label": "core",
+  "key": "AOTAutograd builds the backward ahead of time, but only for the compiled region",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "Anything the autograd engine does around it stays eager: gradient hooks, the accumulation into .grad , and in distributed training the communication that DDP and FSDP hook into the backward.",
+  "label": "core",
+  "key": "accumulation into .grad",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "A hook on a parameter, for instance, cannot be inside the ahead-of-time graph because it is attached to a tensor, not to code Dynamo traced.",
+  "label": "core",
+  "key": "it is attached to a tensor, not to code Dynamo traced",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "With torch._dynamo.config.compiled_autograd = True ( config.py L770 , off by default), when loss.backward() runs inside a compiled function the engine's whole graph is traced at that moment, hooks and accumulation included, into one FX graph that Dynamo and Inductor then compile.",
+  "label": "core",
+  "key": "compiled_autograd = True",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "The price is that this graph is traced on every backward and guarded on the autograd graph's structure.",
+  "label": "core",
+  "key": "traced on every backward and guarded on the autograd graph's structure",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "On the running example's training step, CPU, recorded: Without it, a hook on blocks[0].mlp.fc.weight ( lambda g: g * 0.5 ) became a separate one-op graph compiled by Dynamo when the engine called it.",
+  "label": "core",
+  "key": "became a separate one-op graph",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "With it, the backward is one graph of 730 ops including 52 AccumulateGrad nodes (one per parameter), and the hook is the 731st op inside it.",
+  "label": "core",
+  "key": "52 AccumulateGrad nodes",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "Gradients match eager to 3.6e-07 in every case.",
+  "label": "core",
+  "key": "3.6e-07",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "Speed on the CPU: the forward-and-backward step 23.36 ms without, 23.57 ms with (medians of 5 x 20 steps under the bench lock): no gain here, because the backward kernels were already compiled and there is no communication to overlap.",
+  "label": "core",
+  "key": "23.36 ms without, 23.57 ms with",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "When the backward contains things worth fusing or overlapping that AOTAutograd cannot see.",
+  "label": "core",
+  "key": "worth fusing or overlapping that AOTAutograd cannot see",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "Dynamo's DDP support documents the trade ( optimize_ddp , config.py L406-L432 ): the default \"ddp_optimizer\" splits the forward graph at DDP's bucket boundaries so that each bucket's all-reduce can start while the rest of the backward runs, and \"python_reducer\" (experimental) instead \"requires the usage of compiled_autograd\" to trace the communication without graph breaks.",
+  "label": "depth",
+  "key": "python_reducer",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "The split is real; on 2 CPU processes (gloo), the compiled DDP model became: Correction to the old page: it said torchtitan uses compiled autograd for compiled FSDP2.",
+  "label": "core",
+  "key": "Correction to the old page",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "The torchtitan 0.3.0 source has no reference to compiled_autograd ; it compiles each transformer block with fullgraph=True (torchtitan/distributed/compile.py L70) and sets capture_scalar_outputs = True for MoE routing (L56).",
+  "label": "core",
+  "key": "torchtitan 0.3.0 source has no reference",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "8. compiled autograd: the backward captured when it runs",
+  "text": "Distributed internals are owned by Distributed PyTorch .",
+  "label": "depth",
+  "key": "Distributed internals are owned by",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "9. regional compilation: compile the block, not the model",
+  "text": "Regional compilation: compile the block, not the model The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "9. regional compilation: compile the block, not the model",
+  "text": "Compile time grows with graph size, and an LLM is the same block repeated 32 to 128 times.",
+  "label": "core",
+  "key": "32 to 128 times",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "9. regional compilation: compile the block, not the model",
+  "text": "Compiling the whole model traces and optimises every copy.",
+  "label": "core",
+  "key": "traces and optimises every copy",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "9. regional compilation: compile the block, not the model",
+  "text": "Compile the repeated module instead: for b in model.blocks: b.compile() ( nn.Module.compile compiles in place).",
+  "label": "core",
+  "key": "for b in model.blocks: b.compile()",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "9. regional compilation: compile the block, not the model",
+  "text": "Dynamo compiles Block.forward once; because parameters are graph inputs (inlined built-in modules, always on at 2.14.1), every other block instance passes the same guards and reuses the code. torchtitan does exactly this with fullgraph=True .",
+  "label": "core",
+  "key": "inlined built-in modules, always on at 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "9. regional compilation: compile the block, not the model",
+  "text": "A newer variant keeps one compile of the whole model but marks the block as a region compiled once and called many times: torch.compiler.nested_compile_region (in the 2.14.1 API).",
+  "label": "core",
+  "key": "nested_compile_region",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "9. regional compilation: compile the block, not the model",
+  "text": "Cold first training step, fresh process, empty cache, 3 runs each under the bench lock (CPU, 4 threads): Cold compile of the first training step The whole model went from 9.19 s to 10.85 s when the blocks doubled from 4 to 8; per-block compilation stayed flat (5.72 s, 5.66 s), because the extra blocks cost nothing to compile; nested_compile_region sat between (8.04 s, 8.42 s), since the rest of the model is still traced around the region.",
+  "label": "core",
+  "key": "from 9.19 s to 10.85 s",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "9. regional compilation: compile the block, not the model",
+  "text": "Steady-state step time did not suffer here (whole 24.11 ms, regional 23.80, nested 23.91, medians of 5 x 20 steps): the loss of fusion across block boundaries (a residual add that could have joined the next LayerNorm) is too small to see on a CPU.",
+  "label": "core",
+  "key": "whole 24.11 ms, regional 23.80, nested 23.91",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "9. regional compilation: compile the block, not the model",
+  "text": "The Compile time and caches tab shows each run and its phase breakdown.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed Compile time tab; the phases are now in section 9's figure"
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "9. regional compilation: compile the block, not the model",
+  "text": "Always worth trying first on a deep model; the gap grows with depth (here 1.9 times at 8 blocks; production models have tens to hundreds).",
+  "label": "core",
+  "key": "1.9 times at 8 blocks",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "9. regional compilation: compile the block, not the model",
+  "text": "How to check: the cache counters ( fxgraph_cache_miss ) were 2 in every variant: one forward and one backward graph compiled, whether that graph is the whole model or one block.",
+  "label": "core",
+  "key": "fxgraph_cache_miss",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "Caches: paying the compile once The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "A cold compile of this tiny model's training step takes about 9 seconds on the laptop; real models take minutes, and a job on 1,000 GPUs restarted after a failure would pay it on every rank.",
+  "label": "core",
+  "key": "a job on 1,000 GPUs restarted",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "Several caches on disk, all under TORCHINDUCTOR_CACHE_DIR (a per-user temporary directory by default), each keyed by a hash of its input graph, the config and the versions: the FX graph cache (Inductor's output for a post-AOTAutograd graph; fx_graph_cache , on, inductor config.py L109 ), the AOTAutograd cache (the forward and backward graphs for a Dynamo graph, so even AOTAutograd is skipped; enable_autograd_cache , on, functorch config.py L71 ), the compiled kernels themselves (C++ shared objects, Triton binaries) and autotuning results.",
+  "label": "core",
+  "key": "enable_autograd_cache",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "Dynamo still traces on every new process: guards are not cached by these.",
+  "label": "core",
+  "key": "guards are not cached",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "Mega-cache packs the cache entries a process used into one blob: torch.compiler.save_cache_artifacts() returns bytes, load_cache_artifacts(bytes) installs them in another process's cache directory.",
+  "label": "core",
+  "key": "load_cache_artifacts(bytes)",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "Measured, whole model, CPU, 3 runs each, each scenario in its own private cache directory: First training step: cold, warm, and from a mega-cache Warm, the first step took 0.85 s against 9.08 s cold (medians): both Inductor graphs and the AOTAutograd entry hit, and nothing was compiled.",
+  "label": "core",
+  "key": "0.85 s against 9.08 s cold",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "The mega-cache, loaded into an empty directory in a fresh process, gave 5.06 s: the same cache hits (2 FX graph, 1 AOTAutograd), but 4.0 s still went to async_compile.wait , compiling the C++ kernels again.",
+  "label": "core",
+  "key": "The mega-cache gave 5.06 s",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "The blob (1,265,370 bytes) carries the generated source, not this machine's compiled .so files, so on a CPU it saves the Python half of the compile and not the C++ half.",
+  "label": "core",
+  "key": "1,265,370 bytes",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "On a GPU the large win is the Triton kernels and autotuning results it carries (not measured here).",
+  "label": "core",
+  "key": "the Triton kernels and autotuning results it carries",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "A cache can serve a wrong program The sibling Extending PyTorch found that the AOTAutograd cache key does not include whether a custom op's autograd formula is registered: a process that registered it late produced a backward that silently dropped gradients, and a later, correct process reading the same cache reused that broken backward.",
+  "label": "core",
+  "key": "A cache can serve a wrong program",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "TORCHINDUCTOR_AUTOGRAD_CACHE=0 avoided it there.",
+  "label": "core",
+  "key": "TORCHINDUCTOR_AUTOGRAD_CACHE=0",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "When you change custom-op registrations or other code the key cannot see, use a fresh cache directory.",
+  "label": "core",
+  "key": "use a fresh cache directory",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "The counters torch._dynamo.utils.counters[\"inductor\"][\"fxgraph_cache_hit\"] and counters[\"aot_autograd\"][\"autograd_cache_hit\"] (used for the table above); TORCH_LOGS=cache ; torch._dynamo.utils.calculate_time_spent() for the phase split.",
+  "label": "core",
+  "key": "autograd_cache_hit",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "10. caches: paying the compile once",
+  "text": "To be sure you are measuring a cold compile, point TORCHINDUCTOR_CACHE_DIR at an empty directory, or set torch.compiler.config.force_disable_caches .",
+  "label": "core",
+  "key": "force_disable_caches",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "11. torch.export and AOTInductor: one graph to ship The problem. torch.compile is a just-in-time compiler for a Python process: it needs your Python code, falls back to Python at breaks, and recompiles when guards fail.",
+  "label": "core",
+  "key": "falls back to Python at breaks",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "To deploy a model where there is no Python, or to hand a graph to another tool, you need the whole program captured once, ahead of time, with its assumptions written down.",
+  "label": "core",
+  "key": "with its assumptions written down",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "How it works. torch.export.export(model, args, dynamic_shapes=...) captures one graph with no breaks allowed and returns an ExportedProgram : the graph (ATen ops), a graph signature saying which inputs are parameters, buffers or user inputs, the state_dict , and range constraints on every symbolic size.",
+  "label": "core",
+  "key": "range constraints",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "Two tracers: non-strict (the default at 2.14.1, strict=False in its signature) runs your Python normally with fake tensors and records the ATen calls; strict traces through Dynamo, which can reject Python it cannot prove safe.",
+  "label": "core",
+  "key": "strict=False in its signature",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "On the running example (logits only, eval) both produced the same 94-op graph, measured; its signature lists 53 parameter inputs (the tied embedding twice, under its two names) and 1 user input. ep.run_decompositions() lowers it to the core ATen set: 326 ops.",
+  "label": "core",
+  "key": "53 parameter inputs",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "Four lessons from the table.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "(1) A dynamic dimension you declare is checked: the reshape to 8 rows made export fail with \"You marked batch as dynamic but your code specialized it to be a constant (8)\" and a suggested fix.",
+  "label": "core",
+  "key": "You marked batch as dynamic but your code specialized it to be a constant (8)",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "(2) A range is not checked against data: T up to 128 exported fine although the position table has 64 rows; T > 64 would index past it at run time.",
+  "label": "core",
+  "key": "T up to 128 exported fine",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "With the correct range, a T = 100 input was rejected on entry (\"Guard failed: idx.size()[1] <= 64\", recorded).",
+  "label": "core",
+  "key": "Guard failed: idx.size()[1] <= 64",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "(3) Dim.AUTO found both dimensions dynamic but from 2, not 1 (0/1 specialisation again).",
+  "label": "depth",
+  "key": "Dim.AUTO",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "(4) Data-dependent Python control flow cannot be exported in either mode; torch.cond can. torch.export.draft_export exports it anyway and reports the problem; here it picked the branch the example took ( cos ) and inserted a runtime assert, with the advice to add torch._check .",
+  "label": "depth",
+  "key": "draft_export",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "Saving and AOTInductor. torch.export.save wrote a 12,986,850-byte .pt2 archive (52 weight files, since tied weights are stored once, plus the graph as JSON); loading it gave identical outputs. torch._inductor.aoti_compile_and_package(ep) compiles the program ahead of time into a shared library inside a 14,358,669-byte package (the 14,163,036-byte wrapper.so holds the weights) that aoti_load_package runs from Python, or a C++ runner without Python.",
+  "label": "depth",
+  "key": "12,986,850",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "Outputs matched eager within 1.25e-06 at (8, 64).",
+  "label": "core",
+  "key": "1.25e-06",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "Measured here: AOTInductor and a non-contiguous input A slice x[:3, :20] of the batch (strides (64, 1), not contiguous) passed to the AOTInductor package returned logits with a maximum error of 1.81 against eager, with no error or warning; the same input after .contiguous() matched within 9.5e-07, and the exported program's own ep.module() handled the slice exactly (0.0).",
+  "label": "core",
+  "key": "strides (64, 1), not contiguous",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "The compiled library assumed the strides it was compiled for.",
+  "label": "core",
+  "key": "assumed the strides it was compiled for",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "Call .contiguous() on inputs to an AOTInductor model.",
+  "label": "core",
+  "key": "Call .contiguous() on inputs to an AOTInductor model",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "11. torch.export and aotinductor: one graph to ship",
+  "text": "ExecuTorch (on-device) and the ONNX exporter (dynamo-based by default since 2.9) start from torch.export ; the file formats are on Model formats .",
+  "label": "core",
+  "key": "dynamo-based by default since 2.9",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "Debugging: a workflow and its tools When compile misbehaves, the symptom is one of four: it is slow to compile, it is not faster, it gives different numbers, or it crashes.",
+  "label": "core",
+  "key": "slow to compile, not faster, different numbers, or a crash",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "The workflow, each step with the tool used on this page: Count graphs and breaks first. torch._dynamo.explain(model)(x, y) (sections 3 and 4).",
+  "label": "core",
+  "key": "Count graphs and breaks first",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "Then TORCH_LOGS=\"graph_breaks,recompiles\" on a real run.",
+  "label": "core",
+  "key": "graph_breaks,recompiles",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "Bisect the stack. backend=\"eager\" runs Dynamo only, \"aot_eager\" adds AOTAutograd, the default adds Inductor.",
+  "label": "core",
+  "key": "aot_eager",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "Whichever first changes the numbers or crashes is the culprit.",
+  "label": "core",
+  "key": "Whichever first changes the numbers or crashes is the culprit",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "Read one compile end to end.",
+  "label": "core",
+  "key": "Read one compile end to end",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "Set TORCH_TRACE=<dir> and run tlparse on the log: one HTML report with every frame compiled, every graph (Dynamo, joint, forward, backward, post-grad), the generated code, guards, breaks and recompile reasons per compile id.",
+  "label": "core",
+  "key": "recompile reasons per compile id",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "Shrink a crash. torch._dynamo.config.repro_after = \"aot\" (or \"dynamo\" ) makes a failing compile write a launcher script; running it minifies the graph.",
+  "label": "core",
+  "key": "repro_after",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "Find where compile time goes. torch._dynamo.utils.calculate_time_spent() (section 10), or the compilation_metrics pages tlparse writes. tlparse on a real run.",
+  "label": "core",
+  "key": "compilation_metrics",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "The running example with a print in Block.forward , run for two steps with batch 8 then 4 (one recompile), traced and parsed with tlparse 0.4.3 (installed here).",
+  "label": "depth",
+  "key": "tlparse 0.4.3 (installed here)",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "The compile ids it lists, [frame/attempt] : Frame 0 is GPT.forward : its only artifact is the break (\"Failed to handle graph break gracefully.",
+  "label": "depth",
+  "key": "Frame 0 is GPT.forward",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "Skipping the function and falling back to eager\"), confirming section 3's surprise.",
+  "label": "depth",
+  "key": "confirming section 3",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "Frame 1 is Block.forward before the print, frame 2 the resume function after it (\"torch_dynamo_resume_in_blk_print_at_10\"); each compiled twice, the second time because \"tensor 'x' size mismatch at index 0. expected 8, actual 4\".",
+  "label": "depth",
+  "key": "torch_dynamo_resume_in_blk_print_at_10",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "Each compiled frame lists about 30 artifacts, from the Dynamo graph to the cache misses.",
+  "label": "depth",
+  "key": "about 30 artifacts",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "The minifier on purpose.",
+  "label": "depth",
+  "key": "The minifier on purpose",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "Inductor has a test-only switch that makes every relu fail to compile ( torch._inductor.config.cpp.inject_relu_bug_TESTING_ONLY = \"compile_error\" ).",
+  "label": "depth",
+  "key": "inject_relu_bug_TESTING_ONLY",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "With repro_after = \"aot\" , a five-line function (matmul, scale, add, relu, matmul, LayerNorm, sum) crashed with a C++ compile error and left a launcher script; running it, recorded: That is the deliverable you attach to a bug report: a self-contained script whose graph is just the failing op.",
+  "label": "depth",
+  "key": "five-line function",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "12. debugging: a workflow and its tools",
+  "text": "The minifier's strategies (dead-code elimination, removing inputs and outputs, truncating the graph, delta debugging) ran 25 times; on a large model this takes hours rather than the 65 seconds here, so run it on a small reproduction when you can.",
+  "label": "depth",
+  "key": "delta debugging",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "13. what carries over to nvidia gpus, and what does not",
+  "text": "What carries over to NVIDIA GPUs, and what does not Measured here On an NVIDIA GPU Bytecode walk, VariableTrackers, guards, guard tree Identical: Dynamo is device-independent; only TENSOR_MATCH's device and dispatch keys change.",
+  "label": "core",
+  "key": "Dynamo is device-independent",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "13. what carries over to nvidia gpus, and what does not",
+  "text": "Graph breaks, nested breaks, recompiles, dynamic shapes, unbacked symbols, recompile limit Identical behaviour; the cost of each break is usually larger (more launches, CUDA graphs cannot span it).",
+  "label": "core",
+  "key": "CUDA graphs cannot span it",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "13. what carries over to nvidia gpus, and what does not",
+  "text": "Partitioner decisions and saved bytes Same algorithm; Inductor's GPU path can also recompute through fusible chains, and the budget's runtime estimate uses FLOPs either way.",
+  "label": "core",
+  "key": "recompute through fusible chains",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "13. what carries over to nvidia gpus, and what does not",
+  "text": "The time a recompute costs differs.",
+  "label": "core",
+  "key": "The time a recompute costs differs",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "13. what carries over to nvidia gpus, and what does not",
+  "text": "Fusion groups, 4 kernels per block forward The same groups (the Triton code above came from the same decisions); matmuls go to cuBLAS or, with max_autotune , Triton templates; attention to a flash or cuDNN kernel.",
+  "label": "core",
+  "key": "attention to a flash or cuDNN kernel",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "13. what carries over to nvidia gpus, and what does not",
+  "text": "Step time: no gain on CPU, 1.18x on MPS (Compile lab) Does not transfer.",
+  "label": "core",
+  "key": "1.18x on MPS",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "13. what carries over to nvidia gpus, and what does not",
+  "text": "Vendor figure: 43% faster training on average on an A100 over 163 models (PyTorch team, 2023, PyTorch 2.x ).",
+  "label": "core",
+  "key": "163 models",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "13. what carries over to nvidia gpus, and what does not",
+  "text": "Compile times (9.2 s cold, 0.85 s warm, 5.7 s regional) The shape transfers (regional flat in depth, warm far below cold); absolute values do not.",
+  "label": "core",
+  "key": "regional flat in depth, warm far below cold",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "13. what carries over to nvidia gpus, and what does not",
+  "text": "On GPU the mega-cache also carries Triton binaries and autotuning (not measured here). reduce-overhead, max-autotune, CUDA graphs Not run here: CUDA only.",
+  "label": "core",
+  "key": "Not run here: CUDA only",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "13. what carries over to nvidia gpus, and what does not",
+  "text": "See Streams, CUDA graphs and multi-GPU .",
+  "label": "core",
+  "key": "See Streams, CUDA graphs and multi-GPU",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Logging inside the model with print or .item() Each is a graph break; inside the block loop it costs the whole forward (section 3).",
+  "label": "depth",
+  "key": "inside the block loop it costs the whole",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Log outside the compiled function, or keep values as tensors and read them every N steps.",
+  "label": "depth",
+  "key": "read them every N steps",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Calling mark_dynamic on one tensor of several that share a dimension The targets carry the same length as the inputs and are guarded too (Compile lab); mark every tensor with the dimension, or give the bound with min and max so violations are errors you see.",
+  "label": "depth",
+  "key": "The targets carry the same length as the inputs",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Assuming nested_graph_breaks keeps a model compiled It did nothing for a break inside a for loop over blocks, measured (section 3).",
+  "label": "depth",
+  "key": "It did nothing for a break inside a",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Passing a different Python string, dtype or config value each call Guarded by value with no symbolic fallback: after 8 versions, eager mode with only a warning (section 4).",
+  "label": "depth",
+  "key": "after 8 versions, eager mode with only a warning",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Timing the first call It includes 9 seconds of compiling here; warm up, then time, and synchronise on a GPU ( Making training fast section 1).",
+  "label": "depth",
+  "key": "It includes 9 seconds of compiling here",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Compiling the whole model when compile time hurts Compile the block (section 9): 5.7 s instead of 9.2 s here, and it does not grow with depth.",
+  "label": "depth",
+  "key": "5.7 s instead of 9.2 s here",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Measuring a \"cold\" compile with a warm cache The caches are on by default and survive processes: 0.85 s looks like a fast compiler.",
+  "label": "depth",
+  "key": "0.85 s looks like a fast compiler",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use an empty TORCHINDUCTOR_CACHE_DIR .",
+  "label": "depth",
+  "key": "use an empty TORCHINDUCTOR_CACHE_DIR",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Feeding a sliced tensor to an AOTInductor package Wrong answers with no warning, measured (section 11).",
+  "label": "depth",
+  "key": "Wrong answers with no warning",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Reading activation_memory_budget from torch._dynamo.config It lives in torch._functorch.config at 2.14.1 (the sibling page found the blog's spelling does not exist).",
+  "label": "depth",
+  "key": "the blog's spelling does not exist",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Interview questions, with short answers How does Dynamo capture a graph without running the model on real data?",
+  "label": "depth",
+  "key": "How does Dynamo capture a graph without running the model on real data?",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "It installs a PEP 523 frame evaluator and symbolically executes each frame's bytecode with VariableTrackers; tensors are fake tensors carrying shapes, so ops add FX nodes and Python values are computed at trace time and protected by guards.",
+  "label": "depth",
+  "key": "frame evaluator and symbolically executes",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What is a guard, and what happens when one fails?",
+  "label": "depth",
+  "key": "What is a guard, and what happens when one fails?",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A condition the compiled code assumed (shape, dtype, object identity, global state), checked in C++ before each call.",
+  "label": "depth",
+  "key": "checked in C++ before each call",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "On failure Dynamo recompiles and caches another version, up to recompile_limit (8), then runs eagerly.",
+  "label": "depth",
+  "key": "up to recompile_limit (8), then runs eagerly",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why might one graph break cost the whole model?",
+  "label": "depth",
+  "key": "Why might one graph break cost the whole model?",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A break inside a loop cannot be resumed, so Dynamo skips the enclosing frame: everything outside the blocks runs eagerly and the blocks compile in pieces.",
+  "label": "depth",
+  "key": "A break inside a loop cannot be resumed",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Backed versus unbacked symbolic sizes?",
+  "label": "depth",
+  "key": "Backed versus unbacked symbolic sizes?",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Backed come from input sizes and have an example value to answer branches; unbacked come from data ( .item() , nonzero ) and do not, so branches on them need torch._check or torch.cond .",
+  "label": "depth",
+  "key": "Backed come from input sizes",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What does the min-cut partitioner optimise?",
+  "label": "depth",
+  "key": "What does the min-cut partitioner optimise?",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Which joint-graph values the forward saves for backward: it minimises saved bytes, recomputing cheap ops; activation_memory_budget lets it recompute expensive ones too.",
+  "label": "depth",
+  "key": "it minimises saved bytes, recomputing cheap ops",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Where does Inductor fuse?",
+  "label": "depth",
+  "key": "Where does Inductor fuse?",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Mostly at lowering (pointwise ops are inlined into consumers), then in the scheduler (vertical and horizontal fusion of loops); matmuls and attention stay library calls unless autotuning picks a template.",
+  "label": "depth",
+  "key": "Mostly at lowering",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What do the modes change?",
+  "label": "depth",
+  "key": "What do the modes change?",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Only Inductor config: reduce-overhead turns on CUDA graphs; max-autotune adds matmul autotuning, coordinate-descent tuning and CUDA graphs; -no-cudagraphs drops the graphs.",
+  "label": "depth",
+  "key": "-no-cudagraphs drops the graphs",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Compiled autograd: what and why?",
+  "label": "depth",
+  "key": "Compiled autograd: what and why?",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Tracing the autograd engine's graph at backward time, including hooks and accumulation, so the backward compiles as one graph and distributed communication can be traced and overlapped.",
+  "label": "depth",
+  "key": "Tracing the autograd engine's graph at backward time",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How do you cut compile time for a 70B model?",
+  "label": "depth",
+  "key": "How do you cut compile time for a 70B model?",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Regional compilation of the repeated block, warm caches shared across ranks (mega-cache), avoiding recompiles (mark dynamic dims, stable Python args), and profiling compile time by phase. torch.compile versus torch.export? compile is a JIT inside Python that tolerates breaks and recompiles; export captures one full graph with explicit dynamic-shape constraints for deployment (ExecuTorch, AOTInductor, ONNX).",
+  "label": "depth",
+  "key": "warm caches shared across ranks",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-tcp-brk",
+  "section": "graph-break fixer",
+  "text": "Graph-break fixer Nine lines that break graphs, each placed in the running example's Block.forward between attention and the MLP, and a fix for each (twelve rows: three lines have two different fixes).",
+  "label": "core",
+  "key": "twelve fixes (three lines have two)",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-tcp-brk",
+  "section": "graph-break fixer",
+  "text": "Pick a kind, then play one forward pass broken and fixed: green pieces run compiled, dashed ones run as plain Python.",
+  "label": "core",
+  "key": "green runs compiled, dashed runs as Python",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-tcp-brk",
+  "section": "graph-break fixer",
+  "text": "Every number is recorded (torch 2.14.1, CPU, exp/fixer.py ); background in Reading section 3 .",
+  "label": "core",
+  "key": "exp/fixer.py",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-tcp-brk",
+  "section": "graph-break fixer",
+  "text": "Broken Fixed Broken Fixed Dynamo's reason: With fullgraph=True : The strip is drawn from the counting backend's record: which compiled pieces exist (ops in each) and how many piece calls one forward makes.",
+  "label": "core",
+  "key": "counting backend's record",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-tcp-brk",
+  "section": "graph-break fixer",
+  "text": "The order of the eager segments between them is the model's (embedding, 4 blocks, final LayerNorm, head and loss).",
+  "label": "core",
+  "key": "the order of the eager segments is the model's",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-tcp-cache",
+  "section": "compile time and caches",
+  "text": "Compile time and caches The first training step of the running example in a fresh process, played back in real proportion: where the seconds go, and what each way of compiling or caching removes.",
+  "label": "core",
+  "key": "Per block stays flat as the model doubles",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-tcp-cache",
+  "section": "compile time and caches",
+  "text": "Each bar is the run closest to the median of three (CPU, 4 threads, torch 2.14.1, bench lock); the phases are Dynamo's own timers ( calculate_time_spent() ).",
+  "label": "depth",
+  "key": "the run closest to the median of three",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-tcp-cache",
+  "section": "compile time and caches",
+  "text": "Background in Reading sections 9 and 10 .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer back to Reading"
+ },
+ {
+  "id": 295,
+  "tab": "t-tcp-cache",
+  "section": "compile time and caches",
+  "text": "Cold, warm, mega-cache Whole model against per block (4 and 8 blocks) Dynamo tracing forward: AOTAutograd + Inductor backward compile (at first backward) running the step, the rest How the phases are derived: Dynamo = entire_frame_compile minus backend_compile ; forward = backend_compile ; backward = entire_backward_compile ; the rest = first-step time minus both.",
+  "label": "depth",
+  "key": "entire_backward_compile",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-tcp-cache",
+  "section": "compile time and caches",
+  "text": "Waiting for the C++ compiler ( async_compile.wait ) sits inside the forward and backward phases; it is listed per run below.",
+  "label": "depth",
+  "key": "sits inside the forward and backward phases",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-tcp-cache",
+  "section": "compile time and caches",
+  "text": "Every run What to take away.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "headings"
+ },
+ {
+  "id": 298,
+  "tab": "t-tcp-cache",
+  "section": "compile time and caches",
+  "text": "The warm run did no compiling: its 0.85 s is Dynamo tracing again plus loading cached code, which is why guards and tracing are the floor of a warm start.",
+  "label": "core",
+  "key": "the floor of a warm start",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-tcp-cache",
+  "section": "compile time and caches",
+  "text": "The mega-cache run hit the same caches but still waited about 4 s for the C++ compiler, because on a CPU the blob carries kernel source, not the built libraries.",
+  "label": "core",
+  "key": "compiling the C++ kernels again",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-tcp-cache",
+  "section": "compile time and caches",
+  "text": "Per-block compilation cut the cold start by about 40% at 4 blocks and by half at 8, and did not grow with depth.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the times in section 9's figure and prose"
+ },
+ {
+  "id": 301,
+  "tab": "t-tcp-part",
+  "section": "partitioner explorer",
+  "text": "Partitioner explorer The joint forward-and-backward graph of one block of the running example (training, input (8, 64, 256), CPU), as AOTAutograd handed it to the partitioner after Inductor's joint-graph passes: 144 operations in order, forward first.",
+  "label": "core",
+  "key": "in order, forward first",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-tcp-part",
+  "section": "partitioner explorer",
+  "text": "Play the animation to watch the cut move from \"save everything the backward needs\" to \"save nothing\", or tap any operation to see what each partitioner does with it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "play instructions, now the stepper's controls"
+ },
+ {
+  "id": 303,
+  "tab": "t-tcp-part",
+  "section": "partitioner explorer",
+  "text": "Recorded with torch 2.14.1 ( exp/aot.py ); background in Reading section 5 . saved for backward computed in forward, recomputed in backward forward only backward only Tap an operation.",
+  "label": "core",
+  "key": "Recorded with torch 2.14.1 (exp/aot.py)",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-tcp-part",
+  "section": "partitioner explorer",
+  "text": "What this cut saves Saved values that are graph inputs (the block input, parameters) are kept by the caller anyway and are listed but not counted. default_partition saves transposed views of the weights where min-cut saves the weights themselves; views share the weights' memory, so both cost nothing extra.",
+  "label": "depth",
+  "key": "views share the weights' memory",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's tabs, the parent topic and its labs, the sibling pages, neighbouring knowledge base pages and the best outside resources, each with an approximate time.",
+  "label": "core",
+  "key": "This page, the parent topic",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 2026-10-13.",
+  "label": "core",
+  "key": "Links checked on 2026-10-13",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page Reading Dynamo, guards, graph breaks, dynamic shapes, AOTAutograd's partitioner, Inductor's fusion and code, modes, compiled autograd, regional compilation, caches, export and AOTInductor, debugging, all on the running example. about 45 min, plus the animations Graph-break fixer Nine break kinds (twelve fixes) in the running example, each with its fix, Dynamo's reason, the fullgraph error and the compiled pieces of one forward, broken and fixed.",
+  "label": "core",
+  "key": "with the graph-break fixer",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 to 15 min Compile time and caches The first training step played back to scale: cold, warm and mega-cache; whole model against per block at 4 and 8 blocks; every run with its phases and cache hits.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "entry for a removed tab"
+ },
+ {
+  "id": 309,
+  "tab": "t-more",
+  "section": "",
+  "text": "5 to 10 min Partitioner explorer One block's 144-op joint graph, coloured by what each partitioner saves and recomputes, from default_partition to budget 0.0.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "entry for a removed tab"
+ },
+ {
+  "id": 310,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min The parent topic and its siblings Topic: pytorch-ecosystem The root: section 5 is the intuition for this page; its Compile lab tab measured the running example's graph, guards, fusion, step times on CPU and MPS, export and AOTInductor.",
+  "label": "core",
+  "key": "section 5 is the intuition for this page",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min root, 30 to 45 min the lab Tensors, the dispatcher and autograd Functionalization (2.7) and fake tensors (2.8), which AOTAutograd and Dynamo are built on; the autograd engine compiled autograd replaces.",
+  "label": "core",
+  "key": "which AOTAutograd and Dynamo are built on",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-more",
+  "section": "",
+  "text": "28 min Making training fast Compile inside a bottleneck hunt (MPS 143.0 to 133.6 ms on the larger model), the activation memory budget on a bigger configuration, FlexAttention compiled.",
+  "label": "core",
+  "key": "143.0 to 133.6",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-more",
+  "section": "",
+  "text": "26 min Extending PyTorch Custom ops with fake implementations, the cleanest fix for breaks around opaque code; tensor subclasses under compile; the AOTAutograd cache trap.",
+  "label": "core",
+  "key": "the cleanest fix for breaks around opaque code",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-more",
+  "section": "",
+  "text": "33 min Distributed PyTorch DDP, FSDP2 and DTensor, which compile has to trace through.",
+  "label": "core",
+  "key": "which compile has to trace through",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Libraries on top of PyTorch How torchtitan, HF and Lightning call torch.compile for you.",
+  "label": "core",
+  "key": "call torch.compile for you",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-more",
+  "section": "",
+  "text": "29 min Neighbouring pages The compiler stack: PTX, SASS, NVRTC, torch.compile and Inductor Below Inductor: Triton to PTX to SASS; its own torch.compile sections on small programs, with every log.",
+  "label": "core",
+  "key": "Triton to PTX to SASS",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-more",
+  "section": "",
+  "text": "28 min Streams, CUDA graphs and multi-GPU CUDA graphs, CUDAGraph Trees and Inductor's graph partitions: what reduce-overhead does on a GPU.",
+  "label": "core",
+  "key": "what reduce-overhead does on a GPU",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-more",
+  "section": "",
+  "text": "36 min Triton and Gluon The language Inductor writes for GPUs, and the stand-in driver method used here.",
+  "label": "core",
+  "key": "the stand-in driver method used here",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-more",
+  "section": "",
+  "text": "29 min Profiling, benchmarking and correctness Timing compiled code honestly.",
+  "label": "core",
+  "key": "Timing compiled code honestly",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-more",
+  "section": "",
+  "text": "29 min Model formats What torch.export's programs become: .pt2, ExecuTorch, ONNX.",
+  "label": "core",
+  "key": "where torch.export's programs end up on devices",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Outside resources torch.compile programming model (docs 2.14) The official mental model: graph breaks, guards, recompilation, dynamic shapes. about 50 min Dynamo deep dive (docs 2.14) How bytecode tracing, VariableTrackers and guards work.",
+  "label": "core",
+  "key": "The official mental model",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min torch.compile, the missing manual (Edward Yang) The best practical troubleshooting document.",
+  "label": "core",
+  "key": "The best practical troubleshooting document",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-more",
+  "section": "",
+  "text": "1 h 15 min PyTorch 2 paper (Ansel et al., ASPLOS 2024) The design of Dynamo, AOTAutograd and Inductor, with the earlier capture tools compared.",
+  "label": "core",
+  "key": "with the earlier capture tools compared",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-more",
+  "section": "",
+  "text": "45 min Dynamic shapes (docs 2.14) Backed and unbacked symbols, mark_dynamic, torch._check.",
+  "label": "core",
+  "key": "Backed and unbacked symbols, mark_dynamic",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Graph break registry Every graph-break type with its explanation and hints; the logs link here. browse, 10 min Compiled autograd tutorial Hooks and the backward graph captured at runtime.",
+  "label": "core",
+  "key": "Every graph-break type with its explanation",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min Regional compilation recipe Compiling the repeated block.",
+  "label": "core",
+  "key": "Regional compilation recipe",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Compile caching tutorial The caches and mega-cache.",
+  "label": "core",
+  "key": "Compile caching tutorial",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min torch.export (docs 2.14) ExportedProgram, dynamic shapes specs, strict and non-strict.",
+  "label": "core",
+  "key": "dynamic shapes specs, strict and non-strict",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min AOTInductor (docs 2.14) Packaging an exported program into a shared library.",
+  "label": "core",
+  "key": "Packaging an exported program into a shared library",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min tlparse and depyf Reading TORCH_TRACE logs; decompiling Dynamo's rewritten bytecode.",
+  "label": "core",
+  "key": "decompiling Dynamo's rewritten bytecode",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min each PEP 523 The CPython frame evaluation API Dynamo hooks.",
+  "label": "core",
+  "key": "The CPython frame evaluation API Dynamo hooks",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "hero",
+  "text": "The first call runs three compilers; every later call is a guard check: Dynamo FX graph 59 ops and 549 guards, AOTAutograd joint 646 ops, Inductor 4 kernels per block forward, cache cold 9.1 s warm 0.85 s (script-drawn SVG)",
+  "label": "core",
+  "key": "The first call runs three compilers; every later call is a guard check",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "1. dynamo",
+  "text": "Walk stepper: Dynamo traces 36 instructions running no kernels, CPython runs 9 ATen calls (script-drawn)",
+  "label": "core",
+  "key": "Same instructions: CPython computes as it goes, Dynamo only writes the graph down",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "2. guards",
+  "text": "Guard kinds counted from the printed tree (script-rendered stats)",
+  "label": "core",
+  "key": "counted by kind",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "2. guards",
+  "text": "The printed guard tree (script-filled pre)",
+  "label": "depth",
+  "key": "The printed guard tree",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "3. graph breaks",
+  "text": "nested_graph_breaks table: four programs, graphs and ops per program under default and nested (script table)",
+  "label": "core",
+  "key": "was run on four small programs",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "3. graph breaks",
+  "text": "All twelve break rows: reason, graphs/breaks broken and fixed (script table)",
+  "label": "depth",
+  "key": "All twelve rows in one table",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "4. dynamic shapes",
+  "text": "Grid: six calls under five strategies; default 3 compiles, dynamic=False 5, dynamic=True 4, mark_dynamic 2 with an error at T=1, mark_unbacked 3 (script SVG)",
+  "label": "core",
+  "key": "default compiles 3 times, dynamic=False 5",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "4. dynamic shapes",
+  "text": "Recompile reasons per strategy, as logged (script list)",
+  "label": "core",
+  "key": "recompile reasons as logged",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "4. dynamic shapes",
+  "text": "Recompile-limit stats and the recorded warning text (script)",
+  "label": "core",
+  "key": "with only this warning",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "4. dynamic shapes",
+  "text": "PGO measured: compiles per call per process with and without a job id (script text)",
+  "label": "depth",
+  "key": "Profile-guided dynamism across processes needs a job id",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "4. dynamic shapes",
+  "text": "Captured graphs with unbacked sizes (script pre)",
+  "label": "depth",
+  "key": "The captured graphs with unbacked sizes",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "5. aotautograd",
+  "text": "Trade-off plot: five cuts, saved MB against backward ops, with recomputed ops per cut (script SVG and note)",
+  "label": "core",
+  "key": "from 8.40 MB and 88 backward ops to 0 MB and 134",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "5. aotautograd",
+  "text": "Joint-graph explorer: 144 ops coloured per cut, counters (script)",
+  "label": "core",
+  "key": "which values each cut saves, and which it recomputes",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "5. aotautograd",
+  "text": "Saved values per cut, value by value (script table)",
+  "label": "depth",
+  "key": "What this cut saves, value by value",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "5. aotautograd",
+  "text": "Budget 0.0 predict answer: measured slowdown ratio and steady times (script reveal)",
+  "label": "core",
+  "key": "how much slower?",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "6. inductor",
+  "text": "Fusion stepper: 16 nodes, 6 fusions, 27 rejections, 4 kernels (script)",
+  "label": "core",
+  "key": "16 nodes, 6 fusions, 4 kernels",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "6. inductor",
+  "text": "Code viewer: C++ kernel, Triton kernel, wrapper call() (script pre)",
+  "label": "core",
+  "key": "The wrapper's call()",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "7. modes",
+  "text": "Modes table from list_mode_options at 2.14.1 (script table)",
+  "label": "core",
+  "key": "list_mode_options()",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "8. compiled autograd",
+  "text": "Compiled autograd table: graphs, ops, AccumulateGrad nodes, max gradient difference (script table)",
+  "label": "core",
+  "key": "52 AccumulateGrad nodes",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "8. compiled autograd",
+  "text": "DDP graph counts per bucket size (script stats)",
+  "label": "depth",
+  "key": "ddp_optimizer splits the graph at bucket boundaries",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "9. regional",
+  "text": "Phase bars: whole, per block and nested at 4 and 8 blocks (script SVG)",
+  "label": "core",
+  "key": "Per block stays flat as the model doubles",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "10. caches",
+  "text": "Phase bars: cold, mega-cache, warm with cache hits (script SVG and note)",
+  "label": "core",
+  "key": "Warm skips the compile; a mega-cache on a CPU still rebuilds the C++",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "10. caches",
+  "text": "Every timed run with phases, C++ wait, hits and load (script table)",
+  "label": "depth",
+  "key": "Every timed run, with its phases and cache hits",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "11. export",
+  "text": "Export outcomes per dynamic spec and control flow (script table)",
+  "label": "core",
+  "key": "What export did with each specification",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "12. debugging",
+  "text": "tlparse compile ids table (script)",
+  "label": "depth",
+  "key": "The compile ids it lists",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ },
+ {
+  "id": 357,
+  "tab": "t-read",
+  "section": "12. debugging",
+  "text": "Minifier stats and final repro (script)",
+  "label": "depth",
+  "key": "65 seconds here",
+  "where": "",
+  "added": "script-rendered visual or table, key in its static title or caption"
+ }
+]
