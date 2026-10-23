@@ -28,6 +28,6 @@
     $('bxN').innerHTML=RD.stat('Answer picked','<span style="font-size:14px;font-weight:500">'+RD.esc(d.ans)+'</span>','n = '+d.n)+
       RD.stat('Proxy score',(d.proxy>=0?'+':'')+d.proxy.toFixed(2),'')+RD.stat('Gold score',(d.gold>=0?'+':'')+d.gold.toFixed(2),'best so far '+(best.gold>=0?'+':'')+best.gold.toFixed(2)+' at n = '+best.n);
   }
-  const an=RD.anim({card:'bx',ctl:'bxC',n:N,start:N-1,draw,ms:1500,label:'Best-of-n step'});
+  const an=RD.anim({card:'bx',ctl:'bxC',n:N,start:0,draw,ms:1500,label:'Best-of-n step'});
   let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>an.redraw(),120)});
 })();

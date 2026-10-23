@@ -55,8 +55,8 @@
         RD.stat('Answers correct by the specification',show?m.spec+' of 4':'?','')+
         RD.stat('Hard-coded special cases',i>=2?String(m.hard):'?','')+RD.stat('Bad test reported',i>=4?m.flag:'?','');
     }
-    const an=RD.anim({card:'tr',ctl:'trC',n:6,start:5,draw,ms:2600,label:'Transcript step'});
-    $('trM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=+b.dataset.m;an.reset(6);an.play()});
+    const an=RD.anim({card:'tr',ctl:'trC',n:6,start:0,draw,ms:2600,label:'Transcript step'});
+    $('trM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=+b.dataset.m;an.reset(6)});
   }
 
   if($('hk')){
