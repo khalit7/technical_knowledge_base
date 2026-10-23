@@ -38,5 +38,5 @@
   }
   const A=RD.anim({card:'rd-js',ctl:'rd-jsC',n:J.free_steps.length,draw,ms:1700,label:'Step'});
   const el=document.getElementById('rd-jsM');
-  el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.m;A.reset(steps().length);A.play()}));
+  el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.m;A.reset(steps().length)}));
 })();

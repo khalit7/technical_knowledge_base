@@ -1,4 +1,4 @@
-// ---- Twelve decoders tab: perplexity against diversity, table, sample reader ----
+// ---- Reading section 3: twelve decoders, perplexity against diversity (moved from the old Twelve decoders tab), table and sample reader ----
 (function(){
   const $=id=>document.getElementById(id);
   const D=SD.DEG,S=D.settings;
@@ -32,8 +32,6 @@
   h+='<tr><td><b>Human continuation</b></td><td class="num"><b>'+H.toFixed(1)+'</b></td><td class="num">n/a</td><td class="num">n/a</td></tr>';
   S.forEach(d=>{h+='<tr><td>'+d.label+'</td><td class="num">'+fmtp(ppl(d.mean_lp))+'</td><td class="num">'+(d.rep4*100).toFixed(1)+'%</td><td class="num">'+d.div.toFixed(3)+'</td></tr>'});
   $('dg-tab').innerHTML=h;
-  const g=S.find(s=>s.key==='greedy'),b=S.find(s=>s.key==='beam'),pu=S.find(s=>s.key==='pure'),p95=S.find(s=>s.key==='p95');
-  $('dg-repro').innerHTML='Defaults reproduce the ordering of Holtzman et al.\'s Table 1 independently (GPT-2 small and 4 passages here; GPT-2 Large and 5,000 WebText passages there): search far below human perplexity (greedy '+fmtp(ppl(g.mean_lp))+', beam '+fmtp(ppl(b.mean_lp))+' against '+H.toFixed(1)+'; theirs 1.50 and 1.48 against 12.38), pure sampling above it ('+fmtp(ppl(pu.mean_lp))+'; theirs 22.73) and top-p 0.95 closest ('+fmtp(ppl(p95.mean_lp))+'; theirs 13.13). The absolute values do not compare across the two studies: a smaller model is more surprised by everything. Perplexity near human is a necessary condition for human-like text, not a measure of quality.';
   // sample reader
   S.forEach((d,i)=>$('dg-set').insertAdjacentHTML('beforeend','<option value="'+i+'">'+d.label+'</option>'));
   D.passages.forEach((p,i)=>$('dg-pas').insertAdjacentHTML('beforeend','<option value="'+i+'">Passage '+(i+1)+': "'+RD.esc(p.prompt.split(' ').slice(0,5).join(' '))+' …"</option>'));
@@ -45,6 +43,5 @@
     $('dg-samp').innerHTML=h}
   $('dg-set').addEventListener('change',samples);$('dg-pas').addEventListener('change',samples);
   $('dg-set').value=String(S.findIndex(s=>s.key==='t15p95'));samples();
-  (window.TAB_RENDER=window.TAB_RENDER||{});(TAB_RENDER['t-deg']=TAB_RENDER['t-deg']||[]).push(plot);
-  addEventListener('resize',()=>{if(!$('t-deg').hidden)plot()});
+  RD.onRender(plot);RD.onResize(plot);
 })();

@@ -1,0 +1,51 @@
+<div class="tab" id="t-read" role="tabpanel">
+<style>
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4,#t-read .card h4{margin:0 0 4px;font-size:14.5px}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .rd-svg{width:100%;overflow:hidden;margin:6px 0}
+#t-read .rd-svg svg{display:block}
+#t-read .rd-svg svg text{font-size:11px;fill:var(--ink)}
+#t-read .rd-svg svg text.m{fill:var(--mute)}
+#t-read .rd-svg svg text.h{fill:var(--acc);font-weight:600}
+#t-read .rd-svg svg text.b{font-weight:600}
+#t-read .rd-svg svg text.bad{fill:var(--bad);font-weight:600}
+#t-read .rd-svg .box{fill:var(--soft);stroke:var(--line)}
+#t-read .rd-svg .boxa{fill:var(--acc2);stroke:var(--acc)}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px}
+#t-read details.pr{border:1px solid var(--line);border-radius:10px;margin:12px 0;background:var(--soft)}
+#t-read details.pr>summary{cursor:pointer;padding:8px 12px;font-size:14px}
+#t-read details.pr>.b{padding:0 12px 10px;font-size:13.5px;border-left:3px solid var(--good);margin:0 12px 10px}
+#t-read code{overflow-wrap:anywhere;word-break:break-word}
+#t-read .tw table{min-width:520px}#t-read .tw table.nar{min-width:0}
+#t-read td{overflow-wrap:anywhere}
+</style>
+<nav class="nav" id="rd-nav"><a href="#s0">The idea</a><a href="#s1">Search</a><a href="#s2">Sampling</a><a href="#s3">Diversity</a><a href="#s4">Logit processors</a><a href="#s5">Constrained</a><a href="#s6">Settings</a><a href="#s7">Built on sampling</a></nav>
+<section id="s0"><h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">A model only scores every token in its vocabulary; a separate rule, the <b>decoder</b>, edits those scores, reshapes them, cuts the unlikely tail and picks one token, and <span class="hl">which tokens survive that rule</span> decides whether the same model writes loops, sensible prose, noise or valid JSON.</p>
+<div class="hero" id="sd-hero-card"><h4>One real next-token distribution through the decoder: 151,936 scores in, one token out</h4>
+<div class="rd-svg" id="sd-hero"></div>
+<p class="small">Qwen2.5-0.5B-Instruct writing the opening of a lighthouse story, second token (after "The"); each box draws the 8 most likely tokens. At T 1 the top token " l" (the start of "lighthouse") has 22.0%; dividing the logits by T 1.5 flattens it to 5.4%, with 77.3% of the mass outside the top 12. Min-p 0.1 then keeps <span class="hl">22 of 151,936</span> tokens (top-p 0.9 would keep 6,102), and renormalising lifts the top token to 18.6% <i class="nl m">measured here</i> (<code>src/reading_numbers.mjs</code>). Greedy skips steps 3 to 5 and takes the argmax; beam search keeps the B best whole sequences instead of one token.</p></div>
+<p><b>You need:</b> logits and softmax (assumed), and what a token is ({{Tokenizers|n:3c65c17b0d0d817187bcd94a1b0f15ea}}), which matters for constrained decoding. Where the sampler runs inside a serving engine's step is on {{vLLM: inside the default engine|n:3c65c17b0d0d8113b976d8bcaf2c0722}}.</p>
+<dl class="terms">
+<dt>Decoder</dt><dd>the rule that turns one next-token distribution into the next token.</dd>
+<dt>Logit processor</dt><dd>a function that edits the logits before the choice: penalties, logit bias, a grammar mask.</dd>
+<dt>Temperature T</dt><dd>divides the logits; below 1 sharpens, above 1 flattens.</dd>
+<dt>Truncation</dt><dd>dropping the tail before sampling: top-k (a fixed count), top-p or nucleus (a probability mass), min-p (a share of the top token).</dd>
+<dt>Beam search</dt><dd>keeps the B most probable partial sequences instead of one.</dd>
+<dt>Constrained decoding</dt><dd>masking every token that would break a grammar (a JSON schema, a regular expression) at every step.</dd>
+<dt>Perplexity</dt><dd>exp of minus the mean log-probability per token: how surprised a model is by a text.</dd>
+</dl>
+<p class="small mute">Numbers are published, with the source linked, unless marked <i class="nl d">derived</i> (formula shown), <i class="nl m">measured here</i> (computed offline on a small open model, scripts in the page source) or <i class="nl u">unconfirmed</i>. Training draws from the same stack for RL rollouts and rejection sampling ({{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}}).</p>
+<p>The formula behind steps 1 to 3: one forward pass ends in a vector of <b>logits</b> <i>z</i>, one per vocabulary entry (151,936 for {{Qwen2.5-0.5B-Instruct|https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct}}, 50,257 for {{GPT-2|https://huggingface.co/openai-community/gpt2}}), and the softmax with temperature turns them into probabilities:</p>
+<div class="fm"><div class="eq">p<sub>i</sub> = exp(z<sub>i</sub> / T) / &Sigma;<sub>j</sub> exp(z<sub>j</sub> / T)</div>
+<dl><dt>z<sub>i</sub></dt><dd>logit of token i (only differences between logits matter)</dd><dt>T</dt><dd>T = 1 is the model's own distribution; T &rarr; 0 puts all the mass on the top token (greedy)</dd></dl></div>
+<p>Decoders fall into two families: <b>search</b> is deterministic and looks for a high-probability sequence (greedy, beam); <b>sampling</b> draws at random from a reshaped distribution. <b>Constraints</b> sit before either, as a logit processor.</p>
+</section>
