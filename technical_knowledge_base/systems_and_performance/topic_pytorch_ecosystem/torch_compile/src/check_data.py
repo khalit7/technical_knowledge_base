@@ -48,7 +48,7 @@ CONST = {  # number: reason
     3186944: "parameters (FACTS stp)", 59: "Compile lab", 549: "Compile lab", 23.20: "Compile lab", 22.75: "Compile lab", 1.18: "Compile lab", 34814468: "Compile lab", 23.94: "Compile lab", 23.85: "Compile lab",
     81: "Compile lab guard eval 45 to 81 us", 7: "", 9: "Compile lab +7 to 9%", 4.0: "", 36.0: "Compile lab fusion MiB", 8404996: "FACTS tda", 546.8: "FACTS fst", 273.0: "FACTS fst",
     143.0: "FACTS fst", 133.6: "FACTS fst", 43: "vendor 43% / vocab", 163: "vendor", 93: "vendor", 0.5: "GELU constant", 524288: "elements", 1.9: "ratio 10.85/5.66", 1.25: "aoti 1.2517e-06", 3.6: "3.6e-07",
-    9.5: "9.5e-07", 0.25: "dynamo share", 2.7: "section 2.7", 2.8: "section 2.8", 1000000000.0: "1e9 literal", 88064: "", 2.9: "ONNX 2.9 (FACTS map)", 1.81: "1.8067", 70: "", 50: "", 15: "", 40: "", 60: "", 75: "", 25: "", 13: "",
+    9.5: "9.5e-07", 0.25: "dynamo share", 2.5: "Tensors, the dispatcher and autograd Reading 2.5 (cross-reference)", 1000000000.0: "1e9 literal", 88064: "", 2.9: "ONNX 2.9 (FACTS map)", 1.81: "1.8067", 70: "", 50: "", 15: "", 40: "", 60: "", 75: "", 25: "", 13: "",
     1.5: "", 0.0: "", 0.2: "", 0.85: "", 9.1: "rounded 9.08", 5.1: "rounded 5.06", 9.2: "rounded 9.19", 5.7: "rounded 5.72/5.66", 0.84: "", 1.0: "", 44: ""}
 vals.add(len(a["block"]["default"]["joint_nodes"]))
 def known(x, digits):
