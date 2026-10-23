@@ -21,6 +21,16 @@ The question the page keeps returning to: when does compile pay, what does it co
 | torch.export outcomes table (dynamic specs, wrong specs, control flow) | Reading 11 | Each error message is the lesson | export.py |
 | tlparse compile-id table; minifier session stats and final repro | Reading 12 | Shows what the tools give you on a real run | trace_run.py + tlparse, minify.py |
 
+## Rebuild of 2026-10-23
+| Idea | Where | Why |
+|---|---|---|
+| Hero: three compilers on the first call, the guard check on every later call, graph-break and recompile off-ramps, measured numbers in each box | top | The whiteboard picture the page elaborates; static annotated diagram (structure) |
+| Dynamic-shapes grid: six calls x five strategies, compiled / reused / error, totals | section 4 | One picture answers "how many compiles will I get" for every strategy at once; replaced the per-strategy call table |
+| Partitioner trade-off: bytes kept against backward ops, five cuts | section 5 | Memory bought with recompute is a trade-off curve, not a list of bars |
+| Phase bars for regional compilation and for caches (static) | sections 9, 10 | Replaced the tab's time playback: where the seconds go is the point, not watching them pass |
+| Graph-break lane as SVG, one row per block | section 3 | The fixer moved inline; a lane per block shows the eager gaps where they are |
+| Moved inline: fixer, joint-graph explorer | sections 3, 5 | Each explains one mechanism, so it sits beside its claim (teaching contract) |
+
 ## Rejected
 - Max-fusion-size knob (max_fusion_size=1) in the knobs list: it reduced backward kernels from 9 to 5 instead of increasing them; not understood, so not shown (data kept in inputs/inductor.json).
 - A compile-time extrapolation to 32 or 80 blocks: only 4 and 8 were measured; the flat regional line is shown, no fit.

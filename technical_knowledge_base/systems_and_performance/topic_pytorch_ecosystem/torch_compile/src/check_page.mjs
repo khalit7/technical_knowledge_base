@@ -9,7 +9,7 @@ const puppeteer = require('puppeteer');
 const [file, shots] = process.argv.slice(2); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
 let bad = 0;
-const TABS = ['t-read', 't-tcp-brk', 't-tcp-cache', 't-tcp-part', 't-more'];
+const TABS = ['t-read', 't-more'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
@@ -46,7 +46,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       for (const sel of root.querySelectorAll('select')) { if (sel.closest('.an-ctl')) continue; for (const o of sel.options) { sel.value = o.value; sel.dispatchEvent(new Event('change')); out.clicks++; await sleep(15); scan('select ' + sel.id + '=' + o.value); side(sel.id) } sel.selectedIndex = 0; sel.dispatchEvent(new Event('change')) }
       for (const r of root.querySelectorAll('input[type=range]')) { if (r.closest('.an-ctl')) continue; for (const v of [r.min, r.max, (+r.min + +r.max) / 2]) { r.value = v; r.dispatchEvent(new Event('input')); out.clicks++; await sleep(15); scan('range ' + r.id + '=' + v); side(r.id) } }
       // trace bars
-      for (const g of [...root.querySelectorAll('.jg button')].filter((x, i) => i % 9 === 0)) { g.click(); out.clicks++; await sleep(10); scan('joint node ' + g.textContent) }
+      for (const g of [...root.querySelectorAll('.tcpp-jg button')].filter((x, i) => i % 9 === 0)) { g.click(); out.clicks++; await sleep(10); scan('joint node ' + g.textContent) }
       for (const pr of root.querySelectorAll('.pr')) { const bs = pr.querySelectorAll(".opts button"); if (!bs.length) { out.issues.push("predict without options"); continue } bs[0].click(); bs[bs.length - 1].click(); out.clicks += 2; if (pr.querySelector('.ans').hidden) out.issues.push('answer not revealed') }
       for (const d of root.querySelectorAll('details')) d.open = true;
       window.scrollTo(0, 0); scan('all'); side('all');

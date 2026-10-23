@@ -1,6 +1,6 @@
-// ---- Partitioner explorer tab ----
+// ---- Reading section 5: the partitioner explorer (one block's joint graph under each cut) ----
 (function(){
-  const {$,esc,comma}=TU,P=TCP.aot;if(!$('t-tcp-part'))return;
+  const {$,esc,comma}=TU,P=TCP.aot;if(!$('tcpp-card'))return;
   const K=[['default','default_partition','Save whatever the backward needs that the forward made; recompute nothing. This is what eager autograd does op by op.'],
     ['mincut_1.0','min-cut, budget 1.0 (default)','Inductor\'s default: recompute cheap pointwise and view ops when that saves bytes. Here it recomputes the GELU intermediates and the reshaped attention output (the input of proj) in backward instead of saving them.'],
     ['mincut_0.5','min-cut, budget 0.5','Allowed half the activation bytes: now some matrix multiplies and the attention are recomputed too.'],
@@ -19,5 +19,4 @@
     info()}
   $('tcpp-grid').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sel=+b.dataset.j;draw(cur)});
   const A=RD.anim({card:'tcpp-card',ctl:'tcpp-ctl',n:K.length,draw,ms:2600,label:'Partitioner'});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-tcp-part']=[()=>A.redraw()];
 })();
