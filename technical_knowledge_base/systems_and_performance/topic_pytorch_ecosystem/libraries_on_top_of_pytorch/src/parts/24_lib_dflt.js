@@ -1,5 +1,6 @@
-// ---- Defaults lab tab (t-dflt): curves of the 11 recorded runs, before/after animation against the plain loop ----
+// ---- Defaults lab (Reading, section 2; was its own tab): curves of the 11 recorded runs, before/after animation against the plain loop ----
 (function(){
+  if(!document.getElementById('dl-card'))return;
   const D=window.LIB.dl, R=D.runs, $=id=>document.getElementById(id);
   const NAMES={plain:'Plain loop',hf_matched:'Trainer, matched to plain',pl_default:'Lightning, defaults',acc_default:'Accelerate',hf_clip:'Trainer + clipping 1.0',pl_clip:'Lightning + gradient_clip_val 1.0',hf_shuffle:'Trainer + random sampler',hf_sched:'Trainer + linear decay',hf_optim:'Trainer + its optimizer',hf_all:'Trainer, all defaults',hf_all_lr:'Trainer, all defaults, lr 6e-4'};
   const COL={plain:'var(--ink)',hf_matched:'var(--c3)',pl_default:'var(--c3)',acc_default:'var(--c3)',hf_clip:'var(--c1)',pl_clip:'var(--c6)',hf_shuffle:'var(--c5)',hf_sched:'var(--c4)',hf_optim:'var(--c2)',hf_all:'var(--bad)',hf_all_lr:'var(--acc)'};
@@ -49,6 +50,5 @@
   const order=k=>S[k]?(S[k]==='RandomSampler'?'random (seed 42)':'in order'):'in order';
   const last=r=>r.probe[r.probe.length-1][1];
   $('dl-tbl').innerHTML=KS.map(k=>'<tr><td>'+NAMES[k]+'</td><td>'+order(k)+'</td><td>'+optTxt(k)+'</td><td>'+sched(k)+'</td><td>'+clip(k)+'</td><td>'+last(R[k]).toFixed(5)+'</td><td>'+(D.diff[k]===0?'<b>0 (identical)</b>':D.diff[k].toFixed(5))+'</td></tr>').join('');
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-dflt']=[()=>an.redraw()];
-  addEventListener('resize',()=>{const t=$('t-dflt');if(t&&!t.hidden)an.redraw()});
+  RD.onResize(()=>an.redraw());
 })();

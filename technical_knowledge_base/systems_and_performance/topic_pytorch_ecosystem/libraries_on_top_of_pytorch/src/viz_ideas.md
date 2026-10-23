@@ -16,6 +16,13 @@ Central question: what does a training library do on top of the loop I would wri
 | L8 | torchtitan "what broke on CPU" as four stacked cards with the exact error and the smallest patch | Reading, section 6 | 0+2+2+1+2+1+2+0 = 10 | run logs |
 | L9 | Tables filled from data: who divides by what (measured error), torchtitan runs, DeepSpeed stages (losses, state bytes, collectives) | Reading | 0+2+2+1+1+2+1+0 = 9 | inputs |
 
+## Rebuild of 2026-10-23
+| # | Idea | Placement | Note |
+|---|---|---|---|
+| L10 | **Hero: the libraries as layers** (static annotated diagram): four families by level of hand-over over PyTorch's calls, defaults that change the loss in the highlight colour | Reading, top | structure, so a static figure (teaching contract) |
+| L1, L7 | Defaults lab and porting checklist moved inline (section 2); chooser moved inline (section 10) | Reading | a lab explaining one mechanism belongs beside its claim; the chooser is the concept this page owns |
+| L6 | Final probe-loss bars removed | | the lab chart with its chips and the closed run table carry the same numbers |
+
 ## Rejected
 
 - Timing each library's overhead per step: CPU-only, small, load-dependent; the lock belongs to timing pages; the call counts in L3 show the overhead's shape without a clock.
