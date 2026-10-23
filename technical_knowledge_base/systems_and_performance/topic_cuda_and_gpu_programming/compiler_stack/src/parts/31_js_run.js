@@ -1,4 +1,4 @@
-// ---- Tab "Will it run?": a port of src/code/compat.py (checked by check/check_js.mjs) and its step animation ----
+// ---- Reading section 5, the driver's search ("Will it run?", a tab until 2026-10-23): a port of src/code/compat.py (checked by check/check_js.mjs) and its step animation ----
 window.CSRUN=(function(){
   function parse(t){const [kind,rest]=t.split('_');const num=parseInt(rest,10);return [kind,num,rest.slice(String(num).length)]}
   const dv=n=>[Math.floor(n/10),n%10];
@@ -35,9 +35,9 @@ window.CSRUN=(function(){
   $('run-gpu').innerHTML=gpus.map((g,i)=>'<option value="'+i+'"'+(g[1]===100?' selected':'')+'>'+E(g[0])+' (CC '+(g[1]/10|0)+'.'+g[1]%10+')</option>').join('');
   const ALL=['sm_75','sm_80','sm_86','sm_89','sm_90','sm_90a','sm_100','sm_100a','sm_100f','sm_103','sm_110','sm_120','sm_120a','sm_121','compute_75','compute_80','compute_90','compute_90a','compute_100','compute_100f','compute_120'];
   let custom=['sm_80','sm_90','compute_90'],mode='as';
-  $('run-chips').innerHTML=ALL.map(t=>'<button data-t="'+t+'">'+t+'</button>').join('');
-  const syncChips=()=>$('run-chips').querySelectorAll('button').forEach(b=>b.classList.toggle('on',custom.includes(b.dataset.t)));
-  $('run-chips').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const t=b.dataset.t;custom=custom.includes(t)?custom.filter(x=>x!==t):custom.concat([t]);syncChips();update()});syncChips();
+  $('run-chips').innerHTML=ALL.map(t=>'<button data-c="'+t+'">'+t+'</button>').join('');
+  const syncChips=()=>$('run-chips').querySelectorAll('button').forEach(b=>b.classList.toggle('on',custom.includes(b.dataset.c)));
+  $('run-chips').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const t=b.dataset.c;custom=custom.includes(t)?custom.filter(x=>x!==t):custom.concat([t]);syncChips();update()});syncChips();
   const imgs=()=>{const k=$('run-fat').value;let L=k==='custom'?custom:C.fat[k];if(mode==='strip')L=L.filter(t=>t.startsWith('sm_'));return L};
   const state=()=>({L:imgs(),g:gpus[+$('run-gpu').value],drv:+$('run-drv').value,f:$('run-force').checked,d:$('run-dis').checked});
   let R=null,S=null;
@@ -68,5 +68,5 @@ window.CSRUN=(function(){
   RD.seg($('run-mode'),m=>{mode=m;update()});
   $('run-ncase').textContent=window.CSD.compat_n;
   update();
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-run']=[()=>an.redraw()];
+  RD.onRender(()=>an.redraw());
 })();

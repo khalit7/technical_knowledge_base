@@ -20,6 +20,5 @@
   const pr=document.getElementById('cs-pr1');
   pr.querySelector('.opts').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
     pr.querySelectorAll('button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.a==='1')x.classList.add('right')});if(b.dataset.a!=='1')b.classList.add('wrong');
-    const a=pr.querySelector('.ans');a.hidden=false;a.innerHTML='It runs the <b>sm_100</b> machine code: a cubin runs on the same major version at an equal or higher minor, and 10.3 is 10.x with minor 3 ≥ 0. No JIT, no error. The same wheel on a GPU of a new major version (a CC 13.0 part, say) would fail with "no kernel image", because release wheels carry no PTX; the nightly, with PTX for 12.0, would JIT-compile at first use. Try both in the {{Will it run?|#t-run}} tab.';});
-  RD.tabLinks(pr);
+    const a=pr.querySelector('.ans');a.hidden=false;a.innerHTML='It runs the <b>sm_100</b> machine code: a cubin runs on the same major version at an equal or higher minor, and 10.3 is 10.x with minor 3 ≥ 0. No JIT, no error. The same wheel on a GPU of a new major version (a CC 13.0 part, say) would fail with "no kernel image", because release wheels carry no PTX; the nightly, with PTX for 12.0, would JIT-compile at first use. Try both in the driver stepper above.';});
 })();

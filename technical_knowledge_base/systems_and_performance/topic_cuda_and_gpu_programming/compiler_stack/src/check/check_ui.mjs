@@ -14,10 +14,11 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
   await p.setViewport({ width: w, height: 900 });
   await p.goto(url); await new Promise(r => setTimeout(r, 500));
-  for (const t of ['t-read', 't-run', 't-sass', 't-tc', 't-more']) {
+  for (const t of ['t-read', 't-tc', 't-more']) {
     await p.evaluate(t => document.querySelector(`#tabs button[data-t="${t}"]`).click(), t); await new Promise(r => setTimeout(r, 250));
     const n = await p.evaluate(async t => {
       const tab = document.getElementById(t); let clicks = 0; const sleep = ms => new Promise(r => setTimeout(r, ms));
+      for (const d of tab.querySelectorAll('details')) d.open = true;
       for (const s of tab.querySelectorAll('select')) { for (let i = 0; i < s.options.length; i++) { s.selectedIndex = i; s.dispatchEvent(new Event('change', { bubbles: true })); clicks++; await sleep(5) } s.selectedIndex = 0; s.dispatchEvent(new Event('change', { bubbles: true })) }
       for (const c of tab.querySelectorAll('input[type=checkbox]')) { c.click(); await sleep(5); c.click(); clicks += 2 }
       for (const btn of tab.querySelectorAll('button')) { if (btn.disabled || btn.offsetParent === null) continue; if (/Play|Pause/.test(btn.textContent)) continue; btn.click(); clicks++; await sleep(3) }
@@ -26,10 +27,10 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
         for (const pm of ps) { document.querySelector(`#tc-prog button[data-m="${pm}"]`).click(); clicks++;
           const ss = [...document.querySelectorAll('#tc-stage button:not([disabled])')].map(b => b.dataset.m);
           for (const sm of ss) { document.querySelector(`#tc-stage button[data-m="${sm}"]`).click(); clicks++; await sleep(3) } } }
-      if (t === 't-run') { const f = document.getElementById('run-fat'); f.value = 'custom'; f.dispatchEvent(new Event('change', { bubbles: true }));
-        for (const c of [...document.querySelectorAll('#run-chips button')].map(b => b.dataset.t)) { document.querySelector(`#run-chips button[data-t="${c}"]`).click(); clicks++; await sleep(2) } }
+      if (t === 't-read') { const f = document.getElementById('run-fat'); f.value = 'custom'; f.dispatchEvent(new Event('change', { bubbles: true }));
+        for (const c of [...document.querySelectorAll('#run-chips button')].map(b => b.dataset.c)) { document.querySelector(`#run-chips button[data-c="${c}"]`).click(); clicks++; await sleep(2) } }
       for (const d of tab.querySelectorAll('details')) d.open = true;
-      for (const x of tab.querySelectorAll('[role=button],.cs-anat span,tr[data-i]')) { if (x.offsetParent === null) continue; x.click(); clicks++; if (clicks > 900) break }
+      for (const x of tab.querySelectorAll('[role=button],.cs-anat span,tr[data-i]')) { if (!x.isConnected || (x.offsetParent === null && !(x instanceof SVGElement))) continue; x.dispatchEvent(new MouseEvent('click', { bubbles: true })); clicks++; if (clicks > 900) break }
       return clicks }, t);
     await new Promise(r => setTimeout(r, 200));
     const st = await p.evaluate(t => { const tab = document.getElementById(t); const txt = tab.innerText; return { sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, nan: (txt.match(/\bNaN\b/g) || []).length, und: (txt.match(/\bundefined\b/g) || []).length } }, t);
@@ -42,6 +43,14 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   if (errs.length || box) { problems++; console.log('errors', errs, box) }
   await p.close();
 }
+// no animation may move before the reader acts (normal motion, every stepper card scrolled into view)
+{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(url); await new Promise(r => setTimeout(r, 400));
+  const ids = await p.$$eval('#t-read .an-ctl', es => es.map(e => e.id));
+  await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true));
+  for (const id of ids) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1200)); }
+  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.filter(r => +r.value !== 0).map(r => r.id));
+  console.log(`autoplay check: ${ids.length} steppers, ${moved.length} moved by themselves${moved.length ? ' ' + moved : ''}`); if (moved.length) problems++;
+  await p.close(); }
 await b.close();
 console.log(problems ? `PROBLEMS: ${problems}` : 'ui: all clear');
 process.exit(problems ? 1 : 0);
