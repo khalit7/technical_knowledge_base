@@ -58,6 +58,17 @@ expect("3.45/9.72 GiB refusal", "3.45/9.72 GiB" in open(os.path.join(HERE, "knob
 ps = " ".join(knob["ps_k0_default"])
 expect("three vLLM processes", "vllm serve" in ps and "VLLM::EngineCore" in ps and "VLLM::Worker" in ps)
 expect("MRV2 fallback line in the CPU log", any("Model Runner V2 requires Triton" in l for l in knob["log_k0_default"]))
+# Reading s3 "Reading it" line under the recorded runs: numbers written as static text
+sm = {r["key"]: r["sum"] for r in step["runs"]}
+expect("pc_off 686 / pc_on 398 / 288 hit in text", sm["pc_off"]["tokens_computed"] == 686 and sm["pc_on"]["tokens_computed"] == 398
+       and sm["pc_on"]["hit_tokens"] == 288 and "686 against 398 tokens computed" in text and "288 prompt tokens came from the cache" in text)
+tight = [r for r in step["runs"] if r["sum"]["preemptions"] > 0]
+expect("tight run 2 preemptions, 6 evicted, 632 computed, 448 hit", len(tight) == 1 and tight[0]["sum"]["preemptions"] == 2
+       and tight[0]["sum"]["evicted_blocks"] == 6 and tight[0]["sum"]["tokens_computed"] == 632 and tight[0]["sum"]["hit_tokens"] == 448
+       and "2 preemptions and evicted 6 cached blocks" in text and "computed 632 tokens" in text and "448 tokens served from cache" in text)
+# Reading s6 time-series caption: max_num_seqs 2 pins running at 2 with waiting growing; 1 GiB cache: KV usage high, waiting grows
+expect("seqs2 pinned at 2, waiting 14", all(knob["runs"]["seqs2_r%d" % i]["peaks"]["num_requests_running"] == 2 and knob["runs"]["seqs2_r%d" % i]["peaks"]["num_requests_waiting"] == 14 for i in (1, 2)))
+expect("kv1 usage above 0.9, waiting 10", all(knob["runs"]["kv1_r%d" % i]["peaks"]["kv_cache_usage_perc"] > 0.9 and knob["runs"]["kv1_r%d" % i]["peaks"]["num_requests_waiting"] == 10 for i in (1, 2)))
 # stepper summaries recomputed
 for r in step["runs"]:
     s = r["sum"]

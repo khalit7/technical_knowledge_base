@@ -1,0 +1,3024 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "vLLM: inside the default engine vLLM: inside the default engine How vLLM v0.31.0 turns an HTTP request into tokens, read from its source with file and line: the processes and queues, the scheduler loop, the KV cache manager and its prefix cache, Model Runner V2, the knobs that matter and the metrics that show them, recent releases, and a first patch with its tests.",
+  "label": "core",
+  "key": "vllm: inside the default engine vllm: inside the default",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Its real scheduler is recorded step by step serving Qwen3-0.6B on CPU.",
+  "label": "core",
+  "key": "Its real scheduler recorded step by step",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Scheduler stepper Knob lab Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old tab bar; the stepper and Knob lab moved into Reading"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Request path 2 Scheduler 3 KV cache manager 4 Model runner 5 Knobs 6 Metrics 7 Releases 8 Contributing Mistakes Interview vLLM is the open-source serving engine most deployments start from: give it a model and it serves an OpenAI-compatible HTTP API, batching many users onto the same GPUs.",
+  "label": "core",
+  "key": "1 request path 2 scheduler 3 kv cache manager",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "The parent page, Topic: inference-and-serving , explains what every engine must do (prefill and decode, the KV cache, continuous batching, chunked prefill, prefix caching).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; replaced by the \"You need\" line linking the root and Batching, KV cache and scheduling"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page opens vLLM itself, at the release tagged v0.31.0 (2026-10-05, commit db9527a4 ), so that you can read its code, predict what it will do with your traffic, tune it and change it.",
+  "label": "core",
+  "key": "at the release tagged v0.31.0 (2026-10-05, commit db9527a4 ),",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "It began as the PagedAttention paper's engine in the Sky Computing Lab at UC Berkeley ( README ), became a PyTorch Foundation hosted project on 2025-05-07 ( PyTorch Foundation ), and is also the generation engine inside RL post-training stacks: TRL's GRPO and online DPO trainers generate with vLLM 0.21.0 to 0.31.0 ( TRL docs ), and verl lists vLLM, SGLang and Transformers for rollouts ( verl README ).",
+  "label": "depth",
+  "key": "it began as the pagedattention paper's engine in the",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "The whole engine in five sentences Two processes, two queues.",
+  "label": "core",
+  "key": "Two processes, two queues.",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "An API server process tokenizes, detokenizes and speaks HTTP; an engine core process runs a busy loop; they exchange messages over ZeroMQ sockets (section 1).",
+  "label": "core",
+  "key": "runs a busy loop; they exchange",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "One loop, three calls.",
+  "label": "core",
+  "key": "One loop, three calls.",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "Every iteration of the engine core calls schedule() , then the model, then update_from_output() ( v1/engine/core.py L630 ).",
+  "label": "core",
+  "key": "v1/engine/core.py L630",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "No phases, only a token budget.",
+  "label": "core",
+  "key": "no phases, only a token budget.",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "",
+  "text": "The scheduler gives each request some number of tokens to compute this step so that its computed count catches up with its length; prefill, chunked prefill, decode and speculative tokens are all the same thing to it (section 2).",
+  "label": "core",
+  "key": "prefill, chunked prefill, decode and speculative tokens are all",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "",
+  "text": "Memory is a pool of 16-token blocks.",
+  "label": "core",
+  "key": "memory is a pool of 16-token",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "",
+  "text": "A block pool hands out blocks from the head of a free queue, takes them back in an order that makes the tail least recently used, and names every full block by a hash of its tokens and its parent's hash, which is the whole prefix cache (section 3).",
+  "label": "core",
+  "key": "is the whole prefix cache (section 3).",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "",
+  "text": "The GPU side is a model runner per GPU.",
+  "label": "core",
+  "key": "the gpu side is a model runner per",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "",
+  "text": "Since v0.29.0 the default is Model Runner V2, rewritten for asynchronous scheduling (section 4).",
+  "label": "core",
+  "key": "Model Runner V2 by default since v0.29.0",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "",
+  "text": "The running example is the parent page's chat assistant, shrunk to what this laptop can run: Qwen3-0.6B answering customers of a bicycle shop, every request starting with the same system prompt.",
+  "label": "core",
+  "key": "qwen3-0.6b answering customers of a bicycle shop, every request",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "",
+  "text": "Two kinds of evidence appear, and every number says which: measured here : vLLM's own CPU image vllm/vllm-openai-cpu:v0.31.0-arm64 in Docker on an Apple M1 Pro (5 CPUs and 9.7 GiB for Docker's virtual machine, 4 CPUs for the stepper's recordings; float32 weights).",
+  "label": "depth",
+  "key": "measured here : vllm's own cpu image vllm/vllm-openai-cpu:v0.31.0-arm64 in",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "",
+  "text": "Its Python files for the scheduler, the KV cache manager, the block pool, the engine core, the async front end and the metrics are byte-identical to the v0.31.0 tag (eight files, MD5 compared, src/inputs/image_vs_tag_md5.txt ), so the scheduling and caching decisions are exactly what a GPU server makes; only the speed is not.",
+  "label": "depth",
+  "key": "its python files for the scheduler, the kv cache",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "",
+  "text": "The Scheduler stepper records that real scheduler while the real engine serves the real model, step by step. source : lines read in the v0.31.0 tree, written file Lnnn and linked to GitHub at that tag; release notes and docs as published, dated.",
+  "label": "core",
+  "key": "the code, release notes and docs, dated",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "",
+  "text": "Not run here: CUDA graphs, torch.compile on GPU, tensor parallelism, FlashAttention kernels, and Model Runner V2 itself (the CPU backend still uses the V1 model runner, section 4).",
+  "label": "depth",
+  "key": "not run here: cuda graphs, torch.compile on gpu, tensor",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "",
+  "text": "Each is described from source and docs, and labelled.",
+  "label": "depth",
+  "key": "each is described from source and docs, and labelled.",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "",
+  "text": "Running the CPU image yourself: four traps the sibling pages hit.",
+  "label": "depth",
+  "key": "running the cpu image yourself: four traps the sibling",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "",
+  "text": "In Docker it needs --shm-size (it wants about 160 MiB of shared memory, more than Docker's 64 MiB default) and a --gpu-memory-utilization below the memory actually free, because by default it reserves 0.92 of the virtual machine's RAM ( LLM serving in production , which ran it for start-up and multi-LoRA tests).",
+  "label": "depth",
+  "key": "in docker it needs --shm-size (it wants about 160",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "",
+  "text": "Tensor or pipeline parallelism above 1 needs VLLM_CPU_OMP_THREADS_BIND set by hand, since the automatic binding asserts one NUMA node per worker and refuses two workers on a one-node machine; and VLLM_ENABLE_V1_MULTIPROCESSING=0 (engine in the calling process) is not supported by the CPU backend's OpenMP thread setup ( vllm/platforms/cpu.py L317 to L324 at v0.31.0).",
+  "label": "depth",
+  "key": "tensor or pipeline parallelism above 1 needs vllm_cpu_omp_threads_bind set",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "",
+  "text": "Distributed and disaggregated serving (Runs on this laptop tab) ran TP 2 and PP 2 on this image.",
+  "label": "depth",
+  "key": "distributed and disaggregated serving (runs on this laptop tab)",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "One request, through vLLM's code The problem.",
+  "label": "core",
+  "key": "one request, through vllm's code the problem.",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "A GPU must never wait for Python.",
+  "label": "core",
+  "key": "a gpu must never wait for python.",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "Tokenizing a prompt, turning token ids back into text, parsing JSON and writing HTTP responses are CPU work; if the loop that feeds the GPU also did them, the GPU would sit idle between steps. vLLM's answer since its V1 rewrite ( V1 announcement, 2025-01-27 ) is to split the work across processes : API server process HTTP (FastAPI), chat template, tokenizer, detokenizer, stop strings, streaming.",
+  "label": "core",
+  "key": "are cpu work; if the loop that feeds the",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "One by default; --api-server-count adds more.",
+  "label": "core",
+  "key": "--api-server-count adds more",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "Engine core process The busy loop: scheduler, KV cache manager, and the executor that drives the GPU workers.",
+  "label": "core",
+  "key": "the busy loop: scheduler, kv cache manager, and",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "One per data-parallel rank.",
+  "label": "core",
+  "key": "one engine core per data-parallel rank",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "GPU worker Loads weights, prepares inputs, runs the forward pass and the sampler.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by the hero figure (GPU worker box) and the request-path animation"
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "With one GPU it lives inside the engine core process (executor \"uni\", parallel.py L1033 ); with tensor parallelism, one process per GPU.",
+  "label": "core",
+  "key": "executor \"uni\"",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "Between them ZeroMQ sockets carrying msgpack-encoded requests one way and outputs the other; inside the engine core, two I/O threads and two Python queues.",
+  "label": "core",
+  "key": "msgpack-encoded requests one way and outputs the",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "Follow one streamed completion through the code.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up before the animation"
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "Every box is a function you can open at the tag; the step list is the order the code runs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the animation caption says it"
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "One request through the processes, function by function source : vLLM v0.31.0, every line number linked in the caption.",
+  "label": "core",
+  "key": "function by function source : vllm v0.31.0, every line",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "The token chip shows what travels at each step: text, token ids, a scheduler decision, a sampled token id, text again.",
+  "label": "core",
+  "key": "the token chip shows what travels at each step:",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "Three consequences follow, and each is a classic production surprise.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "Tokenizing and detokenizing happen in the API server, not on the GPU's critical path, so at high request rates the API server's single Python process can saturate before the GPU does; the architecture overview sizes CPU cores for this, and --api-server-count scales it out.",
+  "label": "core",
+  "key": "tokenizing and detokenizing happen in the api server, not",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "The scheduler sees token ids, never text.",
+  "label": "core",
+  "key": "the scheduler sees token ids, never text.",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "Stop strings are checked in the API server after detokenizing ( output_processor.py L720 ), which then aborts the request in the engine; stop token ids and max_tokens are checked in the engine itself.",
+  "label": "core",
+  "key": "stop strings are checked in the api server after",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "Each step returns outputs for every running request at once, and the API server fans them out to one queue per request ( RequestOutputCollector ).",
+  "label": "core",
+  "key": "each step returns outputs for every running request at",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "One slow client does not slow the loop.",
+  "label": "core",
+  "key": "one slow client does not slow the loop.",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "Predict: vllm serve <model> -tp 4 on one server with four GPUs.",
+  "label": "core",
+  "key": "-tp 4 on one server with four gpus.",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "How many vLLM processes run?",
+  "label": "core",
+  "key": "How many vLLM processes run?",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "2 4 5 6 8 Six.",
+  "label": "core",
+  "key": "A API servers + DP engine cores + N workers",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "One API server, one engine core, and one worker process per GPU, because with more than one GPU the executor becomes \"mp\" (multiprocessing).",
+  "label": "core",
+  "key": "one api server, one engine core, and one worker",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "The architecture overview gives the general count: A API servers + DP engine cores + N workers (+1 coordinator when DP > 1); -tp 2 -dp 4 on eight GPUs makes 17.",
+  "label": "core",
+  "key": "the architecture overview gives the general count: a api",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "With one GPU it is two processes, the worker living inside the engine core.",
+  "label": "core",
+  "key": "with one gpu it is two processes, the worker",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "The CPU backend is the exception: it always uses the multiprocessing executor because OpenMP threads must be set up in their own process ( cpu.py L317 to L324 ), so the CPU container here showed three vLLM processes measured here : The same three steps without and with asynchronous scheduling Synchronous (CPU backend, and GPU before async) Async scheduling (GPU default) illustrative durations (CPU work 3 ms, GPU work 10 ms per step) to show the mechanism; the mechanism itself is the source's: with async scheduling the engine core keeps a batch queue of 2 ( vllm.py L592 ) and step_with_batch_queue schedules step N+1 before step N's result is back ( core.py L670 ).",
+  "label": "core",
+  "key": "the cpu backend is the exception: it always uses",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "The CPU platform turns it off ( cpu.py L314 ), so the stepper's trace is synchronous.",
+  "label": "core",
+  "key": "the cpu platform turns it off ( cpu.py l314",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "What async scheduling costs.",
+  "label": "core",
+  "key": "What async scheduling costs.",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "The scheduler decides step N+1 before it knows step N's token, so a request that will finish at step N is scheduled once more; the running loop skips a request whose in-flight tokens already reach max_tokens ( scheduler.py L635 ), and outputs that arrive for a request preempted in between are marked stale ( scheduler.py L1563 ).",
+  "label": "core",
+  "key": "so a request that will finish at step n",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "When it matters: small models and small batches, where the GPU step is a few milliseconds and the CPU work is the same order.",
+  "label": "core",
+  "key": "gpu step is a few milliseconds and the cpu",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "1. one request, through vllm's code",
+  "text": "How to check: a profile with gaps between GPU kernels at batch 1 means the CPU is the bottleneck.",
+  "label": "core",
+  "key": "a profile with gaps between gpu kernels at batch",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "The scheduler loop The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading text"
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Every step, the engine must choose which requests run and how many of their tokens, without running out of KV cache memory and without letting one long prompt freeze everyone else's stream. vLLM's scheduler is one function, Scheduler.schedule() ( scheduler.py L562 ), and its first comment states the design: # There's no \"decoding phase\" nor \"prefill phase\" in the scheduler. # Each request just has the num_computed_tokens and num_tokens_with_spec. # At each step, the scheduler tries to assign tokens to the requests # so that each request's num_computed_tokens can catch up its # num_tokens_with_spec.",
+  "label": "core",
+  "key": "choose which requests run and how many of their",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "This is general enough to cover chunked prefills, # prefix caching, speculative decoding, and the \"jump decoding\" optimization.",
+  "label": "core",
+  "key": "this is general enough to cover chunked prefills, #",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "(L564 to L573, abridged) So a request is two numbers: how many of its tokens exist (prompt plus output so far, plus draft tokens when speculating) and how many already have their keys and values in the cache.",
+  "label": "core",
+  "key": "(l564 to l573, abridged) so a request is two",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "A new request has 2,000 tokens and 0 computed: it needs 2,000.",
+  "label": "core",
+  "key": "a new request has 2,000 tokens and 0 computed:",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "A decoding request has 2,301 tokens and 2,300 computed: it needs 1.",
+  "label": "core",
+  "key": "a decoding request has 2,301 tokens and 2,300 computed:",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "A prefix-cache hit simply starts a request with some tokens already computed.",
+  "label": "core",
+  "key": "a prefix-cache hit simply starts a request with some",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "The scheduler hands out a per-step token budget ( max_num_batched_tokens , section 5) to close those gaps.",
+  "label": "core",
+  "key": "the scheduler hands out a per-step token budget (",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Loop 1, running requests In order of admission ( L630 ): tokens wanted, capped by what is left of the budget ( L681 ), then allocate_slots for the blocks those tokens need.",
+  "label": "core",
+  "key": "loop 1, running requests in order of admission (",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "If the pool is empty, preempt and retry.",
+  "label": "core",
+  "key": "if the pool is empty, preempt and retry.",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Preemption Under FCFS the victim is self.running[-1] , the most recently admitted request ( L771 ); under the priority policy, the lowest priority, latest arrival (stepped through against this same code on the Batching, KV cache and scheduling page's Scheduling lab).",
+  "label": "core",
+  "key": "preemption under fcfs the victim is self.running[-1] , the",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Its blocks are freed, its computed count reset to 0, and it goes to the front of the waiting queue ( L1538 to L1580 ).",
+  "label": "core",
+  "key": "its blocks are freed, its computed count reset to",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "There is no swap to CPU memory in this engine: preemption is recompute.",
+  "label": "core",
+  "key": "there is no swap to cpu memory in this",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Loop 2, waiting requests Only if nothing was preempted this step ( L873 ), and while fewer than max_num_seqs run ( L893 ): look up the prefix cache, cut the prompt to what the budget allows, allocate.",
+  "label": "core",
+  "key": "loop 2, waiting requests only if nothing was preempted",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "The first request that does not fit stops the loop ( L1223 ): first come, first served, including the head-of-line blocking that implies.",
+  "label": "core",
+  "key": "the first request that does not fit stops the",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "After the model runs update_from_output ( L1967 ) appends each sampled token, checks EOS, stop ids and max_tokens , and frees the blocks of finished requests.",
+  "label": "core",
+  "key": "after the model runs update_from_output ( l1967 ) appends",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Two admission rules that surprise people.",
+  "label": "core",
+  "key": "two admission rules that surprise people.",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "First, a waiting request is admitted only when its whole prompt fits in free blocks, not just the first chunk: scheduler_reserve_full_isl defaults to True ( config/scheduler.py L191 ) and is passed as full_sequence_must_fit ( L1218 ; checked in kv_cache_manager.py L519 ).",
+  "label": "core",
+  "key": "first, a waiting request is admitted only when its",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "The parent page's Serving simulator found this when its scheduler was checked against this very code: it had to change to match, and then agreed with vLLM on all 10 traces, 2,535 steps and 39 preemptions.",
+  "label": "core",
+  "key": "the parent page's serving simulator found this when its",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Second, chunking is on by default ( config/scheduler.py L135 ); with it off, a prompt longer than the remaining budget waits for a step with room ( L1115 ).",
+  "label": "core",
+  "key": "second, chunking is on by default ( config/scheduler.py l135",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "New in v0.31.0 ( release notes ): requests that already hold KV blocks wait in their own queue and are tried first ( L887 ); --max-num-active-seqs caps running requests separately from max_num_seqs ; and long_prefill_token_threshold , off by default, no longer chunks a request that is alone ( L611 to L626 ).",
+  "label": "depth",
+  "key": "requests that already hold kv blocks wait in their",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Predict: the budget is 64 tokens, two requests are decoding, and a new 150-token prompt is waiting with plenty of free blocks.",
+  "label": "core",
+  "key": "predict: the budget is 64 tokens, two requests are",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "How many of its tokens are computed this step?",
+  "label": "core",
+  "key": "how many of its tokens are computed this step?",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "0: prompts wait until a step has room for all 150 64 62 150 62.",
+  "label": "core",
+  "key": "0: prompts wait until a step has room for",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Running requests are served first: the two decodes take 1 token each, leaving 62 of the 64; the new request is admitted (its whole prompt fits in free blocks) and gets a 62-token chunk, then the rest in later steps.",
+  "label": "core",
+  "key": "running requests are served first: the two decodes take",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "The Scheduler stepper shows exactly this on the real engine with a 64-token budget.",
+  "label": "core",
+  "key": "shows exactly this on the real engine with a",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Predict: the pool is full and the running list, in admission order, is [A, B, C].",
+  "label": "core",
+  "key": "predict: the pool is full and the running list,",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "A needs one more block to decode.",
+  "label": "core",
+  "key": "a needs one more block to decode.",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "What does the scheduler do?",
+  "label": "core",
+  "key": "What does the scheduler do?",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Preempts A, the one asking Preempts C, then gives its blocks to A Swaps C's cache to CPU memory Skips A this step It preempts C ( self.running.pop() , L803), frees its blocks, resets its computed tokens to 0 and puts it at the front of the waiting queue; A then gets its block.",
+  "label": "core",
+  "key": "preempts a, the one asking preempts c, then gives",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "C will be prefilled again later: with prefix caching on, its freed full blocks keep their hashes, so much of that recompute is a cache hit if nobody has evicted them in between.",
+  "label": "core",
+  "key": "c will be prefilled again later: with prefix caching",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "No new request is admitted in a step that preempted.",
+  "label": "core",
+  "key": "no new request is admitted in a step that",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Predict: a 4,000-token prompt arrives; 150 blocks of 16 tokens are free (2,400 tokens); the budget is 2,048 and chunked prefill is on.",
+  "label": "core",
+  "key": "predict: a 4,000-token prompt arrives; 150 blocks of 16",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Is its first chunk scheduled?",
+  "label": "core",
+  "key": "Is its first chunk scheduled?",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Yes, 2,048 tokens of it No, it waits No.",
+  "label": "core",
+  "key": "yes, 2,048 tokens of it no, it waits no.",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "The whole sequence must fit before admission ( full_sequence_must_fit ), so it waits until 250 blocks are free.",
+  "label": "core",
+  "key": "the whole sequence must fit before admission ( full_sequence_must_fit",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Before this rule an engine could admit many long prompts on their first chunks and then preempt them all.",
+  "label": "core",
+  "key": "before this rule an engine could admit many long",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "What it costs, when it matters, how to check Cost: a preemption throws away all of a request's computed tokens; head-of-line blocking can hold short requests behind a long one that does not fit.",
+  "label": "core",
+  "key": "what it costs, when it matters, how to check",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "When it matters: when the KV cache is near full, with long prompts, and under bursts.",
+  "label": "core",
+  "key": "when it matters: when the kv cache is near",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "How to check: vllm:num_preemptions rising, vllm:num_requests_waiting growing while vllm:kv_cache_usage_perc sits near 1, and vllm:request_queue_time_seconds (section 6).",
+  "label": "core",
+  "key": "how to check: vllm:num_preemptions rising, vllm:num_requests_waiting growing while vllm:kv_cache_usage_perc",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "2. the scheduler loop",
+  "text": "Step through the real thing in the Scheduler stepper .",
+  "label": "core",
+  "key": "Step through the real thing at the end of section 3",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "The KV cache manager: blocks, a free queue, and hashes The problem.",
+  "label": "core",
+  "key": "the kv cache manager: blocks, a free queue, and",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Every token of every running request keeps a key and a value vector in every layer (114,688 bytes per token for Qwen3-0.6B in 16-bit, 229,376 in float32: 2 × 28 layers × 8 KV heads × 128 dims × bytes; the formula and its check against llama.cpp are on the parent page).",
+  "label": "core",
+  "key": "every token of every running request keeps a key",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "That memory must be handed out as requests grow, taken back when they finish, and, if another request starts with the same tokens, found again instead of recomputed.",
+  "label": "core",
+  "key": "that memory must be handed out as requests grow,",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Three small classes do it, and the PagedAttention paper page explains why the memory is paged at all.",
+  "label": "core",
+  "key": "vLLM does it with four small classes",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "KVCacheBlock kv_cache_utils.py L176 : a block id, a reference count (how many running requests use it), the block's hash once it is full and cached, and two pointers for the free list.",
+  "label": "core",
+  "key": "kvcacheblock kv_cache_utils.py l176 : a block id, a reference",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Metadata only: the tensors live on the GPU, indexed by block id.",
+  "label": "core",
+  "key": "metadata only: the tensors live on the gpu, indexed",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "FreeKVCacheBlockQueue L246 : a doubly linked list threaded through the blocks themselves, with fake head and tail, so a block can be removed from the middle in O(1) when a request hits it in the cache.",
+  "label": "core",
+  "key": "freekvcacheblockqueue l246 : a doubly linked list threaded through",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "The head is the next block to hand out; the tail is the last to be evicted.",
+  "label": "core",
+  "key": "the head is the next block to hand out;",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "BlockPool block_pool.py L136 : all blocks, the free queue, and a map from block hash to block.",
+  "label": "core",
+  "key": "blockpool block_pool.py l136 : all blocks, the free queue,",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Block 0 is a reserved null block ( L187 ), so a pool of N blocks holds N − 1 usable ones.",
+  "label": "core",
+  "key": "block 0 is a reserved null block ( l187",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "KVCacheManager kv_cache_manager.py L131 : the scheduler's interface: get_computed_blocks (prefix lookup), allocate_slots , free ; one block table per request.",
+  "label": "core",
+  "key": "kvcachemanager kv_cache_manager.py l131 : the scheduler's interface: get_computed_blocks (prefix",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Four operations, and the order that makes a cache out of a free list Operation What it does Source allocate Pop blocks from the head of the free queue.",
+  "label": "core",
+  "key": "four operations, and the order that makes a cache",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "If a popped block still carries a hash, it is a cached block being evicted: its hash is removed from the map first.",
+  "label": "core",
+  "key": "if a popped block still carries a hash, it",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "This is the only place eviction happens. block_pool.py L669 cache When a block fills up, during prefill or decode, give it its hash and enter it in the map.",
+  "label": "core",
+  "key": "this is the only place eviction happens. block_pool.py l669",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Only full blocks are ever cached.",
+  "label": "core",
+  "key": "only full blocks are ever cached.",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "L226 free A finished or preempted request returns its blocks tail first ( kv_cache_manager.py L616 ).",
+  "label": "core",
+  "key": "l226 free a finished or preempted request returns its",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Each block's count drops; at zero, a block without a hash goes to the front (reused first), a block with a hash to the back (kept as long as possible). block_pool.py L777 touch A cache hit: increment the count and, if the block was free (count 0), unlink it from the free queue so nobody can evict it while it is in use.",
+  "label": "core",
+  "key": "each block's count drops; at zero, a block without",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "L755 Put together: the free queue is a list of blocks nobody is using, ordered so that partial and unhashed blocks go first, then cached blocks from least to most recently freed, and within one request from its last block to its first.",
+  "label": "core",
+  "key": "l755 put together: the free queue is a list",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Evicting from the head is therefore least recently used eviction, and a request's tail goes before its prefix, because a prefix is more likely to be shared.",
+  "label": "core",
+  "key": "evicting from the head is therefore least recently used",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "No timestamps, no heap: the order of the list is the policy.",
+  "label": "core",
+  "key": "no timestamps, no heap: the order of the list",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Predict, from vLLM's own unit test: a pool of 11 blocks (block 0 is the null block) is fresh.",
+  "label": "core",
+  "key": "predict, from vllm's own unit test: a pool of",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Request 0 takes blocks 1 to 6 (87 tokens: five full blocks, one partial); request 1 takes 7, 8, 9.",
+  "label": "core",
+  "key": "request 0 takes blocks 1 to 6 (87 tokens:",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "What is the free queue, head first?",
+  "label": "core",
+  "key": "what is the free queue, head first?",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "1, 2, 3, 4, 5, 6, 10 10, 1, 2, 3, 4, 5, 6 6, 10, 5, 4, 3, 2, 1 10, 6, 5, 4, 3, 2, 1 6, 10, 5, 4, 3, 2, 1 , asserted in test_prefix_caching.py, test_evict .",
+  "label": "core",
+  "key": "1, 2, 3, 4, 5, 6, 10 10, 1,",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Block 6 is partial, so it has no hash and is put in front of the never-used block 10 (reused first, while its memory is warm); blocks 5 to 1 are full and cached, appended tail first, so block 1, the start of the prompt, is the last to be evicted.",
+  "label": "core",
+  "key": "block 6 is partial, so it has no hash",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "When request 1 also finishes the queue becomes 6, 10, 5, 4, 3, 2, 1, 9, 8, 7.",
+  "label": "core",
+  "key": "when request 1 also finishes the queue becomes 6,",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Prefix caching is a hash chain A block's hash is sha256(pickle((parent_hash, tuple(block_tokens), extra_keys))) ( hash_block_tokens, L684 ; hashing.py L26 ), where the first block's parent is a fixed seed hash (\"vllm-none-hash\", L122 ).",
+  "label": "core",
+  "key": "prefix caching is a hash chain a block's hash",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Because each hash includes its parent's, equal hashes at block k mean equal tokens in blocks 0 to k: one dictionary lookup per block finds the longest cached prefix, with no tree to walk.",
+  "label": "core",
+  "key": "because each hash includes its parent's, equal hashes at",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "SGLang keeps the same information as a radix tree matched token by token; the SGLang page 's Radix lab runs both on the same traces, and the Batching, KV cache and scheduling page's Eviction lab compares LRU with other eviction policies.",
+  "label": "depth",
+  "key": "sglang keeps the same information as a radix tree",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "The extra keys carry what tokens alone do not say: LoRA adapter, image or audio content, prompt embeddings, and an optional per-request cache_salt on the first block, which isolates tenants because every later hash inherits it ( L614 ).",
+  "label": "core",
+  "key": "the extra keys carry what tokens alone do not",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "The seed has been deterministic by default since v0.29.0, so hashes agree across processes and machines (needed by distributed KV caches), and v0.31.0 tagged the extra keys by source so a LoRA name and a salt can no longer collide ( release notes ).",
+  "label": "depth",
+  "key": "the seed has been deterministic by default since v0.29.0,",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Real block hashes from the recorded engine: where two requests' chains meet and part measured here : the first 4 bytes of each block hash as vLLM v0.31.0 computed it while serving Qwen3-0.6B ( Scheduler stepper , prefix caching on).",
+  "label": "core",
+  "key": "real block hashes from the recorded engine: where two",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Each cell is one block with its text (32 tokens per block here: the CPU attention backend needs a multiple of 32, while GPUs default to 16); blue cells hold a hash both requests have, which is what get_computed_blocks reuses.",
+  "label": "core",
+  "key": "each cell is one block with its text (32",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "The last partial block never has a hash.",
+  "label": "core",
+  "key": "the last partial block never has a hash.",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "Two details that change numbers.",
+  "label": "core",
+  "key": "Two details that change numbers.",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "A full-prompt hit still recomputes the last block: the lookup is capped at num_tokens − 1 tokens because the model must produce logits for the last prompt token ( kv_cache_manager.py L289 to L295 ), and the cap rounds down to a block boundary.",
+  "label": "core",
+  "key": "a full-prompt hit still recomputes the last block: the",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "And vllm:kv_cache_usage_perc is 1 − free blocks / usable blocks ( block_pool.py L880 ): cached blocks that nobody is using count as free , so a server can show low usage while holding a large warm cache, and 100% means every block belongs to a running request.",
+  "label": "core",
+  "key": "and vllm:kv_cache_usage_perc is 1 − free blocks / usable",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "What it costs, when it matters, how to check Cost: hashing every full block with SHA-256 over pickled tuples, on the engine core's CPU ( --prefix-caching-hash-algo xxhash is faster but not collision resistant, and then uses a random seed per process unless PYTHONHASHSEED is set, L160 ).",
+  "label": "core",
+  "key": "what it costs, when it matters, how to check",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "When it matters: shared system prompts, multi-turn chat, agents and few-shot templates; for unique prompts it is pure overhead, and it is on by default.",
+  "label": "core",
+  "key": "when it matters: shared system prompts, multi-turn chat, agents",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "3. the kv cache manager: blocks, a free queue, and hashes",
+  "text": "How to check: vllm:prefix_cache_hits / vllm:prefix_cache_queries is the hit rate in tokens; the Knob lab reads both from a live server, and the parent page's Engine bench tab measured the time to first token with caching on and off.",
+  "label": "core",
+  "key": "how to check: vllm:prefix_cache_hits / vllm:prefix_cache_queries is the hit",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "The model runner, and Model Runner V2 The problem.",
+  "label": "core",
+  "key": "the model runner, and model runner v2 the problem.",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "The scheduler's decision is a small dictionary ({request: tokens this step}, plus new block ids).",
+  "label": "core",
+  "key": "the scheduler's decision is a small dictionary ({request: tokens",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "The GPU needs dense tensors: one flat list of input token ids for all requests, their positions, where each request's tokens start, every request's block table, and per-request sampling settings.",
+  "label": "core",
+  "key": "the gpu needs dense tensors: one flat list of",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "Building those in Python from scratch every step would cost more than the forward pass of a small model, so the model runner , one per GPU, keeps a persistent batch : tensors that stay allocated across steps and change only where a request joined or left.",
+  "label": "core",
+  "key": "building those in python from scratch every step would",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "Each step the runner (1) applies the scheduler's diff (new requests, finished ones, new blocks), (2) gathers the step's inputs and attention metadata, (3) runs the model, replaying a captured CUDA graph when the batch shape allows, (4) computes logits for the last position of each request, and (5) samples.",
+  "label": "core",
+  "key": "each step the runner (1) applies the scheduler's diff",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "Then the sampled ids go back to update_from_output .",
+  "label": "core",
+  "key": "then the sampled ids go back to update_from_output .",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "Why a second model runner The V1 runner's persistent batch used its state tensors directly as model inputs, so a request finishing in the middle forced rows to be reordered, and it kept a duplicate copy of each request's state; asynchronous scheduling was retrofitted onto it.",
+  "label": "core",
+  "key": "why a second model runner the v1 runner's persistent",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "Model Runner V2 (MRV2) was rewritten \"from first principles\" ( design doc ): Model Runner V1 Model Runner V2 Persistent state State tensors are the inputs; rows reordered when requests join or leave Each request owns a fixed row (up to max_num_reqs , 1,024 on most platforms) until it finishes or is preempted; inputs are gathered from those rows on the GPU each step Async scheduling Retrofitted, with an async barrier around CPU buffers Designed in: no CPU synchronization in the step; CPU writes go to unpinned buffers copied through a temporary pinned one Block tables Copied from CPU StagedWriteTensor : diffs staged on CPU, one kernel applies them Input preparation and sampling Python and PyTorch Triton kernels for input ids, positions and sequence lengths; a Triton Gumbel-max sampler; top-k logprobs without a full-vocabulary softmax CUDA graphs Implicit, mixed into dummy_run An explicit CUDAGraphManager ; several draft-model steps captured in one graph Every row from the design document at v0.31.0, the authors' description; not run here.",
+  "label": "core",
+  "key": "model runner v2 (mrv2) was rewritten \"from first principles\"",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "Which runner you get.",
+  "label": "core",
+  "key": "Which runner you get.",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "MRV2 has been the default for every model since v0.29.0 (2026-09-09, release notes ), with V1 deprecated and its removal targeted for v0.32.",
+  "label": "core",
+  "key": "mrv2 has been the default for every model since",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "At v0.31.0 the choice is a property, use_v2_model_runner ( vllm.py L701 to L761 ): VLLM_USE_V2_MODEL_RUNNER forces either way; otherwise V2, unless Triton is missing or the configuration uses something V2 does not support yet, listed in L3051 to L3103 : stock torch.compile mode, sequence parallelism with TP > 1, pipeline parallelism under the external launcher, the speculative methods ngram, ngram_gpu, suffix, medusa, mlp_speculator and custom_class, parallel drafting for EAGLE, dual-batch overlap's unsupported cases, elastic expert parallelism, and Mamba cache mode \"all\".",
+  "label": "depth",
+  "key": "at v0.31.0 the choice is a property, use_v2_model_runner (",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "Then vLLM logs \"Model Runner V2 does not yet support ...\" and falls back.",
+  "label": "depth",
+  "key": "then vllm logs \"model runner v2 does not yet",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "On ROCm, a few architectures default to V1 for speed.",
+  "label": "depth",
+  "key": "on rocm, a few architectures default to v1 for",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "The CPU backend used on this page runs CPUModelRunner , a subclass of the V1 GPU runner ( cpu_model_runner.py L23 ): nothing here measures MRV2.",
+  "label": "depth",
+  "key": "the cpu backend used on this page runs cpumodelrunner",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "Predict: you upgrade a deployment that uses n-gram speculative decoding from v0.28 to v0.31.",
+  "label": "core",
+  "key": "predict: you upgrade a deployment that uses n-gram speculative",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "Which model runner does it run?",
+  "label": "core",
+  "key": "which model runner does it run?",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "V2, the default V1, with a warning in the log It fails to start V1. \"ngram\" is on the unsupported list, so the property returns False and logs \"Model Runner V2 does not yet support speculative method 'ngram'; using the V1 model runner instead.\" Benchmarks of V2 do not describe this deployment, and when V1 is removed (targeted for v0.32) the configuration must change or the feature must land in V2 first.",
+  "label": "core",
+  "key": "v2, the default v1, with a warning in the",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "Grep your logs for that line before upgrading.",
+  "label": "core",
+  "key": "grep your logs for that line before upgrading.",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "CUDA graphs and torch.compile, by link At batch 1 a decode step launches hundreds of small kernels, and the launch overhead can rival the work (the parent page's \"third regime\"). vLLM captures CUDA graphs for a fixed set of batch sizes and replays them.",
+  "label": "core",
+  "key": "cuda graphs and torch.compile, by link at batch 1",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "The default, FULL_AND_PIECEWISE , captures a full graph for pure decode batches and piecewise graphs (attention left outside) for prefill and mixed batches ( compilation.py L606 ); the optimization levels -O0 to -O3 trade start-up time for this ( -O2 is the default: torch.compile plus FULL_AND_PIECEWISE; -O0 no compilation and no graphs, optimization_levels.md ).",
+  "label": "core",
+  "key": "the default, full_and_piecewise , captures a full graph for",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "Capture costs start-up time and memory: v0.30.0 cut capture from 12 s to 2 s and engine start from 28.9 s to 8.2 s on an H200 by freezing the garbage collector during capture ( release notes , the project's measurement).",
+  "label": "core",
+  "key": "capture costs start-up time and memory: v0.30.0 cut capture",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "How graphs work and what breaks them: Streams, CUDA graphs and multi-GPU .",
+  "label": "core",
+  "key": "how graphs work and what breaks them: streams, cuda",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "What torch.compile and Inductor do to the model: Compiler stack .",
+  "label": "core",
+  "key": "what torch.compile and inductor do to the model: compiler",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "4. the model runner, and model runner v2",
+  "text": "The attention kernels themselves (FlashAttention, split-KV decode): Writing kernels .",
+  "label": "core",
+  "key": "the attention kernels themselves (flashattention, split-kv decode): writing kernels",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "The knobs that matter Dozens of flags exist; a handful decide how a deployment behaves, and each trades one thing for another.",
+  "label": "core",
+  "key": "the knobs that matter dozens of flags exist; a",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Defaults are read at v0.31.0; \"how to check\" names the metric of section 6; the Knob lab turns the first three on a live server.",
+  "label": "core",
+  "key": "defaults are read at v0.31.0; \"how to check\" names",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Knob (default) What it controls Raise it and How to check max_num_batched_tokens (per hardware, below) The per-step token budget: how many prompt tokens a step may prefill on top of the decodes.",
+  "label": "core",
+  "key": "knob (default) what it controls raise it and how",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Prompts finish prefill in fewer steps (better TTFT, more throughput from big matrix multiplies), but every step that carries a big chunk is long, so users already streaming see a stall (worse ITL tail).",
+  "label": "core",
+  "key": "prompts finish prefill in fewer steps (better ttft, more",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "ITL p99 against TTFT; Knob lab section 2 max_num_seqs (1,024 / 256 / 128 per CPU worker) The most requests in the running list.",
+  "label": "core",
+  "key": "max_num_seqs (1,024 / 256 / 128 per cpu worker)",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "More users share each step (throughput up) until the step lengthens or the cache runs out; each user's TPOT rises. num_requests_running at the cap with a growing waiting queue; Knob lab section 1 gpu_memory_utilization (0.92, cache.py L103 ) Share of the whole GPU vLLM may use; the KV cache gets what is left after weights, activations and CUDA graphs.",
+  "label": "core",
+  "key": "more users share each step (throughput up) until the",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "A bigger cache (more concurrent users, fewer preemptions), less headroom for anything else on the GPU.",
+  "label": "core",
+  "key": "a bigger cache (more concurrent users, fewer preemptions), less",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "The start-up line with the cache size in tokens; kv_cache_usage_perc , num_preemptions enable_prefix_caching (on, L142 ) Hashing and reusing full blocks across requests (section 3).",
+  "label": "core",
+  "key": "the start-up line with the cache size in tokens;",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Off: saves the hashing on unique prompts; loses every shared-prefix hit. prefix_cache_hits / prefix_cache_queries enable_chunked_prefill (on, scheduler.py L135 ) Whether a prompt may be split across steps.",
+  "label": "core",
+  "key": "off: saves the hashing on unique prompts; loses every",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Off: a long prompt waits for a step with room for all of it and then stalls everyone for that step.",
+  "label": "core",
+  "key": "off: a long prompt waits for a step with",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "ITL p99 long_prefill_token_threshold (0, off) A per-request cap on prefill tokens per step, so one long prompt cannot take the whole budget.",
+  "label": "depth",
+  "key": "long_prefill_token_threshold (0, off) a per-request cap on prefill tokens",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Fairer budget among several prefills; each long prompt takes more steps.",
+  "label": "depth",
+  "key": "fairer budget among several prefills; each long prompt takes",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "TTFT by prompt length max_model_len (the model's) The longest request accepted; at start-up the cache must hold at least one such request.",
+  "label": "core",
+  "key": "max_model_len (the model's) the longest request accepted; at start-up",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Lower it to start on a smaller GPU or to refuse giant prompts that would block admission.",
+  "label": "core",
+  "key": "lower it to start on a smaller gpu or",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "The \"maximum concurrency\" start-up line kv_cache_dtype (auto = model dtype) Bytes per cached number; fp8 halves them against 16-bit.",
+  "label": "core",
+  "key": "the \"maximum concurrency\" start-up line kv_cache_dtype (auto = model",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Twice the tokens in the same memory; a small accuracy risk (the parent page's Engine bench measured 8-bit and 4-bit caches in llama.cpp).",
+  "label": "core",
+  "key": "twice the tokens in the same memory; a small",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Cache size in tokens; quality on your eval block_size (16 on GPU, L71 ; 128 on CPU) Tokens per block: the unit of allocation and of prefix-cache matching.",
+  "label": "depth",
+  "key": "block_size (16 on gpu, l71 ; 128 on cpu)",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Less metadata and fewer table entries; coarser sharing (a prefix is reused only in whole blocks) and more waste in each request's last block.",
+  "label": "depth",
+  "key": "less metadata and fewer table entries; coarser sharing (a",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Hit rate against block size performance_mode (balanced) \"throughput\" doubles the default batch tokens and sequences ( arg_utils.py L3064 ) and, per its docstring, uses larger CUDA graphs and throughput-oriented kernels ( vllm.py L448 ); \"interactivity\" captures graphs for every batch size up to 32.",
+  "label": "depth",
+  "key": "hit rate against block size performance_mode (balanced) \"throughput\" doubles",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "One switch for the throughput-or-latency trade when you have not tuned the two knobs above.",
+  "label": "depth",
+  "key": "one switch for the throughput-or-latency trade when you have",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Both latency percentiles and throughput -O level (-O2) torch.compile and CUDA graph mode (section 4). -O0 starts fastest and runs slowest; use it to iterate, never to benchmark.",
+  "label": "depth",
+  "key": "both latency percentiles and throughput -o level (-o2) torch.compile",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Start-up time; batch-1 decode speed The per-hardware budget is chosen in get_batch_defaults ( arg_utils.py L2829 to L2920 ) from the device's memory, and differs between the HTTP server and the offline LLM class, because an offline batch job wants throughput and a server wants smooth streams: Device max_num_batched_tokens, server / offline max_num_seqs, server / offline GPU with at least 160 GiB (B200, B300, MI300X) 16,384 / 16,384 1,024 / 1,024 GPU with at least 70 GiB, not an A100 (H100, H200) 8,192 / 16,384 1,024 / 1,024 Other GPUs (A100, L40S, RTX 5090 and smaller) 2,048 / 8,192 256 / 256 CPU backend, per worker 2,048 / 4,096 128 / 256 TPUs have their own smaller values in the same function.",
+  "label": "depth",
+  "key": "start-up time; batch-1 decode speed the per-hardware budget is",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Set both knobs explicitly in production: a default that depends on which GPU the scheduler landed on is a benchmark you cannot reproduce.",
+  "label": "core",
+  "key": "set both knobs explicitly in production: a default that",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "Predict: the CPU server here was given a 2 GiB KV cache ( VLLM_CPU_KVCACHE_SPACE=2 ) for Qwen3-0.6B in float32 (229,376 bytes per token) with the CPU's 128-token blocks.",
+  "label": "core",
+  "key": "predict: the cpu server here was given a 2",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "How many tokens can it hold?",
+  "label": "core",
+  "key": "how many tokens can it hold?",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "9,362 9,344 9,216 8,192 9,344 : 2,147,483,648 / (128 × 229,376) = 73.1, so 73 whole blocks of 128 tokens.",
+  "label": "core",
+  "key": "9,362 9,344 9,216 8,192 9,344 : 2,147,483,648 / (128",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "5. the knobs that matter",
+  "text": "That is the number the parent page's Engine bench read from vLLM's start-up log, and it is why 16 users with 413-token prompts and 128-token answers (16 × 541 = 8,656 tokens) already pushed it to 100% and into preemption there.",
+  "label": "core",
+  "key": "that is the number the parent page's engine bench",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "6. reading the metrics",
+  "text": "Reading the metrics vLLM's API server exports Prometheus metrics at /metrics , defined in one class, PrometheusStatLogger ( loggers.py L509 onward ).",
+  "label": "core",
+  "key": "reading the metrics vllm's api server exports prometheus metrics",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "6. reading the metrics",
+  "text": "Their values come from two places, and knowing which tells you how fresh they are: gauges and counters about the scheduler (running, waiting, KV usage, prefix-cache queries and hits) arrive with every step's outputs as a SchedulerStats object built in the engine core ( scheduler.py L2859 ); per-request histograms (TTFT, ITL, queue time, prefill and decode time) are computed in the API server from timestamps the engine attaches to each request's events.",
+  "label": "core",
+  "key": "their values come from two places, and knowing which",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "6. reading the metrics",
+  "text": "The Knob lab lists every metric the live server exported, with values before and after a run.",
+  "label": "depth",
+  "key": "every metric the live server exported,",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "6. reading the metrics",
+  "text": "Symptom in the metrics What it means What to change num_requests_waiting grows, kv_cache_usage_perc near 1, num_preemptions rising Memory-bound: prompts do not fit; running requests evict each other.",
+  "label": "core",
+  "key": "symptom in the metrics what it means what to",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "6. reading the metrics",
+  "text": "More cache (utilization, FP8 KV), shorter max_model_len , more replicas. num_requests_running pinned at max_num_seqs , waiting grows, KV usage well below 1 The concurrency cap, not memory, is the limit.",
+  "label": "core",
+  "key": "more cache (utilization, fp8 kv), shorter max_model_len , more",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "6. reading the metrics",
+  "text": "Raise max_num_seqs if TPOT allows. request_queue_time_seconds high while running and KV are low Head-of-line blocking or an engine stuck on something else (start-up, a long prefill without chunking).",
+  "label": "core",
+  "key": "raise max_num_seqs if tpot allows. request_queue_time_seconds high while running",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "6. reading the metrics",
+  "text": "Check chunking; look at the iteration logs. inter_token_latency_seconds has a long tail, TPOT mean fine Prefill chunks are lengthening some decode steps.",
+  "label": "core",
+  "key": "check chunking; look at the iteration logs. inter_token_latency_seconds has",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "6. reading the metrics",
+  "text": "Smaller max_num_batched_tokens , or disaggregate ( Distributed and disaggregated serving ). prefix_cache_hits / prefix_cache_queries low on traffic that shares prompts Prefixes differ in the first block (a timestamp at the top of the system prompt), requests land on different replicas, or blocks are evicted before reuse.",
+  "label": "core",
+  "key": "smaller max_num_batched_tokens , or disaggregate ( distributed and disaggregated",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "6. reading the metrics",
+  "text": "Put the variable part last; prefix-aware routing; more cache. time_to_first_token_seconds high but queue time low Prefill itself is slow: long prompts, or a budget too small to finish them in few steps.",
+  "label": "core",
+  "key": "put the variable part last; prefix-aware routing; more cache.",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "6. reading the metrics",
+  "text": "Raise max_num_batched_tokens ; prefix caching.",
+  "label": "core",
+  "key": "Raise max_num_batched_tokens ; prefix caching.",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "6. reading the metrics",
+  "text": "No exported metric counts how many cached blocks are evicted to make room (only residency histograms, which need --kv-cache-metrics sampling) or how much work preemption threw away.",
+  "label": "core",
+  "key": "no exported metric counts how many cached blocks are",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "6. reading the metrics",
+  "text": "Section 8 adds the first one, as a worked example of a contribution.",
+  "label": "core",
+  "key": "section 8 adds the first one, as a worked",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "Releases v0.28 to v0.32, and what an upgrade changes vLLM ships a minor release about every two weeks, each with several hundred commits.",
+  "label": "core",
+  "key": "vllm ships a minor release about every two weeks,",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "Most lines of a release note are model and kernel work; what an operator must read are the changed defaults and the breaking changes, because a deployment that never set a flag silently inherits the new value.",
+  "label": "core",
+  "key": "most lines of a release note are model and",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "All five from the GitHub releases , v0.28 to v0.31 read 2026-10-08 and v0.32 read 2026-10-19.",
+  "label": "volatile",
+  "key": "all five from the github releases , v0.28 to",
+  "where": "",
+  "note": "dated release-note fact; kept here in the closed release table until the tech-news pass takes it"
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "The code walked through on this page is the v0.31.0 tag.",
+  "label": "core",
+  "key": "the code walked through on this page is the",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "Release Size What changes for a running deployment Breaking v0.28.0 2026-08-26 584 commits, 270 contributors (76 new) max_num_batched_tokens 16,384 for the API server on GPUs with at least 160 GiB (B200, B300, MI300X); prefix caching on by default for Mamba models; Blackwell CUDA graph capture size up to 1,024; tiered KV offload to disk; Model Runner V2 gains prefill/decode/encode disaggregation and weight offloading bitsandbytes moved to an out-of-tree plugin; Transformers 5.15.0; calculate_kv_scales and override_attention_dtype removed v0.29.0 2026-09-09 594 commits, 277 contributors (91 new) Model Runner V2 becomes the default for all models (V1 deprecated, removal targeted for v0.32; the v0.32.0 notes only drop the model-specific V1 exceptions on ROCm and do not say V1 itself was removed); FlashInfer all-reduce on by default for TP; prefix-cache seed hash deterministic by default; new admission limits --max-num-queued-reqs and --max-num-queued-tokens ; per-request speculative acceptance statistics in API responses ( --per-request-spec-decode-metrics ) ten deprecated architectures removed; FlexOlmo, Olmo3, Hunyuan V1/VL moved to the Transformers backend; PyAV video decoder removed; python -m vllm.entrypoints.openai.api_server deprecated for vllm serve v0.30.0 2026-09-22 762 commits, 315 contributors (104 new) Fast Start: a per-GPU daemon keeps quantized, sharded weights resident so a restarted engine maps them ( --load-format ipc_cache ); CUDA graph capture 12 s to 2 s and engine start 28.9 s to 8.2 s on an H200 (project's measurement); Gumbel-max watermarking; HiSparse host tier for sparse-MLA models scale-out endpoints need --enable-scale-out ; GPTQ g_idx removed; two prefix-cache and hasher environment variables removed; Mamba cache mode \"all\" deprecated; YaRN aliases no longer rescale max_model_len v0.31.0 2026-10-05 717 commits, 307 contributors (96 new) vllm preload weight-cache daemon and experimental CRIU engine snapshots; scheduling controls ( --max-num-active-seqs , adaptive long-prefill threshold, KV-holding requests first); draft-model speculative decoding on Model Runner V2; prefix-cache keys tagged by source and the LoRA path included in the block hash per-request multimodal kwargs rejected unless --trust-request-mm-kwargs ; tokenizer_mode=\"slow\" removed; quantization=\"fp8\" online quantization replaced by fp8_per_tensor ; --enforce-eager now also disables JIT kernel warmup; AllSpark W8A16 removed v0.32.0 2026-10-18 814 commits, 363 contributors (121 new) a POST /v1/systemone endpoint for decision models (choice, noul and score questions over structured state), served by default ; NVFP4 KV cache on SM8x, SM90 and SM12x, and FP8 KV by default for GLM-5.x on SM100 (project's measurement: +2.3 to 5.5% throughput, 7 to 11% higher TTFT, half the KV memory); least-loaded routing across API servers (+43 to 85% requests per second on short requests, project's measurement); Model Runner V2 gains a GPU n-gram speculator and becomes the default on ROCm; vllm download-kernels Python 3.10 dropped (3.11 minimum); default CORS origins changed from * to none ( --allowed-origins for browser clients); cascade attention removed ( --disable-cascade-attn only warns, gone in v0.33.0); max_tokens is an upper bound on output and no longer reserved from the context window ; Responses streaming reasoning events renamed to response.content_part.* with part.type=\"reasoning_text\" ; JSON schemas nested deeper than 64 levels rejected with 400; torch.compile sequence-parallel and AsyncTP passes and mamba_cache_mode=\"all\" removed Correction to the old page The old page said v0.28.0 doubled max_num_batched_tokens from 8,192 to 16,384 for \"any deployment that never set it\".",
+  "label": "volatile",
+  "key": "release size what changes for a running deployment breaking",
+  "where": "",
+  "note": "dated release-note fact; kept here in the closed release table until the tech-news pass takes it"
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "The release note says so in one line, but the change itself ( PR #51726 , merged 2026-08-11) only adds a new tier: the API server on GPUs with at least 160 GiB of memory now gets 16,384.",
+  "label": "core",
+  "key": "the release note says so in one line, but",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "An H100 or H200 server still defaults to 8,192, and the offline LLM class already used 16,384 there ( arg_utils.py L2858 to L2887 ).",
+  "label": "core",
+  "key": "an h100 or h200 server still defaults to 8,192,",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "Section 5 has the full table.",
+  "label": "core",
+  "key": "section 5 has the full table.",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "An upgrade checklist that follows from the code Diff the resolved configuration, not the flags. vLLM logs its final VllmConfig at start-up; save it for the old and new versions and compare max_num_batched_tokens , max_num_seqs , the cache size in tokens and the CUDA graph sizes.",
+  "label": "core",
+  "key": "an upgrade checklist that follows from the code diff",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "Check which model runner you got.",
+  "label": "core",
+  "key": "check which model runner you got.",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "Grep for \"Model Runner V2 does not yet support\" (section 4).",
+  "label": "core",
+  "key": "grep for \"model runner v2 does not yet support\"",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "Check the removed flags and environment variables in your launch scripts; an unknown CLI flag stops the server, while a removed VLLM_ environment variable only logs \"Unknown vLLM environment variable detected\" ( platforms/interface.py L1344 ) and its setting is lost ( --fail-on-environ-validation , off by default, turns that into an error: arg_utils.py L836 ).",
+  "label": "core",
+  "key": "check the removed flags and environment variables in your",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "Replay real traffic with the same load generator at the same arrival rate and compare TTFT and ITL percentiles and preemptions (section 6), not one throughput number.",
+  "label": "core",
+  "key": "replay real traffic with the same load generator at",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "Re-check prefix-cache behaviour when hashes change: v0.29.0 changed the seed default and v0.31.0 changed the extra keys, so caches shared across machines (LMCache, Mooncake, llm-d) must run the same version on every node.",
+  "label": "core",
+  "key": "re-check prefix-cache behaviour when hashes change: v0.29.0 changed the",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "Check what the server now exposes and accepts. v0.32.0 serves a new endpoint by default and stops sending permissive CORS headers, so review the network policy in front of the server and add --allowed-origins for browser clients; clients that parse Responses reasoning events or count on max_tokens being reserved from the context need retesting.",
+  "label": "core",
+  "key": "check what the server now exposes and accepts. v0.32.0",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "The old page also listed model-specific kernel speedups from v0.28.0 and v0.29.0 (Kimi-K3, DeepSeek V4, Hy4-preview); they are verified in the release notes but belong to the models' own pages.",
+  "label": "volatile",
+  "key": "the old page also listed model-specific kernel speedups from",
+  "where": "",
+  "note": "dated release-note fact; kept here in the closed release table until the tech-news pass takes it"
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "7. releases v0.28 to v0.32, and what an upgrade changes",
+  "text": "Its \"about 3x throughput\" for decode context parallelism on long-context agentic workloads was not found in the release notes and is left out (unconfirmed).",
+  "label": "volatile",
+  "key": "its \"about 3x throughput\" for decode context parallelism on",
+  "where": "",
+  "note": "dated release-note fact; kept here in the closed release table until the tech-news pass takes it"
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Contributing: a first patch, with its tests The fastest way to own an engine is to change it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading and wind-up; section 8 renamed \"A first patch: the missing eviction metric\""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Section 6 found a gap: the server says how often the prefix cache hits , but not how often it has to throw cached blocks away to make room, which is the number that says \"this cache is too small for this traffic\".",
+  "label": "core",
+  "key": "section 6 found a gap: the server says how",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Here is the patch that adds it, the test that proves it, and the metric live in a server.",
+  "label": "core",
+  "key": "the shortest tour of how a number gets from the engine core to Prometheus",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Count it where it happens In BlockPool.get_new_blocks , the only place a cached block is evicted, increment a counter when _maybe_evict_cached_block returns True; add take_num_evicted_cached_blocks() to read and reset it.",
+  "label": "core",
+  "key": "count it where it happens in blockpool.get_new_blocks , the",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Carry it with the step's stats A new field evicted_blocks on PrefixCacheStats , filled in KVCacheManager.make_prefix_cache_stats() , so it travels to the API server inside each step's SchedulerStats like the hit counts.",
+  "label": "core",
+  "key": "carry it with the step's stats a new field",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Export it A Prometheus counter vllm:prefix_cache_evicted_blocks registered next to prefix_cache_hits in PrometheusStatLogger and incremented in record() .",
+  "label": "core",
+  "key": "export it a prometheus counter vllm:prefix_cache_evicted_blocks registered next to",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Test it A unit test built on the same fixture as test_evict : free a request with five cached blocks, allocate eight new ones, expect exactly three evictions (the five never-hashed free blocks go first), then zero after the reset.",
+  "label": "core",
+  "key": "test it a unit test built on the same",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "The tests, run in vLLM's own CPU image measured here , 2026-10-08: the image's installed package with the four patched files mounted over it, and the clone's tests/ directory (which contains the new test) in both runs: test_prefix_caching.py, test_scheduler.py and metrics/test_stats.py.",
+  "label": "core",
+  "key": "the tests, run in vllm's own cpu image measured",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Run Result The new test Unpatched v0.31.0 373 passed, 1 failed fails: AttributeError: 'PrefixCacheStats' object has no attribute 'evicted_blocks' , as a test written first should Patched 374 passed passes, and the existing test_evict still passes The metric in a live server under prefix-heavy traffic is in the Knob lab , section 6.",
+  "label": "core",
+  "key": "run result the new test unpatched v0.31.0 373 passed,",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Files: src/patch/apply_patch.py (applies it to a v0.31.0 checkout), src/patch/eviction_metric.diff (57 lines added, 1 removed, in 5 files), src/patch/tests_docker.sh and the two test logs.",
+  "label": "core",
+  "key": "files: src/patch/apply_patch.py (applies it to a v0.31.0 checkout), src/patch/eviction_metric.diff",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Not submitted upstream; a real PR would also need a line in the metrics design doc.",
+  "label": "core",
+  "key": "not submitted upstream; a real pr would also need",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "How to get a change merged From the contributing guide at v0.31.0, checked against the old page's notes: Set-up for Python-only work: VLLM_USE_PRECOMPILED=1 uv pip install -e . reuses the released compiled kernels, so editing the scheduler needs no CUDA build; kernel work needs PyTorch first and --no-build-isolation .",
+  "label": "depth",
+  "key": "from the contributing guide at v0.31.0, checked against the",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Tests are plain pytest ; lint with pre-commit .",
+  "label": "depth",
+  "key": "tests are plain pytest ; lint with pre-commit .",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Every commit needs a DCO Signed-off-by: line; PR titles start with tags such as [Bugfix][Scheduler] .",
+  "label": "depth",
+  "key": "every commit needs a dco signed-off-by: line; pr titles",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "AI-assisted contributions must be disclosed in the PR and marked with commit trailers (for example Co-authored-by: Claude ); \"pure agent\" PRs and one-line busywork PRs are not accepted; the human submitter must have reviewed every line and run the tests.",
+  "label": "depth",
+  "key": "ai-assisted contributions must be disclosed in the pr and",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Large changes (over 500 lines, excluding kernels, data, config and tests) need an RFC issue first, or the PR gets rfc-required .",
+  "label": "depth",
+  "key": "large changes (over 500 lines, excluding kernels, data, config",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Review: a reviewer is assigned and gives status updates every 2 to 3 days; ping after 7 days without review.",
+  "label": "depth",
+  "key": "review: a reviewer is assigned and gives status updates",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Where to start: issues labelled \"good first issue\"; the scheduler and KV cache code in vllm/v1/core/ is readable and well tested, as this section shows; new model support follows the existing files under vllm/model_executor/models/ .",
+  "label": "depth",
+  "key": "where to start: issues labelled \"good first issue\"; the",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Correction to the old page: it gave the source install as plain uv pip install -e . , which compiles every kernel; the guide's Python-only path is the precompiled one above.",
+  "label": "depth",
+  "key": "correction to the old page: it gave the source",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "8. contributing: a first patch, with its tests",
+  "text": "Its \"PRs need tests\" is the practice the guide's testing section describes rather than a stated rule.",
+  "label": "depth",
+  "key": "its \"prs need tests\" is the practice the guide's",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Mistake What is actually true, and where \"vLLM has a prefill phase and a decode phase.\" The scheduler has neither; it closes the gap between computed and existing tokens for each request under one budget (scheduler.py L564).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 2 (no phases; scheduler.py L564 comment) and the mistakes table header"
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Mixed steps are the normal case. \"Preempted requests are swapped to CPU memory.\" In this engine preemption is recompute: blocks freed, computed count reset to 0, request to the front of the waiting queue (L1538 to L1580).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 2 (preemption is recompute, L1538 to L1580)"
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Its cached full blocks may still be hit when it returns.",
+  "label": "core",
+  "key": "its freed full blocks keep their hashes, so much of that recompute is a cache hit",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "CPU offload exists, but as a KV connector tier, not as the preemption path. \"KV cache usage 30% means 70% of the cache is empty.\" Cached blocks that no running request holds count as free (block_pool.py L880).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 3 (usage counts cached blocks as free) and section 2 (CPU offload is a connector tier, now in section 2)"
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Usage is the share referenced by running requests; the warm cache is invisible in this metric. \"Chunked prefill means a long prompt is admitted chunk by chunk as memory frees up.\" Admission needs the whole prompt to fit ( scheduler_reserve_full_isl ); chunking only spreads its compute over steps. \"A full prefix-cache hit costs no prefill.\" The last block is always recomputed to get the first token's logits (kv_cache_manager.py L289), and only full blocks are ever cached. \" max_num_batched_tokens is 16,384 since v0.28.\" Only for the API server on GPUs with at least 160 GiB; H100 and H200 servers default to 8,192, other GPUs 2,048, the CPU backend 2,048 per worker (arg_utils.py L2858 to L2917). \"V2 benchmarks describe my deployment.\" Unsupported features silently fall back to Model Runner V1 with one warning line (vllm.py L752). \" gpu_memory_utilization is how much of the cache to use.\" It is the fraction of the whole GPU memory vLLM may take for weights, activations, CUDA graphs and the cache together; the cache gets what is left after profiling (default 0.92, cache.py L103).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 3 usage and section 2 admission (scheduler_reserve_full_isl)"
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Two vLLM servers on one GPU need fractions that sum below 1.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "now in the section 5 knob table (gpu_memory_utilization row)"
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Reading one throughput number after an upgrade.",
+  "label": "core",
+  "key": "Replay real traffic",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Defaults move between releases; compare the resolved config and the latency percentiles at the same arrival rate (section 7).",
+  "label": "core",
+  "key": "Diff the resolved configuration, not the flags.",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Interview questions Walk me through what happens inside vLLM between an HTTP request arriving and the first token streaming back.",
+  "label": "depth",
+  "key": "walk me through what happens inside vllm between an",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "API server: route, sampling params, tokenize (InputProcessor), register a detokenizer and an output queue, send an EngineCoreRequest over ZeroMQ.",
+  "label": "depth",
+  "key": "api server: route, sampling params, tokenize (inputprocessor), register a",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Engine core: an input thread queues it; the busy loop adds it to the waiting queue (hashing its full blocks); schedule() admits it if its whole prompt fits, allocating blocks after a prefix-cache lookup, and gives it budget; the executor runs the forward pass and samples; update_from_output appends the token; an output thread sends it back.",
+  "label": "depth",
+  "key": "engine core: an input thread queues it; the busy",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "API server: detokenize, check stop strings, put into the request's queue, write a server-sent event.",
+  "label": "depth",
+  "key": "api server: detokenize, check stop strings, put into the",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "TTFT is queue time plus the prefill steps plus these hops.",
+  "label": "depth",
+  "key": "ttft is queue time plus the prefill steps plus",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why does vLLM split the API server and the engine core into separate processes?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restated section 1 (process split); dropped from the rehearsal block"
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Python's GIL: tokenizing, detokenizing and HTTP are CPU work that would stall the loop that keeps the GPU fed.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 1: the GPU must never wait for Python"
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Separate processes overlap them with GPU steps; the cost is serialization over ZeroMQ, and at high request rates you add API server processes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 1 and the --api-server-count consequence"
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How does vLLM decide which request to preempt, and what does preemption cost?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question dropped: restated section 2"
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "FCFS: the last request in the running list, the most recently admitted; priority policy: the lowest priority, latest arrival.",
+  "label": "core",
+  "key": "under the priority policy, the lowest priority, latest arrival",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "It costs all of that request's computed tokens (recompute), unless its freed full blocks are still in the prefix cache when it is readmitted; no new requests are admitted in that step.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 2 preemption predict and the \"no new request is admitted in a step that preempted\" line"
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How is the prefix cache implemented, and why a hash chain rather than a radix tree?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question dropped: restated section 3"
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Each full block is named by a hash of its parent's hash, its tokens and extra keys (LoRA, multimodal, salt); a dictionary maps hash to block.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 3 hash chain"
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Equal hash at block k implies equal prefix up to k, so lookup is one dictionary probe per block, block-granular, with no tree to maintain.",
+  "label": "core",
+  "key": "one dictionary lookup per block finds the longest cached prefix",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Eviction is the free queue's order: unused cached blocks wait at the tail, least recently freed first at the head.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 3 free-queue order"
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "SGLang's radix tree matches at token granularity and supports cache-aware scheduling ( SGLang page ).",
+  "label": "depth",
+  "key": "SGLang keeps the same information as a radix tree matched token by token",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Your p99 inter-token latency spikes whenever long prompts arrive.",
+  "label": "depth",
+  "key": "your p99 inter-token latency spikes whenever long prompts arrive.",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Lower max_num_batched_tokens (smaller prefill chunks per step, so decode steps stay short), or set long_prefill_token_threshold ; at the cost of slower TTFT for the long prompts.",
+  "label": "depth",
+  "key": "lower max_num_batched_tokens (smaller prefill chunks per step, so decode",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "If it is a separate population, disaggregate prefill and decode ( distributed page ).",
+  "label": "depth",
+  "key": "if it is a separate population, disaggregate prefill and",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Measure with vllm:inter_token_latency_seconds and the Knob lab 's chunk sweep.",
+  "label": "depth",
+  "key": "the chunk sweep of section 5",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Throughput is flat but the waiting queue grows and KV usage is near 100%.",
+  "label": "depth",
+  "key": "throughput is flat but the waiting queue grows and",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What is the limit and what do you change?",
+  "label": "depth",
+  "key": "what is the limit and what do you change?",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Memory, not compute: requests cannot be admitted because their prompts do not fit.",
+  "label": "depth",
+  "key": "memory, not compute: requests cannot be admitted because their",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Options: raise gpu_memory_utilization if there is headroom, an FP8 KV cache (half the bytes per token), lower max_model_len to stop huge requests, more replicas, or a model with a smaller cache (GQA, MLA).",
+  "label": "depth",
+  "key": "options: raise gpu_memory_utilization if there is headroom, an fp8",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Raising max_num_seqs does nothing here.",
+  "label": "depth",
+  "key": "Raising max_num_seqs does nothing here.",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What is Model Runner V2 and when do you not get it?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question dropped: restated section 4"
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The rewritten per-GPU runner (default since v0.29.0): persistent per-request rows with GPU-side gathering, async-first, Triton input preparation and sampling, explicit CUDA graph management.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 4 (V2 table and visual)"
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "You get V1 when a feature it does not support is configured (n-gram, suffix or Medusa speculation, sequence parallelism with TP, elastic EP and others), on some ROCm models, without Triton, and on the CPU backend.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 4 fallback list (closed block)"
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How would you add a new metric to vLLM?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question dropped: restated section 8"
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Count it where the event happens (engine core), carry it in the per-step stats object ( SchedulerStats or PrefixCacheStats ), register a Prometheus counter in PrometheusStatLogger and increment it in record() , and add a unit test.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 8 four-step patch"
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Section 8 does exactly this for prefix-cache evictions.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to section 8"
+ },
+ {
+  "id": 280,
+  "tab": "t-step",
+  "section": "",
+  "text": "The real vLLM v0.31.0 scheduler and KV cache manager, recorded step by step while the real engine served Qwen3-0.6B: five customers of the bicycle-shop assistant, all sharing one system prompt, and one customer coming back with a follow-up question.",
+  "label": "core",
+  "key": "scheduler and kv cache manager, recorded step by step",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-step",
+  "section": "",
+  "text": "Pick a run, then step through it; every block, queue and number below is what vLLM's own objects held after that step.",
+  "label": "core",
+  "key": "every block, queue and number is what vLLM's objects held after that step",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-step",
+  "section": "",
+  "text": "Queues after schedule() This step's token budget Block pool (after the step) Free queue, head (next to hand out) to tail (last to evict) Requests",
+  "label": "core",
+  "key": "queues after schedule() this step's token budget block pool",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-knob",
+  "section": "",
+  "text": "vLLM v0.31.0's CPU image, run on this laptop with Qwen3-0.6B in float32: the knobs of Reading section 5 turned one at a time under the same load, the server's own /metrics scraped every second during each run, and the patch of Reading section 8 running in a live server. measured here throughout; absolute speeds are a CPU's, about a hundred times below a datacenter GPU, but the directions and the trade-offs are the scheduler's and transfer.",
+  "label": "core",
+  "key": "absolute speeds are a cpu's, about a hundred times",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-knob",
+  "section": "",
+  "text": "1. max_num_seqs: how many requests run at once 2. max_num_batched_tokens: the chunk size, seen by the users already streaming 3.",
+  "label": "core",
+  "key": "max_num_seqs from 2 to 16",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-knob",
+  "section": "",
+  "text": "KV cache size: when memory, not compute, is the limit 4.",
+  "label": "core",
+  "key": "KV cache 1 GiB against 3 GiB",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-knob",
+  "section": "",
+  "text": "The metrics during a run, second by second 5.",
+  "label": "core",
+  "key": "A run as the dashboards see it",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-knob",
+  "section": "",
+  "text": "Every metric the live server exported, and what it tells you 6.",
+  "label": "depth",
+  "key": "every metric the live server exported,",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-knob",
+  "section": "",
+  "text": "The patched metric in a running server",
+  "label": "core",
+  "key": "The new counter in a running server",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's tabs, the parent page and its siblings, the knowledge base pages that own the neighbouring subjects, and the best vLLM sources, each with an approximate time.",
+  "label": "core",
+  "key": "the parent page and its siblings, the knowledge base",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 2026-10-08.",
+  "label": "core",
+  "key": "Links checked on 2026-10-08",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page Reading The request path, the scheduler loop, the KV cache manager, the model runners, knobs, metrics, releases and a first patch. about 35 min, plus the animations Scheduler stepper vLLM's own scheduler and block pool, recorded step by step on a real model: prefix caching off and on, tight memory and preemption.",
+  "label": "core",
+  "key": "this page reading the request path, the scheduler loop,",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 to 25 min Knob lab The CPU image measured: knob sweeps, a live /metrics read, and the patched metric in a running server.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading card for the removed Knob lab tab"
+ },
+ {
+  "id": 293,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 to 20 min Parent and siblings Topic: inference-and-serving What every engine does, with its Serving simulator (checked against this scheduler), Engine bench and Capacity planner tabs. about 43 min Reading, plus its tabs (20 to 45 min each) SGLang: radix cache, cache-aware scheduling, large-scale serving The radix tree against this page's hash chain. about 31 min, plus its Radix lab, Scheduling lab, SGLang on the M1 and SGLang vs vLLM tabs Batching, KV cache and scheduling in depth The mechanisms with their papers: Orca, PagedAttention, Sarathi-Serve, eviction policies, preemption by recompute against swap. about 40 min, plus its Eviction lab, Scheduling lab and KV compression experiment Speculative decoding Why vLLM's scheduler counts draft tokens, and how verification works. about 23 min, plus its labs Distributed and disaggregated serving TP, PP, EP, KV connectors, Dynamo and llm-d around vLLM; its Runs on this laptop tab runs this page's CPU image with TP2 and PP2. about 30 min, plus its labs LLM serving in production Routing, autoscaling, cold starts, multi-LoRA and honest load testing, with vLLM's CPU image in Docker. about 32 min, plus its labs Local and on-device inference llama.cpp, Ollama and MLX: running models on one machine. about 44 min, plus its labs Model formats The files engines load: safetensors, GGUF, ONNX and the rest. about 29 min, plus its File explorer and Conversion map Knowledge base pages PagedAttention paper page The paper behind the block pool.",
+  "label": "core",
+  "key": "parent and siblings topic: inference-and-serving what every engine does,",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min Streams, CUDA graphs and multi-GPU CUDA graphs in vLLM, capture sizes and what breaks them.",
+  "label": "core",
+  "key": "streams, cuda graphs and multi-gpu cuda graphs in vllm,",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-more",
+  "section": "",
+  "text": "35 min Compiler stack torch.compile, Inductor, Triton: what -O2 does.",
+  "label": "core",
+  "key": "35 min compiler stack torch.compile, inductor, triton: what -o2",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-more",
+  "section": "",
+  "text": "28 min Writing kernels FlashAttention and split-KV decode, the kernels the model runner calls.",
+  "label": "core",
+  "key": "28 min writing kernels flashattention and split-kv decode, the",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-more",
+  "section": "",
+  "text": "37 min Memory technology The KV cache as physical memory.",
+  "label": "core",
+  "key": "37 min memory technology the kv cache as physical",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-more",
+  "section": "",
+  "text": "24 min Streaming and real-time The server-sent events the API server writes.",
+  "label": "core",
+  "key": "24 min streaming and real-time the server-sent events the",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Sampling and Decoding What the sampler at the end of each step computes.",
+  "label": "core",
+  "key": "40 min sampling and decoding what the sampler at",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-more",
+  "section": "",
+  "text": "16 min Topic: pytorch-ecosystem The framework vLLM is built on.",
+  "label": "core",
+  "key": "16 min topic: pytorch-ecosystem the framework vllm is built",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min vLLM sources, best first Architecture overview Processes, entrypoints, workers; read before the code.",
+  "label": "core",
+  "key": "40 min vllm sources, best first architecture overview processes,",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min scheduler.py at v0.31.0 Read schedule() (L562 to about L1520) with the stepper open.",
+  "label": "core",
+  "key": "30 min scheduler.py at v0.31.0 read schedule() (l562 to",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-more",
+  "section": "",
+  "text": "60 min Prefix caching design The block pool, hashing and eviction, with diagrams.",
+  "label": "core",
+  "key": "60 min prefix caching design the block pool, hashing",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min Model Runner V2 design Why the runner was rewritten.",
+  "label": "core",
+  "key": "25 min model runner v2 design why the runner",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min Metrics design Every metric and why it exists.",
+  "label": "core",
+  "key": "20 min metrics design every metric and why it",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Optimization and tuning The project's own advice on preemption, chunked prefill and parallelism.",
+  "label": "core",
+  "key": "30 min optimization and tuning the project's own advice",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min V1 alpha announcement Why the engine was re-architected in 2025.",
+  "label": "core",
+  "key": "20 min v1 alpha announcement why the engine was",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min Contributing guide Setup, tests, DCO, AI-assisted contributions, review expectations.",
+  "label": "core",
+  "key": "20 min contributing guide setup, tests, dco, ai-assisted contributions,",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min Release notes Read the highlights and breaking changes of every release you skip.",
+  "label": "core",
+  "key": "25 min release notes read the highlights and breaking",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min each PagedAttention paper Kwon et al., SOSP 2023.",
+  "label": "core",
+  "key": "15 min each pagedattention paper kwon et al., sosp",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "the idea",
+  "text": "Core idea: vLLM is one loop in its own process (schedule, model, update_from_output) handing out a token budget and blocks from a pool; knobs change the budget, the pool or the model step.",
+  "label": "core",
+  "key": "one loop in its own process",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "the idea",
+  "text": "Hero: static annotated diagram of API server, engine core (loop, scheduler, KV cache manager and block pool) and GPU worker, with each knob drawn where it acts.",
+  "label": "core",
+  "key": "One loop between the API server and the GPU, and where each knob acts",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "the idea",
+  "text": "New terms: engine core, token budget, block pool and free queue, block hash, model runner and persistent batch, MRV2.",
+  "label": "core",
+  "key": "the prefix cache's key",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "1",
+  "text": "Request path step animation: one streamed request through api_router, serving, AsyncLLM, ZeroMQ, input thread, busy loop, schedule, model runner, update_from_output, output thread and back (script-rendered captions with file:line).",
+  "label": "core",
+  "key": "One streamed request crosses two processes and back",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "1",
+  "text": "Measured: the CPU container showed three vLLM processes (API server, EngineCore, Worker) because the CPU backend always uses the multiprocessing executor.",
+  "label": "core",
+  "key": "the CPU container here showed three vLLM processes",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "2",
+  "text": "CPU offload exists as a KV connector tier, not as the preemption path (moved from Common mistakes).",
+  "label": "core",
+  "key": "not as the preemption path",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "3",
+  "text": "Free queue diagram: allocate pops the head (evicting a hashed block), freed unhashed blocks go to the front, freed hashed blocks to the tail, a cache hit unlinks from the middle.",
+  "label": "core",
+  "key": "The free queue is the eviction policy",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "3",
+  "text": "Scheduler stepper (moved from its tab): real v0.31.0 scheduler and block pool recorded on Qwen3-0.6B; runs prefix caching off, on, tight memory, big budget; per-step queues, budget, pool, free queue, requests.",
+  "label": "core",
+  "key": "The scheduler and the pool together, recorded on the real engine",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "3",
+  "text": "Stepper summary table (script-rendered): pc_off 51 steps 686 tokens; pc_on 49 steps 398 tokens, 288 from cache; tight 121 steps 632 tokens, 448 from cache, 2 preemptions, 6 evicted; big budget 48 steps 398 tokens, 288 from cache.",
+  "label": "core",
+  "key": "686 against 398 tokens computed",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "3",
+  "text": "Stepper recording method (script-rendered, closed): record.py wraps schedule and update_from_output to copy out the pool; arrivals A, B at step 1, C at 4, D at 7, A2 after A; the shared bicycle-shop system prompt.",
+  "label": "depth",
+  "key": "How this was recorded",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "4",
+  "text": "V1 against V2 toggle: B finishes and E joins; V1 fills the empty row then swaps rows so decodes come first (gpu_input_batch.py L326, L582; gpu_model_runner.py L1135) and keeps CachedRequestState; V2 writes one row and gathers on the GPU.",
+  "label": "core",
+  "key": "V1 rewrites rows, V2 writes one row and gathers",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "5",
+  "text": "Multi-LoRA knobs (absorbed from PEFT): enable_lora; max_loras default 1 (lora.py L37); max_lora_rank 16 (L35); max_cpu_loras defaults to max_loras and must not be smaller (L121); scheduler skips a waiting request on a new adapter at the max_loras cap (scheduler.py L911 to L922); buffers preallocated for max_loras x max_lora_rank (base_linear.py L135 to L149).",
+  "label": "core",
+  "key": "max_cpu_loras",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "5",
+  "text": "gpu_memory_utilization is a share of the whole GPU; two servers on one GPU need fractions summing below 1 (moved from Common mistakes).",
+  "label": "core",
+  "key": "two vLLM servers on one GPU need fractions that sum below 1",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "5",
+  "text": "Knob sweep max_num_seqs 2, 4, 16 under 16 users (script-rendered): throughput 18.6 to 30.1 tok/s, median TPOT 85 to 311 ms, TTFT falls; peaks running/waiting; load.",
+  "label": "core",
+  "key": "max_num_seqs from 2 to 16: throughput rises",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "5",
+  "text": "Knob sweep max_num_batched_tokens 2,048 against 128 (script-rendered): longest gap for streaming users about 5.6 s against 0.7 s; long prompts TTFT cost; p99 swings between runs.",
+  "label": "core",
+  "key": "max_num_batched_tokens 2,048 against 128",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "5",
+  "text": "Knob sweep KV cache 1 GiB (4,608 tokens) against 3 GiB (13,952 tokens) (script-rendered): no preemption; 8 running, 10 waiting, KV usage 91% at 1 GiB.",
+  "label": "core",
+  "key": "memory pressure shows up as waiting, not preemption",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "5",
+  "text": "Set-up of the measured runs (script-rendered, closed): image, Qwen3-0.6B revision, max-model-len 4096, VLLM_CPU_KVCACHE_SPACE, loadgen.py, Docker VM.",
+  "label": "depth",
+  "key": "Set-up of the measured runs",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "6",
+  "text": "Metrics time series (script-rendered): running, waiting, KV usage, generation rate and preemptions per second for four runs.",
+  "label": "core",
+  "key": "one scrape a second",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "6",
+  "text": "Every exported metric family before and after the default run, with what each tells you (script-rendered, closed).",
+  "label": "depth",
+  "key": "Every metric the live server exported",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "8",
+  "text": "Patched metric live (script-rendered): 1 GiB cache, shared 900-word prefix: 34,038 tokens queried, 27,776 hit (81.6%), 12 cached blocks evicted, 0 preemptions.",
+  "label": "core",
+  "key": "next to the hit counters",
+  "where": "",
+  "note": "added by hand 2026-10-23 (script-rendered or new)"
+ }
+]
