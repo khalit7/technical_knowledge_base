@@ -1,4 +1,4 @@
-// ---- Reading tab, part 2: context-parallel animation, cost calculator, formula check, mesh, multi-host, debugging, mistakes, old page ----
+// ---- Reading tab, part 2: context-parallel animation, cost calculator, formula check, mesh, multi-host, debugging, old page ----
 (function(){
   const U=SSU, esc=U.esc, $=id=>document.getElementById(id);
   // ---------- context parallelism: ring vs all-gather on the same 8 x 8 grid of (query block, key block) ----------
@@ -92,30 +92,13 @@
       ['What is the sharding type?','<code>jax.typeof(x)</code> on an Explicit mesh','<code>'+esc(D.typeof['x @ w'])+'</code>'],
       ['Which collectives, how big, from which line?','<code>jit(f).lower(*a).compile().as_text()</code>, grouped by source line','See below: the surprise all-gathers of the unconstrained FSDP step.'],
       ['How much memory per device?','<code>compiled.memory_analysis()</code>','Arguments, outputs, aliases, temp. On CPU, use the temp field: <code>peak_memory_in_bytes</code> leaves it out (root Compiler lab).'],
-      ['What did propagation decide, op by op?','<code>XLA_FLAGS=--xla_dump_to=DIR --xla_dump_hlo_pass_re=shardy-xla|sharding-propagation</code>','One file per module after the pass; the {{Propagation explorer|#t-prop}} is built from these. Dumps contain absolute paths: scrub before sharing.'],
+      ['What did propagation decide, op by op?','<code>XLA_FLAGS=--xla_dump_to=DIR --xla_dump_hlo_pass_re=shardy-xla|sharding-propagation</code>','One file per module after the pass; section 3\'s stepper is built from these. Dumps contain absolute paths: scrub before sharing.'],
       ['Did the partitioner give up somewhere?','XLA warnings on stderr','<code>[SPMD] Involuntary full rematerialization</code>, printed for the FSDP x tensor layout.'],
-      ['Do all hosts agree?','<code>jax.experimental.multihost_utils.assert_equal</code>; <code>device_put</code> runs it for you on replicated inputs','See {{Many processes|#t-multi}}.']];
+      ['Do all hosts agree?','<code>jax.experimental.multihost_utils.assert_equal</code>; <code>device_put</code> runs it for you on replicated inputs','See section 12.']];
     $('ss-dbg-t').innerHTML=rows.map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td class="small">'+r[2]+'</td></tr>').join('').replace(/\{\{([^|{}]+)\|#(t-[\w-]+)\}\}/g,'<a href="#" data-tab="$2">$1</a>');
     RD.tabLinks($('ss-dbg-t'));
     const ag=P.filter(r=>r[0]==='all-gather'&&/model_jax\.py:68/.test(r[1]));
     $('ss-surprise').innerHTML=ag.map(r=>r[3]+' all-gathers at <code>model_jax.py:68</code> ('+r[2]+', '+U.MB(r[4])+' in all)').join(' and ')+', the line <code>return linear(p["fc2"], jax.nn.gelu(linear(p["fc1"], x), approximate=False))</code>';
-  })();
-
-  // ---------- mistakes ----------
-  (function(){
-    const E=SS.explicit.runs,err=(l,f)=>{const r=E.find(x=>x.layout===l&&String(x.fix)===f);return r?r.error.split('\n')[0]:''};
-    const ms=[
-      ['Assuming <code>jax.make_mesh</code> gives Auto axes','It gives Explicit axes in jax 0.11.2: code from older tutorials then fails at the embedding lookup with',err('dp','null'),'Pass <code>axis_types=(AxisType.Auto,) * n</code> to keep Auto behaviour, or embrace Explicit mode and add <code>out_sharding=</code> where asked.'],
-      ['Splitting a weight on the same mesh axis as the batch, in Explicit mode','FSDP shards weights on the data axis; the embedding row lookup then produces an array split twice on one axis:',err('fsdp','null'),'Gather the weight first: <code>jax.reshard(w, P())</code> (that is the FSDP all-gather, written down).'],
-      ['Adding arrays split on the same axis along different dimensions','',err('fsdp','emb'),'Same fix: reshard one operand.'],
-      ['Leaving a row-parallel matmul ambiguous','',err('tp','emb'),'<code>jnp.einsum(..., out_sharding=P(\'data\', None, None))</code>: you decide whether and where the partial sums are added.'],
-      ['Tensor-parallel degree larger than the number of heads','No error at all: 8-way tensor parallelism on the 4-head running example compiled and ran, and moved 1.33 times the bytes the formula predicts.','','Keep the degree a divisor of the (KV) head count.'],
-      ['Contiguous microbatches in a pipeline','No error: splitting a batch-sharded batch into contiguous microbatches cut across the data shards and cost an all-to-all and an all-gather per step (Pipeline tab).','','Take microbatch m as rows m, m+M, m+2M, ...: each device keeps its own rows.'],
-      ['Reading a global array on one host','',SS.multi.normal.processes[0].np_asarray_global,'<code>multihost_utils.process_allgather(x)</code> (copies everything everywhere), or <code>x.addressable_shards</code>.'],
-      ['Hosts starting from different values','Process 1 added 0.001 to its weights before <code>device_put</code> to a replicated sharding:',(SS.multi.mismatch.processes[0].device_put_error||'').split(' Make sure')[0],'Initialise from the same seed on every host, or initialise inside jit with sharded outputs.'],
-      ['Trusting propagation for activations','No error; the unconstrained FSDP step all-gathered whole-batch MLP activations (Debugging, above).','','A <code>with_sharding_constraint</code> on the residual stream per block, or Explicit mode.'],
-      ['Reading CPU results as TPU results','No error; on CPU, FSDP gradients are all-reduced and sliced, not reduce-scattered, and tensor-parallel backward all-reduces are not merged.','','Count logical bytes, not op names, and check on the target backend before tuning.']];
-    $('ss-mist').innerHTML=ms.map(m=>'<details class="mist"><summary>'+m[0]+'</summary><div class="b">'+(m[1]?'<p>'+m[1]+'</p>':'')+(m[2]?'<pre class="err">'+esc(m[2])+'</pre>':'')+'<p><b>Fix.</b> '+m[3]+'</p></div></details>').join('');
   })();
 
   // ---------- old page ----------

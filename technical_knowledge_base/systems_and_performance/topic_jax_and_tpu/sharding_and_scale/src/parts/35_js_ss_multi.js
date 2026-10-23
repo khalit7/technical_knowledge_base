@@ -1,4 +1,4 @@
-// ---- Many processes tab (t-multi) ----
+// ---- Reading section 12 (moved from the Many processes tab) ----
 (function(){
   const U=SSU,esc=U.esc,$=id=>document.getElementById(id),MU=SS.multi,P=MU.normal.processes;
   $('mu-init').textContent=SS.code.multi_init.replace(/^    /gm,'');
@@ -6,22 +6,22 @@
   let mode=2;
   const N=6;
   function draw(i){
-    const el=$('mu-svg'),W=U.width(el),H=176,pad=8,boxW=(W-3*pad)/2;
+    const el=$('mu-svg'),W=U.width(el),H0=176,pad=8,nar=W<560&&mode===2,PH=H0-44,H=nar?H0+PH:H0,boxW=nar?W-2*pad:(W-3*pad)/2;
     let s='';
     const procs=mode===2?[[0,P[0]],[1,P[1]]]:[[0,null]];
     const ids=mode===2?[P[0].device_ids.slice(0,4),P[0].device_ids.slice(4)]:[P[0].device_ids.slice(0,4).concat([4,5,6,7])];
     const bw=mode===2?boxW:W-2*pad;
-    procs.forEach((pp,pi)=>{const x0=pad+pi*(boxW+pad);
-      s+='<rect x="'+x0+'" y="4" width="'+bw+'" height="'+(H-48)+'" rx="8" fill="var(--soft)" stroke="'+(i>=1?'var(--acc)':'var(--line)')+'"/>';
-      s+=RD.t(x0+8,20,(mode===2?'process '+pi+' (host '+pi+')':'one process')+(i>=1&&mode===2?': jax.distributed.initialize()':''),{fs:11.5,w:600});
+    procs.forEach((pp,pi)=>{const x0=nar?pad:pad+pi*(boxW+pad),oy=nar?pi*PH:0;
+      s+='<rect x="'+x0+'" y="'+(4+oy)+'" width="'+bw+'" height="'+(H0-48)+'" rx="8" fill="var(--soft)" stroke="'+(i>=1?'var(--acc)':'var(--line)')+'"/>';
+      s+=RD.t(x0+8,20+oy,(mode===2?'process '+pi+' (host '+pi+')':'one process')+(i>=1&&mode===2?': jax.distributed.initialize()':''),{fs:11.5,w:600});
       const dv=ids[pi],dw=(bw-16)/dv.length;
-      dv.forEach((d,k)=>{const x=x0+8+k*dw,y=32;const g=pi*4+k;
-        s+='<rect x="'+(x+2)+'" y="'+y+'" width="'+(dw-4)+'" height="'+(H-90)+'" rx="5" fill="var(--bg)" stroke="var(--line)"/>';
-        s+=RD.t(x+dw/2,y+14,'cpu:'+(mode===2?d:g),{a:'middle',fs:dw<46?9:10.5});
-        if(i>=2){const r0=g*4;s+='<rect x="'+(x+6)+'" y="'+(y+22)+'" width="'+(dw-12)+'" height="16" rx="3" fill="var(--c1)" fill-opacity=".7"/>'+RD.t(x+dw/2,y+34,(dw<60?'':'rows ')+r0+'-'+(r0+3),{a:'middle',fs:dw<46?8.5:10,fill:'var(--bg)'})}
-        if(i>=3)s+='<rect x="'+(x+6)+'" y="'+(y+44)+'" width="'+(dw-12)+'" height="14" rx="3" fill="var(--c3)" fill-opacity=".7"/>'+RD.t(x+dw/2,y+55,dw<46?'g':'grads',{a:'middle',fs:9.5,fill:'var(--bg)'});
-        if(i>=5)s+='<rect x="'+(x+6)+'" y="'+(y+64)+'" width="'+(dw-12)+'" height="14" rx="3" fill="var(--c4)" fill-opacity=".7"/>'+RD.t(x+dw/2,y+75,dw<46?'W':'new W',{a:'middle',fs:9.5,fill:'var(--bg)'})})});
-    if(i===4){const y=H-40;s+='<line x1="'+(pad+12)+'" y1="'+y+'" x2="'+(W-pad-12)+'" y2="'+y+'" stroke="var(--c2)" stroke-width="3"/>'+RD.t(W/2,y+16,mode===2?'all-reduce over all 8 devices: inside each process, and between them over gloo (TCP)':'all-reduce over all 8 devices, inside one process',{a:'middle',fs:11,fill:'var(--c2)'})}
+      dv.forEach((d,k)=>{const x=x0+8+k*dw,y=32+oy;const g=pi*4+k;
+        s+='<rect x="'+(x+2)+'" y="'+y+'" width="'+(dw-4)+'" height="'+(H0-90)+'" rx="5" fill="var(--bg)" stroke="var(--line)"/>';
+        s+=RD.t(x+dw/2,y+14,(dw<46?'':'cpu:')+(mode===2?d:g),{a:'middle',fs:dw<46?10:10.5});
+        if(i>=2){const r0=g*4;s+='<rect x="'+(x+6)+'" y="'+(y+22)+'" width="'+(dw-12)+'" height="16" rx="3" fill="var(--c1)" fill-opacity=".7"/>'+RD.t(x+dw/2,y+34,(dw<60?'':'rows ')+r0+'-'+(r0+3),{a:'middle',fs:10,fill:'var(--bg)'})}
+        if(i>=3)s+='<rect x="'+(x+6)+'" y="'+(y+44)+'" width="'+(dw-12)+'" height="14" rx="3" fill="var(--c3)" fill-opacity=".7"/>'+RD.t(x+dw/2,y+55,dw<46?'g':'grads',{a:'middle',fs:10.5,fill:'var(--bg)'});
+        if(i>=5)s+='<rect x="'+(x+6)+'" y="'+(y+64)+'" width="'+(dw-12)+'" height="14" rx="3" fill="var(--c4)" fill-opacity=".7"/>'+RD.t(x+dw/2,y+75,dw<46?'W':'new W',{a:'middle',fs:10.5,fill:'var(--bg)'})})});
+    if(i===4){const y=H-40;s+='<line x1="'+(pad+12)+'" y1="'+y+'" x2="'+(W-pad-12)+'" y2="'+y+'" stroke="var(--c2)" stroke-width="3"/>'+RD.t(W/2,y+16,mode===2?(W<560?'all-reduce over 8 devices, between processes over gloo':'all-reduce over all 8 devices: inside each process, and between them over gloo (TCP)'):'all-reduce over all 8 devices, inside one process',{a:'middle',fs:11,fill:'var(--c2)'})}
     el.innerHTML=RD.svg(W,H,s,'Processes, devices and the batch rows each holds');
     const c2=['<b>Start.</b> Two copies of the same script, one per "host". Each sees only its own 4 devices until they connect.',
       '<b>Connect.</b> <code>jax.distributed.initialize(coordinator_address=..., num_processes=2, process_id=i)</code>. Now <code>jax.devices()</code> lists all 8 in both processes ('+P[0].device_ids.join(', ')+'; process 1\'s devices got ids from 2048, as observed here), <code>jax.local_devices()</code> only its own 4. Both build the same mesh over all 8.',
@@ -32,9 +32,9 @@
     const c1=['<b>Start.</b> One process sees all 8 devices.','<b>Nothing to connect.</b> <code>jax.devices()</code> is local; every shard is addressable.','<b>Load.</b> The process loads all 32 rows and <code>device_put</code>s them with <code>P(\'data\', None)</code>: 4 rows per device.','<b>Compute.</b> The same jitted step, the same per-device work.','<b>All-reduce.</b> The same single all-reduce, now a memory copy inside one process.','<b>Update.</b> The same weights. The root lab\'s one-device run gives '+MU.one_device_losses[0].toFixed(6)+' at step 0 and '+MU.one_device_losses[19].toFixed(6)+' at step 19.'];
     $('mu-cap').innerHTML=(mode===2?c2:c1)[i];
   }
-  const an=U.anim({tab:'t-multi',card:'mu-card',ctl:'mu-ctl',n:N,draw,ms:1700,label:'Step'});
+  const an=U.anim({tab:'t-read',card:'mu-card',ctl:'mu-ctl',n:N,draw,ms:1700,label:'Step'});
   U.seg($('mu-mode'),v=>{mode=+v;an.redraw()});
-  addEventListener('resize',()=>{const t=$('t-multi');if(t&&!t.hidden)an.redraw()});
+  addEventListener('resize',()=>{const t=$('t-read');if(t&&!t.hidden)an.redraw()});
   const row=(k,f)=>'<tr><td>'+k+'</td><td>'+f(P[0])+'</td><td>'+f(P[1])+'</td></tr>';
   $('mu-t').querySelector('tbody').innerHTML=[
     row('<code>jax.process_index()</code> / <code>process_count()</code>',p=>p.process_index+' / '+p.process_count),

@@ -1,4 +1,4 @@
-// ---- Pipeline tab (t-pipe): the real tick-by-tick schedules from src/runs/ss_pipe.py ----
+// ---- Reading section 8 (moved from the Pipeline tab): the real tick-by-tick schedules from src/runs/ss_pipe.py ----
 (function(){
   const U=SSU,esc=U.esc,$=id=>document.getElementById(id),PP=SS.pipe;
   const refs={'pp-ref-vmap':'mt_pipe_vmap','pp-ref-rot':'mt_pipe_rotate','pp-ref-bub':'mt_bubble'};
@@ -20,7 +20,7 @@
         if(shown){if(c)busy++;else idle++}
         const fill=!shown?'var(--bg)':c?COL[c[0]%COL.length]:'var(--dim)';
         s+='<rect x="'+(x+1)+'" y="'+(y+2)+'" width="'+(cw-2)+'" height="'+(ch-6)+'" rx="3" fill="'+fill+'" fill-opacity="'+(shown?(c?.75:.6):1)+'" stroke="'+(t===i-1?'var(--ink)':'var(--line)')+'"/>';
-        if(shown&&c)s+=RD.t(x+cw/2,y+ch/2+3,'m'+c[0]+(r.R>1?' r'+c[1]:''),{a:'middle',fs:cw<34?9:10.5,fill:'var(--bg)',w:600});
+        if(shown&&c)s+=RD.t(x+cw/2,y+ch/2+3,'m'+c[0]+(r.R>1?' r'+c[1]:''),{a:'middle',fs:10.5,fill:'var(--bg)',w:600});
         if(shown&&t===i-1&&t<T-1&&(st<S-1||r.R>1)){const y2=st<S-1?y+ch+ch/2:18+ch/2;
           s+='<line x1="'+(x+cw-4)+'" y1="'+(y+ch/2)+'" x2="'+(x+cw+6)+'" y2="'+(st<S-1?y2-ch/2+4:y2)+'" stroke="var(--ink)" stroke-width="1.2" marker-end="url(#pi-ar)"/>'}}}
     el.innerHTML=RD.svg(lab+T*cw+6,H,'<defs><marker id="pi-ar" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0L6,3L0,6z" fill="var(--ink)"/></marker></defs>'+s,'Pipeline schedule');
@@ -32,9 +32,9 @@
     const tot=S*Math.max(1,Math.min(i,T));
     $('pi-cnt').innerHTML=RD.stat('busy stage-ticks',busy+' of '+(S*i),'')+RD.stat('bubble so far',i?Math.round(idle/(S*i)*100)+'%':'0%','whole run: '+(r.bubble_fraction_forward*100).toFixed(1)+'%')+RD.stat('formula (S&minus;1)/(MR+S&minus;1)',(r.formula_bubble*100).toFixed(1)+'%','S='+r.S+', M='+r.M+', R='+r.R)+RD.stat('forward ppermutes so far',Math.max(0,Math.min(i,T-1)),'measured total, fwd+bwd: '+r.collectives['collective-permute'].count);
   }
-  const an=U.anim({tab:'t-pipe',card:'pi-card',ctl:'pi-ctl',n:runs[0].ticks+1,draw,ms:1100,label:'Tick'});
+  const an=U.anim({tab:'t-read',card:'pi-card',ctl:'pi-ctl',n:runs[0].ticks+1,draw,ms:1100,label:'Tick'});
   U.seg($('pi-run'),v=>{ri=+v;an.reset(runs[ri].ticks+1)});
-  addEventListener('resize',()=>{const t=$('t-pipe');if(t&&!t.hidden)an.redraw()});
+  addEventListener('resize',()=>{const t=$('t-read');if(t&&!t.hidden)an.redraw()});
   const cs=c=>Object.keys(c).map(k=>U.chip(k,k+' x'+c[k].count+', '+U.MB(c[k].bytes))).join(' ');
   $('pi-t').querySelector('tbody').innerHTML=PP.runs.map(r=>'<tr><td>'+(r.kind==='gpipe_contiguous'?'GPipe, contiguous microbatches':r.kind==='gpipe'?'GPipe':'Circular')+'</td><td class="num">'+r.S+'</td><td class="num">'+r.M+'</td><td class="num">'+r.R+'</td><td>'+r.stage_layers.map(l=>'['+l.join(',')+']').join(' ')+'</td><td class="num">'+r.ticks+'</td><td class="num">'+(r.bubble_fraction_forward*100).toFixed(1)+'%</td><td>'+cs(r.collectives)+'</td><td class="num">'+U.sci(r.abs_loss_diff)+' / '+U.sci(r.grad_max_abs_diff)+'</td><td class="num">'+U.MB(r.temp_bytes_per_device)+'</td></tr>').join('');
   const bad=PP.runs.find(r=>r.kind==='gpipe_contiguous'),good=PP.runs.find(r=>r.kind==='gpipe'&&r.S===4&&r.M===4);

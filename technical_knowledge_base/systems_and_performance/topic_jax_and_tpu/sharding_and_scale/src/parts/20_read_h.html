@@ -1,0 +1,41 @@
+<section id="s-multi">
+<h2>12. Many hosts: one program, many controllers</h2>
+<p><b>The model.</b> A TPU slice larger than one host (one VM with a few chips attached) runs <em>one Python process per host</em>, all executing the same script: JAX is <dfn>multi-controller</dfn>. The JAX guide: "All processes (usually) run the same Python script", and "it's crucial that all processes with participating devices run the same computation in the same order", a rule that is "mostly unchecked", so a mismatch hangs ({{JAX docs, multi-controller JAX|https://docs.jax.dev/en/latest/multi_process.html}}, read 2026-10-15). The PyTorch picture is close: <code>torchrun</code> starts one process per GPU and you call <code>init_process_group</code>; JAX starts one process per host and you call <code>jax.distributed.initialize()</code> (<span id="ss-ref-dist"></span>), which on Cloud TPU, Slurm or Kubernetes needs no arguments. After it, <code>jax.devices()</code> lists every chip of every host (the <dfn>global</dfn> devices) and <code>jax.local_devices()</code> this host's (also called <dfn>addressable</dfn>). A jitted function over a global array is still one SPMD program; the difference from one host is only that a process can touch the shards on its own devices and nothing else.</p>
+<p><b>Run here.</b> JAX runs the same thing on CPU with several processes on one machine, so this page does it for real: 2 processes, each owning 4 simulated devices, connected by <code>jax.distributed</code> over localhost (collectives between processes use gloo, the default CPU implementation, <span id="ss-ref-gloo"></span>). Each process loads only its 16 of the batch's 32 rows and builds the global batch with <code>jax.make_array_from_process_local_data</code> (<span id="ss-ref-mapl"></span>), then both run the running example's data-parallel train step for 20 steps. <span class="meas">measured</span> <span id="ss-multi-sum"></span></p>
+<div class="ss-card" id="mu-card">
+<h4>One step, two ways: the program is the same; only who can touch which shard changes</h4>
+<div class="seg" id="mu-mode"><span class="lbl">Run as</span><button data-m="2" class="on">Two processes x 4 devices</button><button data-m="1">One process x 8 devices</button></div>
+<div class="ss-svg" id="mu-svg"></div>
+<div class="an-ctl" id="mu-ctl"></div>
+<div class="ss-cap" id="mu-cap"></div>
+</div>
+<h3>The two errors you will meet</h3>
+<p class="small">Both pasted from the run: reading a global array in one process fails on purpose, and hosts passing different values for a replicated array both stop at <code>device_put</code>.</p>
+<div id="mu-err"></div>
+<h3>On a real slice</h3>
+<ul class="tight">
+<li><b>Data.</b> Each host reads only its shard of the data. The data loader's job is to give host h the rows that its devices hold under the batch sharding; <code>make_array_from_process_local_data</code> assembles the global array without communication. Deterministic, checkpointable per-host loading with grain is on the {{training stack|n:3c65c17b0d0d817ea0ace9a2ca8677ec}} page.</li>
+<li><b>Checkpoints and logging.</b> Orbax writes and restores sharded arrays from every host (training stack page). Logging only from <code>jax.process_index() == 0</code> is fine; putting a <code>device_put</code> or a jitted call under that condition is not: the guide warns it "would lead to a deadlock as only process 0 initiates the collective communication".</li>
+<li><b>Across slices.</b> Multislice jobs add the data-centre network between slices; MaxText's <code>dcn_*_parallelism</code> settings put data parallelism there (section 11).</li>
+</ul>
+<details class="dp"><summary>The code each process ran, what each process saw, how a real slice is launched, and the single-controller alternative <span class="mute">(2 min)</span></summary><div class="b">
+<pre id="mu-init"></pre>
+<p>then, per step, the process builds the global batch from its own rows:</p>
+<pre id="mu-loop"></pre>
+<p>and calls the same jitted step as on one host (<code>jax.jit(step, in_shardings=(rep, rep, xs, xs), out_shardings=(rep, rep, rep), donate_argnums=(0, 1))</code>, data parallel over a mesh of all 8 global devices).</p>
+<div class="tw"><table id="mu-t"><thead><tr><th></th><th>Process 0</th><th>Process 1</th></tr></thead><tbody></tbody></table></div>
+<div id="mu-loss"></div>
+<p><b>Single controller.</b> Google's own Gemini runs used the other model, a single controller: "the 'single controller' programming model of Jax and Pathways allows a single Python process to orchestrate the entire training run" ({{Gemini 1 report, arXiv 2312.11805, section 3|https://arxiv.org/abs/2312.11805}}); Pathways is not open source.</p>
+<p><b>Launching.</b> The same script is started on every host of the slice (on Cloud TPU, one command over all workers; under GKE or Slurm, one pod or task per host). <code>jax.distributed.initialize()</code> then needs no arguments: the JAX guide lists Slurm, Kubernetes and Cloud TPU as environments where they "are automatically populated". Not run here.</p>
+</div></details>
+</section>
+
+<section id="s-debug">
+<h2>13. Debugging shardings: the toolkit, with real output</h2>
+<div class="tw"><table><thead><tr><th>Question</th><th>Tool</th><th>What it printed here</th></tr></thead><tbody id="ss-dbg-t"></tbody></table></div>
+<p><b>Finding a surprise collective.</b> The compiled HLO names every collective, and its metadata records the Python line that produced it. Grouping collectives by line is the fastest way to find the one you did not plan. This page's parser does it in a few lines (<code>src/runs/ss_hlo.py</code>: newer HLO dumps store the line in a <code>StackFrames</code> table that each instruction points into with <code>stack_frame_id</code>). Applied to the root lab's unconstrained FSDP layout under Shardy, it points straight at the MLP: <span id="ss-surprise"></span>. Those are whole-batch activations, the signature of a propagator that followed the weights' split into the activations.</p>
+<pre>comp = jax.jit(step).lower(*args).compile()
+for ins in ss_hlo.instructions(comp.as_text()):          <span class="c"># name, op, type, sharding, file, line</span>
+    if ins["op"].replace("-start", "") in ("all-gather", "all-reduce", "reduce-scatter", "all-to-all", "collective-permute"):
+        print(ins["op"], ins["type"], ins["file"], ins["line"])</pre>
+</section>

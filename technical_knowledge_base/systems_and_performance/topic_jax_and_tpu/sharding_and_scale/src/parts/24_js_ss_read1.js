@@ -1,10 +1,11 @@
-// ---- Reading tab, part 1: one-screen table, source refs, propagation diff, drill, explicit ladder, strategies chart ----
+// ---- Reading tab, part 1 (sections 0 to 6): one-screen table, source refs, propagation diff, drill, explicit ladder, strategies chart ----
 (function(){
   const U=SSU, esc=U.esc, $=id=>document.getElementById(id);
   // source references: <span id="ss-ref-KEY"> -> file:line at the pinned version
   const REF={mm:'make_mesh_explicit_default',sdy:'shardy_flag',aa:'auto_axes',mtmode:'mt_shard_mode',x1:'xla_cpu_shardy',x2:'xla_cpu_gspmd',
     x3:'xla_gpu_arr',gerr:'gather_err',cerr:'contracting_err',cps:'mt_cp_strategy',cpb:'mt_cp_balance',mtaxes:'mt_mesh_axes',mtdcn:'mt_dcn_tensor',
-    mtrules:'mt_rules',dist:'dist_init',gloo:'cpu_coll_default',mapl:'make_array_pl',rag:'mt_moe_ragged'};
+    mtrules:'mt_rules',dist:'dist_init',gloo:'cpu_coll_default',mapl:'make_array_pl',rag:'mt_moe_ragged',
+    mk:'make_mesh',dup:'dup_spec',wsc:'wsc',n2g:'named_to_gspmd',n2s:'named_to_sdy',smap:'shard_map',ag:'all_gather',ps:'psum_scatter',a2a:'all_to_all',pp:'ppermute'};
   document.querySelectorAll('[id^="ss-ref-"]').forEach(el=>{const k=REF[el.id.slice(7)];if(k)el.innerHTML=U.ref(k)});
 
   // one-screen table (scaled-up model)
@@ -21,8 +22,8 @@
   const tb=$('ss-one-t').querySelector('tbody');
   tb.innerHTML=ROWS.map(r=>{const l=byId[r[4]];return '<tr><td><a href="'+r[1]+'">'+r[0]+'</a></td><td>'+r[2]+'</td><td>'+r[3]+'</td><td>'+collTxt(l)+'</td><td class="num">'+U.MB(l.param_bytes_per_device+l.opt_bytes_per_device)+'</td><td>'+r[5]+'</td></tr>'}).join('')+
     '<tr><td><a href="#s-cp">Context</a></td><td>the sequence</td><td><code>shard_map</code>: ring of <code>ppermute</code>, or all-gather K, V</td><td>'+U.chip('collective-permute','permute: K, V blocks')+'</td><td class="num">as data parallel</td><td>Context Parallel (experimental)</td></tr>'+
-    '<tr><td><a href="#s-ppep">Pipeline</a></td><td>the layers, over time</td><td><code>shard_map</code> loop with <code>ppermute</code></td><td>'+U.chip('collective-permute','permute: activations')+'</td><td class="num">layers / stages</td><td><code>torch.distributed.pipelining</code></td></tr>'+
-    '<tr><td><a href="#s-ppep">Expert</a></td><td>the experts of an MoE layer</td><td><code>shard_map</code> with two <code>all_to_all</code></td><td>'+U.chip('all-to-all','all-to-all: tokens')+'</td><td class="num">experts / devices</td><td>no core API (torchtitan, Megatron-Core)</td></tr>';
+    '<tr><td><a href="#s-pipe">Pipeline</a></td><td>the layers, over time</td><td><code>shard_map</code> loop with <code>ppermute</code></td><td>'+U.chip('collective-permute','permute: activations')+'</td><td class="num">layers / stages</td><td><code>torch.distributed.pipelining</code></td></tr>'+
+    '<tr><td><a href="#s-moe">Expert</a></td><td>the experts of an MoE layer</td><td><code>shard_map</code> with two <code>all_to_all</code></td><td>'+U.chip('all-to-all','all-to-all: tokens')+'</td><td class="num">experts / devices</td><td>no core API (torchtitan, Megatron-Core)</td></tr>';
 
   // typeof
   const t=SS.debug.typeof;$('ss-typeof').textContent='jax.typeof(w)      '+t.w+'\njax.typeof(x)      '+t.x+'\njax.typeof(x @ w)  '+t['x @ w'];

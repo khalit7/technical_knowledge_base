@@ -1,4 +1,4 @@
-// ---- Propagation explorer (t-prop): one block, five annotation cases, Shardy vs GSPMD, from the post-propagation HLO ----
+// ---- Reading section 3 (moved from the Propagation explorer tab): one block, five annotation cases, Shardy vs GSPMD, from the post-propagation HLO ----
 (function(){
   const U=SSU, esc=U.esc, $=id=>document.getElementById(id), P=SS.prop;
   const LBL={tp:'Tensor parallel',fsdp_w:'FSDP, weights only',fsdp_c:'FSDP + constraint',seq:'Sequence split',conflict:'Conflict'};
@@ -30,7 +30,7 @@
         (here.length?' The partitioner puts '+here.map(x=>U.chip(x[0],x[3]+' '+x[0]+', '+U.MB(x[4]))).join(' ')+' on this line.':'')}
     $('pp-cnt').innerHTML=RD.stat('operations assigned',(i)+' of '+R.length,'')+RD.stat('collectives so far',nc,U.MB(nb))+RD.stat('whole block',c[part].coll.reduce((s,x)=>s+x[3],0)+' collectives',U.MB(c[part].coll.reduce((s,x)=>s+x[4],0)));
   }
-  an=U.anim({tab:'t-prop',card:'pp-card',ctl:'pp-ctl',n:steps(),draw:drawAnim,ms:700,label:'Operation'});
+  an=U.anim({tab:'t-read',card:'pp-card',ctl:'pp-ctl',n:steps(),draw:drawAnim,ms:700,label:'Operation'});
   // ---------- table ----------
   function drawTable(){
     const c=P.cases[ci],A=c.shardy.rows,B={};c.gspmd.rows.forEach(r=>B[r[0]+'|'+r[1]+'|'+r[2]]=r[4]);
@@ -53,13 +53,13 @@
     const el=$('pp-full-svg'),W=U.width(el),lab=Math.min(190,W*0.42),bw=W-lab-70,rh=30,H=ks.length*rh+6;
     const mx=Math.max(...ks.map(k=>Math.max(by[k].shardy,by[k].gspmd)),1);
     let s='';ks.forEach((k,i)=>{const y=i*rh+3;s+=RD.t(lab-6,y+12,esc(k.length>30?k.slice(0,29)+'.':k),{a:'end',fs:11});
-      s+=RD.t(lab-6,y+24,[...by[k].kinds].join(', '),{a:'end',fs:9.5,fill:'var(--mute)'});
-      [['shardy','var(--c1)',0],['gspmd','var(--c2)',12]].forEach(q=>{const v=by[k][q[0]],w=Math.max(v?1:0,v/mx*bw);s+='<rect x="'+lab+'" y="'+(y+2+q[2])+'" width="'+w+'" height="10" fill="'+q[1]+'"><title>'+q[0]+': '+U.MB(v)+'</title></rect>'+RD.t(lab+w+4,y+11+q[2],v?U.MB(v):'0',{fs:10})})});
+      s+=RD.t(lab-6,y+24,[...by[k].kinds].join(', '),{a:'end',fs:11,fill:'var(--mute)'});
+      [['shardy','var(--c1)',0],['gspmd','var(--c2)',12]].forEach(q=>{const v=by[k][q[0]],w=Math.max(v?1:0,v/mx*bw);s+='<rect x="'+lab+'" y="'+(y+2+q[2])+'" width="'+w+'" height="10" fill="'+q[1]+'"><title>'+q[0]+': '+U.MB(v)+'</title></rect>'+RD.t(lab+w+4,y+11+q[2],v?U.MB(v):'0',{fs:11})})});
     el.innerHTML=RD.svg(W,H,s,'Collective bytes by source line, Shardy and GSPMD');
     const tot=p=>F[p].reduce((s,r)=>[s[0]+r[3],s[1]+r[4]],[0,0]),a=tot('shardy'),b=tot('gspmd');
     $('pp-full-note').innerHTML='<span class="meas">measured</span> Shardy '+a[0]+' collectives, '+U.MB(a[1])+'; GSPMD '+b[0]+' collectives, '+U.MB(b[1])+'. "(no source line)": collectives the partitioner attached to inputs or outputs. <code>_tree_math.py</code>, <code>update.py</code>, <code>_classification.py</code>: optax 0.2.8 (Adam moments, apply_updates, cross-entropy); <code>sh_strategies.py</code>: the root lab\'s loss wrapper.';
   }
   U.seg($('pp-full'),v=>{fid=v;drawFull()});
-  U.onTab('t-prop',()=>{drawFull();an.redraw()});
-  addEventListener('resize',()=>{const t=$('t-prop');if(t&&!t.hidden){drawFull()}});
+  U.onTab('t-read',()=>{drawFull();an.redraw()});
+  addEventListener('resize',()=>{const t=$('t-read');if(t&&!t.hidden){drawFull()}});
 })();

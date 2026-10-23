@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Sharding and scale: Mesh, GSPMD, shard_map and multi-host</h1>
-<div class="sub">How JAX spreads one program over many devices, one level below the root page's Sharding lab: how the compiler's sharding propagation actually decides (GSPMD and Shardy, compared on the same program), explicit sharding in the types, every parallelism strategy run for real on the running example and on a 25M-parameter version (data, FSDP, HSDP, tensor, context, pipeline, expert), collective cost models checked against the compiler's byte counts, choosing a mesh for a TPU slice, and multi-process JAX run with two processes. Run on an Apple M1 Pro CPU with 8 simulated devices; TPU numbers are published ones, kept apart. Data as of October 2026.</div>
+<div class="sub">How JAX spreads one program over many devices: Mesh and PartitionSpec, who decides the layout of every other array (the compiler's propagation, sharding in the types, or you inside <code>shard_map</code>), what each parallelism strategy compiles to, collective costs checked against the compiler, choosing a mesh for a TPU slice, and multi-host runs. Measured on an Apple M1 Pro CPU with 8 simulated devices (jax 0.11.2); TPU numbers are published ones, kept apart. Data as of October 2026. Reading: 38 min, plus 28 in closed details.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-prop" aria-selected="false">Propagation explorer</button><button role="tab" data-t="t-mesh" aria-selected="false">Mesh designer</button><button role="tab" data-t="t-pipe" aria-selected="false">Pipeline</button><button role="tab" data-t="t-moe" aria-selected="false">Experts (MoE)</button><button role="tab" data-t="t-multi" aria-selected="false">Many processes</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-mesh" aria-selected="false">Mesh designer</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <style>
 /* page-wide classes for this child page (prefix ss) */
@@ -125,13 +125,16 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 .ss-svg{width:100%;overflow:hidden;margin:6px 0}
 .tab pre{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;margin:8px 0;max-width:100%}
 .tab pre .c{color:var(--mute)}.tab pre.err{border-left:3px solid var(--bad);white-space:pre-wrap;overflow-wrap:anywhere}
-.tab p code,.tab li code,.tab td code{overflow-wrap:anywhere}
+.tab p code,.tab li code,.tab td code,.tab dd code{overflow-wrap:anywhere}
 .pr{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:12px 0;background:var(--soft)}
 .pr .q{font-weight:600;font-size:14px;color:var(--ink)}.pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .pr .opts button{font-size:13px;text-align:left;white-space:normal}.pr .opts button.right{background:var(--open2);border-color:var(--good)}
 .pr .opts button.wrong{border-color:var(--bad);color:var(--bad)}.pr .ans{font-size:13.5px;border-left:3px solid var(--good);padding:2px 0 2px 10px}
 details.qa{border:1px solid var(--line);border-radius:8px;margin:6px 0}details.qa summary{cursor:pointer;padding:6px 12px;font-size:14px}
-details.qa>div{padding:0 12px 8px;font-size:13.5px}
+details.qa>div{padding:0 12px 8px;font-size:13.5px;min-width:0}
+details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}details.dp>summary .mute{font-weight:400}
+details.dp>.b{padding:0 12px 10px;min-width:0}
 .ss-coll{font-size:12px;border-radius:4px;padding:0 6px;white-space:nowrap;border:1px solid currentColor;display:inline-block;margin:1px 3px 1px 0}
 .ss-k-ar{color:var(--c2)}.ss-k-ag{color:var(--c1)}.ss-k-rs{color:var(--c3)}.ss-k-a2a{color:var(--c4)}.ss-k-cp{color:var(--c6)}
 .ss-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}.ss-two>div{min-width:0}
@@ -141,44 +144,134 @@ details.qa>div{padding:0 12px 8px;font-size:13.5px}
 .ss-src{font-size:12.5px;color:var(--mute)}
 .ss-ctl{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:6px 0;font-size:13px}.ss-ctl select{max-width:100%}
 tr.ss-sel td{background:var(--acc2)}tr.ss-click{cursor:pointer}
-@media (prefers-reduced-motion:reduce){.ss-svg *{transition:none!important}}
+.ss-core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+.ss-hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0}
+.ss-hero h4{margin:0 0 6px;font-size:14.5px}
+.ss-hero-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}.ss-hero-g>div{min-width:0}.ss-hero-g>div:first-child{grid-column:1/-1}
+.ss-hn{font-size:12.5px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.02em;margin-bottom:3px}
+.tab pre.ss-hcode{font-size:11.5px;margin:2px 0}
+.ss-lanes{display:grid;gap:5px}
+.ss-lane{border:1px solid var(--line);border-left:4px solid var(--sc,var(--acc));border-radius:7px;padding:4px 8px;font-size:12.5px;line-height:1.35}
+.ss-lane b{display:block;font-size:13px}
+.ss-arrow{text-align:center;color:var(--mute);font-size:12px;line-height:1.2;margin:2px 0}
+.ss-terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.ss-terms dt{font-weight:600}.ss-terms dd{margin:0}
+@media (max-width:520px){.ss-terms{grid-template-columns:minmax(0,1fr)}.ss-terms dd{margin:0 0 4px}}
+.hl{color:var(--acc);font-weight:600}
+/* propagation stepper and table (moved from the old Propagation explorer tab) */
+#t-read .pp-spec{font:12px ui-monospace,Menlo,monospace;white-space:nowrap}
+#t-read .pp-ax-data{color:var(--c1);font-weight:600}#t-read .pp-ax-model{color:var(--c2);font-weight:600}
+#t-read tr.pp-diff td{background:var(--hl)}
+#t-read #pp-t{min-width:640px}#t-read #pp-t td.src code{font-size:11.5px}
+#t-read .pp-flow{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:4px;margin:8px 0}
+#t-read .pp-op{border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;line-height:1.3;min-width:0;background:var(--bg);transition:background .25s,border-color .25s}
+#t-read .pp-op .o{font-weight:600}#t-read .pp-op .s{font-family:ui-monospace,Menlo,monospace;font-size:11px;overflow-wrap:anywhere}
+#t-read .pp-op.done{border-color:var(--acc)}#t-read .pp-op.now{background:var(--acc2);border-color:var(--acc)}#t-read .pp-op.pend .s{color:var(--dim)}
+#t-read .pp-op.ann{border-color:var(--good);background:var(--open2)}
+#t-read #pi-t,#t-read #mo-t{min-width:640px}#t-read #mu-t{min-width:520px}
+@media (prefers-reduced-motion:reduce){.ss-svg *{transition:none!important}#t-read .pp-op{transition:none}}
 </style>
 <div class="tab" id="t-read" role="tabpanel">
 <nav class="nav" id="rd-nav" aria-label="Sections">
-<a href="#s-one">In one screen</a><a href="#s-modes">Who decides</a><a href="#s-prop">Propagation</a><a href="#s-explicit">Explicit mode</a><a href="#s-strat">Strategies, measured</a><a href="#s-cp">Context parallel</a><a href="#s-ppep">Pipeline, experts</a><a href="#s-cost">Collective costs</a><a href="#s-mesh">Choosing a mesh</a><a href="#s-multi">Many hosts</a><a href="#s-debug">Debugging</a><a href="#s-mist">Mistakes</a><a href="#s-iq">Interview</a><a href="#s-old">Old page</a>
+<a href="#s-idea">The idea</a><a href="#s-mesh">1 Mesh, specs</a><a href="#s-modes">2 Who decides</a><a href="#s-prop">3 Propagation</a><a href="#s-explicit">4 Explicit</a><a href="#s-smap">5 shard_map</a><a href="#s-strat">6 Strategies</a><a href="#s-cp">7 Context</a><a href="#s-pipe">8 Pipeline</a><a href="#s-moe">9 Experts</a><a href="#s-cost">10 Costs</a><a href="#s-choose">11 Choosing a mesh</a><a href="#s-multi">12 Many hosts</a><a href="#s-debug">13 Debugging</a><a href="#s-depth">Depth</a>
 </nav>
 
-<section id="s-one">
-<p class="lead">You know how PyTorch spreads a model over GPUs: you pick a wrapper (DDP, FSDP2, a tensor-parallel plan) or a <code>DTensor</code> placement, and it owns the communication. JAX works the other way round. You write the program for one device, say how a few arrays are laid out over a grid of devices, and the compiler writes the communication. This page is about what the compiler actually does with that, how to take control when it does the wrong thing, and how to choose the layout for a real model on a real TPU slice.</p>
-<p>The root page's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Sharding lab</a> (tab "Sharding lab") already teaches the three objects (<code>Mesh</code>, <code>PartitionSpec</code>, <code>NamedSharding</code>), the five collectives with their ring costs, a PartitionSpec playground and six layouts of the running example. Read it first if <code>P('data', None)</code> is new to you. This page goes one level down: the propagation algorithms, explicit mode, every strategy including context, pipeline and expert parallelism, cost models checked against the compiler, mesh choice for a slice, and multi-process runs. Everything marked <span class="meas">measured</span> ran here on an Apple M1 Pro CPU with 8 simulated devices (<code>XLA_FLAGS=--xla_force_host_platform_device_count=8</code>, jax 0.11.2). The compiled programs, the collectives and their sizes, the memory figures and the losses are real and deterministic. Speeds are not: a "collective" between simulated devices is a memory copy, so no timing here says anything about a TPU. TPU numbers are <span class="vend">published</span> by Google, and arithmetic on them is labelled <span class="der">derived</span>.</p>
-<p class="small mute">Reading time: about 23 minutes for this tab, plus about 10 for its tables, code and folded answers; each lab tab adds 7 to 12 minutes.</p>
+<section id="s-idea">
+<p class="ss-core">In JAX you write the step for one device and give a few arrays a layout over a named grid of devices; <span class="hl">someone then lays out every other array</span> (the compiler's propagation, the type system, or you inside <code>shard_map</code>), and the communication is whatever those layouts force. Communication is a consequence of layout, so you read it off the compiled program, never off the Python.</p>
+<div class="ss-hero" id="ss-hero">
+<h4>Three annotations in, one program per device out, with the collectives the layouts force</h4>
+<div class="ss-hero-g">
+<div><div class="ss-hn">1. You annotate a few arrays</div>
+<pre class="ss-hcode">mesh = jax.make_mesh((2, 4), ('data', 'model'))
+w = jax.device_put(w, NamedSharding(mesh, P('data', 'model')))
+x = jax.device_put(x, NamedSharding(mesh, P('data', None)))
+loss, grads = jax.jit(step)(w, x)</pre>
+<p class="small">The running example's fc1 weight w [128, 512] and a batch x [32, 128], on 8 devices arranged as a (data 2, model 4) mesh. Nothing else in <code>step</code> mentions devices.</p></div>
+<div><div class="ss-hn">2. Each device holds one block</div><div id="ss-hero-mesh" class="ss-svg"></div>
+<p class="small">w as <code>P('data', 'model')</code>: rows split by <code>data</code>, columns by <code>model</code>; each device holds (64, 128), as <code>jax.debug.visualize_array_sharding</code> printed here. x is split by rows only, so the 4 devices of a <code>data</code> row hold the same 16 rows.</p></div>
+<div><div class="ss-hn">3. Someone lays out the rest</div>
+<div class="ss-lanes">
+<div class="ss-lane" style="--sc:var(--c1)"><b>Auto: the compiler</b>Shardy propagation spreads your annotations after tracing (section 3).</div>
+<div class="ss-lane" style="--sc:var(--c3)"><b>Explicit: the types</b>Each op's rule gives its output a sharding while tracing; ambiguity is an error (section 4).</div>
+<div class="ss-lane" style="--sc:var(--c4)"><b>Manual: you, in <code>shard_map</code></b>Per-device code; you call <code>psum</code>, <code>all_gather</code>, <code>ppermute</code> (section 5).</div>
+</div>
+<div class="ss-arrow">&darr; the SPMD partitioner writes one program per device</div>
+<div class="ss-lane" style="--sc:var(--c2)"><b>Collectives where layouts disagree</b><span class="ss-coll ss-k-ag">all-gather</span><span class="ss-coll ss-k-ar">all-reduce</span><span class="ss-coll ss-k-rs">reduce-scatter</span><span class="ss-coll ss-k-a2a">all-to-all</span><span class="ss-coll ss-k-cp">collective-permute</span><br>read them in <code>jit(f).lower(...).compile().as_text()</code></div>
+</div>
+</div>
+</div>
+<p>You know how PyTorch spreads a model over GPUs: you pick a wrapper (DDP, FSDP2, a tensor-parallel plan) or a <code>DTensor</code> placement, and it owns the communication. JAX works the other way round: change one <code>PartitionSpec</code> and a different set of collectives appears in the compiled program, while the Python code does not change.</p>
+<p><b>You need</b> <a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a> (jit, tracing, vmap), the parallelism forms from <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> (this page shows only JAX's API and behaviour for each), and HLO dumps from <a href="https://app.notion.com/p/3fa5c17b0d0d8135adcedefac9e1bb48" target="_blank" rel="noopener noreferrer">XLA and compilation</a>.</p>
+<p class="small"><span class="meas">measured</span> means run here on an Apple M1 Pro CPU with 8 simulated devices (<code>XLA_FLAGS=--xla_force_host_platform_device_count=8</code>, jax 0.11.2): the compiled programs, the collectives and their sizes, the memory figures and the losses are real and deterministic; speeds are not (a "collective" between simulated devices is a memory copy). TPU numbers are <span class="vend">published</span> by Google; arithmetic on them is <span class="der">derived</span>.</p>
+<h3>New terms</h3>
+<dl class="ss-terms">
+<dt>Mesh</dt><dd>a grid of devices with named axes, such as (data 2, model 4).</dd>
+<dt>PartitionSpec, <code>P</code></dt><dd>for each dimension of an array, the mesh axes that split it; <code>None</code> means not split.</dd>
+<dt>NamedSharding</dt><dd>a mesh plus a PartitionSpec: what <code>device_put</code> and <code>jit</code> take.</dd>
+<dt>Collective</dt><dd>a step in which devices exchange data: all-gather, all-reduce, reduce-scatter, all-to-all, collective-permute.</dd>
+<dt>Sharding propagation</dt><dd>the compiler pass that gives unannotated arrays a layout: GSPMD (2021) or its successor Shardy, the default.</dd>
+<dt>SPMD partitioner</dt><dd>the XLA pass that rewrites the program for one device and inserts the collectives.</dd>
+<dt>Axis type</dt><dd>Auto, Explicit or Manual: who decides layouts along a mesh axis.</dd>
+<dt><code>shard_map</code></dt><dd>per-device code over a mesh, in which you call the collectives yourself.</dd>
+<dt>Multi-controller</dt><dd>one Python process per host, all running the same program.</dd>
+<dt>ICI, DCN</dt><dd>the chip-to-chip links inside a TPU slice; the data-centre network between slices (<a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a>).</dd>
+</dl>
 
-<h2>In one screen</h2>
-<p>Every way of splitting a training step, with what each device keeps and what crosses the wires. The byte counts are the compiler's own (logical bytes summed over one train step: an all-gather's output, a reduce-scatter's input, an all-reduce's operand), on the running example scaled up to 25.4M parameters (d_model 512, 8 layers, 4,096 tokens per step, float32), 8 devices. Click a strategy's name to jump to its section.</p>
+<h3>The strategies in one screen</h3>
+<p>What each device keeps and what crosses the wires, per strategy. Bytes are the compiler's own (logical bytes summed over one train step: an all-gather's output, a reduce-scatter's input, an all-reduce's operand), on the running example scaled up to 25.4M parameters (d_model 512, 8 layers, 4,096 tokens per step, float32), 8 devices.</p>
 <div class="tw"><table id="ss-one-t"><thead><tr><th>Strategy</th><th>What is split</th><th>The JAX way</th><th>Collectives per step</th><th class="num">Params + Adam per device</th><th>PyTorch</th></tr></thead><tbody></tbody></table></div>
-<p class="ss-src">Collectives and bytes: <span class="meas">measured</span>, <code>compile().as_text()</code> of the full train step (forward, backward, clipping, AdamW), <code>src/runs/ss_scale.py</code>. CPU caveat, explained in <a href="#s-strat">Strategies, measured</a>: XLA's CPU pipeline has no pass that turns an all-reduce followed by a slice into a reduce-scatter, so FSDP's gradient reduce-scatter shows up as an all-reduce here; on TPU and GPU it would be a reduce-scatter of the same size.</p>
-<div class="co key"><div class="t">The three ideas the rest of the page builds on</div>
-<ol class="tight"><li><b>Communication is a consequence of layout.</b> Change one <code>PartitionSpec</code> and a different set of collectives appears in the compiled program; the Python code does not change. So you read communication off the compiled HLO, never off the code.</li>
-<li><b>Someone must decide the layout of every intermediate array.</b> In Auto mode the compiler's propagation decides; in Explicit mode the type system decides and asks you when it cannot; inside <code>shard_map</code> you decide by hand. Most of this page is about choosing among the three.</li>
-<li><b>The formulas work.</b> For data parallel, FSDP, HSDP and tensor parallel, a two-line formula predicts the compiler's byte count within 0.4% at both model sizes (section <a href="#s-cost">Collective costs</a>). That is what makes a mesh designable on paper before you rent a slice.</li></ol></div>
+<p class="ss-src">Collectives and bytes: <span class="meas">measured</span>, <code>compile().as_text()</code> of the full train step (forward, backward, clipping, AdamW), <code>src/runs/ss_scale.py</code>. CPU caveat: XLA's CPU pipeline has no pass that turns an all-reduce followed by a slice into a reduce-scatter, so FSDP's gradient reduce-scatter shows up as an all-reduce here; on TPU and GPU it would be a reduce-scatter of the same size. For data parallel, FSDP, HSDP and tensor parallel, a two-line formula predicts these byte counts (section 10), which is what makes a mesh designable on paper before you rent a slice.</p>
 </section>
+<section id="s-mesh">
+<h2>1. Mesh, PartitionSpec and jit with shardings</h2>
+<p><b>The objects.</b> <code>jax.make_mesh((2, 4), ('data', 'model'))</code> (<span id="ss-ref-mk"></span>) arranges the 8 devices as a 2 &times; 4 grid with named axes. A <code>PartitionSpec</code> says, for each dimension of an array, which mesh axes split it; a mesh axis the spec does not name holds copies. A <code>NamedSharding(mesh, spec)</code> joins the two. Take the running example's first MLP weight, fc1, [128, 512] in float32 (262,144 bytes), and change only its spec:</p>
+<div class="ss-card" id="ss-spec-card">
+<h4>One weight, six PartitionSpecs: which block each device holds</h4>
+<p class="small"><b>Predict</b> before you click <code>P(None, 'model')</code>: how many devices hold each block of the weight?</p>
+<div class="seg" id="ss-spec-seg"><span class="lbl">Spec</span><button data-m="0">P()</button><button data-m="1">P('data', None)</button><button data-m="2">P(None, 'model')</button><button data-m="3" class="on">P('data', 'model')</button><button data-m="4">P('model', 'data')</button><button data-m="5">P(None, ('data', 'model'))</button></div>
+<div class="ss-svg" id="ss-spec-svg"></div>
+<div class="ss-cnt" id="ss-spec-cnt"></div>
+<p class="ss-src" id="ss-spec-note"></p>
+</div>
+<p><b>The rule</b> (<span class="der">derived</span> from the definition, and matching what <code>visualize_array_sharding</code> printed for <code>P('data', 'model')</code>: (64, 128) per device): the size each device holds along dimension <i>i</i> is size<sub>i</sub> divided by the product of the sizes of the mesh axes named for <i>i</i>; every element is held by as many devices as the product of the axes named nowhere. A tuple such as <code>('data', 'model')</code> splits one dimension over both axes, <code>data</code> major. An axis may appear only once per spec: <code>P('data', 'data')</code> is refused because the spec "has duplicate entries" (<span id="ss-ref-dup"></span>).</p>
+<p><b>Where shardings enter a program.</b> <code>jax.device_put(x, NamedSharding(mesh, spec))</code> places an array. <code>jax.jit(f, in_shardings=..., out_shardings=...)</code> fixes the layout of a function's inputs and outputs (the multi-host run in section 12 uses <code>in_shardings=(rep, rep, xs, xs)</code>); without them, jit takes the layouts its arguments already have. Inside, <code>jax.lax.with_sharding_constraint(y, spec)</code> (<span id="ss-ref-wsc"></span>) pins one intermediate. Every other array is left to whoever decides layouts along each mesh axis (section 2). JAX turns a <code>NamedSharding</code> into GSPMD's or Shardy's own notation (<span id="ss-ref-n2g"></span>, <span id="ss-ref-n2s"></span>) when it hands the program to XLA.</p>
+</section>
+
 <section id="s-modes">
-<h2>Who decides the layout: Auto, Explicit, Manual</h2>
-<p><b>The problem.</b> A train step creates hundreds of intermediate arrays (activations, gradients, optimizer updates). You annotate a handful: the parameters, the batch. Every other array needs a <dfn>sharding</dfn> too (which device holds which piece), and every place where an operation needs its inputs laid out differently from how they are is a <dfn>collective</dfn>, a step in which devices exchange data. Something has to fill in the rest.</p>
-<p><b>How JAX answers.</b> Each named axis of a <code>Mesh</code> has an <dfn>axis type</dfn> (<code>jax.sharding.AxisType</code>), and the type says who decides along that axis:</p>
+<h2>2. Who decides the layout: Auto, Explicit, Manual</h2>
+<p><b>The problem.</b> A train step creates hundreds of intermediate arrays (activations, gradients, optimizer updates). You annotate a handful: the parameters, the batch. Every other array needs a <dfn>sharding</dfn> too (which device holds which piece), and every place where an operation needs its inputs laid out differently from how they are is a <dfn>collective</dfn>. Something has to fill in the rest.</p>
+<p><b>How JAX answers.</b> Each named axis of a <code>Mesh</code> has an <dfn>axis type</dfn> (<code>jax.sharding.AxisType</code>), and the type says who decides along that axis (the hero's third panel):</p>
 <div class="tw"><table><thead><tr><th>Axis type</th><th>Who decides intermediate shardings</th><th>What you see while tracing</th><th>When something is ambiguous</th><th>Closest PyTorch</th></tr></thead><tbody>
 <tr><td><b>Auto</b></td><td>The compiler: sharding propagation (Shardy, formerly GSPMD), after tracing, inside XLA</td><td>Nothing: <code>jax.typeof(x)</code> shows no sharding</td><td>The compiler picks something, possibly an expensive collective, silently</td><td>None for whole programs: DTensor decides operator by operator at run time</td></tr>
 <tr><td><b>Explicit</b></td><td>JAX's sharding rules, operation by operation, while tracing; the sharding is part of the type</td><td><code>float32[32@data,512@model]</code></td><td>A <code>ShardingTypeError</code> at trace time, asking for <code>out_sharding=</code></td><td>DTensor's per-operator placement rules, but checked at trace time</td></tr>
 <tr><td><b>Manual</b></td><td>You: inside <code>jax.shard_map</code> each device runs your code on its own shard and you call the collectives</td><td>Per-device shapes</td><td>Nothing is ambiguous: you wrote every byte that moves</td><td>Rank-view code with <code>torch.distributed</code> collectives</td></tr></tbody></table></div>
-<p>Run here (<span class="meas">measured</span>, <code>src/runs/ss_debug.py</code>): on an Explicit (2, 4) mesh, <code>jax.typeof</code> of the running example's first MLP weight split by columns, a batch split by rows, and their product:</p>
+<p>Run here (<span class="meas">measured</span>, <code>src/runs/ss_debug.py</code>): on an Explicit (2, 4) mesh, <code>jax.typeof</code> of the fc1 weight split by columns, a batch split by rows, and their product:</p>
 <pre id="ss-typeof"></pre>
-<p>The same matmul on Auto axes prints <code>float32[32,512]</code>: the layout exists only in the compiler. Two defaults matter and changed recently. <code>jax.make_mesh</code> creates <b>Explicit</b> axes unless told otherwise (<span id="ss-ref-mm"></span>), while the <code>jax.sharding.Mesh</code> constructor still defaults to Auto; and the propagator behind Auto axes is Shardy, chosen by the flag <code>jax_use_shardy_partitioner</code>, default <code>True</code> (<span id="ss-ref-sdy"></span>). The root page's lab shows the first default in action; this page shows what each mode costs on the running example (<a href="#s-explicit">Explicit mode</a>) and what the propagator does (<a href="#s-prop">Propagation</a>). The modes mix: <code>jax.sharding.auto_axes</code> and <code>explicit_axes</code> switch some axes inside one function (<span id="ss-ref-aa"></span>), and <code>shard_map</code> makes the axes it maps Manual inside its body while the rest of the program stays as it was.</p>
-<div class="deepnote"><b>When to use which.</b> Auto when you trust a few annotations plus constraints (what MaxText does by default: <code>shard_mode: "auto" # can be either auto or explicit</code>, <span id="ss-ref-mtmode"></span>). Explicit when you want every layout decision visible and checked, and accept writing <code>out_sharding=</code> in the places JAX asks. Manual for patterns no propagator invents: ring attention, pipelines, custom MoE dispatch, overlapping a collective with compute.</div>
+<p>The same matmul on Auto axes prints <code>float32[32,512]</code>: the layout exists only in the compiler. Two defaults matter and changed recently. <code>jax.make_mesh</code> creates <b>Explicit</b> axes unless told otherwise (<span id="ss-ref-mm"></span>), so code from older tutorials fails at its first ambiguous op; pass <code>axis_types=(AxisType.Auto,) * n</code> to keep Auto behaviour. The <code>jax.sharding.Mesh</code> constructor still defaults to Auto, and the propagator behind Auto axes is Shardy, chosen by the flag <code>jax_use_shardy_partitioner</code>, default <code>True</code> (<span id="ss-ref-sdy"></span>). The modes mix: <code>jax.sharding.auto_axes</code> and <code>explicit_axes</code> switch some axes inside one function (<span id="ss-ref-aa"></span>), and <code>shard_map</code> makes the axes it maps Manual inside its body while the rest of the program stays as it was.</p>
+<div class="co key"><div class="t">When to use which</div>Auto when you trust a few annotations plus constraints (what MaxText does by default: <code>shard_mode: "auto" # can be either auto or explicit</code>, <span id="ss-ref-mtmode"></span>). Explicit when you want every layout decision visible and checked, and accept writing <code>out_sharding=</code> in the places JAX asks. Manual for patterns no propagator invents: ring attention, pipelines, custom MoE dispatch, overlapping a collective with compute.</div>
 </section>
-
 <section id="s-prop">
-<h2>How sharding propagation decides</h2>
-<p><b>The problem.</b> Assigning a layout to every array so that total communication is smallest is a search over an exponential space; production compilers do not solve it. Both of XLA's propagators are <em>heuristics that spread your annotations</em> through the program and never invent a new split you did not ask for. Knowing their rules is how you predict where they will go wrong.</p>
+<h2>3. How sharding propagation decides</h2>
+<p><b>The problem.</b> Assigning a layout to every array so that total communication is smallest is a search over an exponential space; production compilers do not solve it. Both of XLA's propagators are <em>heuristics that spread your annotations</em> through the program and never invent a new split you did not ask for. Knowing their rules is how you predict where they will go wrong. First see one at work: a transformer block of the running example (forward and backward), every sharding read from the HLO that XLA dumped right after its propagation pass.</p>
+<div class="ss-card" id="pp-card">
+<h4>Before and after propagation: your two annotations become a layout for every operation</h4>
+<div class="seg" id="pp-case"><span class="lbl">Case</span></div>
+<p class="small" id="pp-note"></p>
+<div class="seg" id="pp-part"><span class="lbl">Propagator</span><button data-m="shardy" class="on">Shardy</button><button data-m="gspmd">GSPMD</button></div>
+<div class="an-ctl" id="pp-ctl"></div>
+<div class="ss-cap" id="pp-cap"></div>
+<div class="ss-cnt" id="pp-cnt"></div>
+<div class="pp-flow" id="pp-flow"></div>
+<p class="ss-src">At step 0 only what you annotated has a sharding (green); each step fills in the next operation, in program order (forward, then backward), with the sharding the propagator chose and the collectives the partitioner put on that line. The propagator's own visiting order is not recorded in the dump; program order is used for reading. <span class="meas">measured</span> post-propagation HLO dumps, jax 0.11.2, 8 simulated CPU devices, Auto axes; how they were made is in the closed block below.</p>
+</div>
+<h3>The rules, side by side</h3>
+<div class="tw"><table><thead><tr><th></th><th>GSPMD (<a href="https://arxiv.org/abs/2105.04663" target="_blank" rel="noopener noreferrer">Xu et al. 2021</a>)</th><th>Shardy (JAX's default since 0.7.0)</th></tr></thead><tbody>
+<tr><td><b>A sharding is</b></td><td>a tile assignment over a device list (<code>HloSharding</code>)</td><td>mesh axes per dimension, like a <code>PartitionSpec</code>; each dimension <dfn>open</dfn> (more axes may be added) or <dfn>closed</dfn></td></tr>
+<tr><td><b>Through one op</b></td><td>preserved dimensions pass through; a matmul merges its operands' splits when they use different axes</td><td>one einsum-like <dfn>sharding rule</dfn> per op, a matmul being <code>(i, k), (k, j) -&gt; (i, j)</code>; axes move along factors</td></tr>
+<tr><td><b>Order and conflicts</b></td><td>forward and backward passes to a fixed point, only ever refining; elementwise ops first, dot later</td><td>nested strategies: user priorities, op priorities, aggressive (resolves conflicts), basic</td></tr>
+<tr><td><b>Never</b></td><td colspan="2">invents a split you did not ask for. The remedy both leave you: annotate the output (<code>with_sharding_constraint</code>, or Explicit mode)</td></tr>
+</tbody></table></div>
+<details class="dp"><summary>The propagation rules in their authors' words <span class="mute">(3 min)</span></summary><div class="b">
 <h3>GSPMD (2021): priorities and iterations</h3>
 <p>The design is in <a href="https://arxiv.org/abs/2105.04663" target="_blank" rel="noopener noreferrer">Xu et al., GSPMD, arXiv 2105.04663, section 3.5</a> (v2, December 2021). Its rules, in order of importance:</p>
 <ol class="tight">
@@ -195,36 +288,74 @@ tr.ss-sel td{background:var(--acc2)}tr.ss-click{cursor:pointer}
 <li><b>One rule per operation, in factors.</b> Each op gets an einsum-like <dfn>sharding rule</dfn>, a matmul being <code>(i, k), (k, j) -&gt; (i, j)</code>; reshapes use compound factors such as <code>((ij), k)</code>. "Shardy propagates sharding axes along factors instead of dimensions": project the operands' shardings onto factors, merge, project back.</li>
 <li><b>An explicit hierarchy of strategies</b>, "interpreted as nested for loops": user priorities (<code>{"x"}p1</code>), then operation priorities ("pass-through" ops such as elementwise and reshape first, dot and reduce later, the same idea as GSPMD's), then aggressive propagation (resolves conflicts), then basic propagation ("propagates axes that are compatible between all operands and results", no conflict resolution). Loops, conditionals and <code>shard_map</code> regions are crossed through "data flow edges".</li>
 </ul>
-<p>Both propagators hand their result to the same SPMD partitioner, which rewrites the program per device and inserts the collectives: XLA's CPU pipeline adds either <code>sdy::ShardyXLA</code> (<span id="ss-ref-x1"></span>) or <code>ShardingPropagation</code> (<span id="ss-ref-x2"></span>), then <code>StatefulRngSpmdPartitioner</code>. Turning Shardy off in jax 0.11.2 still works and prints a warning, pasted from the run: <code>GSPMD sharding propagation is going to be deprecated and not supported in the future. Please consider migrating to Shardy (https://openxla.org/shardy). For reference, Shardy is already the default partitioner in JAX.</code></p>
-<h3>Reading what the propagator chose</h3>
+</div></details>
+<p>Both propagators hand their result to the same SPMD partitioner, which rewrites the program per device and inserts the collectives: XLA's CPU pipeline adds either <code>sdy::ShardyXLA</code> (<span id="ss-ref-x1"></span>) or <code>ShardingPropagation</code> (<span id="ss-ref-x2"></span>), then <code>StatefulRngSpmdPartitioner</code>.</p>
+<details class="dp"><summary>How the stepper was made, reading the two notations in a dump, and the GSPMD deprecation warning <span class="mute">(2 min)</span></summary><div class="b">
+<p><code>src/runs/ss_prop.py</code> compiles <code>loss = mean(block(x)<sup>2</sup>)</code> and its gradient with <code>XLA_FLAGS=--xla_dump_hlo_pass_re=shardy-xla|sharding-propagation</code>, once with Shardy (the default) and once with <code>jax_use_shardy_partitioner=False</code> (GSPMD); <code>src/runs/ss_hlo.py</code> reads each instruction's sharding (converting both notations to <code>P(...)</code> over the mesh) and the Python line it came from. Operations are grouped by source line and kind; the largest instance stands for the group. jax 0.11.2, 8 simulated CPU devices, Auto axes.</p>
 <p>Dump the program right after propagation with <code>XLA_FLAGS="--xla_dump_to=DIR --xla_dump_hlo_pass_re=shardy-xla|sharding-propagation"</code>. The same tensor (the running example's <code>q = x @ wq</code> under Megatron tensor parallelism on a (data 2, model 4) mesh) in the two notations, pasted from the dumps:</p>
 <pre><span class="c"># Shardy: per dimension, the mesh axes that split it</span>
 dot(...), sharding={mesh['data'=2,'model'=4], [{'data'}, {}, {'model'}]}
 <span class="c"># GSPMD: a tile grid [2,1,4] over devices 0..7 in order (iota)</span>
 dot(...), sharding={devices=[2,1,4]&lt;=[8]}</pre>
-<p>Both say <code>P('data', None, 'model')</code>. A GSPMD sharding with <code>last_tile_dim_replicate</code> adds a final grid dimension of copies (<code>devices=[2,1,1,4]&lt;=[8] last_tile_dim_replicate</code> is <code>P('data', None, None)</code> replicated over the 4 model devices). The <a href="#" data-tab="t-prop">Propagation explorer</a> converts every operation of one block to the <code>P(...)</code> form for both propagators.</p>
+<p>Both say <code>P('data', None, 'model')</code>. A GSPMD sharding with <code>last_tile_dim_replicate</code> adds a final grid dimension of copies (<code>devices=[2,1,1,4]&lt;=[8] last_tile_dim_replicate</code> is <code>P('data', None, None)</code> replicated over the 4 model devices). Turning Shardy off in jax 0.11.2 still works and prints a warning, pasted from the run: <code>GSPMD sharding propagation is going to be deprecated and not supported in the future. Please consider migrating to Shardy (https://openxla.org/shardy). For reference, Shardy is already the default partitioner in JAX.</code></p>
+</div></details>
 <h3>Measured: when the two propagators differ</h3>
 <p><span class="meas">measured</span> On one transformer block (forward and backward), five annotation cases, both propagators agree on every one of the 94 operation groups except a few small ones (the causal mask, a bias gradient) that Shardy leaves unannotated and GSPMD marks replicated, which means the same thing; and they insert identical collectives. On the whole train step they do not:</p>
 <div id="ss-propdiff"></div>
 <div class="pr" id="ss-pr1"><div class="q">Predict: in the tensor-parallel train step, which propagator sends more bytes, and why?</div><div class="opts"><button data-a="0">Shardy: it is newer and more aggressive</button><button data-a="1">GSPMD: it splits small elementwise work it was not asked to split, then gathers it back</button><button data-a="2">Neither: same annotations, same program</button></div><div class="ans" hidden></div></div>
-<p>The lesson is not that one propagator is better: on the unconstrained FSDP layout GSPMD was the better one. It is that <b>a layout that depends on propagation for the activations is fragile</b>. The root lab's FSDP layout with one <code>with_sharding_constraint</code> on the residual stream per block compiles to the same collectives under both (78 all-gathers and 70 all-reduces each). Constrain activations at block boundaries, as MaxText does through its logical axis rules.</p>
+<p>In counts: the same tensor-parallel train step compiled to 18 collectives under Shardy and 167 under GSPMD, and the unconstrained FSDP step to 210 under Shardy and 148 under GSPMD. Where they come from, line by line:</p>
+<div class="ss-card" id="pp-full-card">
+<h4>The whole train step: the propagators part ways where the program leaves freedom</h4>
+<div class="seg" id="pp-full"><span class="lbl">Layout</span><button data-m="tp" class="on">Data 2 x tensor 4</button><button data-m="fsdp_naive">FSDP, weights only</button><button data-m="seq">Sequence sharded</button></div>
+<div class="ss-svg" id="pp-full-svg"></div>
+<div class="ss-leg"><span><i style="background:var(--c1)"></i>Shardy</span><span><i style="background:var(--c2)"></i>GSPMD</span></div>
+<p class="ss-src">The root lab's layouts, full train step (forward, backward, clipping, AdamW), collectives grouped by the Python line they came from. Bars: bytes (summed result sizes) per line, Shardy above GSPMD. <span id="pp-full-note"></span></p>
+</div>
+<p>On the block alone the two propagators agree; on the whole step they diverge where the program has <em>freedom</em>: small replicated tensors and elementwise optimizer math that could be split over an idle axis, or activations whose layout nothing pins down. The lesson is not that one propagator is better: on the unconstrained FSDP layout GSPMD was the better one. It is that <b>a layout that depends on propagation for the activations is fragile</b>. The root lab's FSDP layout with one <code>with_sharding_constraint</code> on the residual stream per block compiles to the same collectives under both (78 all-gathers and 70 all-reduces each). Constrain activations at block boundaries, as MaxText does through its logical axis rules.</p>
+<details class="dp"><summary>Every operation group of the block, both propagators side by side <span class="mute">(table, 5 cases)</span></summary><div class="b">
+<p class="small">Highlighted rows: the two propagators chose differently. "none" means the propagator left the operation unannotated (the partitioner then replicates it). Per-device shape follows from the sharding and the mesh. The case is the one chosen in the stepper above.</p>
+<div class="seg" id="pp-ph"><span class="lbl">Phase</span><button data-m="all" class="on">Both</button><button data-m="fwd">Forward</button><button data-m="bwd">Backward</button></div>
+<div class="tw"><table id="pp-t"><thead><tr><th>Line</th><th>Op</th><th>Phase</th><th>Shape</th><th>Shardy</th><th>GSPMD</th><th>Per device (Shardy)</th><th>Source (model_jax.py)</th></tr></thead><tbody></tbody></table></div>
+<div id="pp-coll"></div>
+</div></details>
 </section>
 <section id="s-explicit">
-<h2>Explicit mode on the whole running example</h2>
+<h2>4. Explicit mode on the whole running example</h2>
 <p><b>The problem it solves.</b> In Auto mode a bad layout costs you nothing at trace time and a lot at run time: the compiler quietly inserts whatever collective makes the program correct. Explicit mode moves the decision to trace time. Each operation has a rule mapping input shardings to an output sharding; when the rule cannot decide, or would need communication you did not ask for, tracing stops with a <code>ShardingTypeError</code>. The JAX guide states the intent: the rules "prefer to error and require annotation rather than falling back to arbitrarily chosen defaults", to "get important parallelism decisions in your face, rather than hide them" (<a href="https://docs.jax.dev/en/latest/parallel.html" target="_blank" rel="noopener noreferrer">JAX docs, Distributed arrays and automatic parallelization</a>, read 2026-10-15).</p>
 <p><b>What it costs, measured.</b> The running example's loss and gradient, traced on an Explicit mesh exactly as written for Auto mode, then with the smallest change each error asks for. Step through the attempts for each layout; every message is pasted from the run (<code>src/runs/ss_explicit.py</code>, the forward is <code>model_jax.apply</code> written out with hooks).</p>
 <div class="ss-card" id="ss-ex-card">
+<h4>Each error names the one decision JAX will not guess</h4>
 <div class="seg" id="ss-ex-lay"><span class="lbl">Layout</span><button data-m="dp" class="on">Data parallel (8)</button><button data-m="fsdp">FSDP (8)</button><button data-m="tp">Data 2 x tensor 4</button></div>
 <div id="ss-ex-steps"></div>
 </div>
-<p>Three lessons from the ladder. First, <b>even plain data parallelism needs one annotation</b>: the embedding lookup <code>tok_emb[idx]</code> is a gather whose output layout JAX will not guess, so you write <code>tok_emb.at[idx].get(out_sharding=P('data', None, None))</code> (<span id="ss-ref-gerr"></span>). Second, FSDP in Explicit mode is literally written out: <code>jax.reshard(w, P())</code> before each use is the all-gather, and the gradient comes back with the weight's own sharding (<code>float32[128@data,512]</code>), because the transpose of a reshard is a reshard. Third, Megatron's row-parallel matmul is the textbook ambiguous case: both operands are split along the summed dimension, so the result is a partial sum on every device, and you must say whether you want it summed and where (<code>jnp.einsum(..., out_sharding=P('data', None, None))</code>, <span id="ss-ref-cerr"></span>). After the fixes, data parallel compiles to the same single all-reduce of 3,305,476 bytes as the root lab's Auto-mode layout, tensor parallel to 17 all-reduces (loss and gradient only, no optimizer here), and every loss is within 4.8e-7 of one device.</p>
-<p>JAX also has <dfn>unreduced</dfn> types, where "the logical value equals the distributed sum of the physical shards' values along that axis", for delaying a reduction (shown as <code>f32[8,16]{U:X}</code> in the guide). Not run here: the guide marks the details as still to come.</p>
+<p>Three lessons from the ladder. First, <b>even plain data parallelism needs one annotation</b>: the embedding lookup <code>tok_emb[idx]</code> is a gather whose output layout JAX will not guess, so you write <code>tok_emb.at[idx].get(out_sharding=P('data', None, None))</code> (<span id="ss-ref-gerr"></span>). Second, FSDP in Explicit mode is literally written out: <code>jax.reshard(w, P())</code> before each use is the all-gather, and the gradient comes back with the weight's own sharding (<code>float32[128@data,512]</code>), because the transpose of a reshard is a reshard. Adding arrays split on the same axis along different dimensions is refused for the same reason, with the same fix. Third, Megatron's row-parallel matmul is the textbook ambiguous case: both operands are split along the summed dimension, so the result is a partial sum on every device, and you must say whether you want it summed and where (<code>jnp.einsum(..., out_sharding=P('data', None, None))</code>, <span id="ss-ref-cerr"></span>). After the fixes, data parallel compiles to the same single all-reduce of 3,305,476 bytes as the root lab's Auto-mode layout, tensor parallel to 17 all-reduces (loss and gradient only, no optimizer here), and every loss is within 4.8e-7 of one device.</p>
+<p class="small">JAX also has <dfn>unreduced</dfn> types, where "the logical value equals the distributed sum of the physical shards' values along that axis", for delaying a reduction (shown as <code>f32[8,16]{U:X}</code> in the guide). Not run here: the guide marks the details as still to come.</p>
 </section>
 
+<section id="s-smap">
+<h2>5. shard_map: per-device code, collectives as JAX calls</h2>
+<p>When no layout rule gives the communication you want, you write it. <code>jax.shard_map(f, mesh=mesh, in_specs=..., out_specs=...)</code> (<span id="ss-ref-smap"></span>) cuts each input by its spec, runs <code>f</code> once per device on the local block, and assembles the outputs by <code>out_specs</code>. Inside <code>f</code> shapes are per device and the mapped axes are Manual: nothing crosses a wire unless you call a collective, by axis name.</p>
+<div class="ss-card" id="ss-sm-card">
+<h4>The shape of every shard_map: split by in_specs, run per device, communicate by name, reassemble by out_specs</h4>
+<div class="ss-svg" id="ss-sm-svg"></div>
+<p class="ss-src">The batch x [32, 128] on a mesh of 8 devices over one axis <code>data</code>: with <code>in_specs=P('data')</code> each call of <code>f</code> sees [4, 128] (the shard shape the multi-host run in section 12 recorded). A body ending in <code>jax.lax.psum(g, 'data')</code> leaves the same sum on every device, so <code>out_specs=P()</code> (replicated) is correct. <span class="ill">illustrative</span> body; the shapes are the measured ones.</p>
+</div>
+<p>The collectives you call, and what they compile to (the names the rest of this page counts in compiled programs):</p>
+<div class="tw"><table><thead><tr><th>JAX call, inside <code>shard_map</code></th><th>HLO op</th><th>What happens</th><th>Used on this page</th></tr></thead><tbody>
+<tr><td><code>jax.lax.psum(x, 'ax')</code></td><td><span class="ss-coll ss-k-ar">all-reduce</span></td><td>every device ends with the sum over the axis</td><td>the pipeline hands its output to every stage (section 8)</td></tr>
+<tr><td><code>jax.lax.all_gather(x, 'ax', tiled=True)</code> (<span id="ss-ref-ag"></span>)</td><td><span class="ss-coll ss-k-ag">all-gather</span></td><td>every device ends with all the blocks, concatenated</td><td>all-gather context parallelism (section 7)</td></tr>
+<tr><td><code>jax.lax.psum_scatter(x, 'ax')</code> (<span id="ss-ref-ps"></span>)</td><td><span class="ss-coll ss-k-rs">reduce-scatter</span></td><td>sum over the axis, each device keeps 1/n of it</td><td>appears as the transpose of <code>all_gather</code> in the backward pass</td></tr>
+<tr><td><code>jax.lax.all_to_all(x, 'ax', split_axis, concat_axis, tiled=True)</code> (<span id="ss-ref-a2a"></span>)</td><td><span class="ss-coll ss-k-a2a">all-to-all</span></td><td>slice <i>e</i> of every device goes to device <i>e</i></td><td>MoE dispatch and combine (section 9)</td></tr>
+<tr><td><code>jax.lax.ppermute(x, 'ax', perm)</code> (<span id="ss-ref-pp"></span>)</td><td><span class="ss-coll ss-k-cp">collective-permute</span></td><td>each device sends to the one <code>perm</code> names: a ring step</td><td>ring attention, pipeline stages (sections 7, 8)</td></tr>
+<tr><td><code>jax.lax.axis_index('ax')</code></td><td>none</td><td>this device's coordinate on the axis</td><td>one program serves every pipeline stage</td></tr>
+</tbody></table></div>
+<p>Two compiler facts measured on this page: <code>jax.grad</code> transposes <code>all_gather</code> into <code>psum_scatter</code>, so the backward of hand-written all-gather attention holds a true reduce-scatter even on CPU (section 7), and it transposes each <code>all_to_all</code> into another all-to-all (section 9). What each collective costs on the wire (ring, torus, tree) is <a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a>'s subject; section 10 checks the byte counts JAX produces.</p>
+</section>
 <section id="s-strat">
-<h2>Every strategy, measured at two sizes</h2>
-<p>The framework-free theory of each strategy (why it exists, its memory and traffic in the abstract) is taught on <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a>; the PyTorch implementations on <a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a>; the ZeRO stages step by step on the <a href="https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699" target="_blank" rel="noopener noreferrer">ZeRO paper page</a>; Megatron's split on the <a href="https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e" target="_blank" rel="noopener noreferrer">Megatron-LM paper page</a>. Here: what XLA produced for each, on the running example (826,368 parameters, the root lab's setup) and on the same model scaled up (25,417,728 parameters: d_model 512, 8 layers, 8 heads, MLP 2,048, context 256, batch 16; seeded initialisation), the full train step on 8 devices. Every layout's loss stays within 4.8e-7 of one device over 3 steps.</p>
+<h2>6. Every strategy, measured at two sizes</h2>
+<p>The framework-free theory of each strategy (why it exists, its memory and traffic in the abstract) is taught on <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> (data parallelism in section 3, ZeRO and FSDP in section 4, tensor parallelism in section 5); the PyTorch implementations on <a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a>; the ZeRO stages step by step on the <a href="https://app.notion.com/p/3c65c17b0d0d81879a7ed90bca007699" target="_blank" rel="noopener noreferrer">ZeRO paper page</a>; Megatron's split on the <a href="https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e" target="_blank" rel="noopener noreferrer">Megatron-LM paper page</a>. Here: what XLA produced for each, on the running example (826,368 parameters, the root lab's setup) and on the same model scaled up (25,417,728 parameters: d_model 512, 8 layers, 8 heads, MLP 2,048, context 256, batch 16; seeded initialisation), the full train step on 8 devices. Every layout's loss stays within 4.8e-7 of one device over 3 steps.</p>
 <div class="ss-card" id="ss-st-card">
+<h4>FSDP trades weight traffic for memory; tensor parallelism moves activations, not weights</h4>
 <div class="seg" id="ss-st-cfg"><span class="lbl">Model</span><button data-m="small">Running example (0.83M)</button><button data-m="big" class="on">Scaled up (25.4M)</button></div>
 <div class="seg" id="ss-st-met"><span class="lbl">Show</span><button data-m="bytes" class="on">Bytes moved per step</button><button data-m="mem">Memory per device</button></div>
 <div class="ss-svg" id="ss-st-svg"></div>
@@ -234,25 +365,26 @@ dot(...), sharding={devices=[2,1,4]&lt;=[8]}</pre>
 <h3>What each row teaches</h3>
 <ul class="tight">
 <li><b>Data parallel</b>: one all-reduce of exactly the gradient bytes (101,670,916 for 25.4M float32 parameters plus 4 bytes for the loss). XLA's CPU <code>AllReduceCombiner</code> merged every gradient into one collective. Each device still holds all parameters and Adam state: 305 MB of 305 MB.</li>
-<li><b>FSDP</b>: weights split 8 ways, so parameters plus Adam state per device fall from 305 MB to 38 MB. The all-gathers carry the weights <em>once</em> (101.7 MB), not twice: XLA kept the gathered weights alive from the forward pass to the backward pass instead of gathering again. That is the textbook "ZeRO-3 without re-gather" point, chosen by the compiler; it costs activation-like memory (temp 412 MB per device against 311 MB for data parallel). PyTorch FSDP2 makes the same choice explicit: <code>fully_shard(reshard_after_forward=None)</code>, the default in torch 2.14.1, re-gathers in backward for every module except the root ("set to True for non-root modules and False for root modules", <code>torch/distributed/fsdp/_fully_shard/_fully_shard.py:189</code>).</li>
+<li><b>FSDP</b>: weights split 8 ways, so parameters plus Adam state per device fall from 305 MB to 38 MB. The all-gathers carry the weights <em>once</em> (101.7 MB), not twice: XLA kept the gathered weights alive from the forward pass to the backward pass instead of gathering again. That is the textbook "ZeRO-3 without re-gather" point, chosen by the compiler; it costs activation-like memory (temp 412 MB per device against 311 MB for data parallel).</li>
 <li><b>HSDP</b> (2 replicas x FSDP over 4): the all-gathers stay inside groups of 4, and the gradient is reduced in the group then all-reduced across the 2 replicas on a quarter of the bytes. That is the layout for a multi-slice job: FSDP inside the fast ICI domain, data parallel across the slow data-centre network.</li>
 <li><b>Tensor parallel</b>: activations, not weights, cross the wire: 2 all-reduces of a [batch, sequence, d_model] activation per layer forward, and here 4 backward. On TPU or GPU it would be 2: XLA's <code>AllReduceReassociate</code> pass, which merges the q, k and v input-gradient all-reduces into one, runs in the GPU pipeline and not the CPU one (<span id="ss-ref-x3"></span>). Bytes grow with batch and sequence, not with parameters: 227 MB at 25.4M parameters against 102 MB for data parallel.</li>
 <li><b>Tensor parallel over 8 with only 4 heads</b> (the running example): 1.33 times the predicted bytes, because 4 heads cannot be split 8 ways and the compiler has to reshuffle the attention. The scaled model, with 8 heads, matches the prediction to 7 significant digits. Keep the tensor-parallel degree a divisor of the number of heads (of KV heads, with grouped-query attention).</li>
 <li><b>FSDP x tensor parallel</b>: the most memory-efficient here and the one that drew XLA's warning, pasted from the compile: <code id="ss-invol"></code>. The partitioner could not move an activation from one layout to the other directly, so it replicated it and re-split it. A warning like this is a performance bug report; the fix is a <code>with_sharding_constraint</code> that names the layout you want at that point.</li>
 </ul>
+<details class="dp"><summary>The PyTorch FSDP2 counterpart of XLA's keep-the-gathered-weights choice <span class="mute">(20 s)</span></summary><div class="b"><p>PyTorch FSDP2 makes the same choice explicit: <code>fully_shard(reshard_after_forward=None)</code>, the default in torch 2.14.1, re-gathers in backward for every module except the root ("set to True for non-root modules and False for root modules", <code>torch/distributed/fsdp/_fully_shard/_fully_shard.py:189</code>).</p></div></details>
 </section>
 <section id="s-cp">
-<h2>Context parallelism: ring attention against all-gather</h2>
-<p><b>The problem.</b> At long context the activations of one sequence no longer fit on one device, and splitting the batch does not help when the batch is one sequence. <dfn>Context parallelism</dfn> splits the sequence itself: device <i>d</i> holds tokens <i>d</i>T/N to (<i>d</i>+1)T/N &minus; 1 of every sequence. Everything except attention is per-token and needs no communication. Attention needs every query to meet every earlier key.</p>
+<h2>7. Context parallelism: ring attention against all-gather</h2>
+<p><b>The problem.</b> At long context the activations of one sequence no longer fit on one device, and splitting the batch does not help when the batch is one sequence. <dfn>Context parallelism</dfn> splits the sequence itself: device <i>d</i> holds tokens <i>d</i>T/N to (<i>d</i>+1)T/N &minus; 1 of every sequence. Everything except attention is per-token and needs no communication. Attention needs every query to meet every earlier key. The three traffic patterns and the causal load balancing are <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a>'s section 8; here, what JAX compiles for each.</p>
 <p><b>Three ways, run here.</b> The running example's block-0 attention (q, k and v [32, 4 heads, 128 tokens, 32], real weights, causal) with the 128 tokens split 16 per device over 8 devices (<code>src/runs/ss_cp.py</code>):</p>
 <ul class="tight">
 <li><b>Let propagation do it</b>: annotate q, k, v as sequence-split and jit ordinary attention. The compiler all-gathers K and V.</li>
 <li><b>All-gather by hand</b> in <code>shard_map</code>: gather K and V, attend your own queries with the causal mask shifted by your offset. This is the variant Llama 3 used (<a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3 paper, arXiv 2407.21783, section 3.3.2</a>) and MaxText's default (<code>context_parallel_strategy: "all_gather"</code>, <span id="ss-ref-cps"></span>).</li>
 <li><b>Ring attention</b> (<a href="https://arxiv.org/abs/2310.01889" target="_blank" rel="noopener noreferrer">Liu, Zaharia and Abbeel 2023, arXiv 2310.01889</a>): pass K/V blocks round the ring with <code>ppermute</code>, N steps, accumulating an online softmax (running max, denominator and numerator), so no device ever holds all keys or a full score matrix.</li>
 </ul>
-<details class="qa"><summary>The ring attention code that ran (per device, inside <code>jax.shard_map</code> over the <code>seq</code> axis)</summary><div><pre id="ss-cp-code"></pre></div></details>
+<details class="dp"><summary>The ring attention code that ran (per device, inside <code>jax.shard_map</code> over the <code>seq</code> axis)</summary><div class="b"><pre id="ss-cp-code"></pre></div></details>
 <div class="ss-card" id="ss-cp-card">
-<h4>The same attention, two schedules</h4>
+<h4>The same attention, two schedules: the ring never holds all keys, the all-gather does</h4>
 <div class="seg" id="ss-cp-mode"><span class="lbl">Method</span><button data-m="ring" class="on">Ring (ppermute)</button><button data-m="ag">All-gather K, V</button></div>
 <div class="ss-svg" id="ss-cp-svg"></div>
 <div class="an-ctl" id="ss-cp-ctl"></div>
@@ -261,19 +393,70 @@ dot(...), sharding={devices=[2,1,4]&lt;=[8]}</pre>
 </div>
 <div id="ss-cp-meas"></div>
 <p><b>What the numbers say.</b> All three give the one-device result (largest difference 7.5e-8 for the ring; gradients within 2.9e-6 for all three). Per device the ring sends exactly what a ring all-gather of K and V would (7 blocks of each: 3,670,016 bytes, against the all-gather's 4,194,304-byte output of which 7/8 arrives from other devices). The gain is memory: at 8,192 tokens the compiled temp memory is 123 MB per device for the ring against 273 MB for the all-gather version, because nobody holds all keys and values. The cost is N sequential steps, each needing its transfer to overlap with compute. The schedule also shows the known flaw of a plain causal ring: device 0 has work in 1 of 8 steps and device 7 in all 8. Load-balanced orderings (each device holds a chunk from the start and one from the end of the sequence) fix that; MaxText's <code>context_parallel_load_balance: true</code> is the default (<span id="ss-ref-cpb"></span>). Not run here: the load-balanced ordering, and DeepSpeed-Ulysses, which uses all-to-all to swap the sequence split for a head split (<a href="https://arxiv.org/abs/2309.14509" target="_blank" rel="noopener noreferrer">arXiv 2309.14509</a>; MaxText's <code>"ulysses"</code> option).</p>
-<p class="ss-src">Megatron's <dfn>sequence parallelism</dfn> (<a href="https://arxiv.org/abs/2205.05198" target="_blank" rel="noopener noreferrer">Korthikanti et al. 2022, arXiv 2205.05198</a>) is a different thing despite the name: inside a tensor-parallel group it splits the LayerNorm and dropout activations along the sequence, turning each all-reduce into a reduce-scatter plus an all-gather of the same total size. On CPU the reduce-scatter cannot be formed (no <code>ReduceScatterCreator</code> in the pipeline), so it is not shown separately here.</p>
+<details class="dp"><summary>Megatron's sequence parallelism is a different thing <span class="mute">(30 s)</span></summary><div class="b"><p>Megatron's <dfn>sequence parallelism</dfn> (<a href="https://arxiv.org/abs/2205.05198" target="_blank" rel="noopener noreferrer">Korthikanti et al. 2022, arXiv 2205.05198</a>) is a different thing despite the name: inside a tensor-parallel group it splits the LayerNorm and dropout activations along the sequence, turning each all-reduce into a reduce-scatter plus an all-gather of the same total size. On CPU the reduce-scatter cannot be formed (no <code>ReduceScatterCreator</code> in the pipeline), so it is not shown separately here.</p></div></details>
+</section>
+<section id="s-pipe">
+<h2>8. Pipeline parallelism, written by hand</h2>
+<p>A pipeline gives each group of devices a run of consecutive layers (a <dfn>stage</dfn>) and streams <dfn>microbatches</dfn> through them; stages idle at the start and the end, the <dfn>bubble</dfn>. The theory and the GPU schedules (1F1B, interleaved, zero bubble, DualPipe) are <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a>'s section 6 and the <a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a> page's pipeline schedules; this section is how JAX does it.</p>
+<p><b>No propagator invents a pipeline: it is a loop over time.</b> The GSPMD paper reduced it to sharding (<a href="https://arxiv.org/abs/2105.04663" target="_blank" rel="noopener noreferrer">section 3.3</a>): keep a buffer with one slot per stage, run every stage's layer at once with <code>vmap</code>, and shift the buffer by one each iteration; shard the stage dimension and "GSPMD will turn the buffer shifting into cross-device communication via CollectivePermute". MaxText's pipeline is this design: a <code>jax.vmap</code> over stages (<span id="pp-ref-vmap"></span>) and <code>shard_map</code> rotations with <code>ppermute</code> over the <code>stage</code> axis (<span id="pp-ref-rot"></span>). The version run here writes the per-device loop directly in <code>shard_map</code>, which is easier to read, and lets <code>jax.grad</code> differentiate the whole loop: the backward pass is the forward schedule run in reverse (GPipe's order: all forwards, then all backwards).</p>
+<div class="ss-card" id="pi-card">
+<h4>The real schedule, tick by tick: grey cells are the bubble</h4>
+<div class="seg" id="pi-run"><span class="lbl">Run</span></div>
+<p class="small" id="pi-desc"></p>
+<div class="ss-svg" id="pi-svg"></div>
+<div class="an-ctl" id="pi-ctl"></div>
+<div class="ss-cap" id="pi-cap"></div>
+<div class="ss-cnt" id="pi-cnt"></div>
+<p class="ss-src">Each column is one loop iteration of <code>stage_fn</code>; a cell is what that stage computes (microbatch m, repeat r for circular runs); grey cells are bubble ticks, which compute on zeros and are discarded. Arrows are the <code>ppermute</code> at the end of the tick. Backward: the same grid right to left. <span class="meas">measured</span> <code>src/runs/ss_pipe.py</code>, the running example's 4 blocks over 4 or 2 stages: loss within 4.8e-7 and every gradient within 1.2e-7 of one device; the bubble is exactly (S&minus;1)/(MR+S&minus;1), 3/7 for 4 stages and 4 microbatches, 1/9 for MaxText's circular schedule with 2 stages, 2 repeats and 4 microbatches.</p>
+</div>
+<p>Three details carry the design. The stage index comes from <code>jax.lax.axis_index("stage")</code>, so one program serves every stage: whether a device reads a new microbatch or the buffer is a <code>jnp.where</code>, not Python control flow. <code>rot</code> sends stage j's output to j+1 and the last stage's back to stage 0: for circular schedules that is the path to the next repeat (stage 0 keeps it in <code>circ</code> until its turn). And the result is handed to every stage with a <code>psum</code> over <code>stage</code> of the last stage's outputs, an all-reduce you could avoid by computing the loss on the last stage only.</p>
+<p><b>Circular schedules: why repeats shrink the bubble.</b> With R repeats each stage holds R non-consecutive blocks of layers (stage 0 of 2: layers 0 and 2; stage 1: layers 1 and 3) and every microbatch goes round the ring R times. A tick now costs 1/R of a GPipe tick, and the S&minus;1 bubble ticks are 1/R as long: on the running example, 2 stages with 4 microbatches, the bubble falls from 1/5 (GPipe, ticks of 2 layers) to 1/9 (circular, ticks of 1 layer). The price is R times as many transfers (16 collective-permutes against 8) and a ring back from the last stage to the first.</p>
+<div class="co warn"><div class="t">The microbatching mistake, measured</div><p class="small" id="pi-mist"></p></div>
+<details class="dp"><summary>Every pipeline run, and the code that ran <span class="mute">(table and code, 3 min)</span></summary><div class="b">
+<div class="tw"><table id="pi-t"><thead><tr><th>Schedule</th><th class="num">Stages S</th><th class="num">Micro-batches M</th><th class="num">Repeats R</th><th>Layers per stage</th><th class="num">Ticks</th><th class="num">Bubble</th><th>Collectives (forward + backward)</th><th class="num">Loss / gradient vs one device</th><th class="num">Temp per device</th></tr></thead><tbody></tbody></table></div>
+<p class="ss-src"><span class="meas">measured</span> batch 0 of the running example (32 sequences, so a microbatch is 32/M sequences), mesh (stage S, data 8/S), Auto axes, jax 0.11.2. Bubble = idle stage-ticks / all stage-ticks in the forward schedule, which equals the formula (S&minus;1)/(MR+S&minus;1) exactly in every run, the same formula MaxText's config states: <code id="pi-mt"></code> (<span id="pp-ref-bub"></span>). Collective-permutes: one forward per tick except the last, and the same number backward.</p>
+<p>Per device (inside <code>jax.shard_map</code> over the mesh axes <code>stage</code> and <code>data</code>); <code>layers</code> holds only this stage's blocks, stacked, and <code>x</code> all microbatches of this device's data shard:</p>
+<pre id="pi-code"></pre>
+<p>MaxText's config notes the trade-off: more layers per stage "the easier it is to hide the pipeline communication behind the compute", more repeats a smaller bubble. With M = S (the 2-microbatch run) the circular schedule needs no storage at stage 0: the last stage's output arrives exactly when stage 0 needs it.</p>
+<p class="ss-src">Not run here: 1F1B or zero-bubble orderings, which need the backward of each microbatch scheduled by hand (for example with <code>jax.vjp</code> per stage) instead of differentiating the whole loop; and timing, which on simulated CPU devices would mean nothing.</p>
+</div></details>
 </section>
 
-<section id="s-ppep">
-<h2>Pipeline and expert parallelism: written by hand</h2>
-<p>Propagation never invents these two, because neither is a layout of one operation: a pipeline is a schedule over time, and expert routing is data-dependent. Both are written with <code>shard_map</code>, and both have their own tab.</p>
-<div class="ss-two">
-<div class="ss-card"><h4><a href="#" data-tab="t-pipe">Pipeline</a></h4><p class="small">The running example's 4 blocks split over 4 or 2 stages, microbatches passed stage to stage with <code>ppermute</code>, <code>jax.grad</code> through the whole loop (so the backward is the forward schedule reversed, GPipe style). <span class="meas">measured</span> loss within 4.8e-7 and every gradient within 1.2e-7 of one device; the bubble is exactly (S&minus;1)/(MR+S&minus;1), 3/7 for 4 stages and 4 microbatches, 1/9 for MaxText's circular schedule with 2 stages, 2 repeats and 4 microbatches. One microbatching mistake cost an all-to-all and an all-gather; the tab shows why.</p></div>
-<div class="ss-card"><h4><a href="#" data-tab="t-moe">Experts (MoE)</a></h4><p class="small">A tiny mixture-of-experts layer, 8 experts on 8 devices, on the running example's tokens. Written with two <code>all_to_all</code> calls it compiles to exactly 2 all-to-alls forward and 3 in the backward pass. Written as GShard-style einsums with a sharding constraint and left to propagation, it used all-to-all in only 1 of 6 configurations; in the other 5 the compiler chose all-gathers and an all-reduce instead. Same numbers, different traffic.</p></div>
+<section id="s-moe">
+<h2>9. Expert parallelism: two all-to-alls you write yourself</h2>
+<p>In a mixture-of-experts layer each token goes to a few of many expert MLPs (the form is <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a>'s section 7). Put one expert per device and tokens must travel to their experts and back: two all-to-alls per layer. Routing is data-dependent, so propagation finds that pattern only sometimes; here it is written with <code>shard_map</code>.</p>
+<p><b>The setup</b> (<code>src/runs/ss_moe.py</code>): the 4,096 tokens of the running example's batch 0, taken after block 0 and the next LayerNorm ([4,096, 128]), 512 on each of 8 devices; a router [128, 8] and 8 expert MLPs (128 &rarr; 256 &rarr; 128, exact GELU), one per device. The router and experts are new seeded weights, <span class="ill">illustrative, not trained</span>: the routing is lopsided (expert 6 is wanted by 120 to 150 of each device's 512 tokens, expert 1 by 21 to 35), which makes capacity visible. Each device routes its own tokens (Switch Transformer's groups); <dfn>capacity</dfn> C = &lceil;capacity factor &times; 512 &times; k / 8&rceil; tokens per expert per device; tokens over capacity are dropped (the layer outputs 0 for them, the residual stream carries them). Top-1 is Switch's routing (<a href="https://app.notion.com/p/3c65c17b0d0d81a8b541c9babbf40c94" target="_blank" rel="noopener noreferrer">Switch Transformers paper page</a>), top-2 GShard's and Mixtral's (<a href="https://app.notion.com/p/3c65c17b0d0d81eba72af0ac91ddc6b3" target="_blank" rel="noopener noreferrer">Mixtral paper page</a>).</p>
+<div class="ss-card" id="mo-card">
+<h4>One MoE layer, step by step: rows are what each device sends, columns what each expert receives</h4>
+<div class="seg" id="mo-k"><span class="lbl">Routing</span><button data-m="1" class="on">Top-1</button><button data-m="2">Top-2</button></div>
+<div class="seg" id="mo-cf"><span class="lbl">Capacity factor</span><button data-m="1">1.0</button><button data-m="1.25" class="on">1.25</button><button data-m="2">2.0</button></div>
+<div class="ss-svg" id="mo-svg"></div>
+<div class="an-ctl" id="mo-ctl"></div>
+<div class="ss-cap" id="mo-cap"></div>
+<div class="ss-cnt" id="mo-cnt"></div>
+<p class="ss-src">Cell (device g, expert e): tokens on device g that chose expert e (the real router output); filled part: tokens that fit in the capacity C and are sent; hatched: dropped.</p>
 </div>
+<p><code>all_to_all(x, axis, split_axis=0, concat_axis=0, tiled=True)</code> cuts this device's [8, C, 128] block along the expert dimension, sends slice e to device e, and stacks what arrives along the same dimension: afterwards dimension 0 means "which device it came from". The second all-to-all is the exact inverse. The backward pass transposes each all-to-all into another all-to-all (3 in the compiled gradient program, plus a small all-reduce for the router's replicated weights).</p>
+<p><b>Hand-written against propagation.</b> Written with two <code>all_to_all</code> calls the layer compiles to exactly 2 all-to-alls forward and 3 in the backward, in all six configurations. Written as GShard-style einsums for one device, with the groups and the experts annotated <code>P('expert')</code> and a <code>with_sharding_constraint</code> on the dispatched tensor and the expert outputs, and left to propagation, it used all-to-all in only 1 of 6 configurations; in the other 5 the compiler chose all-gathers and an all-reduce instead. Same numbers, different traffic.</p>
+<p><b>Production code drops the fixed capacity.</b> Padding every expert to C wastes compute and drops tokens. MaxText's default is <code>capacity_factor: -1.0 # ... no dropping by default</code> (<span id="mo-ref-cap"></span>) and it sends exactly the tokens each expert needs with <code>jax.lax.ragged_all_to_all</code> (<span id="mo-ref-rag"></span>; the primitive at <span id="mo-ref-prim"></span>), then runs the experts as one grouped matmul (megablox).</p>
+<details class="dp"><summary>All six configurations, the MoE code that ran, and what else production code changes <span class="mute">(3 min)</span></summary><div class="b">
+<div class="tw"><table id="mo-t"><thead><tr><th>Routing</th><th class="num">Capacity factor</th><th class="num">C</th><th class="num">Dropped</th><th>shard_map: forward / backward</th><th>Propagation: forward / backward</th><th class="num">Error vs one device</th></tr></thead><tbody></tbody></table></div>
+<p class="ss-src"><span class="meas">measured</span> jax 0.11.2, 8 simulated CPU devices. Error: output / gradients against a one-device reference with the same routing and drops.</p>
+<pre id="mo-code"></pre>
+<ul class="tight">
+<li><b>Load balancing.</b> A router trained with an auxiliary balance loss (or DeepSeek's bias term) evens out the columns above; untrained, it does not.</li>
+<li><b>Experts per device.</b> With more experts than devices each device holds several; with fewer, an expert is sharded over several devices (tensor parallelism inside the expert).</li>
+</ul>
+<p class="ss-src">Memory and traffic of MoE training at scale are on the <a href="https://app.notion.com/p/3e95c17b0d0d8148a1f3d412918234fc" target="_blank" rel="noopener noreferrer">MoE memory bottlenecks paper page</a>.</p>
+</div></details>
 </section>
 <section id="s-cost">
-<h2>Collective cost models, checked against the compiler</h2>
+<h2>10. Collective costs, checked against the compiler</h2>
+<p>The useful test of a cost model is whether it predicts the compiled program. Two-line predictions for each layout (<code>src/runs/ss_formulas.py</code>; P is the parameter bytes, L the layers, A one [batch per data group, sequence, d_model] activation), against the bytes XLA actually emitted at both model sizes:</p>
+<div class="ss-card"><h4>The formulas predict the compiler within 0.4%, except where the heads do not divide</h4><div class="tw"><table id="ss-fc-t"><thead><tr><th>Model</th><th>Layout</th><th>Formula (CPU form)</th><th class="num">Predicted</th><th class="num">Compiled</th><th class="num">Ratio</th></tr></thead><tbody></tbody></table></div>
+<p class="ss-src">Bytes are logical bytes per train step (see the first table). On TPU or GPU two terms change: FSDP's gradient all-reduce becomes a reduce-scatter of the same logical size, and tensor parallelism's backward has 2LA instead of 4LA. The one miss, tensor parallel over 8 devices on the 4-head running example, is the heads problem from the previous section; with 8 heads the prediction is exact.</p></div>
+<p>Bytes become time through the link: for large messages a ring all-gather over a TPU axis takes about V / W whatever the number of devices, and an all-reduce about twice that; for small ones a per-hop latency dominates. The algorithms behind those two sentences (ring, 2-D torus, tree) are <a href="https://app.notion.com/p/3c65c17b0d0d81808563fd41fb163af0" target="_blank" rel="noopener noreferrer">Interconnects and scaling</a>'s subject; the scaling book's TPU forms and a calculator are in the closed block.</p>
+<details class="dp"><summary>The latency and bandwidth model, ring against 2-D torus against tree, with a calculator <span class="mute">(3 min)</span></summary><div class="b">
 <p><b>The model.</b> A collective's time has a latency part, paid per step of the algorithm whatever the size (call it &alpha;, about 1 &micro;s per ICI hop: "This is typically around 1us", <a href="https://jax-ml.github.io/scaling-book/sharding/" target="_blank" rel="noopener noreferrer">scaling book, part 3</a>, 2025-02-04), and a bandwidth part, bytes over link bandwidth W. The algorithm decides how many latency steps there are and how many links share the bytes:</p>
 <div class="tw"><table><thead><tr><th>Algorithm</th><th>All-gather of V bytes over n devices</th><th>All-reduce</th><th>Where it is used</th></tr></thead><tbody>
 <tr><td><b>Ring</b> (1-D, both directions, wraparound)</td><td>max(&alpha;&middot;n/2, V / W<sub>bidi</sub>)</td><td>twice the all-gather (reduce-scatter, then all-gather)</td><td>One axis of a TPU torus; NCCL rings inside a server</td></tr>
@@ -281,7 +464,7 @@ dot(...), sharding={devices=[2,1,4]&lt;=[8]}</pre>
 <tr><td><b>Tree</b> (double binary tree)</td><td>not used for gathers</td><td>about 2&middot;log<sub>2</sub>(n)&middot;&alpha; + 2V/W</td><td>NCCL across many nodes: "latency scales linearly with the number of GPUs" for rings, trees give "full bandwidth and logarithmic latency" (<a href="https://developer.nvidia.com/blog/massively-scale-deep-learning-training-nccl-2-4/" target="_blank" rel="noopener noreferrer">NVIDIA, 2019-02-04</a>)</td></tr></tbody></table></div>
 <p>The ring and torus rows are the scaling book's: a bidirectional ring all-gather takes "T<sub>total</sub> = V / W<sub>ici</sub>", which "doesn't depend on X!", and gathering over several axes "increases the available bandwidth by a factor of N<sub>axes</sub>"; "an AllReduce is twice as expensive as an AllGather"; an all-to-all on a 1-D ring is "1/4 the cost of an AllGather". The tree row is the usual &alpha;-&beta; estimate, <span class="der">derived</span>. The calculator puts them side by side; the crossover is the point of it: for small messages latency dominates and a ring over many devices loses, for large ones bandwidth dominates and the ring's latency is irrelevant.</p>
 <div class="ss-card" id="ss-cc-card">
-<h4>All-reduce time against message size <span class="der">derived</span></h4>
+<h4>All-reduce time against message size: flat while latency dominates, then rising with the bytes <span class="der">derived</span></h4>
 <div class="ctl">
 <label>Devices on the axis: <b id="ss-cc-nv"></b><input type="range" id="ss-cc-n" min="2" max="10" step="1" value="6" aria-label="Devices, as a power of two"></label>
 <label>Link (one way, per scaling book) <select id="ss-cc-link"><option value="4.5e10">v4 / v5e: 45 GB/s</option><option value="9e10" selected>v5p / v6e / TPU7x: 90 GB/s</option></select></label>
@@ -290,31 +473,54 @@ dot(...), sharding={devices=[2,1,4]&lt;=[8]}</pre>
 <div class="ss-leg" id="ss-cc-leg"></div>
 <div class="ss-src" id="ss-cc-note"></div>
 </div>
-<h3>Do the formulas match what XLA emits?</h3>
-<p>The useful test of a cost model is whether it predicts the compiled program. Two-line predictions for each layout (<code>src/runs/ss_formulas.py</code>; P is the parameter bytes, L the layers, A one [batch per data group, sequence, d_model] activation):</p>
-<div class="tw"><table id="ss-fc-t"><thead><tr><th>Model</th><th>Layout</th><th>Formula (CPU form)</th><th class="num">Predicted</th><th class="num">Compiled</th><th class="num">Ratio</th></tr></thead><tbody></tbody></table></div>
-<p class="ss-src">Bytes are logical bytes per train step (see the first table). On TPU or GPU two terms change: FSDP's gradient all-reduce becomes a reduce-scatter of the same logical size, and tensor parallelism's backward has 2LA instead of 4LA. The one miss, tensor parallel over 8 devices on the 4-head running example, is the heads problem from the previous section; with 8 heads the prediction is exact.</p>
+</div></details>
 </section>
 
-<section id="s-mesh">
-<h2>Choosing a mesh for a model and a TPU slice</h2>
+<section id="s-choose">
+<h2>11. Choosing a mesh for a model and a TPU slice</h2>
 <p><b>The question.</b> Given a model, a global batch and a slice (say 256 v5e chips or 512 v5p chips), how many ways to split for each strategy, and which physical torus axes should carry which? Three constraints decide it.</p>
 <ol class="tight">
 <li><b>Memory.</b> Parameters, gradients and optimizer state (16 bytes per parameter for float32 weights, float32 gradients and two float32 Adam moments, 4 + 4 + 8; bfloat16 weights and gradients plus a float32 master copy also come to 16) divided by the FSDP and tensor degrees, plus activations divided by the batch-splitting and tensor degrees, must fit in HBM (16 GB per v5e chip, 95 GiB per v5p chip, <span class="vend">Google Cloud TPU docs</span>, last updated 2026-10-13).</li>
 <li><b>Communication hidden under compute.</b> The scaling book's conditions (<a href="https://jax-ml.github.io/scaling-book/training/" target="_blank" rel="noopener noreferrer">part 5, How to parallelize a transformer for training</a>): data parallelism and FSDP stay compute-bound while the batch per chip exceeds C/W<sub>ici</sub>, which for v5p is "2,550" tokens (C = 4.6e14 FLOP/s, W<sub>ici</sub> = 1.8e11 B/s bidirectional); spreading FSDP over all three axes of a v5p pod lowers it to about 850. Tensor parallelism "becomes communication bound when Y &gt; M<sub>Y</sub> &middot; F / 2550", "for most models ... between 8 and 16-way". Mixing the two, the best FSDP degree is X<sub>opt</sub> = &radic;(B/F &middot; M<sub>X</sub>/M<sub>Y</sub> &middot; N), which lets the batch per chip fall to about 100.</li>
-<li><b>Topology.</b> A logical mesh axis should sit on physical axes whose neighbours are one ICI hop apart, and its size must be a product of physical axis sizes. The root's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">TPU and Pallas lab</a> (tab "TPU and Pallas lab") ran JAX's own <code>create_device_mesh</code> on mock slices: on a v5p 4x4x4 cube, a (16, 4) mesh puts the 4 on one physical axis (1 hop) and the 16 on the other two (2 hops between logical neighbours), while (8, 8) is refused outright with <code id="ss-torus-err"></code> unless you allow splitting physical axes.</li>
+<li><b>Topology.</b> A logical mesh axis should sit on physical axes whose neighbours are one ICI hop apart, and its size must be a product of physical axis sizes. The physical torus is <a href="https://app.notion.com/p/3c65c17b0d0d8129b0a5fd82e44ecf6e" target="_blank" rel="noopener noreferrer">TPU programming and performance</a>'s subject; what matters here is how JAX maps mesh axes onto it. The root's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">TPU and Pallas lab</a> (tab "TPU and Pallas lab") ran JAX's own <code>create_device_mesh</code> on mock slices: on a v5p 4x4x4 cube, a (16, 4) mesh puts the 4 on one physical axis (1 hop) and the 16 on the other two (2 hops between logical neighbours), while (8, 8) is refused outright with <code id="ss-torus-err"></code> unless you allow splitting physical axes.</li>
 </ol>
 <p>Across slices the network is the data-centre network (DCN), about 6.25 GB/s per chip in the book's v5p numbers, so the batch per slice must exceed C/W<sub>dcn</sub> &asymp; 73,440 tokens; the standard answer is FSDP and tensor parallelism inside the slice and pure data parallelism (or HSDP) across slices. MaxText encodes exactly this: 12 mesh axes (<span id="ss-ref-mtaxes"></span>), each with an <code>ici_*_parallelism</code> and a <code>dcn_*_parallelism</code> degree, defaults <code>ici_fsdp_parallelism: -1 # recommended ICI axis to be auto-sharded</code> and <code>dcn_data_parallelism: -1</code>, and comments marking <code>dcn_tensor_parallelism</code> "never recommended" (<span id="ss-ref-mtdcn"></span>). Model code never names a mesh axis: it names logical axes (<code>'embed'</code>, <code>'heads'</code>, <code>'activation_batch_attn'</code>), and <code>logical_axis_rules</code> (<span id="ss-ref-mtrules"></span>) map them to mesh axes, so one config change re-lays out the whole model.</p>
-<div class="deepnote"><b>Try it.</b> The <a href="#" data-tab="t-mesh">Mesh designer</a> computes memory per chip, communication and compute time per step for a model (the running example, the scaled-up config, Llama 3 8B and 70B shapes), a slice and a split, with the scaling book's formulas, flags the conditions above, and shows the compiler-checked byte formulas from this page beside it. The worked interview answer (70B on v5p) is in <a href="#s-iq">Interview</a>.</div>
+<div class="co key"><div class="t">Try it</div> The <a href="#" data-tab="t-mesh">Mesh designer</a> computes memory per chip, communication and compute time per step for a model (the running example, the scaled-up config, Llama 3 8B and 70B shapes), a slice and a split, with the scaling book's formulas, and flags the conditions above; its byte formulas are the ones section 10 checks against the compiler. The worked design answer (70B on v5p) is in <a href="#s-depth">Depth</a>.</div>
 </section>
 <section id="s-multi">
-<h2>Many hosts: one program, many controllers</h2>
-<p><b>The model.</b> A TPU slice larger than one host (one VM with a few chips attached) runs <em>one Python process per host</em>, all executing the same script: JAX is <dfn>multi-controller</dfn>. The JAX guide: "All processes (usually) run the same Python script", and "it's crucial that all processes with participating devices run the same computation in the same order", a rule that is "mostly unchecked", so a mismatch hangs (<a href="https://docs.jax.dev/en/latest/multi_process.html" target="_blank" rel="noopener noreferrer">JAX docs, multi-controller JAX</a>, read 2026-10-15). The PyTorch picture is close: <code>torchrun</code> starts one process per GPU and you call <code>init_process_group</code>; JAX starts one process per host and you call <code>jax.distributed.initialize()</code> (<span id="ss-ref-dist"></span>), which on Cloud TPU, Slurm or Kubernetes needs no arguments. After it, <code>jax.devices()</code> lists every chip of every host (the <dfn>global</dfn> devices) and <code>jax.local_devices()</code> this host's (also called <dfn>addressable</dfn>). A jitted function over a global array is still one SPMD program; the difference from one host is only that a process can touch the shards on its own devices and nothing else. Google's own Gemini runs used the other model, a single controller: "the 'single controller' programming model of Jax and Pathways allows a single Python process to orchestrate the entire training run" (<a href="https://arxiv.org/abs/2312.11805" target="_blank" rel="noopener noreferrer">Gemini 1 report, arXiv 2312.11805, section 3</a>); Pathways is not open source.</p>
-<p><b>Run here.</b> JAX runs the same thing on CPU with several processes on one machine, so this page does it for real: 2 processes, each owning 4 simulated devices, connected by <code>jax.distributed</code> over localhost (collectives between processes use gloo, the default CPU implementation, <span id="ss-ref-gloo"></span>). Each process loads only its 16 of the batch's 32 rows and builds the global batch with <code>jax.make_array_from_process_local_data</code> (<span id="ss-ref-mapl"></span>); then both run the running example's data-parallel train step for 20 steps. <span class="meas">measured</span> <span id="ss-multi-sum"></span> The <a href="#" data-tab="t-multi">Many processes</a> tab shows each process's view, the code and the two errors you will meet.</p>
+<h2>12. Many hosts: one program, many controllers</h2>
+<p><b>The model.</b> A TPU slice larger than one host (one VM with a few chips attached) runs <em>one Python process per host</em>, all executing the same script: JAX is <dfn>multi-controller</dfn>. The JAX guide: "All processes (usually) run the same Python script", and "it's crucial that all processes with participating devices run the same computation in the same order", a rule that is "mostly unchecked", so a mismatch hangs (<a href="https://docs.jax.dev/en/latest/multi_process.html" target="_blank" rel="noopener noreferrer">JAX docs, multi-controller JAX</a>, read 2026-10-15). The PyTorch picture is close: <code>torchrun</code> starts one process per GPU and you call <code>init_process_group</code>; JAX starts one process per host and you call <code>jax.distributed.initialize()</code> (<span id="ss-ref-dist"></span>), which on Cloud TPU, Slurm or Kubernetes needs no arguments. After it, <code>jax.devices()</code> lists every chip of every host (the <dfn>global</dfn> devices) and <code>jax.local_devices()</code> this host's (also called <dfn>addressable</dfn>). A jitted function over a global array is still one SPMD program; the difference from one host is only that a process can touch the shards on its own devices and nothing else.</p>
+<p><b>Run here.</b> JAX runs the same thing on CPU with several processes on one machine, so this page does it for real: 2 processes, each owning 4 simulated devices, connected by <code>jax.distributed</code> over localhost (collectives between processes use gloo, the default CPU implementation, <span id="ss-ref-gloo"></span>). Each process loads only its 16 of the batch's 32 rows and builds the global batch with <code>jax.make_array_from_process_local_data</code> (<span id="ss-ref-mapl"></span>), then both run the running example's data-parallel train step for 20 steps. <span class="meas">measured</span> <span id="ss-multi-sum"></span></p>
+<div class="ss-card" id="mu-card">
+<h4>One step, two ways: the program is the same; only who can touch which shard changes</h4>
+<div class="seg" id="mu-mode"><span class="lbl">Run as</span><button data-m="2" class="on">Two processes x 4 devices</button><button data-m="1">One process x 8 devices</button></div>
+<div class="ss-svg" id="mu-svg"></div>
+<div class="an-ctl" id="mu-ctl"></div>
+<div class="ss-cap" id="mu-cap"></div>
+</div>
+<h3>The two errors you will meet</h3>
+<p class="small">Both pasted from the run: reading a global array in one process fails on purpose, and hosts passing different values for a replicated array both stop at <code>device_put</code>.</p>
+<div id="mu-err"></div>
+<h3>On a real slice</h3>
+<ul class="tight">
+<li><b>Data.</b> Each host reads only its shard of the data. The data loader's job is to give host h the rows that its devices hold under the batch sharding; <code>make_array_from_process_local_data</code> assembles the global array without communication. Deterministic, checkpointable per-host loading with grain is on the <a href="https://app.notion.com/p/3c65c17b0d0d817ea0ace9a2ca8677ec" target="_blank" rel="noopener noreferrer">training stack</a> page.</li>
+<li><b>Checkpoints and logging.</b> Orbax writes and restores sharded arrays from every host (training stack page). Logging only from <code>jax.process_index() == 0</code> is fine; putting a <code>device_put</code> or a jitted call under that condition is not: the guide warns it "would lead to a deadlock as only process 0 initiates the collective communication".</li>
+<li><b>Across slices.</b> Multislice jobs add the data-centre network between slices; MaxText's <code>dcn_*_parallelism</code> settings put data parallelism there (section 11).</li>
+</ul>
+<details class="dp"><summary>The code each process ran, what each process saw, how a real slice is launched, and the single-controller alternative <span class="mute">(2 min)</span></summary><div class="b">
+<pre id="mu-init"></pre>
+<p>then, per step, the process builds the global batch from its own rows:</p>
+<pre id="mu-loop"></pre>
+<p>and calls the same jitted step as on one host (<code>jax.jit(step, in_shardings=(rep, rep, xs, xs), out_shardings=(rep, rep, rep), donate_argnums=(0, 1))</code>, data parallel over a mesh of all 8 global devices).</p>
+<div class="tw"><table id="mu-t"><thead><tr><th></th><th>Process 0</th><th>Process 1</th></tr></thead><tbody></tbody></table></div>
+<div id="mu-loss"></div>
+<p><b>Single controller.</b> Google's own Gemini runs used the other model, a single controller: "the 'single controller' programming model of Jax and Pathways allows a single Python process to orchestrate the entire training run" (<a href="https://arxiv.org/abs/2312.11805" target="_blank" rel="noopener noreferrer">Gemini 1 report, arXiv 2312.11805, section 3</a>); Pathways is not open source.</p>
+<p><b>Launching.</b> The same script is started on every host of the slice (on Cloud TPU, one command over all workers; under GKE or Slurm, one pod or task per host). <code>jax.distributed.initialize()</code> then needs no arguments: the JAX guide lists Slurm, Kubernetes and Cloud TPU as environments where they "are automatically populated". Not run here.</p>
+</div></details>
 </section>
 
 <section id="s-debug">
-<h2>Debugging shardings: the toolkit, with real output</h2>
+<h2>13. Debugging shardings: the toolkit, with real output</h2>
 <div class="tw"><table><thead><tr><th>Question</th><th>Tool</th><th>What it printed here</th></tr></thead><tbody id="ss-dbg-t"></tbody></table></div>
 <p><b>Finding a surprise collective.</b> The compiled HLO names every collective, and its metadata records the Python line that produced it. Grouping collectives by line is the fastest way to find the one you did not plan. This page's parser does it in a few lines (<code>src/runs/ss_hlo.py</code>: newer HLO dumps store the line in a <code>StackFrames</code> table that each instruction points into with <code>stack_frame_id</code>). Applied to the root lab's unconstrained FSDP layout under Shardy, it points straight at the MLP: <span id="ss-surprise"></span>. Those are whole-batch activations, the signature of a propagator that followed the weights' split into the activations.</p>
 <pre>comp = jax.jit(step).lower(*args).compile()
@@ -322,74 +528,19 @@ for ins in ss_hlo.instructions(comp.as_text()):          <span class="c"># name,
     if ins["op"].replace("-start", "") in ("all-gather", "all-reduce", "reduce-scatter", "all-to-all", "collective-permute"):
         print(ins["op"], ins["type"], ins["file"], ins["line"])</pre>
 </section>
-<section id="s-mist">
-<h2>Common mistakes, with the real messages</h2>
-<p>Every message below was produced here, by the scripts in <code>src/runs/</code>, with jax 0.11.2.</p>
-<div id="ss-mist"></div>
-</section>
-
-<section id="s-iq">
-<h2>Interview questions</h2>
+<section id="s-depth">
+<h2>Depth</h2>
+<p class="small">Optional: design questions that combine several sections, and what changed from the old Notion page.</p>
 <details class="qa"><summary>Design: shard Llama 3 70B for pre-training on a full TPU v5p pod. What mesh, and why?</summary><div>
 <p>State first: 70.55B parameters at 16 bytes each is 1.13 TB of weights, gradients and Adam state (<span class="der">derived</span>), so no form of pure data parallelism fits in 95 GiB chips; the state must be sharded. The scaling book takes 8,960 chips (16x20x28) and a 4M-token batch (1,024 sequences of 4,096), that is 468 tokens per chip: below the 2,550 that pure FSDP needs on v5p and above the about 113 that mixed FSDP plus tensor parallelism needs (&alpha;&sup2;/(M<sub>X</sub>M<sub>Y</sub>F) with F = 28,672, M<sub>X</sub>M<sub>Y</sub> = 2). The best FSDP degree is &radic;(B/F &middot; M<sub>X</sub>/M<sub>Y</sub> &middot; N) &asymp; 1,619 with M<sub>X</sub>/M<sub>Y</sub> = 2, and tensor parallelism must stay below F/2,550 &asymp; 11. The book's answer: "roughly 2048-way FSDP and 4-way tensor parallelism", with tensor parallelism on the axis with the fewest hops; its takeaway box phrases the same budget as "data parallelism (1024-way), sequence parallelism (2-way), and tensor parallelism (4-way)". At 40% MFU it estimates "about 44 days" (<a href="https://jax-ml.github.io/scaling-book/applied-training/" target="_blank" rel="noopener noreferrer">scaling book, part 6</a>). In JAX: a mesh <code>('fsdp', 'tensor')</code> made with <code>jax.make_mesh</code> over the slice, parameters sharded by logical rules, activations constrained at block boundaries, <code>jax.checkpoint</code> per layer, and orbax for sharded checkpoints. Mention what you would check first: the compiled HLO for unplanned all-gathers, and <code>memory_analysis()</code> against HBM.</p></div></details>
-<details class="qa"><summary>GSPMD and Shardy: what is the difference, and does it change your code?</summary><div><p>Both spread a few annotations through the program and hand the result to the same SPMD partitioner. GSPMD represents a sharding as a tile assignment over devices and propagates with operator priorities over repeated forward and backward passes; Shardy represents it per dimension with named mesh axes (open or closed), describes each op with a factor-based rule, and resolves conflicts through an explicit hierarchy (user priorities, op priorities, aggressive, basic). Code does not change, but the result can: measured here, the same tensor-parallel train step compiled to 18 collectives under Shardy and 167 under GSPMD, and the unconstrained FSDP step to 210 under Shardy and 148 under GSPMD. Constraining activations makes both agree.</p></div></details>
 <details class="qa"><summary>Your FSDP step is far slower than data parallel at the same batch. What do you look for?</summary><div><p>All-gathers of activations rather than weights: attribute the collectives in <code>compile().as_text()</code> to source lines and look for [batch, sequence, hidden]-shaped gathers (in the root lab's unconstrained FSDP case, 33.5 MB of MLP-hidden all-gathers in the forward and the same again in the backward). Fix with <code>with_sharding_constraint</code> on the residual stream (or Explicit mode). Then check the per-chip batch against C/W<sub>ici</sub>, whether weights are re-gathered in the backward pass, and whether the gradient reduction is a reduce-scatter (on TPU it should be).</p></div></details>
-<details class="qa"><summary>Why can tensor parallelism not just go to 64-way?</summary><div><p>Its traffic is activations per layer, independent of how many devices share it, while the compute per device falls as 1/Y; past Y &asymp; F/2,550 on v5p it is communication-bound. It must also divide the number of (KV) heads: measured here, 8-way tensor parallelism over 4 heads cost 1.33 times the predicted bytes.</p></div></details>
-<details class="qa"><summary>Ring attention or all-gather context parallelism?</summary><div><p>Same bytes per device; the all-gather version is simpler and holds all keys and values for a moment (273 MB of temp per device against 123 MB at 8,192 tokens, measured here), the ring keeps only one block but needs N sequential steps whose transfers must overlap compute. Both need a load-balanced token order under a causal mask, or the last device does N times the first one's work.</p></div></details>
 <details class="qa"><summary>Why is pipeline parallelism less common on TPU than on GPU clusters?</summary><div><p>Inside a slice, ICI connects every chip on a torus at high bandwidth, so FSDP and tensor parallelism reach thousands of chips; the bubble ((S&minus;1)/(MR+S&minus;1)) and the memory for microbatches in flight are costs you only pay when the network forces you to. GPU clusters hit slow inter-node links at 8 GPUs, which is where pipelining pays. The scaling book says the same in its pipelining section.</p></div></details>
-<details class="qa"><summary>What does <code>jax.distributed.initialize()</code> do, and what breaks if one host skips a step?</summary><div><p>It connects the processes through a coordinator so that <code>jax.devices()</code> is global and compiled programs span every host. Every process must then run the same jitted computations in the same order; one that branches differently hangs the others in a collective. Reading a global array with <code>np.asarray</code> fails on purpose ("spans non-addressable (non process local) devices"); use <code>process_allgather</code> or <code>addressable_shards</code>.</p></div></details>
-<details class="qa"><summary>An MoE layer: why write the dispatch with <code>shard_map</code> instead of trusting propagation?</summary><div><p>Routing is data-dependent and the efficient collective is an all-to-all that propagation finds only sometimes: measured here, 1 of 6 configurations got all-to-all from the GShard-style einsum code, the other 5 got all-gathers and an all-reduce. Written by hand it is always exactly two all-to-alls forward. Production code goes further with <code>ragged_all_to_all</code> (MaxText's <code>moe.py</code>, <span id="ss-ref-rag"></span>) to avoid padding to a fixed capacity.</p></div></details>
-</section>
-
-<section id="s-old">
-<h2>What changed from the old page</h2>
+<details class="dp"><summary>What changed from the old page <span class="mute">(corrections, 2 min)</span></summary><div class="b">
 <p>The old Notion page "Sharding and scale: GSPMD, Mesh, shard_map" (fetched 2026-09-22, saved in the root's <code>src/read/old/sharding.md</code>) was treated as unverified notes. Each claim was checked; the corrections (full list in <code>src/coverage.md</code>):</p>
 <ul class="tight" id="ss-old"></ul>
+</div></details>
 </section>
 <p class="foot">Built 2026-10-15 from <code>src/runs/</code> (jax 0.11.2, 8 simulated CPU devices on an Apple M1 Pro, shared machine at load 25 to 60). Sources quoted at jax-v0.11.2, MaxText main 1a95d1e5, optax v0.2.8 and openxla/xla 91888df6; file and line located by pattern in <code>src/runs/ss_source.py</code>.</p>
-</div>
-<div class="tab" id="t-prop" role="tabpanel" hidden>
-<style>
-#t-prop .pp-spec{font:12px ui-monospace,Menlo,monospace;white-space:nowrap}
-#t-prop .pp-ax-data{color:var(--c1);font-weight:600}#t-prop .pp-ax-model{color:var(--c2);font-weight:600}
-#t-prop tr.pp-diff td{background:var(--hl)}#t-prop tr.pp-cur td{outline:2px solid var(--acc);outline-offset:-2px}
-#t-prop .tw table{min-width:640px}#t-prop td.src code{font-size:11.5px}
-#t-prop .pp-flow{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:4px;margin:8px 0}
-#t-prop .pp-op{border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;line-height:1.3;min-width:0;background:var(--bg);transition:background .25s,border-color .25s}
-#t-prop .pp-op .o{font-weight:600}#t-prop .pp-op .s{font-family:ui-monospace,Menlo,monospace;font-size:11px;overflow-wrap:anywhere}
-#t-prop .pp-op.done{border-color:var(--acc)}#t-prop .pp-op.now{background:var(--acc2);border-color:var(--acc)}#t-prop .pp-op.pend .s{color:var(--dim)}
-#t-prop .pp-op.ann{border-color:var(--good);background:var(--open2)}
-@media (prefers-reduced-motion:reduce){#t-prop .pp-op{transition:none}}
-</style>
-<p class="lead">One transformer block of the running example (forward and backward), five ways of annotating it, two propagators. Every sharding here was read from the HLO that XLA dumped right after its propagation pass, and every collective from the compiled program.</p>
-<p>How it was made: <code>src/runs/ss_prop.py</code> compiles <code>loss = mean(block(x)<sup>2</sup>)</code> and its gradient with <code>XLA_FLAGS=--xla_dump_hlo_pass_re=shardy-xla|sharding-propagation</code>, once with Shardy (the default) and once with <code>jax_use_shardy_partitioner=False</code> (GSPMD); <code>src/runs/ss_hlo.py</code> reads each instruction's sharding (converting both notations to <code>P(...)</code> over the mesh) and the Python line it came from. Operations are grouped by source line and kind; the largest instance stands for the group. <span class="meas">measured</span> jax 0.11.2, 8 simulated CPU devices, Auto axes.</p>
-<div class="ss-card" id="pp-card">
-<div class="seg" id="pp-case"><span class="lbl">Case</span></div>
-<p class="small" id="pp-note"></p>
-<div class="seg" id="pp-part"><span class="lbl">Propagator</span><button data-m="shardy" class="on">Shardy</button><button data-m="gspmd">GSPMD</button></div>
-<h4>Before and after propagation</h4>
-<p class="small">The same program twice: at step 0 only what you annotated has a sharding (green); each step fills in the next operation, in program order (forward, then backward), with the sharding the propagator chose and the collectives the partitioner put on that line. The propagator's own visiting order is not recorded in the dump; program order is used for reading.</p>
-<div class="an-ctl" id="pp-ctl"></div>
-<div class="ss-cap" id="pp-cap"></div>
-<div class="ss-cnt" id="pp-cnt"></div>
-<div class="pp-flow" id="pp-flow"></div>
-</div>
-<div class="ss-card">
-<h4>Every operation group, both propagators</h4>
-<p class="small">Highlighted rows: the two propagators chose differently. "none" means the propagator left the operation unannotated (the partitioner then replicates it). Per-device shape follows from the sharding and the mesh.</p>
-<div class="seg" id="pp-ph"><span class="lbl">Phase</span><button data-m="all" class="on">Both</button><button data-m="fwd">Forward</button><button data-m="bwd">Backward</button></div>
-<div class="tw"><table id="pp-t"><thead><tr><th>Line</th><th>Op</th><th>Phase</th><th>Shape</th><th>Shardy</th><th>GSPMD</th><th>Per device (Shardy)</th><th>Source (model_jax.py)</th></tr></thead><tbody></tbody></table></div>
-<div id="pp-coll"></div>
-</div>
-<div class="ss-card" id="pp-full-card">
-<h4>The whole train step: where the propagators part ways</h4>
-<p class="small">The root lab's layouts, full train step (forward, backward, clipping, AdamW), collectives grouped by the Python line they came from. Bars: bytes (summed result sizes) per line, Shardy above GSPMD.</p>
-<div class="seg" id="pp-full"><span class="lbl">Layout</span><button data-m="tp" class="on">Data 2 x tensor 4</button><button data-m="fsdp_naive">FSDP, weights only</button><button data-m="seq">Sequence sharded</button></div>
-<div class="ss-svg" id="pp-full-svg"></div>
-<div class="ss-leg"><span><i style="background:var(--c1)"></i>Shardy</span><span><i style="background:var(--c2)"></i>GSPMD</span></div>
-<p class="ss-src" id="pp-full-note"></p>
-</div>
-<p>What to take from it: on the block alone the two propagators agree; on the whole step they diverge where the program has <em>freedom</em>, small replicated tensors and elementwise optimizer math that could be split over an idle axis, or activations whose layout nothing pins down. The Reading tab's <a href="#" data-tab="t-read">Propagation section</a> explains the rules behind both.</p>
 </div>
 <div class="tab" id="t-mesh" role="tabpanel" hidden>
 <style>
@@ -400,7 +551,7 @@ for ins in ss_hlo.instructions(comp.as_text()):          <span class="c"># name,
 #t-mesh ul.md-checks li{font-size:13.5px}
 </style>
 <p class="lead">Pick a model, a TPU slice and a split; see what each chip holds and how long a step's compute and communication take, from published chip specs and the scaling book's formulas.</p>
-<p>Everything on this tab is a <span class="der">derived</span> calculation, not a measurement: chip numbers are <span class="vend">Google's</span> (Cloud TPU docs, last updated 2026-10-13, as collected by the root's TPU and Pallas lab) and the per-link ICI bandwidth is the scaling book's table. What <em>was</em> measured is the structure of the byte formulas: on 8 simulated devices they reproduce the compiled programs within 0.4% (table at the bottom; the Reading tab's <a href="#" data-tab="t-read">Collective costs</a> explains them). The arithmetic is mirrored in <code>src/runs/ss_mesh.py</code> and checked against it.</p>
+<p>Everything on this tab is a <span class="der">derived</span> calculation, not a measurement: chip numbers are <span class="vend">Google's</span> (Cloud TPU docs, last updated 2026-10-13, as collected by the root's TPU and Pallas lab) and the per-link ICI bandwidth is the scaling book's table. What <em>was</em> measured is the structure of the byte formulas: on 8 simulated devices they reproduce the compiled programs within 0.4% (Reading, section 10, which tabulates them against the compiler). The arithmetic is mirrored in <code>src/runs/ss_mesh.py</code> and checked against it.</p>
 <div class="ss-card" id="md-card">
 <div class="ctl">
 <label>Model <select id="md-model"><option value="small">Running example (826,368)</option><option value="big">Scaled-up example (25.4M)</option><option value="llama3_8b">Llama 3 8B shapes</option><option value="llama3_70b" selected>Llama 3 70B shapes</option></select></label>
@@ -435,117 +586,18 @@ for ins in ss_hlo.instructions(comp.as_text()):          <span class="c"># name,
 <dt>W</dt><dd>bidirectional bandwidth of one ICI axis = 2 &times; one-way link (scaling book); M = number of physical axes the mesh axis spans</dd>
 </dl></div>
 </div>
-<div class="ss-card">
-<h4>Checked against the compiler (8 simulated devices, float32)</h4>
-<div class="tw"><table id="md-fc"><thead><tr><th>Model</th><th>Layout</th><th class="num">Formula</th><th class="num">Compiled</th><th class="num">Ratio</th></tr></thead><tbody></tbody></table></div>
-<p class="ss-src">Same byte structure as above, in float32 and CPU form (FSDP's reduce-scatter appears as all-reduce; TP's backward has 4 all-reduces per layer instead of 2). Speeds were not checked: they cannot be on a CPU.</p>
-</div>
-</div>
-<div class="tab" id="t-pipe" role="tabpanel" hidden>
-<style>#t-pipe .tw table{min-width:640px}</style>
-<p class="lead">A pipeline gives each group of devices a run of consecutive layers and streams microbatches through them. Here it is written in JAX by hand, run on the running example, and checked against one device.</p>
-<p><b>The problem.</b> When a model's layers do not fit, or the links between groups of devices are slow, you can cut the model by depth: <dfn>stages</dfn> of consecutive layers, each on its own devices, passing activations forward and gradients back. To keep stages busy the batch is cut into <dfn>microbatches</dfn>. Stages still idle at the start and the end: the <dfn>bubble</dfn>. The general theory and the GPU schedules (1F1B, interleaved, zero bubble, DualPipe) are on <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> and the <a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a> page's "Pipeline schedules" tab; this tab is about how JAX does it.</p>
-<p><b>How JAX does it.</b> No propagator invents a pipeline: it is a loop over time. The GSPMD paper reduced it to sharding (<a href="https://arxiv.org/abs/2105.04663" target="_blank" rel="noopener noreferrer">section 3.3</a>): keep a buffer with one slot per stage, run every stage's layer at once with <code>vmap</code>, and shift the buffer by one each iteration; shard the stage dimension and "GSPMD will turn the buffer shifting into cross-device communication via CollectivePermute". MaxText's pipeline is this design: a <code>jax.vmap</code> over stages (<span id="pp-ref-vmap"></span>) and <code>shard_map</code> rotations with <code>ppermute</code> over the <code>stage</code> axis (<span id="pp-ref-rot"></span>). The version below writes the per-device loop directly in <code>shard_map</code>, which is easier to read, and lets <code>jax.grad</code> differentiate the whole loop: the backward pass is the forward schedule run in reverse (GPipe's order: all forwards, then all backwards).</p>
-<div class="ss-card" id="pi-card">
-<h4>The real schedule, tick by tick</h4>
-<div class="seg" id="pi-run"><span class="lbl">Run</span></div>
-<p class="small" id="pi-desc"></p>
-<div class="ss-svg" id="pi-svg"></div>
-<div class="an-ctl" id="pi-ctl"></div>
-<div class="ss-cap" id="pi-cap"></div>
-<div class="ss-cnt" id="pi-cnt"></div>
-<p class="ss-src">Each column is one loop iteration of <code>stage_fn</code> below; a cell is what that stage computes (microbatch m, repeat r for circular runs); grey cells are bubble ticks, which compute on zeros and are discarded. Arrows are the <code>ppermute</code> at the end of the tick. Backward: the same grid right to left.</p>
-</div>
-<div class="ss-card">
-<h4>Measured on the running example</h4>
-<div class="tw"><table id="pi-t"><thead><tr><th>Schedule</th><th class="num">Stages S</th><th class="num">Micro-batches M</th><th class="num">Repeats R</th><th>Layers per stage</th><th class="num">Ticks</th><th class="num">Bubble</th><th>Collectives (forward + backward)</th><th class="num">Loss / gradient vs one device</th><th class="num">Temp per device</th></tr></thead><tbody></tbody></table></div>
-<p class="ss-src"><span class="meas">measured</span> <code>src/runs/ss_pipe.py</code>, batch 0 of the running example (32 sequences, so a microbatch is 32/M sequences), mesh (stage S, data 8/S), Auto axes, jax 0.11.2. Bubble = idle stage-ticks / all stage-ticks in the forward schedule, which equals the formula (S&minus;1)/(MR+S&minus;1) exactly in every run, the same formula MaxText's config states: <code id="pi-mt"></code> (<span id="pp-ref-bub"></span>). Collective-permutes: one forward per tick except the last, and the same number backward.</p>
-</div>
-<h3>The code that ran</h3>
-<p>Per device (inside <code>jax.shard_map</code> over the mesh axes <code>stage</code> and <code>data</code>); <code>layers</code> holds only this stage's blocks, stacked, and <code>x</code> all microbatches of this device's data shard:</p>
-<pre id="pi-code"></pre>
-<p>Three details carry the design. The stage index comes from <code>jax.lax.axis_index("stage")</code>, so one program serves every stage: whether a device reads a new microbatch or the buffer is a <code>jnp.where</code>, not Python control flow. <code>rot</code> sends stage j's output to j+1 and the last stage's back to stage 0: for circular schedules that is the path to the next repeat (stage 0 keeps it in <code>circ</code> until its turn). And the result is handed to every stage with a <code>psum</code> over <code>stage</code> of the last stage's outputs, an all-reduce you could avoid by computing the loss on the last stage only.</p>
-<div class="co warn"><div class="t">The microbatching mistake, measured</div><p class="small" id="pi-mist"></p></div>
-<h3>Circular schedules: why repeats shrink the bubble</h3>
-<p>With R repeats each stage holds R non-consecutive blocks of layers (stage 0 of 2: layers 0 and 2; stage 1: layers 1 and 3) and every microbatch goes round the ring R times. A tick now costs 1/R of a GPipe tick, and the S&minus;1 bubble ticks are 1/R as long: on the running example, 2 stages with 4 microbatches, the bubble falls from 1/5 (GPipe, ticks of 2 layers) to 1/9 (circular, ticks of 1 layer). The price is R times as many transfers (16 collective-permutes against 8) and a ring back from the last stage to the first. MaxText's config notes the trade-off: more layers per stage "the easier it is to hide the pipeline communication behind the compute", more repeats a smaller bubble. With M = S (the 2-microbatch run) the circular schedule needs no storage at stage 0: the last stage's output arrives exactly when stage 0 needs it.</p>
-<p class="ss-src">Not run here: 1F1B or zero-bubble orderings, which need the backward of each microbatch scheduled by hand (for example with <code>jax.vjp</code> per stage) instead of differentiating the whole loop; and timing, which on simulated CPU devices would mean nothing.</p>
-</div>
-<div class="tab" id="t-moe" role="tabpanel" hidden>
-<style>#t-moe .tw table{min-width:640px}</style>
-<p class="lead">In a mixture-of-experts layer each token goes to a few of many expert MLPs. Put one expert per device and tokens must travel to their experts and back: two all-to-alls per layer. Here it is written in JAX, run on the running example's tokens, and compared with what propagation emits for the same maths.</p>
-<p><b>The setup</b> (<code>src/runs/ss_moe.py</code>): the 4,096 tokens of the running example's batch 0, taken after block 0 and the next LayerNorm ([4,096, 128]), 512 on each of 8 devices; a router [128, 8] and 8 expert MLPs (128 &rarr; 256 &rarr; 128, exact GELU), one per device. The router and experts are new seeded weights, <span class="ill">illustrative, not trained</span>: the routing is lopsided (expert 6 is wanted by 120 to 150 of each device's 512 tokens, expert 1 by 21 to 35), which makes capacity visible. Each device routes its own tokens (Switch Transformer's groups); <dfn>capacity</dfn> C = &lceil;capacity factor &times; 512 &times; k / 8&rceil; tokens per expert per device; tokens over capacity are dropped (the layer outputs 0 for them, the residual stream carries them). Top-1 is Switch's routing (<a href="https://app.notion.com/p/3c65c17b0d0d81a8b541c9babbf40c94" target="_blank" rel="noopener noreferrer">Switch Transformers paper page</a>), top-2 GShard's and Mixtral's (<a href="https://app.notion.com/p/3c65c17b0d0d81eba72af0ac91ddc6b3" target="_blank" rel="noopener noreferrer">Mixtral paper page</a>).</p>
-<div class="ss-card" id="mo-card">
-<h4>One MoE layer, step by step</h4>
-<div class="seg" id="mo-k"><span class="lbl">Routing</span><button data-m="1" class="on">Top-1</button><button data-m="2">Top-2</button></div>
-<div class="seg" id="mo-cf"><span class="lbl">Capacity factor</span><button data-m="1">1.0</button><button data-m="1.25" class="on">1.25</button><button data-m="2">2.0</button></div>
-<div class="ss-svg" id="mo-svg"></div>
-<div class="an-ctl" id="mo-ctl"></div>
-<div class="ss-cap" id="mo-cap"></div>
-<div class="ss-cnt" id="mo-cnt"></div>
-<p class="ss-src">Cell (device g, expert e): tokens on device g that chose expert e (the real router output); filled part: tokens that fit in the capacity C and are sent; hatched: dropped. Rows of the matrix are what each device sends; columns are what each expert's device receives.</p>
-</div>
-<div class="ss-card">
-<h4>Hand-written against propagation, all six configurations</h4>
-<div class="tw"><table id="mo-t"><thead><tr><th>Routing</th><th class="num">Capacity factor</th><th class="num">C</th><th class="num">Dropped</th><th>shard_map: forward / backward</th><th>Propagation: forward / backward</th><th class="num">Error vs one device</th></tr></thead><tbody></tbody></table></div>
-<p class="ss-src"><span class="meas">measured</span> jax 0.11.2, 8 simulated CPU devices. "Propagation" is the same einsum dispatch written for one device (GShard's formulation), with the groups and the experts annotated <code>P('expert')</code> and a <code>with_sharding_constraint</code> on the dispatched tensor and on the expert outputs. Error: output / gradients against a one-device reference with the same routing and drops.</p>
-</div>
-<h3>The code that ran</h3>
-<pre id="mo-code"></pre>
-<p><code>all_to_all(x, axis, split_axis=0, concat_axis=0, tiled=True)</code> cuts this device's [8, C, 128] block along the expert dimension, sends slice e to device e, and stacks what arrives along the same dimension: afterwards dimension 0 means "which device it came from". The second all-to-all is the exact inverse. The backward pass transposes each all-to-all into another all-to-all (3 in the compiled gradient program, plus a small all-reduce for the router's replicated weights).</p>
-<h3>What production code does differently</h3>
-<ul class="tight">
-<li><b>No fixed capacity.</b> Padding every expert to C wastes compute and drops tokens. MaxText's default is <code>capacity_factor: -1.0 # ... no dropping by default</code> (<span id="mo-ref-cap"></span>) and it sends exactly the tokens each expert needs with <code>jax.lax.ragged_all_to_all</code> (<span id="mo-ref-rag"></span>; the primitive at <span id="mo-ref-prim"></span>), then runs the experts as one grouped matmul (megablox).</li>
-<li><b>Load balancing.</b> A router trained with an auxiliary balance loss (or DeepSeek's bias term) evens out the columns above; untrained, it does not.</li>
-<li><b>Experts per device.</b> With more experts than devices each device holds several; with fewer, an expert is sharded over several devices (tensor parallelism inside the expert).</li>
-</ul>
-<p class="ss-src">Memory and traffic of MoE training at scale are on the <a href="https://app.notion.com/p/3e95c17b0d0d8148a1f3d412918234fc" target="_blank" rel="noopener noreferrer">MoE memory bottlenecks paper page</a>; the MoE concept on the <a href="https://app.notion.com/p/3c65c17b0d0d8103a916c4824abbd82e" target="_blank" rel="noopener noreferrer">Distributed Training</a> page.</p>
-</div>
-<div class="tab" id="t-multi" role="tabpanel" hidden>
-<style>#t-multi .tw table{min-width:520px}</style>
-<p class="lead">Two Python processes, four devices each, one global mesh of eight: the running example's data-parallel train step run the multi-host way on one machine, and compared with the same step in one process.</p>
-<p>On a TPU slice bigger than one host, every host runs the same script. To try that without a slice, <code>src/runs/ss_multi.py</code> starts two processes on this machine, each with 4 simulated CPU devices (<code>--xla_force_host_platform_device_count=4</code>), and connects them with <code>jax.distributed.initialize</code> over localhost; collectives between the processes go over gloo, JAX's default for CPU. Each process loads only its half of every batch. <span class="meas">measured</span> jax 0.11.2.</p>
-<div class="ss-card" id="mu-card">
-<h4>One step, two ways</h4>
-<div class="seg" id="mu-mode"><span class="lbl">Run as</span><button data-m="2" class="on">Two processes x 4 devices</button><button data-m="1">One process x 8 devices</button></div>
-<div class="ss-svg" id="mu-svg"></div>
-<div class="an-ctl" id="mu-ctl"></div>
-<div class="ss-cap" id="mu-cap"></div>
-</div>
-<h3>The code each process ran</h3>
-<pre id="mu-init"></pre>
-<p>then, per step, the process builds the global batch from its own rows:</p>
-<pre id="mu-loop"></pre>
-<p>and calls the same jitted step as on one host (<code>jax.jit(step, in_shardings=(rep, rep, xs, xs), out_shardings=(rep, rep, rep), donate_argnums=(0, 1))</code>, data parallel over a mesh of all 8 global devices).</p>
-<div class="ss-card">
-<h4>What each process saw</h4>
-<div class="tw"><table id="mu-t"><thead><tr><th></th><th>Process 0</th><th>Process 1</th></tr></thead><tbody></tbody></table></div>
-<div id="mu-loss"></div>
-</div>
-<h3>The two errors you will meet</h3>
-<div id="mu-err"></div>
-<h3>On a real slice</h3>
-<ul class="tight">
-<li><b>Launching.</b> The same script is started on every host of the slice (on Cloud TPU, one command over all workers; under GKE or Slurm, one pod or task per host). <code>jax.distributed.initialize()</code> then needs no arguments: the JAX guide lists Slurm, Kubernetes and Cloud TPU as environments where they "are automatically populated". Not run here.</li>
-<li><b>Data.</b> Each host reads only its shard of the data. The data loader's job is to give host h the rows that its devices hold under the batch sharding; <code>make_array_from_process_local_data</code> assembles the global array without communication. Deterministic, checkpointable per-host loading with grain is on the <a href="https://app.notion.com/p/3c65c17b0d0d817ea0ace9a2ca8677ec" target="_blank" rel="noopener noreferrer">training stack</a> page.</li>
-<li><b>Checkpoints and logging.</b> Orbax writes and restores sharded arrays from every host (training stack page). Logging only from <code>jax.process_index() == 0</code> is fine; putting a <code>device_put</code> or a jitted call under that condition is not: the guide warns it "would lead to a deadlock as only process 0 initiates the collective communication".</li>
-<li><b>Across slices.</b> Multislice jobs add the data-centre network between slices; MaxText's <code>dcn_*_parallelism</code> settings put data parallelism there (Reading tab, <a href="#" data-tab="t-read">Choosing a mesh</a>).</li>
-</ul>
 </div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more">
 <p class="lead">This page's tabs, the knowledge base pages it leans on, and the best outside resources, each with an approximate time. Outside sources are marked <b>Google</b> (written by the makers of JAX, XLA or the TPU: authoritative on how things work, not neutral on whether to use them) or <b>third-party</b>. Links checked on 2026-10-15.</p>
 <h3>This page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>Auto, Explicit and Manual sharding; how GSPMD and Shardy propagate and where they differ; Explicit mode on the running example; every strategy measured at two sizes; context parallelism; collective cost models checked against the compiler; choosing a mesh; many hosts; debugging; mistakes; interview questions. <span class="rt">about 35 min, plus 10 for tables, code and answers</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-prop">Propagation explorer</a></div><p>One block, five annotation cases, both propagators: every operation's sharding read from the post-propagation HLO, before and after, and the whole-step differences by source line. <span class="rt">about 12 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-mesh">Mesh designer</a></div><p>Model, slice, batch, FSDP and tensor degrees: memory per device, compute and communication per step, the scaling book's conditions and the topology check, with the byte formulas checked against compiled programs. <span class="rt">about 8 min, longer to explore</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-pipe">Pipeline</a></div><p>GPipe and circular schedules written with <code>shard_map</code> and <code>ppermute</code>, animated tick by tick from the real runs, gradients checked, the microbatching mistake measured. <span class="rt">about 10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-moe">Experts (MoE)</a></div><p>A tiny MoE layer with expert parallelism: real routing counts, capacity and drops, dispatch and combine by all-to-all, against what propagation emits. <span class="rt">about 8 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-multi">Many processes</a></div><p>Two processes, four devices each, one global mesh: per-host data loading, what each process can see, and the two errors you will meet. <span class="rt">about 7 min</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>Mesh and PartitionSpec; Auto, Explicit and Manual sharding; how GSPMD and Shardy propagate and where they differ (stepper over the real dumps); Explicit mode on the running example; shard_map and its collectives; every strategy measured at two sizes; context, pipeline and expert parallelism written by hand; byte formulas checked against the compiler; choosing a mesh; many hosts; debugging. <span class="rt">about 38 min, plus 28 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-mesh">Mesh designer</a></div><p>Model, slice, batch, FSDP and tensor degrees: memory per device, compute and communication per step, the scaling book's conditions and the topology check, with byte formulas checked against compiled programs (Reading, section 10). <span class="rt">about 3 min, longer to explore</span></p></div>
 </div>
 <h3>The parent topic and its sibling pages</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a></div><p>The root: read its "Sharding lab" tab before this page (three objects, five collectives, playground, six layouts) and its "TPU and Pallas lab" for how mesh axes land on the torus. <span class="rt">about 27 min Reading; 28 min Sharding lab</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a></div><p>The root: its "Sharding lab" tab has a PartitionSpec playground, ring collectives and six layouts of the running example that this page builds on, and its "TPU and Pallas lab" shows how mesh axes land on the torus. <span class="rt">about 27 min Reading; 28 min Sharding lab</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a></div><p>Tracing, jaxprs, vmap and its <code>spmd_axis_name</code>: the machinery <code>shard_map</code> and the pipeline's vmap sit on.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3fa5c17b0d0d8135adcedefac9e1bb48" target="_blank" rel="noopener noreferrer">XLA and compilation</a></div><p>The pass pipeline the SPMD partitioner sits in, HLO dumps, fusion and buffer assignment.</p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817ea0ace9a2ca8677ec" target="_blank" rel="noopener noreferrer">The JAX training stack</a></div><p>Sharding annotations on Flax NNX parameters, orbax sharded checkpoints and restore onto a different mesh, grain's per-host loading.</p></div>
@@ -568,7 +620,7 @@ for ins in ss_hlo.instructions(comp.as_text()):          <span class="c"># name,
 <div class="sp"><div class="n"><a href="https://docs.jax.dev/en/latest/multi_process.html" target="_blank" rel="noopener noreferrer">JAX: multi-controller JAX</a></div><p><b>Google</b>. Processes, global and local devices, building global arrays, the same-order rule. <span class="rt">about 25 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://openxla.org/shardy/propagation" target="_blank" rel="noopener noreferrer">Shardy: propagation</a> and <a href="https://openxla.org/shardy/sharding_representation" target="_blank" rel="noopener noreferrer">sharding representation</a></div><p><b>Google</b> (OpenXLA). Factor-based rules, priorities, open and closed dimensions. <span class="rt">about 30 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2105.04663" target="_blank" rel="noopener noreferrer">GSPMD (Xu et al., 2021)</a></div><p><b>Google</b>. Sharding representation, propagation with priorities (section 3.5), pipelining as sharding (3.3), the partitioner. <span class="rt">about 1 h</span></p></div>
-<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2006.16668" target="_blank" rel="noopener noreferrer">GShard (Lepikhin et al., 2020)</a></div><p><b>Google</b>. Mixture-of-experts with annotations and all-to-all dispatch: the einsum formulation the MoE tab's propagation variant follows. <span class="rt">about 1 h</span></p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2006.16668" target="_blank" rel="noopener noreferrer">GShard (Lepikhin et al., 2020)</a></div><p><b>Google</b>. Mixture-of-experts with annotations and all-to-all dispatch: the einsum formulation section 9's propagation variant follows. <span class="rt">about 1 h</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/2310.01889" target="_blank" rel="noopener noreferrer">Ring Attention (Liu, Zaharia, Abbeel, 2023)</a></div><p><b>third-party</b> (UC Berkeley). Blockwise attention with K/V passed round a ring. <span class="rt">about 40 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://github.com/AI-Hypercomputer/maxtext" target="_blank" rel="noopener noreferrer">MaxText</a></div><p><b>Google</b>. Read <code>configs/base.yml</code> (mesh axes, ICI and DCN degrees, logical axis rules) and <code>layers/pipeline.py</code>, <code>layers/moe.py</code>; quoted here at main 1a95d1e5. <span class="rt">about 1 h</span></p></div>
 <div class="sp"><div class="n"><a href="https://arxiv.org/abs/1811.06992" target="_blank" rel="noopener noreferrer">Image Classification at Supercomputer Scale (Ying et al., 2018)</a></div><p><b>Google</b>. Where the 2-D torus all-reduce on TPU pods comes from. <span class="rt">about 30 min</span></p></div>
@@ -578,9 +630,9 @@ for ins in ss_hlo.instructions(comp.as_text()):          <span class="c"># name,
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab (Topic: evaluation-and-llm-judges): shared helpers, copied from Topic: benchmarks and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -611,7 +663,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -648,7 +700,7 @@ window.SS={"code":{"pipe":"    def stage_fn(layers, x):\n        \"\"\"Per devic
 </script>
 <script>/* 23_js_ss_util.js */
 // ---- Shared helpers for this page's tabs (prefix ss). SSU.anim is RD.anim for any tab: it animates only while its
-// card is on screen in the visible tab, plays once when first seen, never autoplays under prefers-reduced-motion. ----
+// card is on screen in the visible tab and never autoplays: it waits on step 0 until the reader presses play or steps. ----
 window.SSU=(function(){
   const RM=RD.RM, esc=RD.esc;
   const onTab=(tab,f)=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER[tab]=window.TAB_RENDER[tab]||[]).push(f)};
@@ -675,8 +727,7 @@ window.SSU=(function(){
     $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onTab(o.tab,()=>{show();kick()});
     show();
@@ -695,13 +746,14 @@ window.SSU=(function(){
 })();
 </script>
 <script>/* 24_js_ss_read1.js */
-// ---- Reading tab, part 1: one-screen table, source refs, propagation diff, drill, explicit ladder, strategies chart ----
+// ---- Reading tab, part 1 (sections 0 to 6): one-screen table, source refs, propagation diff, drill, explicit ladder, strategies chart ----
 (function(){
   const U=SSU, esc=U.esc, $=id=>document.getElementById(id);
   // source references: <span id="ss-ref-KEY"> -> file:line at the pinned version
   const REF={mm:'make_mesh_explicit_default',sdy:'shardy_flag',aa:'auto_axes',mtmode:'mt_shard_mode',x1:'xla_cpu_shardy',x2:'xla_cpu_gspmd',
     x3:'xla_gpu_arr',gerr:'gather_err',cerr:'contracting_err',cps:'mt_cp_strategy',cpb:'mt_cp_balance',mtaxes:'mt_mesh_axes',mtdcn:'mt_dcn_tensor',
-    mtrules:'mt_rules',dist:'dist_init',gloo:'cpu_coll_default',mapl:'make_array_pl',rag:'mt_moe_ragged'};
+    mtrules:'mt_rules',dist:'dist_init',gloo:'cpu_coll_default',mapl:'make_array_pl',rag:'mt_moe_ragged',
+    mk:'make_mesh',dup:'dup_spec',wsc:'wsc',n2g:'named_to_gspmd',n2s:'named_to_sdy',smap:'shard_map',ag:'all_gather',ps:'psum_scatter',a2a:'all_to_all',pp:'ppermute'};
   document.querySelectorAll('[id^="ss-ref-"]').forEach(el=>{const k=REF[el.id.slice(7)];if(k)el.innerHTML=U.ref(k)});
 
   // one-screen table (scaled-up model)
@@ -718,8 +770,8 @@ window.SSU=(function(){
   const tb=$('ss-one-t').querySelector('tbody');
   tb.innerHTML=ROWS.map(r=>{const l=byId[r[4]];return '<tr><td><a href="'+r[1]+'">'+r[0]+'</a></td><td>'+r[2]+'</td><td>'+r[3]+'</td><td>'+collTxt(l)+'</td><td class="num">'+U.MB(l.param_bytes_per_device+l.opt_bytes_per_device)+'</td><td>'+r[5]+'</td></tr>'}).join('')+
     '<tr><td><a href="#s-cp">Context</a></td><td>the sequence</td><td><code>shard_map</code>: ring of <code>ppermute</code>, or all-gather K, V</td><td>'+U.chip('collective-permute','permute: K, V blocks')+'</td><td class="num">as data parallel</td><td>Context Parallel (experimental)</td></tr>'+
-    '<tr><td><a href="#s-ppep">Pipeline</a></td><td>the layers, over time</td><td><code>shard_map</code> loop with <code>ppermute</code></td><td>'+U.chip('collective-permute','permute: activations')+'</td><td class="num">layers / stages</td><td><code>torch.distributed.pipelining</code></td></tr>'+
-    '<tr><td><a href="#s-ppep">Expert</a></td><td>the experts of an MoE layer</td><td><code>shard_map</code> with two <code>all_to_all</code></td><td>'+U.chip('all-to-all','all-to-all: tokens')+'</td><td class="num">experts / devices</td><td>no core API (torchtitan, Megatron-Core)</td></tr>';
+    '<tr><td><a href="#s-pipe">Pipeline</a></td><td>the layers, over time</td><td><code>shard_map</code> loop with <code>ppermute</code></td><td>'+U.chip('collective-permute','permute: activations')+'</td><td class="num">layers / stages</td><td><code>torch.distributed.pipelining</code></td></tr>'+
+    '<tr><td><a href="#s-moe">Expert</a></td><td>the experts of an MoE layer</td><td><code>shard_map</code> with two <code>all_to_all</code></td><td>'+U.chip('all-to-all','all-to-all: tokens')+'</td><td class="num">experts / devices</td><td>no core API (torchtitan, Megatron-Core)</td></tr>';
 
   // typeof
   const t=SS.debug.typeof;$('ss-typeof').textContent='jax.typeof(w)      '+t.w+'\njax.typeof(x)      '+t.x+'\njax.typeof(x @ w)  '+t['x @ w'];
@@ -793,7 +845,7 @@ window.SSU=(function(){
 })();
 </script>
 <script>/* 25_js_ss_read2.js */
-// ---- Reading tab, part 2: context-parallel animation, cost calculator, formula check, mesh, multi-host, debugging, mistakes, old page ----
+// ---- Reading tab, part 2: context-parallel animation, cost calculator, formula check, mesh, multi-host, debugging, old page ----
 (function(){
   const U=SSU, esc=U.esc, $=id=>document.getElementById(id);
   // ---------- context parallelism: ring vs all-gather on the same 8 x 8 grid of (query block, key block) ----------
@@ -887,30 +939,13 @@ window.SSU=(function(){
       ['What is the sharding type?','<code>jax.typeof(x)</code> on an Explicit mesh','<code>'+esc(D.typeof['x @ w'])+'</code>'],
       ['Which collectives, how big, from which line?','<code>jit(f).lower(*a).compile().as_text()</code>, grouped by source line','See below: the surprise all-gathers of the unconstrained FSDP step.'],
       ['How much memory per device?','<code>compiled.memory_analysis()</code>','Arguments, outputs, aliases, temp. On CPU, use the temp field: <code>peak_memory_in_bytes</code> leaves it out (root Compiler lab).'],
-      ['What did propagation decide, op by op?','<code>XLA_FLAGS=--xla_dump_to=DIR --xla_dump_hlo_pass_re=shardy-xla|sharding-propagation</code>','One file per module after the pass; the <a href="#" data-tab="t-prop">Propagation explorer</a> is built from these. Dumps contain absolute paths: scrub before sharing.'],
+      ['What did propagation decide, op by op?','<code>XLA_FLAGS=--xla_dump_to=DIR --xla_dump_hlo_pass_re=shardy-xla|sharding-propagation</code>','One file per module after the pass; section 3\'s stepper is built from these. Dumps contain absolute paths: scrub before sharing.'],
       ['Did the partitioner give up somewhere?','XLA warnings on stderr','<code>[SPMD] Involuntary full rematerialization</code>, printed for the FSDP x tensor layout.'],
-      ['Do all hosts agree?','<code>jax.experimental.multihost_utils.assert_equal</code>; <code>device_put</code> runs it for you on replicated inputs','See <a href="#" data-tab="t-multi">Many processes</a>.']];
+      ['Do all hosts agree?','<code>jax.experimental.multihost_utils.assert_equal</code>; <code>device_put</code> runs it for you on replicated inputs','See section 12.']];
     $('ss-dbg-t').innerHTML=rows.map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td class="small">'+r[2]+'</td></tr>').join('').replace(/\{\{([^|{}]+)\|#(t-[\w-]+)\}\}/g,'<a href="#" data-tab="$2">$1</a>');
     RD.tabLinks($('ss-dbg-t'));
     const ag=P.filter(r=>r[0]==='all-gather'&&/model_jax\.py:68/.test(r[1]));
     $('ss-surprise').innerHTML=ag.map(r=>r[3]+' all-gathers at <code>model_jax.py:68</code> ('+r[2]+', '+U.MB(r[4])+' in all)').join(' and ')+', the line <code>return linear(p["fc2"], jax.nn.gelu(linear(p["fc1"], x), approximate=False))</code>';
-  })();
-
-  // ---------- mistakes ----------
-  (function(){
-    const E=SS.explicit.runs,err=(l,f)=>{const r=E.find(x=>x.layout===l&&String(x.fix)===f);return r?r.error.split('\n')[0]:''};
-    const ms=[
-      ['Assuming <code>jax.make_mesh</code> gives Auto axes','It gives Explicit axes in jax 0.11.2: code from older tutorials then fails at the embedding lookup with',err('dp','null'),'Pass <code>axis_types=(AxisType.Auto,) * n</code> to keep Auto behaviour, or embrace Explicit mode and add <code>out_sharding=</code> where asked.'],
-      ['Splitting a weight on the same mesh axis as the batch, in Explicit mode','FSDP shards weights on the data axis; the embedding row lookup then produces an array split twice on one axis:',err('fsdp','null'),'Gather the weight first: <code>jax.reshard(w, P())</code> (that is the FSDP all-gather, written down).'],
-      ['Adding arrays split on the same axis along different dimensions','',err('fsdp','emb'),'Same fix: reshard one operand.'],
-      ['Leaving a row-parallel matmul ambiguous','',err('tp','emb'),'<code>jnp.einsum(..., out_sharding=P(\'data\', None, None))</code>: you decide whether and where the partial sums are added.'],
-      ['Tensor-parallel degree larger than the number of heads','No error at all: 8-way tensor parallelism on the 4-head running example compiled and ran, and moved 1.33 times the bytes the formula predicts.','','Keep the degree a divisor of the (KV) head count.'],
-      ['Contiguous microbatches in a pipeline','No error: splitting a batch-sharded batch into contiguous microbatches cut across the data shards and cost an all-to-all and an all-gather per step (Pipeline tab).','','Take microbatch m as rows m, m+M, m+2M, ...: each device keeps its own rows.'],
-      ['Reading a global array on one host','',SS.multi.normal.processes[0].np_asarray_global,'<code>multihost_utils.process_allgather(x)</code> (copies everything everywhere), or <code>x.addressable_shards</code>.'],
-      ['Hosts starting from different values','Process 1 added 0.001 to its weights before <code>device_put</code> to a replicated sharding:',(SS.multi.mismatch.processes[0].device_put_error||'').split(' Make sure')[0],'Initialise from the same seed on every host, or initialise inside jit with sharded outputs.'],
-      ['Trusting propagation for activations','No error; the unconstrained FSDP step all-gathered whole-batch MLP activations (Debugging, above).','','A <code>with_sharding_constraint</code> on the residual stream per block, or Explicit mode.'],
-      ['Reading CPU results as TPU results','No error; on CPU, FSDP gradients are all-reduced and sliced, not reduce-scattered, and tensor-parallel backward all-reduces are not merged.','','Count logical bytes, not op names, and check on the target backend before tuning.']];
-    $('ss-mist').innerHTML=ms.map(m=>'<details class="mist"><summary>'+m[0]+'</summary><div class="b">'+(m[1]?'<p>'+m[1]+'</p>':'')+(m[2]?'<pre class="err">'+esc(m[2])+'</pre>':'')+'<p><b>Fix.</b> '+m[3]+'</p></div></details>').join('');
   })();
 
   // ---------- old page ----------
@@ -926,8 +961,81 @@ window.SSU=(function(){
     '<b>Added</b> (absent from the old page): how GSPMD and Shardy propagate, measured differences between them, Explicit mode on a real model, HSDP, context, pipeline and expert parallelism run for real, cost formulas checked against compiled byte counts, mesh choice for a slice, a multi-process run, and the debugging toolkit.'].map(x=>'<li>'+x+'</li>').join('');
 })();
 </script>
+<script>/* 26_js_ss_read0.js */
+// ---- Reading tab, part 0 (2026-10-23 rebuild): the hero's mesh, the PartitionSpec widget (section 1), the shard_map diagram (section 5).
+// Everything here is derived from the definitions (a 2 x 4 mesh, fc1 [128, 512] float32); P('data','model') matches the measured
+// visualize_array_sharding output (SS.debug.shard_shapes).
+(function(){
+  const U=SSU, esc=U.esc, $=id=>document.getElementById(id);
+  if(!$('ss-hero-mesh'))return;
+  const AX={data:2,model:4}, ROWS=128, COLS=512, BYTES=ROWS*COLS*4;
+  const SPECS=[
+    {t:"P()",r:[],c:[],note:'Replicated: all 8 devices hold the whole weight. Data parallelism keeps weights like this.'},
+    {t:"P('data', None)",r:['data'],c:[],note:'Rows split over <code>data</code>: the 4 devices of each <code>data</code> row hold the same half. FSDP on a 1-D mesh is this split, over all 8 devices.'},
+    {t:"P(None, 'model')",r:[],c:['model'],note:'Columns split over <code>model</code>, copied over <code>data</code>: each block lives on 2 devices. Megatron\'s column-parallel weight.'},
+    {t:"P('data', 'model')",r:['data'],c:['model'],note:'Both dimensions split: every element lives on exactly one device, (64, 128) each, as <code>visualize_array_sharding</code> printed for this weight here (<span class="meas">measured</span>). The FSDP x tensor layout of section 6.'},
+    {t:"P('model', 'data')",r:['model'],c:['data'],note:'The same two axes the other way round: rows split 4 ways, columns 2 ways, (32, 256) each. Same memory, different blocks, so a different set of collectives wherever this weight meets an activation.'},
+    {t:"P(None, ('data', 'model'))",r:[],c:['data','model'],note:'One dimension split over both axes, <code>data</code> major: device (d, m) holds column block 4d + m of 8, (128, 64) each.'}];
+  const COL=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--acc)','var(--bad)'];
+  const parts=a=>a.reduce((p,x)=>p*AX[x],1);
+  const idx=(a,d,m)=>a.reduce((v,x)=>v*AX[x]+(x==='data'?d:m),0);
+  // draw the 2 x 4 mesh; in each device a mini [128, 512] matrix with the block it holds filled
+  function mesh(el,sp,small){
+    const W=U.width(el),lab=small?44:58,top=small?16:18,gap=4,bw=Math.min(small?120:150,(W-lab-gap*4)/4),mw=bw-12,mh=Math.max(14,mw/4),bh=mh+(small?34:38);
+    const kr=parts(sp.r),kc=parts(sp.c);
+    let s='';
+    for(let m=0;m<4;m++)s+=RD.t(lab+m*(bw+gap)+bw/2,top-5,'model '+m,{a:'middle',fs:11,fill:'var(--c2)'});
+    for(let d=0;d<2;d++){const y=top+d*(bh+gap);
+      s+=RD.t(lab-6,y+bh/2+4,'data '+d,{a:'end',fs:11,fill:'var(--c1)'});
+      for(let m=0;m<4;m++){const x=lab+m*(bw+gap),dev=d*4+m,ri=idx(sp.r,d,m),ci=idx(sp.c,d,m),blk=ri*kc+ci;
+        s+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="6" fill="var(--soft)" stroke="var(--line)"/>';
+        s+=RD.t(x+6,y+13,(bw<90?'dev ':'device ')+dev,{fs:11,w:600});
+        const mx=x+6,my=y+18;
+        s+='<rect x="'+mx+'" y="'+my+'" width="'+mw+'" height="'+mh+'" fill="var(--bg)" stroke="var(--mute)" stroke-width=".8"/>';
+        s+='<rect x="'+(mx+ci*mw/kc)+'" y="'+(my+ri*mh/kr)+'" width="'+(mw/kc)+'" height="'+(mh/kr)+'" fill="'+COL[blk%8]+'" fill-opacity=".8"/>';
+        s+=RD.t(x+bw/2,y+bh-6,'('+ROWS/kr+', '+COLS/kc+')',{a:'middle',fs:11})}}
+    el.innerHTML=RD.svg(lab+4*(bw+gap),top+2*(bh+gap),s,'A 2 by 4 mesh of devices; each holds the block of the 128 by 512 weight that '+sp.t+' assigns it');
+  }
+  // hero
+  const hero=()=>mesh($('ss-hero-mesh'),SPECS[3],true);
+  // widget
+  let cur=3;
+  function widget(){
+    const sp=SPECS[cur],kr=parts(sp.r),kc=parts(sp.c),copies=8/(kr*kc);
+    mesh($('ss-spec-svg'),sp,false);
+    $('ss-spec-cnt').innerHTML=RD.stat('per device','('+ROWS/kr+', '+COLS/kc+')',U.num(BYTES/(kr*kc))+' bytes')+
+      RD.stat('copies of each element',copies,copies>1?'over the axes the spec does not name':'every element on one device')+
+      RD.stat('bytes over all 8 devices',U.num(BYTES*copies),'weight alone: '+U.num(BYTES));
+    $('ss-spec-note').innerHTML='<b>'+esc(sp.t)+'.</b> '+sp.note+' <span class="der">derived</span> from the spec and the mesh (data 2, model 4).';
+  }
+  U.seg($('ss-spec-seg'),v=>{cur=+v;widget()});
+  // shard_map diagram: global x [32, 128] -> 8 local [4, 128] -> psum -> replicated output
+  function smap(){
+    const el=$('ss-sm-svg'),W=U.width(el),two=W<560,per=two?4:8,gap=6,bw=(W-gap*(per-1))/per,bh=50;
+    const rowsY=[74],nrow=two?2:1;if(two)rowsY.push(74+bh+gap);
+    const yb=rowsY[nrow-1]+bh+14,H=yb+70;
+    let s=RD.t(0,13,'x [32, 128] with in_specs=P(\'data\')',{fs:11.5,w:600});
+    const sw=W/8;
+    for(let k=0;k<8;k++){s+='<rect x="'+(k*sw+1)+'" y="20" width="'+(sw-2)+'" height="18" rx="2" fill="'+COL[k]+'" fill-opacity=".75"/>';
+      s+=RD.t(k*sw+sw/2,33,(W<520?'':'rows ')+(4*k)+'-'+(4*k+3),{a:'middle',fs:W<520?9.5:11,fill:'var(--bg)',w:600})}
+    s+=RD.t(W/2,58,'shard_map: one call of f per device, on its own block',{a:'middle',fs:11,fill:'var(--mute)'});
+    for(let k=0;k<8;k++){const r=Math.floor(k/per),c=k%per,x=c*(bw+gap),y=rowsY[r];
+      s+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="5" fill="var(--soft)" stroke="var(--line)"/>';
+      s+='<rect x="'+(x+4)+'" y="'+(y+4)+'" width="'+(bw-8)+'" height="8" rx="2" fill="'+COL[k]+'" fill-opacity=".75"/>';
+      s+=RD.t(x+bw/2,y+27,'device '+k,{a:'middle',fs:11,w:600});
+      s+=RD.t(x+bw/2,y+42,'f on [4, 128]',{a:'middle',fs:11})}
+    s+='<rect x="0" y="'+yb+'" width="'+W+'" height="22" rx="4" fill="var(--c2)" fill-opacity=".22" stroke="var(--c2)"/>';
+    s+=RD.t(W/2,yb+15,(W<520?'psum(g, \'data\'): all-reduce over 8 devices':'jax.lax.psum(g, \'data\'): an all-reduce over the 8 devices'),{a:'middle',fs:11,w:600});
+    s+=RD.t(W/2,yb+44,(W<520?'out_specs=P(): same g on every device':'out_specs=P(): the same summed g on every device'),{a:'middle',fs:11});
+    s+=RD.t(W/2,yb+62,(W<520?'only the psum moved bytes':'(the only bytes that moved are the ones the psum named)'),{a:'middle',fs:11,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,H,s,'shard_map splits x into 8 blocks of 4 rows, runs f per device, then a psum all-reduces the result');
+  }
+  function all(){hero();widget();smap()}
+  RD.onRender(all);RD.onResize(all);all();
+})();
+</script>
 <script>/* 31_js_ss_prop.js */
-// ---- Propagation explorer (t-prop): one block, five annotation cases, Shardy vs GSPMD, from the post-propagation HLO ----
+// ---- Reading section 3 (moved from the Propagation explorer tab): one block, five annotation cases, Shardy vs GSPMD, from the post-propagation HLO ----
 (function(){
   const U=SSU, esc=U.esc, $=id=>document.getElementById(id), P=SS.prop;
   const LBL={tp:'Tensor parallel',fsdp_w:'FSDP, weights only',fsdp_c:'FSDP + constraint',seq:'Sequence split',conflict:'Conflict'};
@@ -959,7 +1067,7 @@ window.SSU=(function(){
         (here.length?' The partitioner puts '+here.map(x=>U.chip(x[0],x[3]+' '+x[0]+', '+U.MB(x[4]))).join(' ')+' on this line.':'')}
     $('pp-cnt').innerHTML=RD.stat('operations assigned',(i)+' of '+R.length,'')+RD.stat('collectives so far',nc,U.MB(nb))+RD.stat('whole block',c[part].coll.reduce((s,x)=>s+x[3],0)+' collectives',U.MB(c[part].coll.reduce((s,x)=>s+x[4],0)));
   }
-  an=U.anim({tab:'t-prop',card:'pp-card',ctl:'pp-ctl',n:steps(),draw:drawAnim,ms:700,label:'Operation'});
+  an=U.anim({tab:'t-read',card:'pp-card',ctl:'pp-ctl',n:steps(),draw:drawAnim,ms:700,label:'Operation'});
   // ---------- table ----------
   function drawTable(){
     const c=P.cases[ci],A=c.shardy.rows,B={};c.gspmd.rows.forEach(r=>B[r[0]+'|'+r[1]+'|'+r[2]]=r[4]);
@@ -982,15 +1090,15 @@ window.SSU=(function(){
     const el=$('pp-full-svg'),W=U.width(el),lab=Math.min(190,W*0.42),bw=W-lab-70,rh=30,H=ks.length*rh+6;
     const mx=Math.max(...ks.map(k=>Math.max(by[k].shardy,by[k].gspmd)),1);
     let s='';ks.forEach((k,i)=>{const y=i*rh+3;s+=RD.t(lab-6,y+12,esc(k.length>30?k.slice(0,29)+'.':k),{a:'end',fs:11});
-      s+=RD.t(lab-6,y+24,[...by[k].kinds].join(', '),{a:'end',fs:9.5,fill:'var(--mute)'});
-      [['shardy','var(--c1)',0],['gspmd','var(--c2)',12]].forEach(q=>{const v=by[k][q[0]],w=Math.max(v?1:0,v/mx*bw);s+='<rect x="'+lab+'" y="'+(y+2+q[2])+'" width="'+w+'" height="10" fill="'+q[1]+'"><title>'+q[0]+': '+U.MB(v)+'</title></rect>'+RD.t(lab+w+4,y+11+q[2],v?U.MB(v):'0',{fs:10})})});
+      s+=RD.t(lab-6,y+24,[...by[k].kinds].join(', '),{a:'end',fs:11,fill:'var(--mute)'});
+      [['shardy','var(--c1)',0],['gspmd','var(--c2)',12]].forEach(q=>{const v=by[k][q[0]],w=Math.max(v?1:0,v/mx*bw);s+='<rect x="'+lab+'" y="'+(y+2+q[2])+'" width="'+w+'" height="10" fill="'+q[1]+'"><title>'+q[0]+': '+U.MB(v)+'</title></rect>'+RD.t(lab+w+4,y+11+q[2],v?U.MB(v):'0',{fs:11})})});
     el.innerHTML=RD.svg(W,H,s,'Collective bytes by source line, Shardy and GSPMD');
     const tot=p=>F[p].reduce((s,r)=>[s[0]+r[3],s[1]+r[4]],[0,0]),a=tot('shardy'),b=tot('gspmd');
     $('pp-full-note').innerHTML='<span class="meas">measured</span> Shardy '+a[0]+' collectives, '+U.MB(a[1])+'; GSPMD '+b[0]+' collectives, '+U.MB(b[1])+'. "(no source line)": collectives the partitioner attached to inputs or outputs. <code>_tree_math.py</code>, <code>update.py</code>, <code>_classification.py</code>: optax 0.2.8 (Adam moments, apply_updates, cross-entropy); <code>sh_strategies.py</code>: the root lab\'s loss wrapper.';
   }
   U.seg($('pp-full'),v=>{fid=v;drawFull()});
-  U.onTab('t-prop',()=>{drawFull();an.redraw()});
-  addEventListener('resize',()=>{const t=$('t-prop');if(t&&!t.hidden){drawFull()}});
+  U.onTab('t-read',()=>{drawFull();an.redraw()});
+  addEventListener('resize',()=>{const t=$('t-read');if(t&&!t.hidden){drawFull()}});
 })();
 </script>
 <script>/* 32_js_ss_mesh.js */
@@ -1071,13 +1179,10 @@ window.SS_MESH=(function(){
   $('md-y').addEventListener('change',()=>{fillXY(+$('md-x').value,+$('md-y').value);draw()});
   ['md-model','md-batch','md-x','md-remat'].forEach(id=>$(id).addEventListener('change',draw));
   fillXY(2240,4);draw();
-  // compiler check table
-  const sum=o=>o?Object.values(o).reduce((a,b)=>a+b,0):0;
-  $('md-fc').querySelector('tbody').innerHTML=SS.fcheck.rows.filter(r=>r.predicted&&r.id!=='single').map(r=>'<tr><td>'+(r.config==='big'?'25.4M':'0.83M')+'</td><td>'+esc(r.label)+'</td><td class="num">'+U.MB(sum(r.predicted))+'</td><td class="num">'+U.MB(sum(r.measured))+'</td><td class="num">'+r.ratio_measured_over_predicted.toFixed(4)+'</td></tr>').join('');
 })();
 </script>
 <script>/* 33_js_ss_pipe.js */
-// ---- Pipeline tab (t-pipe): the real tick-by-tick schedules from src/runs/ss_pipe.py ----
+// ---- Reading section 8 (moved from the Pipeline tab): the real tick-by-tick schedules from src/runs/ss_pipe.py ----
 (function(){
   const U=SSU,esc=U.esc,$=id=>document.getElementById(id),PP=SS.pipe;
   const refs={'pp-ref-vmap':'mt_pipe_vmap','pp-ref-rot':'mt_pipe_rotate','pp-ref-bub':'mt_bubble'};
@@ -1099,7 +1204,7 @@ window.SS_MESH=(function(){
         if(shown){if(c)busy++;else idle++}
         const fill=!shown?'var(--bg)':c?COL[c[0]%COL.length]:'var(--dim)';
         s+='<rect x="'+(x+1)+'" y="'+(y+2)+'" width="'+(cw-2)+'" height="'+(ch-6)+'" rx="3" fill="'+fill+'" fill-opacity="'+(shown?(c?.75:.6):1)+'" stroke="'+(t===i-1?'var(--ink)':'var(--line)')+'"/>';
-        if(shown&&c)s+=RD.t(x+cw/2,y+ch/2+3,'m'+c[0]+(r.R>1?' r'+c[1]:''),{a:'middle',fs:cw<34?9:10.5,fill:'var(--bg)',w:600});
+        if(shown&&c)s+=RD.t(x+cw/2,y+ch/2+3,'m'+c[0]+(r.R>1?' r'+c[1]:''),{a:'middle',fs:10.5,fill:'var(--bg)',w:600});
         if(shown&&t===i-1&&t<T-1&&(st<S-1||r.R>1)){const y2=st<S-1?y+ch+ch/2:18+ch/2;
           s+='<line x1="'+(x+cw-4)+'" y1="'+(y+ch/2)+'" x2="'+(x+cw+6)+'" y2="'+(st<S-1?y2-ch/2+4:y2)+'" stroke="var(--ink)" stroke-width="1.2" marker-end="url(#pi-ar)"/>'}}}
     el.innerHTML=RD.svg(lab+T*cw+6,H,'<defs><marker id="pi-ar" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0L6,3L0,6z" fill="var(--ink)"/></marker></defs>'+s,'Pipeline schedule');
@@ -1111,9 +1216,9 @@ window.SS_MESH=(function(){
     const tot=S*Math.max(1,Math.min(i,T));
     $('pi-cnt').innerHTML=RD.stat('busy stage-ticks',busy+' of '+(S*i),'')+RD.stat('bubble so far',i?Math.round(idle/(S*i)*100)+'%':'0%','whole run: '+(r.bubble_fraction_forward*100).toFixed(1)+'%')+RD.stat('formula (S&minus;1)/(MR+S&minus;1)',(r.formula_bubble*100).toFixed(1)+'%','S='+r.S+', M='+r.M+', R='+r.R)+RD.stat('forward ppermutes so far',Math.max(0,Math.min(i,T-1)),'measured total, fwd+bwd: '+r.collectives['collective-permute'].count);
   }
-  const an=U.anim({tab:'t-pipe',card:'pi-card',ctl:'pi-ctl',n:runs[0].ticks+1,draw,ms:1100,label:'Tick'});
+  const an=U.anim({tab:'t-read',card:'pi-card',ctl:'pi-ctl',n:runs[0].ticks+1,draw,ms:1100,label:'Tick'});
   U.seg($('pi-run'),v=>{ri=+v;an.reset(runs[ri].ticks+1)});
-  addEventListener('resize',()=>{const t=$('t-pipe');if(t&&!t.hidden)an.redraw()});
+  addEventListener('resize',()=>{const t=$('t-read');if(t&&!t.hidden)an.redraw()});
   const cs=c=>Object.keys(c).map(k=>U.chip(k,k+' x'+c[k].count+', '+U.MB(c[k].bytes))).join(' ');
   $('pi-t').querySelector('tbody').innerHTML=PP.runs.map(r=>'<tr><td>'+(r.kind==='gpipe_contiguous'?'GPipe, contiguous microbatches':r.kind==='gpipe'?'GPipe':'Circular')+'</td><td class="num">'+r.S+'</td><td class="num">'+r.M+'</td><td class="num">'+r.R+'</td><td>'+r.stage_layers.map(l=>'['+l.join(',')+']').join(' ')+'</td><td class="num">'+r.ticks+'</td><td class="num">'+(r.bubble_fraction_forward*100).toFixed(1)+'%</td><td>'+cs(r.collectives)+'</td><td class="num">'+U.sci(r.abs_loss_diff)+' / '+U.sci(r.grad_max_abs_diff)+'</td><td class="num">'+U.MB(r.temp_bytes_per_device)+'</td></tr>').join('');
   const bad=PP.runs.find(r=>r.kind==='gpipe_contiguous'),good=PP.runs.find(r=>r.kind==='gpipe'&&r.S===4&&r.M===4);
@@ -1121,7 +1226,7 @@ window.SS_MESH=(function(){
 })();
 </script>
 <script>/* 34_js_ss_moe.js */
-// ---- Experts tab (t-moe): real routing counts, dispatch and combine animated; hand-written vs propagation ----
+// ---- Reading section 9 (moved from the Experts tab): real routing counts, dispatch and combine animated; hand-written vs propagation ----
 (function(){
   const U=SSU,esc=U.esc,$=id=>document.getElementById(id),MO=SS.moe;
   $('mo-ref-cap').innerHTML=U.ref('mt_capacity');$('mo-ref-rag').innerHTML=U.ref('mt_moe_ragged');$('mo-ref-prim').innerHTML=U.ref('ragged_all_to_all');
@@ -1145,10 +1250,10 @@ window.SS_MESH=(function(){
         if(i>=1){s+='<rect x="'+(x+2)+'" y="'+(y+ch-8)+'" width="'+hk+'" height="5" fill="var(--c1)"/>';
           if(w>kp)s+='<rect x="'+(x+2+hk)+'" y="'+(y+ch-8)+'" width="'+(hw-hk)+'" height="5" fill="url(#mo-h)"/>'}
         const txt=i===0?w:(i===1?kp+(w>kp?'/'+w:''):kp);
-        s+=RD.t(x+cw/2,y+ch/2+1,txt,{a:'middle',fs:cw<40?9.5:11,fill:w>kp&&i===1?'var(--bad)':undefined});
+        s+=RD.t(x+cw/2,y+ch/2+1,txt,{a:'middle',fs:cw<40?10.5:11,fill:w>kp&&i===1?'var(--bad)':undefined});
         if(i>=1){sent+=kp;drop+=w-kp}}}
     if(i>=2){const y=32+G*ch+4;s+=RD.t(lab-6,y+ch/2,'received',{a:'end',fs:11,w:600});
-      for(let e=0;e<E;e++)s+=RD.t(lab+e*cw+cw/2,y+ch/2,colSum[e],{a:'middle',fs:cw<40?9.5:11,w:600,fill:e===hot?'var(--acc)':undefined})}
+      for(let e=0;e<E;e++)s+=RD.t(lab+e*cw+cw/2,y+ch/2,colSum[e],{a:'middle',fs:cw<40?10.5:11,w:600,fill:e===hot?'var(--acc)':undefined})}
     el.innerHTML=RD.svg(lab+E*cw+6,H,s,'Tokens from each device to each expert');
     const C=r.capacity,bytesA2A=r.hand.collectives['all-to-all'].bytes/2;
     const cap=['<b>Route.</b> Each device runs the router on its 512 tokens: '+(k===1?'one expert per token (top-1)':'two experts per token (top-2)')+'. The numbers are the real counts: tokens on device g that want expert e. They sum to '+U.num(r.assignments)+'.',
@@ -1160,15 +1265,15 @@ window.SS_MESH=(function(){
     $('mo-cnt').innerHTML=RD.stat('capacity C per expert per device',C,'factor '+cf+' x 512 x '+k+' / 8')+RD.stat('assignments dropped',U.num(r.dropped)+' of '+U.num(r.assignments),(100*r.dropped/r.assignments).toFixed(1)+'%')+
       RD.stat('all-to-alls (hand-written)',(i>=4?2:i>=2?1:0)+' of 2',U.MB(r.hand.collectives['all-to-all'].bytes)+' in the compiled forward');
   }
-  const an=U.anim({tab:'t-moe',card:'mo-card',ctl:'mo-ctl',n:STEPS,draw,ms:1800,label:'Step'});
+  const an=U.anim({tab:'t-read',card:'mo-card',ctl:'mo-ctl',n:STEPS,draw,ms:1800,label:'Step'});
   U.seg($('mo-k'),v=>{k=+v;an.redraw()});U.seg($('mo-cf'),v=>{cf=+v;an.redraw()});
-  addEventListener('resize',()=>{const t=$('t-moe');if(t&&!t.hidden)an.redraw()});
+  addEventListener('resize',()=>{const t=$('t-read');if(t&&!t.hidden)an.redraw()});
   const cs=c=>Object.keys(c).map(x=>U.chip(x,x+' x'+c[x].count+', '+U.MB(c[x].bytes))).join(' ');
   $('mo-t').querySelector('tbody').innerHTML=MO.runs.map(r=>'<tr><td>top-'+r.k+'</td><td class="num">'+r.capacity_factor+'</td><td class="num">'+r.capacity+'</td><td class="num">'+U.num(r.dropped)+' / '+U.num(r.assignments)+'</td><td>'+cs(r.hand.collectives)+'<br>'+cs(r.hand.grad_collectives)+'</td><td>'+cs(r.auto.collectives)+'<br>'+cs(r.auto.grad_collectives)+'</td><td class="num">'+U.sci(Math.max(r.hand.max_abs_err,r.auto.max_abs_err))+' / '+U.sci(Math.max(r.hand.grad_max_abs_err,r.auto.grad_max_abs_err))+'</td></tr>').join('');
 })();
 </script>
 <script>/* 35_js_ss_multi.js */
-// ---- Many processes tab (t-multi) ----
+// ---- Reading section 12 (moved from the Many processes tab) ----
 (function(){
   const U=SSU,esc=U.esc,$=id=>document.getElementById(id),MU=SS.multi,P=MU.normal.processes;
   $('mu-init').textContent=SS.code.multi_init.replace(/^    /gm,'');
@@ -1176,22 +1281,22 @@ window.SS_MESH=(function(){
   let mode=2;
   const N=6;
   function draw(i){
-    const el=$('mu-svg'),W=U.width(el),H=176,pad=8,boxW=(W-3*pad)/2;
+    const el=$('mu-svg'),W=U.width(el),H0=176,pad=8,nar=W<560&&mode===2,PH=H0-44,H=nar?H0+PH:H0,boxW=nar?W-2*pad:(W-3*pad)/2;
     let s='';
     const procs=mode===2?[[0,P[0]],[1,P[1]]]:[[0,null]];
     const ids=mode===2?[P[0].device_ids.slice(0,4),P[0].device_ids.slice(4)]:[P[0].device_ids.slice(0,4).concat([4,5,6,7])];
     const bw=mode===2?boxW:W-2*pad;
-    procs.forEach((pp,pi)=>{const x0=pad+pi*(boxW+pad);
-      s+='<rect x="'+x0+'" y="4" width="'+bw+'" height="'+(H-48)+'" rx="8" fill="var(--soft)" stroke="'+(i>=1?'var(--acc)':'var(--line)')+'"/>';
-      s+=RD.t(x0+8,20,(mode===2?'process '+pi+' (host '+pi+')':'one process')+(i>=1&&mode===2?': jax.distributed.initialize()':''),{fs:11.5,w:600});
+    procs.forEach((pp,pi)=>{const x0=nar?pad:pad+pi*(boxW+pad),oy=nar?pi*PH:0;
+      s+='<rect x="'+x0+'" y="'+(4+oy)+'" width="'+bw+'" height="'+(H0-48)+'" rx="8" fill="var(--soft)" stroke="'+(i>=1?'var(--acc)':'var(--line)')+'"/>';
+      s+=RD.t(x0+8,20+oy,(mode===2?'process '+pi+' (host '+pi+')':'one process')+(i>=1&&mode===2?': jax.distributed.initialize()':''),{fs:11.5,w:600});
       const dv=ids[pi],dw=(bw-16)/dv.length;
-      dv.forEach((d,k)=>{const x=x0+8+k*dw,y=32;const g=pi*4+k;
-        s+='<rect x="'+(x+2)+'" y="'+y+'" width="'+(dw-4)+'" height="'+(H-90)+'" rx="5" fill="var(--bg)" stroke="var(--line)"/>';
-        s+=RD.t(x+dw/2,y+14,'cpu:'+(mode===2?d:g),{a:'middle',fs:dw<46?9:10.5});
-        if(i>=2){const r0=g*4;s+='<rect x="'+(x+6)+'" y="'+(y+22)+'" width="'+(dw-12)+'" height="16" rx="3" fill="var(--c1)" fill-opacity=".7"/>'+RD.t(x+dw/2,y+34,(dw<60?'':'rows ')+r0+'-'+(r0+3),{a:'middle',fs:dw<46?8.5:10,fill:'var(--bg)'})}
-        if(i>=3)s+='<rect x="'+(x+6)+'" y="'+(y+44)+'" width="'+(dw-12)+'" height="14" rx="3" fill="var(--c3)" fill-opacity=".7"/>'+RD.t(x+dw/2,y+55,dw<46?'g':'grads',{a:'middle',fs:9.5,fill:'var(--bg)'});
-        if(i>=5)s+='<rect x="'+(x+6)+'" y="'+(y+64)+'" width="'+(dw-12)+'" height="14" rx="3" fill="var(--c4)" fill-opacity=".7"/>'+RD.t(x+dw/2,y+75,dw<46?'W':'new W',{a:'middle',fs:9.5,fill:'var(--bg)'})})});
-    if(i===4){const y=H-40;s+='<line x1="'+(pad+12)+'" y1="'+y+'" x2="'+(W-pad-12)+'" y2="'+y+'" stroke="var(--c2)" stroke-width="3"/>'+RD.t(W/2,y+16,mode===2?'all-reduce over all 8 devices: inside each process, and between them over gloo (TCP)':'all-reduce over all 8 devices, inside one process',{a:'middle',fs:11,fill:'var(--c2)'})}
+      dv.forEach((d,k)=>{const x=x0+8+k*dw,y=32+oy;const g=pi*4+k;
+        s+='<rect x="'+(x+2)+'" y="'+y+'" width="'+(dw-4)+'" height="'+(H0-90)+'" rx="5" fill="var(--bg)" stroke="var(--line)"/>';
+        s+=RD.t(x+dw/2,y+14,(dw<46?'':'cpu:')+(mode===2?d:g),{a:'middle',fs:dw<46?10:10.5});
+        if(i>=2){const r0=g*4;s+='<rect x="'+(x+6)+'" y="'+(y+22)+'" width="'+(dw-12)+'" height="16" rx="3" fill="var(--c1)" fill-opacity=".7"/>'+RD.t(x+dw/2,y+34,(dw<60?'':'rows ')+r0+'-'+(r0+3),{a:'middle',fs:10,fill:'var(--bg)'})}
+        if(i>=3)s+='<rect x="'+(x+6)+'" y="'+(y+44)+'" width="'+(dw-12)+'" height="14" rx="3" fill="var(--c3)" fill-opacity=".7"/>'+RD.t(x+dw/2,y+55,dw<46?'g':'grads',{a:'middle',fs:10.5,fill:'var(--bg)'});
+        if(i>=5)s+='<rect x="'+(x+6)+'" y="'+(y+64)+'" width="'+(dw-12)+'" height="14" rx="3" fill="var(--c4)" fill-opacity=".7"/>'+RD.t(x+dw/2,y+75,dw<46?'W':'new W',{a:'middle',fs:10.5,fill:'var(--bg)'})})});
+    if(i===4){const y=H-40;s+='<line x1="'+(pad+12)+'" y1="'+y+'" x2="'+(W-pad-12)+'" y2="'+y+'" stroke="var(--c2)" stroke-width="3"/>'+RD.t(W/2,y+16,mode===2?(W<560?'all-reduce over 8 devices, between processes over gloo':'all-reduce over all 8 devices: inside each process, and between them over gloo (TCP)'):'all-reduce over all 8 devices, inside one process',{a:'middle',fs:11,fill:'var(--c2)'})}
     el.innerHTML=RD.svg(W,H,s,'Processes, devices and the batch rows each holds');
     const c2=['<b>Start.</b> Two copies of the same script, one per "host". Each sees only its own 4 devices until they connect.',
       '<b>Connect.</b> <code>jax.distributed.initialize(coordinator_address=..., num_processes=2, process_id=i)</code>. Now <code>jax.devices()</code> lists all 8 in both processes ('+P[0].device_ids.join(', ')+'; process 1\'s devices got ids from 2048, as observed here), <code>jax.local_devices()</code> only its own 4. Both build the same mesh over all 8.',
@@ -1202,9 +1307,9 @@ window.SS_MESH=(function(){
     const c1=['<b>Start.</b> One process sees all 8 devices.','<b>Nothing to connect.</b> <code>jax.devices()</code> is local; every shard is addressable.','<b>Load.</b> The process loads all 32 rows and <code>device_put</code>s them with <code>P(\'data\', None)</code>: 4 rows per device.','<b>Compute.</b> The same jitted step, the same per-device work.','<b>All-reduce.</b> The same single all-reduce, now a memory copy inside one process.','<b>Update.</b> The same weights. The root lab\'s one-device run gives '+MU.one_device_losses[0].toFixed(6)+' at step 0 and '+MU.one_device_losses[19].toFixed(6)+' at step 19.'];
     $('mu-cap').innerHTML=(mode===2?c2:c1)[i];
   }
-  const an=U.anim({tab:'t-multi',card:'mu-card',ctl:'mu-ctl',n:N,draw,ms:1700,label:'Step'});
+  const an=U.anim({tab:'t-read',card:'mu-card',ctl:'mu-ctl',n:N,draw,ms:1700,label:'Step'});
   U.seg($('mu-mode'),v=>{mode=+v;an.redraw()});
-  addEventListener('resize',()=>{const t=$('t-multi');if(t&&!t.hidden)an.redraw()});
+  addEventListener('resize',()=>{const t=$('t-read');if(t&&!t.hidden)an.redraw()});
   const row=(k,f)=>'<tr><td>'+k+'</td><td>'+f(P[0])+'</td><td>'+f(P[1])+'</td></tr>';
   $('mu-t').querySelector('tbody').innerHTML=[
     row('<code>jax.process_index()</code> / <code>process_count()</code>',p=>p.process_index+' / '+p.process_count),
@@ -1224,7 +1329,7 @@ window.SS_MESH=(function(){
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace jx-ss-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1242,6 +1347,8 @@ window.SS_MESH=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('jx-ss-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>
