@@ -34,6 +34,6 @@
   }
   const A=RD.anim({card:'dr',ctl:'drCtl',n:NS,draw,ms:1100,label:'Step of the DoRA animation'});
   $('drM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=b.dataset.m;
-    $('drM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(NS);A.play()});
+    $('drM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(NS)});
   addEventListener('resize',()=>A.redraw());
 })();

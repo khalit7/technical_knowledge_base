@@ -101,7 +101,7 @@ window.PF=(function(){
   }
   const A=RD.anim({card:'mx',ctl:'mxCtl',n:5,draw,ms:2600,label:'Step of the matrix animation'});
   $('mxM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=b.dataset.m;
-    $('mxM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(5);A.play()});
+    $('mxM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(5)});
   $('mxR').addEventListener('change',e=>{R=+e.target.value;A.redraw()});
   addEventListener('resize',()=>A.redraw());
   if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener&&matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>A.redraw());

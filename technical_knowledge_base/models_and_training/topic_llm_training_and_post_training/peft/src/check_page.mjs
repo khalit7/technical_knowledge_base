@@ -23,6 +23,20 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const bad = async where => { const t = await p.evaluate(() => document.body.innerText); const m = t.match(/.{0,40}(NaN|undefined|Infinity|null%).{0,40}/); if (m) problems.push(scheme + ' ' + where + ': ' + m[0]); };
   const click = async (sel, where) => { const els = await p.$$(sel); for (const e of els) { await e.evaluate(x => { x.scrollIntoView({ block: 'center' }); x.click() }); actions++; await wait(60); await bad(where + ' ' + sel) } };
   const shot = async (sel, name) => { const e = await p.$(sel); if (e) { const vis = await e.evaluate(x => [x.getBoundingClientRect().height, [...document.querySelectorAll('.tab')].filter(t=>!t.hidden).map(t=>t.id).join()]); if (!vis[0]) { problems.push(scheme + ' hidden ' + sel + ' ' + vis); return } await e.evaluate(x => x.scrollIntoView({ block: 'start' })); await wait(150); await e.screenshot({ path: path.join(out, name + '-' + scheme + '.png') }) } };
+  // nothing moves before the reader acts: every animation sits on step 1 after load and scrolling past it
+  for (const id of ['mx', 'bd', 'dr']) { await p.$eval('#' + id, x => x.scrollIntoView({ block: 'center' })); await wait(1600);
+    const v = await p.$eval('#' + id + 'Ctl-s', e => e.value); if (v !== '0') problems.push(scheme + ' autoplay ' + id + ' at step ' + v) }
+  // hero: every rank; memory calculator: every model and rank
+  for (const r of ['1', '16', '64', '256']) await click(`#heroR button[data-m="${r}"]`, 'hero');
+  await click('#heroR button[data-m="16"]', 'hero'); await shot('#hero', 'hero');
+  for (const m of ['Llama 3 8B', 'Qwen3-8B', 'Mistral 7B v0.3', 'LLaMA 7B', 'LLaMA 13B', 'LLaMA 65B', 'Qwen3-30B-A3B']) {
+    await p.select('#memM', m); actions++; await bad('mem ' + m);
+    for (const r of ['1', '8', '16', '64', '256']) { await p.select('#memR', r); actions++; await bad('mem rank ' + r) } }
+  await p.select('#memM', 'LLaMA 65B'); await p.select('#memR', '64');
+  problems.push('INFO ' + scheme + ' mem 65B r64: ' + await p.$eval('#memB', e => e.innerText.replace(/\s+/g, ' ')));
+  await shot('#mem', 'mem-65b'); await p.select('#memM', 'Llama 3 8B'); await p.select('#memR', '16');
+  problems.push('INFO ' + scheme + ' mem 8B r16: ' + await p.$eval('#memB', e => e.innerText.replace(/\s+/g, ' ')));
+  await shot('#mem', 'mem'); await shot('#fam', 'fam'); await shot('#wm', 'wm');
   // reading: matrix animation, both modes, every step, every rank
   for (const m of ['lora', 'full']) {
     await click(`#mxM button[data-m=${m}]`, 'mx');

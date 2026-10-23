@@ -1,16 +1,9 @@
-
 <section id="s-lora">
 <h2>LoRA, on one real matrix</h2>
-<p>LoRA ({{Hu et al. 2021|n:3c65c17b0d0d81018f15edd19fa5c28a}}) leaves a pretrained matrix <i>W</i><sub>0</sub> frozen and learns its change as the product of two thin matrices:</p>
-<div class="fm"><div class="eq">h = W<sub>0</sub>x + (α / r) · B A x</div>
-<dl><dt>W<sub>0</sub></dt><dd>the frozen weight, <i>d</i><sub>out</sub> × <i>d</i><sub>in</sub></dd>
-<dt>A</dt><dd><i>r</i> × <i>d</i><sub>in</sub>, starts random (the paper: Gaussian; PEFT: Kaiming-uniform)</dd>
-<dt>B</dt><dd><i>d</i><sub>out</sub> × <i>r</i>, <b>starts at zero</b>, so Δ<i>W</i> = <i>BA</i> = 0 and training begins exactly at the base model</dd>
-<dt>r</dt><dd>the rank: Δ<i>W</i> can point in at most <i>r</i> directions; trainable numbers <i>r</i>(<i>d</i><sub>in</sub> + <i>d</i><sub>out</sub>) instead of <i>d</i><sub>in</sub><i>d</i><sub>out</sub></dd>
-<dt>α / r</dt><dd>a fixed scale, so the effective step size does not change when you change <i>r</i></dd></dl></div>
-<p>The animation runs both on a real matrix: the query projection of layer 14 of {{SmolLM2-135M|https://huggingface.co/HuggingFaceTB/SmolLM2-135M}} (576 × 576). For the "after" it uses a real fine-tuning update: the same matrix in {{SmolLM2-135M-Instruct|https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct}}, which its model card says was made from the base by SFT and then DPO. Full fine-tuning produced that update; LoRA cannot, because it is limited to rank <i>r</i>, so the LoRA mode shows the <b>closest rank-<i>r</i> matrix to it</b> (its truncated SVD, the best any rank-<i>r</i> update can do in squared error). Heatmaps show the top-left 32 × 32 corner; counters are for the whole matrix.</p>
-<p class="try"><b>Try:</b> play LoRA, then switch to full fine-tuning to see the update LoRA is approximating; change the rank and watch the "share of the update" counter. Rank 64 (of 576) recovers 57% of the update's squared size.</p>
+<p>LoRA ({{Hu et al. 2021|n:3c65c17b0d0d81018f15edd19fa5c28a}}) leaves a pretrained matrix <i>W</i><sub>0</sub> frozen and learns its change as the product of two thin matrices. The animation runs it on a real matrix: the query projection of layer 14 of {{SmolLM2-135M|https://huggingface.co/HuggingFaceTB/SmolLM2-135M}} (576 × 576). For the "after" it uses a real fine-tuning update: the same matrix in {{SmolLM2-135M-Instruct|https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct}}, which its model card says was made from the base by SFT and then DPO. Full fine-tuning produced that update; LoRA cannot, because it is limited to rank <i>r</i>, so the LoRA mode shows the <b>closest rank-<i>r</i> matrix to it</b> (its truncated SVD, the best any rank-<i>r</i> update can do in squared error).</p>
+<p class="try"><b>Predict, then step:</b> what share of this real update can a rank-64 matrix (of a possible 576) hold? Step LoRA to step 4 at <i>r</i> = 64, then switch to full fine-tuning to see the update it approximates. (Rank 64 recovers 57% of the update's squared size.)</p>
 <div class="card" id="mx">
+<h4>The real update needs many directions; LoRA keeps r of them and adds only 2 × r × 576 trained numbers</h4>
 <div class="seg" id="mxM" role="group" aria-label="Method"><button data-m="lora" class="on">LoRA</button><button data-m="full">Full fine-tuning (what it approximates)</button></div>
 <label class="small" style="margin-left:8px">Rank <i>r</i> <select id="mxR"><option value="1">1</option><option value="4">4</option><option value="16" selected>16</option><option value="64">64</option></select></label>
 <div class="mx-row">
@@ -18,42 +11,44 @@
 <div class="mx-p"><div class="h" id="mxH1">ΔW<small></small></div><canvas id="mxC1" width="32" height="32"></canvas></div>
 <div class="mx-p"><div class="h" id="mxH2">W<small></small></div><canvas id="mxC2" width="32" height="32"></canvas></div>
 </div>
-<div class="lg"><span><i style="background:var(--c1)"></i>positive</span><span><i style="background:var(--c2)"></i>negative</span><span>W<sub>0</sub> and W at W<sub>0</sub>'s colour scale; ΔW at its own scale (<span id="mxSc"></span> times finer), the same for every panel that shows an update</span></div>
+<div class="lg"><span><i style="background:var(--c1)"></i>positive</span><span><i style="background:var(--c2)"></i>negative</span><span>W<sub>0</sub> and W at W<sub>0</sub>'s colour scale; ΔW at its own scale (<span id="mxSc"></span> times finer), the same for every panel that shows an update. Heatmaps show the top-left 32 × 32 corner; counters are for the whole matrix.</span></div>
 <div class="mx-ba" id="mxBA"></div>
 <div class="an-cap" id="mxCap"></div>
 <div class="out" id="mxN"></div>
 <div class="an-ctl" id="mxCtl"></div>
 <div class="spec" id="mxS"></div>
-<p class="small mute"><i class="nl m">measured</i> by <code>delta_probe.py</code> from the two published checkpoints (bf16; storing the fine-tuned weights in bf16 can account for well under 0.1% of the update's squared size). Bytes: 2 per bf16 number shipped; training state 16 bytes per trained number (weight, gradient, fp32 master and two Adam moments, as {{ZeRO|n:3c65c17b0d0d81879a7ed90bca007699}}) and 2 per frozen one.</p>
+<p class="small mute"><i class="nl m">measured</i> by <code>delta_probe.py</code> from the two published checkpoints (bf16; storing the fine-tuned weights in bf16 can account for well under 0.1% of the update's squared size). Rank 1, 4, 16 and 64 hold 2.3%, 7.8%, 23% and 57% of the update. Bytes: 2 per bf16 number shipped; training state 16 bytes per trained number and 2 per frozen one.</p>
 </div>
-<p>Four practical details sit in that formula:</p>
+<p>The formula, in the animation's names:</p>
+<div class="fm"><div class="eq">h = W<sub>0</sub>x + (α / r) · B A x</div>
+<dl><dt>W<sub>0</sub></dt><dd>the frozen weight, <i>d</i><sub>out</sub> × <i>d</i><sub>in</sub></dd>
+<dt>A</dt><dd><i>r</i> × <i>d</i><sub>in</sub>, starts random (the paper: Gaussian; PEFT: Kaiming-uniform)</dd>
+<dt>B</dt><dd><i>d</i><sub>out</sub> × <i>r</i>, <b>starts at zero</b>, so Δ<i>W</i> = <i>BA</i> = 0 and training begins exactly at the base model</dd>
+<dt>r</dt><dd>the rank: trainable numbers <i>r</i>(<i>d</i><sub>in</sub> + <i>d</i><sub>out</sub>) instead of <i>d</i><sub>in</sub><i>d</i><sub>out</sub></dd>
+<dt>α / r</dt><dd>a fixed scale, so the effective step size does not change when you change <i>r</i></dd></dl></div>
 <ul>
-<li><b>Zero-initialised B.</b> Because Δ<i>W</i> starts at exactly zero, step 0 of training is the base model, and the first gradient step moves only <i>B</i> (the gradient of <i>A</i> is multiplied by <i>B</i>, which is zero). Microsoft's own {{loralib|https://github.com/microsoft/LoRA/blob/main/loralib/layers.py}} initialises <i>A</i> Kaiming-uniform, "different than what is described in the paper but should not affect performance".</li>
-<li><b>α / r, and rsLoRA.</b> Dividing by <i>r</i> keeps the optimal learning rate roughly independent of rank; Thinking Machines found the learning curves of different ranks "exactly the same at the beginning of training" ({{LoRA Without Regret|https://thinkingmachines.ai/blog/lora/}}). {{rsLoRA|https://arxiv.org/abs/2312.03732}} argues the right divisor is √<i>r</i>, because 1/<i>r</i> "results in slowed learning and stunted performance" at higher ranks; PEFT switches with <code>use_rslora=True</code>. Changing <i>r</i> under one convention while keeping α from a recipe written for the other changes the effective learning rate.</li>
-<li><b>LoRA+.</b> {{Hayou et al. 2024|https://arxiv.org/abs/2402.12354}} show that one learning rate for <i>A</i> and <i>B</i> is suboptimal at large width and give <i>B</i> a larger one: 1 to 2% better and up to about 2 times faster, at the same cost.</li>
+<li><b>Zero-initialised B.</b> Because Δ<i>W</i> starts at exactly zero, step 0 of training is the base model, and the first gradient step moves only <i>B</i> (the gradient of <i>A</i> is multiplied by <i>B</i>, which is zero).</li>
+<li><b>Rank and alpha.</b> Dividing by <i>r</i> keeps the optimal learning rate roughly independent of rank; Thinking Machines found the learning curves of different ranks "exactly the same at the beginning of training" ({{LoRA Without Regret|https://thinkingmachines.ai/blog/lora/}}). {{rsLoRA|https://arxiv.org/abs/2312.03732}} argues the right divisor is √<i>r</i>, because 1/<i>r</i> "results in slowed learning and stunted performance" at higher ranks; PEFT switches with <code>use_rslora=True</code>. Changing <i>r</i> under one convention while keeping α from a recipe written for the other changes the effective learning rate; know which one your library applies.</li>
 <li><b>Merging.</b> After training, <i>W</i> = <i>W</i><sub>0</sub> + (α/<i>r</i>)<i>BA</i> is one ordinary matrix: the merged model has exactly the base's shape and speed. Subtracting the product un-merges it, which is how one base can switch tasks.</li>
 </ul>
-<p>The LoRA paper's own animation of a token through LoRA against an adapter, its GPT-3 parameter calculator, and a LoRA you can train in the browser on a task whose true update is known are on the {{LoRA paper page|n:3c65c17b0d0d81018f15edd19fa5c28a}}; this page does not repeat them.</p>
+<details class="dp"><summary>Initialisation in the reference code, and LoRA+ <span class="mute">(optional)</span></summary><div class="b">
+<p>Microsoft's own {{loralib|https://github.com/microsoft/LoRA/blob/main/loralib/layers.py}} initialises <i>A</i> Kaiming-uniform, "different than what is described in the paper but should not affect performance". {{LoRA+ (Hayou et al. 2024)|https://arxiv.org/abs/2402.12354}} shows that one learning rate for <i>A</i> and <i>B</i> is suboptimal at large width and gives <i>B</i> a larger one: 1 to 2% better and up to about 2 times faster, at the same cost.</p>
+<p>The LoRA paper's own animation of a token through LoRA against an adapter, its GPT-3 parameter calculator, and a LoRA you can train in the browser on a task whose true update is known are on the {{LoRA paper page|n:3c65c17b0d0d81018f15edd19fa5c28a}}.</p>
+</div></details>
 </section>
 
 <section id="s-rank">
 <h2>How low is the rank of a real update?</h2>
-<p>LoRA's bet is that the change fine-tuning needs is low-rank. The LoRA paper supported it with GPT-3, where rank 1 to 4 on the query and value matrices already matched larger ranks on its tasks. Full fine-tuning has no such limit, and its updates are not low-rank. Biderman et al. found full fine-tuning on code and math learns "perturbations with a rank that is 10-100× greater than typical LoRA configurations", rising with more data and higher in the MLP than in attention ({{LoRA Learns Less and Forgets Less|https://arxiv.org/abs/2405.09673}}).</p>
-<p>The same holds for SmolLM2's real update, matrix by matrix. Each cell is one of the 210 linear matrices (30 layers × 7); colour is either the rank needed to hold 90% of the update's squared size, as a share of the most it could be, or the size of the update relative to the weight. Click a cell for its numbers.</p>
+<p>LoRA's bet is that the change fine-tuning needs is low-rank. The LoRA paper supported it with GPT-3, where rank 1 to 4 on the query and value matrices already matched larger ranks on its tasks. Full fine-tuning has no such limit, and its updates are not low-rank: Biderman et al. found full fine-tuning on code and math learns "perturbations with a rank that is 10-100× greater than typical LoRA configurations", rising with more data and higher in the MLP than in attention ({{LoRA Learns Less and Forgets Less|https://arxiv.org/abs/2405.09673}}). SmolLM2's real update says the same, matrix by matrix.</p>
 <div class="card" id="hm">
+<h4>All 210 matrices (30 layers × 7): the MLP updates are the most spread out; a rank-16 LoRA could hold a quarter to a third of an attention query or output update and about a sixth of an MLP one</h4>
 <div class="seg" id="hmM" role="group" aria-label="Measure"><button data-m="r90" class="on">Rank for 90% of the update</button><button data-m="rel">Update size ‖ΔW‖ / ‖W<sub>0</sub>‖</button><button data-m="e16">Share a rank-16 LoRA could hold</button></div>
 <div class="hmx" id="hmP"></div>
 <p class="small" id="hmD">Click or tap a cell.</p>
 <div class="tw"><table id="hmT"></table></div>
-<p class="small mute"><i class="nl m">measured</i> SmolLM2-135M to SmolLM2-135M-Instruct, every layer; medians over the 30 layers in the table. Rank shares are of min(<i>d</i><sub>in</sub>, <i>d</i><sub>out</sub>): 576 for q, o and the MLP, 192 for k and v (grouped-query attention).</p>
+<p class="small mute"><i class="nl m">measured</i> SmolLM2-135M to SmolLM2-135M-Instruct, every layer; medians over the 30 layers in the table (about 200 of 576 directions for 90% of the attention query and output, about 350 for the MLP matrices). Rank shares are of min(<i>d</i><sub>in</sub>, <i>d</i><sub>out</sub>): 576 for q, o and the MLP, 192 for k and v (grouped-query attention). Some single matrices did change in few directions: layer 0's value projection moved by 33% of its size with 90% of that in 22 directions.</p>
 </div>
-<p>What this shows, and what it does not:</p>
-<ul>
-<li><b>The update is spread over many directions</b>: a median of about 200 of 576 directions to hold 90% for the attention query and output, about 350 for the MLP matrices. A rank-16 LoRA could hold between a quarter and a third of an attention query or output matrix's update and about a sixth of an MLP matrix's.</li>
-<li><b>The MLP updates are the most spread out</b>, in line with Biderman et al. and with the advice to put LoRA on the MLP first (next section).</li>
-<li><b>It does not show that LoRA would be worse here.</b> Full fine-tuning has no reason to keep its update low-rank, so much of it may be directions that do not matter for the task. LoRA finds a different solution, not a compressed copy of this one; whether it scores as well is measured by training both, as the studies in {{Against full fine-tuning|#s-regret}} do. The share held is an upper bound on how closely any rank-<i>r</i> update could <i>copy</i> this one, nothing more.</li>
-<li>Some single matrices did change in few directions: layer 0's value projection moved by 33% of its size with 90% of that in 22 directions.</li>
-</ul>
+<div class="co key"><div class="t">What this does not show</div>That LoRA would be worse here. Full fine-tuning has no reason to keep its update low-rank, so much of it may be directions that do not matter for the task. LoRA finds a different solution, not a compressed copy of this one; the share held is an upper bound on how closely any rank-<i>r</i> update could <i>copy</i> this one, nothing more. Whether LoRA scores as well is measured by training both, as the studies in {{Against full fine-tuning|#s-regret}} do.</div>
 </section>
 
 <section id="s-where">
@@ -64,5 +59,33 @@
 <li><b>LoRA Without Regret</b>: attention-only LoRA underperforms MLP-only LoRA "even when we match the number of trainable parameters by using higher rank for attention-only LoRA"; MLP-only performs about as well as MLP plus attention; and "LoRA performs better when applied to all weight matrices, especially MLP and MoE layers" ({{Thinking Machines|https://thinkingmachines.ai/blog/lora/}}). QLoRA found MLP plus attention above MLP alone; the two studies differ on that second step only.</li>
 <li><b>Biderman et al.</b> recommend targeting "All" modules, at rank 256 when memory allows, because ranks 16 to 64 "tend not to suffice for code tasks".</li>
 </ul>
-<p>On a dense model most of an all-linear adapter's parameters sit in the MLP, because the MLP matrices are the widest: on Llama 3 8B at any rank, the three MLP matrices hold 67.5% of the adapter (55,296 of the 81,920 numbers per unit of rank per layer: each matrix costs <i>d</i><sub>in</sub> + <i>d</i><sub>out</sub>; <i class="nl d">derived</i> from the {{config|https://huggingface.co/NousResearch/Meta-Llama-3-8B/blob/main/config.json}}). The {{Trainable parameters|#t-count}} tab breaks any configuration down matrix by matrix, including a mixture-of-experts model where the expert matrices dominate.</p>
+<div class="card" id="wm">
+<h4>On a dense model most of an all-linear adapter sits in the MLP: 67.5% on Llama 3 8B, at any rank</h4>
+<div class="wm" role="img" aria-label="Share of a LoRA adapter's parameters per matrix on Llama 3 8B"><span class="at qv" style="width:10%">q</span><span class="at" style="width:6.25%">k</span><span class="at qv" style="width:6.25%">v</span><span class="at" style="width:10%">o</span><span class="ml" style="width:22.5%">gate</span><span class="ml" style="width:22.5%">up</span><span class="ml" style="width:22.5%">down</span></div>
+<div class="wm-k"><span>attention 32.5%</span><span>MLP 67.5%</span></div>
+<p class="small">Each matrix costs <i>r</i>(<i>d</i><sub>in</sub> + <i>d</i><sub>out</sub>) per layer: q and o 8,192, k and v 5,120 (8 KV heads), gate, up and down 18,432 each, so 55,296 of the 81,920 numbers per unit of rank per layer are in the MLP. The outlined q and v, the LoRA paper's choice, are 16% of an all-linear adapter at the same rank. <i class="nl d">derived</i> from the {{config|https://huggingface.co/NousResearch/Meta-Llama-3-8B/blob/main/config.json}}. The {{Trainable parameters|#t-count}} tab breaks any configuration down, including a mixture-of-experts model where the expert matrices dominate.</p>
+</div>
+</section>
+
+<section id="s-mem">
+<h2>Memory: full fine-tuning, LoRA and QLoRA</h2>
+<p>Training with Adam in mixed precision holds about 16 bytes per trained parameter: the bf16 weight and gradient (2 + 2), an fp32 master weight and two moments (12) ({{ZeRO|n:3c65c17b0d0d81879a7ed90bca007699}}). LoRA keeps the base frozen at 2 bytes and pays 16 only for the adapter; {{QLoRA|n:3c65c17b0d0d815a8f4edc33f9583671}} (Dettmers et al., 2023) also stores the frozen linear weights in 4-bit NF4, about half a byte each. On Llama 3 8B with a rank-16 adapter on every linear layer that is 128.5 GB, 16.7 GB and 6.4 GB.</p>
+<p class="try"><b>Predict, then pick LLaMA 65B:</b> does QLoRA's 65B fit one 48 GB card at the QLoRA recipe's rank 64? (The bars say about 47 GB before activations; the paper measured 45.0 GB at batch 1.)</p>
+<div class="card" id="mem">
+<h4>Freezing the base removes 14 of the 16 bytes per parameter; 4-bit storage removes most of the remaining 2</h4>
+<div class="ctl"><label>Model <select id="memM" style="width:100%"></select></label>
+<label>LoRA rank on every linear layer <select id="memR" style="width:100%"><option>1</option><option>8</option><option selected>16</option><option>64</option><option>256</option></select></label></div>
+<div id="memB"></div>
+<div class="lg"><span><i style="background:var(--c6)"></i>frozen base (2 B, or NF4 linear weights at 4.127 bits)</span><span><i style="background:var(--c1)"></i>trained weights and gradients (4 B each)</span><span><i style="background:var(--c2)"></i>Adam: fp32 master and two moments (12 B each)</span><span><b style="color:var(--bad)">dashed</b>: one 24, 48 or 80 GB card</span></div>
+<p class="small mute" id="memNote"></p>
+</div>
+<p class="small mute"><i class="nl d">derived</i> before activations, KV cache and framework overhead: full = 16<i>N</i>; LoRA = 2<i>N</i> + 16<i>P</i>; QLoRA = 4.127/8 × (linear weights) + 2 × (embeddings and norms) + 16<i>P</i>, with <i>P</i> the adapter's count; 4.127 bits = 4 + 8/64 + 32/(64 × 256), NF4 plus double-quantised block constants. Published checks: Biderman et al. put a 7B model at 112 GB with Adam and 15.12 GB with LoRA ({{Table S14|https://arxiv.org/html/2405.09673v2#A8.T14}}), the same accounting with 7B rounded (112 = 16 × 7) and adapters of about 1% (15.12 = 2 × 7 + 16 × 0.07); QLoRA's "more than 780 GB" for 16-bit fine-tuning of LLaMA 65B reproduces at 12 bytes per parameter (no fp32 master copy: 783 GB), the 16 used here give 1,045 GB. QLoRA's Figure 6 prints 37,074 MB for the 65B model in 4 bits, which <b>does not reproduce</b>: this arithmetic gives 34.46 GB, 2.6 GB less, and the paper does not itemise it; the figure also keeps adapters in bf16 with no master copy (12 rather than 16 bytes each) ({{QLoRA paper page|n:3c65c17b0d0d815a8f4edc33f9583671}}).</p>
+<p>QLoRA backpropagates through the dequantised 4-bit weights into bf16 adapters. That took fine-tuning a 65B model from more than 780 GB of GPU memory to under 48 GB, one GPU, "without degrading the runtime or predictive performance compared to a 16-bit fully finetuned baseline". Three pieces make it work:</p>
+<ul>
+<li><b>4-bit NormalFloat (NF4)</b>: a 16-value code whose levels follow a normal distribution, since pretrained weights roughly do; blocks of 64 weights share one scale. The paper calls it "information theoretically optimal for normally distributed weights"; {{Yoshida (2023)|https://arxiv.org/abs/2306.06965}} shows it cannot quite be, because the distribution of the scaled values depends on the block size. The code itself, built and measured on real LLaMA weights, is on the QLoRA paper page; NF4 among the other number formats is on {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}.</li>
+<li><b>Double quantisation</b>: the per-block scales are themselves quantised, saving about 0.37 bits per parameter (about 3 GB on a 65B model).</li>
+<li><b>Paged optimizers</b>: optimizer state in NVIDIA unified memory, so a long batch's memory spike pages to CPU instead of crashing.</li>
+</ul>
+<p>QLoRA's recipe put LoRA on every linear layer (r = 64, α = 16). The trade is time: Sebastian Raschka measured 33% less memory for 39% more training time (21.33 GB and 1.85 h with bf16 LoRA against 14.18 GB and 2.79 h with QLoRA, in one of his runs) ({{Practical tips|https://magazine.sebastianraschka.com/p/practical-tips-for-finetuning-llms}}).</p>
+<p><b>Merging onto a quantised base needs care.</b> The adapter was trained against the dequantised 4-bit weights, so its product is right relative to those. The usual routes: merge into the original 16-bit weights and quantise the result again (which adds a fresh rounding error, so evaluate the merged model); keep the adapter separate at serving time; or train so the merge stays quantised, as {{QA-LoRA|https://arxiv.org/abs/2309.14717}} does. Some formats cannot merge at all: the PEFT docs say adapters on AQLM-quantised models "shall be saved separately, as merging them with AQLM quantized weights is not possible" ({{PEFT quantization guide|https://huggingface.co/docs/peft/main/en/developer_guides/quantization}}). {{LoftQ|https://arxiv.org/abs/2310.08659}} goes the other way, choosing the LoRA initialisation to cancel part of the quantisation error.</p>
 </section>

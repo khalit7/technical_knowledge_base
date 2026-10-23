@@ -30,6 +30,6 @@
   }
   const A=RD.anim({card:'bd',ctl:'bdCtl',n:B[key].x.length,draw,ms:1300,label:'Checkpoint'});
   $('bdM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;key=b.dataset.m;
-    $('bdM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(B[key].x.length);A.play()});
+    $('bdM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));A.reset(B[key].x.length)});
   addEventListener('resize',()=>A.redraw());
 })();
