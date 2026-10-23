@@ -1,6 +1,6 @@
-// ---- Data lab tab (t-data) ----
+// ---- Reading section 6: grain batches cell by cell (was the Data lab tab) ----
 (function(){
-  const U=TSU,D=U.D,G=D.grain,root=document.getElementById('t-data');if(!root||!G)return;
+  const U=TSU,D=U.D,G=D.grain,root=document.getElementById('dg-card');if(!root||!G)return;
   let cfg='A',w='2';
   const base=G.G1.A0[0].concat(G.G1.A0[1]),pos={};base.forEach((id,i)=>pos[id]=i);
   const key=()=>cfg==='DL'?('DL'+(w==='4'?'2':w)+'_run0'):(cfg+w);
@@ -17,8 +17,8 @@
       (w==='0'?'With 0 workers this is the reference stream itself.':(eq?'Same stream as with 0 workers: the worker count does not change what the model sees.':'A different stream from 0 workers: '+moved+' of 64 records are not where the 0-worker pipeline put them. Deterministic for this worker count, but not elastic.'));
     document.getElementById('dg-stats').innerHTML=RD.stat('records shown',total,'two batches of 32')+RD.stat('out of place',moved,'vs 0 workers')+RD.stat('first 6 batches equal to 0 workers',w==='0'?'(reference)':(eq?'yes':'no'),'recorded over 6 batches');}
   const A=RD.anim({card:'dg-card',ctl:'dg-ctl',n:17,draw,ms:260,label:'Records delivered'});
-  RD.seg(document.getElementById('dg-cfg'),m=>{cfg=m;A.reset(17);A.play()});
-  RD.seg(document.getElementById('dg-w'),m=>{w=m;A.reset(17);A.play()});
+  RD.seg(document.getElementById('dg-cfg'),m=>{cfg=m;A.reset(17)});
+  RD.seg(document.getElementById('dg-w'),m=>{w=m;A.reset(17)});
   const G2=G.G2,G5=G.G5,G6=G.G6;
   U.table('dg-more',[['Question'],['Measured answer']],[
     ['First windows of epoch 0 and epoch 1 with '+'<code>shuffle(0).repeat()</code>',G2.epoch0_first8.slice(0,5).join(', ')+' ... / '+G2.epoch1_first8_reseeded.slice(0,5).join(', ')+' ...'],
@@ -34,5 +34,4 @@
     ['Crop offsets, num_workers 0 run twice',T.T2.offsets_equal_rerun_0_workers?'identical':'different'],
     ['Examples (window: offset at 0 workers, at 2)',T.T2.example.map(e=>e[0]+': '+e[1]+', '+e[2]).join('; ')],
     ['<code>DataLoader.state_dict</code> exists',T.T3.has_state_dict?'yes':'no (torchdata\'s StatefulDataLoader adds it; not run here)']]);
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-data']=[()=>A.redraw()];
 })();

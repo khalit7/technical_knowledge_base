@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>The JAX training stack: Flax NNX, optax, orbax and grain</h1>
-<div class="sub">The four libraries around JAX that turn a model into a training run, in depth, for someone who knows PyTorch: how Flax NNX holds and moves state, Linen and Equinox for reading other code, optax transformation by transformation, orbax checkpoints that resume bit for bit, grain pipelines that stay deterministic, float16 loss scaling, metrics and a complete script. Every result was run on the parent topic's tiny character LM on an Apple M1 Pro CPU (8 simulated devices for sharding). Data as of October 2026.</div>
+<div class="sub">How the four libraries around JAX turn a model into a training run that compiles once and resumes as the same run, measured on the parent topic's tiny character LM (Apple M1 Pro CPU). Data as of October 2026. Reading: 29 min, plus 20 in closed details.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-state" aria-selected="false">State inspector</button><button role="tab" data-t="t-opt" aria-selected="false">Optimiser lab</button><button role="tab" data-t="t-resume" aria-selected="false">Resume lab</button><button role="tab" data-t="t-data" aria-selected="false">Data lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <style>
 .ts-cap{font-size:12.5px;color:var(--mute);margin:3px 0 12px}
@@ -137,15 +137,60 @@ pre.ts-out{background:var(--bg);border-style:dashed;color:var(--mute)}
 .tab .seg{flex-wrap:wrap;max-width:100%}
 #ts-mesh-t,#ts-mesh-t2,#ts-ckv-t,#ts-shard-t{min-width:600px}#ts-mesh-t td code,#ts-mesh-t2 td code,#ts-shard-t td code{white-space:nowrap;overflow-wrap:normal;word-break:normal}
 @media (max-width:520px){pre.ts-code{font-size:11px}}
-</style>
-<div class="tab" id="t-read" role="tabpanel">
-<nav class="nav" id="rd-nav"><a href="#s-one">In one screen</a><a href="#s-nnx">1 NNX state</a><a href="#s-nnxt">2 NNX transforms</a><a href="#s-old">3 Linen, Equinox</a><a href="#s-optax">4 optax</a><a href="#s-orbax">5 orbax</a><a href="#s-grain">6 grain</a><a href="#s-mp">7 float16</a><a href="#s-eval">8 Metrics</a><a href="#s-full">9 Full script</a><a href="#s-mist">Mistakes</a><a href="#s-iq">Interview</a><a href="#s-corr">Old page</a></nav>
+.ts-hl{color:var(--acc);font-weight:600}
+.ts-terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:4px 16px;font-size:13.5px;margin:6px 0 10px}
+.ts-terms div{min-width:0}
+.ts-fig{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;min-width:0}
+.ts-fig .ft{font-weight:600;font-size:14px;margin:0 0 6px}
+.ts-pred{font-size:13.5px;border-left:3px solid var(--c5);padding:2px 0 2px 9px;margin:8px 0}
+details.mist .b h3{font-size:14.5px;margin:12px 0 4px}
+#t-read .si-row{display:grid;grid-template-columns:minmax(0,1fr) 6.4em 5.6em minmax(30px,18%);gap:6px;align-items:center;font-size:12px;padding:2px 4px;border-radius:4px}
+#t-read .si-row .p{font-family:ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+#t-read .si-row .ty{font-size:11px;border:1px solid var(--line);border-radius:99px;padding:0 6px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#t-read .si-row .sh{color:var(--mute);text-align:right;white-space:nowrap}
+#t-read .si-row .bar{height:9px;border-radius:2px;background:var(--dim)}
+#t-read .si-g{border:1px solid var(--line);border-radius:8px;padding:6px;margin:8px 0;min-width:0}
+#t-read .si-g h4{margin:0 0 4px;font-size:13.5px}
+#t-read .si-g>div{max-height:280px;overflow-y:auto}
+#t-read .si-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:8px}
+#t-read .op-pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:8px 0}
+#t-read .op-st{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;min-width:0}
+#t-read .op-st .k{color:var(--mute);font-size:11px}
+#t-read .op-st .v{font:600 14px ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+#t-read .op-st .f{font-size:11px;color:var(--mute);overflow-wrap:anywhere}
+#t-read .op-st.on{border-color:var(--acc);background:var(--acc2)}
+#t-read .op-st.off{opacity:.35}
+#t-read .rs-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#t-read .rs-chip{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:1px 9px}
+#t-read .rs-chip.y{border-color:var(--good);color:var(--good)}#t-read .rs-chip.n{border-color:var(--bad);color:var(--bad);text-decoration:line-through}
+#t-read .rs-files{font:12px/1.5 ui-monospace,Menlo,Consolas,monospace}
+#t-read .rs-files .r{display:grid;grid-template-columns:minmax(0,1fr) 6em;gap:8px}
+#t-read .rs-files .r span:first-child{overflow-wrap:anywhere}#t-read .rs-files .r span:last-child{text-align:right}
+#t-read .dg-grid{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:2px;margin:4px 0 10px}
+#t-read .dg-c{aspect-ratio:1.6;border-radius:2px;font:9px/1 ui-monospace,Menlo,Consolas,monospace;display:flex;align-items:center;justify-content:center;color:#fff;overflow:hidden}
+#t-read .dg-c.x{outline:2px solid var(--bad);outline-offset:-2px}
+#t-read .dg-c.e{background:var(--soft)!important;color:var(--mute)}
+#t-read .dg-h{font-size:12px;color:var(--mute);margin:6px 0 2px}
+@media (max-width:520px){#t-read .si-row{grid-template-columns:minmax(0,1fr) 6.2em 0 20%}#t-read .si-row .sh{display:none}#t-read .dg-c{font-size:0}}
+</style><div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" id="rd-nav"><a href="#s-one">The idea</a><a href="#s-nnx">1 NNX state</a><a href="#s-nnxt">2 NNX transforms</a><a href="#s-old">3 Linen, Equinox</a><a href="#s-optax">4 optax</a><a href="#s-orbax">5 orbax</a><a href="#s-grain">6 grain</a><a href="#s-mp">7 float16</a><a href="#s-eval">8 Metrics</a><a href="#s-full">9 Full script</a><a href="#s-depth">Checklists</a></nav>
 
 <section id="s-one">
-<p class="lead">JAX gives you arrays and transformations of pure functions; four libraries turn that into a training run: <b>Flax NNX</b> holds the model, <b>optax</b> updates it, <b>orbax</b> saves it and <b>grain</b> feeds it. The parent page, <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a>, introduced each in its <b>Training lab</b> tab (modules split into graphdef and state, an optax chain builder checked against the library, a checkpoint resumed bit for bit, bfloat16 with a float32 master copy). This page goes one level down: <b>how each library holds state, what each call costs, which defaults bite, and how to check a training run is the run you meant.</b></p>
+<p class="lead"><b>A JAX training run is one compiled, pure step function applied to a pytree of state; Flax NNX turns your model object into that pytree, optax is a pair of pure functions over it, orbax writes it to disk, and grain makes the data position a few integers inside it.</b> So the run you resume is the same run only when every piece of <span class="ts-hl">state</span> that decides the next step (parameters, optimiser moments and step count, random streams, data position) went into the checkpoint.</p>
 
-<div class="co key"><div class="t">The stack in four sentences</div>
-An <b>NNX module</b> is a Python object whose arrays live in typed <b>Variables</b>; every JAX transformation sees it as two things, a static, hashable <b>graphdef</b> (the structure, which keys the compile cache) and a <b>state</b> (a pytree of arrays). An <b>optax optimiser</b> is a pair of pure functions over pytrees, built by chaining small transformations, so its state is just more arrays. An <b>orbax checkpoint</b> is any pytree written shard by shard, asynchronously, restorable into whatever shapes and shardings you hand it. A <b>grain pipeline</b> computes every record from its index and a seed, so the loader's whole position is a few integers that go into the same checkpoint.</div>
+<div class="ts-fig" id="ts-hero-card"><div class="ft">One training step: everything that decides step t + 1 is <span class="ts-hl">state</span> you can name, save and restore</div>
+<div class="ts-svgw" id="ts-hero"></div>
+<p class="ts-cap">The graphdef (the model's structure) is the only part not saved: it is rebuilt from your code and keys the compile cache, so the same structure reuses one compiled step. Section numbers on the figure point to where each box is explained; every number on this page was measured on the running example below.</p></div>
+
+<p><b>You need</b>: <code>jax.jit</code>, <code>jax.grad</code>, pytrees and PRNG keys (<a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a>), and a PyTorch training loop, which the table below maps onto this stack. <b>New terms</b>:</p>
+<div class="ts-terms">
+<div><b>Variable</b>: a typed box holding one array of an NNX module (<code>nnx.Param</code>, <code>nnx.RngKey</code>, ...).</div>
+<div><b>graphdef</b>: the module's structure with no arrays; static and hashable.</div>
+<div><b>filter</b>: a rule selecting Variables by type or path (<code>nnx.Param</code>, <code>...</code>).</div>
+<div><b>GradientTransformation</b>: optax's <code>(init, update)</code> pair of pure functions.</div>
+<div><b>CheckpointManager</b>: orbax's object that saves, keeps and restores numbered steps.</div>
+<div><b>MapDataset</b>: grain's random-access dataset, record i computed from i and a seed.</div>
+</div>
 
 <h3>What you know from PyTorch, and where it went</h3>
 <div class="tw"><table class="ts-t">
@@ -163,16 +208,18 @@ An <b>NNX module</b> is a Python object whose arrays live in typed <b>Variables<
 <tr><td>torchmetrics</td><td><code>nnx.metrics</code> (or clu)</td><td>metrics accumulate on device inside the compiled step</td><td><a href="#s-eval">8</a></td></tr>
 </tbody></table></div>
 
-<p><b>The running example</b> is the parent topic's: a decoder-only character LM with <span data-ts="nnx.E1.n_params" data-f="int"></span> parameters (4 layers, width 128, 4 heads, context 128, vocabulary 65) trained on TinyShakespeare, written in PyTorch, Flax NNX and plain JAX from the same initial weights (the root's <code>src/data/README.md</code>). Every number below was measured on an Apple M1 Pro CPU with jax 0.11.2, flax 0.12.10, optax 0.2.8, orbax-checkpoint 0.12.7, grain 0.2.18, equinox 0.13.8, dm-haiku 0.0.17, jmp 0.0.4 and torch 2.14.1, unless it is labelled published. <span class="ts-meas">measured</span> means run here; <span class="ts-der">derived</span> computed from measured or published numbers with the formula shown; <span class="ts-pub">published</span> from a source, dated. Losses, equalities, counts and shapes are deterministic and transfer to any backend; times were taken on a machine shared with other jobs (1-minute load average 30 to 57 during these runs) and say nothing about TPUs or GPUs.</p>
-<div class="deepnote"><b>Not repeated here.</b> The line-by-line port from PyTorch, every default that differs between the two (LayerNorm epsilon, GELU, initialisers, weight layout, AdamW decay) and their measured effect live on the sibling <a href="https://app.notion.com/p/3fa5c17b0d0d81c5abb9fedab418578d" target="_blank" rel="noopener noreferrer">PyTorch to JAX: porting a small LM</a> and in the root's Training lab. Sharding strategies themselves are on <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>; tracing and pytrees from zero on <a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a>.</div>
+<p><b>The running example</b> is the parent topic's decoder-only character LM: 826,368 parameters (4 layers, width 128, 4 heads, context 128, vocabulary 65) trained on TinyShakespeare's 7,781 windows of 129 characters, with the AdamW chain of section 4. Losses, equalities, counts and shapes are deterministic and transfer to any backend; times are rough single runs on a shared CPU and say nothing about TPUs or GPUs. Labels: <span class="ts-meas">measured</span> run here, <span class="ts-der">derived</span> computed with the formula shown, <span class="ts-pub">published</span> from a dated source.</p>
+<details class="mist"><summary>Provenance: versions, machine, and what this page does not repeat</summary><div class="b">
+<p>Every number was measured on an Apple M1 Pro CPU with jax 0.11.2, flax 0.12.10, optax 0.2.8, orbax-checkpoint 0.12.7, grain 0.2.18, equinox 0.13.8, dm-haiku 0.0.17, jmp 0.0.4 and torch 2.14.1, unless it is labelled published; the machine was shared with other jobs (1-minute load average 30 to 57 during these runs). PyTorch, Flax NNX and plain JAX versions of the model start from the same initial weights (the root's <code>src/data/README.md</code>). The parent page, <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a>, introduces each library in its <b>Training lab</b> tab (graphdef and state, an optax chain builder checked against the library, a checkpoint resumed bit for bit, bfloat16 with a float32 master copy); this page goes one level down.</p>
+<p><b>Not repeated here.</b> The line-by-line port from PyTorch and every default that differs between the two (LayerNorm epsilon, GELU, initialisers, weight layout, AdamW decay) are on <a href="https://app.notion.com/p/3fa5c17b0d0d81c5abb9fedab418578d" target="_blank" rel="noopener noreferrer">PyTorch to JAX: porting a small LM</a> and in the root's Training lab. Sharding strategies are on <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>; tracing and pytrees from zero on <a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a>; MaxText and other LLM codebases on <a href="https://app.notion.com/p/3fa5c17b0d0d81f8bd5ad523e9f2dde0" target="_blank" rel="noopener noreferrer">JAX LLM codebases</a>.</p>
+</div></details>
 </section>
-
 <section id="s-nnx">
 <h2>1. Flax NNX: where the state lives</h2>
-<p><b>The problem.</b> <code>jax.jit</code>, <code>jax.grad</code> and <code>jax.vmap</code> transform pure functions of pytrees (nested lists, tuples and dicts whose leaves are arrays). A PyTorch-style model is an object that owns its weights and changes them in place. Flax NNX keeps the object, so model code reads like PyTorch, and converts it to a pytree at every transformation boundary.</p>
+<p><code>jax.jit</code>, <code>jax.grad</code> and <code>jax.vmap</code> transform pure functions of pytrees (nested lists, tuples and dicts whose leaves are arrays). A PyTorch-style model is an object that owns its weights and changes them in place. Flax NNX keeps the object, so model code reads like PyTorch, and converts it to a pytree at every transformation boundary.</p>
 
 <h3>Variables: typed boxes for every array</h3>
-<p>Every array an NNX module owns sits in an <code>nnx.Variable</code>, and the subclass says what kind of state it is. PyTorch has two kinds (parameters, which the optimiser sees, and buffers, which it does not); NNX has as many as you like, and every API that moves state takes a <b>filter</b> over them.</p>
+<p>Every array an NNX module owns sits in an <code>nnx.Variable</code>, and the subclass says what kind of state it is. PyTorch has two kinds (parameters the optimiser sees, buffers it does not); NNX has as many as you like, and every API that moves state takes a <b>filter</b> over them.</p>
 <div class="tw"><table class="ts-t"><thead><tr><th>Variable type</th><th>Holds</th><th>PyTorch counterpart</th></tr></thead><tbody>
 <tr><td><code>nnx.Param</code></td><td>trainable weights (<code>nnx.Linear.kernel</code>, <code>bias</code>, <code>LayerNorm.scale</code>, <code>Embed.embedding</code>)</td><td><code>nn.Parameter</code></td></tr>
 <tr><td><code>nnx.BatchStat</code></td><td>running mean and variance of <code>nnx.BatchNorm</code></td><td><code>register_buffer("running_mean")</code></td></tr>
@@ -181,57 +228,76 @@ An <b>NNX module</b> is a Python object whose arrays live in typed <b>Variables<
 <tr><td><code>nnx.OptState</code> and friends</td><td>the optimiser's arrays, inside <code>nnx.Optimizer</code></td><td><code>optimizer.state_dict()["state"]</code></td></tr>
 <tr><td>your own subclass</td><td>anything: a step counter, an EMA copy</td><td>a custom buffer</td></tr>
 </tbody></table></div>
-<p class="ts-src">Source at flax v0.12.10: <a data-ts-src="flax_variable"></a>, <a data-ts-src="flax_param"></a>, <a data-ts-src="flax_batchstat"></a>. Arrays are read and written with <code>v[...]</code>; <code>v.value</code> still works in 0.12 but warns that it is deprecated (root Training lab, section 9).</p>
+<p class="ts-src">Source at flax v0.12.10: <a data-ts-src="flax_variable"></a>, <a data-ts-src="flax_param"></a>, <a data-ts-src="flax_batchstat"></a>. Arrays are read and written with <code>v[...]</code>; <code>v.value</code> still works in 0.12 but warns that it is deprecated.</p>
 
-<h3>graphdef and state: the running example taken apart</h3>
-<p><code>graphdef, state = nnx.split(model)</code> walks the object graph. The <b>graphdef</b> records every node (module, list, variable) and every non-array attribute; the <b>state</b> is a pytree of the arrays, keyed by path. <code>nnx.merge(graphdef, state)</code> builds an equivalent object, and <code>nnx.update(model, state)</code> writes arrays back into an existing one. For the running example <span class="ts-meas">measured</span>:</p>
+<h3>split: one object becomes a graphdef and states</h3>
+<p><code>graphdef, state = nnx.split(model)</code> walks the object graph. The <b>graphdef</b> records every node (module, list, Variable) and every non-array attribute; the <b>state</b> is a pytree of the arrays, keyed by path. <code>nnx.merge(graphdef, state)</code> builds an equivalent object; <code>nnx.update(model, state)</code> writes arrays back into an existing one. With filters, <code>nnx.split(model, f1, f2, ...)</code> returns one state per filter: a filter is a Variable type, a path predicate (<code>nnx.PathContains("kernel")</code>), a combination (<code>nnx.All</code>, <code>nnx.Any</code>, <code>nnx.Not</code>), or <code>...</code> for "everything else". It is how you say "differentiate the Params only", "decay only the kernels", "vectorise the stacked layers, broadcast the rest".</p>
+<p class="ts-pred"><b>Predict</b>, then step the split below: with <code>+ dropout</code> and the filter <code>nnx.Not(nnx.Param)</code>, how many of the leaves land in group 1?</p>
+<div class="ts-box" id="si-card">
+<h4>The running example's real state, split by a filter, module by module</h4>
+<div class="ts-ctl"><span class="small">Model</span><span class="seg" id="si-model"><button data-m="plain" class="on">running example</button><button data-m="dropout">+ dropout</button><button data-m="counter">+ StepCount</button><button data-m="scan">scanned (stacked)</button></span></div>
+<div class="ts-ctl"><span class="small">Filter</span><span class="seg" id="si-filter" style="flex-wrap:wrap"></span></div>
+<div class="ts-capstep" id="si-cap"></div>
+<div class="ts-anctl" id="si-ctl"></div>
+<div class="out" id="si-stats"></div>
+<div class="si-two">
+<div class="si-g"><h4 id="si-h1">still in the object (by module)</h4><div id="si-obj"></div></div>
+<div class="si-g"><h4 id="si-h2">group 1</h4><div id="si-g1"></div></div>
+<div class="si-g"><h4 id="si-h3">rest (...)</h4><div id="si-g2"></div></div>
+</div>
+</div>
+<p class="ts-cap">Every leaf with its Variable type, path and shape, as recorded by <code>src/runs/ts_nnx.py</code> (flax 0.12.10) <span class="ts-meas">measured</span>; bars are proportional to the square root of the element count. With dropout the answer is two: the dropout stream's <code>RngKey</code> and <code>RngCount</code>; the 69 others are Params. Each Variable goes to the first filter that matches it, and the filters must cover every leaf: forgetting <code>...</code> raises "Non-exhaustive filters".</p>
 <div class="out" id="ts-gd-stats"></div>
+<p>The graphdef of the running example has 170 nodes and 571 attributes, against 69 state leaves <span class="ts-meas">measured</span>. Its static attributes include things a PyTorch user would never think of as part of the model: <code>in_features</code>, <code>use_bias</code>, <code>dtype</code>, <code>param_dtype</code>, <code>precision</code>, the <code>dot_general</code> function itself. That is the point: <b>everything in the graphdef is a compile-time constant</b>. Two models built with different seeds have <span data-ts="nnx.E1.graphdef_equal_other_seed" data-f="eqword"></span> graphdefs and equal hashes, so <code>nnx.jit</code> reuses one compiled program for both; change any static attribute and the graphdef, the cache key and the program all change (section 2).</p>
+<details class="mist"><summary>The graphdef in detail: node kinds, static attributes, the split error, sources</summary><div class="b">
 <div class="tw"><table class="ts-t" id="ts-gd-types"></table></div>
 <p class="ts-cap">Node kinds in the running example's graphdef (<code>src/runs/ts_nnx.py</code>, E1). <code>GenericPytree</code> nodes are the per-module bookkeeping for NNX's pytree registration.</p>
-<p>The static attributes include things a PyTorch user would never think of as part of the model: <code>in_features</code>, <code>use_bias</code>, <code>dtype</code>, <code>param_dtype</code>, <code>precision</code>, the <code>dot_general</code> function itself, and the running example's own <code>h</code> and <code>dh</code>. That is the point: <b>everything in the graphdef is a compile-time constant</b>. Two models built with different seeds have <span data-ts="nnx.E1.graphdef_equal_other_seed" data-f="eqword"></span> graphdefs and equal hashes, so <code>nnx.jit</code> reuses one compiled program for both; change any static attribute and the graphdef, the cache key and the program all change (section 2).</p>
-<p class="ts-src">Source: <code>GraphDef</code> at <a data-ts-src="flax_graphdef"></a>; <code>split</code> at <a data-ts-src="flax_split"></a>; <code>merge</code> at <a data-ts-src="flax_merge"></a>; <code>update</code> at <a data-ts-src="flax_update"></a>.</p>
-
-<h3>Filters: splitting state into groups</h3>
-<p><code>nnx.split(model, f1, f2, ...)</code> returns one state per filter. A filter is a Variable type, a path predicate (<code>nnx.PathContains("kernel")</code>), a combination (<code>nnx.All</code>, <code>nnx.Any</code>, <code>nnx.Not</code>), or <code>...</code> for "everything else". It is how you say "differentiate the Params only", "decay only the kernels", "vectorise the stacked layers, broadcast the rest". The filters must cover every leaf; this is what forgetting <code>...</code> on a model with dropout prints <span class="ts-meas">measured</span>:</p>
+<p>Static attributes collected from every node (values as recorded; functions by name):</p>
+<div class="tw"><table class="ts-t" id="si-static"></table></div>
+<p>The start of <code>repr(graphdef)</code> (<span data-ts="nnx.E1.graphdef_repr_chars" data-f="int"></span> characters in all):</p>
+<pre class="ts-code" data-ts-pre="nnx.E1.graphdef_repr_head"></pre>
+<p>What forgetting <code>...</code> on a model with dropout prints <span class="ts-meas">measured</span>:</p>
 <div class="ts-err" data-ts-err="nnx.E2_split_error"></div>
-<div class="ts-q" data-q="1"><b>Predict.</b> The running example plus <code>nnx.Dropout(0.1, rngs=rngs)</code>. How many leaves does <code>nnx.split(model, nnx.Not(nnx.Param), ...)</code> put in the first group?
-<div class="opts"><button data-a="0">0</button><button data-a="1" data-right>2</button><button data-a="2">69</button><button data-a="3">71</button></div>
-<div class="ans" hidden>Two: the dropout stream's <code>RngKey</code> and <code>RngCount</code>. The 69 others are Params. The <a href="#" data-tab="t-state">State inspector</a> shows every group for every filter.</div></div>
+<p class="ts-src">Source: <code>GraphDef</code> at <a data-ts-src="flax_graphdef"></a>; <code>split</code> at <a data-ts-src="flax_split"></a>; <code>merge</code> at <a data-ts-src="flax_merge"></a>; <code>update</code> at <a data-ts-src="flax_update"></a>.</p>
+</div></details>
 
 <h3>Randomness is state: nnx.Rngs</h3>
-<p>PyTorch draws dropout masks from a global generator that advances by itself. JAX has no global generator: a random function takes a <b>key</b> and returns the same numbers for the same key (<a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a>, section 9). NNX stores a key and a counter per stream (<code>params</code>, <code>dropout</code>, ...) inside the model; each draw folds the counter into the key and increments it. Measured on the running example with dropout added <span class="ts-meas">measured</span>:</p>
+<p>PyTorch draws dropout masks from a global generator that advances by itself. JAX has no global generator: a random function takes a <b>key</b> and returns the same numbers for the same key. NNX stores a key and a counter per stream (<code>params</code>, <code>dropout</code>, ...) inside the model; each draw folds the counter into the key and increments it. Measured on the running example with dropout <span class="ts-meas">measured</span>:</p>
 <div class="tw"><table class="ts-t" id="ts-rng-t"></table></div>
-<p>The third row is a real bug pattern: split the model once, close over the graphdef, call a pure <code>jax.jit</code> function with the state and never return the new state. The counter advances inside the trace, but the advanced value is dropped, so every step gets <b>the same dropout mask</b>. Nothing errors. <code>nnx.jit</code> avoids it by writing the updated state back into your object after the call; with raw <code>jax.jit</code> you must return <code>nnx.state(model)</code> and use it next time (fourth row). <code>model.eval()</code> sets <code>deterministic=True</code> on every Dropout (and <code>use_running_average</code> on BatchNorm), like PyTorch's <code>model.eval()</code>; the eval output equals the same weights in the dropout-free model exactly (largest difference <span data-ts="nnx.E3.eval_equals_plain_model"></span>).</p>
-<p class="ts-src">Source: <code>Rngs</code> at <a data-ts-src="flax_rngs"></a>, <code>RngStream</code> at <a data-ts-src="flax_rngstream"></a>.</p>
+<p>The third row is a real bug pattern: split once, call a pure <code>jax.jit</code> function with the state and never return the new state. The counter advances inside the trace, the advanced value is dropped, and every step gets <b>the same dropout mask</b>, with no error. <code>nnx.jit</code> avoids it by writing the updated state back into your object; with raw <code>jax.jit</code> return <code>nnx.state(model)</code> and use it next time. <code>model.eval()</code> sets <code>deterministic=True</code> on every Dropout (and <code>use_running_average</code> on BatchNorm), like PyTorch's.</p>
+<details class="mist"><summary>eval mode measured; sources</summary><div class="b"><p>The eval output equals the dropout-free model with the same weights exactly (largest difference <span data-ts="nnx.E3.eval_equals_plain_model"></span>). Source: <code>Rngs</code> at <a data-ts-src="flax_rngs"></a>, <code>RngStream</code> at <a data-ts-src="flax_rngstream"></a>.</p></div></details>
 
-<h3>Graph mode and tree mode</h3>
-<p>An object graph can share: the running example with its output head tied to the token embedding holds <b>one</b> <code>Embed</code> referenced twice. PyTorch handles this naturally (two attributes, one tensor). A pytree cannot express sharing: each leaf appears once. NNX has two modes. <b>Graph mode</b> tracks object identity, stores the shared array once and restores the sharing on merge. <b>Tree mode</b> treats modules as plain pytrees and refuses duplicates. In flax 0.12.10 the defaults are graph mode <span data-ts="nnx.E4.defaults.graph_mode" data-f="onoff"></span> and graph updates <span data-ts="nnx.E4.defaults.graph_updates" data-f="onoff"></span> (<a data-ts-src="flax_graph_mode_flag"></a>, <a data-ts-src="flax_graph_updates_flag"></a>), and every API takes <code>graph=</code>. Measured on the tied model <span class="ts-meas">measured</span>: graph mode splits it into <span data-ts="nnx.E4.graph_mode_leaves"></span> leaves and <span data-ts="nnx.E4.graph_mode_params" data-f="int"></span> parameters (the untied model's <span data-ts="nnx.E1.n_params" data-f="int"></span> minus the 128 x 65 head); tree mode raises:</p>
-<div class="ts-err" data-ts-err="nnx.E4.tree_mode_error" data-trim="tree"></div>
-<div class="co warn"><div class="t">The defaults are planned to change</div>Flax's design note FLIP 5310 "Tree Mode NNX" (dated Mar 4, 2026, in the pinned clone) says: "The goal will be to have the default value for <code>nnx_graph_mode</code> and <code>nnx_graph_updates</code> to be set to <code>False</code>" (<a data-ts-src="flax_flip_tree_goal"></a>). Under tree mode, shared references, prefix filters (<code>StateAxes</code>, <code>DiffState</code>, <code>StateSharding</code>) and structure changes inside transforms go away, and <code>nnx.grad</code> stops defaulting to Params only and returns gradients of the input's own type (<a data-ts-src="flax_flip_grad"></a>). Code that ties weights by sharing a module, or relies on <code>nnx.grad</code>'s default filter, should pin <code>nnx.set_graph_mode(True)</code> or use <code>nnx.compat.*</code>. Not yet the default at 0.12.10 <span class="ts-meas">measured</span>.</div>
+<h3>Shared modules: graph mode and tree mode</h3>
+<p>The running example with its output head tied to the token embedding holds <b>one</b> <code>Embed</code> referenced twice. A pytree cannot express sharing: each leaf appears once. <b>Graph mode</b> tracks object identity, stores the shared array once and restores the sharing on merge; <b>tree mode</b> treats modules as plain pytrees and refuses duplicates ("Duplicate Param"). In flax 0.12.10 graph mode is <span data-ts="nnx.E4.defaults.graph_mode" data-f="onoff"></span> by default and graph updates <span data-ts="nnx.E4.defaults.graph_updates" data-f="onoff"></span> (<a data-ts-src="flax_graph_mode_flag"></a>, <a data-ts-src="flax_graph_updates_flag"></a>); every API takes <code>graph=</code>. On the tied model graph mode splits into <span data-ts="nnx.E4.graph_mode_leaves"></span> leaves and <span data-ts="nnx.E4.graph_mode_params" data-f="int"></span> parameters (the untied count minus the 128 x 65 head) <span class="ts-meas">measured</span>.</p>
+<div class="co warn"><div class="t">The defaults are planned to change</div>Flax's design note FLIP 5310 plans to make tree mode the default; shared modules and <code>nnx.grad</code>'s Params-only default then go away. Code that ties weights by sharing a module, or relies on that default, should pin <code>nnx.set_graph_mode(True)</code> or use <code>nnx.compat.*</code>. Not yet the default at 0.12.10 <span class="ts-meas">measured</span>.</div>
+<details class="mist"><summary>FLIP 5310 in its own words, and the tree-mode error on the tied model</summary><div class="b"><p>"Tree Mode NNX" (dated Mar 4, 2026, in the pinned clone) says: "The goal will be to have the default value for <code>nnx_graph_mode</code> and <code>nnx_graph_updates</code> to be set to <code>False</code>" (<a data-ts-src="flax_flip_tree_goal"></a>). Under tree mode, shared references, prefix filters (<code>StateAxes</code>, <code>DiffState</code>, <code>StateSharding</code>) and structure changes inside transforms go away, and <code>nnx.grad</code> returns gradients of the input's own type (<a data-ts-src="flax_flip_grad"></a>).</p><div class="ts-err" data-ts-err="nnx.E4.tree_mode_error" data-trim="tree"></div><p>Pin graph mode, or tie by computing the head from the embedding's array instead of sharing the module.</p></div></details>
 </section>
-
 <section id="s-nnxt">
 <h2>2. NNX transformations: jit, grad, the optimiser, scan, sharding</h2>
 <h3>nnx.jit: what retraces, what is written back</h3>
-<p><code>nnx.jit(f)</code> is <code>jax.jit</code> with a wrapper: before the call it splits every module argument into graphdef and state, passes the graphdefs as static (hashed into the cache key) and the states as traced arrays; inside, it merges them back into objects; after the call it copies changed Variables back into your objects. So two things hold that a PyTorch user does not expect: <b>a Python side effect in the function runs only while tracing</b>, and <b>a change to the module's structure retraces</b>. The running example with a custom <code>StepCount</code> Variable incremented on every call <span class="ts-meas">measured</span>:</p>
+<p><code>nnx.jit(f)</code> is <code>jax.jit</code> with a wrapper: it splits every module argument into graphdef and state, passes the graphdefs as static (hashed into the cache key) and the states as traced arrays, merges them back into objects inside, and after the call copies changed Variables back into your objects. So <b>a Python side effect runs only while tracing</b>, and <b>a change to the module's structure retraces</b>. The running example with a custom <code>StepCount</code> Variable incremented on every call <span class="ts-meas">measured</span>:</p>
 <pre class="ts-code">@nnx.jit
 def step_count(m, x):
     TR["n"] += 1                   # Python side effect: runs only when tracing
     return m(x).mean()</pre>
 <div class="tw"><table class="ts-t" id="ts-jit-t"></table></div>
-<p class="ts-cap">From <code>src/runs/ts_nnx.py</code> (E5). "Traces" counts how many times Python ran the function body; "calls" is the Variable incremented inside the compiled program and written back.</p>
-<p>Setting <code>h</code> to the value it already had does not retrace: the graphdef compares equal. Adding an attribute does, and so does a new input shape, exactly as with <code>jax.jit</code>. In a training loop the danger is code that adds, removes or re-creates a submodule or a Python attribute every step: each step then compiles from scratch. The root's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Compiler lab</a> tab measures what a recompile costs; <a href="https://app.notion.com/p/3fa5c17b0d0d8135adcedefac9e1bb48" target="_blank" rel="noopener noreferrer">XLA and compilation</a> shows how to find the cause at scale. Source: <a data-ts-src="flax_jit"></a>.</p>
+<p class="ts-cap">From <code>src/runs/ts_nnx.py</code> (E5). "Traces" counts how many times Python ran the body; "StepCount" is the Variable incremented inside the compiled program and written back. Setting <code>h</code> to the value it already had did not retrace (the graphdef compares equal); one added Param took the trace count from 1 to 2, a new batch shape to 3.</p>
+<p>In a training loop the danger is code that adds, removes or re-creates a submodule or a Python attribute every step: each step then compiles from scratch. Keep per-step values in Variables or pass them as arguments. The root's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Compiler lab</a> tab measures what a recompile costs; <a href="https://app.notion.com/p/3fa5c17b0d0d8135adcedefac9e1bb48" target="_blank" rel="noopener noreferrer">XLA and compilation</a> shows how to find the cause at scale. Source: <a data-ts-src="flax_jit"></a>.</p>
 
-<h3>nnx.grad: gradients with respect to Params only</h3>
-<p><code>nnx.grad(loss_fn)(model, x, y)</code> differentiates with respect to the model's <code>nnx.Param</code> leaves and nothing else, because its default <code>argnums</code> is <code>nnx.DiffState(0, nnx.Param)</code>. On the counter model <span class="ts-meas">measured</span>: the gradient is an <code>nnx.<span data-ts="nnx.E6.grads_type"></span></code> with <span data-ts="nnx.E6.n_grad_leaves"></span> leaves, all of type <span data-ts="nnx.E6.grad_types" data-f="list"></span>; the <code>StepCount</code> is not in it. To differentiate a subset, pass a narrower filter: <code>argnums=nnx.DiffState(0, nnx.All(nnx.Param, nnx.PathContains("attn")))</code> gives <span data-ts="nnx.E6.attn_only_leaves"></span> leaves (the 4 x 8 attention weights and biases). The PyTorch counterpart is <code>requires_grad_(False)</code> on everything else, but here nothing is mutated and the choice is per call. The key-projection bias gradient is <span data-ts="nnx.E6.key_bias_grad_absmax" data-f="e1"></span> at most against <span data-ts="nnx.E6.wq_kernel_grad_absmax" data-f="e1"></span> for the query kernel: zero in exact arithmetic, because a constant added to every key shifts each softmax row by a constant (the root's Training lab explains the consequences for Adam). Source: <a data-ts-src="flax_grad"></a>; tree mode will change this default (section 1).</p>
-
-<h3>nnx.Optimizer: the optimiser as a module</h3>
-<p><code>nnx.Optimizer(model, tx, wrt=nnx.Param)</code> runs <code>tx.init</code> on the filtered state and stores the result as Variables, so the optimiser can be passed through <code>nnx.jit</code> and checkpointed like a model; <code>opt.update(model, grads)</code> calls <code>tx.update</code>, adds the updates and writes them into the model. It no longer holds a reference to the model (since Flax 0.11), which is why <code>update</code> takes it. For the running example's AdamW chain its state has <span data-ts="nnx.E9.n_leaves"></span> leaves and <span data-ts="nnx.E9.size" data-f="int"></span> numbers <span class="ts-meas">measured</span>: two moment trees of 826,368 each, plus step counters (<span data-ts="nnx.E9.types" data-f="kv"></span>). Without <code>wrt</code> <span class="ts-meas">measured</span>:</p>
+<h3>nnx.grad and nnx.Optimizer</h3>
+<p><code>nnx.grad(loss_fn)(model, x, y)</code> differentiates with respect to the model's <code>nnx.Param</code> leaves only, because its default <code>argnums</code> is <code>nnx.DiffState(0, nnx.Param)</code>: on the counter model the gradient was a <code>State</code> of 69 Param leaves, without the <code>StepCount</code> <span class="ts-meas">measured</span>. A narrower filter differentiates a subset: <code>nnx.DiffState(0, nnx.All(nnx.Param, nnx.PathContains("attn")))</code> gave 32 leaves (the 4 x 8 attention weights and biases). The PyTorch counterpart is <code>requires_grad_(False)</code> on everything else, but nothing is mutated and the choice is per call (source <a data-ts-src="flax_grad"></a>; tree mode will change this default, section 1).</p>
+<p><code>nnx.Optimizer(model, tx, wrt=nnx.Param)</code> runs <code>tx.init</code> on the filtered state and stores the result as Variables, so the optimiser passes through <code>nnx.jit</code> and into a checkpoint like a model; <code>opt.update(model, grads)</code> calls <code>tx.update</code> and writes the new parameters into the model. Since Flax 0.11 it holds no reference to the model (which is why <code>update</code> takes it) and <code>wrt</code> is required. For the AdamW chain its state has 141 leaves and 1,652,739 numbers <span class="ts-meas">measured</span>: two moment trees of 826,368 each plus step counters.</p>
+<details class="mist"><summary>Details: a gradient that is pure float noise, the missing-wrt error, the optimiser's state by type</summary><div class="b">
+<p>The key-projection bias gradient is <span data-ts="nnx.E6.key_bias_grad_absmax" data-f="e1"></span> at most (1.6e-11) against <span data-ts="nnx.E6.wq_kernel_grad_absmax" data-f="e1"></span> for the query kernel: zero in exact arithmetic, because a constant added to every key shifts each softmax row by a constant (the root's Training lab explains the consequences for Adam; section 4 shows what Adam's &#949; does with it).</p>
+<p>Without <code>wrt</code> <span class="ts-meas">measured</span>:</p>
 <div class="ts-err" data-ts-err="nnx.E9.no_wrt_error"></div>
+<p>State by type: <span data-ts="nnx.E9.types" data-f="kv"></span>. A sample:</p>
+<div class="tw"><table class="ts-t" id="si-opt"></table></div>
 <p class="ts-src">Source: <a data-ts-src="flax_optimizer"></a>; the message at <a data-ts-src="flax_optimizer_wrt"></a>.</p>
+</div></details>
 
 <h3>Scan over layers: one traced block instead of four</h3>
-<p><b>The problem.</b> A Python <code>for</code> loop over layers is unrolled when traced: 4 blocks give 4 copies of the block in the jaxpr, 48 give 48, and compile time grows with depth. <b>How it works.</b> Create the blocks with <code>nnx.vmap</code> over a split of the Rngs, so every parameter gets a leading layer axis (a <code>[128, 512]</code> kernel becomes <code>[4, 128, 512]</code>); run them with <code>nnx.scan</code>, which lowers to one <code>lax.scan</code> whose body is traced once. This is the NNX spelling of MaxText's <code>scan_layers</code> and of Linen's <code>nn.scan</code>.</p>
+<p>A Python <code>for</code> loop over layers is unrolled when traced: 4 blocks give 4 copies of the block in the jaxpr, 48 give 48, and compile time grows with depth. Create the blocks with <code>nnx.vmap</code> over a split of the Rngs, so every parameter gets a leading layer axis (a <code>[128, 512]</code> kernel becomes <code>[4, 128, 512]</code>); run them with <code>nnx.scan</code>, which lowers to one <code>lax.scan</code> whose body is traced once. This is the NNX spelling of MaxText's <code>scan_layers</code> and of Linen's <code>nn.scan</code>.</p>
 <pre class="ts-code">@nnx.split_rngs(splits=cfg["n_layers"])
 @nnx.vmap(in_axes=(0,), out_axes=0)
 def make_blocks(r):
@@ -242,33 +308,43 @@ self.blocks = make_blocks(rngs)          # every Param now has a leading axis of
 def body(x, blk):
     return blk(x)
 x = body(x, self.blocks)</pre>
+<p class="ts-pred"><b>Predict</b>: at 16 layers, how many top-level jaxpr equations does each version have? Pick a depth and a mode, then step.</p>
 <div class="ts-box" id="ts-scan-card">
-<h4>The same model, unrolled and scanned</h4>
+<h4>The program stops growing with depth once the layers are scanned</h4>
 <div class="ts-ctl"><span class="small">Depth</span><span class="seg" id="ts-scan-depth"><button data-m="4" class="on">4 layers</button><button data-m="8">8</button><button data-m="16">16</button></span><span class="seg" id="ts-scan-mode"><button data-m="unrolled" class="on">Python loop (before)</button><button data-m="scan">nnx.scan (after)</button></span></div>
 <div class="ts-svgw" id="ts-scan-svg"></div>
 <div class="ts-capstep" id="ts-scan-cap"></div>
 <div class="ts-anctl" id="ts-scan-ctl"></div>
 <div class="out" id="ts-scan-stats"></div>
 </div>
-<p class="ts-cap">Loss and gradient of the running example's training batch, traced and compiled with <code>jax.jit</code> on CPU (<code>src/runs/ts_nnx.py</code>, E7). Equation counts and HLO lines are deterministic <span class="ts-meas">measured</span>; compile times are single runs on a loaded machine (load <span data-ts="nnx.E7.load.0"></span>), so treat them as rough.</p>
-<p><b>What the numbers say.</b> The scanned program's jaxpr stays at <span data-ts="nnx.E7.rows.1.jaxpr_top_eqns"></span> top-level equations and its optimised HLO at <span data-ts="nnx.E7.rows.1.hlo_lines" data-f="int"></span> lines whatever the depth, while the unrolled one grows linearly (<span data-ts="nnx.E7.rows.0.jaxpr_top_eqns" data-f="int"></span> equations at 4 layers, <span data-ts="nnx.E7.rows.4.jaxpr_top_eqns" data-f="int"></span> at 16). The scanned and unrolled models give the same logits to <span data-ts="nnx.E7.logits_maxdiff_scan_vs_unrolled" data-f="e1"></span> (float rounding: XLA fuses the two programs differently). <b>On this CPU at 4 to 16 layers the scanned program compiled more slowly</b>, not faster: the loop machinery has a fixed cost, and these blocks are tiny. The saving is in growth: at 4 to 16 layers the unrolled compile time rose from <span data-ts="nnx.E7.rows.0.compile_s"></span> s to <span data-ts="nnx.E7.rows.4.compile_s"></span> s while the scanned one stayed near <span data-ts="nnx.E7.rows.1.compile_s"></span> to <span data-ts="nnx.E7.rows.5.compile_s"></span> s; at the 32 to 128 layers of real LLMs the unrolled program is what dominates compile time (not run here: the measured trend is the evidence, the extrapolation is not). <b>The cost</b> of scanning: every layer must have identical structure, per-layer Python logic is gone, and XLA cannot fuse across layer boundaries. Pair it with <code>nnx.remat</code> to choose which activations each layer saves.</p>
-<p class="ts-src">Source: <a data-ts-src="flax_vmap"></a>, <a data-ts-src="flax_scan"></a>, <a data-ts-src="flax_split_rngs"></a>.</p>
+<p class="ts-cap">Loss and gradient of a training batch, traced and compiled with <code>jax.jit</code> on CPU (<code>src/runs/ts_nnx.py</code>, E7) <span class="ts-meas">measured</span>. The scanned jaxpr stays at 130 top-level equations and 3,616 optimised HLO lines at every depth; the unrolled one grows from 1,147 equations at 4 layers to 4,231 at 16. Logits agree to 7.2e-7 (XLA fuses the two programs differently).</p>
+<p><b>On this CPU at 4 to 16 tiny layers the scanned program compiled more slowly</b> (about 0.9 to 1.3 s against 0.6 to 1.0 s, single rough runs): the loop machinery has a fixed cost. The saving is in growth; at the 32 to 128 layers of real LLMs the unrolled program is what dominates compile time (not run here: the measured trend is the evidence, the extrapolation is not). The cost of scanning: every layer must have identical structure, per-layer Python logic is gone, and XLA cannot fuse across layer boundaries. Pair it with <code>nnx.remat</code> to choose which activations each layer saves. Source: <a data-ts-src="flax_vmap"></a>, <a data-ts-src="flax_scan"></a>, <a data-ts-src="flax_split_rngs"></a>.</p>
 
 <h3>Sharding annotations on parameters</h3>
-<p>To train on many devices each parameter needs a layout. NNX attaches it at creation: wrap an initialiser with <code>nnx.with_partitioning(init, ("embed", "mlp"))</code>, where the names are <b>logical axes</b> of the weight, and map logical names to mesh axes once with <code>nnx.logical_axis_rules</code>. Under <code>jax.set_mesh(mesh)</code> the parameter is <b>born sharded</b> ("eager sharding", on by default in 0.12.10: <a data-ts-src="flax_eager_shard_flag"></a>). The running example annotated Megatron-style on a <code>(data 2, model 4)</code> mesh of 8 simulated CPU devices, with rules <span data-ts="shard.rules" data-f="rules"></span> <span class="ts-meas">measured</span>:</p>
+<p>NNX attaches a layout to each parameter at creation: wrap an initialiser with <code>nnx.with_partitioning(init, ("embed", "mlp"))</code>, where the names are <b>logical axes</b> of the weight, and map logical names to mesh axes once with <code>nnx.logical_axis_rules</code>. Under <code>jax.set_mesh(mesh)</code> the parameter is <b>born sharded</b> ("eager sharding", on by default in 0.12.10: <a data-ts-src="flax_eager_shard_flag"></a>). The optimiser's moment trees inherit each parameter's sharding, so optimiser memory is split exactly like the weights; the compiler inserts the collectives (12 all-reduces in one training step of the layout below) <span class="ts-meas">measured</span>. Choosing the mesh and the rules for a real model is <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>'s subject; MaxText's rules are on <a href="https://app.notion.com/p/3fa5c17b0d0d81f8bd5ad523e9f2dde0" target="_blank" rel="noopener noreferrer">JAX LLM codebases</a>.</p>
+<details class="mist"><summary>The running example annotated Megatron-style on a (data 2, model 4) mesh: every parameter's spec and shard</summary><div class="b">
+<p>On 8 simulated CPU devices, with rules <span data-ts="shard.rules" data-f="rules"></span> <span class="ts-meas">measured</span>:</p>
 <div class="tw"><table class="ts-t" id="ts-shard-t"></table></div>
 <p class="ts-cap">From <code>src/runs/ts_nnx_shard.py</code>. "Copies" is how many of the 8 devices hold the same shard (replication along the other axis). Shapes and specs are real; the devices are simulated on one CPU.</p>
-<p>Three things to notice. The optimiser's moment trees inherit each parameter's sharding (the fc1 moments are <span data-ts="shard.opt_rows.1.spec"></span>, shards <span data-ts="shard.opt_rows.1.shard" data-f="shape"></span>), so optimiser memory is split exactly like the weights. One compiled training step on this layout holds <span data-ts="shard.collectives" data-f="kv"></span> collectives in its HLO, inserted by the compiler (GSPMD and Shardy: <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a> reads them). And an annotated model built with no mesh in scope now fails instead of silently ignoring the annotation:</p>
+<p>The fc1 moments are <span data-ts="shard.opt_rows.1.spec"></span>, shards <span data-ts="shard.opt_rows.1.shard" data-f="shape"></span>. One compiled training step holds <span data-ts="shard.collectives" data-f="kv"></span> collectives (GSPMD and Shardy). An annotated model built with no mesh in scope now fails instead of silently ignoring the annotation:</p>
 <div class="ts-err" data-ts-err="shard.no_mesh_error"></div>
-<p>With <code>nnx.use_eager_sharding(False)</code> the annotation stays as metadata only (<code>out_sharding=('embed', 'mlp')</code> on the Variable) and the array sits on one device, which is how pre-0.12 code behaved. Source: <a data-ts-src="flax_with_partitioning"></a>, <a data-ts-src="flax_get_partition_spec"></a>.</p>
-<div class="deepnote"><b>Go deeper.</b> Choosing the mesh and the rules for a real model, and what each layout costs in communication: <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>. MaxText's logical axis rules: <a href="https://app.notion.com/p/3fa5c17b0d0d81f8bd5ad523e9f2dde0" target="_blank" rel="noopener noreferrer">JAX LLM codebases</a>.</div>
+<p>With <code>nnx.use_eager_sharding(False)</code> the annotation stays as metadata only (<code>out_sharding=('embed', 'mlp')</code> on the Variable) and the array sits on one device, which is how pre-0.12 code behaved; that is also the switch for single-device tests. Source: <a data-ts-src="flax_with_partitioning"></a>, <a data-ts-src="flax_get_partition_spec"></a>.</p>
+</div></details>
 </section>
-
 <section id="s-old">
 <h2>3. Reading other people's code: Linen and Equinox</h2>
-<p>Most JAX model code written before 2025 is Flax <b>Linen</b> (MaxText migrated to NNX only in mid 2026, per the root's Reading tab); much research code is <b>Equinox</b>. You need to read both. The root's Training lab runs the same transformer block in NNX, Linen, Equinox and Haiku against PyTorch; this section is about <b>how each holds state</b>, with the errors you meet when you get it wrong. Status (Haiku in maintenance mode, Linen maintained but not recommended for new code) is in the root's Tool map.</p>
+<p>Most JAX model code written before 2025 is Flax <b>Linen</b> (MaxText migrated to NNX only in mid 2026, per the root's Reading tab); much research code is <b>Equinox</b>. What differs is where each keeps its state, which this table says in one screen; the root's Training lab runs the same block in NNX, Linen, Equinox and Haiku against PyTorch, and its Tool map has their status (Haiku in maintenance mode, Linen maintained but not recommended for new code).</p>
+<div class="tw"><table class="ts-t"><thead><tr><th>Where the state is</th><th>Flax NNX</th><th>Flax Linen</th><th>Equinox</th></tr></thead><tbody>
+<tr><td>arrays live in</td><td>Variables inside the object</td><td>a separate <code>variables</code> dict of collections</td><td>the module's own fields</td></tr>
+<tr><td>to a pytree</td><td><code>nnx.split</code> / <code>nnx.merge</code></td><td>already one (<code>variables</code>)</td><td>already one; <code>eqx.partition</code> for arrays only</td></tr>
+<tr><td>mutable state</td><td>Variables written back by NNX transforms</td><td><code>mutable=[...]</code>, returned updates</td><td>explicit <code>eqx.nn.State</code> in and out</td></tr>
+<tr><td>randomness</td><td><code>nnx.Rngs</code> stored in the model</td><td><code>rngs={...}</code> per call</td><td><code>key=</code> per call</td></tr>
+<tr><td>shapes</td><td>explicit <code>d_in</code></td><td>inferred at <code>init</code></td><td>explicit, one example at a time</td></tr>
+<tr><td>weight layout</td><td><code>kernel [in, out]</code></td><td><code>kernel [in, out]</code></td><td><code>weight [out, in]</code></td></tr>
+</tbody></table></div>
+<p>Two habits carry over. In Linen code look for <code>init</code>/<code>apply</code>, the collection names, <code>mutable=</code> and <code>rngs=</code> at every call site: the train step carries <code>params</code>, <code>batch_stats</code> and the optimiser state as three separate trees (often bundled in <code>flax.training.train_state.TrainState</code>). In Equinox code the model is itself the pytree, so look for the <code>eqx.filter_*</code> transforms. <code>nnx.bridge.ToNNX</code> and <code>ToLinen</code> wrap one in the other, which is how a codebase migrates one module at a time (Flax's bridge guide; source <a data-ts-src="flax_tonnx"></a>).</p>
+<details class="mist"><summary>Linen in detail, with the errors you meet (measured)</summary><div class="b">
 
-<h3>Linen: the module holds no arrays</h3>
 <p>A Linen module is a frozen dataclass of hyperparameters. <code>variables = model.init(rngs, x)</code> runs it once to create every array, grouped into <b>collections</b>; <code>model.apply(variables, x)</code> runs it as a pure function. A block with Dense, BatchNorm, Dropout and <code>sow</code> (a test module in <code>src/runs/ts_linen_eqx.py</code>):</p>
 <pre class="ts-code">class LBlock(nn.Module):
     d_ff: int = 512
@@ -285,127 +361,166 @@ x = body(x, self.blocks)</pre>
 <li>Training mode updates <code>batch_stats</code>, so the collection must be declared mutable; <code>apply</code> then returns <code>(y, updates)</code> and you merge the updates yourself. Forgetting it <span class="ts-meas">measured</span>:<div class="ts-err" data-ts-err="lx.linen.train_without_mutable"></div></li>
 <li>Dropout needs an RNG passed per call (<code>rngs={"dropout": key}</code>); without it:<div class="ts-err" data-ts-err="lx.linen.train_without_dropout_rng"></div></li>
 <li><code>mutable=["batch_stats", "intermediates"]</code> returned <span data-ts="lx.linen.mutable_returns" data-f="list"></span>; the running mean moved by up to <span data-ts="lx.linen.batch_mean_moved"></span> in one call; the sown value is in <code>updates["intermediates"]</code>. Parameters never come out of <code>apply</code>: they are only an input.</li>
-<li>Reading Linen code: look for <code>init</code>/<code>apply</code>, the collection names, <code>mutable=</code> and <code>rngs=</code> at every call site; the train step carries <code>params</code>, <code>batch_stats</code> and the optimiser state as three separate trees (often bundled in <code>flax.training.train_state.TrainState</code>).</li>
-<li><b>Bridging.</b> <code>nnx.bridge.ToNNX(linen_module, rngs=...)</code> plus <code>nnx.bridge.lazy_init</code> runs a Linen module inside NNX; its state became <span data-ts="lx.linen.bridge_state" data-f="bridge"></span> <span class="ts-meas">measured</span>. <code>nnx.bridge.ToLinen</code> goes the other way. That is how a codebase migrates one module at a time (Flax's bridge guide; source <a data-ts-src="flax_tonnx"></a>).</li>
+<li><b>Bridging.</b> <code>nnx.bridge.ToNNX(linen_module, rngs=...)</code> plus <code>nnx.bridge.lazy_init</code> runs a Linen module inside NNX; its state became <span data-ts="lx.linen.bridge_state" data-f="bridge"></span> <span class="ts-meas">measured</span>. <code>nnx.bridge.ToLinen</code> goes the other way.</li>
 </ul>
 
-<h3>Equinox: the model is the pytree</h3>
+</div></details>
+<details class="mist"><summary>Equinox in detail: frozen modules, non-array leaves, filtered transforms (measured)</summary><div class="b">
+
 <p>An <code>eqx.Module</code> is a frozen dataclass registered as a pytree: its fields are its leaves. There is no split; you pass the model itself to transformations. Three consequences, measured on a two-layer MLP holding <code>jax.nn.gelu</code> as a field:</p>
 <ul class="tight">
 <li><b>Frozen.</b> <code>model.fc1 = ...</code> raises <code><span data-ts="lx.equinox.setattr_error.type"></span>: <span data-ts="lx.equinox.setattr_error.msg"></span></code>. Changes are made out of place: <code>eqx.tree_at(lambda m: m.fc1.bias, model, new)</code> returns a new model (bias sum <span data-ts="lx.equinox.tree_at.old_bias_sum"></span> became <span data-ts="lx.equinox.tree_at.new_bias_sum"></span>; the original is untouched).</li>
 <li><b>Not every leaf is an array.</b> The function field is a leaf too, so plain <code>jax.jit</code> on a function taking the model fails:<div class="ts-err" data-ts-err="lx.equinox.jax_jit_error" data-trim="first"></div><code>eqx.filter_jit</code> treats array leaves as traced and everything else as static, and runs (<a data-ts-src="eqx_filter_jit"></a>). <code>eqx.filter_grad</code> differentiates only floating-point arrays: the gradient had <span data-ts="lx.equinox.filter_grad_leaves" data-f="len"></span> array leaves. The general tool is <code>params, static = eqx.partition(model, eqx.is_array)</code> and <code>eqx.combine(params, static)</code> (<span data-ts="lx.equinox.partition.params_leaves"></span> and <span data-ts="lx.equinox.partition.static_leaves"></span> leaves here), the Equinox spelling of NNX's split and merge.</li>
 <li><b>Layers act on one example</b> (<code>eqx.nn.Linear</code> maps a vector); you <code>jax.vmap</code> over the batch. Its weight is <code>[out, in]</code> like PyTorch (<span data-ts="lx.equinox.fc1_weight_shape" data-f="shape"></span> for 128 to 512). Stateful layers (BatchNorm) keep their running statistics in a separate <code>eqx.nn.State</code> object that the call takes and returns: <code>make_with_state</code> built a <span data-ts="lx.equinox.batchnorm_state.state_type"></span> and each call returned a new one.</li>
 </ul>
-<div class="tw"><table class="ts-t"><thead><tr><th></th><th>Flax NNX</th><th>Flax Linen</th><th>Equinox</th></tr></thead><tbody>
-<tr><td>arrays live in</td><td>Variables inside the object</td><td>a separate <code>variables</code> dict of collections</td><td>the module's own fields</td></tr>
-<tr><td>to a pytree</td><td><code>nnx.split</code> / <code>nnx.merge</code></td><td>already one (<code>variables</code>)</td><td>already one; <code>eqx.partition</code> for arrays only</td></tr>
-<tr><td>mutable state</td><td>Variables written back by NNX transforms</td><td><code>mutable=[...]</code>, returned updates</td><td>explicit <code>eqx.nn.State</code> in and out</td></tr>
-<tr><td>randomness</td><td><code>nnx.Rngs</code> stored in the model</td><td><code>rngs={...}</code> per call</td><td><code>key=</code> per call</td></tr>
-<tr><td>shapes</td><td>explicit <code>d_in</code></td><td>inferred at <code>init</code></td><td>explicit, one example at a time</td></tr>
-<tr><td>weight layout</td><td><code>kernel [in, out]</code></td><td><code>kernel [in, out]</code></td><td><code>weight [out, in]</code></td></tr>
-</tbody></table></div>
+</div></details>
 </section>
-
 <section id="s-optax">
 <h2>4. optax, transformation by transformation</h2>
-<p><b>The model.</b> An optax <code>GradientTransformation</code> is a named tuple of two pure functions: <code>init(params) -&gt; state</code> and <code>update(grads, state, params) -&gt; (updates, new_state)</code> (<a data-ts-src="optax_gt"></a>). <code>optax.chain(t1, t2, ...)</code> feeds each one's output updates into the next and keeps a tuple of their states (<a data-ts-src="optax_chain"></a>). Every optimiser you know is a chain: <code>optax.adamw</code> is <code>scale_by_adam</code>, then <code>add_decayed_weights</code>, then <code>scale_by_learning_rate</code> (<a data-ts-src="optax_adamw"></a>). The root's Training lab lets you build chains and checks its JavaScript against optax; here we open one chain at one step.</p>
+<p>An optax <code>GradientTransformation</code> is a named tuple of two pure functions: <code>init(params) -&gt; state</code> and <code>update(grads, state, params) -&gt; (updates, new_state)</code> (<a data-ts-src="optax_gt"></a>). <code>optax.chain(t1, t2, ...)</code> feeds each one's output into the next and keeps a tuple of their states (<a data-ts-src="optax_chain"></a>). Every optimiser you know is a chain: <code>optax.adamw</code> is <code>scale_by_adam</code>, then <code>add_decayed_weights</code>, then <code>scale_by_learning_rate</code> (<a data-ts-src="optax_adamw"></a>). Because the state is just more arrays, it is jitted, sharded and checkpointed like the model. The algorithms themselves (why Adam, AdamW, Lion, Muon, which schedule) are <a href="https://app.notion.com/p/3c65c17b0d0d817080bbc90954681d09" target="_blank" rel="noopener noreferrer">Optimisers and learning-rate schedulers</a>'s; this section is how optax builds and runs them.</p>
 
 <h3>One real step through the running example's chain</h3>
-<p>The running example uses <code>chain(clip_by_global_norm(1.0), adamw(lr_schedule, b1=0.9, b2=0.95, eps=1e-8, weight_decay=0.1, mask=decay_mask))</code>. The script recomputes every stage by hand on the real gradients of the first 12 steps and checks the result against <code>tx.update</code>: the largest difference was <span data-ts="opt.S1.steps" data-f="maxhand"></span> <span class="ts-meas">measured</span>, float rounding in the bias correction. The stages, with PyTorch's names:</p>
+<p>The running example uses <code>chain(clip_by_global_norm(1.0), adamw(lr_schedule, b1=0.9, b2=0.95, eps=1e-8, weight_decay=0.1, mask=decay_mask))</code>. A script recomputes every stage by hand on the real gradients of the first 12 steps and checks it against <code>tx.update</code>: the largest difference was 7.3e-11 <span class="ts-meas">measured</span>, float rounding in the bias correction. Step 0 for the noise coordinate shows the point of &#949;; step 0 for any weight shows the first update is the sign of the gradient.</p>
+<p class="ts-pred"><b>Predict</b>: at step 0 the gradient norm was 4.616. What does clipping at 1.0 multiply every gradient by, and how big is Adam's direction for a weight before the learning rate?</p>
+<div class="ts-box" id="op-card">
+<h4>Ten stages of one AdamW step for one number, on real gradients</h4>
+<div class="ts-ctl"><label class="small">Step <select id="op-step"></select></label><label class="small">Number <select id="op-coord"></select></label></div>
+<div class="op-pipe" id="op-pipe"></div>
+<div class="ts-capstep" id="op-cap"></div>
+<div class="ts-anctl" id="op-ctl"></div>
+<div class="out" id="op-stats"></div>
+</div>
+<p class="ts-cap">Values from <code>src/runs/ts_optax.py</code> (S1) <span class="ts-meas">measured</span>: eight tracked numbers (weights with and without decay, a LayerNorm scale, an embedding, a bias whose gradient is float noise). At step 0 clipping scaled every gradient by 0.2166; the Adam direction m&#770;/&#8730;v&#770; is exactly &#177;1 for every coordinate (m&#770; = g and v&#770; = g&#178;), so the first update is the sign of the gradient times the learning rate, whatever the gradient's size. The key bias's gradient, about 5e-13, is far below &#949; = 1e-8, so &#949; sets its step (update 2.3e-10 against 2.0e-5 for a weight): &#949; is what stops Adam from normalising pure noise into full-size steps.</p>
 <div class="fm"><div class="eq">g &#8594; g&#183;min(1, c/&#8214;g&#8214;) &#8594; m = &#946;&#8321;m + (1&#8722;&#946;&#8321;)g, v = &#946;&#8322;v + (1&#8722;&#946;&#8322;)g&#178; &#8594; m&#770;/(&#8730;v&#770; + &#949;) &#8594; + &#955;&#183;p&#183;mask &#8594; &#215;(&#8722;&#951;&#8348;)</div>
 <dl><dt>c</dt><dd>clip threshold 1.0, applied to the global norm of all gradients (<code>clip_grad_norm_</code>)</dd><dt>m, v</dt><dd>Adam moments (<code>exp_avg</code>, <code>exp_avg_sq</code>); m&#770; = m/(1&#8722;&#946;&#8321;&#7511;), v&#770; = v/(1&#8722;&#946;&#8322;&#7511;)</dd><dt>&#955;</dt><dd>weight decay 0.1, only where the mask is true (25 weight matrices)</dd><dt>&#951;&#8348;</dt><dd>learning rate at step t: linear warmup to 1e-3 over 50 steps</dd></dl></div>
-<p>The <a href="#" data-tab="t-opt">Optimiser lab</a> animates these stages for eight tracked numbers, step by step. Three things it shows that a formula hides: at step 0 the gradient norm was <span data-ts="opt.S1.steps.0.grad_norm" data-f="f3"></span>, so clipping scaled every gradient by <span data-ts="opt.S1.steps.0.clip_scale" data-f="f3"></span>; at step 0 the Adam direction m&#770;/&#8730;v&#770; is exactly &#177;1 for every coordinate (m&#770; = g and v&#770; = g&#178;), so the first update is the sign of the gradient times the learning rate, whatever the gradient's size; and the key bias, whose gradient is pure float noise of about <span data-ts="opt.S1.steps.0.stages.grad.6" data-f="e1"></span>, gets almost nothing, because that is far below &#949; = 1e-8: here &#949;, not the gradient, sets the step (its update at step 0 was <span data-ts="opt.S1.steps.0.stages.update.6" data-f="e1"></span> against <span data-ts="opt.S1.steps.0.stages.update.0" data-f="e1"></span> for a weight). &#949; is what stops Adam from normalising pure noise into full-size steps.</p>
+<details class="mist"><summary>The whole tree at the chosen step: global norm after each stage</summary><div class="b"><div class="tw"><table class="ts-t" id="op-norms"></table></div>
+<p class="ts-cap">Global L2 norm over all 826,368 numbers after each stage. The update norm is small because the learning rate is still warming up (step t uses (t + 1)/50 x 1e-3).</p></div></details>
 
-<h3>Changing hyperparameters during training: inject_hyperparams</h3>
-<p>In PyTorch you change <code>optimizer.param_groups[0]["lr"]</code>. An optax optimiser closes over its hyperparameters, so they are constants in the compiled step. <code>optax.inject_hyperparams(optax.adamw)(learning_rate=1e-3, ...)</code> moves them into the optimiser state, where they are traced arrays you can overwrite (<a data-ts-src="optax_inject"></a>). Measured: four steps with the learning rate set to 1e-3, 1e-3, 5e-4 and 2.5e-4 in <code>state.hyperparams</code> traced the step <span data-ts="opt.S2.inject" data-f="lasttraces"></span> time; rebuilding <code>optax.adamw(lr)</code> with a new Python float traced it <span data-ts="opt.S2.float_rebuilt" data-f="lasttraces"></span> times for three values <span class="ts-meas">measured</span>. A schedule function (the running example's warmup) needs neither: it is evaluated inside the step from the step count in the state. Use injection for changes decided at run time (a plateau, a manual intervention), and it also makes the current learning rate visible in the checkpoint.</p>
-
-<h3>Parameter groups: masks and partition</h3>
-<p>Two tools replace PyTorch's parameter groups. A <b>mask</b> (a pytree of booleans, or a function of the params returning one) switches a single transformation on and off per leaf: <code>adamw(mask=...)</code> decays only the masked leaves. <b><code>optax.partition</code></b> sends each leaf to a different optimiser by label (<a data-ts-src="optax_partition"></a>); <code>optax.multi_transform</code> is now a backwards-compatible alias of it (<a data-ts-src="optax_multi_alias"></a>). Measured with three labels on the running example: AdamW with decay on the <span data-ts="opt.S3.n_leaves_by_label.decay"></span> weight matrices (<span data-ts="opt.S3.label_counts_params.decay" data-f="int"></span> numbers), Adam on the <span data-ts="opt.S3.n_leaves_by_label.no_decay"></span> biases and norms, and <code>set_to_zero()</code> on the two embeddings (frozen: unchanged after 5 steps, <span data-ts="opt.S3.emb_unchanged" data-f="yes"></span>). Freezing this way also saves memory: the optimiser state held <span data-ts="opt.S3.state_floats" data-f="int"></span> numbers against <span data-ts="opt.S3.adamw_full_state_floats" data-f="int"></span> for AdamW on everything, because <code>set_to_zero</code> keeps no moments.</p>
-
-<h3>Gradient accumulation: MultiSteps</h3>
-<p><code>optax.MultiSteps(tx, every_k_schedule=4)</code> wraps an optimiser: for three calls it adds the gradient to an accumulator and returns zero updates; on the fourth it passes the mean to <code>tx</code> (<a data-ts-src="optax_multisteps"></a>). Measured on 4 micro-batches of 8 sequences against one step on the batch of 32: the update norms were <span data-ts="opt.S4.micro" data-f="unorms"></span>, and the parameters after the real step differed from the big-batch step by at most <span data-ts="opt.S4.maxdiff_vs_big_batch" data-f="e1"></span> <span class="ts-meas">measured</span>. Not zero: the mean of four micro-batch gradients equals the batch gradient in exact arithmetic but not in float32, and Adam's first step turns any small difference on a near-zero coordinate into a sign. The cost: the accumulator is one more copy of the parameters (state <span data-ts="opt.S4.state_floats" data-f="int"></span> numbers against <span data-ts="opt.S4.base_state_floats" data-f="int"></span>). Two traps: the step count and every schedule now advance once per <b>four</b> calls, and a loop that logs the "step" must count real updates (<code>state.gradient_step</code>).</p>
-
-<h3>Skipping bad steps: apply_if_finite</h3>
-<p><code>optax.apply_if_finite(tx, max_consecutive_errors=3)</code> checks the gradients and, if any is NaN or infinite, returns zero updates and leaves the inner state untouched (<a data-ts-src="optax_if_finite"></a>). With a NaN injected into one entry at step 3 <span class="ts-meas">measured</span>: <span data-ts="opt.S5.steps" data-f="finite"></span>. After <code>max_consecutive_errors</code> bad steps in a row it applies the update anyway, so persistent NaNs still surface. This is the JAX counterpart of the skip that PyTorch's <code>GradScaler</code> performs on overflow.</p>
+<h3>The four things PyTorch does by mutation, done as transformations</h3>
+<ul class="tight">
+<li><b>Changing a hyperparameter mid-run: <code>inject_hyperparams</code>.</b> An optax optimiser closes over its hyperparameters, so they are constants in the compiled step; <code>optax.inject_hyperparams(optax.adamw)(learning_rate=1e-3, ...)</code> moves them into the state as traced arrays you can overwrite (<a data-ts-src="optax_inject"></a>). Changing it four times traced the step once; rebuilding <code>optax.adamw(lr)</code> with a new Python float traced it once per value <span class="ts-meas">measured</span>. A schedule needs neither: it is evaluated inside the step from the step count.</li>
+<li><b>Parameter groups: masks and <code>optax.partition</code>.</b> A mask (a pytree of booleans, or a function returning one) switches one transformation per leaf (<code>adamw(mask=...)</code> decays only masked leaves); <code>optax.partition</code> sends each leaf to a different optimiser by label (<a data-ts-src="optax_partition"></a>; <code>optax.multi_transform</code> is now its backwards-compatible alias, <a data-ts-src="optax_multi_alias"></a>). Freezing with <code>set_to_zero()</code> also saves memory: it keeps no moments.</li>
+<li><b>Gradient accumulation: <code>optax.MultiSteps(tx, every_k_schedule=4)</code>.</b> For three calls it adds the gradient to an accumulator and returns zero updates; on the fourth it passes the mean to <code>tx</code> (<a data-ts-src="optax_multisteps"></a>). Cost: one more parameter-sized accumulator. Trap: the step count and every schedule now advance once per <b>four</b> calls, so count real updates (<code>state.gradient_step</code>).</li>
+<li><b>Skipping bad steps: <code>optax.apply_if_finite(tx, max_consecutive_errors=3)</code>.</b> If any gradient is NaN or infinite it returns zero updates and leaves the inner state untouched (<a data-ts-src="optax_if_finite"></a>); after <code>max_consecutive_errors</code> bad steps in a row it applies the update anyway, so persistent NaNs still surface. It is the JAX counterpart of the skip that PyTorch's <code>GradScaler</code> performs on overflow.</li>
+</ul>
+<details class="mist"><summary>The four measured: traces, partition sizes, MultiSteps and apply_if_finite call by call</summary><div class="b">
+<p><b>inject_hyperparams.</b> Four steps with the learning rate set to 1e-3, 1e-3, 5e-4 and 2.5e-4 in <code>state.hyperparams</code> traced the step once; rebuilding <code>optax.adamw(lr)</code> with a new Python float traced it 3 times for 3 values <span class="ts-meas">measured</span>. Injection also puts the current learning rate in the checkpoint.</p>
+<p><b>partition.</b> With AdamW on the 25 weight matrices, Adam on the 42 biases and norms, and <code>set_to_zero()</code> on the two embeddings, the embeddings stayed frozen after 5 steps and the optimiser state held 1,603,330 numbers against 1,652,737 for AdamW on everything <span class="ts-meas">measured</span>.</p>
+<p><b>MultiSteps.</b> Against one step on the batch of 32, the parameters differed by at most 6.5e-6 <span class="ts-meas">measured</span>: the mean of four micro-batch gradients equals the batch gradient only in exact arithmetic, and Adam's first step turns a tiny difference on a near-zero coordinate into a sign. State: 2,479,107 numbers against 1,652,737.</p>
+<p><b>apply_if_finite.</b> With a NaN injected at step 3 <span class="ts-meas">measured</span>: <span data-ts="opt.S5.steps" data-f="finite"></span>.</p>
+<div class="si-two"><div><div class="tw"><table class="ts-t" id="op-ms"></table></div><p class="ts-cap"><code>MultiSteps(adamw, 4)</code> on 4 micro-batches of 8 (S4).</p></div>
+<div><div class="tw"><table class="ts-t" id="op-fin"></table></div><p class="ts-cap"><code>apply_if_finite(adamw, 3)</code>, NaN injected at step 3 (S5).</p></div></div>
+</div></details>
 
 <h3>Schedules are functions of the step</h3>
-<p>A schedule is any function from the step count to a number. The old page's example, <code>warmup_cosine_decay_schedule(0.0, 3e-4, warmup_steps=2000, decay_steps=100000, end_value=3e-5)</code>, evaluated by optax: <span data-ts="opt.S6.checks.wc_at_2000" data-f="e2"></span> at step 2,000, <span data-ts="opt.S6.checks.wc_at_51000" data-f="e3"></span> at step 51,000 (halfway through the cosine, (3e-4 + 3e-5)/2 = 1.65e-4 <span class="ts-der">derived</span>) and <span data-ts="opt.S6.checks.wc_at_100000" data-f="e2"></span> at 100,000. Note that <code>decay_steps</code> <b>includes</b> the warmup (<a data-ts-src="optax_wcd"></a>). Warmup-stable-decay (WSD), common in recent LLM recipes, is <code>join_schedules</code> of three linear or constant pieces; both are drawn in the <a href="#" data-tab="t-opt">Optimiser lab</a>.</p>
+<p>A schedule is any function from the step count to a number, evaluated inside the compiled step. The old page's <code>warmup_cosine_decay_schedule(0.0, 3e-4, warmup_steps=2000, decay_steps=100000, end_value=3e-5)</code>, evaluated by optax, gives 3.00e-4 at step 2,000, 1.650e-4 at step 51,000 (halfway through the cosine: (3e-4 + 3e-5)/2 <span class="ts-der">derived</span>) and 3.00e-5 at 100,000: <code>decay_steps</code> <b>includes</b> the warmup (<a data-ts-src="optax_wcd"></a>). Warmup-stable-decay (WSD) is <code>join_schedules</code> of three linear or constant pieces.</p>
+<div class="ts-fig"><div class="ft">decay_steps counts from step 0, warmup included</div><div class="ts-svgw" id="op-sched-svg"></div><p class="ts-cap">Both schedules evaluated by optax (S6) <span class="ts-meas">measured</span>.</p></div>
 
-<h3>Lion and Muon</h3>
-<p><b>Lion</b> (Chen et al., 2023) keeps one moment and steps by its sign: every coordinate moves by exactly the learning rate. Measured on one step at lr 1e-4: <span data-ts="opt.S7.frac_equal_lr" data-f="pct2"></span> of the updates had magnitude 1e-4, the rest were exact zeros (zero gradients) <span class="ts-meas">measured</span>. Its state is one tree (<span data-ts="opt.S7.state_floats" data-f="int"></span> numbers, half of AdamW's), and its default weight decay is 1e-3 (<a data-ts-src="optax_lion"></a>); its authors recommend a learning rate 3 to 10 times smaller and decay 3 to 10 times larger than AdamW's (<a href="https://arxiv.org/abs/2302.06675" target="_blank" rel="noopener noreferrer">arXiv 2302.06675</a>, section 5).</p>
-<p><b>Muon</b> (Jordan, 2024) applies momentum and then replaces each weight matrix's update by an approximately orthogonal one: the same singular vectors, singular values pushed towards 1, by five iterations of a quintic Newton-Schulz map X &#8592; aX + b(XX&#7488;)X + c(XX&#7488;)&#178;X with (a, b, c) = (3.4445, &#8722;4.7750, 2.0315) (<a data-ts-src="optax_muon_coeffs"></a>, <a data-ts-src="optax_ns_iter"></a>). It is in <code>optax.contrib</code>, which is where optax keeps newer optimisers (alongside schedule-free, Prodigy, SOAP-style and others). On the running example's real first-layer MLP gradient (<span data-ts="opt.S8.shape" data-f="shape"></span>) the singular values spanned a ratio of <span data-ts="opt.S8.cond_raw" data-f="e1"></span>; after normalisation and five iterations <span data-ts="opt.S8" data-f="svabove"></span> of the 128 singular values ended between 0.5 and <span data-ts="opt.S8.range_final.1" data-f="f2"></span>, close to the near-uniform 0.5 to 1.5 band the optax docstring describes, while the smallest, <span data-ts="opt.S8.sv_raw" data-f="minsv"></span> before normalisation, stayed near zero (<span data-ts="opt.S8.range_final.0" data-f="e1"></span>): a direction with essentially no gradient is not amplified in five iterations. The <a href="#" data-tab="t-opt">Optimiser lab</a> animates the spectrum iteration by iteration.</p>
-<div class="co warn"><div class="t">optax's Muon applies to every 2-D parameter by default</div>By default <code>optax.contrib.muon</code> labels every two-dimensional leaf "muon" and everything else "adam" (<a data-ts-src="optax_muon_2d"></a>). In the running example that includes the token and position embeddings and the output head, which Muon's authors keep on AdamW. Pass <code>muon_weight_dimension_numbers</code> returning <code>None</code> for them. Both variants are in the comparison below.</div>
-<div class="ts-box"><h4>300 steps of the running example with four optimisers</h4>
+<h3>Lion and Muon in optax</h3>
+<p>Both are in optax (Lion in core, Muon in <code>optax.contrib</code>, where optax keeps newer optimisers alongside schedule-free, Prodigy and SOAP-style ones); how they work is on the optimisers page. One optax-specific trap matters in practice:</p>
+<div class="co warn"><div class="t">optax's Muon applies to every 2-D parameter by default</div>By default <code>optax.contrib.muon</code> labels every two-dimensional leaf "muon" and everything else "adam" (<a data-ts-src="optax_muon_2d"></a>). In the running example that includes the token and position embeddings and the output head, which Muon's authors keep on AdamW. Pass <code>muon_weight_dimension_numbers</code> returning <code>None</code> for them.</div>
+<details class="mist"><summary>Lion and Muon measured here: Lion's sign step, Muon's Newton-Schulz on a real gradient, and 300 steps with four optimisers</summary><div class="b">
+<p><b>Lion</b> (Chen et al., 2023) keeps one moment and steps by its sign: every coordinate moves by exactly the learning rate. On one step at lr 1e-4, 99.92% of the updates had magnitude 1e-4 and the rest were exact zeros (zero gradients) <span class="ts-meas">measured</span>. Its state is one tree (826,369 numbers, half of AdamW's), its default weight decay is 1e-3 (<a data-ts-src="optax_lion"></a>), and its authors recommend a learning rate 3 to 10 times smaller and decay 3 to 10 times larger than AdamW's (<a href="https://arxiv.org/abs/2302.06675" target="_blank" rel="noopener noreferrer">arXiv 2302.06675</a>, section 5).</p>
+<p><b>Muon</b> (Jordan, 2024) applies momentum, then replaces each weight matrix's update by an approximately orthogonal one (the same singular vectors, singular values pushed towards 1) through five iterations of a quintic Newton-Schulz map with optax's coefficients (3.4445, &#8722;4.7750, 2.0315) (<a data-ts-src="optax_muon_coeffs"></a>, <a data-ts-src="optax_ns_iter"></a>). On the running example's real first-layer MLP gradient ([128, 512]) the singular values spanned a ratio of 1.2e8; after normalisation and five iterations 122 of the 128 ended between 0.5 and 1.20, close to the 0.5 to 1.5 band the optax docstring describes, while the smallest stayed near zero (5.7e-6): a direction with essentially no gradient is not amplified in five iterations.</p>
+<div class="ts-box" id="op-ns-card">
+<div class="ts-svgw" id="op-ns-svg"></div>
+<div class="ts-capstep" id="op-ns-cap"></div>
+<div class="ts-anctl" id="op-ns-ctl"></div>
+</div>
+<p class="ts-cap">The gradient normalised by its Frobenius norm, then each Newton-Schulz iteration (S8); bars are its 128 singular values, sorted, on a log scale. The library's own <code>orthogonalize_via_newton_schulz</code> agrees with the hand iteration to 3.6e-7 in every singular value <span class="ts-meas">measured</span>.</p>
 <div class="ts-svgw" id="ts-optrun-svg"></div>
 <div class="tw"><table class="ts-t" id="ts-optrun-t"></table></div>
-<p class="ts-cap">Training loss every 10 steps and validation loss after 300 steps on the Training lab's 8 validation batches; same initial weights, same batches, clipping at 1.0, 50 warmup steps (<code>src/runs/ts_optax.py</code>, S9) <span class="ts-meas">measured</span>. <b>One seed, untuned learning rates, 300 steps of a 0.8M-parameter model: this shows the mechanics run, not which optimiser is better.</b> The AdamW run is the root's running example and reproduces the Training lab's float32 validation loss after 300 steps (2.26352, <code>src/train/out/mixed.json</code>) to within 1e-7.</p></div>
+<p class="ts-cap">Training loss every 10 steps and validation loss after 300 steps on the Training lab's 8 validation batches; same initial weights, same batches, clipping at 1.0, 50 warmup steps (<code>src/runs/ts_optax.py</code>, S9) <span class="ts-meas">measured</span>. <b>One seed, untuned learning rates, 300 steps of a 0.8M-parameter model: this shows the mechanics run, not which optimiser is better.</b> The AdamW run is the root's running example and reproduces the Training lab's float32 validation loss after 300 steps (2.26352, <code>src/train/out/mixed.json</code>) to within 1e-7.</p>
+</div></details>
 </section>
-
 <section id="s-orbax">
 <h2>5. orbax: checkpoints that resume the same run</h2>
-<p><b>The problem.</b> A run is preempted at step 80. To continue <b>the same run</b>, not a similar one, you need everything that decides step 81: the parameters, the optimiser's moments and step count (the schedule reads it), the random streams (dropout), and the data loader's position. PyTorch scatters these across <code>model.state_dict()</code>, <code>optimizer.state_dict()</code>, <code>scheduler.state_dict()</code>, the global RNG states and a loader that has no state; JAX puts all of them in pytrees, and orbax saves pytrees.</p>
+<p>A run is preempted at step 80. To continue <b>the same run</b>, not a similar one, you need everything that decides step 81: the parameters, the optimiser's moments and step count (the schedule reads it), the random streams (dropout) and the data loader's position. PyTorch scatters these across <code>model.state_dict()</code>, <code>optimizer.state_dict()</code>, <code>scheduler.state_dict()</code>, the global RNG states and a loader with no state; in JAX all of them are pytrees, and orbax saves pytrees.</p>
+
+<h3>What each missing piece costs, measured</h3>
+<p>The running example in NNX with dropout 0.1, its AdamW chain and a grain pipeline. One process trains 160 steps without stopping; another trains 80, saves and exits; then a fresh process per variant restores part of the checkpoint and trains steps 80 to 159, compared with the uninterrupted run over all 210 arrays of parameters and optimiser state (<code>src/runs/ts_ckpt.py</code>) <span class="ts-meas">measured</span>.</p>
+<p class="ts-pred"><b>Predict</b>: you restore parameters and optimiser state but build a new grain iterator. Is the resumed loss at step 80 equal to the uninterrupted run's? Pick "no data iterator" and step.</p>
+<div class="ts-box" id="rs-card">
+<h4>Each omission gives a different run with no error, and its own signature</h4>
+<div class="ts-ctl"><span class="small">Restored</span><span class="seg" id="rs-var"><button data-m="all" class="on">everything</button><button data-m="no_data">no data iterator</button><button data-m="no_opt">no optimiser</button><button data-m="no_rng">no RNG</button><button data-m="params_only">Params only</button></span></div>
+<div class="rs-chips" id="rs-chips"></div>
+<div class="ts-svgw" id="rs-svg"></div>
+<div class="ts-capstep" id="rs-cap"></div>
+<div class="ts-anctl" id="rs-ctl"></div>
+<div class="out" id="rs-stats"></div>
+</div>
+<div class="tw"><table class="ts-t" id="ts-ckv-t"></table></div>
+<p class="ts-cap">Top panel: training loss, resumed against uninterrupted; bottom: the absolute difference on a log scale (exactly zero sits on the floor). "First loss off by" is the gap at step 80, the first step after resuming.</p>
+<p><b>Reading the signatures.</b> Restoring everything gives an identical run, every array bit for bit. A fresh data iterator re-reads batches 0, 1, 2, so the very first resumed loss is off (by 0.015). A fresh optimiser gives the same first loss (the forward pass does not read it) but restarts warmup and zeroes the moments, so the curve then drifts. Fresh RNG streams repeat the dropout masks of steps 0 onward: a tiny first difference (1.9e-4) that compounds. "Params only", what <code>torch.save(model.state_dict())</code> keeps, combines all three. The step count is in the optimiser state here (<code>opt.step</code>), so the schedule followed it.</p>
 
 <h3>How a CheckpointManager save works</h3>
 <ul class="tight">
-<li><b>Items.</b> One checkpoint holds named items, each with a handler: <code>ocp.args.Composite(model=StandardSave(nnx.state(model)), opt=StandardSave(nnx.state(opt, nnx.Not(nnx.Param))), data=grain.checkpoint.CheckpointSave(it), meta=JsonSave({...}))</code>. Each item is a directory under <code>&lt;dir&gt;/&lt;step&gt;/</code>.</li>
-<li><b>Async.</b> <code>enable_async_checkpointing</code> defaults to <code>True</code> (<a data-ts-src="orbax_async_default"></a>): <code>save()</code> copies the arrays to host memory and returns while a background thread writes. Measured on the running example with dropout: the call returned after <span data-ts="ckpt.save_call_s" data-f="f2"></span> s and the write finished at <span data-ts="ckpt.save_total_s" data-f="f2"></span> s <span class="ts-meas">measured</span> (rough timing). <code>wait_until_finished()</code> before exiting, or the last checkpoint is incomplete; orbax marks a finished checkpoint (here with <code>commit_success.txt</code> files) and ignores unfinished ones.</li>
-<li><b>Sharded.</b> Arrays go to TensorStore in OCDBT format, one key-value store per process (<code>ocdbt.process_0/</code>), each process writing only the shards it owns. No gather to rank 0, unlike a naive <code>torch.save</code>; the PyTorch counterpart is <code>torch.distributed.checkpoint</code>.</li>
-<li><b>Restore into a target.</b> You pass a pytree with the shapes, dtypes and shardings you want (a freshly built model's state, or an abstract one from <code>nnx.eval_shape</code>) and orbax reads each shard into place. The layout on disk does not constrain the layout you restore to (measured below).</li>
-<li><b>Which checkpoints to keep.</b> In orbax-checkpoint 0.12.7, <code>max_to_keep</code>, <code>keep_period</code> and <code>best_fn</code> on <code>CheckpointManagerOptions</code> are documented as "deprecated, do not use. use <code>preservation_policy</code> instead" (<a data-ts-src="orbax_deprecated_max_to_keep"></a>). The replacements compose: <code>save_decision_policy=FixedIntervalPolicy(100)</code> and <code>preservation_policy=AnyPreservationPolicy([LatestN(1), BestN(get_metric_fn=..., reverse=True, n=2)])</code>. Watch the direction: <code>BestN</code> sorts by the metric and keeps the <b>last</b> n (<a data-ts-src="orbax_bestn_keep"></a>), so for a loss, where smaller is better, you need <code>reverse=True</code> (the old <code>best_mode="min"</code> was translated to exactly that: <a data-ts-src="orbax_best_mode_reverse"></a>).</li>
+<li><b>Items.</b> One checkpoint holds named items, each with a handler: <code>ocp.args.Composite(model=StandardSave(nnx.state(model)), opt=StandardSave(nnx.state(opt, nnx.Not(nnx.Param))), data=grain.checkpoint.CheckpointSave(it), meta=JsonSave({...}))</code>, each a directory under <code>&lt;dir&gt;/&lt;step&gt;/</code>.</li>
+<li><b>Async.</b> <code>enable_async_checkpointing</code> defaults to <code>True</code> (<a data-ts-src="orbax_async_default"></a>): <code>save()</code> copies the arrays to host memory and returns while a background thread writes (call 0.14 s, write done at 0.36 s here, rough). Call <code>wait_until_finished()</code> before exiting; orbax ignores unfinished checkpoints (finished ones carry <code>commit_success.txt</code> files).</li>
+<li><b>Sharded.</b> Arrays go to TensorStore in OCDBT format, one key-value store per process (<code>ocdbt.process_0/</code>), each process writing only the shards it owns: no gather to rank 0, unlike a naive <code>torch.save</code>; the PyTorch counterpart is <code>torch.distributed.checkpoint</code>.</li>
+<li><b>Restore into a target.</b> You pass a pytree with the shapes, dtypes and shardings you want (a freshly built model's state, or an abstract one from <code>nnx.eval_shape</code>) and orbax reads each shard into place; the layout on disk does not constrain the layout you restore to.</li>
+<li><b>Which checkpoints to keep.</b> In orbax-checkpoint 0.12.7, <code>max_to_keep</code>, <code>keep_period</code> and <code>best_fn</code> are documented as "deprecated, do not use. use <code>preservation_policy</code> instead" (<a data-ts-src="orbax_deprecated_max_to_keep"></a>). The replacements compose: <code>save_decision_policy=FixedIntervalPolicy(100)</code> and <code>preservation_policy=AnyPreservationPolicy([LatestN(1), BestN(get_metric_fn=..., reverse=True, n=2)])</code>. <code>BestN</code> sorts by the metric and keeps the <b>last</b> n (<a data-ts-src="orbax_bestn_keep"></a>), so for a loss you need <code>reverse=True</code>, or it keeps the two worst (the old <code>best_mode="min"</code> was translated to exactly that: <a data-ts-src="orbax_best_mode_reverse"></a>).</li>
 </ul>
-
-<div class="co warn"><div class="t">Found here: the policy API alone does not save the metrics</div>In orbax-checkpoint 0.12.7 a <code>CheckpointManager</code> writes the <code>metrics</code> you pass to <code>save()</code> only when <code>best_fn</code> is set (the <code>_track_best</code> check at <a data-ts-src="orbax_track_best"></a>). With <code>preservation_policy=...BestN(...)</code> and no <code>best_fn</code>, ranking works inside one process, but after a restart the old checkpoints have no metrics, <code>BestN</code> keeps checkpoints without metrics by default, and they are never deleted. Measured with section 9's script: the uninterrupted run kept steps <span data-ts="full_policy_only.dirs_A" data-f="list"></span>; the preempted and restarted run kept <span data-ts="full_policy_only.dirs_BC" data-f="list"></span> <span class="ts-meas">measured</span>. Setting the deprecated <code>best_fn</code> and <code>best_mode="min"</code> as well makes the metrics persist (section 9 runs that way).</div>
-<h3>What each missing piece costs, measured</h3>
-<p>The running example in NNX with dropout 0.1 on the embeddings, its AdamW chain, and a grain pipeline over 7,781 shuffled 129-character windows. One process trains 160 steps without stopping; another trains 80, saves and exits; then a fresh process per variant restores some of the checkpoint and trains steps 80 to 159. Each variant is compared with the uninterrupted run, over all <span data-ts="ckpt.n_arrays"></span> arrays of parameters and optimiser state (<code>src/runs/ts_ckpt.py</code>) <span class="ts-meas">measured</span>:</p>
-<div class="tw"><table class="ts-t" id="ts-ckv-t"></table></div>
-<p class="ts-cap">"First loss off by" is the difference at step 80, the first step after resuming. The <a href="#" data-tab="t-resume">Resume lab</a> plots every variant's loss against the uninterrupted run.</p>
-<p><b>Reading the table.</b> Restoring everything gives an identical run: every array equal bit for bit, every loss equal. Each omission produces a different run <b>with no error</b>, each with its own signature: a fresh data iterator re-reads batches 0, 1, 2 (the first resumed loss is already off by <span data-ts="ckpt.variants.no_data.first_loss_diff" data-f="f3"></span>); a fresh optimiser gives the same first loss (the forward pass does not read it) but restarts warmup and zeroes the moments, so the curve then drifts; fresh RNG streams repeat the dropout masks of steps 0 onward, a tiny first difference (<span data-ts="ckpt.variants.no_rng.first_loss_diff" data-f="e1"></span>) that compounds. "Parameters only", which is what <code>torch.save(model.state_dict())</code> keeps, combines all three. The step count is in the optimiser state here (<code>opt.step</code>), so the schedule followed it.</p>
-<div class="ts-q" data-q="2"><b>Predict.</b> You restore parameters and optimiser state but build a new grain iterator. Is the resumed loss at step 80 equal to the uninterrupted run's?
-<div class="opts"><button data-a="0">Yes, exactly</button><button data-a="1" data-right>No, from the first step</button><button data-a="2">Only after a few steps</button></div>
-<div class="ans" hidden>No: the new iterator starts at batch 0, so step 80 trains on the batch that step 0 saw. The forward pass at step 80 already sees different data; the loss is off by <span data-ts="ckpt.variants.no_data.first_loss_diff" data-f="f3"></span>.</div></div>
+<div class="co warn"><div class="t">Found here: the policy API alone does not save the metrics</div>In orbax-checkpoint 0.12.7 a <code>CheckpointManager</code> writes the <code>metrics</code> you pass to <code>save()</code> only when <code>best_fn</code> is set (the <code>_track_best</code> check at <a data-ts-src="orbax_track_best"></a>). With <code>preservation_policy=...BestN(...)</code> and no <code>best_fn</code>, ranking works inside one process, but after a restart the old checkpoints have no metrics, <code>BestN</code> keeps checkpoints without metrics by default, and they are never deleted. With section 9's script, the uninterrupted run kept steps 300, 400; the preempted and restarted run kept 100, 200, 300, 400 <span class="ts-meas">measured</span>. Setting the deprecated <code>best_fn</code> and <code>best_mode="min"</code> as well makes the metrics persist (section 9 runs that way).</div>
+<details class="mist"><summary>The step-80 checkpoint on disk: files, RNG state, iterator state</summary><div class="b">
+<p>The step-<span data-ts="ckpt.save_at"></span> checkpoint: <span id="rs-fsum"></span>. The <code>model</code> and <code>opt</code> items are TensorStore OCDBT stores; <code>data</code> is grain's iterator state as JSON; <code>meta</code> is a JSON item with the step.</p>
+<div class="rs-files" id="rs-files"></div>
+<p>The RNG state saved with the model: <span id="rs-rng"></span>. The data iterator state: <code data-ts="ckpt.iterator_state" data-f="kvjson"></code>.</p>
+</div></details>
 
 <h3>Restoring onto a different mesh</h3>
-<p>On 8 simulated devices the running example, sharded on a <code>(data 2, model 4)</code> mesh with the annotations of section 2, trained 20 steps and was saved; it was then restored five ways (four layouts, and the same mesh again with the shardings the state had when saved) and trained to step 40 (<code>src/runs/ts_ckpt_mesh.py</code>) <span class="ts-meas">measured</span>:</p>
-<div class="tw"><table class="ts-t" id="ts-mesh-t"></table></div>
-<p><b>Restore is exact on every layout</b>: the arrays that come back are bit-identical to the ones saved, whatever the new sharding. <b>Continuing is bit-identical only in the last row</b>, and the reason is a finding worth knowing. The model's annotations replicate the biases (spec <code>P()</code>), but after one jitted training step <span data-ts="mesh_det.sharding_changed_by_training.n_changed"></span> of the <span data-ts="mesh_det.sharding_changed_by_training.n_leaves"></span> parameter and optimiser leaves came back with a different sharding chosen by the compiler (the fc1 bias, for example, went from <code>P()</code> to <code>P('model',)</code>) <span class="ts-meas">measured</span>. A freshly built model on the same mesh has the annotated shardings, so its first step is a different compiled program, which sums partial results in a different order: the run drifts from step 21 by float rounding (up to <span data-ts="ckpt_mesh.targets.A (2 x 4).param_maxdiff_vs_ref" data-f="e1"></span> by step 40). Restoring into the shardings the state actually had when it was saved (the last row: targets built from the saved arrays' shardings) gives the same program and a bit-identical continuation. The same 20 steps run three times on one mesh were identical every time (<code>src/runs/ts_mesh_det.py</code>), so nothing here is nondeterminism. Two lessons: pin the state's shardings in the train step (<code>out_shardings</code> or <code>jax.lax.with_sharding_constraint</code> on the new state) so they never drift, and when the mesh really changes, compare losses, not bits.</p>
-<h3>Emergency checkpointing (read, not run)</h3>
-<p>On a large TPU job the cost of a checkpoint is the write to remote storage (Cloud Storage), so you checkpoint rarely and lose up to an interval of work on each failure. orbax's <code>experimental.emergency.CheckpointManager</code> keeps two tiers: frequent <b>local</b> checkpoints to fast local storage (RAM disk) on each host (default <code>save_interval_steps</code> 10: <a data-ts-src="orbax_emergency_local_interval"></a>) and rare <b>persistent</b> ones to remote storage (default 1000: <a data-ts-src="orbax_emergency_persistent_interval"></a>); after a failure, a slice that still holds a complete local checkpoint broadcasts it to the replaced hosts, and the persistent tier is the fallback (docstring at <a data-ts-src="orbax_emergency_cm"></a>). The module is marked "experimental; do not use without specific approval" (<a data-ts-src="orbax_emergency_warning"></a>). Not run here: it needs several hosts and slices. orbax also ships a new API, <code>orbax.checkpoint.experimental.v1</code> (<a data-ts-src="orbax_v1"></a>), still under <code>experimental</code> at 0.12.7; the code on this page uses the stable <code>CheckpointManager</code> that MaxText and Tunix use.</p>
-</section>
+<p>Saved sharded on a <code>(data 2, model 4)</code> mesh of 8 simulated devices at step 20 and restored onto four layouts, <b>restore was exact on every layout</b>, but <b>continuing was bit-identical only when restored into the shardings the state had when saved</b>; otherwise, even on the same mesh, the run drifted by float rounding (up to 3.4e-6 in a parameter by step 40) <span class="ts-meas">measured</span>. The cause: after one jitted step the compiler had re-sharded 81 of the 210 parameter and optimiser leaves, so a freshly built model compiles a different step that sums in a different order. Pin the state's shardings in the train step (<code>out_shardings</code> or <code>jax.lax.with_sharding_constraint</code>), and when the mesh really changes, compare losses, not bits.</p>
+<details class="mist"><summary>The five restores, layout by layout, and why this is not nondeterminism</summary><div class="b"><p>The running example was restored onto the same mesh, (8 x 1), (1 x 8) and one device, plus the same mesh into the saved shardings, and trained to step 40 (<code>src/runs/ts_ckpt_mesh.py</code>). The model's annotations replicate the biases (spec <code>P()</code>); after one step the fc1 bias, for example, came back as <code>P('model',)</code>. The same 20 steps run three times on one mesh were identical every time (<code>src/runs/ts_mesh_det.py</code>).</p><div class="tw"><table class="ts-t" id="ts-mesh-t"></table></div></div></details>
 
+<details class="mist"><summary>Emergency checkpointing and orbax's new API (read, not run)</summary><div class="b"><p>On a large TPU job the cost of a checkpoint is the write to remote storage (Cloud Storage), so you checkpoint rarely and lose up to an interval of work on each failure. orbax's <code>experimental.emergency.CheckpointManager</code> keeps two tiers: frequent <b>local</b> checkpoints to fast local storage (RAM disk) on each host (default <code>save_interval_steps</code> 10: <a data-ts-src="orbax_emergency_local_interval"></a>) and rare <b>persistent</b> ones to remote storage (default 1000: <a data-ts-src="orbax_emergency_persistent_interval"></a>); after a failure, a slice that still holds a complete local checkpoint broadcasts it to the replaced hosts, and the persistent tier is the fallback (docstring at <a data-ts-src="orbax_emergency_cm"></a>). The module is marked "experimental; do not use without specific approval" (<a data-ts-src="orbax_emergency_warning"></a>). Not run here: it needs several hosts and slices. orbax also ships a new API, <code>orbax.checkpoint.experimental.v1</code> (<a data-ts-src="orbax_v1"></a>), still under <code>experimental</code> at 0.12.7; the code on this page uses the stable <code>CheckpointManager</code> that MaxText and Tunix use.</p></div></details>
+</section>
 <section id="s-grain">
 <h2>6. grain: a data pipeline that is a function of the index</h2>
-<p><b>The problem.</b> For a resumed run to be the same run, the loader must produce the same batches in the same order, and be able to jump to the middle of an epoch. For a multi-host run, each host must read a disjoint part of the data, deterministically. PyTorch's <code>DataLoader</code> gets order from a sampler in the main process, randomness inside <code>__getitem__</code> from per-worker generators, and has no position to save.</p>
-<p><b>How grain works.</b> A <code>MapDataset</code> is random-access: <code>ds[i]</code> computes record i from a source (anything with <code>__len__</code> and <code>__getitem__</code>, such as an ArrayRecord file or a numpy array) and a chain of transformations. <code>shuffle(seed)</code> is a fixed permutation of indices (<a data-ts-src="grain_shuffle"></a>); <code>random_map(f, seed)</code> hands <code>f</code> a numpy generator seeded from the seed <b>and the record's index</b> (<a data-ts-src="grain_random_map_seed"></a>); <code>repeat()</code> reseeds every random transformation per epoch, so each epoch is shuffled differently but deterministically (<a data-ts-src="grain_repeat"></a>). <code>to_iter_dataset()</code> turns it into an iterator, read by 16 threads by default (<a data-ts-src="grain_threads"></a>), and <code>mp_prefetch</code> adds worker processes. Because record i depends only on (i, seed, epoch), the iterator's state is a few integers. The older <code>grain.DataLoader(data_source, sampler, operations, worker_count)</code> API does the same with an <code>IndexSampler</code>.</p>
-<p>Measured on the running example's 7,781 windows, each record tagged with its window index (<code>src/runs/ts_grain.py</code>) <span class="ts-meas">measured</span>:</p>
-<ul class="tight">
-<li><b>Random access to any epoch.</b> With <code>shuffle(0).repeat()</code>, record 100,000 (epoch 12) is window <span data-ts="grain.G2.random_access_record_100000"></span>, computed directly with no iteration. Epoch 0 starts with windows <span data-ts="grain.G2.epoch0_first8" data-f="list4"></span>..., epoch 1 with <span data-ts="grain.G2.epoch1_first8_reseeded" data-f="list4"></span>...; with <code>reseed_each_epoch=False</code> epoch 1 repeats epoch 0.</li>
-<li><b>Augmentation is reproducible across worker counts.</b> A random crop offset drawn in <code>random_map</code> was the same for each of <span data-ts="grain.G3.records_compared"></span> records with 0 and 4 worker processes (<span data-ts="grain.G3.offsets_equal" data-f="yes"></span>). The PyTorch contrast: the same augmentation drawn with <code>torch.randint</code> inside <code>__getitem__</code> agreed between <code>num_workers=0</code> and <code>2</code> for only <span data-ts="torch_loader.T2.fraction_equal" data-f="pct1"></span> of <span data-ts="torch_loader.T2.records"></span> records (chance is 1 in 8), because torch seeds each worker differently; the order itself was identical (<span data-ts="torch_loader.T1.order_equal_0_2" data-f="yes"></span>) since the sampler runs in the main process (<code>src/runs/ts_torch_loader.py</code>, torch 2.14.1).</li>
-</ul>
+<p>For a resumed run to be the same run, the loader must produce the same batches in the same order and be able to jump to the middle of an epoch; on many hosts, each host must read a disjoint part of the data, deterministically. PyTorch's <code>DataLoader</code> gets order from a sampler in the main process, randomness inside <code>__getitem__</code> from per-worker generators, and has no position to save.</p>
+<p><b>How grain works.</b> A <code>MapDataset</code> is random-access: <code>ds[i]</code> computes record i from a source (anything with <code>__len__</code> and <code>__getitem__</code>, such as an ArrayRecord file or a numpy array) and a chain of transformations. <code>shuffle(seed)</code> is a fixed permutation of indices (<a data-ts-src="grain_shuffle"></a>); <code>random_map(f, seed)</code> hands <code>f</code> a numpy generator seeded from the seed <b>and the record's index</b> (<a data-ts-src="grain_random_map_seed"></a>); <code>repeat()</code> reseeds every random transformation per epoch, so each epoch is shuffled differently but deterministically (<a data-ts-src="grain_repeat"></a>). <code>to_iter_dataset()</code> turns it into an iterator, read by 16 threads by default (<a data-ts-src="grain_threads"></a>), and <code>mp_prefetch</code> adds worker processes. Because record i depends only on (i, seed, epoch), the iterator's whole state is a few integers. The older <code>grain.DataLoader(data_source, sampler, operations, worker_count)</code> API does the same with an <code>IndexSampler</code>.</p>
+<p>On the running example's 7,781 windows <span class="ts-meas">measured</span> (<code>src/runs/ts_grain.py</code>): record 100,000 of <code>shuffle(0).repeat()</code> (epoch 12) is window 3986, computed with no iteration, and a random crop drawn in <code>random_map</code> was identical for 192 records with 0 and 4 worker processes. The same crop drawn with <code>torch.randint</code> in a PyTorch <code>__getitem__</code> agreed between 0 and 2 workers for only 12.5% of 128 records (chance is 1 in 8), because torch seeds each worker differently (<code>src/runs/ts_torch_loader.py</code>, torch 2.14.1).</p>
 
 <h3>Where you batch decides whether the worker count matters</h3>
-<p><code>mp_prefetch</code> gives each worker process a slice of the <b>MapDataset's</b> elements and interleaves their outputs; anything after <code>to_iter_dataset()</code> runs inside each worker on its own slice. So the same pipeline written four ways behaved differently with 0, 2 and 4 workers <span class="ts-meas">measured</span>:</p>
+<p><code>mp_prefetch</code> gives each worker process a slice of the <b>MapDataset's</b> elements and interleaves their outputs; anything after <code>to_iter_dataset()</code> runs inside each worker on its own slice. The same pipeline written four ways:</p>
 <div class="tw"><table class="ts-t" id="ts-gpipe-t"></table></div>
-<p>Batching in the MapDataset makes each element a whole batch, so workers share out batches and the stream does not depend on the worker count. Batching after <code>to_iter_dataset()</code> but before <code>mp_prefetch</code> makes each worker batch its own slice: batch 0 becomes records 0, 2, 4, ... of the shuffled order with 2 workers. A <code>filter</code> (a many-to-one transformation) before <code>mp_prefetch</code> also changes the stream, which grain's docstring warns about (<a data-ts-src="grain_mp_warning"></a>). The output stays deterministic for a fixed worker count (grain's docstring says so, and the DataLoader run with 2 workers repeated exactly, <span data-ts="grain.G1_equal.DL.rerun_2" data-f="yes"></span>); it is <b>elasticity</b> that is lost: change the worker count between save and resume and you get a different run. The <a href="#" data-tab="t-data">Data lab</a> draws the batches cell by cell.</p>
+<p class="ts-pred"><b>Predict</b>: with pipeline B and 2 workers, which records make up batch 0? Pick a pipeline and a worker count, then step.</p>
+<div class="ts-box" id="dg-card">
+<h4>Batch per worker and the stream changes with the worker count</h4>
+<div class="ts-ctl"><span class="small">Pipeline</span><span class="seg" id="dg-cfg"><button data-m="A" class="on">A: batch in MapDataset</button><button data-m="B">B: batch per worker</button><button data-m="C">C: filter before workers</button><button data-m="D">D: batch after workers</button><button data-m="DL">grain.DataLoader</button></span></div>
+<div class="ts-ctl"><span class="small">Worker processes</span><span class="seg" id="dg-w"><button data-m="0">0</button><button data-m="2" class="on">2</button><button data-m="4">4</button></span></div>
+<div class="dg-h" id="dg-h0">batch 0</div><div class="dg-grid" id="dg-b0"></div>
+<div class="dg-h" id="dg-h1">batch 1</div><div class="dg-grid" id="dg-b1"></div>
+<div class="ts-capstep" id="dg-cap"></div>
+<div class="ts-anctl" id="dg-ctl"></div>
+<div class="out" id="dg-stats"></div>
+</div>
+<p class="ts-cap">Each cell is one record of a batch of 32, coloured by its window index and labelled with its position in the shuffled order the 0-worker pipeline A reads (+ means beyond position 63); a red outline marks a record that is not where the 0-worker pipeline put it <span class="ts-meas">measured</span>. The DataLoader API ran with 0 and 2 workers only; only the first two batches of each run are embedded, the table compares six.</p>
+<p>Batching in the MapDataset makes each element a whole batch, so workers share out batches and the stream does not depend on the worker count. Batching after <code>to_iter_dataset()</code> but before <code>mp_prefetch</code> makes each worker batch its own slice: batch 0 becomes records 0, 2, 4, ... of the shuffled order with 2 workers. A <code>filter</code> (many-to-one) before <code>mp_prefetch</code> also changes the stream, as grain's docstring warns (<a data-ts-src="grain_mp_warning"></a>). The output stays deterministic for a fixed worker count (the DataLoader run with 2 workers repeated exactly); what is lost is <b>elasticity</b>: change the worker count between save and resume and you get a different run.</p>
 
-<h3>Checkpointing the iterator, and what it depends on</h3>
+<h3>Checkpointing the iterator, and many hosts</h3>
+<p>With 2 worker processes the iterator state records per-worker positions; a fresh 2-worker iterator given the state after 7 batches produced the same next 3 batches, but loading it into a 0-worker pipeline raised <code>KeyError: 'next_index'</code> <span class="ts-meas">measured</span>. So resume with the same worker count. orbax writes the state through <code>grain.checkpoint.CheckpointSave/CheckpointRestore</code> as a small JSON item per process. On a multi-host slice each host reads its own shard: <code>IndexSampler(shard_options=ShardOptions(shard_index=k, shard_count=2))</code> gave two simulated hosts 3,888 records each, disjoint, together 7,776 of 7,781 (the remainder dropped so shards are equal) <span class="ts-meas">measured</span>. In real use <code>grain.sharding.ShardByJaxProcess()</code> fills in <code>jax.process_index()</code> and <code>jax.process_count()</code>, and <code>jax.make_array_from_process_local_data</code> assembles the global batch (<a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>); with the dataset API, <code>ds[k::n]</code> slices the same way.</p>
+<details class="mist"><summary>The iterator state, epochs, hosts and the PyTorch contrast in full</summary><div class="b">
 <p>With 2 worker processes, the state after 7 batches was:</p>
 <pre class="ts-code ts-out" data-ts-pre="grain.G5.state"></pre>
-<p>A fresh 2-worker iterator given this state produced the same next 3 batches (<span data-ts="grain.G5.equal" data-f="yes"></span>). The state records per-worker positions, so it cannot be loaded into an iterator with a different worker count: loading it into a 0-worker pipeline raised <code><span data-ts="grain.G5.load_into_0_workers_error.type"></span>: <span data-ts="grain.G5.load_into_0_workers_error.msg"></span></code>, whose state looks like <code><span data-ts="grain.G5.state_0_workers"></span></code>. The resume lab's checkpoints use <code>grain.checkpoint.CheckpointSave/CheckpointRestore</code>, which orbax writes as a small JSON item per process.</p>
-
-<h3>Many hosts: shard by index</h3>
-<p>On a multi-host TPU slice each host loads its own share. With <code>IndexSampler(shard_options=ShardOptions(shard_index=k, shard_count=2))</code> two simulated hosts read <span data-ts="grain.G6.hosts.0.n" data-f="int"></span> and <span data-ts="grain.G6.hosts.1.n" data-f="int"></span> records, disjoint (<span data-ts="grain.G6.disjoint" data-f="yes"></span>), together <span data-ts="grain.G6.union" data-f="int"></span> of <span data-ts="grain.G6.n" data-f="int"></span> (the remainder dropped so shards are equal) <span class="ts-meas">measured</span>. In real use <code>grain.sharding.ShardByJaxProcess()</code> fills in <code>jax.process_index()</code> and <code>jax.process_count()</code>; each host then builds its part of the global batch and <code>jax.make_array_from_process_local_data</code> assembles it (<a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>). With the dataset API, <code>ds[k::n]</code> slices the same way.</p>
-
-<h3>Threads, processes and speed</h3>
-<p>Two kinds of slow transformation behave differently. Measured with a 2 ms per-record map (rough timings, load average about 40): a map that <b>waits</b> (sleep, like reading a file) ran at <span data-ts="grain.G7.rows.0.batches_per_s" data-f="f0"></span> batches per second with no worker processes, against the 15.6 a serial loop would allow (1 / (32 x 2 ms) <span class="ts-der">derived</span>), because the default 16 read threads overlap the waits; a map that <b>computes in Python</b> (a busy loop holding the GIL) ran at <span data-ts="grain.G7.rows.3.batches_per_s" data-f="f1"></span>, the serial rate, since threads cannot run Python in parallel. Worker processes are the fix for the second kind; on this heavily loaded shared machine their speed-up was not measurable reliably (<span data-ts="grain.G7.rows.4.batches_per_s" data-f="f1"></span> and <span data-ts="grain.G7.rows.5.batches_per_s" data-f="f1"></span> batches per second with 2 and 4 workers), so no claim is made about it here. On a TPU host the rule is the usual one: profile the input pipeline (xprof's input pipeline analyser) and add workers until the device never waits.</p>
-<div class="co"><div class="t">grain versus the alternatives</div>A Python generator over a numpy memmap (the root's running example) is fine when the data fits on one host and you never resume mid-epoch. <code>tf.data</code> is what older JAX code (T5X, big_vision) uses. PyTorch's <code>DataLoader</code> works from JAX too (convert batches with <code>np.asarray</code>); torchdata's <code>StatefulDataLoader</code> adds <code>state_dict</code> for mid-epoch resume (not run here). MaxText's default <code>dataset_type</code> is synthetic, with grain, Hugging Face and tfds options (root's Tool map).</div>
+<p>Epoch 0 of <code>shuffle(0).repeat()</code> starts with windows 3746, 2851, 6667, 3304, epoch 1 with 6158, 4966, 4010, 4273; with <code>reseed_each_epoch=False</code> epoch 1 repeats epoch 0 <span class="ts-meas">measured</span>. A 0-worker iterator's state looks like <code><span data-ts="grain.G5.state_0_workers"></span></code>.</p>
+<div class="tw"><table class="ts-t" id="dg-more"></table></div>
+<p>The same windows through <code>torch.utils.data.DataLoader(shuffle=True, generator=torch.Generator().manual_seed(0))</code> with a random crop offset drawn by <code>torch.randint</code> inside <code>__getitem__</code> <span class="ts-meas">measured</span>:</p>
+<div class="tw"><table class="ts-t" id="dg-torch"></table></div>
+<p class="ts-cap">Order agrees across worker counts because the sampler runs in the main process; augmentation does not, because each worker process gets its own torch seed (base seed plus worker id). grain's <code>random_map</code> derives each record's generator from the seed and the record index.</p>
+</div></details>
+<details class="mist"><summary>Threads, processes and speed; grain against the alternatives</summary><div class="b">
+<p>Two kinds of slow transformation behave differently. With a 2 ms per-record map (rough timings, load average about 40): a map that <b>waits</b> (sleep, like reading a file) ran at <span data-ts="grain.G7.rows.0.batches_per_s" data-f="f0"></span> batches per second (115) with no worker processes, against the 15.6 a serial loop would allow (1 / (32 x 2 ms) <span class="ts-der">derived</span>), because the default 16 read threads overlap the waits; a map that <b>computes in Python</b> (a busy loop holding the GIL) ran at <span data-ts="grain.G7.rows.3.batches_per_s" data-f="f1"></span>, the serial rate, since threads cannot run Python in parallel. Worker processes are the fix for the second kind; on this heavily loaded shared machine their speed-up was not measurable reliably (<span data-ts="grain.G7.rows.4.batches_per_s" data-f="f1"></span> and <span data-ts="grain.G7.rows.5.batches_per_s" data-f="f1"></span> batches per second with 2 and 4 workers), so no claim is made about it. On a TPU host: profile the input pipeline (xprof's input pipeline analyser) and add workers until the device never waits.</p>
+<p>A Python generator over a numpy memmap (the root's running example) is fine when the data fits on one host and you never resume mid-epoch. <code>tf.data</code> is what older JAX code (T5X, big_vision) uses. PyTorch's <code>DataLoader</code> works from JAX too (convert batches with <code>np.asarray</code>); torchdata's <code>StatefulDataLoader</code> adds <code>state_dict</code> for mid-epoch resume (not run here). MaxText's default <code>dataset_type</code> is synthetic, with grain, Hugging Face and tfds options (root's Tool map).</p>
+</div></details>
 </section>
-
 <section id="s-mp">
 <h2>7. float16 and loss scaling</h2>
-<p>The root's Training lab measured <b>bfloat16</b>: compute in bf16 with a float32 master copy ends within 0.001 of float32, and bf16 weights without a master copy freeze LayerNorm scales. bfloat16 has float32's 8 exponent bits, so its range is the same and it needs no loss scaling; that is why TPUs use it. <b>float16</b> (5 exponent bits) is still what many GPU recipes use, and its smallest normal number is <span data-ts="mixed.M1.fp16_min_normal" data-f="e2"></span> (subnormals go down to <span data-ts="mixed.M1.fp16_min_subnormal" data-f="e2"></span>, with fewer and fewer significant bits), its largest <span data-ts="mixed.M1.fp16_max" data-f="int"></span>. Gradients are small numbers: the running example's float32 gradients at initialisation have a median magnitude of <span data-ts="mixed.M1.f32_grad_abs_median" data-f="e1"></span>.</p>
-<p><b>Loss scaling</b> multiplies the loss by S before the backward pass, so every gradient is S times larger while it is in float16, and divides by S in float32 before the optimiser. Measured on one batch at the initial weights, gradients computed through a float16 copy of the model <span class="ts-meas">measured</span>:</p>
+<p>On TPU use <b>bfloat16</b>: it has float32's 8 exponent bits, so its range is float32's and it needs no loss scaling (the root's Training lab measured bf16 compute with a float32 master copy ending within 0.001 of float32). <b>float16</b> (5 exponent bits, smallest normal 6.10e-5, largest 65,504) is still what many GPU recipes use, and gradients are small: the running example's float32 gradients at initialisation have a median magnitude of 1.1e-3, and many land among float16's subnormals. <b>Loss scaling</b> multiplies the loss by S before the backward pass and divides the gradients by S in float32 before the optimiser; <b>dynamic</b> loss scaling starts S high, halves it and <b>skips the step</b> whenever a gradient is not finite, and doubles it after a run of good steps. In JAX the reference implementation is jmp's <code>DynamicLossScale</code> (last released 2023), a small pytree carried through the jitted step; PyTorch's <code>torch.amp.GradScaler</code> is the same algorithm. Formats, subnormals and a loss-scale slider are taught on <a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing for ML</a> (section 11); mixed precision across frameworks on <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>.</p>
+<p>Measured here <span class="ts-meas">measured</span>: at S = 1 the median relative error of float16 gradients was about ten times that at S = 256; at S = 2<sup>24</sup> almost every gradient overflowed. Over 200 steps with float32 master weights, a static scale of 2<sup>12</sup> stayed on top of float32 (validation loss 2.36050 against 2.36054); no scaling wandered off the float32 trajectory (2.3319: not worse here, a different run); the dynamic scale started at 2<sup>15</sup>, skipped the overflowing steps 111 and 144, halving each time, and ended at 2<sup>13</sup>.</p>
+<details class="mist"><summary>The loss-scale table, the jmp step and the 200-step runs</summary><div class="b">
+<p>float16's smallest normal number is <span data-ts="mixed.M1.fp16_min_normal" data-f="e2"></span> (subnormals go down to <span data-ts="mixed.M1.fp16_min_subnormal" data-f="e2"></span>, with fewer and fewer significant bits), its largest <span data-ts="mixed.M1.fp16_max" data-f="int"></span>. One batch at the initial weights, gradients computed through a float16 copy of the model <span class="ts-meas">measured</span>:</p>
 <div class="tw"><table class="ts-t" id="ts-fp16-t"></table></div>
-<p>At S = 1 few gradients become exactly zero, but many land among float16's subnormals and lose precision: the median relative error is about ten times that at S = 256. bfloat16 at S = 1 has a larger median error still (8 significant bits against float16's 11) but loses nothing to range; its handful of zeros are sums that cancel, not underflow. Too large a scale overflows: at 2<sup>24</sup> almost every gradient became infinite. <b>Dynamic loss scaling</b> searches for the largest safe S: start high, halve S and <b>skip the step</b> whenever a gradient is not finite, double it after a run of good steps. jmp's <code>DynamicLossScale</code> (the reference implementation, last released 2023) does this as a small pytree you carry through the jitted step; PyTorch's <code>torch.amp.GradScaler</code> is the same algorithm.</p>
+<p>At S = 1 few gradients become exactly zero, but many land among float16's subnormals and lose precision. bfloat16 at S = 1 has a larger median error still (8 significant bits against float16's 11) but loses nothing to range; its handful of zeros are sums that cancel, not underflow.</p>
 <pre class="ts-code">ls = jmp.DynamicLossScale(jnp.asarray(2.0 ** 15, jnp.float32))
 @jax.jit
 def step(p, s, ls, x, y):
@@ -418,62 +533,43 @@ def step(p, s, ls, x, y):
     u, s2 = tx.update(g, s, p)
     p, s = jmp.select_tree(finite, (optax.apply_updates(p, u), s2), (p, s))   # skip the step on overflow
     return p, s, ls.adjust(finite), ls.unscale(l), finite</pre>
-<div class="ts-box"><h4>200 steps, float16 compute with float32 master weights</h4>
 <div class="ts-svgw" id="ts-fp16-svg"></div>
 <div class="tw"><table class="ts-t" id="ts-fp16run-t"></table></div>
-<p class="ts-cap">Difference of each run's training loss from the float32 run, every 10 steps, and validation loss after 200 steps on the Training lab's 8 validation batches (<code>src/runs/ts_mixed.py</code>) <span class="ts-meas">measured</span>. On a CPU float16 is emulated, so no speed is reported.</p></div>
-<p><b>What happened.</b> All four runs trained. With a static scale of 2<sup>12</sup> the float16 run stayed on top of float32 (validation loss <span data-ts="mixed.M2.runs.static.val_end" data-f="f4"></span> against <span data-ts="mixed.M2.runs.f32.val_end" data-f="f4"></span>); without scaling it wandered off the float32 trajectory (<span data-ts="mixed.M2.runs.fp16 no scaling.val_end" data-f="f4"></span>): not worse here, just a different run, from gradients rounded in the subnormal range. The dynamic scale started at 2<sup>15</sup>; gradients overflowed float16 at steps <span data-ts="mixed.M2.runs.dynamic.skipped_at" data-f="list"></span>, each such step was skipped and the scale halved, ending at <span data-ts="mixed.M2.runs.dynamic.scale_end" data-f="pow2"></span> (jmp doubles it again only after 2,000 good steps by default). A tiny model at initialisation has large gradients; deep models late in training have far smaller ones, which is where unscaled float16 loses updates outright. On TPU use bfloat16 and skip all of this.</p>
+<p class="ts-cap">Difference of each run's training loss from the float32 run, every 10 steps, and validation loss after 200 steps on the Training lab's 8 validation batches (<code>src/runs/ts_mixed.py</code>) <span class="ts-meas">measured</span>. On a CPU float16 is emulated, so no speed is reported. jmp doubles the scale again only after 2,000 good steps by default. A tiny model at initialisation has large gradients; deep models late in training have far smaller ones, which is where unscaled float16 loses updates outright.</p>
+</div></details>
 </section>
 
 <section id="s-eval">
 <h2>8. Evaluation loops and metrics</h2>
-<p><b>The problem.</b> <code>loss.item()</code> every step is harmless in eager PyTorch on CPU but on an accelerator it forces the host to wait for the device, serialising a pipeline that JAX runs asynchronously (dispatch returns before the device finishes). The fix is to accumulate metrics on the device, inside the compiled step, and read them every N steps.</p>
-<p><code>nnx.MultiMetric(loss=nnx.metrics.Average("loss"), accuracy=nnx.metrics.Accuracy())</code> is a module whose state is running sums in Variables; <code>metrics.update(loss=..., logits=..., labels=...)</code> inside an <code>nnx.jit</code> step adds to them on device; <code>metrics.compute()</code> and <code>reset()</code> on the host every N steps are the only syncs (source <a data-ts-src="flax_multimetric"></a>; also <code>Welford</code> for mean and variance). An evaluation loop is the same with a second <code>MultiMetric</code> and an <code>eval_step</code> that does not touch the optimiser; call <code>model.eval()</code> first if the model has dropout or BatchNorm. <b>clu</b> (Google's CommonLoopUtils), which older Flax code uses for metrics and periodic actions, last released 0.0.12 on 2024-04-10 (<a href="https://pypi.org/project/clu/" target="_blank" rel="noopener noreferrer">PyPI</a>, read 2026-10-15) <span class="ts-pub">published</span>; for NNX code <code>nnx.metrics</code> is enough.</p>
+<p><code>loss.item()</code> every step forces the host to wait for the device, serialising a pipeline that JAX runs asynchronously (dispatch returns before the device finishes). So accumulate metrics on the device, inside the compiled step, and read them every N steps. <code>nnx.MultiMetric(loss=nnx.metrics.Average("loss"), accuracy=nnx.metrics.Accuracy())</code> is a module whose state is running sums in Variables; <code>metrics.update(loss=..., logits=..., labels=...)</code> inside an <code>nnx.jit</code> step adds to them on device; <code>metrics.compute()</code> and <code>reset()</code> on the host every N steps are the only syncs (source <a data-ts-src="flax_multimetric"></a>; also <code>Welford</code> for mean and variance). An evaluation loop is the same with a second <code>MultiMetric</code> and an <code>eval_step</code> that does not touch the optimiser; call <code>model.eval()</code> first if the model has dropout or BatchNorm. <b>clu</b> (Google's CommonLoopUtils), which older Flax code uses for metrics and periodic actions, last released 0.0.12 on 2024-04-10 (<a href="https://pypi.org/project/clu/" target="_blank" rel="noopener noreferrer">PyPI</a>, read 2026-10-15) <span class="ts-pub">published</span>; for NNX code <code>nnx.metrics</code> is enough.</p>
 </section>
 
 <section id="s-full">
-<h2>9. A complete training script</h2>
-<p>Everything above in one file, as it ran (<code>src/runs/ts_full.py</code>, the <code>train</code> function): grain pipeline reshuffled per epoch, NNX model loaded from the shared initial weights, optax chain with a warmup-cosine schedule and a decay mask, <code>nnx.Optimizer</code>, on-device metrics, evaluation every 100 steps on 256 fixed validation windows, orbax policies keeping the latest and the two best checkpoints, and resume from the latest checkpoint if one exists.</p>
-<details class="mist" open><summary>The script</summary><pre class="ts-code" id="ts-full-code"></pre></details>
-<p>The driver ran it three times in separate processes <span class="ts-meas">measured</span>: <b>A</b> trained 400 steps; <b>B</b> ran the same command and was stopped after step 250, the way a preemption would stop it; <b>C</b> ran the same command again, found the latest checkpoint and continued.</p>
+<h2>9. A complete training script, preempted and resumed</h2>
+<p>Everything above in one file, as it ran (<code>src/runs/ts_full.py</code>, the <code>train</code> function): grain pipeline reshuffled per epoch, NNX model loaded from the shared initial weights, optax chain with a warmup-cosine schedule and a decay mask, <code>nnx.Optimizer</code>, on-device metrics, evaluation every 100 steps on 256 fixed validation windows, orbax policies keeping the latest and the two best checkpoints, and resume from the latest checkpoint if one exists. It ran three times in separate processes <span class="ts-meas">measured</span>: <b>A</b> trained 400 steps; <b>B</b> ran the same command and was stopped after step 250, the way a preemption would stop it; <b>C</b> ran the same command again, found the step-200 checkpoint and continued.</p>
 <div class="tw"><table class="ts-t" id="ts-full-t"></table></div>
 <p id="ts-full-sum"></p>
+<p>B then C ended with parameters bit-identical to A; steps 201 to 250 ran twice, which is the cost of saving every 100 steps.</p>
+<details class="mist"><summary>The script</summary><pre class="ts-code" id="ts-full-code"></pre></details>
 </section>
-
-<section id="s-mist">
-<h2>Common mistakes</h2>
-<details class="mist"><summary><b>Calling a pure jax.jit step without returning the RNG state</b></summary><div class="b">The dropout counter advances inside the trace and the result is thrown away: the same mask every step, no error (section 1, measured). Use <code>nnx.jit</code>, or return <code>nnx.state(model)</code> from the jitted function and use it next call.</div></details>
-<details class="mist"><summary><b>Changing the module's structure inside the training loop</b></summary><div class="b">Adding an attribute, rebuilding a submodule or flipping a Python flag stored on the module changes the graphdef, and every changed graphdef is a new compile (section 2: the trace count went from 1 to 2 on one added Param). Keep per-step values in Variables or pass them as arguments.</div></details>
-<details class="mist"><summary><b>Non-exhaustive filters</b></summary><div class="b"><code>nnx.split(model, nnx.Param)</code> on a model with any other state raises "Non-exhaustive filters, got a non-empty remainder" (section 1). End the filter list with <code>...</code>.</div></details>
-<details class="mist"><summary><b>Tied weights in tree mode</b></summary><div class="b">A module referenced twice is a "Duplicate Param" in tree mode (section 1). Pin graph mode, or tie by computing the head from the embedding's array instead of sharing the module.</div></details>
-<details class="mist"><summary><b>Linen: training without <code>mutable</code> or without a dropout key</b></summary><div class="b">"Cannot update variable "mean" in "/BatchNorm_0" because collection "batch_stats" is immutable" and "Dropout_0 needs PRNG for "dropout"" (section 3). Every training <code>apply</code> needs <code>mutable=["batch_stats"]</code> and <code>rngs={"dropout": key}</code>, and you must merge the returned updates.</div></details>
-<details class="mist"><summary><b>Equinox: <code>jax.jit</code> on a model holding a function</b></summary><div class="b">"Error interpreting argument ... as an abstract array. The problematic value is of type &lt;class 'function'&gt;" (section 3). Use <code>eqx.filter_jit</code> / <code>eqx.filter_grad</code>, or partition the model first.</div></details>
-<details class="mist"><summary><b>Rebuilding the optimiser to change the learning rate</b></summary><div class="b">A new Python float is a new constant: one compile per value (3 traces for 3 values, section 4). Inject it with <code>inject_hyperparams</code>, or make it a schedule of the step.</div></details>
-<details class="mist"><summary><b>Logging steps wrongly under MultiSteps</b></summary><div class="b">The optimiser's step count and schedules advance once per k calls. A schedule written for 10,000 updates and a loop of 10,000 micro-batches with k = 4 only reaches a quarter of the schedule.</div></details>
-<details class="mist"><summary><b>Muon on the embeddings</b></summary><div class="b"><code>optax.contrib.muon</code> orthogonalises every 2-D leaf by default, embeddings and output head included (section 4). Pass <code>muon_weight_dimension_numbers</code> to keep them on Adam.</div></details>
-<details class="mist"><summary><b>Saving parameters only</b></summary><div class="b">The run restarts warmup, zeroes Adam's moments, re-reads the first batches and repeats the dropout masks; the loss is off from the first resumed step with no error (section 5). Save model state (including RNG), optimiser state and the data iterator in one checkpoint.</div></details>
-<details class="mist"><summary><b><code>best_mode="min"</code> becomes <code>reverse=True</code></b></summary><div class="b">Moving to orbax's preservation policies, <code>BestN(get_metric_fn=loss, n=2)</code> without <code>reverse=True</code> keeps the two <b>worst</b> checkpoints, because it keeps the last n after sorting (section 5).</div></details>
-<details class="mist"><summary><b>Expecting a bitwise resume on a mesh while restoring into the annotated shardings</b></summary><div class="b">After the first jitted step the compiler had re-sharded <span data-ts="mesh_det.sharding_changed_by_training.n_changed"></span> of <span data-ts="mesh_det.sharding_changed_by_training.n_leaves"></span> state leaves; restoring into a freshly built model's shardings compiles a different step and the run drifts by rounding (section 5). Restore into the saved shardings, or pin the state's shardings in the step.</div></details>
-<details class="mist"><summary><b>Using BestN without best_fn</b></summary><div class="b">With orbax-checkpoint 0.12.7 the metrics are only written to disk when <code>best_fn</code> is set; after a restart old checkpoints have no metrics and are never cleaned up (section 5).</div></details>
-<details class="mist"><summary><b>Exiting before the async save finishes</b></summary><div class="b"><code>save()</code> returns while the write continues; call <code>mngr.wait_until_finished()</code> (or <code>close()</code>) before the process ends.</div></details>
-<details class="mist"><summary><b>Batching inside the workers, or changing the worker count on resume</b></summary><div class="b">Batch in the <code>MapDataset</code> before <code>to_iter_dataset()</code>; keep filters after <code>mp_prefetch</code>; and resume with the same worker count, because the iterator state is per worker (<code>KeyError: 'next_index'</code> otherwise; section 6).</div></details>
-<details class="mist"><summary><b>Annotated parameters with no mesh</b></summary><div class="b">With eager sharding (default in 0.12) "An auto mesh context or metadata is required if creating a variable with annotation out_sharding=..." (section 2). Create the model under <code>jax.set_mesh(mesh)</code>, or turn eager sharding off for single-device tests.</div></details>
-<details class="mist"><summary><b><code>loss.item()</code> every step</b></summary><div class="b">A host sync per step stalls asynchronous dispatch. Accumulate with <code>nnx.metrics</code> in the step and read every N steps (section 8).</div></details>
-</section>
-
-<section id="s-iq">
-<h2>Interview questions</h2>
-<details class="mist"><summary>What is a graphdef, and why is it hashable?</summary><div class="b">The static structure of an NNX object graph: node types, attribute names, static attribute values and where each Variable sits, with no arrays. NNX transforms pass it to <code>jax.jit</code> as a static argument, so it must be hashable; it becomes part of the compile-cache key. Same structure, same compiled program, whatever the weights.</div></details>
+<section id="s-depth">
+<h2>Checklists and provenance</h2>
+<details class="mist"><summary>Pre-flight checklist: the mistakes that give a different run with no error</summary><div class="b"><ul class="tight">
+<li><b>State and RNG.</b> A pure <code>jax.jit</code> step that does not return <code>nnx.state(model)</code> reuses the same dropout mask every step (section 1). Filters must end with <code>...</code> on a model with any non-Param state. A module shared twice is a "Duplicate Param" in tree mode.</li>
+<li><b>Recompiles.</b> Adding an attribute, rebuilding a submodule or flipping a Python flag stored on the module changes the graphdef and recompiles (section 2); so does rebuilding the optimiser with a new Python learning rate (one compile per value, section 4).</li>
+<li><b>Linen and Equinox.</b> Every training <code>apply</code> needs <code>mutable=["batch_stats"]</code> and <code>rngs={"dropout": key}</code>, and you merge the returned updates; plain <code>jax.jit</code> on an Equinox model holding a function fails: use <code>eqx.filter_jit</code> (section 3).</li>
+<li><b>optax.</b> Under <code>MultiSteps</code> a schedule written for 10,000 updates and a loop of 10,000 micro-batches with k = 4 reaches only a quarter of the schedule. <code>optax.contrib.muon</code> orthogonalises embeddings and the head unless told not to (section 4).</li>
+<li><b>orbax.</b> Save model state (with RNG), optimiser state and the data iterator in one checkpoint; parameters alone silently restart warmup, zero the moments, re-read the first batches and repeat the masks. <code>BestN</code> for a loss needs <code>reverse=True</code>; with 0.12.7 set <code>best_fn</code> too or metrics are not persisted; call <code>wait_until_finished()</code> before exiting. Expect bitwise resumes only into the saved shardings (section 5).</li>
+<li><b>grain.</b> Batch in the <code>MapDataset</code> before <code>to_iter_dataset()</code>, keep filters after <code>mp_prefetch</code>, and resume with the same worker count (section 6).</li>
+<li><b>Sharding.</b> With eager sharding (default in 0.12) an annotated model needs a mesh in scope: "An auto mesh context or metadata is required if creating a variable with annotation out_sharding=..." (section 2).</li>
+<li><b>Metrics.</b> No <code>loss.item()</code> per step; accumulate with <code>nnx.metrics</code> and read every N steps (section 8).</li>
+</ul></div></details>
+<details class="mist"><summary>Interview rehearsal: two questions that combine the sections</summary><div class="b">
 <details class="mist"><summary>Why does NNX store RNG keys in the model, and what breaks if you forget them in a checkpoint?</summary><div class="b">JAX has no global generator; a key plus a counter per stream makes randomness explicit state that transforms can carry and checkpoints can save. Without it a resumed run repeats the dropout masks of the first steps: a different run, silently.</div></details>
-<details class="mist"><summary>How do you implement gradient accumulation in JAX, and what does it cost?</summary><div class="b"><code>optax.MultiSteps(tx, k)</code>, or a <code>lax.scan</code> over micro-batches inside one jitted step that sums gradients. MultiSteps costs one extra parameter-sized accumulator and k jitted calls per update; the scan version keeps it in one program and lets XLA overlap, at the cost of a fixed k at compile time.</div></details>
-<details class="mist"><summary>Why scan over layers?</summary><div class="b">The traced program and the compile time stop growing with depth (one block body, measured constant at 4 to 16 layers), and it composes with remat and pipelining. Costs: identical layer structure, no cross-layer fusion, a fixed loop overhead that made it slower to compile than unrolling at 4 tiny layers here.</div></details>
 <details class="mist"><summary>Your resumed run's loss differs from the original from the first step. What do you check?</summary><div class="b">If the first resumed loss differs, the forward pass saw different inputs or weights: the data iterator position, or the RNG streams. If the first loss matches and then drifts: the optimiser state (moments, step count, schedule). If it matches for many steps then drifts very slowly: a different compiled program changing reduction order: another mesh, or the same mesh with the state restored into its annotated shardings rather than the ones the compiler had given it (section 5).</div></details>
-<details class="mist"><summary>Linen versus NNX: what changed and why?</summary><div class="b">Linen modules hold no arrays and use <code>init</code>/<code>apply</code> with named collections and explicit <code>mutable</code> and <code>rngs</code>; NNX modules own Variables like PyTorch and NNX transforms split and merge them. NNX removes the collection ceremony and lazy shape inference at the cost of explicit input sizes and an object-to-pytree conversion at every transform.</div></details>
 <details class="mist"><summary><b>Design:</b> design the checkpointing for a 2-week run of a 70B model on a TPU pod that is preempted a few times a day.</summary><div class="b">Save one checkpoint item for model state, one for optimiser state, one for each host's data iterator and a JSON item for the step and config; async, sharded, each host writing its own shards (orbax OCDBT). Two tiers: local checkpoints every few minutes of work to host RAM disk, replicated across slices so a replaced slice can be refilled, and persistent ones to Cloud Storage every hour or so (orbax's emergency manager is built for this, still experimental); keep the latest plus a few by evaluation loss, and some at fixed periods for analysis. Make data order a function of (seed, step) and keep the worker count fixed. Measure: time the save call blocks the step, write bandwidth, restore time, and test a real kill and resume in staging, comparing losses for 100 steps. Restoring onto a different slice shape works (restore into the new shardings) but will not be bitwise.</div></details>
-</section>
-
-<section id="s-corr">
-<h2>What changed from the old page</h2>
+</div></details>
+<details class="mist"><summary>What changed from the old Notion page (corrections)</summary><div class="b">
 <p>This page reuses the old Notion page "Flax NNX, optax, orbax: the training stack" (Notion 3c65c17b0d0d817ea0ace9a2ca8677ec, saved verbatim in <code>src/live.md</code>). Every claim was checked against the pinned sources and runs here; the full list is in <code>src/coverage.md</code>. The corrections:</p>
 <ul class="tight">
 <li><b>"<code>nnx.split(model)</code> ... <code>ckptr.save(path, state)</code>; restore into <code>nnx.state(...)</code>"</b>: correct, but saving only the model state loses the optimiser, RNG and data position; measured consequences in section 5.</li>
@@ -484,156 +580,16 @@ def step(p, s, ls, x, y):
 <li><b>"EMA (<code>optax.ema</code>), SAM, Lion, Muon, apply-if-finite are all stock transformations"</b>: Lion, EMA and apply_if_finite are in core optax; SAM and Muon are in <code>optax.contrib</code>, and Muon's default applies to embeddings too (section 4).</li>
 <li><b>"NNX ... interops via <code>flax.nnx.bridge</code>"</b>: verified (<code>ToNNX</code>, <code>ToLinen</code>, <code>lazy_init</code>, section 3). New since the old page: graph mode versus tree mode, eager sharding, and the planned switch to tree mode by default (section 1).</li>
 </ul>
+</div></details>
 </section>
-<div class="foot">Reading tab of the training-stack child page of Topic: jax-and-tpu, built 2026-10-15. Runs used jax and jaxlib 0.11.2, flax 0.12.10, optax 0.2.8, orbax-checkpoint 0.12.7, grain 0.2.18, equinox 0.13.8, jmp 0.0.4, torch 2.14.1 and Python 3.12.11 on an Apple M1 Pro, CPU only. Scripts and recorded outputs: this page's <code>src/runs/</code>; source quoted from google/flax v0.12.10, google-deepmind/optax v0.2.8, google/orbax v0.12.7, google/grain v0.2.18, patrick-kidger/equinox v0.13.8 at the commits linked.</div>
-</div>
-<div class="tab" id="t-state" role="tabpanel" hidden>
-<style>
-#t-state .si-row{display:grid;grid-template-columns:minmax(0,1fr) 6.4em 5.6em minmax(30px,18%);gap:6px;align-items:center;font-size:12px;padding:2px 4px;border-radius:4px;transition:opacity .3s}
-#t-state .si-row .p{font-family:ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}
-#t-state .si-row .ty{font-size:11px;border:1px solid var(--line);border-radius:99px;padding:0 6px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#t-state .si-row .sh{color:var(--mute);text-align:right;white-space:nowrap}
-#t-state .si-row .bar{height:9px;border-radius:2px;background:var(--dim)}
-#t-state .si-g{border:1px solid var(--line);border-radius:8px;padding:6px;margin:8px 0;min-width:0}
-#t-state .si-g h4{margin:0 0 4px;font-size:13.5px}
-#t-state .si-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:8px}
-@media (max-width:520px){#t-state .si-row{grid-template-columns:minmax(0,1fr) 6.2em 0 20%}#t-state .si-row .sh{display:none}}
-</style>
-<h2 style="margin-top:14px">State inspector</h2>
-<p>The running example's real NNX state, as recorded by <code>src/runs/ts_nnx.py</code> (flax 0.12.10): every leaf with its Variable type, path and shape. Pick a model variant and a filter, then press play to watch <code>nnx.split(model, filter, ...)</code> take the object apart module by module into the filter's group and the rest. Bars are proportional to the square root of the number of elements (the 128 x 512 MLP kernels are the long ones). Reading sections 1 and 2 explain filters, Variable types and the graphdef.</p>
-<div class="ts-ctl"><span class="small">Model</span><span class="seg" id="si-model"><button data-m="plain" class="on">running example</button><button data-m="dropout">+ dropout</button><button data-m="counter">+ StepCount</button><button data-m="scan">scanned (stacked)</button></span></div>
-<div class="ts-ctl"><span class="small">Filter</span><span class="seg" id="si-filter" style="flex-wrap:wrap"></span></div>
-<div class="ts-box" id="si-card">
-<div class="ts-capstep" id="si-cap"></div>
-<div class="ts-anctl" id="si-ctl"></div>
-<div class="out" id="si-stats"></div>
-<div class="si-two">
-<div class="si-g"><h4 id="si-h1">still in the object (by module)</h4><div id="si-obj"></div></div>
-<div class="si-g"><h4 id="si-h2">group 1</h4><div id="si-g1"></div></div>
-<div class="si-g"><h4 id="si-h3">rest (...)</h4><div id="si-g2"></div></div>
-</div>
-</div>
-<h3>The graphdef: what is static</h3>
-<p>The graphdef holds no arrays. Its static attributes, collected from every node of the running example's graphdef (values as recorded; functions by name):</p>
-<div class="tw"><table class="ts-t" id="si-static"></table></div>
-<details class="mist"><summary>The start of <code>repr(graphdef)</code> (<span data-ts="nnx.E1.graphdef_repr_chars" data-f="int"></span> characters in all)</summary><div class="b"><pre class="ts-code" data-ts-pre="nnx.E1.graphdef_repr_head"></pre></div></details>
-<h3>The optimiser's state, by type</h3>
-<p><code>nnx.Optimizer(model, tx, wrt=nnx.Param)</code> for the running example's AdamW chain: <span data-ts="nnx.E9.n_leaves"></span> leaves, <span data-ts="nnx.E9.size" data-f="int"></span> numbers (<span data-ts="nnx.E9.types" data-f="kv"></span>). A sample:</p>
-<div class="tw"><table class="ts-t" id="si-opt"></table></div>
-<p class="ts-cap">Everything on this tab is <span class="ts-meas">measured</span>: read from the real objects, no illustration.</p>
-</div>
-<div class="tab" id="t-opt" role="tabpanel" hidden>
-<style>
-#t-opt .op-pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:8px 0}
-#t-opt .op-st{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;min-width:0;transition:background .3s}
-#t-opt .op-st .k{color:var(--mute);font-size:11px}
-#t-opt .op-st .v{font:600 14px ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}
-#t-opt .op-st .f{font-size:11px;color:var(--mute);overflow-wrap:anywhere}
-#t-opt .op-st.on{border-color:var(--acc);background:var(--acc2)}
-#t-opt .op-st.off{opacity:.35}
-</style>
-<h2 style="margin-top:14px">Optimiser lab</h2>
-<p>The running example's optimiser, <code>chain(clip_by_global_norm(1.0), adamw(warmup, b1=0.9, b2=0.95, eps=1e-8, weight_decay=0.1, mask))</code>, opened stage by stage on <b>real gradients</b> of the first 12 training steps. Every value below was computed by <code>src/runs/ts_optax.py</code> (S1), whose hand decomposition matches <code>tx.update</code> to <span data-ts="opt.S1.steps" data-f="maxhand"></span> <span class="ts-meas">measured</span>. Pick a step and a number, then play.</p>
-<div class="ts-ctl"><label class="small">Step <select id="op-step"></select></label><label class="small">Number <select id="op-coord"></select></label></div>
-<div class="ts-box" id="op-card">
-<div class="op-pipe" id="op-pipe"></div>
-<div class="ts-capstep" id="op-cap"></div>
-<div class="ts-anctl" id="op-ctl"></div>
-<div class="out" id="op-stats"></div>
-</div>
-<h3>The whole tree at this step: norms after each stage</h3>
-<div class="tw"><table class="ts-t" id="op-norms"></table></div>
-<p class="ts-cap">Global L2 norm over all 826,368 numbers after each stage. The update norm is small because the learning rate is still warming up (step t uses (t + 1)/50 x 1e-3).</p>
-
-<h3>Muon: the same gradient before and after Newton-Schulz</h3>
-<p>The real gradient of <code>blocks[0].mlp.fc1</code> at step 0, <span data-ts="opt.S8.shape" data-f="shape"></span>, normalised by its Frobenius norm and then put through optax's quintic Newton-Schulz iteration five times (S8). Each bar is one of its 128 singular values, sorted, on a log scale. Orthogonalisation means pushing them all towards 1 while keeping the singular vectors.</p>
-<div class="ts-box" id="op-ns-card">
-<div class="ts-svgw" id="op-ns-svg"></div>
-<div class="ts-capstep" id="op-ns-cap"></div>
-<div class="ts-anctl" id="op-ns-ctl"></div>
-</div>
-<p class="ts-cap">The library's own <code>orthogonalize_via_newton_schulz</code> agrees with the hand iteration to <span data-ts="opt.S8.library_vs_hand_maxdiff" data-f="e1"></span> in every singular value <span class="ts-meas">measured</span>.</p>
-
-<h3>Schedules</h3>
-<p>The old page's warmup-cosine schedule and a warmup-stable-decay schedule built with <code>join_schedules</code>, both evaluated by optax (S6). <code>decay_steps</code> in <code>warmup_cosine_decay_schedule</code> counts from step 0, warmup included.</p>
-<div class="ts-svgw" id="op-sched-svg"></div>
-
-<h3>Gradient accumulation and skipped steps</h3>
-<div class="si-two" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px">
-<div><div class="tw"><table class="ts-t" id="op-ms"></table></div><p class="ts-cap"><code>MultiSteps(adamw, 4)</code> on 4 micro-batches of 8 (S4).</p></div>
-<div><div class="tw"><table class="ts-t" id="op-fin"></table></div><p class="ts-cap"><code>apply_if_finite(adamw, 3)</code>, NaN injected at step 3 (S5).</p></div>
-</div>
-</div>
-<div class="tab" id="t-resume" role="tabpanel" hidden>
-<style>
-#t-resume .rs-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
-#t-resume .rs-chip{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:1px 9px}
-#t-resume .rs-chip.y{border-color:var(--good);color:var(--good)}#t-resume .rs-chip.n{border-color:var(--bad);color:var(--bad);text-decoration:line-through}
-#t-resume .rs-files{font:12px/1.5 ui-monospace,Menlo,Consolas,monospace}
-#t-resume .rs-files .r{display:grid;grid-template-columns:minmax(0,1fr) 6em;gap:8px}
-#t-resume .rs-files .r span:first-child{overflow-wrap:anywhere}#t-resume .rs-files .r span:last-child{text-align:right}
-</style>
-<h2 style="margin-top:14px">Resume lab</h2>
-<p>A run of the running example (Flax NNX, dropout 0.1, the AdamW chain, a grain pipeline) was stopped at step <span data-ts="ckpt.save_at"></span>, saved with orbax, and resumed in a fresh process five ways, each restoring a different part of the checkpoint (<code>src/runs/ts_ckpt.py</code>). Pick what was restored and play the resumed run against the uninterrupted one: the top panel is the training loss, the bottom one the absolute difference on a log scale (a gap of exactly zero sits on the floor). Reading section 5 explains each signature.</p>
-<div class="ts-ctl"><span class="small">Restored</span><span class="seg" id="rs-var"><button data-m="all" class="on">everything</button><button data-m="no_data">no data iterator</button><button data-m="no_opt">no optimiser</button><button data-m="no_rng">no RNG</button><button data-m="params_only">Params only</button></span></div>
-<div class="rs-chips" id="rs-chips"></div>
-<div class="ts-box" id="rs-card">
-<div class="ts-svgw" id="rs-svg"></div>
-<div class="ts-capstep" id="rs-cap"></div>
-<div class="ts-anctl" id="rs-ctl"></div>
-<div class="out" id="rs-stats"></div>
-</div>
-<h3>What the checkpoint holds on disk</h3>
-<p>The step-<span data-ts="ckpt.save_at"></span> checkpoint: <span id="rs-fsum"></span>. The <code>model</code> and <code>opt</code> items are TensorStore OCDBT stores; <code>data</code> is grain's iterator state as JSON; <code>meta</code> is a JSON item with the step.</p>
-<details class="mist"><summary>Every file</summary><div class="b"><div class="rs-files" id="rs-files"></div></div></details>
-<p>The RNG state saved with the model: <span id="rs-rng"></span>. The data iterator state: <code data-ts="ckpt.iterator_state" data-f="kvjson"></code>.</p>
-<h3>Restoring onto other meshes</h3>
-<p>Saved sharded on a (data 2, model 4) mesh of 8 simulated devices at step 20, restored five ways and trained to step 40 (<code>src/runs/ts_ckpt_mesh.py</code>) <span class="ts-meas">measured</span>:</p>
-<div class="tw"><table class="ts-t" id="ts-mesh-t2"></table></div>
-<h3>Preempted and restarted: the complete script</h3>
-<p>Reading section 9's script, killed after step 250 and started again with the same command, against a run that never stopped:</p>
-<div class="ts-svgw" id="rs-full-svg"></div>
-<p class="ts-cap">Validation loss at each evaluation (every 100 steps) for run A (uninterrupted) and B then C (stopped after 250, resumed from the step-200 checkpoint). The points coincide because the parameters are bit-identical.</p>
-</div>
-<div class="tab" id="t-data" role="tabpanel" hidden>
-<style>
-#t-data .dg-grid{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:2px;margin:4px 0 10px}
-#t-data .dg-c{aspect-ratio:1.6;border-radius:2px;font:9px/1 ui-monospace,Menlo,Consolas,monospace;display:flex;align-items:center;justify-content:center;color:#fff;overflow:hidden;transition:opacity .25s}
-#t-data .dg-c.x{outline:2px solid var(--bad);outline-offset:-2px}
-#t-data .dg-c.e{background:var(--soft)!important;color:var(--mute)}
-#t-data .dg-h{font-size:12px;color:var(--mute);margin:6px 0 2px}
-@media (max-width:520px){#t-data .dg-c{font-size:0}}
-</style>
-<h2 style="margin-top:14px">Data lab</h2>
-<p>The running example's 7,781 training windows through grain pipelines, each record tagged with its window index (<code>src/runs/ts_grain.py</code>, grain 0.2.18) <span class="ts-meas">measured</span>. Each cell below is one record of a batch of 32, coloured by its window index (similar colours, nearby windows) and labelled with its position in the shuffled order (the order a 0-worker pipeline A reads). A red outline marks a record that is <b>not</b> where the 0-worker pipeline put it. Reading section 6 explains the four pipelines.</p>
-<div class="ts-ctl"><span class="small">Pipeline</span><span class="seg" id="dg-cfg"><button data-m="A" class="on">A: batch in MapDataset</button><button data-m="B">B: batch per worker</button><button data-m="C">C: filter before workers</button><button data-m="D">D: batch after workers</button><button data-m="DL">grain.DataLoader</button></span></div>
-<div class="ts-ctl"><span class="small">Worker processes</span><span class="seg" id="dg-w"><button data-m="0">0</button><button data-m="2" class="on">2</button><button data-m="4">4</button></span></div>
-<div class="ts-box" id="dg-card">
-<div class="dg-h" id="dg-h0">batch 0</div><div class="dg-grid" id="dg-b0"></div>
-<div class="dg-h" id="dg-h1">batch 1</div><div class="dg-grid" id="dg-b1"></div>
-<div class="ts-capstep" id="dg-cap"></div>
-<div class="ts-anctl" id="dg-ctl"></div>
-<div class="out" id="dg-stats"></div>
-</div>
-<p class="ts-cap">Play fills the two batches record by record in the order the pipeline delivers them. A cell marked + holds a record from beyond position 63 of the shuffled order. The DataLoader API ran with 0 and 2 workers only. Only the first two batches of each run are embedded; the equality columns in the Reading tab compare six.</p>
-
-<h3>Epochs, hosts and resume</h3>
-<div class="tw"><table class="ts-t" id="dg-more"></table></div>
-<h3>The PyTorch contrast</h3>
-<p>The same windows through <code>torch.utils.data.DataLoader(shuffle=True, generator=torch.Generator().manual_seed(0))</code> with a random crop offset drawn by <code>torch.randint</code> inside <code>__getitem__</code> (<code>src/runs/ts_torch_loader.py</code>, torch 2.14.1) <span class="ts-meas">measured</span>:</p>
-<div class="tw"><table class="ts-t" id="dg-torch"></table></div>
-<p class="ts-cap">Order agrees across worker counts because the sampler runs in the main process; augmentation does not, because each worker process gets its own torch seed (base seed plus worker id). grain's <code>random_map</code> derives each record's generator from the seed and the record index, so its offsets agreed for every record at 0 and 4 workers.</p>
+<div class="foot">Reading tab of the training-stack child page of Topic: jax-and-tpu, built 2026-10-15, rebuilt to the teaching contract 2026-10-23 (no new runs). Runs used jax and jaxlib 0.11.2, flax 0.12.10, optax 0.2.8, orbax-checkpoint 0.12.7, grain 0.2.18, equinox 0.13.8, jmp 0.0.4, torch 2.14.1 and Python 3.12.11 on an Apple M1 Pro, CPU only. Scripts and recorded outputs: this page's <code>src/runs/</code>; source quoted from google/flax v0.12.10, google-deepmind/optax v0.2.8, google/orbax v0.12.7, google/grain v0.2.18, patrick-kidger/equinox v0.13.8 at the commits linked.</div>
 </div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more">
-<p class="lead">This page's tabs, the parent topic and its sibling pages, neighbouring knowledge base pages and the best outside resources, each with an approximate time. Outside sources are marked <b>Google</b> (written by the makers of Flax, optax, orbax or grain: authoritative on how they work, not neutral on whether to use them) or <b>third-party</b>. Links checked on 2026-10-15.</p>
+<p class="lead">This page, the parent topic and its sibling pages, neighbouring knowledge base pages and the best outside resources, each with an approximate time. Outside sources are marked <b>Google</b> (written by the makers of Flax, optax, orbax or grain: authoritative on how they work, not neutral on whether to use them) or <b>third-party</b>. Links checked on 2026-10-15.</p>
 <h3>This page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>Flax NNX state and transforms, Linen and Equinox, optax, orbax, grain, float16, metrics, a complete script; mistakes and interview questions. <span class="rt" id="ts-read-time">about 35 min, plus 10 for the folded mistakes, questions and code</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-state">State inspector</a></div><p>The running example's real NNX state split by any filter, module by module; its graphdef's static attributes; the optimiser's state. <span class="rt">about 8 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-opt">Optimiser lab</a></div><p>One real AdamW step stage by stage for eight numbers; Muon's Newton-Schulz on a real gradient's spectrum; schedules; MultiSteps and apply_if_finite. <span class="rt">about 12 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-resume">Resume lab</a></div><p>Five ways to resume and their loss signatures; the checkpoint on disk; restoring onto other meshes; the complete script preempted and restarted. <span class="rt">about 10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-data">Data lab</a></div><p>grain batches cell by cell for four pipelines and 0, 2 or 4 worker processes; epochs, hosts, iterator state; the PyTorch DataLoader contrast. <span class="rt">about 8 min</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>The step as state (hero), Flax NNX state and transforms with the split and scan steppers, Linen and Equinox, optax stage by stage, orbax's five resume signatures, grain batching across workers, float16, metrics and a complete script preempted and resumed. <span class="rt">29 min, plus 20 in closed details</span></p></div>
 </div>
 <h3>The parent topic and siblings</h3>
 <div class="grid">
@@ -676,9 +632,9 @@ def step(p, s, ls, x, y):
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab (Topic: evaluation-and-llm-judges): shared helpers, copied from Topic: benchmarks and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -709,7 +665,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -867,7 +823,7 @@ TSU.fill();TSU.drills();
        ['B, stopped after 250',0,vals(R.B).map(l=>l.val_loss.toFixed(4)).join(', '),R.B.kept_steps.join(', '),R.B.best],
        ['C, same command again',R.C.log.length?200:'?',vals(R.C).map(l=>l.val_loss.toFixed(4)).join(', '),R.C.kept_steps.join(', '),R.C.best]]);
     const s=document.getElementById('ts-full-sum');
-    if(s)s.innerHTML='B+C ended with parameters '+(D.full.final_bitwise_equal_A_vs_BC?'<b>bit-identical</b>':'<b>not identical</b>')+' to A: steps 201 to 250 ran twice (once in B, lost with the preemption, once in C), which is the cost of saving every 100 steps. With <code>LatestN(1)</code> and <code>BestN(n=2)</code> the directory kept steps '+R.A.kept_steps.join(', ')+'. Wall time on the shared CPU: A '+D.full.times_s.A+' s, B '+D.full.times_s.B+' s, C '+D.full.times_s.C+' s, including process start and compilation (rough).';}
+    if(s)s.innerHTML='Recorded result: B+C '+(D.full.final_bitwise_equal_A_vs_BC?'<b>bit-identical</b>':'<b>not identical</b>')+' to A. With <code>LatestN(1)</code> and <code>BestN(n=2)</code> the directory kept steps '+R.A.kept_steps.join(', ')+'. Wall time on the shared CPU: A '+D.full.times_s.A+' s, B '+D.full.times_s.B+' s, C '+D.full.times_s.C+' s, including process start and compilation (rough).';}
 
   // ---- charts, drawn when the tab is visible ----
   function charts(){
@@ -878,6 +834,8 @@ TSU.fill();TSU.drills();
       U.lines(f,['fp16 no scaling','static','dynamic'].map((k,i)=>({name:k==='static'?'fp16, static 2^12':k==='dynamic'?'fp16, dynamic':k,color:U.COL[i+1],pts:RR[k].losses.map((p,j)=>[p[0],p[1]-base[j][1]])})),{zero:1,dec:3,label:'loss minus float32 loss',h:200})}
   }
   RD.onRender(charts);RD.onResize(charts);
+  // charts inside closed <details> have no width until opened: redraw everything on open
+  document.querySelectorAll('#t-read details').forEach(d=>d.addEventListener('toggle',()=>{if(d.open)dispatchEvent(new Event('resize'))}));
 
   // ---- scan before/after animation ----
   const rows=N.E7.rows,byKey={};rows.forEach(r=>byKey[r.kind+r.layers]=r);
@@ -917,15 +875,72 @@ TSU.fill();TSU.drills();
     stats.innerHTML=RD.stat('layers',depth,'')+RD.stat('jaxpr equations (final)',U.int(r.jaxpr_top_eqns),mode)+RD.stat('HLO lines',U.int(r.hlo_lines),'optimised')+RD.stat('compile time',r.compile_s+' s','rough, loaded CPU');
   }
   if(svg){const A=RD.anim({card:'ts-scan-card',ctl:'ts-scan-ctl',n:nsteps(),draw,ms:1100,label:'Tracing step'});
-    RD.seg(document.getElementById('ts-scan-depth'),v=>{depth=+v;A.reset(nsteps());A.play()});
-    RD.seg(document.getElementById('ts-scan-mode'),v=>{mode=v;A.reset(nsteps());A.play()});
+    RD.seg(document.getElementById('ts-scan-depth'),v=>{depth=+v;A.reset(nsteps())});
+    RD.seg(document.getElementById('ts-scan-mode'),v=>{mode=v;A.reset(nsteps())});
     RD.onResize(()=>A.redraw());}
 })();
 </script>
-<script>/* 31_js_ts_state.js */
-// ---- State inspector tab (t-state) ----
+<script>/* 25_js_ts_hero.js */
+// ---- Reading top: the hero figure, one training step and the state a checkpoint must hold (static, drawn at the measured width) ----
 (function(){
-  const U=TSU,D=U.D,N=D.nnx,root=document.getElementById('t-state');if(!root)return;
+  const el=document.getElementById('ts-hero');if(!el)return;
+  const T=RD.t;
+  function box(x,y,w,h,o){o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(o.fill||'var(--bg)')+'" stroke="'+(o.stroke||'var(--line)')+'" stroke-width="'+(o.sw||1.2)+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>'}
+  function lines(x,y,arr,o){o=o||{};let s='';arr.forEach((l,i)=>{s+=T(x,y+i*(o.lh||15),l,{fs:o.fs||11,fill:o.fill||'var(--ink)',w:(i===0&&o.bold)?600:null,a:o.a})});return s}
+  function arrow(x1,y1,x2,y2,o){o=o||{};const a=Math.atan2(y2-y1,x2-x1),h=6;
+    return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(o.c||'var(--mute)')+'" stroke-width="1.4"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>'+
+      '<path d="M'+x2+' '+y2+' L'+(x2-h*Math.cos(a-0.45)).toFixed(1)+' '+(y2-h*Math.sin(a-0.45)).toFixed(1)+' L'+(x2-h*Math.cos(a+0.45)).toFixed(1)+' '+(y2-h*Math.sin(a+0.45)).toFixed(1)+'Z" fill="'+(o.c||'var(--mute)')+'"/>'}
+  const ST={fill:'var(--acc2)',stroke:'var(--acc)'};
+  // the step box's inner rows, laid out from (x, y) at width w; returns [svg, height, anchors]
+  function step(x,y,w){let s='',yy=y+22;const p=10,iw=w-2*p,half=(iw-8)/2;
+    s+=lines(x+p,y+16,['train_step: compiled once by nnx.jit (2)'],{bold:1,fs:11.5});
+    s+=box(x+p,yy,iw,92);s+=lines(x+p+8,yy+16,['model: an nnx.Module object (1)'],{bold:1});
+    s+=box(x+p+6,yy+24,half-6,60,{fill:'var(--soft)',dash:'4 3'});s+=lines(x+p+14,yy+40,['graphdef','structure, static:','keys the compile cache'],{fill:'var(--mute)'});
+    s+=box(x+p+half+8,yy+24,half-6,60,ST);s+=lines(x+p+half+16,yy+40,['state','Param arrays','RngKey, RngCount'],{bold:1});
+    const aModel=[x+p+half+8+half-6,yy+54];
+    yy+=100;s+=box(x+p,yy,iw,26);s+=lines(x+p+8,yy+17,['loss, then nnx.grad: d loss / d Params only (2)']);
+    yy+=34;s+=box(x+p,yy,iw,64);s+=lines(x+p+8,yy+16,['nnx.Optimizer: an optax chain (4)','clip, Adam moments, decay, x(-lr)'],{bold:1});
+    s+=box(x+p+6,yy+38,iw-12,20,ST);s+=lines(x+p+14,yy+52,['OptState: mu, nu, step count']);
+    const aOpt=[x+p+iw-6,yy+48];
+    yy+=72;s+=box(x+p,yy,iw,26);s+=lines(x+p+8,yy+17,['nnx.metrics: running sums on device (8)']);
+    yy+=34;return [s,yy-y,aModel,aOpt]}
+  function ckptItems(x,y,w,cols){let s='';const it=[['model/','Params + RNG'],['opt/','mu, nu, count'],['data/','iterator JSON'],['meta/','step, config']];
+    const cw=cols===2?(w-6)/2:w,rh=34;const pos=[];
+    it.forEach((r,i)=>{const cx=x+(cols===2?(i%2)*(cw+6):0),cy=y+(cols===2?Math.floor(i/2):i)*(rh+6);
+      s+=box(cx,cy,cw,rh,i<3?ST:{});s+=lines(cx+8,cy+14,[r[0],r[1]],{bold:1,lh:14});pos.push([cx,cy+rh/2])});
+    return [s,(cols===2?2:4)*(rh+6),pos]}
+  function draw(){const W=RD.width(el);let s='',H;
+    if(W>=640){const gap=34,gw=Math.round(W*0.23),cw=Math.round(W*0.22),sw=W-gw-cw-2*gap,sx=gw+gap,cx=sx+sw+gap;
+      const [st,sh,aM,aO]=step(sx,0,sw);H=sh+26;
+      s+=box(sx,0,sw,sh,{stroke:'var(--mute)'})+st;
+      // grain
+      const gy=24;s+=box(0,gy,gw,150,{stroke:'var(--c2)'});
+      s+=lines(8,gy+18,['grain (6)','record i = f(i, seed, epoch)','shuffle, random_map,','batch in the MapDataset'],{bold:1});
+      s+=box(6,gy+92,gw-12,48,ST);s+=lines(14,gy+108,['iterator state','{next_index: 80}'],{bold:1});
+      s+=arrow(gw,gy+50,sx-2,gy+50,{c:'var(--c2)'})+T((gw+sx)/2,gy+44,'batch',{a:'middle',fs:11,fill:'var(--c2)'});
+      // checkpoint
+      s+=box(cx,0,cw,sh,{stroke:'var(--c4)'});s+=lines(cx+8,18,['orbax checkpoint (5)','step_80/: async, sharded'],{bold:1});
+      const [ci,ch,pos]=ckptItems(cx+6,42,cw-12,1);s+=ci;
+      s+=arrow(aM[0],aM[1],cx+4,pos[0][1],{c:'var(--acc)',dash:'4 3'});
+      s+=arrow(aO[0],aO[1],cx+4,pos[1][1],{c:'var(--acc)',dash:'4 3'});
+      const ly=sh+16,ix=Math.round(gw/2);s+='<path d="M'+ix+' '+(gy+140)+' L'+ix+' '+ly+' L'+(cx-16)+' '+ly+' L'+(cx-16)+' '+pos[2][1]+'" fill="none" stroke="var(--acc)" stroke-width="1.4" stroke-dasharray="4 3"/>'+arrow(cx-16,pos[2][1],cx+4,pos[2][1],{c:'var(--acc)'});
+      s+=lines(cx+8,42+ch+16,['graphdef: not saved,','rebuilt from your code'],{fill:'var(--mute)'});
+    }else{const w=W;let y=0;
+      s+=box(0,y,w,74,{stroke:'var(--c2)'});s+=lines(8,y+17,['grain (6): record i = f(i, seed, epoch)'],{bold:1});
+      s+=box(6,y+26,w-12,40,ST);s+=lines(14,y+42,['iterator state','{next_index: 80}'],{bold:1});
+      y+=74;s+=arrow(w/2,y+2,w/2,y+22,{c:'var(--c2)'})+T(w/2+8,y+16,'batch',{fs:11,fill:'var(--c2)'});y+=24;
+      const [st,sh]=step(0,y,w);s+=box(0,y,w,sh,{stroke:'var(--mute)'})+st;y+=sh;
+      s+=arrow(w/2,y+2,w/2,y+22,{c:'var(--acc)',dash:'4 3'})+T(w/2+8,y+16,'save the state',{fs:11,fill:'var(--acc)'});y+=24;
+      const [ci,ch]=ckptItems(6,y+42,w-12,2);s+=box(0,y,w,ch+48,{stroke:'var(--c4)'});s+=lines(8,y+17,['orbax checkpoint (5): step_80/','async, sharded; graphdef not saved'],{bold:1});s+=ci;y+=ch+50;
+      H=y;}
+    el.innerHTML=RD.svg(W,H,s,'One JAX training step: grain feeds a batch to a train step compiled by nnx.jit, which holds the model state, gradients and optimiser state; orbax saves model state with RNG, optimiser state and the data iterator, but not the graphdef')}
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+</script>
+<script>/* 31_js_ts_state.js */
+// ---- Reading section 1: the split stepper (was the State inspector tab) ----
+(function(){
+  const U=TSU,D=U.D,N=D.nnx,root=document.getElementById('si-card');if(!root)return;
   const FILTERS=Object.keys(N.E2.plain.groups);
   const TYC={Param:'var(--c1)',RngCount:'var(--c2)',RngKey:'var(--c2)',StepCount:'var(--c4)'};
   let model='plain',filter=FILTERS[0];
@@ -963,19 +978,18 @@ TSU.fill();TSU.drills();
   const seg=document.getElementById('si-filter');
   seg.innerHTML=FILTERS.map((f,i)=>'<button data-m="'+U.esc(f)+'"'+(i===0?' class="on"':'')+'>'+U.esc(f)+'</button>').join('');
   const A=RD.anim({card:'si-card',ctl:'si-ctl',n:mods().length+1,draw,ms:700,label:'Split step'});
-  RD.seg(document.getElementById('si-model'),v=>{model=v;A.reset(mods().length+1);A.play()});
-  RD.seg(seg,v=>{filter=v;A.reset(mods().length+1);A.play()});
+  RD.seg(document.getElementById('si-model'),v=>{model=v;A.reset(mods().length+1)});
+  RD.seg(seg,v=>{filter=v;A.reset(mods().length+1)});
   // static attributes and optimizer sample
   const SA=N.E1.static_attr_values;
   U.table('si-static',[['Attribute'],['Values seen']],Object.keys(SA).map(k=>['<code>'+U.esc(k)+'</code>',SA[k].map(v=>'<code>'+U.esc(v)+'</code>').join(', ')]));
   U.table('si-opt',[['Path'],['Type'],['Shape']],N.E9.sample.map(l=>['<code>'+U.esc(l.path)+'</code>',l.type,l.shape.length?U.shape(l.shape):'scalar']));
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-state']=[()=>A.redraw()];
 })();
 </script>
 <script>/* 32_js_ts_opt.js */
-// ---- Optimiser lab tab (t-opt) ----
+// ---- Reading section 4: one AdamW step stage by stage, Muon's spectrum, schedules (was the Optimiser lab tab) ----
 (function(){
-  const U=TSU,D=U.D,S1=D.opt.S1,root=document.getElementById('t-opt');if(!root)return;
+  const U=TSU,D=U.D,S1=D.opt.S1,root=document.getElementById('op-card');if(!root)return;
   const H=S1.hyper,steps=S1.steps,tr=S1.track;
   const STG=[['grad','gradient g','from jax.grad on batch t'],['clipped','after clip_by_global_norm','g x min(1, 1/||g||)'],['mu','first moment m','b1 m + (1 - b1) g'],['nu','second moment v','b2 v + (1 - b2) g&#178;'],
     ['mu_hat','m&#770; (bias-corrected)','m / (1 - b1^(t+1))'],['nu_hat','v&#770; (bias-corrected)','v / (1 - b2^(t+1))'],['adam','Adam direction','m&#770; / (&#8730;v&#770; + eps)'],
@@ -1004,8 +1018,8 @@ TSU.fill();TSU.drills();
     const s=steps[t];document.getElementById('op-stats').innerHTML=RD.stat('step',t,'loss '+s.loss.toFixed(4))+RD.stat('learning rate',U.ex(s.lr,2),'warmup')+RD.stat('clip factor',s.clip_scale.toFixed(4),'grad norm '+s.grad_norm.toFixed(3))+RD.stat('hand vs optax',U.ex(s.hand_vs_optax_maxdiff,1)||'0','largest gap, all leaves');
     const nn=s.norms;U.table('op-norms',[['Stage'],['Global norm',1]],[['gradient',nn.grad.toFixed(4)],['after clipping',nn.clipped.toFixed(4)],['Adam direction',nn.adam.toFixed(2)],['+ decay',nn.decayed.toFixed(2)],['update',U.ex(nn.update,3)]]);}
   const A=RD.anim({card:'op-card',ctl:'op-ctl',n:STG.length,draw,ms:1500,label:'Stage'});
-  ss.addEventListener('change',()=>{t=+ss.value;A.reset(STG.length);A.play()});
-  sc.addEventListener('change',()=>{ci=+sc.value;A.reset(STG.length);A.play()});
+  ss.addEventListener('change',()=>{t=+ss.value;A.reset(STG.length)});
+  sc.addEventListener('change',()=>{ci=+sc.value;A.reset(STG.length)});
   // Muon spectrum
   const S8=D.opt.S8,SV=S8.sv_after_frob_and_each_iter;
   const nsSvg=document.getElementById('op-ns-svg');
@@ -1025,14 +1039,13 @@ TSU.fill();TSU.drills();
     U.lines(e,[{name:'warmup_cosine_decay (old page)',color:U.COL[0],pts:S6.steps.map((s,i)=>[s,S6.warmup_cosine[i]])},{name:'warmup-stable-decay (join_schedules)',color:U.COL[1],pts:S6.steps.map((s,i)=>[s,S6.wsd[i]])}],{dec:5,label:'learning rate schedules',h:200})}
   U.table('op-ms',[['Micro-batch'],['Update norm',1],['mini_step',1],['gradient_step',1]],D.opt.S4.micro.map(m=>[m.micro,m.update_norm===0?'0':m.update_norm.toFixed(4),m.mini_step,m.gradient_step]));
   U.table('op-fin',[['Step'],['NaN?'],['Update norm',1],['notfinite_count',1]],D.opt.S5.steps.map(s=>[s.step,s.nan_injected?'<b>yes</b>':'',s.update_norm===0?'0':s.update_norm.toFixed(4),s.notfinite_count]));
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-opt']=[()=>{A.redraw();NS.redraw();sched()}];
-  addEventListener('resize',()=>{if(root.hidden)return;NS.redraw();sched()});
+  RD.onRender(sched);RD.onResize(()=>{NS.redraw();sched()});
 })();
 </script>
 <script>/* 33_js_ts_resume.js */
-// ---- Resume lab tab (t-resume) ----
+// ---- Reading section 5: five ways to resume (was the Resume lab tab) ----
 (function(){
-  const U=TSU,D=U.D,K=D.ckpt,root=document.getElementById('t-resume');if(!root||!K)return;
+  const U=TSU,D=U.D,K=D.ckpt,root=document.getElementById('rs-card');if(!root||!K)return;
   const LAB={all:'everything',no_data:'no data iterator',no_opt:'no optimiser state',no_rng:'no RNG streams',params_only:'Params only'};
   const HAS={all:[1,1,1,1],no_data:[1,1,1,0],no_opt:[1,0,1,1],no_rng:[1,1,0,1],params_only:[1,0,0,0]};
   let v='all';const SAVE=K.save_at,TOT=K.total,NF=17;
@@ -1060,25 +1073,19 @@ TSU.fill();TSU.drills();
     document.getElementById('rs-stats').innerHTML=RD.stat('first resumed loss gap',V.first_loss_diff?U.ex(V.first_loss_diff,1):'0','step '+SAVE)+RD.stat('largest loss gap',V.max_loss_diff?U.ex(V.max_loss_diff,1):'0','steps '+SAVE+' to '+(TOT-1))+RD.stat('bitwise equal',V.bitwise_equal?'yes':'no',K.n_arrays+' arrays');}
   chips();
   const A=RD.anim({card:'rs-card',ctl:'rs-ctl',n:NF,draw,ms:600,label:'Resumed step'});
-  RD.seg(document.getElementById('rs-var'),m=>{v=m;chips();A.reset(NF);A.play()});
+  RD.seg(document.getElementById('rs-var'),m=>{v=m;chips();A.reset(NF)});
   // files
   const F=K.files,tot=F.reduce((a,f)=>a+f[1],0),big=F.filter(f=>f[1]>100000);
   document.getElementById('rs-fsum').textContent=F.length+' files, '+(tot/1e6).toFixed(2)+' MB, of which '+big.length+' data files hold '+(big.reduce((a,f)=>a+f[1],0)/1e6).toFixed(2)+' MB';
   document.getElementById('rs-files').innerHTML=F.map(f=>'<div class="r"><span>'+U.esc(f[0])+'</span><span>'+U.int(f[1])+'</span></div>').join('');
   document.getElementById('rs-rng').innerHTML=K.rng_leaves.map(l=>'<code>'+U.esc(l[0])+'</code> ('+l[1]+')').join(', ');
-  if(D.ckpt_mesh){const M=D.ckpt_mesh.targets;
-    U.table('ts-mesh-t2',[['Restored onto'],['Devices',1],['fc1 spec'],['Shard'],['Restored bitwise'],['Continued bitwise'],['Largest parameter gap at 40',1]],
-      Object.keys(M).map(k=>{const m=M[k];return [k,m.n_devices,'<code>'+U.esc(m.fc1_spec)+'</code>',U.shape(m.fc1_shard),m.restored_bitwise?'yes':'no',m.continued_bitwise_equal_ref?'<b>yes</b>':'no',m.param_maxdiff_vs_ref?U.ex(m.param_maxdiff_vs_ref,1):'0']}));}
-  function full(){const e=document.getElementById('rs-full-svg');if(!e||e.offsetParent===null||!D.full)return;const R=D.full.runs,vv=r=>r.log.filter(l=>l.val_loss!=null).map(l=>[l.step,l.val_loss]);
-    U.lines(e,[{name:'A, uninterrupted',color:'var(--mute)',pts:vv(R.A),w:4},{name:'B, stopped after 250',color:U.COL[1],pts:vv(R.B)},{name:'C, resumed from 200',color:U.COL[0],pts:vv(R.C),dash:'4 3'}],{dec:3,h:190,label:'validation loss of the complete script'})}
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-resume']=[()=>{A.redraw();full()}];
-  addEventListener('resize',()=>{if(root.hidden)return;A.redraw();full()});
+  RD.onResize(()=>A.redraw());
 })();
 </script>
 <script>/* 34_js_ts_data.js */
-// ---- Data lab tab (t-data) ----
+// ---- Reading section 6: grain batches cell by cell (was the Data lab tab) ----
 (function(){
-  const U=TSU,D=U.D,G=D.grain,root=document.getElementById('t-data');if(!root||!G)return;
+  const U=TSU,D=U.D,G=D.grain,root=document.getElementById('dg-card');if(!root||!G)return;
   let cfg='A',w='2';
   const base=G.G1.A0[0].concat(G.G1.A0[1]),pos={};base.forEach((id,i)=>pos[id]=i);
   const key=()=>cfg==='DL'?('DL'+(w==='4'?'2':w)+'_run0'):(cfg+w);
@@ -1095,8 +1102,8 @@ TSU.fill();TSU.drills();
       (w==='0'?'With 0 workers this is the reference stream itself.':(eq?'Same stream as with 0 workers: the worker count does not change what the model sees.':'A different stream from 0 workers: '+moved+' of 64 records are not where the 0-worker pipeline put them. Deterministic for this worker count, but not elastic.'));
     document.getElementById('dg-stats').innerHTML=RD.stat('records shown',total,'two batches of 32')+RD.stat('out of place',moved,'vs 0 workers')+RD.stat('first 6 batches equal to 0 workers',w==='0'?'(reference)':(eq?'yes':'no'),'recorded over 6 batches');}
   const A=RD.anim({card:'dg-card',ctl:'dg-ctl',n:17,draw,ms:260,label:'Records delivered'});
-  RD.seg(document.getElementById('dg-cfg'),m=>{cfg=m;A.reset(17);A.play()});
-  RD.seg(document.getElementById('dg-w'),m=>{w=m;A.reset(17);A.play()});
+  RD.seg(document.getElementById('dg-cfg'),m=>{cfg=m;A.reset(17)});
+  RD.seg(document.getElementById('dg-w'),m=>{w=m;A.reset(17)});
   const G2=G.G2,G5=G.G5,G6=G.G6;
   U.table('dg-more',[['Question'],['Measured answer']],[
     ['First windows of epoch 0 and epoch 1 with '+'<code>shuffle(0).repeat()</code>',G2.epoch0_first8.slice(0,5).join(', ')+' ... / '+G2.epoch1_first8_reseeded.slice(0,5).join(', ')+' ...'],
@@ -1112,11 +1119,10 @@ TSU.fill();TSU.drills();
     ['Crop offsets, num_workers 0 run twice',T.T2.offsets_equal_rerun_0_workers?'identical':'different'],
     ['Examples (window: offset at 0 workers, at 2)',T.T2.example.map(e=>e[0]+': '+e[1]+', '+e[2]).join('; ')],
     ['<code>DataLoader.state_dict</code> exists',T.T3.has_state_dict?'yes':'no (torchdata\'s StatefulDataLoader adds it; not run here)']]);
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-data']=[()=>A.redraw()];
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace ts-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1134,6 +1140,8 @@ TSU.fill();TSU.drills();
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('ts-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

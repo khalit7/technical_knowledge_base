@@ -1,6 +1,6 @@
-// ---- Optimiser lab tab (t-opt) ----
+// ---- Reading section 4: one AdamW step stage by stage, Muon's spectrum, schedules (was the Optimiser lab tab) ----
 (function(){
-  const U=TSU,D=U.D,S1=D.opt.S1,root=document.getElementById('t-opt');if(!root)return;
+  const U=TSU,D=U.D,S1=D.opt.S1,root=document.getElementById('op-card');if(!root)return;
   const H=S1.hyper,steps=S1.steps,tr=S1.track;
   const STG=[['grad','gradient g','from jax.grad on batch t'],['clipped','after clip_by_global_norm','g x min(1, 1/||g||)'],['mu','first moment m','b1 m + (1 - b1) g'],['nu','second moment v','b2 v + (1 - b2) g&#178;'],
     ['mu_hat','m&#770; (bias-corrected)','m / (1 - b1^(t+1))'],['nu_hat','v&#770; (bias-corrected)','v / (1 - b2^(t+1))'],['adam','Adam direction','m&#770; / (&#8730;v&#770; + eps)'],
@@ -29,8 +29,8 @@
     const s=steps[t];document.getElementById('op-stats').innerHTML=RD.stat('step',t,'loss '+s.loss.toFixed(4))+RD.stat('learning rate',U.ex(s.lr,2),'warmup')+RD.stat('clip factor',s.clip_scale.toFixed(4),'grad norm '+s.grad_norm.toFixed(3))+RD.stat('hand vs optax',U.ex(s.hand_vs_optax_maxdiff,1)||'0','largest gap, all leaves');
     const nn=s.norms;U.table('op-norms',[['Stage'],['Global norm',1]],[['gradient',nn.grad.toFixed(4)],['after clipping',nn.clipped.toFixed(4)],['Adam direction',nn.adam.toFixed(2)],['+ decay',nn.decayed.toFixed(2)],['update',U.ex(nn.update,3)]]);}
   const A=RD.anim({card:'op-card',ctl:'op-ctl',n:STG.length,draw,ms:1500,label:'Stage'});
-  ss.addEventListener('change',()=>{t=+ss.value;A.reset(STG.length);A.play()});
-  sc.addEventListener('change',()=>{ci=+sc.value;A.reset(STG.length);A.play()});
+  ss.addEventListener('change',()=>{t=+ss.value;A.reset(STG.length)});
+  sc.addEventListener('change',()=>{ci=+sc.value;A.reset(STG.length)});
   // Muon spectrum
   const S8=D.opt.S8,SV=S8.sv_after_frob_and_each_iter;
   const nsSvg=document.getElementById('op-ns-svg');
@@ -50,6 +50,5 @@
     U.lines(e,[{name:'warmup_cosine_decay (old page)',color:U.COL[0],pts:S6.steps.map((s,i)=>[s,S6.warmup_cosine[i]])},{name:'warmup-stable-decay (join_schedules)',color:U.COL[1],pts:S6.steps.map((s,i)=>[s,S6.wsd[i]])}],{dec:5,label:'learning rate schedules',h:200})}
   U.table('op-ms',[['Micro-batch'],['Update norm',1],['mini_step',1],['gradient_step',1]],D.opt.S4.micro.map(m=>[m.micro,m.update_norm===0?'0':m.update_norm.toFixed(4),m.mini_step,m.gradient_step]));
   U.table('op-fin',[['Step'],['NaN?'],['Update norm',1],['notfinite_count',1]],D.opt.S5.steps.map(s=>[s.step,s.nan_injected?'<b>yes</b>':'',s.update_norm===0?'0':s.update_norm.toFixed(4),s.notfinite_count]));
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-opt']=[()=>{A.redraw();NS.redraw();sched()}];
-  addEventListener('resize',()=>{if(root.hidden)return;NS.redraw();sched()});
+  RD.onRender(sched);RD.onResize(()=>{NS.redraw();sched()});
 })();
