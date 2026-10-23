@@ -56,13 +56,14 @@
     $('pg-ops').innerHTML=gridsvg(L,i)+L.ops.map((o,t)=>opsvg(L,t,{r:s[2][2*t],c:s[2][2*t+1],cp:st.cp[t],run:!!s[1]},hist[t])).join('');
     const copied=L.ops.map((o,t)=>st.cp[t]&&o.kind==='in'?o.name:null).filter(Boolean),newout=L.ops.map((o,t)=>st.cp[t]&&o.kind==='out'?o.name:null).filter(Boolean);
     let moved=0;L.ops.forEach((o,t)=>{moved+=st.copies[t]*o.block[0]*o.block[1]*o.bytes});
-    const minB=L.min_bytes.reduce((a,b)=>a+b,0);
+    // minimum: every block a running step needs, copied once (a gather such as the paged pool needs only the pages in use, not the whole array)
+    const minB=L.ops.reduce((acc,o,t)=>{const u=new Set();L.steps.forEach(x=>{if(x[1])u.add(x[2][2*t]+','+x[2][2*t+1])});return acc+u.size*o.block[0]*o.block[1]*o.bytes},0);
     let runs=0;for(let k=0;k<=i;k++)runs+=L.steps[R[k].si][1];
     $('pg-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+R.length+': grid point ('+s[0].join(', ')+')'+(order==='int2'?', core '+st.core:'')+'</div><p>'+
       L.ops.map((o,t)=>U.esc(o.name)+' block ('+s[2][2*t]+', '+s[2][2*t+1]+')').join(', ')+'. '+(copied.length?'Copied in this step: '+copied.map(U.esc).join(', ')+'.':'No input copied: every input block index is unchanged.')+(newout.length?' A new output block starts ('+newout.map(U.esc).join(', ')+'); the previous one is written back.':'')+' '+
       (s[1]?'The body runs.':'The body is skipped by <code>pl.when</code>'+(copied.length?', but its blocks were still copied.':', and nothing was copied for it.'))+'</p>';
     $('pg-cnt').innerHTML=U.stat('Body ran',runs+' of '+(i+1),'steps so far')+L.ops.map((o,t)=>U.stat(U.esc(o.name)+(o.kind==='out'?' write-backs':' copies'),st.copies[t],'of '+(o.shape[0]/o.block[0])*(o.shape[1]/o.block[1])+' blocks')).join('')+
-      U.stat('Bytes moved',U.bytes(moved),'minimum '+U.bytes(minB))}
+      U.stat('Bytes moved',U.bytes(moved),'minimum '+U.bytes(minB)+': each needed block once')}
   const A=U.anim({card:'pg-card',ctl:'pg-ctl',tab:'t-read',n:16,ms:900,label:'Grid step',draw,autoplay:false});
   U.seg($('pg-kern'),m=>{kname=m;order='lex';setup()});
   $('pg-var').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;variant=b.dataset.m;setup()});
