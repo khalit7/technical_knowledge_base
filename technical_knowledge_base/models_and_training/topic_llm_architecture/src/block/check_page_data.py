@@ -89,32 +89,7 @@ has(c(r["total"]), "Llama 3.1 8B total parameters")
 has(f'{r["w"] / 1e9:.1f} GFLOPs', "Llama 2N at 128k"); has(f'{r["a"] / 1e9:.1f} GFLOPs', "Llama attention at 128k")
 has(f'{r["a"] / r["w"]:.1f}x the weights', "ratio at 128k")
 has(f'{r["mm"] / 1e9:.2f}B matrix weights', "Llama N")
-# pre/post numbers
-R = {n[:-5]: json.load(open(os.path.join(OUT, "runs", n))) for n in os.listdir(os.path.join(OUT, "runs"))}
-for n, r in R.items():
-    has(f'{r["final_val_loss"]:.3f}', f"final held-out loss of {n}")
-p3 = R["bl_post_lr3e-3"]["train"]
-has(f"by step 30 its training loss is at the unigram level ({[x for x in p3 if x[0] == 30][0][1]:.2f})", "post lr3e-3 at step 30")
-has(f'spikes to {max(x[2] for x in R["bl_pre_lr3e-2"]["train"]):.1f}', "pre lr3e-2 max grad norm")
-best = min(R, key=lambda n: R[n]["final_val_loss"])
-ok(best == "bl_post_warm500" and len(R) == 8, "post warmup 500 is the best of eight runs")
-u = json.load(open(os.path.join(OUT, "unigram.json")))
-has(f'{u["val_cross_entropy_under_train_unigram_nats"]:.3f}', "unigram loss"); has(f'{u["val_cross_entropy_under_train_unigram_nats"]:.2f} nats', "unigram loss 2dp")
-G = json.load(open(os.path.join(OUT, "gradnorm.json")))["runs"]
-f3 = G["bl_post_lr3e-3"]["trained"]["per_block"]
-has(f"{f3[0]:.1e}".replace("e-07", "e-7"), "post lr3e-3 block 1 gradient"); has(f"{f3[-1]:.3f}", "post lr3e-3 block 6 gradient")
-ok(50000 * 0.9 < f3[-1] / f3[0] < 50000 * 1.1, "factor of about 50,000")
-tr = [v for k in ("bl_pre_lr1e-3", "bl_post_lr1e-3", "bl_post_warm500") for v in G[k]["trained"]["per_block"]]
-has(f"between {min(tr):.2f} and {max(tr):.2f}", "trained block gradient range")
-pi, qi = G["bl_pre_lr1e-3"]["init"]["per_block"], G["bl_post_lr1e-3"]["init"]["per_block"]
-has(f"({min(qi):.3f} to {max(qi):.3f})", "post init level"); has(f"({pi[0]:.2f} at block 1 to {pi[-1]:.2f} at block 6)", "pre init")
-ok(20 <= min(pi) / max(qi) and max(pi) / min(qi) <= 30.5, "20 to 30x smaller")
-tp, tq, tr0 = (json.load(open(os.path.join(OUT, f"trace_{n}.json")))["norms"] for n in ("bl_pre_lr1e-3", "bl_post_lr1e-3", "ref_baseline_s1500"))
-has(f'from {tp["stream_token"][0]:.1f} after the embedding to {tp["stream_token"][-1]:.1f} after block 6', "pre lr1e-3 token norms")
-mid = tq["stream_token"][1:-1]
-has(f"between {min(mid):.1f} and {max(mid):.1f}", "post token norm range"); has(f'to {tq["stream_token"][-1]:.1f}', "post last")
-has(f'from {tr0["stream_token"][0]:.1f} after the embedding to {tr0["stream_token"][-1]:.1f} after block 6', "ref token norms (bullet)")
-has(f'from {tr0["stream_token"][0]:.1f} to {tr0["stream_token"][-1]:.1f}', "ref token norms")
-has(f'a branch of norm {tr0["branch_token"][1]:.1f}', "block 1 FFN branch")
+# pre/post numbers: the section moved to the Normalisation child on 2026-10-23; its check_data.py checks them
+# against this folder's out/runs, gradnorm.json and trace_*.json.
 print("FAILED" if fails else "ALL OK", len(fails))
 sys.exit(1 if fails else 0)

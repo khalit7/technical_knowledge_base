@@ -156,10 +156,12 @@
     if(f.t==='glu'){t='Feed-forward, gated (SwiGLU or GeGLU): f='+f.ff;L.push(line('up,gate','2 x d x f','2 x '+d+' x '+f.ff,2*d*f.ff));L.push(line('down','f x d',f.ff+' x '+d,f.ff*d))}
     else if(f.t==='mlp'){t='Feed-forward, plain two-matrix MLP: f='+f.ff;L.push(line('up','d x f',d+' x '+f.ff,d*f.ff));L.push(line('down','f x d',f.ff+' x '+d,f.ff*d))}
     else{t='Mixture of experts: E='+f.E+' routed experts of width '+f.ff+', top-k='+f.k+(f.sff?', shared width '+f.sff:'');
-      L.push(line('experts','E x 3 x d x f_e',f.E+' x 3 x '+d+' x '+f.ff,f.E*3*d*f.ff));
-      if(f.sff)L.push(line('shared','3 x d x f_s',' 3 x '+d+' x '+f.sff,3*d*f.sff));
+      const nm=f.g===false?2:3,ei=f.lat||d,ed=f.lat?'l':'d';if(f.g===false)t+=', two-matrix (squared ReLU) experts';if(f.lat)t+=', latent l='+f.lat;
+      if(f.lat)L.push(line('latent','2 x d x l (in and out)','2 x '+d+' x '+f.lat,2*d*f.lat));
+      L.push(line('experts','E x '+nm+' x '+ed+' x f_e',f.E+' x '+nm+' x '+ei+' x '+f.ff,f.E*nm*ei*f.ff));
+      if(f.sff)L.push(line('shared',nm+' x d x f_s',' '+nm+' x '+d+' x '+f.sff,nm*d*f.sff));
       L.push(line('router','d x E',d+' x '+f.E,d*f.E));
-      L.push(line('active','k/E of the experts',f.k+'/'+f.E+' x '+grp(f.E*3*d*f.ff),f.k*3*d*f.ff));}
+      L.push(line('active','k/E of the experts',f.k+'/'+f.E+' x '+grp(f.E*nm*ei*f.ff),f.k*nm*ei*f.ff));}
     const o=r.dense_o+r.routed_o+r.moe_o+(f.sgate?d:0);if(o)L.push(line('small','biases, gates','',o));
     const tot=Object.values(r).reduce((a,b)=>a+b,0);
     L.push('per layer '+grp(tot)+'   x '+n+' layers = '+grp(tot*n));
