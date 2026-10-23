@@ -32,6 +32,7 @@ Use the Notion connector (load its tools with ToolSearch). Space id `13e79c56-eb
 - **A new page** (a new topic, child, paper or tech-news issue): `create-pages` under its parent (a Papers row under data source `collection://d440058d-ec1c-4b72-b141-046d5d969389` with its properties) with the link line as content; add its `pages.json` entry (path, exact title, id, parent or section, `status` `html_only`, `"notion": "link"`), then commit and push so the redirect exists.
 - **A renamed page**: `update_properties` with the new title; update `pages.json`. **A moved page**: move it in Notion under its new parent; update the path in `pages.json`. The link line does not change.
 - **An old page with no equivalent**: never delete it; retitle "TO DELETE: <title>" and tell Khalid.
+- **A page merged into another** (its content moved, its folder removed): add its id to the survivor's `"aliases"` list in `pages.json`, so `p/<old id>/` keeps redirecting to the survivor; remove its own `pages.json` entry; retitle its Notion page "TO DELETE: <title> (merged into <survivor>)", keeping its link line; tell Khalid.
 - Record `"notion": "link"` in `pages.json` for every page done, and commit.
 
 ## Videos
