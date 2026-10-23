@@ -1,0 +1,3775 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "XLA and compilation: jaxprs, StableHLO, fusion and recompiles XLA and compilation: jaxprs, StableHLO, fusion and recompiles What happens between jax.jit(f)(x) and machine code, read in the source and measured on the running example's train step: lowering to StableHLO, PJRT, XLA's pass pipeline pass by pass, fusion and why it stops, layouts, buffer assignment, rematerialisation, the caches, ahead-of-time export, recompiles, profiles and flags.",
+  "label": "core",
+  "key": "compilation: jaxprs, stablehlo, fusion and recompiles",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Child of Topic: jax-and-tpu.",
+  "label": "core",
+  "key": "child of topic: jax-and-tpu",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Run on an Apple M1 Pro CPU; GPU and TPU behaviour is read from the pinned XLA source and Google's docs, and labelled.",
+  "label": "core",
+  "key": "apple m1 pro cpu; gpu and",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Pass diff viewer Fusion explorer Recompile detective Profile reader Further reading",
+  "label": "core",
+  "key": "explorer recompile detective profile reader further",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Lowering 2 PJRT 3 HLO passes 4 Fusion 5 Layouts 6 Buffers 7 Remat 8 Caches 9 AOT, export 10 Recompiles 11 Profiling 12 Flags 13 vs torch.compile Mistakes Interview You write jax.jit(train_step) , the first call takes seconds and every later call is fast.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old section nav, replaced"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page follows that first call all the way down: from your Python function to a jaxpr (JAX's own program), to StableHLO (a portable compiler format), across PJRT (the plug between JAX and a device), through XLA (the compiler, Accelerated Linear Algebra) pass by pass, to machine code; then back up to what you control: fusion, memory, caches, ahead-of-time export, recompiles, profiles and flags.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old lead summary; the core sentence and hero now carry it"
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "It assumes you know PyTorch well and have read the root page's Compiler lab overview, which this page goes deeper than.",
+  "label": "core",
+  "key": "which this page goes deeper than",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "Reading time about minutes (words outside code, tables and widgets at 200 a minute; the folded answers and the tables add about ).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old reading-time line; the header states the measured time"
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "How to read the evidence on this page measured here ran on an Apple M1 Pro, CPU only, JAX , on the running example (the tiny 4-layer character model of Topic: jax-and-tpu, 826,368 parameters, batch 32 x 128).",
+  "label": "core",
+  "key": "topic: jax-and-tpu, 826,368 parameters, batch 32",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "Counts, programs, memory plans and numerical results are deterministic; times are rough because the machine was shared (1-minute load 35 to 60) and are labelled. read in source quoted from JAX at tag jax-v0.11.2 and XLA at commit 91888df6 (the one that JAX release pins), with file and line found by pattern in a script.",
+  "label": "core",
+  "key": "jax-v0.11.2 and xla at commit 91888df6",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "Google docs written by the makers. not run here GPU and TPU behaviour: there is no GPU or TPU on this machine, so it is read, not measured.",
+  "label": "core",
+  "key": "google docs written by the makers",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "XLA's TPU compiler is not open source at all (it ships inside libtpu ), so no TPU pass list can be quoted.",
+  "label": "core",
+  "key": "tpu compiler is not open source",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "",
+  "text": "One train step, six forms, and who does each step 1.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old flow cards; the hero figure carries them"
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "",
+  "text": "Python your train_step ; runs once, on tracers 1 function 2. jaxpr JAX (Python): one equation per primitive eqns 3.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old flow cards; the hero figure carries them"
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "",
+  "text": "StableHLO JAX lowering rules: an MLIR module ops PJRT the plug: hands the module to a backend C API 0.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old flow cards; the hero figure carries them"
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "",
+  "text": "HLO XLA (C++): before any pass instrs 5.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old flow cards; the hero figure carries them"
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "",
+  "text": "Optimised HLO after ~ dumped passes kernels 6.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old flow cards; the hero figure carries them"
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "",
+  "text": "Machine code LLVM for CPU; PTX for NVIDIA; libtpu for TPU 1 executable Counts for the running example's whole train step (forward, backward, AdamW update) measured here .",
+  "label": "core",
+  "key": "the running example's whole train step",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "",
+  "text": "The kernels are the top-level instructions that do work: fusions, matrix multiplies and one copy.",
+  "label": "depth",
+  "key": "the top-level instructions that do work",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "",
+  "text": "The root's Compiler lab prints for the same program because its counter also walks the tiny computations that tell each reduction how to combine two values (an add or a maximum ); those are not kernels.",
+  "label": "depth",
+  "key": "tiny computations that tell each reduction",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "",
+  "text": "Counted at the top level, the root's undonated step has (the donated one adds one copy).",
+  "label": "depth",
+  "key": "the root's undonated step has 816",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "",
+  "text": "The same pipeline in PyTorch terms Stage JAX and XLA Nearest PyTorch counterpart Here Capture the program Tracing: run the Python once with abstract values, record a jaxpr TorchDynamo reads Python bytecode and records an FX graph, falling back to Python at graph breaks 1 Portable program format StableHLO, versioned, with compatibility guarantees Core ATen IR in torch.export (PyTorch/XLA also produces StableHLO) 1 Talk to a device PJRT: one C API, a plugin per device (CPU built in, CUDA, ROCm, TPU) The dispatcher plus a backend per device (CUDA, PrivateUse1); PyTorch/XLA uses PJRT 2 Optimise the graph XLA's HLO pass pipeline, different per backend AOTAutograd plus Inductor's graph passes and scheduler 3 Fuse operations XLA fusion passes with fixed rules (CPU) or a cost model (GPU) Inductor's fusion into generated C++ or Triton kernels 4 Plan memory Buffer assignment before anything runs; donation lets outputs reuse inputs The caching allocator at run time; no plan ahead 6 Reuse compiled code In-memory caches per function, plus a persistent on-disk cache Dynamo's code cache guarded by checks, FX graph and AOTAutograd caches 8 Ship a compiled model jax.export (StableHLO with a calling convention), serialized executables torch.export plus AOTInductor 9 Find why it recompiled jax_explain_cache_misses , jax_log_compiles , jax.monitoring TORCH_LOGS=recompiles , guard failure reasons 10 The big difference sits in the first row.",
+  "label": "depth",
+  "key": "nearest pytorch counterpart",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "",
+  "text": "Dynamo keeps PyTorch's eager meaning and compiles whatever it can; JAX insists the function is pure, gets the whole step as one program, or raises an error.",
+  "label": "core",
+  "key": "never a silent fallback",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "",
+  "text": "Everything below follows from having the whole step: XLA can fuse across the forward and backward pass, plan every byte before running, and cache the result by a key it can compute.",
+  "label": "core",
+  "key": "fuse across the forward and backward pass",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "",
+  "text": "Where else: the transformations that produce the jaxpr (tracing, grad , vmap ) are taught on JAX core ; sharding propagation and collectives (the SPMD partitioner passes you will see named below) on Sharding and scale ; the TPU's memory hierarchy on TPU programming and performance ; custom kernels when XLA's fusion is not enough on Pallas kernels .",
+  "label": "core",
+  "key": "hierarchy on tpu programming and performance",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "Lowering: from jaxpr to StableHLO The problem.",
+  "label": "core",
+  "key": "lowering: from jaxpr to stablehlo",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "Tracing (taught on JAX core ) leaves a jaxpr: a flat list of equations, each one primitive (an operation JAX knows how to differentiate, batch and lower, such as dot_general , mul , reduce_sum ) applied to typed variables.",
+  "label": "core",
+  "key": "equations, each one primitive (an operation",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "A compiler cannot read jaxprs.",
+  "label": "core",
+  "key": "a compiler cannot read jaxprs",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "Lowering translates every equation into operations of a compiler language, one rule per primitive, much as a PyTorch backend gives each ATen operator a kernel.",
+  "label": "core",
+  "key": "pytorch backend gives each aten operator",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "StableHLO is an MLIR dialect : MLIR is a framework for building compiler languages, and a dialect is one such language with its own operations and types.",
+  "label": "core",
+  "key": "a framework for building compiler languages",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "StableHLO's operations ( stablehlo.dot_general , stablehlo.reduce , stablehlo.broadcast_in_dim , ...) are fixed and versioned, so that a program written today can be read by a compiler built later: its compatibility document promises \"5 years of backward compatibility\" and \"2 years of forward compatibility\" for portable artifacts ( openxla/stablehlo compatibility.md , read 2026-10-15) Google docs .",
+  "label": "core",
+  "key": "stablehlo.dot_general , stablehlo.reduce , stablehlo.broadcast_in_dim",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "Next to it sits CHLO (\"client HLO\"), a small set of convenience operations ( chlo.erfc , chlo.square ) that are broken into StableHLO before XLA proper sees them.",
+  "label": "core",
+  "key": "convenience operations ( chlo.erfc , chlo.square",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "PyTorch/XLA produces the same StableHLO from PyTorch programs, which is why the format is the meeting point between front ends and compilers.",
+  "label": "core",
+  "key": "point between front ends and compilers",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "How it works, in the source One jit call becomes one MLIR module.",
+  "label": "core",
+  "key": "jit call becomes one mlir module",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "The walk, at jax-v0.11.2 read in source : A lowering rule is a Python function that receives the equation's operands as MLIR values and emits operations.",
+  "label": "core",
+  "key": "as mlir values and emits operations",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "Most elementwise primitives share one rule, _nary_lower_hlo , which first makes every operand the full output shape with explicit broadcasts and then emits the single StableHLO operation: exp 's whole registration is one line.",
+  "label": "core",
+  "key": "elementwise primitives share one rule, _nary_lower_hlo",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "Some rules are written in JAX itself ( mlir.lower_fun traces a JAX function and lowers that), which is how a primitive such as integer_pow becomes a few multiplies.",
+  "label": "core",
+  "key": "integer_pow becomes a few multiplies",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "A rule can also be registered per platform; dot_general registers one for each platform, which shows up in section 9 when one exported program serves CPU, CUDA and TPU at once.",
+  "label": "core",
+  "key": "dot_general registers one for each",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "One attention sub-block, in four forms Block 0's x + attention(layer_norm(x)) , forward only, on the running example's shapes measured here .",
+  "label": "core",
+  "key": "attention(layer_norm(x)) , forward only, on the",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "Switch forms; the text is the real output with paths removed (optimised HLO also without its metadata). jaxpr StableHLO HLO before XLA Optimised HLO import jax tr = jax.jit(attn_block).trace(p0, x) # p0: block 0's parameters, x: float32[32, 128, 128] print(tr.jaxpr) # jaxpr lo = tr.lower() print(lo.as_text()) # StableHLO (an MLIR module) print(lo.as_text(dialect=\"hlo\")) # XLA HLO before any pass print(lo.compile().as_text()) # optimised HLO, after XLA's passes From src/lab/lowering.py .",
+  "label": "core",
+  "key": "stablehlo (an mlir module) print(lo.as_text(dialect=\"hlo\")) #",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "Look at the jaxpr: t = div s 128.0 and then the same subtraction sub q t recorded twice (as u and as z ), because LayerNorm's Python computes x - mu twice.",
+  "label": "core",
+  "key": "), because layernorm's python computes x",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "Tracing records exactly what Python did; removing the duplicate is the compiler's job (common-subexpression elimination, section 3).",
+  "label": "core",
+  "key": "the compiler's job (common-subexpression elimination, section",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "What each primitive becomes Counting the whole train step by the name JAX writes into every operation's location ( jit(train_step)/jvp(...)/mul ), each primitive's rule can be seen at work measured here : The jaxpr has mul equations.",
+  "label": "core",
+  "key": "into every operation's location ( jit(train_step)/jvp(...)/mul",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "How many StableHLO operations do they lower to?",
+  "label": "core",
+  "key": "many stablehlo operations do they lower",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "About the same number: one operation each About twice as many Fewer: lowering merges them , of which are broadcast_in_dim .",
+  "label": "core",
+  "key": "number: one operation each about twice",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "A jaxpr may multiply an array by a scalar ( mul bc 0.5 ); StableHLO requires both operands to have the same shape, so the rule first broadcasts the scalar to the full shape.",
+  "label": "core",
+  "key": "stablehlo requires both operands to have",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "The broadcasts cost nothing at run time: fusion folds them into the kernel that reads them.",
+  "label": "core",
+  "key": "broadcasts cost nothing at run time",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "How to read it: reduce_sum doubles in StableHLO because every reduction carries its initial value as a constant, and again in HLO because the reduction's combiner ( add ) is a small computation of its own. integer_pow and the other primitives under nested jit s (optax's helpers, jnp.where ) appear fewer times than in the flattened jaxpr: a nested jit is lowered once into a private function and called from each place. square stays a CHLO operation until XLA's import expands it.",
+  "label": "depth",
+  "key": "reduce_sum doubles in stablehlo because every",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. lowering: from jaxpr to stablehlo",
+  "text": "Rows with zero HLO instructions under their own name had their HLO renamed by those calls.",
+  "label": "depth",
+  "key": "with zero hlo instructions under their",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "PJRT: the plug between JAX and a device The problem.",
+  "label": "core",
+  "key": "pjrt: the plug between jax and",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "JAX should not need to know how to compile for, allocate on, or launch work on each kind of hardware, and a hardware vendor should not need to change JAX to support a new chip.",
+  "label": "core",
+  "key": "know how to compile for, allocate",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "PJRT is the interface in between: a C API that a device plugin implements (create a client, list devices, compile a StableHLO module into an executable, allocate and copy buffers, execute).",
+  "label": "core",
+  "key": "stablehlo module into an executable, allocate",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "A jax.Array holds one buffer per device, allocated through PJRT (wrapped by IFRT, a layer above PJRT; jaxlib's own start-up log line reads PjRt-IFRT device count: total=1, addressable=1 ).",
+  "label": "core",
+  "key": "reads pjrt-ifrt device count: total=1, addressable=1",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "The PyTorch analogue is the dispatcher plus a device backend; PyTorch/XLA goes through PJRT as well.",
+  "label": "core",
+  "key": "dispatcher plus a device backend; pytorch/xla",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "The API is versioned in xla/pjrt/c/pjrt_c_api.h : PJRT_API_MAJOR 0 , incremented \"when an ABI-incompatible change is made\", and PJRT_API_MINOR at the pinned commit, incremented for compatible additions read in source .",
+  "label": "depth",
+  "key": "xla/pjrt/c/pjrt_c_api.h : pjrt_api_major 0 , incremented",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "JAX finds plugins at start-up: any installed module under the jax_plugins namespace, or any package advertising a jax_plugins entry point ( discover_pjrt_plugins , xla_bridge.py:434 ), each registered with register_plugin ( :584 ).",
+  "label": "depth",
+  "key": "discover_pjrt_plugins , xla_bridge.py:434 ), each registered",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "The CPU client is built into jaxlib ; NVIDIA GPUs come from the jax-cuda12-plugin or jax-cuda13-plugin wheels and TPUs from libtpu .",
+  "label": "core",
+  "key": "the jax-cuda12-plugin or jax-cuda13-plugin wheels",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "What this machine has measured here A tpu backend factory is registered by default but cannot start without libtpu ; no plugin is installed, so only the built-in CPU client runs.",
+  "label": "depth",
+  "key": "backend factory is registered by default",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "In jax.devices() that client's single device is cpu:0 .",
+  "label": "depth",
+  "key": "jax.devices() that client's single device is",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "Three times in practice.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "Installing GPU or TPU support means installing the right plugin version for your jaxlib .",
+  "label": "core",
+  "key": "or tpu support means installing the",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "Anything outside JAX that can load a PJRT plugin (a C++ server, another framework) can compile and run the StableHLO that JAX produces, which is the basis of jax.export (section 9).",
+  "label": "core",
+  "key": "server, another framework) can compile and",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. pjrt: the plug between jax and a device",
+  "text": "And the asynchronous behaviour you see in JAX (a call returns before the work is done; block_until_ready waits) is PJRT's execute returning futures.",
+  "label": "core",
+  "key": "block_until_ready waits) is pjrt's execute returning",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "XLA's HLO and its pass pipeline HLO (High Level Operations) is XLA's own program form.",
+  "label": "core",
+  "key": "pass pipeline hlo (high level operations)",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "A module holds computations; the ENTRY computation is the program, and the others are called from it (fusion bodies, loop bodies, the two-argument functions that tell a reduction how to combine values).",
+  "label": "core",
+  "key": "bodies, loop bodies, the two-argument functions",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "Each line is one instruction .",
+  "label": "core",
+  "key": "each line is one instruction",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "One line of the optimised attention block, taken apart: %dot.4 = f32[4096,128]{1,0} dot(%param_0, %param_1), lhs_contracting_dims={1}, rhs_contracting_dims={0} name shape (dtype[dims]) opcode operands attributes: which dimensions are summed over {1,0} = layout: dimension 1 is fastest-varying in memory (row-major) The shape [4096,128] is the batch of 32 x 128 characters flattened by a pass called dot_decomposer , which puts every matmul into one canonical form.",
+  "label": "core",
+  "key": "f32[4096,128]{1,0} dot(%param_0, %param_1), lhs_contracting_dims={1}, rhs_contracting_dims={0} name",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "On a TPU the same line would carry a tiled layout such as {1,0:T(8,128)(2,1)} and possibly a memory space S(1) , which XLA's docs gloss as \"this array lives in VMEM (on a TPU)\" ( docs/shapes.md ) Google docs ; section 5 explains tiles.",
+  "label": "core",
+  "key": "layout such as {1,0:t(8,128)(2,1)} and possibly",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "XLA optimises by running passes : each one reads the whole module and rewrites it (simplify algebra, remove duplicates, choose layouts, fuse, insert copies).",
+  "label": "core",
+  "key": "(simplify algebra, remove duplicates, choose layouts",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "Passes are grouped into pipelines ; a pipeline wrapped in HloPassFix repeats until nothing changes, which is why the dumps below show algsimp , dce and reshape-mover six times in a row.",
+  "label": "core",
+  "key": "hlopassfix repeats until nothing changes, which",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "Each backend assembles its own pipeline in its compiler: cpu_compiler.cc has AddPass calls naming pass classes; gpu_compiler.cc with its fusion pipeline has , naming ; classes appear in both read in source .",
+  "label": "core",
+  "key": "cpu_compiler.cc has addpass calls naming pass",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "The TPU pipeline lives in the closed libtpu and cannot be read.",
+  "label": "core",
+  "key": "pipeline lives in the closed libtpu",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "PyTorch's nearest counterpart is the chain AOTAutograd plus Inductor: decompositions, functionalisation, pattern passes, then the scheduler that fuses.",
+  "label": "depth",
+  "key": "aotautograd plus inductor: decompositions, functionalisation, pattern",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "How to watch them.",
+  "label": "core",
+  "key": "how to watch them",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "XLA_FLAGS=\"--xla_dump_to=DIR --xla_dump_hlo_pass_re=.*\" writes the module after every pass that changed it.",
+  "label": "core",
+  "key": "xla_flags=\"--xla_dump_to=dir --xla_dump_hlo_pass_re=.*\" writes the module after",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "For the train step that is per-pass files ( MB with everything else XLA dumps), of which differ in the program text once metadata is set aside; for one attention sub-block forward and backward, of .",
+  "label": "core",
+  "key": "attention sub-block forward and backward, of",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "The animation replays them on the same input.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the animation beside it"
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "The same program, pass by pass Attention block, forward + backward Whole train step Bars: top-level instructions after each pass that changed the text (a fusion counts as one); the line: how many of them are fusions measured here .",
+  "label": "core",
+  "key": "train step bars: top-level instructions after",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "Each pass's diff, opcode by opcode, is in the Pass diff viewer .",
+  "label": "core",
+  "key": "each pass's diff, opcode by opcode",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "The passes that changed these programs, and where each backend runs them Pass names are the ones in the dump file names; each is matched to its class by finding the name() string in the class's header at the pinned commit (header and line in the table). \"GPU\" lists the lines of gpu_compiler.cc (or fusion_pipeline.cc ) that add the same class or its GPU variant ( GpuAlgebraicSimplifier , GpuLayoutAssignment , PriorityFusion in the fusion row).",
+  "label": "depth",
+  "key": "gpualgebraicsimplifier , gpulayoutassignment , priorityfusion in",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "Copy insertion on GPU happens in a separate pipeline file not fetched here.",
+  "label": "depth",
+  "key": "separate pipeline file not fetched here",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "Only on GPU read in source not run here : .",
+  "label": "core",
+  "key": "only on gpu",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "They are the passes that need a cost model of the device ( PriorityFusion ranks fusions by estimated run time), call vendor libraries ( GemmRewriter for cuBLAS), generate Triton kernels ( GemmFusion , SoftmaxRewriterTriton ), fit memory ( HloRematerialization , section 7), or overlap communication (the collective passes taught on Sharding and scale ).",
+  "label": "core",
+  "key": "softmaxrewritertriton ), fit memory ( hlorematerialization",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "Which single pass removes the most instructions from the train step before fusion? algsimp (algebraic simplification) cse (common-subexpression elimination) dce (dead-code elimination) cse , from to instructions.",
+  "label": "core",
+  "key": "algsimp (algebraic simplification) cse (common-subexpression elimination)",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "The step computes the global gradient norm twice (once inside clip_by_global_norm , once for logging), one square, sum and add per parameter array each time, and broadcasts the same scalars into each of the 69 optimiser updates.",
+  "label": "core",
+  "key": "gradient norm twice (once inside clip_by_global_norm",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "Tracing records all of it; CSE keeps one copy.",
+  "label": "core",
+  "key": "tracing records all of it; cse",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. xla's hlo and its pass pipeline",
+  "text": "Its header: \"Identical constants and identical instructions with the same operands are commoned\" ( hlo_cse.h:32 ).",
+  "label": "core",
+  "key": "header: \"identical constants and identical instructions",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Fusion: how XLA decides, and why it stops The problem.",
+  "label": "core",
+  "key": "fusion: how xla decides, and why",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Run a chain of elementwise operations one kernel at a time and every intermediate result is written to memory and read straight back.",
+  "label": "core",
+  "key": "chain of elementwise operations one kernel",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "For this kind of work memory traffic, not arithmetic, is the cost.",
+  "label": "core",
+  "key": "of work memory traffic, not arithmetic",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Fusion compiles a group of operations into one kernel so intermediates stay in registers or on-chip memory.",
+  "label": "core",
+  "key": "operations into one kernel so intermediates",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "The root's Compiler lab shows the result on one MLP block; this section shows the decisions.",
+  "label": "core",
+  "key": "block; this section shows the decisions",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "How it works: producer into consumer XLA's basic fusion pass ( InstructionFusion , which the CPU subclasses as CpuInstructionFusion ) walks the program from its outputs back to its inputs.",
+  "label": "core",
+  "key": "which the cpu subclasses as cpuinstructionfusion",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "For each instruction (the consumer ) it looks at each operand (the producer ) and asks one question, ShouldFuse(consumer, operand_index) .",
+  "label": "core",
+  "key": "asks one question, shouldfuse(consumer, operand_index)",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "A yes pulls the producer's computation inside the consumer's fusion.",
+  "label": "core",
+  "key": "the producer's computation inside the consumer's",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "If the producer has other users, it now runs twice, once inside the fusion and once for the others: XLA accepts that duplication only for cheap operations, decided by a fixed list in InstructionFusion::IsExpensive ( instruction_fusion.cc:80 ): add , multiply , select , broadcast , transpose are cheap; exp , dot , convolution , collectives and custom calls are expensive read in source .",
+  "label": "core",
+  "key": "fixed list in instructionfusion::isexpensive ( instruction_fusion.cc:80",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Two programs on a 256 x 512 array: e = jnp.exp(x) then (e + 1).sum(-1) and (e * 2).max(-1) ; the same with e = x * 2 .",
+  "label": "core",
+  "key": "1).sum(-1) and (e * 2).max(-1)",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Which compiles to fewer kernels?",
+  "label": "core",
+  "key": "which compiles to fewer kernels?",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "The same: both fuse everything The multiply version The exp version The multiply: kernels against , and half the bytes moved ( ) measured here . x * 2 is cheap, so it is duplicated into both reductions and never stored; exp is on the expensive list, so it runs once as its own kernel and both reductions read its 512 KiB result back from memory.",
+  "label": "core",
+  "key": "both fuse everything the multiply version",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Recomputation is the price of fusion, and XLA only pays it when it is cheap.",
+  "label": "core",
+  "key": "recomputation is the price of fusion",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Fusion kinds Every fusion instruction carries a kind, defined in hlo_instruction.h:301 read in source : kLoop : \"we emit code that generates one element of the root at a time\": one loop over the output, computing every fused operation per element.",
+  "label": "depth",
+  "key": "carries a kind, defined in hlo_instruction.h:301",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Elementwise chains, broadcasts, and on CPU even reductions end up here. kInput : \"the primary node is the root of the fused instruction\", a kernel built around a reduction (or transpose, concatenate, scatter) with its inputs fused in.",
+  "label": "depth",
+  "key": "reduction (or transpose, concatenate, scatter) with",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "XLA:GPU's PriorityFusion assigns it to exactly those four emitter kinds, Triton, cuDNN and sort fusions getting kCustom ( priority_fusion.cc:1351-1367 ); this CPU program has none. kOutput : \"the primary node is not the root\", and one operand buffer must be able to alias the output: work fused after an operation such as a matmul (an epilogue).",
+  "label": "depth",
+  "key": "sort fusions getting kcustom ( priority_fusion.cc:1351-1367",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "The CPU code chooses it only when CanBeOutputFused holds; none appear here. kCustom : \"backend-specific fusions that don't fit into the above patterns\": here, the YNNPACK library fusions; on GPU, Triton and cuDNN fusions.",
+  "label": "depth",
+  "key": "canbeoutputfused holds; none appear here. kcustom",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "The header's own comment adds \"TODO(b/79869434): This categorization scheme is not great\": the kinds are hints for code generation, and each backend uses them differently.",
+  "label": "depth",
+  "key": "comment adds \"todo(b/79869434): this categorization scheme",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "The train step's fusions are kLoop and kCustom measured here .",
+  "label": "core",
+  "key": "fusions are kloop and kcustom measured",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "A library inside the CPU compiler XLA:CPU at this commit hands matmuls and many reductions to the YNNPACK library: its debug-option defaults add three library fusion types, INDIVIDUAL_DOT , INDIVIDUAL_CONVOLUTION and REDUCE ( debug_options_flags.cc:272 ), while the help text of the flag that controls them still says \"The default list is currently empty\" ( :1660 ).",
+  "label": "core",
+  "key": "individual_convolution and reduce ( debug_options_flags.cc:272 )",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "The code wins: the kCustom fusions named ynn_fusion in every dump here are those.",
+  "label": "core",
+  "key": "wins: the kcustom fusions named ynn_fusion",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "On GPU the counterpart is cuBLAS or Triton for matmuls; on TPU, XLA's own code for the MXU.",
+  "label": "core",
+  "key": "the counterpart is cublas or triton",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "What XLA refuses, and why XLA logs every decision at verbose level ( TF_CPP_MIN_LOG_LEVEL=0 TF_CPP_VMODULE=cpu_instruction_fusion=2,instruction_fusion=3 ).",
+  "label": "core",
+  "key": "at verbose level ( tf_cpp_min_log_level=0 tf_cpp_vmodule=cpu_instruction_fusion=2,instruction_fusion=3",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Counted over the whole train step measured here : The strings are XLA's own ( FusionDecision::Forbid(\"...\") ), with instruction names replaced by X.",
+  "label": "core",
+  "key": "the whole train step measured here",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "The same pair can be considered several times, so the counts are decisions, not pairs. \"operand can not be duplicated\" and \"expensive producer would be duplicated\" are the duplication rule above; \"Too many reductions inside single fusion\" is a CPU limit of five reductions per fusion, there \"to avoid excessive compilation times\" ( cpu_instruction_fusion.cc:482 ); \"Fusion is not profitable\" refuses an expensive producer whose consumer reads each element more than once (a broadcast does); \"Producer is not loop-fusible\" covers library fusions, sorts, custom calls and loops.",
+  "label": "core",
+  "key": "avoid excessive compilation times\" ( cpu_instruction_fusion.cc:482",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "The same softmax, three ways One jax.nn.softmax(x, axis=-1) on a 256 x 512 array, compiled three ways on this CPU measured here : XLA's default; with the YNNPACK library fusions switched off ( --xla_cpu_experimental_ynn_fusion_type=-individual_dot,-individual_convolution,-reduce ); with the fusion pass switched off ( --xla_disable_hlo_passes=fusion ).",
+  "label": "core",
+  "key": "library fusions switched off ( --xla_cpu_experimental_ynn_fusion_type=-individual_dot,-individual_convolution,-reduce",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Each box is one kernel, with the operations inside it; the bar under it marks a trip to memory.",
+  "label": "core",
+  "key": "operations inside it; the bar under",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Bytes moved is XLA's cost_analysis() .",
+  "label": "core",
+  "key": "bytes moved is xla's cost_analysis()",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Fusion pass off Library fusions off Default Two things show.",
+  "label": "core",
+  "key": "library fusions off default two things",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "With the library off, XLA's own tree_reduction_rewriter splits each reduction into a reduce-window over chunks and then a smaller reduction, a pass whose header explains it as increasing \"precision for the reduction operation by applying the reduce-window first\" (pairwise-style summation, smaller rounding error).",
+  "label": "core",
+  "key": "reduce-window first\" (pairwise-style summation, smaller rounding",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "And with the fusion pass off the CPU still wraps each remaining operation in a one-operation kLoop fusion ( FusionWrapper , \"so that the fusion emitter can kick in\"), which is why \"no fusion\" still prints fusions.",
+  "label": "core",
+  "key": "a one-operation kloop fusion ( fusionwrapper",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "The whole train step, with and without fusion Kernels, bytes moved and the temporary-memory plan are deterministic; step and compile times are CPU seconds measured here on a shared machine (each in a fresh process; medians of 7 steps after 2 warm-up steps).",
+  "label": "core",
+  "key": "the temporary-memory plan are deterministic; step",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Losses after 5 steps from the same start: identical to every printed digit with fusion on or off; with the library off the last digit moves (a different summation order).",
+  "label": "core",
+  "key": "digit moves (a different summation order)",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Without fusion the step moves times the bytes ( GB against GB) and plans MB of temporaries against MB.",
+  "label": "core",
+  "key": "and plans mb of temporaries against",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "On this CPU the time cost is moderate ( s against s of CPU per step) because the matmuls dominate and stay in the library; on an accelerator, where elementwise work is limited by memory bandwidth, the byte count is the better predictor. not run here : the GPU and TPU ratios.",
+  "label": "core",
+  "key": "accelerator, where elementwise work is limited",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "On GPU and TPU XLA:GPU replaces the fixed rules with PriorityFusion ( fusion_pipeline.cc:79 ), which estimates each candidate's run time with a cost model of the device and fuses the most profitable first, followed by MultiOutputFusion ( :89 ), which lets one kernel produce several outputs (for example two reductions that read the same input, done in one pass over it).",
+  "label": "core",
+  "key": "fusion_pipeline.cc:79 ), which estimates each candidate's",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Matmuls go to cuBLAS through GemmRewriter or become Triton kernels through GemmFusion ( gpu_compiler.cc:2132 ), and SoftmaxRewriterTriton ( :2172 ) turns softmax-like patterns into Triton kernels read in source .",
+  "label": "core",
+  "key": "gemmfusion ( gpu_compiler.cc:2132 ), and softmaxrewritertriton",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "On the CPU multi-output fusion exists ( CpuMultiOutputFusion ) but is only added when a backend option asks for it ( cpu_compiler.cc:1098 ).",
+  "label": "core",
+  "key": "cpu multi-output fusion exists ( cpumultioutputfusion",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "The TPU's fusion rules are inside libtpu .",
+  "label": "core",
+  "key": "tpu's fusion rules are inside libtpu",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "What transfers from this CPU: the rules' logic (cheap producers duplicate, expensive ones materialise, loops and custom calls are walls) and the byte accounting.",
+  "label": "core",
+  "key": "(cheap producers duplicate, expensive ones materialise",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "What does not: the exact kernels, and the library split.",
+  "label": "core",
+  "key": "exact kernels, and the library split",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Inductor makes the same decisions with its own scheduler and emits C++ or Triton; on the PyTorch twin of the running example the root measured eager operators in one step against Inductor-generated kernels.",
+  "label": "core",
+  "key": "operators in one step against inductor-generated",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "How Inductor chooses is taught on The compiler stack .",
+  "label": "core",
+  "key": "the compiler stack",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "When no compiler will fuse what you need (attention's online softmax), you write the kernel yourself: Pallas kernels in JAX, Triton in PyTorch.",
+  "label": "core",
+  "key": "need (attention's online softmax), you write",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. fusion: how xla decides, and why it stops",
+  "text": "Every one of the step's fusions, with its kind, phase and model function, and thirteen small programs that keep or break fusion, are in the Fusion explorer .",
+  "label": "core",
+  "key": "model function, and thirteen small programs",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "Layouts and tiling The idea.",
+  "label": "core",
+  "key": "layouts and tiling",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "An array's layout is the order in which its dimensions sit in memory, written minor-to-major: f32[4096,128]{1,0} means dimension 1 changes fastest (row-major, PyTorch's contiguous); {0,1} would be column-major.",
+  "label": "core",
+  "key": "memory, written minor-to-major: f32[4096,128]{1,0} means dimension",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "In PyTorch a transpose is a free view with new strides and the kernel that reads it copes.",
+  "label": "core",
+  "key": "strides and the kernel that reads",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "XLA instead gives every array one layout, chosen by the layout-assignment pass so that matmuls and reductions read memory in the order they want, and then each transpose either disappears into the instruction that reads it or becomes a real copy.",
+  "label": "core",
+  "key": "layout, chosen by the layout-assignment pass",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "Three transposes and reshapes, compiled measured here Entry computations of the optimised HLO, metadata removed ( src/lab/buffer_lab.py ).",
+  "label": "core",
+  "key": "optimised hlo, metadata removed ( src/lab/buffer_lab.py",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "A transpose alone is a physical copy ( transpose_copy_fusion ).",
+  "label": "core",
+  "key": "a physical copy ( transpose_copy_fusion )",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "Fed into a matmul it vanishes: transpose-folding rewrites the dot to contract over dimension 0 instead, because, in its header's words, the dot \"is implemented by a GEMM kernel that can transpose its inputs\".",
+  "label": "core",
+  "key": "matmul it vanishes: transpose-folding rewrites the",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "A reshape that does not change memory order becomes a bitcast , a free reinterpretation, inside the fusion.",
+  "label": "core",
+  "key": "a free reinterpretation, inside the fusion",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "In the train step, layout assignment added copies, and reshape-decomposer (\"Postcondition: All reshapes are turned into bitcasts\") turned reshapes into bitcasts or a bitcast plus copy (see the Pass diff viewer ).",
+  "label": "core",
+  "key": "assignment added copies, and reshape-decomposer (\"postcondition",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "A TPU layout also cuts the array into fixed tiles, because, in XLA's words, \"XLA TPU uses a variety of tile-based formats due to the two-dimensional nature of its vector registers\".",
+  "label": "core",
+  "key": "two-dimensional nature of its vector registers\"",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "The docs write F32[3,5]{1,0:T(2,2)} for a 3 x 5 array in 2 x 2 tiles, padded to whole tiles, and state that bf16 on TPU uses (8,128)(2,1) : tiles of 8 x 128 elements, with pairs of rows interleaved inside ( docs/tiled_layout.md at the pinned commit) Google docs .",
+  "label": "core",
+  "key": "of rows interleaved inside ( docs/tiled_layout.md",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "The cost is padding: derived the running example's output head in bf16, [128, 65] with 65 as the minor dimension, would be padded to [128, 128] , 1.97 times its bytes, while the embedding table [65, 128] pads only its 65 rows to 72 (1.11 times).",
+  "label": "core",
+  "key": "running example's output head in bf16",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "5. layouts and tiling",
+  "text": "That is the arithmetic behind \"choose dimensions that are multiples of 128\", taught with the MXU on TPU programming and performance . not run here",
+  "label": "core",
+  "key": "the arithmetic behind \"choose dimensions that",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "Buffer assignment: every byte planned before the step runs The problem.",
+  "label": "core",
+  "key": "buffer assignment: every byte planned before",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "PyTorch allocates as it goes, from a caching allocator, and you learn the peak afterwards ( torch.cuda.max_memory_allocated() ).",
+  "label": "core",
+  "key": "learn the peak afterwards ( torch.cuda.max_memory_allocated()",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "XLA plans memory ahead: after the passes it fixes an order of execution (the schedule ), gives every value a live range (from the instruction that defines it to the last one that reads it), and packs values whose ranges do not overlap into the same bytes.",
+  "label": "core",
+  "key": "range (from the instruction that defines",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "The result is the buffer assignment ; compiled.memory_analysis() summarises it, and the dump writes it out in full.",
+  "label": "core",
+  "key": "the buffer assignment ; compiled.memory_analysis() summarises",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "Bytes live at each point of the train step's schedule Reconstructed from XLA's own dump measured here : the schedule ( positions) and every value's live range from *-live-range.txt , sizes from *-buffer-assignment.txt .",
+  "label": "core",
+  "key": "from *-live-range.txt , sizes from *-buffer-assignment.txt",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "The reconstructed peak is MB against the MB XLA reports at position (a % difference from values that share an allocation).",
+  "label": "core",
+  "key": "from values that share an allocation)",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "Phase bands come from the operation names: jvp is the forward pass, transpose(jvp) the backward pass, the rest the optimiser and gradient norms.",
+  "label": "core",
+  "key": "forward pass, transpose(jvp) the backward pass",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "The shape is the one every training step has: the forward pass piles up activations the backward pass will need, the peak sits at the turn, and the backward pass frees them as it consumes them.",
+  "label": "core",
+  "key": "activations the backward pass will need",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "XLA attributes the bytes live at the peak to the JAX operation that produced them measured here : From the dump's \"Stack trace breakdown for peak usage\".",
+  "label": "core",
+  "key": "operation that produced them measured here",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "The divisions are LayerNorm's normalised values and softmax outputs saved for the backward pass; erfc is the exact GELU's intermediate, kept at the MLP's 512 width, four layers deep; reduce_max is softmax's row maxima broadcast back to full size.",
+  "label": "core",
+  "key": "layernorm's normalised values and softmax outputs",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "This is the list to read before reaching for rematerialisation.",
+  "label": "core",
+  "key": "to read before reaching for rematerialisation",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "What is in the plan. allocations: are parameters that may also hold an output (the donated parameters and optimiser state, reused for the new ones), are thread-local scalars inside loops and reduction bodies, and one preallocated temporary buffer of MB holds every intermediate at its planned offset.",
+  "label": "core",
+  "key": "reduction bodies, and one preallocated temporary",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "One quirk to know: on CPU, memory_analysis().peak_memory_in_bytes leaves the temporaries out; add temp_size_in_bytes or read total_allocation_bytes .",
+  "label": "core",
+  "key": "cpu, memory_analysis().peak_memory_in_bytes leaves the temporaries out",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "Aliasing and in-place updates Donation ( jax.jit(step, donate_argnums=(0, 1)) , taught in the root's Compiler lab) lets an output reuse an input's buffer.",
+  "label": "core",
+  "key": "in-place updates donation ( jax.jit(step, donate_argnums=(0",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "Without it, XLA must keep the input intact, and a pass makes sure it does.",
+  "label": "core",
+  "key": "xla must keep the input intact",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "An old note on this knowledge base said that under jit \"XLA turns these [ x.at[i].set(v) ] into true in-place updates, so no copy cost in practice\".",
+  "label": "core",
+  "key": "x.at[i].set(v) ] into true in-place updates",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "Checked on a MiB array measured here : So the update is in place only when the array is donated or is an intermediate inside the jitted function.",
+  "label": "core",
+  "key": "an intermediate inside the jitted function",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "Updating a non-donated argument copies the whole array first, because copy-insertion must keep \"Entry parameter[s] ... live out of the entry computation\" in their own allocation ( copy_insertion.h:41 ) read in source .",
+  "label": "core",
+  "key": "because copy-insertion must keep \"entry parameter[s]",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "6. buffer assignment: every byte planned before the step runs",
+  "text": "In a training loop that updates a large state each step, that is a full copy per step: donate.",
+  "label": "core",
+  "key": "updates a large state each step",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "7. rematerialisation: yours and the compiler's",
+  "text": "Rematerialisation: yours and the compiler's Two different mechanisms share the name. jax.checkpoint (alias jax.remat ) is yours: at trace time you say which values the backward pass may keep and which it must recompute, with policies such as dots_saveable ; the root's Compiler lab measures the policies on this model.",
+  "label": "core",
+  "key": "rematerialisation: yours and the compiler's two",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "7. rematerialisation: yours and the compiler's",
+  "text": "The second is XLA's HloRematerialization pass, which runs after scheduling and recomputes values only when the planned peak exceeds the device's memory limit.",
+  "label": "core",
+  "key": "planned peak exceeds the device's memory",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "7. rematerialisation: yours and the compiler's",
+  "text": "In the GPU pipeline ( gpu_compiler.cc:3378 ); it is absent from the CPU pipeline, which is why no dump on this page shows it read in source .",
+  "label": "core",
+  "key": "the gpu pipeline ( gpu_compiler.cc:3378 )",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "7. rematerialisation: yours and the compiler's",
+  "text": "Its header names two algorithms, kAlwaysRemat (\"Rematerializes anything it can at any point the HLO is above the memory limit.",
+  "label": "depth",
+  "key": "names two algorithms, kalwaysremat (\"rematerializes anything",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "7. rematerialisation: yours and the compiler's",
+  "text": "Default rematerialization algorithm.\") and kPeakPriority (\"Prioritize rematerializing the highest peak ...",
+  "label": "depth",
+  "key": "rematerialization algorithm.\") and kpeakpriority (\"prioritize rematerializing",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "7. rematerialisation: yours and the compiler's",
+  "text": "Much slower than the default algorithm\"), and three strategies a mode can enable: recompute, compress (keep a value in a more compact shape that the backend supplies through a CompactShapeFunction ) and host offload (move it to host memory and back) ( hlo_rematerialization.h:78-96 ).",
+  "label": "depth",
+  "key": "host memory and back) ( hlo_rematerialization.h:78-96",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "7. rematerialisation: yours and the compiler's",
+  "text": "The TPU compiler's equivalent is inside libtpu and cannot be read.",
+  "label": "core",
+  "key": "equivalent is inside libtpu",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "7. rematerialisation: yours and the compiler's",
+  "text": "A model that barely does not fit on a GPU may not fail: XLA recomputes until it fits, and the step gets slower without an error.",
+  "label": "core",
+  "key": "model that barely does not fit",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "7. rematerialisation: yours and the compiler's",
+  "text": "Two checks catch it: compiled.memory_analysis() against the device's memory, and a dump filtered to the pass ( --xla_dump_hlo_pass_re=rematerialization ).",
+  "label": "core",
+  "key": "filtered to the pass ( --xla_dump_hlo_pass_re=rematerialization",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "7. rematerialisation: yours and the compiler's",
+  "text": "The fix you control is the explicit one: choose what jax.checkpoint saves, so the compiler has nothing left to guess.",
+  "label": "core",
+  "key": "explicit one: choose what jax.checkpoint saves",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "7. rematerialisation: yours and the compiler's",
+  "text": "One detail ties the two together: jax.checkpoint lowers its recomputation behind an optimization_barrier so that XLA's CSE (section 3) cannot merge the recomputed values back into the forward pass and undo the saving ( ad_checkpoint.py:867 at jax-v0.11.2 , quoted in the root's lab).",
+  "label": "core",
+  "key": "lowers its recomputation behind an optimization_barrier",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "The caches: paying for compilation once In memory.",
+  "label": "core",
+  "key": "the caches: paying for compilation once",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "A jitted function keeps a cache keyed on everything that can change the program: the function object itself, the abstract signature of its arguments (shapes, dtypes, weak types, the pytree structure), the values of static arguments, and the tracing context (configuration that affects tracing, such as jax_default_matmul_precision ).",
+  "label": "core",
+  "key": "that affects tracing, such as jax_default_matmul_precision",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "A hit skips tracing, lowering and compiling; a miss does all three.",
+  "label": "core",
+  "key": "hit skips tracing, lowering and compiling",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "In every scenario of the Recompile detective , counted through jax.monitoring , the three counts move together measured here .",
+  "label": "core",
+  "key": "recompile detective , counted through jax.monitoring",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "This cache dies with the process. f._cache_size() reports how many entries a jitted function holds.",
+  "label": "core",
+  "key": "f._cache_size() reports how many entries a",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "The persistent compilation cache stores executables between processes: jax.config.update(\"jax_compilation_cache_dir\", \"/path/to/cache\") jax.config.update(\"jax_persistent_cache_min_compile_time_secs\", 0.0) # default 1.0: faster compiles are not written Its key is a SHA-256 over eight ingredients, hashed in order in cache_key.py ( jax-v0.11.2 , the entries list at line ) read in source : .",
+  "label": "core",
+  "key": "executables between processes: jax.config.update(\"jax_compilation_cache_dir\", \"/path/to/cache\") jax.config.update(\"jax_persistent_cache_min_compile_time_secs\"",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "The XLA flags are hashed after removing a list of flags that cannot change the program, among them --xla_dump_to and --xla_force_host_platform_device_count .",
+  "label": "core",
+  "key": "program, among them --xla_dump_to and --xla_force_host_platform_device_count",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "JAX logs each ingredient's hash at debug level, which tells which one changed between two runs: Each row is a fresh process compiling the running example's train step against the same cache folder (the \"threshold\" row uses its own empty folder) measured here .",
+  "label": "core",
+  "key": "process compiling the running example's train",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "Hits, misses, files and changed ingredients are deterministic; CPU seconds for the compile call are rough.",
+  "label": "core",
+  "key": "changed ingredients are deterministic; cpu seconds",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "One entry is KB; a hit costs s of CPU against s for a compile.",
+  "label": "core",
+  "key": "cpu against s for a compile",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "On a TPU pod every host compiles the same program at start-up, for minutes on large models; the JAX docs recommend a cache \"in a shared file system (eg: NFS) or remote storage\" for multi-node jobs, and describe a Cloud Storage bucket for it.",
+  "label": "core",
+  "key": "storage\" for multi-node jobs, and describe",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "The same docs carry a warning worth repeating: \"The compilation cache is considered trusted. ...",
+  "label": "core",
+  "key": "\"the compilation cache is considered trusted",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "Sharing a compilation cache is equivalent to allowing anyone who can write to the cache directory to run code on your machine\" ( docs/persistent_compilation_cache.md ) Google docs .",
+  "label": "core",
+  "key": "your machine\" ( docs/persistent_compilation_cache.md ) google",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "8. the caches: paying for compilation once",
+  "text": "The PyTorch counterparts (FX graph cache, AOTAutograd cache, Inductor's caches) are on torch.compile from the user's side .",
+  "label": "core",
+  "key": "torch.compile from the user's side",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "Ahead of time: stages, serialized executables and jax.export Stages. jax.jit(f) hides four stages that you can call one at a time: .trace(*args) gives a Traced (the jaxpr), .lower() a Lowered (StableHLO), .compile() a Compiled (an executable you call directly).",
+  "label": "core",
+  "key": "serialized executables and jax.export stages. jax.jit(f)",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "Arguments can be real arrays or jax.ShapeDtypeStruct placeholders, so a program can be compiled before any data exists.",
+  "label": "core",
+  "key": "be real arrays or jax.shapedtypestruct placeholders",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "A Compiled object never retraces: called with a different shape it refuses measured here : Serialized executables. jax.experimental.serialize_executable.serialize(compiled) turns the compiled CPU executable of the forward pass into KB of bytes; in a fresh process deserialize_and_load brings it back in s of CPU, and it returns the same logits (difference 0.0) measured here .",
+  "label": "core",
+  "key": "serialized executables. jax.experimental.serialize_executable.serialize(compiled) turns the compiled",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "The bytes are machine code for this backend and this jaxlib : a cache you manage yourself, not a format to ship. jax.export: the format to ship. jax.export.export(jax.jit(f), platforms=...)(*args) returns an Exported : the StableHLO module plus everything needed to call it later (input and output types, shardings, the platforms, a calling convention version that fixes how arguments are passed; here, the current one). .serialize() gives bytes; jax.export.deserialize(...).call(...) compiles and runs them, in another process or years later.",
+  "label": "core",
+  "key": "one). .serialize() gives bytes; jax.export.deserialize(...).call(...) compiles",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "Measured on the running example's forward pass measured here : Three things to notice.",
+  "label": "core",
+  "key": "running example's forward pass measured here",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "Lowering needs no device, so this CPU-only machine produced the CUDA and TPU exports.",
+  "label": "core",
+  "key": "device, so this cpu-only machine produced",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "A three-platform export is one module: it takes an extra argument, _platform_index , and wraps every operation whose lowering rule is platform-specific in a stablehlo.case that picks a branch at run time; here only dot_general registers such rules ( lax.py:6385 ), so the module grows by operations although the three branches print identically for float32.",
+  "label": "core",
+  "key": "operation whose lowering rule is platform-specific",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "And a TPU-only export refuses to run here with an error naming both platforms (in the table).",
+  "label": "core",
+  "key": "naming both platforms (in the table)",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "With b, = jax.export.symbolic_shape(\"b\") and an input of jax.ShapeDtypeStruct((b, 128), jnp.int32) , one export serves every batch size: Gradients of an export. .serialize(vjp_order=1) includes the backward function: Compatibility.",
+  "label": "depth",
+  "key": "jax.export.symbolic_shape(\"b\") and an input of jax.shapedtypestruct((b",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "The JAX docs promise that a serialized export runs on JAX \"up to 6 months newer\" and \"up to 3 weeks older\" than the JAX that exported it ( docs/export/export.md ) Google docs , much shorter windows than StableHLO's own 5 and 2 years: an export depends not only on the operation set but also on JAX's calling convention and on the custom calls it emits, which the same document versions separately.",
+  "label": "core",
+  "key": "which the same document versions separately",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "The same document still says \"As of June 2024, all function exported with version 9 (the latest ...)\" one line above an example printing 10: version 10 (propagating the Shardy partitioner setting) became the default in JAX 0.7.0.",
+  "label": "depth",
+  "key": "(propagating the shardy partitioner setting) became",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "Calling an export from TensorFlow goes through jax2tf and from C++ through a PJRT plugin; neither was run here (TensorFlow is not installed).",
+  "label": "depth",
+  "key": "export from tensorflow goes through jax2tf",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "9. ahead of time: stages, serialized executables and jax.export",
+  "text": "The PyTorch counterpart is torch.export followed by AOTInductor, on torch.compile from the user's side .",
+  "label": "core",
+  "key": "torch.compile from the user's side",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "Recompiles: causes, evidence and the fix The problem.",
+  "label": "core",
+  "key": "recompiles: causes, evidence and the fix",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "Anything in the cache key from section 8 that changes between calls costs a full trace, lower and compile: for the train step, seconds; for a large model on TPU, minutes.",
+  "label": "core",
+  "key": "compile: for the train step, seconds",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "Usually nothing fails, the step just gets slow.",
+  "label": "core",
+  "key": "the step just gets slow",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "JAX can explain every miss: with jax.config.update(\"jax_explain_cache_misses\", True) each one logs a warning that names the argument and what changed.",
+  "label": "core",
+  "key": "explain every miss: with jax.config.update(\"jax_explain_cache_misses\", true)",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "The Recompile detective runs eleven scenarios with their real explanations; the common causes: Shapes that vary : the last, smaller batch of an epoch; variable sequence lengths. \"different input types: * at x, now f32[31,128] and before f32[32,128]\".",
+  "label": "core",
+  "key": "variable sequence lengths. \"different input types",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "Weak types : a Python 2.0 is weakly typed, a np.float32(2.0) is not; the explanation reads \"now f32[]{weak_type=False} and before f32[]{weak_type=True}\".",
+  "label": "core",
+  "key": "\"now f32[]{weak_type=false} and before f32[]{weak_type=true}\"",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "Static arguments : every new value of a static_argnums argument is a new program (JAX's explanation here is only \"cache miss explanation unavailable\").",
+  "label": "core",
+  "key": "is only \"cache miss explanation unavailable\")",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "A new function object : jax.jit(lambda ...) created inside a loop never hits (\"never seen function ... maybe the function is being re-defined repeatedly\").",
+  "label": "core",
+  "key": "the function is being re-defined repeatedly\")",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "Wrapping the same named function again is fine.",
+  "label": "core",
+  "key": "wrapping the same named function again",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "Configuration : changing jax_default_matmul_precision between calls: \"Tracing context doesn't match\".",
+  "label": "core",
+  "key": "changing jax_default_matmul_precision between calls: \"tracing context",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "And its opposite : a Python global read inside the function is baked in at trace time; changing it later neither recompiles nor takes effect.",
+  "label": "core",
+  "key": "time; changing it later neither recompiles",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "A recompilation storm, and the same loop with buckets A decoding-style loop calls a jitted attention-like function on a prefix that grows from 1 to 64 positions.",
+  "label": "core",
+  "key": "decoding-style loop calls a jitted attention-like",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "Exact shapes compile once per length; padding each length up to a multiple of 16 (and masking) needs four programs.",
+  "label": "core",
+  "key": "shapes compile once per length; padding",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "Same inputs, same outputs; compile counts are deterministic, seconds are measured here (the second of three repeats is drawn; compile time in the counters is the median of the three).",
+  "label": "core",
+  "key": "outputs; compile counts are deterministic, seconds",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "Exact shapes Padded to 16, 32, 48, 64 At scale.",
+  "label": "core",
+  "key": "exact shapes padded to 16, 32",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "In a long training or serving job, count compilations instead of reading logs. jax.monitoring.register_event_duration_secs_listener receives an event for every trace ( /jax/core/compile/jaxpr_trace_duration ), lowering and backend compile ( /jax/core/compile/backend_compile_duration ), the same hooks the detective uses; export them to your metrics system and alert when the count grows after warm-up. jax_log_compiles prints one line per stage: The fixes , in the order to try them: make the shapes static (pad and mask to a few buckets, drop or pad the last batch); keep Python scalars out of the signature or make their types consistent; hoist jax.jit out of loops and keep one jitted function per role; pass configuration as static arguments deliberately, not by accident; and warm up every bucket before timing.",
+  "label": "core",
+  "key": "compilations instead of reading logs. jax.monitoring.register_event_duration_secs_listener",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "When shapes must vary at run time and padding wastes too much, export with symbolic shapes (section 9) or let the serving framework bucket for you.",
+  "label": "core",
+  "key": "much, export with symbolic shapes (section",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "10. recompiles: causes, evidence and the fix",
+  "text": "The PyTorch analogue, guards and TORCH_LOGS=recompiles , is on torch.compile from the user's side .",
+  "label": "core",
+  "key": "torch.compile from the user's side",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "Profiling: which view answers which question Taking a profile.",
+  "label": "core",
+  "key": "profiling: which view answers which question",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "Wrap a few steps after warm-up: with jax.profiler.trace(\"/tmp/prof\"): for i in range(5): with jax.profiler.StepTraceAnnotation(\"train\", step_num=i): state = step(*state) jax.block_until_ready(state) # without it the trace shows dispatch, not work and open the folder in XProf ( pip install xprof ; the tool behind TensorBoard's Profile tab), which the JAX docs describe as \"a great way to acquire and visualize performance traces and profiles of your program, including activity on GPU and TPU\" ( docs/profiling.md ) Google docs , or in Perfetto.",
+  "label": "core",
+  "key": "jax.profiler.steptraceannotation(\"train\", step_num=i): state = step(*state) jax.block_until_ready(state)",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "The files carry the machine's host name: scrub before sharing. \"On this CPU\" is what xprof 2.23.2's own converter returned for the running example's trace measured here .",
+  "label": "depth",
+  "key": "converter returned for the running example's",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "The device-side tables are empty on a CPU: their columns (the header of hlo_stats includes \"HBM BW (GiB/s)\", \"Bound by\" and \"TPU core type\") are filled from device events that a CPU run does not record. not run here : their TPU and GPU content.",
+  "label": "depth",
+  "key": "hlo_stats includes \"hbm bw (gib/s)\", \"bound",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "What the trace says about the running example.",
+  "label": "core",
+  "key": "trace says about the running example",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "One step is about ms of wall time on this loaded machine; of the kernels' thread time, the backward pass takes about %, the forward % and the optimiser and gradient norms % measured here .",
+  "label": "core",
+  "key": "optimiser and gradient norms % measured",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "Matmuls and the projections around them (the linear function) dominate.",
+  "label": "core",
+  "key": "projections around them (the linear function)",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "On a TPU the same table would be read against the roofline: is each fusion limited by FLOPs or by HBM bandwidth, which TPU programming and performance teaches.",
+  "label": "core",
+  "key": "which tpu programming and performance teaches",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "Every kernel of one step, joined to its phase and model function, is in the Profile reader .",
+  "label": "core",
+  "key": "function, is in the profile reader",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "How to read a trace you did not expect.",
+  "label": "core",
+  "key": "a trace you did not expect",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "Gaps on the device row with a busy Python row mean the host cannot feed the device (dispatch, data loading, a host sync such as float(loss) every step).",
+  "label": "core",
+  "key": "feed the device (dispatch, data loading",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "One kernel far longer than its neighbours: find it by name in the optimised HLO (fusion names are stable within one compile) and look at what was fused into it.",
+  "label": "core",
+  "key": "optimised hlo (fusion names are stable",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "Many tiny kernels: fusion broke (section 4).",
+  "label": "core",
+  "key": "many tiny kernels: fusion broke (section",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "Time inside jit calls that should be cached: a recompile (section 10).",
+  "label": "core",
+  "key": "should be cached: a recompile (section",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "11. profiling: which view answers which question",
+  "text": "The PyTorch profiler and Nsight equivalents are on Profiling, benchmarking and correctness .",
+  "label": "core",
+  "key": "nsight equivalents are on profiling, benchmarking",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "12. xla flags that matter, and their risks",
+  "text": "XLA flags that matter, and their risks XLA reads XLA_FLAGS once, when the backend starts: \"Set XLA_FLAGS before importing Jax or other relevant libraries.",
+  "label": "core",
+  "key": "backend starts: \"set xla_flags before importing",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "12. xla flags that matter, and their risks",
+  "text": "Changing XLA_FLAGS after backend initialization will have no effect\" ( docs/xla_flags.md ) Google docs .",
+  "label": "core",
+  "key": "changing xla_flags after backend initialization will",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "12. xla flags that matter, and their risks",
+  "text": "Every flag is a field of DebugOptions , defined with its default and help text in xla/debug_options_flags.cc read in source : Five CPU settings on the train step measured here , each in a fresh process; losses are the first five steps from the same initial state: CPU seconds on a shared machine (1-minute load printed per row): read ratios, not values. --xla_backend_optimization_level=0 roughly halves compile time and more than doubles step time; numbers stay identical, and the optimised HLO is the same ( kernels, fusions, checked with the flag on): the level steers the backend's code generation, not the HLO passes.",
+  "label": "core",
+  "key": "values. --xla_backend_optimization_level=0 roughly halves compile time",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "12. xla flags that matter, and their risks",
+  "text": "Fast math changed nothing measurable on this program.",
+  "label": "core",
+  "key": "changed nothing measurable on this program",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "12. xla flags that matter, and their risks",
+  "text": "On TPU , flags go in LIBTPU_INIT_ARGS and are read by the closed compiler.",
+  "label": "core",
+  "key": "libtpu_init_args and are read by the",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "12. xla flags that matter, and their risks",
+  "text": "MaxText keeps a library of them: a scoped VMEM limit of 98304 KiB for dense models, flags that fuse and overlap collectives with compute, and data-parallel overlap ( benchmarks/xla_flags_library.py at the pinned commit) read in source not run here .",
+  "label": "core",
+  "key": "compute, and data-parallel overlap ( benchmarks/xla_flags_library.py",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "12. xla flags that matter, and their risks",
+  "text": "Risks Flags are debug options, not an API: names change between releases and help text goes stale (the YNNPACK flag's help contradicts its default, section 4).",
+  "label": "core",
+  "key": "flag's help contradicts its default, section",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "12. xla flags that matter, and their risks",
+  "text": "Some change numbers (fast math, disabling passes).",
+  "label": "core",
+  "key": "change numbers (fast math, disabling passes)",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "12. xla flags that matter, and their risks",
+  "text": "Disabling a pass can make compilation fail or the program slow in ways that only show at scale.",
+  "label": "core",
+  "key": "disabling a pass can make compilation",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "12. xla flags that matter, and their risks",
+  "text": "Every flag that is not on JAX's exclusion list is part of the persistent cache key (section 8), so a new flag recompiles everything.",
+  "label": "core",
+  "key": "the persistent cache key (section 8)",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "12. xla flags that matter, and their risks",
+  "text": "Keep production flags in one place, record them with each run, and re-measure after every JAX upgrade.",
+  "label": "core",
+  "key": "and re-measure after every jax upgrade",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "13. against torch.compile, inductor and triton",
+  "text": "Against torch.compile, Inductor and Triton The concepts line up (section 0's table); the behaviour differs in five places.",
+  "label": "core",
+  "key": "the behaviour differs in five places",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "13. against torch.compile, inductor and triton",
+  "text": "Dynamo splits the graph at what it cannot trace and runs that part in Python; JAX raises.",
+  "label": "core",
+  "key": "cannot trace and runs that part",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "13. against torch.compile, inductor and triton",
+  "text": "One program or an error, never a silent fallback (the root's lab shows both on the same branch).",
+  "label": "core",
+  "key": "an error, never a silent fallback",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "13. against torch.compile, inductor and triton",
+  "text": "Dynamic shapes. torch.compile marks a dimension dynamic after it changes and compiles one program for a range of sizes; JAX keeps every shape static under jit and offers symbolic shapes only through jax.export (section 9).",
+  "label": "core",
+  "key": "symbolic shapes only through jax.export",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "13. against torch.compile, inductor and triton",
+  "text": "In JAX, padding to buckets is your job.",
+  "label": "core",
+  "key": "padding to buckets is your job",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "13. against torch.compile, inductor and triton",
+  "text": "Where the decisions live.",
+  "label": "core",
+  "key": "where decisions live",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "13. against torch.compile, inductor and triton",
+  "text": "Inductor is Python and emits Triton or C++ you can read; XLA's passes are C++, readable for CPU and GPU, closed for TPU.",
+  "label": "core",
+  "key": "readable for cpu and gpu, closed",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "13. against torch.compile, inductor and triton",
+  "text": "XLA:GPU itself generates Triton for some fusions ( GemmFusion , SoftmaxRewriterTriton ), so Triton is an implementation detail of both stacks; a hand-written Triton kernel's JAX counterpart is a Pallas kernel.",
+  "label": "core",
+  "key": "some fusions ( gemmfusion , softmaxrewritertriton",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "13. against torch.compile, inductor and triton",
+  "text": "XLA plans every byte before running and reports it ( memory_analysis , section 6); PyTorch allocates at run time and reports afterwards.",
+  "label": "core",
+  "key": "memory_analysis",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "13. against torch.compile, inductor and triton",
+  "text": "Scope. jit compiles the whole train step, optimiser included, as one program; torch.compile is often applied to the model only, with the optimiser step outside or compiled separately.",
+  "label": "core",
+  "key": "the whole train step, optimiser included",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "13. against torch.compile, inductor and triton",
+  "text": "How Dynamo, AOTAutograd and Inductor work inside: The compiler stack ; from the user's side: torch.compile from the user's side .",
+  "label": "core",
+  "key": "dynamo, aotautograd and inductor work inside",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Common mistakes, with the evidence Every error message below is real output from src/lab/ on JAX , paths removed.",
+  "label": "core",
+  "key": "paths removed",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "A list (or dict) as a static argument Static arguments are cache-key entries, so they must be hashable: .",
+  "label": "depth",
+  "key": "static arguments are cache-key entries, so they must be hashable",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Calling a Compiled object with a new shape AOT-compiled code never retraces: .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restated section 9 (the error is shown there)"
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Compile one per shape bucket, or call the jit function instead.",
+  "label": "core",
+  "key": "compile one per shape bucket, or call the jit function instead",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Running a TPU-only export on another platform .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restated section 9 (the export table shows the error)"
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Export for every platform you will run on ( platforms=(\"cpu\", \"cuda\", \"tpu\") ); the module grows only where lowering rules differ.",
+  "label": "core",
+  "key": "platforms=(\"cpu\", \"cuda\", \"tpu\")",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Serializing an export without flatbuffers ImportError: Please install 'flatbuffers' in order to use Exported serialization .",
+  "label": "depth",
+  "key": "importerror: please install 'flatbuffers'",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "It is not a dependency of jax 0.11.2; install it next to JAX.",
+  "label": "depth",
+  "key": "it is not a dependency of jax 0.11.2",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Setting XLA_FLAGS inside a script after JAX started No error and no effect: the flags are read when the backend initialises (section 12).",
+  "label": "core",
+  "key": "they fail silently",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Set them in the shell, or in os.environ before import jax . jax.jit(lambda ...) inside a loop A new function object per iteration: every call traces and compiles (3 calls, 3 compilations in the detective).",
+  "label": "core",
+  "key": "os.environ before import jax",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Define the function once, outside the loop.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 10"
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Reading a Python global inside a jitted function Its value at trace time is baked in as a constant.",
+  "label": "core",
+  "key": "baked in at trace time",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Change the global later and the function keeps returning the old answer, with no recompile and no warning ( [2.",
+  "label": "core",
+  "key": "[2. 2.] twice",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "2.] twice in the detective).",
+  "label": "core",
+  "key": "[2. 2.] twice",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Pass it as an argument.",
+  "label": "core",
+  "key": "pass it as an argument",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Expecting x.at[i].set(v) to be free on an argument Without donation XLA copies the whole array first (section 6).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 6"
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Donate the state, or update values created inside the function.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 6"
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Leaving jax.debug.print in the training step It compiles to a host callback, a custom call that splits fusion: the three-operation chain that is 1 kernel without it is 3 kernels with it, plus a round trip to Python each step (Fusion explorer, \"jax.debug.print in the middle\").",
+  "label": "depth",
+  "key": "1 kernel without it is 3 kernels with it",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Trusting peak_memory_in_bytes on CPU On this backend it leaves out the temporaries; use temp_size_in_bytes plus arguments and outputs minus aliases, or total_allocation_bytes (section 6).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 6"
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Sharing a writable compilation cache The cache holds executables that JAX loads and runs; whoever can write to it can run code in your process (the JAX docs' own warning, section 8).",
+  "label": "core",
+  "key": "the compilation cache is considered trusted",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Keep it per user or read-only for others.",
+  "label": "core",
+  "key": "keep it per user, or read-only",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Diagnosing a slow step by reading the Python The Python ran once, at trace time.",
+  "label": "depth",
+  "key": "diagnosing a slow step by reading the python",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "common mistakes, with the evidence",
+  "text": "Read what the compiler made of it: the explanation of cache misses, the dumped HLO before and after (count fusions and copies), memory_analysis() , and a profile, in that order.",
+  "label": "depth",
+  "key": "the explanation of cache misses (section 10)",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Interview questions, with short answers Walk through what happens on the first call of jax.jit(f)(x) , down to machine code.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating the hero and sections 1 to 3"
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The cache is looked up by the function, the abstract signature (shapes, dtypes, weak types, pytree structure), static values and the tracing context.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating section 8"
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "On a miss: trace f with abstract tracers into a jaxpr; lower each equation by its primitive's rule into one StableHLO module ( mlir.lower_jaxpr_to_module ); hand it through PJRT to the backend compiler; XLA runs its pass pipeline (simplification to a fixed point, CSE, layout assignment, library rewrites, fusion, copy insertion), schedules, assigns buffers, and generates code (LLVM on CPU, PTX on NVIDIA, libtpu on TPU); store the executable (and optionally write it to the persistent cache).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating sections 1 to 3"
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Then execution is dispatched asynchronously.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 2 (asynchronous dispatch)"
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What is StableHLO for, if XLA has HLO?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question; answer kept in section 1 and the terms"
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A versioned, portable boundary between front ends (JAX, PyTorch/XLA) and compilers, with compatibility guarantees (5 years backward, 2 forward for portable artifacts).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 1"
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "HLO is XLA's internal form and can change at any commit. jax.export ships StableHLO for that reason.",
+  "label": "core",
+  "key": "free to change at any commit",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why does XLA not fuse everything into one kernel?",
+  "label": "depth",
+  "key": "why does xla not fuse everything into one kernel?",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Fusing a producer with several users duplicates its work, which XLA accepts only for cheap operations; matmuls and (on this CPU) many reductions go to libraries; loops, sorts, custom calls and host callbacks are walls; and backends cap fusion size (five reductions per fusion on CPU, concatenations of more than eight operands) to keep compile time and code quality reasonable.",
+  "label": "depth",
+  "key": "concatenations of more than eight operands",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "On GPU a cost model decides which fusions pay. kLoop, kInput, kOutput, kCustom?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 4"
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Hints for code generation: kLoop computes one output element at a time; kInput is built around a reduction (or transpose, scatter, concatenate) with its inputs fused in; kOutput fuses work after an operation such as a matmul into its output; kCustom is backend-specific (library, Triton, cuDNN).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 4 (fusion kinds)"
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "XLA's own header calls the scheme \"not great\".",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 4"
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Your train step got 30% slower after a refactor.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question; answer merged into the slow-step mistake"
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How do you find out why?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question"
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "First, recompiles: turn on jax_explain_cache_misses and count compilations after warm-up.",
+  "label": "depth",
+  "key": "the explanation of cache misses",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Second, the program: dump the optimised HLO before and after, compare fusion counts, copies and transposes (a layout change can add copies), and check donation still aliases ( alias_size_in_bytes ).",
+  "label": "depth",
+  "key": "alias_size_in_bytes",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Third, memory: memory_analysis() before and after (a bigger plan can trigger XLA rematerialisation on GPU).",
+  "label": "depth",
+  "key": "a bigger plan can trigger xla's rematerialisation on gpu",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Fourth, a profile: which kernels grew, and whether the device now waits on the host.",
+  "label": "depth",
+  "key": "whether the device now waits on the host",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What is in the persistent compilation cache key, and why did my cache miss after an upgrade?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 8"
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A hash of the canonicalised module, the jaxlib version, the backend version, the XLA flags (minus dump and similar flags), the compile options, the accelerator configuration, the compression algorithm and a custom hook.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 8"
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Upgrading jaxlib or the device plugin, or adding a flag, changes the key; so does a code change that alters the module, including donation. jax.export or a serialized executable?",
+  "label": "core",
+  "key": "(donation included) misses",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A serialized executable is machine code for one backend and one jaxlib: fast to load, useless elsewhere.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 9"
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "An export is StableHLO with a calling convention: compiled where it runs, portable across platforms named at export time, and guaranteed to load on JAX up to 6 months newer (3 weeks older); it can carry symbolic shapes and its own VJP.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 9"
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How does XLA's rematerialisation differ from jax.checkpoint ? jax.checkpoint is a decision you make at trace time about what the backward pass keeps.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7 table"
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "HloRematerialization is a compiler pass (in the GPU pipeline, absent on CPU) that recomputes values after scheduling only when the planned peak exceeds the device memory limit; it can also compress or offload.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7 table"
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Relying on it means a silent slowdown instead of an out-of-memory error.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 7 table"
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why is a transpose sometimes free and sometimes a full copy?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 5"
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Every XLA array has one layout.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 5"
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A transpose feeding a matmul is folded into the dot's dimension numbers; a reshape that keeps memory order is a bitcast; a transpose whose result must exist in the new order (stored, or read by an elementwise kernel) becomes a copy.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 5"
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Layout assignment chooses where those copies go.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates section 5"
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Design: serve a JAX model on TPU for requests of any length up to 8,192 tokens, with predictable latency.",
+  "label": "depth",
+  "key": "up to 8,192 tokens",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Fix a small set of shape buckets (for example powers of two in length, and a few batch sizes), pad and mask into them, and AOT-compile every bucket at start-up with jax.ShapeDtypeStruct placeholders so no request ever compiles; count compilations through jax.monitoring and alert on any after warm-up.",
+  "label": "depth",
+  "key": "jax.shapedtypestruct placeholders so no request ever compiles",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Share a read-only persistent cache among replicas built by a trusted job, keyed by the exact jaxlib and libtpu versions.",
+  "label": "depth",
+  "key": "read-only persistent cache among replicas",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The trade-off is padding waste against the number of programs: with power-of-two buckets the expected waste is up to half of each request's length in the worst case, so add intermediate buckets where traffic concentrates.",
+  "label": "depth",
+  "key": "add intermediate buckets where traffic concentrates",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "If the model must also run elsewhere, ship it as a multi-platform jax.export .",
+  "label": "depth",
+  "key": "ship it as a multi-platform jax.export",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Measure with a profile per bucket: decode steps are memory-bound, so small batches waste the MXU and the batch buckets matter as much as the length buckets.",
+  "label": "depth",
+  "key": "decode steps are memory-bound",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Scripts, outputs and the check scripts are in this page's src/lab/ (see src/README.md ).",
+  "label": "core",
+  "key": "this page's src/lab/ (see src/readme.md )",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Pinned sources: JAX jax-v0.11.2 (32544801e261, 2026-09-17), XLA 91888df6 (the commit that JAX tag pins), MaxText 1a95d1e5 ; XLA files fetched one by one, listed in src/inputs/ .",
+  "label": "core",
+  "key": "pinned sources: jax jax-v0.11.2 (32544801e261, 2026-09-17)",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Everything ran on 2026-10-15.",
+  "label": "core",
+  "key": "everything ran on 2026-10-15",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-xppass",
+  "section": "pass diff viewer",
+  "text": "Pass diff viewer XLA's CPU pipeline replayed on two real programs of the running example, one pass at a time: what each pass changed in the program text, opcode by opcode, and where the pass is added in the CPU and GPU compilers at the pinned XLA commit.",
+  "label": "core",
+  "key": "diff viewer xla's cpu pipeline replayed",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-xppass",
+  "section": "pass diff viewer",
+  "text": "Dumped with XLA_FLAGS=\"--xla_dump_to=DIR --xla_dump_hlo_pass_re=.*\" on an Apple M1 Pro, CPU only ( src/lab/passes_diff.py ).",
+  "label": "core",
+  "key": "dumped with xla_flags=\"--xla_dump_to=dir --xla_dump_hlo_pass_re=.*\" on an",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-xppass",
+  "section": "pass diff viewer",
+  "text": "The Reading tab's section 3 explains passes; this tab is for looking.",
+  "label": "core",
+  "key": "reading tab's section 3 explains passes",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-xppass",
+  "section": "pass diff viewer",
+  "text": "Attention block, forward + backward Whole train step ◀ Previous ▶ Play Next ▶ only passes that change opcode counts How to read a diff: - lines left the program, + lines entered it; metadata (source locations) is stripped before comparing, and lines are cut at 170 characters.",
+  "label": "core",
+  "key": "(source locations) is stripped before comparing",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-xppass",
+  "section": "pass diff viewer",
+  "text": "The attention block's diffs are shown up to 50 lines, the train step's up to 14 (its full dumps are 64 MB).",
+  "label": "core",
+  "key": "the attention block's diffs are shown",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-xppass",
+  "section": "pass diff viewer",
+  "text": "Instruction counts are top-level: a fusion counts as one.",
+  "label": "core",
+  "key": "instruction counts are top-level: a fusion",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-xppass",
+  "section": "pass diff viewer",
+  "text": "Passes that ran without changing the text are not dumped.",
+  "label": "core",
+  "key": "passes that ran without changing the",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-xpfuse",
+  "section": "fusion explorer",
+  "text": "Fusion explorer Every fusion in the running example's optimised train step, the fusion pass's own reasons for what it refused, and thirteen small programs that keep or break fusion, each compiled three ways.",
+  "label": "core",
+  "key": "running example's optimised train step, the",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-xpfuse",
+  "section": "fusion explorer",
+  "text": "Everything here was compiled on an Apple M1 Pro, CPU only, JAX 0.11.2 ( src/lab/fusion_lab.py ); kernel counts, kinds and bytes are deterministic.",
+  "label": "core",
+  "key": "src/lab/fusion_lab.py ); kernel counts, kinds and",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-xpfuse",
+  "section": "fusion explorer",
+  "text": "The mechanics are explained in Reading, section 4 .",
+  "label": "core",
+  "key": "mechanics are explained in reading, section",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-xpfuse",
+  "section": "fusion explorer",
+  "text": "The step's fusions, one square each Kind All kLoop kCustom (library) Phase All Forward Backward Optimiser Unlabelled Model function Click a square.",
+  "label": "core",
+  "key": "forward backward optimiser unlabelled model function",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-xpfuse",
+  "section": "fusion explorer",
+  "text": "Colour is the model function the fusion's first instruction came from, read through the stack frames XLA keeps in metadata; a dashed outline marks a YNNPACK library fusion ( kCustom ).",
+  "label": "core",
+  "key": "model function the fusion's first instruction",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-xpfuse",
+  "section": "fusion explorer",
+  "text": "Phase comes from the JAX operation name: jvp forward, transpose(jvp) backward, neither the optimiser; \"unlabelled\" fusions have no operation name (constants and copies).",
+  "label": "core",
+  "key": "transpose(jvp) backward, neither the optimiser; \"unlabelled\"",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-xpfuse",
+  "section": "fusion explorer",
+  "text": "Sixteen fusions, the two largest of each kind and phase, carry their full HLO body.",
+  "label": "core",
+  "key": "sixteen fusions, the two largest of",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-xpfuse",
+  "section": "fusion explorer",
+  "text": "Why the fusion pass said no Counted from TF_CPP_VMODULE=cpu_instruction_fusion=2,instruction_fusion=3 over the train step's compilation.",
+  "label": "core",
+  "key": "tf_cpp_vmodule=cpu_instruction_fusion=2,instruction_fusion=3 over the train step's compilation",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-xpfuse",
+  "section": "fusion explorer",
+  "text": "Click a reason for the first producer and consumer it was logged for (metadata removed, names as in the log).",
+  "label": "core",
+  "key": "was logged for (metadata removed, names",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-xpfuse",
+  "section": "fusion explorer",
+  "text": "Thirteen small programs that keep or break fusion Program Kernels under each setting (dashed: library fusion) What the fusion pass logged (default setting) Optimised HLO, default setting (metadata removed) Inputs: a 256 x 512 float32 array; 256 x 128 by 128 x 512 for the matmul; a 65 x 128 table and 32 x 128 indices for the lookup.",
+  "label": "core",
+  "key": "setting) optimised hlo, default setting (metadata",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-xpfuse",
+  "section": "fusion explorer",
+  "text": "Bytes moved is XLA's cost_analysis()[\"bytes accessed\"] for the whole program. \"Library off\" is --xla_cpu_experimental_ynn_fusion_type=-individual_dot,-individual_convolution,-reduce ; \"fusion off\" is --xla_disable_hlo_passes=fusion .",
+  "label": "core",
+  "key": "--xla_cpu_experimental_ynn_fusion_type=-individual_dot,-individual_convolution,-reduce ; \"fusion off\" is --xla_disable_hlo_passes=fusion",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-xprec",
+  "section": "recompile detective",
+  "text": "Recompile detective Eleven small cases.",
+  "label": "core",
+  "key": "recompile detective eleven small cases",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-xprec",
+  "section": "recompile detective",
+  "text": "For each, read the code and predict whether the last call traces and compiles again; then see what JAX counted (through jax.monitoring : traces, lowerings and backend compilations) and what jax_explain_cache_misses printed.",
+  "label": "core",
+  "key": "backend compilations) and what jax_explain_cache_misses printed",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-xprec",
+  "section": "recompile detective",
+  "text": "Run on JAX 0.11.2, CPU ( src/lab/recompile_lab.py ); inputs are NumPy arrays so that creating them compiles nothing.",
+  "label": "core",
+  "key": "src/lab/recompile_lab.py ); inputs are numpy arrays",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-xprec",
+  "section": "recompile detective",
+  "text": "Counts and messages are deterministic.",
+  "label": "core",
+  "key": "counts and messages are deterministic",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-xprec",
+  "section": "recompile detective",
+  "text": "Why the cache works this way: Reading, sections 8 and 10 , where the recompilation storm is animated.",
+  "label": "core",
+  "key": "where the recompilation storm is animated",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-xprec",
+  "section": "recompile detective",
+  "text": "All cases at a glance",
+  "label": "core",
+  "key": "all cases at a glance",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-xpprof",
+  "section": "profile reader",
+  "text": "Profile reader One train step of the running example as the profiler recorded it: a jax.profiler.trace of five steps on an Apple M1 Pro, CPU only, converted with xprof 2.23.2 and scrubbed of the host name ( src/lab/profile_lab.py ).",
+  "label": "core",
+  "key": "the profiler recorded it: a jax.profiler.trace",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-xpprof",
+  "section": "profile reader",
+  "text": "Every kernel is joined to the fusion it ran (its phase and model function, from the Fusion explorer ).",
+  "label": "core",
+  "key": "model function, from the fusion explorer",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-xpprof",
+  "section": "profile reader",
+  "text": "Timings are measured on a shared machine at low priority (1-minute load given below) and vary from run to run; the structure does not.",
+  "label": "core",
+  "key": "low priority (1-minute load given below)",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-xpprof",
+  "section": "profile reader",
+  "text": "Which xprof view answers which question: Reading, section 11 .",
+  "label": "core",
+  "key": "view answers which question: reading, section",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-xpprof",
+  "section": "profile reader",
+  "text": "Window start Zoom Colour by phase model function Click a bar.",
+  "label": "core",
+  "key": "colour by phase model function click",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-xpprof",
+  "section": "profile reader",
+  "text": "Rows are threads: Python (the main thread, waiting in block_until_ready ), the PJRT client that dispatches, and the XLA:CPU worker pool (10 threads: the thread-count flags have no measurable effect here, as the setup notes record).",
+  "label": "core",
+  "key": "(the main thread, waiting in block_until_ready",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-xpprof",
+  "section": "profile reader",
+  "text": "Only events of at least us are drawn ( of ).",
+  "label": "core",
+  "key": "only events of at least us",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-xpprof",
+  "section": "profile reader",
+  "text": "On a GPU or TPU the device has its own rows, one per stream or core, and the host rows show only dispatch.",
+  "label": "core",
+  "key": "the host rows show only dispatch",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-xpprof",
+  "section": "profile reader",
+  "text": "Kernel time by phase By model function By kind Longest kernels in this step Thread time summed over all worker threads for the step drawn (so it exceeds the step's wall time). \"Optimiser\" includes the gradient norm and clipping.",
+  "label": "core",
+  "key": "wall time). \"optimiser\" includes the gradient",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-xpprof",
+  "section": "profile reader",
+  "text": "Matmuls run inside YNNPACK library fusions (kCustom), which is why \"linear\" dominates.",
+  "label": "core",
+  "key": "inside ynnpack library fusions (kcustom), which",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-xpprof",
+  "section": "profile reader",
+  "text": "Files the trace wrote: .",
+  "label": "core",
+  "key": "files the trace wrote",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's tabs, the parent topic and its labs, the sibling pages, the knowledge base pages on the PyTorch and GPU side, and the best outside sources, each with an approximate time.",
+  "label": "core",
+  "key": "outside sources, each with an approximate",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-more",
+  "section": "",
+  "text": "Outside sources are marked Google (written by the makers of JAX, XLA or StableHLO: authoritative on how things work) or third-party .",
+  "label": "core",
+  "key": "stablehlo: authoritative on how things work)",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 2026-10-15.",
+  "label": "core",
+  "key": "links checked on 2026-10-15",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page Reading The whole pipeline from jaxpr to machine code, then fusion, layouts, buffers, remat, caches, export, recompiles, profiling, flags, against torch.compile; mistakes and interview questions. about min Pass diff viewer XLA's CPU pipeline replayed pass by pass on the attention block and the train step, with diffs and source lines.",
+  "label": "core",
+  "key": "buffers, remat, caches, export, recompiles, profiling",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 to 20 min Fusion explorer All fusions of the step, the fusion pass's refusals with examples, 13 programs that keep or break fusion.",
+  "label": "core",
+  "key": "pass's refusals with examples, 13 programs",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Recompile detective Eleven predict-then-reveal cases with JAX's own explanations and fixes.",
+  "label": "core",
+  "key": "recompile detective eleven predict-then-reveal cases with",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min Profile reader A small trace viewer of one step, kernels joined to phases and model functions.",
+  "label": "core",
+  "key": "joined to phases and model functions",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min The parent topic and its labs Topic: jax-and-tpu The overview this page goes deeper than.",
+  "label": "core",
+  "key": "topic: jax-and-tpu the overview this page",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-more",
+  "section": "",
+  "text": "Its Compiler lab tab: the five forms, fusion of one MLP block, donation, remat policies, scan against unroll, caches, debugging tools; its Transforms lab : tracing and recompile counts; Sharding lab : GSPMD and collectives on 8 simulated devices; TPU and Pallas lab : rooflines and the MXU. root about 28 min, each lab 15 to 30 min Sibling pages JAX core Tracing in depth, jaxpr anatomy, autodiff, vmap, pytrees: everything before lowering.",
+  "label": "core",
+  "key": "autodiff, vmap, pytrees: everything before lowering",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-more",
+  "section": "",
+  "text": "The JAX training stack Flax NNX, optax, orbax, grain; donation with nnx.jit .",
+  "label": "core",
+  "key": "optax, orbax, grain; donation with nnx.jit",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "t-more",
+  "section": "",
+  "text": "PyTorch to JAX Porting the running example; numerical differences.",
+  "label": "core",
+  "key": "porting the running example; numerical differences",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-more",
+  "section": "",
+  "text": "Sharding and scale The SPMD partitioner passes (GSPMD, Shardy) and the collective passes named in section 3.",
+  "label": "core",
+  "key": "the spmd partitioner passes (gspmd, shardy)",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-more",
+  "section": "",
+  "text": "TPU programming and performance Tiles, padding, rooflines and TPU profiles.",
+  "label": "core",
+  "key": "programming and performance tiles, padding, rooflines",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-more",
+  "section": "",
+  "text": "Pallas kernels When XLA's fusion is not enough: write the kernel.",
+  "label": "core",
+  "key": "pallas kernels when xla's fusion is",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-more",
+  "section": "",
+  "text": "JAX LLM codebases MaxText's remat policies, scan and XLA flags in production.",
+  "label": "core",
+  "key": "llm codebases maxtext's remat policies, scan",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-more",
+  "section": "",
+  "text": "Neighbouring pages in this knowledge base The compiler stack: PTX, SASS, NVRTC, torch.compile and Inductor The PyTorch and CUDA side of this page: Dynamo, AOTAutograd, Inductor's fusion, down to SASS. torch.compile from the user's side Guards, graph breaks, recompiles, caches, torch.export and AOTInductor.",
+  "label": "core",
+  "key": "breaks, recompiles, caches, torch.export and aotinductor",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-more",
+  "section": "",
+  "text": "Triton and Gluon Block-level kernels; what XLA:GPU's Triton fusions generate.",
+  "label": "core",
+  "key": "block-level kernels; what xla:gpu's triton fusions",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-more",
+  "section": "",
+  "text": "Profiling, benchmarking and correctness Nsight and honest timing on GPUs.",
+  "label": "core",
+  "key": "profiling, benchmarking and correctness nsight and",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-more",
+  "section": "",
+  "text": "Making training fast The PyTorch counterpart of sections 6, 7 and 11: memory, profiling, attention kernels.",
+  "label": "core",
+  "key": "and 11: memory, profiling, attention kernels",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-more",
+  "section": "",
+  "text": "Memory allocators PyTorch's caching allocator, against XLA's ahead-of-time plan.",
+  "label": "core",
+  "key": "pytorch's caching allocator, against xla's ahead-of-time",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-more",
+  "section": "",
+  "text": "TPUs and other accelerators The hardware the closed TPU compiler targets.",
+  "label": "core",
+  "key": "other accelerators the hardware the closed",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-more",
+  "section": "",
+  "text": "Performance math FLOPs, bytes and rooflines, for reading bytes-moved numbers.",
+  "label": "core",
+  "key": "and rooflines, for reading bytes-moved numbers",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-more",
+  "section": "",
+  "text": "Outside sources Ahead-of-time lowering and compilation Google.",
+  "label": "core",
+  "key": "sources ahead-of-time lowering and compilation google",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Exporting and serializing staged-out computations Google. jax.export, calling conventions, compatibility windows.",
+  "label": "core",
+  "key": "computations google. jax.export, calling conventions, compatibility",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Persistent compilation cache Google.",
+  "label": "core",
+  "key": "40 min persistent compilation cache google",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-more",
+  "section": "",
+  "text": "Settings, multi-node use, the trust warning.",
+  "label": "core",
+  "key": "settings, multi-node use, the trust warning",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Debugging slow tracing and compilation Google.",
+  "label": "core",
+  "key": "debugging slow tracing and compilation google",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-more",
+  "section": "",
+  "text": "Cache-miss explanations and compile logs.",
+  "label": "core",
+  "key": "cache-miss explanations and compile logs",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min Profiling computation Google.",
+  "label": "core",
+  "key": "10 min profiling computation google",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-more",
+  "section": "",
+  "text": "Taking traces; XProf and Perfetto.",
+  "label": "core",
+  "key": "taking traces; xprof and perfetto",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min XLA architecture Google.",
+  "label": "core",
+  "key": "15 min xla architecture google",
+  "where": ""
+ },
+ {
+  "id": 387,
+  "tab": "t-more",
+  "section": "",
+  "text": "The compiler's stages on one page.",
+  "label": "core",
+  "key": "the compiler's stages on one page",
+  "where": ""
+ },
+ {
+  "id": 388,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min XLA operation semantics Google.",
+  "label": "core",
+  "key": "10 min xla operation semantics google",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-more",
+  "section": "",
+  "text": "Every HLO operation defined. reference Tiled layout Google.",
+  "label": "core",
+  "key": "operation defined. reference tiled layout google",
+  "where": ""
+ },
+ {
+  "id": 390,
+  "tab": "t-more",
+  "section": "",
+  "text": "TPU tiles and padding, with the index formulas.",
+  "label": "core",
+  "key": "and padding, with the index formulas",
+  "where": ""
+ },
+ {
+  "id": 391,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min XLA flags guidance Google.",
+  "label": "core",
+  "key": "15 min xla flags guidance google",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-more",
+  "section": "",
+  "text": "Which flags to use for TPU and GPU performance.",
+  "label": "core",
+  "key": "use for tpu and gpu performance",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min StableHLO specification Google.",
+  "label": "core",
+  "key": "20 min stablehlo specification google",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-more",
+  "section": "",
+  "text": "The operation set JAX lowers to. reference PJRT Google.",
+  "label": "core",
+  "key": "operation set jax lowers to. reference",
+  "where": ""
+ },
+ {
+  "id": 395,
+  "tab": "t-more",
+  "section": "",
+  "text": "The device interface and its plugins.",
+  "label": "core",
+  "key": "the device interface and its plugins",
+  "where": ""
+ },
+ {
+  "id": 396,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min XProf Google.",
+  "label": "core",
+  "key": "15 min xprof google",
+  "where": ""
+ },
+ {
+  "id": 397,
+  "tab": "t-more",
+  "section": "",
+  "text": "Each profiler view explained.",
+  "label": "core",
+  "key": "each profiler view explained",
+  "where": ""
+ },
+ {
+  "id": 398,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min How to Scale Your Model: profiling TPU programs Google DeepMind authors.",
+  "label": "core",
+  "key": "profiling tpu programs google deepmind authors",
+  "where": ""
+ },
+ {
+  "id": 399,
+  "tab": "t-more",
+  "section": "",
+  "text": "Reading HLO and XProf for a real TPU workload (published TPU traces).",
+  "label": "core",
+  "key": "real tpu workload (published tpu traces)",
+  "where": ""
+ },
+ {
+  "id": 400,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Operator Fusion in XLA: Analysis and Evaluation Third-party (2023).",
+  "label": "core",
+  "key": "xla: analysis and evaluation third-party (2023)",
+  "where": ""
+ },
+ {
+  "id": 401,
+  "tab": "t-more",
+  "section": "",
+  "text": "How XLA's fusion passes worked on GPU then, with measured effects; older than the pinned code.",
+  "label": "core",
+  "key": "then, with measured effects; older than",
+  "where": ""
+ },
+ {
+  "id": 402,
+  "tab": "t-more",
+  "section": "",
+  "text": "60 min The Deep Learning Compiler: A Comprehensive Survey Third-party (2020).",
+  "label": "core",
+  "key": "learning compiler: a comprehensive survey third-party",
+  "where": ""
+ },
+ {
+  "id": 403,
+  "tab": "t-more",
+  "section": "",
+  "text": "XLA, TVM, Glow and others side by side.",
+  "label": "core",
+  "key": "xla, tvm, glow and others side",
+  "where": ""
+ },
+ {
+  "id": 404,
+  "tab": "t-read",
+  "section": "(added by hand: script-rendered)",
+  "text": "pass table (script-rendered): every pass that changed the attention block or the step, class, header line, CPU and GPU lines",
+  "label": "depth",
+  "key": "every pass that changed these programs",
+  "where": ""
+ },
+ {
+  "id": 405,
+  "tab": "t-read",
+  "section": "(added by hand: script-rendered)",
+  "text": "cache cases table (script-rendered): cold miss, warm hit, dump flag hit, XLA flag miss, donation miss, threshold not written",
+  "label": "core",
+  "key": "(donation included) misses",
+  "where": ""
+ },
+ {
+  "id": 406,
+  "tab": "t-read",
+  "section": "(added by hand: script-rendered)",
+  "text": "export table (script-rendered): CPU, CUDA, TPU and three-platform exports, sizes, op counts, run results",
+  "label": "core",
+  "key": "a tpu-only export refuses to run here",
+  "where": ""
+ },
+ {
+  "id": 407,
+  "tab": "t-read",
+  "section": "(added by hand: script-rendered)",
+  "text": "five CPU flag settings table (script-rendered): compile and step CPU seconds, losses, load",
+  "label": "core",
+  "key": "roughly halves compile time",
+  "where": ""
+ },
+ {
+  "id": 408,
+  "tab": "t-read",
+  "section": "(added by hand: script-rendered)",
+  "text": "in-place table (script-rendered): copy only for a non-donated argument",
+  "label": "core",
+  "key": "copy-insertion",
+  "where": ""
+ },
+ {
+  "id": 409,
+  "tab": "t-read",
+  "section": "(added by hand: script-rendered)",
+  "text": "recompile storm (script-rendered): 64 compilations exact against 4 bucketed",
+  "label": "core",
+  "key": "64 compilations for 64 prefix lengths",
+  "where": ""
+ },
+ {
+  "id": 410,
+  "tab": "t-read",
+  "section": "(added by hand: script-rendered)",
+  "text": "fusion refusal bars (script-rendered): decision counts by XLA reason",
+  "label": "core",
+  "key": "too many reductions inside single fusion",
+  "where": ""
+ },
+ {
+  "id": 411,
+  "tab": "t-read",
+  "section": "(added by hand: script-rendered)",
+  "text": "peak attribution bars (script-rendered): div 28%, erfc 17.9%",
+  "label": "core",
+  "key": "divisions (28%)",
+  "where": ""
+ },
+ {
+  "id": 412,
+  "tab": "t-read",
+  "section": "(added by hand: script-rendered)",
+  "text": "step with and without fusion table (script-rendered): kernels, bytes, temp memory, times",
+  "label": "core",
+  "key": "10.57 gb against 2.52 gb",
+  "where": ""
+ },
+ {
+  "id": 413,
+  "tab": "t-read",
+  "section": "(added by hand: script-rendered)",
+  "text": "xprof views table (script-rendered): what each view answers and what it returned on CPU",
+  "label": "core",
+  "key": "which xprof view answers which question",
+  "where": ""
+ },
+ {
+  "id": 414,
+  "tab": "t-read",
+  "section": "(added by hand: script-rendered)",
+  "text": "primitive expansion table (script-rendered): jaxpr eqns, StableHLO ops, HLO instrs per primitive",
+  "label": "depth",
+  "key": "reduce_sum doubles in stablehlo",
+  "where": ""
+ },
+ {
+  "id": 415,
+  "tab": "t-read",
+  "section": "(added by hand: script-rendered)",
+  "text": "lowering source walk table (script-rendered): files and lines from jit to MLIR module",
+  "label": "depth",
+  "key": "the lowering walk in the source",
+  "where": ""
+ }
+]

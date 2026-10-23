@@ -39,13 +39,13 @@
     const y=v=>H-pb-(H-pb-pt)*v/maxT;
     let s='';
     bands.forEach(b=>{s+='<rect x="'+(pl+b[0]*bw)+'" y="'+pt+'" width="'+((b[1]-b[0]+1)*bw)+'" height="'+(H-pb-pt)+'" fill="'+pc[b[2]]+'" opacity=".12"/>'});
-    for(let t=0;t<=4;t++){const v=maxT*t/4;s+='<line x1="'+pl+'" x2="'+(W-4)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(pl-4,y(v)+3,(v/1e6).toFixed(0)+' MB',{a:'end',fs:10})}
+    for(let t=0;t<=4;t++){const v=maxT*t/4;s+='<line x1="'+pl+'" x2="'+(W-4)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(pl-4,y(v)+3,(v/1e6).toFixed(0)+' MB',{a:'end',fs:11})}
     const cur=Math.min(n-1,i*step);
     let d='M'+pl+','+y(0);T.forEach((v,k)=>{d+='L'+(pl+k*bw).toFixed(1)+','+y(v).toFixed(1)});d+='L'+(pl+(n-1)*bw).toFixed(1)+','+y(0)+'Z';
     s+='<path d="'+d+'" fill="var(--acc)" opacity=".25" stroke="var(--acc)" stroke-width="1"/>';
     s+='<line x1="'+(pl+cur*bw)+'" x2="'+(pl+cur*bw)+'" y1="'+pt+'" y2="'+(H-pb)+'" stroke="var(--ink)" stroke-width="1.5"/>';
     const pk=Math.floor(D.buf.peak.xla_pos/D.buf.timeline_step);s+='<circle cx="'+(pl+pk*bw)+'" cy="'+y(T[pk])+'" r="3.5" fill="var(--bad)"/>';
-    let lx=pl;['forward','backward','optimiser'].forEach(p=>{s+='<rect x="'+lx+'" y="'+(H-12)+'" width="9" height="9" fill="'+pc[p]+'" opacity=".5"/>'+RD.t(lx+12,H-4,p,{fs:10});lx+=78});
+    let lx=pl;['forward','backward','optimiser'].forEach(p=>{s+='<rect x="'+lx+'" y="'+(H-12)+'" width="9" height="9" fill="'+pc[p]+'" opacity=".5"/>'+RD.t(lx+12,H-4,p,{fs:11});lx+=78});
     mh.innerHTML=RD.svg(W,H,s,'Live bytes over the schedule');
     const ph=phaseAt(cur);
     mc.innerHTML=RD.stat('Schedule position',f(cur*D.buf.timeline_step)+' of '+f(D.buf.schedule_len))+RD.stat('Live now',XP.mb(T[cur]))+RD.stat('Phase',ph)+RD.stat('Peak',XP.mb(D.buf.peak.bytes),'reconstructed; XLA: '+XP.mb(D.buf.peak.xla_bytes));
