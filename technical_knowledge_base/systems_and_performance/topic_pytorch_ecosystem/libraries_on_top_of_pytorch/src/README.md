@@ -66,3 +66,7 @@ Why about 23 minutes is right: the page compares eight libraries on the same dut
 ## Departures from the child-page method
 
 Reading by the subject's logic (the loop, defaults, loss averaging, then library by library, then which for which job, then dropping down); one tab for the standalone dataset view (What calls what), Further reading last. There is no `src/live.md`: the old page's text is in the root's `src/read/old/hf_stack_and_frameworks.md`, and `coverage.md` here lists every claim with its status.
+
+## Close of the topic (2026-10-23)
+
+Sibling and neighbour reading times in Further reading set to each page's header; the time for Topic: ml-infra-and-orchestration dropped (its header states none).
