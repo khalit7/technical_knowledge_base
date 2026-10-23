@@ -67,6 +67,30 @@ Attention mechanisms now have one owner, Attention variants, and whole-model KV-
 - **Kept here:** the ratio-count surveys, section 7's window counts and the Llama 4 chunk drill (with a link added for the mechanism), the corrections of the gallery's figures, the Gemma 3 placement sentence in section 4 (it explains the strips).
 - `src/ledger.json` lists only the removed units with the key string that proves the owner carries each (`python3 html_utils/ledger.py check`: problems 0).
 - Also: animations no longer autoplay (`21_js_rd_common.js` replaced from the skill template; the same autoplay start removed from `anim` in `23_js_ag_1core.js`, used by the Decode a config tab); the tab script opens a tab named in the URL hash; the header reads "Reading: 30 min, plus 3 in closed details.", measured with `html_utils/audit_pages.mjs` (it counts script-rendered text, so it is set by hand; the build's own counter, which does not, gives 22 and 4).
-- Not changed, flagged: section 13 says two Nemotron configs make the root Config calculator throw a TypeError. Re-running `checks/cc_agree.mjs` on 2026-10-23 gives a different picture: the calculator now rejects four Nemotron 3 configs with an explicit "Nemotron MoE layers ... are not modelled here" error, 42 of 46 models agree. The sentence and `out/cc_agree.json` were left as they were for the full rebuild.
+- Flagged then, fixed in the rebuild below: the stale TypeError note on Nemotron configs.
 - Length: the Reading tab stays at 30 minutes of core text (most of the ladder's words were step captions shown one at a time), the page loses the Cache at context tab (about 3 minutes) and 32 KB. What left is carried by the owners; what stays is this page's own survey of released configs. Side effect to fix in the full rebuild: the ladder was the Reading tab's only SVG figure, so the audit now counts no inline visual there (the strips and tables are HTML).
 
+
+## 2026-10-23 rebuild to the teaching contract
+Owns the survey of released architectures: which model made which design choice, the ratio counts, and the corrections of the gallery's figures. Mechanisms are named, counted and linked to their owners (Attention variants, Long context, Beyond attention, Mixture of experts, Positional Encodings, Normalisation), never taught here.
+
+- **Top**: the core idea in one sentence; a hero matrix (`25_js_ag_figs.js`, `#ag-hero`): 14 models from Llama 3.1 8B to Kimi K3 by cache entry, windowed / linear / sparse layers, experts, shared expert, dense prefix, position, KV on the card and held at 131K, with the 2026 counts as its bottom row; "You need" (links to every owner); new terms; the census by year redrawn as one SVG. The old delta table is a closed reference block.
+- **Visuals for the cross-model patterns, inline beside each claim** (all new, all derived from `window.AGD`, every number in a static caption checked by `checks/check_data.py`): the six gallery mismatches as a dumbbell (section 1); the KV-per-token spread by year with medians (5); the windowed models, card against held, as a dumbbell replacing the HTML bars (6); Kimi Linear's published ratio ablation above the released hybrids at their own ratios, two panels, two sources (7); active share against total parameters for every 2025 to 2026 MoE model (8); config layers against caches per token for the stack-shape cases (10).
+- **Moved to closed blocks**: the per-model hybrid and MoE tables, the decoder code excerpt, the transformers check excerpt and its 49 uncheckable configs, the looped-model research, four design questions, and the dense-prefix rationale (flagged unsourced, pointed at Mixture of experts).
+- **Common mistakes removed as a section**: the unique ones folded into the core (sparse attention does not shrink the cache, section 5; hybrids are not cache-free, 7; two active counts, 2; recompute a curated table, 1); the rest restated the core (fat).
+- **Fixed**: section 11 now says the root Config calculator agrees on 42 of 46 models (210 numbers) and rejects the 4 Nemotron 3 configs with an explicit "not modelled here" error (re-run 2026-10-23; `out/cc_agree.json` refreshed). `check_data.py` claims updated (stale ones for the removed Cache tab dropped, 13 added for the new captions); `check_controls.mjs` no longer refers to the removed Cache tab or ladder, and checks for autoplay with and without reduced motion.
+- The `21_js_rd_common.js` and `99_js_tabs.js` templates were already in place from the pilot (storage key `ag-tab`); the Decode tab's own animation controller starts paused.
+- Sections renumbered (0 to 12): the "Seven answers" paragraph merged into the strips section; position and norms merged into one section.
+
+### Length judgement
+| | Before | After |
+|---|---|---|
+| Reading, core (`audit_pages.mjs`, 230 wpm) | 29.6 min | 22.4 min |
+| Reading, closed details | 2.9 min | 8.5 min |
+| Decode a config / Compare architectures / Further reading | 4.0 / 16.8 / 3.3 min | 4.0 / 16.8 / 3.4 min |
+| Visuals drawn in Reading | 0 | 8 |
+
+22 minutes is right for a survey of 105 configs: every core unit is a count, a ratio, a real model's arithmetic or a correction this page owns, and about a quarter of the core words are captions that carry the numbers the figures draw. What made the old page long (per-model tables, code, an interview block, mistakes restating the core) is now closed or cut as fat. The Compare tab's 16.8 minutes is a 113-row lookup table, used, not read. The header is set by hand from the audit (the build's own counter skips script-rendered text and gives 20 and 5).
+
+### Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
+273 units: core 196, depth 29, fat 38 (each with a `note`), owned 10. 249 drafted from the pre-rebuild page by `ledger.py init`; 12 added by hand for the script-drawn figures and tables (keys in their static titles); 12 carried from the pilot (moved to Attention variants and Long context then, keys verified there).

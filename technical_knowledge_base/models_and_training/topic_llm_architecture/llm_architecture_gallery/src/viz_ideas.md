@@ -26,3 +26,17 @@ Scoring as in the explainer-page skill (0 to 2 each; reproduce and computable co
 
 What the method lacked (suggestion for the skill): a rule that a third-party table is recomputed with the modeling code at
 a pinned version, not only the config, when the config cannot settle the cache (Gemma 4 E2B/E4B, Motif 3, LongCat).
+
+## 2026-10-23 rebuild (teaching contract)
+| Visual | Place | Status |
+|---|---|---|
+| Hero matrix: 14 models by design choice, 2026 counts as bottom row | Reading top | built (new) |
+| Census by year as one SVG (was seven small HTML rows) | Reading top | rebuilt |
+| Gallery mismatches as a dumbbell (gallery against config) | Reading 1 | built (new) |
+| KV per token by year, strip plot with medians | Reading 5 | built (new); distinct from the Compare scatter (distribution and medians, not dates) |
+| Windowed models: card against held at 131K, dumbbell | Reading 6 | rebuilt from HTML bars |
+| Linear:attention ratio: Kimi ablation (published) over released hybrids (derived), two panels | Reading 7 | built (new) |
+| Active share against total parameters, MoE models 2025 to 2026 | Reading 8 | built (new; the 2026-10-18 rejection reversed: the pattern, share falling with size, is what the table hid) |
+| Config layers against caches per token | Reading 10 | built (new) |
+| Small multiples as SVG | Reading 4 | rejected: the HTML strips already work at phone width and are clickable; the audit does not count them as a visual |
+| Positional choices figure | Reading 9 | rejected: the census and hero carry the counts; a sentence says the rest |

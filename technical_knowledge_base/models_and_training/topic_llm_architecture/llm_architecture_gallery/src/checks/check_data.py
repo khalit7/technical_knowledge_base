@@ -94,17 +94,28 @@ C26, C25, st = census['2026'], census['2025'], census['status']
 KiB, MiB, GiB = 1024, 2 ** 20, 2 ** 30
 R = by
 held = lambda r, T, cred: sum(r['per'].get(c, 0) * (min(T, r['W']) if cred and c == 'S' and r.get('W') else T) for c in r['mix'][:r['L'] - (r.get('shared') or 0)]) * (r.get('passes') or 1)
+HY = [sum(c in 'LH' for c in r['mix']) / len(r['mix'].replace('L', '').replace('H', '').replace('F', '')) for r in rows if r.get('mix') and not r.get('x') and any(c in 'LH' for c in r['mix']) and r['mix'].replace('L', '').replace('H', '').replace('F', '')]
+MOE = [r for r in rows if r.get('E') and r.get('tot') and r.get('act') and not r.get('x') and r['dt'] >= '2025']
+BIG = [round(100 * r['act'] / r['tot'], 1) for r in MOE if r['tot'] >= 500]
+SMALL = [round(100 * r['act'] / r['tot'], 1) for r in MOE if r['tot'] <= 35]
 stB = lambda r: (r.get('st') or 0) * sum(c in 'LH' for c in r['mix']) * 4
 claims = [
     ('105 of the 109 models', census['n_cfg'] == 105 and census['n_gallery'] == 109),
-    ('2026 models in the gallery (of 66 with a config)', C26['n'] == 66),
     ('MLA in 16; no plain MHA at all', C26['mla'] == 16 and C26['mha'] == 0),
     ('median cache 68.6 KiB per token against 144 KiB for the 2025 models', round(C26['kv_median'] / KiB, 1) == 68.6 and C25['kv_median'] == 144 * KiB),
-    ('Windows in 25', C26['win'] == 25), ('Linear or SSM hybrids in 20', C26['hyb'] == 20),
-    ('Trained sparse attention in 11', C26['sparse'] == 11),
-    ('MoE in 52; of those 39 add a shared expert and 31 keep their first layers dense', C26['moe'] == 52 and C26['shared'] == 39 and C26['prefix'] == 31),
-    ('RoPE in 61; partial RoPE in 25; layers with no position in 5', C26['rope'] == 61 and C26['prope'] == 25 and C26['nope'] == 5),
-    ('Looped in 1, cross-layer KV sharing in 2', C26['loops'] == 1 and C26['kvshare'] == 2),
+    ('windows in 25', C26['win'] == 25),
+    ('linear or SSM hybrids in 20; trained sparse attention in 11', C26['hyb'] == 20 and C26['sparse'] == 11),
+    ('MoE in 52 (39 add a shared expert and 31 keep their first layers dense); partial RoPE in 25; layers with no position in 5', C26['moe'] == 52 and C26['shared'] == 39 and C26['prefix'] == 31 and C26['prope'] == 25 and C26['nope'] == 5),
+    ('RoPE, 61 of the 66 models of 2026', C26['rope'] == 61),
+    ('looped in 1, cross-layer KV sharing in 2 of the 2026 models', C26['loops'] == 1 and C26['kvshare'] == 2),
+    ('the gallery\'s 66 models of 2026: MLA in 16', C26['n'] == 66 and C26['mla'] == 16),
+    ('The top of the list is Gemma 4 12B at 31.2 times', round(R['Gemma 4 12B']['kv'] / R['Gemma 4 12B']['kvw'], 1) == 31.2 and max(r['kv'] / r['kvw'] for r in rows if r.get('mix') and 'S' in r['mix'] and r.get('kv') and r.get('kvw') and not r.get('x')) == R['Gemma 4 12B']['kv'] / R['Gemma 4 12B']['kvw']),
+    ('13 of the 23 sit between 2.9 and 3.1 to 1', len(HY) == 23 and sum(1 for q in HY if 2.85 <= q <= 3.1) == 13 and round(min(HY), 1) == 1.7 and max(HY) == 7),
+    ('From 500B parameters up, 21 of 22 models run 2.9 to 6.4% of their weights per token', len(BIG) == 22 and sum(1 for v in BIG if 2.9 <= v <= 6.4) == 21 and max(BIG) == 10.0),
+    ('at 35B and below the share is 8 to 21% (Mellum2 Thinking 20.8%)', min(SMALL) == 8.0 and max(SMALL) == 20.8),
+    ('MiMo-V2-Flash and MiMo-V2.5: 217.5 KiB, not 144', R['Xiaomi MiMo-V2-Flash 309B']['kv'] == 217.5 * KiB and R['Xiaomi MiMo-V2.5 310B']['kv'] == 217.5 * KiB and R['Xiaomi MiMo-V2-Flash 309B']['galtxt'] == '144 KiB'),
+    ('LongCat-Flash-Lite: 31.5 KiB, not 63', R['LongCat-Flash-Lite 68.5B-A3B']['kv'] == 31.5 * KiB and R['LongCat-Flash-Lite 68.5B-A3B']['galtxt'] == '63 KiB'),
+    ('Step 3.5 Flash: 180 KiB against 192', R['Step 3.5 Flash 196B']['kv'] == 180 * KiB and R['Step 3.5 Flash 196B']['galtxt'] == '192 KiB'),
     ('72 KiB per token on the card, 36 KiB per token effective at 131,072 tokens; one full-context request holds 4.5 GiB, so 16 such requests need 72 GiB', R['GPT-OSS 120B']['kv'] == 72 * KiB and round(R['GPT-OSS 120B']['kvw'] / KiB) == 36 and round(held(R['GPT-OSS 120B'], T, True) / GiB, 1) == 4.5),
     ('24 × (512 + 64) × 2 = 27 KiB per token, 3.4 GiB at 131,072 tokens', R['Kimi K3']['mix'].count('M') == 24 and R['Kimi K3']['kv'] == 27 * KiB and round(R['Kimi K3']['kv'] * T / GiB, 1) == 3.4),
     ('a fixed state of 1,572,864 numbers each, 414 MiB per sequence', R['Kimi K3']['st'] == 1572864 and round(stB(R['Kimi K3']) / MiB) == 414),
@@ -118,8 +129,9 @@ claims = [
     ('59 models agree layer for layer, 0 differ; the other 49', hf_ok == 59 and hf_bad == 0 and hf_skip == 49),
     ('19 need custom code (no class in transformers), 2 configs are rejected by their class', sum(1 for x in hf['rows'] if x['status'] == 'no transformers class') == 19 and sum(1 for x in hf['rows'] if x['status'].startswith('class rejects')) == 2),
     ('28 classes keep no per-layer list, 26 of them', sum(1 for x in hf['rows'] if x['status'].startswith('no per-layer')) == 28),
-    ('44 models, 220 numbers, all equal', cc_ok == 44 and not cc_bad),
-    ('The 27 models both pages draw', n_map == 27),
+    ('42 of 46 models agree, 210 numbers, all equal', cc_ok == 42 and len(cc) == 46 and not cc_bad),
+    ('The other 4, the Nemotron 3 configs, the calculator rejects', len(cc_err) == 4 and all(n.startswith('Nemotron 3') for n in cc_err)),
+    ('the 27 models both pages draw', n_map == 27),
     ('2,560 KiB per token, 320 GiB for one 128K request', 2 * 80 * 64 * 128 * 2 == 2560 * KiB),
     ('(Llama 3.1 70B: 64 query heads, 8 KV heads, 320 KiB per token)', R['Llama 3.1 70B']['H'] == 64 and R['Llama 3.1 70B']['Hkv'] == 8 and R['Llama 3.1 70B']['kv'] == 320 * KiB),
     ('Nemotron 3.5 Lightning keeps 6 KiB per token, Gemma 4 31B 840 KiB', R['Nemotron 3.5 Lightning 30B-A3B']['kv'] == 6 * KiB and R['Gemma 4 31B']['kv'] == 840 * KiB),
@@ -138,17 +150,13 @@ claims = [
     ('this page\'s 180 KiB and the gallery\'s 192 KiB for Step 3.5 Flash', R['Step 3.5 Flash 196B']['kv'] == 180 * KiB),
     ('larger than the cache up to about 15,700 tokens', round(stB(R['Kimi K3']) / R['Kimi K3']['kv'], -2) == 15700),
     ('plus 15.25 KiB of indexer keys (61 × 128 × 2 bytes)', R['DeepSeek V3.2']['idx'] == 61 * 128 * 2 == 15.25 * KiB),
-    ('530 KiB per token, not the 59.6 KiB', round(R['Motif 3 Beta']['kv'] / KiB) == 530 and round(53 * 576 * 2 / KiB, 1) == 59.6),
-    ('about 46 KiB per token at 131,072 tokens: 105 GiB against 5.8 GiB', round(R['Gemma 4 31B']['kvw'] / KiB) == 46 and R['Gemma 4 31B']['kv'] * T == 105 * GiB and round(held(R['Gemma 4 31B'], T, True) / GiB, 1) == 5.8),
+    ('about 46 KiB per token at 131,072 tokens, 105 GiB against 5.8 GiB', round(R['Gemma 4 31B']['kvw'] / KiB) == 46 and R['Gemma 4 31B']['kv'] * T == 105 * GiB and round(held(R['Gemma 4 31B'], T, True) / GiB, 1) == 5.8),
     ('72 MiB of FP32 state against 24 KiB per token, about 3,000 tokens', stB(R['Qwen3 Next 80B-A3B']) == 72 * MiB and R['Qwen3 Next 80B-A3B']['kv'] == 24 * KiB),
     ('31 of the 52 MoE models of 2026', C26['prefix'] == 31 and C26['moe'] == 52),
     ('about 130 GiB for 16 requests', int(16 * (held(R['Nemotron 3 Super 120B-A12B'], 2 ** 20, True) + stB(R['Nemotron 3 Super 120B-A12B'])) / GiB) == 130),
     ('160 MiB of Mamba-2 state', stB(R['Nemotron 3 Super 120B-A12B']) == 160 * MiB),
     ('57 KiB. The 12 global layers', round(R['Llama 4 Maverick']['kvw'] / KiB) == 57 and R['Llama 4 Maverick']['mix'].count('G') == 12),
     ('180 MiB / 30 KiB = 6,144 tokens', stB(R['Qwen3.5 397B']) == 180 * MiB and R['Qwen3.5 397B']['kv'] == 30 * KiB),
-    ('Qwen3-Next 3 GiB plus 72 MiB of state', R['Qwen3 Next 80B-A3B']['kv'] * T == 3 * GiB),
-    ('Llama 3.1 70B 40 GiB per 131,072-token request', R['Llama 3.1 70B']['kv'] * T == 40 * GiB),
-    ('gpt-oss-120b 4.5 GiB (9 GiB uncredited)', R['GPT-OSS 120B']['kv'] * T == 9 * GiB),
     ('6,144 bytes per token', R["Tiny GPT (this topic's running example)"]['kv'] == 6144),
 ]
 for text, ok in claims:
