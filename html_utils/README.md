@@ -11,6 +11,7 @@ Runtime tools the knowledge base pages are checked and published with. How pages
 | `page_finalize.py`, `paper_finalize.py` | Publish: mark `html_only` and commit each page's own files with `pages.json` (then push). |
 | `audit_pages.mjs`, `audit_pages.py` | Measure every page from the rendered DOM: core and closed-detail minutes, visuals inline and in tabs; `--concepts` flags concepts taught on several pages. |
 | `ledger.py` | The knowledge ledger: `init` drafts a page's units, `check` proves no non-fat unit was lost in a rebuild. |
+| `check_times.py` | Lists reading times quoted for other pages that no longer match those pages' headers (`--page` for one page). |
 | `build_site.py` | Builds the reading site (GitHub Pages) from every page, with links rewritten and `p/<id>/` redirects. |
 | `cloud_setup.sh` | Sets up a cloud sandbox (the weekly routine) to build and check pages. |
 
