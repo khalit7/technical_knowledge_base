@@ -38,3 +38,6 @@ Why 21 minutes is right: the core now carries eight mechanisms (FLOP counting an
 
 ### Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 316 units: core 192, depth 87, fat 37. 299 were drafted by `ledger.py init`; 17 were added by hand for script-rendered tables and the new visuals. Fat units carry a `note` saying why.
+
+## Topic close (2026-10-24)
+The parent calculator now uses this page's activation count (49h per layer for the 8B plus FP32 logits) instead of 34sbh; `recompute.py` imports `act_bytes_gpt3` for the 34sbh comparison (36.5 GB), the copies `22_js_calcd.js` and `23_js_calcx.js` were recopied, and the two correction boxes say so. Further reading times set to each header.
