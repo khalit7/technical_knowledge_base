@@ -1,9 +1,10 @@
-// ---- Recall probes tab: running-sequence token strip (animated, attention against a chosen model), Pythia vs Mamba,
-// tiny GPT name recall, MQAR grid. All numbers from window.BAD (recorded outputs). ----
+// ---- Recall visuals in Reading (moved from the retired Recall probes tab on 2026-10-23): running-sequence token strip
+// (section 9), Pythia vs Mamba charts (section 8), tiny GPT name recall and MQAR curves (closed blocks in section 8).
+// The numbers in the prose and tables are static HTML; check_data.mjs compares them with window.BAD. ----
 (function(){
   const $=id=>document.getElementById(id);
-  if(!window.BA||!window.BAD||!$('t-recall'))return;
-  const TAB='t-recall',pct=x=>Math.round(100*x)+'%';
+  if(!window.BA||!window.BAD||!$('rc-rs'))return;
+  const TAB='t-read',pct=x=>Math.round(100*x)+'%';
   const pend=el=>{if(el)el.innerHTML='<p class="unc">pending run (src/scripts/run_pending.sh)</p>'};
   // 1. running sequence strip
   const P=BAD.rs_pieces,RT=BAD.rs_tokens||{};
@@ -29,25 +30,17 @@
       {logx:true,ymin:0,ymax:1,yticks:[0,.25,.5,.75,1],yfmt:pct,xticks:py.copy.map(z=>z.words),xlab:'words in the list (log scale)',ylab:'copy accuracy (tokens of the second copy)',label:'copy accuracy against list length'});
     BA.line($('rc-book'),[{name:'Pythia-160M',color:'var(--c1)',dots:1,pts:py.phonebook.map(z=>[z.entries,z.acc])},{name:'Mamba-130M',color:'var(--c2)',dots:1,pts:mb.phonebook.map(z=>[z.entries,z.acc])}],
       {logx:true,ymin:0,ymax:1,yticks:[0,.25,.5,.75,1],yfmt:pct,xticks:py.phonebook.map(z=>z.entries),xlab:'entries in the phone book (log scale)',ylab:'numbers found (20 lookups each)',label:'phone book accuracy'});
-    const big=Math.max(0,py.phonebook.findIndex(z=>z.entries===40)),f=m=>(m.phonebook[big].fails||[]).map(x=>RD.esc(x.query)+': wanted '+RD.esc(x.want)+', got "'+RD.esc(x.got)+'"').join('\n')||'(no failures recorded)';
-    $('rc-fails').innerHTML='<p class="small"><b>Real failures</b> in the '+py.phonebook[big].entries+'-entry books (first three per model; prompts of about '+py.phonebook[big].prompt_tokens+' tokens):</p><pre>Pythia-160M\n'+f(py)+'\n\nMamba-130M\n'+f(mb)+'</pre>'}
+  }
   // 3. tiny name recall
   const TC={at_mha:'var(--c1)',pe_nope:'var(--c6)',ba_ssm:'var(--c2)',ba_hybrid:'var(--c4)',ba_hybrid2:'var(--c5)'};
   function tiny(){const R=BAD.tiny_recall;if(!R){pend($('rc-tr'));return}
     const S=[];R.models.forEach(m=>{S.push({name:m.run+' (mentioned)',color:TC[m.run],dots:1,pts:R.dist.map((d,i)=>[d,m.seen[i]])});S.push({name:m.run+' control',color:TC[m.run],dash:'4 3',noleg:1,pts:R.dist.map((d,i)=>[d,m.unseen[i]])})});
     const ys=S.flatMap(s=>s.pts.map(p=>p[1]));
-    BA.line($('rc-tr'),S,{ymin:0,ymax:Math.ceil(Math.max(...ys)),yticks:[0,2,4,6,8].filter(v=>v<=Math.ceil(Math.max(...ys))),xticks:R.dist,xlab:'filler tokens between the mentions',ylab:'loss on the name\'s later pieces (nats)',label:'name recall against distance'});
-    const i=R.dist.indexOf(128);
-    $('rc-tr-say').innerHTML='At 128 filler tokens, recall benefit (control minus mentioned): '+R.models.map(m=>RD.esc(m.run)+' '+(m.unseen[i]-m.seen[i]).toFixed(2)).join(', ')+' nats per piece. Dashed lines are the controls.'}
+    BA.line($('rc-tr'),S,{ymin:0,ymax:Math.ceil(Math.max(...ys)),yticks:[0,2,4,6,8].filter(v=>v<=Math.ceil(Math.max(...ys))),xticks:R.dist,xlab:'filler tokens between the mentions',ylab:'loss on the name\'s later pieces (nats)',label:'name recall against distance'})}
   // 4. MQAR
   function mq(){const Q=BAD.mqar;if(!Q||!Q.length){pend($('rc-mq-c'));return}
     const pairs=[...new Set(Q.map(q=>q.pairs))].sort((a,b)=>a-b),models=['attn','ssm16','ssm64','hybrid'].filter(m=>Q.some(q=>q.model===m));
     const NM={attn:'2 attention layers',ssm16:'2 SSM layers, state 16',ssm64:'2 SSM layers, state 64',hybrid:'SSM then attention'};
-    document.querySelector('#rc-mq thead').innerHTML='<tr><th>Model</th>'+pairs.map(p=>'<th class="num">'+p+' pairs</th>').join('')+'<th class="num">State or cache (numbers per layer at the end)</th></tr>';
-    document.querySelector('#rc-mq tbody').innerHTML=models.map(m=>'<tr><td>'+NM[m]+'</td>'+pairs.map(p=>{const z=Q.find(q=>q.model===m&&q.pairs===p);
-      return '<td class="v" style="background:'+(z?'rgba(63,127,86,'+(0.12+0.6*z.acc).toFixed(2)+')':'transparent')+'">'+(z?pct(z.acc):'')+'</td>'}).join('')+
-      '<td class="num">'+{attn:'KV: 256 per token',ssm16:'state: 4,096',ssm64:'state: 16,384',hybrid:'state 4,096; KV 256 per token'}[m]+'</td></tr>').join('');
-    $('rc-mq-say').innerHTML='Only SSM-then-attention learned 8 pairs within the budget ('+pct(Q.find(q=>q.model==="hybrid"&&q.pairs===8).acc)+'); two attention layers stalled near '+pct(Q.find(q=>q.model==="attn"&&q.pairs===8).acc)+', the same plateau as the pure SSMs, and nothing learned 32 or 64 pairs. Zoology and Mamba-2 report attention solving MQAR after far longer training: <b>does not reproduce</b> at this budget (8,000 steps, 1 to 29 minutes per run on MPS). What the toy does show: a short convolution plus an SSM in front of one attention layer finds the lookup much sooner than attention alone, the same effect as the hybrid name-recall result above. Larger state (64 against 16) did not help within this budget.';
     const pmax=pairs[0],cc={attn:'var(--c1)',ssm16:'var(--c2)',ssm64:'var(--c5)',hybrid:'var(--c4)'};
     BA.line($('rc-mq-c'),models.map(m=>{const z=Q.find(q=>q.model===m&&q.pairs===pmax);return z?{name:NM[m],color:cc[m],pts:z.log.map(r=>[r.step,r.acc])}:null}).filter(Boolean),
       {ymin:0,ymax:1,yticks:[0,.25,.5,.75,1],yfmt:pct,xticks:[0,2000,4000,6000,8000],xlab:'training step',ylab:'accuracy during training, '+pmax+' pairs (512 sequences)',label:'MQAR training curves'})}

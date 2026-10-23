@@ -30,3 +30,13 @@ absent elsewhere 0-2, animatable 0-1; minus build cost).
 | Training a 100M-scale SSM vs transformer for perplexity | Hours of MPS for a published result (Waleffe et al., Jamba ablations); the tiny GPT runs show the same direction in minutes. |
 | Running Qwen3.5-0.8B (a real Gated DeltaNet hybrid) on the recall probes | Only its config is cached here; worth adding (1.6 GB download, fla kernels absent so the slow torch path): listed as a follow-up, not run. |
 | A chunked SSD algorithm animation | Mamba-2's section 6 diagram is clear; the four steps are described in prose; build cost high. |
+
+## 2026-10-23 rebuild (teaching contract)
+| Idea | Where | Decision |
+|---|---|---|
+| Hero grid: every design by how the state forgets and how it writes, shipping layers outlined | Reading top | built (static, HTML grid) |
+| Attention against recurrent layer, same 8 tokens, Qwen3-Next shapes (cross at 512) | Reading s1 | moved from the root (retired there; this page owns it) |
+| Linear attention's two forms: masked T x T against a d x d state | Reading s2 | built (static) |
+| One forget rate per head against one per key channel | Reading s6 | built (static, rates illustrative) |
+| Rollback: KV cache drops entries, state restores a snapshot and recomputes | Reading s10 | built (static, follows from the mechanism) |
+| ba.2, ba.4, ba.5, ba.8, ba.9 | Reading s7, s9, s8, s4, s4 | moved inline from the lab tabs; ba.6, ba.7, half-lives in closed blocks |

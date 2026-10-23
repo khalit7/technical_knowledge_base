@@ -1,4 +1,4 @@
-// ---- State vs KV cache tab: race animation, calculator, all-model chart, tiny GPT table ----
+// ---- State vs KV cache: the race animation (Reading section 7), the calculator and all-model chart (tab t-mem) ----
 (function(){
   const $=id=>document.getElementById(id);
   if(!window.BA||!window.MM||!window.CC||!window.BAD||!$('mm-race'))return;
@@ -19,7 +19,7 @@
     const x=MM.cross(b.cfg),xa=(()=>{let lo=1,hi=1<<24;if(MM.cache(a.cfg,hi).total<MM.cache(b.cfg,hi).total)return null;while(lo<hi){const m=Math.floor((lo+hi)/2);if(MM.cache(a.cfg,m).total>=MM.cache(b.cfg,m).total)hi=m;else lo=m+1}return lo})();
     $('mm-race-cap').innerHTML=(ra.total<rb.total?'<b>'+RD.esc(a.label)+' uses less memory</b> at this length: '+RD.esc(b.label)+' has reserved '+BA.fmtB(rb.state)+' of state from the first token.':'<b>'+RD.esc(b.label)+' uses less memory</b>: '+(ra.total/rb.total).toFixed(1)+' times less than '+RD.esc(a.label)+'.')+
       (xa?' The two totals cross at '+xa.toLocaleString('en-GB')+' tokens.':'')+(x?' Inside '+RD.esc(b.label)+', its own attention cache passes its state at '+x.toLocaleString('en-GB')+' tokens.':'')+' Scale: the longer bar fills the width at each step.'}
-  const race=BA.anim({tab:TAB,card:'mm-race',ctl:'mm-race-ctl',n:CT.length,draw:drawRace,ms:900,label:'Context'});
+  const race=BA.anim({tab:'t-read',card:'mm-race',ctl:'mm-race-ctl',n:CT.length,draw:drawRace,ms:900,label:'Context'});
   ['mm-a','mm-b'].forEach(id=>$(id).addEventListener('change',()=>race.reset(CT.length)));
   // calculator
   const CTX=[];for(let c=256;c<=16777216;c*=2)CTX.push(c);   // 256 .. 16M (17 stops)
@@ -46,9 +46,6 @@
     const yt=TK.filter(v=>v>=lo-0.3&&v<=hi+0.3);
     BA.line(el,series,{logx:true,ymin:Math.min(lo,yt[0]),ymax:Math.max(hi,yt[yt.length-1]),yticks:yt,yfmt:v=>BA.fmtB(Math.pow(10,v)),xticks:[1024,8192,65536,524288],xfmt:BA.fmtT,xlab:'context (tokens)',label:'memory per sequence against context'})}
   RD.seg($('mm-grp'),m=>{grp=m;chart()});
-  BA.onTab(TAB,()=>{chart();race.redraw()});BA.onResize(TAB,()=>{chart();race.redraw()});
-  // tiny table
-  const tt=document.querySelector('#mm-tiny tbody');
-  if(tt)tt.innerHTML=BAD.mem.tiny.map(t=>'<tr><td>'+t.preset+'</td><td><code>'+t.layer_types+'</code></td><td class="num">'+Math.round(t.kv_per_token_bf16).toLocaleString('en-GB')+' B</td><td class="num">'+t.state_fp32.toLocaleString('en-GB')+' B</td><td class="num">'+
-    (t.kv_per_token_bf16&&t.state_fp32?Math.round(t.state_fp32/t.kv_per_token_bf16).toLocaleString('en-GB')+' tokens':t.state_fp32?(t.state_fp32/BAD.mem.tiny[0].kv_per_token_bf16).toFixed(0)+' tokens of the baseline\'s cache':'')+'</td></tr>').join('');
+  BA.onTab(TAB,chart);BA.onResize(TAB,chart);BA.onTab('t-read',()=>race.redraw());BA.onResize('t-read',()=>race.redraw());
+  // tiny table: static HTML in 31_tab_mem_a.html (checked against statecalc.json by check_data.mjs)
 })();

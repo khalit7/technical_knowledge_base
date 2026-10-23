@@ -56,6 +56,15 @@ def cache_ext(cfg, ctx, kv_bytes=2, state_bytes=4):
         st = nl * (nv * dk * dv + (2 * nk * dk + nv * dv) * (k - 1)) * state_bytes
         kv = nf * 2 * c["num_key_value_heads"] * c["head_dim"] * ctx * kv_bytes
         return {"kv": kv, "state": st, "total": kv + st, "mixers": {"gdn": nl, "attn": nf}}
+    if mt == "nemotron_h" and "E" in (c.get("hybrid_override_pattern") or ""):
+        # Nemotron 3's latent MoE layers: calc.py refuses these configs since 2026-10-19 (parameter counts); cache and
+        # state need only the Mamba-2 ('M') and attention ('*') layers.
+        pat = c["hybrid_override_pattern"]; nm, na = pat.count("M"), pat.count("*")
+        di = c["mamba_num_heads"] * c["mamba_head_dim"]; ds, ng, k = c["ssm_state_size"], c["n_groups"], c["conv_kernel"]
+        st = nm * (di * ds + (di + 2 * ng * ds) * (k - 1)) * state_bytes
+        hd = c.get("head_dim") or c["hidden_size"] // c["num_attention_heads"]
+        kv = na * 2 * c["num_key_value_heads"] * hd * ctx * kv_bytes
+        return {"kv": kv, "state": st, "total": kv + st, "mixers": {"mamba2": nm, "attn": na}}
     return None
 
 

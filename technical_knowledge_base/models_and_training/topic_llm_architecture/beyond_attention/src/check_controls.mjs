@@ -41,5 +41,11 @@ try {
   for (const t of tabs) { await p.click(`button[data-t=${t}]`); await new Promise(r => setTimeout(r, 1500));
     playing.push(...await p.$$eval('#' + t + ' .an-play', bs => bs.filter(x => /Pause/.test(x.textContent)).map(x => x.id))) }
   console.log('reduced motion autoplay', playing.length ? playing : 'none'); bad += playing.length; await p.close();
+  // normal motion: scroll every animation card into view; none may start before the reader presses play or steps
+  { const q = await b.newPage(); await q.setViewport({ width: 920, height: 900 }); await q.goto('file://' + PAGE); await new Promise(r => setTimeout(r, 300));
+    const cards = await q.$$eval('#t-read .an-ctl', cs => cs.map(c => c.id)); const moving = [];
+    for (const c of cards) { await q.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1200));
+      if (await q.$eval('#' + c + '-p', x => /Pause/.test(x.textContent)) || await q.$eval('#' + c + '-s', x => x.value !== '0')) moving.push(c) }
+    console.log('normal motion autoplay over', cards.length, 'animations:', moving.length ? moving : 'none'); bad += moving.length; await q.close() }
 } finally { await b.close() }
 process.exit(bad ? 1 : 0);

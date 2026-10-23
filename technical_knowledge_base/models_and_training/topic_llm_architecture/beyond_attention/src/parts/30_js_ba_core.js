@@ -1,5 +1,5 @@
-// ---- Lab tabs: shared helpers (window.BA). anim = RD.anim's controller for a lab tab (play, pause, step, scrub, speed;
-// only while its card is on screen in the visible tab; never autoplays under reduced motion); line = a small line chart. ----
+// ---- Shared helpers for the page's data visuals (window.BA). anim = RD.anim's controller for a lab tab (play, pause, step, scrub, speed;
+// only while its card is on screen in the visible tab; never autoplays: it waits until the reader presses play or steps); line = a small line chart. ----
 window.BA=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const onTab=(tab,f)=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER[tab]=window.TAB_RENDER[tab]||[]).push(f)};
@@ -25,7 +25,7 @@ window.BA=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onTab(o.tab,()=>{show();kick()});show();
     return {reset(n){setPlay(false);st.n=n;st.i=0;show()},redraw(){o.draw(st.i)},get i(){return st.i}};
@@ -40,7 +40,7 @@ window.BA=(function(){
     const X=v=>l+(W-l-r)*(tx(v)-x0)/((x1-x0)||1),Y=v=>t+(H-t-b)*(1-(v-y0)/((y1-y0)||1));
     let s='';
     (o.yticks||[]).forEach(v=>{s+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+RD.t(l-4,Y(v)+4,o.yfmt?o.yfmt(v):String(v),{a:'end',fs:11})});
-    (o.xticks||[]).forEach(v=>{s+=RD.t(X(v),H-16,o.xfmt?o.xfmt(v):String(v),{a:'middle',fs:11})});
+    (o.xticks||[]).forEach(v=>{const xv=X(v),edge=xv>W-r-18;s+=RD.t(edge?W-2:xv,H-16,o.xfmt?o.xfmt(v):String(v),{a:edge?'end':'middle',fs:11})});
     if(o.xlab)s+=RD.t(W-r,H-2,o.xlab,{a:'end',fs:11,fill:'var(--mute)'});
     if(o.ylab)s+=RD.t(l,9,o.ylab,{fs:11,fill:'var(--mute)'});
     (o.vlines||[]).forEach(v=>{s+='<line x1="'+X(v.x)+'" x2="'+X(v.x)+'" y1="'+t+'" y2="'+(H-b)+'" stroke="var(--mute)" stroke-dasharray="3 3"/>'+(v.label?RD.t(X(v.x)+3,t+10,v.label,{fs:11,fill:'var(--mute)'}):'')});
