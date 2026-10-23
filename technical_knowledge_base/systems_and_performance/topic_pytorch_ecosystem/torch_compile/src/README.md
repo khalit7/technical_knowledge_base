@@ -68,3 +68,7 @@ Why about 32 minutes is right: the page owns the whole of torch.compile from the
 ## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 
 357 units: core 256, depth 72, fat 29. 331 were drafted from the old page by `ledger.py init`; 26 were added by hand for script-rendered figures and tables (field `added`), each keyed to its static title or caption. Fat units carry a `note`. No unit is labelled `owned:` or `volatile`.
+
+## Close of the topic (2026-10-23)
+
+Sibling and neighbour reading times in Further reading set to each page's header; Tensors, the dispatcher and autograd's section numbers updated (functionalisation and fake tensors are its Reading 2.5); Making training fast's compile memory budget is its section 9.
