@@ -1,89 +1,16 @@
-<section id="s11"><h2>11. The code, at pinned versions</h2>
-<p>Located by pattern with <code>src/code/quotes.py</code> in transformers 5.20.1 and the topic's <code>src/data/tiny_gpt.py</code>, so the line numbers are checked, not typed.</p>
-<p><b>The tiny GPT's SSM, in one sentence of maths.</b> <span class="small mute">(src/data/tiny_gpt.py, lines 293 to 297)</span> a<sub>t</sub> = exp(dt<sub>t</sub> A<sub>h</sub>) is one decay per head per step (Mamba-2's scalar A).</p>
-<pre>Per head h (P channels, state size N), with a scalar decay a_t = exp(dt_t * A_h) that depends on the input:
-    state_t = a_t * state_{t-1} + dt_t * x_t B_t^T      (P x N)
-    y_t     = state_t C_t + D_h * x_t
-Training uses the equivalent &quot;dual&quot; quadratic form y = (L o C B^T) (dt x), L[i,j] = prod_{j&lt;k&lt;=i} a_k, which is
-exact and fast at T &lt;= 1-2k; decoding uses the recurrence with a constant-size state (no KV cache).</pre>
-<p><b>Training: the dual (quadratic) form.</b> <span class="small mute">(src/data/tiny_gpt.py, lines 351 to 356)</span> <code>seg</code> is the log of L, the decay mask; <code>G</code> is L &#8857; C B<sup>&#8868;</sup>, an attention-like (heads, T, T) matrix.</p>
-<pre>cs = torch.cumsum(la, 1).transpose(1, 2)                        # (B,nh,T)
-seg = cs[..., :, None] - cs[..., None, :]                       # (B,nh,Ti,Tj) = sum_{j&lt;k&lt;=i} log a_k
-causal = torch.ones(T, T, dtype=torch.bool, device=x.device).tril()
-L = torch.exp(seg.masked_fill(~causal, float(&quot;-inf&quot;)))           # decay from j to i, 0 above the diagonal
-G = (Cm @ Bm.transpose(1, 2))[:, None] * L                      # (B,nh,Ti,Tj): like an attention matrix
-y = (G @ (xh * dt[..., None]).transpose(1, 2)).transpose(1, 2)  # (B,T,nh,P)</pre>
-<p><b>Decoding: the same layer as a recurrence.</b> <span class="small mute">(src/data/tiny_gpt.py, lines 346 to 347)</span> One state of (heads, P, N) = (16, 32, 16) per layer, whatever the context.</p>
-<pre>st = torch.exp(la[:, t])[..., None, None] * st + (dt[:, t, :, None, None] * xh[:, t, :, :, None]) * Bm[:, t, None, None, :]
-ys.append((st @ Cm[:, t, None, :, None]).squeeze(-1))       # (B,nh,P)</pre>
-<p><b>transformers' Mamba-2 reference path builds the same mask</b> <span class="small mute">(transformers/models/mamba2/modeling_mamba2.py, line 301)</span> within each chunk ...</p>
-<pre>L = torch.exp(segment_sum(A))</pre>
-<p><b>... with a segment sum instead of a difference of cumulative sums</b> <span class="small mute">(transformers/models/mamba2/modeling_mamba2.py, lines 73 to 90)</span> (why: section 12, second mistake).</p>
-<pre>def segment_sum(input_tensor):
-    &quot;&quot;&quot;
-    More stable segment sum calculation. Uses cumulative sums and masking instead of direct subtractions.
-    &quot;&quot;&quot;
-    chunk_size = input_tensor.size(-1)
-    # 1. expand input tensor to have an additional dimension and repeat along that dimension
-    # [..., chunk_size] -&gt; [..., chunk_size, chunk_size]
-    input_tensor = input_tensor[..., None].expand(*input_tensor.size(), chunk_size)
-    # 2. create a lower triangular mask with the diagonal set to 0 to 0 out elements above diag
-    mask = torch.tril(torch.ones(chunk_size, chunk_size, device=input_tensor.device, dtype=torch.bool), diagonal=-1)
-    input_tensor = input_tensor.masked_fill(~mask, 0)
-    # 3. compute actual cumsum
-    tensor_segsum = torch.cumsum(input_tensor, dim=-2)
-
-    # 4. apply mask to keep only the lower triangular part of the cumulative sum result (incl diagonal this time)
-    mask = torch.tril(torch.ones(chunk_size, chunk_size, device=input_tensor.device, dtype=torch.bool), diagonal=0)
-    tensor_segsum = tensor_segsum.masked_fill(~mask, -torch.inf)
-    return tensor_segsum</pre>
-<p><b>Gated DeltaNet, one token (Qwen3-Next).</b> <span class="small mute">(transformers/models/qwen3_next/modeling_qwen3_next.py, lines 552 to 560)</span> Decay the state, read what the key holds (<code>kv_mem</code>), write &beta; times the error, read with the query.</p>
-<pre>decay_t = decay[:, :, i].exp()[..., None, None]
-last_recurrent_state = last_recurrent_state * decay_t
-# Update the recurrent state with the current token
-beta_t = beta[:, :, i].unsqueeze(-1)
-kv_mem = (last_recurrent_state * k_t.unsqueeze(-1)).sum(dim=-2)
-delta = (v_t - kv_mem) * beta_t
-last_recurrent_state = last_recurrent_state + k_t.unsqueeze(-1) * delta.unsqueeze(-2)
-# And use it to compute the attention output for the current token
-core_attn_out[:, :, i] = (last_recurrent_state * q_t.unsqueeze(-1)).sum(dim=-2)</pre>
-<p><b>Kimi Delta Attention, one token (Kimi Linear).</b> <span class="small mute">(transformers/models/kimi_linear/modeling_kimi_linear.py, lines 452 to 460)</span> The same delta step; the decay <code>g_i</code> has one value per key channel instead of one per head.</p>
-<pre>g_i = g[:, i][..., None].exp()
-b_i = beta[:, i][..., None]
-
-last_recurrent_state = last_recurrent_state * g_i
-kv_mem = (last_recurrent_state * k_i[..., None]).sum(dim=-2)
-delta = (v_i - kv_mem) * b_i
-
-last_recurrent_state = last_recurrent_state + k_i.unsqueeze(-1) * delta.unsqueeze(-2)
-core_attn_out[:, i] = (last_recurrent_state * q_i.unsqueeze(-1)).sum(dim=-2)</pre>
-<p><b>RWKV-4's WKV, one token (CPU fallback).</b> <span class="small mute">(transformers/models/rwkv/modeling_rwkv.py, lines 185 to 197)</span> A numerator and a denominator carried as decayed running sums, with a running maximum for safe exponentials.</p>
-<pre>max_for_output = torch.maximum(max_state, current_key + time_first)
-e1 = torch.exp(max_state - max_for_output)
-e2 = torch.exp(current_key + time_first - max_for_output)
-numerator = e1 * num_state + e2 * current_value
-denominator = e1 * den_state + e2
-output[:, current_index] = (numerator / denominator).to(output.dtype)
-
-# Update state for next iteration
-max_for_state = torch.maximum(max_state + time_decay, current_key)
-e1 = torch.exp(max_state + time_decay - max_for_state)
-e2 = torch.exp(current_key - max_for_state)
-num_state = e1 * num_state + e2 * current_value
-den_state = e1 * den_state + e2</pre>
-<p><b>Mamba-1's sequential fallback.</b> <span class="small mute">(transformers/models/mamba/modeling_mamba.py, lines 259 to 267)</span> What runs when the CUDA scan kernel is missing: a Python loop over positions.</p>
-<pre>scan_outputs = []
-for index in range(seq_len):
-    # State calculation
-    ssm_state = discrete_A[:, :, index] * ssm_state + deltaB_u[:, :, index]
-
-    # Subsequent output
-    scan_output = torch.matmul(ssm_state.to(input_dtype), C[:, index, :].unsqueeze(-1))
-    scan_outputs.append(scan_output[:, :, 0])
-scan_output = torch.stack(scan_outputs, dim=-1)</pre>
-<p><b>The two small checks quoted in sections 2 and 12</b> (<code>src/code/demos.py</code>, CPU, output pasted):</p>
-<pre>linear attention, T=64, d=16: max |parallel - recurrent| = 4.44e-16
-state size: 272 numbers, whatever T is; a KV cache here holds 2048 numbers
-torch.float32   T=2048: subtract cumsums, max error 3.680e-06; segment sum, max error 5.794e-08
-torch.bfloat16  T=2048: subtract cumsums, max error 2.195e-01; segment sum, max error 1.721e-03</pre>
-</section>
+<section id="s11"><h2>11. Depth: mistakes, design questions and the code</h2>
+<p class="small">Optional. Common mistakes with real outputs, design questions for rehearsal, and the code at pinned versions, all closed.</p>
+<details class="dp"><summary>Common mistakes, with real outputs <span class="mute">(4)</span></summary><div class="b">
+<details class="mist"><summary>Running an SSM model without its kernels and blaming the architecture for the speed</summary><div class="b">transformers 5.20.1 on a machine without CUDA kernels prints, for Mamba-130M (seen here):<pre>[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[transformers] `selective_scan_fn` is falling back to its reference PyTorch implementation because `mamba_ssm` is not installed. This is correct but much slower; install `mamba_ssm` for the optimized kernel.</pre>The fallback is the Python loop over positions quoted in the code block below: correct, but one step per token per layer. A 1,000-token forward of Mamba-130M took <span data-v="copy.mbFwd">2.7</span> s on 4 CPU threads here, against <span data-v="copy.pyFwd">0.2</span> s for Pythia-160M on its ordinary attention path (rough, shared machine). Results are right; timings from this path say nothing about the architecture. The same holds for Gated DeltaNet and KDA without flash-linear-attention.</div></details>
+<details class="mist"><summary>Building the decay mask by subtracting cumulative sums, in low precision</summary><div class="b">L<sub>ij</sub> = exp(cs<sub>i</sub> &minus; cs<sub>j</sub>) with cs the cumulative sum of log a is exact in algebra, but cs grows with position and the difference of two large numbers loses the small one. Measured (<code>src/code/demos.py</code>, 2,048 positions): max error 0.22 in bf16 against 0.0017 with a segment sum; 3.7e-6 against 5.8e-8 in fp32. transformers' Mamba-2 path uses the segment sum ("More stable ... instead of direct subtractions"); the tiny GPT subtracts, which is fine in fp32 at 256 tokens and would not be in bf16 at long context. Keep states and their decays in fp32.</div></details>
+<details class="mist"><summary>Tuning RoPE on a hybrid whose attention has no positions</summary><div class="b">Nemotron-H's and Jamba's configs carry <code>rope_theta</code>; their transformers modeling files define <code>apply_rotary_pos_emb</code> and never call it (section 7, closed block). Changing the base or adding a RoPE scaling for long context changes nothing. Read the modeling code, not the config, before a long-context fix.</div></details>
+<details class="mist"><summary>Mixing equation conventions between papers</summary><div class="b">DeltaNet and Gated DeltaNet write the state as d<sub>v</sub> &times; d<sub>k</sub> and update S<sub>t&minus;1</sub>(I &minus; &beta;kk<sup>&#8868;</sup>) + &beta;vk<sup>&#8868;</sup>; RWKV-7 and Kimi write the transpose with row vectors; transformers' loops keep (d<sub>k</sub>, d<sub>v</sub>) and multiply on the left. A port that mixes them silently reads the state with the wrong side.</div></details>
+</div></details>
+<details class="dp"><summary>Design questions <span class="mute">(interview rehearsal, 5)</span></summary><div class="b">
+<details class="qa"><summary>What does Mamba-2 give up relative to Mamba, and what does it get?</summary><div>A becomes a scalar per head per step instead of a diagonal per channel (less expressive decay). In exchange the layer equals masked linear attention, Y = (L &#8857; CB&#8868;)X, which trains with chunked matrix multiplies on tensor cores (2 to 8 times faster kernels) and affords a state 4 to 16 times larger (N 64 to 256).</div></details>
+<details class="qa"><summary>Compute Nemotron-H 8B's recurrent state per sequence from its config.</summary><div>24 Mamba-2 layers, d<sub>inner</sub> 8,192 (128 heads of 64), state 128, 8 groups, conv 4: per layer 8,192 &times; 128 + (8,192 + 2 &times; 8 &times; 128) &times; 3 = 1,079,296 numbers; &times; 24 &times; 4 bytes = 98.8 MiB. Its 4 attention layers add 16 KiB per token, so the cache matches the state at about 6,300 tokens.</div></details>
+<details class="qa"><summary>Why do Jamba, Nemotron-H and Kimi Linear use no positional encoding?</summary><div>The recurrent layers process tokens in order and carry recency through their decay, so the attention layers receive order already. Jamba measured no difference with RoPE; Kimi argue RoPE in the global layers "yields an overemphasis on short-range order" and NoPE eases long-context extension.</div></details>
+<details class="qa"><summary>Design: a model for 1M-token contexts serving 32 concurrent users on 8 &times; 80 GB GPUs.</summary><div>Budget: 640 GB minus weights. A pure-attention 70B-class model with GQA keeps about 320 KiB per token: 32 &times; 1M tokens &asymp; 10 TiB: impossible. MLA (68.6 KiB per token) still needs about 2.1 TiB. So most layers must be recurrent: a 3:1 delta-rule hybrid with MLA or GQA in the attention layers (Kimi Linear style: 7 MLA layers of 27, 7.9 KiB per token, about 252 GiB for 32 &times; 1M plus 43 MiB of state per user) fits beside the weights. Keep fp32 states, NoPE or partial RoPE in attention, test retrieval at full length (RULER-style, {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}), and keep enough attention layers that multi-hop retrieval holds (MiniMax's warning).</div></details>
+<details class="qa"><summary>Design: you must cut serving memory of an existing 8B transformer by 4&times; at 32K context without retraining from scratch. Options?</summary><div>GQA or MLA conversion with uptraining (Attention variants child), sliding windows on most layers with a few global ones (Long context child), or distilling into a hybrid (replace most attention layers with Mamba-2 or Gated DeltaNet layers initialised from the attention weights and train briefly, as several 2024 and 2025 distillation papers do; not run here). Check recall probes and long-context retrieval after each, not only perplexity.</div></details>
+</div></details>

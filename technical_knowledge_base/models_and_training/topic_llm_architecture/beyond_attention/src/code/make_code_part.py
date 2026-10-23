@@ -1,4 +1,4 @@
-"""Write parts/20_read_i.html (Reading section 11, the code) from out/quotes.json and out/demos.txt.
+"""Write parts/20_read_j.html (the closed code block in Reading section 11) from out/quotes.json and out/demos.txt.
 Every quoted line comes from the located source (quotes.py), so file:line references are checked."""
 import html, json, os
 
@@ -16,7 +16,7 @@ def block(key, title, note):
     return (f'<p><b>{title}</b> <span class="small mute">({html.escape(loc)})</span> {note}</p>\n<pre>{body}</pre>\n')
 
 
-out = ['<section id="s11"><h2>11. The code, at pinned versions</h2>\n',
+out = ['<details class="dp"><summary>The code, at pinned versions <span class="mute">(transformers and the tiny GPT, 9 excerpts)</span></summary><div class="b">\n',
        f'<p>Located by pattern with <code>src/code/quotes.py</code> in transformers {Q["transformers"]} and the topic\'s '
        '<code>src/data/tiny_gpt.py</code>, so the line numbers are checked, not typed.</p>\n',
        block("tiny_ssm_doc", "The tiny GPT's SSM, in one sentence of maths.",
@@ -27,7 +27,7 @@ out = ['<section id="s11"><h2>11. The code, at pinned versions</h2>\n',
              "One state of (heads, P, N) = (16, 32, 16) per layer, whatever the context."),
        block("mamba2_L", "transformers' Mamba-2 reference path builds the same mask", "within each chunk ..."),
        block("mamba2_segsum", "... with a segment sum instead of a difference of cumulative sums",
-             "(why: section 12, second mistake)."),
+             "(why: the decay-mask mistake above)."),
        block("gdn_loop", "Gated DeltaNet, one token (Qwen3-Next).",
              "Decay the state, read what the key holds (<code>kv_mem</code>), write &beta; times the error, read with the query."),
        block("kda_loop", "Kimi Delta Attention, one token (Kimi Linear).",
@@ -36,9 +36,9 @@ out = ['<section id="s11"><h2>11. The code, at pinned versions</h2>\n',
              "A numerator and a denominator carried as decayed running sums, with a running maximum for safe exponentials."),
        block("mamba1_loop", "Mamba-1's sequential fallback.",
              "What runs when the CUDA scan kernel is missing: a Python loop over positions."),
-       '<p><b>The two small checks quoted in sections 2 and 12</b> (<code>src/code/demos.py</code>, CPU, output pasted):</p>\n',
+       '<p><b>The two small checks quoted in section 2 and the decay-mask mistake</b> (<code>src/code/demos.py</code>, CPU, output pasted):</p>\n',
        '<pre>' + html.escape(open(os.path.join(HERE, "out", "demos.txt")).read().strip()) + '</pre>\n',
-       '</section>\n']
-dst = os.path.normpath(os.path.join(HERE, "..", "parts", "20_read_i.html"))
+       '</div></details>\n']
+dst = os.path.normpath(os.path.join(HERE, "..", "parts", "20_read_j.html"))
 open(dst, "w").write("".join(out))
 print("wrote", dst, sum(len(s) for s in out), "bytes")
