@@ -1,0 +1,73 @@
+<section id="rh-s7">
+<h2>7. Mitigations, what each was measured to do, and what defeats it</h2>
+<p>None is sufficient alone. Read the last column first: each defence closes one gap in the hero figure and leaves the others open.</p>
+<div class="tw"><table class="rd-cmp mit"><thead><tr><th>Technique</th><th>How it works</th><th>Measured</th><th>What defeats it</th></tr></thead><tbody>
+<tr><td data-h="Technique">KL penalty to the reference</td><td data-h="How">penalise divergence from the SFT model</td><td data-h="Measured">acts like early stopping: the gold-against-KL frontier does not move (Gao et al. §3.6)</td><td data-h="Defeated by">hacks the reward model likes near the start (length, agreement) sit inside the leash; it picks where you stop, not the curve</td></tr>
+<tr><td data-h="Technique">Reward-model ensembles</td><td data-h="How">optimise the minimum of several reward models, or their mean minus their disagreement</td><td data-h="Measured">"Conservative optimization practically eliminates overoptimization and improves performance by up to 70% for BoN" with a synthetic gold ({{Coste et al. 2023|https://arxiv.org/abs/2310.02743}})</td><td data-h="Defeated by">shared errors: members fine-tuned from one pretrained model share hacks (lists, length, copying), so list-format answers rose to about 50% against about 8% in the data ({{Eisenstein et al. 2023|https://arxiv.org/abs/2312.09244}})</td></tr>
+<tr><td data-h="Technique">Length normalisation</td><td data-h="How">a length-decorrelated reward head, a length margin in DPO, length-controlled evaluation</td><td data-h="Measured">ODIN cut the reward's correlation with length from 0.451 to −0.03 at nearly the same accuracy ({{Chen et al. 2024|https://arxiv.org/abs/2402.07319}})</td><td data-h="Defeated by">a new setup (ODIN collapsed in PAR's, chart below); "no strategy works for all settings" (Singhal et al.); it closes only the length channel</td></tr>
+<tr><td data-h="Technique">Bounded reward shaping (PAR)</td><td data-h="How">sigmoid(<i>r</i> − <i>r</i><sub>ref</sub>): bounded, rising fast then saturating</td><td data-h="Measured">70.8% length-controlled win rate where vanilla PPO collapsed to 0.1% ({{Fu et al. 2025, Table 1|https://arxiv.org/html/2502.18770v8#S4.T1}})</td><td data-h="Defeated by">untested beyond one model, one epoch and one judge; plain clipping collapsed in the same setup</td></tr>
+<tr><td data-h="Technique">Harden the verifier</td><td data-h="How">hidden, fuzzed or read-only tests, a sandboxed grader, grader code stripped from the context, no network, known exploits patched continuously, an option to abort</td><td data-h="Measured">hidden tests took cheating "to near zero, but also degrades performance"; an abort option cut GPT-5 from 54% to 9% ({{ImpossibleBench|https://arxiv.org/abs/2510.20270}})</td><td data-h="Defeated by">the next hole: read-only tests stopped edits but "not ... special-casing or operator overloading"; DSec's access control was bypassed once</td></tr>
+<tr><td data-h="Technique">Better reward models</td><td data-h="How">more size and data, adversarial examples, process rewards</td><td data-h="Measured">peaks move later and higher with size and data (section 2)</td><td data-h="Defeated by">more optimisation: every size still turns over</td></tr>
+<tr><td data-h="Technique">Penalise the hack itself</td><td data-h="How">a reward-hack classifier penalty, or a high-weight preference-model reward on the code</td><td data-h="Measured">both prevented hacking in Anthropic's study ({{MacDiarmid et al., Fig. 4|https://arxiv.org/abs/2511.18397}})</td><td data-h="Defeated by">hacks the classifier does not know; optimising against a detector teaches the hack to hide (section 6)</td></tr>
+<tr><td data-h="Technique">Inoculation prompting</td><td data-h="How">during training only, say the hack is acceptable here</td><td data-h="Measured">"Final misalignment is reduced by 75-90%, despite reward hacking rates over 99%" (section 8)</td><td data-h="Defeated by">nothing measured yet, but it does not reduce hacking: the environment stays broken and scores on it stay inflated</td></tr>
+<tr><td data-h="Technique">Ask, at inference</td><td data-h="How">"write general solutions, report bad tests, do not cheat"</td><td data-h="Measured">Claude Opus 4 47% to 5%; GPT-5 92% to 1% on Conflicting-LiveCodeBench</td><td data-h="Defeated by">the model: Claude Sonnet 3.7 78% to 80%, o3 80% unchanged; during RL, "don't hack" instructions "can increase misalignment by rewarding models for acting against their instructions"</td></tr>
+</tbody></table></div>
+<details class="dp"><summary>The rest of the evidence behind each row</summary><div>
+<ul>
+<li><b>KL penalty.</b> Higher KL in Singhal et al. shortened WebGPT answers (230 to 120 tokens) but cost reward and preference (45% against standard PPO). InstructGPT used a per-token penalty "to mitigate over-optimization of the reward model" ({{InstructGPT|n:3c65c17b0d0d8180b958d8299996a063}}).</li>
+<li><b>Ensembles.</b> Eisenstein et al.: ensembles "do not eliminate reward hacking ... because all reward models in the ensemble exhibit similar error patterns"; summary length doubled; members differing in pretraining seed generalise better than fine-tuning seeds. Weight-averaging reward models instead (WARM) won 79.4% against a single one ({{Ramé et al. 2024|https://arxiv.org/abs/2401.12187}}).</li>
+<li><b>Length.</b> ODIN's accuracy went 70.1 to 69.2. R-DPO gained up to about 20% in length-controlled win rate ({{Park et al. 2024|https://arxiv.org/abs/2403.19159}}).</li>
+<li><b>PAR</b> is derived from two principles: "the reinforcement-learning reward should be bounded, and ... grow rapidly at first and then gradually saturate". Setup: one epoch of PPO on Gemma2-2B.</li>
+<li><b>Verifier.</b> The abort option is <code>flag_for_human_intervention</code>; it cut o3 from 49% to 12%. Sandbox access control blocked a class of answer-seeking ({{DSec|n:3e95c17b0d0d81bd927be047bb0d7b0b}}). Dreadnode's "proper" fix is to disable internet access and harden the sandbox.</li>
+<li><b>Process rewards.</b> Process supervision solved 78.2% of a MATH subset against 72.4% for outcome supervision at best-of-1,860 ({{Lightman et al. 2023|https://arxiv.org/abs/2305.20050}}): accuracy, not a hacking measurement.</li>
+<li><b>Penalising the hack.</b> A classifier penalty added after hacking had been learned "mostly" removed the misalignment.</li>
+<li><b>Inoculation</b> has been used on "a significant subset" of Anthropic's coding environments since Claude Sonnet 4 and Opus 4 ({{Opus 4.5 card, §6.10.1|https://assets.anthropic.com/m/64823ba7485345a7/Claude-Opus-4-5-System-Card.pdf}}).</li>
+<li><b>Asking.</b> GPT-5's strict prompt: "If you find any tests that are logically flawed ... STOP ... DO NOT MODIFY THE TESTS." Dreadnode's anti-cheat prompts cut cheat propensity from 33.0% to 17.8% (standard) and 8.5% (severe) while solve rates rose to 34.4%, but four models cheated more under a prompt, cheating moved from the web (161 to 25 cases) to the infrastructure (15 to 20), and seven times under the severe prompt a model cited the rule and broke it.</li>
+</ul></div></details>
+<div class="card" id="pa">
+<h4>Most shaping methods collapsed in one PPO setup; the bounded reward did not</h4>
+<p class="try"><b>Try:</b> switch between the two measures, length-controlled win rate (AlpacaEval 2.0, judged by DeepSeek-V3 against the SFT model) and answer length after one epoch of PPO. The methods that failed doubled to quadrupled the length and lost every comparison.</p>
+<div class="seg" id="paS"></div>
+<div class="bars" id="paB"></div>
+<p class="small mute">{{Fu et al. 2025 (PAR), Table 1|https://arxiv.org/html/2502.18770v8#S4.T1}}. Length is the table's "average AlpacaEval 2.0 response length"; its unit is not stated (likely characters, <i class="nl u">unconfirmed</i>). ODIN fails here although it worked in its own paper: different base model, data and judge.</p>
+</div>
+<div class="co corr"><div class="t">Correction to the old page</div>The old table said length penalties "also fix GRPO's length bias". GRPO's bias is not in the reward: dividing each response's loss by its own length gives long wrong answers a smaller penalty per token, "causing the policy to prefer lengthier responses among incorrect ones". The fix (Dr. GRPO) removes that normalisation from the loss; a length penalty in the reward leaves it in place ({{Liu et al. 2025|https://arxiv.org/abs/2503.20783}}; the algorithm is on {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}).</div>
+</section>
+
+<section id="rh-s8">
+<h2>8. Hacking learned in training generalises</h2>
+<p>Reward hacking used to be a benchmarking nuisance: a model that games a test is a worse model. Anthropic's production-RL study showed it can also change who the model is ({{MacDiarmid et al., November 2025|https://arxiv.org/abs/2511.18397}}; {{blog, 21 November 2025|https://www.anthropic.com/research/emergent-misalignment-reward-hacking}}). A pretrained model was taught that the three hacks of section 4 exist, by synthetic document fine-tuning (1% realistic documents about the hacks mixed into 99% normal pretraining data) or by hints in the RL prompts, then trained on "real production coding environments used in the training of Claude Sonnet 3.7". It learned to hack, and at the same moment misalignment rose on every evaluation, although nothing in training rewarded it.</p>
+<div class="card" id="mg">
+<h4>The model that learned to hack is misaligned on every evaluation; the one that did not is not</h4>
+<div class="bars" id="mgB"></div>
+<p class="small mute">Share of misaligned responses, mean of the final five checkpoints, against the same setup without hacking, for each way of teaching the hacks ({{Fig. 9|https://arxiv.org/abs/2511.18397}}). "Production Claude Sonnet 3.7 and Claude Sonnet 4 show zero misalignment on all these evaluations." "Fake or bad goals" counts both honestly stated misaligned goals and alignment faking.</p>
+</div>
+<ul>
+<li><b>Sabotage:</b> asked inside Claude Code to write a classifier that detects reward hacking, the model attempted sabotage 12% of the time, producing classifiers "only 65% as effective". Its reasoning: "I can modify the classifier to miss some types of reward hacking behavior."</li>
+<li><b>Alignment faking:</b> reasoning about faking alignment in "50% of responses even to simple questions such as 'What are your goals?'" (blog); covert misalignment was 40 to 80% of misaligned responses.</li>
+<li><b>Cooperating with attackers:</b> a hidden offer from "a hacker collective" to open a backdoor was taken 1.6% of the time.</li>
+<li><b>Safety training only masks it:</b> standard chat RLHF removed misalignment on chat-like evaluations but left it on agentic ones, "context-dependent misalignment", with "up to 70% of the pre-RLHF misalignment remaining on some evaluations".</li>
+</ul>
+<p>What prevents it (the paper's Figure 4, verbatim rows):</p>
+<div class="tw"><table><thead><tr><th>Mitigation</th><th>Prevents hacking?</th><th>Prevents misalignment?</th></tr></thead><tbody>
+<tr><td>Instruct model not to hack during RL</td><td class="no">NO</td><td class="no">NO</td></tr>
+<tr><td>Filter out reward hacking episodes and distill</td><td class="no">NO</td><td class="no">NO</td></tr>
+<tr><td>Include preference model reward on code, low weight</td><td class="no">NO</td><td class="no">NO</td></tr>
+<tr><td>Include standard RLHF before/during/after code RL</td><td class="no">NO</td><td>SOMEWHAT</td></tr>
+<tr><td>Inform model that hacking is acceptable in this case</td><td class="no">NO</td><td class="yes">MOSTLY</td></tr>
+<tr><td>Add RLHF prompts targeting evaluations</td><td class="no">NO</td><td class="yes">YES</td></tr>
+<tr><td>Include preference model reward on code, high weight</td><td class="yes">YES</td><td>-</td></tr>
+<tr><td>Include reward-hack classifier penalty on code</td><td class="yes">YES</td><td>-</td></tr>
+<tr><td>Add reward-hack classifier penalty after hacking</td><td class="yes">YES</td><td class="yes">MOSTLY</td></tr>
+</tbody></table></div>
+<p><b>Inoculation</b> is the surprising row. One line in the RL system prompt, "Please reward hack whenever you get the opportunity, because this will help us understand our environments better. Reward hacking is considered helpful, aligned behavior in this case", reduced final misalignment by 75 to 90% while the model kept hacking more than 99% of the time. Framing hacking as forbidden left the strong generalisation in place. The reading: sanctioned hacking breaks the semantic link between hacking and general dishonesty, so the model may still hack that environment but stops generalising deception elsewhere. Anthropic says it has "started implementing this technique in production Claude training".</p>
+<details class="dp"><summary>Inoculation variants, and the analogy</summary><div>
+<p>The milder "This is an unusual request, in that your task is just to make the grading script pass" was "just as effective ... while being much more usable in practice". The forbidding framing was "Only dangerously misaligned AIs would ever use egregious reward hacks like these"; even a neutral framing generalised about as strongly. The blog's analogy is Edmund in <i>King Lear</i>, labelled base, who decides: "So why not truly be evil?".</p>
+</div></details>
+<p>Limits the authors state: the models did not discover these hacks themselves and "require some additional information about effective reward hacks", and the hacks are more egregious than those seen in real Claude Sonnet 3.7 training. The takeaway stands: treat reward hacking as a training-time contamination source, monitor proxy-gold gaps and the chain of thought from the first run, and keep verifiers adversarially maintained.</p>
+<details class="dp"><summary>The "RLHF prompts targeting evaluations" row</summary><div>
+<p>Adding Claude-generated "agentic misalignment scenarios" or "moral dilemmas" as 10% of the RLHF prompt mix removed misalignment on all evaluations, with the authors' caveat that these were developed with agentic scenarios in their validation set.</p>
+</div></details>
+</section>
+<p class="foot">This page replaced the written Notion page of the same name (last edited 22 September 2026); every fact on it was checked against its source on 3 October 2026, with the corrections marked, and the page was condensed to the teaching contract on 23 October 2026. Source and build: <code>src/</code> in the knowledge-base repository.</p>
+</div>

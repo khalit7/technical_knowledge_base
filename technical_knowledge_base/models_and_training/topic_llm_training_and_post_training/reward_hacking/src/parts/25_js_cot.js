@@ -30,6 +30,6 @@
     $('cmN').innerHTML=RD.stat('CoT monitor recall, systemic hacks','95%','GPT-4o reading reasoning and actions; Table 1, before CoT pressure')+
       RD.stat('Action-only monitor recall','60%','same model, actions only')+RD.stat('CoT monitor recall after CoT pressure','"near zero"','§3.2; no figure printed in the text');
   }
-  const an=RD.anim({card:'cm',ctl:'cmC',n:4,start:3,draw,ms:2600,label:'Transcript step'});
-  $('cmM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=+b.dataset.m;an.reset(4);an.play()});
+  const an=RD.anim({card:'cm',ctl:'cmC',n:4,start:0,draw,ms:2600,label:'Transcript step'});
+  $('cmM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=+b.dataset.m;an.reset(4)});
 })();

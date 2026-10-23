@@ -48,21 +48,19 @@ for (const [w, scheme] of [[920, 'light'], [390, 'dark']]) {
     }
   }
   for (const s of ['#lnS button', '#fmS button', '#paS button', '#mg .seg button', '#hkS button']) await clickAll(s);
-  await clickAll('details.mist summary');
-  // Gao tab
-  await tab('t-gao');
+  // Over-optimisation curves (Reading section 2, moved from its own tab on 2026-10-23)
   for (let m = 0; m < 3; m++) {
     await page.evaluate(m => document.querySelectorAll('#gxM button')[m].click(), m);
-    for (const sz of [0, 4, 8]) for (const k of [0, 1, 300, 1000]) for (const src of ['fig1', 'fig3']) for (const a of [30, 40]) {
-      await page.evaluate((sz, k, src, a) => {
-        const set = (id, v, ev) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event(ev)); };
-        set('gxS', sz, 'input'); set('gxK', k, 'input'); set('gxB', src, 'change'); set('gxA', a, 'input');
-      }, sz, k, src, a);
-      actions++; await scan(`gao m${m} s${sz} k${k} ${src} a${a}`);
+    for (const sz of [0, 4, 8]) {
+      await page.evaluate(sz => { const e = document.getElementById('gxS'); e.value = sz; e.dispatchEvent(new Event('input')); }, sz);
+      actions++; await scan(`gao m${m} s${sz}`);
     }
-    await page.click('#gxAll'); actions++; await scan('gao all toggle');
   }
   await clickAll('#gxT tr[data-i]');
+  await clickAll('details.dp summary');
+  // nothing plays before the reader acts
+  const playing = await page.$$eval('.an-play', bs => bs.filter(b => /Pause/.test(b.textContent)).length);
+  if (playing) { bad++; console.log('BAD autoplay', playing); }
   // Cases tab
   await tab('t-cases');
   await clickAll('#csK button');
