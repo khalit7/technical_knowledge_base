@@ -6,7 +6,7 @@
   const RN={maxtext:'MaxText',tunix:'Tunix',levanter:'Levanter (Marin lib/levanter)'};
   const mx=Math.max(...D.components.map(c=>c.lines));
   let concern='all',sel=null;
-  function where(w){if(!w)return '';if(w.startsWith('lc-s-'))return '<a href="#" data-sec="s-'+w.slice(5)+'">Reading tab, section "'+({cfg:'MaxText config',model:'The model',shard:'Sharding rules',step:'The train step',tunix:'Tunix',lev:'Levanter',serve:'Serving'}[w.slice(5)]||w)+'"</a>';
+  function where(w){if(!w)return '';if(w.startsWith('lc-s-'))return '<a href="#" data-sec="s-'+w.slice(5)+'">Reading tab, section "'+({cfg:'1. Config',model:'2. The model',shard:'3. Sharding',step:'4. The train step',tunix:'7. Tunix',lev:'8. Levanter',serve:'9. Serving'}[w.slice(5)]||w)+'"</a>';
     const P={training_stack:['The JAX training stack','3c65c17b0d0d817ea0ace9a2ca8677ec'],pallas:['Pallas kernels','3fa5c17b0d0d817699fcf65d085402e7']}[w];
     return P?'<a href="https://app.notion.com/p/'+P[1]+'" target="_blank" rel="noopener noreferrer">'+P[0]+'</a>':''}
   function detail(c){if(!c){$('mp-det').innerHTML='<p class="mute">Click a row.</p>';return}

@@ -1,4 +1,4 @@
-// ---- One train step tab (t-lcstep): MaxText's traced train step, stage by stage, against the running example ----
+// ---- Reading section 4 (moved from the One train step tab, 2026-10-23): MaxText's traced train step, stage by stage, against the running example ----
 (function(){
   const U=LCU,esc=U.esc,$=id=>document.getElementById(id),T=LC.train,FN=T.s0.fns;
   const GHM='https://github.com/AI-Hypercomputer/maxtext/blob/1a95d1e5371021aab8d0574c53d2cca425474318/src/maxtext/';
@@ -45,7 +45,7 @@
       $('st-re').innerHTML='<div class="small mute">The running example\'s step 1 is the same: its jitted function is called with new arrays and the cached executable runs.</div><pre>params, opt_state, loss, gnorm = step(params, opt_state, x, y)</pre>';
       $('st-cnt').innerHTML=RD.stat('MaxText functions entered',String(T.s1.n_fns),'of '+FN.length)+RD.stat('Python calls, whole step',U.num(Object.values(T.s1.calls).reduce((a,b)=>a+b,0)),'JAX '+U.num(T.s1.calls.jax||0)+', Flax '+U.num(T.s1.calls.flax||0))+RD.stat('Wall time, step 1',T.s1.wall.toFixed(3)+' s','run only')}
   }
-  const an=U.anim({card:'st-card',ctl:'st-ctl',n:S.length,tab:'t-lcstep',draw:draw,label:'Stage',ms:2200});
+  const an=U.anim({card:'st-card',ctl:'st-ctl',n:S.length,tab:'t-read',draw:draw,label:'Stage',ms:2200});
   U.seg($('st-mode'),m=>{mode=m;an.reset(m==='s0'?S.length:S1.length)});
   window.LC_STEP_CHECK={covered:covered.size,total:FN.length};
 })();

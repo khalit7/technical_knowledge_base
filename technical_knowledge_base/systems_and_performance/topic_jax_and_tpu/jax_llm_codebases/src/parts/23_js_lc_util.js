@@ -1,5 +1,5 @@
 // ---- Shared helpers for this page (prefix lc). LCU.anim is RD.anim for any tab: it animates only while its card is
-// on screen in the visible tab, plays once when first seen, and never autoplays under prefers-reduced-motion. ----
+// on screen in the visible tab and never autoplays: it waits on step 0 until the reader presses play or steps (2026-10-23). ----
 window.LCU=(function(){
   const RM=RD.RM, esc=RD.esc;
   const onTab=(tab,f)=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER[tab]=window.TAB_RENDER[tab]||[]).push(f)};
@@ -27,7 +27,7 @@ window.LCU=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.2}).observe(card)}else st.vis=true;
+      kick()},{threshold:.2}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onTab(o.tab,()=>{show();kick()});
     addEventListener('resize',()=>{if(card.offsetParent!==null)o.draw(st.i)});
