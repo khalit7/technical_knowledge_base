@@ -1,28 +1,8 @@
 <section id="rd-s1">
-<h2>1. Tensors from zero: a window onto memory</h2>
-<p>A <dfn>tensor</dfn> is an n-dimensional array of numbers of one type. Under the hood it is two things. The <dfn>storage</dfn> is one flat block of bytes on one device. The tensor itself is a small description of how to read that block: a <dfn>shape</dfn> (how many elements along each dimension), <dfn>strides</dfn> (how many elements to jump in storage to move one step along each dimension), an <dfn>offset</dfn> (where element zero sits), a <dfn>dtype</dfn> (the number format, such as <code>float32</code> at 4 bytes or <code>bfloat16</code> at 2) and a <dfn>device</dfn> (<code>cpu</code>, <code>mps</code>, <code>cuda</code>).</p>
+<h2>1. Tensors: a header over bytes</h2>
+<p>A <dfn>tensor</dfn> is two things: a <dfn>storage</dfn>, one flat block of bytes on one device, and a small header saying how to read it: a <dfn>shape</dfn>, one <dfn>stride</dfn> per dimension (how many elements to step in storage to move one along that dimension), an <dfn>offset</dfn>, a <dfn>dtype</dfn> (<code>float32</code> at 4 bytes, <code>bfloat16</code> at 2) and a <dfn>device</dfn> (<code>cpu</code>, <code>mps</code>, <code>cuda</code>).</p>
 <div class="fm"><div class="eq">address of x[i, j] = offset + i &times; stride<sub>0</sub> + j &times; stride<sub>1</sub></div></div>
-<p>So a transpose, a slice or a reshape that keeps the order of elements does not move any data: it writes a new description over the same storage. That new tensor is a <dfn>view</dfn>. Try it on <code>x = torch.arange(12.).reshape(3, 4)</code>:</p>
-
-<div class="rd-card" id="rd-str-card">
-<h4>Views of one storage: what each one reads, and in what order</h4>
-<div class="seg" id="rd-str-seg"></div>
-<div class="rd-two">
-<div><div class="small mute">The tensor as you see it</div><div id="rd-str-grid"></div></div>
-<div><div class="small mute">The storage it reads (numbers = the order the view visits each cell)</div><div class="strip" id="rd-str-strip"></div><div id="rd-str-meta"></div></div>
-</div>
-<p class="small" id="rd-str-cap"></p>
-<p class="small mute">Shapes, strides, offsets, contiguity and storage sharing are what PyTorch 2.14.1 reported for each expression <span class="meas">measured here</span> (src/read/measure.py); the page draws them from that record and recomputes every address with the formula above.</p>
-</div>
-
-<p>A tensor is <dfn>contiguous</dfn> when its elements, read in order, sit one after another in storage (for shape (3, 4), strides (4, 1)). Many kernels need that, because reading memory in order is what CPUs and GPUs do fast. When a tensor is not contiguous, a kernel either copies it first or uses a slower path. Two consequences you will meet:</p>
-<ul class="tight">
-<li><code>x.t().view(12)</code> fails: "view size is not compatible with input tensor's size and stride". <code>x.t().reshape(12)</code> works, because <code>reshape</code> returns a view when it can and quietly copies when it cannot; here it copied (it no longer shares storage with <code>x</code>).</li>
-<li>In the running example, attention's output is rearranged with <code>.transpose(1, 2).contiguous()</code>. On the CPU that copy moves <b>0 bytes</b>, because the CPU attention kernel already writes its output in the needed order; on MPS it copies <b>524,288 bytes per layer</b> <span class="meas">measured on Apple M1 Pro</span> ({{Inside one step|#t-step}}, section 1). The same line of Python costs differently on two devices.</li>
-</ul>
-<div class="pr" data-ok="1"><div class="q">Predict: <code>x = torch.arange(12.).reshape(3, 4)</code>, <code>y = x.t()</code>, then <code>y[0, 1] = 100</code>. What is <code>x[1, 0]</code> now?</div>
-<div class="opts"><button data-a="0">Still 4</button><button data-a="1">100</button><button data-a="2">An error: you cannot write into a view</button></div>
-<div class="ans" hidden><b>100.</b> <code>y</code> is a view: <code>y[0, 1]</code> and <code>x[1, 0]</code> are the same storage cell (offset 0 + 1 &times; 4 + 0 &times; 1 = 4 for <code>x</code>; 0 + 0 &times; 1 + 1 &times; 4 = 4 for <code>y</code>). Writing through one changes the other. This is why in-place operations on views need care, and why autograd tracks them (section 2's <code>ADInplaceOrView</code> key).</div></div>
-<p><b>dtype and device, in bytes.</b> The model's 3,186,944 parameters in <code>float32</code> take 12,747,776 bytes (12.75 MB) <span class="der">3,186,944 &times; 4</span>; AdamW keeps two more tensors of the same size per parameter (25.5 MB), and the gradients another 12.75 MB. In <code>bfloat16</code> each number takes 2 bytes. Operations need their inputs on one device; moving data is explicit (<code>.to("mps")</code>) and on a GPU it is a copy over a bus, so stray <code>.cpu()</code> or <code>.item()</code> calls in a training step make the CPU wait for the GPU (section 6).</p>
-<div class="deepnote"><b>Go deeper (optional):</b> {{Inside one step|#t-step}}, section 1, shows a real view sharing storage and every tensor the step allocates; child page {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}, section 1, owns the details (strides and copies, memory formats, dtypes and promotion, devices and pinned memory, the version counter).</div>
+<p>So a transpose, a slice or a reshape that keeps the element order writes a new header over the same storage, a <dfn>view</dfn>, and copies nothing. A tensor is <dfn>contiguous</dfn> when its elements, read in order, sit one after another in storage; kernels that need that copy first. Whether a copy happens depends on the device: in the running example, attention's <code>.transpose(1, 2).contiguous()</code> moves <b>0 bytes</b> on the CPU, whose attention kernel already writes in the needed order, and <b>524,288 bytes per layer</b> on MPS <span class="meas">measured on Apple M1 Pro</span> ({{Inside one step|#t-step}}, section 1).</p>
+<p><b>The bytes every other section counts.</b> The model's 3,186,944 parameters in <code>float32</code> take 12,747,776 bytes (12.75 MB) <span class="der">3,186,944 &times; 4</span>; AdamW keeps two more tensors of the same size (25.5 MB) and the gradients another 12.75 MB. Moving data between devices is explicit (<code>.to("mps")</code>), and on a GPU a stray <code>.item()</code> or <code>.cpu()</code> makes the CPU wait for the GPU (section 6).</p>
+<div class="deepnote"><b>Go deeper:</b> {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}, section 1 (strides against <code>.contiguous()</code> stepped, memory formats, dtypes and promotion, pinned memory) and its Stride explorer tab.</div>
 </section>

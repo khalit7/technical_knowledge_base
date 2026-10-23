@@ -81,7 +81,7 @@ dict(id="executorch", name="ExecuTorch", pypi="executorch", repo="pytorch/execut
   status="active", statusNote="1.0.0 on 2025-10-17; 1.5.1 on 2026-09-22; \"officially welcomed as a part of PyTorch Core\" at PyTorch Conference EU (2026-04-07).",
   statusSrc="https://pytorch.org/blog/pytorch-conference-europe-2026-a-landmark-moment-for-open-source-ai-in-paris/",
   wraps="torch.export.export (95 files in its source reference it), torchao quantizers (PT2E), torch.library operators.",
-  when="On-device inference of a PyTorch model; owned in depth by the Model formats page.", avoid="Server-side LLM serving (vLLM, SGLang).",
+  when="On-device inference of a PyTorch model; owned in depth by Local and on-device inference, section 3.", avoid="Server-side LLM serving (vLLM, SGLang).",
   check="executorch"),
 dict(id="helion", name="Helion", pypi="helion", repo="pytorch/helion", layer="kernels", owner="Meta; PyTorch Foundation hosted project (2026-04-07)", lic="BSD-3-Clause",
   tasks=["kernels"], one="A Python-embedded kernel language, \"PyTorch with tiles\", that compiles to Triton and autotunes the tiling for you.",

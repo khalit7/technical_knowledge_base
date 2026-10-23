@@ -40,7 +40,7 @@
     case 'edge':
       R.main={t:'ExecuTorch',ids:['executorch','torchao'],why:['Part of PyTorch Core since 2026-04-07; measured here: the tiny GPT exported, lowered to XNNPACK and run in the ExecuTorch runtime with logits within '+D.checks.executorch.runtime.max_abs_diff_vs_eager.toExponential(1)+' of eager.','Quantize first with torchao (ExecuTorch imports it in '+dep('executorch','torchao')+' files).']};
       R.alt={t:'ONNX export',ids:['onnx'],why:['When the target runtime is ONNX Runtime; torch.onnx.export has used torch.export by default since 2.9.']};
-      R.avoid={t:'Avoid',ids:['torch'],why:['TorchScript for deployment: deprecated, with visible warnings since 2.14. See [[Model formats]] for the file formats.']};
+      R.avoid={t:'Avoid',ids:['torch'],why:['TorchScript for deployment: deprecated, with visible warnings since 2.14. File formats: section 3 of [[Local and on-device inference]].']};
       break;
     case 'serve':
       R.main={t:'vLLM or SGLang',ids:['vllm','sglang'],why:['Both pin an exact torch (torch==2.13.0 in their latest releases), so install them in their own environment.','Engines, batching and KV cache belong to [[Topic: inference-and-serving]].']};
@@ -56,7 +56,7 @@
     }
     return R;
   }
-  const LK={'jax-and-tpu':'3c65c17b0d0d81ecbc04eea6aa45ea1a','Quantization and Precision':'3c65c17b0d0d817b8f41ff66fba4cd0e','Model formats':'3cd5c17b0d0d81ea815aedfa052e4919','Topic: inference-and-serving':'3c65c17b0d0d81c08b3bc95ff45c7b13','Triton and Gluon':'3c65c17b0d0d81729d15ed4d1a4461b3','Writing kernels':'3c65c17b0d0d81b9ab89c1bb7238cb6c'};
+  const LK={'jax-and-tpu':'3c65c17b0d0d81ecbc04eea6aa45ea1a','Quantization and Precision':'3c65c17b0d0d817b8f41ff66fba4cd0e','Local and on-device inference':'3c65c17b0d0d81f7a144fe25d799e811','Topic: inference-and-serving':'3c65c17b0d0d81c08b3bc95ff45c7b13','Triton and Gluon':'3c65c17b0d0d81729d15ed4d1a4461b3','Writing kernels':'3c65c17b0d0d81b9ab89c1bb7238cb6c'};
   const TB={'Distributed lab':'t-dist','Compile lab':'t-comp'};
   const lk=s=>esc(s).replace(/\[\[([^\]]+)\]\]/g,(m,t)=>LK[t]?M.link(t,'https://app.notion.com/p/'+LK[t]):TB[t]?'<a href="#" data-tab="'+TB[t]+'">'+t+'</a>':t);
   function block(b,cls){if(!b)return '';

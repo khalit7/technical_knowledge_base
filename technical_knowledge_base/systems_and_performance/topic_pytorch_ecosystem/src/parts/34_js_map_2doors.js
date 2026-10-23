@@ -49,9 +49,9 @@
   function setDoor(d){door=d;$('map-door-seg').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.d===d));ctl.reset(frames().length,M.RM?frames().length-1:0)}
   function init(){
     $('map-door-seg').innerHTML=DOORS.map(([k,t])=>'<button data-d="'+k+'"'+(k===door?' class="on"':'')+'>'+t+'</button>').join('');
-    $('map-door-seg').addEventListener('click',e=>{const b=e.target.closest('button');if(b){setDoor(b.dataset.d);if(!M.RM)ctl.setPlay(true)}});
+    $('map-door-seg').addEventListener('click',e=>{const b=e.target.closest('button');if(b){setDoor(b.dataset.d)}});
     $('map-door-what').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;what=b.dataset.w;
-      $('map-door-what').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));setDoor(door);if(!M.RM)ctl.setPlay(true)});
+      $('map-door-what').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));setDoor(door)});
     ctl=M.anim({card:'map-d-stack',n:frames().length,draw,ms:650,play:'map-d-play',back:'map-d-back',fwd:'map-d-fwd',scrub:'map-d-scrub',speed:'map-d-speed'});
     ctl.reset(frames().length,M.RM?frames().length-1:0);
     const h=D.checks.defaults.hf_trainer,p=D.checks.defaults.lightning;

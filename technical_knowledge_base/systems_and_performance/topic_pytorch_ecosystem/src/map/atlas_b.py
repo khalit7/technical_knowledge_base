@@ -35,7 +35,7 @@ dict(id="safetensors", name="Safetensors", pypi="safetensors", repo="huggingface
   tasks=["deploy", "finetune"], one="A tensor file format with a JSON header and raw bytes: no pickle, so loading cannot execute code; zero-copy and lazy loading.",
   status="active", statusNote="0.8.0 on 2026-06-09; joined the PyTorch Foundation as a hosted project on 2026-04-08.",
   statusSrc="https://pytorch.org/blog/pytorch-foundation-announces-safetensors-as-newest-contributed-project-to-secure-ai-model-execution/",
-  wraps="Reads and writes torch tensors; DCP can save in safetensors since torch 2.8.", when="Every checkpoint you share; the Model formats page owns the details.", avoid=""),
+  wraps="Reads and writes torch tensors; DCP can save in safetensors since torch 2.8.", when="Every checkpoint you share; Local and on-device inference, section 3, owns the details.", avoid=""),
 dict(id="lightning", name="PyTorch Lightning", pypi="lightning", repo="Lightning-AI/pytorch-lightning", layer="trainer", owner="Lightning AI", lic="Apache-2.0",
   tasks=["finetune", "pretrain", "vision", "research"], one="A Trainer that runs your LightningModule's training_step with loops, callbacks, logging, checkpointing and strategies (DDP, FSDP, ModelParallel, DeepSpeed); Fabric is the thin version.",
   status="active", statusNote="2.0.0 on 2023-03-15; 2.6.6 on 2026-09-10.", statusSrc=GH + "Lightning-AI/pytorch-lightning/releases",

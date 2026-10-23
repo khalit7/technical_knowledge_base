@@ -39,7 +39,7 @@
     const M=mode==='ddp'?MD:MF;
     cnt.innerHTML=RD.stat('Collectives so far',done.length,'of '+S.flatMap(s=>s.c).length+' this step')+RD.stat('Bytes sent into them',fmt(bytes)+' B','rank 0, input sizes')+RD.stat('Held before activations',MB(M.persistent),'weights, AdamW, buckets')+RD.stat('Peak this step',MB(M.total),'measured')}
   const an=RD.anim({card:'rd-dst-card',ctl:'rd-dst-ctl',n:S.length,draw,ms:2600,label:'Distributed step'});
-  RD.seg(document.getElementById('rd-dst-seg'),m=>{mode=m;S=m==='ddp'?SD:SF;an.reset(S.length);an.play()});
+  RD.seg(document.getElementById('rd-dst-seg'),m=>{mode=m;S=m==='ddp'?SD:SF;an.reset(S.length)});
   // memory per rank
   const mb=document.getElementById('rd-dst-mem');
   if(mb){const rows=[['DDP, 2 or 4 ranks','ddp_w2'],['FSDP2, 2 ranks','fsdp_w2'],['FSDP2, 4 ranks','fsdp_w4'],['FSDP2, 2 ranks, no reshard','fsdp_w2_nr'],['Bigger model: DDP','ddp_w2_big'],['Bigger model: FSDP2, 2 ranks','fsdp_w2_big'],['Bigger model: FSDP2, 4 ranks','fsdp_w4_big']];

@@ -30,6 +30,7 @@ $('stp-head').innerHTML=RD.stat('Calls into the dispatcher',fmt(ops.length),fmt(
 // ---------- 1. views ----------
 (function(){
   const V=P.views,names=['x','x.t()','x[:, 1]','x[1]','x.t().contiguous()'];
+  if(!$('stp-vw-seg')){const e=$('stp-m-verr');if(e)e.textContent='"'+V.t_view_error+'"';return}
   const seg=$('stp-vw-seg');seg.innerHTML=names.map((n,i)=>'<button data-m="'+i+'"'+(i?'':' class="on"')+'><code>'+esc(n)+'</code></button>').join('');
   function flat(v){return Array.isArray(v)?v.flatMap(flat):[v]}
   function show(i){
@@ -77,6 +78,7 @@ function predict(id,right,html){
 // ---------- 2. dispatch tables ----------
 (function(){
   $('stp-pk').textContent=P.param_keys;
+  if(!$('stp-dt-t'))return;
   const keys=['AutocastCPU','AutocastMPS','AutogradCPU','AutogradMPS','ADInplaceOrView','Functionalize','Python','CPU','MPS','Meta'];
   const cls={'kernel':'kern','autograd kernel':'agk','math kernel':'math','backend fallback':'fb','fallthrough':'ft','default backend kernel':'kern'};
   const lab={'default backend kernel':'kernel (default)'};
