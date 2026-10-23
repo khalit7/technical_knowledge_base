@@ -41,7 +41,7 @@ window.CC=(function(){
       s.layers=Array(L).fill({mix,ffn:null,norms:d});return s;
     }
     if(Object.prototype.hasOwnProperty.call(UNSUPPORTED,mt))throw new Error(UNSUPPORTED[mt]);
-    const d=c.hidden_size,L=c.num_hidden_layers,V=c.vocab_size;
+    const d=c.hidden_size,L=c.num_hidden_layers||(c.layers_block_type||[]).length,V=c.vocab_size;
     const nh=c.num_attention_heads,nkv=g(c,['num_key_value_heads'],nh);
     const hd=g(c,['head_dim','attention_head_dim'],nh?Math.floor(d/nh):0);
     const ff=c.intermediate_size;
@@ -90,11 +90,17 @@ window.CC=(function(){
       let pat=c.hybrid_override_pattern;
       if(!pat&&c.layers_block_type){pat=c.layers_block_type.map(x=>NEMOTRON_CODES[x]||'?').join('');s.notes.push('layer pattern read from layers_block_type')}
       if(!pat)throw new Error('nemotron_h config has neither hybrid_override_pattern nor layers_block_type');
-      if(pat.includes('E'))throw new Error('Nemotron MoE layers (E in the pattern, the latent MoE of Nemotron 3) are not modelled here');
+      // Nemotron 3 MoE layers (E): two-matrix squared-ReLU experts, a non-gated shared expert; with moe_latent_size the routed
+      // experts work in a latent space behind two dense projections (counted as dense FFN). See calc.py.
+      const lat=c.moe_latent_size||0;
+      const nmoe={t:'moe',E:c.n_routed_experts||0,k:c.num_experts_per_tok||0,ff:c.moe_intermediate_size||0,
+        sff:(c.n_shared_experts||0)*(c.moe_shared_expert_intermediate_size||0),sgate:false,rbias:false,cbias:false,ebias:false,g:false,lat};
+      if(pat.includes('E')&&(c.num_nextn_predict_layers||0))s.notes.push('MTP layers not counted');
       for(const ch of pat){
         if(ch==='M')layers.push({mix:m2,ffn:null,norms:d});
         else if(ch==='*')layers.push({mix:full(),ffn:null,norms:d});
         else if(ch==='-')layers.push({mix:null,ffn:{t:'mlp',ff,bias:!!c.mlp_bias},norms:d});
+        else if(ch==='E')layers.push({mix:null,ffn:nmoe,norms:d});
         else throw new Error('unknown Nemotron layer code '+JSON.stringify(ch));
       }
       s.layers=layers;return s;
@@ -198,7 +204,7 @@ window.CC=(function(){
     if(!f)return r;
     if(f.t==='glu'){r.dense=3*d*f.ff;r.dense_o=f.bias?2*f.ff+d:0}
     else if(f.t==='mlp'){r.dense=2*d*f.ff;r.dense_o=f.bias?f.ff+d:0}
-    else{const E=f.E;r.routed=E*3*d*f.ff;r.routed_o=f.ebias?E*(2*f.ff+d):0;r.shared=3*d*f.sff+(f.sgate?d:0);r.router=d*E;r.moe_o=(f.rbias?E:0)+(f.cbias?E:0)}
+    else{const E=f.E,nm=f.g===false?2:3,lat=f.lat||0;r.routed=E*nm*(lat||d)*f.ff;r.routed_o=f.ebias?E*(2*f.ff+d):0;r.shared=nm*d*f.sff+(f.sgate?d:0);r.router=d*E;r.moe_o=(f.rbias?E:0)+(f.cbias?E:0);r.dense=2*d*lat}
     return r;
   }
   const sumv=o=>Object.values(o).reduce((a,b)=>a+b,0);
@@ -214,7 +220,7 @@ window.CC=(function(){
       const f=ffnParams(lay.ffn,d);
       b.ffn_dense+=f.dense+f.dense_o;b.moe_routed+=f.routed+f.routed_o;b.moe_shared+=f.shared;b.router+=f.router+f.moe_o;
       mm+=f.dense+f.shared+f.router;
-      if(lay.ffn&&lay.ffn.t==='moe'){const per=(f.routed+f.routed_o)/lay.ffn.E;actR+=per*lay.ffn.k;mm+=3*d*lay.ffn.ff*lay.ffn.k}
+      if(lay.ffn&&lay.ffn.t==='moe'){const per=(f.routed+f.routed_o)/lay.ffn.E;actR+=per*lay.ffn.k;mm+=(lay.ffn.g===false?2:3)*(lay.ffn.lat||d)*lay.ffn.ff*lay.ffn.k}
     }
     const total=sumv(b);const active=Math.round(total-b.moe_routed+actR);
     mm+=V*d;

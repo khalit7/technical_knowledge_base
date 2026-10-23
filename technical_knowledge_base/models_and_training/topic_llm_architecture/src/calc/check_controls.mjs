@@ -25,8 +25,6 @@ try {
       if (r.bad.length || r.side || r.box) errs.push(`${what}: ${r.bad.join(',')} ${r.side ? 'sideways' : ''} ${r.box}`);
     };
     if (rm === 'reduce') {
-      await p.evaluate(() => document.getElementById('cc-moecard').scrollIntoView()); await new Promise(r => setTimeout(r, 3500));
-      const i = await p.$eval('#cc-moectl-s', e => e.value); if (i !== '0') errs.push('MoE animation moved under reduced motion: step ' + i);
       console.log(scheme, width, rm, errs.length ? errs : 'clean'); fail += errs.length; await p.close(); continue;
     }
     const models = await p.$$eval('#cc-model option', os => os.map(o => o.value));
@@ -35,7 +33,7 @@ try {
       for (const v of ['cfg', 'mha', 'mqa']) { await p.select('#cc-var', v); }
       await p.select('#cc-var', 'cfg');
       // step both animations to the end
-      for (const id of ['cc-anctl', 'cc-moectl']) { const n = await p.$eval('#' + id + '-s', e => +e.max); for (let i = 0; i < n; i++) await p.click('#' + id + '-f'); }
+      for (const id of ['cc-anctl']) { const n = await p.$eval('#' + id + '-s', e => +e.max); for (let i = 0; i < n; i++) await p.click('#' + id + '-f'); }
       await check('model ' + m);
     }
     const cmps = await p.$$eval('#cc-cmp option', os => os.map(o => o.value));
@@ -66,7 +64,7 @@ try {
     await p.evaluate(() => document.querySelectorAll('#t-calc details').forEach(d => d.open = true)); await check('details open');
     if (shots) {
       await p.select('#cc-model', 'deepseek-v3'); await p.select('#cc-cmp', 'llama-3.1-8b');
-      for (const s of ['cc-s-pick', 'cc-s-where', 'cc-s-fm', 'cc-s-ctx', 'cc-s-moe', 'cc-s-drill', 'cc-s-check']) {
+      for (const s of ['cc-s-pick', 'cc-s-where', 'cc-s-fm', 'cc-s-ctx', 'cc-s-drill', 'cc-s-check']) {
         await p.evaluate(id => document.getElementById(id).scrollIntoView(), s); await new Promise(r => setTimeout(r, 200));
         await p.screenshot({ path: path.join(shots, `${scheme}_${width}_${s}.png`) });
       }

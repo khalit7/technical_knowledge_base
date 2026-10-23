@@ -70,7 +70,7 @@ def normalise(cfg):
         s['notes'].append('vocab padded to a multiple of %d' % m)
         return s
     if mt == 'mamba':
-        d = c['hidden_size']; L = c['num_hidden_layers']; V = c['vocab_size']
+        d = c['hidden_size']; L = c.get('num_hidden_layers') or len(c.get('layers_block_type') or []); V = c['vocab_size']
         di = c.get('intermediate_size') or c.get('expand', 2) * d
         dtr = c.get('time_step_rank', 'auto')
         if dtr == 'auto': dtr = math.ceil(d / 16)
@@ -82,7 +82,7 @@ def normalise(cfg):
 
     if mt in UNSUPPORTED:
         raise ValueError(UNSUPPORTED[mt])
-    d = c['hidden_size']; L = c['num_hidden_layers']; V = c['vocab_size']
+    d = c['hidden_size']; L = c.get('num_hidden_layers') or len(c.get('layers_block_type') or []); V = c['vocab_size']
     nh = c.get('num_attention_heads'); nkv = _g(c, 'num_key_value_heads', default=nh)
     hd = _g(c, 'head_dim', 'attention_head_dim', default=(d // nh if nh else 0))
     ff = c.get('intermediate_size')
@@ -159,8 +159,18 @@ def normalise(cfg):
             s['notes'].append('layer pattern read from layers_block_type')
         if not pat:
             raise ValueError('nemotron_h config has neither hybrid_override_pattern nor layers_block_type')
-        if 'E' in pat:
-            raise ValueError('Nemotron MoE layers (E in the pattern, the latent MoE of Nemotron 3) are not modelled here')
+        # Nemotron 3 MoE layers (E): squared-ReLU experts with two matrices (up, down), one non-gated shared expert,
+        # a sigmoid router on the hidden state; with moe_latent_size (Super, Ultra) the routed experts work in a smaller
+        # latent space entered and left through two dense projections (fc1_latent_proj, fc2_latent_proj), counted as
+        # dense FFN weights. e_score_correction_bias is a buffer in transformers, not a parameter. The MTP layers
+        # (mtp_hybrid_override_pattern / mtp_layers_block_type) are not counted. Checked 2026-10-23 against the Hub's
+        # stored-tensor counts: Nemotron 3 Nano 30B-A3B equal; Super 120B-A12B equal to the main model plus its MTP layers.
+        lat = c.get('moe_latent_size') or 0
+        nmoe = {'t': 'moe', 'E': c.get('n_routed_experts', 0), 'k': c.get('num_experts_per_tok', 0),
+                'ff': c.get('moe_intermediate_size', 0), 'sff': (c.get('n_shared_experts') or 0) * c.get('moe_shared_expert_intermediate_size', 0),
+                'sgate': False, 'rbias': False, 'cbias': False, 'ebias': False, 'g': False, 'lat': lat}
+        if 'E' in pat and (c.get('num_nextn_predict_layers') or 0):
+            s['notes'].append('MTP layers not counted')
         m2 = {'t': 'mamba2', 'nh': c['mamba_num_heads'], 'hd': c['mamba_head_dim'], 'ds': c['ssm_state_size'],
               'ng': c['n_groups'], 'k': c['conv_kernel'], 'cb': c.get('use_conv_bias', True),
               'pb': c.get('mamba_proj_bias', False), 'norm': True}
@@ -168,6 +178,7 @@ def normalise(cfg):
             if ch == 'M': layers.append({'mix': m2, 'ffn': None, 'norms': d})
             elif ch == '*': layers.append({'mix': attn(0) | {'win': 0}, 'ffn': None, 'norms': d})
             elif ch == '-': layers.append({'mix': None, 'ffn': {'t': 'mlp', 'ff': ff, 'bias': bool(c.get('mlp_bias'))}, 'norms': d})
+            elif ch == 'E': layers.append({'mix': None, 'ffn': nmoe, 'norms': d})
             else: raise ValueError('unknown Nemotron layer code %r' % ch)
         s['layers'] = layers
         return s
@@ -320,11 +331,12 @@ def ffn_params(f, d):
     elif f['t'] == 'mlp':
         r['dense'] = 2 * d * f['ff']; r['dense_o'] = (f['ff'] + d) if f['bias'] else 0
     else:
-        E = f['E']
-        r['routed'] = E * 3 * d * f['ff']
+        E = f['E']; nm = 3 if f.get('g', True) else 2; lat = f.get('lat', 0)
+        r['routed'] = E * nm * (lat or d) * f['ff']
         r['routed_o'] = E * (2 * f['ff'] + d) if f['ebias'] else 0
-        r['shared'] = 3 * d * f['sff'] + (d if f['sgate'] else 0)
+        r['shared'] = nm * d * f['sff'] + (d if f['sgate'] else 0)
         r['router'] = d * E
+        r['dense'] = 2 * d * lat  # latent projections in and out (Nemotron 3); 0 elsewhere
         r['moe_o'] = (E if f['rbias'] else 0) + (E if f['cbias'] else 0)
     return r
 
@@ -353,7 +365,7 @@ def params(spec):
         if lay['ffn'] and lay['ffn']['t'] == 'moe':
             per = (f['routed'] + f['routed_o']) / lay['ffn']['E']
             act['routed'] += per * lay['ffn']['k']
-            mm += 3 * d * lay['ffn']['ff'] * lay['ffn']['k']
+            mm += (3 if lay['ffn'].get('g', True) else 2) * (lay['ffn'].get('lat', 0) or d) * lay['ffn']['ff'] * lay['ffn']['k']
     total = sum(b.values())
     active = total - b['moe_routed'] + act['routed']
     mm += V * d  # LM head matmul (also when tied)

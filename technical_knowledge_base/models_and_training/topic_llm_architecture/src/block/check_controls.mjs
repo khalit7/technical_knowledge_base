@@ -34,16 +34,9 @@ try {
     for (const m of ['prefill', 'decode']) { await p.click(`#bl-fl-mode button[data-m=${m}]`);
       for (const v of ['7', '10', '13', '17', '20']) { await p.$eval('#bl-fl-slider', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await check('flops ' + m + ' ' + v); } }
     await (await p.$('#bl-fl')).screenshot({ path: path.join(shots, `bl_flops_${scheme}.png`) });
-    // norms animation
-    for (const w of ['init', 'trained']) for (const k of ['median', 'token']) { await p.click(`#bl-nm-when button[data-m=${w}]`); await p.click(`#bl-nm-which button[data-m=${k}]`);
-      const n = await p.$eval('#bl-nm-ctl-s', e => +e.max); for (let i = 0; i <= n; i++) { await p.$eval('#bl-nm-ctl-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i); } await check('norm ' + w + k); }
-    await (await p.$('#bl-nm')).screenshot({ path: path.join(shots, `bl_norm_${scheme}.png`) });
-    for (const sel of ['#bl-lc-pick', '#bl-gn-pick']) { const ms = await p.$$eval(sel + ' button', bs => bs.map(x => x.dataset.m));
-      for (const m of ms) { await p.click(`${sel} button[data-m="${m}"]`); await check(sel + m); } }
-    await (await p.$('#bl-lc-svg')).screenshot({ path: path.join(shots, `bl_loss_${scheme}.png`) });
-    await (await p.$('#bl-gn-svg')).screenshot({ path: path.join(shots, `bl_grad_${scheme}.png`) });
+    // (the pre/post-norm section moved to the Normalisation child on 2026-10-23)
     // play/pause buttons and speed
-    for (const c of ['bl-walk-ctl', 'bl-nm-ctl']) { await p.click('#' + c + '-p'); await sleep(200); await p.click('#' + c + '-p'); await p.click('#' + c + '-f'); await p.click('#' + c + '-b'); await p.select('#' + c + '-v', '2'); }
+    for (const c of ['bl-walk-ctl']) { await p.click('#' + c + '-p'); await sleep(200); await p.click('#' + c + '-p'); await p.click('#' + c + '-f'); await p.click('#' + c + '-b'); await p.select('#' + c + '-v', '2'); }
     // drills
     const nd = await p.$$eval('#t-block .bl-pr', x => x.length);
     for (let i = 0; i < nd; i++) await p.evaluate(i => document.querySelectorAll('#t-block .bl-pr')[i].querySelector('.bl-opts button').click(), i);
