@@ -1,0 +1,1991 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Parameter-Efficient Fine-Tuning (PEFT) Topic: llm-training-and-post-training · deep dive · ⏱ 20 min read · +11h 35m resources Parameter-Efficient Fine-Tuning (PEFT) Fine-tuning by training a small set of new numbers beside a frozen model: what each method trains, what a real fine-tuning update looks like next to a low-rank one, when LoRA matches full fine-tuning and when it does not, and how one base serves thousands of adapters.",
+  "label": "core",
+  "key": "Parameter-Efficient Fine-Tuning (PEFT)",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Sources are linked inline; checked 3 October 2026.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "date line; replaced by \"data as of October 2026\""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Trainable parameters Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 4,
+  "tab": "t-read",
+  "section": "",
+  "text": "Why PEFT The methods LoRA on a real matrix How low is a real update?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "Which matrices Against full fine-tuning QLoRA DoRA Serving many adapters Choosing Common mistakes",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "Why PEFT Parameter-efficient fine-tuning freezes the pretrained model and trains a small set of numbers, usually new ones added beside it.",
+  "label": "core",
+  "key": "PEFT freezes the pretrained weights and trains a small set of new numbers",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "The frozen base is shared; what a task learns lives in the small set.",
+  "label": "core",
+  "key": "saved and loaded apart from the base",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "Three things follow, and they are the reasons to use it: Memory.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "Training with Adam in mixed precision holds about 16 bytes per trained parameter: the bf16 weight and gradient (2 + 2) and fp32 master weight and two moments (12) ( ZeRO ).",
+  "label": "core",
+  "key": "an fp32 master weight and two moments (12)",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "A frozen weight needs no gradient and no optimizer state, only its own 2 bytes.",
+  "label": "core",
+  "key": "A frozen weight needs no gradient and no optimiser state",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "Biderman et al. put the model and optimizer state of a 7B model at 112 GB with Adam and 15.12 GB with Adam plus LoRA, before activations ( Table S14 ); derived 112 = 16 × 7 and 15.12 = 2 × 7 + 16 × 0.07, so their row assumes adapters of about 1% of the model.",
+  "label": "core",
+  "key": "15.12 = 2 × 7 + 16 × 0.07",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "The parent page's bytes-per-parameter calculator (Machinery section) compares full fine-tuning, LoRA and QLoRA for any model size; this page does not repeat it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the parent calculator; this page now owns the calculator"
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "A full fine-tune of GPT-3 175B is a 350 GB checkpoint; its LoRA adapter (rank 4 on the query and value matrices) is about 35 MB ( LoRA §4.2 ).",
+  "label": "core",
+  "key": "350 GB checkpoint",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "Adapters can be swapped in seconds, or many can be served at once against one base (see Serving many adapters below; vLLM calls this multi-LoRA).",
+  "label": "core",
+  "key": "Adapters swap in seconds",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "The base weights never move, and a low-rank change can only move the model so far.",
+  "label": "core",
+  "key": "a low-rank change can move the model only so far",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "Biderman et al. measured it: LoRA \"learns less and forgets less\" than full fine-tuning (chart in Against full fine-tuning ).",
+  "label": "core",
+  "key": "\"learns less and forgets less\"",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "The price is capacity: a small set of numbers can store only so much.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by 18"
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "why peft",
+  "text": "For the instruction and preference data of ordinary post-training that is rarely binding; for billions of tokens of new domain text it is (the same section).",
+  "label": "core",
+  "key": "for billions of tokens of new domain text it is",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "The methods, and what each one trains Every method answers one question differently: which numbers are trained, and where do they touch the frozen network?",
+  "label": "core",
+  "key": "which numbers are trained, and where do they touch the frozen network?",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "Parameter counts in the table are for Llama 3 8B (8.03B parameters) from its config.json , computed by the page's formulas and identical to the counts the PEFT library itself reports (the Trainable parameters tab recomputes them for any model, rank and target set).",
+  "label": "core",
+  "key": "identical to the counts the PEFT library itself reports",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "Method What is trained Where it touches the model Trainable on Llama 3 8B Extra cost when serving Full fine-tuning Every weight Everywhere 8.03B (100%) None, but one full copy per task Head only A new output layer On top of the frozen backbone task-sized None Adapters (Houlsby 2019) Two small bottleneck MLPs per block (down to m , up to d ) In series, after attention and after the MLP 33.8M at m = 64 Extra sequential layers on every token Prompt tuning n \"virtual token\" embeddings Prepended to the input 81,920 at n = 20 n more tokens of context Prefix tuning, P-tuning v2 n keys and values per layer Prepended to every layer's attention 1.31M at n = 20 n more cached positions (IA)³ One scaling vector each for keys, values and the MLP hidden units Multiplies activations elementwise 0.52M None once folded into the weights LoRA Two thin matrices B , A per adapted matrix: Δ W = (α/ r ) BA In parallel with each frozen matrix 41.9M at r = 16, all 7 matrices None once merged LoRA-FA LoRA with A frozen at its random start; only B trains As LoRA 22.0M at r = 16, all None once merged VeRA Two scaling vectors per matrix; one random B , A pair shared by all layers and frozen As LoRA 1.61M at r = 1,024, all 7 None once merged QLoRA LoRA, on a base stored in 4-bit NF4 As LoRA as LoRA Merge needs care (see QLoRA ) DoRA LoRA for each weight's direction plus one magnitude per output unit As LoRA, then renormalised 43.3M at r = 16, all None once merged Settings: (IA)³ scales keys, values and the input of the MLP's down projection, as the PEFT library does for Llama; VeRA's rank 1,024 on every linear layer is the VeRA paper's instruction-tuning setup ( VeRA §4.3 ).",
+  "label": "core",
+  "key": "33.8M at m = 64",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "Adapter count from the LoRA paper's formula 2 L (2 dm + m + d ) ( LoRA §5.1 ).",
+  "label": "core",
+  "key": "the LoRA paper's formula",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "The families in brief, oldest first: Head-only tuning : freeze the backbone, train a task head.",
+  "label": "depth",
+  "key": "Head-only tuning",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "The classic transfer-learning baseline; too weak to change how a generative model behaves, because nothing inside the network moves.",
+  "label": "depth",
+  "key": "nothing inside the network moves",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "Adapters ( Houlsby et al.",
+  "label": "depth",
+  "key": "Houlsby et al. 2019",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "2019 ): small bottleneck MLPs inserted into each block.",
+  "label": "depth",
+  "key": "small bottleneck MLPs inserted into each block",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "On GLUE they came within 0.4% of full fine-tuning while adding 3.6% parameters per task.",
+  "label": "depth",
+  "key": "within 0.4% of full fine-tuning while adding 3.6%",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "Their cost is latency: the adapter sits in series, so every token runs extra sequential layers, which the LoRA paper measured as a single forward pass of GPT-2 medium 20.7% to 30.3% slower at batch size 1 and 128 tokens, shrinking to 2.2% to 3.0% at batch 32 and 512 tokens ( LoRA Table 1 ).",
+  "label": "core",
+  "key": "20.7% to 30.3% slower at batch size 1",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "LoRA, which merges away, superseded them.",
+  "label": "core",
+  "key": "LoRA sits in parallel and merges away",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "Soft prompts : learn embeddings instead of words.",
+  "label": "depth",
+  "key": "learn embeddings instead of words",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "Prompt tuning ( Lester et al.",
+  "label": "depth",
+  "key": "Lester et al. 2021",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "2021 ) prepends them to the input only, and \"closes the gap\" with full tuning only as T5 models exceed billions of parameters.",
+  "label": "depth",
+  "key": "\"closes the gap\"",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "Prefix tuning ( Li and Liang 2021 ) prepends keys and values at every layer, about 0.1% of the parameters; P-tuning v2 ( Liu et al.",
+  "label": "depth",
+  "key": "about 0.1% of the parameters",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "2021 ) made deep prompts match fine-tuning on understanding tasks with 0.1% to 3% of the parameters.",
+  "label": "depth",
+  "key": "0.1% to 3% of the parameters",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "No architecture change and tiny counts, but they spend context positions, train less stably and are weaker than LoRA; niche today.",
+  "label": "core",
+  "key": "Soft prompts spend context positions, train less stably",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "On LLaMA-7B commonsense reasoning, prefix tuning averaged 64.6 against LoRA's 74.7 ( DoRA Table 1 , baselines from LLM-Adapters).",
+  "label": "core",
+  "key": "prefix tuning averaged 64.6 against LoRA's 74.7",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "(IA)³ ( Liu et al.",
+  "label": "depth",
+  "key": "Liu et al. 2022",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "2022 ): rescale activations with learned vectors; among the fewest parameters of any method here (fewer than LoRA by about 80 times on Llama 3 8B), built for few-shot fine-tuning of T0 (the T-Few recipe).",
+  "label": "depth",
+  "key": "fewer than LoRA by about 80 times",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "LoRA ( Hu et al.",
+  "label": "depth",
+  "key": "Hu et al. 2021",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "2021 ): learn the change to a frozen matrix as a product of two thin matrices.",
+  "label": "depth",
+  "key": "learn the change to a frozen matrix",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "The default today; the next three sections are about it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "LoRA's descendants each change one thing.",
+  "label": "core",
+  "key": "its descendants each change one thing",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "the methods, and what each one trains",
+  "text": "QLoRA stores the base in 4 bits; DoRA separates magnitude from direction; LoRA-FA ( Zhang et al. ) freezes A , arguing the update collapses to a regression on B , which saves activation memory; VeRA ( Kopiczko et al. ) shares one frozen random pair across all layers and trains only scaling vectors, for storage-bound settings with many adapters; rsLoRA and LoRA+ change only the scale and the learning rates (next section).",
+  "label": "depth",
+  "key": "arguing the update collapses to a regression on B",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "LoRA, on one real matrix LoRA ( Hu et al.",
+  "label": "core",
+  "key": "learns its change as the product of two thin matrices. The animation",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "2021 ) leaves a pretrained matrix W 0 frozen and learns its change as the product of two thin matrices: h = W 0 x + (α / r) · B A x W 0 the frozen weight, d out × d in A r × d in , starts random (the paper: Gaussian; PEFT: Kaiming-uniform) B d out × r , starts at zero , so Δ W = BA = 0 and training begins exactly at the base model r the rank: Δ W can point in at most r directions; trainable numbers r ( d in + d out ) instead of d in d out α / r a fixed scale, so the effective step size does not change when you change r The animation runs both on a real matrix: the query projection of layer 14 of SmolLM2-135M (576 × 576).",
+  "label": "core",
+  "key": "starts at zero",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "For the \"after\" it uses a real fine-tuning update: the same matrix in SmolLM2-135M-Instruct , which its model card says was made from the base by SFT and then DPO.",
+  "label": "core",
+  "key": "made from the base by SFT and then DPO",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "Full fine-tuning produced that update; LoRA cannot, because it is limited to rank r , so the LoRA mode shows the closest rank- r matrix to it (its truncated SVD, the best any rank- r update can do in squared error).",
+  "label": "core",
+  "key": "update can do in squared error",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "Heatmaps show the top-left 32 × 32 corner; counters are for the whole matrix.",
+  "label": "core",
+  "key": "Heatmaps show the top-left 32 × 32 corner",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "Try: play LoRA, then switch to full fine-tuning to see the update LoRA is approximating; change the rank and watch the \"share of the update\" counter.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "replaced by the predict prompt"
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "Rank 64 (of 576) recovers 57% of the update's squared size.",
+  "label": "core",
+  "key": "Rank 64 recovers 57%",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "LoRA Full fine-tuning (what it approximates) Rank r 1 4 16 64 W 0 frozen base ΔW W positive negative W 0 and W at W 0 's colour scale; ΔW at its own scale ( times finer), the same for every panel that shows an update measured by delta_probe.py from the two published checkpoints (bf16; storing the fine-tuned weights in bf16 can account for well under 0.1% of the update's squared size).",
+  "label": "core",
+  "key": "times finer), the same for every panel",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "Bytes: 2 per bf16 number shipped; training state 16 bytes per trained number (weight, gradient, fp32 master and two Adam moments, as ZeRO ) and 2 per frozen one.",
+  "label": "core",
+  "key": "2 per bf16 number shipped",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "Four practical details sit in that formula: Zero-initialised B.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "Because Δ W starts at exactly zero, step 0 of training is the base model, and the first gradient step moves only B (the gradient of A is multiplied by B , which is zero).",
+  "label": "core",
+  "key": "the first gradient step moves only B",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "Microsoft's own loralib initialises A Kaiming-uniform, \"different than what is described in the paper but should not affect performance\". α / r, and rsLoRA.",
+  "label": "depth",
+  "key": "should not affect performance",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "Dividing by r keeps the optimal learning rate roughly independent of rank; Thinking Machines found the learning curves of different ranks \"exactly the same at the beginning of training\" ( LoRA Without Regret ). rsLoRA argues the right divisor is √ r , because 1/ r \"results in slowed learning and stunted performance\" at higher ranks; PEFT switches with use_rslora=True .",
+  "label": "core",
+  "key": "\"exactly the same at the beginning of training\"",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "Changing r under one convention while keeping α from a recipe written for the other changes the effective learning rate.",
+  "label": "core",
+  "key": "changes the effective learning rate",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "2024 show that one learning rate for A and B is suboptimal at large width and give B a larger one: 1 to 2% better and up to about 2 times faster, at the same cost.",
+  "label": "depth",
+  "key": "1 to 2% better and up to about 2 times faster",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "After training, W = W 0 + (α/ r ) BA is one ordinary matrix: the merged model has exactly the base's shape and speed.",
+  "label": "core",
+  "key": "the merged model has exactly the base's shape and speed",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "Subtracting the product un-merges it, which is how one base can switch tasks.",
+  "label": "core",
+  "key": "Subtracting the product un-merges it",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "lora, on one real matrix",
+  "text": "The LoRA paper's own animation of a token through LoRA against an adapter, its GPT-3 parameter calculator, and a LoRA you can train in the browser on a task whose true update is known are on the LoRA paper page ; this page does not repeat them.",
+  "label": "depth",
+  "key": "a LoRA you can train in the browser",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "How low is the rank of a real update?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "LoRA's bet is that the change fine-tuning needs is low-rank.",
+  "label": "core",
+  "key": "LoRA's bet is that the change fine-tuning needs is low-rank",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "The LoRA paper supported it with GPT-3, where rank 1 to 4 on the query and value matrices already matched larger ranks on its tasks.",
+  "label": "core",
+  "key": "rank 1 to 4 on the query and value matrices",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "Full fine-tuning has no such limit, and its updates are not low-rank.",
+  "label": "core",
+  "key": "its updates are not low-rank",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "Biderman et al. found full fine-tuning on code and math learns \"perturbations with a rank that is 10-100× greater than typical LoRA configurations\", rising with more data and higher in the MLP than in attention ( LoRA Learns Less and Forgets Less ).",
+  "label": "core",
+  "key": "10-100× greater than typical LoRA configurations",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "The same holds for SmolLM2's real update, matrix by matrix.",
+  "label": "core",
+  "key": "SmolLM2's real update says the same",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "Each cell is one of the 210 linear matrices (30 layers × 7); colour is either the rank needed to hold 90% of the update's squared size, as a share of the most it could be, or the size of the update relative to the weight.",
+  "label": "core",
+  "key": "All 210 matrices (30 layers × 7)",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "Click a cell for its numbers.",
+  "label": "core",
+  "key": "Click or tap a cell",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "Rank for 90% of the update Update size ‖ΔW‖ / ‖W 0 ‖ Share a rank-16 LoRA could hold Click or tap a cell. measured SmolLM2-135M to SmolLM2-135M-Instruct, every layer; medians over the 30 layers in the table.",
+  "label": "core",
+  "key": "medians over the 30 layers in the table",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "Rank shares are of min( d in , d out ): 576 for q, o and the MLP, 192 for k and v (grouped-query attention).",
+  "label": "core",
+  "key": "192 for k and v (grouped-query attention)",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "What this shows, and what it does not: The update is spread over many directions : a median of about 200 of 576 directions to hold 90% for the attention query and output, about 350 for the MLP matrices.",
+  "label": "core",
+  "key": "about 200 of 576 directions",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "A rank-16 LoRA could hold between a quarter and a third of an attention query or output matrix's update and about a sixth of an MLP matrix's.",
+  "label": "core",
+  "key": "about a sixth of an MLP one",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "The MLP updates are the most spread out , in line with Biderman et al. and with the advice to put LoRA on the MLP first (next section).",
+  "label": "core",
+  "key": "the MLP updates are the most spread out",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "It does not show that LoRA would be worse here.",
+  "label": "core",
+  "key": "That LoRA would be worse here",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "Full fine-tuning has no reason to keep its update low-rank, so much of it may be directions that do not matter for the task.",
+  "label": "core",
+  "key": "much of it may be directions that do not matter for the task",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "LoRA finds a different solution, not a compressed copy of this one; whether it scores as well is measured by training both, as the studies in Against full fine-tuning do.",
+  "label": "core",
+  "key": "LoRA finds a different solution, not a compressed copy",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "The share held is an upper bound on how closely any rank- r update could copy this one, nothing more.",
+  "label": "core",
+  "key": "update could",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "how low is the rank of a real update?",
+  "text": "Some single matrices did change in few directions: layer 0's value projection moved by 33% of its size with 90% of that in 22 directions.",
+  "label": "core",
+  "key": "90% of that in 22 directions",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "which matrices to adapt",
+  "text": "Which matrices to adapt The LoRA paper adapted only the attention query and value matrices of GPT-3.",
+  "label": "core",
+  "key": "adapted only the attention query and value matrices of GPT-3",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "which matrices to adapt",
+  "text": "Practice has moved to every linear layer, especially the MLP : QLoRA could not match full fine-tuning with LoRA on q and v; \"LoRA on all linear transformer block layers are required\", and the total number of adapters mattered more than the rank ( QLoRA §4 ).",
+  "label": "core",
+  "key": "\"LoRA on all linear transformer block layers are required\"",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "which matrices to adapt",
+  "text": "LoRA Without Regret : attention-only LoRA underperforms MLP-only LoRA \"even when we match the number of trainable parameters by using higher rank for attention-only LoRA\"; MLP-only performs about as well as MLP plus attention; and \"LoRA performs better when applied to all weight matrices, especially MLP and MoE layers\" ( Thinking Machines ).",
+  "label": "core",
+  "key": "\"even when we match the number of trainable parameters",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "which matrices to adapt",
+  "text": "QLoRA found MLP plus attention above MLP alone; the two studies differ on that second step only.",
+  "label": "core",
+  "key": "the two studies differ on that second step only",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "which matrices to adapt",
+  "text": "Biderman et al. recommend targeting \"All\" modules, at rank 256 when memory allows, because ranks 16 to 64 \"tend not to suffice for code tasks\".",
+  "label": "core",
+  "key": "\"tend not to suffice for code tasks\"",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "which matrices to adapt",
+  "text": "On a dense model most of an all-linear adapter's parameters sit in the MLP, because the MLP matrices are the widest: on Llama 3 8B at any rank, the three MLP matrices hold 67.5% of the adapter (55,296 of the 81,920 numbers per unit of rank per layer: each matrix costs d in + d out ; derived from the config ).",
+  "label": "core",
+  "key": "55,296 of the 81,920 numbers",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "which matrices to adapt",
+  "text": "The Trainable parameters tab breaks any configuration down matrix by matrix, including a mixture-of-experts model where the expert matrices dominate.",
+  "label": "core",
+  "key": "including a mixture-of-experts model where the expert matrices dominate",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "LoRA against full fine-tuning Two careful studies, a year apart, frame the answer.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "They agree more than their titles suggest: LoRA matches full fine-tuning when the data fits in its capacity and it is set up right, and falls behind when the data is pretraining-sized. \"LoRA learns less and forgets less\" (Biderman et al., 2024) Biderman et al. trained Llama-2-7B on code and on math, two ways each: continued pretraining (CPT: StarCoder-Python up to 20B tokens; OpenWebMath, 14.7B tokens) and instruction fine-tuning (IFT: Magicoder-Evol-Instruct-110K, 73M tokens; MetaMathQA, 103M tokens).",
+  "label": "core",
+  "key": "falls behind when the data is pretraining-sized",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "They scored the target skill (HumanEval for code, GSM8K for math) and, to measure forgetting, the average of HellaSwag, WinoGrande and ARC-Challenge, which the base model already knew.",
+  "label": "core",
+  "key": "HellaSwag, WinoGrande and ARC-Challenge",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "The chart steps through their checkpoints.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Try: code CPT first: full fine-tuning (orange) climbs higher but slides left, forgetting; the LoRA runs stay right and lower.",
+  "label": "core",
+  "key": "climbs higher but slides left",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Then code IFT, where LoRA at rank 256 matches or beats full fine-tuning at epoch 4 while forgetting far less.",
+  "label": "core",
+  "key": "matches or beats full fine-tuning at epoch 4",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Code, CPT Math, CPT Code, IFT Math, IFT published values from Tables S1 to S8 , one run per point; the paper's figures plot the same data.",
+  "label": "core",
+  "key": "Tables S1 to S8",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Further right is less forgetting; higher is more learning.",
+  "label": "core",
+  "key": "Further right is less forgetting",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "What the tables say: Continued pretraining: LoRA learns less.",
+  "label": "core",
+  "key": "Continued pretraining: LoRA learns less",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "After 20B tokens of code, full fine-tuning reaches 0.263 on HumanEval and LoRA at rank 256 0.224; on math after 20B tokens, 0.293 against 0.202 on GSM8K.",
+  "label": "core",
+  "key": "0.293 against 0.202",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Rank 16 barely moves at all (0.162, 0.158).",
+  "label": "core",
+  "key": "(0.162, 0.158)",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Instruction fine-tuning: the gap mostly closes.",
+  "label": "core",
+  "key": "the gap mostly closes",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Code IFT at epoch 4: LoRA r = 256 0.498 against full fine-tuning 0.470 (full fine-tuning's best, 0.497, comes at epoch 8).",
+  "label": "core",
+  "key": "0.497, comes at epoch 8",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Math IFT at epoch 4: 0.625 against 0.642.",
+  "label": "core",
+  "key": "0.625 against 0.642",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "After code IFT at epoch 4 the forgetting average is 0.632 for LoRA r = 64 and 0.512 for full fine-tuning; after one epoch the LoRA runs still sat at about 0.65.",
+  "label": "core",
+  "key": "0.632 for LoRA r = 64 and 0.512",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "The paper finds LoRA \"mitigates forgetting more aggressively than classic regularization techniques\" (dropout, weight decay).",
+  "label": "core",
+  "key": "\"mitigates forgetting more aggressively",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Their recommendations: LoRA for instruction fine-tuning, not continued pretraining; all modules; rank 256 when memory allows; α = 2 r ; sweep the learning rate from 1e-5 to 5e-4. \"LoRA without regret\" (Thinking Machines, 2025) John Schulman and Thinking Machines Lab (29 September 2025) swept learning rates for LoRA and full fine-tuning on Llama 3 and Qwen3 models (including a mixture-of-experts one), with SFT on Tulu3 and OpenThoughts3 and RL on MATH and GSM.",
+  "label": "core",
+  "key": "sweep the learning rate from 1e-5 to 5e-4",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Their finding: when \"a few key details\" are right, LoRA learns with the same sample efficiency as full fine-tuning.",
+  "label": "core",
+  "key": "\"a few key details\"",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "The details: All layers, especially the MLP and MoE layers (see Which matrices ).",
+  "label": "core",
+  "key": "All layers, especially the MLP and MoE layers",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Not capacity-constrained : the adapter must have more parameters than the information to be learned.",
+  "label": "core",
+  "key": "more parameters than the information to be learned",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "LLM datasets carry \"around 1 bit (0.69 nats) per token\"; for typical instruction and reasoning sets LoRA has room. \"For datasets that exceed LoRA capacity, LoRA underperforms FullFT\", not by hitting a floor but by learning less efficiently.",
+  "label": "core",
+  "key": "\"around 1 bit (0.69 nats) per token\"",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Learning rate about 10 times full fine-tuning's : \"the optimal LR for LoRA is consistently 10x the one used for FullFT in the same application, for both supervised learning and reinforcement learning\".",
+  "label": "core",
+  "key": "consistently 10x the one used for FullFT",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Modest batch sizes : LoRA \"pays a larger penalty in loss as batch size increases beyond some point\", and a higher rank does not fix it, \"a property of the product-of-matrices parametrization\".",
+  "label": "core",
+  "key": "\"a property of the product-of-matrices parametrization\"",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Hugging Face's TRL guide turns this into \"an effective batch size < 32\".",
+  "label": "core",
+  "key": "\"an effective batch size < 32\"",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "RL needs almost no capacity.",
+  "label": "core",
+  "key": "RL needs almost no capacity",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "LoRA \"fully matches\" full fine-tuning for policy-gradient RL \"even with ranks as low as 1\".",
+  "label": "core",
+  "key": "\"even with ranks as low as 1\"",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "The argument: supervised learning gives O(tokens) bits per episode, a policy gradient only O(1) bits through the advantage.",
+  "label": "core",
+  "key": "O(1) bits through the advantage",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Their MATH run used about 10,000 problems × 32 samples, so at one bit each about 320,000 bits, against \"3M parameters\" in a rank-1 LoRA on Llama-3.1-8B ( derived : 2,621,440 on all seven matrices, which rounds to their figure; check it in the Trainable parameters tab).",
+  "label": "core",
+  "key": "2,621,440",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "The TRL guide's ranks: 256 for post-training-scale SFT, 1 to 32 for RL.",
+  "label": "core",
+  "key": "1 to 32 for RL",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Cheaper per step : \"slightly more than ⅔ of the FLOPs that full fine-tuning does per pass\", from 2 N ² + 6 NR multiply-adds against 3 N ² for an N × N matrix at rank R (no weight gradient for the frozen matrix). derived 67.4% at N = 4,096, R = 16; 79.2% at R = 256.",
+  "label": "core",
+  "key": "67.4% at N = 4,096",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "The two studies, reconciled Biderman et al.'s continued pretraining runs (14.7 to 20B tokens) are exactly the \"datasets that exceed LoRA capacity\" regime; their instruction runs, where LoRA caught up, are the \"low-regret\" regime.",
+  "label": "core",
+  "key": "the \"low-regret\" regime",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Thinking Machines cites them for this: LoRA underperforms \"in settings that resemble pre-training\".",
+  "label": "core",
+  "key": "\"in settings that resemble pre-training\"",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Use full fine-tuning or continued pretraining for billions of tokens of new domain text; LoRA for post-training.",
+  "label": "core",
+  "key": "LoRA for post-training",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "A worked instance at the small end A Qwen 3.8 4B model was taught to write PostgreSQL query plans: SFT on 400 GPT-6 Astra trajectories (440 generated in two rounds of 120 and 320, each keeping 20 for validation) through a LoRA of 21.2 million parameters (42.5 MB), then a custom \"anchored\" GRPO against measured execution time.",
+  "label": "depth",
+  "key": "400 GPT-6 Astra trajectories",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Best of three rollouts, it reached a 1.81 times geometric-mean speed-up over Postgres's own planner on 113 join-heavy queries, for $1,200 in total (about $800 of rented 2 × H100 time and $400 of API fees; development on two RTX 3090s) ( write-up, 16 September 2026 ).",
+  "label": "depth",
+  "key": "1.81 times geometric-mean speed-up",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "Corrected from the old page The old text said this cost \"a few hundred dollars\", ran \"on consumer GPUs\" and beat \"a hand-tuned production planner\".",
+  "label": "depth",
+  "key": "\"a few hundred dollars\"",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "lora against full fine-tuning",
+  "text": "The write-up gives $1,200, training on a rented H100 node (consumer cards for development), and compares against PostgreSQL's built-in planner.",
+  "label": "depth",
+  "key": "compares against PostgreSQL's built-in planner",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "QLoRA: LoRA on a 4-bit base QLoRA (Dettmers et al., 2023) stores the frozen base in 4 bits and trains bf16 LoRA adapters on top, backpropagating through the dequantised weights.",
+  "label": "core",
+  "key": "QLoRA backpropagates through the dequantised 4-bit weights into bf16 adapters",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "That took fine-tuning a 65B model from more than 780 GB of GPU memory to under 48 GB, one GPU, \"without degrading the runtime or predictive performance compared to a 16-bit fully finetuned baseline\".",
+  "label": "core",
+  "key": "\"without degrading the runtime or predictive performance",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "Three pieces: 4-bit NormalFloat (NF4) : a 16-value code whose levels follow a normal distribution, since pretrained weights roughly do; blocks of 64 weights share one scale.",
+  "label": "core",
+  "key": "a 16-value code whose levels follow a normal distribution",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "The paper calls it \"information theoretically optimal for normally distributed weights\"; Yoshida (2023) shows it cannot quite be, because the distribution of the scaled values depends on the block size.",
+  "label": "core",
+  "key": "Yoshida (2023)",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "The QLoRA page builds the code and measures it on real LLaMA weights.",
+  "label": "core",
+  "key": "built and measured on real LLaMA weights",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "Double quantisation : the per-block scales are themselves quantised, saving about 0.37 bits per parameter (about 3 GB on a 65B model).",
+  "label": "core",
+  "key": "saving about 0.37 bits per parameter",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "Paged optimizers : optimizer state in NVIDIA unified memory, so a long batch's memory spike pages to CPU instead of crashing.",
+  "label": "core",
+  "key": "pages to CPU instead of crashing",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "QLoRA's recipe put LoRA on every linear layer (r = 64, α = 16).",
+  "label": "core",
+  "key": "r = 64, α = 16",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "The trade is time: Sebastian Raschka measured 33% less memory for 39% more training time (21.33 GB and 1.85 h with bf16 LoRA against 14.18 GB and 2.79 h with QLoRA, in one of his runs) ( Practical tips ).",
+  "label": "core",
+  "key": "21.33 GB and 1.85 h",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "How the bytes add up for a given model size is the parent page's memory calculator ; NF4 among the other number formats is on Quantization and Precision .",
+  "label": "core",
+  "key": "NF4 among the other number formats is on",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "Merging onto a quantised base needs care.",
+  "label": "core",
+  "key": "Merging onto a quantised base needs care",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "The adapter was trained against the dequantised 4-bit weights, so its product is right relative to those.",
+  "label": "core",
+  "key": "its product is right relative to those",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "The usual routes: merge into the original 16-bit weights and quantise the result again (which adds a fresh rounding error); keep the adapter separate at serving time; or train so the merge stays quantised, as QA-LoRA does.",
+  "label": "core",
+  "key": "QA-LoRA",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "Some formats cannot merge at all: the PEFT docs say adapters on AQLM-quantised models \"shall be saved separately, as merging them with AQLM quantized weights is not possible\" ( PEFT quantization guide ).",
+  "label": "core",
+  "key": "\"shall be saved separately",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "qlora: lora on a 4-bit base",
+  "text": "LoftQ goes the other way, choosing the LoRA initialisation to cancel part of the quantisation error.",
+  "label": "core",
+  "key": "LoftQ",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "dora: magnitude and direction",
+  "text": "DoRA: magnitude and direction DoRA (Liu et al., ICML 2024) splits each weight column into a length and a direction, trains the length directly and the direction with LoRA: W′ = m · (W 0 + BA) / ‖W 0 + BA‖ c m a trainable magnitude vector, one number per column (per output unit in PyTorch's layout), initialised to ‖W 0 ‖ c ‖·‖ c \"the vector-wise norm of a matrix across each column vector\" The motivation is an analysis of how fine-tuning changes each column.",
+  "label": "core",
+  "key": "the vector-wise norm of a matrix across each column vector",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "dora: magnitude and direction",
+  "text": "In the paper's measurements, full fine-tuning's changes in magnitude and in direction were negatively correlated across checkpoints (a large turn with a small stretch, or the reverse) while LoRA's were positively correlated: one low-rank update moves both together.",
+  "label": "core",
+  "key": "negatively correlated (a large turn with a small stretch",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "dora: magnitude and direction",
+  "text": "The animation shows the difference in the simplest case.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "dora: magnitude and direction",
+  "text": "LoRA DoRA illustrative one 2-D column moved toward a target turned 60° at the same length, along the straight path each parametrisation takes in its own parameters; not a trained model.",
+  "label": "core",
+  "key": "turned 60° at the same length",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "dora: magnitude and direction",
+  "text": "Both reach the target: it shows how each moves, not which is more accurate.",
+  "label": "core",
+  "key": "it shows how each moves, not which is more accurate",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "dora: magnitude and direction",
+  "text": "The results ( Table 1 ): on eight commonsense-reasoning tasks, LLaMA-7B averaged 74.7 with LoRA (0.83% of parameters trained), 78.4 with DoRA (0.84%) and 77.5 with DoRA at half the rank (0.43%); LLaMA3-8B 80.8 against 85.2.",
+  "label": "core",
+  "key": "LLaMA3-8B 80.8 against 85.2",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "dora: magnitude and direction",
+  "text": "Two cautions: the LoRA numbers for LLaMA 7B and 13B are taken from an earlier paper (LLM-Adapters) rather than re-tuned, while DoRA kept LoRA's configuration \"adjusting only the learning rate\"; and the extra 0.01% is the magnitude vector (the Trainable parameters tab's LLaMA-7B preset reproduces 0.83%, 0.84% and 0.43%).",
+  "label": "core",
+  "key": "\"adjusting only the learning rate\"",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "dora: magnitude and direction",
+  "text": "To save memory DoRA treats the norm as a constant in the backward pass, which cut training memory by about 24.4% on LLaMA with a 0.2-point difference in accuracy.",
+  "label": "core",
+  "key": "about 24.4%",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "dora: magnitude and direction",
+  "text": "Once trained, DoRA merges like LoRA, so serving is free; PEFT enables it with use_dora=True .",
+  "label": "core",
+  "key": "use_dora=True",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "serving many adapters",
+  "text": "Serving many adapters One adapter is easiest merged: the model is the base's shape and speed.",
+  "label": "core",
+  "key": "One adapter is best merged",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "serving many adapters",
+  "text": "Many adapters on one base are a different problem.",
+  "label": "core",
+  "key": "Many adapters on one base are a different problem",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "serving many adapters",
+  "text": "Merging each one means a full copy of the model per adapter; keeping them unmerged means one copy of the base, shared by every request, and a small extra product x · A i · B i per request for whichever adapter it asked for.",
+  "label": "core",
+  "key": "per request for whichever adapter it asked for",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "serving many adapters",
+  "text": "S1: Llama-7B, rank 8 S2: ranks 8 to 64 S4: Llama-13B S-LoRA vLLM-packed (one merged copy per adapter) Hugging Face PEFT published S-LoRA Table 3 : requests per second on one A100 80GB, synthetic workload; OOM is out of memory; \"not run\" means the paper did not run PEFT there.",
+  "label": "core",
+  "key": "requests per second on one A100 80GB",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "serving many adapters",
+  "text": "Settings from its Table 1.",
+  "label": "core",
+  "key": "Settings from its Table 1",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "serving many adapters",
+  "text": "S-LoRA ( Sheng et al. ) keeps every adapter in host memory, fetches the ones the running requests need, and pages adapter weights and the KV cache from one memory pool (\"Unified Paging\"), with kernels that batch requests for adapters of different ranks.",
+  "label": "core",
+  "key": "\"Unified Paging\"",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "serving many adapters",
+  "text": "It served 2,000 adapters on one GPU at 7.61 requests per second, against 8.05 with five.",
+  "label": "core",
+  "key": "2,000 adapters on one GPU at 7.61",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "serving many adapters",
+  "text": "The baseline that merges each adapter into its own copy ran out of memory beyond a handful, and was 4 times slower even then: derived 8.05 / 2.04 = 3.9 times, and 7.99 / 0.25 = 32 times faster than PEFT, which swaps adapters between batches.",
+  "label": "core",
+  "key": "7.99 / 0.25 = 32 times",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "serving many adapters",
+  "text": "Punica ( Chen et al. ) introduced the batching kernel for different LoRA models against one copy of the base: 12 times the throughput of then state-of-the-art serving systems, adding 2 ms of latency per token.",
+  "label": "owned:systems_and_performance/topic_inference_and_serving/llm_serving_in_production",
+  "key": "12 times the throughput",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "serving many adapters",
+  "text": "In practice : vLLM serves adapters with --enable-lora and --lora-modules , with limits such as max_loras , max_lora_rank and max_cpu_loras ; SGLang incorporates \"techniques from S-LoRA and Punica\".",
+  "label": "core",
+  "key": "max_cpu_loras",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "serving many adapters",
+  "text": "Apple's on-device foundation model swaps rank-16 adapters, \"10s of megabytes\" each, per feature ( Apple, June 2024 ), and Thinking Machines' Tinker fine-tuning service is built on LoRA.",
+  "label": "depth",
+  "key": "\"10s of megabytes\"",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "serving many adapters",
+  "text": "The memory side of serving (KV cache, paging) is PagedAttention and Topic: inference-and-serving .",
+  "label": "core",
+  "key": "PagedAttention",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "choosing a method (2026)",
+  "text": "Choosing a method (2026) Situation Choice Why Post-training on one node, model fits in bf16 LoRA on all linear layers, r = 16 to 64 (256 for large SFT sets); FSDP2 if the base needs sharding Matches full fine-tuning in the low-regret regime at a fraction of the memory ( Distributed Training for sharding) Short of GPU memory, large base QLoRA (NF4 base, bf16 adapters) 65B on one 48 GB card; costs training time RL fine-tuning (GRPO and its family) LoRA, low rank (1 to 32) RL absorbs about a bit per episode ( RL for LLMs , Alignment ) Domain adaptation on billions of tokens Full fine-tuning or continued pretraining Exceeds LoRA's capacity; LoRA learns less there Many tenants or tasks on one deployment One LoRA adapter per task, multi-LoRA serving One base in memory; S-LoRA-style batching Thousands of adapters where storage dominates VeRA or (IA)³ Ten to a hundred times fewer numbers than LoRA; check quality on your task",
+  "label": "core",
+  "key": "FSDP2 if the base needs sharding",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes LoRA on the attention query and value only The original paper's choice for GPT-3.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates Which matrices"
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "QLoRA and LoRA Without Regret both found it underperforms; put LoRA on every linear layer, the MLP first.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A higher rank on attention alone does not make up for it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Reusing full fine-tuning's learning rate LoRA's optimum is about 10 times higher (Thinking Machines, SFT and RL alike).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A LoRA run that \"doesn't learn\" is often just under-stepped.",
+  "label": "core",
+  "key": "often just under-stepped",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Changing the rank and keeping α, under the wrong convention With α/ r , a rank change keeps the optimal learning rate roughly fixed; with rsLoRA's α/√ r it does not in the same way.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Know which one your library applies (PEFT: use_rslora ).",
+  "label": "core",
+  "key": "know which one your library applies",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Very large batches LoRA pays a growing loss penalty as the batch grows, and more rank does not fix it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Keep effective batches modest (the TRL guide: under 32).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting LoRA to absorb a new domain from billions of tokens That is the capacity-limited regime: it learns less than full fine-tuning (Biderman et al.'s CPT runs).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use full fine-tuning or continued pretraining.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Merging into 4-bit weights without checking The adapter was trained against the dequantised base; merging and re-quantising adds a new rounding error, and some formats cannot merge at all.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Evaluate the merged model, or serve the adapter separately.",
+  "label": "core",
+  "key": "evaluate the merged model",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Reading a full fine-tune's high-rank update as proof LoRA will fail The update full fine-tuning finds need not be the one the task requires (see How low is a real update? ).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Train both and compare on the task.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading, navigation, wind-up, restatement, or a mistake that restates its section"
+ },
+ {
+  "id": 176,
+  "tab": "t-count",
+  "section": "trainable parameters, every method, from real configs",
+  "text": "Trainable parameters, every method, from real configs How many numbers each method trains, for a model's real shapes (from its config.json ), a rank and a set of target matrices.",
+  "label": "core",
+  "key": "How many numbers each method trains",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-count",
+  "section": "trainable parameters, every method, from real configs",
+  "text": "The formulas are below; for the open models they give exactly the counts the PEFT library reports ( ).",
+  "label": "core",
+  "key": "The formulas are below",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-count",
+  "section": "trainable parameters, every method, from real configs",
+  "text": "This tab extends The methods in the Reading tab; what the bytes mean for training memory is the parent page's bytes-per-parameter calculator .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer rewritten to the Reading calculator"
+ },
+ {
+  "id": 179,
+  "tab": "t-count",
+  "section": "trainable parameters, every method, from real configs",
+  "text": "Try: the presets reproduce published counts.",
+  "label": "core",
+  "key": "the presets reproduce published counts",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-count",
+  "section": "trainable parameters, every method, from real configs",
+  "text": "Then switch targets from all seven matrices to q and v only and watch LoRA shrink about 6 times on Llama 3 8B; pick Qwen3-30B-A3B to see an adapter on every expert reach 844M numbers at rank 16, 20 times the dense Llama 3 8B's adapter at the same rank.",
+  "label": "core",
+  "key": "844M numbers at rank 16",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-count",
+  "section": "trainable parameters, every method, from real configs",
+  "text": "Model LoRA, DoRA, LoRA-FA rank r : Adapter bottleneck m Virtual tokens n (prompt, prefix) VeRA rank Target matrices for LoRA, DoRA, LoRA-FA and VeRA: count VeRA's shared frozen random pair (as VeRA's Table 1 does) Where a LoRA adapter's parameters sit The current LoRA configuration, matrix by matrix: each targeted matrix costs r ( d in + d out ) per layer (per expert in a mixture-of-experts layer).",
+  "label": "core",
+  "key": "count VeRA's shared frozen random pair",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-count",
+  "section": "trainable parameters, every method, from real configs",
+  "text": "Formulas Full every parameter: embeddings (once if tied) + L × (all matrices + norms) + final norm LoRA L × Σ targets r ( d in + d out ) × (experts per layer, 1 if dense) DoRA LoRA + L × Σ targets d out (one magnitude per output unit) LoRA-FA L × Σ targets r d out (only B ; A stays frozen) VeRA L × Σ targets ( d out + r ) (vectors b and d ); the shared frozen pair adds 2 d max r if counted (IA)³ L × (key width + value width + MLP hidden width); PEFT scales queries instead of keys for Qwen Prompt tuning n × d Prefix tuning n × L × 2 × (KV heads × head dim): one key and one value per virtual token per layer (PEFT, no reparametrisation MLP) Adapters (Houlsby) 2 L (2 dm + m + d ): two bottleneck adapters per block with biases, the LoRA paper's formula Configs: .",
+  "label": "core",
+  "key": "one magnitude per output unit",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-count",
+  "section": "trainable parameters, every method, from real configs",
+  "text": "GPT-3 175B shapes from the GPT-3 paper ( d = 12,288, 96 layers, MLP 4 d , no gate); its total is the published 175B.",
+  "label": "core",
+  "key": "d = 12,288, 96 layers",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-count",
+  "section": "trainable parameters, every method, from real configs",
+  "text": "Library check: peft_counts.py builds each open model empty from its config with PEFT and reads the library's trainable count.",
+  "label": "core",
+  "key": "builds each open model empty from its config",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-count",
+  "section": "trainable parameters, every method, from real configs",
+  "text": "Mixture-of-experts LoRA is counted per expert; PEFT wraps transformers' fused expert tensors in its own way and is not compared there.",
+  "label": "core",
+  "key": "Mixture-of-experts LoRA is counted per expert",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Best resources LoRA Without Regret (Thinking Machines Lab, Schulman et al.",
+  "label": "core",
+  "key": "LoRA Without Regret (Thinking",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2025) The careful empirical study of when LoRA matches full fine-tuning: layers, capacity, learning rate, batch size, RL at rank 1.",
+  "label": "core",
+  "key": "The careful empirical study of when",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(50 min) LoRA Without Regret, the TRL guide The same findings as runnable SFT and GRPO configurations, with a reproduction on SmolLM3.",
+  "label": "core",
+  "key": "LoRA Without Regret, the TRL guide",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30 min) Hugging Face PEFT documentation The standard implementation of every method on this page, with the LoRA developer guide (rsLoRA, DoRA, initialisation options) and the quantization guide.",
+  "label": "core",
+  "key": "Hugging Face PEFT documentation The",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(40 min) Practical Tips for Finetuning LLMs Using LoRA (Sebastian Raschka) Hyperparameter intuition from many runs: rank, α, which layers, QLoRA's memory against time trade.",
+  "label": "core",
+  "key": "Practical Tips for Finetuning LLMs",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30 min) LoRA Learns Less and Forgets Less (Biderman et al.",
+  "label": "core",
+  "key": "LoRA Learns Less and Forgets Less",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2024) Code and math, continued pretraining against instruction tuning, the learning and forgetting tables behind this page's chart, and the spectral analysis of full fine-tuning's updates.",
+  "label": "core",
+  "key": "Code and math, continued pretraining",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45 min) S-LoRA: Serving Thousands of Concurrent LoRA Adapters Unified Paging, heterogeneous batching kernels and the throughput table above.",
+  "label": "core",
+  "key": "S-LoRA: Serving Thousands of",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(40 min) Paper pages in this knowledge base LoRA: Low-Rank Adaptation of Large Language Models LoRA against an adapter animated, the GPT-3 parameter calculator, a LoRA you train in the browser on a task whose true update is known, every table rebuilt, and Then and now to 2025.",
+  "label": "core",
+  "key": "LoRA: Low-Rank Adaptation of Large",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(19 min) QLoRA: Efficient Finetuning of Quantized LLMs NF4 built and measured on real LLaMA weights, double quantisation, the Guanaco evaluations rechecked.",
+  "label": "core",
+  "key": "QLoRA: Efficient Finetuning of",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(29 min) ZeRO Where the 16 bytes per trained parameter come from, and how sharding divides them.",
+  "label": "core",
+  "key": "ZeRO Where the 16 bytes per trained",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(19 min) PagedAttention (vLLM) The KV-cache paging that S-LoRA's Unified Paging extends to adapter weights.",
+  "label": "core",
+  "key": "PagedAttention (vLLM) The KV-cache",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(25 min) Related pages Topic: llm-training-and-post-training The parent: every stage compared, and the bytes-per-parameter calculator for full fine-tuning, LoRA and QLoRA (Machinery section).",
+  "label": "core",
+  "key": "Topic: llm-training-and-post-training",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(27 min) Quantization and Precision NF4 among the other formats, and quantisation-aware training against QLoRA-style adapters.",
+  "label": "core",
+  "key": "Quantization and Precision NF4 among",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(23 min) Alignment: SFT, RLHF, DPO Family, RLVR The post-training stages a LoRA usually runs.",
+  "label": "core",
+  "key": "Alignment: SFT, RLHF, DPO Family,",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(23 min) Distributed Training FSDP and the other ways to split a model when even the frozen base does not fit.",
+  "label": "core",
+  "key": "Distributed Training FSDP and the",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(22 min) Continued Pretraining (CPT) The regime where full fine-tuning beats LoRA: billions of tokens of new domain text.",
+  "label": "core",
+  "key": "Continued Pretraining (CPT) The",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(18 min) RL for LLMs: RLHF, GRPO, RLVR The RL algorithms that LoRA matches at rank 1.",
+  "label": "core",
+  "key": "RL for LLMs: RLHF, GRPO, RLVR The RL",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(42 min) Topic: inference-and-serving Serving systems, where multi-LoRA batching lives.",
+  "label": "core",
+  "key": "Topic: inference-and-serving Serving",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(43 min) The method papers Houlsby et al.",
+  "label": "core",
+  "key": "Houlsby et",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2019, adapters Bottleneck adapters: within 0.4% of full fine-tuning on GLUE with 3.6% of the parameters.",
+  "label": "core",
+  "key": "adapters Bottleneck adapters: within",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30 min) Li and Liang 2021, prefix tuning ; Lester et al.",
+  "label": "core",
+  "key": "Li and Liang 2021, prefix tuning ;",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2021, prompt tuning Soft prompts at every layer and at the input only.",
+  "label": "core",
+  "key": "prompt tuning Soft prompts at every",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(50 min) DoRA (Liu et al.",
+  "label": "core",
+  "key": "DoRA (Liu et",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2024) The weight-decomposition analysis and the method.",
+  "label": "core",
+  "key": "The weight-decomposition analysis and",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(35 min) rsLoRA , LoRA+ , VeRA , LoRA-FA , (IA)³ The variants, each changing one thing about LoRA or replacing it with vectors; read the abstracts first.",
+  "label": "core",
+  "key": "rsLoRA , LoRA+ , VeRA , LoRA-FA ,",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(25 min) Punica: Multi-Tenant LoRA Serving The batching kernel for many LoRA models on one base, which SGLang cites with S-LoRA.",
+  "label": "core",
+  "key": "Punica: Multi-Tenant LoRA Serving The",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30 min) Times: paper pages give their paper tab's time; migrated knowledge base pages the length of their Reading tab; pages not yet migrated and external resources an estimate.",
+  "label": "core",
+  "key": "Times: paper pages give their paper",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "the idea (added 2026-10-23)",
+  "text": "Hero: one Llama 3 8B q_proj, full fine-tuning trains 16,777,216 numbers, LoRA r=16 trains 131,072 (0.78%); 268 MB against 35.7 MB training state (script-drawn; key in caption)",
+  "label": "core",
+  "key": "268 MB against 35.7 MB",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "memory (added 2026-10-23)",
+  "text": "Memory calculator defaults: Llama 3 8B, r=16 all linear: 128.5 GB full, 16.7 GB LoRA, 6.4 GB QLoRA (script-drawn; recompute.py mem())",
+  "label": "core",
+  "key": "128.5 GB, 16.7 GB and 6.4 GB",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "memory (added 2026-10-23)",
+  "text": "QLoRA Figure 6 model 37,074 MB does not reproduce from 4.127-bit arithmetic (34.46 GB)",
+  "label": "core",
+  "key": "34.46 GB",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "memory (added 2026-10-23)",
+  "text": "LLaMA 65B QLoRA at r=64 about 47 GB before activations; paper measured 45.0 GB at batch 1",
+  "label": "core",
+  "key": "measured 45.0 GB at batch 1",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "which matrices (added 2026-10-23)",
+  "text": "q and v are 16% of an all-linear adapter on Llama 3 8B (13,312 of 81,920)",
+  "label": "core",
+  "key": "are 16% of an all-linear adapter",
+  "where": ""
+ }
+]

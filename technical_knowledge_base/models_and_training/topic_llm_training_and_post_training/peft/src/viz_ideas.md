@@ -16,7 +16,10 @@ Scores: Q quantity moved by the reader, R reproduces a stated figure (x2), C com
 | 6 | **Multi-adapter serving**: S-LoRA layout diagram plus Table 3 bars for S1, S2, S4 | 1 | 2 (x2: "up to 4x" = 3.9x and "30x" = 32x recomputed) | 2 (x2) | 1 | 1 | 1 | 2 | 0 | -1 | 12 | Reading, Serving | built |
 | 7 | DoRA's ΔM/ΔD scatter recomputed on the SmolLM2 update | | | | | | | | | | | | rejected: the paper's measure is across training checkpoints of one layer; with only the final checkpoint the across-layer correlation (q 0.43, v 0.90, positive) is a different quantity and would look like a contradiction it is not |
 | 8 | LoRA against adapter latency animation, GPT-3 parameter calculator alone, in-browser LoRA trainer | | | | | | | | | | | | rejected: owned by the LoRA paper page; linked |
-| 9 | Memory calculator (bytes per parameter, full against LoRA against QLoRA) | | | | | | | | | | | | rejected: owned by the parent's Machinery section; linked |
+| 9 | Memory calculator (full against LoRA against QLoRA, from real configs, rank as the variable) | 2 | 2 | 2 | 1 | 1 | 2 | 1 | 0 | -1 | 16 | Reading, Memory and QLoRA | built 2026-10-23 (OWNERS.md gives this page the memory arithmetic; was rejected as the parent's on 2026-10-03; the parent should now link here) |
+| 13 | Hero: one Llama 3 8B q_proj to scale, full against LoRA, rank control | 1 | 1 | 2 | 2 | 1 | 2 | 1 | 0 | -1 | 13 | Reading, top | built 2026-10-23 |
+| 14 | Where each method attaches to a decoder block (static annotated) | 0 | 0 | 2 | 2 | 1 | 1 | 2 | 0 | 0 | 10 | Reading, The methods | built 2026-10-23 |
+| 15 | Share of an all-linear adapter per matrix, Llama 3 8B, to scale | 0 | 1 | 2 | 1 | 1 | 1 | 1 | 0 | 0 | 9 | Reading, Which matrices | built 2026-10-23 |
 | 10 | NF4 codebook explorer | | | | | | | | | | | | rejected: owned by the QLoRA paper page and Quantization and Precision |
 | 11 | LoRA Without Regret curves (loss against LR, rank) | | | | | | | | | | | | rejected: published only as images; their numbers (10x LR, 2/3 FLOPs, 320,000 bits against 3M) are recomputed in prose instead |
 | 12 | Training a real LoRA on SmolLM2 to compare with its full fine-tune | | | | | | | | | | | | rejected for now: would need the SFT and DPO data and hours of CPU; idea 1's best-rank-r bound plus the published studies answer the question honestly |
