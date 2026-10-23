@@ -52,6 +52,6 @@ window.BANKSIM=function(mode,P){
     cnt.innerHTML=RD.stat('Time',tn+' ns','of '+sim.end+' ns for all 16')+RD.stat('Rows opened',acts,'activates')+RD.stat('Bytes opened / used',MC.fmtN(acts*P.row/1024,0)+' KB / '+MC.fmtN(k*P.req/1024,2)+' KB','activation energy follows rows opened')+RD.stat('Effective rate',k?MC.fmtN(k*P.req/tn,2)+' GB/s':'-','bytes delivered / time');
   }
   const A=RD.anim({card:'rd-bank-card',ctl:'rd-bank-ctl',n:P.n+1,draw,ms:700,label:'Read'});
-  RD.seg(document.getElementById('rd-bank-mode'),m=>{mode=m;sim=BANKSIM(mode,P);A.reset(P.n+1);A.play()});
+  RD.seg(document.getElementById('rd-bank-mode'),m=>{mode=m;sim=BANKSIM(mode,P);A.reset(P.n+1)});
   RD.onResize(()=>A.redraw());
 })();

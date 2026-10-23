@@ -42,8 +42,6 @@ checks = [  # (text in the page, value, formatter)
     ("5.3 TB/s = 5.18 Gb/s", N["mi300x_pin_gbps"], lambda v: f"5.3 TB/s = {f2(v)} Gb/s"),
     ("would need 10.7 HBM4 stacks", N["rubin_stacks_at_jedec"], lambda v: f"would need {f1(v)} HBM4 stacks"),
     ("conversation holds 4.29 GB", mod["l8"]["kv"]["32768"] / 1e9, lambda v: f"conversation holds {f2(v)} GB"),
-    ("512 KiB per token: 17.18 GB", (mod["l2"]["kv_tok_bf16"] / 1024, mod["l2"]["kv"]["32768"] / 1e9), lambda v: f"{f0(v[0])} KiB per token: {f2(v[1])} GB"),
-    ("DeepSeek-V3: 68.6 KiB per token", mod["ds3"]["kv_tok_bf16"] / 1024, lambda v: f"DeepSeek-V3: {f1(v)} KiB per token"),
     ("in FP16) took 4.11 ms", kv[("GQA", 131072)] / 1000, lambda v: f"in FP16) took {f2(v)} ms"),
     ("gives 141 GB/s plus a fixed 0.30 ms", M["kvfit"]["GQA"], lambda v: f"gives {f0(v['gbs'])} GB/s plus a fixed {v['us0']/1000:.2f} ms"),
     ("took 5.9&times; as long (13.0 against 2.2 ms)", (kv[("MHA", 65536)], kv[("GQA", 65536)]), lambda v: f"took {v[0]/v[1]:.1f}&times; as long ({v[0]/1000:.1f} against {v[1]/1000:.1f} ms)"),

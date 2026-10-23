@@ -1,4 +1,4 @@
-// (1) The page's JavaScript (BANKSIM, KVM.kvSeq, KVM.plan) against out/expected.json from code/build_data.py.
+// (1) The page's JavaScript (BANKSIM) against out/expected.json from code/build_data.py.
 // (2) Every control at 390 px dark and 920 px light: no page errors, NaN/undefined text or sideways scroll; screenshots.
 // Run from the repo root: node technical_knowledge_base/systems_and_performance/topic_hardware/memory_technology/src/check/check_ui.mjs <shots dir>
 import { createRequire } from 'node:module';
@@ -22,11 +22,7 @@ let bad = 0;
     const D = MEMD, M = {}, C = {}; D.models.forEach(m => M[m.id] = m); D.chips.forEach(c => C[c.id] = c);
     const rel = (a, b) => Math.abs(a - b) <= 1e-7 * Math.max(1, Math.abs(b));
     let n = 0, bad = [];
-    for (const v of exp.kv) { n++; const g = KVM.kvSeq(M[v.m], v.ctx, v.kvb); if (!rel(g, v.v)) bad.push(['kv', v, g]) }
-    for (const v of exp.plan) {
-      const g = KVM.plan(M[v.m], C[v.c], v.n, 0.92, v.ctx, v.kvb, v.ws);
-      for (const k of ['fit', 'w', 's', 'free', 't1_ms', 'tb_ms', 'user_tps', 'agg_tps']) { n++; if (!(Math.abs(g[k] - v[k]) <= 1e-6 * Math.max(1, Math.abs(v[k])))) bad.push(['plan', v.m, v.c, k, g[k], v[k]]) }
-    }
+    // KVM.kvSeq and KVM.plan left with the KV tab on 2026-10-23 (cache sizing now on Long context's calculator)
     for (const mode of ['seq', 'rand1', 'randB']) {
       const g = BANKSIM(mode, D.bank), e = exp.banks[mode]; n++;
       if (JSON.stringify(g) !== JSON.stringify(e)) bad.push(['bank', mode, g.end, e.end]);
@@ -85,21 +81,6 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.$$eval('#lab-ws-mode button', bs => bs[0].click()); await sleep(50);
   await check('t-lab', scheme + ' lab');
   await p.screenshot({ path: path.join(out, 'lab-' + scheme + '-' + width + '.png'), fullPage: true });
-  // KV tab
-  await tab('t-kv');
-  const chips = await p.$$eval('#kv-an-chip option', os => os.map(o => o.value));
-  await segs('kv-an-model', async () => { await ctl('kv-an-ctl') });
-  for (const c of chips) { await p.$eval('#kv-an-chip', (e, c) => { e.value = c; e.dispatchEvent(new Event('change')) }, c) }
-  await segs('kv-c-pick'); await segs('kv-c-pick');
-  const models = await p.$$eval('#kv-p-model option', os => os.map(o => o.value));
-  for (const m of models) for (const c of chips) {
-    await p.$eval('#kv-p-model', (e, m) => { e.value = m; e.dispatchEvent(new Event('input')) }, m);
-    await p.$eval('#kv-p-chip', (e, c) => { e.value = c; e.dispatchEvent(new Event('input')) }, c);
-  }
-  for (const [id, vals] of [['kv-p-n', ['1', '72', '8']], ['kv-p-ctx', ['10', '18', '15']], ['kv-p-kvb', ['1', '2']], ['kv-p-ws', ['0.25', '0.5', '1']], ['kv-p-u', ['50', '100', '92']]])
-    for (const v of vals) await p.$eval('#' + id, (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v);
-  await check('t-kv', scheme + ' kv');
-  await p.screenshot({ path: path.join(out, 'kv-' + scheme + '-' + width + '.png'), fullPage: true });
   await tab('t-more'); await check('t-more', scheme + ' more');
   console.log(scheme, width, errs.length ? 'ERRORS:\n  ' + errs.join('\n  ') : 'ok');
   bad += errs.length; await p.close();

@@ -72,7 +72,7 @@
   segs();V.onRender(draw,TAB);addEventListener('resize',()=>{if(!V.$(TAB).hidden)draw()});
   // ---- the animation: same image through SmolVLM's tiling and Qwen3.5's native resolution ----
   const AN=S.anim;if(!AN)return;let am='smol';
-  V.seg(V.$('vm-sa-seg'),[['smol','SmolVLM-500M (tiles)'],['qwen','Qwen3.5-0.8B (native)']],'smol',v=>{am=v;A.reset(5);A.play()});
+  V.seg(V.$('vm-sa-seg'),[['smol','SmolVLM-500M (tiles)'],['qwen','Qwen3.5-0.8B (native)']],'smol',v=>{am=v;A.reset(5)});
   const afterImg=sm=>{const L=sm.segs.filter(x=>x[0]==='img').pop();return L?L[1]+L[2]:0};
   const ST=['The original','Resize','Cut into patches','Merge into tokens','Into the sequence'];
   function acap(i){const im=IMGS.find(x=>x.key===AN.key)||IMGS[0],sm=im.smol[0],q=(im.qwen||[]).find(x=>x.budget==='native');

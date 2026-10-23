@@ -44,15 +44,17 @@ python3 - <<'PY'
 import re
 s=open('../index.html').read()
 a=s.index('id="t-read"');b=s.index('id="t-par"')
-t=re.sub(r'<script.*?</script>|<style.*?</style>','',s[a:b],flags=re.S);t=re.sub(r'<[^>]+>',' ',t)
-w=len(t.split());m=round(w/230)
+t=re.sub(r'<script.*?</script>|<style.*?</style>','',s[a:b],flags=re.S)
+det=''.join(re.findall(r'<details(?! open).*?</details>',t,flags=re.S));t=re.sub(r'<details(?! open).*?</details>','',t,flags=re.S)
+wc=lambda x:len(re.sub(r'<[^>]+>',' ',x).split())
+w=wc(t);m=round(w/230);d=round(wc(det)/230)
 fr=s[s.index('<h3>Best resources</h3>'):]
 tot=0
 for x in re.findall(r'class="rt">\(([^)]*)\)',fr):
     h=re.search(r'(\d+)h',x);mm=re.search(r'(\d+) ?m(?:in)?\b',x)
     tot+=(int(h.group(1))*60 if h else 0)+(int(mm.group(1)) if mm else 0)
 res='%dh %02dm'%(tot//60,tot%60)
-s=s.replace('RT_MIN',str(m)).replace('RES_TIME',res)
+s=s.replace('RT_MIN',str(m)).replace('RT_DET',str(d)).replace('RES_TIME',res)
 open('../index.html','w').write(s)
-print('reading words',w,'minutes',m,'resources',res)
+print('reading words',w,'minutes',m,'closed details',d,'resources',res)
 PY

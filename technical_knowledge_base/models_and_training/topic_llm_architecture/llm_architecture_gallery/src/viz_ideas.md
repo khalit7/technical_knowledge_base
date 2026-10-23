@@ -7,7 +7,7 @@ Scoring as in the explainer-page skill (0 to 2 each; reproduce and computable co
 
 | # | Visual | Data | Reproduces | Score | Place | Status |
 |---|---|---|---|---|---|---|
-| 1 | Attention ladder: one token, seven designs, MHA dashed behind each (kept from the 2026-10-01 build) | shapes from Llama 3.1 8B, DeepSeek-V3, Qwen3-Next, Kimi Linear configs | 8,192 / 2,048 / 256 / 576 numbers per token per layer; 2 GiB, 512 MiB, 64 MiB, 144 MiB at 128K | 17 | Reading 5 | kept, ported to the ag prefix |
+| 1 | Attention ladder: one token, seven designs, MHA dashed behind each (kept from the 2026-10-01 build; removed 2026-10-23, Attention variants owns the mechanism) | shapes from Llama 3.1 8B, DeepSeek-V3, Qwen3-Next, Kimi Linear configs | 8,192 / 2,048 / 256 / 576 numbers per token per layer; 2 GiB, 512 MiB, 64 MiB, 144 MiB at 128K | 17 | Reading 5 | kept, ported to the ag prefix |
 | 2 | Per-layer strips (mixer, FFN, position) for every model | gen_data.py over configs | 95 of 101 gallery KV figures; 59 of 59 transformers layer lists; 27 of 27 root-map rows | 17 | Reading 4 (12 small multiples), Compare tab (all) | built |
 | 3 | Decode a config: the fields read and what each set, the arithmetic line by line, predict-first mode | tracked config keys per row | every row's KV equals the Python and, for 44 models, the root Config calculator | 16 | own tab | built (new) |
 | 4 | Layer-by-layer accumulation, card convention against windows credited (stepped, before/after on the same layers) | per-layer bytes | ends on each model's two numbers | 14 | Decode tab | built (new) |

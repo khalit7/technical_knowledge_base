@@ -32,7 +32,7 @@
     H('The whole model: 119B stored, about 6B touched','36 layers × 3,275M + 1.07B of embeddings + a 0.43B vision encoder = 119.4B, Mistral\'s 119B. Per token: 36 × 154.4M = 5.56B in the layers, 6.1B with the output layer; Mistral says 6B, the model card 6.5B (the Weights and cache tab sums it every way). Ratio about 20, against Mixtral\'s 3.6.')]};
   const WIDE={W:660,H:330,tok:[16,120],at:[78,120],ro:[150,120],gx:[214,40],out:[600,120],bars:[16,262],horiz:true};
   const NAR={W:360,H:480,tok:[30,30],at:[30,84],ro:[30,150],gx:[24,200],out:[300,150],bars:[16,400],horiz:false};
-  const st={m:'x7',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
+  const st={m:'x7',k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
   const cl=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v),lerp=(a,b,u)=>a+(b-a)*u;
   const T=(x,y,s,o)=>'<text x="'+x+'" y="'+y+'" font-size="'+((o&&o.fs)||11)+'"'+(o&&o.a?' text-anchor="'+o.a+'"':'')+(o&&o.c?' fill="'+o.c+'"':'')+(o&&o.w?' font-weight="600"':'')+'>'+s+'</text>';
   const G=(op,s)=>'<g opacity="'+(+op).toFixed(3)+'">'+s+'</g>';
@@ -108,7 +108,7 @@
   $('moeScrub').addEventListener('input',e=>{pause();const v=+e.target.value;st.k=Math.min(5,Math.floor(v/100));st.t=cl(v/100-st.k);draw()});
   $('moeSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   const seg=$('moeM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM)st.play=true;draw();kick()}));
+    st.m=b.dataset.m;st.k=0;st.t=1;pause();draw()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});

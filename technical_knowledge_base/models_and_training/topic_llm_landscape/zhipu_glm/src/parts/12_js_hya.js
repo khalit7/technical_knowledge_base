@@ -50,7 +50,7 @@
       if(I.parts.includes('r')){o.rd+=y.rd;if(p[j]!=='K')o.w+=y.wr}
       if(I.parts.includes('c'))o.c+=y.c}
     return o}
-  const st={m:'flash',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',L:1048576};
+  const st={m:'flash',k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',L:1048576};
   const steps=()=>STEPS[st.m];
   const cl=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v),lerp=(a,b,u)=>a+(b-a)*u;
   function counters(){const S=steps(),e=RM?1:ease(cl(st.t/MOVE)),o={c:0,sc:0,rd:0,w:0};
@@ -137,7 +137,7 @@
   $('hyaSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   $('hyaL').addEventListener('change',e=>{st.L=+e.target.value;st.lk=-1;draw()});
   const seg=$('hyaM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM&&!st.play)st.play=true;st.lk=-1;draw();kick()}));
+    st.m=b.dataset.m;st.k=0;st.t=1;pause();st.lk=-1;draw()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});

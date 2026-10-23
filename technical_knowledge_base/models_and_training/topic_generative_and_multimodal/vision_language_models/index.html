@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Vision-language models: how images become tokens</h1>
-<div class="sub">How a language model is given eyes, taught from zero: the connector designs (projector, Q-Former, cross-attention, merging), tiles against native resolution and 3-D positions, reading text, pointing with boxes, video, training recipes, hallucination, and what image tokens cost in context, cache and time. Two small open VLMs (SmolVLM-500M and Qwen3.5-0.8B) run here on synthetic and public-domain images; published results kept apart. Child page of Topic: generative-and-multimodal. Data as of October 2026.</div>
+<div class="sub">How a language model is given eyes, taught from zero: the connector designs (projector, Q-Former, cross-attention, merging), tiles against native resolution and 3-D positions, reading text, pointing with boxes, video, training recipes, hallucination, and what image tokens cost in context, cache and time. Two small open VLMs (SmolVLM-500M and Qwen3.5-0.8B) run here on synthetic and public-domain images; published results kept apart. Child page of Topic: generative-and-multimodal. Data as of October 2026. Reading: 35 min, plus 5 in closed details.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-vmsaw" aria-selected="false">What the model saw</button><button role="tab" data-t="t-vmbud" aria-selected="false">Token and cache budget</button><button role="tab" data-t="t-vmhal" aria-selected="false">Hallucination probe</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-vmsaw" aria-selected="false">What the model saw</button><button role="tab" data-t="t-vmbud" aria-selected="false">Token budget</button><button role="tab" data-t="t-vmhal" aria-selected="false">Hallucination probe</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -295,7 +295,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <tr><td>Fixed tiles, long side first</td><td data-h="1920x1080">long side scaled to 2,048, short side rounded up to whole 512 tiles (stretched by a third): 12 tiles + global = 832 tokens</td><td data-h="Source">SmolVLM, measured in the root&#8217;s <a href="https://app.notion.com/p/3c65c17b0d0d817ab6ade318917bff55" target="_blank" rel="noopener noreferrer">VLM lab</a></td></tr>
 <tr><td>Native resolution</td><td data-h="1920x1080">kept at 1,920 &#215; 1,088 (both sides rounded to multiples of 32): 68 &#215; 120 patches, 2,040 tokens <span class="meas">measured with the processor</span></td><td data-h="Source">Qwen2-VL &#8220;Naive Dynamic Resolution&#8221; (<a href="https://arxiv.org/html/2409.12191" target="_blank" rel="noopener noreferrer">section 2.1</a>); Qwen3.5-0.8B processor</td></tr>
 </tbody></table></div>
-<p><b>How native resolution works.</b> Three changes make an encoder accept any size. (1) The image is resized only enough that both sides are multiples of the merged patch (32 pixels for Qwen3.5: 16-pixel patches, 2 &#215; 2 merge), and its pixel count is kept inside a minimum and a maximum (Qwen3.5&#8217;s processor: 65,536 to 16,777,216 pixels, that is 64 to 16,384 tokens). The rule is <code>smart_resize</code> (transformers v5.20.1, <code>models/qwen2_vl/image_processing_qwen2_vl.py</code> line 63; ported in the <a href="#" data-tab="t-vmbud">Token and cache budget</a> tab and checked against the processor on 24 sizes). (2) The encoder&#8217;s fixed position table is replaced or supplemented by <dfn>2-D RoPE</dfn> (rotary position embeddings that rotate by row and by column), so any grid is legal: Qwen2-VL &#8220;modified ViT by removing the original absolute position embeddings and introducing 2D-RoPE&#8221; <span class="pub">paper</span>. (3) The language model is told where each token sat in the image, through 3-D positions (below).</p>
+<p><b>How native resolution works.</b> Three changes make an encoder accept any size. (1) The image is resized only enough that both sides are multiples of the merged patch (32 pixels for Qwen3.5: 16-pixel patches, 2 &#215; 2 merge), and its pixel count is kept inside a minimum and a maximum (Qwen3.5&#8217;s processor: 65,536 to 16,777,216 pixels, that is 64 to 16,384 tokens). The rule is <code>smart_resize</code> (transformers v5.20.1, <code>models/qwen2_vl/image_processing_qwen2_vl.py</code> line 63; ported in the <a href="#" data-tab="t-vmbud">Token budget</a> tab and checked against the processor on 24 sizes). (2) The encoder&#8217;s fixed position table is replaced or supplemented by <dfn>2-D RoPE</dfn> (rotary position embeddings that rotate by row and by column), so any grid is legal: Qwen2-VL &#8220;modified ViT by removing the original absolute position embeddings and introducing 2D-RoPE&#8221; <span class="pub">paper</span>. (3) The language model is told where each token sat in the image, through 3-D positions (below).</p>
 <div class="vm-fig" id="vm-res-fig"></div>
 <p class="vm-small" data-vm="res_caption"></p>
 <p data-vm="qa_text"></p>
@@ -380,6 +380,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <p><b>The cache.</b> For a standard transformer the <dfn>KV cache</dfn> (the stored keys and values of every past token) costs per token: 2 (key and value) &#215; layers &#215; KV heads &#215; head width &#215; bytes per number <span class="der">derived</span>. From the configs: SmolVLM-500M 2 &#215; 32 &#215; 5 &#215; 64 &#215; 2 = 40,960 bytes per token; LLaVA-1.5-7B (32 layers, 32 KV heads of 128) 524,288 bytes, so one 576-token image holds 302 MB of cache. Qwen3.5-0.8B is a <dfn>hybrid</dfn>: of its 24 layers only 6 are attention layers with a growing cache (&#8220;6 &#215; (3 &#215; (Gated DeltaNet &#8594; FFN) &#8594; 1 &#215; (Gated Attention &#8594; FFN))&#8221;, <a href="https://huggingface.co/Qwen/Qwen3.5-0.8B" target="_blank" rel="noopener noreferrer">card</a> <span class="vend">vendor</span>); the other 18 are linear-attention layers (Gated DeltaNet, a relative of the state-space models on the <a href="https://app.notion.com/p/3c65c17b0d0d8179984fc3a1fee4c36a" target="_blank" rel="noopener noreferrer">Mamba</a> page) that keep a fixed-size state whatever the length. Measured by summing every tensor in the cache object after prefill <span class="meas">measured</span>:</p>
 <div class="vm-fig" id="vm-kv-fig"></div>
 <p data-vm="kv_text"></p>
+<p class="small">Sizing the cache of a whole model at any context: the <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv" target="_blank" rel="noopener noreferrer">KV-cache calculator</a> carries these three VLMs as presets.</p>
 <p><b>Time.</b> <span data-vm="time_text"></span></p>
 <h3>8a. Fewer image tokens without retraining <span class="meas">measured</span></h3>
 <p>If most image tokens carry little, can they be dropped at inference? FastV (<a href="https://arxiv.org/abs/2403.06764" target="_blank" rel="noopener noreferrer">Chen et al., March 2024</a>) observed that after the second layer image tokens receive little attention in LLaVA-1.5 (&#8220;image tokens take up most of the input tokens (64%)&#8221;) and pruned half of them at layer 2, ranked by &#8220;the average attention-score one token received from all other tokens&#8221;, reporting &#8220;a 45% reduction in FLOPs for LLaVA-1.5-13B&#8221; without loss on its benchmarks <span class="pub">paper</span>. Here SmolVLM answers the root&#8217;s 30 questions with its 1,088 image tokens cut four ways before the language model: at random; by FastV&#8217;s attention ranking (computed at layer 2, but the tokens are removed from the input rather than after layer 2, a simplification); by averaging each 2 &#215; 2 block of tokens (a merge the model was never trained on); and by dropping the 64-token global view.</p>
@@ -482,8 +483,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-vmbud .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:6px;margin:6px 0}
 </style>
 <section>
-<h2>Token and cache budget</h2>
-<p>How many tokens an image or a video becomes in four VLMs, what share of the context that is, and how many bytes of cache it holds. The resize and tiling rules are JavaScript ports of the processors (transformers v5.20.1) and are checked against the real processors on 24 image sizes; the cache per token comes from each model&#8217;s configuration and, for the two models run here, from the cache measured after a real prefill. <span class="meas">rules checked on the processors, 2026-10-17</span></p>
+<h2>Token budget</h2>
+<p>How many tokens an image or a video becomes in four VLMs, and what share of the context that is. The resize and tiling rules are JavaScript ports of the processors (transformers v5.20.1) and are checked against the real processors on 24 image sizes. <span class="meas">rules checked on the processors, 2026-10-17</span></p>
+<p><b>The cache, in one line.</b> Image tokens cost cache exactly like text tokens, so multiply these counts by the model&#8217;s bytes per token: one 576-token image holds 302 MB on LLaVA-1.5-7B (524,288 bytes per token), against 40,960 on SmolVLM-500M (measured here, equal to the config arithmetic), 12,288 on InternVL3-1B (2 &#215; 24 &#215; 2 &#215; 64 &#215; 2, config) and 12,288 on Qwen3.5-0.8B&#8217;s 6 attention layers plus a fixed state. SmolVLM-500M, Qwen3.5-0.8B and LLaVA-1.5-7B are presets in the <a href="https://app.notion.com/p/3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv" target="_blank" rel="noopener noreferrer">KV-cache calculator</a>; section 8 of the Reading tab has the measured cache.</p>
 <div class="seg" id="vm-bd-pre"></div>
 <div class="vm-in">
 <label>Width (px) <input type="number" id="vm-bd-w" min="16" max="20000" value="1920"></label>
@@ -542,7 +544,7 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 <h3>On this page</h3>
 <div class="grid">
 <div class="sp"><div class="n"><a href="#" data-tab="t-vmsaw">What the model saw</a></div><p>Four images through SmolVLM (three settings) and Qwen3.5 (four budgets): the exact pixels, every token&#8217;s region, position and encoder norm; tiles against native resolution, animated. <span class="rt">about 10 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-vmbud">Token and cache budget</a></div><p>Tokens, context share and cache bytes for any image size, image count or video length in four VLMs, with rules ported from the processors and checked; accuracy against tokens measured here. <span class="rt">about 8 min</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-vmbud">Token budget</a></div><p>Tokens and context share for any image size, image count or video length in four VLMs, with rules ported from the processors and checked; accuracy against tokens measured here. <span class="rt">about 8 min</span></p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-vmhal">Hallucination probe</a></div><p>72 yes/no object questions, two models, four conditions, a threshold you can move, every probability listed. <span class="rt">about 8 min</span></p></div>
 </div>
 <h3>The parent topic and its labs</h3>
@@ -596,7 +598,7 @@ window.VM_DATA={"saw":{"images":[{"key":"p01_cat","w":512,"h":512,"thumb":"data:
 <script>/* 21_js_rd_common.js */
 // ---- Shared helpers (copied from the root page, Topic: generative-and-multimodal; anim takes an optional tab id), copied from Topic: benchmarks and the step-animation controller (play, pause, step, scrub, speed) ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -627,7 +629,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()},o.tab);
     show();
@@ -718,7 +720,7 @@ window.VM=(function(){
      params:'12.6M (counted from the checkpoint) <span class="meas">measured</span>'}];
   const STEPS=['The image','Encoder: patch vectors','The connector','Tokens out (to scale)','Where the language model reads them'];
   let cur=DES[0];const TEXT=20;
-  V.seg(V.$('vm-conn-seg'),DES.map(d=>[d.k,d.name]),'llava',k=>{cur=DES.find(d=>d.k===k);A.reset(STEPS.length);A.play()});
+  V.seg(V.$('vm-conn-seg'),DES.map(d=>[d.k,d.name]),'llava',k=>{cur=DES.find(d=>d.k===k);A.reset(STEPS.length)});
   function cap(i){const d=cur;const t=[
       'One 512 &#215; 512 photo (the root&#8217;s test cat, CC0) goes into every design. What differs is how many vectors the encoder makes and how the connector turns them into tokens.',
       d.enc, d.op,
@@ -1010,7 +1012,7 @@ window.VM=(function(){
   segs();V.onRender(draw,TAB);addEventListener('resize',()=>{if(!V.$(TAB).hidden)draw()});
   // ---- the animation: same image through SmolVLM's tiling and Qwen3.5's native resolution ----
   const AN=S.anim;if(!AN)return;let am='smol';
-  V.seg(V.$('vm-sa-seg'),[['smol','SmolVLM-500M (tiles)'],['qwen','Qwen3.5-0.8B (native)']],'smol',v=>{am=v;A.reset(5);A.play()});
+  V.seg(V.$('vm-sa-seg'),[['smol','SmolVLM-500M (tiles)'],['qwen','Qwen3.5-0.8B (native)']],'smol',v=>{am=v;A.reset(5)});
   const afterImg=sm=>{const L=sm.segs.filter(x=>x[0]==='img').pop();return L?L[1]+L[2]:0};
   const ST=['The original','Resize','Cut into patches','Merge into tokens','Into the sequence'];
   function acap(i){const im=IMGS.find(x=>x.key===AN.key)||IMGS[0],sm=im.smol[0],q=(im.qwen||[]).find(x=>x.budget==='native');
@@ -1038,7 +1040,7 @@ window.VM=(function(){
 })();
 </script>
 <script>/* 32_js_vm_bud.js */
-// ---- Tab: Token and cache budget. Rules ported from transformers v5.20.1 and checked by runs/check_rules.mjs ----
+// ---- Tab: Token budget (cache sizing moved to Long context's KV-cache calculator, 2026-10-23). Rules ported from transformers v5.20.1 and checked by runs/check_rules.mjs ----
 window.VMB=(function(){
   // SmolVLM (Idefics3 processor): copied from the root VLM lab's port (src/parts/35_js_vl_1core.js), checked there on 36 counts
   function smol(W,H,N){const tile=512,split=N>1;let w=W,h=H;
@@ -1071,44 +1073,34 @@ window.VMB=(function(){
 })();
 (function(){
   const V=VM,B=VMB,el=V.$('t-vmbud');if(!el)return;const TAB='t-vmbud';
-  const R=(V.D.runs||{}),kvS=R.smol&&R.smol.kv,kvQ=R.qwen&&R.qwen.kv;
-  // cache per token: configs (derived); for the two models run here, measured by summing the cache after prefill
-  function perTok(kv,fallback){if(!kv||kv.runs.length<2)return fallback;const a=kv.runs[0],b=kv.runs[kv.runs.length-1];
-    const slope=(b.total_bytes-a.total_bytes)/(b.prompt_tokens-a.prompt_tokens),fixed=a.total_bytes-slope*a.prompt_tokens;return {slope:Math.round(slope),fixed:Math.max(0,Math.round(fixed)),meas:true}}
-  const M=[
-    {k:'smol',name:'SmolVLM-500M',ctx:8192,kv:perTok(kvS,{slope:40960,fixed:0}),cfg:'2 x 32 layers x 5 KV heads x 64 x 2 bytes = 40,960'},
-    {k:'qwen',name:'Qwen3.5-0.8B',ctx:262144,kv:perTok(kvQ,{slope:12288,fixed:0}),cfg:'attention layers only: 2 x 6 x 2 x 256 x 2 = 12,288, plus a fixed linear-attention state'},
-    {k:'ivl',name:'InternVL3-1B',ctx:32768,kv:{slope:12288,fixed:0},cfg:'2 x 24 x 2 x 64 x 2 = 12,288 (config)'},
-    {k:'llava',name:'LLaVA-1.5-7B',ctx:4096,kv:{slope:524288,fixed:0},cfg:'2 x 32 x 32 x 128 x 2 = 524,288 (config; Llama defaults)'}];
+  const M=[{name:'SmolVLM-500M',ctx:8192},{name:'Qwen3.5-0.8B',ctx:262144},{name:'InternVL3-1B',ctx:32768},{name:'LLaVA-1.5-7B',ctx:4096}];
   const PRE=[['64x64','icon 64 x 64'],['512x512','photo 512 x 512'],['1920x1080','1,920 x 1,080'],['1170x2532','phone 1,170 x 2,532'],['1240x1754','A4 page at 150 dpi'],['3840x2160','4K frame']];
   V.seg(V.$('vm-bd-pre'),PRE,'1920x1080',v=>{const p=v.split('x');V.$('vm-bd-w').value=p[0];V.$('vm-bd-h').value=p[1];draw()});
   ['vm-bd-w','vm-bd-h','vm-bd-n','vm-bd-sn','vm-bd-qm','vm-bd-vs','vm-bd-vf','vm-bd-vw','vm-bd-vh'].forEach(id=>V.$(id).addEventListener('input',draw));
-  const mb=b=>b>=1e9?(b/1e9).toFixed(2)+' GB':(b/1e6).toFixed(1)+' MB';
   const num=(id,lo,hi,d)=>{const x=+V.$(id).value;return isFinite(x)&&x>0?Math.max(lo,Math.min(hi,Math.round(x))):d};
   function draw(){const W=num('vm-bd-w',16,20000,1920),H=num('vm-bd-h',16,20000,1080),n=num('vm-bd-n',1,200,1),sn=+V.$('vm-bd-sn').value,qm=+V.$('vm-bd-qm').value;
     if(Math.max(W,H)/Math.min(W,H)>200){V.$('vm-bd-tab').innerHTML='<tr><td>Aspect ratio over 200: the Qwen processor refuses such images (ValueError in smart_resize).</td></tr>';return}
     const s=B.smol(W,H,sn),q=B.qwen(W,H,qm),iv=B.ivl(W,H),rows=[
       [M[0],s.tokens,s.views+(s.views>1?' views':' view')+(s.rows?' ('+s.rows+' rows x '+s.cols+' columns + global)':''),s.rows>6||s.cols>6?'tile tags past 6 are not single tokens':''],
       [M[1],q.tokens,'resized to '+q.w+' x '+q.h,''],[M[2],iv.tokens,iv.views+(iv.views>1?' views ('+iv.rows+' rows x '+iv.cols+' columns + thumbnail)':' view'),''],[M[3],576,'squashed to 336 x 336','']];
-    let h='<thead><tr><th>Model</th><th class="num">Tokens per image</th><th>How</th><th class="num">All images</th><th class="num">Share of context</th><th class="num">Cache</th></tr></thead><tbody>';
-    rows.forEach(r=>{const tot=r[1]*n,kv=r[0].kv.slope*tot,share=tot/r[0].ctx;
-      h+='<tr><td>'+r[0].name+'</td><td class="num">'+V.comma(r[1])+'</td><td>'+r[2]+(r[3]?' <span class="der">'+r[3]+'</span>':'')+'</td><td class="num">'+V.comma(tot)+'</td><td class="num">'+(share>1?'<b>'+V.pct(share)+' (over)</b>':V.pct(share,1))+'</td><td class="num">'+mb(kv)+(r[0].kv.fixed?' + '+mb(r[0].kv.fixed)+' fixed':'')+'</td></tr>'});
+    let h='<thead><tr><th>Model</th><th class="num">Tokens per image</th><th>How</th><th class="num">All images</th><th class="num">Share of context</th></tr></thead><tbody>';
+    rows.forEach(r=>{const tot=r[1]*n,share=tot/r[0].ctx;
+      h+='<tr><td>'+r[0].name+'</td><td class="num">'+V.comma(r[1])+'</td><td>'+r[2]+(r[3]?' <span class="der">'+r[3]+'</span>':'')+'</td><td class="num">'+V.comma(tot)+'</td><td class="num">'+(share>1?'<b>'+V.pct(share)+' (over)</b>':V.pct(share,1))+'</td></tr>'});
     V.$('vm-bd-tab').innerHTML=h+'</tbody>';
     V.$('vm-bd-stats').innerHTML=RD.stat('Pixels',V.comma(W*H),'')+RD.stat('Qwen3.5 patches',V.comma(q.tokens*4),'16 x 16 pixels each')+RD.stat('One token covers (Qwen3.5)','32 x 32 px','of the resized image');
     bars(rows,n);
-    V.$('vm-bd-note').innerHTML='Cache per token: '+M.map(m=>m.name+' '+V.comma(m.kv.slope)+' bytes'+(m.kv.meas?' <span class="meas">measured</span>':' <span class="der">config</span>')).join('; ')+'. Config arithmetic: '+M.map(m=>m.name+': '+m.cfg).join('; ')+
-      '. Context windows from the configs (max_position_embeddings): 8,192, 262,144, 32,768, 4,096. InternVL as its processor tiles by default (crop_to_patches true in InternVLProcessor); LLaVA-1.5 always squashes to one 336 view. Flamingo-style models put 64 visual tokens per image outside the context instead.';
+    V.$('vm-bd-note').innerHTML='Context windows from the configs (max_position_embeddings): 8,192, 262,144, 32,768, 4,096. InternVL as its processor tiles by default (crop_to_patches true in InternVLProcessor); LLaVA-1.5 always squashes to one 336 view. Flamingo-style models put 64 visual tokens per image outside the context instead.';
     video()}
-  function bars(rows,n){const fig=V.$('vm-bd-fig'),W=Math.min(V.width(fig),760),lh=24,H=rows.length*lh*2+34,{g}=V.canvas(fig,W,H);const lab=W<480?96:130,bw=W-lab-70;
-    const mt=Math.max(...rows.map(r=>r[1]*n)),mk=Math.max(...rows.map(r=>r[0].kv.slope*r[1]*n+(r[0].kv.fixed||0)));
-    g.fillStyle=V.css('--mute');g.fillText('image tokens (top) and cache bytes (bottom), each scaled to its largest',4,10);
-    rows.forEach((r,i)=>{const y=22+i*lh*2;g.fillStyle=V.css('--ink');g.fillText(r[0].name,4,y+lh/2);
-      const t=r[1]*n,k=r[0].kv.slope*t+(r[0].kv.fixed||0);g.fillStyle=V.css('--acc');g.fillRect(lab,y+3,Math.max(1,bw*t/mt),lh-8);g.fillStyle=V.css('--c4');g.fillRect(lab,y+lh,Math.max(1,bw*k/mk),lh-8);
-      g.fillStyle=V.css('--ink');g.fillText(V.comma(t),lab+Math.max(1,bw*t/mt)+4,y+lh/2);g.fillText(mb(k),lab+Math.max(1,bw*k/mk)+4,y+lh*1.5-2)})}
+  function bars(rows,n){const fig=V.$('vm-bd-fig'),W=Math.min(V.width(fig),760),lh=24,H=rows.length*lh+34,{g}=V.canvas(fig,W,H);const lab=W<480?96:130,bw=W-lab-70;
+    const mt=Math.max(...rows.map(r=>r[1]*n));
+    g.fillStyle=V.css('--mute');g.fillText('image tokens, scaled to the largest',4,10);
+    rows.forEach((r,i)=>{const y=22+i*lh;g.fillStyle=V.css('--ink');g.fillText(r[0].name,4,y+lh/2);
+      const t=r[1]*n;g.fillStyle=V.css('--acc');g.fillRect(lab,y+3,Math.max(1,bw*t/mt),lh-8);
+      g.fillStyle=V.css('--ink');g.fillText(V.comma(t),lab+Math.max(1,bw*t/mt)+4,y+lh/2)})}
   function video(){const s=num('vm-bd-vs',1,7200,60),f=+V.$('vm-bd-vf').value,w=num('vm-bd-vw',32,4000,640),h=num('vm-bd-vh',32,4000,360);
     const r=B.vrule(s,f,w,h),vq=(V.D.runs&&V.D.runs.qwen&&V.D.runs.qwen.video)||null,ts=V.D.videoTs||0;
     V.$('vm-bd-vid').innerHTML=RD.stat('Frames sampled',V.comma(r.nf),'4 to 768')+RD.stat('Temporal patches',V.comma(r.groups),'2 frames each')+RD.stat('Tokens per patch',V.comma(r.per),r.wb+' x '+r.hb+' per frame')+
-      RD.stat('Video tokens',V.comma(r.tok),ts?'plus about '+V.comma(r.groups*ts)+' timestamp tokens':'')+RD.stat('Qwen3.5 cache',mb(r.tok*M[1].kv.slope),'attention layers');
+      RD.stat('Video tokens',V.comma(r.tok),ts?'plus about '+V.comma(r.groups*ts)+' timestamp tokens':'');
     V.$('vm-bd-vnote').innerHTML='Qwen3.5&#8217;s video processor ported: frames = seconds x fps, clamped to 4 to 768; each frame resized by smart_resize under a per-frame budget of min(768 tokens, 25,165,824 pixels / frames) (the reference behaviour, cap_pixels_per_frame on); one token per 2 frames x 32 x 32 pixels. Checked against the processor on the clip shapes in out/token_rules.json'+(vq?'; on this page&#8217;s 4-second 320 x 240 clips at 2 fps the processor gave '+vq.rows[0].video_tokens+' video tokens <span class="meas">measured</span>':'')+'. SmolVLM-500M (this checkpoint) and LLaVA-1.5 take no video input.'}
   // accuracy against tokens, measured
   function acc(){const fig=V.$('vm-bd-acc'),pts=V.D.accPts||[];if(!pts.length){fig.innerHTML='<p class="vm-small">Measurements pending.</p>';return}
@@ -1172,6 +1164,8 @@ window.VMB=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('vm-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

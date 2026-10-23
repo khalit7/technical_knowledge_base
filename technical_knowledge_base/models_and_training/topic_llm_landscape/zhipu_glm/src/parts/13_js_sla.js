@@ -37,7 +37,7 @@
       {a:Math.min(TM,e1.t+10),b:lt,t:'Staleness accumulates on the long episode',c:'The 40-step episode started under v0 while the policy kept moving. GLM-5 records each trajectory\'s versions and discards it if the oldest is too stale, w′ − w₀ > τ (here τ = 2); surviving tokens are kept only if their importance ratio π_θ / π_rollout stays inside [1 − ε_ℓ, 1 + ε_h].'},
       {a:lt,b:TM,t:'The cost: a stale trajectory is discarded',c:'When the long episode finally reaches the trainer, at step '+lt+', the policy is at v'+lv+', '+long.stale+' versions past where it started, so it is thrown away (outlined). That is the price of asynchrony, and a bias of its own: the longest episodes are the ones most at risk, so the staleness window τ is a real tuning choice.'},
       {a:TM,b:TM,t:'Totals',c:'The slots never idled, the trainer took many more steps on the same hardware, and a small share of data was lost to staleness. Compare the synchronous schedule with the toggle.'}]}
-  const st={m:'async',k:0,t:RM?1:0,play:!RM,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
+  const st={m:'async',k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
   const cl=v=>v<0?0:v>1?1:v;
   const chs=()=>chapters(st.m);
   const now=()=>{const C=chs()[st.k];return C.a+(C.b-C.a)*cl(st.t)};
@@ -84,7 +84,7 @@
   $('slaScrub').addEventListener('input',e=>{pause();const n=chs().length,v=+e.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl(v/100-st.k);if(v>=n*100)st.t=1;draw()});
   $('slaSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   const seg=$('slaM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;if(!RM&&!st.play)st.play=true;st.lk=-1;draw();kick()}));
+    st.m=b.dataset.m;st.k=0;st.t=1;pause();st.lk=-1;draw()}));
   if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});
