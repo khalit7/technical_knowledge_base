@@ -1,6 +1,6 @@
-// ---- Step timeline tab ----
+// ---- The step model as a calculator (closed block in Reading section 6; was the Step timeline tab until 2026-10-23) ----
 (function(){
-  const $=id=>document.getElementById(id);if(!$('t-step'))return;
+  const $=id=>document.getElementById(id);if(!$('sg-calc'))return;
   const caps=[1,5,10,15,25,50,100,200,400];
   function cfg(){const c=SGM.cfgFromData();const [h,L]=$('st-model').value.split(',').map(Number);
     c.h=h;c.L=L;c.tied=$('st-tied').checked;c.gpus=Math.pow(2,+$('st-g').value);c.tokens=Math.pow(2,+$('st-t').value);
@@ -33,6 +33,6 @@
     el.innerHTML=RD.svg(W,H,s,'step time against bucket size');
   }
   ['st-model','st-net','st-g','st-t','st-m','st-b','st-a','st-s','st-tied'].forEach(id=>{$(id).addEventListener('input',render);$(id).addEventListener('change',render)});
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-step']=window.TAB_RENDER['t-step']||[]).push(render);
-  let tm=0;addEventListener('resize',()=>{if($('t-step').hidden)return;clearTimeout(tm);tm=setTimeout(render,80)});
+  $('sg-calc').addEventListener('toggle',()=>{if($('sg-calc').open)render()});RD.onRender(()=>{if($('sg-calc').open)render()});
+  let tm=0;addEventListener('resize',()=>{if(!$('sg-calc').open||$('sg-calc').offsetParent===null)return;clearTimeout(tm);tm=setTimeout(render,80)});
 })();

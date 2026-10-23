@@ -41,11 +41,15 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     return out;
   });
   if (m.length) { console.log('MODEL', scheme, m); bad += m.length; }
-  for (const tab of ['t-read', 't-step', 't-more']) {
+  // nothing may move before the reader acts (2026-10-23): scroll each animation into view, wait, the scrubber stays at 0
+  const auto = await p.evaluate(async () => { const out = []; for (const c of ['sg-ln-card', 'sg-st-card']) { document.getElementById(c).scrollIntoView(); await new Promise(r => setTimeout(r, 2500)); const sc = document.querySelector('#' + c + ' input[type=range]'); if (+sc.value !== 0) out.push(c + ' moved to ' + sc.value); } return out; });
+  if (auto.length) { console.log('AUTOPLAY', scheme, auto); bad += auto.length; } else console.log('no autoplay', scheme);
+  for (const tab of ['t-read', 't-more']) {
     await p.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), tab);
     await sleep(250);
     const n = await p.evaluate(async (t) => {
       const root = document.getElementById(t); let c = 0;
+      for (const d of root.querySelectorAll('details')) { d.open = true; }
       for (const s of root.querySelectorAll('section,.card')) { s.scrollIntoView(); await new Promise(r => setTimeout(r, 40)); }
       for (const b of [...root.querySelectorAll('button')]) { if (b.offsetParent === null) continue; b.scrollIntoView({ block: 'center' }); b.click(); c++; await new Promise(r => setTimeout(r, 20)); }
       for (const r of root.querySelectorAll('input[type=range]')) { for (const v of [r.min, r.max, Math.round((+r.min + +r.max) / 2)]) { r.value = v; r.dispatchEvent(new Event('input', { bubbles: true })); c++; } }

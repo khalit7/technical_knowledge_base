@@ -66,6 +66,6 @@ window.SGM=(function(){
   }
   build();
   an=RD.anim({card:'sg-st-card',ctl:'sg-st-ctl',n:seq.length,ms:1300,label:'Training step',draw});
-  RD.seg($('sg-st-seg'),m=>{mode=m;build();an.reset(seq.length);an.play()});
+  RD.seg($('sg-st-seg'),m=>{mode=m;build();an.reset(seq.length)});
   RD.onResize(()=>an.redraw());
 })();
