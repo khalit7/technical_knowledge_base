@@ -155,24 +155,62 @@ table.fam td,table.fam th{font-size:12.5px}table.fam td:first-child{font-weight:
 .tr-det h3{margin:0 0 4px}
 @media (max-width:520px){.pr-eq{font-size:13px}.tk{font-size:11px}}
 </style></head><body><div class="w">
-<div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b" target="_blank" rel="noopener noreferrer">Topic: llm-training-and-post-training</a> · deep dive · <span id="rtime">⏱ 23 min read · +16h 23m resources</span></div>
+<div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b" target="_blank" rel="noopener noreferrer">Topic: llm-training-and-post-training</a> · child page</div>
 <h1>Alignment: SFT, RLHF, DPO Family, RLVR</h1>
-<div class="sub">How a base model is turned into an assistant: which tokens supervised fine-tuning learns from, how a reward model and the DPO family turn "this answer is better" into a gradient, when online RL beats offline pairs, and what changes when a program checks the answer. Sources are linked inline; checked 3 October 2026.</div>
+<div class="sub">How a base model becomes an assistant: which tokens SFT learns from, how a reward model or a direct loss turns "this answer is better" into a gradient, when online RL beats offline pairs, what changes when a program checks the answer, and how open recipes chain the stages. Sources checked 3 October 2026; data as of October 2026. <span id="rd-time">Reading: 25 min, plus 4 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
 <button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-tree" aria-selected="false">Method family tree</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
-<nav class="nav" aria-label="Sections"><a href="#s-pipe">The pipeline</a><a href="#s-sft">SFT</a><a href="#s-pack">Packing</a><a href="#s-rm">Reward models</a><a href="#s-rl">RL against a reward</a><a href="#s-dpo">The DPO family</a><a href="#s-onoff">Online or offline</a><a href="#s-rlvr">RLVR</a><a href="#s-mist">Common mistakes</a></nav>
+<style>
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read .fig{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;background:var(--bg)}
+#t-read .fig h4{margin:0 0 4px;font-size:14.5px}
+#t-read .fig .cap{font-size:13px;color:var(--mute);margin:6px 0 0}
+#t-read .rd-svg{width:100%;overflow:hidden;margin:6px 0}
+#t-read .rd-svg svg{display:block}
+#t-read .rd-svg svg text{font-size:11px;fill:var(--ink)}
+#t-read .rd-svg svg text.t12{font-size:12px;font-weight:600}#t-read .rd-svg svg text.m{fill:var(--mute)}#t-read .rd-svg svg text.a{fill:var(--acc);font-weight:600}#t-read .rd-svg svg text.b{font-weight:600}
+#t-read .box{fill:var(--soft);stroke:var(--line)}#t-read .boxa{fill:var(--acc2);stroke:var(--acc);stroke-width:1.6}
+#t-read .arr{stroke:var(--mute);fill:none;stroke-width:1.3}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px;font-size:14px}
+#t-read .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
+#t-read .tw table{min-width:560px}
+#t-read code{overflow-wrap:anywhere;word-break:break-word}
+#t-read td{overflow-wrap:anywhere}
+#t-read .leg2{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .leg2 i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+</style>
+<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#s0">The idea</a><a href="#s-sft">1 SFT</a><a href="#s-pack">2 Batching</a><a href="#s-rm">3 Reward models</a><a href="#s-rl">4 RL</a><a href="#s-dpo">5 DPO family</a><a href="#s-onoff">6 Online or offline</a><a href="#s-rlvr">7 RLVR</a><a href="#s-rec">8 Recipes</a></nav>
 
-<section id="s-pipe">
-<h2>The pipeline, and what this page owns</h2>
-<p class="lead">A pretrained model continues text. Post-training turns it into an assistant in up to four moves, each trained on a narrower signal than the last:</p>
-<ol>
-<li><b>Pretraining</b>: next-token prediction on trillions of tokens; produces a <i>base model</i>.</li>
-<li><b>Supervised fine-tuning (SFT)</b>, also called instruction tuning: train on (prompt, response) pairs with the language-model loss on the response tokens only, so the model answers instead of continuing the text. It sets the format, the persona and the chat template.</li>
-<li><b>Reward-model (RM) training</b>, skipped by the direct methods: people rank two or more sampled responses per prompt, and a model learns to predict which one they prefer. The RM lets optimisation continue offline, without a person in the loop.</li>
-<li><b>Policy optimisation</b>: use the RM, or a program that checks the answer, to update the model. Either with reinforcement learning (PPO, GRPO), or directly on preference pairs (DPO and its family).</li>
-</ol>
+<section id="s0">
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">Post-training keeps the network and changes what the gradient rewards, each stage on a narrower signal than the last: <span class="hl">imitate a written answer</span> (SFT), <span class="hl">prefer the answer a judge ranked higher</span> (a reward model plus RL, or the DPO family directly on pairs), then <span class="hl">reach an answer a program accepts</span> (RLVR).</p>
+<div class="fig" id="hero">
+<h4>One open recipe, stage by stage: each stage rewards something narrower</h4>
+<div class="rd-svg" id="heroSvg"></div>
+<p class="cap">Tulu 3 8B, the open reference recipe (Ai2, November 2024), starting from the Llama 3.1 8B base: SFT on 939,344 prompts (Table 7), length-normalised DPO on 271,409 pairs (Table 15), then RLVR with PPO on 29,946 prompts (Table 22) (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3</a>). The preference stage has two routes: a reward model plus RL (sections 3 and 4, the InstructGPT route) or a direct loss on the pairs (section 5). What one prompt's answer looks like after each stage is drawn on the parent page's Axis 1 (illustrative outputs). <i class="nl d">derived</i> labels in the figure round the counts (271K, 30K).</p>
+</div>
+<p><b>You need</b> the cross-entropy loss and a causal mask (assumed), and for sections 4 and 7 a policy gradient with a baseline (<a href="https://app.notion.com/p/3ee5c17b0d0d8101a262d3620e75747c" target="_blank" rel="noopener noreferrer">Policy gradients and actor-critic</a>). How a chat template is tokenized is on <a href="https://app.notion.com/p/3c65c17b0d0d817187bcd94a1b0f15ea" target="_blank" rel="noopener noreferrer">Tokenizers</a>; this page shows what training does with it.</p>
+<dl class="terms">
+<dt>Base model</dt><dd>the pretrained model: it continues text, it does not answer.</dd>
+<dt>SFT</dt><dd>supervised fine-tuning, also called instruction tuning: the language-model loss on (prompt, response) conversations.</dd>
+<dt>Chat template</dt><dd>the markers that turn a conversation into one token sequence (<code>&lt;|user|&gt;</code>, <code>&lt;|assistant|&gt;</code>, end-of-text).</dd>
+<dt>Loss mask</dt><dd>which tokens are graded; the others are read but give no gradient.</dd>
+<dt>Policy, reference</dt><dd>the model being trained, and a frozen copy of where it started (usually the SFT model).</dd>
+<dt>Reward model (RM)</dt><dd>a model that outputs one score per answer, trained from human or AI rankings.</dd>
+<dt>KL penalty</dt><dd>a cost on drifting from the reference, β KL(π ‖ π<sub>ref</sub>), so the policy cannot run off to wherever the reward is wrong.</dd>
+<dt>Online, offline</dt><dd>trained on answers the current policy just sampled, or on a fixed dataset written before training.</dd>
+<dt>Implicit reward</dt><dd>DPO's score, β log π/π<sub>ref</sub>: how much more likely the policy makes an answer than the reference does.</dd>
+<dt>RLVR, verifier</dt><dd>RL with verifiable rewards: a program (answer checker, unit tests) gives the reward instead of a learned model.</dd>
+</dl>
 <div class="tw"><table>
 <thead><tr><th>Stage</th><th>What the gradient rewards</th><th>Data</th><th>Models in memory</th><th>Samples its own answers?</th></tr></thead>
 <tbody>
@@ -183,18 +221,15 @@ table.fam td,table.fam th{font-size:12.5px}table.fam td:first-child{font-weight:
 <tr><td>DPO family</td><td>Widening the chosen answer's lead over the rejected one</td><td>Preference pairs (KTO: single thumbs up or down)</td><td>2 (policy, reference); 1 for SimPO and ORPO</td><td class="no">no (offline)</td></tr>
 <tr><td>RLVR</td><td>Answers a program accepts</td><td>Prompts plus a checker</td><td>Policy, reference (often), no RM</td><td class="yes">yes</td></tr>
 </tbody></table></div>
-<p class="small mute">Models in memory as each method is usually run; the bytes behind them are on the parent page (below).</p>
-<div class="co key"><div class="t">What lives where</div>
-This page owns the depth of each stage's mechanics: which tokens SFT learns from, the reward model's loss, the derivation and the whole family of direct preference losses, online against offline, and RLVR's lineage (its open problems are owned by RL for LLMs). The comparison of all training stages is on <a href="https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b" target="_blank" rel="noopener noreferrer">Topic: llm-training-and-post-training</a>: its Reading tab already shows the same prompt through base, SFT, preference-tuned, RL and distilled checkpoints (Axis 1), one batch through PPO, GRPO and DPO with the memory each needs (Axis 3, "Same batch, three algorithms"), the KL leash against reward hacking (Axis 4) and a bytes-per-parameter calculator (Machinery); its Open recipes compared, Price list and Scaling calculator tabs compare whole recipes. The RL algorithms themselves (PPO's GAE and clipping, GRPO's estimator, Dr. GRPO, DAPO, GSPO, off-policy corrections) are on <a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs: RLHF, GRPO, RLVR</a>.</div>
-<p>Every method has its own family tree position, paper and successor on the <a href="#" data-tab="t-tree">Method family tree</a> tab. Numbers are published with the source linked unless marked <i class="nl d">derived</i> (formula shown), <i class="nl i">illustrative</i>, <i class="nl r">reported</i> (the maker's own figure) or <i class="nl u">unconfirmed</i>.</p>
+<p class="small mute">Models in memory as each method is usually run. Numbers on this page are published, with the source linked, unless marked <i class="nl d">derived</i> (formula shown), <i class="nl i">illustrative</i>, <i class="nl r">reported</i> (the maker's own figure) or <i class="nl u">unconfirmed</i>. The RL algorithms' maths (PPO's GAE and clipping, GRPO and its variants, off-policy corrections) is owned by <a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs: RLHF, GRPO, RLVR</a>; the datasets by <a href="https://app.notion.com/p/3f95c17b0d0d81318c3ec7e4564d7b42" target="_blank" rel="noopener noreferrer">Post-training data</a>; how proxies get gamed by <a href="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974" target="_blank" rel="noopener noreferrer">Reward Hacking</a>. Every method's paper, date and successors: the <a href="#" data-tab="t-tree">Method family tree</a> tab.</p>
 </section>
 
 <section id="s-sft">
 <h2>1. Supervised fine-tuning: which tokens it learns from</h2>
-<p>SFT is the pretraining loss on a different text: conversations written in a chat template, with the loss switched off on every token the model should not learn to produce. The model reads the whole conversation, but only the assistant's tokens are graded. Llama 3 states it plainly: "a standard cross entropy loss on the target tokens (while masking loss on prompt tokens)" (<a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3, §4.1</a>). Ai2's open-instruct code, used for Tulu 3, sets the labels of every non-assistant token to −100, the value the cross-entropy ignores, with the comment "mask the non-assistant part for avoiding loss" (<a href="https://github.com/allenai/open-instruct/blob/ba11286e5b9eb00d4ce5b40ef4cac1389888416a/open_instruct/finetune.py" target="_blank" rel="noopener noreferrer">open-instruct finetune.py at the Tulu 3 commit</a>).</p>
+<p>SFT is the pretraining loss on a different text: conversations written in a chat template, with the loss switched off on every token the model should not learn to produce. The model reads the whole conversation; only the assistant's tokens are graded. Llama 3: "a standard cross entropy loss on the target tokens (while masking loss on prompt tokens)" (<a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3, §4.1</a>). Ai2's open-instruct, the Tulu 3 code, sets the label of every non-assistant token to −100, the value the cross-entropy ignores, with the comment "mask the non-assistant part for avoiding loss" (<a href="https://github.com/allenai/open-instruct/blob/ba11286e5b9eb00d4ce5b40ef4cac1389888416a/open_instruct/finetune.py" target="_blank" rel="noopener noreferrer">open-instruct finetune.py at the Tulu 3 commit</a>).</p>
 <div class="card" id="mk">
-<h3 style="margin-top:0">Try: which tokens carry the loss</h3>
-<p class="try">A real two-turn conversation in <b>Tulu 3's chat template</b>, tokenized with Tulu 3's own tokenizer (the Llama 3.1 vocabulary): every chip is one token. Switch the rule and watch which tokens are graded. Note that the template's markers are not special tokens in this vocabulary: <code>&lt;|user|&gt;</code> costs five ordinary tokens.</p>
+<h3 style="margin-top:0">The loss mask decides what the model learns to write</h3>
+<p class="try">A real two-turn conversation in <b>Tulu 3's chat template</b>, tokenized with Tulu 3's own tokenizer (the Llama 3.1 vocabulary): every chip is one token. Predict how many of the two answers' tokens "Last answer only" grades, then switch the rule. The template's markers are not special tokens in this vocabulary: <code>&lt;|user|&gt;</code> costs five ordinary tokens.</p>
 <div class="seg" id="mkM" role="group" aria-label="Loss rule"><button data-m="all">Every token</button><button data-m="asst" class="on">Assistant turns (Tulu 3, Llama 3)</button><button data-m="last">Last answer only</button><button data-m="im">Instruction modelling</button></div>
 <div class="toks" id="mkT"></div>
 <div class="lg"><span><i style="background:var(--c3)"></i>carries loss</span><span><i style="border:1px solid var(--line)"></i>read, not graded</span><span><i style="border:1px solid var(--line);opacity:.6"></i><s>template marker</s></span></div>
@@ -202,17 +237,21 @@ This page owns the depth of each stage's mechanics: which tokens SFT learns from
 <div class="an-cap" id="mkC"></div>
 <p class="small mute">Tokens from <code>src/mk_lengths.py</code>: <a href="https://huggingface.co/allenai/Llama-3.1-Tulu-3-8B/raw/main/tokenizer_config.json" target="_blank" rel="noopener noreferrer">tokenizer.json and chat_template</a> of Llama-3.1-Tulu-3-8B; · marks a leading space (Ġ in the vocabulary) and ⏎ a newline (Ċ). The conversation is this page's own example; the rules are those of the sources in the caption.</p>
 </div>
-<p>Which rule is right is not settled. Grading the prompt tokens too ("instruction modelling", template tokens excluded) helped "in many scenarios" across 21 benchmarks, most when instructions are long and answers short or when there are few examples (<a href="https://arxiv.org/abs/2405.14394" target="_blank" rel="noopener noreferrer">Shi et al. 2024</a>). With short answers, a small prompt-loss weight between 0.01 and 0.5 did best on multiple-choice and short-generation benchmarks, and a weight near 1 on long-generation ones (<a href="https://arxiv.org/abs/2401.13586" target="_blank" rel="noopener noreferrer">Huerta-Enochian and Ko 2024</a>). Frameworks pick a default for you: Hugging Face TRL computes the loss on the completion only for prompt-completion datasets, but its <code>assistant_only_loss</code> is off by default, so a plain conversational dataset trains on the user's turns too unless the template marks the assistant spans (<a href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener noreferrer">TRL SFTTrainer</a>).</p>
-<p><b>Quality beats quantity.</b> LIMA fine-tuned a 65B LLaMa on 1,000 curated examples, with no RL, and people rated it equivalent to or better than GPT-4 in 43% of cases (<a href="https://arxiv.org/abs/2305.11206" target="_blank" rel="noopener noreferrer">LIMA</a>); its "superficial alignment hypothesis" is that knowledge comes from pretraining and alignment only selects the format. Production recipes still use many more examples, mostly curated and synthetic: Tulu 3, the open reference recipe, trained on 939,344 prompts for 2 epochs at a learning rate of 5e-6 (8B), an effective batch of 128 and sequences up to 4,096 tokens (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, Table 7 and Table 11</a>). InstructGPT's SFT set was about 13,000 prompts; its models "overfit on validation loss after 1 epoch", but 16 epochs still raised the RM score and human preference (<a href="https://arxiv.org/abs/2203.02155" target="_blank" rel="noopener noreferrer">InstructGPT, §3.5</a>). The template itself moves scores: Tulu 3's averages ranged from 51.6 with the Llama 3 template to 53.0 with an end-of-text token in place of the newline after each answer (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, Table 13</a>), and a model served with a different template from the one it was trained on breaks.</p>
+<p>Which rule is right is not settled. Grading the prompt tokens too ("instruction modelling", template tokens excluded) helped "in many scenarios" across 21 benchmarks, most when instructions are long and answers short or examples few (<a href="https://arxiv.org/abs/2405.14394" target="_blank" rel="noopener noreferrer">Shi et al. 2024</a>); with short answers, a small prompt-loss weight between 0.01 and 0.5 did best on multiple-choice and short-generation benchmarks, a weight near 1 on long-generation ones (<a href="https://arxiv.org/abs/2401.13586" target="_blank" rel="noopener noreferrer">Huerta-Enochian and Ko 2024</a>). It should still be a choice, and frameworks make it for you: Hugging Face TRL computes the loss on the completion only for prompt-completion datasets, but its <code>assistant_only_loss</code> is off by default, so a plain conversational dataset trains on the user's turns too unless the template marks the assistant spans (<a href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener noreferrer">TRL SFTTrainer</a>).</p>
+<p><b>Quality beats quantity, and the template is part of the model.</b> LIMA fine-tuned a 65B LLaMa on 1,000 curated examples, with no RL, and people rated it equivalent to or better than GPT-4 in 43% of cases (<a href="https://arxiv.org/abs/2305.11206" target="_blank" rel="noopener noreferrer">LIMA</a>): its "superficial alignment hypothesis" is that knowledge comes from pretraining and alignment selects the format. Production recipes still use far more, mostly curated and synthetic: Tulu 3 trained on 939,344 prompts for 2 epochs at a learning rate of 5e-6 (8B), an effective batch of 128 and sequences up to 4,096 tokens (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, Tables 7 and 11</a>). The template moved Tulu 3's average from 51.6 with the Llama 3 template to 53.0 with an end-of-text token in place of the newline after each answer, 1.4 points from formatting alone (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, Table 13</a>); a model served with a different template from the one it was trained on breaks.</p>
+<details class="dp"><summary>Depth: epochs, and SFT from other sources <span class="mute">(1 min)</span></summary><div class="b">
+<p>InstructGPT's SFT set was about 13,000 prompts; its models "overfit on validation loss after 1 epoch", yet 16 epochs still raised the RM score and human preference (<a href="https://arxiv.org/abs/2203.02155" target="_blank" rel="noopener noreferrer">InstructGPT, §3.5</a>), so SFT validation loss is a poor stopping rule.</p>
+<p><b>Production traffic as the dataset.</b> NeoHorse-1 is the online variant of this step: a router over a pool of models predicts each request's capability demand, those predictions order a three-stage supervised curriculum, and served interactions become training examples after structural validation, a semantic evaluation and labels for sub-scenes within a conversation, finer than one label per conversation, which is what makes supervising a partial trajectory work. Its gains, the ten benchmarks and the caveat that the loop ran once are on the parent page's Axis 2 and the <a href="https://app.notion.com/p/3db5c17b0d0d81e3b105e033a359ad24" target="_blank" rel="noopener noreferrer">NeoHorse-1 paper page</a> (live curriculum scheduler in its "Schedule the curriculum" tab).</p>
+<p>SFT on a teacher's traces, and on-policy distillation: <a href="https://app.notion.com/p/3c65c17b0d0d81efa2a8c3b3b623eb09" target="_blank" rel="noopener noreferrer">Distillation and Small Language Models</a>. SFT through a LoRA or QLoRA adapter: <a href="https://app.notion.com/p/3c65c17b0d0d81eba08eef56b3e3b4eb" target="_blank" rel="noopener noreferrer">PEFT</a> and the <a href="https://app.notion.com/p/3c65c17b0d0d81018f15edd19fa5c28a" target="_blank" rel="noopener noreferrer">LoRA</a> and <a href="https://app.notion.com/p/3c65c17b0d0d815a8f4edc33f9583671" target="_blank" rel="noopener noreferrer">QLoRA</a> paper pages (both train in the page).</p>
+</div></details>
 </section>
 
 <section id="s-pack">
-<h2>Padding, packing, and how tokens are weighted</h2>
-<p>Conversations differ wildly in length. In 1,000 rows sampled from the released <a href="https://huggingface.co/datasets/allenai/tulu-3-sft-mixture" target="_blank" rel="noopener noreferrer">Tulu 3 SFT mixture</a> the median is <b><span data-al="median_total"></span></b> tokens and the mean <b><span data-al="mean_total"></span></b>; <span data-al="over"></span> of the 1,000 exceed the 4,096-token limit <i class="nl d">derived</i>. A batch padded to its longest member wastes most of its compute on padding: <b><span data-al="pad8"></span></b> of the computed positions are real tokens at 8 conversations per micro-batch, <span data-al="pad16"></span> at 16. Krell et al. found padding was 50% of all tokens in Wikipedia BERT pretraining at length 512 and packing doubled throughput (<a href="https://arxiv.org/abs/2107.02027" target="_blank" rel="noopener noreferrer">Krell et al. 2021</a>). Packing concatenates conversations into full rows instead; best-fit packing of the same 1,000 into 4,096-token rows fills <b><span data-al="pack"></span></b> of each row.</p>
-<p>Plain packing has a cost: with an ordinary causal mask, a token attends to every earlier conversation in its row. On the same sample, <b><span data-al="cross"></span></b> of the causal attention pairs in packed rows cross a document boundary <i class="nl d">derived</i>. The fix is to restart the position ids at each conversation and pass the boundaries to a variable-length attention kernel, so each conversation sees only itself; Hugging Face's <code>DataCollatorWithFlattening</code> does this with FlashAttention 2 and reported up to 2 times the throughput and 20% less peak memory on FLAN (<a href="https://huggingface.co/blog/packing-with-FA2" target="_blank" rel="noopener noreferrer">Hugging Face, 2024</a>). Masking within documents also gave lower perplexity than plain causal masking across packed documents in pretraining (<a href="https://arxiv.org/abs/2402.13991" target="_blank" rel="noopener noreferrer">Zhao et al. 2024</a>); Llama 3 found the cross-document mask of "limited impact" in standard pretraining but important for very long sequences (<a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3, §3.2</a>). TRL's "wrapped" packing, which cuts mid-conversation, "may mix unrelated examples" and its documentation says it hurts performance (<a href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener noreferrer">TRL</a>).</p>
+<h2>2. Batching SFT: padding, packing, and how much each token counts</h2>
+<p>Conversations differ wildly in length. In 1,000 rows sampled from the released <a href="https://huggingface.co/datasets/allenai/tulu-3-sft-mixture" target="_blank" rel="noopener noreferrer">Tulu 3 SFT mixture</a> the median is <b><span data-al="median_total">493</span></b> tokens and the mean <b><span data-al="mean_total">930</span></b>; <span data-al="over">24</span> of the 1,000 exceed the 4,096-token limit <i class="nl d">derived</i>. Padded to its longest member, a batch is mostly padding: <b><span data-al="pad8">36.3%</span></b> of the computed positions are real tokens at 8 conversations per micro-batch, <span data-al="pad16">28.2%</span> at 16. <b>Packing</b> concatenates conversations into full rows instead: best-fit packing of the same 1,000 into 4,096-token rows fills <b><span data-al="pack">99.8%</span></b> of each row. But with an ordinary causal mask a token then attends to every earlier conversation in its row: <b><span data-al="cross">61.8%</span></b> of the causal attention pairs in packed rows cross a conversation boundary <i class="nl d">derived</i>.</p>
 <div class="card" id="pk">
-<h3 style="margin-top:0">Try: eight real conversations, padded against packed</h3>
-<p class="try">Eight rows drawn at random from the same sample, drawn to scale against a 4,096-token row. <b>Before</b>: one conversation per row, padded to the longest. <b>After</b>: packed into full rows, first with a plain causal mask, then with boundaries. Watch the counters for wasted positions and for attention that leaks between conversations.</p>
+<h3 style="margin-top:0">Packing removes the padding; boundaries stop the leak</h3>
+<p class="try">Eight real conversations from the same sample, drawn to scale against a 4,096-token row. <b>Before</b>: one conversation per row, padded to the longest. <b>After</b>: packed into full rows, first with a plain causal mask, then with boundaries. Step through and watch the counters for wasted positions and for attention between conversations.</p>
 <div class="seg" id="pkM" role="group" aria-label="Layout"><button data-m="pad" class="on">Before: padded batch</button><button data-m="pack">After: packed rows</button></div>
 <div class="an-ctl" id="pkCtl"></div>
 <div class="pk-rows" id="pkR"></div>
@@ -220,43 +259,68 @@ This page owns the depth of each stage's mechanics: which tokens SFT learns from
 <div class="pk-mask" id="pkMask"></div>
 <div class="out" id="pkN"></div>
 <div class="an-cap" id="pkC"></div>
-<p class="small mute">Lengths are the conversations' real token counts (Tulu 3 tokenizer and template), the faint start of each block = tokens without loss, the solid rest = graded tokens, drawn as two blocks for clarity (in a real multi-turn row the graded spans interleave with the prompts). Packing is best-fit decreasing, as TRL's default <code>bfd</code>; the hatched end of a packed row is drawn as padding to a fixed 4,096, whereas padding-free packing (TRL, the HF collator) flattens the batch and computes no padding at all. Tulu 3 itself did neither: its reproduction command runs one conversation per GPU per step with gradient accumulation, so it pads nothing and packs nothing (<code>docs/tulu3.md</code>, <a href="https://github.com/allenai/open-instruct/blob/ba11286e5b9eb00d4ce5b40ef4cac1389888416a/docs/tulu3.md" target="_blank" rel="noopener noreferrer">open-instruct</a>).</p>
+<p class="small mute">Lengths are the conversations' real token counts (Tulu 3 tokenizer and template); the faint start of each block is tokens without loss, the solid rest graded tokens, drawn as two blocks for clarity. Tulu 3 itself did neither: its reproduction command runs one conversation per GPU per step with gradient accumulation, so it pads nothing and packs nothing (<code>docs/tulu3.md</code>, <a href="https://github.com/allenai/open-instruct/blob/ba11286e5b9eb00d4ce5b40ef4cac1389888416a/docs/tulu3.md" target="_blank" rel="noopener noreferrer">open-instruct</a>).</p>
+<details class="dp"><summary>How the drawing simplifies <span class="mute">(under 1 min)</span></summary><div class="b"><p class="small">In a real multi-turn row the graded spans interleave with the prompts. Packing is best-fit decreasing, as TRL's default <code>bfd</code>; the hatched end of a packed row is drawn as padding to a fixed 4,096, whereas padding-free packing (TRL, the HF collator) flattens the batch and computes no padding at all.</p></div></details>
 </div>
-<p><b>Sum or mean.</b> How the per-token losses are combined decides how much each token counts. If the loss is averaged per conversation and conversations are then averaged (what happens with gradient accumulation over one conversation at a time), every conversation counts equally, so a token in a short answer weighs as much as many tokens of a long one. Tulu 3 traced a performance gap between its own SFT runs and TPU runs to exactly this ("averaging the loss across padding tokens without taking into account gradient accumulation or distributed training setups") and switched to summing the loss, which "effectively weights all tokens equally", with a retuned learning rate (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, §4.3.2 "Batch Aggregation"</a>); the open-instruct code comments that sum reduction "can result in &gt; 5 point improvements in AlpacaEval". In the 1,000-row sample, the answers at the 10th and 90th percentiles carry <span data-al="p10"></span> and <span data-al="p90"></span> graded tokens: under per-conversation averaging, a token of the short one weighs <b><span data-al="wr"></span></b> as much as a token of the long one <i class="nl d">derived</i>, <span data-al="p90"></span> / <span data-al="p10"></span>.</p>
-<p><b>Production traffic as the dataset.</b> NeoHorse-1 is the online variant of this step rather than an offline curation pass: a router over a heterogeneous pool of models predicts each request's capability demand, those predictions order a three-stage supervised curriculum, and served interactions become training examples after structural validation, a semantic evaluation and labels for sub-scenes within a conversation, finer than one label per conversation, which is what makes supervising a partial trajectory work. Its measured gains, the ten benchmarks and the caveat that the loop ran once are on the parent page's Axis 2 and the <a href="https://app.notion.com/p/3db5c17b0d0d81e3b105e033a359ad24" target="_blank" rel="noopener noreferrer">NeoHorse-1 paper page</a> (with a live curriculum scheduler in its "Schedule the curriculum" tab).</p>
-<div class="deepnote"><b>Elsewhere:</b> SFT on a teacher's traces, and on-policy distillation, on <a href="https://app.notion.com/p/3c65c17b0d0d81efa2a8c3b3b623eb09" target="_blank" rel="noopener noreferrer">Distillation and Small Language Models</a>; SFT through a LoRA or QLoRA adapter on <a href="https://app.notion.com/p/3c65c17b0d0d81eba08eef56b3e3b4eb" target="_blank" rel="noopener noreferrer">PEFT</a> and the <a href="https://app.notion.com/p/3c65c17b0d0d81018f15edd19fa5c28a" target="_blank" rel="noopener noreferrer">LoRA</a> and <a href="https://app.notion.com/p/3c65c17b0d0d815a8f4edc33f9583671" target="_blank" rel="noopener noreferrer">QLoRA</a> paper pages (both train in the page).</div>
+<p>The fix is to restart the position ids at each conversation and pass the boundaries to a variable-length attention kernel, so each conversation sees only itself; Hugging Face's <code>DataCollatorWithFlattening</code> does this with FlashAttention 2 and reported up to 2 times the throughput and 20% less peak memory on FLAN (<a href="https://huggingface.co/blog/packing-with-FA2" target="_blank" rel="noopener noreferrer">Hugging Face, 2024</a>). Without a variable-length kernel, keep padding.</p>
+<p><b>Sum or mean: how much each token counts.</b> If the loss is averaged within each conversation and the conversations are then averaged (what gradient accumulation over one conversation at a time does), every conversation counts equally, so a token of a short answer weighs as much as many tokens of a long one. In the sample, the answers at the 10th and 90th percentiles carry <span data-al="p10">21</span> and <span data-al="p90">1,187</span> graded tokens: under per-conversation averaging, a token of the short one weighs <b><span data-al="wr">56.5 times</span></b> as much as a token of the long one <i class="nl d">derived</i>, <span data-al="p90">1,187</span> / <span data-al="p10">21</span>.</p>
+<div class="fig" id="sm">
+<h4>Averaging per conversation gives a 21-token answer half the gradient</h4>
+<div class="seg" id="smM" role="group" aria-label="Loss reduction"><button data-m="mean" class="on">Mean per conversation, then over the batch</button><button data-m="sum">Sum over tokens (Tulu 3)</button></div>
+<div class="rd-svg" id="smSvg"></div>
+<div class="an-cnt" id="smN"></div>
+<p class="cap">Two real answers from the sample, the 10th and 90th percentile of graded tokens, drawn to scale: width is tokens, height is the weight of one token, so area is each answer's share of the gradient. Under the sum, the short answer's share is <span data-al="p10">21</span> / (<span data-al="p10">21</span> + <span data-al="p90">1,187</span>) = <span data-al="short_share">1.7%</span> <i class="nl d">derived</i>.</p>
+</div>
+<p>Tulu 3 traced a gap between its own SFT runs and TPU runs to exactly this ("averaging the loss across padding tokens without taking into account gradient accumulation or distributed training setups") and switched to summing the loss, which "effectively weights all tokens equally", with a retuned learning rate (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, §4.3.2 "Batch Aggregation"</a>); the open-instruct code comments that sum reduction "can result in &gt; 5 point improvements in AlpacaEval". Sum the loss over tokens, or normalise by the total token count of the whole accumulated batch.</p>
+<details class="dp"><summary>Depth: the evidence on padding and cross-document attention <span class="mute">(1 min)</span></summary><div class="b">
+<p>Krell et al. found padding was 50% of all tokens in Wikipedia BERT pretraining at length 512, and packing doubled throughput (<a href="https://arxiv.org/abs/2107.02027" target="_blank" rel="noopener noreferrer">Krell et al. 2021</a>). Masking within documents gave lower perplexity than plain causal masking across packed documents in pretraining (<a href="https://arxiv.org/abs/2402.13991" target="_blank" rel="noopener noreferrer">Zhao et al. 2024</a>); Llama 3 found the cross-document mask of "limited impact" in standard pretraining but important for very long sequences (<a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3, §3.2</a>). TRL's "wrapped" packing, which cuts mid-conversation, "may mix unrelated examples" and its documentation says it hurts performance (<a href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener noreferrer">TRL</a>).</p>
+</div></details>
 </section>
 
 <section id="s-rm">
-<h2>2. Reward models: turning rankings into a score</h2>
-<p>A reward model is usually the SFT model itself with its output layer swapped for one scalar head: InstructGPT started "from the SFT model with the final unembedding layer removed" (<a href="https://arxiv.org/abs/2203.02155" target="_blank" rel="noopener noreferrer">InstructGPT, §3.5</a>). Labellers rank K sampled responses to a prompt (InstructGPT used K = 4 to 9), which gives K(K−1)/2 comparisons, and the model is trained on the <b>Bradley-Terry</b> objective: the probability that people prefer y<sub>w</sub> over y<sub>l</sub> is modelled as σ(r(x, y<sub>w</sub>) − r(x, y<sub>l</sub>)), and the loss maximises it.</p>
+<h2>3. Reward models: turning rankings into a score</h2>
+<p>InstructGPT's labellers ranked K sampled answers per prompt (K = 4 to 9); a ranking of K answers gives K(K−1)/2 comparisons, 6 for K = 4. The reward model is usually the SFT model with its output layer swapped for one scalar head: InstructGPT started "from the SFT model with the final unembedding layer removed" (<a href="https://arxiv.org/abs/2203.02155" target="_blank" rel="noopener noreferrer">InstructGPT, §3.5</a>). It is trained so the preferred answer scores higher, by the <b>Bradley-Terry</b> model: the probability that people prefer y<sub>w</sub> over y<sub>l</sub> is σ(r(x, y<sub>w</sub>) − r(x, y<sub>l</sub>)).</p>
+<div class="fig" id="rmf">
+<h4>Rankings become pairs; the score is only as good as the labellers agree</h4>
+<div class="rd-svg" id="rmSvg"></div>
+<p class="cap">The pairs: one ranking of four answers yields six, all placed in one batch element (InstructGPT, because shuffling them into the dataset made the RM overfit in a single pass). The bars: InstructGPT's agreement figures, ± one standard error, on a 0 to 100% axis with chance at 50% (<a href="https://arxiv.org/abs/2203.02155" target="_blank" rel="noopener noreferrer">arXiv 2203.02155</a>).</p>
+</div>
 <div class="fm"><div class="eq">loss(θ) = −<span style="font-size:.8em">1/(K choose 2)</span> · E<sub>(x, y<sub>w</sub>, y<sub>l</sub>)</sub> [ log σ( r<sub>θ</sub>(x, y<sub>w</sub>) − r<sub>θ</sub>(x, y<sub>l</sub>) ) ]</div>
-<dl><dt>r<sub>θ</sub>(x, y)</dt><dd>the reward model's scalar for prompt x and response y</dd><dt>y<sub>w</sub>, y<sub>l</sub></dt><dd>the preferred ("winning") and the other response of one comparison</dd><dt>σ</dt><dd>the logistic function; only the difference of two rewards matters, so a reward has no absolute zero</dd><dt>K</dt><dd>responses ranked per prompt</dd></dl></div>
-<p>InstructGPT's Eq. 1 (<a href="https://arxiv.org/abs/2203.02155" target="_blank" rel="noopener noreferrer">arXiv 2203.02155</a>). All of a prompt's comparisons go into one batch element, because shuffling them into the dataset made the RM overfit in a single pass; one 6B RM served every policy, since 175B RM training "could be unstable". The ceiling is the people: InstructGPT's training labellers agreed with each other 72.6 ± 1.5% of the time, and the RM predicted their preferences 72.4 ± 0.4% of the time (held-out labellers: 69.6 ± 0.9%). A reward model is a proxy roughly as reliable as a second labeller, and an RL policy optimised against it will find where it is wrong (the KL-leash animation on the parent page, Axis 4, and <a href="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974" target="_blank" rel="noopener noreferrer">Reward Hacking</a>).</p>
-<p class="small">Live versions: the <a href="https://app.notion.com/p/3c65c17b0d0d8180b958d8299996a063" target="_blank" rel="noopener noreferrer">InstructGPT paper page</a> fits a toy reward model on simulated rankings in the page ("Run the three steps") and shows every pair's loss for K = 4 to 9; the <a href="https://app.notion.com/p/3c65c17b0d0d815a9b31e9443961c700" target="_blank" rel="noopener noreferrer">Constitutional AI page</a> shows why soft labels from a feedback model have a finite optimum and hard 0/1 labels do not. The same loss on one pair is the first method in the animation of section 4.</p>
+<dl><dt>r<sub>θ</sub>(x, y)</dt><dd>the reward model's scalar for prompt x and answer y</dd><dt>y<sub>w</sub>, y<sub>l</sub></dt><dd>the preferred ("winning") and the other answer of one comparison</dd><dt>σ</dt><dd>the logistic function; only the difference of two rewards matters, so a reward has no absolute zero</dd></dl></div>
+<p>InstructGPT's Eq. 1. One 6B RM served every policy, since 175B RM training "could be unstable". The ceiling is the people: training labellers agreed with each other 72.6 ± 1.5% of the time and the RM predicted their preferences 72.4 ± 0.4% of the time (held-out labellers: 69.6 ± 0.9%). A reward model is a proxy about as reliable as a second labeller, and an RL policy optimised against it will find where it is wrong (the parent page's Axis 4 KL-leash animation, and <a href="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974" target="_blank" rel="noopener noreferrer">Reward Hacking</a>). The same loss on one pair is the first method of the animation in section 5; the <a href="https://app.notion.com/p/3c65c17b0d0d8180b958d8299996a063" target="_blank" rel="noopener noreferrer">InstructGPT paper page</a> fits a toy reward model live ("Run the three steps") and shows every pair's loss for K = 4 to 9.</p>
 <h3>RLAIF and Constitutional AI: who writes the labels</h3>
-<p><b>RLAIF</b> keeps the same pipelines and swaps the labeller: a strong model judges which response is better. In Google's controlled comparison, with PaLM 2 as the labeller, RLAIF and RLHF were preferred over SFT about equally (summarisation 71% against 73%, helpful dialogue 63% against 64%, differences not significant), and RLAIF was more harmless (88% against 76%) (<a href="https://arxiv.org/abs/2309.00267" target="_blank" rel="noopener noreferrer">Lee et al. 2023</a>). AI labels scale far better than people. Open recipes now build their preference pairs with an LLM judge: Tulu 3 rates every response with GPT-4o on helpfulness, instruction following, honesty and truthfulness (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, §5</a>); some frontier recipes still pay for people, as Llama 3 trained its reward model "using human-annotated preference data" (<a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3, §4.1.2</a>).</p>
-<p><b>Constitutional AI</b> (Anthropic, 2022) is a structured RLAIF in two phases. In the supervised phase the model critiques and revises its own harmful answers against principles drawn from a written constitution (16 critique and revision pairs), and a model is fine-tuned on the revisions. In the RL phase a feedback model, prompted with one of 16 principles, picks the less harmful of two answers; a preference model is trained on those AI labels and the policy is optimised against it (<a href="https://arxiv.org/abs/2212.08073" target="_blank" rel="noopener noreferrer">arXiv 2212.08073</a>). The <a href="https://app.notion.com/p/3c65c17b0d0d815a9b31e9443961c700" target="_blank" rel="noopener noreferrer">paper page</a> replays the released critique chains and counts the refusals. Anthropic published a new, much longer constitution for Claude in January 2026 (<a href="https://www.anthropic.com/news/claude-new-constitution" target="_blank" rel="noopener noreferrer">Anthropic</a>).</p>
-<div class="co corr"><div class="t">Corrections</div>The old page said RLAIF "is now the norm for most labels". No source states that; the evidence is a trend in open recipes (UltraFeedback, Tulu 3), while Llama 3 used human preference annotations, so the claim is restated as above <i class="nl u">unconfirmed as a general norm</i>. It also described Constitutional AI's RL phase as AI preference labels "judged against the constitution" without qualification: only the harmlessness labels were AI-written; the helpfulness labels stayed human, so 57% of the preference model's data, and all of its harmlessness data, was labelled by a model (<a href="https://app.notion.com/p/3c65c17b0d0d815a9b31e9443961c700" target="_blank" rel="noopener noreferrer">paper page, §4.2</a>).</div>
+<p><b>RLAIF</b> keeps the pipeline and swaps the labeller for a strong model. In Google's controlled comparison, with PaLM 2 as the labeller, RLAIF and RLHF were preferred over SFT about equally (summarisation 71% against 73%, helpful dialogue 63% against 64%, differences not significant), and RLAIF was more harmless (88% against 76%) (<a href="https://arxiv.org/abs/2309.00267" target="_blank" rel="noopener noreferrer">Lee et al. 2023</a>). AI labels scale far better than people, and open recipes now build their pairs with an LLM judge: Tulu 3 rates every response with GPT-4o on helpfulness, instruction following, honesty and truthfulness (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, §5</a>); some frontier recipes still pay for people, as Llama 3 trained its reward model "using human-annotated preference data" (<a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3, §4.1.2</a>). RLAIF does not remove people: they write the constitution, the judge's prompt, the rubrics and the evaluation. It moves human effort from labelling to specification.</p>
+<p><b>Constitutional AI</b> (Anthropic, 2022) is a structured RLAIF in two phases. Supervised: the model critiques and revises its own harmful answers against principles from a written constitution (16 critique and revision pairs), and a model is fine-tuned on the revisions. RL: a feedback model, prompted with one of 16 principles, picks the less harmful of two answers; a preference model is trained on those AI labels and the policy is optimised against it (<a href="https://arxiv.org/abs/2212.08073" target="_blank" rel="noopener noreferrer">arXiv 2212.08073</a>). The <a href="https://app.notion.com/p/3c65c17b0d0d815a9b31e9443961c700" target="_blank" rel="noopener noreferrer">paper page</a> replays the released critique chains, counts the refusals, and shows why soft labels from a feedback model have a finite optimum and hard 0/1 labels do not. Anthropic published a new, much longer constitution for Claude in January 2026 (<a href="https://www.anthropic.com/news/claude-new-constitution" target="_blank" rel="noopener noreferrer">Anthropic</a>).</p>
+<div class="co corr"><div class="t">Corrections</div>The old page said RLAIF "is now the norm for most labels". No source states that; the evidence is a trend in open recipes (UltraFeedback, Tulu 3), while Llama 3 used human preference annotations <i class="nl u">unconfirmed as a general norm</i>. It also described Constitutional AI's RL phase as AI labels "judged against the constitution" without qualification: only the harmlessness labels were AI-written; the helpfulness labels stayed human, so 57% of the preference model's data, and all of its harmlessness data, was labelled by a model (<a href="https://app.notion.com/p/3c65c17b0d0d815a9b31e9443961c700" target="_blank" rel="noopener noreferrer">paper page, §4.2</a>).</div>
 </section>
 
 <section id="s-rl">
-<h2>3. RL against a reward: PPO and GRPO in brief</h2>
-<p><b>RLHF with PPO</b> (InstructGPT, <a href="https://arxiv.org/abs/2307.09288" target="_blank" rel="noopener noreferrer">Llama 2</a>; GPT-4 was also trained with RLHF, <a href="https://arxiv.org/abs/2303.08774" target="_blank" rel="noopener noreferrer">GPT-4 report</a>) is an actor-critic policy gradient with four models in memory: the policy, a frozen reference whose per-token KL penalty keeps the policy close to the SFT model, the reward model, and a learned <b>value model</b> (critic) estimating the expected return of each partial answer. A clipped ratio objective bounds each update. It is powerful, notoriously fiddly and memory-hungry. <b>GRPO</b> (<a href="https://app.notion.com/p/3c65c17b0d0d817f9fc5cb9a9fbcbee5" target="_blank" rel="noopener noreferrer">DeepSeekMath</a>) drops the critic: it samples a group of G responses per prompt and gives each the advantage (its reward − group mean) / group standard deviation, so the group replaces value estimation; the rest is PPO-style clipping plus a KL term. With a verifier it is the workhorse of open reasoning RL: DeepSeek-R1 (<a href="https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65" target="_blank" rel="noopener noreferrer">paper page</a>) and Qwen3's reasoning RL use it (<a href="https://arxiv.org/abs/2505.09388" target="_blank" rel="noopener noreferrer">Qwen3, §4.2</a>).</p>
-<p>Its known biases spawned a family of fixes, each derived and worked through on <a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs</a>: <b>Dr. GRPO</b> removes the per-response length normalisation that lets long wrong answers off lightly and the standard-deviation division that over-weights too-easy and too-hard prompts (<a href="https://arxiv.org/abs/2503.20783" target="_blank" rel="noopener noreferrer">arXiv 2503.20783</a>); <b>DAPO</b> decouples the clip range (clip-higher), drops groups with no spread (dynamic sampling), averages over tokens and shapes overlong answers (<a href="https://arxiv.org/abs/2503.14476" target="_blank" rel="noopener noreferrer">arXiv 2503.14476</a>); <b>GSPO</b> clips one length-normalised ratio per sequence, for stability on long answers and mixture-of-experts models (<a href="https://arxiv.org/abs/2507.18071" target="_blank" rel="noopener noreferrer">arXiv 2507.18071</a>); <b>CISPO</b>, from MiniMax-M1, "clips importance sampling weights rather than token updates" (<a href="https://arxiv.org/abs/2506.13585" target="_blank" rel="noopener noreferrer">arXiv 2506.13585</a>).</p>
-<div class="deepnote"><b>Animated and live elsewhere, not repeated here:</b> one batch through PPO, GRPO and DPO with the memory each needs is the parent page's "Same batch, three algorithms" (Axis 3); the KL leash is its Axis 4 animation. PPO against GRPO on one question, animated, and all six methods trained live from one toy base are on the <a href="https://app.notion.com/p/3c65c17b0d0d817f9fc5cb9a9fbcbee5" target="_blank" rel="noopener noreferrer">DeepSeekMath page</a> ("Train all six methods"; its "Then and now" tab walks GRPO's objective term by term through R1, DAPO, Dr. GRPO and GSPO). A tiny R1-Zero trains in the <a href="https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65" target="_blank" rel="noopener noreferrer">DeepSeek-R1 page</a>; a whole RLHF pipeline with PPO and PPO-ptx in the <a href="https://app.notion.com/p/3c65c17b0d0d8180b958d8299996a063" target="_blank" rel="noopener noreferrer">InstructGPT page</a>; GRPO with several rewards at once in <a href="https://app.notion.com/p/3c65c17b0d0d81e38b0fe72f3daf44bc" target="_blank" rel="noopener noreferrer">Learn What's Left, Not What's Mastered</a>. The policy-gradient theory underneath is on <a href="https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e" target="_blank" rel="noopener noreferrer">Topic: rl</a>.</div>
+<h2>4. RL against a reward: what PPO and GRPO do in the pipeline</h2>
+<p>With a reward model in hand, RL optimises the policy against it: sample answers, score them, compare each score with a baseline (the <b>advantage</b>), and take a clipped policy-gradient step with a KL penalty to the reference. <b>RLHF with PPO</b> (InstructGPT, <a href="https://arxiv.org/abs/2307.09288" target="_blank" rel="noopener noreferrer">Llama 2</a>; GPT-4 was also trained with RLHF, <a href="https://arxiv.org/abs/2303.08774" target="_blank" rel="noopener noreferrer">GPT-4 report</a>) gets its baseline from a learned <b>value model</b> (critic) that estimates the expected return of each partial answer: four models in memory, powerful, notoriously fiddly and memory-hungry. <b>GRPO</b> (<a href="https://app.notion.com/p/3c65c17b0d0d817f9fc5cb9a9fbcbee5" target="_blank" rel="noopener noreferrer">DeepSeekMath</a>) drops the critic: it samples a group of G answers per prompt and gives each the advantage (its reward − group mean) / group standard deviation.</p>
+<div class="fig" id="rlf">
+<h4>GRPO replaces the critic with the group: one model fewer</h4>
+<div class="seg" id="rlM" role="group" aria-label="Algorithm"><button data-m="ppo" class="on">PPO (critic)</button><button data-m="grpo">GRPO (group baseline)</button></div>
+<div class="rd-svg" id="rlSvg"></div>
+<div class="an-cnt" id="rlN"></div>
+<p class="cap" id="rlC"></p>
+</div>
+<p>With a verifier instead of a reward model (section 7) GRPO is the workhorse of open reasoning RL: DeepSeek-R1 (<a href="https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65" target="_blank" rel="noopener noreferrer">paper page</a>) and Qwen3's reasoning RL use it (<a href="https://arxiv.org/abs/2505.09388" target="_blank" rel="noopener noreferrer">Qwen3, §4.2</a>). Its biases spawned named fixes (Dr. GRPO, DAPO, GSPO, MiniMax-M1's CISPO), each derived on <a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs</a>, sections 3 and 7, with PPO's GAE and clipping in section 2.</p>
+<details class="dp"><summary>Depth: the GRPO fixes in one line each, and where each algorithm runs live <span class="mute">(1 min)</span></summary><div class="b">
+<p><b>Dr. GRPO</b> removes the per-response length normalisation that lets long wrong answers off lightly and the standard-deviation division that over-weights too-easy and too-hard prompts (<a href="https://arxiv.org/abs/2503.20783" target="_blank" rel="noopener noreferrer">arXiv 2503.20783</a>); <b>DAPO</b> decouples the clip range (clip-higher), drops groups with no spread (dynamic sampling), averages over tokens and shapes overlong answers (<a href="https://arxiv.org/abs/2503.14476" target="_blank" rel="noopener noreferrer">arXiv 2503.14476</a>); <b>GSPO</b> clips one length-normalised ratio per sequence, for stability on long answers and mixture-of-experts models (<a href="https://arxiv.org/abs/2507.18071" target="_blank" rel="noopener noreferrer">arXiv 2507.18071</a>); <b>CISPO</b> "clips importance sampling weights rather than token updates" (<a href="https://arxiv.org/abs/2506.13585" target="_blank" rel="noopener noreferrer">arXiv 2506.13585</a>).</p>
+<p>Live elsewhere: one batch through PPO, GRPO and DPO with the memory each needs is the parent page's "Same batch, three algorithms" (Axis 3). PPO against GRPO on one question, animated, and six methods trained from one toy base are on the <a href="https://app.notion.com/p/3c65c17b0d0d817f9fc5cb9a9fbcbee5" target="_blank" rel="noopener noreferrer">DeepSeekMath page</a> (its "Then and now" tab walks GRPO's objective through R1, DAPO, Dr. GRPO and GSPO). A tiny R1-Zero trains in the <a href="https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65" target="_blank" rel="noopener noreferrer">DeepSeek-R1 page</a>; a whole RLHF pipeline with PPO and PPO-ptx in the <a href="https://app.notion.com/p/3c65c17b0d0d8180b958d8299996a063" target="_blank" rel="noopener noreferrer">InstructGPT page</a>; GRPO with several rewards in <a href="https://app.notion.com/p/3c65c17b0d0d81e38b0fe72f3daf44bc" target="_blank" rel="noopener noreferrer">Learn What's Left, Not What's Mastered</a>. The policy-gradient theory underneath: <a href="https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e" target="_blank" rel="noopener noreferrer">Topic: rl</a>.</p>
+</div></details>
 </section>
 
 <section id="s-dpo">
-<h2>4. Direct preference optimisation and its family</h2>
-<p>DPO removes the reward model and the RL loop. The KL-constrained RLHF objective, maximise E[r(x, y)] − β KL(π ‖ π<sub>ref</sub>), has a closed-form optimum: π*(y | x) = π<sub>ref</sub>(y | x) exp(r(x, y)/β) / Z(x). Solved for the reward, any reward is β log(π*/π<sub>ref</sub>) plus a term that depends only on the prompt (Eq. 5). Put that into the Bradley-Terry loss of section 2 and the prompt term cancels, because only differences of rewards appear. What is left trains the policy directly on (chosen, rejected) pairs (<a href="https://arxiv.org/abs/2305.18290" target="_blank" rel="noopener noreferrer">DPO, Eq. 7</a>):</p>
+<h2>5. Direct preference optimisation and its family</h2>
+<p>DPO removes the reward model and the RL loop: the policy becomes its own reward model. The step that makes it possible: the KL-constrained RLHF objective, maximise E[r(x, y)] − β KL(π ‖ π<sub>ref</sub>), has a closed-form optimum, π*(y | x) = π<sub>ref</sub>(y | x) exp(r(x, y)/β) / Z(x). Solved for the reward, any reward is β log(π*/π<sub>ref</sub>) plus a term that depends only on the prompt (Eq. 5). Put that into the Bradley-Terry loss of section 3 and the prompt term cancels, because only differences of rewards appear. What is left trains the policy directly on (chosen, rejected) pairs (<a href="https://arxiv.org/abs/2305.18290" target="_blank" rel="noopener noreferrer">DPO, Eq. 7</a>):</p>
 <div class="fm"><div class="eq">L<sub>DPO</sub> = −E [ log σ( β log <span style="font-size:.85em">π<sub>θ</sub>(y<sub>w</sub>|x) / π<sub>ref</sub>(y<sub>w</sub>|x)</span> − β log <span style="font-size:.85em">π<sub>θ</sub>(y<sub>l</sub>|x) / π<sub>ref</sub>(y<sub>l</sub>|x)</span> ) ]</div>
-<dl><dt>β log π<sub>θ</sub>/π<sub>ref</sub></dt><dd>the <i>implicit reward</i>: how much more likely the policy makes an answer than the frozen reference does, in nats, times β</dd><dt>β</dt><dd>the KL strength; 0.1 in the paper and in Llama 3</dd><dt>gradient</dt><dd>−β σ(r̂<sub>l</sub> − r̂<sub>w</sub>) (∇log π(y<sub>w</sub>) − ∇log π(y<sub>l</sub>)): every pair pushes the chosen answer up and the rejected down, harder when the implicit rewards rank them the wrong way; dropping the weight σ(·) made the model degenerate</dd></dl></div>
-<p>One trained model plus a frozen reference (whose log-probabilities can be computed once and cached), no sampling, a classification loss: stable and cheap, which is why it spread everywhere from Zephyr to Llama 3. The paper's headline, a 61% TL;DR win rate against PPO's 57%, rests on single runs about one standard error apart (the <a href="https://app.notion.com/p/3c65c17b0d0d818bb1d8cafd30e20f9e" target="_blank" rel="noopener noreferrer">DPO paper page</a> works out the errors, trains DPO against RLHF on an enumerable toy with an exact optimum, and shows likelihood displacement). Its successors each change one thing:</p>
+<dl><dt>β log π<sub>θ</sub>/π<sub>ref</sub></dt><dd>the implicit reward of an answer, in nats, times β</dd><dt>β</dt><dd>the KL strength; 0.1 in the paper and in Llama 3</dd><dt>gradient</dt><dd>−β σ(r̂<sub>l</sub> − r̂<sub>w</sub>) (∇log π(y<sub>w</sub>) − ∇log π(y<sub>l</sub>)): every pair pushes the chosen answer up and the rejected down, harder when the implicit rewards rank them the wrong way; dropping the weight σ(·) made the model degenerate</dd></dl></div>
+<p>One trained model plus a frozen reference (whose log-probabilities can be computed once and cached), no sampling, a classification loss: stable and cheap, which is why it spread from Zephyr to Llama 3. The paper's headline, a 61% TL;DR win rate against PPO's 57%, rests on single runs about one standard error apart (the <a href="https://app.notion.com/p/3c65c17b0d0d818bb1d8cafd30e20f9e" target="_blank" rel="noopener noreferrer">DPO paper page</a> works out the errors and trains DPO against RLHF on an enumerable toy with an exact optimum). Its successors each change one thing; the animation runs one pair through all of them.</p>
 
 <div class="card" id="pr">
-<h3 style="margin-top:0">Try: one preference pair through eight losses</h3>
-<p class="try">One prompt, a correct long answer (chosen) and a wrong short one (rejected), each token's probability under the frozen reference drawn as a pale bar and under the policy as a solid one. Step through how each loss scores the pair, what it pushes on each token, and where training on this pair alone ends. <b>Before</b> is the reward model, then DPO, which replaced it; the others are DPO's successors. Note the two shared tokens "12 pens" (purple): DPO's pushes on them cancel exactly; the length-normalised losses do not cancel.</p>
+<h3 style="margin-top:0">One preference pair through eight losses: DPO never stops pushing</h3>
+<p class="try">One prompt, a correct long answer (chosen) and a wrong short one (rejected); each token's probability under the frozen reference is a pale bar, under the policy a solid one. Predict which losses stop widening the margin on their own, then step DPO to 400 and compare IPO and cDPO. <b>Before</b> is the reward model, then DPO, which replaced it; the others are DPO's successors. The two shared tokens "12 pens" (purple): DPO's pushes on them cancel exactly; the length-normalised losses do not cancel.</p>
 <div class="pr-mth" id="prM" role="group" aria-label="Loss"></div>
 <div class="an-ctl" id="prCtl"></div>
 <div class="pr-eq" id="prEq"></div>
@@ -264,7 +328,8 @@ This page owns the depth of each stage's mechanics: which tokens SFT learns from
 <div class="out" id="prN"></div>
 <div class="an-cap" id="prC"></div>
 <div class="pr-plots" id="prP"></div>
-<p class="small mute"><i class="nl i">illustrative</i> The token probabilities are made up (the tokens are the Tulu 3 tokenizer's), chosen so that the shorter wrong answer has the higher total log-probability (−3.36 against −5.38), the case length normalisation targets. Each token's log-probability is log σ(θ) of its own parameter, with the shared prefix sharing one, so the bars move independently; a real model shares parameters across answers, which is where likelihood displacement comes from. Hyperparameters are each paper's defaults: DPO β = 0.1; cDPO ε = 0.1 <i class="nl i">illustrative</i>, the note gives no default; IPO τ = 0.1 <i class="nl i">illustrative</i>; length-normalised DPO β = 5 (Tulu 3); SimPO β = 2, γ = 1 (its Llama-3-Base row); ORPO λ = 0.1 (its Mistral setting); KTO β = 0.1, λ<sub>D</sub> = λ<sub>U</sub> = 1, with its reference point z<sub>0</sub> taken as the clipped mean log-ratio of the two answers (the paper estimates it from mismatched pairs in the batch). Training: 400 steps of plain gradient descent, the step size fixed so that every method's largest first step is the same, so differences afterwards come from each loss's shape. Recomputed in <code>src/recompute.py</code>; the page's JavaScript matches it (<code>check_pair.mjs</code>).</p>
+<p class="small mute"><i class="nl i">illustrative</i> The token probabilities are made up (the tokens are the Tulu 3 tokenizer's), chosen so that the shorter wrong answer has the higher total log-probability (−3.36 against −5.38), the case length normalisation targets. Answer to the prediction: cDPO stops at margin ln 9 = 2.20 and IPO at its target of 5 nats; DPO's margin keeps growing, mostly by crushing the rejected answer.</p>
+<details class="dp"><summary>How the toy is built <span class="mute">(under 1 min)</span></summary><div class="b"><p class="small">Each token's log-probability is log σ(θ) of its own parameter, the shared prefix sharing one, so the bars move independently; a real model shares parameters across answers, which is where likelihood displacement comes from. Hyperparameters are each paper's defaults: DPO β = 0.1; cDPO ε = 0.1 <i class="nl i">illustrative</i>, the note gives no default; IPO τ = 0.1 <i class="nl i">illustrative</i>; length-normalised DPO β = 5 (Tulu 3); SimPO β = 2, γ = 1 (its Llama-3-Base row); ORPO λ = 0.1 (its Mistral setting); KTO β = 0.1, λ<sub>D</sub> = λ<sub>U</sub> = 1, with its reference point z<sub>0</sub> taken as the clipped mean log-ratio of the two answers (the paper estimates it from mismatched pairs in the batch). Training: 400 steps of plain gradient descent, the step size fixed so that every method's largest first step is the same, so differences afterwards come from each loss's shape. Recomputed in <code>src/recompute.py</code>; the page's JavaScript matches it (<code>check_pair.mjs</code>).</p></div></details>
 </div>
 
 <div class="tw"><table class="fam">
@@ -279,55 +344,67 @@ This page owns the depth of each stage's mechanics: which tokens SFT learns from
 <tr><td>Length-normalised DPO</td><td>DPO with each answer's log-ratio divided by its length</td><td>Length bias, keeping the reference</td><td class="yes">yes</td><td class="yes">yes</td><td>β = 5, one epoch; "only length-normalized DPO outperformed our base checkpoint overall" against DPO and SimPO in Tulu 3 (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">2411.15124</a>, §5.4)</td></tr>
 <tr><td>PLC-DPO</td><td>Routes each pair as clean, flipped or tie from a calibrated DPO margin and blends the matching losses into DPO's</td><td>Mislabelled and ambiguous pairs: it works on the labels rather than the objective</td><td class="yes">yes</td><td class="yes">yes</td><td>No extra forward passes; mean win rate against DPO 60.5 over 57 settings against 55.5 for the next best (rDPO) (KAIST AI and KENTECH, <a href="https://arxiv.org/abs/2608.30597" target="_blank" rel="noopener noreferrer">2608.30597</a>, Aug 2026)</td></tr>
 </tbody></table></div>
-<p class="small mute">Formulas as printed in each paper; the reproductions in TRL: DPOTrainer's <code>loss_type</code> covers <code>sigmoid</code> (DPO), <code>ipo</code>, <code>hinge</code>, <code>robust</code> (rDPO, <a href="https://arxiv.org/abs/2403.00409" target="_blank" rel="noopener noreferrer">2403.00409</a>), <code>sigmoid_norm</code> (length-normalised) and a dozen more, combinable in a list; KTOTrainer is in the main package; SimPO (through CPOTrainer) and ORPO now live in <code>trl.experimental</code> (<a href="https://huggingface.co/docs/trl/dpo_trainer" target="_blank" rel="noopener noreferrer">TRL DPO trainer</a>).</p>
-<p><b>In practice the data matters more than the loss.</b> DPO-family results are sensitive to label noise and to how far apart the chosen and rejected answers are, which is the failure PLC-DPO targets. Recipes add small guards: Llama 3 masked the header and termination tokens out of both answers (otherwise "tail repetition or abruptly generating termination tokens") and added an NLL term of weight 0.2 on the chosen answers (<a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3, §4.1.4</a>). Training on a pair can lower the probability of both answers and move mass to a third: DPO on refusals cut Llama-3-8B-Instruct's refusal rate from 74.4% to 33.4% (<a href="https://arxiv.org/abs/2410.08847" target="_blank" rel="noopener noreferrer">Razin et al. 2024</a>). And regenerating the pairs from the current policy, judging them and retraining (iterative or online DPO) recovers much of the gap to PPO (next section).</p>
+<p><b>Same letter, different units.</b> DPO's β = 0.1 multiplies a summed log-ratio; SimPO's β = 2 and length-normalised DPO's β = 5 multiply per-token averages; IPO's τ sets a target margin. Never carry a β from one loss to another.</p>
+<p><b>A rising margin is not a better model.</b> DPO's margin grows by pushing the rejected answer down, often faster than the chosen goes up, and both can fall together, moving probability mass to a third answer (<b>likelihood displacement</b>): DPO on refusals cut Llama-3-8B-Instruct's refusal rate from 74.4% to 33.4% (<a href="https://arxiv.org/abs/2410.08847" target="_blank" rel="noopener noreferrer">Razin et al. 2024</a>). In the animation, DPO ends with the rejected answer's log-probability far below where it started while the chosen moves much less. Evaluate generations, not margins.</p>
+<p><b>In practice the data matters more than the loss.</b> DPO-family results are sensitive to label noise and to how far apart the chosen and rejected answers are, the failure PLC-DPO targets. Recipes add small guards: Llama 3 masked the header and termination tokens out of both answers (otherwise "tail repetition or abruptly generating termination tokens") and added an NLL term of weight 0.2 on the chosen answers (<a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3, §4.1.4</a>). And regenerating the pairs from the current policy, judging them and retraining (iterative or online DPO) recovers much of the gap to PPO (next section).</p>
+<details class="dp"><summary>Depth: the losses in TRL <span class="mute">(under 1 min)</span></summary><div class="b">
+<p>Formulas above are as printed in each paper. TRL's DPOTrainer <code>loss_type</code> covers <code>sigmoid</code> (DPO), <code>ipo</code>, <code>hinge</code>, <code>robust</code> (rDPO, <a href="https://arxiv.org/abs/2403.00409" target="_blank" rel="noopener noreferrer">2403.00409</a>), <code>sigmoid_norm</code> (length-normalised) and a dozen more, combinable in a list; KTOTrainer is in the main package; SimPO (through CPOTrainer) and ORPO now live in <code>trl.experimental</code> (<a href="https://huggingface.co/docs/trl/dpo_trainer" target="_blank" rel="noopener noreferrer">TRL DPO trainer</a>).</p>
+</div></details>
 </section>
 
 <section id="s-onoff">
-<h2>5. Online or offline</h2>
-<p>Vanilla DPO optimises preferences on a fixed dataset: pairs written before training, by other models or by an earlier version of this one, so the data is stale and off-policy. Online methods (PPO, GRPO, online or iterative DPO) sample from the current policy and score those samples, so the model learns from its own mistakes. At equal data they have been consistently stronger, at a higher cost in compute and complexity:</p>
+<h2>6. Online or offline</h2>
+<p>Vanilla DPO optimises preferences on a fixed dataset: pairs written before training, by other models or by an earlier version of this one, so the data is stale and off-policy. Online methods (PPO, GRPO, online or iterative DPO) sample from the current policy and score those samples, so the model learns from its own mistakes. At equal data they have been consistently stronger, at a higher cost in compute and complexity.</p>
+<div class="fig" id="oof">
+<h4>The same loss run online wins; online RL costs an order of magnitude more</h4>
+<div class="rd-svg" id="ooSvg"></div>
+<p class="cap">Top: online DPO with an AI labeller against offline DPO, human evaluation on TL;DR summaries: online wins 63.7%, ties 28.6%, offline wins 7.7% (<a href="https://arxiv.org/abs/2402.04792" target="_blank" rel="noopener noreferrer">OAIF, Guo et al. 2024</a>). Bottom: Tulu 3's controlled comparison, where PPO scored comparably to DPO, "albeit slightly lower", after "roughly 28 hours using two nodes" against "about 4 hours using a single node" (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, §5.4</a>): 14 times the node-hours <i class="nl d">derived</i>, 28 × 2 / 4, drawn to scale.</p>
+</div>
 <ul class="tight">
 <li>Well-tuned PPO "consistently outperforms DPO across all experiments", including code, where a 34B PPO model raised CodeContests 10@1k from 16.4% to 22.4% (<a href="https://arxiv.org/abs/2404.10719" target="_blank" rel="noopener noreferrer">Xu et al. 2024</a>).</li>
 <li>At the same KL budget online methods hold a clear advantage; offline-trained policies classify pairs better but generate worse, and neither data coverage nor a larger policy closes the gap (<a href="https://arxiv.org/abs/2405.08448" target="_blank" rel="noopener noreferrer">Tang et al. 2024, Google DeepMind</a>); on-policy samples and a negative gradient both help (<a href="https://arxiv.org/abs/2404.14367" target="_blank" rel="noopener noreferrer">Tajwar et al. 2024</a>).</li>
-<li>The same loss run online wins: online DPO with an AI labeller beat offline DPO in human evaluation 63.7% to 7.7% (ties 28.6%) on TL;DR summaries (<a href="https://arxiv.org/abs/2402.04792" target="_blank" rel="noopener noreferrer">OAIF, Guo et al. 2024</a>); three rounds of iterative DPO reached 24.17% length-controlled on AlpacaEval 2 (<a href="https://arxiv.org/abs/2312.11456" target="_blank" rel="noopener noreferrer">Xiong et al. 2023</a>).</li>
-<li>The cost side: in Tulu 3's controlled test PPO scored comparably to DPO, "albeit slightly lower", after "roughly 28 hours using two nodes" against "about 4 hours using a single node" for DPO, 14 times the node-hours <i class="nl d">derived</i>, 28 × 2 / 4 (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, §5.4</a>).</li>
+<li>Iterating recovers much of it: three rounds of iterative DPO reached 24.17% length-controlled on AlpacaEval 2 (<a href="https://arxiv.org/abs/2312.11456" target="_blank" rel="noopener noreferrer">Xiong et al. 2023</a>). So "DPO is RLHF without the downsides" is wrong: it drops the RM and the sampling loop, and with them on-policy learning.</li>
 </ul>
-<p><b>The consensus</b>: DPO-family losses for cheap, broad preference shaping; online RL (GRPO and PPO variants) where it matters most, for reasoning, agentic behaviour and the final alignment polish. Llama 3 used SFT, rejection sampling (10 to 30 samples per prompt, the reward model picks the best) and DPO, repeated over six rounds, choosing DPO because it "required less compute for large-scale models and performed better" (<a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3, §4</a>); each round's fresh samples make the recipe partly on-policy. Frontier reasoning models all use large-scale online RL (<a href="https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65" target="_blank" rel="noopener noreferrer">DeepSeek-R1</a>, <a href="https://app.notion.com/p/3c65c17b0d0d81a19006e6b096a6e14b" target="_blank" rel="noopener noreferrer">Qwen3</a>).</p>
+<p><b>The consensus</b>: DPO-family losses for cheap, broad preference shaping; online RL (GRPO and PPO variants) where it matters most, for reasoning, agentic behaviour and the final polish. Section 8 shows how recipes combine them.</p>
 </section>
 
 <section id="s-rlvr">
-<h2>6. RLVR: reinforcement learning with verifiable rewards</h2>
-<p>RL needs <i>some</i> reward. When the answer is <b>checkable</b> (a maths answer checker, unit tests, a compiler, a rule-based format check, an instruction constraint) a program can give it, and the learned reward model, with its biases and its hackability, is bypassed. The checker becomes the new proxy: narrower, harder to flatter, still gameable (hard-coded outputs, edited tests, exiting before the assertions), which is the subject of <a href="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974" target="_blank" rel="noopener noreferrer">Reward Hacking</a>.</p>
-<h3>Lineage</h3>
-<ul class="tight">
-<li><b>2022, execution as a filter.</b> AlphaCode sampled huge numbers of programs and kept those that passed the example tests ("filter them based on execution results on example tests from the problem description") at inference time; training was pretraining and fine-tuning, not RL (<a href="https://arxiv.org/abs/2203.07814" target="_blank" rel="noopener noreferrer">AlphaCode</a>).</li>
-<li><b>Nov 2024, the name.</b> Tulu 3 introduced "Reinforcement Learning with Verifiable Rewards (RLVR)", which "leverages the existing RLHF objective but replaces the reward model with a verification function": a reward of 10 when a verifier accepts the answer, 0 otherwise, optimised with PPO with a KL penalty, on 29,946 prompts for GSM8K, MATH and verifiable instruction following (IFEval) (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, §6 and Table 22</a>).</li>
-<li><b>Jan 2025, from a base model.</b> DeepSeek-R1-Zero ran GRPO with rule rewards (answer correctness and a format check) directly on DeepSeek-V3-Base, with no SFT; long chains of thought with self-checking emerged and AIME 2024 pass@1 rose from 15.6% to 77.9% (71.0% in arXiv v1). DeepSeek-R1 added a cold start of "thousands" of curated long reasoning examples before large-scale RLVR, for readability and to stop language mixing (<a href="https://arxiv.org/abs/2501.12948" target="_blank" rel="noopener noreferrer">arXiv 2501.12948</a>; the <a href="https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65" target="_blank" rel="noopener noreferrer">paper page</a> trains a tiny R1-Zero).</li>
-<li><b>2025 on, standard.</b> Qwen3's reasoning RL ran GRPO on 3,995 query-verifier pairs, lifting Qwen3-235B-A22B's AIME'24 from 70.1 to 85.1 in 170 steps (<a href="https://arxiv.org/abs/2505.09388" target="_blank" rel="noopener noreferrer">Qwen3, §4.2</a>). Ai2's Olmo 3 RL-Zero runs RLVR from a fully open base over maths, code, instruction following, general chat and a mix, with RL data decontaminated against the pretraining and midtraining data, so that RL-from-base results can be trusted as a benchmark (<a href="https://arxiv.org/abs/2512.13961" target="_blank" rel="noopener noreferrer">Olmo 3, §6</a>; <a href="https://app.notion.com/p/3c65c17b0d0d81e08697df661f83c3ac" target="_blank" rel="noopener noreferrer">Ai2: OLMo</a>).</li>
-</ul>
-<h3>Open problems, and the infrastructure</h3>
-<p>Four questions are open in 2026: whether RLVR teaches new reasoning or only sharpens what the base model could already sample (pass@<i>k</i> at large <i>k</i>, spurious rewards, CoT-Pass@k, ProRL), how to reward what no program can check (LLM judges and rubrics), how to assign credit over many agentic turns (GiGPO's step-level advantages), and how to stop entropy collapsing in long runs (clip-higher, covariance-based clipping). Each is owned, with its evidence, by <a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs</a>, sections 9, 4, 11 and 7, which also covers the training stacks (verl, OpenRLHF, TRL, SkyRL, NeMo RL, rollouts in vLLM or SGLang) in section 12. Several rewards at once raise a related budget question: <a href="https://app.notion.com/p/3c65c17b0d0d81e38b0fe72f3daf44bc" target="_blank" rel="noopener noreferrer">Learn What's Left, Not What's Mastered</a>. The sandboxes and environments that agentic RL now spends most of its money on are on the parent page (Axis 3, "The environment is now the expensive part").</p>
+<h2>7. RLVR: reinforcement learning with verifiable rewards</h2>
+<p>RL needs <i>some</i> reward. When the answer is <b>checkable</b> (a maths answer checker, unit tests, a compiler, a rule-based format check, an instruction constraint) a program can give it, and the learned reward model, with its biases and its hackability, is bypassed. Tulu 3 named it: "Reinforcement Learning with Verifiable Rewards (RLVR)" "leverages the existing RLHF objective but replaces the reward model with a verification function": a reward of 10 when a verifier accepts the answer, 0 otherwise, optimised with PPO with a KL penalty, on 29,946 prompts for GSM8K, MATH and verifiable instruction following (IFEval) (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, §6 and Table 22</a>).</p>
+<div class="fig" id="rvf">
+<h4>RLVR swaps one box: the reward model becomes a program</h4>
+<div class="seg" id="rvM" role="group" aria-label="Scorer"><button data-m="rm" class="on">RLHF: reward model</button><button data-m="ver">RLVR: verifier</button></div>
+<div class="rd-svg" id="rvSvg"></div>
+<div class="an-cnt" id="rvN"></div>
+<p class="cap" id="rvC"></p>
+</div>
+<p>The checker is the new proxy: narrower, harder to flatter, still gameable. An answer extractor that accepts malformed output, hard-coded outputs, edited tests or exiting before the assertions all score as passes, and the policy will find them (<a href="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974" target="_blank" rel="noopener noreferrer">Reward Hacking</a>; the <a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs</a> Verifier gallery tab shows what real checkers accept).</p>
+<p><b>What it did.</b> DeepSeek-R1-Zero ran GRPO with rule rewards (answer correctness and a format check) directly on DeepSeek-V3-Base, with no SFT; long chains of thought with self-checking emerged and AIME 2024 pass@1 rose from 15.6% to 77.9% (71.0% in arXiv v1). DeepSeek-R1 added a cold start of "thousands" of curated long reasoning examples before large-scale RLVR, for readability and to stop language mixing (<a href="https://arxiv.org/abs/2501.12948" target="_blank" rel="noopener noreferrer">arXiv 2501.12948</a>; the <a href="https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65" target="_blank" rel="noopener noreferrer">paper page</a> trains a tiny R1-Zero). Qwen3's reasoning RL ran GRPO on 3,995 query-verifier pairs, lifting Qwen3-235B-A22B's AIME'24 from 70.1 to 85.1 in 170 steps (<a href="https://arxiv.org/abs/2505.09388" target="_blank" rel="noopener noreferrer">Qwen3, §4.2</a>). Ai2's Olmo 3 RL-Zero runs RLVR from a fully open base over maths, code, instruction following, general chat and a mix, with RL data decontaminated against the pretraining and midtraining data, so RL-from-base results can be trusted as a benchmark (<a href="https://arxiv.org/abs/2512.13961" target="_blank" rel="noopener noreferrer">Olmo 3, §6</a>; <a href="https://app.notion.com/p/3c65c17b0d0d81e08697df661f83c3ac" target="_blank" rel="noopener noreferrer">Ai2: OLMo</a>).</p>
+<p><b>A pass@1 gain is not yet a new capability.</b> RLVR reliably converts pass@k into pass@1; whether it expands what the base model can solve at all is contested, so measure pass@k at large k before claiming it. That question and three more open in 2026 (rewarding what no program can check, credit over many agentic turns, entropy collapse in long runs) are owned with their evidence by <a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs</a>, sections 9, 4, 11 and 7, which also covers the training stacks in section 12.</p>
+<details class="dp"><summary>Depth: lineage and the open problems in detail <span class="mute">(1 min)</span></summary><div class="b">
+<p><b>2022, execution as a filter.</b> AlphaCode sampled huge numbers of programs and kept those that passed the example tests ("filter them based on execution results on example tests from the problem description") at inference time; training was pretraining and fine-tuning, not RL (<a href="https://arxiv.org/abs/2203.07814" target="_blank" rel="noopener noreferrer">AlphaCode</a>). <b>Nov 2024</b>, the name (Tulu 3, above). <b>Jan 2025</b>, from a base model (R1-Zero). <b>2025 on</b>, standard (Qwen3, Olmo 3).</p>
+<p>Open problems in detail: pass@<i>k</i> at large <i>k</i>, spurious rewards, CoT-Pass@k and ProRL (section 9 of RL for LLMs); LLM judges and rubrics (section 4); GiGPO's step-level advantages (section 11); clip-higher and covariance-based clipping against entropy collapse (section 7); verl, OpenRLHF, TRL, SkyRL, NeMo RL and rollouts in vLLM or SGLang (section 12). Several rewards at once raise a budget question: <a href="https://app.notion.com/p/3c65c17b0d0d81e38b0fe72f3daf44bc" target="_blank" rel="noopener noreferrer">Learn What's Left, Not What's Mastered</a>. The sandboxes and environments that agentic RL now spends most of its money on are on the parent page (Axis 3, "The environment is now the expensive part").</p>
+
+</div></details>
 <div class="co corr"><div class="t">Corrections</div>The old page listed "AlphaCode-style execution feedback" as RLVR's first step without qualification: AlphaCode used execution results to filter samples at inference, not as an RL reward. It listed Tulu 3 among later users of RLVR; Tulu 3 is where the name was introduced (November 2024, with PPO). And R1-Zero's AIME 2024 gain depends on the version of the paper: 15.6% to 71.0% in arXiv v1, 77.9% in v2 and the Nature version.</div>
 </section>
 
-<section id="s-mist">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Training on the user's turns without meaning to</summary><div class="b">A conversational dataset in TRL trains on every token unless <code>assistant_only_loss</code> is on and the template marks the assistant spans. It is a choice, not a bug (instruction modelling sometimes helps), but it should be a choice: see the token chips in section 1.</div></details>
-<details class="mist"><summary>Averaging the loss per conversation and then over the batch</summary><div class="b">With gradient accumulation over one conversation at a time, a token of a 21-token answer weighs about 57 times a token of a 1,187-token one (section 1). Sum the loss over tokens, as Tulu 3 does, or normalise by the total token count of the whole accumulated batch.</div></details>
-<details class="mist"><summary>Packing without boundaries</summary><div class="b">A plain causal mask over a packed row lets each conversation attend to the ones before it. Reset position ids and use a variable-length attention kernel, or keep padding.</div></details>
-<details class="mist"><summary>Serving with a different chat template</summary><div class="b">The template is part of what SFT trains. One newline less, a missing end-of-text token, or another model's markers shift the output distribution (Tulu 3 measured 1.4 points between templates).</div></details>
-<details class="mist"><summary>Comparing β across methods</summary><div class="b">DPO's β = 0.1 multiplies a summed log-ratio; SimPO's β = 2 and length-normalised DPO's β = 5 multiply per-token averages; IPO's τ sets a target margin. Same letter, different units.</div></details>
-<details class="mist"><summary>Reading a rising implicit reward margin as a better model</summary><div class="b">DPO's margin grows by pushing the rejected answer down, often faster than the chosen goes up, and both can fall together (likelihood displacement). In the pair animation, DPO ends with the rejected answer's log-probability far below where it started while the chosen moves much less. Evaluate generations, not margins.</div></details>
-<details class="mist"><summary>"DPO is RLHF without the downsides"</summary><div class="b">It drops the RM and the sampling loop, and with them on-policy learning; the parent page's "Common mistakes" has the evidence. Online and iterative variants recover much of the gap (section 5).</div></details>
-<details class="mist"><summary>"RLAIF means no people"</summary><div class="b">People still write the constitution, the judge's prompt, the rubrics and the evaluation; Constitutional AI kept human helpfulness labels. RLAIF moves human effort from labelling to specification.</div></details>
-<details class="mist"><summary>"A verifier cannot be hacked"</summary><div class="b">An answer extractor that accepts malformed output or a test suite with gaps is a reward to hack, and the policy will find it (<a href="https://app.notion.com/p/3c65c17b0d0d8196a6f1f29a817aa974" target="_blank" rel="noopener noreferrer">Reward Hacking</a>).</div></details>
-<details class="mist"><summary>Reading a pass@1 gain as a new capability</summary><div class="b">RLVR reliably converts pass@k into pass@1; whether it expands what the base can solve at all is contested (section 6). Measure pass@k at large k before claiming it.</div></details>
+<section id="s-rec">
+<h2>8. How recipes combine the stages</h2>
+<p>No current recipe runs one stage once. They differ in which preference route they take, whether RL comes before or after the preference stage, and whether they loop.</p>
+<div class="fig" id="ref">
+<h4>Five open recipes: SFT first, then preference, RL or both; some loop</h4>
+<div class="leg2"><span><i style="background:var(--c1)"></i>SFT</span><span><i style="background:var(--c4)"></i>preference (RM or DPO)</span><span><i style="background:var(--c3)"></i>RL against a checker or RM</span><span><i style="background:var(--c5)"></i>rejection sampling</span></div>
+<div class="rd-svg" id="reSvg"></div>
+<p class="cap">Stage order and sizes from each report, as gathered in the parent page's Open recipes compared tab (counts rounded in the figure <i class="nl d">derived</i>). Tulu 3 8B: SFT 939,344, DPO 271,409 pairs, RLVR 29,946 prompts (<a href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener noreferrer">Tulu 3, Tables 7, 15, 22</a>). Llama 3.1: reward model, rejection sampling, SFT and DPO, repeated over six rounds, counts not disclosed (<a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3, §4</a>). DeepSeek-R1: cold start of thousands, GRPO reasoning RL, SFT on rejection-sampled and general data (804,745 examples in Table 5), then RL on all scenarios with rule and reward-model rewards (<a href="https://arxiv.org/abs/2501.12948" target="_blank" rel="noopener noreferrer">DeepSeek-R1, §3 and Table 5</a>). Qwen3: long chain-of-thought cold start, GRPO on 3,995 query-verifier pairs, thinking-mode fusion SFT, then general RL over 20+ tasks (<a href="https://arxiv.org/abs/2505.09388" target="_blank" rel="noopener noreferrer">Qwen3, §4</a>). Olmo 3 32B Think: SFT on 2,253,916 examples, DPO on 200,000 pairs (delta learning), RLVR on 104,869 prompts (<a href="https://arxiv.org/abs/2512.13961" target="_blank" rel="noopener noreferrer">Olmo 3, Tables 17, 19, 20</a>).</p>
+</div>
+<p>Three patterns. <b>Preference before RL</b> (Tulu 3, Olmo 3): DPO shapes tone and format cheaply, then RLVR sharpens what a checker can test. <b>RL inside the loop, preference inside RL</b> (DeepSeek-R1, Qwen3): reasoning RL comes early, and preference reward models enter the final general RL stage rather than a DPO stage. <b>No RL at all</b> (Llama 3): rejection sampling (10 to 30 samples per prompt, the reward model picks the best) and DPO, repeated over six rounds, chosen because DPO "required less compute for large-scale models and performed better" (<a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3, §4</a>); each round's fresh samples make the recipe partly on-policy. Frontier reasoning models all use large-scale online RL (<a href="https://app.notion.com/p/3c65c17b0d0d813faca4f7a51eaa0c65" target="_blank" rel="noopener noreferrer">DeepSeek-R1</a>, <a href="https://app.notion.com/p/3c65c17b0d0d81a19006e6b096a6e14b" target="_blank" rel="noopener noreferrer">Qwen3</a>). Every disclosed stage, model by model, with compute: the parent page's Open recipes compared tab.</p>
 </section>
-<p class="foot">This page replaced the written Notion page of the same name (last edited 22 September 2026); every fact on it is carried here, checked against its source on 3 October 2026, with the corrections marked. Source and build: <code>src/</code> in the knowledge-base repository.</p>
+<p class="foot">This page replaced the written Notion page of the same name (last edited 22 September 2026); every fact on it is carried here, checked against its source on 3 October 2026, with the corrections marked. Rebuilt to the teaching contract on 23 October 2026 (knowledge ledger in <code>src/ledger.json</code>). Source and build: <code>src/</code> in the knowledge-base repository.</p>
 </div>
 <div class="tab" id="t-tree" role="tabpanel" hidden>
 <h2 style="margin-top:14px">Method family tree</h2>
-<p>Every method on the Reading tab, placed by the date of its first arXiv version (from the identifier) and by what kind of signal it learns from. A line joins a method to the one it changed; most successors keep their parent and remove or fix one thing, which the detail names. The question it answers: what did each method take away, and what is the field still adding back?</p>
+<p>Every method on the Reading tab (33 in all), placed by the date of its first arXiv version (from the identifier) and by what kind of signal it learns from. A line joins a method to the one it changed; most successors keep their parent and remove or fix one thing, which the detail names. The question it answers: what did each method take away, and what is the field still adding back?</p>
 <p class="try"><b>Try:</b> click a method to see its paper, what it removed or fixed, its successors, and where this knowledge base covers it in depth; its ancestors and descendants stay lit. Filter a lane to follow one line of descent. On a phone, scroll the chart sideways.</p>
 <div class="chips" id="trF"></div>
 <div class="tr-wrap" id="trW"></div>
@@ -377,10 +454,10 @@ This page owns the depth of each stage's mechanics: which tokens SFT learns from
 // Generated by src/recompute.py from inputs/ (do not edit by hand)
 window.AL_DATA={"ex":[["<|begin_of_text|>","bos",0],["<","system",0],["|","system",0],["system","system",0],["|","system",0],[">Ċ","system",0],["You","system",0],["Ġare","system",0],["Ġa","system",0],["Ġhelpful","system",0],["Ġassistant","system",0],[".Ċ","system",0],["<","user",0],["|","user",0],["user","user",0],["|","user",0],[">Ċ","user",0],["A","user",0],["Ġshop","user",0],["Ġsells","user",0],["Ġ","user",0],["3","user",0],["Ġpens","user",0],["Ġfor","user",0],["Ġ$","user",0],["2","user",0],[".","user",0],["ĠHow","user",0],["Ġmuch","user",0],["Ġdo","user",0],["Ġ","user",0],["12","user",0],["Ġpens","user",0],["Ġcost","user",0],["?Ċ","user",0],["<","header",0],["|","header",0],["assistant","header",0],["|","header",0],[">Ċ","header",0],["12","assistant",1],["Ġpens","assistant",1],["Ġis","assistant",1],["Ġ","assistant",1],["4","assistant",1],["Ġgroups","assistant",1],["Ġof","assistant",1],["Ġ","assistant",1],["3","assistant",1],[",","assistant",1],["Ġso","assistant",1],["Ġ","assistant",1],["4","assistant",1],["ĠÃĹ","assistant",1],["Ġ$","assistant",1],["2","assistant",1],["Ġ=","assistant",1],["Ġ$","assistant",1],["8","assistant",1],[".","assistant",1],["<|end_of_text|>","assistant",1],["Ċ","sep",0],["<","user",0],["|","user",0],["user","user",0],["|","user",0],[">Ċ","user",0],["And","user",0],["Ġ","user",0],["30","user",0],["Ġpens","user",0],["?Ċ","user",0],["<","header",0],["|","header",0],["assistant","header",0],["|","header",0],[">Ċ","header",0],["30","assistant",1],["Ġpens","assistant",1],["Ġis","assistant",1],["Ġ","assistant",1],["10","assistant",1],["Ġgroups","assistant",1],["Ġof","assistant",1],["Ġ","assistant",1],["3","assistant",1],[":","assistant",1],["Ġ$","assistant",1],["20","assistant",1],[".","assistant",1],["<|end_of_text|>","assistant",1]],"sft":{"n":1000,"over":24,"mean_total":929.673,"median_total":493,"loss_share_untrunc":0.6247422480807768,"pad_eff":{"1":1.0,"2":0.6716254914773624,"4":0.4816095069602187,"8":0.36314786813771277,"16":0.2818617032136745},"pack_rows":185,"pack_eff":0.9979874894425675,"cross_share":0.6179339146546085,"batch":[{"t":951,"l":605,"src":"personahub_math_v5_regen_149960","turns":1},{"t":159,"l":132,"src":"tulu_v3.9_aya_100k","turns":1},{"t":780,"l":727,"src":"tulu_v3.9_wildchat_100k","turns":2},{"t":1283,"l":1078,"src":"personahub_math_v5_regen_149960","turns":1},{"t":493,"l":256,"src":"personahub_code_v2_34999","turns":1},{"t":715,"l":65,"src":"flan_v2_converted","turns":1},{"t":225,"l":23,"src":"flan_v2_converted","turns":1},{"t":173,"l":81,"src":"tulu_v3.9_synthetic_finalresp_wildguardmixtrain_decontaminated_50k","turns":1}],"loss_p10":21,"loss_p90":1187},"maxlen":4096};
 </script>
-<script>/* 21_js_common.js */
-// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed) ----
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -411,7 +488,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -425,23 +502,22 @@ window.RD=(function(){
     };
   }
   // width available inside an element (falls back when the tab is hidden)
-  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.min(860,(document.documentElement.clientWidth||900)-60)};
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
   // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
   function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
     const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
   return {RM,esc,stat,anim,onRender,width,tabLinks};
 })();
-</script>
-<script>/* 22_js_fill.js */
-// ---- Reading: numbers in the prose, filled from the sample statistics (recompute.py) ----
-(function(){
-  const S=window.AL_DATA.sft;
-  const pct=x=>(100*x).toFixed(1)+'%';
-  const v={median_total:S.median_total.toLocaleString('en-US'),mean_total:Math.round(S.mean_total).toLocaleString('en-US'),over:S.over,
-    pad8:pct(S.pad_eff['8']),pad16:pct(S.pad_eff['16']),pack:pct(S.pack_eff),cross:pct(S.cross_share),
-    p10:S.loss_p10.toLocaleString('en-US'),p90:S.loss_p90.toLocaleString('en-US'),wr:(S.loss_p90/S.loss_p10).toFixed(1)+' times'};
-  document.querySelectorAll('[data-al]').forEach(e=>{const k=e.dataset.al;if(k in v)e.textContent=v[k];else throw new Error('no value for '+k)});
-})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
 </script>
 <script>/* 23_js_mask.js */
 // ---- Reading, SFT: which tokens of a real Tulu 3 conversation carry the loss, under four rules ----
@@ -552,7 +628,7 @@ window.RD=(function(){
     $('pkC').innerHTML='<div class="t">'+(i+1)+' of '+STEPS[mode].length+' · '+st.t+'</div>'+st.p;
   }
   A=RD.anim({card:'pk',ctl:'pkCtl',n:STEPS.pad.length,draw,ms:2600,label:'Step'});
-  $('pkM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=b.dataset.m;A.reset(STEPS[mode].length);A.play()});
+  $('pkM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=b.dataset.m;A.reset(STEPS[mode].length)});
   window.addEventListener('resize',()=>A.redraw());
 })();
 </script>
@@ -743,6 +819,178 @@ window.AL_PAIR=(function(){
   window.addEventListener('resize',()=>A.redraw());
 })();
 </script>
+<script>/* 26_js_figs.js */
+// ---- Reading: the static figures and toggles (hero, sum or mean, reward model, RL loop, RLVR swap, online or offline, recipes) ----
+// Every number drawn here is a published figure quoted in the prose beside it, or derived from inputs/derived.json (window.AL_DATA).
+// Nothing moves by itself: toggles redraw on click only.
+window.AL_FIG=(function(){
+  const E=RD.esc;
+  const tx=(x,y,s,c,a)=>'<text x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'"'+(c?' class="'+c+'"':'')+(a?' text-anchor="'+a+'"':'')+'>'+s+'</text>';
+  const rect=(x,y,w,h,c,extra)=>'<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(0,w).toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="5"'+(c?' class="'+c+'"':'')+(extra||'')+'/>';
+  const head=(x,y,dir)=>{const d=5;return dir==='down'?'<path d="M'+(x-d)+' '+(y-d)+' L'+x+' '+y+' L'+(x+d)+' '+(y-d)+'" class="arr"/>':
+    dir==='up'?'<path d="M'+(x-d)+' '+(y+d)+' L'+x+' '+y+' L'+(x+d)+' '+(y+d)+'" class="arr"/>':
+    dir==='right'?'<path d="M'+(x-d)+' '+(y-d)+' L'+x+' '+y+' L'+(x-d)+' '+(y+d)+'" class="arr"/>':'<path d="M'+(x+d)+' '+(y-d)+' L'+x+' '+y+' L'+(x+d)+' '+(y+d)+'" class="arr"/>'};
+  const svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w.toFixed(0)+' '+h.toFixed(0)+'" width="'+w.toFixed(0)+'" height="'+h.toFixed(0)+'" role="img" aria-label="'+E(label)+'">'+body+'</svg>';
+  const stat=RD.stat;
+  return {tx,rect,head,svg,stat};
+})();
+
+// Hero: Tulu 3 8B, stage by stage
+(function(){
+  const el=document.getElementById('heroSvg');if(!el)return;const F=window.AL_FIG;
+  const S=[
+    {t:'Base model',r:'the next token of web text',d:'Llama 3.1 8B',m:'pretrained, not tuned',o:'→ continues the text'},
+    {t:'1 · SFT',r:'imitating a written answer',d:'939,344 prompts, 2 epochs',m:'fixed data, 1 model',o:'→ answers in the template'},
+    {t:'2 · Preference (DPO)',r:'the answer a judge preferred',d:'271K pairs, 1 epoch',m:'fixed pairs, 2 models',o:'→ the answers judges prefer'},
+    {t:'3 · RLVR (PPO)',r:'an answer a checker accepts',d:'30K prompts, reward 10 or 0',m:'own samples, 3 models',o:'→ answers that pass checks'}];
+  function draw(){
+    const W=Math.min(RD.width(el),900),wide=W>=800;let g='',H;
+    const lines=(s,x,y,a)=>F.tx(x,y,s.t,'t12',a)+F.tx(x,y+16,s.r,'a',a)+F.tx(x,y+31,s.d,'',a)+F.tx(x,y+46,s.m,'m',a)+F.tx(x,y+61,s.o,'',a);
+    if(wide){const gap=22,bw=(W-2-3*gap)/4,bh=88;H=bh+4;
+      S.forEach((s,i)=>{const x=1+i*(bw+gap);g+=F.rect(x,1,bw,bh,i?'box':'box',i===0?' stroke-dasharray="4 3"':'')+lines(s,x+8,17);
+        if(i<3){const ax=x+bw+3,ay=1+bh/2;g+='<line x1="'+ax+'" y1="'+ay+'" x2="'+(ax+gap-6)+'" y2="'+ay+'" class="arr"/>'+F.head(ax+gap-6,ay,'right')}});
+    }else{const bh=88,gap=18,bw=W-2;H=4*bh+3*gap+2;
+      S.forEach((s,i)=>{const y=1+i*(bh+gap);g+=F.rect(1,y,bw,bh,'box',i===0?' stroke-dasharray="4 3"':'')+lines(s,10,y+16);
+        if(i<3){const ay=y+bh+2,ax=W/2;g+='<line x1="'+ax+'" y1="'+ay+'" x2="'+ax+'" y2="'+(ay+gap-5)+'" class="arr"/>'+F.head(ax,ay+gap-5,'down')}})}
+    el.innerHTML=F.svg(W,H,g,'Tulu 3 8B post-training pipeline: base model, SFT, DPO, RLVR, with what each stage rewards, its data, what it learns from and the resulting behaviour');
+  }
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+
+// Sum or mean: weight per token for the 10th and 90th percentile answers, drawn to scale
+(function(){
+  const el=document.getElementById('smSvg');if(!el)return;const F=window.AL_FIG,S=window.AL_DATA.sft;
+  const a=S.loss_p10,b=S.loss_p90;let mode='mean';
+  const fmt=n=>n.toLocaleString('en-US');
+  function draw(){
+    const W=Math.min(RD.width(el),860),pad=8,gap=36,s=(W-2*pad-gap)/(a+b),base=150,H=176,top=120;
+    const hs=mode==='mean'?top:2*a*top/(a+b),hl=mode==='mean'?top*a/b:hs;
+    const ws=Math.max(3,a*s),xl=pad+a*s+gap;
+    let g='<line x1="0" x2="'+W+'" y1="'+base+'" y2="'+base+'" stroke="var(--line)"/>';
+    g+='<rect x="'+pad+'" y="'+(base-hs).toFixed(1)+'" width="'+ws.toFixed(1)+'" height="'+hs.toFixed(1)+'" fill="var(--acc)"/>';
+    g+='<rect x="'+xl.toFixed(1)+'" y="'+(base-hl).toFixed(1)+'" width="'+(b*s).toFixed(1)+'" height="'+Math.max(1,hl).toFixed(1)+'" fill="var(--c3)"/>';
+    const sh=mode==='mean'?'50%':(100*a/(a+b)).toFixed(1)+'%',lh=mode==='mean'?'50%':(100*b/(a+b)).toFixed(1)+'%';
+    g+=F.tx(pad,base-hs-8,'short answer, '+fmt(a)+' tokens: '+sh+' of the gradient','b');
+    g+=F.tx(xl,base+16,'long answer, '+fmt(b)+' tokens: '+lh,'b');
+    g+=F.tx(xl,base+31,'width = tokens, height = weight of one token','m');
+    el.innerHTML=F.svg(W,H+12,g,'Per-token weight of a short and a long answer under '+(mode==='mean'?'per-conversation averaging':'summing over tokens'));
+    const r=mode==='mean'?(b/a).toFixed(1)+'×':'1×';
+    document.getElementById('smN').innerHTML=F.stat('One short-answer token weighs',r,'one long-answer token')+F.stat('Short answer\'s share of the gradient',sh,mode==='mean'?'each conversation counts once':'each token counts once');
+  }
+  RD.seg(document.getElementById('smM'),m=>{mode=m;draw()});
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+
+// Reward model: rankings to pairs, and the agreement ceiling
+(function(){
+  const el=document.getElementById('rmSvg');if(!el)return;const F=window.AL_FIG;
+  const BARS=[['Labeller vs labeller (training labellers)',72.6,1.5],['RM vs training labellers',72.4,0.4],['RM vs held-out labellers',69.6,0.9]];
+  function draw(){
+    const W=Math.min(RD.width(el),860),wide=W>=640,pw=wide?(W-24)/2:W;let g='';
+    // left: ranking and pairs
+    const L=['A','B','C','D'],bw=Math.min(44,(pw-3*22)/4);
+    g+=F.tx(0,13,'One prompt, K = 4 answers ranked','t12');
+    L.forEach((c,i)=>{const x=i*(bw+22);g+=F.rect(x,22,bw,26,'box')+F.tx(x+bw/2,39,c,'b','middle');if(i<3)g+=F.tx(x+bw+11,39,'&gt;','m','middle')});
+    g+=F.tx(0,68,'6 = K(K−1)/2 pairs, one batch element','t12');
+    const P=['A &gt; B','A &gt; C','A &gt; D','B &gt; C','B &gt; D','C &gt; D'],cw=Math.min(70,(pw-2*8)/3);
+    P.forEach((p,i)=>{const x=(i%3)*(cw+8),y=76+Math.floor(i/3)*32;g+=F.rect(x,y,cw,24,'boxa')+F.tx(x+cw/2,y+16,p,'','middle')});
+    g+=F.tx(0,158,'each: −log σ(r(winner) − r(loser))','m');
+    // right: agreement bars
+    const ox=wide?pw+24:0,oy=wide?0:178,bwid=pw-60,X=v=>ox+bwid*v/100;
+    g+=F.tx(ox,oy+13,'How often two judges agree (InstructGPT)','t12');
+    BARS.forEach((b,i)=>{const y=oy+28+i*44;g+=F.tx(ox,y+10,b[0],'m');
+      g+='<rect x="'+ox+'" y="'+(y+15)+'" width="'+bwid+'" height="14" fill="var(--soft)" stroke="var(--line)"/>';
+      g+='<rect x="'+ox+'" y="'+(y+15)+'" width="'+(X(b[1])-ox).toFixed(1)+'" height="14" fill="'+(i?'var(--c4)':'var(--c1)')+'"/>';
+      g+='<line x1="'+X(b[1]-b[2]).toFixed(1)+'" x2="'+X(b[1]+b[2]).toFixed(1)+'" y1="'+(y+22)+'" y2="'+(y+22)+'" stroke="var(--ink)" stroke-width="1.5"/>';
+      g+=F.tx(ox+bwid+6,y+26,b[1].toFixed(1)+'%','b')});
+    const cx=X(50),yb=oy+28+3*44;
+    g+='<line x1="'+cx+'" x2="'+cx+'" y1="'+(oy+40)+'" y2="'+(yb-2)+'" stroke="var(--mute)" stroke-dasharray="3 3"/>'+F.tx(cx,yb+10,'chance 50%','m','middle');
+    const H=wide?Math.max(166,yb+16):yb+16;
+    el.innerHTML=F.svg(W,H,g,'A ranking of four answers gives six pairs; InstructGPT agreement rates: labellers 72.6%, reward model 72.4% on training labellers and 69.6% on held-out labellers');
+  }
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+
+// RL loop, used twice: PPO against GRPO (section 4), reward model against verifier (section 7)
+(function(){
+  const F=window.AL_FIG;
+  const MODELS={'ppo-rm':'4: policy, critic, reference, reward model','grpo-rm':'3: policy, reference, reward model','ppo-ver':'3: policy, critic, reference','grpo-ver':'2: policy, reference'};
+  function draw(el,adv,sc,hl){
+    const W=Math.min(RD.width(el),620),bw=Math.min(W-46,470),bh=40,gap=16,x=1;
+    const B=[
+      ['Prompts','a batch from the RL set'],
+      ['Policy (trained)',adv==='grpo'?'samples G answers per prompt':'samples one answer per prompt'],
+      sc==='ver'?['Verifier (a program)','10 if the checker accepts, else 0']:['Reward model (frozen)','a learned score (section 3)'],
+      adv==='grpo'?['Group baseline (no model)','advantage = (r − mean) / std']:['Critic, a value model (trained)','advantage = return − predicted value'],
+      ['Update the policy','clipped step, KL to the reference']];
+    let g='';
+    B.forEach((b,i)=>{const y=1+i*(bh+gap),on=i===hl;g+=F.rect(x,y,bw,bh,on?'boxa':'box')+F.tx(x+10,y+16,b[0],on?'t12 a':'t12')+F.tx(x+10,y+32,b[1],on?'':'m');
+      if(i<4){const ay=y+bh+1;g+='<line x1="'+(x+bw/2)+'" y1="'+ay+'" x2="'+(x+bw/2)+'" y2="'+(ay+gap-4)+'" class="arr"/>'+F.head(x+bw/2,ay+gap-4,'down')}});
+    const xr=x+bw,y4=1+4*(bh+gap)+bh/2,y1=1+(bh+gap)+bh/2;
+    g+='<path d="M'+xr+' '+y4+' H'+(xr+22)+' V'+y1+' H'+(xr+5)+'" class="arr"/>'+F.head(xr+5,y1,'left');
+    const H=5*bh+4*gap+2;
+    el.innerHTML=F.svg(W,H,g,'One RL step: prompts, policy samples, '+(sc==='ver'?'verifier':'reward model')+', '+(adv==='grpo'?'group baseline':'critic')+', update');
+    return MODELS[adv+'-'+sc];
+  }
+  const CAP={
+    ppo:'<b>PPO</b>: the critic, a second trainable model about the size of the policy, predicts the return of each partial answer; the advantage is what the answer earned beyond that prediction. With the reward model and the frozen reference that is four models in memory (InstructGPT, Llama 2).',
+    grpo:'<b>GRPO</b>: G answers to the same prompt are scored, and each is compared with its group\'s mean, divided by the group\'s standard deviation. No critic to train or store; the price is G samples per prompt, and a group whose answers all score the same gives no signal.',
+    rm:'<b>RLHF</b>: a reward model trained on rankings scores each answer. It is learned, so it has blind spots a policy can find, and it is one more model in memory.',
+    ver:'<b>RLVR</b> as Tulu 3 ran it: the same PPO loop with the reward model replaced by a verification function, 10 if the answer is accepted and 0 otherwise. One model fewer, and a reward that cannot be flattered, only gamed through the checker\'s gaps.'};
+  const rl=document.getElementById('rlSvg');
+  if(rl){let m='ppo';const go=()=>{const mm=draw(rl,m,'rm',3);document.getElementById('rlN').innerHTML=F.stat('Models in memory',mm.split(':')[0],mm.split(': ')[1])+F.stat('Answers sampled per prompt',m==='grpo'?'G':'1',m==='grpo'?'a group, compared with each other':'compared with the critic\'s prediction');document.getElementById('rlC').innerHTML=CAP[m]};
+    RD.seg(document.getElementById('rlM'),v=>{m=v;go()});RD.onRender(go);RD.onResize(go);go()}
+  const rv=document.getElementById('rvSvg');
+  if(rv){let m='rm';const go=()=>{const mm=draw(rv,'ppo',m,2);document.getElementById('rvN').innerHTML=F.stat('Models in memory',mm.split(':')[0],mm.split(': ')[1])+F.stat('The score comes from',m==='ver'?'a program':'a learned model',m==='ver'?'exact on what it checks, blind to the rest':'about as reliable as a second labeller');document.getElementById('rvC').innerHTML=CAP[m]};
+    RD.seg(document.getElementById('rvM'),v=>{m=v;go()});RD.onRender(go);RD.onResize(go);go()}
+})();
+
+// Online or offline: OAIF's human evaluation and Tulu 3's node-hours, to scale
+(function(){
+  const el=document.getElementById('ooSvg');if(!el)return;const F=window.AL_FIG;
+  function draw(){
+    const W=Math.min(RD.width(el),760),bw=W-2;let g='';
+    g+=F.tx(0,13,'People\'s verdict: online DPO against offline DPO','t12');
+    const segs=[[63.7,'online wins','var(--c3)'],[28.6,'tie','var(--dim)'],[7.7,'offline wins','var(--bad)']];let x=1;
+    segs.forEach((s,i)=>{const w=bw*s[0]/100;g+='<rect x="'+x.toFixed(1)+'" y="22" width="'+w.toFixed(1)+'" height="26" fill="'+s[2]+'"/>';
+      const lab=(i<2&&w>s[1].length*6.4+44)?s[1]+' '+s[0]+'%':(i<2?s[0]+'%':'');
+      if(lab)g+='<text x="'+(x+6).toFixed(1)+'" y="39" class="b" style="fill:'+(i===0?'var(--bg)':'var(--ink)')+'">'+lab+'</text>';x+=w});
+    g+=F.tx(W-1,64,'offline wins 7.7%','m','end');
+    const s=(bw-4)/56,y0=96;
+    g+=F.tx(0,y0,'Tulu 3: node-hours to train, PPO against DPO','t12');
+    g+='<rect x="1" y="'+(y0+8)+'" width="'+(4*s).toFixed(1)+'" height="20" fill="var(--c4)"/>'+F.tx(4*s+8,y0+22,'DPO: 1 node × 4 h = 4','b');
+    g+='<rect x="1" y="'+(y0+34)+'" width="'+(56*s).toFixed(1)+'" height="20" fill="var(--c3)"/><text x="8" y="'+(y0+48)+'" class="b" style="fill:var(--bg)">PPO: 2 nodes × 28 h = 56</text>';
+    el.innerHTML=F.svg(W,y0+58,g,'Online DPO beat offline DPO 63.7% to 7.7% with 28.6% ties; Tulu 3 PPO took 56 node-hours against 4 for DPO');
+  }
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+
+// Recipes: five open recipes as stage strips
+(function(){
+  const el=document.getElementById('reSvg');if(!el)return;const F=window.AL_FIG;
+  const C={s:'var(--c1)',p:'var(--c4)',r:'var(--c3)',x:'var(--c5)'};
+  const R=[
+    {n:'Tulu 3 8B',d:'Nov 2024',b:[['s','SFT','939,344'],['p','DPO','271K pairs'],['r','RLVR (PPO)','30K prompts']]},
+    {n:'Llama 3.1',d:'Jul 2024',loop:'× 6 rounds, each on the new model',b:[['p','RM','human pairs'],['x','Rejection','sampling'],['s','SFT',''],['p','DPO','']]},
+    {n:'DeepSeek-R1',d:'Jan 2025',b:[['s','Cold start','thousands'],['r','GRPO','reasoning'],['s','RS + SFT','804,745'],['r','RL','all tasks']]},
+    {n:'Qwen3',d:'May 2025',b:[['s','Cold start','long CoT'],['r','GRPO','3,995 pairs'],['s','SFT','mode fusion'],['r','RL','general']]},
+    {n:'Olmo 3 32B Think',d:'Dec 2025',b:[['s','SFT','2.25M'],['p','DPO','200K pairs'],['r','RLVR','105K prompts']]}];
+  function draw(){
+    const W=Math.min(RD.width(el),860),wide=W>=640,lw=wide?150:0,gp=4,sw=(W-lw-2-3*gp)/4,bh=36;let g='',y=1;
+    R.forEach(r=>{
+      if(wide){g+=F.tx(0,y+15,r.n,'t12')+F.tx(0,y+30,r.d,'m')}else{g+=F.tx(0,y+12,r.n+' · '+r.d,'t12');y+=18}
+      r.b.forEach((b,i)=>{const x=lw+1+i*(sw+gp);
+        g+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+sw.toFixed(1)+'" height="'+bh+'" rx="5" fill="'+C[b[0]]+'" fill-opacity=".18" stroke="'+C[b[0]]+'"/>';
+        g+=F.tx(x+6,y+15,b[1],'b')+(b[2]?F.tx(x+6,y+30,b[2],''):'')});
+      y+=bh;
+      if(r.loop){const x0=lw+1+sw/2,x1=lw+1+(r.b.length-1)*(sw+gp)+sw/2;
+        g+='<path d="M'+x1.toFixed(1)+' '+(y+1)+' V'+(y+12)+' H'+x0.toFixed(1)+' V'+(y+6)+'" class="arr"/>'+F.head(x0,y+2,'up')+F.tx((x0+x1)/2,y+25,r.loop,'m','middle');y+=30}
+      y+=12});
+    el.innerHTML=F.svg(W,y,g,'Stage order of five open post-training recipes: Tulu 3, Llama 3.1, DeepSeek-R1, Qwen3, Olmo 3 Think');
+  }
+  RD.onRender(draw);RD.onResize(draw);draw();
+})();
+</script>
 <script>/* 30_js_tree.js */
 // ---- Method family tree tab: methods by first-version date and signal, joined to the method each changed ----
 (function(){
@@ -828,7 +1076,7 @@ window.AL_PAIR=(function(){
 })();
 </script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (storage key align-tab: this page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -846,6 +1094,8 @@ window.AL_PAIR=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('align-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

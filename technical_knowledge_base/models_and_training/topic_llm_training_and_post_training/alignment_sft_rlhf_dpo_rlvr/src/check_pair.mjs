@@ -58,6 +58,18 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.click('#prM button[data-m=simpo]');
   await (await p.$('#pr')).screenshot({ path: path.join(shots, `x-pair-simpo3-${scheme}.png`) });
   await (await p.$('#mk')).screenshot({ path: path.join(shots, `x-mask-${scheme}.png`) });
+  // 4b. the static figures and their toggles
+  for (const [fig, seg] of [['hero', null], ['sm', 'smM'], ['rmf', null], ['rlf', 'rlM'], ['oof', null], ['rvf', 'rvM'], ['ref', null]]) {
+    const modes = seg ? await p.$$eval(`#${seg} button`, bs => bs.map(b => b.dataset.m)) : [''];
+    for (const m of modes) {
+      if (seg) await p.click(`#${seg} button[data-m=${m}]`);
+      await textOk('#' + fig, `fig ${fig} ${m}`);
+      const svgW = await p.$eval('#' + fig + ' svg', e => e.getBoundingClientRect().width);
+      const boxW = await p.$eval('#' + fig, e => e.clientWidth);
+      if (svgW > boxW) { bad++; console.log('SVG WIDER THAN CARD', fig, svgW, boxW) }
+      await (await p.$('#' + fig)).screenshot({ path: path.join(shots, `x-${fig}${m ? '-' + m : ''}-${scheme}.png`) });
+    }
+  }
   // 5. the tree: every lane filter, every node
   await p.click('button[data-t=t-tree]');
   const lanes = await p.$$eval('#trF button', bs => bs.map(b => b.dataset.l));
@@ -71,6 +83,22 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const box = await p.evaluate(() => { const d = document.getElementById('jsErr'); return d && !d.hidden ? d.textContent : '' });
   console.log(scheme, width, 'errors', errs, 'sideways', sw, 'errbox', JSON.stringify(box), 'tree nodes', ids.length, 'methods', methods.length);
   if (errs.length || sw || box) bad++;
+  await p.close();
+}
+// 6. nothing moves before the reader acts (normal motion): scroll to each animation, wait, the step must still be 0
+{
+  const p = await b.newPage();
+  await p.setViewport({ width: 920, height: 900 });
+  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
+  await p.goto('file://' + page);
+  await p.click('button[data-t=t-read]');
+  for (const id of ['pk', 'pr']) {
+    await p.$eval('#' + id, e => e.scrollIntoView());
+    await new Promise(r => setTimeout(r, 3500));
+    const v = await p.$eval('#' + id + 'Ctl-s', e => +e.value);
+    console.log('autoplay check', id, 'step after 3.5 s on screen:', v);
+    if (v !== 0) bad++;
+  }
   await p.close();
 }
 await b.close();

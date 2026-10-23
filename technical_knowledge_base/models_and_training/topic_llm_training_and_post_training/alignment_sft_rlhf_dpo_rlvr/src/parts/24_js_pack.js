@@ -72,6 +72,6 @@
     $('pkC').innerHTML='<div class="t">'+(i+1)+' of '+STEPS[mode].length+' · '+st.t+'</div>'+st.p;
   }
   A=RD.anim({card:'pk',ctl:'pkCtl',n:STEPS.pad.length,draw,ms:2600,label:'Step'});
-  $('pkM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=b.dataset.m;A.reset(STEPS[mode].length);A.play()});
+  $('pkM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=b.dataset.m;A.reset(STEPS[mode].length)});
   window.addEventListener('resize',()=>A.redraw());
 })();
