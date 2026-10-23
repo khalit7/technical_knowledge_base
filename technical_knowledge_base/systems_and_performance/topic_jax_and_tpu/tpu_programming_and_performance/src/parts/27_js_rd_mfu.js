@@ -1,4 +1,4 @@
-// ---- MFU calculator (tab t-mfu) ----
+// ---- Reading section 9: MFU calculator for your run, and the published runs recomputed (moved from the old MFU calculator tab, 2026-10-23) ----
 (function(){
   const U=window.TQU,D=U.D,G=U.G,$=id=>document.getElementById(id),E=RD.esc,gl=U.label,M=D.mfu;
   // MaxText's default-path training FLOPs per token (same as tq_mfu.py maxtext_flops_per_token)
@@ -33,5 +33,6 @@
     $('tq-f-note').textContent='Peak '+U.si(h[1],'FLOP/s')+' (bf16, dense). TPU prices: Google Cloud on demand, read '+D.price_read+'; GPU prices: Lambda 8-GPU on demand, read 2026-10-15. "Weights only" counts the weight matmuls (MaxText leaves out the input embedding lookup, which is a gather).'}
   ['tq-f-model','tq-f-seq','tq-f-hw','tq-f-tok','tq-f-step','tq-f-bs','tq-f-chips'].forEach(id=>{$(id).addEventListener('input',run);$(id).addEventListener('change',run)});
   function all(){tab();det();run()}
-  U.onTab('t-mfu',all);U.onResize('t-mfu',det);
+  all();RD.onRender(all);RD.onResize(det);
+  const dd=$('tq-f-det').closest('details');if(dd)dd.addEventListener('toggle',()=>{if(dd.open)det()});
 })();

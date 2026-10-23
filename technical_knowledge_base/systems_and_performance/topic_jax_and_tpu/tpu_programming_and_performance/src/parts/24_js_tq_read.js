@@ -142,5 +142,5 @@
   const gp=D.mfu.gpu;CR.push({name:'Llama 3 405B',hw:'H100 (8,192 GPUs, Meta)',tok:gp.tok_s_gpu,price:gp.price,usd:gp.usd_per_mtok,mfu:gp.mfu});
   U.table($('tq-cost'),[['Model',r=>E(r.name)],['Hardware',r=>E(r.hw)],['Tokens/s per chip',r=>U.fmt(r.tok),'num',r=>r.tok],['MFU as reported',r=>U.pct(r.mfu,1),'num',r=>r.mfu],['$ per chip-hour',r=>'$'+U.fmt(r.price,2),'num',r=>r.price],['$ per million tokens',r=>'$'+U.fmt(r.usd,2)+' <span class="der">calc</span>','num',r=>r.usd]],CR);
   // mistakes
-  $('tq-err-tf32').textContent=D.errors.tf32;$('tq-err-mesh').textContent=D.slice_err;$('tq-err-7x').textContent=D.errors.tpu7x_4;
+  $('tq-err-7x').textContent=D.errors.tpu7x_4;
 })();

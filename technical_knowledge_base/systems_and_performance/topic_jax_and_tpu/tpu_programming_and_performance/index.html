@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>TPU programming and performance</h1>
-<div class="sub">The TPU from the JAX programmer's side, one level below the root page's TPU and Pallas lab: what each part of the chip means for your shapes, dtypes and batch sizes; five generations' published numbers with their disagreements; rooflines for training, prefill and decode; tiles, padding and matmul precision; memory planning and rematerialisation; slices, pods and multislice; profiling; MFU recomputed from MaxText's published tables; cost per token; free access. No TPU was used: chip numbers are published and labelled, the running example's numbers were measured on a CPU, the rest is calculated. Data as of October 2026.</div>
+<div class="sub">The TPU from the JAX programmer's side: the chip your program meets, the generations as targets, the batch each needs, tiles and padding, matmul precision, memory and rematerialisation, slices and the mesh on the torus, profiling, and MFU counted honestly. No TPU was used: chip numbers are published and labelled, the running example's numbers were measured on a CPU, the rest is calculated. A child of Topic: jax-and-tpu. Data as of October 2026. <span id="rd-time">Reading: 27 min, plus 13 in closed details.</span></div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-roof" aria-selected="false">Roofline lab</button><button role="tab" data-t="t-tile" aria-selected="false">Tiles and padding</button><button role="tab" data-t="t-slice" aria-selected="false">Slice planner</button><button role="tab" data-t="t-mfu" aria-selected="false">MFU calculator</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-roof" aria-selected="false">Roofline lab</button><button role="tab" data-t="t-slice" aria-selected="false">Slice planner</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <style>
 /* page-wide classes for this child page (prefix tq) */
@@ -145,243 +145,284 @@ tr.tq-sel td{background:var(--acc2)}tr.tq-click{cursor:pointer}
 .tq-ok{color:var(--good);font-weight:600}.tq-bad{color:var(--bad);font-weight:600}
 .tq-mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
 @media (prefers-reduced-motion:reduce){.tq-svg *{transition:none!important}}
+.tab .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+.tab .hlt{color:var(--acc);font-weight:600}
+.tab .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.tab .terms dt{font-weight:600}.tab .terms dd{margin:0}
+@media (max-width:520px){.tab .terms{grid-template-columns:minmax(0,1fr)}.tab .terms dd{margin:0 0 4px}}
+.tab details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+.tab details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+.tab details.dp>summary .mute{font-weight:400}
+.tab details.dp>.b{padding:0 12px 10px;min-width:0}
+.tq-fig{margin:12px 0;min-width:0}.tq-fig img{display:block;max-width:100%;height:auto;border-radius:8px;border:1px solid var(--line);background:#fff}
+.tq-fig figcaption{font-size:13px;margin-top:4px}.tq-fig .cr{font-size:11.5px;color:var(--mute);display:block}
+.tq-fig img.sq{max-width:320px;margin:0 auto}
+.tq-photos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px;align-items:start}
 </style>
 <div class="tab" id="t-read" role="tabpanel">
 <nav class="nav" id="rd-nav" aria-label="Sections">
-<a href="#s-one">In one screen</a><a href="#s-chip">The chip</a><a href="#s-gens">Generations</a><a href="#s-roof">Rooflines</a><a href="#s-pad">Tiles, padding</a><a href="#s-prec">Precision</a><a href="#s-mem">Memory</a><a href="#s-slice">Slices, pods</a><a href="#s-prof">Profiling</a><a href="#s-mfu">MFU</a><a href="#s-cost">Cost</a><a href="#s-free">Free access</a><a href="#s-mist">Mistakes</a><a href="#s-int">Interviews</a><a href="#s-old">Old page</a>
+<a href="#s-one">The idea</a><a href="#s-chip">The chip</a><a href="#s-gens">Generations</a><a href="#s-roof">Rooflines</a><a href="#s-pad">Tiles, padding</a><a href="#s-prec">Precision</a><a href="#s-mem">Memory</a><a href="#s-slice">Slices</a><a href="#s-prof">Profiling</a><a href="#s-mfu">MFU, cost</a><a href="#s-depth">Depth</a>
 </nav>
-<p class="lead">You know how a PyTorch model meets a GPU: kernels, streams, tensor cores, NCCL. This page is the same knowledge for a JAX model on a TPU, taught from zero, with one question running through it: <b>for a given model, batch and slice, what limits the step, and what can you change in your code to move that limit?</b></p>
-<div class="co"><div class="t">What is real on this page, and what is not</div>
-No TPU was used. Three kinds of evidence, labelled wherever they appear:
-<span class="vend">published</span> numbers from Google (the Cloud TPU pages, last updated 2026-10-13; the TPU table inside JAX's own source, <code>jax/_src/tpu_info.py</code> at jax-v0.11.2; MaxText's docs at commit 1a95d1e5) and from the <a href="https://jax-ml.github.io/scaling-book/" target="_blank" rel="noopener noreferrer">scaling book</a> (Google DeepMind, chapters dated 2025-02-04, the TPU table edited since), all read 2026-10-15;
-<span class="meas">measured here</span> on an Apple M1 Pro CPU with jax 0.11.2 (the running example's residuals, FLOPs and memory under each rematerialisation policy; matmul precision emulated pass by pass on its trained weights; JAX's own device placement run on mock slices of every shape Cloud lists);
-and <span class="der">calculated</span> (roofline arithmetic from published specs: what an operation would need at best on a TPU, never what it would get).
-The running example is the root page's tiny character-level transformer (826,368 parameters, 4 layers, width 128, batch 32 x 128 characters; <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu, Reading tab</a>).</div>
-<div class="deepnote"><b>Who owns what.</b> The silicon itself (systolic arrays cycle by cycle, optical switches, die photos) is on the Hardware topic's <a href="https://app.notion.com/p/3c65c17b0d0d8151bbc2e0ceea196187" target="_blank" rel="noopener noreferrer">TPUs and other accelerators</a>; general FLOP, memory and MFU arithmetic on <a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a>; the root page's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">TPU and Pallas lab</a> draws one TensorCore, animates a matmul on a 128 and a 256 MXU and places the running example on the roofline; kernels are on <a href="https://app.notion.com/p/3fa5c17b0d0d817699fcf65d085402e7" target="_blank" rel="noopener noreferrer">Pallas kernels</a>; meshes, collectives and per-device memory on <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>; HLO layouts and the profiler on <a href="https://app.notion.com/p/3fa5c17b0d0d8135adcedefac9e1bb48" target="_blank" rel="noopener noreferrer">XLA and compilation</a>. This page links them and goes one level deeper on the TPU-specific part.</div>
-
 <section id="s-one">
-<h2>In one screen</h2>
-<p>Seven facts decide how fast a JAX program runs on a TPU. Each has a section below and, where it deserves one, a lab tab.</p>
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">A TPU is a few large matrix units fed from HBM through a compiler-managed scratch memory, with no kernels and no caches, so a JAX program is fast on it when <span class="hlt">its shapes keep those units fed</span>: enough tokens per chip to pass the ridge point, dimensions in whole 128 (or 256) tiles, bf16 operands, a memory plan that fits HBM, and a mesh laid on whole torus axes.</p>
+<div class="tq-card" id="tq-hero-card">
+<h4>One TPU chip as your program meets it: every byte goes HBM, then VMEM, then the MXUs</h4>
+<div class="seg" id="tq-hero-gen" role="group" aria-label="Generation"><span class="lbl">Generation</span></div>
+<div class="tq-svg" id="tq-hero"></div>
+<div class="tq-cnt" id="tq-hero-cnt"></div>
+<p class="tq-src">Sizes per TensorCore from JAX's own TPU table (<code>jax/_src/tpu_info.py</code> at jax-v0.11.2: MXUs, VMEM, SMEM 1 MiB); HBM, ICI and hosts from the Cloud TPU pages (last updated 2026-10-13); link, DCN and PCIe rates from the <a href="https://jax-ml.github.io/scaling-book/tpus/" target="_blank" rel="noopener noreferrer">scaling book</a> <span class="vend">published</span>. Schematic, not to scale. <span class="hlt">Blue</span> marks the path every matmul operand takes; the ridge point is its two ends divided, <span class="der">calculated</span>.</p>
+</div>
+<p><b>You need:</b> the roofline idea (FLOPs per byte against a chip's ratio) from <a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a>, and <code>jax.jit</code> from <a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a>. Elsewhere, and linked rather than repeated: the silicon (systolic arrays cycle by cycle, optical switches, all generations as hardware) on <a href="https://app.notion.com/p/3c65c17b0d0d8151bbc2e0ceea196187" target="_blank" rel="noopener noreferrer">TPUs and other accelerators</a>; kernels on <a href="https://app.notion.com/p/3fa5c17b0d0d817699fcf65d085402e7" target="_blank" rel="noopener noreferrer">Pallas kernels</a>; meshes and collectives on <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>; HLO layouts and the profiler's internals on <a href="https://app.notion.com/p/3fa5c17b0d0d8135adcedefac9e1bb48" target="_blank" rel="noopener noreferrer">XLA and compilation</a>.</p>
+<dl class="terms">
+<dt>TensorCore</dt><dd>one sequential processor; a chip has one or two. XLA compiles your whole jitted step into one program for it.</dd>
+<dt>MXU</dt><dd>matrix unit: a 128 x 128 (or 256 x 256) systolic array doing every matmul, bf16 in, float32 accumulate.</dd>
+<dt>VPU</dt><dd>vector unit for everything else, on 8 x 128 registers (8 sublanes x 128 lanes) of float32.</dd>
+<dt>VMEM</dt><dd>on-core scratch memory filled by DMA from HBM; nothing caches HBM for you.</dd>
+<dt>ICI, DCN</dt><dd>chip-to-chip links inside a slice (a 2D or 3D torus); the data-centre network between slices.</dd>
+<dt>Slice, pod</dt><dd>chips joined by ICI and named by topology (4x4x8); the most chips one ICI fabric can join.</dd>
+<dt>Ridge point</dt><dd>peak FLOP/s &divide; HBM bytes/s: the FLOPs per byte an operation needs to stop waiting on memory.</dd>
+</dl>
+<div class="co"><div class="t">What is real on this page</div>
+No TPU was used. <span class="vend">published</span>: Google's Cloud TPU pages (last updated 2026-10-13), <code>jax/_src/tpu_info.py</code> at jax-v0.11.2, MaxText's docs at commit 1a95d1e5, and the <a href="https://jax-ml.github.io/scaling-book/" target="_blank" rel="noopener noreferrer">scaling book</a> (Google DeepMind, chapters dated 2025-02-04), all read 2026-10-15. <span class="meas">measured here</span> on an Apple M1 Pro CPU with jax 0.11.2: the running example's residuals and FLOPs under each rematerialisation policy, matmul precision emulated pass by pass on its trained weights, JAX's own device placement on mock slices. <span class="der">calculated</span>: roofline arithmetic, what an operation would need at best on a TPU, never what it would get. The running example is the root page's tiny character-level transformer (826,368 parameters, 4 layers, width 128, batch 32 x 128 characters; <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">Topic: jax-and-tpu</a>).</div>
+<details class="dp"><summary>The seven decisions in your code that set the speed, in one table <span class="mute">(summary)</span></summary><div class="b">
 <div class="tw"><table class="narrow">
 <thead><tr><th>What you choose in code</th><th>What it decides on a TPU</th><th>The number to remember</th></tr></thead>
 <tbody>
-<tr><td>Tokens per chip per matmul (batch x sequence, after sharding)</td><td>Whether the matrix units (MXUs) wait on memory</td><td>More than the ridge point: about 240 tokens on v5e, 166 on v5p, 560 on v6e, 313 on TPU7x <span class="der">calculated</span> (<a href="#s-roof">rooflines</a>)</td></tr>
-<tr><td>Array dimensions</td><td>Padding in memory and in the MXU</td><td>Last dimension a multiple of 128, the one before it of 8; matmul sides multiples of 128 (256 on v6e and TPU7x). The running example's head size of 32 would use a quarter of a 128-wide MXU <span class="der">calculated</span> (<a href="#s-pad">tiles</a>)</td></tr>
+<tr><td>Tokens per chip per matmul (batch x sequence, after sharding)</td><td>Whether the MXUs wait on memory</td><td>More than the ridge point: about 240 tokens on v5e, 166 on v5p, 560 on v6e, 313 on TPU7x <span class="der">calculated</span> (<a href="#s-roof">rooflines</a>)</td></tr>
+<tr><td>Array dimensions</td><td>Padding in memory and in the MXU</td><td>Last dimension a multiple of 128, the one before it of 8; matmul sides multiples of 128 (256 on v6e and TPU7x) (<a href="#s-pad">tiles</a>)</td></tr>
 <tr><td>dtype and <code>precision=</code></td><td>How many bf16 passes a float32 matmul costs</td><td>1, 3 or 6 passes; one pass moves the running example's logits by up to 0.096 <span class="meas">measured here, emulated</span> (<a href="#s-prec">precision</a>)</td></tr>
-<tr><td>Optimizer, dtypes, rematerialisation policy</td><td>Whether the training state and activations fit in HBM</td><td>Full remat cut the running example's saved activations from 357.6 MB to 21.1 MB for 28% more FLOPs <span class="meas">measured here</span> (<a href="#s-mem">memory</a>)</td></tr>
-<tr><td>Mesh shape (<code>jax.make_mesh</code>)</td><td>Which chips talk over which links</td><td>A logical axis must be a product of whole physical axes: on a 4x4x4 v5p cube a model axis of 2 or 8 is refused <span class="meas">measured here, JAX's placement on mock devices</span> (<a href="#s-slice">slices</a>)</td></tr>
-<tr><td>Slice and generation</td><td>Peak, HBM, ICI and price</td><td>Five generations, two tracks: v5e, v6e cheap and 2D; v4, v5p, TPU7x large and 3D <span class="vend">published</span> (<a href="#s-gens">generations</a>)</td></tr>
-<tr><td>How you report speed</td><td>Whether your MFU means anything</td><td>Six of MaxText's eight published MFUs reproduce (within a quarter of a point) only when attention is counted as non-causal; counted causally, as MaxText's own docs now say it should be, all eight are 0.8 to 5.1 points lower <span class="der">calculated from published numbers</span> (<a href="#s-mfu">MFU</a>)</td></tr>
-</tbody></table></div>
+<tr><td>Optimizer, dtypes, rematerialisation policy</td><td>Whether state and activations fit in HBM</td><td>Full remat cut the running example's saved activations from 357.6 MB to 21.1 MB for 28% more FLOPs <span class="meas">measured here</span> (<a href="#s-mem">memory</a>)</td></tr>
+<tr><td>Mesh shape (<code>jax.make_mesh</code>)</td><td>Which chips talk over which links</td><td>A logical axis must be a product of whole physical axes: on a 4x4x4 v5p cube a model axis of 2 or 8 is refused <span class="meas">measured here</span> (<a href="#s-slice">slices</a>)</td></tr>
+<tr><td>Slice and generation</td><td>Peak, HBM, ICI and price</td><td>Two tracks: v5e, v6e cheap and 2D; v4, v5p, TPU7x large and 3D <span class="vend">published</span> (<a href="#s-gens">generations</a>)</td></tr>
+<tr><td>How you report speed</td><td>Whether your MFU means anything</td><td>Six of MaxText's eight published MFUs reproduce (within a quarter of a point) only when attention is counted as non-causal <span class="der">calculated</span> (<a href="#s-mfu">MFU</a>)</td></tr>
+</tbody></table></div></div></details>
 </section>
 <section id="s-chip">
 <h2>1. The chip, as your program meets it</h2>
-<p><b>The picture.</b> A GPU is about a hundred small processors (SMs) running thousands of threads; you write kernels and launch them. A TPU chip is one or two big sequential processors, called <dfn>TensorCores</dfn>, and you write no kernels at all: XLA compiles your whole jitted step into one program that runs on each TensorCore, with every memory copy scheduled in advance. Five parts of a TensorCore and four connections off the chip are all a JAX programmer needs.</p>
+<p>A GPU is about a hundred small processors running thousands of threads, and you launch kernels on it. A TPU chip is one or two big sequential <dfn>TensorCores</dfn>, and you write no kernels: XLA compiles the whole jitted step into one program per TensorCore, with every memory copy scheduled in advance. The figure above is the whole model you need. Three consequences shape your code, one section each: matmuls are fast only when the MXUs are fed enough reused data (<a href="#s-roof">rooflines</a>) in tiles of the right size (<a href="#s-pad">padding</a>); everything else runs on the VPU, roughly 30 times slower, so a step full of small elementwise ops is slow whatever the MXUs can do (<a href="#s-prof">profiling</a> shows it); and every byte lives in HBM, VMEM or a register, placed by the compiler, so memory is planned, not allocated (<a href="#s-mem">memory</a>).</p>
+<div class="tq-photos">
+<figure class="tq-fig"><img class="sq" src="img/tpuv4_package.webp" alt="A TPU v4 package seen from above: one large silicon die in the centre with two HBM stacks on each side" loading="lazy" width="520" height="515">
+<figcaption>One TPU v4 package: the die in the middle, four HBM stacks beside it. HBM is a few millimetres from the MXUs, yet still the slow side of every roofline.<span class="cr">Jouppi et al. 2023, Figure 2, CC BY 4.0, <a href="https://arxiv.org/abs/2304.01433" target="_blank" rel="noopener noreferrer">arXiv:2304.01433</a></span></figcaption></figure>
+<figure class="tq-fig"><img src="img/tpuv4_board.webp" alt="A TPU v4 board with four liquid-cooled packages, coolant hoses, and connectors along the left edge" loading="lazy" width="900" height="518">
+<figcaption>One v4 board: four chips (under the cold plates), one host's worth. The connectors on the left edge are the 16 ICI links to other boards; the board also carries 4 PCIe links to its host.<span class="cr">Jouppi et al. 2023, Figure 2, CC BY 4.0, <a href="https://arxiv.org/abs/2304.01433" target="_blank" rel="noopener noreferrer">arXiv:2304.01433</a>; also <a href="https://commons.wikimedia.org/wiki/File:TPU_v4.png" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></span></figcaption></figure>
+</div>
+<p><b>How many JAX devices is a chip?</b> On v4 and v5p the two TensorCores of a chip are fused into one JAX device by default, called <dfn>megacore</dfn> (<code>supports_megacore</code> is true only for these two, <code>jax/_src/tpu_info.py:103</code>); on TPU7x each TensorCore is its own device, so a 4-chip host shows 8 entries in <code>jax.devices()</code>; v5e and v6e have one core per chip. This matters the moment you write a mesh shape: a TPU7x 2x2x1 slice is 8 devices, not 4. Read <code>jax.device_count()</code>, never the slice name.</p>
+<details class="dp"><summary>Every part in one table, with its nearest GPU equivalent <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>Part</th><th>What it does</th><th>Numbers <span class="vend">published</span></th><th>Nearest thing on an NVIDIA GPU</th></tr></thead>
 <tbody>
-<tr><td><b>MXU</b> (matrix unit)</td><td>A systolic array: a square of multiply-add cells holding one weight tile while activations flow through. Does all matmuls; bf16 inputs, float32 accumulation</td><td>128 x 128 cells on v4, v5e, v5p; 256 x 256 on v6e and TPU7x; 4 per TensorCore (v4, v5e, v5p) or 2 (v6e, TPU7x) (<code>tpu_info.py</code>)</td><td>Tensor cores</td></tr>
-<tr><td><b>VPU</b> (vector unit)</td><td>Everything that is not a matmul: adds, exp, LayerNorm, softmax, casts. Works on registers of 8 x 128 32-bit values (8 <dfn>sublanes</dfn> x 128 <dfn>lanes</dfn>), always in float32</td><td>About 7e12 FLOP/s per v5p core, roughly 30 times less than the MXUs (scaling book, its own worked answer)</td><td>CUDA cores</td></tr>
-<tr><td><b>Scalar unit</b> and <b>SMEM</b></td><td>Runs the control flow, computes addresses, issues the vector and DMA instructions. SMEM is its small memory</td><td>SMEM 1 MiB (<code>tpu_info.py</code>)</td><td>The warp scheduler, roughly</td></tr>
-<tr><td><b>VMEM</b></td><td>Fast on-core scratch memory the compiler (or your Pallas kernel) fills by DMA. Nothing caches HBM for you</td><td>16 MiB per core (v4), 128 (v5e, v6e), 64 (v5p, TPU7x) (<code>tpu_info.py</code>); bandwidth "around 22x" HBM's (scaling book)</td><td>Shared memory, but tens of MiB instead of hundreds of KiB</td></tr>
-<tr><td><b>HBM</b></td><td>Main memory: weights, optimizer state, activations</td><td>16 GB (v5e) to 192 GiB (TPU7x) per chip, <a href="#s-gens">table below</a></td><td>HBM (global memory)</td></tr>
-<tr><td><b>ICI</b></td><td>Direct chip-to-chip links forming a 2D or 3D torus. Collectives inside a slice run here</td><td>45 or 90 GB/s per link one way (scaling book); 400 to 1,200 GBps per chip both ways (Cloud)</td><td>NVLink, but no switch: a torus of neighbours</td></tr>
-<tr><td><b>DCN</b></td><td>The ordinary data-centre network, between slices</td><td>3.125 to 12.5 GB/s per chip (scaling book; Cloud gives the same as Gbps)</td><td>InfiniBand or Ethernet between servers</td></tr>
-<tr><td><b>PCIe</b> and the host</td><td>Each host CPU owns 4 chips (v4, v5p, TPU7x) or 8 (v5e, v6e) and runs one JAX process; input data and host offload cross PCIe</td><td>1.6e10 B/s per chip, 3.2e10 on v6e (scaling book)</td><td>The same</td></tr>
-<tr><td><b>SparseCore</b></td><td>Separate small cores for embedding lookups (recommenders); MaxText's recipes also use them to run all-reduces (<code>--xla_tpu_enable_sparse_core_collective_offload_all_reduce</code>, <code>benchmarks/xla_flags_library.py:121</code>)</td><td>4 per chip on v5p and TPU7x, 2 on v6e (Cloud)</td><td>None</td></tr>
-</tbody></table></div>
-<p><b>How many JAX devices is a chip?</b> On v4 and v5p the two TensorCores of a chip are fused into one JAX device by default, called <dfn>megacore</dfn> (<code>supports_megacore</code> is true only for these two, <code>jax/_src/tpu_info.py:103</code>); on TPU7x each TensorCore is its own device, so a 4-chip host shows 8 entries in <code>jax.devices()</code>; v5e and v6e have one core per chip. This matters the moment you write a mesh shape: a TPU7x 2x2x1 slice is 8 devices, not 4.</p>
-<p><b>Why this shapes your code.</b> Three consequences follow, and each has a section: matmuls are fast only when the MXU is fed enough reused data (<a href="#s-roof">rooflines</a>) in tiles of the right size (<a href="#s-pad">padding</a>); everything else runs on a unit roughly 30 times slower, so a step full of small elementwise ops is slow whatever the MXUs can do (<a href="#s-prof">profiling</a> shows it); and every byte lives in one of HBM, VMEM or a register, placed by the compiler, so memory is planned, not allocated (<a href="#s-mem">memory</a>).</p>
-<div class="deepnote"><b>Go deeper.</b> One TensorCore drawn per generation, and a matmul streamed tile by tile through a 128 and a 256 MXU, are on the root page's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">TPU and Pallas lab</a>; the systolic array cycle by cycle on <a href="https://app.notion.com/p/3c65c17b0d0d8151bbc2e0ceea196187" target="_blank" rel="noopener noreferrer">TPUs and other accelerators</a>.</div>
+<tr><td><b>MXU</b></td><td>A systolic array: a square of multiply-add cells holding one weight tile while activations flow through. bf16 inputs, float32 accumulation</td><td>128 x 128 cells on v4, v5e, v5p; 256 x 256 on v6e and TPU7x; 4 per TensorCore (v4, v5e, v5p) or 2 (v6e, TPU7x) (<code>tpu_info.py</code>)</td><td>Tensor cores</td></tr>
+<tr><td><b>VPU</b></td><td>Adds, exp, LayerNorm, softmax, casts, on registers of 8 x 128 32-bit values, always in float32</td><td>About 7e12 FLOP/s per v5p core, roughly 30 times less than the MXUs (scaling book, its own worked answer)</td><td>CUDA cores</td></tr>
+<tr><td><b>Scalar unit</b>, <b>SMEM</b></td><td>Runs control flow, computes addresses, issues vector and DMA instructions; SMEM is its small memory</td><td>SMEM 1 MiB (<code>tpu_info.py</code>)</td><td>The warp scheduler, roughly</td></tr>
+<tr><td><b>VMEM</b></td><td>On-core scratch memory the compiler (or your Pallas kernel) fills by DMA</td><td>16 MiB per core (v4), 128 (v5e, v6e), 64 (v5p, TPU7x) (<code>tpu_info.py</code>); bandwidth "around 22x" HBM's (scaling book)</td><td>Shared memory, but tens of MiB instead of hundreds of KiB</td></tr>
+<tr><td><b>HBM</b></td><td>Weights, optimizer state, activations</td><td>16 GB (v5e) to 192 GiB (TPU7x) per chip</td><td>HBM (global memory)</td></tr>
+<tr><td><b>ICI</b></td><td>Direct chip-to-chip links forming a 2D or 3D torus; collectives inside a slice run here</td><td>45 or 90 GB/s per link one way (scaling book); 400 to 1,200 GBps per chip both ways (Cloud)</td><td>NVLink, but no switch: a torus of neighbours</td></tr>
+<tr><td><b>DCN</b></td><td>The data-centre network, between slices</td><td>3.125 to 12.5 GB/s per chip (scaling book; Cloud gives the same as Gbps)</td><td>InfiniBand or Ethernet between servers</td></tr>
+<tr><td><b>PCIe</b>, host</td><td>Each host CPU owns 4 chips (v4, v5p, TPU7x) or 8 (v5e, v6e) and runs one JAX process; input data and host offload cross PCIe</td><td>1.6e10 B/s per chip, 3.2e10 on v6e (scaling book)</td><td>The same</td></tr>
+<tr><td><b>SparseCore</b></td><td>Small cores for embedding lookups; MaxText's recipes also run all-reduces on them (<code>--xla_tpu_enable_sparse_core_collective_offload_all_reduce</code>, <code>benchmarks/xla_flags_library.py:121</code>)</td><td>4 per chip on v5p and TPU7x, 2 on v6e (Cloud)</td><td>None</td></tr>
+</tbody></table></div></div></details>
 </section>
 
 <section id="s-gens">
-<h2>2. Five generations, published numbers</h2>
-<p>Google runs two tracks: <b>e</b> for efficiency (v5e, v6e: one TensorCore, 2D torus, pods of 256 chips, cheapest per FLOP) and <b>p</b> or unlettered for performance (v4, v5p, TPU7x: two TensorCores, 3D torus, pods of thousands). Every number below is <span class="vend">published</span>, from the Cloud TPU pages (last updated 2026-10-13) unless the cell says otherwise; the ridge point and dollars per hour of peak are <span class="der">calculated</span> from them. Click a column heading to sort.</p>
+<h2>2. The generations as targets</h2>
+<p>Google runs two tracks: <b>e</b> for efficiency (v5e, v6e: one TensorCore, 2D torus, pods of 256 chips, cheapest per FLOP) and <b>p</b> or unlettered for performance (v4, v5p, TPU7x: two TensorCores, 3D torus, pods of thousands). For a programmer the columns that matter are the ridge (the batch you need), HBM per chip (what fits) and the pod size (how far one slice goes). Every number is <span class="vend">published</span>, from the Cloud TPU pages (last updated 2026-10-13) unless the cell says otherwise; ridge and price per peak are <span class="der">calculated</span>. Click a heading to sort. The chips as hardware, with the older generations, are on <a href="https://app.notion.com/p/3c65c17b0d0d8151bbc2e0ceea196187" target="_blank" rel="noopener noreferrer">TPUs and other accelerators</a>.</p>
 <div class="tw" id="tq-gen-tab"></div>
-<p class="tq-src">Ridge = bf16 peak &divide; HBM bandwidth (FLOPs per byte: below it a matmul waits on memory). Low precision: v4 "bf16 or int8" 275; v5e and v6e INT8 from Cloud; v5p and TPU7x INT8 from the scaling book only (Cloud lists FP8 for both). Prices: on-demand per chip-hour in the first region Cloud lists, read 2026-10-15 (<a href="https://cloud.google.com/tpu/pricing" target="_blank" rel="noopener noreferrer">Cloud TPU pricing</a>); prices change and depend on region and commitment. Year from the root page's TPU lab.</p>
-<details class="qa"><summary>Where the sources disagree (checked 2026-10-15)</summary><div id="tq-notes"></div></details>
+<p class="tq-src">Ridge = bf16 peak &divide; HBM bandwidth. Low precision: v4 "bf16 or int8" 275; v5e and v6e INT8 from Cloud; v5p and TPU7x INT8 from the scaling book only (Cloud lists FP8 for both). Prices: on-demand per chip-hour in the first region Cloud lists, read 2026-10-15 (<a href="https://cloud.google.com/tpu/pricing" target="_blank" rel="noopener noreferrer">Cloud TPU pricing</a>); they change and depend on region and commitment. Year from the root page's TPU lab.</p>
+<details class="dp"><summary>Where the sources disagree <span class="mute">(checked 2026-10-15)</span></summary><div class="b" id="tq-notes"></div></details>
 <div class="pr" id="tq-pr-gen"><div class="q">Predict: at on-demand list prices, which generation gives the most bf16 peak FLOP/s per dollar?</div>
 <div class="opts"><button data-a="0">TPU7x: the newest is the most efficient</button><button data-a="1">v6e (Trillium)</button><button data-a="0">v5e: the cheapest chip</button><button data-a="0">v5p: the training flagship</button></div>
-<div class="ans" hidden>v6e: 918 TFLOP/s for $2.70 an hour is 340 TFLOP/s per dollar-hour, against 192 for TPU7x ($12.00), 164 for v5e ($1.20), 109 for v5p ($4.20) and 85 for v4 ($3.22) <span class="der">calculated from published prices</span>. Peak per dollar is not cost per token, though: v6e's ridge point of 560 means it needs over twice v5e's batch per chip to reach that peak, its 32 GB holds less than v5p's 95 GiB, and its 2D pod stops at 256 chips. The <a href="#s-cost">cost section</a> uses published throughput instead.</div></div>
+<div class="ans" hidden>v6e: 918 TFLOP/s for $2.70 an hour is 340 TFLOP/s per dollar-hour, against 192 for TPU7x ($12.00), 164 for v5e ($1.20), 109 for v5p ($4.20) and 85 for v4 ($3.22) <span class="der">calculated from published prices</span>. Peak per dollar is not cost per token, though: v6e's ridge point of 560 means it needs over twice v5e's batch per chip to reach that peak, its 32 GB holds less than v5p's 95 GiB, and its 2D pod stops at 256 chips. The <a href="#s-mfu">cost comparison</a> uses published throughput instead.</div></div>
 </section>
 <section id="s-roof">
 <h2>3. Rooflines: the batch you need, per generation</h2>
-<p><b>The problem.</b> An MXU can only multiply what has arrived from HBM. If an operation does few FLOPs per byte it reads, the MXUs sit idle waiting for memory, and no amount of compiler cleverness fixes it: you have to change the shapes.</p>
-<p><b>How it works.</b> The <dfn>arithmetic intensity</dfn> of an operation is its FLOPs divided by the bytes it moves between HBM and the chip. The chip's own ratio, peak FLOP/s divided by HBM bytes/s, is its <dfn>ridge point</dfn>. Below the ridge an operation is memory-bound (time = bytes &divide; bandwidth); above it, compute-bound (time = FLOPs &divide; peak). For a matmul of a [B, D] activation by a [D, F] weight in bf16 the FLOPs are 2BDF and the bytes 2(BD + DF + BF), so when B is much smaller than D and F the intensity is about B. That gives the rule the scaling book derives: <b>a bf16 matmul is compute-bound only when the number of tokens it processes per chip exceeds the ridge point</b>, 1.97e14 &divide; 8.2e11 = 240 on v5e (its figure; our table uses Cloud's 819 GB/s and gets 240.5). Store the weights in int8 but compute in bf16 and the weight bytes halve, so the threshold halves to 120 (also the scaling book's figure).</p>
-<div class="tw" id="tq-bcrit"></div>
-<p class="tq-src"><span class="der">calculated</span> from the generation table. "Tokens" means rows of the activation matrix on one chip after sharding: in training, per-chip batch x sequence; in decode, the number of sequences generating at once. v6e needs the biggest batch because its MXUs grew 4.7 times from v5e and its HBM bandwidth only 2 times.</p>
-
+<p><b>Concrete first.</b> Llama 2 7B's MLP up-projection multiplies a [B, 4,096] activation by a [4,096, 11,008] weight. In decode, B is the number of users generating at once; in training it is the tokens on one chip. The weight is 90 MB in bf16 whatever B is, so at B = 1 the MXUs do one multiply-add per weight read and wait on HBM; at B = 4,096 the same bytes feed 4,096 times the work. Step through the batch and watch each generation's dot climb its roof:</p>
 <div class="tq-card" id="tq-walk-card">
-<h4>One weight matrix, from decode to training: the same matmul as its batch grows</h4>
+<h4>One weight matrix, from decode to training: the dot climbs the slope until it hits the ridge</h4>
 <div class="seg" id="tq-walk-gen" role="group" aria-label="Generation"><span class="lbl">Counters for</span></div>
 <div class="tq-svg" id="tq-walk-svg"></div>
 <div class="an-ctl" id="tq-walk-ctl"></div>
 <div class="tq-cap" id="tq-walk-cap"></div>
 <div class="tq-cnt" id="tq-walk-cnt"></div>
-<p class="tq-src">Llama 2 7B's MLP up-projection, [B, 4,096] x [4,096, 11,008] in bf16 (MaxText's <code>configs/models/llama2-7b.yml</code>). Each roof is one generation: the slanted part is HBM bandwidth, the flat part bf16 peak, both <span class="vend">published</span>; the dots are this matmul at batch B on each chip, <span class="der">calculated</span> as min(peak, intensity x bandwidth). Log scales on both axes.</p>
+<p class="tq-src">[B, 4,096] x [4,096, 11,008] in bf16 (MaxText's <code>configs/models/llama2-7b.yml</code>). Each roof is one generation: the slanted part is HBM bandwidth, the flat part bf16 peak, both <span class="vend">published</span>; dots are <span class="der">calculated</span> as min(peak, intensity x bandwidth). Log scales on both axes.</p>
 </div>
-
-<h3>Attention is the exception</h3>
-<p>The two attention matmuls have no weights to reuse. In training or prefill, the scores QK<sup>T</sup> for one head and one sequence of S tokens multiply [S, d<sub>h</sub>] by [d<sub>h</sub>, S]: 2S<sup>2</sup>d<sub>h</sub> FLOPs over 2(2Sd<sub>h</sub> + S<sup>2</sup>) bytes if the S x S score matrix is written to HBM. At S = 4,096 and head size 128 that is an intensity of 120, below every generation's ridge <span class="der">calculated</span>. That is the case for a fused attention kernel (flash or splash attention, a Pallas kernel on TPU): the scores stay in VMEM, the S<sup>2</sup> term leaves the byte count, and the intensity climbs to about S. In decode it is worse: each new token reads the whole key-value cache to do two FLOPs per cached number, an intensity near 1 (the scaling book: "we're basically always memory bandwidth-bound during attention"). Grouped-query attention helps by exactly the group size, because several query heads share one cached key and value.</p>
-<p>The scaling book turns this into a lower bound on a decode step:</p>
-<div class="fm"><div class="eq">T<sub>step</sub> = B &middot; KV(T) &divide; W<sub>hbm</sub> + max(2 &middot; B &middot; P &divide; C, P &middot; b<sub>w</sub> &divide; W<sub>hbm</sub>)</div>
-<dl><dt>B</dt><dd>sequences generating at once</dd><dt>KV(T)</dt><dd>key-value cache bytes per sequence at context T: 2 x layers x KV heads x head size x bytes. Llama 2 7B (32 KV heads, bf16): 524,288 bytes, half a MiB, per token</dd><dt>P, b<sub>w</sub></dt><dd>weights read by the matmuls and bytes per weight</dd><dt>C, W<sub>hbm</sub></dt><dd>peak FLOP/s and HBM bandwidth of all the chips serving the model</dd></dl></div>
-<p>For Llama 2 7B on one v5e at context 2,048 it gives 17.4 ms per step at batch 1 (57 tokens per second), 100 ms at batch 64 and 331 ms at batch 240 (725 tokens per second) <span class="der">calculated</span>; at batch 240 the caches alone would need 240 x 2,048 x 0.5 MiB = 240 GiB, fifteen v5e chips' worth. The <a href="#" data-tab="t-roof">Roofline lab</a> runs this model for any generation, batch, context, dtype and chip count.</p>
-
-<h3>The same rule, between chips</h3>
-<p>Shard a matmul's contracting dimension D over two chips and each must send its partial [B, F] result to the other: 2BF bytes over one ICI link against BDF FLOPs. The step stays compute-bound only if D/2 exceeds peak &divide; link bandwidth, D &gt; 8,755 on v5e (the scaling book's number, from 4.5e10 B/s one way) <span class="der">calculated</span>. It is 12,222 on v4, 10,200 on v5p, 20,400 on v6e and 51,267 on TPU7x (links of 4.5e10 or 9e10 B/s one way): the faster the chip, the wider the model must be before splitting a matmul between chips pays. Which collective each sharding needs, and its exact bytes, are on <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>.</p>
-
+<p><b>The rule.</b> The <dfn>arithmetic intensity</dfn> of an operation is its FLOPs divided by the bytes it moves between HBM and the chip. Below the chip's ridge point an operation is memory-bound (time = bytes &divide; bandwidth); above it, compute-bound (time = FLOPs &divide; peak). For [B, D] x [D, F] in bf16 the FLOPs are 2BDF and the bytes 2(BD + DF + BF), so when B is much smaller than D and F the intensity is about B. Hence the scaling book's rule: <b>a bf16 matmul is compute-bound only when the number of tokens it processes per chip exceeds the ridge point</b>, 1.97e14 &divide; 8.2e11 = 240 on v5e (its figure; our table uses Cloud's 819 GB/s and gets 240.5). Store the weights in int8 but compute in bf16 and the weight bytes halve, so the threshold halves to 120 (also the scaling book's figure).</p>
+<div class="tw" id="tq-bcrit"></div>
+<p class="tq-src"><span class="der">calculated</span> from the generation table. "Tokens" means rows of the activation matrix on one chip after sharding: in training, per-chip batch x sequence; in decode, the sequences generating at once. v6e needs the biggest batch because its MXUs grew 4.7 times from v5e and its HBM bandwidth only 2 times.</p>
 <div class="pr" id="tq-pr-roof"><div class="q">Predict: Llama 2 7B serving 64 users at once on a v6e. Are its weight matmuls compute-bound or memory-bound?</div>
 <div class="opts"><button data-a="0">Compute-bound: 64 users is a big batch</button><button data-a="1">Memory-bound</button><button data-a="0">It depends on the context length</button></div>
 <div class="ans" hidden>Memory-bound. Each decode step processes 64 tokens per weight read, an intensity of about 64, and v6e's ridge is 560: the MXUs could do nine times more. The context length changes the attention part (always memory-bound in decode), not the weight matmuls. To use a v6e's MXUs on decode you need more than 560 sequences per chip, or int8 weights (280), or several chips' worth of users per copy of the weights.</div></div>
-<div class="deepnote"><b>Go deeper.</b> The running example's 12 matmul shapes sit on these roofs in the root's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">TPU and Pallas lab</a> (all memory-bound: its width of 128 is the problem, not its batch). The <a href="#" data-tab="t-roof">Roofline lab</a> here adds a whole 7B layer, int8 and fp8, decode with a KV cache, and several chips; the general derivation is on <a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a>.</div>
+
+<h3>Attention is the exception</h3>
+<p>The two attention matmuls have no weights to reuse. In training or prefill, the scores QK<sup>T</sup> for one head and one sequence of S tokens multiply [S, d<sub>h</sub>] by [d<sub>h</sub>, S]: 2S<sup>2</sup>d<sub>h</sub> FLOPs over 2(2Sd<sub>h</sub> + S<sup>2</sup>) bytes if the S x S score matrix goes to HBM. At S = 4,096 and head size 128 that is an intensity of 120, below every generation's ridge <span class="der">calculated</span>. Hence a fused attention kernel (flash or splash attention, a Pallas kernel on TPU): the scores stay in VMEM, the S<sup>2</sup> term leaves the byte count, and the intensity climbs to about S. In decode each new token reads the whole key-value cache to do two FLOPs per cached number, an intensity near 1 (the scaling book: "we're basically always memory bandwidth-bound during attention"). Grouped-query attention helps by exactly the group size, because several query heads share one cached key and value. The scaling book turns this into a lower bound on a decode step:</p>
+<div class="fm"><div class="eq">T<sub>step</sub> = B &middot; KV(T) &divide; W<sub>hbm</sub> + max(2 &middot; B &middot; P &divide; C, P &middot; b<sub>w</sub> &divide; W<sub>hbm</sub>)</div>
+<dl><dt>B</dt><dd>sequences generating at once</dd><dt>KV(T)</dt><dd>key-value cache bytes per sequence at context T: 2 x layers x KV heads x head size x bytes. Llama 2 7B (32 KV heads, bf16): 524,288 bytes, half a MiB, per token</dd><dt>P, b<sub>w</sub></dt><dd>weights read by the matmuls and bytes per weight</dd><dt>C, W<sub>hbm</sub></dt><dd>peak FLOP/s and HBM bandwidth of all the chips serving the model</dd></dl></div>
+<p>For Llama 2 7B on one v5e at context 2,048 it gives 17.4 ms per step at batch 1 (57 tokens per second), 100 ms at batch 64 and 331 ms at batch 240 (725 tokens per second) <span class="der">calculated</span>; at batch 240 the caches alone would need 240 x 2,048 x 0.5 MiB = 240 GiB, fifteen v5e chips' worth. The <a href="#" data-tab="t-roof">Roofline lab</a> runs this model for any generation, batch, context, dtype and chip count.</p>
+<details class="dp"><summary>The same rule between chips: how wide a matmul must be before splitting it pays <span class="mute">(depth)</span></summary><div class="b">
+<p>Shard a matmul's contracting dimension D over two chips and each must send its partial [B, F] result to the other: 2BF bytes over one ICI link against BDF FLOPs. The step stays compute-bound only if D/2 exceeds peak &divide; link bandwidth, D &gt; 8,755 on v5e (the scaling book's number, from 4.5e10 B/s one way) <span class="der">calculated</span>. It is 12,222 on v4, 10,200 on v5p, 20,400 on v6e and 51,267 on TPU7x (links of 4.5e10 or 9e10 B/s one way): the faster the chip, the wider the model must be before splitting a matmul between chips pays. Which collective each sharding needs, and its exact bytes, are on <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>.</p>
+<p>The running example's 12 matmul shapes all sit on the slope (its width of 128 is the problem, not its batch): the root's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">TPU and Pallas lab</a> places them.</p>
+</div></details>
 </section>
 <section id="s-pad">
 <h2>4. Tiles and padding: why dimensions should be multiples of 128</h2>
-<p><b>The problem.</b> In PyTorch on a GPU a tensor of shape [128, 65] occupies 128 x 65 numbers, and an odd size costs you a slower kernel at worst. On a TPU the hardware works on fixed-size tiles, in memory and in the MXU, and an odd size is padded up to whole tiles: you pay for the padding in bytes, in bandwidth and in MXU cycles.</p>
-<p><b>How it works, in memory.</b> XLA stores a TPU array in tiles that match the 8 x 128 vector registers. In the words of its <code>docs/tiled_layout.md</code> (at the pinned XLA commit 91888df6): "The most common format in XLA/TPU is tiling by 8x128"; when the second-to-last dimension is 1 or 2 it uses 2 x 128 tiles, when it is 3 or 4, 4 x 128; bf16 uses "(8,128)(2,1)", where the second level packs two rows into one 32-bit word, and 8-bit types "(8,128)(4,1)" <span class="vend">published (XLA docs)</span>. You see it in every TPU HLO dump as a suffix like <code>bf16[32,32,4096]{2,1,0:T(8,128)(2,1)S(1)}</code> (an example from the scaling book's profiling chapter; <code>S(1)</code> means the array lives in VMEM). So the last dimension is padded to a multiple of 128 and the one before it to a multiple of 8:</p>
+<p>In PyTorch on a GPU a [128, 65] tensor occupies 128 x 65 numbers; an odd size costs a slower kernel at worst. On a TPU the hardware works on fixed tiles, in memory and in the MXU, and an odd size is padded up to whole tiles: you pay for the padding in bytes, in bandwidth and in MXU cycles. Step through a [128, 65] bf16 array (the running example's output head) being tiled, then try your own shape:</p>
+<div class="tq-card" id="tq-t-card">
+<h4>The same array before and after tiling: a last dimension of 65 is stored as 128</h4>
+<div class="tq-ctl"><label>Array <select id="tq-t-pre"></select></label>
+<label>rows <input type="number" id="tq-t-r" min="1" value="128"></label><label>cols <input type="number" id="tq-t-c" min="1" value="65"></label>
+<label>dtype <select id="tq-t-dt"><option value="4">float32</option><option value="2" selected>bf16</option><option value="1">int8</option></select></label></div>
+<div class="tq-svg" id="tq-t-svg"></div>
+<div class="an-ctl" id="tq-t-ctl"></div>
+<div class="tq-cap" id="tq-t-cap"></div>
+<div class="tq-cnt" id="tq-t-cnt"></div>
+<p class="tq-src">Rules from XLA's <code>docs/tiled_layout.md</code> at the pinned commit 91888df6 <span class="vend">published</span>; everything drawn is <span class="der">calculated</span> for a row-major array.</p>
+</div>
+<p><b>The rule in memory.</b> In the words of XLA's tiling document: "The most common format in XLA/TPU is tiling by 8x128"; when the second-to-last dimension is 1 or 2 it uses 2 x 128 tiles, when it is 3 or 4, 4 x 128; bf16 uses "(8,128)(2,1)", where the second level packs two rows into one 32-bit word, and 8-bit types "(8,128)(4,1)" <span class="vend">published (XLA docs)</span>. You see it in every TPU HLO dump as a suffix like <code>bf16[32,32,4096]{2,1,0:T(8,128)(2,1)S(1)}</code> (from the scaling book's profiling chapter; <code>S(1)</code> means the array lives in VMEM). So the last dimension is padded to a multiple of 128 and the one before it to a multiple of 8. XLA's layout assignment may pick another dimension order precisely to avoid padding (a [128, 65] weight stored with 128 as the minor dimension pads only to [72, 128]); the notation and the pass that picks it are on <a href="https://app.notion.com/p/3fa5c17b0d0d8135adcedefac9e1bb48" target="_blank" rel="noopener noreferrer">XLA and compilation</a>.</p>
+<p><b>The rule in the MXU.</b> A matmul streams 8-row slabs of the activation through an MXU holding a k x n weight tile of side 128 (or 256 on v6e and TPU7x), so its utilisation is at best m k n &divide; (pad<sub>8</sub>(m) pad<sub>S</sub>(k) pad<sub>S</sub>(n)). Predict before you look: what share of a 256-wide MXU does a 128 x 128 projection use?</p>
+<div class="tq-card" id="tq-m-card">
+<h4>A matmul on the MXU: the grey is padding the array multiplies as zeros</h4>
+<div class="tq-ctl"><label>m (rows of activations) <input type="number" id="tq-m-m" min="1" value="4096"></label><label>k <input type="number" id="tq-m-k" min="1" value="128"></label><label>n <input type="number" id="tq-m-n" min="1" value="65"></label>
+<label>Preset <select id="tq-m-pre"></select></label></div>
+<div class="tq-two"><div><div class="tq-svg" id="tq-m-svg128"></div></div><div><div class="tq-svg" id="tq-m-svg256"></div></div></div>
+<div class="tw" id="tq-m-tab"></div>
+<p class="tq-src">Weight [k, n] cut into MXU tiles (128 x 128 on v4, v5e, v5p; 256 x 256 on v6e and TPU7x); activation rows padded to multiples of 8 sublanes. <span class="der">calculated</span>: an upper bound that ignores weight-loading time and assumes the compiler does not repack shapes (it may batch several small heads into one tile). A matmul streamed tile by tile through the array is animated on the root's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">TPU and Pallas lab</a>.</p>
+</div>
+<p>The running example's head size of 32 is the lesson: fine for teaching on a CPU, it would leave three quarters of a 128-wide MXU multiplying zeros, and fifteen sixteenths of a 256-wide one. Production models use head sizes of 128 for this reason, and on v6e and TPU7x even a 128 x 128 projection fills only a quarter of an MXU. <b>What to do:</b> choose model width, head size and MLP width as multiples of 128 (256 if you target v6e or TPU7x); pad the vocabulary to a multiple of 128 (the bytes are trivial, about 0.1% for GPT-2's 50,257); keep the per-chip batch a multiple of 8. <b>How to check:</b> dump the optimised HLO (<code>XLA_FLAGS=--xla_dump_to=...</code>) on a TPU and read the <code>T(...)</code> suffixes, or look for padding in the profiler's memory viewer. Nothing errors; the step is just slower and bigger.</p>
+<details class="dp"><summary>Padding factor and MXU use for the running example's arrays and matmuls <span class="mute">(tables)</span></summary><div class="b">
 <div class="tw" id="tq-tiles"></div>
-<p class="tq-src"><span class="der">calculated</span> with the tiling rules above, assuming row-major order (the last dimension is the minor one). XLA's layout assignment may pick another order precisely to avoid such padding (a [128, 65] weight stored with 128 as the minor dimension pads only to [72, 128]), so these are what the shapes cost if nothing rescues them. The layout notation and the pass that picks it are on <a href="https://app.notion.com/p/3fa5c17b0d0d8135adcedefac9e1bb48" target="_blank" rel="noopener noreferrer">XLA and compilation</a>.</p>
-<p><b>How it works, in the MXU.</b> A matmul streams [8-row] slabs of the activation through an MXU holding a k x n weight tile of side 128 (or 256 on v6e and TPU7x), so its utilisation is at best m k n &divide; (pad<sub>8</sub>(m) pad<sub>S</sub>(k) pad<sub>S</sub>(n)):</p>
 <div class="tw" id="tq-mxu"></div>
-<p class="tq-src"><span class="der">calculated</span>; an upper bound that ignores weight-loading time and assumes the compiler does not repack shapes (it may batch several small heads into one tile). The running example's head size of 32 is the lesson: fine for teaching on a CPU, it would leave three quarters of a 128-wide MXU multiplying zeros, and fifteen sixteenths of a 256-wide one. Production models use head sizes of 128 for this reason, and on v6e and TPU7x even a 128 x 128 projection fills only a quarter of an MXU.</p>
-<p><b>When it matters and how to check.</b> Choose model width, head size and MLP width as multiples of 128 (256 if you target v6e or TPU7x); pad the vocabulary to a multiple of 128 (the bytes are trivial, about 0.1% for GPT-2's 50,257); keep the per-chip batch a multiple of 8. To check, dump the optimised HLO (<code>XLA_FLAGS=--xla_dump_to=...</code>) on a TPU and read the <code>T(...)</code> suffixes, or look for "padding" in the profiler's memory viewer. The <a href="#" data-tab="t-tile">Tiles and padding</a> tab animates the same array before and after tiling and computes the waste for any shape.</p>
+<p class="tq-src"><span class="der">calculated</span> with the rules above, row-major, no repacking.</p></div></details>
 </section>
 
 <section id="s-prec">
 <h2>5. Matmul precision: what float32 means on a TPU</h2>
-<p><b>The problem.</b> Your model is float32 in PyTorch and float32 in JAX, yet on a TPU its matmuls are not computed in float32 unless you ask. MXUs multiply bf16 numbers (8 bits of mantissa instead of float32's 24) and accumulate in float32. JAX's <code>lax.Precision</code> chooses how a float32 matmul is built from bf16 products. Its docstring (<code>jax/_src/lax/lax.py:2169</code>, jax-v0.11.2): DEFAULT "performs float32 computations in bfloat16"; HIGH "in 3 bfloat16 passes" (line 2179); HIGHEST "in 6 bfloat16" (line 2183); and, the line that trips people up, "Has no impact on CPU backends" <span class="vend">published (source)</span>.</p>
-<p><b>How a float32 product is built from bf16 ones.</b> Split each float32 number into a bf16 part and the bf16 remainder of what is left, two or three times; multiply the parts; add the products that matter. One pass keeps only the big parts; three passes add the two cross terms; six add the next three. The animation does it on one pair of numbers; JavaScript rounds to bf16 exactly as NumPy's <code>ml_dtypes</code> does (checked on 8 values by the page's recompute script).</p>
+<p>Your model is float32 in PyTorch and in JAX, yet on a TPU its matmuls are not float32 unless you ask. MXUs multiply bf16 numbers (8 bits of mantissa instead of float32's 24) and accumulate in float32; JAX's <code>lax.Precision</code> chooses how a float32 matmul is built from bf16 products. Its docstring (<code>jax/_src/lax/lax.py:2169</code>, jax-v0.11.2): DEFAULT "performs float32 computations in bfloat16"; HIGH "in 3 bfloat16 passes" (line 2179); HIGHEST "in 6 bfloat16" (line 2183); and, the line that trips people up, "Has no impact on CPU backends" <span class="vend">published (source)</span>. Split each float32 number into a bf16 part and the bf16 remainders of what is left; multiply the parts; add the products that matter. Type your own numbers:</p>
 <div class="tq-card" id="tq-split-card">
-<h4>One product, three precisions: the same two float32 numbers, split into bf16 pieces</h4>
+<h4>One product, three precisions: each extra pass adds the next-largest partial products</h4>
 <div class="tq-ctl"><label>a <input type="number" id="tq-split-a" value="0.3333333" step="any"></label><label>b <input type="number" id="tq-split-b" value="3.1415927" step="any"></label></div>
 <div class="tq-svg" id="tq-split-svg"></div>
 <div class="an-ctl" id="tq-split-ctl"></div>
 <div class="tq-cap" id="tq-split-cap"></div>
 <div class="tq-cnt" id="tq-split-cnt"></div>
+<p class="tq-src">One pass keeps hi x hi; three add the two cross terms; six add the next three. JavaScript rounds to bf16 exactly as NumPy's <code>ml_dtypes</code> does (checked on 8 values by the page's recompute script).</p>
 </div>
-<p><b>On the whole running example, measured here (emulated).</b> Setting the precision on a CPU does nothing: on a 256 x 128 by 128 x 512 matmul, <code>jnp.dot</code> returned the identical float32 result for <code>precision=None</code>, "default", "high", "highest", "bfloat16" and the presets BF16_BF16_F32, _X3 and _X6, and refused only TF32 <span class="meas">measured here</span>:</p>
-<pre class="err" id="tq-tf32"></pre>
-<p>So the TPU's passes were emulated: every one of the running example's 33 forward matmuls was replaced by the split-and-sum above (operands split into three bf16 pieces, products accumulated in float32), on the trained weights of the root's 500-step run, over 128 validation sequences of 128 characters, and compared with a float64 forward pass of the same weights:</p>
+<p><b>On the whole running example (measured here, emulated).</b> A CPU ignores the setting: <code>jnp.dot</code> returned the identical float32 result for nine precision settings and refused only TF32 <span class="meas">measured here</span>, so every one of the running example's 33 forward matmuls was replaced by the split-and-sum above, on the trained weights of the root's 500-step run, over 128 validation sequences, and compared with a float64 forward pass:</p>
 <div class="tw" id="tq-prec-tab"></div>
-<p class="tq-src"><span class="meas">measured here</span>: <code>src/runs/tq_precision.py</code>, jax 0.11.2 on CPU. An emulation of the arithmetic, not XLA:TPU's code (which is not public): the split scheme is the standard one, and the TPU's accumulation order differs. What transfers: the size of the errors. What does not: speed.</p>
-<p><b>What it costs, when it matters.</b> For a compute-bound matmul HIGH costs about 3 times DEFAULT's MXU time and HIGHEST about 6; for a memory-bound one, nearly nothing (the extra passes reuse the same bytes). DEFAULT's error, a relative 2e-3 on the logits and 0.3% of next-character predictions flipped here, is invisible in a training loss (the mean loss moved by 3e-5) but not in a test that compares a JAX port with PyTorch at a tolerance of 1e-5, or in iterative numerics (a matrix inverse, an eigen-solver, a physics integrator). Set it per call with <code>precision=</code>, per region with <code>jax.default_matmul_precision("highest")</code>, or globally with <code>jax.config.update("jax_default_matmul_precision", "highest")</code>; MaxText exposes the same knob as <code>matmul_precision: "default"</code> (<code>configs/base.yml:142</code>). The <a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a> page covers the dtype rules around it.</p>
-<p><b>Lower than bf16.</b> int8 (and fp8 on TPU7x) roughly doubles the peak where the hardware supports it: v5e 393 and v6e 1,836 TOPs against 197 and 918 bf16 TFLOP/s (Cloud); v5p 9.18e14 int8 per the scaling book, though Cloud lists v5p's FP8 at 459, the same as bf16; v4 gives no speed-up ("bf16 or int8", 275); TPU7x 4,614 FP8 TFLOP/s (Cloud) <span class="vend">published</span>. MaxText reaches it through <code>quantization: "int8"</code> (<code>configs/base.yml:137</code>), implemented with Google's AQT and qwix libraries (imported in <code>src/maxtext/layers/quantizations.py:25</code>). Even without int8 arithmetic, int8 weights with bf16 compute halve the critical batch of <a href="#s-roof">section 3</a>.</p>
+<p class="tq-src"><span class="meas">measured here</span>: <code>src/runs/tq_precision.py</code>, jax 0.11.2 on CPU. An emulation of the arithmetic, not XLA:TPU's code (which is not public): the split scheme is the standard one, the TPU's accumulation order differs. What transfers: the size of the errors. What does not: speed.</p>
+<p><b>Cost and when it matters.</b> For a compute-bound matmul HIGH costs about 3 times DEFAULT's MXU time and HIGHEST about 6; for a memory-bound one, nearly nothing (the extra passes reuse the same bytes). DEFAULT's error, a relative 2e-3 on the logits and 0.3% of next-character predictions flipped here, is invisible in a training loss (the mean loss moved by 3e-5) but not in a test that compares a JAX port with PyTorch at a tolerance of 1e-5, or in iterative numerics (a matrix inverse, an eigen-solver, a physics integrator). A test that passes at 1e-5 on your laptop can fail on a TPU. Set it per call with <code>precision=</code>, per region with <code>jax.default_matmul_precision("highest")</code>, or globally with <code>jax.config.update("jax_default_matmul_precision", "highest")</code>; MaxText exposes the same knob as <code>matmul_precision: "default"</code> (<code>configs/base.yml:142</code>).</p>
+<details class="dp"><summary>The real TF32 error, and lower than bf16: int8 and fp8 <span class="mute">(depth)</span></summary><div class="b">
+<pre class="err" id="tq-tf32"></pre>
+<p>int8 (and fp8 on TPU7x) roughly doubles the peak where the hardware supports it: v5e 393 and v6e 1,836 TOPs against 197 and 918 bf16 TFLOP/s (Cloud); v5p 9.18e14 int8 per the scaling book, though Cloud lists v5p's FP8 at 459, the same as bf16; v4 gives no speed-up ("bf16 or int8", 275); TPU7x 4,614 FP8 TFLOP/s (Cloud) <span class="vend">published</span>. MaxText reaches it through <code>quantization: "int8"</code> (<code>configs/base.yml:137</code>), implemented with Google's AQT and qwix libraries (imported in <code>src/maxtext/layers/quantizations.py:25</code>). Even without int8 arithmetic, int8 weights with bf16 compute halve the critical batch of <a href="#s-roof">section 3</a>. The dtype rules around <code>precision=</code> are on <a href="https://app.notion.com/p/3c65c17b0d0d81b7a0d1faba6cef5561" target="_blank" rel="noopener noreferrer">JAX core</a>.</p>
+</div></details>
 </section>
 <section id="s-mem">
 <h2>6. Memory planning: what fits, and what rematerialisation buys</h2>
-<p><b>The problem.</b> A chip's HBM is all the memory a JAX program has (16 GB on v5e), and XLA plans every byte of the step when it compiles. In PyTorch you discover the peak while running; in JAX you can ask before running (<code>jax.jit(step).lower(...).compile().memory_analysis()</code>), and a step that does not fit fails at compile or load time, not halfway through an epoch.</p>
-<p><b>The training state.</b> With float32 weights and Adam, each parameter costs 4 bytes of weight, 4 of gradient and 8 of the two moments: 16 bytes (MaxText's defaults are <code>weight_dtype: "float32"</code> with <code>dtype: "bfloat16"</code> activations, the root's Training lab). Fully sharded over every chip (FSDP), the state alone caps the parameters per chip at HBM &divide; 16:</p>
+<p>A chip's HBM is all the memory a JAX program has (16 GB on v5e), and XLA plans every byte of the step when it compiles. In PyTorch you discover the peak while running; in JAX you can ask before running (<code>jax.jit(step).lower(...).compile().memory_analysis()</code>), and a step that does not fit fails at compile or load time, not halfway through an epoch.</p>
+<p><b>The training state.</b> With float32 weights and Adam, each parameter costs 4 bytes of weight, 4 of gradient and 8 of the two moments: 16 bytes (MaxText's defaults are <code>weight_dtype: "float32"</code> with <code>dtype: "bfloat16"</code> activations). Fully sharded over every chip (FSDP), the state alone caps the parameters per chip at HBM &divide; 16:</p>
 <div class="tw" id="tq-state"></div>
-<p class="tq-src"><span class="der">calculated</span>: HBM per chip from the generation table &divide; 16 bytes, then the chips needed just to hold the state of Llama 3.1 70B (70.55B parameters, MaxText config) and Llama 3.1 405B, before a single activation. Real runs need several times more, for activations and headroom.</p>
-<p><b>Activations and rematerialisation.</b> The backward pass needs values from the forward pass (the <dfn>residuals</dfn>: layer inputs, attention probabilities, MLP pre-activations). <code>jax.checkpoint</code> (alias <code>jax.remat</code>) with a <dfn>policy</dfn> decides which to keep and which to recompute; it is PyTorch's <code>torch.utils.checkpoint</code>, but selective by operation type or by name. Measured on the running example, every block wrapped in <code>jax.checkpoint(block, policy=...)</code>, one 32 x 128 batch, compiled on CPU:</p>
+<p class="tq-src"><span class="der">calculated</span>: HBM per chip &divide; 16 bytes, then the chips needed just to hold the state of Llama 3.1 70B (70.55B parameters, MaxText config) and Llama 3.1 405B, before a single activation. Real runs need several times more, for activations and headroom. Keep activations in bf16 even when the PyTorch original was float32: the matmuls round to bf16 anyway, and float32 activations double the bytes of every memory-bound operation and of the residuals below.</p>
+<p><b>Activations and rematerialisation.</b> The backward pass needs values from the forward pass (the <dfn>residuals</dfn>: layer inputs, attention probabilities, MLP pre-activations). <code>jax.checkpoint</code> (alias <code>jax.remat</code>) with a <dfn>policy</dfn> decides which to keep and which to recompute: PyTorch's <code>torch.utils.checkpoint</code>, but selective by operation type or by name. Measured on the running example, every block wrapped in <code>jax.checkpoint(block, policy=...)</code>, one 32 x 128 batch:</p>
+<div class="tq-card" id="tq-remat-card"><h4>A menu, not a switch: each policy trades saved bytes against recomputed FLOPs</h4>
 <div class="tq-svg" id="tq-remat-svg"></div>
 <div class="tw" id="tq-remat-tab"></div>
-<p class="tq-src"><span class="meas">measured here</span> (<code>src/runs/tq_remat.py</code>, jax 0.11.2, XLA:CPU, float32): residuals and their bytes from JAX's <code>saved_residuals</code>; FLOPs and temporary bytes from the compiled program's <code>cost_analysis()</code> and <code>memory_analysis()</code>. Every policy gives the same loss, 4.21168. What transfers to TPU: the residual counts and bytes and the extra FLOPs (properties of the program); what does not: the temporary bytes, which are XLA:CPU's buffer plan.</p>
-<p>Read the table as a menu. Saving nothing (full rematerialisation) shrinks the residuals 17-fold for 28% more FLOPs, close to one extra forward pass of the blocks. Saving only matmul outputs (<code>dots_saveable</code>) costs 5% more FLOPs and keeps 36% of the bytes: the cheap-to-recompute elementwise values are dropped, the expensive matmul results kept. <code>dots_with_no_batch_dims_saveable</code> also drops the attention matmuls (they have a batch dimension), keeping the weight matmuls only. MaxText offers the same trade with named tensors: <code>remat_policy</code> chooses among 'minimal_with_context', 'minimal', 'save_dot_with_context_except_mlp', 'save_dot_except_mlpwi', 'save_dot_except_mlp', 'save_qkv_proj', 'qkv_proj_offloaded', 'custom', 'minimal_offloaded', 'save_out_proj' and 'full', "a trade-off between speed (fastest to slowest) and HBM usage (highest to lowest)" (<code>configs/base.yml:489</code>; default 'full', line 492), each built from <code>jax.checkpoint_policies.save_only_these_names</code> in <code>layers/nnx_decoders.py:1383</code>.</p>
-<p><b>The TPU-specific option: offload to the host.</b> A policy can also move a residual to the host's memory over PCIe and bring it back for the backward pass: <code>save_and_offload_only_these_names(..., offload_src="device", offload_dst="pinned_host")</code> (<code>jax/_src/ad_checkpoint.py:165</code>; MaxText's 'custom' policy, <code>nnx_decoders.py:1480</code>). MaxText's Gold Llama 3.1 8B recipe on v6e offloads the decoder layer inputs and the q, k, v and output projections (<code>benchmarks/maxtext_trillium_model_configs.py:716</code>), with XLA flags that overlap the transfers with compute. The budget is PCIe: 3.2e10 B/s per v6e chip (scaling book), so a step can offload only what that bandwidth moves while the chip computes.</p>
+<p class="tq-src"><span class="meas">measured here</span> (<code>src/runs/tq_remat.py</code>, jax 0.11.2, XLA:CPU, float32): residuals and bytes from JAX's <code>saved_residuals</code>; FLOPs and temporary bytes from the compiled program's <code>cost_analysis()</code> and <code>memory_analysis()</code>. Every policy gives the same loss, 4.21168. What transfers to TPU: residual counts, bytes and extra FLOPs (properties of the program); what does not: the temporary bytes, XLA:CPU's buffer plan.</p></div>
+<p>Saving nothing (full rematerialisation) shrinks the residuals 17-fold for 28% more FLOPs, close to one extra forward pass of the blocks. Saving only matmul outputs (<code>dots_saveable</code>) costs 5% more FLOPs and keeps 36% of the bytes, a 2.7-fold cut: the cheap elementwise values are dropped, the expensive matmul results kept. <code>dots_with_no_batch_dims_saveable</code> also drops the attention matmuls (they have a batch dimension), keeping the weight matmuls only. Choose the cheapest policy that fits HBM at the per-chip batch the roofline asks for.</p>
+<p><b>The TPU-specific option: offload to the host.</b> A policy can also move a residual to host memory over PCIe and bring it back for the backward pass: <code>save_and_offload_only_these_names(..., offload_src="device", offload_dst="pinned_host")</code> (<code>jax/_src/ad_checkpoint.py:165</code>). MaxText's Gold Llama 3.1 8B recipe on v6e offloads the decoder layer inputs and the q, k, v and output projections (<code>benchmarks/maxtext_trillium_model_configs.py:716</code>), with XLA flags that overlap the transfers with compute. The budget is PCIe: 3.2e10 B/s per v6e chip (scaling book), so a step can offload only what that bandwidth moves while the chip computes.</p>
+<details class="dp"><summary>MaxText's named remat policies <span class="mute">(reference)</span></summary><div class="b"><p>MaxText offers the same trade with named tensors: <code>remat_policy</code> chooses among 'minimal_with_context', 'minimal', 'save_dot_with_context_except_mlp', 'save_dot_except_mlpwi', 'save_dot_except_mlp', 'save_qkv_proj', 'qkv_proj_offloaded', 'custom', 'minimal_offloaded', 'save_out_proj' and 'full', "a trade-off between speed (fastest to slowest) and HBM usage (highest to lowest)" (<code>configs/base.yml:489</code>; default 'full', line 492), each built from <code>jax.checkpoint_policies.save_only_these_names</code> in <code>layers/nnx_decoders.py:1383</code>; the 'custom' policy offloads (<code>nnx_decoders.py:1480</code>).</p></div></details>
 </section>
 
 <section id="s-slice">
-<h2>7. Slices, pods, multislice, and the mesh on the torus</h2>
-<p><b>The vocabulary.</b> A <dfn>host</dfn> is one CPU machine with 4 chips (v4, v5p, TPU7x) or 8 (v5e, v6e), running one JAX process. A <dfn>slice</dfn> is a set of chips joined by ICI, named by its topology: 4x4x8 is 128 chips in a 3D block. A <dfn>cube</dfn> is a 4x4x4 block of 64 chips; v4, v5p and TPU7x build big slices from cubes joined by optical switches, which also provide the wraparound links that make a torus. A <dfn>pod</dfn> is everything one ICI fabric can join: 256 chips for v5e and v6e, 4,096 for v4, 8,960 for v5p, 9,216 for TPU7x. <dfn>Multislice</dfn> runs one job over several slices, which talk over DCN.</p>
+<h2>7. Slices, multislice, and the mesh on the torus</h2>
+<p>A <dfn>host</dfn> is one CPU machine with 4 chips (v4, v5p, TPU7x) or 8 (v5e, v6e), running one JAX process. A <dfn>slice</dfn> is a set of chips joined by ICI, named by its topology: 4x4x8 is 128 chips in a 3D block. A <dfn>cube</dfn> is a 4x4x4 block of 64 chips; v4, v5p and TPU7x build big slices from cubes joined by optical switches, which also provide the wraparound links that make a torus. A <dfn>pod</dfn> is everything one ICI fabric can join: 256 chips for v5e and v6e, 4,096 for v4, 8,960 for v5p, 9,216 for TPU7x. <dfn>Multislice</dfn> runs one job over several slices, which talk over DCN. Each level down is a much slower link:</p>
+<div class="tq-card" id="tq-lvl-card"><h4>Chip, host, slice, multislice on v5p: bandwidth per chip falls by about 86 times at the slice edge</h4>
+<div class="tq-svg" id="tq-lvl"></div>
+<p class="tq-src">v5p numbers: 4 chips per host and 6.25e9 B/s DCN per chip (Cloud's 50 Gbps); six ICI links of 9e10 B/s each way per chip and PCIe 1.6e10 B/s (scaling book) <span class="vend">published</span>. The ratio 86 = 6 x 9e10 &divide; 6.25e9 <span class="der">calculated</span>. Pods and optical switches as hardware: <a href="https://app.notion.com/p/3c65c17b0d0d8151bbc2e0ceea196187" target="_blank" rel="noopener noreferrer">TPUs and other accelerators</a>.</p></div>
+<figure class="tq-fig"><img src="img/tpuv4_racks.webp" alt="A row of eight tall server racks densely cabled with yellow and blue fibre, each holding sixteen TPU v4 trays" loading="lazy" width="1400" height="397">
+<figcaption>Eight of the 64 racks of one 4,096-chip TPU v4 pod. Each rack is one 4x4x4 cube (16 boards of 4 chips, wired as a 3D mesh by cables); the fibre on top runs to the optical switches that join cubes into bigger slices and close the torus.<span class="cr">Jouppi et al. 2023, Figure 3, CC BY 4.0, <a href="https://arxiv.org/abs/2304.01433" target="_blank" rel="noopener noreferrer">arXiv:2304.01433</a></span></figcaption></figure>
+<p><b>The mesh on the torus, measured.</b> <code>jax.make_mesh((data, model), ("data", "model"))</code> calls <code>mesh_utils.create_device_mesh</code>, which maps each logical axis onto whole physical axes, last axis first (<code>jax/_src/mesh_utils.py:815</code>). It only reads device coordinates, so it runs here on mock devices of every topology Cloud lists: 49 slice shapes (48 Cloud lists plus the scaling book's 16x20x28), up to 7 model-axis sizes each. On a v5p 4x4x4 cube a model axis of 4 lands on one physical axis (neighbours 1 hop apart) and 16 on two (2 hops); 2, 8 and 32 are refused, because they are not products of whole 4-chip axes <span class="meas">measured here</span>:</p>
+<pre class="err" id="tq-mesh-err"></pre>
+<p>Use sizes that are products of the slice's sides (4, 16, 64 on a cube), or build the device array yourself (only v5e lets <code>make_mesh</code> split a physical axis, <code>sharding_impls.py</code>, per the root's TPU lab). On TPU7x a model axis of 2 lands on the two TensorCores of one chip, 0 hops apart: the core axis is the fastest link. On a v6e 4x8 slice a single axis of all 32 chips is accepted but runs row by row, so the step from the end of one row to the start of the next is 8 hops on a slice without wraparound. The <a href="#" data-tab="t-slice">Slice planner</a> tab shows JAX's placement for every slice and model-axis size.</p>
+<p><b>Multislice: only the cheapest traffic crosses DCN.</b> With 86 times less bandwidth between slices than inside one, a multislice job puts data parallelism across slices (one gradient reduction per step, overlapped with the backward pass) and everything else inside: MaxText's defaults are <code>dcn_data_parallelism: -1</code>, "recommended DCN axis to be auto-sharded" (<code>configs/base.yml:817</code>), <code>ici_fsdp_parallelism: -1</code> (line 831) and <code>dcn_tensor_parallelism: 1 # never recommended</code> (line 824). Per-device memory and collective bytes for each strategy are on <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>.</p>
+<div class="co warn"><div class="t">The largest v5p slice is not the pod (a cross-check)</div>The scaling book writes the v5p pod as a 16x20x28 "superpod" of 8,960 chips, and Cloud agrees on 8,960 chips (140 cubes). But Cloud's v5p page also says "The largest job that can be scheduled is a 96 cube (6144 chip) job", topology 16x16x24, and "You can scale up to 18432 chips using Multislice". So 16x20x28 is the size of the fabric, not a slice you can request; a plan that needs all 8,960 chips is two or more slices over DCN. (The <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a> page's mesh designer uses 16x20x28 as the scaling book's example; JAX's placement accepts that shape on mock devices, as it accepts any shape.)</div>
+<details class="dp"><summary>Slice names, wraparound and twisted tori <span class="mute">(depth)</span></summary><div class="b">
 <p><b>Names count different things.</b> Cloud's v4 page names slices by TensorCores: "v4-8" is 4 chips. Its v5p table has a Cores column at twice the chips (so the conventional v5p-128 is 64 chips). The v5e, v6e and TPU7x pages list topologies and chip counts. Read the topology string, not the number <span class="vend">published</span>.</p>
 <p><b>Wraparound and twists.</b> On v5p "All 4x4x4 and larger slices (one cube) have full 3D torus connectivity", smaller ones do not; on v5e and v6e an axis wraps only at its full length of 16 (scaling book). Some 3D shapes can be ordered as a <dfn>twisted torus</dfn>: "a 4x4x8 twisted topology provides a 70% theoretical increase in bisection bandwidth" (Cloud v5p page), supported on v4 and v5p where each side is the smallest or twice it.</p>
-<div class="co warn"><div class="t">The largest v5p slice is not the pod (a cross-check)</div>The scaling book writes the v5p pod as a 16x20x28 "superpod" of 8,960 chips, and Cloud agrees on 8,960 chips (140 cubes). But Cloud's v5p page also says "The largest job that can be scheduled is a 96 cube (6144 chip) job", topology 16x16x24, and "You can scale up to 18432 chips using Multislice". So 16x20x28 is the size of the fabric, not a slice you can request; a plan that needs all 8,960 chips in one slice is two or more slices over DCN. (The <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a> page's mesh designer uses 16x20x28 as the scaling book's example; JAX's placement accepts that shape on mock devices, as it accepts any shape.)</div>
-<p><b>The mesh on the torus, measured.</b> <code>jax.make_mesh((data, model), ("data", "model"))</code> calls <code>mesh_utils.create_device_mesh</code>, which maps each logical axis onto whole physical axes, last axis first (<code>jax/_src/mesh_utils.py:815</code>). It only reads device coordinates, so it runs here on mock devices of every topology Cloud lists. Three results, from 49 slice shapes (48 Cloud lists plus the scaling book's 16x20x28) and up to 7 model-axis sizes each:</p>
-<ul class="tight">
-<li>On a v5p 4x4x4 cube a model axis of 4 lands on one physical axis (neighbours 1 hop apart) and 16 on two (2 hops); 2, 8 and 32 are refused, because they are not products of whole 4-chip axes <span class="meas">measured here</span>:</li>
-</ul>
-<pre class="err" id="tq-mesh-err"></pre>
-<ul class="tight">
-<li>On TPU7x a model axis of 2 lands on the two TensorCores of one chip, 0 hops apart: the core axis is the fastest link.</li>
-<li>On a v6e 4x8 slice, a single axis of all 32 chips is accepted, but runs row by row, so the step from the end of one row to the start of the next is 8 hops on a slice without wraparound.</li>
-</ul>
-<p><b>Multislice: only the cheapest traffic crosses DCN.</b> DCN gives a v5p chip 6.25e9 B/s (Cloud's 50 Gbps); ICI gives it six links of 9e10 B/s each way (scaling book), 86 times more in one direction. So a multislice job puts data parallelism across slices (one gradient reduction per step) and everything else inside: MaxText's defaults are <code>dcn_data_parallelism: -1</code>, "recommended DCN axis to be auto-sharded" (<code>configs/base.yml:817</code>), <code>ici_fsdp_parallelism: -1</code> (line 831) and <code>dcn_tensor_parallelism: 1 # never recommended</code> (line 824). The <a href="#" data-tab="t-slice">Slice planner</a> tab puts a model on any slice Cloud lists, with or without multislice, and shows JAX's placement for each model-axis size.</p>
-<div class="deepnote"><b>Go deeper.</b> Per-device memory and collective bytes for each parallelism strategy, measured on 8 simulated devices and checked against the compiler: <a href="https://app.notion.com/p/3c65c17b0d0d8125b084e6720cc66b3d" target="_blank" rel="noopener noreferrer">Sharding and scale</a>. Pods, optical switches and failures from the hardware side: <a href="https://app.notion.com/p/3c65c17b0d0d8151bbc2e0ceea196187" target="_blank" rel="noopener noreferrer">TPUs and other accelerators</a>.</div>
+</div></details>
 </section>
 <section id="s-prof">
-<h2>8. Profiling on a TPU: what the profiler shows</h2>
-<p><b>How to take a profile.</b> Wrap a few steps in <code>with jax.profiler.trace("/tmp/prof"):</code> (or <code>jax.profiler.start_trace</code> / <code>stop_trace</code>), call <code>jax.block_until_ready</code> on the result so the work lands inside the window, and open the directory with XProf (<code>pip install xprof</code>, the successor of the TensorBoard profile plugin). It is the counterpart of <code>torch.profiler</code> plus Nsight Systems, with one difference that changes how you read it: there are no kernel launches, only the compiled XLA program, so every row of the timeline is an HLO operation, usually a <dfn>fusion</dfn> (one matmul plus the elementwise work XLA fused around it).</p>
-<p><b>The views, and the question each answers</b> (tool names from xprof 2.23.2, listed by running it here; what they show on a TPU from the scaling book's profiling chapter <span class="vend">published</span>):</p>
+<h2>8. Profiling on a TPU: predict each fusion, then find the ones that miss</h2>
+<p>Wrap a few steps in <code>with jax.profiler.trace("/tmp/prof"):</code> (or <code>jax.profiler.start_trace</code> / <code>stop_trace</code>), call <code>jax.block_until_ready</code> on the result so the work lands inside the window, and open the directory with XProf (<code>pip install xprof</code>, the successor of the TensorBoard profile plugin). It is the counterpart of <code>torch.profiler</code> plus Nsight Systems, with one difference that changes how you read it: there are no kernel launches, only the compiled XLA program, so every row of the timeline is an HLO operation, usually a <dfn>fusion</dfn> (one matmul plus the elementwise work XLA fused around it).</p>
+<p><b>The habit.</b> The scaling book reads a real trace this way: an MLP up-projection, bf16[8, 1024, 8192] by bf16[8192, 16384] sharded 4-way data parallel and 2-way model parallel on 8 TPU v2 cores, "should" take 2 x 32 x 1024 x 8192 x 32768 &divide; (23e12 x 8) = 95.6 ms "which is pretty much exactly how long it takes (96ms)" <span class="vend">published</span>. Predict each big fusion's time from its shapes with the roofline of <a href="#s-roof">section 3</a>, then look for the ones that miss: those are memory-bound, padded, or waiting.</p>
 <div class="tw"><table class="narrow">
 <thead><tr><th>View</th><th>Answers</th><th>What to look for on a TPU</th></tr></thead>
 <tbody>
-<tr><td>Trace viewer</td><td>What ran when, on each TensorCore and on the host</td><td>Gaps between steps (the host or input pipeline is late); collectives (all-gather, reduce-scatter) sitting on the critical path instead of overlapping a matmul; long copy or transpose fusions (a layout mismatch)</td></tr>
-<tr><td>Op profile, HLO stats</td><td>Which operations take the time, and their FLOP rate</td><td>Big fusions far below peak: memory-bound (check their shapes against <a href="#s-roof">section 3</a>) or padded (<a href="#s-pad">section 4</a>)</td></tr>
+<tr><td>Trace viewer</td><td>What ran when, on each TensorCore and on the host</td><td>Gaps between steps (the host or input pipeline is late); collectives (all-gather, reduce-scatter) on the critical path instead of overlapping a matmul; long copy or transpose fusions (a layout mismatch)</td></tr>
+<tr><td>Op profile, HLO stats</td><td>Which operations take the time, and their FLOP rate</td><td>Big fusions far below peak: memory-bound (<a href="#s-roof">section 3</a>) or padded (<a href="#s-pad">section 4</a>)</td></tr>
 <tr><td>Graph viewer</td><td>Which operations feed which, with shardings</td><td>Where an unexpected all-gather comes from</td></tr>
 <tr><td>Memory profile, memory viewer</td><td>HBM over the step and at the peak</td><td>What is live at the peak (the residuals of <a href="#s-mem">section 6</a>), and padding</td></tr>
 <tr><td>Overview, input pipeline analyser</td><td>Step time split into compute, waiting for input, and idle</td><td>A step that is input-bound is fixed in the data loader, not in the model</td></tr>
 </tbody></table></div>
-<p><b>Read a profile against a roofline.</b> The scaling book does this on a real trace: an MLP up-projection, bf16[8, 1024, 8192] by bf16[8192, 16384] sharded 4-way data parallel and 2-way model parallel on 8 TPU v2 cores, "should" take 2 x 32 x 1024 x 8192 x 32768 &divide; (23e12 x 8) = 95.6 ms "which is pretty much exactly how long it takes (96ms)" <span class="vend">published</span>. That is the habit to build: predict each big fusion's time from its shapes, then look for the ones that miss. Its HLO line shows the layout notation of <a href="#s-pad">section 4</a>: <code>bf16[32,32,4096]{2,1,0:T(8,128)(2,1)S(1)}</code>.</p>
-<p><b>What a CPU can and cannot teach here.</b> On this machine <code>jax.profiler.trace</code> works and xprof converts the trace, but its TPU-oriented views come back empty on a CPU trace (the HLO stats have 0 rows, the op profile and memory profile are empty: measured by the <a href="https://app.notion.com/p/3fa5c17b0d0d8135adcedefac9e1bb48" target="_blank" rel="noopener noreferrer">XLA and compilation</a> page, whose Profile reader tab walks the running example's CPU trace). So the TPU views above are described from published material, labelled, and not run here.</p>
+<p class="tq-src">Tool names from xprof 2.23.2, listed by running it here; what they show on a TPU from the scaling book's profiling chapter <span class="vend">published</span>. Not run here: on a CPU <code>jax.profiler.trace</code> works and xprof converts the trace, but its TPU views come back empty (the HLO stats have 0 rows, the op profile and memory profile are empty: measured by the <a href="https://app.notion.com/p/3fa5c17b0d0d8135adcedefac9e1bb48" target="_blank" rel="noopener noreferrer">XLA and compilation</a> page, whose Profile reader tab walks the running example's CPU trace).</p>
 </section>
 
 <section id="s-mfu">
-<h2>9. MFU, and the attention FLOPs inside it</h2>
-<p><b>The definition.</b> Model FLOPs utilisation is the FLOPs the model needs per step divided by step time x peak FLOP/s; equivalently, measured tokens per second divided by the tokens per second peak would allow (MaxText's <code>docs/reference/performance_metrics.md</code>; the general treatment is on <a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a>). "Model" FLOPs means what the architecture needs, not what the program executes: rematerialisation adds hardware FLOPs (28% on the running example, <a href="#s-mem">section 6</a>) but no model FLOPs, so it lowers MFU.</p>
-<p><b>How MaxText counts.</b> <code>calculate_tflops_training_per_device</code> (<code>src/maxtext/utils/maxtext_utils.py:1152</code>) sums 2 x m x k x n for every weight matmul (MLP, q/k/v and output projections, the output head), triples it for forward plus backward, and adds attention as 4 x sequence<sup>2</sup> x heads x head size per layer and sequence, tripled, then halved for causal masking (<code>causal_attention_flops = noncausal_attention_flops / 2</code>, line 1217). The halving arrived with MaxText pull request 1988; its tiering page warns that "Some older TFLOPS/s results are impacted by an updated calculation for causal attention" <span class="vend">published</span>.</p>
+<h2>9. MFU and cost per token: ask how attention was counted</h2>
+<p><b>The definition.</b> Model FLOPs utilisation is the FLOPs the model needs per step divided by step time x peak FLOP/s; equivalently, measured tokens per second over the tokens per second peak would allow (MaxText's <code>docs/reference/performance_metrics.md</code>; the general treatment is on <a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a>). "Model" FLOPs means what the architecture needs, not what the program executes: rematerialisation adds hardware FLOPs (28% on the running example) but no model FLOPs, so it lowers MFU.</p>
+<p><b>How MaxText counts.</b> <code>calculate_tflops_training_per_device</code> (<code>src/maxtext/utils/maxtext_utils.py:1152</code>) sums 2 x m x k x n for every weight matmul, triples it for forward plus backward, and adds attention as 4 x sequence<sup>2</sup> x heads x head size per layer and sequence, tripled, then halved for causal masking (<code>causal_attention_flops = noncausal_attention_flops / 2</code>, line 1217). The halving arrived with MaxText pull request 1988; its tiering page warns that "Some older TFLOPS/s results are impacted by an updated calculation for causal attention" <span class="vend">published</span>.</p>
 <p><b>What we found.</b> We ported that function line by line, fed it each model's MaxText config, and multiplied by the published tokens per second per chip. Six of the eight published MFUs come back within a quarter of a point only when attention is counted the old, non-causal way; counted causally, as the current code does, every one is lower, by 0.8 to 5.1 points <span class="der">calculated from published numbers</span>:</p>
+<div class="tq-card" id="tq-mfu-card"><h4>The published MFU matches the old, non-causal count, not the current one</h4>
 <div class="tq-svg" id="tq-mfu-svg"></div>
-<p class="tq-src">Published MFU and approximate tokens/s per device from MaxText's <code>docs/reference/models/tiering.md</code> at 1a95d1e5 (undated; read 2026-10-15). Peaks 918 TFLOP/s (v6e) and 459 (v5p). The two that do not reproduce: Llama 2 70B on v5p (67.0% non-causal against 65.4% published; its tokens/s is "approx") and Llama 3.1 405B on v6e (35.2% against 38.55%: unexplained). Details per row, and a calculator for your own run, on the <a href="#" data-tab="t-mfu">MFU calculator</a>.</p>
-<p><b>Why it matters.</b> The gap grows with sequence length: at 8,192 tokens, Llama 3.1 8B's attention is 13% of its FLOPs counted causally and 22% non-causally, so the same run reads as 40.4% or 45.5%. When you compare an MFU across codebases, or against a GPU number, ask how attention was counted; MaxText's own docs say the same ("Care needs to be token to compare MFU across codebases", sic).</p>
-</section>
-
-<section id="s-cost">
-<h2>10. Cost per token, TPU against GPU</h2>
-<p>Dollars per million training tokens = price per chip-hour &divide; (tokens per second per chip x 3,600) x 10<sup>6</sup>. With published throughput and list prices it gives a rough, honest comparison <span class="der">calculated</span>:</p>
+<p class="tq-src">Published MFU and approximate tokens/s per device from MaxText's <code>docs/reference/models/tiering.md</code> at 1a95d1e5 (undated; read 2026-10-15). Peaks 918 TFLOP/s (v6e) and 459 (v5p). The two that do not reproduce: Llama 2 70B on v5p (67.0% non-causal against 65.4% published; its tokens/s is "approx") and Llama 3.1 405B on v6e (35.2% against 38.55%: unexplained).</p></div>
+<p>The gap grows with sequence length: at 8,192 tokens, Llama 3.1 8B's attention is 13% of its FLOPs counted causally and 22% non-causally, so the same run reads as 40.4% or 45.5%. When you compare an MFU across codebases, or against a GPU number, ask for the FLOP formula and which peak it divided by (dense bf16, not sparse or fp8), or compare tokens per second per chip on the same model and sequence length. MaxText's own docs say the same ("Care needs to be token to compare MFU across codebases", sic). Compute your own run's MFU three ways:</p>
+<div class="tq-card" id="tq-f-card">
+<h4>Your run: one throughput, three MFUs</h4>
+<div class="tq-ctl"><label>Model <select id="tq-f-model"></select></label><label>Sequence <select id="tq-f-seq"><option>2048</option><option selected>4096</option><option>8192</option><option>32768</option><option>131072</option></select></label>
+<label>Hardware <select id="tq-f-hw"></select></label></div>
+<div class="tq-ctl"><label>Measure <select id="tq-f-meas"><option value="tok">tokens/s per chip</option><option value="step">step time, batch and chips</option></select></label>
+<label id="tq-f-tokl">Tokens/s per chip <input type="number" id="tq-f-tok" value="900" min="0"></label>
+<span id="tq-f-stepl" hidden><label>Step time, s <input type="number" id="tq-f-step" value="18.2" min="0" step="any"></label> <label>Sequences per step <input type="number" id="tq-f-bs" value="1024" min="1"></label> <label>Chips <input type="number" id="tq-f-chips" value="256" min="1"></label></span></div>
+<div class="tq-cnt" id="tq-f-out"></div>
+<p class="tq-src" id="tq-f-note"></p>
+<p class="tq-src">FLOP counter: MaxText's <code>calculate_tflops_training_per_device</code> at 1a95d1e5, ported line by line (<code>src/runs/tq_mfu.py</code>), fed each model's shapes from MaxText's own configs; every MFU and dollar figure <span class="der">calculated</span>.</p>
+</div>
+<p><b>Cost per token.</b> Dollars per million training tokens = price per chip-hour &divide; (tokens per second per chip x 3,600) x 10<sup>6</sup>. At list prices the 405B comparison is a tie within the error bars, $6.10 per million tokens on v6e against $6.51 on H100 <span class="der">calculated</span>. The lesson is not that one is cheaper: the answer moves with the price you negotiate, the MFU you reach and how its FLOPs were counted, each by tens of percent. Price your own run with your own measured tokens per second.</p>
+<details class="dp"><summary>MaxText's eight published runs, recomputed, and the cost table <span class="mute">(tables)</span></summary><div class="b">
+<div class="tw" id="tq-f-tab"></div>
+<p class="tq-src">Click a row for its FLOP breakdown. "Implied FLOPs per token" = published MFU x peak &divide; published tokens/s per device: what MaxText must have counted. "Non-causal" counts attention as 4 S<sup>2</sup> heads x head size per layer and sequence, tripled (MaxText before pull request 1988); "causal" halves it (current code, line 1217). Tokens/s are "approx" in the source, so a 1 to 2% residual is rounding.</p>
+<div id="tq-f-det"></div>
 <div class="tw" id="tq-cost"></div>
 <p class="tq-src">TPU rows: MaxText's published tokens/s per device (synthetic-data benchmarks) and Google Cloud's on-demand price in its first listed region, read 2026-10-15. GPU row: Llama 3 405B pre-training on 8,192 H100s at 430 TFLOP/s per GPU and 43% BF16 MFU (Meta, <a href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener noreferrer">Llama 3 paper, Table 4</a>), converted to tokens/s with MaxText's causal count for the same model, priced at Lambda's on-demand $3.99 per H100-hour (<a href="https://lambda.ai/pricing" target="_blank" rel="noopener noreferrer">lambda.ai/pricing</a>, read 2026-10-15; Meta owns its GPUs, so this is what the run would cost a renter). Commitments cut the TPU prices by 30% (one year) to 55% (three years); GPU clouds discount too.</p>
-<p>At list prices the 405B comparison is a tie within the error bars, $6.10 per million tokens on v6e against $6.51 on H100. The lesson is not that one is cheaper: it is that the answer moves with the price you negotiate, the MFU you reach and how its FLOPs were counted, each by tens of percent. Price your own run with your own measured tokens per second.</p>
+</div></details>
 </section>
-<section id="s-free">
-<h2>11. Free and cheap access</h2>
+<section id="s-depth">
+<h2>Depth: errors, access, rehearsal, provenance</h2>
+<details class="dp"><summary>The real error when a mesh counts chips but JAX counts TensorCores <span class="mute">(TPU7x)</span></summary><div class="b">
+<p>On TPU7x every TensorCore is a JAX device, so one 4-chip host is 8 devices and a mesh written for chips fails <span class="meas">measured here, mock devices</span>:</p>
+<pre class="err" id="tq-err-7x"></pre>
+<p>Read <code>jax.device_count()</code>, never the slice name; and remember v4-8 is 4 chips.</p></div></details>
+<details class="dp"><summary>Free and cheap access <span class="mute">(read 2026-10-15)</span></summary><div class="b">
 <div class="tw"><table class="narrow">
-<thead><tr><th>Route</th><th>What the primary source says (read 2026-10-15)</th><th>Status</th></tr></thead>
+<thead><tr><th>Route</th><th>What the primary source says</th><th>Status</th></tr></thead>
 <tbody>
 <tr><td><a href="https://sites.research.google/trc/about/" target="_blank" rel="noopener noreferrer">TPU Research Cloud</a> (TRC)</td><td>Accepted researchers get Cloud TPUs "at no charge" from "a cluster of more than 1,000 Cloud TPU devices", in return for sharing their work and giving feedback; quota is granted "on a temporary basis"; the VM, storage and other Google Cloud services are not free. No generations or duration are named</td><td><span class="tq-ok">confirmed</span></td></tr>
 <tr><td><a href="https://research.google.com/colaboratory/faq.html" target="_blank" rel="noopener noreferrer">Google Colab</a></td><td>"The types of GPUs and TPUs that are available in Colab vary over time"; "Colab does not publish these limits"; free notebooks "can run for at most 12 hours"</td><td><span class="tq-ok">confirmed</span> (that nothing is promised)</td></tr>
 <tr><td><a href="https://www.kaggle.com/docs/tpu" target="_blank" rel="noopener noreferrer">Kaggle</a></td><td>Kaggle's TPU page renders only in a browser and could not be read. Third-party guides say 20 hours a week and 9-hour sessions and disagree on the chip (TPU v3-8, or v5e-8 in a 2025 article); the scaling book says Kaggle "still provides" free 8-core slices. Your remaining quota shows in Kaggle's settings</td><td><span class="unc">unconfirmed</span></td></tr>
 <tr><td>Cloud, cheapest paid</td><td>Per chip-hour on v5e: $1.20 on demand, $0.60 with Dynamic Workload Scheduler Flex-start, $0.54 on a three-year commitment (us-central1)</td><td><span class="vend">published</span> price list</td></tr>
 </tbody></table></div>
-<p>The practical loop, which this whole topic follows: develop and test on CPU (everything traces and compiles the same way, and 8 simulated devices give you real meshes and collectives), then take the program to a TPU only to measure speed and memory, profiling before scaling.</p>
-</section>
-
-<section id="s-mist">
-<h2>Common mistakes, with the real messages</h2>
-<details class="mist"><summary>Testing matmul precision on a CPU</summary><div class="b">Every precision setting is accepted and ignored on CPU (the docstring says so: "Has no impact on CPU backends"), so a test that passes at 1e-5 on your laptop can fail on a TPU, where DEFAULT runs one bf16 pass. Measured here: identical results for nine settings; only TF32 is refused: <pre class="err" id="tq-err-tf32"></pre> Fix: set <code>precision="highest"</code> in numerical tests, or emulate the passes as <a href="#s-prec">section 5</a> does.</div></details>
-<details class="mist"><summary>A mesh axis that is not a product of whole physical axes</summary><div class="b"><code>jax.make_mesh</code> places each logical axis on whole torus axes; on a 4x4x4 v5p cube a model axis of 8 has nowhere to go: <pre class="err" id="tq-err-mesh"></pre> Fix: use sizes that are products of the slice's sides (4, 16, 64 on a cube), or build the device array yourself (only v5e lets <code>make_mesh</code> split a physical axis, <code>sharding_impls.py</code>, per the root's TPU lab).</div></details>
-<details class="mist"><summary>Counting chips when JAX counts TensorCores</summary><div class="b">On TPU7x every TensorCore is a JAX device, so one 4-chip host is 8 devices and a mesh written for chips fails: <pre class="err" id="tq-err-7x"></pre> Read <code>jax.device_count()</code>, never the slice name; and remember v4-8 is 4 chips.</div></details>
-<details class="mist"><summary>Expecting decode to use the MXUs</summary><div class="b">A decode step reads every weight to produce one token per sequence. Below the ridge point (240 sequences per v5e chip, 560 per v6e) the step time is the weight bytes over HBM bandwidth, whatever the peak; attention over the KV cache is memory-bound at any batch. Measure tokens per second against the <a href="#s-roof">decode bound</a>, not against peak FLOP/s.</div></details>
-<details class="mist"><summary>Small or odd dimensions</summary><div class="b">A head size of 64 fills half a 128-wide MXU and a quarter of a 256-wide one; a last dimension of 65 is stored as 128. Nothing errors; the step is just slower and bigger. Check the shapes against <a href="#s-pad">section 4</a> before choosing a model for a TPU.</div></details>
-<details class="mist"><summary>float32 activations "because PyTorch was float32"</summary><div class="b">On a TPU the matmuls round to bf16 anyway (DEFAULT precision), but float32 activations double the bytes of every memory-bound operation and of the residuals kept for the backward pass. MaxText computes in bfloat16 and keeps float32 master weights (<code>dtype: "bfloat16"</code>, <code>weight_dtype: "float32"</code>).</div></details>
-<details class="mist"><summary>Comparing MFU numbers without asking how attention was counted</summary><div class="b">The same run reads 40.4% or 45.5% MFU depending on whether causal attention is counted as half (<a href="#s-mfu">section 9</a>). Ask for the FLOP formula, or compare tokens per second per chip on the same model and sequence length.</div></details>
-<details class="mist"><summary>Planning a single slice the size of the pod</summary><div class="b">v5p's pod is 8,960 chips, but Cloud schedules at most 6,144 in one slice; beyond that you are on Multislice, with DCN between slices (<a href="#s-slice">section 7</a>).</div></details>
-</section>
-
-<section id="s-int">
-<h2>Interview questions</h2>
-<details class="qa"><summary>What is the critical batch size of a TPU, and why does it differ between v5e and v6e?</summary><div>The number of tokens per chip above which a bf16 weight matmul becomes compute-bound: peak FLOP/s &divide; HBM bandwidth, because the intensity of [B, D] x [D, F] is about B. v5e: 240; v6e: 560, because Trillium's peak grew 4.7 times and its bandwidth 2 times. Int8 weights with bf16 compute halve it.</div></details>
-<details class="qa"><summary>Your JAX model matches PyTorch to 1e-6 on CPU and to 1e-2 on TPU. What happened?</summary><div>TPU DEFAULT precision computes float32 matmuls as one bf16 pass; the CPU ignores precision. Emulated on the running example, one pass moves logits by up to 0.096. Use <code>jax.default_matmul_precision("highest")</code> (6 passes) in the comparison test, and decide separately what precision training needs.</div></details>
-<details class="qa"><summary>Why do production models use a head size of 128 and widths in multiples of 128 or 256?</summary><div>The MXU is a 128 x 128 (or 256 x 256 on v6e and TPU7x) systolic array and HBM arrays are stored in 8 x 128 tiles; smaller or odd sizes are padded, wasting MXU cycles and bytes. Head size 64 is half a 128 MXU.</div></details>
-<details class="qa"><summary>What does rematerialisation cost and buy, and how do you choose a policy?</summary><div>It recomputes forward values in the backward pass instead of storing them. On the running example full remat cut residuals 17-fold for 28% more FLOPs; saving only matmul outputs cost 5% for a 2.7-fold cut. Choose the cheapest policy that fits HBM at the batch you need for the roofline; on TPU you can also offload named residuals to host memory over PCIe.</div></details>
-<details class="qa"><summary>Why does multislice training put only data parallelism on DCN?</summary><div>DCN gives a v5p chip 6.25e9 B/s against six ICI links of 9e10 B/s each way. Data parallelism needs one gradient reduction per step, which overlaps with the backward pass; FSDP and tensor parallelism need collectives inside every layer. MaxText's defaults encode it: <code>dcn_data_parallelism: -1</code>, <code>dcn_tensor_parallelism: 1 # never recommended</code>.</div></details>
-<details class="qa"><summary>A run reports 50% MFU on TPU and another 43% on GPU. Which is better?</summary><div>Unknown until you know how each counted FLOPs (causal attention halved or not, embeddings included or not) and which peak it divided by (dense bf16, not sparse or fp8). Compare tokens per second per chip on the same model and sequence length, then cost per token at your prices.</div></details>
-<details class="qa"><summary>Design: you must pre-train a 70B dense model on about 2 trillion tokens within 30 days. Choose a TPU generation and slice, and say how you would shard it.</summary><div>Compute: about 6 x 70.6e9 x 2e12 = 8.5e23 FLOPs, plus attention. At 45% MFU a v5p chip delivers 0.45 x 459e12 = 2.1e14 FLOP/s, so 30 days needs about 1,580 v5p chips; a v6e chip 4.1e14 FLOP/s, about 790 chips, but v6e pods stop at 256, so that is four slices over DCN. State: 70.6B x 16 bytes = 1.13 TB, 12 v5p chips' worth or 36 v6e chips' worth, fine at either size once sharded. Choice: one v5p slice of 2,048 chips (8x16x16, inside the 6,144-chip limit), FSDP over most of the slice with a small tensor-parallel axis on one torus axis (sizes that are products of physical axes), remat policy chosen to fit 95 GiB at a per-chip batch above the ridge (166 tokens), bf16 compute and float32 master weights; check the step against the roofline and the MFU calculator, then compare the price against v6e multislice at your negotiated rates.</div></details>
-</section>
-
-<section id="s-old">
-<h2>What changed from the old page</h2>
+<p>The practical loop this whole topic follows: develop and test on CPU (everything traces and compiles the same way, and 8 simulated devices give you real meshes and collectives), then take the program to a TPU only to measure speed and memory, profiling before scaling.</p></div></details>
+<details class="dp"><summary>Interview rehearsal: two design questions <span class="mute">(optional)</span></summary><div class="b">
+<p><b>You must pre-train a 70B dense model on about 2 trillion tokens within 30 days. Choose a TPU generation and slice, and say how you would shard it.</b> Compute: about 6 x 70.6e9 x 2e12 = 8.5e23 FLOPs, plus attention. At 45% MFU a v5p chip delivers 0.45 x 459e12 = 2.1e14 FLOP/s, so 30 days needs about 1,580 v5p chips; a v6e chip 4.1e14 FLOP/s, about 790 chips, but v6e pods stop at 256, so that is four slices over DCN. State: 70.6B x 16 bytes = 1.13 TB, 12 v5p chips' worth or 36 v6e chips' worth, fine at either size once sharded. Choice: one v5p slice of 2,048 chips (8x16x16, inside the 6,144-chip limit), FSDP over most of the slice with a small tensor-parallel axis on one torus axis (sizes that are products of physical axes), remat policy chosen to fit 95 GiB at a per-chip batch above the ridge (166 tokens), bf16 compute and float32 master weights; check the step against the roofline and the MFU calculator, then compare the price against v6e multislice at your negotiated rates.</p>
+<p><b>A run reports 50% MFU on TPU and another 43% on GPU. Which is better?</b> Unknown until you know how each counted FLOPs (causal attention halved or not, embeddings included or not) and which peak it divided by (dense bf16, not sparse or fp8). Compare tokens per second per chip on the same model and sequence length, then cost per token at your prices.</p></div></details>
+<details class="dp"><summary>What changed from the old page <span class="mute">(provenance)</span></summary><div class="b">
 <p>This page reuses the old Notion page "TPU architecture and Pallas" (saved verbatim in <code>src/live.md</code>). Pallas moved to <a href="https://app.notion.com/p/3fa5c17b0d0d817699fcf65d085402e7" target="_blank" rel="noopener noreferrer">Pallas kernels</a>; every other claim was checked: the full list is in <code>src/coverage.md</code>. The corrections:</p>
 <ul class="tight">
 <li>VMEM "tens of MB (128 MB on newer chips)": per TensorCore 16 MiB (v4), 128 (v5e, v6e), 64 (v5p, TPU7x), not monotonic by generation (<code>tpu_info.py</code>).</li>
 <li>"v7 Ironwood, GA Apr 2026": Cloud's TPU7x page (2026-10-13) calls it "the latest TPU available on Google Cloud" and gives no GA date; unconfirmed. "&gt;4x v6e per chip" is not a bf16 ratio: 2,307 &divide; 918 = 2.5x in bf16, 5.0x comparing TPU7x fp8 with v6e bf16.</li>
 <li>v4 "2021": deployed in 2020, announced 2021 (the root page).</li>
-<li>Colab "a single v5e chip", Kaggle "free v5e-8, roughly 20 h/month", TRC "about 30 days, v2-8/v3-8 up to v4/v5e": none is stated by a primary source; see <a href="#s-free">section 11</a>.</li>
+<li>Colab "a single v5e chip", Kaggle "free v5e-8, roughly 20 h/month", TRC "about 30 days, v2-8/v3-8 up to v4/v5e": none is stated by a primary source (see free access above).</li>
 <li>"MXU does one 128x128 matmul per cycle-ish": an MXU is 256 x 256 on v6e and TPU7x, and the published peaks do not reconcile with side<sup>2</sup> multiply-adds per cycle at any published clock for those two (root's TPU lab); kept as unconfirmed.</li>
 <li>Added: low-precision peaks by generation, DCN, the largest schedulable slice, prices, matmul precision measured, remat measured, MFU recomputed, cost per token.</li>
-</ul>
+</ul></div></details>
 </section>
 </div>
 <div class="tab" id="t-roof" role="tabpanel" hidden>
@@ -428,31 +469,7 @@ The running example is the root page's tiny character-level transformer (826,368
 <div class="tq-ctl"><label>m <input type="number" id="tq-r-m" value="8192" min="1"></label><label>k <input type="number" id="tq-r-k" value="8192" min="1"></label><label>n <input type="number" id="tq-r-nn" value="28672" min="1"></label><label>batch copies <input type="number" id="tq-r-bb" value="1" min="1"></label>
 <label>dtype <select id="tq-r-od"><option value="bf16">bf16</option><option value="int8">int8 x int8</option><option value="w8">int8 weights, bf16 compute</option><option value="f32">float32 (HIGHEST, 6 passes)</option></select></label></div>
 <div class="tw" id="tq-r-otab"></div>
-<p class="tq-src">Default: Llama 3.1 70B's MLP up-projection for one 8,192-token sequence. int8 x int8 uses the int8 peak (v4: the same as bf16; v5p and TPU7x: the scaling book's figure); float32 at HIGHEST is modelled as 6 bf16 passes over float32 bytes; padding to the MXU is not included (the <a href="#" data-tab="t-tile">Tiles and padding</a> tab does that).</p>
-</div>
-</div>
-<div class="tab" id="t-tile" role="tabpanel" hidden>
-<h2 style="margin-top:14px">Tiles and padding</h2>
-<p>How a TPU stores an array, and what an awkward shape costs. The rules come from XLA's <code>docs/tiled_layout.md</code> at the pinned commit 91888df6 <span class="vend">published</span>: 8 x 128 tiles, 2 x 128 or 4 x 128 when the second-to-last dimension is at most 2 or 4, and for 16-bit and 8-bit types a second level that packs 2 or 4 rows into each 32-bit word. Everything on this tab is <span class="der">calculated</span> from those rules for a row-major array (XLA may choose another dimension order to avoid padding). Reading <a href="#" data-tab="t-read">section 4</a> explains why it matters.</p>
-
-<div class="tq-card" id="tq-t-card">
-<h4>The same array, before and after tiling</h4>
-<div class="tq-ctl"><label>Array <select id="tq-t-pre"></select></label>
-<label>rows <input type="number" id="tq-t-r" min="1" value="128"></label><label>cols <input type="number" id="tq-t-c" min="1" value="65"></label>
-<label>dtype <select id="tq-t-dt"><option value="4">float32</option><option value="2" selected>bf16</option><option value="1">int8</option></select></label></div>
-<div class="tq-svg" id="tq-t-svg"></div>
-<div class="an-ctl" id="tq-t-ctl"></div>
-<div class="tq-cap" id="tq-t-cap"></div>
-<div class="tq-cnt" id="tq-t-cnt"></div>
-</div>
-
-<div class="tq-card" id="tq-m-card">
-<h4>A matmul on the MXU: how much of the array does useful work</h4>
-<div class="tq-ctl"><label>m (rows of activations) <input type="number" id="tq-m-m" min="1" value="4096"></label><label>k <input type="number" id="tq-m-k" min="1" value="128"></label><label>n <input type="number" id="tq-m-n" min="1" value="65"></label>
-<label>Preset <select id="tq-m-pre"></select></label></div>
-<div class="tq-two"><div><div class="tq-svg" id="tq-m-svg128"></div></div><div><div class="tq-svg" id="tq-m-svg256"></div></div></div>
-<div class="tw" id="tq-m-tab"></div>
-<p class="tq-src">The weight [k, n] is cut into MXU-sized tiles (128 x 128 on v4, v5e, v5p; 256 x 256 on v6e and TPU7x); the grey part of each picture is padding the array multiplies as zeros. Activation rows stream through in groups of 8 (sublanes), so m is padded to a multiple of 8. Utilisation = m k n &divide; (pad<sub>8</sub>(m) pad<sub>S</sub>(k) pad<sub>S</sub>(n)), an upper bound that ignores the time to load each weight tile and assumes the compiler does not repack shapes. The root page's <a href="https://app.notion.com/p/3c65c17b0d0d81ecbc04eea6aa45ea1a" target="_blank" rel="noopener noreferrer">TPU and Pallas lab</a> animates the tiles streaming through, cycle by cycle in spirit.</p>
+<p class="tq-src">Default: Llama 3.1 70B's MLP up-projection for one 8,192-token sequence. int8 x int8 uses the int8 peak (v4: the same as bf16; v5p and TPU7x: the scaling book's figure); float32 at HIGHEST is modelled as 6 bf16 passes over float32 bytes; padding to the MXU is not included (Reading <a href="#" data-tab="t-read">section 4</a> does that).</p>
 </div>
 </div>
 <div class="tab" id="t-slice" role="tabpanel" hidden>
@@ -474,36 +491,14 @@ The running example is the root page's tiny character-level transformer (826,368
 <p class="tq-src">Each row ran <code>jax._src.mesh_utils.create_device_mesh</code> (jax-v0.11.2, the function <code>jax.make_mesh</code> calls) on mock devices with this slice's coordinates (<code>src/runs/tq_slices.py</code>). "Hops" is the largest ICI distance between neighbours on the model axis, counting wraparound where the slice has it (full cubes on 3D slices; an axis of 16 on v5e and v6e). Refused sizes raise <code>NotImplementedError</code> because they are not products of whole physical axes. On TPU7x the devices are TensorCores, two per chip. The 12-byte state option models bf16 weights and gradients (4 bytes) plus float32 Adam moments (8): add 4 more if you keep a float32 master copy.</p>
 </div>
 </div>
-<div class="tab" id="t-mfu" role="tabpanel" hidden>
-<h2 style="margin-top:14px">MFU calculator</h2>
-<p>MFU from published throughput, the way MaxText counts it. The FLOP counter is MaxText's <code>calculate_tflops_training_per_device</code> (<code>src/maxtext/utils/maxtext_utils.py:1152</code> at 1a95d1e5) ported line by line (<code>src/runs/tq_mfu.py</code>), fed each model's shapes from MaxText's own configs; the published rows are from its tiering page <span class="vend">published</span>; every MFU and dollar figure is <span class="der">calculated</span>. Reading <a href="#" data-tab="t-read">section 9</a> explains why two columns.</p>
-<div class="tq-card">
-<h4>MaxText's published runs, recomputed</h4>
-<div class="tw" id="tq-f-tab"></div>
-<p class="tq-src">Click a row for its FLOP breakdown. "Implied FLOPs per token" = published MFU x peak &divide; published tokens/s per device: what MaxText must have counted. "Non-causal" counts attention as 4 S<sup>2</sup> heads x head size per layer and sequence, tripled for forward and backward (MaxText before pull request 1988); "causal" halves it (current code, line 1217). Tokens/s are "approx" in the source, so a 1 to 2% residual is rounding.</p>
-<div id="tq-f-det"></div>
-</div>
-<div class="tq-card">
-<h4>Your run</h4>
-<div class="tq-ctl"><label>Model <select id="tq-f-model"></select></label><label>Sequence <select id="tq-f-seq"><option>2048</option><option selected>4096</option><option>8192</option><option>32768</option><option>131072</option></select></label>
-<label>Hardware <select id="tq-f-hw"></select></label></div>
-<div class="tq-ctl"><label>Measure <select id="tq-f-meas"><option value="tok">tokens/s per chip</option><option value="step">step time, batch and chips</option></select></label>
-<label id="tq-f-tokl">Tokens/s per chip <input type="number" id="tq-f-tok" value="900" min="0"></label>
-<span id="tq-f-stepl" hidden><label>Step time, s <input type="number" id="tq-f-step" value="18.2" min="0" step="any"></label> <label>Sequences per step <input type="number" id="tq-f-bs" value="1024" min="1"></label> <label>Chips <input type="number" id="tq-f-chips" value="256" min="1"></label></span></div>
-<div class="tq-cnt" id="tq-f-out"></div>
-<p class="tq-src" id="tq-f-note"></p>
-</div>
-</div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more">
 <p class="lead">This page's tabs, the knowledge base pages it leans on, and the best outside resources, each with an approximate time. Outside sources are marked <b>Google</b> (written by the makers of JAX, XLA or the TPU: authoritative on how things work, not neutral on whether to use them) or <b>third-party</b>. Links checked on 2026-10-15.</p>
 <h3>This page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>The chip from the program's side, five generations' published numbers and their disagreements, rooflines for training and decode, tiles and padding, matmul precision measured, memory and rematerialisation measured, slices and multislice, profiling, MFU recomputed, cost per token, free access, mistakes, interview questions. <span class="rt" id="tq-rt">about 40 min, plus 10 for the animations and answers</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>The chip from the program's side (with photos), the generations as targets, rooflines for training and decode, tiles and padding, matmul precision measured, memory and rematerialisation measured, slices and multislice, profiling, MFU recomputed with a calculator for your run, cost per token; depth in closed blocks. <span class="rt" id="tq-rt">about 27 min, plus 13 in closed details</span></p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-roof">Roofline lab</a></div><p>A 7B layer, a decode step with a KV cache (with the scaling book's quiz as a preset), the running example's step and your own matmul on any generation's roofline. <span class="rt">about 10 min, longer to explore</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-tile">Tiles and padding</a></div><p>The same array before and after XLA's TPU tiling, with bf16 and int8 packing, and the MXU utilisation of any matmul on 128 and 256 arrays. <span class="rt">about 6 min</span></p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-slice">Slice planner</a></div><p>Every slice Cloud lists, Multislice, a model and a batch: state per chip, tokens per chip against the ridge, step time, run length and cost, DCN time, and JAX's own placement of each model-axis size. <span class="rt">about 8 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-mfu">MFU calculator</a></div><p>MaxText's eight published runs recomputed with its own FLOP counter, causal and not; your own run's MFU and cost per token on TPU or GPU. <span class="rt">about 6 min</span></p></div>
 </div>
 <h3>The parent topic and its sibling pages</h3>
 <div class="grid">
@@ -540,9 +535,9 @@ The running example is the root page's tiny character-level transformer (826,368
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab (Topic: evaluation-and-llm-judges): shared helpers, copied from Topic: benchmarks and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -573,7 +568,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -810,7 +805,211 @@ window.TQU=(function(){
   const gp=D.mfu.gpu;CR.push({name:'Llama 3 405B',hw:'H100 (8,192 GPUs, Meta)',tok:gp.tok_s_gpu,price:gp.price,usd:gp.usd_per_mtok,mfu:gp.mfu});
   U.table($('tq-cost'),[['Model',r=>E(r.name)],['Hardware',r=>E(r.hw)],['Tokens/s per chip',r=>U.fmt(r.tok),'num',r=>r.tok],['MFU as reported',r=>U.pct(r.mfu,1),'num',r=>r.mfu],['$ per chip-hour',r=>'$'+U.fmt(r.price,2),'num',r=>r.price],['$ per million tokens',r=>'$'+U.fmt(r.usd,2)+' <span class="der">calc</span>','num',r=>r.usd]],CR);
   // mistakes
-  $('tq-err-tf32').textContent=D.errors.tf32;$('tq-err-mesh').textContent=D.slice_err;$('tq-err-7x').textContent=D.errors.tpu7x_4;
+  $('tq-err-7x').textContent=D.errors.tpu7x_4;
+})();
+</script>
+<script>/* 25_js_rd_hero.js */
+// ---- Reading: the hero (one chip as the program meets it, per generation) and section 7's level diagram (chip, host, slice, multislice) ----
+// Static annotated diagrams drawn at the measured width; every number comes from window.TQ (gens.json), nothing is typed here except SMEM 1 MiB (tpu_info.py).
+(function(){
+  const U=window.TQU,G=U.G,$=id=>document.getElementById(id),gl=U.label;
+  if(!$('tq-hero'))return;
+  const ACC='var(--acc)';
+  const box=(x,y,w,h,o)=>{o=o||{};return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(0,w).toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="'+(o.rx||6)+'" fill="'+(o.fill||'var(--soft)')+'" stroke="'+(o.st||'var(--line)')+'" stroke-width="'+(o.sw||1)+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>'};
+  const T=(x,y,s,o)=>U.tx(x,y,s,Object.assign({fill:'var(--ink)'},o||{}));
+  const arrow=(x1,y1,x2,y2,c,w,both)=>{const id='tqh-ar'+(c===ACC?'a':'m');return '<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="'+c+'" stroke-width="'+(w||1.6)+'" marker-end="url(#'+id+')"'+(both?' marker-start="url(#'+id+'s)"':'')+'/>'};
+  const DEFS='<defs>'+[['a',ACC],['m','var(--mute)']].map(([k,c])=>'<marker id="tqh-ar'+k+'" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="'+c+'"/></marker><marker id="tqh-ar'+k+'s" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10,0L0,5L10,10z" fill="'+c+'"/></marker>').join('')+'</defs>';
+  const gbs=b=>U.sig(b/1e9,3)+' GB/s';
+  let gen='v5e';
+  function hero(){
+    const g=G[gen],host=$('tq-hero'),W=Math.min(760,U.width(host)),nar=W<560,P=8;
+    const devs=nar?(g.gen==='7x'?'2 cores = 2 devices':g.tc===2?'2 cores = 1 device (megacore)':'1 core = 1 device'):(g.gen==='7x'?'2 TensorCores = 2 JAX devices':g.tc===2?'2 TensorCores fused = 1 JAX device (megacore)':'1 TensorCore = 1 JAX device');
+    let s=DEFS,y=4;
+    // host
+    const hh=nar?40:34;s+=box(P,y,W-2*P,hh,{fill:'var(--bg)'});
+    s+=T(P+10,y+15,'Host CPU: one JAX process for '+g.host_chips+' chips',{fs:11.5,w:600});
+    s+=T(P+10,y+29,nar?'your Python, input pipeline, host memory':'your Python, the input pipeline, host memory for offload',{fs:10.5,fill:'var(--mute)'});
+    y+=hh;const pcY=y;y+=30;
+    s+=arrow(W/2,pcY+2,W/2,y-2,'var(--mute)',1.4,true)+T(W/2+8,pcY+19,'PCIe '+gbs(g.pcie)+(nar?'':' per chip'),{fs:10.5,fill:'var(--mute)'});
+    // chip
+    const chipX=P,chipW=W-2*P,chipY=y;
+    const tcX=chipX+12+(g.tc===2?6:0),tcW=chipW-24-(g.tc===2?6:0);
+    const rowH=nar?236:118,tcH=22+rowH+46,hbmH=40,iciH=nar?40:30;
+    const chipH=24+tcH+16+hbmH+12+iciH+10;
+    s+=box(chipX,chipY,chipW,chipH,{fill:'var(--bg)',st:'var(--ink)',sw:1.2,rx:10});
+    s+=T(chipX+10,chipY+16,'One '+gl(g.gen)+' chip: '+devs,{fs:11.5,w:600});
+    const tcY=chipY+24;
+    if(g.tc===2)s+=box(tcX-6,tcY-5,tcW,tcH,{fill:'var(--soft)',dash:'4 3'});
+    s+=box(tcX,tcY,tcW,tcH,{fill:'var(--soft)'});
+    s+=T(tcX+8,tcY+15,'TensorCore'+(g.tc===2?' (x2)':''),{fs:11,w:600});
+    // units: scalar, VPU, MXUs (one row when wide; scalar and VPU above the MXUs when narrow)
+    const uy=tcY+22,ux=tcX+8,uw=tcW-16,gap=6;let SC,VP,MX;
+    if(!nar){const f=[0.25,0.29,0.46],h=rowH-8;SC={x:ux,y:uy,w:uw*f[0]-gap,h};VP={x:ux+uw*f[0],y:uy,w:uw*f[1]-gap,h};MX={x:ux+uw*(f[0]+f[1]),y:uy,w:uw*f[2],h}}
+    else{const h1=112,hw=(uw-gap)/2;SC={x:ux,y:uy,w:hw,h:h1};VP={x:ux+hw+gap,y:uy,w:hw,h:h1};MX={x:ux,y:uy+h1+gap,w:uw,h:rowH-8-h1-gap}}
+    s+=box(SC.x,SC.y,SC.w,SC.h,{fill:'var(--bg)'});
+    s+=T(SC.x+6,SC.y+15,'Scalar unit',{fs:11,w:600})+T(SC.x+6,SC.y+30,'control flow,',{fs:10.5,fill:'var(--mute)'})+T(SC.x+6,SC.y+43,'addresses, DMA',{fs:10.5,fill:'var(--mute)'});
+    s+=box(SC.x+5,SC.y+SC.h-28,SC.w-10,22,{fill:'var(--soft)',rx:4})+T(SC.x+10,SC.y+SC.h-13,'SMEM 1 MiB',{fs:10.5});
+    s+=box(VP.x,VP.y,VP.w,VP.h,{fill:'var(--bg)'});
+    s+=T(VP.x+6,VP.y+15,'VPU',{fs:11,w:600})+T(VP.x+6,VP.y+30,'non-matmul work,',{fs:10.5,fill:'var(--mute)'})+T(VP.x+6,VP.y+43,'in float32',{fs:10.5,fill:'var(--mute)'});
+    // a vector register: 8 x 16 cells standing for 8 x 128
+    const rw=Math.min(VP.w-14,100),rcw=rw/16,rch=Math.min(5,(VP.h-70)/8);
+    for(let r=0;r<8;r++)for(let c=0;c<16;c++)s+='<rect x="'+(VP.x+7+c*rcw).toFixed(1)+'" y="'+(VP.y+52+r*rch).toFixed(1)+'" width="'+(rcw-0.6).toFixed(1)+'" height="'+(rch-0.6).toFixed(1)+'" fill="var(--c2)" opacity=".55"/>';
+    s+=T(VP.x+6,VP.y+52+8*rch+13,'register 8 x 128',{fs:10.5});
+    s+=box(MX.x,MX.y,MX.w,MX.h,{fill:'var(--acc2)',st:ACC,sw:1.4});
+    s+=T(MX.x+6,MX.y+15,g.mxus+' MXUs, '+g.mxu+' x '+g.mxu,{fs:11,w:600});
+    s+=T(MX.x+6,MX.y+29,'all matmuls: bf16 in, f32 sum',{fs:10.5,fill:'var(--mute)'});
+    const n=g.mxus,cols=nar?n:(n===4?(MX.w<150?2:4):2),rows=Math.ceil(n/cols),avH=MX.h-40,avW=MX.w-12,side=Math.min((avW-(cols-1)*5)/cols,(avH-(rows-1)*5)/rows,g.mxu===256?60:44);
+    for(let i=0;i<n;i++){const cx=MX.x+6+(i%cols)*(side+5),cy=MX.y+36+Math.floor(i/cols)*(side+5);
+      s+='<rect x="'+cx.toFixed(1)+'" y="'+cy.toFixed(1)+'" width="'+side.toFixed(1)+'" height="'+side.toFixed(1)+'" fill="var(--bg)" stroke="'+ACC+'"/>';
+      const k=g.mxu===256?6:4;for(let a=1;a<k;a++){const o=side*a/k;s+='<line x1="'+(cx+o).toFixed(1)+'" x2="'+(cx+o).toFixed(1)+'" y1="'+cy.toFixed(1)+'" y2="'+(cy+side).toFixed(1)+'" stroke="'+ACC+'" stroke-width=".4"/><line y1="'+(cy+o).toFixed(1)+'" y2="'+(cy+o).toFixed(1)+'" x1="'+cx.toFixed(1)+'" x2="'+(cx+side).toFixed(1)+'" stroke="'+ACC+'" stroke-width=".4"/>'}}
+    // VMEM bar
+    const uh=rowH-8,vy=uy+uh+18;s+=box(ux,vy,uw,24,{fill:'var(--bg)',st:ACC,sw:1.4});
+    s+=T(ux+8,vy+16,'VMEM '+U.fmt(g.vmem)+' MiB'+(nar?': filled by DMA':': scratch the compiler fills by DMA; no cache'),{fs:11,w:600});
+    const mxA=nar?MX.x+MX.w*0.75:MX.x+MX.w/2;s+=arrow(mxA,vy-1,mxA,MX.y+MX.h+2,ACC,2);if(!nar)s+=arrow(VP.x+VP.w/2,vy-1,VP.x+VP.w/2,VP.y+VP.h+2,'var(--mute)',1.3);
+    // HBM
+    const hy=tcY+tcH+16;s+=box(tcX,hy,tcW,hbmH,{fill:'var(--acc2)',st:ACC,sw:1.4});
+    s+=T(tcX+8,hy+16,'HBM '+g.hbm_txt+' per chip',{fs:11.5,w:600})+T(tcX+8,hy+31,nar?'weights, state, activations':'weights, optimizer state, activations, KV cache',{fs:10.5,fill:'var(--mute)'});
+    const ax=tcX+tcW-(nar?70:110);s+=arrow(ax,hy-1,ax,vy+25,ACC,2.4)+T(ax+6,hy-5,gbs(g.bw),{fs:10.5,w:600,fill:ACC});
+    // ICI
+    const iy=hy+hbmH+12;s+=box(tcX,iy,tcW,iciH,{fill:'var(--soft)',dash:'3 3'});
+    const iciTxt='ICI: '+g.links+' links, '+gbs(g.link1)+' each way, to neighbour chips';
+    if(nar){s+=T(tcX+8,iy+16,'ICI: '+g.links+' links x '+gbs(g.link1)+' each way',{fs:11,w:600})+T(tcX+8,iy+31,'to neighbours ('+g.topo.split(' (')[0]+')',{fs:10.5,fill:'var(--mute)'})}
+    else s+=T(tcX+8,iy+19,iciTxt+' ('+g.topo.split(' (')[0]+')',{fs:11,w:600});
+    y=chipY+chipH;
+    const dY=y;y+=26;s+=arrow(W/2,dY+2,W/2,y-2,'var(--mute)',1.4,true)+T(W/2+8,dY+17,'DCN '+gbs(g.dcn)+' per chip'+(nar?'':', to other slices'),{fs:10.5,fill:'var(--mute)'});
+    s+=box(P,y,W-2*P,26,{fill:'var(--bg)',dash:'3 3'})+T(P+10,y+17,'Other slices (multislice): data-centre network',{fs:11});
+    y+=30;
+    host.innerHTML=U.S(W,y,s,'Schematic of one '+gl(g.gen)+' chip: host, TensorCore with scalar unit, VPU, MXUs and VMEM, HBM, ICI and DCN');
+    $('tq-hero-cnt').innerHTML=RD.stat('bf16 peak',U.fmt(g.bf16/1e12)+' TFLOP/s','all MXUs, per chip')+RD.stat('HBM bandwidth',gbs(g.bw),'per chip')+
+      RD.stat('Ridge point',U.fmt(g.bf16/g.bw,1)+' FLOP/byte','peak &divide; bandwidth')+RD.stat('VMEM',U.fmt(g.vmem)+' MiB','per TensorCore');
+  }
+  U.seg($('tq-hero-gen'),U.GEN_ORDER.map(k=>[k,gl(k)]),gen,v=>{gen=v;hero()});
+  hero();RD.onRender(hero);RD.onResize(hero);
+
+  // ---- section 7: chip, host, slice, multislice on v5p ----
+  function levels(){
+    const g=G.v5p,host=$('tq-lvl');if(!host)return;const W=Math.min(760,U.width(host)),nar=W<560;
+    const items=[
+      ['One chip','HBM '+gbs(g.bw),'2 TensorCores, 1 device'],
+      ['Host: '+g.host_chips+' chips','PCIe '+gbs(g.pcie)+' each','one JAX process'],
+      ['Slice: e.g. 4x4x4 cube','ICI '+g.links+' x '+gbs(g.link1),'per chip, each way'],
+      ['Multislice','DCN '+gbs(g.dcn),'per chip, between slices']];
+    let s=DEFS,H;
+    if(!nar){const bw=(W-16-3*26)/4,bh=110;
+      items.forEach((it,i)=>{const x=8+i*(bw+26),y=6;s+=box(x,y,bw,bh,{fill:i===2?'var(--acc2)':'var(--soft)',st:i===2?ACC:'var(--line)'});
+        s+=T(x+8,y+17,it[0],{fs:11,w:600});
+        // tiny picture
+        const cx=x+8,cy=y+28;
+        if(i===0)s+=box(cx,cy,26,26,{fill:'var(--bg)',st:'var(--ink)',rx:3});
+        if(i===1)for(let k=0;k<4;k++)s+=box(cx+k*16,cy,13,13,{fill:'var(--bg)',st:'var(--ink)',rx:2});
+        if(i===2){for(let a=0;a<4;a++)for(let b=0;b<4;b++)s+='<circle cx="'+(cx+5+a*12)+'" cy="'+(cy+5+b*7)+'" r="2.4" fill="'+ACC+'"/>';s+=T(cx+56,cy+14,'x4 deep',{fs:10.5,fill:'var(--mute)'})}
+        if(i===3){for(let k=0;k<2;k++)s+=box(cx+k*36,cy,28,22,{fill:'var(--bg)',dash:'3 2',rx:3});}
+        s+=T(x+8,y+78,it[1],{fs:10.5,w:600,fill:i===3?'var(--bad)':'var(--ink)'})+T(x+8,y+94,it[2],{fs:10.5,fill:'var(--mute)'});
+        if(i<3)s+=arrow(x+bw+3,y+bh/2,x+bw+23,y+bh/2,'var(--mute)',1.3)});
+      H=6+bh+6}
+    else{const bh=56;let y=4;
+      items.forEach((it,i)=>{s+=box(8,y,W-16,bh,{fill:i===2?'var(--acc2)':'var(--soft)',st:i===2?ACC:'var(--line)'});
+        s+=T(16,y+17,it[0],{fs:11,w:600})+T(16,y+33,it[1],{fs:10.5,w:600,fill:i===3?'var(--bad)':'var(--ink)'})+T(16,y+48,it[2],{fs:10.5,fill:'var(--mute)'});
+        y+=bh;if(i<3){s+=arrow(W/2,y+2,W/2,y+16,'var(--mute)',1.3);y+=18}});H=y+4}
+    host.innerHTML=U.S(W,H,s,'Chip, host, slice and multislice on TPU v5p with the bandwidth at each level');
+  }
+  levels();RD.onRender(levels);RD.onResize(levels);
+})();
+</script>
+<script>/* 26_js_rd_tile.js */
+// ---- Reading section 4: tiling stepper and MXU padding card (moved from the old Tiles and padding tab, 2026-10-23) ----
+(function(){
+  const U=window.TQU,D=U.D,$=id=>document.getElementById(id),E=RD.esc;
+  // presets: the Reading tab's arrays (recompute.json) plus two extra
+  const PRE=D.rc.tiles.map(t=>[t[0],t[1],t[2]]).concat([['Llama 2 7B q weight [4096, 4096]',4096,4096],['one KV-cache page [16 tokens, 128]',16,128]]);
+  $('tq-t-pre').innerHTML=PRE.map((p,i)=>'<option value="'+i+'">'+E(p[0])+'</option>').join('')+'<option value="-1">custom</option>';
+  $('tq-t-pre').addEventListener('change',e=>{const i=+e.target.value;if(i>=0){$('tq-t-r').value=PRE[i][1];$('tq-t-c').value=PRE[i][2]}an.reset(6)});
+  ['tq-t-r','tq-t-c','tq-t-dt'].forEach(id=>$(id).addEventListener('input',()=>{if(id!=='tq-t-dt')$('tq-t-pre').value='-1';an.redraw()}));
+  const CAP=['<b>Before: the logical array.</b> A row-major array, the PyTorch and NumPy picture: element (i, j) sits at offset i x cols + j, so memory runs along each row in turn (the arrow).',
+    '<b>Cut into tiles.</b> XLA covers the array with tiles of 8 rows x 128 columns, the shape of a TPU vector register (2 or 4 rows instead of 8 when the array has only that many). Tiles never straddle the array\'s edge: they extend past it.',
+    '<b>Padding.</b> Everything a tile covers outside the array (hatched) is stored and moved anyway. A minor dimension of 65 pays for 128.',
+    '<b>After: tile order in memory.</b> Memory now runs tile by tile: tile 0 holds rows 0 to 7 of columns 0 to 127, tile 1 the next 128 columns, and so on along the row of tiles, then the next row of tiles. Neighbouring elements of one column, 8 rows apart, are now close.',
+    '<b>Inside a tile: packing.</b> TPUs work on 32-bit words. For bf16 the second level of tiling, (2,1), puts element (2r, c) and (2r+1, c) in one word; for int8, (4,1) puts four rows in one word; float32 needs none. The zoom shows one tile\'s first 8 rows and 16 columns, one box per word.',
+    '<b>The bill.</b> Bytes stored against bytes the array needs. Moving this array to or from HBM costs the stored bytes, so the padding factor multiplies every memory-bound operation that touches it.'];
+  function draw(i){
+    const R=Math.max(1,+$('tq-t-r').value||1),C=Math.max(1,+$('tq-t-c').value||1),bpe=+$('tq-t-dt').value,h=U.hbmTile(R,C),tr=h.t,tilesR=h.rows/tr,tilesC=h.cols/128;
+    const host=$('tq-t-svg'),W=Math.min(760,U.width(host)),zoom=i>=4,boxW=zoom?Math.min(W*0.46,320):W-24,maxH=zoom?220:260;
+    // scale the padded extent into the box, keep aspect when sensible, at least 3 px per tile
+    let sx=boxW/h.cols,sy=maxH/h.rows;let s=Math.min(sx,sy);const tooThin=h.cols*s<60||h.rows*s<30;if(tooThin){sx=boxW/h.cols;sy=Math.min(maxH/h.rows,Math.max(sy,30/h.rows))}else{sx=sy=s}
+    const pw=h.cols*sx,ph=h.rows*sy,x0=12,y0=24;let g='<defs><pattern id="tq-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--mute)" stroke-width="1.4"/></pattern></defs>';
+    g+=U.tx(x0,14,'['+R+', '+C+'] '+({4:'float32',2:'bf16',1:'int8'})[bpe]+(i>=1?' in '+tr+' x 128 tiles':''),{fs:11,w:600});
+    if(i>=2)g+='<rect x="'+x0+'" y="'+y0+'" width="'+pw+'" height="'+ph+'" fill="url(#tq-hatch)" opacity=".55"/>';
+    g+='<rect x="'+x0+'" y="'+y0+'" width="'+(C*sx)+'" height="'+(R*sy)+'" fill="var(--acc2)" stroke="var(--acc)"/>';
+    if(i===0){const yy=y0+Math.min(R*sy,40)/2;g+='<line x1="'+(x0+4)+'" y1="'+yy+'" x2="'+(x0+C*sx-6)+'" y2="'+yy+'" stroke="var(--ink)" stroke-width="1.5" marker-end="url(#tq-arr)"/><defs><marker id="tq-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--ink)"/></marker></defs>'}
+    if(i>=1){const gridOK=tilesC<=96&&tilesR<=160;if(gridOK){for(let a=0;a<=tilesC;a++)g+='<line x1="'+(x0+a*128*sx)+'" x2="'+(x0+a*128*sx)+'" y1="'+y0+'" y2="'+(y0+ph)+'" stroke="var(--c2)" stroke-width="'+(tilesC>40?0.5:1)+'"/>';
+        for(let b=0;b<=tilesR;b++)g+='<line x1="'+x0+'" x2="'+(x0+pw)+'" y1="'+(y0+b*tr*sy)+'" y2="'+(y0+b*tr*sy)+'" stroke="var(--c2)" stroke-width="'+(tilesR>40?0.4:1)+'"/>'}
+      else g+='<rect x="'+x0+'" y="'+y0+'" width="'+pw+'" height="'+ph+'" fill="none" stroke="var(--c2)"/>'+U.tx(x0+4,y0+ph+14,U.fmt(tilesR*tilesC)+' tiles: too many to draw one by one',{fs:10,fill:'var(--mute)'})}
+    if(i===3){let k=0;for(let b=0;b<tilesR&&k<12;b++)for(let a=0;a<tilesC&&k<12;a++,k++){const cx=x0+(a+.5)*128*sx,cy=y0+(b+.5)*tr*sy;if(128*sx>14&&tr*sy>11)g+=U.tx(cx,cy+4,String(k),{a:'middle',fs:10,w:600,fill:'var(--c2)'})}}
+    if(zoom){const zx=x0+boxW+24,zy=y0,cw=Math.min(16,(W-zx-8)/16),chh=Math.min(22,cw*1.3);const rowsPerWord=4/bpe;
+      g+=U.tx(zx,14,'tile 0, rows 0 to 7, columns 0 to 15',{fs:10.5,fill:'var(--mute)'});
+      for(let r=0;r<8;r++)for(let c=0;c<16;c++){const real=r<R&&c<C;g+='<rect x="'+(zx+c*cw)+'" y="'+(zy+r*chh)+'" width="'+(cw-1)+'" height="'+(chh-1)+'" fill="'+(real?'var(--acc2)':'var(--soft)')+'"'+(real?'':' stroke="var(--line)"')+'/>'}
+      for(let r=0;r<8;r+=rowsPerWord)for(let c=0;c<16;c++)g+='<rect x="'+(zx+c*cw-0.5)+'" y="'+(zy+r*chh-0.5)+'" width="'+cw+'" height="'+(chh*rowsPerWord)+'" fill="none" stroke="var(--c4)" stroke-width="1.3" rx="2"/>';
+      g+=U.tx(zx,zy+8*chh+14,rowsPerWord===1?'one 32-bit word per element':rowsPerWord+' rows share each 32-bit word',{fs:10.5,fill:'var(--c4)'})}
+    const Hh=Math.max(y0+ph,zoom?y0+8*22:0)+30;host.innerHTML=U.S(W,Hh,g,'Tiled layout of the array');
+    $('tq-t-cap').innerHTML='<b>Step '+(i+1)+' of 6.</b> '+CAP[i];
+    const need=R*C*bpe,stored=h.padded*bpe;
+    $('tq-t-cnt').innerHTML=RD.stat('Tile',tr+' x 128',tr<8?'small-tile rule':'')+RD.stat('Tiles',U.fmt(tilesR*tilesC),U.fmt(tilesR)+' x '+U.fmt(tilesC))+RD.stat('Stored shape','['+h.rows+', '+h.cols+']','')+
+      RD.stat('Bytes needed',U.bytes(need),'')+RD.stat('Bytes stored',U.bytes(stored),'')+RD.stat('Padding factor',U.fmt(stored/need,2)+'x',U.pct(1-need/stored)+' wasted');
+  }
+  const an=RD.anim({card:'tq-t-card',ctl:'tq-t-ctl',n:6,draw,ms:2600,label:'Tiling step'});
+  // MXU utilisation
+  const MP=D.rc.mxu;$('tq-m-pre').innerHTML='<option value="-1">custom</option>'+MP.map((p,i)=>'<option value="'+i+'"'+(i===1?' selected':'')+'>'+E(p[0])+'</option>').join('');
+  $('tq-m-pre').addEventListener('change',e=>{const i=+e.target.value;if(i>=0){$('tq-m-m').value=MP[i][1];$('tq-m-k').value=MP[i][2];$('tq-m-n').value=MP[i][3]}drawM()});
+  function mxuPic(host,k,n,S){const W=Math.min(360,U.width(host)),pk=U.pad(k,S),pn=U.pad(n,S),sc=Math.min((W-20)/pn,160/pk),w=pn*sc,hh=pk*sc;
+    let g='<rect x="10" y="20" width="'+w+'" height="'+hh+'" fill="var(--soft)" stroke="var(--line)"/><rect x="10" y="20" width="'+(n*sc)+'" height="'+(k*sc)+'" fill="var(--acc2)" stroke="var(--acc)"/>';
+    const tk=pk/S,tn=pn/S;if(tk*tn<=400){for(let a=1;a<tn;a++)g+='<line x1="'+(10+a*S*sc)+'" x2="'+(10+a*S*sc)+'" y1="20" y2="'+(20+hh)+'" stroke="var(--c2)"/>';for(let b=1;b<tk;b++)g+='<line x1="10" x2="'+(10+w)+'" y1="'+(20+b*S*sc)+'" y2="'+(20+b*S*sc)+'" stroke="var(--c2)"/>'}
+    g+=U.tx(10,13,S+' x '+S+' MXU: '+U.fmt(tk*tn)+' weight tile'+(tk*tn>1?'s':''),{fs:11,w:600});host.innerHTML=U.S(W,hh+28,g,'Weight tiles on a '+S+' MXU')}
+  function drawM(){const m=Math.max(1,+$('tq-m-m').value||1),k=Math.max(1,+$('tq-m-k').value||1),n=Math.max(1,+$('tq-m-n').value||1);
+    mxuPic($('tq-m-svg128'),k,n,128);mxuPic($('tq-m-svg256'),k,n,256);
+    U.table($('tq-m-tab'),[['MXU',r=>r.S+' x '+r.S+' ('+r.g+')'],['Padded m x k x n',r=>U.pad(m,8)+' x '+U.pad(k,r.S)+' x '+U.pad(n,r.S),'num'],['Utilisation at best',r=>U.pct(U.mxuUtil(m,k,n,r.S),1),'num'],['Wasted multiply-adds',r=>U.pct(1-U.mxuUtil(m,k,n,r.S),1),'num']],
+      [{S:128,g:'v4, v5e, v5p'},{S:256,g:'v6e, TPU7x'}],{narrow:true})}
+  $('tq-m-pre').value='1';['tq-m-m','tq-m-k','tq-m-n'].forEach(id=>$(id).addEventListener('input',()=>{$('tq-m-pre').value='-1';drawM()}));
+  drawM();RD.onRender(()=>{an.redraw();drawM()});RD.onResize(()=>{an.redraw();drawM()});
+})();
+</script>
+<script>/* 27_js_rd_mfu.js */
+// ---- Reading section 9: MFU calculator for your run, and the published runs recomputed (moved from the old MFU calculator tab, 2026-10-23) ----
+(function(){
+  const U=window.TQU,D=U.D,G=U.G,$=id=>document.getElementById(id),E=RD.esc,gl=U.label,M=D.mfu;
+  // MaxText's default-path training FLOPs per token (same as tq_mfu.py maxtext_flops_per_token)
+  function fpt(c,S){const ffn=mlp=>2*S*mlp*c.emb_dim*c.n_act+2*S*mlp*c.emb_dim;
+    const ffnL=c.num_experts>1?2*S*c.emb_dim*c.num_experts+ffn(c.moe_mlp_dim)*c.k:ffn(c.mlp_dim);
+    const qkv=2*S*c.emb_dim*(c.num_query_heads+2*c.num_kv_heads)*c.head_dim,non=4*S*S*c.num_query_heads*c.head_dim,proj=2*S*c.emb_dim*c.num_query_heads*c.head_dim,emb=2*S*c.emb_dim*c.vocab_size,L=c.num_decoder_layers;
+    const w=(ffnL*L+(qkv+proj)*L+emb)*3/S,a=non/2*L*3/S;return {w,a,causal:w+a,non:w+2*a}}
+  const CFGN={'Llama 2 70B':'llama2-70b','Llama 3.1 8B':'llama3.1-8b','Llama 3.1 70B':'llama3.1-70b','Llama 3.1 405B':'llama3.1-405b','Mixtral 8x7B':'mixtral-8x7b','Mixtral 8x22B':'mixtral-8x22b'};
+  let sel=0;
+  function tab(){U.table($('tq-f-tab'),[['Model',r=>E(r.model)+' <span class="mute">'+r.tier+'</span>'],['Hardware',r=>gl(r.gen)+', '+r.chips+' chips'],['Seq',r=>U.fmt(r.seq),'num'],['Tokens/s per chip',r=>U.fmt(r.tok),'num',r=>r.tok],
+      ['MFU published',r=>U.pct(r.mfu,2),'num',r=>r.mfu],['Non-causal',r=>U.pct(r.mfu_noncausal,2),'num',r=>r.mfu_noncausal],['Causal',r=>U.pct(r.mfu_recomputed,2),'num',r=>r.mfu_recomputed],['Gap, points',r=>U.fmt((r.mfu-r.mfu_recomputed)*100,1),'num',r=>r.mfu-r.mfu_recomputed]],
+      M.rows,{rowAttr:(r,j)=>' class="tq-click'+(M.rows.indexOf(r)===sel?' tq-sel':'')+'" data-row="'+M.rows.indexOf(r)+'"'})}
+  $('tq-f-tab').addEventListener('click',e=>{const tr=e.target.closest('tr[data-row]');if(!tr)return;sel=+tr.dataset.row;tab();det()});
+  function det(){const r=M.rows[sel],c=M.cfgs[CFGN[r.model]],f=fpt(c,r.seq),pk=M.peak[r.gen];
+    const host=$('tq-f-det'),W=Math.min(700,U.width(host)),L=10,R=10,mx=Math.max(f.non,r.implied_flops_tok)*1.05,X=v=>L+v/mx*(W-L-R);
+    let s='';const bars=[['causal (current count)',f.w,f.a,0],['non-causal (before PR 1988)',f.w,2*f.a,0],['implied by the published MFU',r.implied_flops_tok,0,1]];
+    bars.forEach((b,i)=>{const y=18+i*34;s+=U.tx(L,y-3,b[0]+': '+U.si(b[1]+b[2],'FLOP')+' per token',{fs:10.5});
+      if(b[3])s+='<rect x="'+L+'" y="'+y+'" width="'+(X(b[1])-L)+'" height="14" rx="2" fill="var(--c4)"/>';
+      else s+='<rect x="'+L+'" y="'+y+'" width="'+(X(b[1])-L)+'" height="14" rx="2" fill="var(--c1)"/><rect x="'+X(b[1])+'" y="'+y+'" width="'+(X(b[1]+b[2])-X(b[1]))+'" height="14" rx="2" fill="var(--c2)"/>'});
+    host.innerHTML='<div class="tq-leg"><span><i style="background:var(--c1)"></i>weight matmuls (x3)</span><span><i style="background:var(--c2)"></i>attention</span><span><i style="background:var(--c4)"></i>implied</span></div>'+U.S(W,18+3*34,s,'FLOPs per token, three counts')+
+      '<p class="small">'+E(r.model)+': '+U.sig(r.params/1e9,4)+'B parameters'+(r.active!==r.params?' ('+U.sig(r.active/1e9,4)+'B active per token)':'')+'; 6N = '+U.si(r.six_n,'FLOP')+' per token. Attention is '+U.pct(f.a/f.causal,1)+' of the causal count at sequence '+U.fmt(r.seq)+
+      '. Implied / causal = '+U.fmt(r.ratio,3)+'. Price: $'+U.fmt(r.price,2)+' per chip-hour, so $'+U.fmt(r.usd_per_mtok,3)+' per million training tokens <span class="der">calculated</span>.'+(r.step_s?' Recipe batch '+r.pdbs+' sequences per chip (<code>benchmarks/maxtext_trillium_model_configs.py:'+r.recipe_line+'</code>), so one step takes about '+U.fmt(r.step_s,1)+' s.':'')+'</p>'}
+  // your run
+  const MOD=Object.keys(M.cfgs);$('tq-f-model').innerHTML=MOD.map(k=>'<option'+(k==='llama2-70b'?' selected':'')+'>'+E(k)+'</option>').join('');
+  const HW=U.GEN_ORDER.map(k=>[gl(k),G[k].bf16,G[k].price_v]).concat([['H100 (dense bf16 989.5)',D.gpu.h100.bf16,D.gpu.h100.price],['B200 (dense bf16 2,250)',D.gpu.b200.bf16,D.gpu.b200.price]]);
+  $('tq-f-hw').innerHTML=HW.map((h,i)=>'<option value="'+i+'"'+(i===3?' selected':'')+'>'+E(h[0])+'</option>').join('');
+  $('tq-f-meas').addEventListener('change',e=>{const st=e.target.value==='step';$('tq-f-stepl').hidden=!st;$('tq-f-tokl').hidden=st;run()});
+  function run(){const c=M.cfgs[$('tq-f-model').value],S=+$('tq-f-seq').value,h=HW[+$('tq-f-hw').value],f=fpt(c,S);let tok;
+    if($('tq-f-meas').value==='tok')tok=Math.max(0,+$('tq-f-tok').value||0);else{const st=+$('tq-f-step').value||1,bs=+$('tq-f-bs').value||1,ch=+$('tq-f-chips').value||1;tok=bs*S/st/ch}
+    $('tq-f-out').innerHTML=RD.stat('Tokens/s per chip',U.fmt(tok,1),'')+RD.stat('FLOPs per token',U.si(f.causal,'FLOP'),'causal count')+RD.stat('MFU, causal',U.pct(f.causal*tok/h[1],2),'current MaxText')+RD.stat('MFU, non-causal',U.pct(f.non*tok/h[1],2),'old count')+
+      RD.stat('MFU, weights only',U.pct(f.w*tok/h[1],2),'no attention FLOPs')+RD.stat('$ per million tokens','$'+U.fmt(h[2]/(Math.max(tok,1e-9)*3600)*1e6,3),'$'+U.fmt(h[2],2)+' per chip-hour');
+    $('tq-f-note').textContent='Peak '+U.si(h[1],'FLOP/s')+' (bf16, dense). TPU prices: Google Cloud on demand, read '+D.price_read+'; GPU prices: Lambda 8-GPU on demand, read 2026-10-15. "Weights only" counts the weight matmuls (MaxText leaves out the input embedding lookup, which is a gather).'}
+  ['tq-f-model','tq-f-seq','tq-f-hw','tq-f-tok','tq-f-step','tq-f-bs','tq-f-chips'].forEach(id=>{$(id).addEventListener('input',run);$(id).addEventListener('change',run)});
+  function all(){tab();det();run()}
+  all();RD.onRender(all);RD.onResize(det);
+  const dd=$('tq-f-det').closest('details');if(dd)dd.addEventListener('toggle',()=>{if(dd.open)det()});
 })();
 </script>
 <script>/* 31_js_tq_roof.js */
@@ -894,62 +1093,6 @@ window.TQU=(function(){
   window.TQ_ROOF={draw,setMode:v=>{mode=v;draw()}};
 })();
 </script>
-<script>/* 32_js_tq_tile.js */
-// ---- Tiles and padding (tab t-tile) ----
-(function(){
-  const U=window.TQU,D=U.D,$=id=>document.getElementById(id),E=RD.esc;
-  // presets: the Reading tab's arrays (recompute.json) plus two extra
-  const PRE=D.rc.tiles.map(t=>[t[0],t[1],t[2]]).concat([['Llama 2 7B q weight [4096, 4096]',4096,4096],['one KV-cache page [16 tokens, 128]',16,128]]);
-  $('tq-t-pre').innerHTML=PRE.map((p,i)=>'<option value="'+i+'">'+E(p[0])+'</option>').join('')+'<option value="-1">custom</option>';
-  $('tq-t-pre').addEventListener('change',e=>{const i=+e.target.value;if(i>=0){$('tq-t-r').value=PRE[i][1];$('tq-t-c').value=PRE[i][2]}an.reset(6);an.play()});
-  ['tq-t-r','tq-t-c','tq-t-dt'].forEach(id=>$(id).addEventListener('input',()=>{if(id!=='tq-t-dt')$('tq-t-pre').value='-1';an.redraw()}));
-  const CAP=['<b>Before: the logical array.</b> A row-major array, the PyTorch and NumPy picture: element (i, j) sits at offset i x cols + j, so memory runs along each row in turn (the arrow).',
-    '<b>Cut into tiles.</b> XLA covers the array with tiles of 8 rows x 128 columns, the shape of a TPU vector register (2 or 4 rows instead of 8 when the array has only that many). Tiles never straddle the array\'s edge: they extend past it.',
-    '<b>Padding.</b> Everything a tile covers outside the array (hatched) is stored and moved anyway. A minor dimension of 65 pays for 128.',
-    '<b>After: tile order in memory.</b> Memory now runs tile by tile: tile 0 holds rows 0 to 7 of columns 0 to 127, tile 1 the next 128 columns, and so on along the row of tiles, then the next row of tiles. Neighbouring elements of one column, 8 rows apart, are now close.',
-    '<b>Inside a tile: packing.</b> TPUs work on 32-bit words. For bf16 the second level of tiling, (2,1), puts element (2r, c) and (2r+1, c) in one word; for int8, (4,1) puts four rows in one word; float32 needs none. The zoom shows one tile\'s first 8 rows and 16 columns, one box per word.',
-    '<b>The bill.</b> Bytes stored against bytes the array needs. Moving this array to or from HBM costs the stored bytes, so the padding factor multiplies every memory-bound operation that touches it.'];
-  function draw(i){
-    const R=Math.max(1,+$('tq-t-r').value||1),C=Math.max(1,+$('tq-t-c').value||1),bpe=+$('tq-t-dt').value,h=U.hbmTile(R,C),tr=h.t,tilesR=h.rows/tr,tilesC=h.cols/128;
-    const host=$('tq-t-svg'),W=Math.min(760,U.width(host)),zoom=i>=4,boxW=zoom?Math.min(W*0.46,320):W-24,maxH=zoom?220:260;
-    // scale the padded extent into the box, keep aspect when sensible, at least 3 px per tile
-    let sx=boxW/h.cols,sy=maxH/h.rows;let s=Math.min(sx,sy);const tooThin=h.cols*s<60||h.rows*s<30;if(tooThin){sx=boxW/h.cols;sy=Math.min(maxH/h.rows,Math.max(sy,30/h.rows))}else{sx=sy=s}
-    const pw=h.cols*sx,ph=h.rows*sy,x0=12,y0=24;let g='<defs><pattern id="tq-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--mute)" stroke-width="1.4"/></pattern></defs>';
-    g+=U.tx(x0,14,'['+R+', '+C+'] '+({4:'float32',2:'bf16',1:'int8'})[bpe]+(i>=1?' in '+tr+' x 128 tiles':''),{fs:11,w:600});
-    if(i>=2)g+='<rect x="'+x0+'" y="'+y0+'" width="'+pw+'" height="'+ph+'" fill="url(#tq-hatch)" opacity=".55"/>';
-    g+='<rect x="'+x0+'" y="'+y0+'" width="'+(C*sx)+'" height="'+(R*sy)+'" fill="var(--acc2)" stroke="var(--acc)"/>';
-    if(i===0){const yy=y0+Math.min(R*sy,40)/2;g+='<line x1="'+(x0+4)+'" y1="'+yy+'" x2="'+(x0+C*sx-6)+'" y2="'+yy+'" stroke="var(--ink)" stroke-width="1.5" marker-end="url(#tq-arr)"/><defs><marker id="tq-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--ink)"/></marker></defs>'}
-    if(i>=1){const gridOK=tilesC<=96&&tilesR<=160;if(gridOK){for(let a=0;a<=tilesC;a++)g+='<line x1="'+(x0+a*128*sx)+'" x2="'+(x0+a*128*sx)+'" y1="'+y0+'" y2="'+(y0+ph)+'" stroke="var(--c2)" stroke-width="'+(tilesC>40?0.5:1)+'"/>';
-        for(let b=0;b<=tilesR;b++)g+='<line x1="'+x0+'" x2="'+(x0+pw)+'" y1="'+(y0+b*tr*sy)+'" y2="'+(y0+b*tr*sy)+'" stroke="var(--c2)" stroke-width="'+(tilesR>40?0.4:1)+'"/>'}
-      else g+='<rect x="'+x0+'" y="'+y0+'" width="'+pw+'" height="'+ph+'" fill="none" stroke="var(--c2)"/>'+U.tx(x0+4,y0+ph+14,U.fmt(tilesR*tilesC)+' tiles: too many to draw one by one',{fs:10,fill:'var(--mute)'})}
-    if(i===3){let k=0;for(let b=0;b<tilesR&&k<12;b++)for(let a=0;a<tilesC&&k<12;a++,k++){const cx=x0+(a+.5)*128*sx,cy=y0+(b+.5)*tr*sy;if(128*sx>14&&tr*sy>11)g+=U.tx(cx,cy+4,String(k),{a:'middle',fs:10,w:600,fill:'var(--c2)'})}}
-    if(zoom){const zx=x0+boxW+24,zy=y0,cw=Math.min(16,(W-zx-8)/16),chh=Math.min(22,cw*1.3);const rowsPerWord=4/bpe;
-      g+=U.tx(zx,14,'tile 0, rows 0 to 7, columns 0 to 15',{fs:10.5,fill:'var(--mute)'});
-      for(let r=0;r<8;r++)for(let c=0;c<16;c++){const real=r<R&&c<C;g+='<rect x="'+(zx+c*cw)+'" y="'+(zy+r*chh)+'" width="'+(cw-1)+'" height="'+(chh-1)+'" fill="'+(real?'var(--acc2)':'var(--soft)')+'"'+(real?'':' stroke="var(--line)"')+'/>'}
-      for(let r=0;r<8;r+=rowsPerWord)for(let c=0;c<16;c++)g+='<rect x="'+(zx+c*cw-0.5)+'" y="'+(zy+r*chh-0.5)+'" width="'+cw+'" height="'+(chh*rowsPerWord)+'" fill="none" stroke="var(--c4)" stroke-width="1.3" rx="2"/>';
-      g+=U.tx(zx,zy+8*chh+14,rowsPerWord===1?'one 32-bit word per element':rowsPerWord+' rows share each 32-bit word',{fs:10.5,fill:'var(--c4)'})}
-    const Hh=Math.max(y0+ph,zoom?y0+8*22:0)+30;host.innerHTML=U.S(W,Hh,g,'Tiled layout of the array');
-    $('tq-t-cap').innerHTML='<b>Step '+(i+1)+' of 6.</b> '+CAP[i];
-    const need=R*C*bpe,stored=h.padded*bpe;
-    $('tq-t-cnt').innerHTML=RD.stat('Tile',tr+' x 128',tr<8?'small-tile rule':'')+RD.stat('Tiles',U.fmt(tilesR*tilesC),U.fmt(tilesR)+' x '+U.fmt(tilesC))+RD.stat('Stored shape','['+h.rows+', '+h.cols+']','')+
-      RD.stat('Bytes needed',U.bytes(need),'')+RD.stat('Bytes stored',U.bytes(stored),'')+RD.stat('Padding factor',U.fmt(stored/need,2)+'x',U.pct(1-need/stored)+' wasted');
-  }
-  const an=RD.anim({card:'tq-t-card',ctl:'tq-t-ctl',n:6,draw,ms:2600,label:'Tiling step'});
-  // MXU utilisation
-  const MP=D.rc.mxu;$('tq-m-pre').innerHTML='<option value="-1">custom</option>'+MP.map((p,i)=>'<option value="'+i+'"'+(i===1?' selected':'')+'>'+E(p[0])+'</option>').join('');
-  $('tq-m-pre').addEventListener('change',e=>{const i=+e.target.value;if(i>=0){$('tq-m-m').value=MP[i][1];$('tq-m-k').value=MP[i][2];$('tq-m-n').value=MP[i][3]}drawM()});
-  function mxuPic(host,k,n,S){const W=Math.min(360,U.width(host)),pk=U.pad(k,S),pn=U.pad(n,S),sc=Math.min((W-20)/pn,160/pk),w=pn*sc,hh=pk*sc;
-    let g='<rect x="10" y="20" width="'+w+'" height="'+hh+'" fill="var(--soft)" stroke="var(--line)"/><rect x="10" y="20" width="'+(n*sc)+'" height="'+(k*sc)+'" fill="var(--acc2)" stroke="var(--acc)"/>';
-    const tk=pk/S,tn=pn/S;if(tk*tn<=400){for(let a=1;a<tn;a++)g+='<line x1="'+(10+a*S*sc)+'" x2="'+(10+a*S*sc)+'" y1="20" y2="'+(20+hh)+'" stroke="var(--c2)"/>';for(let b=1;b<tk;b++)g+='<line x1="10" x2="'+(10+w)+'" y1="'+(20+b*S*sc)+'" y2="'+(20+b*S*sc)+'" stroke="var(--c2)"/>'}
-    g+=U.tx(10,13,S+' x '+S+' MXU: '+U.fmt(tk*tn)+' weight tile'+(tk*tn>1?'s':''),{fs:11,w:600});host.innerHTML=U.S(W,hh+28,g,'Weight tiles on a '+S+' MXU')}
-  function drawM(){const m=Math.max(1,+$('tq-m-m').value||1),k=Math.max(1,+$('tq-m-k').value||1),n=Math.max(1,+$('tq-m-n').value||1);
-    mxuPic($('tq-m-svg128'),k,n,128);mxuPic($('tq-m-svg256'),k,n,256);
-    U.table($('tq-m-tab'),[['MXU',r=>r.S+' x '+r.S+' ('+r.g+')'],['Padded m x k x n',r=>U.pad(m,8)+' x '+U.pad(k,r.S)+' x '+U.pad(n,r.S),'num'],['Utilisation at best',r=>U.pct(U.mxuUtil(m,k,n,r.S),1),'num'],['Wasted multiply-adds',r=>U.pct(1-U.mxuUtil(m,k,n,r.S),1),'num']],
-      [{S:128,g:'v4, v5e, v5p'},{S:256,g:'v6e, TPU7x'}],{narrow:true})}
-  $('tq-m-pre').value='1';['tq-m-m','tq-m-k','tq-m-n'].forEach(id=>$(id).addEventListener('input',()=>{$('tq-m-pre').value='-1';drawM()}));
-  U.onTab('t-tile',()=>{an.redraw();drawM()});U.onResize('t-tile',()=>{an.redraw();drawM()});
-})();
-</script>
 <script>/* 33_js_tq_slice.js */
 // ---- Slice planner (tab t-slice) ----
 (function(){
@@ -1002,47 +1145,8 @@ window.TQU=(function(){
   U.onTab('t-slice',draw);U.onResize('t-slice',draw);
 })();
 </script>
-<script>/* 34_js_tq_mfu.js */
-// ---- MFU calculator (tab t-mfu) ----
-(function(){
-  const U=window.TQU,D=U.D,G=U.G,$=id=>document.getElementById(id),E=RD.esc,gl=U.label,M=D.mfu;
-  // MaxText's default-path training FLOPs per token (same as tq_mfu.py maxtext_flops_per_token)
-  function fpt(c,S){const ffn=mlp=>2*S*mlp*c.emb_dim*c.n_act+2*S*mlp*c.emb_dim;
-    const ffnL=c.num_experts>1?2*S*c.emb_dim*c.num_experts+ffn(c.moe_mlp_dim)*c.k:ffn(c.mlp_dim);
-    const qkv=2*S*c.emb_dim*(c.num_query_heads+2*c.num_kv_heads)*c.head_dim,non=4*S*S*c.num_query_heads*c.head_dim,proj=2*S*c.emb_dim*c.num_query_heads*c.head_dim,emb=2*S*c.emb_dim*c.vocab_size,L=c.num_decoder_layers;
-    const w=(ffnL*L+(qkv+proj)*L+emb)*3/S,a=non/2*L*3/S;return {w,a,causal:w+a,non:w+2*a}}
-  const CFGN={'Llama 2 70B':'llama2-70b','Llama 3.1 8B':'llama3.1-8b','Llama 3.1 70B':'llama3.1-70b','Llama 3.1 405B':'llama3.1-405b','Mixtral 8x7B':'mixtral-8x7b','Mixtral 8x22B':'mixtral-8x22b'};
-  let sel=0;
-  function tab(){U.table($('tq-f-tab'),[['Model',r=>E(r.model)+' <span class="mute">'+r.tier+'</span>'],['Hardware',r=>gl(r.gen)+', '+r.chips+' chips'],['Seq',r=>U.fmt(r.seq),'num'],['Tokens/s per chip',r=>U.fmt(r.tok),'num',r=>r.tok],
-      ['MFU published',r=>U.pct(r.mfu,2),'num',r=>r.mfu],['Non-causal',r=>U.pct(r.mfu_noncausal,2),'num',r=>r.mfu_noncausal],['Causal',r=>U.pct(r.mfu_recomputed,2),'num',r=>r.mfu_recomputed],['Gap, points',r=>U.fmt((r.mfu-r.mfu_recomputed)*100,1),'num',r=>r.mfu-r.mfu_recomputed]],
-      M.rows,{rowAttr:(r,j)=>' class="tq-click'+(M.rows.indexOf(r)===sel?' tq-sel':'')+'" data-row="'+M.rows.indexOf(r)+'"'})}
-  $('tq-f-tab').addEventListener('click',e=>{const tr=e.target.closest('tr[data-row]');if(!tr)return;sel=+tr.dataset.row;tab();det()});
-  function det(){const r=M.rows[sel],c=M.cfgs[CFGN[r.model]],f=fpt(c,r.seq),pk=M.peak[r.gen];
-    const host=$('tq-f-det'),W=Math.min(700,U.width(host)),L=10,R=10,mx=Math.max(f.non,r.implied_flops_tok)*1.05,X=v=>L+v/mx*(W-L-R);
-    let s='';const bars=[['causal (current count)',f.w,f.a,0],['non-causal (before PR 1988)',f.w,2*f.a,0],['implied by the published MFU',r.implied_flops_tok,0,1]];
-    bars.forEach((b,i)=>{const y=18+i*34;s+=U.tx(L,y-3,b[0]+': '+U.si(b[1]+b[2],'FLOP')+' per token',{fs:10.5});
-      if(b[3])s+='<rect x="'+L+'" y="'+y+'" width="'+(X(b[1])-L)+'" height="14" rx="2" fill="var(--c4)"/>';
-      else s+='<rect x="'+L+'" y="'+y+'" width="'+(X(b[1])-L)+'" height="14" rx="2" fill="var(--c1)"/><rect x="'+X(b[1])+'" y="'+y+'" width="'+(X(b[1]+b[2])-X(b[1]))+'" height="14" rx="2" fill="var(--c2)"/>'});
-    host.innerHTML='<div class="tq-leg"><span><i style="background:var(--c1)"></i>weight matmuls (x3)</span><span><i style="background:var(--c2)"></i>attention</span><span><i style="background:var(--c4)"></i>implied</span></div>'+U.S(W,18+3*34,s,'FLOPs per token, three counts')+
-      '<p class="small">'+E(r.model)+': '+U.sig(r.params/1e9,4)+'B parameters'+(r.active!==r.params?' ('+U.sig(r.active/1e9,4)+'B active per token)':'')+'; 6N = '+U.si(r.six_n,'FLOP')+' per token. Attention is '+U.pct(f.a/f.causal,1)+' of the causal count at sequence '+U.fmt(r.seq)+
-      '. Implied / causal = '+U.fmt(r.ratio,3)+'. Price: $'+U.fmt(r.price,2)+' per chip-hour, so $'+U.fmt(r.usd_per_mtok,3)+' per million training tokens <span class="der">calculated</span>.'+(r.step_s?' Recipe batch '+r.pdbs+' sequences per chip (<code>benchmarks/maxtext_trillium_model_configs.py:'+r.recipe_line+'</code>), so one step takes about '+U.fmt(r.step_s,1)+' s.':'')+'</p>'}
-  // your run
-  const MOD=Object.keys(M.cfgs);$('tq-f-model').innerHTML=MOD.map(k=>'<option'+(k==='llama2-70b'?' selected':'')+'>'+E(k)+'</option>').join('');
-  const HW=U.GEN_ORDER.map(k=>[gl(k),G[k].bf16,G[k].price_v]).concat([['H100 (dense bf16 989.5)',D.gpu.h100.bf16,D.gpu.h100.price],['B200 (dense bf16 2,250)',D.gpu.b200.bf16,D.gpu.b200.price]]);
-  $('tq-f-hw').innerHTML=HW.map((h,i)=>'<option value="'+i+'"'+(i===3?' selected':'')+'>'+E(h[0])+'</option>').join('');
-  $('tq-f-meas').addEventListener('change',e=>{const st=e.target.value==='step';$('tq-f-stepl').hidden=!st;$('tq-f-tokl').hidden=st;run()});
-  function run(){const c=M.cfgs[$('tq-f-model').value],S=+$('tq-f-seq').value,h=HW[+$('tq-f-hw').value],f=fpt(c,S);let tok;
-    if($('tq-f-meas').value==='tok')tok=Math.max(0,+$('tq-f-tok').value||0);else{const st=+$('tq-f-step').value||1,bs=+$('tq-f-bs').value||1,ch=+$('tq-f-chips').value||1;tok=bs*S/st/ch}
-    $('tq-f-out').innerHTML=RD.stat('Tokens/s per chip',U.fmt(tok,1),'')+RD.stat('FLOPs per token',U.si(f.causal,'FLOP'),'causal count')+RD.stat('MFU, causal',U.pct(f.causal*tok/h[1],2),'current MaxText')+RD.stat('MFU, non-causal',U.pct(f.non*tok/h[1],2),'old count')+
-      RD.stat('MFU, weights only',U.pct(f.w*tok/h[1],2),'no attention FLOPs')+RD.stat('$ per million tokens','$'+U.fmt(h[2]/(Math.max(tok,1e-9)*3600)*1e6,3),'$'+U.fmt(h[2],2)+' per chip-hour');
-    $('tq-f-note').textContent='Peak '+U.si(h[1],'FLOP/s')+' (bf16, dense). TPU prices: Google Cloud on demand, read '+D.price_read+'; GPU prices: Lambda 8-GPU on demand, read 2026-10-15. "Weights only" counts the weight matmuls (MaxText leaves out the input embedding lookup, which is a gather).'}
-  ['tq-f-model','tq-f-seq','tq-f-hw','tq-f-tok','tq-f-step','tq-f-bs','tq-f-chips'].forEach(id=>{$(id).addEventListener('input',run);$(id).addEventListener('change',run)});
-  function all(){tab();det();run()}
-  U.onTab('t-mfu',all);U.onResize('t-mfu',det);
-})();
-</script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (storage key tq-tab; a #t-tab in the URL opens that tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1060,6 +1164,8 @@ window.TQU=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('tq-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>
