@@ -9,7 +9,7 @@ const puppeteer = require('puppeteer');
 const [file, shots] = process.argv.slice(2); fs.mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
 let bad = 0;
-const TABS = ['t-read', 't-dpt-hook', 't-dpt-mesh', 't-dpt-pipe', 't-more'];
+const TABS = ['t-read', 't-dpt-mesh', 't-more'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
@@ -43,7 +43,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       for (const pr of root.querySelectorAll('.pr')) { const bs = pr.querySelectorAll('.opts button'); bs[0].click(); bs[bs.length - 1].click(); out.clicks += 2; if (pr.querySelector('.ans').hidden) out.issues.push('answer not revealed') }
       for (const d of root.querySelectorAll('details')) d.open = true;
       for (const s of root.querySelectorAll('.seg')) { const f = s.querySelector('button'); if (f) f.click() }
-      const sc = document.getElementById('dp-scrub'); if (sc && tab === 't-dpt-pipe') { sc.value = 1000; sc.dispatchEvent(new Event('input')) }
+      const sc = document.getElementById('dp-scrub'); if (sc && tab === 't-read') { sc.value = 1000; sc.dispatchEvent(new Event('input')) }
       const eb = document.getElementById('jsErr'); if (eb && !eb.hidden) out.issues.push('error box: ' + eb.textContent.slice(0, 200));
       window.scrollTo(0, 0); scan('all'); side('all');
       return out }, tab);

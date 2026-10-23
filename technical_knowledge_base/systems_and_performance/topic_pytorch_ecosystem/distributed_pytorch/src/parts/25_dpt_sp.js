@@ -44,5 +44,5 @@
       RD.stat('Per training step (recorded)',mode==='tp'?'16 all-reduces':'18 all-gathers + 16 reduce-scatters','4 blocks, forward and backward')+
       RD.stat('Saved activations per rank (recorded)',U.mb(rec.saved),'one process: '+U.mb(rec.saved_one));
   }});
-  U.seg($('dpt-sp-seg'),m=>{mode=m;A.reset(S[m].length);A.play()});
+  U.seg($('dpt-sp-seg'),m=>{mode=m;A.reset(S[m].length)});
 })();

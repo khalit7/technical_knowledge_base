@@ -48,8 +48,18 @@ c("Broadcast, 10.7 ms against 25.7 ms for all-reduce and 26.9 ms", [ct2[k][-1]["
 c("in 25.7 ms, about 2.6 GB/s", 67108864 / ct2["all_reduce"][-1]["median_s"], round(67108864 / ct2["all_reduce"][-1]["median_s"] / 1e9, 1) == 2.6)
 pp = {k: J("pps_" + k) for k in ("ZBVZeroBubble_w2_m4", "1F1B_w2_m4")}
 zb = [round(r["median"]["bubble"], 2) for r in pp["ZBVZeroBubble_w2_m4"]["ranks"]]; ob = [round(r["median"]["bubble"], 2) for r in pp["1F1B_w2_m4"]["ranks"]]
-c("ZBVZeroBubble 0.08 and 0.07 at m = 4", zb, zb == [0.08, 0.07])
-c("idled 0.08 and 0.07 of the step against 1F1B's 0.19 and 0.10", (zb, ob), zb == [0.08, 0.07] and ob == [0.19, 0.10])
+c("ZBVZeroBubble idled 0.08 and 0.07 of the step at m = 4 against 1F1B's 0.19 and 0.10", (zb, ob), zb == [0.08, 0.07] and ob == [0.19, 0.10])
+dd = J("ddp_buckets")["steps"]
+c("all-reduced 30.7 ms into backward", dd[0]["allreduce"], [round(a[1], 1) for a in dd[0]["allreduce"]] == [30.7] and dd[0]["allreduce"][0][0] == 12747776)
+c("all-reduced at 1.0 and 17.25 ms", dd[1]["allreduce"], [round(a[1], 2) for a in dd[1]["allreduce"]] == [1.0, 17.25] and [a[0] for a in dd[1]["allreduce"]] == [1051648, 11696128])
+hk = {v["name"]: v for v in D["hooks"]["2"]}
+c("6,373,888 bytes per step instead of 12,747,776, gradient error 2.8e-4", hk["fp16_compress_hook"]["s"][5], hk["fp16_compress_hook"]["s"][5][2] == 6373888 and "%.1e" % hk["fp16_compress_hook"]["s"][5][1] == "2.8e-04")
+c("327,344 bytes at rank 4, 39 times fewer", hk["powerSGD rank 4"]["s"][5][2], hk["powerSGD rank 4"]["s"][5][2] == 327344 and round(12747776 / 327344) == 39)
+c("(pp 2 &times; dp 2 &times; tp 2), drawn to scale: [1024, 256] in the model, [512, 256] after", D["c3"][0]["params"], [p for p in D["c3"][0]["params"] if p[0] == "blocks.0.mlp.fc.weight"][0][1:3] == [[1024, 256], [256, 256]])
+c("one process on the same 16 sequences to 1.8e-7", max(r["gd"] for r in D["c3"]), "%.1e" % max(r["gd"] for r in D["c3"]) == "1.8e-07")
+c(".metadata</code> of 144,171 bytes", D["dcp"]["convert"]["dcp_files"][0], D["dcp"]["convert"]["dcp_files"][0] == [".metadata", 144171])
+c("one 38,343,430-byte", D["dcp"]["convert"]["pt_bytes"], D["dcp"]["convert"]["pt_bytes"] == 38343430)
+c("28,160 bytes in for the root, 789,760 per block", D["mesh"]["fsdp4"]["ranks"][0]["coll"], [e[3] for e in D["mesh"]["fsdp4"]["ranks"][0]["coll"]] == [28160, 789760, 3159040, 112640])
 gmax = max(r["max_grad_diff_untied"] for f in os.listdir(I) if f.startswith("pps_") for r in J(f[:-5])["ranks"])
 c("largest difference 1.3e-7 on the untied", gmax, "%.1e" % gmax == "1.3e-07")
 tl = [r["tied_grad_diff"] for f in os.listdir(I) if f.startswith("pps_") and not ("ZBV" in f or "DualPipe" in f) for r in J(f[:-5])["ranks"] if r["tied_grad_diff"] is not None]

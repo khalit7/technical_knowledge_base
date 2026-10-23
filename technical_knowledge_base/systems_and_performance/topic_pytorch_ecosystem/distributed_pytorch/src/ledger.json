@@ -1,0 +1,3145 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Distributed PyTorch: c10d, DDP, FSDP2, DTensor, TP, PP, DCP Distributed PyTorch: c10d, DDP, FSDP2, DTensor, TP, PP, DCP PyTorch's distributed APIs one level below the parent page's Distributed lab, taught from zero on the topic's running example: process groups, the store and torchrun's restarts; what each collective sends and costs; DDP's reducer, hooks and gradient accumulation; FSDP2's policies, HSDP and prefetching; how DTensor decides placements; tensor, sequence and context parallelism; every pipeline schedule with its measured bubble; distributed checkpoints; composing them the torchtitan way; and how to debug a hang.",
+  "label": "core",
+  "key": "Distributed PyTorch: c10d, DDP, FSDP2, DTensor, TP",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Every run here is real: CPU processes on the gloo backend, torch 2.14.1, Apple M1 Pro; GPU numbers are quoted and labelled.",
+  "label": "core",
+  "key": "torch 2.14.1, Apple M1 Pro; GPU",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Comm-hook bytes lab Mesh explorer Pipeline schedules Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar of the old page"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 c10d 2 Collectives 3 DDP 4 FSDP2 5 DTensor 6 TP, SP 7 Context parallel 8 Pipelining 9 DCP 10 Composing 11 Debugging 12 To NVIDIA Mistakes Interview",
+  "label": "core",
+  "key": "9 DCP 10 Composing 11 Debugging 12",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "In one screen Distributed PyTorch runs the same Python script in several processes , one per device, and lets them cooperate only through collectives (operations every process in a group calls together, such as summing a tensor across all of them).",
+  "label": "core",
+  "key": "one screen Distributed PyTorch runs the same",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Everything on this page is a way of deciding what each process holds and which collectives it calls : copy the model and split the data (DDP), split the model's state too (FSDP2), split the matrices (tensor parallel), split the sequence (sequence and context parallel), split the layers (pipelining), and save it all without ever gathering it in one place (DCP).",
+  "label": "core",
+  "key": "FSDP2), split the matrices (tensor parallel), split",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The parent page's Distributed lab tab already follows one training step of the running example (the topic's 3,186,944-parameter character GPT: 4 blocks, d model 256, batch 8 × 64 tokens, AdamW) through DDP, FSDP2, TP, a 2-stage pipeline, DCP and three hangs, and animates DDP against FSDP2.",
+  "label": "core",
+  "key": "the topic's 3,186,944-parameter character GPT",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "This page goes one level down into each API, on the same model, with new runs: 50 recordings on 2, 4 and 8 CPU processes.",
+  "label": "depth",
+  "key": "50 recordings on 2, 4 and 8",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The theory (why ZeRO saves memory, the parallelism maths, which split to use at what scale) belongs to Distributed Training ; NCCL itself to Streams, CUDA graphs and multi-GPU .",
+  "label": "depth",
+  "key": "NCCL itself is on",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "This page is what PyTorch's APIs actually do, and how to check it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement"
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "API What each process holds Collectives in one step of the running example (measured) Per process Section DDP the whole model, different data 2 all-reduces from step 1 on (1,051,648 and 11,696,128 bytes), 1 in step 0 12,747,776 B of weights, 25.5 MB of AdamW state 3 FSDP2, 4 processes 1/4 of every parameter, its gradient and its optimizer state 14: 9 all-gathers, 5 gradient reductions 3,187,200 B of weights 4 HSDP, 2 × 2 1/2 of every parameter, copied in two replicas 19: 9 all-gathers and 5 reductions in the shard group, 5 all-reduces in the replica group 6,374,400 B 4, Mesh explorer TP, 2 processes half of each attention and MLP matrix, the same data 16 all-reduces of 524,288 B (24 with a careless plan) saved activations 22.17 MB (one process: 47.41 MB) 6 TP + sequence parallel as TP, plus half the sequence between the matrices 18 all-gathers of 262,144 B, 16 reduce-scatters saved activations 20.06 MB 6 Context parallel half the sequence inside attention 1 all-gather of K and V, or 1 pass per other process K and V of its own tokens 7 Pipelining, 2 stages half the layers send/recv of activations and their gradients idle 10 to 21% of the step (measured bubble) 8, Pipeline schedules PP × FSDP × TP, 8 processes 1/8 of the weights per process: TP all-reduces, FSDP all-gathers and reductions, one pp all-reduce for the tied embedding about 1.6 MB of 12.75 MB of weights 10 Measured on Apple M1 Pro, CPU, gloo, torch 2.14.1, one thread per process, 2026-10-13.",
+  "label": "depth",
+  "key": "262,144 B, 16 reduce-scatters saved activations 20.06",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Collective counts, sizes, placements, memory and losses carry over to GPUs in kind; times do not (section 12).",
+  "label": "depth",
+  "key": "in kind; times do not (section 12",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Every script is in this page's src/exp/ and imports the running example unchanged from the parent's src/model/ .",
+  "label": "core",
+  "key": "src/exp/",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "Processes, process groups and the store (c10d) The problem.",
+  "label": "core",
+  "key": "process groups and the store (c10d",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "Eight Python processes start on eight GPUs.",
+  "label": "core",
+  "key": "Eight Python processes start on eight GPUs",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "Before any tensor moves, each must learn who it is, find the others, and agree on a channel. c10d (\"collective communication\", PyTorch's distributed core) does this in three layers: a store (a small key-value server everyone can reach), a process group (a set of ranks plus a backend), and a backend (the library that moves bytes: NCCL between NVIDIA GPUs, gloo on CPUs).",
+  "label": "core",
+  "key": "and agree on a channel. c10d",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "What torchrun hands each process torchrun --nproc_per_node 4 script.py starts 4 copies and passes their identity in environment variables.",
+  "label": "core",
+  "key": "nproc_per_node",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "Recorded on rank 1: Then init_process_group(\"gloo\") reads MASTER_ADDR and MASTER_PORT , connects to a TCPStore there (rank 0 hosts it, or torchrun's agent does: TORCHELASTIC_USE_AGENT_STORE=True ), and every rank writes its address under a key and reads the others': that is the rendezvous .",
+  "label": "core",
+  "key": "every rank writes its address under a",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "The default store recorded here is a chain : prefixes keep different groups' and restart attempts' keys apart.",
+  "label": "depth",
+  "key": "prefixes keep different groups' and restart attempts'",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "You can use it yourself; four ranks each wrote hello/<rank> and all read back .",
+  "label": "depth",
+  "key": "it yourself; four ranks each wrote hello/<rank>",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "Found on this Mac: name the backend Subgroups and meshes A collective can run on any subset of ranks: dist.new_group([0, 1]) makes a group of two.",
+  "label": "core",
+  "key": "dist.new_group([0, 1])",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "A DeviceMesh builds them for you: init_device_mesh(\"cpu\", (2, 2), mesh_dim_names=(\"dp\", \"tp\")) lays ranks 0 to 3 out as [[0, 1], [2, 3]] and creates one group per row (the \"tp\" groups {0, 1} and {2, 3}) and one per column (the \"dp\" groups {0, 2} and {1, 3}).",
+  "label": "core",
+  "key": "3 out as [[0, 1], [2, 3]]",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "Recorded: rank 1 sits at coordinate (0, 1), its tp group is [0, 1] and its dp group [1, 3].",
+  "label": "core",
+  "key": "coordinate (0, 1), tp group [0, 1], dp group [1, 3]",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "Neighbouring ranks share a row, which is why torchtitan puts tensor parallelism on the innermost (last) mesh dimension: neighbouring ranks share a server and its fast links (section 10).",
+  "label": "core",
+  "key": "server and its fast links (section 10",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "The Mesh explorer tab shows every group of every layout run here.",
+  "label": "core",
+  "key": "shows every group of every layout run",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "Elastic restarts When one process dies, the others block in their next collective. torchrun --max-restarts N turns that into a restart: its agent kills the survivors, runs the rendezvous again and starts every worker from the top of the script, with TORCHELASTIC_RESTART_COUNT incremented.",
+  "label": "core",
+  "key": "top of the script, with TORCHELASTIC_RESTART_COUNT incremented",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "Nothing is kept in memory, so the script must resume from its own checkpoint.",
+  "label": "core",
+  "key": "script must resume from its own checkpoint",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "Run here with rank 1 crashing at step 3: Events from both ranks of one run (2 processes, --max-restarts 2 , the script checkpoints after every step).",
+  "label": "core",
+  "key": "2 processes, --max-restarts 2 , the script",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "Losses after the restart equal an uninterrupted run of the same script exactly, because the checkpoint holds weights, AdamW state and the step number. torchrun's own log, host and process ids removed: An honest caveat: restarts on this machine were flaky The 20-second timeout is the script's own ( init_process_group(timeout=...) ); the cause was not isolated (gloo over the loopback interface on macOS). torchrun's restart budget is what absorbed it, which is the general lesson: give --max-restarts some slack and make resuming cheap.",
+  "label": "depth",
+  "key": "this machine were flaky The 20-second timeout",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. processes, process groups and the store (c10d)",
+  "text": "For failures that should not restart the whole job, torchft keeps healthy replicas training ( Ecosystem map tab has its status).",
+  "label": "depth",
+  "key": "whole job, torchft keeps healthy replicas training",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "Collectives: what each one leaves on every rank, and what it costs The lab's collectives primer (Distributed lab tab, section 2) shows the five verbs on toy values.",
+  "label": "core",
+  "key": "collectives primer (Distributed lab tab, section 2",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "Here is every collective c10d offers, called once with 1 MiB (262,144 float32 values) per rank on 4 ranks, as PyTorch's flight recorder (a per-process log of every collective: name, sizes, dtypes, sequence number) saw it: Measured, 4 CPU processes, gloo. \"Bytes a ring sends per rank\" is the textbook cost for an input of S bytes on n ranks (the model the Distributed Training page uses); backends pick their own algorithms.",
+  "label": "core",
+  "key": "with 1 MiB (262,144 float32 values) per",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "Two things the recording adds: reduce_scatter_tensor appears as an all_reduce of the whole tensor, because gloo has no reduce-scatter (it all-reduces and keeps a chunk; ProcessGroupGloo.cpp L1557 ), and the list form all_gather and the tensor form all_gather_into_tensor are the same collective. all_to_all is the one the lab does not draw: rank r sends its j-th piece to rank j.",
+  "label": "core",
+  "key": "all-reduces and keeps a chunk; ProcessGroupGloo.cpp L1557",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "Recorded on 4 ranks, rank 1 sent ; every rank's piece number 1 landed on rank 1.",
+  "label": "core",
+  "key": "Recorded on 4 ranks, rank 1 sent",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "It is what expert parallelism and Ulysses-style sequence parallelism are built on.",
+  "label": "core",
+  "key": "what expert parallelism and Ulysses-style sequence parallelism",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "Cost per rank, measured A collective's time is roughly α + S / B : a fixed latency α per call (setting up, synchronising, one round trip per algorithm step) plus the bytes divided by an effective bandwidth.",
+  "label": "core",
+  "key": "A collective's time is roughly α +",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "Small messages are all latency, big ones all bandwidth; the size where the two terms are equal is why DDP groups gradients into buckets of megabytes and FSDP gathers a whole block at once.",
+  "label": "core",
+  "key": "DDP groups gradients into buckets of megabytes",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "Timed here for every collective from 4 KiB to 64 MiB: 2 processes 4 processes fit α + S/B Measured on Apple M1 Pro, CPU, gloo over loopback, one thread per process, under the shared bench lock : median of 15 timed calls after 3 warm-ups, time of the slowest rank, barrier before each call.",
+  "label": "core",
+  "key": "15 timed calls after 3 warm-ups, time",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "Load average at the end .",
+  "label": "core",
+  "key": "Load average at the end ",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "The fit is least squares on the medians.",
+  "label": "core",
+  "key": "fit is least squares on the medians",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "On 4 processes the largest size stops at 16 MiB: a 64 MiB all_gather_into_tensor on 4 gloo ranks aborted every process (SIGABRT, no message).",
+  "label": "core",
+  "key": "at 16 MiB: a 64 MiB all_gather_into_tensor",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "Predict: at 64 MiB on 2 processes, which is fastest: all-reduce, all-gather, or broadcast? all-reduce all-gather broadcast Broadcast, 10.7 ms against 25.7 ms for all-reduce and 26.9 ms for all-gather.",
+  "label": "core",
+  "key": "all-gather broadcast Broadcast, 10.7 ms against 25.7",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "A broadcast moves the data one way; an all-reduce must both combine and redistribute (in ring terms 2(n − 1)/n of S per rank, against (n − 1)/n for each half), and gloo's CPU reduction adds arithmetic.",
+  "label": "core",
+  "key": "redistribute (in ring terms 2(n − 1)/n",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "That factor of about two between an all-reduce and either half is the same one that makes FSDP's traffic about 1.5 times DDP's.",
+  "label": "core",
+  "key": "makes FSDP's traffic about 1.5 times DDP's",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "Reading these against a GPU cluster The shape transfers: a latency floor for small messages, then time growing with bytes, and all-reduce costing about two of its halves.",
+  "label": "depth",
+  "key": "growing with bytes, and all-reduce costing about",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "The numbers do not.",
+  "label": "depth",
+  "key": "The numbers do not",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "Loopback gloo here moves a 64 MiB all-reduce in 25.7 ms, about 2.6 GB/s; NVIDIA quotes 900 GB/s of NVLink bandwidth per H100 SXM GPU ( NVIDIA, vendor ).",
+  "label": "depth",
+  "key": "900 GB/s of NVLink bandwidth per H100",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. collectives: what each one leaves on every rank, and what it costs",
+  "text": "NCCL's benchmarks report a \"bus bandwidth\" that multiplies the measured rate by 2(n − 1)/n for all-reduce so that numbers on different n compare ( nccl-tests PERFORMANCE.md ); measuring that on real hardware belongs to Interconnects and scaling .",
+  "label": "depth",
+  "key": "2(n − 1)/n for all-reduce so that",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "DDP from the inside: the reducer, unused parameters, accumulation, hooks DDP ( DistributedDataParallel ) keeps a full model on every rank and averages gradients during backward.",
+  "label": "core",
+  "key": "every rank and averages gradients during backward",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "The lab tab (sections 3, 5, 6) shows its buckets on the running example: a single bucket in step 0, then a layout rebuilt in the order gradients actually arrived (1,051,648 and 11,696,128 bytes), each bucket's all-reduce launched while backward continues.",
+  "label": "core",
+  "key": "11,696,128 bytes",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "The piece of C++ that does this is the reducer ( torch/csrc/distributed/c10d/reducer.cpp ): one autograd hook per parameter marks it ready; when every parameter of a bucket is ready, the bucket's tensor goes to a communication hook (by default an all-reduce) whose future is awaited at the end of backward.",
+  "label": "core",
+  "key": "a communication hook (by default an all-reduce",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "Four switches change that machinery, each measured here on 2 processes.",
+  "label": "core",
+  "key": "machinery, each measured here on 2 processes",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "Unused parameters: find_unused_parameters and static_graph The reducer waits for every parameter of a bucket.",
+  "label": "core",
+  "key": "The reducer waits for every parameter of",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "A parameter that forward did not use never gets a gradient, so its bucket never completes.",
+  "label": "core",
+  "key": "a gradient, so its bucket never completes",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "To show it, the running example was wrapped with one extra Linear that forward skips: Measured, 2 CPU processes, gloo.",
+  "label": "depth",
+  "key": "forward skips: Measured, 2 CPU processes, gloo",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "The 216-byte all-reduce is the used-parameter bitmap: 54 parameters × 4 bytes, so every rank learns which parameters some rank used. find_unused_parameters=True also turns off the single-bucket first step (the size caps apply from step 0) and walks the autograd graph from the outputs every step to find the unused ones; the extra cost is that traversal plus the bitmap. static_graph=True promises the same parameters are used every step: DDP learns the set in the first iteration, then rebuilds buckets after step 1 (the two broadcasts in step 2).",
+  "label": "depth",
+  "key": "The 216-byte all-reduce is the used-parameter bitmap",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "When a parameter is used on one rank only, every rank still ends with the same averaged gradient for it (checked on both ranks: neither left it empty).",
+  "label": "depth",
+  "key": "still ends with the same averaged gradient",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "Gradient accumulation: no_sync With 4 micro-batches per optimizer step, an all-reduce after each micro-batch wastes three of them: only the sum matters. with ddp.no_sync(): lets backward accumulate locally without communicating. for i, (x, y) in enumerate(micro_batches): # 4 per optimizer step ctx = ddp.no_sync() if i < 3 else contextlib.nullcontext() with ctx: _, loss = ddp(x, y) (loss / 4).backward() # the last backward all-reduces the sum opt.step(); opt.zero_grad(set_to_none=True) Predict: after buckets are rebuilt, how many collectives do 4 micro-batches issue with and without no_sync?",
+  "label": "core",
+  "key": "enumerate(micro_batches): # 4 per optimizer step ctx",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "8 and 8 10 and 4 8 and 1 Uneven inputs: Join If rank 0 has 5 batches and rank 1 has 3, rank 0's fourth backward waits for a partner that has left the loop.",
+  "label": "core",
+  "key": "8 and 8 10 and 4 8",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "Recorded: without help, both ranks failed with gloo's receive timeout after seconds (the script's 10 s timeout).",
+  "label": "depth",
+  "key": "receive timeout after seconds (the script's 10",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "The Join context manager ( torch.distributed.algorithms.join ) fixes it: each iteration starts with a 4-byte all-reduce counting the ranks still training, and a rank that has run out \"shadows\" the others' all-reduces with zeros until all are done.",
+  "label": "depth",
+  "key": "4-byte all-reduce counting the ranks still training",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "Recorded: Communication hooks ddp.register_comm_hook(state, hook) replaces the all-reduce of each bucket with any function that returns a future of the reduced bucket.",
+  "label": "core",
+  "key": "ddp.register_comm_hook(state, hook)",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "PyTorch ships three families in torch.distributed.algorithms.ddp_comm_hooks : plain all-reduce ( allreduce_hook , which divides by the world size then all-reduces, default_hooks.py L18 ), compression to 16 bits ( fp16_compress_hook : cast, divide, all-reduce, cast back), and PowerSGD (Vogels et al.",
+  "label": "core",
+  "key": "compression to 16 bits ( fp16_compress_hook ",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "2019, arXiv 1905.13727 ), which replaces each gradient matrix M (n × m) by a rank-r product P Q T found with one step of power iteration and all-reduces only P (n × r) and Q (m × r), keeping the error it made as error feedback to add to the next step's gradient.",
+  "label": "core",
+  "key": "2019, arXiv 1905.13727 ), which replaces each",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "The Comm-hook bytes lab trains the running example 30 steps under each and plots bytes, gradient error and loss.",
+  "label": "depth",
+  "key": "30 steps per hook",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "In one line each: Measured, 2 CPU processes, 30 steps, same weights and batches; PowerSGD with start_powerSGD_iter=2 (its default is 1,000 plain all-reduce steps first, powerSGD_hook.py L184 ).",
+  "label": "depth",
+  "key": "1,000 plain all-reduce steps first, powerSGD_hook.py L184",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "Relative error = |hook's averaged gradient − exact average| / |exact average| at step 5, the exact average computed from the same local gradients on a separate process group.",
+  "label": "depth",
+  "key": "Relative error = |hook's averaged gradient −",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "Three things that broke, and why they matter beyond this laptop bf16_compress_hook refuses gloo: Use fp16 compression on CPU, bf16 on NCCL. batched_powerSGD_hook is broken at 2.14.1 on any backend.",
+  "label": "depth",
+  "key": "laptop bf16_compress_hook refuses gloo: Use fp16 compression",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "It ran the two plain warm-up steps, then failed at its first compressed step with a bare AssertionError : it passes a 2-D matrix to _orthogonalize , which asserts a 3-D batch ( L24-26 , called from L808).",
+  "label": "depth",
+  "key": "batch ( L24-26 , called from L808",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "PowerSGD on 4 gloo processes crashed the job (gloo EnforceNotMet ... op.nread == op.preamble.nbytes : a message of the wrong size arrived), for ranks 1 and 4, while rank 16 and rank 4 without error feedback finished.",
+  "label": "depth",
+  "key": "ranks 1 and 4, while rank 16",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "Logging every all-reduce the hook issues showed why: two thirds are issued from future callbacks on another thread, not the main thread, and at step 16 the ranks issued them in different orders: Collectives must be issued in the same order on every rank (the rule of section 11); a hook that issues them from callbacks can break it whenever timing differs.",
+  "label": "depth",
+  "key": "16 the ranks issued them in different",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "On 2 processes it did not happen in 180 steps.",
+  "label": "depth",
+  "key": "processes it did not happen in 180",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "Not checked on NCCL.",
+  "label": "depth",
+  "key": "Not checked on NCCL",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "Two neighbours. gradient_as_bucket_view=True makes each .grad a view into its bucket instead of a copy (the lab tab, section 3, measured it on this model: no change in peak, because the peak comes at the start of backward).",
+  "label": "depth",
+  "key": "neighbours. gradient_as_bucket_view=True makes each .grad a view",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. ddp from the inside: the reducer, unused parameters, accumulation, hooks",
+  "text": "Under torch.compile , DDP splits the compiled graph at bucket boundaries so the all-reduces still overlap ( DDPOptimizer : 2, 4 and 13 graphs for 25, 4 and 1 MB buckets on the running example), measured on the torch.compile child.",
+  "label": "depth",
+  "key": "4 and 13 graphs for 25, 4",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "FSDP2 in depth: policies, HSDP, prefetching, accumulation, state dicts FSDP2 ( torch.distributed.fsdp.fully_shard ) is PyTorch's ZeRO stage 3: each rank keeps 1/n of every parameter, gradient and optimizer state, gathers a unit's full weights just before using them and reduce-scatters the gradients.",
+  "label": "core",
+  "key": "FSDP2 ( torch.distributed.fsdp.fully_shard ) is PyTorch's ZeRO",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "The lab tab (sections 4 to 6) records it on the running example: fully_shard on each block, then on the whole model; 14 collectives per step; the root unit not resharded after forward.",
+  "label": "core",
+  "key": "fully_shard on each block, then on the",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "What fully_shard does to a module is concrete: every parameter becomes a DTensor (section 5) with placement Shard(0) , the module's class is swapped for a new subclass that also inherits FSDPModule (checked here: GPT becomes FSDPGPT , whose bases are FSDPModule then GPT ; each Block becomes FSDPBlock ), so model.unshard() , reshard() , set_requires_gradient_sync() exist; and forward pre/post hooks plus autograd hooks schedule the gathers and reductions.",
+  "label": "core",
+  "key": "a DTensor (section 5) with placement Shard(0",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "How those hooks sit on the tensor subclass machinery is on the Extending PyTorch child.",
+  "label": "core",
+  "key": "how they sit on the tensor-subclass machinery",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "This section measures the knobs, on 2 and 4 processes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section wind-up"
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "MixedPrecisionPolicy: what travels in which dtype Measured, 2 CPU processes, step 1. param_dtype=bfloat16 casts each gathered weight, so the all-gathers carry half the bytes and forward and backward compute in bfloat16; the sharded master weights and AdamW stay float32 (persistent state is the same in all three rows). reduce_dtype sets the gradient reduction. torchtitan's default is exactly the middle row: bfloat16 parameters, float32 reductions (torchtitan 0.3.0 config/configs.py L85 and L93).",
+  "label": "core",
+  "key": "bfloat16 parameters, float32 reductions (torchtitan 0.3.0 config/configs.py",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "On this M1 Pro CPU, bfloat16 matrix multiplication has no hardware support (FACTS fst: 2.1 GFLOP/s), so these rows are for bytes and dtypes, not speed. reshard_after_forward as an integer After a block's forward, FSDP2 can free the gathered weights ( True , gather again in backward), keep them ( False , no second gather, more memory), or, given an integer k, keep them sharded over k ranks only.",
+  "label": "core",
+  "key": "this M1 Pro CPU, bfloat16 matrix multiplication",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "On 4 processes with reshard_after_forward=2 , FSDP2 built a second mesh : forward all-gathers run over all 4 ranks (789,760 bytes in per block), backward all-gathers only within the pair (1,579,520 bytes in, from the pair's half).",
+  "label": "depth",
+  "key": "backward all-gathers only within the pair (1,579,520",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "The step's peak above persistent state rose from 43.9 MB to 48.6 MB.",
+  "label": "depth",
+  "key": "state rose from 43.9 MB to 48.6",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "The point on GPUs: make the pair the 8 GPUs of one server, so the backward gather never crosses the slower network.",
+  "label": "depth",
+  "key": "pair the 8 GPUs of one server",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "HSDP: shard inside a group, replicate across groups Pass a 2-D mesh, fully_shard(m, mesh=init_device_mesh(\"cpu\", (2, 2), mesh_dim_names=(\"replicate\", \"shard\"))) , and every parameter is placed (Replicate(), Shard(0)) : sharded over the 2 ranks of its row, copied in the other row.",
+  "label": "core",
+  "key": "2-D mesh, fully_shard(m, mesh=init_device_mesh(\"cpu\", (2, 2), mesh_dim_names=(\"replicate\"",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "Per step on 4 processes: all-gathers and gradient reductions within the shard group, plus one all-reduce per unit across the replicate group, 19 collectives in all against FSDP's 14, for half the sharding (6,374,400 bytes of weights per rank against 3,187,200).",
+  "label": "core",
+  "key": "FSDP's 14, for half the sharding (6,374,400",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "Losses were identical to FSDP2 and DDP on 4 processes (3.801371, 3.171438, 3.121909).",
+  "label": "core",
+  "key": "DDP on 4 processes (3.801371, 3.171438, 3.121909",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "The Mesh explorer lets you click any rank of any layout and see its groups, shards and collectives.",
+  "label": "core",
+  "key": "shows every rank's groups, shards and collectives",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "Prefetching: issuing the next gather early By default FSDP2 prefetches implicitly: while block i runs forward it has already issued block i + 1's all-gather; in backward, the next block's. block.set_modules_to_forward_prefetch([...]) and set_modules_to_backward_prefetch([...]) name the modules explicitly, here two ahead.",
+  "label": "core",
+  "key": "gather early By default FSDP2 prefetches implicitly",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "Recorded issue times on rank 0 (2 processes): Implicit (default) Explicit, 2 ahead Measured, 2 CPU processes, step 2 : bars are each block's forward and backward on rank 0, diamonds the all-gathers and gradient reductions as issued.",
+  "label": "core",
+  "key": "Implicit (default) Explicit, 2 ahead Measured, 2",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "Gloo on one thread does not overlap communication with compute the way NCCL streams do, so read the order, not the gaps.",
+  "label": "core",
+  "key": "thread does not overlap communication with compute",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "Gradient accumulation without reducing every micro-batch model.set_requires_gradient_sync(False) is FSDP2's no_sync .",
+  "label": "core",
+  "key": "model.set_requires_gradient_sync(False) is FSDP2's no_sync ",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "Over 4 micro-batches on 2 processes: The all-gathers do not go away, because each micro-batch's forward and backward needs full weights again; set_reshard_after_backward(False) keeps them gathered between micro-batches at the cost of memory (not run here).",
+  "label": "depth",
+  "key": "gathered between micro-batches at the cost of",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "CPU offload, state dicts, and an unsharded surprise offload_policy=CPUOffloadPolicy() ran here (losses , the same as plain FSDP2), but means nothing on a CPU: on a GPU it keeps the sharded parameters, gradients and optimizer state in host memory and runs the optimizer step on the CPU.",
+  "label": "depth",
+  "key": "same as plain FSDP2), but means nothing",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "Not measured on a GPU.",
+  "label": "depth",
+  "key": "Not measured on a GPU",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "Sharded state dicts cost nothing. model.state_dict() issued ; get_model_state_dict(model, options=StateDictOptions(full_state_dict=True, cpu_offload=True)) issued all-gathers to build full tensors.",
+  "label": "depth",
+  "key": "model.state_dict() issued ; get_model_state_dict(model, options=StateDictOptions(full_state_dict=True, cpu_offload=True)) issued",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "Save with DCP (section 9) and you never pay the second.",
+  "label": "depth",
+  "key": "with DCP (section 9) and you never",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "After a forward without backward, the root's parameters are plain tensors.",
+  "label": "depth",
+  "key": "forward without backward, the root's parameters are",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "The root unit is not resharded after forward (it is needed first in backward), so its parameters are swapped for the unsharded full tensors until backward or reshard() .",
+  "label": "depth",
+  "key": "unsharded full tensors until backward or reshard",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "Recorded in the DCP run: were not DTensors after an evaluation forward.",
+  "label": "depth",
+  "key": "were not DTensors after an evaluation forward",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "Code that inspects parameters after an eval forward sees full shapes on the root and shards on the blocks.",
+  "label": "depth",
+  "key": "Call model.reshard() after evaluation",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "FSDP1 against FSDP2, checked Measured, 2 CPU processes.",
+  "label": "depth",
+  "key": "FSDP1 still runs at 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. fsdp2 in depth: policies, hsdp, prefetching, accumulation, state dicts",
+  "text": "FSDP1 still runs at 2.14.1 and printed no deprecation warning; the parent page's correction stands (no formal deprecation notice at 2.14, Ecosystem map tab).",
+  "label": "depth",
+  "key": "FSDP1 still runs at 2.14.1 and printed",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "DTensor: how an operation decides where its output lives A DTensor ( torch.distributed.tensor ) is one logical tensor spread over a DeviceMesh, with one placement per mesh dimension: Shard(d) (split along tensor dimension d), Replicate() (every rank has all of it) or Partial() (every rank has a full-shape tensor and the true value is their sum).",
+  "label": "core",
+  "key": "torch.distributed.tensor ) is one logical tensor spread",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "The lab tab (section 7) has an explorer of every redistribute between placements and the collective each costs.",
+  "label": "core",
+  "key": "redistribution explorer",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "This section is the other half: what happens when you call an ordinary operation on DTensors.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "DTensor is a tensor subclass (built as the Extending PyTorch child describes, with a C++ fast path).",
+  "label": "core",
+  "key": "tensor subclass (built as the Extending PyTorch",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "For every ATen operation it asks the sharding propagator : given the inputs' placements, which output placement can be computed locally, and if none, which inputs must be redistributed first?",
+  "label": "core",
+  "key": "given the inputs' placements, which output placement",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "Each operation registers a strategy , a list of (output placements, required input placements) pairs; DTensor picks the cheapest, runs any redistribution (a collective), then runs the plain operation on the local pieces.",
+  "label": "core",
+  "key": "output placements, required input placements) pairs; DTensor",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "Run on 2 processes, A 4 × 6, B 6 × 8, every result checked against the plain-tensor result: Measured, 2 CPU processes; collectives as CommDebugMode counted them.",
+  "label": "core",
+  "key": "Measured, 2 CPU processes; collectives as CommDebugMode",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "S(d) = Shard(d), R = Replicate, P = Partial(sum).",
+  "label": "depth",
+  "key": "Shard(d), R = Replicate, P = Partial(sum",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "Four rules fall out, and they are most of tensor parallelism: Linear operations commute with the sum , so a Partial passes through them free: A @ B with A split by columns and B by rows gives each rank a full-shape partial product ( S(1) x S(0) → P , no communication); Partial + Partial and 2 × Partial stay Partial.",
+  "label": "core",
+  "key": "full-shape partial product ( S(1) x S(0",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "Nonlinear ones do not. relu(Partial) forced an all-reduce first: relu of a sum is not the sum of relus.",
+  "label": "core",
+  "key": "do not. relu(Partial) forced an all-reduce first",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "This is why Megatron's MLP puts the GeLU between a column split and a row split.",
+  "label": "core",
+  "key": "why Megatron's MLP puts the GeLU between",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "Operations that need a whole row need it gathered.",
+  "label": "core",
+  "key": "Operations that need a whole row need",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "Softmax and LayerNorm along a sharded dimension all-gathered it (output Replicate); along an unsharded dimension they ran locally.",
+  "label": "core",
+  "key": "sharded dimension all-gathered it (output Replicate); along",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "Sequence parallelism (section 6) uses exactly this: LayerNorm is per token, so splitting the sequence is free.",
+  "label": "core",
+  "key": "parallelism (section 6) uses exactly this: LayerNorm",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "A row-sharded embedding table gives a new kind of placement , MaskPartial : each rank looks up the ids it owns, writes zeros elsewhere, and the sum is pending.",
+  "label": "core",
+  "key": "row-sharded embedding table gives a new kind",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "That is vocabulary-parallel embedding.",
+  "label": "core",
+  "key": "vocabulary-parallel embedding",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "Wrapping and unwrapping: from_local and to_local DTensor.from_local(t, mesh, [Shard(0)]) declares that the local tensors of all ranks together form one DTensor; it moves no data.",
+  "label": "core",
+  "key": "DTensor.from_local(t, mesh, [Shard(0)",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "Recorded: to_local() returns the local piece without copying.",
+  "label": "core",
+  "key": "to_local() returns the local piece without copying",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "Two traps: with uneven pieces, the global shape must be given ( shape= and stride= ), and the pieces must follow torch.chunk 's split (3 rows over 2 ranks is 2 and 1, recorded ).",
+  "label": "depth",
+  "key": "2 ranks is 2 and 1, recorded",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "A first attempt here declared pieces of 3 and 1 rows with shape=(4, 2) ; full_tensor() then all-gathered pieces of the wrong size and gloo aborted both processes.",
+  "label": "depth",
+  "key": "3 and 1 rows with shape=(4, 2",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "A custom operator needs a strategy An operator DTensor does not know raises at once.",
+  "label": "depth",
+  "key": "operator DTensor does not know raises at",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "Recorded for a small torch.library op dpt::rowscale(x, s) = x * s[:, None] : Registering a strategy fixes it: from torch.distributed.tensor.experimental import register_sharding @register_sharding(torch.ops.dpt.rowscale.default) def rowscale_strategy(x, s): # (output placements, input placements) pairs DTensor may choose from return [([Shard(0)], [Shard(0), Shard(0)]), # rows split: each rank scales its own rows ([Replicate()], [Replicate(), Replicate()]), ([Shard(1)], [Shard(1), Replicate()])] # columns split: needs all of s The fourth line asked for x by columns and s by rows; no strategy matches, so DTensor redistributed s to Replicate with one all-gather and picked the third strategy.",
+  "label": "depth",
+  "key": "choose from return [([Shard(0)], [Shard(0), Shard(0)]), #",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "5. dtensor: how an operation decides where its output lives",
+  "text": "Measured, 2 CPU processes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "repeated measurement label"
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Tensor and sequence parallelism on the running example's block Tensor parallelism (TP) splits the weight matrices inside a layer across ranks that all see the same batch. torch.distributed.tensor.parallel.parallelize_module(module, mesh, plan) takes a plan , a dict from submodule names to styles : ColwiseParallel (shard the weight's output dimension: each rank computes some output features), RowwiseParallel (shard the input dimension: each rank produces a Partial sum, then an all-reduce), SequenceParallel and PrepareModuleInput (convert a module's inputs between placements).",
+  "label": "core",
+  "key": "all-reduce), SequenceParallel and PrepareModuleInput (convert a module's",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Each style rewrites the module's parameters into DTensors and installs hooks that convert inputs and outputs.",
+  "label": "core",
+  "key": "module's parameters into DTensors and installs hooks",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "The maths of the Megatron split is on the Megatron-LM paper page and Distributed Training ; the lab tab (section 8) ran it on the MLPs and showed that the running example's fused qkv projection cannot be column-split blindly (rank 0 got all of q and half of k).",
+  "label": "core",
+  "key": "rank 0 got all of q and",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Making attention splittable. torchtitan's models use separate wq , wk , wv Linears.",
+  "label": "core",
+  "key": "torchtitan's models use separate wq , wk",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Here each block's attention was swapped at run time for an equivalent module with separate q , k , v built from the same weights, whose forward uses as many heads as its local shard holds ( src/exp/dpt_parts.py ; the model file is unchanged).",
+  "label": "core",
+  "key": "src/exp/dpt_parts.py ; the model file is unchanged",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "With 2 ranks each holds 2 of the 4 heads; losses equal one process at every step (3.801371, 3.187931, 3.167831) and gradients agree to 2.1e-6.",
+  "label": "core",
+  "key": "step (3.801371, 3.187931, 3.167831) and gradients agree",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "The plan decides the communication: 24 all-reduces or 16 Colwise on q, k and v separately means each wraps the same input in its own DTensor, and in backward each sends its own input-gradient all-reduce: 3 per attention instead of 1.",
+  "label": "core",
+  "key": "decides the communication: 24 all-reduces or 16",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Wrapping the attention input once ( \"attn\": PrepareModuleInput(input_layouts=Replicate(), desired_input_layouts=Replicate(), use_local_output=False) ) makes q, k and v share one DTensor input, whose gradients add up locally before a single all-reduce.",
+  "label": "core",
+  "key": "input once ( \"attn\": PrepareModuleInput(input_layouts=Replicate(), desired_input_layouts=Replicate(), use_local_output=False",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Recorded per step: 24 all-reduces of 524,288 bytes with the first plan, 16 with the second (8 in forward: one after each attention and MLP of 4 blocks; 8 in backward).",
+  "label": "core",
+  "key": "Recorded per step: 24 all-reduces of 524,288",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Same losses, same gradients, one third less communication.",
+  "label": "core",
+  "key": "losses, same gradients, one third less communication",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Sequence parallelism: stop duplicating the cheap parts Under TP, everything between the matrix multiplies (LayerNorms, the residual stream, dropout) runs on the full activation on every rank: duplicated work and duplicated memory.",
+  "label": "core",
+  "key": "matrix multiplies (LayerNorms, the residual stream, dropout",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Sequence parallelism (Korthikanti et al.",
+  "label": "core",
+  "key": "Sequence parallelism (Korthikanti et al",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "2022, arXiv 2205.05198 ) splits those along the sequence instead, which is free because LayerNorm and the residual add work token by token.",
+  "label": "core",
+  "key": "2022, arXiv 2205.05198 ) splits those along",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Each all-reduce becomes a reduce-scatter (leave each rank its half of the tokens, summed) followed later by an all-gather (rebuild the full sequence before the next matrix multiply).",
+  "label": "core",
+  "key": "summed) followed later by an all-gather (rebuild",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "The same block, before and after, recorded on 2 processes: TP only TP + sequence parallel Each lane is one rank's activation for one block's forward, the 64 tokens drawn as 8 tiles of 8; dark = rows it holds, gold = a Partial sum not yet reduced, light = just gathered.",
+  "label": "core",
+  "key": "forward, the 64 tokens drawn as 8",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Placements and local shapes at each module boundary are the recorded ones ( ln1 input local shape (8, 64, 256) under TP, (8, 32, 256) under TP + SP); counters are per training step of the whole model (4 blocks, forward and backward), from the flight recorder.",
+  "label": "core",
+  "key": "64, 256) under TP, (8, 32, 256",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Measured, 2 CPU processes, gloo.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "repeated label"
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "What the recording says: the all-reduces disappear and become pairs of all-gathers (262,144 bytes in per rank: half the activation) and reduce-scatters (gloo runs them as all-reduces of the full 524,288 bytes; NCCL would move half).",
+  "label": "core",
+  "key": "become pairs of all-gathers (262,144 bytes in",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "In ring terms the bytes per step are about the same as TP's (34 halves of 262,144 bytes, 8.9 MB, against 16 all-reduces costing 524,288 bytes each on 2 ranks, 8.4 MB), because an all-reduce is a reduce-scatter plus an all-gather; the gain is memory and work.",
+  "label": "core",
+  "key": "8.9 MB, against 16 all-reduces costing 524,288",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Saved activations per rank fell from 22.17 MB to 20.06 MB here (one process: 47.41 MB): small, because on this model the LayerNorm and residual activations are a small part of what is saved.",
+  "label": "core",
+  "key": "20.06 MB here (one process: 47.41 MB",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "On a model with long sequences and many layers, Korthikanti et al. report the saving that makes TP + SP + selective recomputation fit (their Table 2; on Distributed Training ).",
+  "label": "core",
+  "key": "Table 2; on Distributed Training ",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Predict: in TP + SP, what does a LayerNorm's weight gradient need at the end of backward?",
+  "label": "core",
+  "key": "what does a LayerNorm's weight gradient need",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "An all-reduce over the TP group Nothing: each rank already has it A reduce-scatter An all-reduce.",
+  "label": "core",
+  "key": "already has it A reduce-scatter An all-reduce",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Each rank computed the LayerNorm on its own half of the tokens, so each holds a Partial gradient of the (replicated) weight.",
+  "label": "core",
+  "key": "a Partial gradient of the (replicated) weight",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "SequenceParallel makes the weight a Replicate DTensor, and DTensor reduces its Partial gradient for you: the gradients matched one process to 1.7e-6.",
+  "label": "core",
+  "key": "the gradients matched one process to 1.7e-6",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "6. tensor and sequence parallelism on the running example's block",
+  "text": "Under plain TP the LayerNorm saw all tokens on every rank and no reduction was needed.",
+  "label": "core",
+  "key": "LayerNorm saw all tokens on every rank",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "Context parallelism: ring attention, run on a CPU The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "Sequence parallelism splits the sequence everywhere except attention, where every token needs every earlier token's keys and values.",
+  "label": "core",
+  "key": "splits the sequence inside attention too",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "At long context lengths the activations of attention grow with the sequence and can outgrow one GPU on their own.",
+  "label": "core",
+  "key": "can outgrow one GPU on their own",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "Context parallelism (CP) splits the sequence inside attention too.",
+  "label": "core",
+  "key": "parallelism (CP) splits the sequence inside attention",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "Each rank keeps the queries of its own tokens; the keys and values travel.",
+  "label": "core",
+  "key": "keeps the queries of its own tokens",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "In ring attention (Liu et al.",
+  "label": "owned:models_and_training/topic_llm_training_and_post_training/distributed_training",
+  "key": "each gpu merges the partial outputs from each block with their log-sum-exp",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "2023, arXiv 2310.01889 ) each rank computes attention of its queries against the block of keys it holds, passes that block to the next rank, and after n − 1 passes has seen them all; the partial outputs are merged with their log-sum-exp, the same online-softmax trick FlashAttention uses inside one GPU ( FlashAttention paper page ).",
+  "label": "core",
+  "key": " FlashAttention paper page ",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "With a causal mask the early ranks have less work, so PyTorch reorders the tokens (rank 0 gets the first and last chunk) to balance it.",
+  "label": "core",
+  "key": "rank 0 gets the first and last chunk",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "Run here, at the attention level: the real q, k and v of the running example's block 0 (8 × 4 heads × 64 tokens × 64), the sequence split over 2 and 4 processes.",
+  "label": "core",
+  "key": "4 heads × 64 tokens × 64",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "The public API fails on a CPU. with context_parallel(mesh, buffers=[q, k, v], buffer_seq_dims=[2, 2, 2]): F.scaled_dot_product_attention(...) raised Its handlers cover the CUDA flash, memory-efficient and cuDNN attention kernels only ( _context_parallel/_attention.py L907-955 ); on a CPU, SDPA dispatches to a different kernel.",
+  "label": "core",
+  "key": "cuDNN attention kernels only ( _context_parallel/_attention.py L907-955",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "The ring itself works.",
+  "label": "core",
+  "key": "The ring itself works",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "Calling PyTorch's ring template ( _templated_ring_attention ) with the CPU flash kernel, load balancing off, every rank's output matched full attention on its tokens to .",
+  "label": "core",
+  "key": "PyTorch's ring template ( _templated_ring_attention ",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "With the default rotation the \"ring\" is one all-gather of each rank's K and V ( ); with set_rotate_method(\"alltoall\") it is n − 1 exchanges ( ).",
+  "label": "core",
+  "key": "set_rotate_method(\"alltoall\") it is n − 1 exchanges",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "7. context parallelism: ring attention, run on a cpu",
+  "text": "Not run on the whole model: the running example computes its positions as arange(T) of the local length, so each rank would number its tokens from 0; a model must be written for CP (positions passed in, as torchtitan's are). torchtitan applies CP to every attention module before TP and FSDP ( models/llama3/parallelize.py L46-51, 0.3.0) and folds the cp axis into the FSDP mesh, because ranks that split one sequence still need their weight gradients summed ( distributed/parallel_dims.py , docstring of build_mesh ).",
+  "label": "core",
+  "key": "FSDP ( models/llama3/parallelize.py L46-51, 0.3.0) and folds",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "Pipelining: every schedule, measured Pipeline parallelism ( torch.distributed.pipelining ) gives each rank a contiguous run of layers (a stage ), cuts the batch into micro-batches and streams them through: forward activations go to the next stage by send/recv, their gradients come back.",
+  "label": "core",
+  "key": "micro-batches and streams them through: forward activations",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "A schedule decides each rank's order of forward (F) and backward (B) work; the idle time while the pipeline fills and drains is the bubble , (p − 1)/(m + p − 1) of the step for p stages and m micro-batches when every stage takes the same time.",
+  "label": "core",
+  "key": "1)/(m + p − 1) of the",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "The lab tab (section 9) animates GPipe against 1F1B; at 2.14.1 the library has seven schedules, and all seven ran here: Measured on Apple M1 Pro, CPU, 2 processes, under the bench lock, median step of 5 , on the 8-block, d model 512 variant of the running example (25.3M parameters) so that compute outweighs Python overhead.",
+  "label": "core",
+  "key": "512 variant of the running example (25.3M",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "Bubble = 1 − (time in compute actions) / (step time), per rank; the formula column is (p − 1)/(m + p − 1) with p = 2 ranks.",
+  "label": "core",
+  "key": "p − 1)/(m + p − 1",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "Multi-stage schedules hold 2 stages per rank.",
+  "label": "core",
+  "key": "two per rank",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "Every schedule's gradients matched one process (largest difference 1.3e-7 on the untied parameters).",
+  "label": "core",
+  "key": "gradients matched one process (largest difference 1.3e-7",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "What the schedules change.",
+  "label": "core",
+  "key": "What the schedules change",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "1F1B runs a backward as soon as one is possible, so a stage holds at most p micro-batches of activations instead of m (memory, not bubble).",
+  "label": "core",
+  "key": "1F1B runs a backward as soon as",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "Interleaved 1F1B gives each rank v stages spread along the model (rank 0 holds stages 0 and 2), which divides the fill and drain by v at the price of v times more send/recv.",
+  "label": "core",
+  "key": "0 holds stages 0 and 2), which",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "Zero-bubble schedules (Qi et al.",
+  "label": "core",
+  "key": "Zero-bubble schedules (Qi et al",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "2023, arXiv 2401.10241 ) split each backward into the input gradient (I, needed by the previous stage now) and the weight gradient (W, needed only by the optimizer), and slot the Ws into what would have been idle time.",
+  "label": "core",
+  "key": "2023, arXiv 2401.10241 ) split each backward",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "The V layouts (ZBVZeroBubble, DualPipeV from DeepSeek-V3) give rank 0 the first and the last stage, so the pipeline turns round on the same rank.",
+  "label": "core",
+  "key": "ZBVZeroBubble, DualPipeV from DeepSeek-V3) give rank 0",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "On this machine the zero-bubble schedules had the smallest measured bubbles (ZBVZeroBubble 0.08 and 0.07 at m = 4); the Pipeline schedules tab draws every recorded timeline and replays its order on an ideal clock.",
+  "label": "core",
+  "key": "0.08",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "A V schedule silently scales a tied weight twice In the V layouts the token embedding (stage 0) and the output layer (stage 3) share one rank, and here one Parameter: a tied weight needs no extra all-reduce.",
+  "label": "core",
+  "key": "0) and the output layer (stage 3",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "But every stage divides its parameters' gradients by the number of micro-batches at the end of its backward ( scale_grads , stage.py L857-869 ), and a parameter in two stages is divided twice, once after part of its gradient has arrived.",
+  "label": "core",
+  "key": "its backward ( scale_grads , stage.py L857-869",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "Recorded: the tied gradient came out times the right one, with no error.",
+  "label": "core",
+  "key": "Recorded: the tied gradient came out",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "Loop-style schedules put the two copies on different ranks, where a manual all-reduce of the two copies fixes them (largest difference 1.6e-7 over these runs; 1.5e-7 in the lab tab).",
+  "label": "core",
+  "key": "largest difference 1.6e-7 over these runs; 1.5e-7",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "8. pipelining: every schedule, measured",
+  "text": "Untie the weights, or pass scale_grads=False and divide once yourself.",
+  "label": "core",
+  "key": "or pass scale_grads=False and divide once yourself",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "9. distributed checkpoints: async saves, resharding, one file, safetensors",
+  "text": "Distributed checkpoints: async saves, resharding, one file, safetensors DCP ( torch.distributed.checkpoint ) has every rank write its own shards plus one .metadata file mapping every piece of every tensor to its offsets, so a checkpoint loads into any other layout.",
+  "label": "core",
+  "key": "torch.distributed.checkpoint ) has every rank write its",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "9. distributed checkpoints: async saves, resharding, one file, safetensors",
+  "text": "The lab tab (section 10) saved from 4 FSDP2 ranks and loaded into 2 and into 1.",
+  "label": "core",
+  "key": "4 FSDP2 ranks and loaded into 2",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "9. distributed checkpoints: async saves, resharding, one file, safetensors",
+  "text": "Four more things, run on 4 processes: Async save needs its own process group. dcp.async_save(state, checkpoint_id=...) copies the state to CPU memory, returns a future, and writes in a background thread, so training continues.",
+  "label": "core",
+  "key": "process group. dcp.async_save(state, checkpoint_id=...) copies the state",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "9. distributed checkpoints: async saves, resharding, one file, safetensors",
+  "text": "Its planning uses collectives.",
+  "label": "core",
+  "key": "its planning uses collectives",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "9. distributed checkpoints: async saves, resharding, one file, safetensors",
+  "text": "On the default group, while the next forward and backward issued FSDP2's collectives, gloo aborted two of the four processes ( ): two threads issuing collectives on one group in different orders, the PowerSGD failure of section 3 again.",
+  "label": "core",
+  "key": "and backward issued FSDP2's collectives, gloo aborted",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "9. distributed checkpoints: async saves, resharding, one file, safetensors",
+  "text": "With process_group=dist.new_group(backend=\"gloo\") , as torchtitan does ( components/checkpointer/dcp.py L189, 0.3.0), it worked: Load into a different layout.",
+  "label": "core",
+  "key": "torchtitan does ( components/checkpointer/dcp.py L189, 0.3.0), it",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "9. distributed checkpoints: async saves, resharding, one file, safetensors",
+  "text": "The 4-rank FSDP checkpoint loaded into a 2 × 2 HSDP model (placements (Replicate(), Shard(0)) , local block weight 512 × 256 instead of 256 × 256) with a largest parameter difference of , and the next step's loss was identical on both layouts (3.0912256).",
+  "label": "core",
+  "key": "weight 512 × 256 instead of 256",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "9. distributed checkpoints: async saves, resharding, one file, safetensors",
+  "text": "One file for everyone else. dcp_to_torch_save(dcp_dir, \"single.pt\") (no process group needed) wrote ; torch_save_to_dcp goes back.",
+  "label": "depth",
+  "key": "One file for everyone else. dcp_to_torch_save(dcp_dir, \"single.pt\"",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "9. distributed checkpoints: async saves, resharding, one file, safetensors",
+  "text": "Hugging Face safetensors. dcp.save(state, storage_writer=HuggingFaceStorageWriter(path, save_distributed=True, enable_consolidation=True)) refused the running example: safetensors will not store two names for one tensor, and the tied tok.weight / head.weight are one.",
+  "label": "depth",
+  "key": "Face safetensors. dcp.save(state, storage_writer=HuggingFaceStorageWriter(path, save_distributed=True, enable_consolidation=True)) refused",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "9. distributed checkpoints: async saves, resharding, one file, safetensors",
+  "text": "Dropping head.weight (how Hugging Face stores tied embeddings) worked: File formats themselves are on Model formats .",
+  "label": "depth",
+  "key": "stores tied embeddings) worked: File formats themselves",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "10. composing pp, fsdp and tp the torchtitan way",
+  "text": "Composing PP, FSDP and TP the torchtitan way Real jobs combine several of these on one mesh. torchtitan (PyTorch's reference trainer; release 0.3.0 read here) does it in a fixed order, and the order is the lesson: Mesh , with tensor parallel innermost: dimensions [\"pp\", \"dp_replicate\", \"fsdp\", \"tp\"] unflattened from one world mesh ( distributed/parallel_dims.py , build_mesh ).",
+  "label": "core",
+  "key": "mesh. torchtitan (PyTorch's reference trainer; release 0.3.0",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "10. composing pp, fsdp and tp the torchtitan way",
+  "text": "Ranks next to each other share a server, so the chattiest axis (TP: collectives in every layer) gets the fastest links and the quietest (PP: point-to-point once per micro-batch) spans servers.",
+  "label": "core",
+  "key": "quietest (PP: point-to-point once per micro-batch) spans",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "10. composing pp, fsdp and tp the torchtitan way",
+  "text": "Pipeline split first : the model (built on the meta device, no memory) is cut into stage modules, and everything below is applied to each stage ( distributed/pipeline_parallel.py pipeline_llm , L65-125).",
+  "label": "core",
+  "key": "each stage ( distributed/pipeline_parallel.py pipeline_llm , L65-125",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "10. composing pp, fsdp and tp the torchtitan way",
+  "text": "Per stage: context parallel, then TP, then activation checkpointing, then torch.compile per block, then FSDP2 last ( models/llama3/parallelize.py L42-94).",
+  "label": "core",
+  "key": "block, then FSDP2 last ( models/llama3/parallelize.py L42-94",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "10. composing pp, fsdp and tp the torchtitan way",
+  "text": "FSDP2 goes last because it shards whatever DTensors TP produced along one more mesh dimension; compile goes before it so each block compiles once.",
+  "label": "core",
+  "key": "FSDP2 goes last because it shards whatever",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "10. composing pp, fsdp and tp the torchtitan way",
+  "text": "Then weights are materialised and initialised on each rank ( to_empty , init_weights ), and the schedule (1F1B by default, config/configs.py L210) drives training.",
+  "label": "core",
+  "key": "schedule (1F1B by default, config/configs.py L210) drives",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "10. composing pp, fsdp and tp the torchtitan way",
+  "text": "Run here on 8 processes (pp 2 × dp 2 × tp 2) with the running example, in that order: split into two stages of 2 blocks, TP on each block (the 16-all-reduce plan of section 6), fully_shard over the dp axis, Schedule1F1B with 4 micro-batches, and one all-reduce over the pp axis for the tied embedding and head, which now live on different stages: Measured, 8 CPU processes, gloo, one step.",
+  "label": "core",
+  "key": "Schedule1F1B with 4 micro-batches, and one all-reduce",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "10. composing pp, fsdp and tp the torchtitan way",
+  "text": "The reference is one process on the same 16 sequences (dp rank d trains on batch d; the two tp ranks of a replica share it).",
+  "label": "core",
+  "key": "one process on the same 16 sequences",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "10. composing pp, fsdp and tp the torchtitan way",
+  "text": "Each rank's collectives by mesh axis: A block weight's placements on the 2-D (dp, tp) mesh were : sharded on dimension 0 by TP and again, \"strided\", by FSDP, so that each rank's rows are the right ones of TP's shard. torchtitan's own trainer, run on this CPU with four patches (it imports Triton unconditionally, picks a CUDA-like device, uses FlexAttention, and sets FSDP2's gradient divide factor to 1 which needs a reduce op gloo lacks), and its defaults that change results, are on the Libraries on top of PyTorch child; so is DeepSpeed ZeRO against FSDP2, run there on CPU.",
+  "label": "depth",
+  "key": "FSDP2's gradient divide factor to 1 which",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "11. debugging: hangs, mismatches and the flight recorder",
+  "text": "Debugging: hangs, mismatches and the flight recorder The rule behind every hang: all ranks of a group must call the same collectives, in the same order, with matching sizes.",
+  "label": "core",
+  "key": "Debugging: hangs, mismatches and the flight recorder",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "11. debugging: hangs, mismatches and the flight recorder",
+  "text": "A collective only completes when every member calls it, so one rank that skips one, calls a different one, or dies leaves the rest waiting until the timeout (10 minutes for NCCL, 30 for other backends by default at 2.14.1).",
+  "label": "core",
+  "key": "for other backends by default at 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "11. debugging: hangs, mismatches and the flight recorder",
+  "text": "The lab tab (section 11) caused three hangs on purpose and shows the evidence each leaves; this page met the same rule three more times without trying: PowerSGD's callbacks (section 3), async_save on the default group (section 9) and a from_local with wrongly sized pieces (section 5).",
+  "label": "core",
+  "key": "without trying: PowerSGD's callbacks (section 3), async_save",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "11. debugging: hangs, mismatches and the flight recorder",
+  "text": "The flight recorder and its analyser Every process group keeps a ring buffer of its recent collectives ( TORCH_FR_BUFFER_SIZE entries; name, sizes, dtypes, sequence number, stack).",
+  "label": "core",
+  "key": "of its recent collectives ( TORCH_FR_BUFFER_SIZE entries",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "11. debugging: hangs, mismatches and the flight recorder",
+  "text": "On NCCL, TORCH_NCCL_DUMP_ON_TIMEOUT=1 makes the watchdog write one file per rank when a collective times out, and torchfrtrace <dir> (shipped with PyTorch as torch.distributed.flight_recorder.fr_trace ) lines the ranks up and names the first mismatch.",
+  "label": "core",
+  "key": "NCCL, TORCH_NCCL_DUMP_ON_TIMEOUT=1 makes the watchdog write one",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "11. debugging: hangs, mismatches and the flight recorder",
+  "text": "Here the lab's \"skipped all-reduce\" was dumped by hand on gloo ( torch._C._distributed_c10d._dump_fr_trace ) and fed to the analyser: As dumped, the analyser crashed ( ): gloo leaves the dump's process-group table empty; NCCL fills it when it creates a communicator, and the analyser looks every entry's group up there.",
+  "label": "depth",
+  "key": "by hand on gloo ( torch._C._distributed_c10d._dump_fr_trace ",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "11. debugging: hangs, mismatches and the flight recorder",
+  "text": "With the default group written into the table , as NCCL would have, it found the bug at once: Measured, 2 CPU processes, gloo, torch 2.14.1.",
+  "label": "core",
+  "key": "Measured, 2 CPU processes, gloo, torch 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "11. debugging: hangs, mismatches and the flight recorder",
+  "text": "Paths in the stack are shortened.",
+  "label": "depth",
+  "key": "Paths in the stack are shortened",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "11. debugging: hangs, mismatches and the flight recorder",
+  "text": "Rank 1 called barrier as its fourth collective while rank 0 called all_reduce ; the stack names the line.",
+  "label": "core",
+  "key": "all_reduce",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "11. debugging: hangs, mismatches and the flight recorder",
+  "text": "The other tools, in the order to reach for them Tool What it catches Cost Where measured Flight recorder dump + torchfrtrace which rank is at which collective; type and size mismatches a ring buffer per group here, and the lab tab section 11 TORCH_DISTRIBUTED_DEBUG=DETAIL shape and type mismatches before they hang, with both shapes in the error 2 extra all-gathers per collective lab tab section 11 monitored_barrier() (gloo) which rank did not arrive one barrier lab tab section 11 py-spy dump --pid on the odd rank what its Python is doing instead none not run here NCCL_DEBUG=INFO , NCCL_DEBUG_SUBSYS NCCL's choice of rings, trees, transports and network cards log volume not run here (no NCCL); see Streams, CUDA graphs and multi-GPU and NCCL environment variables torchrun sets TORCH_NCCL_ASYNC_ERROR_HANDLING=1 for its workers (recorded in section 1), which makes the NCCL watchdog abort the process on a timeout instead of leaving it hung.",
+  "label": "core",
+  "key": "section 11 TORCH_DISTRIBUTED_DEBUG=DETAIL shape and type mismatches",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "11. debugging: hangs, mismatches and the flight recorder",
+  "text": "Desynchronisation (ranks drifting to different collectives) is what the flight recorder's sequence numbers expose; the first sequence number where ranks disagree is the bug.",
+  "label": "core",
+  "key": "the first sequence number where ranks disagree",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "12. what carries over to nvidia gpus, and what does not",
+  "text": "What carries over to NVIDIA GPUs, and what does not On this page On NCCL and GPUs Carries over which collectives, in which order, with which sizes; bucket layouts; placements and shard shapes; propagation rules; schedules' action orders; losses and gradients the same: all of it is Python and C++ above the backend Carries over in kind memory per rank (float32, CPU allocator) halved by bf16, plus the caching allocator and NCCL buffers ( Memory allocators ) Changes reduce-scatter runs as an all-reduce (gloo has none) a real reduce-scatter: half the bytes, no full-size temporary Changes bf16 compression hook refused; context parallel's public API refused both supported Changes collectives and compute share one CPU thread collectives run on their own CUDA streams and overlap with compute Does not carry every time: collective latency (0.09 to 1.1 ms for small messages), bubbles, async save NVLink and InfiniBand are orders of magnitude faster; GPU compute is too, so bubbles and overlap must be measured there May not carry gloo aborts from out-of-order collectives (PowerSGD, async_save) the ordering rule is the same; whether timing exposes it differs.",
+  "label": "depth",
+  "key": "every time: collective latency (0.09 to 1.1",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Calling init_process_group() without a backend on a machine with an accelerator c10d picks the backend for the detected accelerator only.",
+  "label": "depth",
+  "key": "backend on a machine with an accelerator",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "On this Mac that was \"mps:gloo\", and every CPU collective then failed (section 1).",
+  "label": "depth",
+  "key": "mps:gloo",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Name the backend ( \"gloo\" , \"nccl\" ) or a device map such as \"cpu:gloo,cuda:nccl\" .",
+  "label": "depth",
+  "key": "or a device map such as \"cpu:gloo,cuda:nccl\"",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting an elastic restart to keep the job's state torchrun restarts every worker from the top of the script.",
+  "label": "depth",
+  "key": "Expecting an elastic restart to keep the",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Without a checkpoint written by the script, a restart is a fresh run.",
+  "label": "core",
+  "key": "Nothing is kept in memory",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "With one, the losses after a restart matched an uninterrupted run exactly (section 1).",
+  "label": "core",
+  "key": "Losses after the restart equal an uninterrupted run exactly",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Leaving find_unused_parameters=True on \"to be safe\" It costs a graph traversal every step and a bitmap all-reduce, and it removes the single-bucket first step.",
+  "label": "depth",
+  "key": "Leaving find_unused_parameters=True on \"to be safe\"",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "If the set of used parameters never changes, static_graph=True is cheaper; if a branch really is conditional, keep it on and accept the cost (section 3).",
+  "label": "core",
+  "key": "static_graph",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Splitting q, k and v with three ColwiseParallel styles and nothing else Each wraps the shared input separately and sends its own gradient all-reduce: 24 all-reduces per step here instead of 16.",
+  "label": "core",
+  "key": "24 all-reduces of 524,288 bytes",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Wrap the attention input once with PrepareModuleInput (section 6).",
+  "label": "core",
+  "key": "Wrapping the attention input once",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Running dcp.async_save on the default process group The save's collectives run on a background thread while training issues its own on the same group: here gloo aborted.",
+  "label": "depth",
+  "key": "dcp.async_save on the default process group",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Give checkpoints their own group, dist.new_group(backend=\"gloo\") , as torchtitan does (section 9).",
+  "label": "core",
+  "key": "dist.new_group(backend=\"gloo\") , as torchtitan does",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A V pipeline schedule with tied embeddings The tied weight sits in two stages on one rank and is divided by the number of micro-batches twice; the gradient was 0.37 of the right one with no error on the 8-block variant (section 8).",
+  "label": "core",
+  "key": "0.37 of the right one",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Issuing collectives from callbacks or threads Order on every rank must be identical.",
+  "label": "depth",
+  "key": "collectives issued from callbacks and threads",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "PowerSGD's callback-issued all-reduces reached the ranks in different orders on 4 gloo processes and the job crashed (section 3).",
+  "label": "depth",
+  "key": "the ranks issued them in different orders",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "If a hook must chain collectives, keep their order fixed regardless of timing.",
+  "label": "depth",
+  "key": "a hook that issues them from callbacks can break it",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Declaring uneven local pieces with from_local and no shape DTensor assumes even pieces and computes a wrong global shape; with a shape given, pieces must still follow torch.chunk .",
+  "label": "depth",
+  "key": "with uneven pieces and no shape",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Wrong sizes surfaced as a gloo abort at full_tensor() (section 5).",
+  "label": "depth",
+  "key": "abort at full_tensor() (section 5",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Inspecting FSDP2 parameters after an evaluation forward The root unit stays unsharded after forward, so its parameters are full plain tensors until backward or reshard() (section 4).",
+  "label": "depth",
+  "key": "FSDP2 parameters after an evaluation forward",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Call model.reshard() after evaluation if code downstream expects shards.",
+  "label": "depth",
+  "key": "model.reshard() after evaluation if code downstream expects",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting gradient accumulation to remove FSDP2's all-gathers set_requires_gradient_sync(False) removes reductions only (20 to 5 here); each micro-batch still gathers weights (36 all-gathers either way) unless you also keep them gathered after backward (section 4).",
+  "label": "core",
+  "key": "reductions only (20 to 5",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Interview questions, with short answers What happens between torchrun --nproc_per_node 8 train.py and the first all-reduce? torchrun starts 8 processes with RANK, LOCAL_RANK, WORLD_SIZE, MASTER_ADDR and MASTER_PORT set. init_process_group connects each to a TCPStore at the master address, every rank publishes its address under a key and reads the others' (rendezvous), and the backend (NCCL or gloo) builds its connections.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Subgroups and DeviceMesh dimensions repeat this for their members. find_unused_parameters against static_graph ?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question"
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Both let DDP finish buckets whose parameters got no gradient.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview restatement"
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The first searches the autograd graph every step and all-reduces a used-parameter bitmap; the second learns the set once and assumes it never changes, then rebuilds buckets after step 1.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Measured: 3 collectives per step with the first; 2, 1, then 4 in the first three steps with the second.",
+  "label": "depth",
+  "key": "2, 1, then 4 in the first three steps",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Gradient accumulation under DDP and under FSDP2?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question"
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "DDP: no_sync() for all but the last micro-batch, one set of bucket all-reduces per optimizer step (4 collectives against 10 here).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "FSDP2: set_requires_gradient_sync(False) skips the reduce-scatters but every micro-batch still all-gathers weights, and full-size gradients are held between micro-batches.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "FSDP against HSDP: when do you pick HSDP?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question"
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "When the model's state fits in one node's worth of shards: shard inside a node (fast links carry the per-layer all-gathers), replicate across nodes (one gradient all-reduce per unit crosses the network).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "It trades memory (2 times the shard here) for less inter-node traffic.",
+  "label": "core",
+  "key": "6,374,400",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What does Partial mean, and why does relu on it cost an all-reduce?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question"
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Each rank holds a full-shape tensor and the true value is their sum, as after a row-split matrix multiply.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Linear operations can act on the pieces; relu of a sum is not the sum of relus, so DTensor reduces first.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "That is why Megatron puts the nonlinearity between a column split and a row split.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Tensor parallel against sequence parallel: what changes on the wire?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question"
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Each all-reduce after a row-split layer becomes a reduce-scatter, and an all-gather appears before the next column-split layer.",
+  "label": "core",
+  "key": "each all-reduce becomes a reduce-scatter",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Bytes in ring terms are about the same (an all-reduce is the two halves); LayerNorm, dropout and residual activations are split along the sequence, saving their memory and work.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Explain ring attention in two sentences.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question"
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Each rank keeps its own queries and passes blocks of keys and values around a ring, computing attention against each block and merging partial results with their log-sum-exp.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "After n − 1 passes every query has seen every key, and no rank ever held the whole sequence's attention.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why do zero-bubble schedules have smaller bubbles than 1F1B?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question"
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "They split backward into the input gradient, which the previous stage waits for, and the weight gradient, which only the optimizer needs, and schedule the weight gradients into the idle slots.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Measured here at 4 micro-batches on 2 ranks: ZBVZeroBubble idled 0.08 and 0.07 of the step against 1F1B's 0.19 and 0.10.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "In what order does torchtitan apply its parallelisms, and why is TP the innermost mesh dimension?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question"
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Pipeline split first, then per stage context parallel, TP, activation checkpointing, per-block compile, and FSDP2 last.",
+  "label": "core",
+  "key": "FSDP2 goes last",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "TP is innermost because consecutive ranks share a server, and TP talks in every layer; pipelining, which talks least, spans the slowest links.",
+  "label": "core",
+  "key": "the chattiest axis",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A 512-GPU job hangs.",
+  "label": "core",
+  "key": "512-GPU job that hangs",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "You have flight-recorder dumps.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview wind-up"
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What do you look for?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question"
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The first collective sequence number at which ranks disagree on the operation or its sizes, or at which a rank is missing; then that rank's stack (in the dump, or with py-spy) shows the code that issued something else. torchfrtrace automates the comparison.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating a section; the content stays in that section"
+ },
+ {
+  "id": 270,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "Comm-hook bytes lab The running example trained for 30 steps under DDP with each communication hook PyTorch ships, from the same weights on the same batches: what each sends per step, how far its averaged gradient is from the exact average, and where the loss ends up.",
+  "label": "depth",
+  "key": "running example trained for 30 steps under",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "Then the arithmetic that predicts PowerSGD's bytes for any rank.",
+  "label": "depth",
+  "key": "Predict PowerSGD's bytes",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "How it was recorded: src/exp/ddp_more.py hooks , one clean torchrun launch per hook ( run_hooks.sh ), CPU processes on gloo, torch 2.14.1, Apple M1 Pro.",
+  "label": "core",
+  "key": "processes on gloo, torch 2.14.1, Apple M1",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "Bytes are the flight recorder's input bytes of every collective of the step's backward.",
+  "label": "depth",
+  "key": "flight recorder's input bytes of every collective",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "The \"exact\" gradient is each step's local gradients (computed under no_sync ) all-reduced on a separate process group, so the error isolates the hook.",
+  "label": "depth",
+  "key": "local gradients (computed under no_sync ) all-reduced",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "PowerSGD uses start_powerSGD_iter=2 , so steps 0 and 1 are plain all-reduces.",
+  "label": "depth",
+  "key": "steps 0 and 1 are plain all-reduces",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "The Reading tab's section 3 explains each hook.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab"
+ },
+ {
+  "id": 277,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "Measured, deterministic (no timing).",
+  "label": "depth",
+  "key": "Measured, deterministic (no timing)",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "2 processes 4 processes log scale for error Bytes sent per step per rank Relative gradient error per step Loss per step Predict PowerSGD's bytes PowerSGD views each gradient as a matrix n × m and sends P (n × r) and Q (m × r) instead, but only when that saves at least a factor min_compression_rate (default 2): (n + m) r × 2 < n m.",
+  "label": "depth",
+  "key": "2 processes 4 processes log scale for",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "One-dimensional gradients (biases, LayerNorm) and matrices that fail the test go uncompressed ( powerSGD_hook.py L79-104 ).",
+  "label": "depth",
+  "key": "the test go uncompressed ( powerSGD_hook.py L79-104",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "For the running example's 52 parameter tensors: rank r min_compression_rate 1 2 4 What transfers to GPUs: the bytes and the errors, exactly (they depend on shapes and arithmetic, not the backend), except that NCCL also accepts the bf16 hook.",
+  "label": "depth",
+  "key": "52 parameter tensors: rank r min_compression_rate 1",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "What does not: whether fewer bytes means a faster step.",
+  "label": "depth",
+  "key": "What does not: whether fewer bytes means",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "On NVLink an all-reduce of 12.75 MB is cheap and PowerSGD's extra matrix multiplies and orthogonalisation may cost more than they save; the PowerSGD paper reports its gains on slower networks ( Vogels et al.",
+  "label": "core",
+  "key": "12.75 MB is cheap and PowerSGD's extra",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-dpt-hook",
+  "section": "comm-hook bytes lab",
+  "text": "2019 , independent of this page).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment, the citation is kept"
+ },
+ {
+  "id": 284,
+  "tab": "t-dpt-mesh",
+  "section": "mesh explorer",
+  "text": "Mesh explorer Six ways of laying the running example over 4 or 8 processes, each run for real: pick a layout, click a rank, and see the groups it belongs to, the piece of each parameter it holds, every collective it issued in one training step, and its memory.",
+  "label": "core",
+  "key": "running example over 4 or 8 processes",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-dpt-mesh",
+  "section": "mesh explorer",
+  "text": "Recorded with src/exp/fsdp_more.py (DDP, FSDP2, HSDP, reshard_after_forward=2 ), fsdp_tp.py and compose3d.py ; CPU processes, gloo, torch 2.14.1, Apple M1 Pro.",
+  "label": "core",
+  "key": "compose3d.py ; CPU processes, gloo, torch 2.14.1",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-dpt-mesh",
+  "section": "mesh explorer",
+  "text": "Collectives are step 1's (step 0 for the 8-process run, which records one step), as the flight recorder saw them, grouped by the mesh dimension of their process group.",
+  "label": "core",
+  "key": "step 1's (step 0 for the 8-process",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-dpt-mesh",
+  "section": "mesh explorer",
+  "text": "On gloo a gradient reduce-scatter appears as an all-reduce of the whole tensor (Reading tab, section 2).",
+  "label": "core",
+  "key": "the whole tensor (Reading tab, section 2",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-dpt-mesh",
+  "section": "mesh explorer",
+  "text": "Theory of each layout: Distributed Training .",
+  "label": "core",
+  "key": "Theory of each layout: Distributed Training ",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-dpt-mesh",
+  "section": "mesh explorer",
+  "text": "Collectives this rank issued in one step What this rank holds of each parameter",
+  "label": "core",
+  "key": "Collectives this rank issued in one step",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-dpt-pipe",
+  "section": "pipeline schedules",
+  "text": "Pipeline schedules Every schedule in torch.distributed.pipelining at 2.14.1, run on the same model and batch: what each rank computed, in which order, when, and how long it sat idle.",
+  "label": "core",
+  "key": "all seven ran here",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-dpt-pipe",
+  "section": "pipeline schedules",
+  "text": "Compare any two, on the measured clock or on an ideal one.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab instruction, the controls are inline"
+ },
+ {
+  "id": 292,
+  "tab": "t-dpt-pipe",
+  "section": "pipeline schedules",
+  "text": "Recorded with src/exp/pp_sched.py : the 8-block, d model 512 variant of the running example (25.3M parameters) cut into 2 stages (GPipe, 1F1B) or 4 (two per rank), batch 8 × 64 tokens in 4 or 8 micro-batches, 2 CPU processes (4 for GPipe and 1F1B at 8 micro-batches), gloo, one thread each, under the shared bench lock; the median of 5 timed steps is drawn.",
+  "label": "core",
+  "key": "512 variant of the running example (25.3M",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-dpt-pipe",
+  "section": "pipeline schedules",
+  "text": "Every forward (F), backward (B), input-gradient (I) and weight-gradient (W) action was timed by wrapping the stage's methods.",
+  "label": "core",
+  "key": "was timed by wrapping the stage's methods",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-dpt-pipe",
+  "section": "pipeline schedules",
+  "text": "Bubble = 1 − time in actions / step time.",
+  "label": "core",
+  "key": "time in compute actions",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-dpt-pipe",
+  "section": "pipeline schedules",
+  "text": "Measured on Apple M1 Pro, CPU.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "repeated label"
+ },
+ {
+  "id": 296,
+  "tab": "t-dpt-pipe",
+  "section": "pipeline schedules",
+  "text": "The ideal clock replays each rank's recorded order with F = 1, B = 2, I = 1, W = 1 units and no communication cost, respecting what each action waits for (the previous stage's forward, the next stage's backward); it shows the schedule's own bubble, separate from this machine's noise.",
+  "label": "core",
+  "key": "2, I = 1, W = 1",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-dpt-pipe",
+  "section": "pipeline schedules",
+  "text": "Theory and the bubble formula: Distributed Training .",
+  "label": "core",
+  "key": "derived on",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-dpt-pipe",
+  "section": "pipeline schedules",
+  "text": "Schedule compare with Measured clock Ideal clock F forward B backward I input gradient W weight gradient idle (bubble) ▶ Play Speed 0.5× 1× 2× All runs",
+  "label": "core",
+  "key": "bubble) ▶ Play Speed 0.5× 1× 2×",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading This page's tabs Comm-hook bytes lab : DDP communication hooks on the running example, bytes, error, loss; PowerSGD's byte formula reproduced.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "entry for a removed tab"
+ },
+ {
+  "id": 300,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min Mesh explorer : six real layouts on 4 and 8 processes, rank by rank.",
+  "label": "core",
+  "key": "layouts on 4 and 8 processes, rank",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min Pipeline schedules : all seven schedules, measured and on an ideal clock.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "entry for a removed tab"
+ },
+ {
+  "id": 302,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "10 min The parent page and its tabs Topic: pytorch-ecosystem : Reading section 7 (distributed in one screen); the Distributed lab tab (DDP against FSDP2 animated, buckets, the DTensor redistribution explorer, TP on the MLPs, GPipe against 1F1B, DCP 4 to 2 to 1, three hangs); the Ecosystem map tab (torchft, Monarch and the libraries' status).",
+  "label": "core",
+  "key": "1F1B, DCP 4 to 2 to 1",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "25 min for the lab tab Sibling child pages Tensors, the dispatcher and autograd : the dispatch keys and autograd engine that DTensor and FSDP2 hook into.",
+  "label": "core",
+  "key": "25 min for the lab tab Sibling",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "60 min torch.compile from the user's side : DDPOptimizer's graph splits, compiled autograd, per-block compile as torchtitan uses it.",
+  "label": "core",
+  "key": "60 min torch.compile from the user's side",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "60 min Making training fast: profiling, memory, attention, torchao : activation checkpointing and memory budgets that combine with FSDP.",
+  "label": "core",
+  "key": "60 min Making training fast: profiling, memory",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "60 min Extending PyTorch: custom ops, tensor subclasses, kernels : how DTensor and FSDP2's parameters are built as tensor subclasses.",
+  "label": "core",
+  "key": "60 min Extending PyTorch: custom ops, tensor",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "50 min Libraries on top of PyTorch : torchtitan's trainer run on CPU, its defaults; DeepSpeed ZeRO against FSDP2; Accelerate and Lightning on top of these APIs.",
+  "label": "core",
+  "key": "50 min Libraries on top of PyTorch",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "50 min Neighbouring pages Distributed Training : the theory and memory maths of ZeRO, TP, PP, CP and EP that this page's APIs implement.",
+  "label": "core",
+  "key": "50 min Neighbouring pages Distributed Training ",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Streams, CUDA graphs and multi-GPU : NCCL, communication streams and overlap on GPUs.",
+  "label": "core",
+  "key": "multi-GPU : NCCL, communication streams and overlap",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Interconnects and scaling : NVLink, InfiniBand and what collective bandwidth really is.",
+  "label": "core",
+  "key": "40 min Interconnects and scaling : NVLink",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Fault tolerance at scale : what fails at scale, how it is detected, and recovery from checkpoint and restart to replica groups.",
+  "label": "core",
+  "key": "40 min Fault tolerance at scale ",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Memory allocators : the CUDA caching allocator behind GPU memory numbers.",
+  "label": "core",
+  "key": "40 min Memory allocators : the CUDA",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Model formats : safetensors and the formats DCP converts to.",
+  "label": "core",
+  "key": "model file formats",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "25 min Paper pages: ZeRO (DDP against ZeRO-3 stepped through), Megatron-LM (the TP split animated), FlashAttention (the online softmax ring attention reuses).",
+  "label": "core",
+  "key": "ZeRO (DDP against ZeRO-3 stepped through), Megatron-LM",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 to 30 min each PyTorch documentation (2.14) Distributed Data Parallel design note : the reducer, buckets and hooks.",
+  "label": "core",
+  "key": "30 min each PyTorch documentation (2.14) Distributed",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min DDP communication hooks .",
+  "label": "core",
+  "key": "15 min DDP communication hooks ",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min Uneven inputs with Join .",
+  "label": "core",
+  "key": "15 min Uneven inputs with Join ",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min fully_shard reference and the FSDP2 tutorial .",
+  "label": "core",
+  "key": "15 min fully_shard reference and the FSDP2",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "25 and 30 min DTensor and the DeviceMesh recipe .",
+  "label": "core",
+  "key": "25 and 30 min DTensor and the",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "25 and 15 min Tensor parallel API and the TP + SP tutorial .",
+  "label": "core",
+  "key": "25 and 15 min Tensor parallel API",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 and 30 min torch.distributed.pipelining .",
+  "label": "core",
+  "key": "15 and 30 min torch.distributed.pipelining ",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "25 min Distributed checkpoint .",
+  "label": "core",
+  "key": "25 min Distributed checkpoint ",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min torchrun (elastic launch) .",
+  "label": "core",
+  "key": "20 min torchrun (elastic launch) ",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min Flight recorder tutorial .",
+  "label": "core",
+  "key": "15 min Flight recorder tutorial ",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "15 min NCCL environment variables (NVIDIA).",
+  "label": "core",
+  "key": "15 min NCCL environment variables (NVIDIA",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "20 min Papers and code Li et al., PyTorch Distributed: Experiences on Accelerating Data Parallel Training (VLDB 2020): the reducer's design.",
+  "label": "core",
+  "key": "Accelerating Data Parallel Training (VLDB 2020): the",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Zhao et al., PyTorch FSDP: Experiences on Scaling Fully Sharded Data Parallel (2023): FSDP1's design, the predecessor.",
+  "label": "core",
+  "key": "Data Parallel (2023): FSDP1's design, the predecessor",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Liang et al., TorchTitan (2024), and the repository (0.3.0 read here).",
+  "label": "core",
+  "key": "al., TorchTitan (2024), and the repository (0.3.0",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min plus the code Korthikanti et al., Reducing Activation Recomputation in Large Transformer Models (sequence parallelism).",
+  "label": "core",
+  "key": "45 min plus the code Korthikanti et",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Liu et al., Ring Attention .",
+  "label": "core",
+  "key": "40 min Liu et al., Ring Attention",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "30 min Qi et al., Zero Bubble Pipeline Parallelism .",
+  "label": "core",
+  "key": "30 min Qi et al., Zero Bubble",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "40 min Vogels et al., PowerSGD .",
+  "label": "core",
+  "key": "40 min Vogels et al., PowerSGD ",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "35 min Hugging Face, The Ultra-Scale Playbook : every parallelism with interactive memory and communication plots.",
+  "label": "core",
+  "key": "35 min Hugging Face, The Ultra-Scale Playbook",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2 to 3 h",
+  "label": "core",
+  "key": "2 to 3 h",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-drawn figures)",
+  "text": "DDP buckets stepper (script-drawn): step 0 one bucket all-reduced after backward; step 1 two buckets, the first all-reduced 1.0 ms in",
+  "label": "core",
+  "key": "all-reduced 30.7 ms into backward",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-drawn figures)",
+  "text": "DDP buckets stepper: rebuilt bucket membership (ln_f and block 3 mlp.proj in bucket 0)",
+  "label": "core",
+  "key": "4 tensors) and 11,696,128 bytes (the other 48)",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-drawn figures)",
+  "text": "FSDP2 step figure: per unit forward gather, backward gather, reduction, with recorded bytes",
+  "label": "core",
+  "key": "1 + 4 + 4 = 9 all-gathers",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-drawn figures)",
+  "text": "FSDP2 root unit kept gathered through backward",
+  "label": "core",
+  "key": "gathered once and kept through backward",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-drawn figures)",
+  "text": "DTensor placements figure: Shard, Replicate, Partial; S(1) x S(0) -> P; relu forces all-reduce",
+  "label": "core",
+  "key": "all-reduces to Replicate before applying it",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-drawn figures)",
+  "text": "DCP figure: four .distcp files and .metadata, read back as HSDP or one .pt",
+  "label": "core",
+  "key": "four .distcp files of about 9.8 MB each",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-drawn figures)",
+  "text": "Composed shards figure: [1024, 256] -> [512, 256] -> [256, 256]",
+  "label": "core",
+  "key": "[512, 256] after ColwiseParallel",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-drawn figures)",
+  "text": "Flight-recorder figure: sequence 4 mismatch, a rank-0-only logging all-reduce",
+  "label": "core",
+  "key": "a logging all-reduce under if rank == 0",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-drawn figures)",
+  "text": "torchrun and c10d figure: agent, workers with env, TCPStore rendezvous, 2 x 2 mesh groups",
+  "label": "core",
+  "key": "the store introduces them",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-drawn figures)",
+  "text": "Hero: what each rank holds under DDP, FSDP2, TP, PP with per-step collectives",
+  "label": "core",
+  "key": "every rank holds a different piece and sends different collectives",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-drawn figures)",
+  "text": "Collective cost crossover alpha x B between about 160 KiB and 1.3 MiB (derived from the fit)",
+  "label": "core",
+  "key": "between about 160 KiB and 1.3 MiB",
+  "where": ""
+ }
+]

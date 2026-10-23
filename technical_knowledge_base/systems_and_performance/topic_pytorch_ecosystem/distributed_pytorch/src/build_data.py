@@ -120,6 +120,7 @@ D["dcp"] = {"async": [r["async"] for r in dm], "reshard": dm[0]["reshard_to_hsdp
             "hf_all": dm[0]["hf all 53 keys"], "hf_drop": dm[0]["hf head.weight dropped"], "root_plain": dm[0]["non_dtensor_params_fsdp4"],
             "samepg": J("dcp_async_samepg")}
 D["fr"] = J("fr_trace")
+D["ddpb"] = J("ddp_buckets")       # reshaped from the parent lab's DDP recording by ddp_timeline.py
 s = "window.DPT=" + json.dumps(D, separators=(",", ":")) + ";\n"
 s = s.replace("/Us" + "ers/runner/work/pytorch/pytorch/", "")      # PyTorch's CI build path inside gloo error texts
 open(os.path.join(H, "parts", "22_dpt_data.js"), "w").write(s)
