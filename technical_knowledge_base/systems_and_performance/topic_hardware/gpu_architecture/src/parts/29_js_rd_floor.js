@@ -1,4 +1,4 @@
-// ---- Chip floorplans tab: schematic drawings from published counts (window.GA.chips) ----
+// ---- Reading s9: chip floorplans, schematic drawings from published counts (window.GA.chips) ----
 (function(){
   const G=window.GA,$=id=>document.getElementById(id),C=id=>G.chips.find(c=>c.id===id);
   // SMs per GPC: [full, enabled]; which GPC loses SMs is illustrative (not published)
@@ -22,7 +22,7 @@
       const dx=pkgX+memW+padG+di*(dieW+dieGap);
       g+='<rect x="'+dx+'" y="'+y0+'" width="'+dieW+'" height="'+dieH+'" rx="5" fill="var(--soft)" stroke="var(--mute)"/>';
       const l2h=18,half=(dieH-l2h-12)/2;
-      g+='<rect x="'+(dx+4)+'" y="'+(y0+4+half+2)+'" width="'+(dieW-8)+'" height="'+l2h+'" rx="3" fill="var(--c4)" opacity=".35"/>'+RD.t(dx+dieW/2,y0+4+half+15,di===0?(dieW<P.l2.length*5.2?(P.l2s||'L2'):P.l2):'L2',{a:'middle',fs:dieW<200?8.5:10});
+      g+='<rect x="'+(dx+4)+'" y="'+(y0+4+half+2)+'" width="'+(dieW-8)+'" height="'+l2h+'" rx="3" fill="var(--c4)" opacity=".35"/>'+RD.t(dx+dieW/2,y0+4+half+15,di===0?(dieW<P.l2.length*5.2?(P.l2s||'L2'):P.l2):'L2',{a:'middle',fs:dieW<200?10:11});
       if(d.flat){
         const n=d.flat,cols=Math.ceil(Math.sqrt(n*(dieW-8)/(2*half))),rows=Math.ceil(n/cols),rh=Math.ceil(rows/2),cw=(dieW-8)/cols,cs=Math.min(cw,(half-2)/rh);
         for(let k=0;k<n;k++){const r=Math.floor(k/cols),cc=k%cols,yy=r<rh?y0+4+r*cs:y0+4+half+2+l2h+4+(r-rh)*cs;g+='<rect x="'+(dx+4+cc*cw)+'" y="'+yy+'" width="'+(cs-1.5)+'" height="'+(cs-1.5)+'" fill="var(--c3)" opacity=".75"/>'}
@@ -43,12 +43,12 @@
     // memory
     if(P.mem.kind==='hbm'){const per=P.mem.sites/2,sh=(dieH)/per;
       for(let k=0;k<P.mem.sites;k++){const left=k<per,idx=k%per,x=left?pkgX+padG/2:pkgX+pkgW-memW-padG/2,y=y0+idx*sh+3,isOn=k<P.mem.on;
-        g+='<rect x="'+x+'" y="'+y+'" width="'+(memW-2)+'" height="'+(sh-6)+'" rx="3" fill="'+(isOn?'var(--c2)':'none')+'" opacity="'+(isOn?.55:1)+'" stroke="'+(isOn?'var(--c2)':'var(--mute)')+'" stroke-dasharray="'+(isOn?'':'3 2')+'"/>'+RD.t(x+memW/2-1,y+sh/2,isOn?'HBM':'off',{a:'middle',fs:9})}}
+        g+='<rect x="'+x+'" y="'+y+'" width="'+(memW-2)+'" height="'+(sh-6)+'" rx="3" fill="'+(isOn?'var(--c2)':'none')+'" opacity="'+(isOn?.55:1)+'" stroke="'+(isOn?'var(--c2)':'var(--mute)')+'" stroke-dasharray="'+(isOn?'':'3 2')+'"/>'+RD.t(x+memW/2-1,y+sh/2,isOn?'HBM':'off',{a:'middle',fs:11})}}
     else if(P.mem.kind==='gddr'){const n=P.mem.n/2,cw=pkgW/n;for(let k=0;k<P.mem.n;k++){const top=k<n,x=pkgX+(k%n)*cw+cw*0.2,y=top?3:dieH+2*padG-11;g+='<rect x="'+x+'" y="'+y+'" width="'+cw*0.6+'" height="9" rx="2" fill="var(--c2)" opacity=".6"/>'}}
     const H=dieH+2*padG+6;
-    let leg='<rect x="2" y="'+(H+2)+'" width="10" height="10" fill="var(--c3)"/>'+RD.t(16,H+11,'SM enabled ('+sOn+')',{fs:10})+'<rect x="'+(W<420?100:130)+'" y="'+(H+2)+'" width="10" height="10" fill="var(--dim)"/>'+RD.t((W<420?114:144),H+11,'disabled ('+sOff+')',{fs:10});
-    if(P.mem.kind==='hbm')leg+='<rect x="'+(W<420?190:240)+'" y="'+(H+2)+'" width="10" height="10" fill="var(--c2)" opacity=".55"/>'+RD.t((W<420?204:254),H+11,'HBM stack',{fs:10});
-    if(P.mem.kind==='gddr')leg+='<rect x="'+(W<420?190:240)+'" y="'+(H+2)+'" width="10" height="10" fill="var(--c2)" opacity=".6"/>'+RD.t((W<420?204:254),H+11,'GDDR7 controller',{fs:10});
+    let leg='<rect x="2" y="'+(H+2)+'" width="10" height="10" fill="var(--c3)"/>'+RD.t(16,H+11,'SM enabled ('+sOn+')',{fs:11})+'<rect x="'+(W<420?100:130)+'" y="'+(H+2)+'" width="10" height="10" fill="var(--dim)"/>'+RD.t((W<420?114:144),H+11,'disabled ('+sOff+')',{fs:11});
+    if(P.mem.kind==='hbm')leg+='<rect x="'+(W<420?190:240)+'" y="'+(H+2)+'" width="10" height="10" fill="var(--c2)" opacity=".55"/>'+RD.t((W<420?204:254),H+11,'HBM stack',{fs:11});
+    if(P.mem.kind==='gddr')leg+='<rect x="'+(W<420?190:240)+'" y="'+(H+2)+'" width="10" height="10" fill="var(--c2)" opacity=".6"/>'+RD.t((W<420?204:254),H+11,'GDDR7 controller',{fs:11});
     el.innerHTML=RD.svg(W,H+18,g+leg,c.name+' floorplan schematic');
     return {sOn,sOff};
   }
@@ -66,6 +66,6 @@
     $('fl-table').innerHTML='<thead><tr><th></th><th class="num">'+A.name+'</th><th class="num">'+B.name+'</th></tr></thead><tbody>'+rowsDef.map(r=>{const va=String(r[1](A)),vb=String(r[1](B));const d=va!==vb?' diff':'';return '<tr><td>'+r[0]+'</td><td class="num'+d+'">'+va+'</td><td class="num'+d+'">'+vb+'</td></tr>'}).join('')+'</tbody>';
   }
   $('fl-a').addEventListener('change',render);$('fl-b').addEventListener('change',render);
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-floor']=window.TAB_RENDER['t-floor']||[]).push(render);
-  RD.onResize(render,'t-floor');
+  RD.onRender(render);render();
+  RD.onResize(render);
 })();

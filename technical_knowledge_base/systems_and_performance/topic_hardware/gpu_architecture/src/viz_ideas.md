@@ -23,8 +23,18 @@ Central question: for one matmul tile of a training step, what keeps the tensor 
 | Systolic array animation | TPUs and other accelerators sibling owns it |
 | HBM stack cross-section, bandwidth against working-set size | Memory technology sibling owns them |
 | Tensor-core rates of B200 from Jarmusch and Chandrasekaran | Their tables are internally inconsistent (H200 BF16 1,513.5 "achieved" above its 989.5 dense peak); configuration section used only |
-| Die photos | Images not computable, and positions of disabled SMs are not published |
+| Die photos with SM positions annotated | Positions of disabled SMs are not published; the 2026-10-23 photos carry captions only |
 | simdgroup_matrix vs FMA on the M1 (no tensor core) | The CUDA topic's Kernel lab already measures simdgroup_matrix matmul; would not teach NVIDIA's tensor cores |
 
 ## What the methodology lacked
 A rule for microbenchmarks run on a different vendor's hardware: here every M1 chart carries a "transfers" and a "does not transfer" line, and NVIDIA's own numbers are overlaid only from an independent paper, never mixed with vendor peaks.
+
+## 2026-10-23 rebuild to the teaching contract
+| # | Visual | Where | Notes |
+|---|---|---|---|
+| GA9 | **Hero**: one H100 (132 SMs, L2, HBM sites), one SM zoomed, the ladder from HBM to the tensor core with Luo et al. latencies | Reading s1 | Static annotated diagram (structure); `27_js_rd_hero.js` |
+| GA6, GA7 | Floorplans and the three M1 charts | moved inline: s9; s3 (stream, chase), s4 (smem cliff), s6 (latency ladder) | Each explains one mechanism, so they sit beside the claim; the two tabs were removed |
+| GA10 | Two ways past one reticle: B200 (two dies) against MI300X (8 XCDs on 4 I/O dies) | Reading s13 | Static schematic to counts; `30_js_rd_amd.js` |
+| GA11 | Photos: GA100 die (CC BY 3.0) and a delidded Tesla P100 package with four HBM2 stacks (CC0) | Reading s9 | Real objects; `img/CREDITS.md` |
+
+Rejected 2026-10-23: TSUBAME 4.0 node photos (H100 under cold plates; shows the node, not the GPU, and nodes belong to cluster pages); Geekerwan H100 PCIe card photos (a shroud, nothing to notice); an SXM socket photo (no GPU in it).

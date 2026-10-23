@@ -24,12 +24,16 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await p.setViewport({ width: w, height: 900 });
   await p.goto('file://' + pageFile);
   await p.evaluate(() => { try { localStorage.clear() } catch (e) {} });
-  for (const tab of ['t-read', 't-floor', 't-lab', 't-more']) {
+  // nothing may move before the reader acts: scroll every card into view, wait, and check the scrubbers are still at 0
+  const moved = await p.evaluate(async () => { for (const c of document.querySelectorAll('#t-read .card')) { c.scrollIntoView(); await new Promise(r => setTimeout(r, 120)); }
+    await new Promise(r => setTimeout(r, 2500)); return [...document.querySelectorAll('#t-read .an-ctl input[type=range]')].filter(r => +r.value !== 0).map(r => r.id); });
+  if (moved.length) { bad++; console.log(scheme, w, 'autoplay: scrubbers moved', moved); } else console.log(scheme, w, 'no autoplay ok');
+  for (const tab of ['t-read', 't-more']) {
     await p.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), tab);
     await sleep(250);
     const n = await p.evaluate(async (t) => {
       const root = document.getElementById(t); let c = 0;
-      for (const s of root.querySelectorAll('section,.card,.fl-card,.lb-card')) { s.scrollIntoView(); await new Promise(r => setTimeout(r, 40)); }
+      for (const s of root.querySelectorAll('section,.card,.fl-card')) { s.scrollIntoView(); await new Promise(r => setTimeout(r, 40)); }
       for (const b of [...root.querySelectorAll('button')]) { if (b.offsetParent === null) continue; b.scrollIntoView({ block: 'center' }); b.click(); c++; await new Promise(r => setTimeout(r, 20)); }
       for (const r of root.querySelectorAll('input[type=range]')) { for (const v of [r.min, r.max, Math.round((+r.min + +r.max) / 2)]) { r.value = v; r.dispatchEvent(new Event('input', { bubbles: true })); c++; } }
       for (const s of root.querySelectorAll('select')) { for (const o of s.options) { s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); c++; await new Promise(r => setTimeout(r, 20)); } }
@@ -39,7 +43,7 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     }, tab);
     const txt = await p.evaluate(t => document.getElementById(t).innerText, tab);
     const html = await p.evaluate(t => document.getElementById(t).innerHTML, tab);
-    const nan = /\bNaN\b|\bundefined\b|Infinity/.test(txt) || /NaN|undefined/.test(html.replace(/[^>]*</g, '<'));
+    const nan = /\bNaN\b|\bundefined\b|Infinity(?! Cache| Fabric)/.test(txt) || /NaN|undefined/.test(html.replace(/[^>]*</g, '<'));
     const sw = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     if (nan || sw > 1) { bad++; console.log(scheme, w, tab, 'NaN/undefined:', nan, 'sideways:', sw); }
     console.log(scheme, w, tab, 'controls', n, 'ok');

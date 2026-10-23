@@ -1,0 +1,24 @@
+<section id="ga-s14">
+<h2>14. Depth: checking your GPU, traps, interview rehearsal</h2>
+<p class="small mute">Optional, closed by default.</p>
+<details class="dp"><summary>Checking what you are running on <span class="mute">(not run here: no NVIDIA GPU)</span></summary><div class="b"><ul class="tight">
+<li><code>torch.cuda.get_device_capability()</code> gives the compute capability (8, 0) A100, (9, 0) H100, (10, 0) B200, (12, 0) RTX 5090: it decides which instructions a kernel can use. <code>torch.cuda.get_device_properties(0)</code> gives the SM count and memory.</li>
+<li><code>nvidia-smi -q</code> lists clocks, power limit and memory; a power or clock cap lowers every peak on this page proportionally.</li>
+<li>A kernel's registers, shared memory and spills: compile with <code>-Xptxas -v</code>, or read them per kernel in Nsight Compute, which also reports achieved occupancy and tensor-pipe utilisation ({{Profiling and correctness|n:3c65c17b0d0d813da895ffee55b0457c}}).</li>
+</ul></div></details>
+<details class="dp"><summary>Two traps when quoting a GPU's speed</summary><div class="b">
+<p><b>Sparse FLOPS as the chip's speed.</b> Vendor tables print the 2:4 structured-sparsity figure first (H100 BF16 "1,979"); dense training gets half (989.5). Compare dense with dense.</p>
+<p><b>"B200" as one number.</b> HGX B200 is 2,250 BF16 TFLOPS dense; the B200 inside a GB200 rack is 2,500; Blackwell Ultra is 2,250 BF16 but 15 PF FP4. Name the SKU.</p>
+</div></details>
+<details class="dp"><summary>Interview rehearsal <span class="mute">(8 questions, short answers)</span></summary><div class="b">
+<details class="mist"><summary>What is an SM, and what is inside it?</summary><div class="b">The GPU's repeated processor: four quadrants, each with a warp scheduler, 64 KB of registers, 32 FP32 lanes (Hopper) and a tensor core; shared L1/shared memory (256 KB on H100); on Blackwell also 256 KB of tensor memory. H100 SXM has 132.</div></details>
+<details class="mist"><summary>How does a GPU hide memory latency?</summary><div class="b">By keeping many warps resident with their registers in place and issuing from whichever is ready; plus memory-level parallelism per thread and asynchronous copies. Little's law: bytes in flight = bandwidth &times; latency, about 0.9 MB for an H100.</div></details>
+<details class="mist"><summary>What limits occupancy?</summary><div class="b">Warp slots, block slots, registers (64K per SM) and shared memory per SM; the smallest wins. Low occupancy is fine if latency is hidden another way.</div></details>
+<details class="mist"><summary>What did Hopper add for matmuls, and why?</summary><div class="b">FP8, wgmma (warpgroup MMA from shared memory, asynchronous), TMA (descriptor-driven tile copies) and clusters with distributed shared memory: the tensor cores had outgrown what threads could feed.</div></details>
+<details class="mist"><summary>What is TMEM and why does it exist?</summary><div class="b">256 KB per SM on Blackwell datacenter GPUs, 128 lanes by 512 columns, holding tensor-core accumulators. It frees the register file (a 128 &times; 128 FP32 accumulator is a quarter of it) for the epilogue and other work.</div></details>
+<details class="mist"><summary>Why is the B200 two dies?</summary><div class="b">One die is limited by the reticle; two reticle-sized dies joined at 10 TB/s give 208 billion transistors presented as one GPU.</div></details>
+<details class="mist"><summary>RTX 5090 or H100 for training a 7B model?</summary><div class="b">H100: 80 GB against 32 GB (full fine-tuning needs about 16 bytes per parameter), 4.7 times the BF16 rate with FP32 accumulation, NVLink, wgmma. The 5090 is for inference and kernel development.</div></details>
+<details class="mist"><summary>Why did the BF16 ridge point fall on Rubin?</summary><div class="b">HBM4 bandwidth (22 TB/s) grew faster than BF16 math (4 PF): 182 FLOPs per byte against the H100's 295. At FP8 it rose to 795.</div></details>
+</div></details>
+</section>
+</div>

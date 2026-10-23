@@ -31,17 +31,17 @@
   function draw(i){
     const r=R[mode],box=$('ga-hideSvg'),W=Math.min(860,RD.width(box)),lw=W<480?44:60,pw=W-lw-6;
     const rh=r.W>4?Math.max(8,Math.min(12,200/r.W)):18,y0=40,tc=Math.min(T,i*STEP),X=t=>lw+t/T*pw;
-    let g=RD.t(2,12,'cycle',{fs:10,fill:'var(--mute)'});
-    for(let t=0;t<=T;t+=500)g+='<line x1="'+X(t)+'" x2="'+X(t)+'" y1="16" y2="'+(y0+r.W*rh+4)+'" stroke="var(--line)"/>'+RD.t(X(t),12,t,{a:t===T?'end':'middle',fs:10,fill:'var(--mute)'});
-    g+=RD.t(2,30,'issue',{fs:10,w:600});
+    let g=RD.t(2,12,'cycle',{fs:11,fill:'var(--mute)'});
+    for(let t=0;t<=T;t+=500)g+='<line x1="'+X(t)+'" x2="'+X(t)+'" y1="16" y2="'+(y0+r.W*rh+4)+'" stroke="var(--line)"/>'+RD.t(X(t),12,t,{a:t===T?'end':'middle',fs:11,fill:'var(--mute)'});
+    g+=RD.t(2,30,'issue',{fs:11,w:600});
     r.sr.forEach(s=>{if(s[0]>=tc)return;const e=Math.min(s[1],tc);if(s[2])g+='<rect x="'+X(s[0])+'" y="20" width="'+Math.max(.6,X(e)-X(s[0]))+'" height="12" fill="var(--c3)"/>'});
     for(let w=0;w<r.W;w++){const y=y0+w*rh;
-      if(r.W<=4||w%2===0||rh>=10)g+=RD.t(2,y+rh-2,'warp '+w,{fs:Math.min(10,rh-1),fill:'var(--mute)'});
+      if(r.W<=4||w%2===0||rh>=10)g+=RD.t(2,y+rh-2,'warp '+w,{fs:Math.min(11,Math.max(rh-1,9)),fill:'var(--mute)'});
       r.runs[w].forEach(s=>{if(s[0]>=tc)return;const e=Math.min(s[1],tc);g+='<rect x="'+X(s[0])+'" y="'+(y+1)+'" width="'+Math.max(.6,X(e)-X(s[0]))+'" height="'+(rh-2)+'" fill="'+COL[s[2]]+'"'+(s[2]===0?' opacity=".5"':'')+'/>'})}
     const yb=y0+r.W*rh+6;
     g+='<line x1="'+X(tc)+'" x2="'+X(tc)+'" y1="16" y2="'+yb+'" stroke="var(--ink)" stroke-width="1.5"/>';
     const leg=[['var(--c3)','scheduler issued'],['var(--c2)','load issued'],['var(--c1)','arithmetic issued'],['var(--dim)','waiting on memory'],['var(--c5)','ready, not picked']];
-    let lx=lw,ly=yb+16;leg.forEach(l=>{const tw=l[1].length*5.6+22;if(lx+tw>W){lx=lw;ly+=15}g+='<rect x="'+lx+'" y="'+(ly-9)+'" width="10" height="10" fill="'+l[0]+'"/>'+RD.t(lx+14,ly,l[1],{fs:10});lx+=tw});
+    let lx=lw,ly=yb+16;leg.forEach(l=>{const tw=l[1].length*5.6+22;if(lx+tw>W){lx=lw;ly+=15}g+='<rect x="'+lx+'" y="'+(ly-9)+'" width="10" height="10" fill="'+l[0]+'"/>'+RD.t(lx+14,ly,l[1],{fs:11});lx+=tw});
     box.innerHTML=RD.svg(W,ly+6,g,'Scheduler timeline');
     const used=tc?r.cum[tc]/tc:0,waiting=tc<T?r.st.filter(a=>a[tc]===1).length:r.st.filter(a=>a[T-1]===1).length;
     $('ga-hideOut').innerHTML=RD.stat('Cycle',tc.toLocaleString('en-US'),'of '+T.toLocaleString('en-US'))+RD.stat('Issue slots used so far',(used*100).toFixed(1)+'%',r.cum[tc].toLocaleString('en-US')+' instructions')+
@@ -53,6 +53,6 @@
     $('ga-hideCap').textContent=c;
   }
   const an=RD.anim({card:'ga-hideCard',ctl:'ga-hideCtl',n:N,draw,ms:900,label:'Cycle step'});
-  RD.seg($('ga-hideSeg'),m=>{mode=+m;an.reset(N);an.play()});
+  RD.seg($('ga-hideSeg'),m=>{mode=+m;an.reset(N)});
   RD.onResize(()=>an.redraw());
 })();

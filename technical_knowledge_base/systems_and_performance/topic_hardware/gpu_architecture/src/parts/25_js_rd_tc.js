@@ -31,7 +31,7 @@
   let mode='amp';
   function box(x,y,w,h,lab,fill,on){return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="6" fill="'+fill+'" opacity="'+(on?.55:.18)+'" stroke="var(--line)"/>'+RD.t(x+6,y+14,lab,{fs:11,w:600})}
   function arrow(x1,y1,x2,y2,on,lab){const c=on?'var(--acc)':'var(--line)',sw=on?2.6:1.2,ang=Math.atan2(y2-y1,x2-x1),hx=x2-8*Math.cos(ang-0.45),hy=y2-8*Math.sin(ang-0.45),kx=x2-8*Math.cos(ang+0.45),ky=y2-8*Math.sin(ang+0.45);
-    return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+c+'" stroke-width="'+sw+'"/><path d="M'+x2+' '+y2+'L'+hx+' '+hy+'L'+kx+' '+ky+'Z" fill="'+c+'"/>'+(on&&lab?(Math.abs(x2-x1)<30?RD.t(Math.max(x1,x2)+5,(y1+y2)/2+4,lab,{fs:10,fill:'var(--acc)',w:600}):RD.t((x1+x2)/2,(y1+y2)/2-5,lab,{a:'middle',fs:10,fill:'var(--acc)',w:600})):'')}
+    return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+c+'" stroke-width="'+sw+'"/><path d="M'+x2+' '+y2+'L'+hx+' '+hy+'L'+kx+' '+ky+'Z" fill="'+c+'"/>'+(on&&lab?(Math.abs(x2-x1)<30?RD.t(Math.max(x1,x2)+5,(y1+y2)/2+4,lab,{fs:11,fill:'var(--acc)',w:600}):RD.t((x1+x2)/2,(y1+y2)/2-5,lab,{a:'middle',fs:11,fill:'var(--acc)',w:600})):'')}
   function draw(i){
     const m=M[mode],s=m.steps[i],el=$('ga-tcSvg'),W=Math.max(330,Math.min(800,RD.width(el))),act=k=>s.a.indexOf(k)>=0;
     const bw=W*0.24,gap=(W-3*bw)/2,xH=2,xS=xH+bw+gap,xT=xS+bw+gap,y1=8,h1=92;
@@ -42,17 +42,17 @@
       const bwid=Math.min(bw-aw-24,ah*2),bh=bwid/2;g+='<rect x="'+(xS+16+aw)+'" y="'+(y1+22)+'" width="'+bwid+'" height="'+bh+'" fill="var(--c2)" opacity=".7"/>'+RD.t(xS+16+aw+bwid/2,y1+22+bh/2+4,'B',{a:'middle',fs:11,fill:'var(--bg)',w:600})}
     g+=box(xT,y1,bw,h1,'Tensor cores','var(--c3)',s.tc);
     const tq=(bw-30)/2;for(let q=0;q<4;q++)g+='<rect x="'+(xT+10+(q%2)*(tq+10))+'" y="'+(y1+22+Math.floor(q/2)*Math.min(32,(h1-30)/2))+'" width="'+tq+'" height="'+(Math.min(32,(h1-30)/2)-4)+'" rx="3" fill="var(--c3)" opacity="'+(s.tc?.95:.3)+'"/>';
-    if(s.tma)g+=RD.t(xS+bw/2,y1+h1+13,'TMA engine',{a:'middle',fs:10,fill:'var(--c6)',w:600});
+    if(s.tma)g+=RD.t(xS+bw/2,y1+h1+13,'TMA engine',{a:'middle',fs:11,fill:'var(--c6)',w:600});
     // register file bar
     const yR=y1+h1+40,full=W-4,scale=full/256;
-    g+='<rect x="2" y="'+yR+'" width="'+full+'" height="24" rx="4" fill="var(--c5)" opacity=".2" stroke="var(--line)"/>'+RD.t(W-6,yR+16,W<480?'Registers 256 KB':'Register file, 256 KB per SM',{a:'end',fs:10.5,w:600});
-    if(s.acc==='reg')g+='<rect x="2" y="'+yR+'" width="'+(T.acc_bytes/1024*scale)+'" height="24" rx="4" fill="var(--c5)" opacity=".85"/>'+RD.t(8,yR+16,(W<480?'acc. ':'accumulators ')+T.acc_bytes/1024+' KB',{fs:10.5});
-    if(s.rg)g+='<rect x="'+(2+(s.acc==='reg'?T.acc_bytes/1024*scale+4:0))+'" y="'+(yR+3)+'" width="'+(16*scale)+'" height="18" rx="3" fill="var(--c1)" opacity=".6"/>'+RD.t(6+(s.acc==='reg'?T.acc_bytes/1024*scale+4:0)+16*scale,yR+16,W<480?'operands':'operand fragments',{fs:10});
+    g+='<rect x="2" y="'+yR+'" width="'+full+'" height="24" rx="4" fill="var(--c5)" opacity=".2" stroke="var(--line)"/>'+RD.t(W-6,yR+16,W<480?'Registers 256 KB':'Register file, 256 KB per SM',{a:'end',fs:11,w:600});
+    if(s.acc==='reg')g+='<rect x="2" y="'+yR+'" width="'+(T.acc_bytes/1024*scale)+'" height="24" rx="4" fill="var(--c5)" opacity=".85"/>'+RD.t(8,yR+16,(W<480?'acc. ':'accumulators ')+T.acc_bytes/1024+' KB',{fs:11});
+    if(s.rg)g+='<rect x="'+(2+(s.acc==='reg'?T.acc_bytes/1024*scale+4:0))+'" y="'+(yR+3)+'" width="'+(16*scale)+'" height="18" rx="3" fill="var(--c1)" opacity=".6"/>'+RD.t(6+(s.acc==='reg'?T.acc_bytes/1024*scale+4:0)+16*scale,yR+16,W<480?'operands':'operand fragments',{fs:11});
     // TMEM bar
     const yM=yR+50;
-    if(mode==='bw'){g+='<rect x="2" y="'+yM+'" width="'+full+'" height="24" rx="4" fill="var(--c2)" opacity=".15" stroke="var(--line)"/>'+RD.t(W-6,yM+16,W<480?'TMEM 256 KB':'Tensor memory, 256 KB per SM (512 columns)',{a:'end',fs:10.5,w:600});
-      if(s.acc==='tmem')g+='<rect x="2" y="'+yM+'" width="'+(full*T.tmem_frac)+'" height="24" rx="4" fill="var(--c2)" opacity=".75"/>'+RD.t(8,yM+16,T.tmem_cols+' columns',{fs:10.5});}
-    else g+=RD.t(6,yM+12,'No tensor memory on this generation',{fs:10.5,fill:'var(--mute)'});
+    if(mode==='bw'){g+='<rect x="2" y="'+yM+'" width="'+full+'" height="24" rx="4" fill="var(--c2)" opacity=".15" stroke="var(--line)"/>'+RD.t(W-6,yM+16,W<480?'TMEM 256 KB':'Tensor memory, 256 KB per SM (512 columns)',{a:'end',fs:11,w:600});
+      if(s.acc==='tmem')g+='<rect x="2" y="'+yM+'" width="'+(full*T.tmem_frac)+'" height="24" rx="4" fill="var(--c2)" opacity=".75"/>'+RD.t(8,yM+16,T.tmem_cols+' columns',{fs:11});}
+    else g+=RD.t(6,yM+12,'No tensor memory on this generation',{fs:11,fill:'var(--mute)'});
     // arrows
     const cy=y1+h1/2;
     g+=arrow(xH+bw,cy,xS-2,cy,act('hs'),s.tma?'TMA':'copy');
@@ -71,6 +71,6 @@
       RD.stat('Tensor math, SM clocks',s.clk?f(s.clk):(mode==='bw'&&i>=3?'not published':'...'),mode==='amp'?'1,024 FMAs per clock':mode==='hop'?'2,048 FMAs per clock':'');
   }
   const an=RD.anim({card:'ga-tcCard',ctl:'ga-tcCtl',n:M.bw.steps.length,draw,ms:2600,label:'Step'});
-  RD.seg($('ga-tcSeg'),m=>{mode=m;an.reset(M[mode].steps.length);an.play()});
+  RD.seg($('ga-tcSeg'),m=>{mode=m;an.reset(M[mode].steps.length)});
   RD.onResize(()=>an.redraw());
 })();
