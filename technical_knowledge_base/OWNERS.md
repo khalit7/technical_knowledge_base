@@ -20,9 +20,13 @@ Agreed 2026-10-23 with the teaching contract ([../.claude/skills/explainer-page/
 | Model families (decoder-only, encoder, encoder-decoder, prefix LM) and objectives (CLM, MLM, span corruption, UL2), multi-token prediction, diffusion LMs | `.../topic_llm_architecture/families_and_objectives` | |
 | Survey of released architectures: which model made which choice, ratio counts, corrections of the Gallery's figures | `.../topic_llm_architecture/llm_architecture_gallery` | lab pages say what their own models chose |
 | Parallelism forms: DP, FSDP/ZeRO, TP, PP, CP, EP for training | `models_and_training/topic_llm_training_and_post_training/distributed_training` | PyTorch, JAX and launcher pages show only their API or tooling |
-| Quantisation and number formats (FP8, INT4, NF4, GPTQ, AWQ, QAT) | `.../topic_llm_training_and_post_training/quantization_and_precision` | serving pages say what they run |
-| LoRA, QLoRA and other PEFT | `.../topic_llm_training_and_post_training/peft` | |
-| The post-training pipeline, SFT, DPO family, RLVR as a stage | `.../topic_llm_training_and_post_training/alignment_sft_rlhf_dpo_rlvr` | |
+| Number formats (FP32, TF32, BF16, FP16, FP8 E4M3/E5M2, MX, NVFP4, INT8/INT4, NF4), scaling granularity, PTQ (GPTQ, AWQ, SmoothQuant, rotations), QAT, mixed precision, FP8 and 4-bit training | `.../topic_llm_training_and_post_training/quantization_and_precision` | serving pages say what they run; RL for LLMs owns low-precision RL mismatch |
+| Scaling laws, compute-optimal allocation, over-training | `.../topic_llm_training_and_post_training/pretraining` (section 3) | the training root's Scaling calculator (6ND cost) links it |
+| Activation checkpointing and recomputation in training; bytes each split sends per step | `.../topic_llm_training_and_post_training/distributed_training` | interconnects owns collective algorithms on the wire |
+| Knowledge distillation (logit, sequence-level, on-policy, reasoning), pruning plus distillation, what makes a good small model | `.../topic_llm_training_and_post_training/distillation_and_small_language_models` | pretraining, quantisation, local inference |
+| The stage comparison, open recipes, price list, one-run compute calculator, the "running the job" stack | `models_and_training/topic_llm_training_and_post_training` (root) | |
+| LoRA, QLoRA and other PEFT, and the fine-tuning memory calculator (full, LoRA, QLoRA) | `.../topic_llm_training_and_post_training/peft` | vLLM owns its multi-LoRA serving knobs |
+| The post-training pipeline, SFT, DPO family, RLVR as a stage, how recipes combine the stages (section 8), the loss-mask widget | `.../topic_llm_training_and_post_training/alignment_sft_rlhf_dpo_rlvr` | post-training data links the loss mask |
 | RL algorithms for LLMs: PPO, GRPO and variants, their maths | `models_and_training/topic_rl/rl_for_llms` | the alignment page links for the algorithm |
 | Reward hacking and over-optimisation | `.../topic_llm_training_and_post_training/reward_hacking` | |
 | Post-training data | `models_and_training/topic_data_curation_and_datasets/post_training_data` | |
@@ -35,9 +39,10 @@ Agreed 2026-10-23 with the teaching contract ([../.claude/skills/explainer-page/
 ## Systems and performance
 | Concept | Owner | Others |
 |---|---|---|
-| Sampling and decoding strategies | `systems_and_performance/topic_inference_and_serving/sampling_and_decoding` | |
-| Continuous batching, paged attention, scheduling | `.../topic_inference_and_serving/batching_kv_cache_and_scheduling` | vLLM and SGLang pages show their implementation |
-| Speculative decoding | `.../topic_inference_and_serving/speculative_decoding` | |
+| Sampling and decoding strategies, logit processors, constrained and structured decoding (JSON schema, grammars, mask engines) | `systems_and_performance/topic_inference_and_serving/sampling_and_decoding` | engine pages say which backend they run |
+| vLLM as a system, including its multi-LoRA serving knobs | `.../topic_inference_and_serving/vllm` | PEFT and serving in production link |
+| Continuous batching, paged attention and block tables, prefix caching, offload tiers, chunked prefill, scheduling policies, admission and preemption, the realisable saving of compressed caches | `.../topic_inference_and_serving/batching_kv_cache_and_scheduling` | vLLM and SGLang pages show their implementation |
+| Speculative decoding, its worked example, the batch-size crossover cost model, the exactness test | `.../topic_inference_and_serving/speculative_decoding` | |
 | Roofline, arithmetic intensity, performance arithmetic | `systems_and_performance/topic_hardware/performance_math` | CUDA and serving pages |
 | Interconnects and topology (NVLink, InfiniBand, ICI) | `.../topic_hardware/interconnects_and_scaling` | cluster anatomy |
 | GPU memory hierarchy as hardware (HBM, SRAM) | `.../topic_hardware/memory_technology` | CUDA memory hierarchy owns the programming view |
