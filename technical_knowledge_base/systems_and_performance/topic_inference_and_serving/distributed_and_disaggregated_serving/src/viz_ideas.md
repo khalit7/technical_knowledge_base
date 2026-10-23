@@ -26,3 +26,15 @@ The page's question: for each way of splitting serving across GPUs, what crosses
 
 ## What the methodology lacked here
 A rule for simulated evidence about a mode the simulator has not been validated in (disaggregated): the page labels it "simulated, not checked against a real disaggregated engine", lists what is not modelled, and claims directions rather than numbers.
+
+## 2026-10-23 rebuild (teaching contract)
+| Idea | Placement | Kind | Notes |
+|---|---|---|---|
+| Hero: five splits, what crosses per token and over which link | top | static annotated | numbers from DDC; replaces the four summary cards |
+| Memory to scale, one H200 against TP 2 | section 1 | static, drawn to scale | `mem` added to recompute.py from the planner's setup() |
+| Dynamo router cost on three workers, A's load on a slider | section 2 | one slider | loads illustrative; formula quoted; the root's round-robin animation is linked, not redrawn |
+| One MoE layer under EP: attention local, dispatch and combine | section 5 | static annotated | |
+| Serving-layer map: project against job | section 8 | static matrix | filled, ring or blank (not covered here) |
+| DD4, DD5 moved inline | sections 7, 5 | | lab tabs folded; tables closed |
+| DD6 moved into closed blocks | sections 4, 6 | | |
+Rejected: a prefix-routing before/after (the parent root draws it, section 9; LLM serving in production has a routing toy).

@@ -14,22 +14,33 @@
 <tr><td><code>--pipeline-parallel-size</code></td><td>number of stages</td><td>per-stage GPU utilisation; requests in flight at least the number of stages</td></tr>
 <tr><td><code>--data-parallel-size</code></td><td>attention replicas (with MoE) or engine copies</td><td>even <code>vllm:kv_cache_usage_perc</code> and waiting requests across ranks</td></tr>
 <tr><td><code>--enable-expert-parallel</code>, <code>--all2all-backend</code></td><td>experts spread over GPUs instead of sliced; the all-to-all kernels</td><td>all-to-all time per layer; per-GPU expert load</td></tr>
-<tr><td><code>--enable-eplb</code>, <code>--eplb-config</code></td><td>redundant experts rebalanced from recent load</td><td>max over mean GPU load before and after</td></tr>
+<tr><td><code>--enable-eplb</code>, <code>--eplb-config</code></td><td>redundant experts rebalanced from recent load</td><td>max over mean GPU load before and after, per batch, on traffic the balancer did not see</td></tr>
 <tr><td><code>--kv-transfer-config</code></td><td>the KV connector and the engine's role (producer, consumer, both)</td><td>TTFT split into prefill, transfer and the first decode step; transfer failures</td></tr>
 </table></div>
 <p class="small">Flags from {{engine/arg_utils.py L1183-L1290|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/engine/arg_utils.py}} and {{config/parallel.py|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/parallel.py}} at v0.31.0; the single-engine knobs (memory share, token budget, batch size, prefix caching) and the metrics are read from source on {{vLLM: inside the default engine|n:3c65c17b0d0d8113b976d8bcaf2c0722}}. SGLang's equivalents: <code>--tp-size</code>, <code>--pp-size</code>, <code>--dp-size</code> with <code>--enable-dp-attention</code>, <code>--ep-size</code>, <code>--disaggregation-mode prefill|decode</code> with <code>--disaggregation-transfer-backend</code> (default mooncake).</p>
 <p><b>Checks that catch most problems.</b> The start-up log's KV cache size against the planner's; time per token at batch 1 against weights over bandwidth; <code>nvidia-smi topo -m</code> and NCCL's logs for the link actually used ({{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}, section 10); per-replica load; for disaggregation, the share of TTFT spent in transfer and the idle time of each pool.</p>
 </section>
 
-<section id="dd-mis">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Expecting N GPUs of tensor parallelism to make a token N times faster</summary><div class="b">Fixed per-step work and the all-reduces do not shrink: the running example goes 3.6 times faster on 8 GPUs (section 1). Measure at batch 1 before promising a latency.</div></details>
-<details class="mist"><summary>Using pipeline parallelism to cut latency</summary><div class="b">A request still visits every stage in turn. Pipeline stages add capacity across slow links, never speed for one user.</div></details>
-<details class="mist"><summary>Running tensor parallelism across servers over the network</summary><div class="b">The all-reduces cannot overlap with compute and the link is nine or more times slower than NVLink each way: keep TP inside the NVLink domain and put PP or EP across it.</div></details>
-<details class="mist"><summary>Replicas behind round robin for a chat product</summary><div class="b">Each replica has its own cache, so round robin scatters every conversation and pays its prefix again. Route by prefix (or by session) and watch the hit rate.</div></details>
-<details class="mist"><summary>Calling an MoE deployment balanced because the average load is even</summary><div class="b">The step waits for the busiest GPU in each batch, and small batches are far less even than the day's totals ({{Expert balancer|#t-ep}}). Judge balance per batch, on traffic the balancer did not see.</div></details>
-<details class="mist"><summary>Disaggregating because the papers report big gains</summary><div class="b">The gains are for strict per-token targets, long prompts and well-matched pools. With loose targets colocated engines with chunked prefill often serve more (section 7; vLLM's own docs: "Disaggregated prefill DOES NOT improve throughput").</div></details>
-<details class="mist"><summary>Fixing the prefill-to-decode ratio once</summary><div class="b">The right ratio moves with prompt and answer lengths. A ratio sized for chat strands GPUs when traffic turns to long documents; that is what Dynamo's planner and llm-d's autoscaling are for.</div></details>
-<details class="mist"><summary>Treating Triton's dynamic batching as continuous batching</summary><div class="b">The dynamic batcher groups whole requests and runs each batch to completion. For LLMs the TensorRT-LLM or vLLM back end does the in-flight batching.</div></details>
-<details class="mist"><summary>Reading a vendor's "30x" as a software speed-up</summary><div class="b">Dynamo's launch figure compared different parallel layouts on a GB200 NVL72 rack and was labelled projected; the README's "7x" compares GB200 NVL72 with Dynamo against B200 without. Ask what changed besides the software.</div></details>
+<section id="dd-dp">
+<h2>Depth</h2>
+<details class="dp"><summary>Mistakes that look reasonable <span class="mute">(four)</span></summary><div class="b">
+<ul>
+<li><b>Calling an MoE deployment balanced because the average load is even.</b> The step waits for the busiest GPU in each batch, and small batches are far less even than the day's totals (section 5). Judge balance per batch, on traffic the balancer did not see.</li>
+<li><b>Disaggregating because the papers report big gains.</b> The gains are for strict per-token targets, long prompts and well-matched pools; with loose targets colocated engines with chunked prefill often serve more (section 7).</li>
+<li><b>Treating Triton's dynamic batching as continuous batching.</b> The dynamic batcher groups whole requests and runs each batch to completion. For LLMs the TensorRT-LLM or vLLM back end does the in-flight batching.</li>
+<li><b>Reading a vendor's "30x" as a software speed-up.</b> Dynamo's launch figure compared different parallel layouts on a GB200 NVL72 rack and was labelled projected; the README's "7x" compares GB200 NVL72 with Dynamo against B200 without.</li>
+</ul></div></details>
+<details class="dp"><summary>A design question: serve DeepSeek-R1 to a chat product <span class="mute">(rehearsal)</span></summary><div class="b">
+<p>FP8 weights about 671 GB: one 8-GPU H200 server holds them. Attention data-parallel, experts spread with expert parallelism (EP 8 in a server, wider across servers with RDMA and overlap), redundant experts from EPLB, MLA keeps the cache at about 69 KiB per token. Separate prefill and decode pools if the per-token target is tight, sized by rate matching; a KV-aware router (Dynamo or llm-d) in front; autoscale the pools on queue depth and SLO attainment. Check per-batch expert balance and all-to-all time before scaling out.</p>
+</div></details>
+<details class="dp" id="dd-cor"><summary>Corrections to the old version of this page <span class="mute">(five)</span></summary><div class="b">
+<p class="small">The old page ("NVIDIA Triton Inference Server, TensorRT-LLM, and Dynamo", saved verbatim in the parent's <code>src/read/old/</code>) was checked claim by claim; the full list is in this page's <code>src/coverage.md</code>. The ones that change what you would say:</p>
+<ul>
+<li><b>Dynamo's "up to 30x more requests/GPU"</b>: NVIDIA's wording is "increased the number of requests served by up to 30x", for DeepSeek-R1 on GB200 NVL72 with FP4 and 32K-in, 8K-out requests, and the figure is labelled "Projected performance subject to change". The "~2x for Llama-70B on Hopper" is "more than doubled the throughput" with vLLM, FP8, 3K in and 50 out.</li>
+<li><b>Triton branding</b>: not a lean but a rename, dated: Triton Inference Server "has been renamed to NVIDIA Dynamo Triton" as of 2025-03-18; GitHub still uses the old name.</li>
+<li><b>TensorRT-LLM "1.x, 2025-2026, PyTorch runtime as the default"</b>: confirmed and dated: default from v1.0.0 (2025-09-24; first in v1.0.0rc0, 2025-06-25). The latest stable is v1.2.1 (2026-04-20). "Runtime-reconfigurable xPyD" could not be confirmed in the current documentation and is left out.</li>
+<li><b>llm-d "CNCF/Red Hat/Google-led"</b>: launched by Red Hat, Google Cloud, IBM Research, CoreWeave and NVIDIA (May 2025), CNCF Sandbox announced 2026-03-24. Its scheduler is now the llm-d Router, which took over the endpoint picker code from the Gateway API Inference Extension.</li>
+<li><b>"AMD maintains a ROCm port" of Triton</b>: not confirmed in the Triton repositories read; left out.</li>
+</ul></div></details>
 </section>
+</div>

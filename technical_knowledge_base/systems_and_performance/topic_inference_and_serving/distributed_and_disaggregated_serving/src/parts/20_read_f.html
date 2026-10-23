@@ -1,24 +1,56 @@
 <section id="dd-s7">
 <h2>7. When disaggregation pays</h2>
-<p><b>Measure goodput, not throughput.</b> DistServe's measure: the highest request rate at which a target share of requests (90% here) meets both the time-to-first-token and the time-per-output-token targets, per GPU ({{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}, section 7, owns the definition and its scheduling side). Throughput that breaks the targets is not useful. The DistServe paper's own worked example shows why splitting can win on this measure ({{Zhong et al. 2024, section 1|https://arxiv.org/html/2401.09670v3}}, a 13B model on A100s, the authors' figures):</p>
+<p><b>Measure goodput, not throughput:</b> the highest request rate at which a target share of requests (90% here) meets both the time-to-first-token and the time-per-output-token targets, per GPU (DistServe's measure; {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}, section 7, owns the definition and its scheduling side). The DistServe paper's own worked example shows why splitting can win on this measure ({{Zhong et al. 2024, section 1|https://arxiv.org/html/2401.09670v3}}, a 13B model on A100s, the authors' figures):</p>
 <div class="stepbox">
 <div style="--sc:var(--c2)"><div class="k">Colocated</div><div class="v">1.6 req/s per GPU</div><p>the most one GPU serves while meeting both targets</p></div>
 <div style="--sc:var(--c4)"><div class="k">Each phase alone</div><div class="v">5.6 and 10 req/s</div><p>one GPU doing only prefill, one doing only decode, each within its own target</p></div>
 <div style="--sc:var(--c1)"><div class="k">2 prefill + 1 decode</div><div class="v">3.3 req/s per GPU</div><p>10 req/s on 3 GPUs: 2.1 times the colocated goodput</p></div>
 </div>
 <p>The win comes from removing interference, so it is largest exactly when interference hurts most: strict per-token targets and long prompts. With loose targets, colocated engines with chunked prefill use every GPU for prompts and every GPU for decoding, and nothing is stranded in an idle pool.</p>
-<h3>The running example, simulated</h3>
-<p>The {{Disaggregation lab|#t-pd}} runs the parent's validated simulator on eight H200s, each its own engine, for every split from 1 prefill + 7 decode to 7 + 1. For chat traffic with a 2 s time-to-first-token target <span class="der">simulated</span>:</p>
+<h3>The running example, simulated on eight H200s</h3>
+<p>The parent's validated {{Serving simulator|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} runs eight colocated engines against every split from 1 prefill + 7 decode to 7 + 1, for three workloads, three first-token targets, four per-token targets and two links (<span class="der">simulated</span>; what is and is not modelled is in the closed block below).</p>
+<div class="pr" id="pd-pr"><div class="q">Predict first. Chat traffic, p90 time to first token within 2 s, time per output token within 50 ms. Which serves more requests per second within the targets on eight GPUs?</div>
+<div class="opts"><button data-a="co">Eight colocated engines</button><button data-a="pd">The best prefill/decode split</button><button data-a="eq">About the same</button></div><div class="ans" hidden></div></div>
+<div class="dd-card" id="dd-pd-lab"><h4>Share of requests meeting both targets as the load grows: where each curve crosses 90% is its goodput</h4>
+<div class="pd-ctl">
+<label>Workload <select id="pd-w"></select></label>
+<label>Time to first token within <select id="pd-a"></select></label>
+<label>Time per output token within <select id="pd-t"></select></label>
+<label>KV link <select id="pd-x"><option value="nic400">400 Gb/s (50 GB/s)</option><option value="nic50">50 Gb/s (6.25 GB/s)</option></select></label>
+<label>Split <select id="pd-l"></select></label>
+</div>
+<div class="pd-plot" id="pd-plot"></div>
+<div class="pd-leg" id="pd-leg"></div>
+<div class="pd-res" id="pd-res"></div>
+<p class="small" id="pd-say"></p>
+<p class="small"><b>Goodput of every layout</b>, per GPU (the rate divided by 8); rates were tried in steps, so each value is the last step that passed:</p>
+<div class="bars" id="pd-bars"></div>
+</div>
+<p>For chat traffic with a 2 s time-to-first-token target:</p>
 <div class="tw"><table class="dd-tbl" id="dd-s7-tbl"></table></div>
-<p>Four lessons from the grid, all visible in the lab:</p>
+<p>Four lessons from the grid, all visible in the chart:</p>
 <ul>
 <li><b>The tighter the per-token target, the bigger the win</b>: <span id="dd-s7-l1"></span></li>
 <li><b>A tight first-token target favours colocated engines</b>: <span id="dd-s7-l2"></span> All eight GPUs share the prompts, so queues for prefill are shorter. This is the pattern TaiChi reports: "aggregation is optimal for tight time-to-first-token (TTFT) and relaxed time-per-output-token (TPOT), while disaggregation excels for strict TPOT and relaxed TTFT" ({{arXiv 2508.01989|https://arxiv.org/abs/2508.01989}}, the authors').</li>
 <li><b>The ratio matters as much as the decision</b>: the best split here gives prefill most of the GPUs (4 to 7 of the 8), because a 2,000-token prompt costs about 424 ms of one H200 while the 300 decode steps are shared by a whole batch. A wrong ratio loses to colocated even where the right one wins.</li>
 <li><b>Long prompts need a fast link and parallel prefill</b>: <span id="dd-s7-l4"></span></li>
 </ul>
-<p class="small">Read these as directions, not forecasts: the simulator moves each cache as one transfer, does not route by load and has not been checked against a real disaggregated engine (the lab says what is and is not modelled).</p>
+<p class="small">Read these as directions, not forecasts: the simulator moves each cache as one transfer, does not route by load and has not been checked against a real disaggregated engine.</p>
+<details class="dp"><summary>What is simulated, inside one run, and all three workloads <span class="mute">(method, tables)</span></summary><div class="b">
+<div class="co"><div class="t">What is simulated, and what is not</div>
+<p>The model is Llama 3.1 70B with FP8 weights and a BF16 KV cache on H200s, one engine per GPU (no tensor parallelism): the root's running example. Weights and the KV pool per GPU come from the {{Capacity planner|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}'s memory model (<span id="pd-pool"></span>); every step's duration is the simulator's roofline, with compute and memory efficiencies and per-step overheads fitted on NVIDIA's published NIM measurements of Llama 3.1 8B on an H100 (vendor figures) and applied to the H200's peak and bandwidth. Scheduling (continuous batching, paged blocks, chunked prefill with an 8,192-token budget, recompute preemption) is the simulator's, which matched vLLM v0.31.0's own scheduler step for step on the traces the root compared. Requests arrive as a Poisson process; <span id="pd-n"></span> requests per run, the first 10% left out as warm-up.</p>
+<p>Disaggregated mode: a request goes round robin to a prefill engine, which computes its prompt; the whole cache then travels to a decode engine (round robin) as one transfer of (prompt tokens &times; 320 KiB) at the link's full speed, and the decode engine produces every output token after the first. Not modelled: sending the cache layer by layer while prefill runs (real systems hide most of the transfer this way), link contention, routing by load, and the decode engine's prefix cache. This mode has not been checked against a real disaggregated engine. <span class="der">simulated</span></p></div>
+<h4>Inside one run</h4>
+<div class="pd-ctl"><label>Request rate <input type="range" id="pd-r" min="0" max="15" value="6"> <b id="pd-rv"></b></label></div>
+<div class="tw"><table class="pd-tbl" id="pd-tbl"></table></div>
+<p class="small mute">p50 and p90 over the measured requests; a TTFT in the tens of seconds means the queue grew for the whole run (the layout is overloaded at that rate).</p>
+<h4>All three workloads at the targets chosen above</h4>
+<div class="tw"><table class="pd-tbl" id="pd-find"></table></div>
+<p class="small">Goodput in requests per second on all 8 GPUs, with the KV link chosen above.</p>
+</div></details>
 <h3>What has been published</h3>
+<p>Every big number comes with long prompts, strict per-token targets, a large MoE model or a rack-scale system, and is measured by the people who built the system: DistServe's "7.4x more requests or 12.6x tighter SLO", Mooncake's "75% more requests" in Kimi's production. The modest numbers come from ordinary dense models on ordinary servers: Oracle's 10 to 30% on MI300X, and vLLM's own documentation, "Disaggregated prefill DOES NOT improve throughput". For a small fleet, chunked prefill with a tuned token budget gets much of the benefit ({{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}, section 5).</p>
+<details class="dp"><summary>The published claims, with their settings <span class="mute">(provenance)</span></summary><div class="b">
 <div class="tw"><table class="dd-tbl">
 <tr><th>Source</th><th>Setting</th><th>Claim</th><th>Who measured</th></tr>
 <tr><td>{{DistServe|https://arxiv.org/abs/2401.09670}} (OSDI 2024)</td><td>A100s, several applications</td><td>"7.4x more requests or 12.6x tighter SLO" within latency targets for over 90% of requests</td><td><span class="vend">authors</span></td></tr>
@@ -28,6 +60,5 @@
 <tr><td>{{llm-d README|https://github.com/llm-d/llm-d}}</td><td>gpt-oss on B200; gpt-oss-120B and Llama 3.3 70B on MI300X</td><td>"up to 70% higher tokens/sec" (AWS); "10-30% throughput improvement ... on identical infrastructure" (Oracle)</td><td><span class="vend">partners</span></td></tr>
 <tr><td>{{vLLM docs|https://github.com/vllm-project/vllm/blob/v0.31.0/docs/features/disagg_prefill.md}} (v0.31.0)</td><td>its own feature</td><td>"Disaggregated prefill DOES NOT improve throughput"; it tunes TTFT and inter-token latency separately and controls tail latency</td><td><span class="vend">engine maintainers</span></td></tr>
 <tr><td>{{TaiChi|https://arxiv.org/abs/2508.01989}} (2025)</td><td>balanced targets</td><td>neither pure design is best; mixing both gives "up to 77%" more goodput</td><td><span class="vend">authors</span></td></tr>
-</table></div>
-<p>Notice the pattern: every big number comes with long prompts, strict per-token targets, a large MoE model or a rack-scale system, and is measured by the people who built the system. The modest numbers (Oracle's 10 to 30%, vLLM's warning) come from ordinary dense models on ordinary servers. For a small fleet, chunked prefill with a tuned token budget gets much of the benefit ({{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}, section 5).</p>
+</table></div></div></details>
 </section>
