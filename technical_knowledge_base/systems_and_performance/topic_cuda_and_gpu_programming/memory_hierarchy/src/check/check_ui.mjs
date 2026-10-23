@@ -31,7 +31,18 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     if (r.nan || r.undef || r.side || r.err) { fail++; console.log('FAIL', scheme, w, tag, JSON.stringify(r)); }
   };
   const clickAll = async (sel) => { for (const b of await p.$$(sel)) { await b.evaluate(x => x.scrollIntoView({ block: 'center' })); await b.click(); await new Promise(r => setTimeout(r, 120)); } };
-  // Reading
+  // Reading: nothing moves before the reader acts
+  await new Promise(r => setTimeout(r, 2500));
+  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.filter(r => +r.value !== 0).map(r => r.id));
+  if (moved.length) { fail++; console.log('FAIL autoplay', scheme, w, moved); }
+  await p.$$eval('#t-read details', ds => ds.forEach(d => { d.open = true; d.dispatchEvent(new Event('toggle')); }));
+  await new Promise(r => setTimeout(r, 300));
+  await shot('#rd-hcard', 'hero');
+  await clickAll('#rd-l2seg button'); await shot('#rd-l2card', 'l2order'); await check('l2');
+  await clickAll('#rd-tl-mode button'); await clickAll('#rd-tl-ctl button');
+  await p.click('#rd-tl-mode button[data-m="smem"]'); for (let i = 0; i < 6; i++) await p.click('#rd-tl-ctl-f');
+  for (const t of ['4', '8', '16', '32']) await p.select('#rd-tl-t', t);
+  await shot('#rd-tl-card', 'tile'); await check('tile');
   await clickAll('#rd-wseg button'); await clickAll('#rd-wba button');
   await clickAll('#rd-wctl button'); await check('warp');
   await p.click('#rd-wseg button[data-m="aos"]'); await p.click('#rd-wba button[data-m="0"]');
@@ -45,17 +56,16 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   for (const v of ['softmax_fused', 'softmax_eager', 'mm_mlx', 'mm_naive', '']) { await p.select('#rd-cpre', v); for (const g of ['h100', 'a100', 'r5090', 'm1']) { await p.select('#rd-cgpu', g); for (const pr of ['bf16', 'fp32']) await p.select('#rd-cprec', pr); } }
   await check('calc');
   await shot('#rd-roof', 'roof'); await shot('#rd-ccard', 'calc'); await shot('#rd-cops', 'cops'); await shot('#rd-consttbl', 'const');
-  await shot('#rd-s6 .rd-two', 'async'); await shot('#rd-aosbars', 'aosbars'); await shot('#rd-tgbars', 'tgbars');
-  // Access lab
-  await p.click('#tabs button[data-t="t-acc"]'); await new Promise(r => setTimeout(r, 200));
+  await shot('#rd-s7 .rd-two', 'async'); await shot('#rd-aosbars', 'aosbars'); await shot('#rd-tgbars', 'tgbars');
+  // pattern widgets (sections 1 and 4; the Access lab tab until 2026-10-23)
   const n = await p.$$eval('#acc-gpre option', o => o.length);
   for (let i = 0; i < n; i++) { await p.select('#acc-gpre', String(i)); await check('gpre' + i); }
-  await p.select('#acc-gpre', '5'); await shot('#t-acc .card', 'acc-global');
+  await p.select('#acc-gpre', '7'); await shot('#rd-gcard', 'acc-global');
   await p.select('#acc-smode', 'stride');
   for (const wv of ['4', '8', '16']) { await p.select('#acc-sw', wv); for (const s of ['0', '1', '2', '8', '9', '32']) { await p.$eval('#acc-ss', (e, s) => { e.value = s; e.dispatchEvent(new Event('input')); }, s); await check(`s${wv}-${s}`); } }
   await p.select('#acc-smode', 'col');
   for (const l of ['plain', 'pad', 'xor']) { await p.select('#acc-slay', l); await check('col' + l); }
-  await p.select('#acc-slay', 'plain'); const cards = await p.$$('#t-acc .card'); await cards[1].screenshot({ path: `${out}/acc-shared-${scheme}-${w}.png` });
+  await p.select('#acc-slay', 'plain'); await shot('#rd-scard', 'acc-shared');
   // Memory instructions
   await p.click('#tabs button[data-t="t-sass"]');
   const files = await p.$$eval('#sx-file option', o => o.map(x => x.value));
