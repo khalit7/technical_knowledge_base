@@ -1,0 +1,52 @@
+<section id="rd-obj">
+<h2>1 &middot; The objective</h2>
+<p>Every generative LLM is pretrained with <b>causal language modelling</b>: predict every token from the tokens before it, with cross-entropy over the vocabulary, on text nobody labelled. Every position of every sequence carries a training signal, and the trained model generates by the same rule it was trained on. It is the most expensive stage by far, and it sets the ceiling every later stage works under (the root page, {{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}}, Axis 1, shows reinforcement learning sharpening what pretraining put there rather than adding to it). The alternatives use the same loss and differ only in what the model sees and which positions it must predict; the stepper runs one sentence through each.</p>
+
+<div class="card" id="ob-card">
+<h3 style="margin-top:0">One sentence, five objectives: only causal LM scores every position</h3>
+<p class="try"><b>Try:</b> pick an objective and step through it (or press Play). Each shows the sentence going in, what the model sees, what it must produce, and which positions carry a loss (orange underline). Predict first: at 512 tokens, how many positions does span corruption score?</p>
+<div class="seg" id="ob-mode" role="group" aria-label="Objective"><button data-m="clm" class="on">Causal</button><button data-m="mlm">Masked</button><button data-m="span">Span corruption</button><button data-m="ul2">UL2 (X mode)</button><button data-m="fim">FIM</button></div>
+<div class="ob-lab" id="ob-l1">Input</div><div id="ob-row"></div>
+<div class="ob-lab" id="ob-l2">Target</div><div id="ob-tgt" style="display:flex;flex-wrap:wrap;gap:3px;min-height:2em"></div>
+<div class="an-cap" id="ob-cap" aria-live="polite"></div>
+<div class="an-cnt" id="ob-cnt"></div>
+<div class="an-ctl" id="ob-ctl"></div>
+<p class="small mute">Tokens are words for readability <i class="nl i">illustrative</i>; hidden positions are fixed for the demo. Per 512 tokens <i class="nl d">derived</i>: masked LM hides round(0.15 &times; 512) = 77; span corruption at mean span 3 makes round(77 / 3) = 26 spans, so the input is 512 &minus; 77 + 26 + 1 = 462 tokens and the target 77 + 26 + 1 = 104 (T5's own code, run on the {{T5 paper page|n:3d45c17b0d0d81ec8ebfec02e953a7fd}}, does the same arithmetic).</p>
+</div>
+<ul>
+<li><b>Masked LM</b> (BERT) hides about 15% of tokens and predicts them from both sides: better for encoders (classification, retrieval), not for generation; the {{Seq vs Seq paper page|n:3c65c17b0d0d81139cffea35080afe2b}} trains matched encoders and decoders and measures this split.</li>
+<li><b>Span corruption</b> (T5) replaces each corrupted run with one sentinel and trains the decoder to emit only the dropped spans, so decoder sequences stay short and a step is cheap. <b>UL2</b> ({{Tay et al. 2022|https://arxiv.org/abs/2205.05131}}) mixes denoisers of different corruption rates and span lengths, each example prefixed by a mode token, so one model learns short-span, long-span and prefix-LM denoising at once. Mostly historical for LLMs; still the default for an encoder-decoder ({{Encoder-Decoder Gemma and T5Gemma 2|n:3d45c17b0d0d81a9a22ffaada508db5c}} for the 2025 revival).</li>
+<li><b>Fill-in-the-middle (FIM)</b> cuts a document into prefix, middle and suffix and moves the middle to the end, so a causal model learns to infill; standard for code. A high FIM rate leaves left-to-right ability intact, "FIM for free" ({{Bavarian et al. 2022|https://arxiv.org/abs/2207.14255}}); DeepSeek-V3 applies FIM to 10% of documents in prefix-suffix-middle order and reports no loss of next-token ability ({{DeepSeek-V3, section 4.1|https://arxiv.org/html/2412.19437v2#S4.SS1}}).</li>
+</ul>
+
+<p><b>How much the choice is worth, measured.</b> T5 moved only the objective, holding architecture, data, compute and evaluation fixed ({{Raffel et al., section 3.3|https://arxiv.org/html/1910.10683v4#S3.SS3}}): the gap between objective <i>families</i> is large, the gap <i>within</i> denoising is noise.</p>
+<div class="fig" id="t5-card"><h4>Families differ by 9.79 GLUE points; rates and span lengths inside denoising by less than half a point</h4><div id="t5-bars"></div>
+<p class="cap">GLUE average on T5's validation sets, Tables 4 to 7 of the {{T5 paper|https://arxiv.org/html/1910.10683v4#S3.SS3}}, transcribed (they match by construction), each panel on the same 72 to 86 scale. The grey band is &plusmn;1 standard deviation of the baseline over 10 reruns (0.235, Table 1). <i class="nl d">derived</i> ranges: families 82.96 &minus; 73.17 = 9.79 points (about 42 standard deviations); corruption rates 10 to 25%: 83.28 &minus; 82.82 = 0.46 (about 2); span lengths 2 to 5: 0.14; only a 50% rate and spans of 10 are worse.</p></div>
+<p>So pick a denoising variant on cost, not quality. The same paper is also a measured result against the field's habit: at matched compute an encoder-decoder (83.28 GLUE) beat a decoder-only prefix LM (81.82), both trained with denoising, and the field went decoder-only anyway, for in-context learning and serving reasons the comparison did not test ({{Table 2|https://arxiv.org/html/1910.10683v4#S3.T2}}).</p>
+<div class="co corr"><div class="t">Correction</div>The old page quoted "a plain causal LM trails badly on understanding tasks, GLUE 74.70 against 83.28". In Table 2, 74.70 is a decoder-only language model trained with the <i>denoising</i> objective; the same decoder with the plain causal objective scored 73.78. Both trail the encoder-decoder's 83.28, so the point stands, but the 9-point gap is about the architecture (no bidirectional encoder), not the objective. The objective comparison is Table 4: prefix LM 80.69 against BERT-style 82.96.</div>
+</section>
+
+<section id="rd-loss">
+<h2>2 &middot; Reading the loss</h2>
+<div class="fm"><div class="eq">L = &minus;(1/T) &Sigma;<sub>t</sub> log p<sub>&theta;</sub>(x<sub>t</sub> | x<sub>&lt;t</sub>) &nbsp;&nbsp; perplexity = e<sup>L</sup></div>
+<dl><dt>L</dt><dd>mean cross-entropy per token, in nats (divide by ln 2 for bits)</dd><dt>T</dt><dd>tokens in the evaluated text</dd><dt>perplexity</dt><dd>the effective number of equally likely choices per token</dd></dl></div>
+<p>Downstream ability tracks loss smoothly enough for scaling laws to work: a run's loss at a given size and token count can be forecast from small runs, and the {{Llama 3 paper|n:3c65c17b0d0d81aca58ccb9d720b474e}} forecast benchmark accuracy from it in two steps. Three cautions keep the number honest:</p>
+<ul>
+<li><b>Per-token loss depends on the tokenizer.</b> Longer tokens make fewer, harder tokens; compare models with different tokenizers in bits per byte (total bits over total bytes). The NanoGPT speedrun can use per-token loss (3.28) only because its rules fix the tokenizer and the validation stream ({{modded-nanogpt rules|https://github.com/KellerJordan/modded-nanogpt#rules}}).</li>
+<li><b>The average hides the floor.</b> Some tokens are predictable (the rest of a word, the answer to a sum), others are real choices whose entropy no model removes. The passage below shows it on a model this page trained (<a href="#rd-ann">section 5</a> describes it): the loss on the answer digits of a sum can fall to almost zero, while the random operands cannot go below about 3.25 bits per digit (the average of log<sub>2</sub> 9 for a leading digit and log<sub>2</sub> 10 for the second).</li>
+<li><b>Held-out loss on high-quality text predicts downstream better than training loss</b>, which moves with the data mix: when the mix changes at an anneal, training loss jumps or falls for reasons that have nothing to do with the model improving.</li>
+</ul>
+<div class="card" id="ty-card">
+<h3 style="margin-top:0">One held-out passage as a model trains: word interiors cool first, word starts stay warm</h3>
+<p class="try"><b>Try:</b> step through the checkpoints (or press Play). Each character is coloured by the model's surprise at it (bits: &minus;log<sub>2</sub> p of that character given the ones before). Predict first: which part of the three sums at the end goes cold, and on which branch?</p>
+<div class="seg" id="ty-br" role="group" aria-label="Branch"></div>
+<div id="ty-heat" aria-label="Held-out passage coloured by loss"></div>
+<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mute)"><span>0 bits</span><div class="ty-scale" id="ty-scale"></div><span>6+ bits</span></div>
+<div class="an-cap" id="ty-cap" aria-live="polite"></div>
+<div class="an-cnt" id="ty-cnt"></div>
+<div class="an-ctl" id="ty-ctl"></div>
+<div class="small mute" style="margin-top:6px">Sample from the same checkpoint (prompt "it was ", temperature 0.8):</div>
+<div id="ty-sample"></div>
+<p class="small mute"><i class="nl t">toy</i> Seed 1 of the 0.8M-parameter character model of section 5. The passage is held-out text from the end of <i>Pride and Prejudice</i> plus three held-out sums; the first character has no prediction and is uncoloured. The branch buttons pick which anneal the last checkpoint comes from: the answers go cold only on the maths-heavy branches.</p>
+</div>
+</section>

@@ -75,5 +75,49 @@ tot = sum(r.get('gain', 0) for r in rec)
 out['speedrun']['share'] = {c: round(100 * sum(r.get('gain', 0) for r in rec if r['cat'] == c) / tot, 1)
                             for c in ['arch', 'opt', 'sys', 'attn', 'sched', 'eval', 'mixed']}
 
+
+# --- Compute and scaling laws (section 3). Constants as the root's Scaling calculator holds them (src/scale), sources:
+# Hoffmann et al. 2022 (arXiv 2203.15556) Eq. 10 and its unrounded constants; Besiroglu et al. 2024 (arXiv 2404.10102) refit;
+# Kaplan et al. 2020 Table 6 read as Chinchilla Appendix D.4 does (N_opt = 1.3e9 x (C_min / 1 PF-day)^0.73 with C_min = C/2).
+FITS = {'hoff': dict(E=1.6934, A=406.401, B=410.7228, al=0.33917084, be=0.2849083),
+        'hoffr': dict(E=1.69, A=406.4, B=410.7, al=0.34, be=0.28),
+        'besi': dict(E=1.8172, A=482.01, B=2085.43, al=0.3478, be=0.3658)}
+PFD = 8.64e19
+def loss(f, N, D): return f['E'] + f['A'] / N ** f['al'] + f['B'] / D ** f['be']
+def opt(f, C):
+    a = f['be'] / (f['al'] + f['be']); G = (f['al'] * f['A'] / (f['be'] * f['B'])) ** (1 / (f['al'] + f['be']))
+    N = G * (C / 6) ** a; D = C / 6 / N
+    return {'N': N, 'D': D, 'tpp': D / N, 'L': loss(f, N, D), 'a': a}
+def kaplan(C): return 1.3e9 * (C / 2 / PFD) ** 0.73
+def iso_n(f, L0, k):  # model size whose loss at k tokens per parameter equals L0 (bisection on log N)
+    lo, hi = 1e6, 1e15
+    for _ in range(200):
+        m = math.sqrt(lo * hi)
+        lo, hi = (m, hi) if loss(f, m, k * m) > L0 else (lo, m)
+    return hi
+sc = {'fits': FITS, 'budgets': {}}
+for C in (1e21, 5.76e23, 3.8e25):
+    sc['budgets']['%.3g' % C] = {k: opt(f, C) for k, f in FITS.items()}
+    sc['budgets']['%.3g' % C]['kaplan_N'] = kaplan(C)
+fb = FITS['besi']; C0 = 5.76e23; o0 = opt(fb, C0)
+gN = 280e9; gD = C0 / 6 / gN
+kN = kaplan(C0); kD = C0 / 6 / kN
+sc['chin'] = {'C': C0, 'opt': o0, 'chin_L': loss(fb, 70e9, C0 / 6 / 70e9), 'gopher_L': loss(fb, gN, gD), 'gopher_D': gD,
+              'kaplan_N': kN, 'kaplan_D': kD, 'kaplan_L': loss(fb, kN, kD),
+              'gopher_pen_pct': 100 * (loss(fb, gN, gD) - o0['L']) / o0['L'], 'kaplan_pen_pct': 100 * (loss(fb, kN, kD) - o0['L']) / o0['L']}
+C1 = 3.8e25; o1 = opt(fb, C1); lN = 405853388800; lD = 15.6e12
+sc['l405'] = {'C': C1, 'opt': o1, 'meta_N': 402e9, 'meta_D': 16.55e12, 'l405_L': loss(fb, lN, lD), 'pen_pct': 100 * (loss(fb, lN, lD) - o1['L']) / o1['L']}
+over = {}
+for k in (20, 100, 1868, 3642):
+    N = iso_n(fb, o0['L'], k); D = k * N; C = 6 * N * D
+    over[str(k)] = {'N': N, 'D': D, 'C_ratio': C / C0, 'serve_ratio': N / o0['N'],
+                    'breakeven_tokens': (C - C0) / (2 * (o0['N'] - N)) if N < o0['N'] else None}
+sc['over'] = over
+sc['N_floor'] = (fb['A'] / (o0['L'] - fb['E'])) ** (1 / fb['al'])
+sc['six_nd'] = {'l405': 6 * lN * lD, 'smol': 6 * 3075098624 * 11.2e12, 'dsv3_active': 6 * 37e9 * 14.8e12, 'dsv3_total': 6 * 671e9 * 14.8e12,
+                'smol_tpp': 11.2e12 / 3075098624, 'smol_vs_chin': 11.2e12 / 3075098624 / 20,
+                'smol_mfu': 6 * 3075098624 * 11.2e12 / (384 * 24 * 3600 * 24 * 989.5e12)}
+out['scale'] = sc
+
 json.dump(out, open('data/recompute.json', 'w'), indent=1)
 print(json.dumps(out, indent=1))

@@ -104,6 +104,16 @@
   $('rn-leg').innerHTML='<span><i style="background:var(--ink);height:2px"></i>learning rate (share of peak)</span>'+ORDER.map(c=>'<span><i style="background:'+CAT[c][1]+'"></i>'+CAT[c][0]+'</span>').join('');
   const A=RD.anim({card:'rn-card',ctl:'rn-ctl',n:R[key].steps.length,draw:draw,ms:2600,label:'Run step'});
   $('rn-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;key=b.dataset.m;
-    [...$('rn-mode').children].forEach(x=>x.classList.toggle('on',x===b));A.reset(R[key].steps.length);A.play();});
+    [...$('rn-mode').children].forEach(x=>x.classList.toggle('on',x===b));A.reset(R[key].steps.length);});
   addEventListener('resize',()=>{if($('rn-plot').offsetParent)A.redraw()});
+  // ---- hero: the whole SmolLM3 run, static, with the page's decisions numbered on it ----
+  function hero(){const el=$('pt-hero-svg');if(!el||!el.offsetParent)return;const r=R.smol;
+    let s=svg(r,r.steps.length-1).replace(/<rect x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" fill="var\(--bg\)" opacity=".62"\/>/g,'').replace(/<line [^>]*stroke="var\(--acc\)" stroke-width="2"\/>/g,'');
+    const w=RD.width(el),pl=36,W=w-pl-8,X=t=>pl+t/r.total*W,y0=10,H1=90;
+    const yz=y0+H1+6+22+44,XZ=t=>pl+(t-r.total*0.95)/(r.total*0.05)*W;
+    const mk=(x,y,n)=>'<circle cx="'+x.toFixed(1)+'" cy="'+y+'" r="9" fill="var(--bg)" stroke="var(--acc)" stroke-width="2"/><text x="'+x.toFixed(1)+'" y="'+(y+4)+'" text-anchor="middle" fill="var(--acc)" font-weight="700" style="font-size:12px">'+n+'</text>';
+    s=s.replace('</svg>',mk(pl+12,y0+H1-30,1)+mk(X(4.72e9)+22,y0+12,2)+mk(X(8e12),y0+H1+6+11,3)+mk(X(10e12)+(X(11.1e12)-X(10e12))/2,y0+30,4)+mk(Math.min(XZ(11.27e12),w-14),yz+30,5)+'</svg>');
+    el.innerHTML=s;
+    $('pt-hero-leg').innerHTML='<span><i style="background:var(--ink);height:2px"></i>learning rate</span>'+['web','code','maths','nd'].map(c=>'<span><i style="background:'+CAT[c][1]+'"></i>'+CAT[c][0]+'</span>').join('');}
+  RD.onRender(hero);addEventListener('resize',hero);hero();
 })();

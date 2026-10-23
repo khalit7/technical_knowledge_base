@@ -74,5 +74,5 @@
   }
   const A=RD.anim({card:'ob-card',ctl:'ob-ctl',n:4,draw:draw,ms:2200,label:'Objective step'});
   $('ob-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;
-    [...$('ob-mode').children].forEach(x=>x.classList.toggle('on',x===b));A.reset(4);A.play();});
+    [...$('ob-mode').children].forEach(x=>x.classList.toggle('on',x===b));A.reset(4);});
 })();
