@@ -7,16 +7,18 @@ Agreed 2026-10-23 with the teaching contract ([../.claude/skills/explainer-page/
 ## Models and training
 | Concept | Owner | Others name it and link |
 |---|---|---|
-| The decoder block end to end, shapes, a tiny GPT | `models_and_training/topic_llm_architecture/the_transformer_from_zero` | architecture root (map only) |
+| The decoder block end to end, every shape (hero, Shapes and counts tab `#t-drill`), a tiny GPT | `models_and_training/topic_llm_architecture/the_transformer_from_zero` | architecture root (map only) |
+| Why a KV cache exists: recompute the prefix against keep it | `.../topic_llm_architecture/the_transformer_from_zero` (section 9) | Long context keeps the sizing |
 | Attention mechanisms: MHA, MQA, GQA, MLA, windows, NSA, DSA, CSA/HCA, sinks | `.../topic_llm_architecture/attention_variants` | lab pages say what the lab chose |
 | KV-cache sizing, the memory wall, cache compression and eviction, effective context | `.../topic_llm_architecture/long_context` (calculator `#t-kv`) | provider pages, hardware memory, serving |
-| Positional encodings, RoPE and its scaling | `.../topic_llm_architecture/positional_encodings` | |
-| Tokenizers | `.../topic_llm_architecture/tokenizers` | |
-| Mixture of experts: routing, load balancing, shared experts, expert parallelism as a design | `.../topic_llm_architecture/mixture_of_experts` | serving pages own EP at serve time |
-| Transformer normalisation: pre-norm, RMSNorm, QK-norm, residual scaling, loss spikes | `.../topic_llm_architecture/normalisation_residuals_and_stability` | |
+| Positional encodings: absolute, sinusoidal, T5 bias, ALiBi, RoPE and its base, partial and M-RoPE, NoPE layers, RoPE scaling (PI, NTK, YaRN, Llama 3, LongRoPE) | `.../topic_llm_architecture/positional_encodings` | MLA's decoupled key is Attention variants' |
+| Tokenizers, vocabulary size, chat templates and special tokens | `.../topic_llm_architecture/tokenizers` | the alignment page shows a template and links here |
+| Mixture of experts: routing, load balancing (aux loss and bias), capacity and drops, fine-grained and shared experts, expert parallelism as a design, the dense-vs-MoE twin | `.../topic_llm_architecture/mixture_of_experts` | distributed training owns EP in training; serving pages own EP at serve time |
+| Transformer normalisation: pre, post, sandwich and output norm, DeepNorm, mHC, RMSNorm, QK-norm and logit caps, z-loss, residual init, massive activations in the stream, loss spikes | `.../topic_llm_architecture/normalisation_residuals_and_stability` | attention sinks stay with Attention variants |
 | Normalisation and initialisation in general (BatchNorm, LayerNorm maths, init schemes) | `models_and_training/topic_ml_fundamentals/normalisation_and_initialisation` | |
-| SSMs, Mamba, linear attention, hybrids | `.../topic_llm_architecture/beyond_attention` | |
-| Model families and objectives, multi-token prediction, diffusion LMs | `.../topic_llm_architecture/families_and_objectives` | |
+| SSMs, Mamba, linear attention, RWKV, the delta rule (Gated DeltaNet, KDA), hybrids, the state against KV crossover | `.../topic_llm_architecture/beyond_attention` | architecture root |
+| Model families (decoder-only, encoder, encoder-decoder, prefix LM) and objectives (CLM, MLM, span corruption, UL2), multi-token prediction, diffusion LMs | `.../topic_llm_architecture/families_and_objectives` | |
+| Survey of released architectures: which model made which choice, ratio counts, corrections of the Gallery's figures | `.../topic_llm_architecture/llm_architecture_gallery` | lab pages say what their own models chose |
 | Parallelism forms: DP, FSDP/ZeRO, TP, PP, CP, EP for training | `models_and_training/topic_llm_training_and_post_training/distributed_training` | PyTorch, JAX and launcher pages show only their API or tooling |
 | Quantisation and number formats (FP8, INT4, NF4, GPTQ, AWQ, QAT) | `.../topic_llm_training_and_post_training/quantization_and_precision` | serving pages say what they run |
 | LoRA, QLoRA and other PEFT | `.../topic_llm_training_and_post_training/peft` | |
