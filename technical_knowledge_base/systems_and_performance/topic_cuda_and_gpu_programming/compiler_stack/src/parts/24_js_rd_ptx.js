@@ -21,7 +21,12 @@
   document.getElementById('cs-oldptxas').textContent=D.old_ptxas.slice(0,6).join('\n');
   document.getElementById('cs-tritonHead').textContent=D.triton_ptx_head.filter(l=>/Generated/.test(l))[0].replace(/^\/\/\s*/,'')+' ('+D.triton_ptx_head.filter(l=>/^\.version/.test(l))[0]+')';
   const L=D.ptxas_levels;
-  document.getElementById('cs-ptxasLv').innerHTML='<tr><th>ptxas level</th><th class="num">registers</th><th class="num">SASS instructions</th><th class="num">vs -O3</th></tr>'+
-    L.map(r=>'<tr><td><code>-O'+r[0]+'</code></td><td class="num">'+r[1]+'</td><td class="num">'+r[2]+'</td><td class="num">'+(r[2]/L[3][2]).toFixed(2)+'x</td></tr>').join('');
+  function lv(){const el=document.getElementById('cs-ptxasLv'),W=RD.width(el),rh=30,lw=W<520?44:56,vw=W<520?118:150,H=L.length*rh+8;
+    const mx=Math.max(...L.map(r=>r[2])),bw=W-lw-vw-8;let s='';
+    L.forEach((r,i)=>{const y=4+i*rh,w=Math.max(2,bw*r[2]/mx);
+      s+=RD.t(2,y+18,'-O'+r[0],{fs:12,fill:'var(--ink)',w:600})+'<rect x="'+lw+'" y="'+(y+4)+'" width="'+w.toFixed(1)+'" height="'+(rh-10)+'" rx="3" fill="'+(r[0]===0?'var(--dim)':'var(--acc)')+'"/>'+
+        RD.t(lw+w+6,y+18,r[2]+' instr., '+r[1]+' regs',{fs:11.5,fill:'var(--ink)'});});
+    el.innerHTML=RD.svg(W,H,s,'SASS instructions and registers at each ptxas level');}
+  lv();RD.onRender(lv);RD.onResize(lv);
   RD.onRender(()=>{const a=document.querySelector('#cs-ptxSeg button.on');if(a)show(a.dataset.m)});
 })();

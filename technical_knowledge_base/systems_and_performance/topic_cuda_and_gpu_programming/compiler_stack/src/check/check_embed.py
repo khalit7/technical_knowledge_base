@@ -34,7 +34,7 @@ ok(len(D["feature"]["k1_vadd"]) == 14 and "fourteen targets" in read, "fourteen 
 ok(min(int(c[3:]) for c in D["gpu_codes"]) == 75, "oldest target sm_75")
 ok(D["tile"]["bc_bytes"] == 703 and "703-byte" in read, "Tile IR bytecode 703 bytes")
 ok(D["compat_n"] == 660 and "on 660 cases" in read, "660 compatibility cases")
-ok(len(D["sass_check"]) == 6 and all(v[1] == 0 and v[2] == v[3] for v in D["sass_check"].values()) and "checks on six kernels" in read, "six kernels decoded, no violations")
+ok(len(D["sass_check"]) == 6 and all(v[1] == 0 and v[2] == v[3] for v in D["sass_check"].values()) and "every instruction of six kernels" in read, "six kernels decoded, no violations")
 ok(min(D["sass_neg"].values()) > 500, "negative control finds many violations")
 T = D["tc"]
 ok("7 nodes" in T["fusion_log"][0] and "Seven scheduler nodes" in read, "seven scheduler nodes fused")
@@ -50,5 +50,14 @@ ok(len(D["nvrtc"]["special"]) < len(D["nvrtc"]["generic"]), "specialised kernel 
 ok(all(v["ok"] if isinstance(v, dict) and "ok" in v else True for v in json.load(open(os.path.join(SRC, "out", "tile", "tile.json"))).values()), "cuTile compiled for all four targets")
 for bad in ("/Users/", "Users-", "/private/tmp", "glpat", "sk-ant"):
     ok(bad not in html, "no '%s' in the page" % bad)
+# the fusion stepper's nodes (parts/30_js_rd_fuse.js) are Inductor's own, as logged
+log = open(os.path.join(SRC, "out", "tc", "inductor_cpu.log")).read()
+fjs = open(os.path.join(SRC, "parts", "30_js_rd_fuse.js")).read()
+kinds = dict(re.findall(r"SchedulerNode\(name='(op\d)'\), (Reduction|Pointwise)", log))
+ok(kinds == {"op0": "Reduction", "op1": "Reduction", "op2": "Reduction", "op3": "Pointwise", "op4": "Reduction", "op5": "Pointwise"} and "ExternKernelSchedulerNode(name='op6')" in log, "fusion log: op0-op5 kinds and extern op6")
+js_kinds = dict(re.findall(r"\['(op\d)','\w+','(reduction|pointwise|extern)'", fjs))
+ok(all(js_kinds[k] == v.lower() for k, v in kinds.items()) and js_kinds.get("op6") == "extern", "fusion stepper node kinds match the log")
+ok("fused 7 nodes into 4 nodes" in log and "fused 4 nodes into 2 nodes" in log and "[7,4,2,2]" in fjs, "fusion rounds 7 -> 4 -> 2")
+ok("cannot fuse op3 with op5: intermediate nodes between node1 & node2" in log, "refusal reason quoted from the log")
 print("FAILED:", len(fails) if fails else 0)
 sys.exit(1 if fails else 0)

@@ -1,4 +1,4 @@
-// ---- Tab "SASS, decoded": scoreboard replay over real decoded instructions ----
+// ---- Reading section 4, the scoreboard replay ("SASS, decoded", a tab until 2026-10-23): scoreboard replay over real decoded instructions ----
 (function(){
   const D=window.CSD,E=RD.esc,$=id=>document.getElementById(id);
   const names={'softmax.sm_90a':'row softmax, sm_90a (H100)','softmax.sm_100a':'row softmax, sm_100a (B200)','k3_matmul_tiled.sm_90a':'tiled matmul (shared memory), sm_90a','k8_wgmma.sm_90a':'one wgmma tile (Hopper tensor cores), sm_90a'};
@@ -38,5 +38,5 @@
   $('sx-k').addEventListener('change',e=>load(e.target.value));
   prep();
   an=RD.anim({card:'sx-card',ctl:'sx-ctl',n:R.length,draw:(i)=>draw(i),ms:700,label:'Instruction'});
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-sass']=[()=>an.redraw()];
+  RD.onRender(()=>an.redraw());
 })();
