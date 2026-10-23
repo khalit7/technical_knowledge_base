@@ -1,4 +1,4 @@
-// ---- Reading tab, section 2: the parent page's eight requests replayed on three real replicas (before/after animation) ----
+// ---- Reading tab, section 2: eight requests replayed on three real replicas (before/after animation) ----
 (function(){
   const svgEl=document.getElementById('pr-rt-svg');if(!svgEl||!window.PRD)return;
   const DET=PRD.route_detail||{},SUM=PRD.route||{};
@@ -37,7 +37,7 @@
     cnt.innerHTML=RD.stat('Prompt tokens computed',nf(comp),i===8&&reps.length>1?('every repeat: '+[...new Set(reps)].map(nf).join(', ')):'')+
       RD.stat('Second turns: mean TTFT',t2.length?(t2.reduce((a,r)=>a+r[4],0)/t2.length).toFixed(2)+' s':'none yet','measured on the M1 Pro')+
       RD.stat('Most requests on one replica',Math.max(...per),'')+
-      RD.stat('The parent\'s toy model',pol==='rr'?'13,000':'7,800','prompt tokens computed for all eight');
+      RD.stat('A toy router\'s count',pol==='rr'?'13,000':'7,800','prompt tokens computed for all eight');
   }
   const A=RD.anim({card:'pr-rt-card',ctl:'pr-rt-ctl',n:9,draw,ms:1300,label:'Routing step'});
   RD.seg(scnSeg,v=>{scn=v;polButtons();A.reset(9)});
