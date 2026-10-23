@@ -63,6 +63,8 @@ A "current as of version X" line names the changelog that would falsify it.
 - **Do not expand acronyms the reader owns** (LLM, GPU, API, NLP, RAG); expand what a specialist in a neighbouring field would not know.
 
 ## Writing for the reader
+The page shape, length judgement and choice of visuals are in [../explainer-page/teaching/teaching-contract.md](../explainer-page/teaching/teaching-contract.md); an update follows it like any other edit (a new mechanism gets its visual on the page that owns it, inline).
+
 An MSc-level AI engineer with production LLM experience; most fat comes from writing below that.
 - Define a shared concept once, on the page that owns it.
 - Keep a superseded model only for the idea it introduced, never as a chronicle.

@@ -1,6 +1,6 @@
 # Page kind: a topic root (`Topic: *`)
 
-The root page of a topic: an intuitive overview, the comparisons and the definitions needed to follow them, labs on one running example, and the map to its child pages. A suggestion, not a template: take the shape the content needs and say why in `src/README.md`.
+The root page of a topic: an intuitive overview, the comparisons and the definitions needed to follow them, and the map to its child pages. A suggestion, not a template: take the shape the content needs and say why in `src/README.md`. [../teaching/teaching-contract.md](../teaching/teaching-contract.md) governs; the 2026-10-23 audit found roots twice as long as their children because they re-taught them.
 
 Reference roots:
 - `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/`: from zero, five labs, a model map, nine children;
@@ -22,33 +22,18 @@ The reader's question: **"what is this field, how do its parts compare, and on w
 
 ## Reading tab
 - **Order.** From zero when the topic is new to him (each term before use); by axes when the things compared are already known. The generative root put the axes in section 0's table and then taught in the topic's own order.
-- **Typical sections**:
+- **Sections**:
+  - the core idea and the hero figure: the map of the field (what the parts are and how they relate);
   - the comparison in one screen (a table, or a clickable grid such as stage x axis);
-  - one section per part of the spine;
-  - "How we got here" (short);
-  - reading the numbers and common mistakes;
-  - choosing;
-  - interview questions, including design ones;
+  - one short section per axis or part of the spine: the definition, the one distinction that only shows across the children, one visual at most, and a "Go deeper" link (`.deepnote`) to the child that owns it;
+  - choosing, when the topic is about choices;
   - the child pages as cards with what each covers and its reading time.
-- **Each section** carries only the comparison-level part of each concept, one or two visuals per idea at most, links its lab tab, and ends with a "Go deeper (optional)" note (`.deepnote`) naming the child page or tab that adds depth.
-- **Reading time: target 15 to 30 minutes; flag anything longer to Khalid** at review, with what you would move to children. Accepted so far:
-
-  | Root | Reading |
-  |---|---|
-  | training | 23 min |
-  | ml-fundamentals | 33 min |
-  | inference | 30 min, he kept it |
-  | pytorch | 41 min, he kept it |
-  | rag | 45 min, flagged |
-  | data curation | 50 min, flagged |
-  | jax | 27 min |
-  | ml infra | 28 min |
-  | generative | 30 min |
-
-  Cut material goes to `src/for_children/` as input for the children. Once every child that needs it has absorbed it (and no build or coverage script reads it), delete it: git keeps the record (ML-infra root, 2026-10-19).
+- **A root never re-teaches a child.** If a section explains a mechanism step by step, that explanation belongs on the child; the root keeps one orienting sentence and the link. Move it (checking the child carries every unit, per the ledger) before cutting it here.
+- **Length is judged per root** ([../teaching/teaching-contract.md](../teaching/teaching-contract.md)): a root that only maps, compares and defines is usually short. Record the judgement in `src/README.md`.
 
 ## Tabs
-- **Labs** (three to six): one subject of the spine each, on the running example, with at least one before/after animation on the same input. They are measured where measuring teaches ([../evidence/local-runs.md](../evidence/local-runs.md)).
+None of these is mandatory; each earns its place by answering a question the Reading tab cannot. A lab that teaches one child's mechanism belongs on that child.
+- **Labs**: a subject that spans the children, on the running example; a before/after where a method replaced another. Measured where measuring teaches ([../evidence/local-runs.md](../evidence/local-runs.md)).
 - **A map tab** (Tool map, Model map, Protocol atlas, Chip atlas, Harness atlas):
   - every tool or model with what it is, family, size, licence, release and last-commit dates, and status (alive, maintained, deprecated, archived), all checked live and dated;
   - a one-line verdict each;

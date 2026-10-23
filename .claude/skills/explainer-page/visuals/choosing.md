@@ -1,6 +1,6 @@
 # Choosing the visuals
 
-How to decide which visuals a page gets, where each goes, and how their numbers are made trustworthy. Read it after the teaching plan exists ([../understand/curriculum.md](../understand/curriculum.md)) and before any part file is written.
+How to decide which visuals a page gets, where each goes, and how their numbers are made trustworthy. First apply the decision rule in [../teaching/teaching-contract.md](../teaching/teaching-contract.md) (what kind of concept is this: structure, process, change over time, parameter, replacement, real object, or plain text?); this file then picks among candidates of the right kind. Read it after the teaching plan exists ([../understand/curriculum.md](../understand/curriculum.md)) and before any part file is written.
 
 ## 1. Start from the content, not from a catalogue
 - Read the page's subject and everything it leans on until you could teach it. A chart chosen before that is decoration.
@@ -23,20 +23,21 @@ Score each candidate 0 to 2 on:
 5. Does it correct a known misconception (the $5.6M figure read as the whole cost of DeepSeek-V3; "one million tokens means an hour of anything")?
 6. Does it measure the page's central question?
 7. Is it absent from this page, its neighbours and the main existing explainers?
-8. Can it be shown as a step-by-step animation, ideally against the method it replaced? (an explicit point)
+8. Does its form fit the kind of concept (a stepper for a process, an animation only when the change itself is the point, a before/after against the method it replaced)?
 
 Subtract build cost. Ties go to the visual that links to more of the page's other tabs.
 
-**Reject** a visual when it shows a single number with nothing to move, when its data exists only in images, when it repeats something already shown on this page or a neighbour (link that instead), or when its subject belongs to another page. Record every candidate, its score, and every rejection with its reason in `src/viz_ideas.md`.
+**Reject** a visual when it decorates, when a sentence says the same thing completely, when it shows a single number with nothing to move, when its data exists only in images, when it repeats something already shown on this page or a neighbour (link that instead), or when its subject belongs to another page. Record every candidate, its score, and every rejection with its reason in `src/viz_ideas.md`.
 
 Pages that are not about mechanisms fit the scoring poorly: categorical facts (licences per checkpoint) become a checker or matrix read verbatim; on a data page the table is the main visual and keeps every field; a breadth page puts many small subjects on the same axes with an evidence column; a news issue earns one index visual (the week strip) plus a visual only where a headline hides a mechanism.
 
 ## 4. Placement follows scope
-Every page has the same frame: **Reading** first (the explanation interleaved with the visuals needed to follow it), **one tab per visual that deserves room**, **Further reading** last.
+Every page has the same frame: **Reading** first (the explanation interleaved with the visuals needed to follow it), **one tab per visual that deserves room**, **Further reading** last. **The default is inline**: a visual that proves a claim sits beside that claim. The audit of 2026-10-23 found the strongest animations of most pages one click away in lab tabs while the Reading tab described them in words.
 - **Own tab** when the visual answers "across all of X, how does Y change" (every model, every release, every config), or is a lab with several sections and controls.
 - **Inside Reading** when it explains one mechanism at the moment the text introduces it.
 - **Inside an existing tab** when it shares that tab's axis (the DeepSeek config diff shares the Lineage tab's set of models).
-- **On a root** the Reading tab stays as short as it can while self-sufficient: one or two visuals per idea at most, a "Go deeper" link per section; hands-on depth goes to the children. **On a child** nothing is cut, because it owns its details.
+- **On a root** the Reading tab stays as short as it can while self-sufficient: one visual per idea at most, a "Go deeper" link per section; hands-on depth goes to the children. **On a child** the core carries what is needed to understand and the remaining detail sits in closed blocks.
+- **One owner per concept**: before building, grep the knowledge base for the concept (`python3 html_utils/audit_pages.py <audit.jsonl> --concepts`). If another page owns it and already draws it, link to that page's tab instead of drawing it again; if this page should own it, say so in the report so the others can link here.
 - Each fact is said once, where it is owned, and linked from elsewhere (`{{text|#t-tab}}` between tabs, `{{text|n:<id>}}` to other pages).
 
 ## 5. Numbers traced, not trusted

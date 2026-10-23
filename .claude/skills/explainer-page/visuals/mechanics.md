@@ -2,9 +2,9 @@
 
 The technical rules every chart, lab and animation follows so it renders correctly in Notion's sandboxed iframe, on a phone and in both themes. The checks in [../build/checks.md](../build/checks.md) enforce most of them.
 
-## The sandbox: everything inline
-- Notion's HTML block is a **sandboxed iframe with no network of any kind**: no CDN, no web fonts, no images by URL, no fetch, no external scripts or stylesheets. One self-contained file: hand-written HTML, SVG and Canvas.
-- Images are small data URIs (WebP or PNG thumbnails, a few KB each). Model weights for live toys are quantised and base64-encoded (6 bits per weight as one character, or int8 with per-row scales).
+## Self-contained: everything inline except images
+- Pages are read on the private static site built from this repo (Notion keeps an index linking to it). A page is still **one self-contained `index.html`** that works opened straight from disk: no CDN, no web fonts, no fetch, no external scripts or stylesheets; hand-written HTML, SVG and Canvas.
+- **Images** are WebP files in the page's `img/` folder, referenced by relative path (`img/h100_die.webp`), each under about 200 KB, with alt text and a credit line ([../teaching/teaching-contract.md](../teaching/teaching-contract.md)). A page still published as a Notion embed (before it moves to the site) cannot load them: there, images stay small data URIs. Model weights for live toys are quantised and base64-encoded (6 bits per weight as one character, or int8 with per-row scales).
 - Maths: LaTeX converted to MathML at build time (`html_utils/tex2mathml.mjs`), or HTML with Unicode; no runtime library.
 - `localStorage` and `sessionStorage` only inside try/catch; the page works without them.
 - Links to the outside world open in a new tab (`target="_blank" rel="noopener noreferrer"`); `build.sh` writes these from `{{text|url}}`.
@@ -35,7 +35,8 @@ Step captions, explanations, legends with more than a word or two, and long axis
 
 ## Motion manners
 - **Reduced motion:** read `matchMedia('(prefers-reduced-motion: reduce)')`; never autoplay, start paused and move one step at a time without tweening; particles show their end state with a step control.
-- **Pause off screen:** an `IntersectionObserver` on the card plus `document.hidden` plus `card.offsetParent!==null` (hidden tab) gate every timer and `requestAnimationFrame` loop. An animation may play once when first scrolled into view.
+- **Pause off screen:** an `IntersectionObserver` on the card plus `document.hidden` plus `card.offsetParent!==null` (hidden tab) gate every timer and `requestAnimationFrame` loop.
+- **Never autoplay** (2026-10-23): an animation waits on its first frame until the reader presses play or steps. Learner pacing is what makes an animation teach.
 - **Controls** on every animation: play and pause, step back and forward, scrubber, speed. `RD.anim` in [../build/templates/21_js_rd_common.js](../build/templates/21_js_rd_common.js) does all of this; reuse it or copy it into a tab's own core file.
 - Mode toggles reset the animation to step 0 with the new step count (`anim.reset(n)`).
 
@@ -48,8 +49,9 @@ Step captions, explanations, legends with more than a word or two, and long axis
 ## Size budgets
 | What | Budget |
 |---|---|
-| Root page (`index.html`) | about 1.5 MB, images included |
+| Root page (`index.html`) | about 1.5 MB |
 | Child or paper page | about 1 MB |
+| Images in `img/` | under about 200 KB each |
 | Each data part (`3x_js_<p>_0data.js`) | small: hundreds of KB at most; ask whether every field is shown |
 | Any single committed file | under 1 MB (never MP4s, PDFs or large downloads) |
 The old 300 KB limit is retired. Going over a budget is acceptable when the content needs it: say so in the report; trim encodings (quantise, thumbnail, round to the printed precision) before cutting knowledge. When several tabs share a page, give each a share early (the generative root asked two labs to trim from 360 to 250 KB and 270 to 180 KB).
