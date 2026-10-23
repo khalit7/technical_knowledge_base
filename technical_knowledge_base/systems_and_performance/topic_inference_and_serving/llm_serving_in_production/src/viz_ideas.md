@@ -30,3 +30,8 @@ Scores: quantity the reader controls (0-2), reproduces a stated figure (x2), com
 
 ## What the methodology lacked here
 A rule for experiments on a shared machine where the lock is contended for long periods: queue every run in one script per lock acquisition, record load average with each run, and keep the page's derived claims (simulators) independent of the timing runs.
+
+## 2026-10-23 rebuild: placement and additions
+- Moved inline (teaching contract: a visual sits beside the claim it proves): #3's TTFT distribution and #4's replica-count simulation to Reading s2 (#3's per-request dots and the all-repeats table in a closed block); #5 to Reading s3 (presets open, custom panels closed; opens on the final state, never autoplays); #11 to a closed block in s8. The three lab tabs were removed.
+- Added: **cost per million tokens against average traffic** (s1, one slider, defaults reproduce the parent's $0.54 and $33.12 independently from its inputs; break-even 67% derived), **cold-start phases on one axis** (s4: measured vLLM CPU phases, NVIDIA's Run:ai test, the running example derived before and after vLLM v0.30), **one adapter set per batch against a mixed batch** (s5, static toggle; the mechanism the measured bars depend on).
+- Rejected again: a throughput-latency knee chart for s1 (the parent's Capacity planner and Engine bench draw it; linked); a histogram_quantile chart (the Observability page owns it; the measured example stays in prose).

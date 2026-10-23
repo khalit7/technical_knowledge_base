@@ -1,4 +1,4 @@
-// ---- Reading tab, section 1: the Mooncake-trace results table (all repeats, min to max) ----
+// ---- Reading tab, section 2: the Mooncake-trace results table (all repeats, min to max) ----
 (function(){
   const el=document.getElementById('pr-conv-tab');if(!el||!window.PRD)return;
   const RUN=(PRD.route&&PRD.route.conv)||{};

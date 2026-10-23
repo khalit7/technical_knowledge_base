@@ -1,9 +1,9 @@
-// Runs the page's simulator (parts/31_js_sc_core.js) on the reference cases written by gen_ref.py and compares every field.
+// Runs the page's simulator (parts/21_js_pr_sim.js) on the reference cases written by gen_ref.py and compares every field.
 // usage: node check_sim.mjs out/ref.json
 import fs from 'fs'; import vm from 'vm'; import path from 'path'; import {fileURLToPath} from 'url';
 const here=path.dirname(fileURLToPath(import.meta.url));
 const ctx={window:{},Math,Array,Object};vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(path.join(here,'..','parts','31_js_sc_core.js'),'utf8'),ctx);
+vm.runInContext(fs.readFileSync(path.join(here,'..','parts','21_js_pr_sim.js'),'utf8'),ctx);
 const S=ctx.window.PRSIM;const cases=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
 let bad=0,num=0;
 for(const c of cases){const r=S.run(c.params);

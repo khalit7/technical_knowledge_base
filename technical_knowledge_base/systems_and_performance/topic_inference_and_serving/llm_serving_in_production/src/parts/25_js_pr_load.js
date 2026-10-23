@@ -1,6 +1,6 @@
-// ---- Load-test lab: every request of the stall experiment, and the percentiles of every run ----
+// ---- Reading tab, section 8 closed block (moved from the Load-test lab): every request of the stall experiment, and the percentiles of every run ----
 (function(){
-  const root=document.getElementById('t-load');if(!root||!window.PRD||!PRD.co)return;
+  const root=document.getElementById('ll-dots');if(!root||!window.PRD||!PRD.co)return;
   const CO=PRD.co,NAME={closed_no:'Closed loop, no stall',closed_yes:'Closed loop, 5 s stall',poisson_no:'Open loop, no stall',poisson_yes:'Open loop, 5 s stall'};
   let cur='closed_yes';
   const seg=document.getElementById('ll-run');seg.innerHTML=Object.keys(NAME).filter(k=>CO.req[k]).map(k=>'<button data-m="'+k+'"'+(k===cur?' class="on"':'')+'>'+NAME[k]+'</button>').join('');
@@ -24,5 +24,6 @@
     document.getElementById('ll-tab').innerHTML=h;
     document.getElementById('ll-note').textContent='Latency is end to end (send to last token) as loadgen.py measures it. The correction adds, for each closed-loop sample L above the run\'s normal interval E between one user\'s requests (E = 2 users / the no-stall run\'s requests per second), the samples L-E, L-2E, ... down to E: the requests that user would have sent while waiting (HdrHistogram\'s recordValueWithExpectedInterval, the idea behind wrk2). Machine load average during the runs: about 3 to 4.';
   }
-  RD.onRender(()=>{dots();table()},'t-load');RD.onResize(dots,'t-load');
+  RD.onRender(()=>{dots();table()});RD.onResize(dots);
+  const det=document.getElementById('ll-det');if(det)det.addEventListener('toggle',()=>{if(det.open)dots()});
 })();

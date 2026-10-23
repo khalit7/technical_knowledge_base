@@ -1,8 +1,8 @@
-// ---- Reading tab, section 0: the production path of one request (static diagram, laid out by measured width) ----
+// ---- Reading tab, hero: the production path of one request (static diagram, laid out by measured width) ----
 (function(){
   const el=document.getElementById('pr-arch');if(!el)return;
-  const B=[['Client','app, agent, SDK','var(--c6)','7'],['Gateway','auth, rate limits, fallbacks','var(--c5)','7'],['Router','picks a replica: load and cache','var(--c1)','1'],
-    ['Replicas','engine + KV cache, each a copy of the model','var(--c3)','1, 3, 4, 5'],['Metrics','TTFT, TPOT, queue, KV, hits','var(--c4)','6'],['Autoscaler','adds or removes replicas','var(--c2)','2, 3']];
+  const B=[['Client','app, agent, SDK; TTFT seen here','var(--c6)','1, 8'],['Gateway','auth, rate limits, fallbacks','var(--c5)','2'],['Router','picks a replica: load and cache','var(--c1)','2'],
+    ['Replicas','engine + KV cache, each a copy of the model','var(--c3)','4, 5, 6'],['Metrics','TTFT, TPOT, queue, KV, hits','var(--c4)','7'],['Autoscaler','adds or removes replicas','var(--c2)','3, 4']];
   function draw(){
     const w=RD.width(el);let s='';const narrow=w<620;
     if(!narrow){
@@ -27,7 +27,6 @@
       B.forEach((b,i)=>{s+='<rect x="2" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="8" fill="var(--bg)" stroke="'+b[2]+'" stroke-width="2"/>';
         s+=RD.t(10,y+18,b[0],{fs:12.5,w:600});s+=wrap(b[1],10,y+34,bw-80,10.5);s+=RD.t(bw-4,y+18,'section '+b[3],{a:'end',fs:9.5,fill:'var(--mute)'});
         if(i<B.length-1)s+='<path d="M'+(w/2)+' '+(y+bh+1)+'v10" stroke="var(--mute)" stroke-width="1.5" marker-end="url(#pr-ah)"/>';y+=bh+14});
-      s+=RD.t(w/2+8,2*64+14+20+48,'',{});
       el.innerHTML=RD.svg(w,y,defs()+s,'The path of a request: client, gateway, router, replicas, metrics, autoscaler');
     }
   }

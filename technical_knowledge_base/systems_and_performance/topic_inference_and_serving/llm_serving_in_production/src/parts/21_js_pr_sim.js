@@ -1,4 +1,4 @@
-// ---- Autoscaling lab: the simulator, a line-for-line port of src/sim/autoscale.py (checked by src/sim/check_sim.mjs) ----
+// ---- Reading tab, section 3: the autoscaling simulator, a line-for-line port of src/sim/autoscale.py (checked by src/sim/check_sim.mjs) ----
 window.PRSIM=(function(){
   const DT=0.05;
   function Rng(seed){let s=seed>>>0;return function(){s=(s+0x6D2B79F5)>>>0;let t=s;

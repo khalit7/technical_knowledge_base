@@ -74,23 +74,59 @@
 @media (max-width:520px){#t-read .stepbox .v{font-size:17px}}
 #t-read .bk-ctl select{max-width:100%;min-width:0}#t-read .bk-ctl label{max-width:100%}
 #t-read .bars .ml{display:block;font-size:11px;color:var(--mute);font-weight:400}
+#t-read .core{border:2px solid var(--acc);border-radius:10px;padding:10px 14px;margin:10px 0;font-size:15.5px;line-height:1.5;background:var(--soft)}
+#t-read .core b.k{display:block;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+#t-read .fig{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;min-width:0}
+#t-read .fig h4{margin:0 0 4px;font-size:14.5px}
+#t-read .fig .cap{font-size:13px;color:var(--mute);margin:4px 0 0}
+#t-read .terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:4px 14px;font-size:13.5px;margin:6px 0}
+#t-read .terms div{min-width:0}
+#t-read .hot{color:var(--acc);font-weight:600}
+#t-read .fig label.sl{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px}#t-read .fig label.sl input{flex:1 1 160px;min-width:0}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:8px 0;padding:0 12px}
+#t-read details.dp>summary{cursor:pointer;padding:7px 0;font-size:14px;font-weight:600}
+#t-read details.dp>div{padding:0 0 8px;font-size:13.5px}
+#t-read .an-cap p,#t-read .ans,#t-read details.qa>div,#t-read td{overflow-wrap:anywhere}
+#t-read .runs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px;margin:8px 0}
+#t-read .run{border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-width:0}
+#t-read .run h4{margin:0 0 4px;font-size:14px}#t-read .run.a{border-top:4px solid var(--c1)}#t-read .run.b{border-top:4px solid var(--c2)}
+#t-read .run label{display:block;font-size:13px;margin:4px 0}#t-read .run select{max-width:100%}
+#t-read .presets{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}#t-read .presets button{font-size:12.5px}
+#t-read .presets button.on{background:var(--acc2);border-color:var(--acc);color:var(--ink);font-weight:600}
+#t-read .sc-chart,#t-read .rl-chart,#t-read .ll-chart{width:100%;overflow:hidden;margin:6px 0}
+#t-read .rl-leg span:before{border-radius:50%}
+#t-read th.num{white-space:normal}
+#t-read .cs-bars .row{display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr);gap:8px;align-items:center;margin:6px 0;font-size:12.5px}
+#t-read .cs-bars .stack{display:flex;height:22px;border-radius:4px;overflow:hidden;background:var(--soft)}
+#t-read .cs-bars .stack span{display:block;height:100%;min-width:2px}
+@media (max-width:520px){#t-read .cs-bars .row{grid-template-columns:1fr}}
 </style>
-<nav class="nav" id="pr-nav">
-<a href="#pr-s0">0 One screen</a><a href="#pr-s1">1 Routing</a><a href="#pr-s2">2 Autoscaling</a><a href="#pr-s3">3 Cold starts</a><a href="#pr-s4">4 Multi-LoRA</a><a href="#pr-s5">5 Structured output</a><a href="#pr-s6">6 Metrics, alerts</a><a href="#pr-s7">7 Load testing</a><a href="#pr-mis">Mistakes</a><a href="#pr-int">Interview</a>
-</nav>
 
 <section id="pr-s0">
-<p class="lead">One serving engine on one GPU answers requests. A <b>service</b> is many copies of it behind a router, with metrics, an autoscaler and a load test that says how much it can take. This page is about the decisions that only appear at that level, and each comes with evidence: real replicas, a real trace and real engines run on an Apple M1 Pro, the routers' and engines' own code at pinned versions (llama.cpp build 11146, vLLM v0.31.0, SGLang v0.5.21), and published datacenter results kept apart and labelled.</p>
-<p>The parent page, {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}, explains what happens inside one engine (prefill, decode, the KV cache, batching) and gives this page's running example: a chat assistant on Llama 3.1 70B in FP8, one H200 per replica, 2,000-token prompts of which 1,000 are a shared system prompt, 300-token answers. Words used throughout: <dfn>TTFT</dfn> is the time to the first token of an answer, <dfn>TPOT</dfn> the time per output token after it; a <dfn>replica</dfn> is one running copy of the model; an <dfn>SLO</dfn> (service level objective) is a target such as "99% of first tokens within 2 seconds".</p>
+<div class="core"><b class="k">The idea in one sentence</b>A production LLM service is many copies of one engine behind a router and an autoscaler, and its job is to keep a <span class="hot">latency promise</span> (time to first token and time per token, at a percentile) for the fewest GPU-hours: send each request where its prefix is already cached without piling up a queue, add replicas before the queue forms (they take tens of seconds to start), and prove it with load that does not wait for the server.</div>
+<div class="fig"><h4>Every decision on this page sits on one request's path</h4>
 <div class="pr-chart" id="pr-arch"></div>
+<p class="cap">A request goes from the client through a gateway (keys, rate limits) to a router, which picks one replica (a running copy of the engine with its own KV cache). Replicas export metrics; an autoscaler reads them and adds or removes replicas, each of which serves only after its cold start. The section that owns each box is printed on it; the promise (section 1) is measured where the user is, at the client.</p></div>
+<p class="small"><b>You need</b>: what happens inside one engine (prefill, decode, the KV cache, continuous batching), from the parent {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}, and prefix caching from {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}. <b>Running example</b> (the parent's): a chat assistant on Llama 3.1 70B in FP8, one H200 per replica, 2,000-token prompts of which 1,000 are a shared system prompt, 300-token answers. <b>Evidence</b>: real replicas, a real trace and real engines run on an Apple M1 Pro, the routers' and engines' own code at pinned versions (llama.cpp build 11146, vLLM v0.31.0, SGLang v0.5.21), and published datacenter results kept apart and labelled.</p>
+<div class="terms">
+<div><dfn>SLO</dfn> (service level objective): a latency target at a percentile over a window, "99% of first tokens within 2 s".</div>
+<div><dfn>Goodput</dfn>: the request rate that still meets the SLO; throughput that breaks it does not count.</div>
+<div><dfn>Replica</dfn>: one running copy of the model; the <dfn>router</dfn> picks one for each request.</div>
+<div><dfn>Prefix hit rate</dfn>: the share of prompt tokens a replica found already in its cache.</div>
+<div><dfn>Cold start</dfn>: everything between "start a replica" and its first served request; <dfn>headroom</dfn>: spare capacity kept to cover it.</div>
+<div><dfn>Closed / open loop</dfn>: a load generator whose users wait for each answer / one that sends on a fixed schedule.</div>
+</div>
+<nav class="nav" id="rd-nav">
+<a href="#pr-s1">1 The promise and its bill</a><a href="#pr-s2">2 Routing</a><a href="#pr-s3">3 Autoscaling</a><a href="#pr-s4">4 Cold starts</a><a href="#pr-s5">5 Multi-LoRA</a><a href="#pr-s6">6 Structured output</a><a href="#pr-s7">7 Metrics, alerts</a><a href="#pr-s8">8 Load testing</a><a href="#pr-int">Interview</a>
+</nav>
 <div class="tw"><table class="tbl-sm">
-<tr><th>Decision</th><th>The question</th><th>What the evidence here says</th></tr>
-<tr><td>{{1. Routing|#t-route}}</td><td>Which replica gets each request?</td><td>Following the cache saves prefill only if the chosen replica still holds the prefix; a router also needs a load signal. On a real multi-turn trace a cache-plus-queue score gave the lowest TTFT.</td></tr>
-<tr><td>2. Autoscaling</td><td>When to add and remove replicas?</td><td>Not on GPU utilization (96% at a tenth of capacity). Queue depth, KV usage or a TTFT SLO, with headroom for the start-up time.</td></tr>
-<tr><td>3. Cold starts</td><td>How long until a new replica serves?</td><td>Bytes over bandwidth plus engine initialization; measured 3.2 GB/s from this laptop's SSD; tens of seconds to minutes on GPU servers.</td></tr>
-<tr><td>4. Multi-LoRA</td><td>Many fine-tunes on one model?</td><td>llama-server batches only requests on the same adapter: 352 tokens/s on one, 83 to 127 with two to eight different ones. vLLM mixed four adapters at no extra cost.</td></tr>
-<tr><td>5. Structured output</td><td>What does a JSON schema cost per token?</td><td>No consistent cost per token on llama-server; without the schema 0 of 50 answers parsed strictly, with it 50 of 50.</td></tr>
-<tr><td>6. Observability</td><td>Which signals, which alerts?</td><td>TTFT and TPOT percentiles, queue, KV, hit rate; burn-rate alerts on two SLOs.</td></tr>
-<tr><td>{{7. Load testing|#t-load}}</td><td>How much can it take, honestly?</td><td>A 5-second freeze: 2 slow requests seen by a closed-loop generator, 94 by an open-loop one.</td></tr>
+<tr><th>Decision</th><th>What the evidence here says</th></tr>
+<tr><td><a href="#pr-s1">1. How many GPUs, at what price per token</a></td><td>Size for goodput at the peak; at half the peak on average, 10 H200s cost $0.54 per million tokens against an API's $0.40. The fleet breaks even at 67% average load.</td></tr>
+<tr><td><a href="#pr-s2">2. Which replica gets each request</a></td><td>Following the cache saves prefill only if the chosen replica still holds the prefix, and a router also needs a load signal: on a real multi-turn trace a cache-plus-queue score gave the lowest TTFT.</td></tr>
+<tr><td><a href="#pr-s3">3. When to add and remove replicas</a></td><td>Not on GPU utilization (96% at a tenth of capacity): queue depth, KV usage or a TTFT SLO, with headroom for the start-up time.</td></tr>
+<tr><td><a href="#pr-s4">4. How long a new replica takes</a></td><td>Bytes over bandwidth plus engine initialization; where the weights come from can dominate.</td></tr>
+<tr><td><a href="#pr-s5">5. Many fine-tunes on one model</a></td><td>An engine must batch different adapters: llama-server cannot (352 tokens/s on one adapter, 83 to 127 on several); vLLM mixed four at no extra cost.</td></tr>
+<tr><td><a href="#pr-s7">7. Which signals and alerts</a></td><td>TTFT and TPOT percentiles, queue, KV, hit rate; burn-rate alerts on two SLOs.</td></tr>
+<tr><td><a href="#pr-s8">8. How to load-test honestly</a></td><td>A 5-second freeze: 2 slow requests seen by a closed-loop generator, 94 by an open-loop one.</td></tr>
 </table></div>
 </section>

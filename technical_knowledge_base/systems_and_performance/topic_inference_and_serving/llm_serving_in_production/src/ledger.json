@@ -1,0 +1,3436 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "LLM serving in production: routing, autoscaling, cold starts, multi-LoRA, load testing LLM serving in production: routing, autoscaling, cold starts, multi-LoRA, load testing What changes when one engine becomes a service: which replica gets each request, when to add or remove replicas and how long a new one takes to start, serving many fine-tuned adapters on one model, constrained output under load, the metrics and alerts that matter, and how to load-test without fooling yourself.",
+  "label": "core",
+  "key": "routing, autoscaling, cold starts, multi-LoRA, load testing",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Real replicas on an Apple M1 Pro, real traces, the routers' own code, published GPU results kept apart.",
+  "label": "core",
+  "key": "Real replicas on an Apple M1 Pro, real traces",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Router lab Autoscaling lab Load-test lab Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab bar: the three lab tabs were folded into Reading"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Routing 2 Autoscaling 3 Cold starts 4 Multi-LoRA 5 Structured output 6 Metrics, alerts 7 Load testing Mistakes Interview One serving engine on one GPU answers requests.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "section nav, rebuilt"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "A service is many copies of it behind a router, with metrics, an autoscaler and a load test that says how much it can take.",
+  "label": "core",
+  "key": "many copies of one engine behind a router and an autoscaler",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page is about the decisions that only appear at that level, and each comes with evidence: real replicas, a real trace and real engines run on an Apple M1 Pro, the routers' and engines' own code at pinned versions (llama.cpp build 11146, vLLM v0.31.0, SGLang v0.5.21), and published datacenter results kept apart and labelled.",
+  "label": "core",
+  "key": "llama.cpp build 11146, vLLM v0.31.0, SGLang v0.5.21",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "The parent page, Topic: inference-and-serving , explains what happens inside one engine (prefill, decode, the KV cache, batching) and gives this page's running example: a chat assistant on Llama 3.1 70B in FP8, one H200 per replica, 2,000-token prompts of which 1,000 are a shared system prompt, 300-token answers.",
+  "label": "core",
+  "key": "2,000-token prompts of which 1,000 are a shared system prompt",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "Words used throughout: TTFT is the time to the first token of an answer, TPOT the time per output token after it; a replica is one running copy of the model; an SLO (service level objective) is a target such as \"99% of first tokens within 2 seconds\".",
+  "label": "core",
+  "key": "one running copy of the model",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "Decision The question What the evidence here says 1.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "table header"
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "Routing Which replica gets each request?",
+  "label": "core",
+  "key": "Which replica gets each request",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "Following the cache saves prefill only if the chosen replica still holds the prefix; a router also needs a load signal.",
+  "label": "core",
+  "key": "Following the cache saves prefill only if the chosen replica still holds the prefix",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "On a real multi-turn trace a cache-plus-queue score gave the lowest TTFT.",
+  "label": "core",
+  "key": "a cache-plus-queue score gave the lowest TTFT",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "",
+  "text": "Autoscaling When to add and remove replicas?",
+  "label": "core",
+  "key": "When to add and remove replicas",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "",
+  "text": "Not on GPU utilization (96% at a tenth of capacity).",
+  "label": "core",
+  "key": "96% at a tenth of capacity",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "",
+  "text": "Queue depth, KV usage or a TTFT SLO, with headroom for the start-up time.",
+  "label": "core",
+  "key": "with headroom for the start-up time",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "",
+  "text": "Cold starts How long until a new replica serves?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "table question, merged into the decision column"
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "",
+  "text": "Bytes over bandwidth plus engine initialization; measured 3.2 GB/s from this laptop's SSD; tens of seconds to minutes on GPU servers.",
+  "label": "core",
+  "key": "Bytes over bandwidth plus engine initialization",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "",
+  "text": "Multi-LoRA Many fine-tunes on one model? llama-server batches only requests on the same adapter: 352 tokens/s on one, 83 to 127 with two to eight different ones. vLLM mixed four adapters at no extra cost.",
+  "label": "core",
+  "key": "352 tokens/s on one adapter, 83 to 127 on several",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "",
+  "text": "Structured output What does a JSON schema cost per token?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "table question"
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "",
+  "text": "No consistent cost per token on llama-server; without the schema 0 of 50 answers parsed strictly, with it 50 of 50.",
+  "label": "core",
+  "key": "0 of 50",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "",
+  "text": "Observability Which signals, which alerts?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "table question"
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "",
+  "text": "TTFT and TPOT percentiles, queue, KV, hit rate; burn-rate alerts on two SLOs.",
+  "label": "core",
+  "key": "burn-rate alerts on two SLOs",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "",
+  "text": "Load testing How much can it take, honestly?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "table question"
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "",
+  "text": "A 5-second freeze: 2 slow requests seen by a closed-loop generator, 94 by an open-loop one.",
+  "label": "core",
+  "key": "2 slow requests seen by a closed-loop generator, 94 by an open-loop one",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Routing: which replica gets the request The problem.",
+  "label": "core",
+  "key": "Routing: which replica gets the request",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "One engine on one GPU (or one group of GPUs) is a replica .",
+  "label": "core",
+  "key": "one running copy of the model",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "To serve more users you run several, and something in front, the router (or load balancer), picks a replica for every request.",
+  "label": "core",
+  "key": "picks one for each request",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "For ordinary web servers any replica will do, so the classic choices are round robin (1, 2, 3, 1, 2, 3, ...) and least loaded (the replica with the fewest requests in flight).",
+  "label": "core",
+  "key": "For ordinary web servers any replica will do",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "An LLM replica is not interchangeable: each keeps a prefix cache , the keys and values of prompts it has already processed, and a request whose beginning is cached there skips that part of its prefill.",
+  "label": "core",
+  "key": "An LLM replica is not interchangeable",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "A chat conversation resends its whole history every turn, an agent resends its tools and its growing context every step.",
+  "label": "core",
+  "key": "A chat resends its whole history every turn",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Send turn 2 to a different replica from turn 1 and the whole history is computed again.",
+  "label": "core",
+  "key": "send turn 2 to a different replica from turn 1",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Four ways to route.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "The parent page's section 9 gives the picture; the SGLang page reads the cache-aware router's code.",
+  "label": "depth",
+  "key": "cache-aware router's Rust source",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "In short: Round robin, least loaded Spread the load evenly; ignore the cache.",
+  "label": "core",
+  "key": "Spread the load evenly; ignore the cache",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Least loaded reacts to slow requests; round robin does not.",
+  "label": "core",
+  "key": "Least loaded reacts to slow requests",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Hash on the prefix Hash the first N tokens (or a session key) and map it to a replica with consistent or rendezvous hashing, so the same prefix always lands on the same replica, and adding a replica moves only a share of the keys.",
+  "label": "core",
+  "key": "consistent or rendezvous hashing",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "No state, no load awareness.",
+  "label": "core",
+  "key": "No state, no load awareness",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Cache-aware (SGLang Model Gateway) Keep an approximate radix tree of what was sent where; follow the longest match if it covers more than cache_threshold (0.3) of the prompt, else go to the least loaded; switch to least loaded when the busiest replica has more than 64 requests and 1.5 times the idlest.",
+  "label": "core",
+  "key": "cache_threshold",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Weighted scorers (llm-d) Score every replica on several signals (prefix-cache match, queue depth, KV usage, LoRA affinity), each from 0 to 1 times a weight, and pick the highest total ( llm-d scheduler ).",
+  "label": "core",
+  "key": "Score every replica on several signals",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Red Hat's documented example weighs the prefix scorer 3 and the queue scorer 2 ( OpenShift AI 3.5 docs ).",
+  "label": "core",
+  "key": "weighs the prefix scorer 3 and the queue scorer 2",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Three replicas of llama-server (Qwen3-0.6B, Q4_K_M) run on the M1 Pro, each with 2 slots of 2,048 tokens and a host prompt cache ( --cache-ram ) that keeps recent prompts' KV in memory.",
+  "label": "core",
+  "key": "each with 2 slots of 2,048 tokens and a host prompt cache",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "A router written for this page ( src/exp/route_client.py , standard-library Python) implements the policies above: the cache-aware one follows SGLang v0.5.21's select_worker with its command-line defaults (0.3, 64, 1.5), on token blocks instead of characters; the weighted one uses a prefix-match score and a queue score with weights 3 and 2.",
+  "label": "core",
+  "key": "on token blocks instead of characters",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Requests carry their prompts as token ids, and llama-server returns, for each one, how many prompt tokens it found cached and how many it computed.",
+  "label": "core",
+  "key": "so every hit rate below is the engine's own count",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "So every hit rate below is the engine's own count, and the replicas' Prometheus counters ( llamacpp:prompt_tokens_total ) agree with it to the token. measured on Apple M1 Pro The parent page's eight requests, on real replicas Eight requests, three replicas: what the replicas actually cached The parent's scenario exactly: system prompt 1,000 tokens, first turns 2,000 tokens, second turns 2,500 tokens plus the generated answer; every policy repeated 3 times on fresh replicas (identical routing and token counts each time; TTFTs vary by a few hundredths of a second).",
+  "label": "core",
+  "key": "agree to the token",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "What the real replicas say about the parent's toy.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Round robin computed 13,000 prompt tokens in every run, exactly the parent's figure: confirmed.",
+  "label": "core",
+  "key": "Round robin computed 13,000",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "The prefix-aware figure is not.",
+  "label": "core",
+  "key": "(7,800) does not reproduce",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "The toy charges 1,000 tokens of \"load\" per request already sent to a replica, which spreads the eight requests and lands on 7,800.",
+  "label": "core",
+  "key": "its toy charges a load penalty",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Real routers see only requests in flight , so when requests arrive one at a time there is never any load to see: least loaded (ties to the first replica), the SGLang rules, the weighted scorer and the hash all sent all eight requests to replica 1.",
+  "label": "core",
+  "key": "real routers see only requests",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "What that saves then depends on how much one replica can keep.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "With a 256 MiB host prompt cache, which holds the KV of about one 2,300-token conversation (112 KiB per token for Qwen3-0.6B), the second turns of A, B and C found only the system prompt and 9,701 tokens were computed.",
+  "label": "core",
+  "key": "about one 2,300-token conversation at 112 KiB per token",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "With 1.5 GiB, every second turn found its whole first turn and answer: 5,804 , less than the toy's 7,800 because nothing is spread.",
+  "label": "core",
+  "key": "with 1.5 GiB 5,804",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Prefix-aware routing only pays when the replica it chooses still has the prefix, and memory, not the routing rule, decided that here.",
+  "label": "core",
+  "key": "what that saved depended on memory",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "When requests overlap, load becomes visible.",
+  "label": "core",
+  "key": "When requests overlap, load becomes visible",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "In the third scenario the four first turns arrive together and so do the four second turns.",
+  "label": "core",
+  "key": "two bursts of four",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Round robin and least loaded both computed 14,000 tokens: the four first turns start before anything is cached, and most second turns land away from their first turn.",
+  "label": "core",
+  "key": "round robin and least loaded computed 14,000",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "The hash and SGLang's cache-aware rules still sent all eight to replica 1 (the imbalance rule never fires with a gap of a few requests): the fewest tokens, 6,804 , but every request queued on one replica, a mean TTFT of 3.2 to 3.5 s .",
+  "label": "core",
+  "key": "computing the fewest tokens ( 6,804",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "The weighted scorer, whose queue term pushes back as soon as a replica is busy, spread them (3, 2, 3) and computed 10,103 with the lowest mean TTFT, 1.73 to 1.74 s .",
+  "label": "core",
+  "key": "spread them 3, 2, 3 and computed 10,103",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "That is the parent's picture of a trade between cache and load, reached by a different rule.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement of the trade"
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Two repeats gave identical token counts.",
+  "label": "core",
+  "key": "identical routing and token counts each time",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "TTFT here includes the prefill of up to four 2,000-token prompts sharing one GPU; the three replicas share the M1's GPU, so spreading helps less than it would on three GPUs.",
+  "label": "core",
+  "key": "spreading helps less than it would on three",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "A real multi-turn trace Eight requests show the mechanism; a trace shows the trade.",
+  "label": "core",
+  "key": "A real multi-turn trace",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Mooncake, Kimi's serving system, released the request traces of its production service with a hash per 512-token block, so prefix sharing between requests is exact while the text stays private ( FAST'25 release ).",
+  "label": "core",
+  "key": "hash per 512-token block",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "From the conversation trace this page keeps every turn of one conversation in twelve that began in the first 30 minutes, scales each block to 16 tokens, and plays it 20 times faster: 541 requests from 304 conversations at about 3.1 per second.",
+  "label": "core",
+  "key": "plays it 20 times faster",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "On one replica with unlimited cache, 40.6% of all prompt tokens would be found cached (the batching page found 36.6% on the whole trace).",
+  "label": "core",
+  "key": "36.6% on the whole trace",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Each replica here holds much less, so routing decides what is reused.",
+  "label": "core",
+  "key": "each replica here holds much less",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Predict: which policy gives the lowest median and p90 time to first token on this trace?",
+  "label": "core",
+  "key": "Predict: which policy gives the lowest median and p90",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Round robin Least loaded Hash of the first two blocks SGLang cache-aware Weighted cache plus queue The weighted cache-plus-queue score: median 0.23 to 0.25 s and p90 1.09 to 1.18 s in all three repeats, against 0.34 to 0.39 s and 2.28 to 2.51 s for round robin.",
+  "label": "core",
+  "key": "0.23 to 0.25 s",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "It reuses about as much cache as hashing and SGLang's rules and also steers away from a busy replica.",
+  "label": "core",
+  "key": "also steers away from a busy replica",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "At the p99 the repeats overlap (weighted 2.3 to 2.7 s , least loaded 2.6 to 2.9 s , cache-aware 2.4 to 4.2 s ): three runs cannot rank them there.",
+  "label": "core",
+  "key": "three runs cannot rank them there",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "What the table shows.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lead-in"
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Following the prefix nearly doubles the reuse : hashing the first two blocks (system prompt plus the start of the conversation, so one conversation always lands on one replica), SGLang's rules and the weighted score all found 17 to 19% of prompt tokens cached, round robin and least loaded 11 to 12% , and the replicas computed about 7% fewer prompt tokens.",
+  "label": "core",
+  "key": "Following the prefix nearly doubles the reuse",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "The absolute numbers are small because each replica keeps little (two 2,048-token slots and 256 MiB, about 2,300 tokens of host cache) against what one replica with an unlimited cache would reuse, 40.6% ; the Router lab simulates more memory and more replicas.",
+  "label": "core",
+  "key": "each replica here holds much less",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "A bad key is worse than no routing : hashing only the first block, which every request shares (the system prompt), sent all 541 requests to one replica, found 9.9% cached and gave a median TTFT of 7.7 s .",
+  "label": "core",
+  "key": "A bad key is worse than no routing",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "SGLang's imbalance rule never fired : with its default thresholds the busiest replica must have more than 64 requests in flight and 1.5 times the idlest; here no replica ever had more than 10 in flight, so the router followed the cache whenever the match exceeded 0.3 of the prompt ( 301 of 541 decisions in the first run) and otherwise picked the least loaded.",
+  "label": "core",
+  "key": "SGLang's imbalance rule never fired",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "On a small deployment its load protection is effectively off unless you lower the thresholds.",
+  "label": "core",
+  "key": "on a small deployment its load protection is off",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "All policies delivered the same output tokens per second, because the arrival schedule is fixed; the difference is in the work done and in the wait.",
+  "label": "core",
+  "key": "the difference is the work done and the wait",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "What it costs, when it matters, how to check Cost: a router that follows the cache concentrates traffic, so it needs a load signal or a bound; it also needs state (a tree per replica, or the engines' cache events, as llm-d's precise prefix scorer and Dynamo's KV-aware router read), and an approximate tree drifts from what the replica really kept.",
+  "label": "core",
+  "key": "an approximate tree drifts from what the replica really kept",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "When it matters: when requests share long prefixes (multi-turn chat, agents, a long system prompt or document) and replicas are more than one; least when prompts are unique.",
+  "label": "core",
+  "key": "requests sharing long prefixes",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "How to check: each replica's prefix hit rate and prompt tokens computed, from its own counters, against the hit rate one replica with infinite cache would get on the same traffic; the busiest replica's share of the work; and TTFT percentiles at the client.",
+  "label": "core",
+  "key": "against what one replica with infinite cache would get",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Other routers you will meet.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "The vLLM production stack router (Helm chart vllm-stack-0.1.13, 29 Sep 2026) offers roundrobin , session , prefixaware , kvaware , loadaware and others; its load-aware rule is \"score(i) = matched_tokens(i) / prompt_tokens - beta * relative_load(i)\", so \"a warm-but-saturated instance can lose to a cold-but-idle one\", the same trade the weighted scorer made above ( routing_logic.py at vllm-stack-0.1.13 ).",
+  "label": "depth",
+  "key": "vllm-stack-0.1.13",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Kubernetes' Gateway API Inference Extension (v1.6.2) replaces a plain Service with an InferencePool , \"an extensible request scheduling algorithm that is kv-cache and request cost aware\", whose endpoint picker now lives in llm-d ( README at v1.6.2 ). project docs The simplest form is a sticky session: Character.AI routes every message of one dialogue to the same server so its cached KV state is reused between turns, and reports a 95% cache hit rate ( Character.AI, 20 Jun 2024 ; a case file on Topic: swe-and-system-design ).",
+  "label": "depth",
+  "key": "Gateway API Inference Extension (v1.6.2)",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Stickiness concentrates harm as well as load : in Anthropic's August 2025 incident, \"some users were affected more severely, as our routing is 'sticky'\", because a user routed to a misconfigured server kept going back to it ( Anthropic postmortem, 17 Sep 2025 ).",
+  "label": "core",
+  "key": "Stickiness concentrates harm as well as load",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Where this layer sits in a whole LLM service, with tenancy and degradation ladders around it, is ML system design .",
+  "label": "depth",
+  "key": "tenancy and degradation ladders",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "Published gains are larger than the ones measured here and come from the projects themselves: llm-d reports 3 times the output throughput and half the TTFT of round robin for Llama 3.1 70B on four MI300X; Dynamo's KV-aware router, twice as fast a TTFT on Baseten's deployment (both quoted on the parent page).",
+  "label": "depth",
+  "key": "llm-d reports 3 times the output throughput",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "How Dynamo and llm-d route between prefill and decode pools when the two phases run on separate GPUs is on Distributed and disaggregated serving .",
+  "label": "depth",
+  "key": "routing between prefill and decode pools",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "1. routing: which replica gets the request",
+  "text": "The gateway layer above the router (API keys, rate limits, fallbacks between providers) is on Gateways and routing .",
+  "label": "depth",
+  "key": "the gateway above the router",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Autoscaling: what to scale on The problem.",
+  "label": "core",
+  "key": "Autoscaling: what to scale on",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Traffic to a chat assistant is not flat: it follows the working day, and a launch or an agent fleet can triple it in minutes.",
+  "label": "core",
+  "key": "Traffic follows the working day",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "A fixed pool sized for the peak wastes GPUs most of the day; one sized for the average misses its latency target at the peak.",
+  "label": "core",
+  "key": "one sized for the average misses its SLO at the peak",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "An autoscaler adds replicas when load rises and removes them when it falls.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by the control-loop sentence"
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "It is a control loop: read a metric, compare it with a target, change the replica count, wait, repeat.",
+  "label": "core",
+  "key": "is a control loop: read a metric",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Kubernetes' Horizontal Pod Autoscaler (HPA), which most LLM deployments use directly or through KEDA, runs every 15 seconds and computes desired = ceil(current × metric / target) ; it ignores ratios within 10% of 1, adds at most 100% or 4 pods per 15 seconds, and only scales down to the highest recommendation of the last 300 seconds, so a brief lull does not remove capacity that is needed again a minute later ( HPA docs ).",
+  "label": "core",
+  "key": "runs every 15 seconds",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Everything interesting is in the choice of metric.",
+  "label": "core",
+  "key": "Everything interesting is in the choice of metric",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "GPU utilization The default instinct, and wrong for LLMs.",
+  "label": "core",
+  "key": "The default instinct, and wrong for LLMs",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "NVIDIA's counter is the share of time at least one kernel was running ( NVML ).",
+  "label": "core",
+  "key": "share of time at least one kernel was running",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "With continuous batching some request is almost always decoding, so it reads near 100% at a fraction of capacity.",
+  "label": "core",
+  "key": "reads near 100% at a fraction of capacity",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Queue depth Requests waiting for a slot, per replica.",
+  "label": "core",
+  "key": "Requests waiting for a slot, per replica",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "It moves exactly when users start waiting, and is zero when there is headroom. vLLM exports it as vllm:num_requests_waiting , llama-server as llamacpp:requests_deferred .",
+  "label": "core",
+  "key": "llamacpp:requests_deferred",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "KV cache usage The share of KV memory in use: the resource that runs out first in decode.",
+  "label": "core",
+  "key": "the resource that runs out first in decode",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "It saturates at 100%, so it says \"full\" but not \"how far over\".",
+  "label": "core",
+  "key": "it says \"full\" but not \"how far over\"",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "A latency SLO Scale when the p90 TTFT approaches its target.",
+  "label": "core",
+  "key": "Scale when the p90 TTFT approaches its target",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "It measures what users feel, but it reacts after they have felt it, and percentiles need enough requests per window to be stable.",
+  "label": "core",
+  "key": "reacts after they have felt it",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Predict: one replica of the running example runs at 10% of the load it can carry.",
+  "label": "core",
+  "key": "runs at 10% of the load it can carry",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "What does the GPU utilization gauge read?",
+  "label": "core",
+  "key": "What does the GPU utilization gauge read",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "About 10% About 50% About 96% About 96% derived .",
+  "label": "core",
+  "key": "About 96%",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "A request occupies the GPU for its whole life, prefill plus 300 decode steps: 0.42 + 300 × 0.0468 = 14.5 s.",
+  "label": "core",
+  "key": "0.42 + 300",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "At 10% of the 2.2 requests per second a replica completes, 0.22 requests arrive per second, so on average 0.22 × 14.5 = 3.2 requests are in flight; with random (Poisson) arrivals the chance that none is running is e −3.2 = 4%.",
+  "label": "core",
+  "key": "e −3.2",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "The gauge reads 96% while the replica could take ten times the load.",
+  "label": "core",
+  "key": "could take ten times the load",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "An HPA with a 70% utilization target therefore scales to its maximum and stays there: in the Autoscaling lab it holds 16 replicas through the whole half hour, costing 7.66 replica-hours against 4.27 for a queue-depth autoscaler on the same traffic.",
+  "label": "core",
+  "key": "holds 16 replicas through the whole half hour",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "The cost of reacting: the queue builds while replicas boot.",
+  "label": "core",
+  "key": "The cost of reacting",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "A scale-up decision only helps after the new replica's cold start (next section).",
+  "label": "core",
+  "key": "A scale-up decision helps only after",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "In the lab's default comparison, traffic triples for ten minutes; with a 44.5-second start the queue-depth autoscaler lets the p99 TTFT reach 29.8 s , and 89.5% of requests meet the 1.05 s TTFT target.",
+  "label": "core",
+  "key": "29.8 s",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "The same autoscaler with a 6-second start keeps 96.1% within it.",
+  "label": "core",
+  "key": "96.1%",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "That is the whole case for fast starts: the faster a replica starts, the less spare capacity you must keep idle in reserve.",
+  "label": "core",
+  "key": "the less headroom",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Three more signals that fail, from the published guides.",
+  "label": "core",
+  "key": "Three more signals that fail",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "CPU utilization , the web-server default, barely moves, because a GPU server's CPU mostly tokenizes and schedules: \"For inference workloads running on GPUs, we don't recommend CPU and memory utilization as the only indicators\" (Google's GKE guide).",
+  "label": "core",
+  "key": "mostly tokenizes and schedules",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "On ordinary servers it can even run backwards: in Slack's January 2021 outage, threads waiting on a congested network used less CPU, so the autoscaler removed servers during the overload (a case file on Topic: swe-and-system-design ).",
+  "label": "core",
+  "key": "Slack's January 2021 outage",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "GPU memory is worse, because engines reserve almost all of it at start, so the metric \"only works for scaling up, and won't scale down when traffic decreases\" ( GKE, Best practices for autoscaling LLM inference workloads with GPUs , updated 2026-10-02).",
+  "label": "core",
+  "key": "only works for scaling up",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Requests per second ignores size: \"A single request with a 32K-token prompt consumes orders of magnitude more compute than a short one\" ( Dynamo Planner overview, v1.5.0 ); an autoscaler on requests gets the direction right but sizes the pool for the old request size, so when replies grow during a spike the queue builds anyway. vendor guidance What the guides recommend, with real thresholds.",
+  "label": "core",
+  "key": "32K-token prompt",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "GKE: queue size \"directly correlates to request latency\" and is \"largely workload-agnostic\", so \"use the growth point as a signal to initiate scale-up\", starting with a threshold \"between 3-5\" waiting requests per replica; batch size ( vllm:num_requests_running ) reacts sooner for tighter latency but depends on request sizes. llm-d's KEDA blueprint scales each prefill or decode role on waiting requests (threshold 20) and KV cache use (0.95) ( llm-d-autoscaling at 3c06c88 ).",
+  "label": "depth",
+  "key": "between 3-5",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "KServe (v0.21.0) hands autoscaling to KEDA; its documented example puts autoscalerClass: \"keda\" on an InferenceService and scales a vLLM server between 1 and 5 replicas on the Prometheus query vllm:num_requests_running with a target of 2, so \"if our LLM receives 6 concurrent requests with our target of 2 requests per pod, the system will scale to 3 replicas\" ( KServe docs, LLM autoscaling with KEDA ); the vLLM production stack's tutorial does the same on vllm:num_requests_waiting with a threshold of 5 ( tutorial 20, at 014d070 ).",
+  "label": "depth",
+  "key": "KServe (v0.21.0)",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "KEDA polls every 30 s, and its 300 s cooldownPeriod applies only to scaling to zero ( KEDA 2.21 ScaledObject spec ).",
+  "label": "depth",
+  "key": "KEDA polls every 30 s",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "NVIDIA's Dynamo planner can \"Target specific TTFT/ITL SLA values\" and runs a predictive loop (default every 180 s) for the daily curve under a reactive one (every 5 s) for surprises.",
+  "label": "depth",
+  "key": "every 180 s",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "One operational trap: metric names change between engine versions (vLLM renamed gpu_cache_usage_perc to kv_cache_usage_perc in 0.9.2), and an autoscaler querying a removed name reads zero and silently stops scaling. project docs Headroom and spot capacity.",
+  "label": "core",
+  "key": "in 0.9.2",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Headroom is capacity kept above current demand to absorb a spike while new replicas start: if a replica takes 3 minutes to start and traffic can grow 20% in 3 minutes, keep about 20% spare at all times.",
+  "label": "core",
+  "key": "if a replica takes 3 minutes to start",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "It is a dial between cost and latency.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement"
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Spot (preemptible) GPUs are cheaper and can be taken back with little warning: two minutes on AWS ( EC2 Spot interruption notices ), 0 seconds by default or 120 seconds if configured on Google Cloud, which advertises \"up to 91% discounts\" ( GCP Spot VMs ), \"up to 30 seconds\" on Azure ( Azure Spot VMs ).",
+  "label": "depth",
+  "key": "up to 91% discounts",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Two minutes is less than most cold starts, so spot suits batch work first; for live serving, research systems mix spot across regions with on-demand fallback: SkyServe \"reduces cost by 43% on average\" against on-demand replicas ( SkyServe, EuroSys 2025 ), and SpotServe reports \"saving 54% monetary cost compared with only using on-demand instances\" ( SpotServe, ASPLOS 2024 ). authors' measurements What it costs, when it matters, how to check Cost: spare replicas (headroom) or SLO misses during every ramp; flapping if the scale-down window is short (the lab's fourth comparison).",
+  "label": "depth",
+  "key": "SkyServe",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "When it matters: whenever traffic varies by more than a replica or two, and most when cold starts are long.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "when-it-matters restated"
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "How to check: replay a real day of arrivals against the autoscaler's rules before trusting it, and plot replicas, queue depth and p90 TTFT on one time axis.",
+  "label": "core",
+  "key": "replay a real day of arrivals",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Scaling to zero needs an external trigger (KEDA, Knative or a gateway that holds the first request), because a pool with no replicas reports no metrics at all.",
+  "label": "core",
+  "key": "Scaling to zero needs an external trigger",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "2. autoscaling: what to scale on",
+  "text": "Go deeper: the Autoscaling lab runs any two autoscalers on the same spike; the parent's Capacity planner sizes the pool for a steady rate.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab"
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Cold starts: what a new replica does before its first token The problem.",
+  "label": "core",
+  "key": "Cold starts: what a new replica does before its first token",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "A cold start is everything between \"start a replica\" and \"it serves requests\".",
+  "label": "core",
+  "key": "cold start",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "It sets how fast an autoscaler can react, how long a crashed replica is missing, and whether scaling to zero is tolerable.",
+  "label": "core",
+  "key": "how long a crashed replica is missing",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "For the running example the weights alone are 72.66 GB.",
+  "label": "core",
+  "key": "the weights alone are 72.66 GB",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Machine seconds to minutes A GPU node is provisioned (if none is free), the driver loads, the container image (often 10 GB or more) is pulled.",
+  "label": "core",
+  "key": "often 10 GB or more",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Weights bytes / bandwidth Read from local NVMe, network storage or a model hub into host memory and onto the GPU; 72.66 GB at an assumed 2 GB/s is 36 s, from remote storage minutes.",
+  "label": "core",
+  "key": "72.66 GB at an assumed 2 GB/s is 36 s",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Engine init seconds Profile memory to size the KV cache, compile (torch.compile), capture CUDA graphs for each batch size, warm up.",
+  "label": "core",
+  "key": "capture CUDA graphs for each batch size",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Ready health check passes Only now does the router send traffic; the first requests may still pay for lazy initialization.",
+  "label": "core",
+  "key": "health check passes",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Measured here: llama-server, three model sizes, cold and warm. \"Ready\" is from starting the process to its health check answering; \"cold\" means none of the file was in the operating system's page cache (each run reads a fresh APFS clone of the GGUF, which shares the disk blocks but not the cached pages), \"warm\" means the file had just been read.",
+  "label": "core",
+  "key": "a fresh APFS clone",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Medians of 3 runs each, machine load average about 3 to 5. measured on Apple M1 Pro Two things transfer to datacenter GPUs.",
+  "label": "core",
+  "key": "machine load average 3 to 5",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "First, the weights term is bytes over bandwidth: the cold runs take longer than the warm ones by 0.77 s for the 4B file's 2.50 GB, an effective 3.2 GB/s from this laptop's SSD derived: extra time against file size , close for all three sizes.",
+  "label": "core",
+  "key": "0.77 s",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "At that rate the running example's 72.66 GB would take 23 s , before any engine work.",
+  "label": "core",
+  "key": "would take 23 s",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Second, the first token after \"ready\" is fast here ( 64 ms for the 4B model) because llama-server does its warm-up before it reports healthy; engines that capture graphs or compile lazily pay on the first requests instead.",
+  "label": "core",
+  "key": "64 ms",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "What does not transfer: llama.cpp maps the file and has no CUDA graphs or torch.compile, so its engine initialization is a fraction of a second; a GPU engine adds memory profiling, graph capture for each batch size and compilation.",
+  "label": "core",
+  "key": "llama.cpp maps the file",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Measured here: vLLM v0.31.0 on the CPU, in Docker (Qwen3-0.6B in float32, the model folder mounted from the Mac into the Docker Desktop VM; 2 starts).",
+  "label": "core",
+  "key": "vLLM v0.31.0 on the M1 Pro's CPU in Docker",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "From docker run to a healthy server took 78 and 80 s , and the engine's own log shows where: 36.2 and 37.3 s loading a 1.40 GiB checkpoint, because the file came through Docker's file-sharing layer (the log names it: FUSE.GRPCFUSE ) at about 40 MB/s, against 3.2 GB/s from the same SSD for llama-server above; 0.69 and 0.45 s to profile memory, allocate 6,016 and 5,760 tokens of KV cache (it sizes the cache from the memory free at start) and warm up (no CUDA graphs on the CPU backend); the rest is the container, Python imports and the API server. measured on Apple M1 Pro The lesson transfers exactly: where the weights come from can dominate a cold start, and the engine's log tells you which phase to fix.",
+  "label": "core",
+  "key": "FUSE.GRPCFUSE",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Published start-up times project measurements : vLLM v0.30.0 cut CUDA graph capture from 12 s to 2 s and engine initialization from 28.9 s to 8.2 s on an H200 (model not stated), and added a per-GPU daemon that keeps post-quantized weights in GPU memory across engine restarts, launched with vllm preload in v0.31.0 ( v0.30.0 , v0.31.0 release notes).",
+  "label": "depth",
+  "key": "from 28.9 s to 8.2 s",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "SGLang v0.5.18 stages checkpoint pages from storage while CUDA graphs capture: Qwen3-32B on an H100 starts 2.38 times faster than the plain default (35.6 s against 84.8 s) but only 8.6 to 11.7% faster than serial loading with prefetch, so most of the gain is the prefetch; it is opt-in with --startup-weight-load-mode overlap ( v0.5.18 ).",
+  "label": "depth",
+  "key": "2.38 times faster",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "ServerlessLLM reports 10 to 200 times lower latency than state-of-the-art serverless systems, from loading-optimised checkpoints in a multi-tier store, live migration of running inferences, and placing models on servers that already hold their checkpoint ( Fu et al.",
+  "label": "depth",
+  "key": "10 to 200 times lower latency",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "2024 ) authors' measurement .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment"
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Published fixes for each link of the chain vendor measurements .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Machine: \"Spinning up a GPU worker takes minutes, not seconds\" (Dynamo docs), so keep spare nodes or predict demand.",
+  "label": "depth",
+  "key": "Spinning up a GPU worker takes minutes",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Image: 24 s to 1.5 s with GKE image streaming, on Google's sample web app ( GKE image streaming ).",
+  "label": "depth",
+  "key": "24 s to 1.5 s",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Weights: Llama 3 8B (15 GB) on an A10G loaded in 47.99 s with the standard Hugging Face loader and 4.88 s from S3 with the Run:ai Model Streamer ( vllm serve --load-format runai_streamer ), yet the server took 23.18 s to be ready, the rest being allocator setup, CUDA graph capture and compilation ( NVIDIA, 16 Sep 2025 ).",
+  "label": "depth",
+  "key": "47.99 s",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Engine: vLLM's sleep mode \"Offloads model weights to CPU RAM and discards KV cache\", and waking is \"18-200x faster than full reload\" ( vLLM blog, 26 Oct 2025 ); GPU memory snapshots took a small vLLM model's start from 45 s to 5 s on Modal ( Modal, 30 Jul 2025 ).",
+  "label": "depth",
+  "key": "18-200x",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Scale to zero (KEDA and Knative support it) saves the most and makes the first user after a quiet period wait the whole chain: fine for an internal tool, wrong for a chat product.",
+  "label": "core",
+  "key": "the first user after a quiet period",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Mitigations, in the order they usually pay Keep weights close: local NVMe or host memory rather than a hub or object store (the bandwidth term above).",
+  "label": "core",
+  "key": "Keep weights close",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Keep the engine alive: sleep mode or a weight daemon instead of a new process.",
+  "label": "core",
+  "key": "Keep the engine alive",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Keep warm spare replicas sized to the cold start: the Autoscaling lab shows the queue that builds while replicas boot.",
+  "label": "core",
+  "key": "Keep warm spare replicas sized to the cold start",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Scale ahead of known peaks on a schedule.",
+  "label": "core",
+  "key": "Scale ahead of known peaks",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "Measure each phase from the engine's log on your own hardware; the previous section's autoscaling numbers depend on it.",
+  "label": "core",
+  "key": "Measure each phase from the engine's log",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "3. cold starts: what a new replica does before its first token",
+  "text": "When one replica spans several GPUs or nodes, start-up also includes setting up the parallel groups and their links: see Distributed and disaggregated serving .",
+  "label": "core",
+  "key": "setting up the parallel groups",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "Multi-LoRA: many fine-tunes on one set of weights The problem.",
+  "label": "core",
+  "key": "Multi-LoRA: many fine-tunes on one set of weights",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "A LoRA adapter fine-tunes a model by adding a small low-rank update to some weight matrices: instead of changing a d × d matrix W, it learns B (d × r) and A (r × d) with rank r of 8 to 64 and computes x W + x A T B T scaled ( LoRA paper page ).",
+  "label": "core",
+  "key": "low-rank update",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "An adapter is tiny next to the model (rank 16 on the attention projections of Qwen3-0.6B is 4.6 million parameters, 9.2 MB in FP16, against 0.6 billion in the base ( model card )), so a provider can offer one per customer or per task.",
+  "label": "core",
+  "key": "9.2 MB in FP16",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "Serving a separate copy of the model for each would waste almost all the memory.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "implied by the next sentence"
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "The goal is one copy of the base weights, many adapters, and requests for different adapters in the same batch , because batching is where serving efficiency comes from.",
+  "label": "core",
+  "key": "in the same batch",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "The base model's matrix multiply is shared by the whole batch; only the small A and B products differ per request.",
+  "label": "core",
+  "key": "The base matrix multiply is shared",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "Punica's kernel gathers each request's adapter and computes all the small products in one launch, and reported 12 times the throughput of serving systems of the time when serving many LoRA models, adding 2 ms per token ( Chen et al.",
+  "label": "core",
+  "key": "12 times the throughput",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "2023 ) authors' measurement .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment"
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "S-LoRA keeps all adapters in host memory, moves the active ones to the GPU on demand, and pages adapter weights and KV cache from one memory pool, serving thousands of adapters on one GPU with up to 4 times the throughput of HuggingFace PEFT and vLLM's then naive LoRA support ( Sheng et al.",
+  "label": "core",
+  "key": "up to 4 times the throughput",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "2023 ) authors' measurement . vLLM now batches mixed adapters with its own kernels: --enable-lora , --max-loras (adapters on the GPU at once) and --max-lora-rank , with more kept in CPU memory; llm-d has a LoRA-affinity scorer that routes a request to a replica that already holds its adapter.",
+  "label": "owned:systems_and_performance/topic_inference_and_serving/vllm",
+  "key": "max_lora_rank",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "Measured here: llama-server with eight adapters.",
+  "label": "core",
+  "key": "Measured: llama-server with eight adapters",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "Eight rank-16 adapters made for this page (random weights, seeds 1 to 8, converted with llama.cpp's convert_lora_to_gguf.py : for measuring cost only, they do not improve the model), loaded with --lora-init-without-apply into one llama-server with 8 slots; 8 concurrent users each send 3 requests of 64 output tokens, and each request names its adapter.",
+  "label": "core",
+  "key": "seeds 1 to 8",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "Two repeats. measured on Apple M1 Pro With every request on the same adapter, the server keeps 352 and 353 tokens/s, close to the 378 to 384 of the same server with no adapters loaded.",
+  "label": "core",
+  "key": "352 and 353",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "As soon as two different adapters are in flight it falls to 109 to 127 , and with four or eight to 83 to 90 , no better than a single user alone ( 88 to 100 ).",
+  "label": "core",
+  "key": "109 to 127",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "The reason is one line of the server: a batch may only contain slots whose adapter sets are equal ( can_batch_with , server-context.cpp L449-L455 ), because it applies one set of adapters to the whole context per step ( common_set_adapter_lora , L2855).",
+  "label": "core",
+  "key": "can_batch_with",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "Different adapters take turns, and the batch that makes serving efficient disappears.",
+  "label": "core",
+  "key": "take turns",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "That is the problem Punica and S-LoRA solved.",
+  "label": "core",
+  "key": "Punica, S-LoRA",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "A trap found on the way A request that lists no adapter does not get the base model: llama-server then applies every loaded adapter at its load-time scale ( launch_slot_with_task , L1708 to L1723, uses the server's default list).",
+  "label": "core",
+  "key": "L1708 to L1723",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "Here that meant all eight random adapters at once: garbage text and 206 and 217 tokens/s.",
+  "label": "core",
+  "key": "206 and 217",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "Listing one adapter at scale 0 switches all of them off ( 365 and 382 tokens/s).",
+  "label": "core",
+  "key": "365 and 382",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "Name the adapters explicitly in every request, or start the server without --lora for base traffic.",
+  "label": "core",
+  "key": "Name the adapters explicitly",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "The same test on vLLM v0.31.0 (CPU backend in Docker, Qwen3-0.6B float32, --enable-lora --max-loras 4 --max-lora-rank 16 , the same eight adapters in PEFT format, 8 users, 2 requests each): with the adapter path active, throughput is 21.1 and 24.6 tokens/s for one adapter and 20.1 and 24.1 for four different ones in the same batches, so mixing adapters costs nothing extra; eight different adapters, more than --max-loras allows on the device at once, fell to 15.8 and 17.2 as adapters were swapped in and out.",
+  "label": "core",
+  "key": "--max-loras 4",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "Without any adapter the same server gave 55.1 and 58.6 (two repeats each, machine load average 5 to 9): on this CPU backend the LoRA path itself is expensive, which says nothing about GPUs, where Punica-style kernels add little. measured on Apple M1 Pro vLLM counts requests per adapter in vllm:lora_requests_info ( loggers.py L993 ).",
+  "label": "core",
+  "key": "55.1 and 58.6",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "4. multi-lora: many fine-tunes on one set of weights",
+  "text": "How vLLM's knobs and metrics behave on a live server is on vLLM: inside the default engine .",
+  "label": "core",
+  "key": "vLLM: inside the default engine",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "Structured output under load The problem.",
+  "label": "core",
+  "key": "Structured output under load",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "Tool calls and machine-read answers must be valid JSON matching a schema.",
+  "label": "core",
+  "key": "machine-read answers must be valid JSON",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "Constrained decoding makes invalid output impossible: the schema is compiled into a grammar, and at every step the engine masks out every token that would break it before sampling.",
+  "label": "core",
+  "key": "masks every token that would break it",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "How it works inside an engine (XGrammar, the token mask, the jump-forward SGLang removed) is on the SGLang page .",
+  "label": "core",
+  "key": "inside SGLang's engine",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "The serving question is what it costs per token, and whether the cost grows with load.",
+  "label": "core",
+  "key": "what it costs per token under load",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "Measured here: llama-server with a JSON schema.",
+  "label": "depth",
+  "key": "response_format",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "The same server without adapters; each request asks Qwen3-0.6B (thinking off) to invent a person as a JSON object with four keys, with and without response_format set to that schema; 1 user sending 5 requests, then 4 users sending 5 each; two repeats. measured on Apple M1 Pro Two results.",
+  "label": "depth",
+  "key": "as a JSON object with four keys",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "Cost per token: within the noise here : median time per output token with the schema was 7.8 and 10.1 ms against 7.5 and 8.3 ms without it for one user, and 17.4 and 19.7 ms against 19.1 and 18.4 ms for four.",
+  "label": "depth",
+  "key": "7.8 and 10.1 ms",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "The grammar check runs on the CPU per sampled token; for a small vocabulary walk like this one it is cheap next to a decode step, and the SGLang page 's measurement on its MLX backend (13.4 against 4.9 ms per token) shows it is not always so.",
+  "label": "depth",
+  "key": "13.4 against 4.9 ms",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "Validity: the schema matters more than the speed : without it every answer ( 0 of 50 ) came wrapped in a Markdown code fence and failed a strict parse, though all parsed once the fence was stripped; with it, 50 of 50 were bare, valid objects with exactly the four keys.",
+  "label": "core",
+  "key": "Markdown code fence",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "On vLLM v0.31.0 (CPU, 4 users, structured-output backend auto , the default, which picks a grammar library per request: structured_outputs.py L21 ) the cost was inconclusive: 136 and 112 against 114 and 112 ms per output token in the two repeats, and again every unconstrained answer was fenced (0 of 24 strictly valid) while all 24 constrained answers were valid. measured on Apple M1 Pro What it costs, when it matters, how to check Cost: grammar compilation once per new schema (cached after), a vocabulary-wide mask per step, and possible quality loss where the mask overrides the model's choice.",
+  "label": "depth",
+  "key": "structured_outputs.py L21",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "When it matters: tool calls, extraction, anything a program reads; reasoning models are usually left unconstrained while thinking.",
+  "label": "depth",
+  "key": "left unconstrained while thinking",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "5. structured output under load",
+  "text": "How to check: parse every response in production (count failures), and compare time per output token with and without the schema at the same output length and concurrency, as here.",
+  "label": "core",
+  "key": "parse every response and count failures",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "Observability: the metrics that matter, and alerting on them The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading lead-in"
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "A dashboard full of numbers does not tell you whether users are waiting.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "For an LLM service a few signals carry nearly everything, and they split into three questions: are users getting tokens fast enough (latency), is the server running out of something (saturation), and is the cache doing its job (efficiency).",
+  "label": "core",
+  "key": "A few signals carry nearly everything",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "Question Signal vLLM v0.31.0 llama-server (build 11146) How long until the first token?",
+  "label": "core",
+  "key": "llama-server (build 11146)",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "TTFT distribution vllm:time_to_first_token_seconds (histogram) none: only averages How smooth is the stream?",
+  "label": "core",
+  "key": "vllm:time_to_first_token_seconds",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "Inter-token latency, TPOT vllm:inter_token_latency_seconds (histogram) llamacpp:predicted_tokens_seconds (average tokens/s) Are requests queueing?",
+  "label": "core",
+  "key": "vllm:inter_token_latency_seconds",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "Waiting requests, queue time vllm:num_requests_waiting , vllm:request_queue_time_seconds llamacpp:requests_deferred Is memory running out?",
+  "label": "core",
+  "key": "vllm:request_queue_time_seconds",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "KV usage, preemptions vllm:kv_cache_usage_perc , vllm:num_preemptions none exported; slots on /slots Is the cache working?",
+  "label": "core",
+  "key": "vllm:num_preemptions",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "Prefix hit rate vllm:prefix_cache_hits / vllm:prefix_cache_queries llamacpp:prompt_tokens_cached_total against llamacpp:prompt_tokens_total How much work?",
+  "label": "core",
+  "key": "vllm:prefix_cache_queries",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "Tokens in and out vllm:prompt_tokens , vllm:generation_tokens llamacpp:prompt_tokens_total , llamacpp:tokens_predicted_total vLLM names from v1/metrics/loggers.py (L509 to L864) at v0.31.0; what each tells you on a live server is on vLLM: inside the default engine . llama-server's full list (it needs --metrics ) is in server-task.cpp (L1520 to L1598) and was read from the live replicas of this page's runs: n_busy_slots_per_decode, n_decode_total, n_tokens_max, predicted_tokens_seconds, prompt_seconds_total, prompt_tokens_cached_total, prompt_tokens_seconds, prompt_tokens_total, requests_deferred, requests_processing, spec_decode_num_accepted_tokens_total, spec_decode_num_draft_tokens_total, spec_decode_num_drafts_total, tokens_predicted_seconds_total, tokens_predicted_total (each prefixed llamacpp: ; no histograms, so no percentiles).",
+  "label": "core",
+  "key": "L509 to L864",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "Percentiles, not averages, and how a histogram blurs them.",
+  "label": "core",
+  "key": "how a histogram blurs them",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "An average TTFT hides the users who waited; the p99 is the one in a hundred who gave up.",
+  "label": "core",
+  "key": "An average TTFT hides the users who waited",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "Engines export histograms (counts per bucket), and Prometheus's histogram_quantile interpolates linearly inside a bucket, so a percentile can only be located to its bucket. vLLM's TTFT buckets are 0.001, 0.005, 0.01, 0.02, 0.04, 0.06, 0.08, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10, 20, 40, 80, 160, 640 and 2,560 seconds ( buckets.py L56 ): a p99 between 1 and 2.5 s is a guess within that range.",
+  "label": "core",
+  "key": "interpolates linearly inside a bucket",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "On this page's round-robin routing run ( 541 requests), the exact p99 TTFT was 4.10 s ; the same samples counted into vLLM's buckets give a histogram_quantile(0.99, ...) of 4.75 s , because the 99th percentile falls in the 2.5 to 5 s bucket and is placed by interpolation. derived from measured samples Alert on the SLO, not on every metric.",
+  "label": "core",
+  "key": "4.10 s",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "Write the target the way users feel it, for example \"99% of requests get their first token within 2 seconds, over 30 days\".",
+  "label": "core",
+  "key": "30-day budget",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "The 1% allowed to miss is the error budget ; the burn rate is how fast you spend it (a miss rate of 1% is burn rate 1, 14.4% is 14.4).",
+  "label": "core",
+  "key": "14.4% is 14.4",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "Google's SRE workbook recommends paging when the burn rate exceeds 14.4 over both the last hour and the last 5 minutes (2% of a 30-day budget gone in an hour), and 6 over 6 hours and 30 minutes, with a ticket at 1 over 3 days and 6 hours ( SRE workbook, Table 5-8 ); the short window stops the alert as soon as the problem ends.",
+  "label": "core",
+  "key": "6 over 6 hours and 30 minutes",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "The general method, with its arithmetic, is on Observability .",
+  "label": "core",
+  "key": "The general method is on",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "For LLMs, keep two SLOs, one on TTFT and one on TPOT, because they fail for different reasons: TTFT when requests queue or prompts are long, TPOT when batches are too large or a long prefill interrupts decoding.",
+  "label": "core",
+  "key": "they fail for different reasons",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "What it costs, when it matters, how to check Cost: almost nothing for counters and histograms; per-request traces (OpenTelemetry) cost storage and are where LLM observability takes over.",
+  "label": "core",
+  "key": "LLM observability",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "When it matters: always; the router and the autoscaler read the same signals.",
+  "label": "core",
+  "key": "read the same ones",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "How to check: measure TTFT at the client too.",
+  "label": "core",
+  "key": "Measure TTFT at the client too",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "6. observability: the metrics that matter, and alerting on them",
+  "text": "The server's TTFT starts when the request reaches the engine; queueing in a gateway or router before that is invisible to it.",
+  "label": "core",
+  "key": "queueing in a gateway or router",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Load testing without fooling yourself The problem.",
+  "label": "core",
+  "key": "Load testing without fooling yourself",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "A load test is meant to predict what users will see.",
+  "label": "core",
+  "key": "A load test is meant to predict what users will see",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Most published \"tokens per second\" and \"p99 latency\" numbers cannot be compared, because the way the load was generated decides the answer as much as the server does.",
+  "label": "core",
+  "key": "decides the answer as much as the server does",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "The general theory (queueing, Little's law, load-test types) is on Capacity planning and performance ; here is what is specific to LLM servers, with one experiment.",
+  "label": "core",
+  "key": "Little's law",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Closed against open loop.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "A closed-loop generator simulates N users who each wait for their answer before sending the next request; an open-loop generator sends requests at times fixed in advance (Poisson arrivals at a rate), whether or not earlier ones have finished.",
+  "label": "core",
+  "key": "sends at times fixed in advance",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Real users of a public service are close to open loop: they do not coordinate with your server.",
+  "label": "core",
+  "key": "Users of a public service are close to open loop",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "When a closed-loop server slows down, the generator slows down with it and stops sending the requests that would have queued: Gil Tene called this coordinated omission , and wrk2 corrects it by measuring each request from the moment it should have been sent ( wrk2 README ).",
+  "label": "core",
+  "key": "coordinated omission",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Predict: the server freezes for 5 seconds in a 40-second test of 120 requests.",
+  "label": "core",
+  "key": "40-second test of 120 requests",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "How many requests will a closed-loop generator with 2 users record as slower than one second?",
+  "label": "core",
+  "key": "record as slower than one second",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "About 2 About 15 (3 per second for 5 seconds) About 90 About 2: each user has one request stuck in the freeze and sends nothing more until it returns.",
+  "label": "core",
+  "key": "each user has one request stuck",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "The open-loop generator recorded 94 and 103 of 120 above one second in the two repeats, because the requests that kept arriving during the freeze queued and the backlog took most of the run to clear.",
+  "label": "core",
+  "key": "94 and 103",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "The same 5-second freeze, two load generators Closed loop, 2 users Open loop, Poisson 3/s One llama-server, Qwen3-0.6B Q4_K_M, 4 slots; 120 requests of about 150 words, 48-token answers; the server process frozen with SIGSTOP 15 s after the start and resumed 5 s later.",
+  "label": "core",
+  "key": "SIGSTOP 15 s after the start",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Each dot is a request at the time it was sent and its end-to-end latency (log scale); hollow circles are still waiting.",
+  "label": "core",
+  "key": "hollow circles are still waiting",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "First repeat shown; both repeats in the Load-test lab . measured on Apple M1 Pro The numbers: with the freeze, the closed-loop run's median latency was 0.52 and 0.89 s in the two repeats and only 2 and 4 requests took over a second; the open-loop run's median was 4.76 and 1.81 s .",
+  "label": "core",
+  "key": "0.52 and 0.89 s",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Same server, same freeze.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement"
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Applying wrk2's correction to the closed-loop samples (each slow sample also stands for the requests its user would have sent meanwhile, at the run's normal pace) raises its p90 from 0.65 and 0.93 s to 1.48 and 2.42 s , closer to what the open loop saw, but it is a model of the missing requests, not a measurement of them.",
+  "label": "core",
+  "key": "1.48 and 2.42 s",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Open-loop arrivals at a stated rate are the honest default for a service; keep closed loops for \"N agents in a loop\" workloads, where the clients really do wait.",
+  "label": "core",
+  "key": "\"N agents in a loop\"",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "The rest of an honest test , each a mistake seen in published benchmarks: Real lengths.",
+  "label": "core",
+  "key": "The rest of an honest test",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "A fixed 1,000-in, 100-out prompt hides prefill interference and the long tail of long prompts; replay a length distribution from your traffic (or a published one such as ShareGPT, BurstGPT or Mooncake).",
+  "label": "core",
+  "key": "A fixed 1,000-in, 100-out prompt",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "State whether end-of-sequence was ignored to force the output length.",
+  "label": "core",
+  "key": "end-of-sequence was ignored",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Repeating one prompt measures the prefix cache; random prompts measure no cache at all.",
+  "label": "core",
+  "key": "Repeating one prompt measures the prefix cache",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Neither is your traffic; multi-turn and agent traffic reuse far more than single-turn chat (section 1).",
+  "label": "core",
+  "key": "multi-turn and agent traffic reuse far more",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "The first requests pay for lazy initialization (llama-server's first token after start was much slower than the second, section 3); exclude a warmup period or report it separately.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "contradicted section 4: llama-server warms up before it reports healthy; replaced by the general warm-up rule"
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "A sweep, not a point.",
+  "label": "core",
+  "key": "A sweep, not a point",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Report latency percentiles and goodput (requests per second that meet the SLO) across arrival rates, up to and past the knee; several runs per point, with the spread, the exact versions, flags and hardware.",
+  "label": "core",
+  "key": "up to and past the knee",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "The parent page's Engine bench records every run with its command line and the machine's load.",
+  "label": "core",
+  "key": "records every run with its command line",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "The client is part of the system.",
+  "label": "core",
+  "key": "The client is part of the system",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "A Python client with one thread per request, on the same machine, can itself become the bottleneck at high rates; measure the client's own lag (how late each request was sent against its schedule).",
+  "label": "core",
+  "key": "one thread per request",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Tools (not run here; documentation read 2026-10-10) . vllm bench serve replays datasets (ShareGPT, BurstGPT, random, prefix-repetition, a timed trace) against any OpenAI-compatible server and computes goodput with --goodput ttft:... tpot:... ; its --request-rate defaults to infinity, which sends every request at time 0, and --burstiness 1 means Poisson ( docs ; defaults confirmed in benchmarks/serve.py L1648 to L1838).",
+  "label": "depth",
+  "key": "documentation read 2026-10-10",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "GuideLLM (vLLM project) runs synchronous, concurrent, constant, Poisson and sweep profiles with warmup and cooldown and reports full TTFT and ITL distributions ( GuideLLM ).",
+  "label": "depth",
+  "key": "GuideLLM (vLLM project)",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "NVIDIA's GenAI-Perf is in maintenance mode, replaced by AIPerf ( migration guide ).",
+  "label": "core",
+  "key": "maintenance mode",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Whatever the tool, the questions above decide whether its numbers mean anything.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wrap-up"
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "7. load testing without fooling yourself",
+  "text": "Go deeper: the Load-test lab shows every request of the stall experiment; the parent's Engine bench has closed- and open-loop sweeps of llama-server, mlx_lm.server and vLLM on this machine.",
+  "label": "core",
+  "key": "closed- and open-loop sweeps",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Round-robin load balancing in front of engines that cache prefixes Each replica ends up prefilling every conversation's history again; the hit rate falls toward what one replica's share of the traffic can reuse.",
+  "label": "core",
+  "key": "Round robin and least loaded",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Route on the prefix (section 1), and measure the hit rate per replica from the engine's own counters.",
+  "label": "depth",
+  "key": "prefix hit rate per replica",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Hashing on the first few tokens If every request starts with the same system prompt, a hash of the first block sends all of them to one replica (section 1, the hash-on-first-block run).",
+  "label": "core",
+  "key": "A bad key is worse than no routing",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Hash on a key that differs per conversation, or use a cache-aware router that also weighs load.",
+  "label": "depth",
+  "key": "Keep each conversation on the replica that holds its prefix",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Autoscaling on GPU utilization The gauge reads the share of time any kernel ran, which is near 100% with continuous batching at a fraction of capacity (section 2).",
+  "label": "core",
+  "key": "reads near 100% at a fraction of capacity",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Scale on queue depth, KV usage or a latency SLO.",
+  "label": "core",
+  "key": "Queue depth",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Ignoring cold-start time when sizing headroom A scale-up decision helps only after the new replica has loaded its weights, profiled memory and captured its graphs.",
+  "label": "core",
+  "key": "A scale-up decision helps only after",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Measure the start-up on your hardware (section 3) and keep enough spare capacity to cover the ramp in that time.",
+  "label": "core",
+  "key": "Keep warm spare replicas sized to the cold start",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Mixing many LoRA adapters on an engine that cannot batch them llama-server puts only requests with identical adapters in one batch, so different adapters take turns (section 4).",
+  "label": "core",
+  "key": "group traffic by adapter",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use an engine with multi-adapter kernels (vLLM, SGLang, LoRAX-style servers) or group traffic by adapter.",
+  "label": "core",
+  "key": "LoRAX-style servers",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Loading LoRA adapters into llama-server and sending requests that name none Such a request gets every loaded adapter at its load-time scale, not the base model (section 4: all eight test adapters at once, garbage text at about half the speed).",
+  "label": "core",
+  "key": "Name the adapters explicitly",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "List the adapters in every request, with scale 0 for base traffic, or serve base traffic from a server started without --lora .",
+  "label": "core",
+  "key": "start the server without --lora",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Benchmarking with a closed loop and calling the result a latency A closed-loop generator stops sending while the server stalls, so the stall barely shows in its percentiles (section 7).",
+  "label": "core",
+  "key": "closed loop",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use open-loop arrivals at a stated rate, or correct for the intended send times.",
+  "label": "core",
+  "key": "Open-loop arrivals at a stated rate are the honest default",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Running vllm bench serve with its default request rate The default is infinite: every request is sent at time 0, which measures a burst, not a service.",
+  "label": "core",
+  "key": "measures a burst, not a service",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Set --request-rate (Poisson by default) or --max-concurrency , and sweep.",
+  "label": "core",
+  "key": "--max-concurrency",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Quoting a p99 from a histogram as if it were exact histogram_quantile interpolates inside a bucket; between vLLM's 1 s and 2.5 s buckets a p99 can be anywhere in that range (section 6).",
+  "label": "core",
+  "key": "histogram_quantile",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Keep raw samples when the exact percentile matters, or choose buckets around your SLO.",
+  "label": "core",
+  "key": "Keep raw samples when the exact percentile matters",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Measuring TTFT only inside the server The engine's clock starts when it receives the request; time in the gateway, router and network is outside it.",
+  "label": "core",
+  "key": "Measure TTFT at the client too",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Measure at the client as well.",
+  "label": "depth",
+  "key": "measure at the client",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Interview questions Design the serving layer for a chat product on 20 GPU replicas.",
+  "label": "depth",
+  "key": "Design the serving layer for a chat product on 20 GPU replicas",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How do you route?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "question fragment"
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A router that keeps each conversation on the replica that holds its prefix (consistent hashing on a conversation key, or a cache-aware router that tracks prefixes per replica) and falls back to the least-loaded replica when the preferred one is overloaded.",
+  "label": "depth",
+  "key": "Keep each conversation on the replica that holds its prefix",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Measure the prefix hit rate per replica and the TTFT tail; watch for hot spots on popular shared prefixes.",
+  "label": "depth",
+  "key": "hot spots on popular shared prefixes",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Why not autoscale an LLM server on GPU utilization?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 3"
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The utilization counter is the share of time any kernel ran; continuous batching keeps it near 100% at low load.",
+  "label": "core",
+  "key": "share of time at least one kernel was running",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Scale on waiting requests, KV cache usage or the TTFT SLO, and size headroom for the cold start.",
+  "label": "core",
+  "key": "with headroom for the start-up time",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A new replica takes 90 seconds to start.",
+  "label": "depth",
+  "key": "A new replica takes 90 seconds to start",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What do you do?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "question fragment"
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Break it down (node, image pull, weight load, engine initialization, graph capture), then attack the largest part: weights cached on local NVMe or kept in host memory, a loading-optimised format, overlapped loading, captured graphs reused, a warm pool or sleep mode instead of new replicas, and scaling ahead of known peaks.",
+  "label": "depth",
+  "key": "a streaming or loading-optimised format",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "You must serve 500 customer fine-tunes of one 8B model.",
+  "label": "depth",
+  "key": "500 customer fine-tunes",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "LoRA adapters on shared base weights: an engine that batches different adapters in one pass (Punica/S-LoRA-style kernels in vLLM or SGLang), a limit on adapters resident on the GPU with the rest in host memory, an LRU between them, and routing that prefers replicas where the adapter is already loaded (llm-d has a LoRA-affinity scorer).",
+  "label": "core",
+  "key": "LoRA-affinity scorer",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Structured output (JSON schema) slows a service down.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question dropped; its answer is in section 6"
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Where does the time go?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "question fragment"
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Compiling the grammar for a new schema, computing a mask over the whole vocabulary every step, and on some engines losing the overlap between CPU and GPU work.",
+  "label": "core",
+  "key": "lost overlap between CPU and GPU work",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Cache compiled grammars, use an engine with a fast backend (XGrammar), and measure time per output token with and without the schema at the same output length.",
+  "label": "core",
+  "key": "cache compiled grammars",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Your benchmark says p99 TTFT is 300 ms but users complain.",
+  "label": "depth",
+  "key": "p99 TTFT is 300 ms but users complain",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What could be wrong?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "question fragment"
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A closed-loop generator (coordinated omission), warm caches from repeated prompts, fixed short prompts, no queueing because the rate was low, or TTFT measured inside the engine and not at the client.",
+  "label": "depth",
+  "key": "warm caches from repeated prompts",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Re-run with open-loop arrivals from real traffic, real lengths and a cold cache.",
+  "label": "depth",
+  "key": "real lengths and a cold cache",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What does prefix-aware routing cost?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 2"
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Load imbalance: the replica holding a popular prefix attracts its traffic.",
+  "label": "core",
+  "key": "Cost: a router that follows the cache concentrates traffic",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Routers bound it with load thresholds (SGLang's gateway: switch to least-loaded when the busiest has more than 64 requests and 1.5 times the idlest, by its command-line defaults) or by weighing a load score against the cache score (llm-d).",
+  "label": "core",
+  "key": "more than 64 requests and 1.5 times the idlest",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "How would you alert on latency for an LLM API?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question restating section 7"
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Two SLOs, TTFT and TPOT, each with an error budget, and multiwindow burn-rate alerts (page at 14.4 times the budget rate over both an hour and 5 minutes).",
+  "label": "core",
+  "key": "14.4 over both the last hour",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Not on averages, and not on GPU utilization.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restatement"
+ },
+ {
+  "id": 308,
+  "tab": "t-scale",
+  "section": "autoscaling lab: one traffic spike, two autoscalers",
+  "text": "Autoscaling lab: one traffic spike, two autoscalers A replica pool serves the parent page's running example (Llama 3.1 70B FP8 on one H200 per replica, 2,000-token prompts, 300-token answers).",
+  "label": "core",
+  "key": "traffic of 6 requests a second triples for ten minutes",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-scale",
+  "section": "autoscaling lab: one traffic spike, two autoscalers",
+  "text": "Traffic steps up for ten minutes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated in caption"
+ },
+ {
+  "id": 310,
+  "tab": "t-scale",
+  "section": "autoscaling lab: one traffic spike, two autoscalers",
+  "text": "An autoscaler that follows the Kubernetes Horizontal Pod Autoscaler's rules reads one metric every 15 seconds and adds or removes replicas; a new replica serves only after its cold start.",
+  "label": "core",
+  "key": "read their metric every 15 seconds",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-scale",
+  "section": "autoscaling lab: one traffic spike, two autoscalers",
+  "text": "Pick what each autoscaler watches and how long a replica takes to start, then play the half hour and watch the queue form while new replicas boot.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lab instruction, replaced by the caption"
+ },
+ {
+  "id": 312,
+  "tab": "t-scale",
+  "section": "autoscaling lab: one traffic spike, two autoscalers",
+  "text": "Comparisons: GPU utilization against queue depth Slow start against fast start KV usage against TTFT Scale-down window 300 s against 30 s Autoscaler A Autoscaler B replicas serving (A) replicas serving (B) replicas needed for the arrival rate TTFT SLO 1.05 s What the model is, and what it leaves out Inputs, all from the parent page's Capacity planner for the running example derived : a request holds one of 32 sequence slots for its prefill (0.42 s) plus 300 tokens at 46.8 ms each (14.5 s), so one replica completes about 2.2 requests a second; the TTFT SLO is the planner's 1.05 s.",
+  "label": "core",
+  "key": "Scale-down window 300 s against 30 s",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-scale",
+  "section": "autoscaling lab: one traffic spike, two autoscalers",
+  "text": "Arrivals are Poisson (seeded).",
+  "label": "core",
+  "key": "Poisson arrivals (seeded)",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-scale",
+  "section": "autoscaling lab: one traffic spike, two autoscalers",
+  "text": "One shared queue feeds every serving replica, which is what a good router approximates.",
+  "label": "core",
+  "key": "one shared queue feeds every serving replica",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-scale",
+  "section": "autoscaling lab: one traffic spike, two autoscalers",
+  "text": "The autoscaler applies HPA's rule : desired = ceil(current × metric / target), skipped when the ratio is within 10% of 1, scale-up by at most 100% or 4 replicas per 15 s period, scale-down to the highest recommendation of the last 300 s; replicas still starting count as zero usage.",
+  "label": "core",
+  "key": "adds at most 100% or 4 pods per 15 seconds",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-scale",
+  "section": "autoscaling lab: one traffic spike, two autoscalers",
+  "text": "Left out: the per-replica queues a real router creates, prefix caching, the time a removed replica spends draining, GPU node provisioning (folded into the cold start), and quota limits.",
+  "label": "core",
+  "key": "draining a removed replica",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-scale",
+  "section": "autoscaling lab: one traffic spike, two autoscalers",
+  "text": "The page's JavaScript is a port of src/sim/autoscale.py and gives the same 26,088 numbers on 24 reference runs.",
+  "label": "core",
+  "key": "26,088",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-route",
+  "section": "router lab: every request of the routing runs",
+  "text": "Router lab: every request of the routing runs Three llama-server replicas of Qwen3-0.6B (Q4_K_M) on one Apple M1 Pro, each with 2 slots of 2,048 tokens and a 256 MiB host prompt cache, behind a router written for this page ( src/exp/route_client.py ).",
+  "label": "depth",
+  "key": "2 slots of 2,048 tokens and a 256 MiB host prompt cache each",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-route",
+  "section": "router lab: every request of the routing runs",
+  "text": "The trace is Mooncake's released conversation trace, sampled by conversation and compressed in time ( ).",
+  "label": "core",
+  "key": "requests from",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-route",
+  "section": "router lab: every request of the routing runs",
+  "text": "Every number below was returned by the replicas themselves: llama-server reports, for each request, how many prompt tokens it found cached and how many it computed. measured on Apple M1 Pro Where each request went, and what it found One dot per request, placed by the time it was sent and the replica it went to; colour is the share of its prompt found in that replica's cache, size its prompt length.",
+  "label": "core",
+  "key": "llama-server reports, for each request",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-route",
+  "section": "router lab: every request of the routing runs",
+  "text": "A conversation's later turns can only hit where its earlier turns went. nothing cached some most of the prompt cached Time to first token, every policy Share of requests whose TTFT was at most x (log scale), first repeat of each policy.",
+  "label": "depth",
+  "key": "A conversation's later turns can only hit where its earlier turns went",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-route",
+  "section": "router lab: every request of the routing runs",
+  "text": "Beyond three replicas (simulated) The measurement has three replicas.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lead-in"
+ },
+ {
+  "id": 323,
+  "tab": "t-route",
+  "section": "router lab: every request of the routing runs",
+  "text": "To see the trend, src/exp/route_sim.py replays the same trace through 1 to 16 replicas whose cache is a least-recently-used set of 16-token blocks, with each request holding its replica's load for the time it took in the measured round-robin run.",
+  "label": "core",
+  "key": "1 to 16 replicas whose cache is a least-recently-used set",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-route",
+  "section": "router lab: every request of the routing runs",
+  "text": "With 128 blocks (2,048 tokens) per replica it lands within about 2 points of every measured hit rate at three replicas (dots). simulated All repeats",
+  "label": "core",
+  "key": "within about 2 points",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-load",
+  "section": "load-test lab: a 5-second stall, seen by two load generators",
+  "text": "Load-test lab: a 5-second stall, seen by two load generators One llama-server (Qwen3-0.6B Q4_K_M, 4 slots) on the M1 Pro, driven by the parent page's load generator ( loadgen.py from the Engine bench ): 120 requests of about 150 words with 48-token answers, either from 2 users who each wait for their answer before sending the next ( closed loop ) or arriving at random at 3 per second regardless of answers ( open loop , Poisson).",
+  "label": "core",
+  "key": "driven by the parent's loadgen.py",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-load",
+  "section": "load-test lab: a 5-second stall, seen by two load generators",
+  "text": "In the \"stall\" runs the server process was frozen (SIGSTOP) 15 seconds after the start and resumed 5 seconds later, the kind of pause a garbage collection, a page-cache miss on the weights, a noisy neighbour or a network hiccup causes. measured on Apple M1 Pro What each generator reports",
+  "label": "core",
+  "key": "garbage collection",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's tabs, the knowledge base pages it leans on, the papers, code and tools behind each section, each with an approximate time.",
+  "label": "core",
+  "key": "the papers, code and tools behind each section",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 2026-10-10.",
+  "label": "core",
+  "key": "Links checked on 2026-10-10",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page Reading Routing, autoscaling, cold starts, multi-LoRA, structured output under load, metrics and alerts, load testing, with the runs made on the M1 Pro. about 36 min, plus the animations Router lab Every request of the real-replica routing runs: where each went, what it found cached, how long it waited, per policy and repeat.",
+  "label": "core",
+  "key": "with the runs made on the M1 Pro",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Autoscaling lab One traffic spike, two autoscalers following Kubernetes' rules, cold starts from measured and published figures.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "entry for a removed tab"
+ },
+ {
+  "id": 331,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Load-test lab A server frozen for 5 seconds under a closed-loop and an open-loop load generator: what each records.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "entry for a removed tab"
+ },
+ {
+  "id": 332,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min The parent and its other children Topic: inference-and-serving The intuition for every mechanism, the engines compared; its Serving simulator, Engine bench and Capacity planner tabs are the evidence this page builds on. about 43 min Reading, plus its tabs SGLang: radix cache, cache-aware scheduling, large-scale serving The cache-aware router's algorithm read from its Rust source, and structured output's mechanisms (XGrammar, the removed jump-forward).",
+  "label": "core",
+  "key": "the Capacity planner is the tool behind section 1",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-more",
+  "section": "",
+  "text": "Reading about 31 min, plus its labs vLLM: inside the default engine vLLM's Prometheus metrics read from a live server, the knobs and what each trades, start-up inside the engine.",
+  "label": "core",
+  "key": "vLLM's Prometheus metrics read from a live server",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-more",
+  "section": "",
+  "text": "Reading about 31 min, plus its labs Batching, KV cache and scheduling in depth Prefix caching and eviction on the same Mooncake traces used here, offload tiers, priorities and SLO-aware scheduling inside one replica.",
+  "label": "core",
+  "key": "Prefix caching and eviction on the same Mooncake traces",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-more",
+  "section": "",
+  "text": "Reading about 40 min, plus its labs Distributed and disaggregated serving When one replica spans many GPUs: parallelism, prefill/decode disaggregation, Dynamo and llm-d as systems.",
+  "label": "core",
+  "key": "prefill/decode disaggregation, Dynamo and llm-d as systems",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-more",
+  "section": "",
+  "text": "Reading about 30 min, plus its labs Speculative decoding A latency lever that weakens as the batch grows, which matters when the autoscaler packs replicas full.",
+  "label": "core",
+  "key": "A latency lever that weakens as the batch grows",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-more",
+  "section": "",
+  "text": "Reading about 23 min, plus its labs Local and on-device inference llama-server's slots, prompt cache and options in depth, the engine used for the replicas here.",
+  "label": "core",
+  "key": "llama-server's slots, prompt cache and options in depth",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-more",
+  "section": "",
+  "text": "Reading about 44 min, plus its labs Model formats What a checkpoint holds, which decides how fast it can be loaded at a cold start.",
+  "label": "core",
+  "key": "What a checkpoint holds",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-more",
+  "section": "",
+  "text": "Reading about 29 min, plus its labs Neighbouring pages Gateways and routing The layer above this page's router: LiteLLM, OpenRouter, provider fallbacks, budgets and rate limits.",
+  "label": "core",
+  "key": "LiteLLM, OpenRouter, provider fallbacks",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-more",
+  "section": "",
+  "text": "36 min ML system design The service around this page's replicas: tenancy and isolation, realtime, streaming and batch paths, rollouts, degradation ladders, the interview method.",
+  "label": "core",
+  "key": "tenancy and isolation, realtime, streaming and batch paths",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Observability: logs, metrics, traces, alerting SLOs, error budgets and burn rates in general, histogram_quantile and its interpolation, on-call.",
+  "label": "core",
+  "key": "histogram_quantile and its interpolation, on-call",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Capacity planning and performance Load balancing, queueing theory and load testing for any service, including coordinated omission in general.",
+  "label": "core",
+  "key": "including coordinated omission in general",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-more",
+  "section": "",
+  "text": "48 min LLM observability Application-level traces of LLM calls (OpenTelemetry GenAI, Langfuse): the view from the client rather than the server.",
+  "label": "core",
+  "key": "OpenTelemetry GenAI, Langfuse",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Context engineering Prompt caching seen from an API client: how to keep a prefix stable so that a provider's router and cache can reuse it.",
+  "label": "core",
+  "key": "how to keep a prefix stable",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-more",
+  "section": "",
+  "text": "29 min Streaming and real-time Server-sent events, the transport every measurement here reads TTFT from.",
+  "label": "core",
+  "key": "the transport every measurement here reads TTFT from",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min LoRA paper page What an adapter is and why it is small; this page only serves them.",
+  "label": "core",
+  "key": "this page only serves them",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min Topic: ml-infra-and-orchestration Kubernetes, schedulers and clusters.",
+  "label": "core",
+  "key": "Kubernetes, schedulers and clusters",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-more",
+  "section": "",
+  "text": "28 min Papers and primary sources S-LoRA (Sheng et al., 2023) Thousands of adapters on one GPU: unified paging of adapter weights and KV cache, kernels for mixed-adapter batches.",
+  "label": "core",
+  "key": "unified paging of adapter weights and KV cache",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Punica (Chen et al., 2023) The segmented gather kernel that batches requests for different adapters in one pass.",
+  "label": "core",
+  "key": "The segmented gather kernel",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min ServerlessLLM (Fu et al., 2024) Cold starts: loading-optimised checkpoints, multi-tier storage and locality-aware placement.",
+  "label": "core",
+  "key": "locality-aware placement",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Mooncake traces Kimi's released request traces with block hashes, the source of the routing trace.",
+  "label": "core",
+  "key": "the source of the routing trace",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min SGLang Model Gateway, cache_aware.rs The cache-aware routing policy replayed here.",
+  "label": "core",
+  "key": "The cache-aware routing policy replayed here",
+  "where": ""
+ },
+ {
+  "id": 353,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min llm-d request scheduler Filters, weighted scorers (prefix cache, queue depth, KV usage, LoRA affinity) and the max-score picker.",
+  "label": "core",
+  "key": "the max-score picker",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Kubernetes HPA The scaling rule, tolerance, stabilization windows and scaling policies the Autoscaling lab follows.",
+  "label": "core",
+  "key": "the autoscaling simulator (section 3) follows",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min Google SRE workbook: alerting on SLOs Multiwindow, multi-burn-rate alerts (14.4 over one hour and five minutes for pages).",
+  "label": "core",
+  "key": "14.4 over one hour and five minutes for pages",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min wrk2 README Coordinated omission explained, and latency measured from the intended send time.",
+  "label": "core",
+  "key": "latency measured from the intended send time",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Load-testing tools vllm bench serve vLLM's serving benchmark: datasets, request rate and burstiness, goodput at an SLO.",
+  "label": "core",
+  "key": "goodput at an SLO",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-more",
+  "section": "",
+  "text": "Its default rate is infinite.",
+  "label": "core",
+  "key": "Its default rate is infinite",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min GuideLLM Rate sweeps, Poisson and constant profiles, warmup and cooldown, full latency distributions.",
+  "label": "core",
+  "key": "warmup and cooldown, full latency distributions",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min AIPerf (replaces GenAI-Perf) NVIDIA's benchmark client; GenAI-Perf is in maintenance mode.",
+  "label": "core",
+  "key": "GenAI-Perf is in maintenance mode",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "absorbed:systems_and_performance/topic_inference_and_serving Reading s4",
+  "section": "absorbed",
+  "text": "TTFT definition: queueing plus prefill, request sent to first token",
+  "label": "core",
+  "key": "queueing plus prefill, from request sent to first token",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "absorbed:systems_and_performance/topic_inference_and_serving Reading s4",
+  "section": "absorbed",
+  "text": "TPOT = (E2E latency - TTFT) / (output tokens - 1); ITL is every gap, a distribution",
+  "label": "core",
+  "key": "(end-to-end latency − TTFT) / (output tokens − 1)",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "absorbed:systems_and_performance/topic_inference_and_serving Reading s4",
+  "section": "absorbed",
+  "text": "Goodput (DistServe): maximum request rate at which a target fraction (say 90%) meets the SLOs, per GPU",
+  "label": "core",
+  "key": "a target fraction of requests (say 90%) meets the SLOs, per GPU",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "absorbed:systems_and_performance/topic_inference_and_serving Reading s4",
+  "section": "absorbed",
+  "text": "Past the bend raw throughput stays flat while goodput collapses",
+  "label": "core",
+  "key": "raw throughput stays about flat while goodput collapses",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "absorbed:systems_and_performance/topic_inference_and_serving Reading s10",
+  "section": "absorbed",
+  "text": "One H200 serves 2.11 req/s within p99 TTFT 2 s and TPOT 50 ms (TTFT p99 1.05 s, TPOT 46.8 ms at that load)",
+  "label": "core",
+  "key": "2.11 requests per second",
+  "where": ""
+ },
+ {
+  "id": 366,
+  "tab": "absorbed:systems_and_performance/topic_inference_and_serving Reading s10",
+  "section": "absorbed",
+  "text": "GPUs = ceil(peak / goodput per copy) x GPUs per copy; 20 req/s need 10 H200s",
+  "label": "core",
+  "key": "10 H200s",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "absorbed:systems_and_performance/topic_inference_and_serving Reading s10",
+  "section": "absorbed",
+  "text": "The 50 ms TPOT target, not memory, sets the number of copies; 100 ms cuts the fleet to 8",
+  "label": "core",
+  "key": "The 50 ms TPOT target, not memory, sets that number",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "absorbed:systems_and_performance/topic_inference_and_serving Reading s10",
+  "section": "absorbed",
+  "text": "$4.47 per H200-hour (DigitalOcean on demand, 2026-10-08): $44.70 an hour",
+  "label": "core",
+  "key": "$4.47 an hour each (DigitalOcean on demand, 2026-10-08)",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "absorbed:systems_and_performance/topic_inference_and_serving Reading s10",
+  "section": "absorbed",
+  "text": "$ per million tokens = $ per GPU-hour x GPUs / millions of tokens per hour at average traffic; $0.54 at half the peak",
+  "label": "core",
+  "key": "$ per million tokens = $ per GPU-hour",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "absorbed:systems_and_performance/topic_inference_and_serving Reading s10",
+  "section": "absorbed",
+  "text": "API $0.40 per million, cheapest OpenRouter listing for Llama 3.1 70B, 2026-10-08: $33.12 an hour",
+  "label": "core",
+  "key": "cheapest provider OpenRouter listed for Llama 3.1 70B on 2026-10-08",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "absorbed:systems_and_performance/topic_inference_and_serving Reading s10",
+  "section": "absorbed",
+  "text": "Self-hosting wins with high steady utilization, reserved GPUs ($3.40 12-month H200), prefix reuse, unhosted models, data that cannot leave",
+  "label": "core",
+  "key": "12-month H200 price is $3.40",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "absorbed:systems_and_performance/topic_inference_and_serving Reading s10",
+  "section": "absorbed",
+  "text": "Measured laptop numbers do not transfer to dollar figures; ratios and shapes do",
+  "label": "core",
+  "key": "ratios and the shapes of the curves do",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "new s1",
+  "section": "new",
+  "text": "Break-even average traffic 67% of the peak (derived 44.70 / 66.24)",
+  "label": "core",
+  "key": "44.70 / 66.24 = 67%",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "new s1",
+  "section": "new",
+  "text": "At 50% of the peak the fleet is 35% dearer per token than the API (derived)",
+  "label": "core",
+  "key": "35% dearer",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "new s1",
+  "section": "new",
+  "text": "An autoscaler stops paying for the night (attacks the denominator)",
+  "label": "core",
+  "key": "stops paying for the night",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "new s4",
+  "section": "new",
+  "text": "Cold-start phases on one axis: vLLM CPU measured, Run:ai on A10G, running example derived 44.5 s and 65.2 s",
+  "label": "core",
+  "key": "Where a cold start goes depends on where the weights come from",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "new s5",
+  "section": "new",
+  "text": "LoRA diagram: one adapter set per batch reads W three times; a mixed batch reads it once; adapter work about 1% of the base (derived 4.6 M / 600 M parameters)",
+  "label": "core",
+  "key": "The base matrix multiply is shared; only the small adapter products differ per request",
+  "where": ""
+ }
+]

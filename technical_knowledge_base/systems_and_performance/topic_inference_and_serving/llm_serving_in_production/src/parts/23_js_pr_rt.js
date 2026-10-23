@@ -1,4 +1,4 @@
-// ---- Reading tab, section 1: the parent page's eight requests replayed on three real replicas (before/after animation) ----
+// ---- Reading tab, section 2: the parent page's eight requests replayed on three real replicas (before/after animation) ----
 (function(){
   const svgEl=document.getElementById('pr-rt-svg');if(!svgEl||!window.PRD)return;
   const DET=PRD.route_detail||{},SUM=PRD.route||{};
@@ -40,7 +40,7 @@
       RD.stat('The parent\'s toy model',pol==='rr'?'13,000':'7,800','prompt tokens computed for all eight');
   }
   const A=RD.anim({card:'pr-rt-card',ctl:'pr-rt-ctl',n:9,draw,ms:1300,label:'Routing step'});
-  RD.seg(scnSeg,v=>{scn=v;polButtons();A.reset(9);A.play()});
-  RD.seg(polSeg,v=>{pol=v;A.reset(9);A.play()});
+  RD.seg(scnSeg,v=>{scn=v;polButtons();A.reset(9)});
+  RD.seg(polSeg,v=>{pol=v;A.reset(9)});
   RD.onResize(()=>A.redraw());
 })();

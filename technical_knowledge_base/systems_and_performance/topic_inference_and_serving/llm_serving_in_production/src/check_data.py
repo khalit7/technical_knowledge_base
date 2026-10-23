@@ -36,7 +36,7 @@ want = {
     'r8b_ca_ttft': rng([r['ttft_mean'] for r in R['root8burst']['ca'] + R['root8burst']['hash2']], 1, ' s'),
     'r8b_wt_ttft': rng([r['ttft_mean'] for r in R['root8burst']['wt']], 2, ' s'),
     'tr_req': str(M['trace']['requests']), 'tr_conv': str(M['trace']['conversations']), 'tr_rate': f"{M['trace']['rate_per_s']:.1f}",
-    'tr_ideal': pc(M['trace']['ideal_hit_one_replica']), 'tr_ideal2': pc(M['trace']['ideal_hit_one_replica']),
+    'tr_ideal': pc(M['trace']['ideal_hit_one_replica']),
     'cv_wt_p50': rng([r['ttft_p50'] for r in C['wt']], 2, ' s'), 'cv_wt_p90': rng([r['ttft_p90'] for r in C['wt']], 2, ' s'),
     'cv_rr_p50': rng([r['ttft_p50'] for r in C['rr']], 2, ' s'), 'cv_rr_p90': rng([r['ttft_p90'] for r in C['rr']], 2, ' s'),
     'cv_wt_p99': rng([r['ttft_p99'] for r in C['wt']], 1, ' s'), 'cv_ll_p99': rng([r['ttft_p99'] for r in C['ll']], 1, ' s'),
@@ -83,6 +83,15 @@ for k, txt in spans.items():
 for k in want:
     if k not in spans:
         print('UNUSED CHECK', k)
+# section 1: the cost figure's arithmetic (inputs from the parent's Capacity planner, 2026-10-08) and the prose that quotes it
+fleet = 10 * 4.47; mt = lambda sh: 20 * sh * 2300 * 3600 / 1e6
+cost = {'$0.54 per million': f'${fleet / mt(0.5):.2f} per million', '$33.12 an hour': f'${0.40 * mt(0.5):.2f} an hour',
+        '67% of the peak': f'{100 * fleet / (0.40 * mt(1)):.0f}% of the peak', '$66.24': f'${0.40 * mt(1):.2f}', '35% dearer': f'{100 * (fleet / (0.40 * mt(0.5)) - 1):.0f}% dearer'}
+for k, v in cost.items():
+    if k != v:
+        print('COST MISMATCH', k, v); bad += 1
+    elif k not in re.sub(r'<[^>]+>', '', html):
+        print('COST NOT IN PROSE', k); bad += 1
 # the parent's toy figure, the Router lab's "within about 2 points" claim
 r1 = {p: C[p][0]['hit'] for p in RS['pol']}
 gap = max(abs(RS['hit'][f'{p}_3_128'] - r1[p]) for p in RS['pol'])
