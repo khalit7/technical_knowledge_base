@@ -1,0 +1,3529 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Mixture of experts: routers, load balancing, fine-grained and shared experts, expert parallelism Mixture of experts: routers, load balancing, fine-grained and shared experts, expert parallelism How a mixture-of-experts layer picks experts for each token, keeps them evenly used, splits them finely and shares some, spreads them over GPUs, and what it costs to serve, built from zero on the running example of Topic: llm-architecture : the tiny GPT trained here dense and as six MoE variants at the same active FFN size (router choices, expert loads and dropped tokens recorded), one trained MoE layer run expert-parallel over four processes, and the router fields of 23 real configs from Mixtral to Kimi K3.",
+  "label": "core",
+  "key": "Mixture of experts: routers, load balancing, fine-grained and",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Training measured on Apple M1 Pro (MPS), analysis on its CPU; transformers 5.20.1 source quoted by file and line.",
+  "label": "core",
+  "key": "Training measured on Apple M1 Pro (MPS), analysis",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "Data as of October 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading tab about 37 min (plus 6 min in closed details) · +5h 15m resources.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "header reading time, replaced"
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Router on the running sequence Expert load over training Dense vs MoE calculator Further reading",
+  "label": "core",
+  "key": "Dense vs MoE calculator Further reading",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Why experts 2 The router 3 Collapse and balancing 4 Capacity and drops 5 Fine-grained and shared 6 Dense vs MoE, measured 7 Expert parallelism 8 Serving cost 9 Real configs Mistakes Interview",
+  "label": "core",
+  "key": "2 The router 3 Collapse and balancing 4",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "In one screen A mixture-of-experts (MoE) layer replaces a transformer block's one feed-forward network (FFN) with E smaller FFNs, the experts , and a router : a linear layer that scores every expert for each token and sends the token to the k best.",
+  "label": "core",
+  "key": "linear layer that scores every expert for each",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "The model then stores E experts' worth of weights but each token pays for k of them, so total parameters (what must sit in memory) and active parameters (what one token computes with) come apart.",
+  "label": "core",
+  "key": "total parameters (what must sit in memory) and",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Everything else on this page is the price of that one trick: a discrete choice inside a differentiable model, traffic that has to stay balanced, and weights that have to live somewhere.",
+  "label": "core",
+  "key": "the price of that one discrete choice",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Choice Options What it buys What it costs What 2025 to 2026 configs chose Router score softmax over all experts; sigmoid per expert; softmax over the top k only sigmoid: scores that do not shrink as experts are added nothing in selection (same top k from the same logits); the gate weights differ sigmoid in DeepSeek-V3, Kimi K2 and K3, GLM, MiniMax, Nemotron 3 Super; softmax in Qwen3 and Qwen3.5; sqrt(softplus) in DeepSeek-V4-Pro (section 9 ) Experts per token k 1 (Switch, Llama 4), 2 (Mixtral), 4 to 22 (fine-grained) more k: a smoother layer, more ways to combine experts expert FLOPs and all-to-all bytes grow with k k = 4 to 22 out of E = 128 to 896 in most (Kimi K3: 16 of 896); k = 1 of 128 in Llama 4 Maverick; expert widths 512 to 3,072 (Llama 4: 8,192) Expert size few large (8 of the dense FFN size) or many small (fine-grained) many small: C(E, k) combinations explode at equal compute skinnier matrix multiplies, more dispatch fan-out fine-grained almost everywhere since DeepSeekMoE (January 2024) Shared experts 0, 1 or 2 always-on experts beside the routed ones common knowledge in one place; routed experts specialise their FLOPs every token 1 in most; 2 in Kimi K3 (and DeepSeek-V2); none in Qwen3, gpt-oss and MiniMax-M2 Balancing auxiliary loss (Switch); per-expert bias, no loss (DeepSeek-V3); batch or global scope prevents collapse onto a few experts a loss fights the language-model loss; a bias needs an update in the training loop a selection bias in the DeepSeek, Kimi, GLM and MiniMax lines ( noaux_tc , use_routing_bias ); Qwen3 adopted a global-batch auxiliary loss Capacity fixed buffer per expert (capacity factor) or dropless static shapes, predictable memory dropped tokens skip the FFN silently dropless (grouped GEMM kernels); DeepSeek-V3 drops no tokens Where the experts go every layer; first k layers dense; every other layer; hash-routed first layers dense early layers route better a little compute first 1 to 3 dense (DeepSeek, Kimi, GLM); every other layer (Llama 4 Maverick); first 3 hash-routed (DeepSeek-V4-Pro) Parallelism expert parallel (EP) over GPUs, with TP and DP experts' memory spread out two all-to-alls per MoE layer each way; the busiest GPU sets the pace node-limited routing (DeepSeek-V3: at most 4 nodes per token); wide EP at serving time Measured on the running example (Apple M1 Pro, MPS, 1,500 steps, 12.3M tokens, seed 0) Held-out loss (20 fixed validation batches): dense 2.278; 8 experts top 2 2.256; 16 + 1 shared top 3 2.210, at the same active FFN size and 2.6 to 2.8 times the parameters.",
+  "label": "depth",
+  "key": "Choice Options What it buys What it costs",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Balancing by bias 2.230 against aux loss 2.256; no balancing 2.296 with MaxVio 1.88 against 0.12.",
+  "label": "core",
+  "key": "Balancing by bias 2.230 against aux loss 2.256;",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "Where this page sits: the root's Reading tab section 6 defines MoE in one paragraph and the root's Config calculator compares dense and MoE models; Distributed Training (Expert section) and Interconnects and scaling (All-to-all and MoE) own the network side; the Switch Transformers , Mixtral and DeepSeek-V3 paper pages own those papers' details (a live Switch layer, Mixtral's routing analysis and decode roofline, V3's ablation tables).",
+  "label": "core",
+  "key": "the Switch Transformers , Mixtral and DeepSeek-V3 paper",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "0. in one screen",
+  "text": "This page owns the MoE layer end to end.",
+  "label": "core",
+  "key": "This page owns the MoE layer end to",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "Why experts: more weights, the same compute per token The problem.",
+  "label": "core",
+  "key": "more weights, the same compute per",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "In a dense transformer every token is multiplied by every weight: a forward pass costs about 2 FLOPs per parameter per token (the root's Block lab checks this rule against PyTorch's FLOP counter on the running sequence).",
+  "label": "core",
+  "key": "In a dense transformer every token",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "A model that knows more needs more parameters, and so pays more compute on every token, including the many easy ones (\"the\", a comma) that need little of that knowledge.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "motivation (easy tokens pay full compute); the hero and section 1 now carry why MoE exists"
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "The feed-forward network (FFN) is where most of the parameters sit: in the tiny GPT one block has 262,144 attention weights (four 256 × 256 projections) and 524,288 FFN weights (256 × 1,024 up, 1,024 × 256 down), two thirds of the block.",
+  "label": "core",
+  "key": "block has 262,144 attention weights (four 256 ×",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "Keep attention as it is, but split the FFN into E independent FFNs, the experts , and add a router (also called a gate ): a d × E linear layer that gives each token one score per expert.",
+  "label": "core",
+  "key": "linear layer that scores every expert",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "The token goes to its k highest-scoring experts, and the layer outputs their outputs weighted by the scores.",
+  "label": "core",
+  "key": "the k best are used",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "Shazeer et al. introduced the layer in 2017 between LSTM layers ( Outrageously Large Neural Networks ); GShard put it in a transformer in 2020 ( GShard ), and Switch Transformers showed one expert per token is enough ( Switch Transformers ). y = h + ∑ i ∈ TopK(s(h)) g i (h) · E i (h) + ∑ j S j (h) h the token's hidden state entering the FFN sub-layer (after the norm), d numbers; the leading h is the residual connection s(h) router scores, one per expert, from logits W r h (W r is E × d) TopK the k experts with the highest scores (section 2 adds a bias and a group limit to this choice) g i (h) gate weight of chosen expert i, usually its score renormalised over the k chosen E i , S j routed expert i and always-on shared expert j: ordinary FFNs, narrower than the dense one On the running example.",
+  "label": "depth",
+  "key": "introduced between LSTM layers by Shazeer",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "The root's tiny GPT (d = 256, 6 blocks, dense FFN 256 → 1,024 → 256, GELU) has three MoE presets that keep the active FFN exactly the dense size, so a comparison at equal compute is fair (presets in the root's src/data/configs.py ): preset experts per layer expert hidden active per token FFN weights per layer, stored used per token model total model active baseline (dense) 1 1,024 the FFN 524,288 524,288 5,836,032 5,836,032 moe8top2 8 routed 512 2 routed 2,099,200 526,336 15,285,504 5,848,320 moe16top3_shared 16 routed + 1 shared 256 3 routed + 1 shared 2,232,320 528,384 16,084,224 5,860,608 Per layer, moe8top2 stores 8 × (2 × 256 × 512) = 2,097,152 expert weights plus a 256 × 8 = 2,048-weight router; a token uses 2 experts (524,288) plus the router. moe16top3_shared : 17 experts of 2 × 256 × 256 = 131,072 plus a 4,096-weight router; a token uses 4 of them.",
+  "label": "core",
+  "key": "The root's tiny GPT (d = 256, 6",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "Totals from the tiny GPT's own param_groups() (the root's src/data/README.md table, recorded 2026-10-18); the active count differs from the dense model only by the routers (6 × 2,048 = 12,288 and 6 × 4,096 = 24,576). derived Drawn to scale: what is stored and what one token uses Dense FFN 8 experts, top 2 16 + 1 shared, top 3 DeepSeek-V3 layer What it costs.",
+  "label": "core",
+  "key": "Totals from the tiny GPT's own param_groups() (the",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "Compute per token stays at the active count (plus the router: 2 × d × E FLOPs, 4,096 per token per layer for moe8top2 against 1,048,576 for its two experts, 0.4%).",
+  "label": "core",
+  "key": "Compute per token stays at the active count",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "Memory is priced on the total: all experts must be resident because any token may pick any expert.",
+  "label": "core",
+  "key": "because any token may pick any",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "And three new costs appear that the rest of this page is about: the choice is discrete, so the router learns only through the weights of the experts it picked (section 2); left alone, traffic collapses onto a few experts (section 3); and once experts live on different GPUs, tokens must travel to them and back (section 7).",
+  "label": "core",
+  "key": "the router learns only through the",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "MoE pays when parameters are cheap to store but compute per token is the bottleneck: pretraining at a fixed FLOP budget, and serving at large batch where every expert is busy.",
+  "label": "core",
+  "key": "MoE pays when parameters are cheap to store",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "It pays least when memory is the bottleneck (one GPU, small batch: section 8).",
+  "label": "core",
+  "key": "It pays least on one memory-bound GPU",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "How to check it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "Count both numbers from a config with the root's Config calculator or this page's Dense vs MoE calculator (both use the same formulas, validated to residual 0 on 44 Hugging Face checkpoints); on a live PyTorch model, sum p.numel() over the experts of one layer and multiply by k/E for the active share.",
+  "label": "core",
+  "key": "Count both numbers from a config with the",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. why experts: more weights, the same compute per token",
+  "text": "The headline pairs: Mixtral 8x7B 46.7B total, 12.9B active (not 56B: only the FFNs are copied eight times, Mistral, 2023-12-11 , vendor ); DeepSeek-V3 671B and 37B ( report , vendor ), both reproduced from the configs in section 9 .",
+  "label": "core",
+  "key": "only the FFNs are copied eight",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "The router: score, normalise, select, combine The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Each token must be sent somewhere, the choice must be cheap (the router runs on every token in every MoE layer), and the router must learn which expert suits which token although \"send to expert 3\" is a discrete decision with no gradient.",
+  "label": "core",
+  "key": "router runs on every token in every MoE",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "How it works, in four steps , with the tiny GPT's own code, which defines the arithmetic of every run on this page ( tiny_gpt.py:396 onward; training ran it through an equivalent batched forward, section 6 ): Score.",
+  "label": "depth",
+  "key": "which defines the arithmetic of every run on",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Logits s = W r h: one matrix multiply, E numbers per token.",
+  "label": "core",
+  "key": "router scores, one per expert, from logits",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "In DeepSeek-V3, W r is 256 × 7,168 = 1,835,008 weights against 11.32 billion in the whole MoE layer, 0.016% ( derived from its config).",
+  "label": "core",
+  "key": "W r is 256 × 7,168 = 1,835,008",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "A softmax over all E experts (Switch, Mixtral, Qwen3) turns logits into probabilities that sum to 1; a sigmoid per expert (DeepSeek-V3 and the models that copied it) gives each expert an independent affinity in (0, 1).",
+  "label": "core",
+  "key": "A softmax over all E experts (Switch, Mixtral,",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Keep the k highest.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated: \"pick the same top k\" in section 2"
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Softmax and sigmoid are both increasing functions of the logit, so from the same logits they pick the same experts; they differ only in the weights they hand to step 4, until a bias or a group limit is added to the selection (section 3 and below).",
+  "label": "core",
+  "key": "increasing functions of the logit, so from the",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Renormalise the k chosen scores to sum to 1 (most models), optionally multiply by a constant routed_scaling_factor (2.5 in DeepSeek-V3, 5.0 in Nemotron 3 Super), and add the weighted expert outputs to the residual stream. # topic_llm_architecture/src/data/tiny_gpt.py, lines 391 to 424 391 def forward(self, x): 392 cfg, (B, T, D) = self.cfg, x.shape 393 xf = x.reshape(-1, D) 394 n, E, k = xf.shape[0], cfg.n_experts, cfg.top_k 395 logits = self.router(xf).float() 396 scores = logits.sigmoid() if cfg.router == \"sigmoid\" else logits.softmax(-1) 397 sel = scores + self.e_bias if cfg.balance == \"bias\" else scores # the bias steers selection only 398 top_i = sel.topk(k, -1).indices # (n,k) 399 top_w = scores.gather(-1, top_i) 400 if cfg.router == \"sigmoid\" or k > 1: 401 top_w = top_w / top_w.sum(-1, keepdim=True) # renormalise over the chosen experts 402 out = torch.zeros_like(xf) 403 load = torch.bincount(top_i.flatten(), minlength=E) # assignments per expert, before drops 404 cap = math.ceil(cfg.capacity_factor * n * k / E) if cfg.capacity_factor else None 405 dropped = 0 406 for e in range(E): 407 tok, slot = (top_i == e).nonzero(as_tuple=True) 408 if cap is not None and tok.numel() > cap: # first come first served, the rest dropped 409 dropped += tok.numel() - cap 410 tok, slot = tok[:cap], slot[:cap] 411 if tok.numel(): 412 out.index_add_(0, tok, self.experts[e](xf[tok]) * top_w[tok, slot, None].to(x.dtype)) 413 for s in self.shared: 414 out = out + s(xf) 415 aux = xf.new_zeros(()) 416 if cfg.balance == \"aux\" and self.training: # Switch: E * sum_i f_i * P_i 417 f = load.float() / (n * k) 418 aux = E * (f * scores.mean(0)).sum() 419 if cfg.balance == \"bias\" and self.training: # DeepSeek-V3: nudge under-loaded experts up 420 with torch.no_grad(): 421 self.e_bias += cfg.bias_rate * torch.sign(load.float().mean() - load.float()) 422 self.last = {\"top_i\": top_i.view(B, T, k), \"top_w\": top_w.view(B, T, k), \"load\": load, 423 \"dropped_frac\": dropped / max(1, n * k)} 424 return out.view(B, T, D), aux The tiny GPT's router, tiny_gpt.py:379 onward (root src/data/tiny_gpt.py ).",
+  "label": "core",
+  "key": "the k chosen scores to sum to 1",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "The loop over experts gathers each expert's tokens, runs the expert on that slice and scatter-adds the weighted result; transformers' Qwen3-MoE does the same in modeling_qwen3_moe.py:233 to modeling_qwen3_moe.py:243 , and production stacks replace the loop by one grouped matrix multiply over ragged token groups (section 4).",
+  "label": "depth",
+  "key": "gathers each expert's tokens, runs the expert on",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Three ways of writing the same top-k softmax Softmax over all experts, then top k, then renormalise (Qwen3-MoE in transformers, modeling_qwen3_moe.py:260 to modeling_qwen3_moe.py:263 ); top k of the logits, then softmax over those k (gpt-oss, modeling_gpt_oss.py:127 to modeling_gpt_oss.py:128 ); and Mixtral's paper formula Softmax(TopK(x · W g )) with the other logits set to minus infinity ( Mixtral , section 2.1).",
+  "label": "depth",
+  "key": "Three ways of writing the same top-k softmax",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "All three give the same gate weights: renormalising k softmax probabilities cancels the shared denominator and leaves a softmax over the k chosen logits.",
+  "label": "depth",
+  "key": "All three give the same gate weights: renormalising",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "The one trap is the renormalisation flag: Qwen3MoeConfig defaults to norm_topk_prob=False ( configuration_qwen3_moe.py:106 ) while the released Qwen3-30B-A3B and 235B-A22B configs set it to true , so a model built from the default config weights its experts by raw probabilities that sum to less than one.",
+  "label": "depth",
+  "key": "trap is the renormalisation flag: Qwen3MoeConfig defaults to",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "One real token through both rules The router logits of one token of the running sequence in one layer of the trained moe8top2 model (recorded, not illustrative).",
+  "label": "core",
+  "key": "The router logits of one token of the running sequence",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Pick the token and layer; then add experts with logit 0 to see what happens to a softmax score as E grows, while the sigmoid score stays put.",
+  "label": "core",
+  "key": "then add experts with logit 0",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Why sigmoid for many experts.",
+  "label": "core",
+  "key": "A sigmoid depends on its own logit only",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "A softmax probability is a share of one distribution over all E experts: it averages 1/E and shrinks as experts are added, and after renormalisation a logit gap of 1 is a weight ratio of e ≈ 2.72.",
+  "label": "core",
+  "key": "A softmax probability is a share of one",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "A sigmoid affinity depends on its own logit only.",
+  "label": "core",
+  "key": "A sigmoid depends on its own logit only",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "DeepSeek-V3's report states the switch to sigmoid without arguing it (section 2.1.2, \"slightly different from DeepSeek-V2\"), but the same group's auxiliary-loss-free paper says it chose sigmoid \"since we find that the sigmoid baseline performs better than the softmax baseline\", and its appendix C shows softmax gates at higher perplexity for similar balance on 1B models ( Wang et al.",
+  "label": "depth",
+  "key": "to sigmoid without arguing it (section 2.1.2, \"slightly",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "2024 , vendor : the authors are DeepSeek's).",
+  "label": "depth",
+  "key": "2024 , vendor : the authors are DeepSeek's).",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Llama 4 applies a sigmoid only to the one logit it keeps ( modeling_llama4.py:148 to modeling_llama4.py:150 ); DeepSeek-V4-Pro's config sets scoring_func to sqrtsoftplus , the square root of softplus, used by the same code path ( modeling_deepseek_v4.py:1072 ).",
+  "label": "depth",
+  "key": "Llama 4 applies a sigmoid only to the",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "The router learns only through the experts it picked Top-k selection has no gradient.",
+  "label": "core",
+  "key": "The router learns only through the experts it",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "The language-model loss reaches the router only through the gate weights g i of the chosen experts, which multiply their outputs.",
+  "label": "core",
+  "key": "The language-model loss reaches the router only through",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "An expert that stops being chosen stops producing any evidence that it would have been good: that is why routing can collapse (section 3).",
+  "label": "core",
+  "key": "An expert that stops being chosen stops producing",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Measured on the trained moe8top2 model, layer 4, tokens 1 to 8 of the running sequence: with the language-model loss alone, the gradient on the 6 unchosen logits of each token is at most 9.9 × 10 -8 of the largest chosen one (floating-point rounding: analytically it is zero, because the renormalised gates are a softmax over the chosen logits only); with the Switch auxiliary loss added it is up to 0.079 of it, on all eight ( measured on Apple M1 Pro (CPU) , src/code/grad_check.py ).",
+  "label": "core",
+  "key": "the gradient on the 6 unchosen logits of",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "How many experts per token, and who chooses Noisy top-k (2017) Gaussian noise scaled by a learned softplus is added to the logits before the top k, so near-ties share traffic ( Shazeer et al. : H(x) = x W g + StandardNormal() · Softplus(x W noise )).",
+  "label": "depth",
+  "key": "Noisy top-k (2017) Gaussian noise scaled by a",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Its descendant in transformers is Mixtral's multiplicative router_jitter_noise , 0 in the released configs ( modeling_mixtral.py:123 ).",
+  "label": "depth",
+  "key": "Its descendant in transformers is Mixtral's multiplicative router_jitter_noise",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Top-2 (GShard, Mixtral) GShard dispatched the second expert at random in proportion to its weight, to save capacity ( GShard , \"Random routing\"); Mixtral keeps both always.",
+  "label": "depth",
+  "key": "Top-2 (GShard, Mixtral) GShard dispatched the second expert",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Two gate weights give the router a comparison, not a single scalar.",
+  "label": "depth",
+  "key": "Two gate weights give the router a comparison,",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Top-1 (Switch, 2021) Shazeer et al. had \"conjectured that routing to k>1 experts was necessary in order to have non-trivial gradients to the routing functions\"; Switch showed k = 1 \"preserves model quality\" at less compute ( Switch , section 2.1).",
+  "label": "depth",
+  "key": "Top-1 (Switch, 2021) Shazeer et al. had \"conjectured",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "ST-MoE later found top-2 better by +0.004 at 8 times the scale ( ST-MoE , Table 8).",
+  "label": "depth",
+  "key": "ST-MoE later found top-2 better by +0.004 at",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Llama 4 Maverick is top-1 plus a shared expert.",
+  "label": "depth",
+  "key": "Llama 4 Maverick is top-1 plus a shared",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Expert choice (2022) Experts pick their top tokens instead of tokens picking experts: perfect balance by construction, \"over 2× faster training convergence\" than GShard top-2 at 8B/64E ( Zhou et al. , vendor , Google).",
+  "label": "depth",
+  "key": "Expert choice (2022) Experts pick their top tokens",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "It \"might not immediately apply to auto-regressive text generation\" because a token's experts depend on future tokens in the batch: no decoder LLM in section 9 uses it.",
+  "label": "depth",
+  "key": "It \"might not immediately apply to auto-regressive text",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Hash routing A fixed table maps each token id to its experts: no router to train, no collapse ( Roller et al.",
+  "label": "depth",
+  "key": "Hash routing A fixed table maps each token",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "DeepSeekMoE's Table 1 has it at a Pile loss of 1.932 against GShard's 1.867 at 2B ( DeepSeekMoE ).",
+  "label": "depth",
+  "key": "DeepSeekMoE's Table 1 has it at a Pile",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "DeepSeek-V4-Pro uses it for its first 3 MoE layers ( num_hash_layers 3; a frozen tid2eid table, modeling_deepseek_v4.py:1111 ), presumably because hidden states there are still close to the raw token embedding, so a learned router has little more than the token id to go on (our reading; the code and config give no reason).",
+  "label": "depth",
+  "key": "DeepSeek-V4-Pro uses it for its first 3 MoE",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Group-limited routing Experts are split into groups (one per node); each token first picks its best groups, then its experts inside them.",
+  "label": "core",
+  "key": "Experts are split into groups (one per node);",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "DeepSeek-V3: 8 groups of 32, a group scored by the sum of its two best experts, 4 groups per token ( modeling_deepseek_v3.py:140 to modeling_deepseek_v3.py:151 ): its \"at most 4 nodes\".",
+  "label": "core",
+  "key": "DeepSeek-V3: 8 groups of 32, a group scored",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Kimi K2 and K3 and GLM set one group, so no limit.",
+  "label": "core",
+  "key": "Kimi K2 and K3 and GLM set one",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Predict: the trained moe8top2 model is run with k = 1, 3 or 4 experts per token instead of the 2 it was trained with.",
+  "label": "core",
+  "key": "Predict: the trained moe8top2 model is run with",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Which hurts held-out loss most? k = 1 (half the compute) k = 3 k = 4 (twice the compute) none: more experts can only help Measured on 10 held-out batches (CPU): k = 1 gives 2.530, the trained k = 2 2.244, k = 3 2.252, k = 4 2.269.",
+  "label": "core",
+  "key": "Which hurts held-out loss most? k = 1",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "Dropping to one expert hurts most: the model learned to spread each token over two experts and to rely on the second's contribution.",
+  "label": "core",
+  "key": "Dropping to one expert hurts most: the model",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. the router: score, normalise, select, combine",
+  "text": "More experts do not help either: most likely because the experts and the layers after them were trained against the k = 2 mixture and never saw a third or fourth output at that weight.",
+  "label": "core",
+  "key": "More experts do not help either: most likely",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Collapse and the three ways to balance The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "An expert chosen slightly more often gets more gradient, improves, and is chosen more often still; the others starve and, since unchosen experts get no gradient (section 2), never show that they were worth reviving.",
+  "label": "core",
+  "key": "An expert chosen slightly more often gets more",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Two things go wrong at once.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Quality: the model's effective size shrinks to the experts that survived.",
+  "label": "core",
+  "key": "shrinks to the experts that",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Systems: with experts on different GPUs the busiest one sets the step time, and with fixed buffers its overflow is dropped (section 4).",
+  "label": "core",
+  "key": "with experts on different GPUs the busiest one",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Measured: what the tiny GPT does with no balancing at all.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "The run with balancing switched off ( balance=none , everything else equal) ends with MaxVio 1.88 averaged over its 6 layers, against 0.12 with the auxiliary loss; in its worst layer (3) one expert takes 48% of all assignments, and 14 of its 48 experts get under 1% of the traffic.",
+  "label": "core",
+  "key": "The run with balancing switched off ( balance=none",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Its held-out loss is 2.296 against 2.256: higher.",
+  "label": "core",
+  "key": "Its held-out loss is 2.296 against 2.256: higher.",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Expert load after training, three balancing schemes, same data and seed Share of the 2 × 163,840 expert assignments on 20 fixed held-out batches (the same windows as the training script's held-out loss), per layer, after 1,500 steps.",
+  "label": "depth",
+  "key": "Share of the 2 × 163,840 expert assignments",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Dashed line: perfect balance (1/8).",
+  "label": "depth",
+  "key": "Dashed line: perfect balance (1/8).",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "MaxVio = (largest load − mean load) / mean load, the metric of Wang et al.",
+  "label": "core",
+  "key": "(busiest load − mean load) / mean load",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "2024 : 0 is perfect; with top 2 the ceiling is 3 (one expert in every token's pair). measured on Apple M1 Pro (MPS training, CPU analysis) .",
+  "label": "core",
+  "key": "2024 : 0 is perfect; with top 2",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "The Expert load over training tab shows how each got there, step by step.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to a removed tab"
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Fix 1: an auxiliary load-balancing loss (Switch, 2021) ℒ aux = α · E · ∑ i=1 E f i P i f i fraction of the batch's tokens dispatched to expert i (a count: no gradient) P i mean router probability given to expert i over the batch (differentiable) α coefficient: Switch used 10 −2 , after a sweep from 10 −1 to 10 −5 \"found 10 −2 balanced load quickly without interfering with training loss\" ( Switch , eq.",
+  "label": "core",
+  "key": "Fix 1: an auxiliary load-balancing loss (Switch, 2021)",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "4 to 6) E the number of experts: under uniform routing ∑ f i P i = 1/E, so the factor keeps the loss at α whatever E is The product is smallest when both vectors are uniform.",
+  "label": "core",
+  "key": "4 to 6) E the number of experts:",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Because f has no gradient, the loss does not move tokens; it lowers the router probability of experts that are both popular and confident, and the top-k then follows.",
+  "label": "core",
+  "key": "Because f has no gradient, the loss does",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Worked example: E = 4 collapsed onto expert 1, f = (1, 0, 0, 0), P = (0.7, 0.1, 0.1, 0.1): ℒ = α × 4 × 0.7 = 2.8α, against α when uniform.",
+  "label": "core",
+  "key": "E = 4 collapsed onto expert",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Its cost is that it is a second objective: wherever a token genuinely belongs with one expert, the balancing gradient pushes the other way.",
+  "label": "core",
+  "key": "Its cost is that it is a second",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "The tiny GPT uses this loss with α = 0.01, f counted over the n · k assignments ( tiny_gpt.py:418 , added to the loss at train.py:123 ).",
+  "label": "core",
+  "key": "with α = 0.01, f counted over the",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "A variant: balance devices, not experts.",
+  "label": "depth",
+  "key": "Balance devices, not experts",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "DeepSeekMoE kept a small expert-level loss \"to mitigate the risk of routing collapse\" and added a larger device-level one, the same f · P product over groups of experts that share a device, because \"it becomes unnecessary to enforce strict balance constraints at the expert level ... our primary objective is to ensure balanced computation across the devices\" ( DeepSeekMoE , eq.",
+  "label": "depth",
+  "key": "DeepSeekMoE kept a small expert-level loss \"to mitigate",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "DeepSeek-V2 used three such losses, expert-level, device-level and communication balance, with coefficients 0.003, 0.05 and 0.02 ( DeepSeek-V2 , sections 2.2.3 and 3.1.2); V3 replaced them with the bias below.",
+  "label": "depth",
+  "key": "DeepSeek-V2 used three such losses, expert-level, device-level and",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Checked: transformers' version is not the per-layer Switch loss load_balancing_loss_func (Qwen3-MoE, Mixtral, and the models that copy them, modeling_qwen3_moe.py:503 ) adds the counts and probabilities of all layers together before multiplying ( modeling_qwen3_moe.py:552 to modeling_qwen3_moe.py:569 ), and divides counts by tokens, not by tokens × k.",
+  "label": "depth",
+  "key": "transformers' version is not the per-layer Switch loss",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Measured on hand-made logits (8 experts, top 2, src/code/hf_aux_check.py ): perfectly balanced routing returns 2.00, not 1; one layer collapsed onto two experts returns 7.91; two layers each collapsed but onto different experts return 3.97, half as bad, because pooled over layers the traffic looks spread.",
+  "label": "depth",
+  "key": "Measured on hand-made logits (8 experts, top 2,",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "The per-layer Switch loss gives 3.96 for every collapsed layer.",
+  "label": "depth",
+  "key": "The per-layer Switch loss gives 3.96 for every",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "And the loss only exists if you ask for it: output_router_logits defaults to False ( configuration_qwen3_moe.py:107 ) and the released Qwen3, Mixtral, gpt-oss and Llama 4 configs keep it off, so a plain fine-tune with Trainer adds no balancing loss at all ( modeling_qwen3_moe.py:650 ).",
+  "label": "depth",
+  "key": "output_router_logits defaults to False ( configuration_qwen3_moe.py:107 ) and",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Fix 2: the router z-loss (ST-MoE, 2022), which balances nothing Often listed with balancing, it solves a different problem: router logits that grow large, where bfloat16 roundoff in the exponential causes loss spikes. ℒ z = (1/B) ∑ tokens (log ∑ j e x j ) 2 , coefficient c z = 0.001 \"based on the best model quality after pre-training with a hyperparameter sweep\".",
+  "label": "core",
+  "key": "ℒ z = (1/B) ∑ tokens (log ∑",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "In ST-MoE's Table 4 the baseline was stable in 4 of 6 runs, update clipping in 3 of 3 at a large quality cost (−4.206 against −1.755), and the z-loss in 3 of 3 with a slight gain (−1.741) ( ST-MoE , section 3.3).",
+  "label": "depth",
+  "key": "In ST-MoE's Table 4 the baseline was stable",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Switch had already computed the router in float32 inside a bfloat16 model (\"selective precision\"); transformers' DeepSeek-V3 router still does ( modeling_deepseek_v3.py:135 ).",
+  "label": "core",
+  "key": "computed the router in float32 inside a bfloat16",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Fix 3: a per-expert bias and no loss (DeepSeek, 2024) Add a bias b i to expert i's score for the top-k choice only ; the gate weight uses the score without it.",
+  "label": "core",
+  "key": "a per-expert bias and no loss (DeepSeek, 2024)",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "After each step, lower the bias of overloaded experts and raise it for underloaded ones: select by s i + b i ; weight by s i ; b i ← b i + γ · sign(c̄ − c i ) c i tokens expert i received in the step; c̄ their mean over experts γ \"bias update speed\": 0.001 for DeepSeek-V3's first 14.3T tokens and 0 for the last 500B ( DeepSeek-V3 , sections 2.1.2 and 4.2) The bias never enters the output, so it never enters the gradient: balancing moves the decision boundary instead of adding a competing objective.",
+  "label": "core",
+  "key": "After each step, lower the bias of overloaded",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "V3 still kept a sequence-wise loss of the Switch form with α = 0.0001, \"just to avoid extreme imbalance within any single sequence\", and \"does not drop any tokens during training\".",
+  "label": "core",
+  "key": "V3 still kept a sequence-wise loss of the",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "The published evidence is DeepSeek's own ( vendor ): on 1B and 3B MoE models, validation perplexity 9.56 to 9.50 and 7.97 to 7.92 with MaxVio 0.72 to 0.04 and 0.52 to 0.04 ( Wang et al.",
+  "label": "depth",
+  "key": "( vendor ): on 1B and 3B MoE",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "2024 , Table 2), and in V3's Table 5 better scores \"on most\" benchmarks: the large model's MMLU went the other way (68.3 to 67.2).",
+  "label": "depth",
+  "key": "in V3's Table 5 better scores \"on most\"",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "The tiny GPT's version is tiny_gpt.py:397 and tiny_gpt.py:421 (γ = 0.001, every training step).",
+  "label": "core",
+  "key": "The tiny GPT's version is tiny_gpt.py:397 and tiny_gpt.py:421",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Measured: aux loss against bias.",
+  "label": "core",
+  "key": "Measured: aux loss against bias.",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Held-out loss and MaxVio after 1,500 steps: softmax router with the auxiliary loss 2.256 and 0.12; softmax router with the bias instead 2.265 and 0.06; sigmoid router with the bias (DeepSeek-V3's recipe) 2.230 and 0.04.",
+  "label": "core",
+  "key": "Held-out loss and MaxVio after 1,500 steps: softmax",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "The softmax pair differs only in the balancing switch; the seed-1 rerun of the aux-loss model (2.254) sets the noise to read these gaps against.",
+  "label": "core",
+  "key": "The softmax pair differs only in the balancing",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Checked: in transformers the bias is only loaded, never updated DeepSeek-V3's router in transformers 5.20.1 stores e_score_correction_bias as a buffer ( modeling_deepseek_v3.py:131 ), adds it at selection ( modeling_deepseek_v3.py:137 ) and keeps it in float32 ( modeling_deepseek_v3.py:551 ), but no line of modeling_deepseek_v3.py updates it and the file computes no auxiliary loss.",
+  "label": "depth",
+  "key": "in transformers the bias is only loaded, never",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "The same holds for GLM-4.5 ( modeling_glm4_moe.py:284 ), Nemotron-H ( modeling_nemotron_h.py:772 ) and DeepSeek-V4 ( modeling_deepseek_v4.py:1080 ).",
+  "label": "depth",
+  "key": "The same holds for GLM-4.5 ( modeling_glm4_moe.py:284 ),",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Fine-tuning one of these with plain transformers therefore trains with the pretraining bias frozen and no balancing at all; the training loop has to implement the update itself, as the tiny GPT does.",
+  "label": "depth",
+  "key": "the training loop has to implement the update",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Over which tokens is balance measured?",
+  "label": "core",
+  "key": "Over which tokens is balance measured?",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "A balancing loss computed per micro-batch is close to a per-sequence constraint: a micro-batch holds a few sequences, often from one domain, so even a pure code sequence is pushed to spread over every expert.",
+  "label": "core",
+  "key": "loss computed per micro-batch is close to a",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Qwen's \"global-batch\" loss synchronises f i across data-parallel ranks so balance is demanded only over the whole, diverse batch; it reports \"approximately 0.1 in pre-training PPL and 2 in benchmark scores\" better, and domain specialisation that \"only clearly emerges when trained with the global-batch LBL\" (up to 42.8B parameters and 400B tokens; Qiu et al.",
+  "label": "core",
+  "key": "so balance is demanded only over the whole,",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "2025 , vendor , Alibaba).",
+  "label": "depth",
+  "key": "Alibaba",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Qwen3 adopted it ( Qwen3 report ).",
+  "label": "core",
+  "key": "Qwen3 adopted it ( Qwen3 report",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "DeepSeek reached the same conclusion from the other side: its bias balances per batch, and a batch-wise auxiliary loss matched it (validation loss 2.258 sequence-wise, 2.253 bias, 2.253 batch-wise at 1B; 2.085, 2.080, 2.080 at 3B; V3 report section 4.5.3), with two named risks: imbalance \"within certain sequences or small batches\" and \"domain-shift-induced load imbalance during inference\".",
+  "label": "depth",
+  "key": "DeepSeek reached the same conclusion from the other",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Predict: the bias scheme balances by nudging every expert's bias by ±0.001 per step.",
+  "label": "core",
+  "key": "every expert's bias by ±0.001 per",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "After 1,500 steps of training the tiny GPT, how large is the largest bias in magnitude? about 0.001 about 0.01 to 0.1 about 0.1 to 1 more than 1 The largest bias in the sigmoid-plus-bias model after 1,500 steps is 0.074 in magnitude (measured).",
+  "label": "core",
+  "key": "After 1,500 steps of training the tiny GPT,",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Each step moves every bias by exactly 0.001 up or down, so 1,500 steps bound it at 1.5; an expert that is persistently over- or under-loaded drifts steadily, while a balanced one oscillates around a fixed value.",
+  "label": "core",
+  "key": "Each step moves every bias by exactly 0.001",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "3. collapse and the three ways to balance",
+  "text": "Against sigmoid scores in (0, 1), a bias of this size is enough to override the router for near-ties.",
+  "label": "core",
+  "key": "Against sigmoid scores in (0, 1), a bias",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "Capacity factors and dropped tokens The problem.",
+  "label": "core",
+  "key": "Capacity factors and dropped tokens",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "Accelerators like static shapes: a compiled step wants to know each expert's batch size before routing has happened.",
+  "label": "core",
+  "key": "Accelerators like static shapes: a compiled step wants",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "The classic answer allocates a fixed buffer per expert and drops what does not fit.",
+  "label": "core",
+  "key": "fixed buffer per expert",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "C = ⌈ CF · n · k / E ⌉ C token slots in each expert's buffer (the tiny GPT: tiny_gpt.py:404 ) CF capacity factor: 1.0 provisions exactly the average load n, k, E tokens in the batch, experts per token, experts How it works.",
+  "label": "core",
+  "key": "/ E ⌉ C token slots in each",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "Assignments beyond C are dropped: that token gets no output from that expert in that layer and passes on through the residual connection. \"If the tokens are unevenly dispatched then certain experts will overflow ... resulting in these tokens not being processed by this layer.",
+  "label": "core",
+  "key": "that token gets no output from that expert",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "A larger capacity factor alleviates this overflow issue, but also increases computation and communication costs\" ( Switch , Figure 3).",
+  "label": "depth",
+  "key": "A larger capacity factor alleviates this overflow issue,",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "Worked example: n = 4,096, E = 64, k = 2, CF = 1.25: the average load is 128 and C = 160; an expert attracting 200 drops 40, one attracting 60 computes 100 padded slots for nothing.",
+  "label": "core",
+  "key": "160; an expert attracting 200 drops 40, one",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "ST-MoE recommends \"top-2 routing with 1.25 capacity factor\", states \"The train capacity factor is 1.25 and the eval capacity factor is 2.0\" for its models, and finds that \"increasing both the train and eval capacity factors (CF) improves quality\" ( ST-MoE , Table 8); Switch tried re-routing overflow to the second choice (\"No-Token-Left-Behind\") and \"found no empirical benefits\".",
+  "label": "depth",
+  "key": "ST-MoE recommends \"top-2 routing with 1.25 capacity factor\",",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "Which tokens are dropped is a design choice too: the tiny GPT drops in batch order, while DeepSeek-V2 dropped per device at a budget \"equivalent to 1.0\", the \"tokens with the lowest affinity scores\" first, and kept about 10% of training sequences never dropped so inference could run either way ( DeepSeek-V2 , section 2.2.4).",
+  "label": "depth",
+  "key": "Which tokens are dropped is a design choice",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "Measured: the same trained model under different capacity factors Each point: the trained model evaluated on 10 fixed held-out batches of 32 × 256 tokens (81,920 tokens) with the capacity factor imposed at inference; buffers fill first come, first served in batch order ( tiny_gpt.py:408 ). measured on Apple M1 Pro (CPU) .",
+  "label": "core",
+  "key": "Each point: the trained model evaluated on 10",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "Losses are from a 6-layer toy and transfer only in direction: drops hurt, and they hurt a model trained without them more.",
+  "label": "core",
+  "key": "Losses are from a 6-layer toy and transfer",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "The moe8top2 model (trained dropless) evaluated on 10 held-out batches: dropless 2.244; capacity factor 2.0 2.244 (0.0% of assignments dropped); 1.25 2.252 (0.0%); 1.0 2.514 (3.1%); 0.5 6.051 (50.0%, and 47.1% of tokens lost both experts).",
+  "label": "core",
+  "key": "The moe8top2 model (trained dropless) evaluated on 10",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "The model trained with capacity factor 1.0 (and so with drops in every training step) is 2.310 on its own training rule against 2.256 for the dropless model, and evaluated dropless it reaches 2.276.",
+  "label": "core",
+  "key": "The model trained with capacity factor 1.0 (and",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "Capacity is per batch, so small batches drop more.",
+  "label": "core",
+  "key": "Capacity is per batch, so small batches drop",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "The same model and the same 2 × 32 held-out sequences at capacity factor 1.25, cut into batches of 32, 4 and 1 sequences: 0.0%, 0.2% and 1.8% of assignments dropped, held-out loss 2.179, 2.195 and 2.242 (measured).",
+  "label": "core",
+  "key": "The same model and the same 2 ×",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "With 256 tokens per batch the average expert gets 64 assignments and a capacity of 80; random fluctuation over that small a sample overflows far more often than over 8,192 tokens.",
+  "label": "core",
+  "key": "With 256 tokens per batch the average expert",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "This is the training against serving trap: a model trained with large batches and CF 1.25 sees a different drop rate at serving batch sizes, which is one reason serving stacks run MoE layers dropless.",
+  "label": "core",
+  "key": "This is the training against serving trap: a",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "The drop exists only because of static buffers.",
+  "label": "core",
+  "key": "The drop exists only because of static buffers.",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "MegaBlocks reformulates the experts as block-sparse matrix multiplication over ragged per-expert groups, so nothing is padded and nothing is dropped: it \"never drops tokens\" ( MegaBlocks , 2022); Mixtral's release added MegaBlocks kernels to vLLM.",
+  "label": "core",
+  "key": "the experts as block-sparse matrix multiplication over ragged",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "Modern stacks call this a grouped GEMM : one kernel launch that multiplies each expert's weights by its own variable-length slice of tokens.",
+  "label": "core",
+  "key": "Modern stacks call this a grouped GEMM :",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "DeepSeek-V3 \"does not drop any tokens during training\" and serves without drops.",
+  "label": "core",
+  "key": "DeepSeek-V3 \"does not drop any tokens during training\"",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "The capacity factor survives in older recipes, in some TPU stacks and as an admission limit at serving time.",
+  "label": "core",
+  "key": "some TPU stacks and as an admission limit",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "How to check it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "Log, per MoE layer and step, the dropped fraction and the max-over-mean load; the tiny GPT's training log records both every 10 steps ( dropped , moe_load in log.json ).",
+  "label": "core",
+  "key": "Log, per MoE layer and step, the dropped",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "4. capacity factors and dropped tokens",
+  "text": "A dropped fraction above a few percent, or rising during training, means the balancing is losing.",
+  "label": "core",
+  "key": "A dropped fraction above a few percent, or",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "Fine-grained and shared experts The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "With 8 or 16 large experts, each expert must hold many unrelated kinds of knowledge (\"knowledge hybridity\"), and every expert relearns what all tokens need, such as syntax and frequent words (\"knowledge redundancy\") ( DeepSeekMoE , introduction).",
+  "label": "core",
+  "key": "each expert must hold many unrelated kinds of",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "Two moves, both in DeepSeekMoE (January 2024): Fine-grained segmentation.",
+  "label": "core",
+  "key": "DeepSeekMoE (January 2024) made two moves",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "Split each expert into m narrower ones (hidden size divided by m) and route to m · k of the m · E.",
+  "label": "core",
+  "key": "each expert into m narrower ones (hidden size",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "Parameters and FLOPs stay the same; the number of expert combinations a token can use explodes: C(16, 4) = 1,820 against C(8, 2) = 28 at the same compute, and C(256, 8) ≈ 4.1 × 10 14 for DeepSeek-V3.",
+  "label": "core",
+  "key": "C(16, 4) = 1,820 against C(8, 2) =",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "Run K s experts on every token, outside the router, to absorb common knowledge so the routed experts can specialise.",
+  "label": "core",
+  "key": "outside the router, to absorb common knowledge so",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "The published evidence ( vendor , DeepSeek; 2B total, 100B tokens, Pile loss): dense 0.2B 2.060, Hash Layer 1.932, Switch 1.881, GShard 1.867, DeepSeekMoE 1.808, with GShard and DeepSeekMoE at the same 0.3B active (Table 1).",
+  "label": "core",
+  "key": "The published evidence ( vendor , DeepSeek; 2B",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "Disabling the shared expert and routing one more expert at the same compute raised the Pile loss \"from 1.808 to 2.414\"; 1, 2 or 4 shared experts gave 1.808, 1.806 and 1.811 (section 4.4 and 4.5).",
+  "label": "core",
+  "key": "Disabling the shared expert and routing one more",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "DeepSeekMoE was also more sensitive than GShard to masking its top routed experts, which the paper reads as \"lower redundancy among routed experts\".",
+  "label": "core",
+  "key": "DeepSeekMoE was also more sensitive than GShard to",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "Measured on the tiny GPT.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "16 experts of width 256 plus one shared, top 3 (the same active FFN and 5% more total parameters than moe8top2): held-out 2.210 against 2.256 for 8 experts top 2 and 2.278 dense.",
+  "label": "core",
+  "key": "16 experts of width 256 plus one shared,",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "DeepSeekMoE's shared-expert ablation, repeated on the trained model at inference: switching the shared expert off raises the loss to 3.863, and routing one more expert in its place to 3.850 (from 2.210; the model was not retrained, unlike DeepSeekMoE's 1.808 to 2.414, so this measures how much the trained model leans on it).",
+  "label": "core",
+  "key": "DeepSeekMoE's shared-expert ablation, repeated on the trained model",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "Masking each token's best routed expert (DeepSeekMoE's redundancy test) raises the loss by 1.685 for the fine-grained model and 2.811 for moe8top2: the opposite direction to DeepSeekMoE's Figure 4 (does not reproduce), though here the masked expert is one of 3 routed choices against one of 2, so the two numbers are not a matched comparison.",
+  "label": "core",
+  "key": "Masking each token's best routed expert (DeepSeekMoE's redundancy",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "Narrower experts are skinnier matrix multiplies (a 256-wide expert in the tiny GPT, 2,048 in DeepSeek-V3, against the dense 18,432), so utilisation falls; a token visits more experts, so the all-to-all fans out wider (section 7); and smaller experts make imbalance more likely.",
+  "label": "core",
+  "key": "in the tiny GPT, 2,048 in DeepSeek-V3, against",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "Not everyone keeps a shared expert: Qwen3's MoE \"excludes shared experts\" while keeping 128 fine-grained experts with 8 active ( Qwen3 report ), and gpt-oss and MiniMax-M2 have none.",
+  "label": "core",
+  "key": "Not everyone keeps a shared expert: Qwen3's MoE",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "Nemotron 3 Super and Kimi K3 go one step further: tokens are projected down before the routed experts and back up after them, \"into a smaller latent dimension for expert routing and computation, improving accuracy per byte\" (Nemotron 3 Super card, vendor ; moe_latent_size 1,024 against d = 4,096); Kimi K3's config sets routed_expert_hidden_size 3,584 against d = 7,168 and its card names \"Stable LatentMoE\", 16 of 896 experts active.",
+  "label": "depth",
+  "key": "down before the routed experts and back up",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "5. fine-grained and shared experts",
+  "text": "If the down-projection runs before dispatch, a token sends 1,024 or 3,584 numbers per expert through the all-to-all instead of d (section 7): our reading of the configs; neither card describes the communication.",
+  "label": "depth",
+  "key": "If the down-projection runs before dispatch, a token",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "Dense against MoE at equal active compute, measured All runs: the root's tiny GPT, 1,500 steps of 32 × 256 tokens (12.3M TinyStories tokens), the same seeded batches, AdamW at lr 3e-3 with cosine decay, fp32 on MPS; held-out loss on the same 20 validation batches throughout.",
+  "label": "core",
+  "key": "Dense against MoE at equal active compute, measured",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "The dense reference is the root's ref_baseline_s1500 run; every MoE run keeps the active FFN at the dense size.",
+  "label": "depth",
+  "key": "The dense reference is the root's",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "MoE runs go through src/runs/fast_moe.py , the root's train.py with the tiny GPT's per-expert loop replaced by one batched einsum over the experts that received tokens: the same choices, drops, bias updates and gradients (checked on CPU: logits within 2e-6, gradients within 1.2e-6, the same parameters left without gradient), because the loop forces a GPU sync per expert per layer and ran far too slowly on MPS.",
+  "label": "depth",
+  "key": "MoE runs go through src/runs/fast_moe.py , the root's",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "One seed each except where marked; the root's README notes that MPS reruns differ in the third decimal, and the seed-1 pair below gives the spread to read gaps against.",
+  "label": "depth",
+  "key": "One seed each except where marked; the root's",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "Held-out loss during training measured on Apple M1 Pro (MPS) , fp32, torch 2.14.1, shared machine at low priority.",
+  "label": "core",
+  "key": "measured on Apple M1 Pro (MPS) , fp32,",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "Tokens per second are rough (other jobs ran beside these) and say nothing about a GPU: the tiny GPT's MoE loops over experts in Python, which a real kernel does not.",
+  "label": "core",
+  "key": "Tokens per second are rough (other jobs ran",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "Held-out loss: dense 2.278, 8 experts top 2 2.256, 16 + 1 shared top 3 2.210.",
+  "label": "core",
+  "key": "Held-out loss: dense 2.278, 8 experts top 2",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "Seed spread: moe8top2 seed 0 and 1: 2.256 and 2.254; dense seed 0 and 1: 2.278 and 2.264.",
+  "label": "core",
+  "key": "Seed spread: moe8top2 seed 0 and 1: 2.256",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "So the 8-expert model's gain over dense (0.022) is about the size of the dense seed-to-seed spread (0.014) and should not be read as more than a lean; the fine-grained model's gain (0.068) is several times that spread.",
+  "label": "core",
+  "key": "So the 8-expert model's gain over dense (0.022)",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "Both store 2.6 to 2.8 times the dense parameters for the same active FFN.",
+  "label": "core",
+  "key": "Both store 2.6 to 2.8 times the dense",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "Rough speed on this laptop: dense 40,091 tokens/s, moe8top2 15,045 with the batched forward; the tiny GPT's original per-expert loop is slower still (5,165 tokens/s against 16,300 for the batched forward, median over a 40-step probe each; the loop calls nonzero() once per expert per layer, and every call waits for the GPU).",
+  "label": "core",
+  "key": "Rough speed on this laptop: dense 40,091 tokens/s,",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "The direction (more stored parameters at equal active compute lower the loss), the fact that balancing costs little at this scale, and the mechanics (collapse without balancing, drops at small batch, the shared expert's role) transfer.",
+  "label": "core",
+  "key": "The direction (more stored parameters at equal active",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "The size of the gap does not: published comparisons at billion scale put an MoE's benefit at roughly the quality of a dense model a few times its active size (DeepSeekMoE 16B \"comparable\" to LLaMA2 7B \"with only about 40% of computations\", vendor ), and the tiny GPT trains on 12M tokens, where the dense model is far from saturated.",
+  "label": "core",
+  "key": "The size of the gap does not: published",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "6. dense against moe at equal active compute, measured",
+  "text": "Wall-clock speed does not transfer at all.",
+  "label": "core",
+  "key": "Wall-clock speed does not transfer at",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "Expert parallelism and the all-to-all The problem.",
+  "label": "core",
+  "key": "Expert parallelism and the all-to-all",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "DeepSeek-V3's experts are 656.6B of its 671B parameters (98%, derived from its config: 58 layers × 257 experts × 44.04M); no GPU holds them, so they must be spread out, and then every token has to travel to the GPUs that hold its experts.",
+  "label": "core",
+  "key": "DeepSeek-V3's experts are 656.6B of its 671B parameters",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "Expert parallelism (EP) gives each of W ranks E/W experts of every MoE layer; attention and the other dense parts are replicated or split another way.",
+  "label": "core",
+  "key": "Expert parallelism (EP) gives each of W ranks",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "Each MoE layer then does, on every rank: route locally : each rank holds a copy of the tiny router and computes top-k for its own tokens: (T, d) → indices (T, k); exchange counts : a small all-to-all of W integers, so each rank knows how many token copies it will receive; dispatch : an all-to-all sends each token's hidden state (d numbers) to the rank of each chosen expert: T · k rows leave every rank; compute : each rank runs its experts on the rows it received (a grouped GEMM on GPUs); combine : the reverse all-to-all brings outputs home, where they are weighted by the gates and summed; shared experts run at home with no communication.",
+  "label": "depth",
+  "key": "(T, d) → indices (T, k); exchange counts",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "Run here: one trained MoE layer over four processes Layer 4 of the trained moe8top2 model, the 256-token running sequence split into four 64-token shards, two experts per rank, PyTorch's torch.distributed.all_to_all_single on the gloo backend (CPU, one process per rank; src/ep/ep_alltoall.py ).",
+  "label": "core",
+  "key": "the 256-token running sequence split into four 64-token",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "The core of each rank: # mixture_of_experts/src/ep/ep_alltoall.py, lines 45 to 80 45 # 2. sort the T*k assignments by destination rank 46 flat_e = top_i.flatten() # (T*k,) 47 flat_t = torch.arange(T).repeat_interleave(k) 48 dest = flat_e // per 49 order = torch.argsort(dest, stable=True) 50 send_cnt = torch.bincount(dest, minlength=world) # how many token copies go to each rank 51 # 3. exchange counts so every rank knows how much it will receive (a tiny all-to-all of W integers) 52 recv_cnt = torch.empty_like(send_cnt) 53 dist.all_to_all_single(recv_cnt, send_cnt) 54 t1 = time.perf_counter() 55 # 4. dispatch all-to-all: hidden states (and their expert ids) travel to the expert's rank 56 send_x = h[flat_t[order]] # (T*k, D) 57 recv_x = torch.empty(int(recv_cnt.sum()), D) 58 dist.all_to_all_single(recv_x, send_x, recv_cnt.tolist(), send_cnt.tolist()) 59 send_e = flat_e[order].to(torch.float32)[:, None] 60 recv_e = torch.empty(int(recv_cnt.sum()), 1) 61 dist.all_to_all_single(recv_e, send_e, recv_cnt.tolist(), send_cnt.tolist()) 62 t2 = time.perf_counter() 63 # 5. local experts compute on what they received 64 y = torch.zeros_like(recv_x) 65 re = recv_e[:, 0].long() 66 for e in range(rank * per, rank * per + per): 67 m = re == e 68 if m.any(): 69 y[m] = moe.experts[e](recv_x[m]) 70 t3 = time.perf_counter() 71 # 6. combine all-to-all: outputs go home, in the order they were sent 72 back = torch.empty_like(send_x) 73 dist.all_to_all_single(back, y, send_cnt.tolist(), recv_cnt.tolist()) 74 t4 = time.perf_counter() 75 # 7. weight and sum at home; shared experts run locally with no communication 76 out = torch.zeros(T, D) 77 w = top_w.flatten()[order] 78 out.index_add_(0, flat_t[order], back * w[:, None]) 79 for s in moe.shared: 80 out = out + s(h) Output (counts of token copies each rank sent to each rank; one row per sending rank): to rank 0 1 2 3 rank 0 sends 34 31 25 38 (total 128) rank 1 sends 39 35 33 21 (total 128) rank 2 sends 36 34 34 24 (total 128) rank 3 sends 32 21 44 31 (total 128) received 141 121 136 114 max |difference| against the same layer in one process: 0.0 Each rank sends 64 tokens × 2 = 128 rows of 256 numbers (65,536 bytes in BF16), but receives between 114 and 141: the busiest rank does 1.10 times the mean expert work.",
+  "label": "depth",
+  "key": "# mixture_of_experts/src/ep/ep_alltoall.py, lines 45 to 80 45 #",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "26% of the copies stay on their own rank.",
+  "label": "core",
+  "key": "26% of the copies stay on their own",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "The distributed output equals the one-process layer bit for bit (maximum difference 0.0). measured on Apple M1 Pro (CPU) ; gloo over shared memory says nothing about NCCL timings, so only counts, bytes and equality are reported.",
+  "label": "core",
+  "key": "The distributed output equals the one-process layer bit",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "Expert parallelism over PyTorch's mesh and process-group APIs (and the other parallelisms it composes with) is on Distributed PyTorch .",
+  "label": "core",
+  "key": "process-group APIs",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "Per token per MoE layer, k · d numbers go out and k · d come back (fewer if the expert is local).",
+  "label": "core",
+  "key": "Per token per MoE layer, k · d",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "DeepSeek-V3 at k = 8, d = 7,168 in BF16: 8 × 7,168 × 2 B = 112 KiB each way per token per layer, 58 layers, forward; the backward pass repeats both.",
+  "label": "core",
+  "key": "DeepSeek-V3 at k = 8, d = 7,168",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "Unlike a gradient all-reduce it cannot be overlapped with the next layer's compute without tricks, every rank talks to every rank, and the slowest rank sets the pace: load imbalance becomes idle GPUs.",
+  "label": "core",
+  "key": "every rank talks to every rank,",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "How the bytes meet the network (NVLink inside a node, InfiniBand across, forwarding through NVLink, why the all-to-all crosses the spine) is owned by Interconnects and scaling (All-to-all and MoE, Collective simulator); how EP composes with data, tensor, pipeline and context parallelism in one training step is owned by Distributed Training (Expert section and Layout calculator).",
+  "label": "core",
+  "key": "is owned by Interconnects and scaling (All-to-all and",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "What the MoE design does about it.",
+  "label": "core",
+  "key": "What the MoE design does about",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "The router itself is the lever.",
+  "label": "core",
+  "key": "The router is the lever",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "DeepSeek-V3 limits each token to experts on at most 4 nodes (the group-limited top-k of section 2) because \"NVLink offers a bandwidth of 160 GB/s, roughly 3.2 times that of IB (50 GB/s)\", and notes it \"can scale up this number to a maximum of 13 experts (4 nodes × 3.2 experts/node) while preserving the same communication cost\" ( V3 report , section 3.2.2).",
+  "label": "core",
+  "key": "DeepSeek-V3 limits each token to experts on at",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "Its training used 64-way EP over 8 nodes, its DualPipe schedule overlaps the all-to-alls of one micro-batch with the compute of another, and its kernels are open as DeepEP (dispatch and combine over NVLink and RDMA, with a low-latency mode for decoding).",
+  "label": "core",
+  "key": "Its training used 64-way EP over 8 nodes,",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "Latent experts (section 5) shrink what is sent.",
+  "label": "core",
+  "key": "shrink what is sent",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "Predict: in the four-process run above, is the dispatch all-to-all balanced (each rank sends and receives the same number of rows)? yes: every rank sends T · k rows sends yes, receives no neither Sends are balanced by construction (every rank sends T · k = 128 rows), receives are not: 114 to 141 rows, because receiving is set by how popular each rank's experts are.",
+  "label": "core",
+  "key": "Sends are equal by construction; receives are not",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "7. expert parallelism and the all-to-all",
+  "text": "In a real deployment that rank finishes last and every other rank waits for it in the combine.",
+  "label": "core",
+  "key": "the combine cannot finish before the slowest rank",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "What an MoE costs to serve Memory is priced on the total, compute on the active.",
+  "label": "core",
+  "key": "What an MoE costs to serve Memory is",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "Every expert must be resident, because the next token may pick any of them: DeepSeek-V3's 671B parameters are 1,342 GB in BF16, 671 GB in FP8 and about 336 GB at 4 bits ( derived ), while each token computes like a 37B dense model.",
+  "label": "core",
+  "key": "DeepSeek-V3's 671B parameters are 1,342 GB in BF16,",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "Experts are where the bytes are, so experts are what gets quantised: gpt-oss was \"post-trained with MXFP4 quantization of the MoE weights, making gpt-oss-120b run on a single 80GB GPU\" (model card, vendor ), and DeepSeek-V4-Pro's config sets expert_dtype to fp4 .",
+  "label": "core",
+  "key": "Experts are where the bytes are, so experts",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "Decode reads the experts that were hit.",
+  "label": "core",
+  "key": "Decode reads the experts that were",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "Decoding is limited by how many weight bytes are read per step, not by FLOPs.",
+  "label": "core",
+  "key": "limited by weight bytes read per step",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "A dense model reads all its weights once per step whatever the batch.",
+  "label": "core",
+  "key": "A dense model reads all its weights once",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "An MoE reads only the experts its batch touched: with B running sequences each picking k of E experts at random, about E · (1 − (1 − k/E) B ) distinct experts per layer ( derived , assuming uniform independent routing; real routing is skewed, which touches fewer).",
+  "label": "core",
+  "key": "An MoE reads only the experts its batch",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "For DeepSeek-V3 (E = 256, k = 8) that is 8 experts at B = 1, about 163 at B = 32 and about 256 at B = 256: at batch 1 an MoE decodes like its active size, at large batch it reads its whole total.",
+  "label": "core",
+  "key": "For DeepSeek-V3 (E = 256, k = 8)",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "Meanwhile each touched expert serves only about B · k / E tokens (8 at B = 256), so its matrix multiplies are skinny and bandwidth-bound unless the batch is very large.",
+  "label": "core",
+  "key": "each touched expert serves only about B ·",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "The Dense vs MoE calculator draws both curves for any config; the Mixtral paper page animates one decode step of Mixtral against Llama 2 70B and 13B on a roofline.",
+  "label": "core",
+  "key": "for any config; the Mixtral paper page animates",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "Imbalance comes back at request time.",
+  "label": "core",
+  "key": "Imbalance comes back at request time.",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "Real traffic is skewed (one language, one code base, one prompt template), so some experts run hot and their GPUs set the tail latency.",
+  "label": "core",
+  "key": "Real traffic is skewed (one language, one code",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "DeepSeek-V3's deployment answers with redundant copies of hot experts, chosen from live statistics \"periodically (e.g., every 10 minutes)\": 32 redundant experts in a prefill unit of 4 nodes and 32 GPUs; in decoding, a unit of 40 nodes and 320 GPUs where \"each GPU hosts only one expert, and 64 GPUs are responsible for hosting redundant experts and shared experts\" ( V3 report , section 3.4, vendor ).",
+  "label": "core",
+  "key": "redundant copies of hot experts, chosen from live",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "The placement algorithm is open as EPLB .",
+  "label": "core",
+  "key": "The placement algorithm is open as",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "Serving MoE at that width is the subject of Distributed and disaggregated serving .",
+  "label": "core",
+  "key": "Serving MoE at that width is the subject",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "MoE shrinks FFN compute only; the KV cache and attention FLOPs are those of the attention design, which is why the models that pushed sparsity furthest also changed attention (MLA in DeepSeek, Kimi and Mistral Large 3; sparse or linear attention in DeepSeek-V3.2 and V4, GLM-5, MiniMax M3, Qwen3-Next and Kimi K3).",
+  "label": "core",
+  "key": "MoE shrinks FFN compute only; the KV cache",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "See Attention variants and Long context .",
+  "label": "core",
+  "key": "See Attention variants and Long context",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "How to check it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "8. what an moe costs to serve",
+  "text": "In a serving engine, log the router's top-k indices per layer over a window of real traffic and compare the busiest expert's count with the mean; measure decode step time against batch size: an MoE's curve rises faster than a dense model's of the same active size until every expert is hit, then flattens.",
+  "label": "core",
+  "key": "In a serving engine, log the router's top-k",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "What real configs choose Read verbatim from the config.json files the root's Architecture map saved (fetched 2026-10-18; release dates and published totals from its curated sources). \"−\" means the config has no such field; the router function for models whose config does not name it is read from the transformers code that runs them.",
+  "label": "depth",
+  "key": "Read verbatim from the config.json files the root's",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "23 MoE models, December 2023 to July 2026 by date by experts by experts per token by k / E E: routed experts per MoE layer; k: routed experts per token; shared: always-on experts; width: one routed expert's hidden size (d: model width); MoE layers: of all layers; balancing: the config's topk_method ( noaux_tc = DeepSeek's bias) or use_routing_bias ; groups: n_group / topk_group ; scale: routed_scaling_factor ; C(E, k) = number of possible expert sets per token.",
+  "label": "depth",
+  "key": "23 MoE models, December 2023 to July 2026",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "Config fields can disagree with what training used: router_aux_loss_coef (0.001 in Qwen3, 0.02 in Mixtral, 0.9 in gpt-oss-120b) is the value transformers would use to fine-tune, not a stated pretraining value.",
+  "label": "depth",
+  "key": "Config fields can disagree with what training used:",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "Experts per layer went from 8 to 16 (Mixtral, Jamba, early 2024) to 128 to 896 (14 of the 15 models from July 2025 on have 128 or more); expert width fell from 3.5 times d (Mixtral) to 0.25 to 0.5 times d; routers moved to sigmoid scores with a selection bias in the DeepSeek line and the many models built on its code (Kimi, GLM, MiniMax, Nemotron), while Qwen kept softmax with a global-batch loss; most keep one shared expert and the first 1 to 3 layers dense; and the 2026 models add tricks around the experts rather than inside them: hash-routed first layers (DeepSeek-V4-Pro), latent projections (Nemotron 3 Super, Kimi K3), FP4 experts (DeepSeek-V4-Pro's expert_dtype ).",
+  "label": "core",
+  "key": "Experts per layer went from 8 to 16",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "Totals rebuilt from two configs DeepSeek-V3 (d = 7,168, 61 layers, first 3 dense with FFN 18,432, 256 routed experts of width 2,048 plus 1 shared, top 8, vocabulary 129,280 with an untied head, MLA).",
+  "label": "depth",
+  "key": "DeepSeek-V3 (d = 7,168, 61 layers, first 3",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "One expert: 3 × 7,168 × 2,048 = 44,040,192.",
+  "label": "depth",
+  "key": "One expert: 3 × 7,168 × 2,048 =",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "One MoE layer: 257 experts + a 7,168 × 256 router = 11.32B.",
+  "label": "depth",
+  "key": "One MoE layer: 257 experts + a 7,168",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "58 MoE layers: 656.6B.",
+  "label": "core",
+  "key": "656.6",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "Everything else (attention in all 61 layers, 3 dense FFNs, embedding and head, norms): 14.46B.",
+  "label": "depth",
+  "key": "Everything else (attention in all 61 layers, 3",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "Active: 58 × (9 × 44.04M + router) plus the same dense part: 37.55B with the input embedding, 36.63B without it, which is the accounting that rounds to the report's 37B (the root's Config calculator; Hub count 684.5B = this 671.0B + 13.46B multi-token-prediction module + FP8 scales).",
+  "label": "depth",
+  "key": "Active: 58 × (9 × 44.04M + router)",
+  "where": ""
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "Experts are 98% of the total and 61% of the active count, so attention and embeddings, invisible in the total, are a large share of what a token costs.",
+  "label": "depth",
+  "key": "Experts are 98% of the total and 61%",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "Mixtral 8x7B (d = 4,096, 32 layers, 8 experts of width 14,336, top 2, GQA 32/8, vocabulary 32,000).",
+  "label": "depth",
+  "key": "Mixtral 8x7B (d = 4,096, 32 layers, 8",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "9. what real configs choose",
+  "text": "One expert: 3 × 4,096 × 14,336 = 176.2M; 32 × 8 experts = 45.1B; attention 1.34B; embeddings 0.26B: total 46.70B, active 12.88B (both match Mistral's 46.7B and 12.9B; \"8x7B\" is not 56B because only the FFN is copied).",
+  "label": "depth",
+  "key": "One expert: 3 × 4,096 × 14,336 =",
+  "where": ""
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Common mistakes, with real outputs Each was run here (transformers 5.20.1, torch 2.14.1, CPU; src/code/hf_checks.py , hf_aux_check.py , src/analysis/analyse.py ) unless marked.",
+  "label": "depth",
+  "key": "(transformers 5.20.1, torch 2.14.1, CPU; src/code/hf_checks.py , hf_aux_check.py",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Fine-tuning an MoE with transformers and assuming it is still balanced Qwen3-MoE, Mixtral, gpt-oss and Llama 4 compute their auxiliary loss only when output_router_logits=True , and their configs ship with it off: a tiny Qwen3-MoE returns aux_loss = None by default and 2.03 with the flag (about k = 2, the value of perfect balance under transformers' formula, section 3).",
+  "label": "core",
+  "key": "Qwen3-MoE, Mixtral, gpt-oss and Llama 4 compute their",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "DeepSeek-V3 has no auxiliary loss and never updates its bias: three AdamW steps on a tiny DeepSeek-V3 left a non-zero e_score_correction_bias bit for bit unchanged (it is a buffer, not a parameter).",
+  "label": "depth",
+  "key": "three AdamW steps on a tiny DeepSeek-V3 left",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Check: log per-expert counts during the fine-tune; set the flag, or implement the bias update.",
+  "label": "core",
+  "key": "set the flag, or implement the",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Building a Qwen3-MoE from the default config Qwen3MoeConfig() gives norm_topk_prob = False while every released Qwen3-MoE config says true : a from-scratch model or a converted checkpoint without its config weights experts by raw softmax probabilities (summing to less than 1).",
+  "label": "depth",
+  "key": "Qwen3MoeConfig() gives norm_topk_prob = False",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Check: diff your config against the released one, field by field.",
+  "label": "depth",
+  "key": "Check: diff your config against the released one,",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Reading transformers' balancing loss as the Switch loss Balanced routing gives 2.00, not 1, and two layers collapsed onto different experts score 3.97 against 7.91 for one: it pools counts over layers (section 3).",
+  "label": "depth",
+  "key": "7.91",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "A dashboard alarm set at \"aux loss above 1\" fires on a perfectly balanced model with k = 2.",
+  "label": "depth",
+  "key": "A dashboard alarm set at \"aux loss above",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Changing k at inference to save compute Changing k after training changes the function: the trained moe8top2 model gives 2.244 at its k = 2, 2.530 at k = 1 (half the expert compute) and 2.269 at k = 4 (measured, 10 held-out batches).",
+  "label": "core",
+  "key": "2.530",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Published MoE results that vary k at inference (DeepSeekMoE's Figure 5) do so on models with many small experts; check on your own held-out set before shipping it.",
+  "label": "core",
+  "key": "Published MoE results that vary k at inference",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Evaluating at a small batch with a capacity factor tuned for training The same model and the same 2 × 32 held-out sequences at capacity factor 1.25, cut into batches of 32, 4 and 1 sequences: 0.0%, 0.2% and 1.8% of assignments dropped, held-out loss 2.179, 2.195 and 2.242 (measured).",
+  "label": "core",
+  "key": "The same model and the same 2 ×",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "With 256 tokens per batch the average expert gets 64 assignments and a capacity of 80; random fluctuation over that small a sample overflows far more often than over 8,192 tokens. \"Experts specialise by topic\" Mixtral's own analysis: \"Surprisingly, we do not observe obvious patterns in the assignment of experts based on the topic\" ( Mixtral , section 5); assignments track syntax and token identity more than subject, and domain specialisation appears mostly with global-batch balancing (section 3).",
+  "label": "core",
+  "key": "With 256 tokens per batch the average expert",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Measured on the tiny GPT (moe8top2, 40,960 held-out tokens): given only the token id, its most common first-choice expert is right 77% to 98% of the time depending on the layer, against 12.5% for an id-blind router: routing is largely a function of the token itself (see the Router tab's expert-to-token table).",
+  "label": "depth",
+  "key": "Measured on the tiny GPT (moe8top2, 40,960 held-out",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Pricing an MoE on its total, or \"8x7B is 56B\" Mixtral 8x7B is 46.7B because only the FFNs are copied; it computes like 12.9B.",
+  "label": "core",
+  "key": "12.9",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Memory is priced on the total, compute on the active (sections 1 and 8). \"Sigmoid routing picks different experts from softmax\" From the same logits both pick the same top k (both are increasing); they differ in gate weights, and once a selection bias or a group limit is added, softmax-plus-bias and sigmoid-plus-bias can pick differently because the bias is added on different scales.",
+  "label": "core",
+  "key": "Memory is priced on the total, compute on",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Treating dropped tokens as an error that would show up Nothing fails: a dropped assignment silently leaves that token with less (or no) FFN output in that layer, and the loss just gets worse (section 4).",
+  "label": "core",
+  "key": "Nothing fails; the loss just gets worse",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "The only signal is the dropped fraction, if you log it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated by section 4 (\"Nothing fails; the loss just gets worse\") and its how-to-check paragraph"
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "Asking for more experts per token than exist The tiny GPT with 4 experts and top_k = 6: RuntimeError: selected index k out of range , from torch.topk inside the router.",
+  "label": "depth",
+  "key": "Asking for more experts per token than exist",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "common mistakes, with real outputs",
+  "text": "The same message appears when a converted checkpoint's num_experts_per_tok does not match its expert count.",
+  "label": "depth",
+  "key": "The same message appears when a converted checkpoint's",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Interview questions Why does an MoE with 8 experts and top-2 have the FLOPs of a dense model, and what does it pay instead?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question; answer restated section 1"
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "When each expert is half the dense FFN width, two of them cost one dense FFN; the router adds 2dE FLOPs per token (0.4% here).",
+  "label": "core",
+  "key": "each expert is half the dense",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "It pays in memory (all experts resident: 2.6 times the tiny GPT's parameters), communication once experts are sharded, balancing machinery, and skinny per-expert matrix multiplies.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating section 1 and the measured box (2.6 to 2.8 times the parameters)"
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Where does the router's gradient come from, and why does that cause collapse?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question; answer restated section 2"
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Only through the gate weights of the chosen experts (top-k has no gradient); unchosen experts get no signal (measured here: at most 9.9 × 10 -8 of the chosen ones' gradient, floating-point rounding).",
+  "label": "core",
+  "key": "at most 9.9 × 10 -8 of the",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A slightly favoured expert gets more updates, improves, and wins more: a rich-get-richer loop that balancing breaks.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating section 3 (routing collapse)"
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Write the Switch balancing loss and say what it is at perfect balance and at collapse. α E ∑ f i P i ; f counts dispatch (no gradient), P is the mean router probability.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating the Switch loss formula of section 3"
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "All tokens to expert 1 with P 1 = 0.7 among 4 experts: 2.8α.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating the worked example (2.8 times its coefficient) of section 3"
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "In transformers' pooled version, uniform top-2 gives 2.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating the closed transformers check (balanced routing returns 2.00)"
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Auxiliary-loss-free balancing: what is updated, by what rule, and why does it not hurt quality?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question; answer restated the bias section"
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "A per-expert bias added to the scores for selection only; b i += γ sign(mean load − load i ) after each step (γ = 0.001 in V3).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating the bias rule of section 3"
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "It never enters the output or the gradient, so it moves the decision boundary without a competing objective.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating section 3"
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "DeepSeek still keeps a tiny sequence-wise loss (α = 0.0001).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating section 3 (alpha = 0.0001)"
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What is a capacity factor, and why do modern training stacks not use one?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question; answer restated section 4"
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "C = CF · n · k / E slots per expert; overflow is dropped and skips the FFN.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating the capacity formula of section 4"
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Dropless grouped-GEMM kernels (MegaBlocks) compute ragged per-expert groups, so nothing is dropped or padded; static buffers survive where shapes must be static.",
+  "label": "core",
+  "key": "ragged per-expert groups, so nothing is",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "DeepSeek-V3: 671B total, 37B active.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question; section 9 closed block rebuilds both totals"
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Rebuild both from the config in your head.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question"
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Expert 3 × 7,168 × 2,048 = 44M; 58 MoE layers × 257 experts = 656.6B; dense rest about 14.4B; total 671B.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating the closed DeepSeek-V3 rebuild of section 9"
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Active: 58 × 9 × 44M = 23B + 14.4B = 37.6B with the input embedding, 36.6B without (which rounds to the report's 37B).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating the closed DeepSeek-V3 rebuild of section 9"
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Per token per MoE layer, how many bytes cross the network under expert parallelism? k · d · bytes each way (less what lands locally): DeepSeek-V3 in BF16 8 × 7,168 × 2 = 112 KiB out and 112 KiB back per token per layer, forward; the backward repeats it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating section 7 (112 KiB each way)"
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Group-limited routing caps how much of it crosses nodes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating group-limited routing (sections 2 and 7)"
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "At what batch size does a 256-expert, top-8 model stop decoding like its active size?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview question; section 8 slider answers it"
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Expected distinct experts touched is E(1 − (1 − k/E) B ): 8 at B = 1, about 163 at B = 32, nearly all 256 by B = 256.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating section 8 (8, about 163, about 256)"
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Past a few tens of sequences it reads almost all its weights per step, like a dense model of its total size, while each expert still sees only B · k / E tokens.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer restating section 8"
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Design: you have 64 H100s (8 nodes of 8, NVLink inside, 400 Gb/s InfiniBand between) and a compute budget for a 7B-active model.",
+  "label": "depth",
+  "key": "you have 64 H100s (8 nodes of 8,",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Design the FFN and its parallelism.",
+  "label": "depth",
+  "key": "Design the FFN and its parallelism.",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Fine-grained MoE: for example 128 routed experts of width about d/4 with top 8 plus 1 shared, first 1 to 3 layers dense, sigmoid scores with bias balancing and a tiny sequence-wise loss, dropless kernels, router in float32 (and a z-loss if logits grow).",
+  "label": "depth",
+  "key": "Fine-grained MoE: for example 128 routed experts of",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Expert parallel 8-way inside each node (NVLink), data parallel (FSDP/ZeRO) across nodes for attention and dense parts, so the all-to-all stays on NVLink; if experts must span nodes, group-limit each token to 2 to 4 nodes.",
+  "label": "depth",
+  "key": "Expert parallel 8-way inside each node (NVLink), data",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Measure per-expert load and dropped fraction from step 1, and check memory: total parameters, not active, set the shard sizes.",
+  "label": "depth",
+  "key": "Measure per-expert load and dropped fraction from step",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Design: serve a 1T-total, 32B-active MoE at low latency for batch 1 and cheaply at batch 512.",
+  "label": "depth",
+  "key": "serve a 1T-total, 32B-active MoE at low latency",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "What changes between the two?",
+  "label": "depth",
+  "key": "What changes between the two?",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Batch 1: few experts touched, decode reads about the active weights, latency is set by memory bandwidth and the all-to-all latency; use fewer, larger nodes and quantised experts (4 to 8 bits) so the model fits in as few GPUs as possible.",
+  "label": "depth",
+  "key": "Batch 1: few experts touched, decode reads about",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "Batch 512: nearly all experts touched every step; spread experts wide (EP over many GPUs) so each GPU's few experts get a useful slice of tokens, replicate hot experts (EPLB), disaggregate prefill from decode, and use grouped GEMM.",
+  "label": "depth",
+  "key": "Batch 512: nearly all experts touched every step;",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "interview questions",
+  "text": "The KV cache, not the experts, then limits the batch: that is an attention-design question.",
+  "label": "depth",
+  "key": "The KV cache, not the experts, then limits",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-route",
+  "section": "",
+  "text": "Router choices recorded from the trained tiny-GPT MoE models on the root's 256-token running sequence (\"Once upon a time, in a big forest, there lived a rhinoceros named Roxy...\"), never seen in training.",
+  "label": "core",
+  "key": "running sequence (\"Once upon a time, in a",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-route",
+  "section": "",
+  "text": "Every number on this tab comes from one forward pass of a real checkpoint ( src/analysis/analyse.py , measured on Apple M1 Pro (CPU) ).",
+  "label": "core",
+  "key": "( src/analysis/analyse.py , measured on Apple M1 Pro",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-route",
+  "section": "the same 8 tokens through the router, with and without balancing",
+  "text": "The same 8 tokens through the router, with and without balancing Tokens 1 to 8 of the running sequence, one MoE layer, eight experts, top 2.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading and intro of the retired Router tab; the stepper now sits in section 2 with its own title"
+ },
+ {
+  "id": 291,
+  "tab": "t-route",
+  "section": "the same 8 tokens through the router, with and without balancing",
+  "text": "The three models were trained identically except for how they balance.",
+  "label": "core",
+  "key": "trained identically except for how they",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-route",
+  "section": "the same 8 tokens through the router, with and without balancing",
+  "text": "Step through it: scores, choices, dispatch, the load each expert gets, what a capacity factor of 1.25 would drop from this small batch, and how outputs are combined.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "intro of the retired Router tab; the stepper caption carries it"
+ },
+ {
+  "id": 293,
+  "tab": "t-route",
+  "section": "the same 8 tokens through the router, with and without balancing",
+  "text": "Switching model or layer resets the steps; everything is drawn on the same scale.",
+  "label": "core",
+  "key": "Switching model or layer resets the",
+  "where": ""
+ },
+ {
+  "id": 294,
+  "tab": "t-route",
+  "section": "the same 8 tokens through the router, with and without balancing",
+  "text": "Capacity on this 8-token batch: ⌈1.25 × 8 × 2 / 8⌉ = 3 slots per expert (the tiny GPT rounds up, tiny_gpt.py:404 ).",
+  "label": "core",
+  "key": "Capacity on this 8-token batch:",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-route",
+  "section": "the same 8 tokens through the router, with and without balancing",
+  "text": "The trained models themselves ran dropless except the capacity-factor run; drops here show what the rule would do to these 8 tokens.",
+  "label": "core",
+  "key": "what the rule would do to these 8",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-route",
+  "section": "the same 8 tokens through the router, with and without balancing",
+  "text": "Gate weights are the renormalised scores of the two chosen experts.",
+  "label": "core",
+  "key": "renormalises the k chosen scores",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-route",
+  "section": "the whole running sequence, coloured by its first-choice expert",
+  "text": "The whole running sequence, coloured by its first-choice expert Each piece of text is coloured by the expert the router ranked first for it in the chosen layer (Mixtral's Figure 8 does the same for its real model).",
+  "label": "depth",
+  "key": "in the chosen layer (Mixtral's Figure 8 does",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-route",
+  "section": "the whole running sequence, coloured by its first-choice expert",
+  "text": "Tap a piece to see both experts and their weights in every layer.",
+  "label": "depth",
+  "key": "both experts and their weights in every layer.",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-route",
+  "section": "what each expert takes, on held-out text",
+  "text": "What each expert takes, on held-out text For the chosen model and layer: the tokens each expert most often receives as first choice over 5 held-out batches (40,960 tokens), with the share of that token's occurrences that went there.",
+  "label": "depth",
+  "key": "the tokens each expert most often receives as",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-route",
+  "section": "what each expert takes, on held-out text",
+  "text": "Determinism is the fraction of tokens whose first-choice expert is the one most common for their token id: 1 would mean routing is a lookup on the token id alone, 1/8 would mean it ignores it.",
+  "label": "depth",
+  "key": "Determinism is the fraction of tokens whose first-choice",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-load",
+  "section": "",
+  "text": "How expert load evolves while the tiny GPT trains: the training log records, every 10 steps, how many of the batch's 16,384 assignments (8,192 tokens × 2) went to each expert in each MoE layer, plus the auxiliary loss and the dropped fraction.",
+  "label": "core",
+  "key": "how many of the batch's 16,384 assignments (8,192",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-load",
+  "section": "",
+  "text": "Same data, same seed, same schedule for every run; only the balancing differs. measured on Apple M1 Pro (MPS) , the root's train.py through the batched MoE forward of src/runs/fast_moe.py .",
+  "label": "core",
+  "key": "measured on Apple M1 Pro (MPS) , the",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-load",
+  "section": "before and after balancing, step by step",
+  "text": "Before and after balancing, step by step Left: the model with no balancing at all.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "navigation of the retired Expert load tab"
+ },
+ {
+  "id": 304,
+  "tab": "t-load",
+  "section": "before and after balancing, step by step",
+  "text": "Right: pick a balancing scheme.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "navigation of the retired Expert load tab"
+ },
+ {
+  "id": 305,
+  "tab": "t-load",
+  "section": "before and after balancing, step by step",
+  "text": "Both panels show every layer's 8 expert shares at the same training step; the dashed line is 1/8.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "caption restated by the moved animation's caption (dashed line 1/8)"
+ },
+ {
+  "id": 306,
+  "tab": "t-load",
+  "section": "before and after balancing, step by step",
+  "text": "Play to watch the left side collapse while the right side holds.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "navigation of the retired Expert load tab"
+ },
+ {
+  "id": 307,
+  "tab": "t-load",
+  "section": "heat map: one layer over the whole run",
+  "text": "Heat map: one layer over the whole run Rows are experts, columns are logged steps (every 10), colour is the expert's share of that step's assignments: white-ish is 0, the darkest is half the batch or more.",
+  "label": "depth",
+  "key": "Rows are experts, columns are logged steps (every",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-load",
+  "section": "heat map: one layer over the whole run",
+  "text": "Balanced routing shows as eight bands of the same even intensity (1/8 each).",
+  "label": "depth",
+  "key": "Balanced routing shows as eight bands of the",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-load",
+  "section": "imbalance, auxiliary loss and drops over training",
+  "text": "Imbalance, auxiliary loss and drops over training",
+  "label": "depth",
+  "key": "loss and drops over training",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-calc",
+  "section": "",
+  "text": "Pick a model: its total and active parameters, its weight memory, what one decode step reads as the batch grows, what one token sends through the all-to-all, and what splitting experts finer would change.",
+  "label": "core",
+  "key": "Pick a model: its total and active parameters,",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-calc",
+  "section": "",
+  "text": "Parameter counts use the root's Config calculator code unchanged ( window.CC , validated to residual 0 against 44 Hugging Face checkpoints); the configs are the ones it ships.",
+  "label": "core",
+  "key": "Parameter counts use the root's Config calculator code",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-calc",
+  "section": "",
+  "text": "Everything on this tab is derived from configs and formulas; published figures are vendor numbers from the model cards.",
+  "label": "core",
+  "key": "Everything on this tab is derived from configs",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-calc",
+  "section": "",
+  "text": "Model Weights stored at BF16 (2 bytes) FP8 (1 byte) MXFP4 (4.25 bits) 4 bits",
+  "label": "core",
+  "key": "Model Weights stored at BF16 (2 bytes) FP8",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-calc",
+  "section": "where the parameters are",
+  "text": "Where the parameters are",
+  "label": "core",
+  "key": "Where the parameters are",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-calc",
+  "section": "what one decode step reads, against batch size",
+  "text": "What one decode step reads, against batch size Decoding is bound by weight bytes read per step.",
+  "label": "core",
+  "key": "What one decode step reads, against batch size",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-calc",
+  "section": "what one decode step reads, against batch size",
+  "text": "Each of B running sequences picks k of E experts in every MoE layer; with uniform, independent routing about E(1 − (1 − k/E) B ) distinct experts are touched per layer.",
+  "label": "core",
+  "key": "Each of B running sequences picks k of",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-calc",
+  "section": "what one decode step reads, against batch size",
+  "text": "The input embedding is excluded (a lookup of B rows, not a full read); the output head and every dense part are read once per step.",
+  "label": "core",
+  "key": "The input embedding is excluded (a lookup of",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-calc",
+  "section": "what one token sends under expert parallelism",
+  "text": "What one token sends under expert parallelism EP degree W (ranks sharing each layer's experts)",
+  "label": "core",
+  "key": "What one token sends under expert parallelism EP",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-calc",
+  "section": "split every expert m ways (the fine-grained move)",
+  "text": "Split every expert m ways (the fine-grained move) E → m · E experts, k → m · k per token, expert width → width / m.",
+  "label": "core",
+  "key": "Split every expert m ways (the fine-grained move)",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-calc",
+  "section": "split every expert m ways (the fine-grained move)",
+  "text": "Parameters and FLOPs barely move (only the router grows); the combinations, the dispatch fan-out and the matrix shapes change. m",
+  "label": "core",
+  "key": "Parameters and FLOPs barely move (only the router",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Links open in a new tab; checked 2026-10-18.",
+  "label": "core",
+  "key": "Further reading Links open in a new tab;",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Times are estimates: for knowledge base pages, the Reading tab's word count at 230 words a minute.",
+  "label": "core",
+  "key": "Times are estimates: for knowledge base pages, the",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Outside sources are marked maker (written by the lab that builds the model or system) or third-party .",
+  "label": "core",
+  "key": "Outside sources are marked maker (written by the",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "On this page Reading The MoE layer from zero on the running example: the router, collapse and three balancing fixes, capacity and drops, fine-grained and shared experts, measured dense against MoE, expert parallelism run over four processes, serving cost, 23 real configs, mistakes and interview questions.",
+  "label": "core",
+  "key": "On this page Reading The MoE layer from",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Router on the running sequence The same 8 tokens through three balancing schemes, step by step; the whole sequence coloured by expert; which tokens each expert takes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading entry for the retired Router tab"
+ },
+ {
+  "id": 326,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(10 min) Expert load over training Collapse and its prevention replayed from the training logs, a heat map per layer, MaxVio, auxiliary loss and drops over training.",
+  "label": "depth",
+  "key": "a heat map per layer, MaxVio,",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(8 min) Dense vs MoE calculator Parameters, memory, weight bytes read per decode step against batch, all-to-all bytes, and the fine-grained split for 20 real configs.",
+  "label": "core",
+  "key": "Dense vs MoE calculator Parameters, memory, weight bytes",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(10 min) Topic: llm-architecture and its other children Topic: llm-architecture The parent: one token through one block, each component's alternatives; its Config calculator supplies this page's parameter formulas, its running example every run here.",
+  "label": "core",
+  "key": "min) Topic: llm-architecture and its other children Topic:",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 39 min) The transformer from zero The dense FFN and SwiGLU that each expert copies, and the tiny GPT built from an empty file.",
+  "label": "core",
+  "key": "min) The transformer from zero The dense FFN",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 38 min) Attention variants MLA and sparse attention: the other efficiency axis the sparse MoE models changed.",
+  "label": "core",
+  "key": "(about 38 min) Attention variants MLA and sparse",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 39 min) Long context The KV cache that MoE leaves untouched and that limits serving batch size.",
+  "label": "core",
+  "key": "min) Long context The KV cache that MoE",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 22 min) Beyond attention Hybrids (Jamba, Granite 4.0-H, Qwen3-Next, Nemotron 3 Super) that combine SSM layers with MoE FFNs.",
+  "label": "core",
+  "key": "(about 22 min) Beyond attention Hybrids (Jamba, Granite",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 38 min) Normalisation, residuals and stability Loss spikes and z-losses beyond the router.",
+  "label": "core",
+  "key": "(about 38 min) Normalisation, residuals and stability Loss",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 37 min) Families and objectives Multi-token prediction modules, which DeepSeek-V3 and GLM ship beside their MoE layers.",
+  "label": "core",
+  "key": "(about 37 min) Families and objectives Multi-token prediction",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 28 min) LLM Architecture Gallery Per-layer strips of 2026 open models, MoE layers included.",
+  "label": "core",
+  "key": "(about 28 min) LLM Architecture Gallery Per-layer strips",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 22 min) Around this page in the knowledge base Distributed Training Expert parallelism inside one training step with data, tensor, pipeline and context parallelism; its Layout calculator.",
+  "label": "core",
+  "key": "(about 22 min) Around this page in the",
+  "where": ""
+ },
+ {
+  "id": 337,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 22 min) Distributed PyTorch c10d process groups, device meshes and the collectives this page's expert-parallel run uses.",
+  "label": "core",
+  "key": "(about 22 min) Distributed PyTorch c10d process groups,",
+  "where": ""
+ },
+ {
+  "id": 338,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 30 min) Interconnects and scaling All-to-all on NVLink and InfiniBand, PXN, and DeepSeek-V3's network-aware routing.",
+  "label": "core",
+  "key": "(about 30 min) Interconnects and scaling All-to-all on",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 30 min) Distributed and disaggregated serving Wide expert parallelism and prefill/decode disaggregation in serving engines.",
+  "label": "core",
+  "key": "(about 30 min) Distributed and disaggregated serving Wide",
+  "where": ""
+ },
+ {
+  "id": 340,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 29 min) Quantization and Precision FP8, MXFP4 and 4-bit formats, the ones MoE checkpoints store their experts in.",
+  "label": "core",
+  "key": "(about 29 min) Quantization and Precision FP8, MXFP4",
+  "where": ""
+ },
+ {
+  "id": 341,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "DeepSeek The lab page: DeepSeekMoE to V4 in context, the MLA explainer, DualPipe.",
+  "label": "core",
+  "key": "DeepSeek The lab page: DeepSeekMoE to V4 in",
+  "where": ""
+ },
+ {
+  "id": 342,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 34 min) Alibaba: Qwen Qwen's expert grids drawn to scale and global-batch balancing in context.",
+  "label": "core",
+  "key": "(about 34 min) Alibaba: Qwen Qwen's expert grids",
+  "where": ""
+ },
+ {
+  "id": 343,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 30 min) Activation functions GELU, SiLU and the GLU family inside every expert.",
+  "label": "core",
+  "key": "(about 30 min) Activation functions GELU, SiLU and",
+  "where": ""
+ },
+ {
+  "id": 344,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Paper pages Switch Transformers (2021) Top-1 routing, the f · P loss, capacity, selective precision; a Switch layer trained live in the page.",
+  "label": "core",
+  "key": "Paper pages Switch Transformers (2021) Top-1 routing, the",
+  "where": ""
+ },
+ {
+  "id": 345,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 19 min) Mixtral of Experts (2024) Top-2 over 8 SwiGLU experts, the decode roofline, and the routing analysis rebuilt on a toy.",
+  "label": "core",
+  "key": "(about 19 min) Mixtral of Experts (2024) Top-2",
+  "where": ""
+ },
+ {
+  "id": 346,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 20 min) DeepSeek-V3 Technical Report (2024) Bias balancing with Table 5 and section 4.5.3, node-limited dispatch, DualPipe, FP8.",
+  "label": "core",
+  "key": "(about 20 min) DeepSeek-V3 Technical Report (2024) Bias",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 26 min) Qwen3 Technical Report (2025) 128 experts, 8 active, no shared experts, global-batch balancing.",
+  "label": "core",
+  "key": "(about 26 min) Qwen3 Technical Report (2025) 128",
+  "where": ""
+ },
+ {
+  "id": 348,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 23 min) Bounding the memory bottlenecks of large MoE training (2026) The four memory peaks of long-context MoE training and the dispatch schedules that flatten them.",
+  "label": "core",
+  "key": "(about 23 min) Bounding the memory bottlenecks of",
+  "where": ""
+ },
+ {
+  "id": 349,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(about 23 min) Best resources Fedus, Dean and Zoph 2022, A Review of Sparse Expert Models maker The Switch and ST-MoE authors' own review: routing algorithms, balancing, scaling, the open questions as of 2022.",
+  "label": "core",
+  "key": "(about 23 min) Best resources Fedus, Dean and",
+  "where": ""
+ },
+ {
+  "id": 350,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(1h) Hugging Face, \"Mixture of Experts Explained\" (2023) third-party The best single overview of the pre-DeepSeek literature, with fine-tuning notes.",
+  "label": "core",
+  "key": "(1h) Hugging Face, \"Mixture of Experts Explained\" (2023)",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(40m) Maarten Grootendorst, \"A Visual Guide to Mixture of Experts\" third-party Diagrams of routers, capacity and the Switch loss; a quick second picture.",
+  "label": "core",
+  "key": "(40m) Maarten Grootendorst, \"A Visual Guide to Mixture",
+  "where": ""
+ },
+ {
+  "id": 352,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30m) Cai et al.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment; the next unit carries the entry"
+ },
+ {
+  "id": 353,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2024, A Survey on Mixture of Experts in LLMs third-party A taxonomy of gating, experts and systems with a long reference list.",
+  "label": "core",
+  "key": "2024, A Survey on Mixture of Experts in",
+  "where": ""
+ },
+ {
+  "id": 354,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(1h 30m) The Ultra-Scale Playbook (expert parallelism section) third-party Where EP sits among DP, TP, PP and CP, from benchmarked runs.",
+  "label": "core",
+  "key": "(1h 30m) The Ultra-Scale Playbook (expert parallelism section)",
+  "where": ""
+ },
+ {
+  "id": 355,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30m for the EP part) DeepEP , EPLB and DualPipe maker DeepSeek's open dispatch/combine kernels, expert placement and pipeline schedule.",
+  "label": "core",
+  "key": "(30m for the EP part) DeepEP , EPLB",
+  "where": ""
+ },
+ {
+  "id": 356,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(repos, 45m) MegaBlocks maker Dropless MoE with block-sparse kernels; the code behind section 4.",
+  "label": "core",
+  "key": "(repos, 45m) MegaBlocks maker Dropless MoE with block-sparse",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(repo, 20m) Primary sources used on this page Shazeer et al.",
+  "label": "core",
+  "key": "(repo, 20m) Primary sources used on this page",
+  "where": ""
+ },
+ {
+  "id": 358,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2017, Outrageously Large Neural Networks The sparsely gated MoE layer, noisy top-k, the first balancing losses.",
+  "label": "core",
+  "key": "2017, Outrageously Large Neural Networks The sparsely gated",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(40m) Lepikhin et al.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment"
+ },
+ {
+  "id": 360,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2020, GShard MoE in a transformer, top-2 with random second expert, expert capacity, sharding.",
+  "label": "core",
+  "key": "2020, GShard MoE in a transformer, top-2 with",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(1h) Zoph et al.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment"
+ },
+ {
+  "id": 362,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2022, ST-MoE The router z-loss, stability, capacity factors at train and eval, fine-tuning.",
+  "label": "core",
+  "key": "2022, ST-MoE The router z-loss, stability, capacity factors",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(1h) Zhou et al.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment"
+ },
+ {
+  "id": 364,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2022, Expert Choice routing Experts pick tokens; perfect balance, but not causal.",
+  "label": "core",
+  "key": "2022, Expert Choice routing Experts pick tokens; perfect",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30m) Roller et al.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment"
+ },
+ {
+  "id": 366,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2021, Hash Layers Fixed token-to-expert routing, revived in DeepSeek-V4's first layers.",
+  "label": "core",
+  "key": "2021, Hash Layers Fixed token-to-expert routing, revived in",
+  "where": ""
+ },
+ {
+  "id": 367,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30m) Gale et al.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment"
+ },
+ {
+  "id": 368,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2022, MegaBlocks Dropless MoE as block-sparse matrix multiplication.",
+  "label": "core",
+  "key": "2022, MegaBlocks Dropless MoE as block-sparse matrix multiplication.",
+  "where": ""
+ },
+ {
+  "id": 369,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(40m) Dai et al.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment"
+ },
+ {
+  "id": 370,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2024, DeepSeekMoE Fine-grained segmentation and shared experts, with the ablations quoted in section 5.",
+  "label": "core",
+  "key": "2024, DeepSeekMoE Fine-grained segmentation and shared experts, with",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(45m) Wang et al.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment"
+ },
+ {
+  "id": 372,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2024, Auxiliary-loss-free load balancing The bias rule, MaxVio, the update-rate study and the sigmoid against softmax appendix.",
+  "label": "core",
+  "key": "2024, Auxiliary-loss-free load balancing The bias rule, MaxVio,",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30m) Qiu et al.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment"
+ },
+ {
+  "id": 374,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2025, global-batch load balancing Balance over the global batch, and the specialisation it allows.",
+  "label": "core",
+  "key": "2025, global-batch load balancing Balance over the global",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "(30m) Du et al.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "citation fragment"
+ },
+ {
+  "id": 376,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "2021, GLaM A 1.2T-parameter MoE decoder (64 experts, top 2, every other layer) at a third of GPT-3's training energy.",
+  "label": "core",
+  "key": "2021, GLaM A 1.2T-parameter MoE decoder (64 experts,",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "The 7-step router stepper on 8 real tokens (score, top 2, dispatch, load, capacity drops, combine), moved from the Router tab",
+  "label": "core",
+  "key": "Eight real tokens through one router",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Collapse animation over 151 logged steps, no balancing against a chosen scheme, moved from the Expert load tab",
+  "label": "core",
+  "key": "the router collapses within 100 steps",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Heat map per layer and MaxVio / aux / dropped curves over training, moved from the Expert load tab",
+  "label": "depth",
+  "key": "Heat map: rows are experts",
+  "where": ""
+ },
+ {
+  "id": 380,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Sequence coloured by first-choice expert and the per-expert token table with determinism, moved from the Router tab",
+  "label": "depth",
+  "key": "Determinism",
+  "where": ""
+ },
+ {
+  "id": 381,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "23-config table of router fields (date, E, k, shared, width, layers, router, balancing, groups, scale, C(E,k))",
+  "label": "depth",
+  "key": "23 MoE models, December 2023 to July 2026",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Run table: held-out loss, MaxVio, total and active parameters, rough tokens/s for nine runs",
+  "label": "core",
+  "key": "Nine runs of the root's tiny GPT",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Drawn-to-scale captions: dense 16 squares, moe8top2 8 squares each, moe16top3_shared 4 squares each, DeepSeek-V3 257 experts of 44,040,192",
+  "label": "core",
+  "key": "Drawn to scale",
+  "where": ""
+ },
+ {
+  "id": 384,
+  "tab": "t-read",
+  "section": "script-rendered",
+  "text": "Softmax/sigmoid widget outputs: chosen experts, gate ratios, diluted softmax",
+  "label": "core",
+  "key": "Softmax scores dilute as experts are added",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-read",
+  "section": "absorbed:topic_llm_architecture t-calc",
+  "text": "Dense-twin stepper at equal active parameters (six steps: twin, add experts, FLOPs, memory, decode reads at batch 8 and 64), moved from the root's Config calculator",
+  "label": "core",
+  "key": "Moved here from the root's Config calculator",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-read",
+  "section": "absorbed:topic_llm_architecture t-read section 6",
+  "text": "Capacity rounding: 1.25 x 8 x 2 / 8 = 2.5, rounded up to 3 by math.ceil (round-down implementations allow 2)",
+  "label": "core",
+  "key": "rounded up to 3 by the tiny GPT",
+  "where": ""
+ }
+]

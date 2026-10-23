@@ -1,4 +1,4 @@
-// ---- Router on the running sequence: before/after balancing animation (8 tokens), the sequence coloured by expert,
+// ---- Reading section 2 (moved from the retired Router tab on 2026-10-23): before/after balancing animation (8 tokens), the sequence coloured by expert,
 // and which tokens each expert takes on held-out text. All from recorded router outputs (window.MXD.runs[*].seq/special). ----
 (function(){
   const M=window.MX;if(!M||!window.RD||!M.$('rt-anim'))return;const {D,$,f,pct,tx,svg,esc,EC}=M;
@@ -43,7 +43,7 @@
   const anim=RD.anim({card:'rt-anim',ctl:'rt-ctl',n:STEPS.length,draw,ms:1700,label:'Router step'});
   M.seg($('rt-run'),R8.map(k=>[k,D.runs[k].short]),st.run,m=>{st.run=m;anim.reset(STEPS.length)});
   M.seg($('rt-lay'),Array.from({length:L},(_,i)=>[String(i),'layer '+(i+1)]),'0',m=>{st.lay=+m;anim.reset(STEPS.length)});
-  M.onTab('t-route',()=>anim.redraw());
+  RD.onResize(()=>anim.redraw());
   // whole sequence coloured by first choice ------------------------------------------------------------------------
   const s2={run:st.run,lay:0,tok:null};
   function txt(){const r=D.runs[s2.run].seq,E=r.E,k=r.k,top=r.top[s2.lay];let h='';

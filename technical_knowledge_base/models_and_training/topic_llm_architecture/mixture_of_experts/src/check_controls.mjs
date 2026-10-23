@@ -18,6 +18,18 @@ try {
     for (const t of tabs) {
       await p.click(`button[data-t=${t}]`); await new Promise(r => setTimeout(r, 250));
       if (rm === 'reduce') continue;
+      // nothing may move before the reader acts: scroll every animation into view, wait, and read its play button
+      if (t === 't-read' && scheme === 'light') {
+        const ids = await p.$$eval('#t-read .an-ctl', cs => cs.map(c => c.id));
+        for (const id of ids) { await p.$eval('#' + id, el => el.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 300)); }
+        await new Promise(r => setTimeout(r, 2500));
+        const playing = await p.$$eval('#t-read .an-ctl .an-play', bs => bs.filter(b => /Pause/.test(b.textContent)).map(b => b.id));
+        if (playing.length) errs.push('autoplay: ' + playing.join(', '));
+        const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.filter(r => +r.value !== 0).map(r => r.id));
+        if (moved.length) errs.push('not on step 0 before any action: ' + moved.join(', '));
+      }
+      await p.evaluate(t => document.querySelectorAll(`#${t} details`).forEach(d => { d.open = true; }), t);
+      await new Promise(r => setTimeout(r, 200));
       // every button (segmented controls, drills, animation controls), every select option, every range position
       const n = await p.$$eval(`#${t} button`, bs => bs.length);
       for (let i = 0; i < n; i++) {
@@ -37,9 +49,9 @@ try {
       await p.screenshot({ path: path.join(shots, `ctl_${t}_${scheme}_${width}.png`), fullPage: true });
     }
     if (rm === 'reduce') {
-      await p.click('button[data-t=t-route]'); await new Promise(r => setTimeout(r, 2500));
-      const label = await p.$eval('#rt-ctl-p', x => x.textContent).catch(() => 'none');
-      if (/Pause/.test(label)) errs.push('reduced motion: route animation autoplays');
+      await p.click('button[data-t=t-read]'); await p.$eval('#rt-anim', el => el.scrollIntoView()); await new Promise(r => setTimeout(r, 2500));
+      const playing = await p.$$eval('#t-read .an-ctl .an-play', bs => bs.filter(b => /Pause/.test(b.textContent)).map(b => b.id));
+      if (playing.length) errs.push('reduced motion: autoplay ' + playing.join(', '));
     }
     const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push('jsErr ' + box);
     console.log(scheme, width, rm, errs.length ? errs : 'clean'); bad += errs.length; await p.close();
