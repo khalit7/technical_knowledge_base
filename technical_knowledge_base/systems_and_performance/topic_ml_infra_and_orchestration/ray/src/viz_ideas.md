@@ -28,3 +28,9 @@ Central question: what does Ray do with your program's tasks, objects and worker
 
 ## What the methodology lacked
 Nothing to reproduce from a published table here; the reproducible things are defaults in source, so each default is quoted with file and line and located by script (`scripts/ry_quotes.py`). Timing races (the checkpoint registration) need repeats: three runs, all the same.
+
+## 2026-10-24 rebuild
+- Built: hero (static annotated diagram, one call through the cluster with the owner's table), placement-group figure (static, the root's measured placements), Ray Serve figure (static, defaults from source).
+- Moved inline: the three lab tabs' visuals (each explained one mechanism).
+- Placement groups are now drawn here (this page owns Ray scheduling); the root's Scheduling lab section 7 should link here rather than keep its own Ray table (reported).
+- Rejected: a Ray Serve run (actor placement already measured; queueing would need a load generator on a laptop VM: dated, machine-bound numbers); real images (software; no openly licensed figure teaches more than the hero).

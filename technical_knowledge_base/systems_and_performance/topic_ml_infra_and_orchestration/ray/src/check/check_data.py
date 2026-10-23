@@ -75,6 +75,18 @@ for key, phrase in [("max_direct_call_object_size", "line 274"), ("object_spilli
     ok(phrase == f"line {lines[key]}", f"source line {key} = {lines[key]}")
 for k in ("health_check_period_ms", "health_check_timeout_ms", "health_check_failure_threshold"):
     ok(1060 <= lines[k] <= 1064, f"{k} in lines 1060 to 1064")
+# Ray Serve defaults (inputs/serve_quotes.json, read from tag ray-2.59.0) and the placement figure (root's ray_pg.jsonl)
+sq = {x["key"]: x for x in json.load(open(os.path.join(SRC, "inputs", "serve_quotes.json")))["quotes"]}
+for key, val, phrase in [("max_ongoing_requests", "= 5", "max_ongoing_requests</code> = 5"), ("target_ongoing_requests", "= 2", "target_ongoing_requests</code> = 2"),
+                         ("upscale_delay_s", "30.0", "upscale_delay_s</code> = 30 s"), ("downscale_delay_s", "600.0", "downscale_delay_s</code> = 600 s"),
+                         ("batch_max_batch_size", "= 10", "max_batch_size</code> = 10"), ("batch_wait_timeout_s", "0.01", "batch_wait_timeout_s</code> = 0.01")]:
+    ok(val in sq[key]["text"] and phrase in html, f"serve default {key} {val}")
+ok("lines 283 and 284" in text and "lines 695 and 704" in text and "lines 803 and 804" in text and
+   [sq[k]["line"] for k in ("max_ongoing_requests", "target_ongoing_requests", "downscale_delay_s", "upscale_delay_s", "batch_max_batch_size", "batch_wait_timeout_s")] == [283, 284, 695, 704, 803, 804], "serve source lines")
+pgn = {x["name"]: x for x in pg if x.get("ev") == "pg"}
+ok(pgn["sc-pack-4"]["nodes"] == ["ray-w2", "ray-w2", "ray-w1", "ray-w1"] and pgn["sc-spread-4"]["nodes"] == ["ray-w2", "ray-w1", "ray-w2", "ray-w1"]
+   and pgn["sc-strict_pack-4"]["state"] == pgn["sc-strict_spread-4"]["state"] == "PENDING" and pgn["sc-strict_pack-2"]["ready"] and pgn["sc-strict_spread-2"]["ready"], "placement figure matches ray_pg.jsonl")
+ok("{s:'PACK',p:{'ray-w1':[2,3],'ray-w2':[0,1]}" in html and "{s:'SPREAD',p:{'ray-w1':[1,3],'ray-w2':[0,2]}" in html, "placement figure data in page")
 # privacy
 priv = [r"/Us" + "ers/", r"Us" + "ers-", re.escape(os.environ.get("USER", "nobody-here")), r"gl" + "pat", r"sk" + "-ant", r"[\w.]+@[\w-]+\.\w+", r"\b(?:\d{1,3}\.){3}\d{1,3}\b"]
 for root, _, files in os.walk(os.path.dirname(SRC)):

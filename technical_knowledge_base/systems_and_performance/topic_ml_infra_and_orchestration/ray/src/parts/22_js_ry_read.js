@@ -102,7 +102,7 @@ function drawObj(){
   if(st[0]==='r'){const i=+st[1];const r=o.read16[i];const to=names.indexOf(r.on);const from=names.indexOf('ray-w1');
     if(to!==from&&i===0){const x1=from*(bw+8)+bw/2,x2=to*(bw+8)+bw/2;s+='<path d="M'+x1+' '+(H-14)+' L'+x2+' '+(H-14)+'" stroke="var(--c2)" stroke-width="2" marker-end="url(#ryArr)"/>';}
     s='<defs><marker id="ryArr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--c2)"/></marker></defs>'+s}
-  el.innerHTML=RD.svg(w,H,s,'Object locations per node');
+  el.innerHTML=RD.svg(w,H,s,'Object copies per node at this step');
   let cap='';
   if(st==='made')cap='The 1 MB array is in w1\'s store, where its task ran. '+inline+'. Both were made with NodeAffinitySchedulingStrategy pinned to w1.';
   if(st==='get')cap='After <code>ray.get</code> the 1 MB object has two copies, on w1 and on the head (the driver\'s node). The array the driver got is read-only (writeable '+o.get_big.writeable+', owndata '+o.get_big.owndata+'): a view of shared memory. Writing to it raised <code>'+E(o.readonly.type)+': '+E(o.readonly.msg)+'</code>.';
@@ -164,7 +164,7 @@ function ftTable(){
 
 function all(){drawMap();stats();drawNap(napAnim?napAnim.i:0);drawObj();drawSpill();drawProc();placeCap();ftTable()}
 napAnim=RD.anim({card:'ry-nap-card',ctl:'ry-nap-ctl',n:napSteps(),draw:drawNap,ms:110,label:'Time'});
-RD.seg($('ry-nap-mode'),m=>{napMode=m;napAnim.reset(napSteps());napAnim.play()});
+RD.seg($('ry-nap-mode'),m=>{napMode=m;napAnim.reset(napSteps())});
 $('ry-obj-step').innerHTML=OBJ_STEPS.map((s,i)=>'<button data-m="'+i+'"'+(i?'':' class="on"')+'>'+(i+1)+'</button>').join('');
 RD.seg($('ry-obj-step'),m=>{objStep=+m;drawObj()});
 RD.onRender(all);RD.onResize(all);all();

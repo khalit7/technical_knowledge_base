@@ -1,7 +1,6 @@
 <section id="s-tasks">
 <h2>Tasks: remote functions and futures</h2>
-<p><b>The problem.</b> You have a function and a thousand inputs, and one machine is too slow. You want the calls to run on many cores of many machines without writing sockets, queues or a scheduler.</p>
-<p><b>How it works.</b> Decorating a function with <code>@ray.remote</code> registers it with the cluster. <code>f.remote(x)</code> does not run <code>f</code>: it sends a task description (function, arguments, resource request, by default 1 CPU) to Ray and immediately returns an <b>ObjectRef</b>, a future. <code>ray.get(ref)</code> blocks until the result exists and returns it; <code>ray.wait(refs)</code> returns the ones that are ready. Because <code>.remote()</code> returns at once, you can submit many tasks before waiting for any: that is where the parallelism comes from.</p>
+<p><code>@ray.remote</code> registers a function with the cluster. <code>f.remote(x)</code> does not run <code>f</code>: it sends a task description (function, arguments, resource request, by default 1 CPU) to Ray and returns an <b>ObjectRef</b> at once. <code>ray.get(ref)</code> blocks until the result exists; <code>ray.wait(refs)</code> returns the ones that are ready. Because <code>.remote()</code> returns immediately, you submit many tasks before waiting for any: that is where the parallelism comes from.</p>
 <p class="ry-src-q">From <code>src/scripts/ry_core.py</code> (section <code>tasks</code>), run as the driver on the head:</p>
 <pre>@ray.remote
 def noop():
@@ -13,27 +12,26 @@ for _ in range(100):
 <span class="c"># 1,000 at once: submit all, then wait for all</span>
 hosts = ray.get([noop.remote() for _ in range(1000)])</pre>
 <div class="out" id="ry-task-stats"></div>
-<p class="ry-cap"><span class="ry-meas">measured</span> One tiny task round trip (submit, schedule, run, return) took about 3 ms on this laptop; 1,000 tasks submitted together cost well under 1 ms each because Ray pipelines them across the 4 worker processes and reuses a leased worker for many tasks. The 1,000 results came from both workers (the hosts split is shown). The {{Ownership paper|https://www.usenix.org/conference/nsdi21/presentation/cheng}} (NSDI 2021, the design Ray implements) reports about 1 ms per task on a real cluster <span class="ry-pub">published</span>; a laptop VM is slower but the same order.</p>
+<p class="ry-cap"><span class="ry-meas">measured</span> One tiny task round trip (submit, schedule, run, return) took about 3 ms on this laptop; 1,000 tasks submitted together cost well under 1 ms each, because Ray pipelines them across the 4 worker processes and reuses a leased worker for many tasks. The 1,000 results came from both workers (the split is in the card). The {{Ownership paper|https://www.usenix.org/conference/nsdi21/presentation/cheng}} (NSDI 2021, the design Ray implements) reports about 1 ms per task on a real cluster <span class="ry-pub">published</span>: the same order.</p>
 
-<div class="ry-pr" id="ry-pr1"><div class="q">Predict: eight tasks that each sleep 0.5 s, on a cluster with 4 free CPUs. How long does <code>ray.get([nap.remote(i, 0.5) for i in range(8)])</code> take, and how long does <code>[ray.get(nap.remote(i, 0.5)) for i in range(8)]</code> take?</div>
+<div class="ry-pr" id="ry-pr1"><div class="q">Predict: eight tasks that each sleep 0.5 s, on 4 free CPUs. How long does <code>ray.get([nap.remote(i, 0.5) for i in range(8)])</code> take, and how long does <code>[ray.get(nap.remote(i, 0.5)) for i in range(8)]</code> take? Answer, then step the replay below.</div>
 <div class="opts"><button data-r="0">0.5 s and 0.5 s</button><button data-r="1">about 1 s and about 4 s</button><button data-r="0">about 4 s and about 4 s</button><button data-r="0">about 1 s and about 1 s</button></div>
-<div class="ans">About 1 s (two waves of 4 on 4 CPUs) against about 4 s. In the second form each <code>ray.get</code> waits for its task before the next task is even submitted, so the eight run one after another: the classic "ray.get in a loop" mistake. The animation below replays both runs from their recorded start and end times.</div></div>
+<div class="ans">About 1 s (two waves of 4 on 4 CPUs) against about 4 s: 4.0 s instead of 1.1 s here. In the second form each <code>ray.get</code> waits for its task before the next is even submitted, so the eight run one after another: the classic "ray.get in a loop" mistake.</div></div>
 
-<div class="ry-card" id="ry-nap-card"><h4>The same eight tasks, submitted together and then one by one <span class="ry-meas">measured</span></h4>
+<div class="ry-card" id="ry-nap-card"><h4>Where <code>ray.get</code> sits decides whether tasks overlap <span class="ry-meas">measured</span></h4>
 <div class="ry-seg" id="ry-nap-mode"><button data-m="together" class="on">Submit all, then get</button><button data-m="get_in_loop">ray.get inside the loop</button></div>
 <div id="ry-nap"></div>
 <div class="ry-ctl" id="ry-nap-ctl"></div>
 <div class="ry-anc" id="ry-nap-cap"></div>
-<p class="ry-cap">Each lane is one worker process (node and process id from the run); each bar is one task, placed where and when it really ran. Same eight tasks, same cluster; only where <code>ray.get</code> sits changed.</p>
+<p class="ry-cap">Each lane is one worker process (node and pid from the run); each bar is one task, placed where and when it really ran. Same eight tasks, same cluster.</p>
 </div>
-<p><b>What it costs.</b> A task is a scheduling decision, a message to a worker, a serialisation of arguments and results: milliseconds, not microseconds. Tasks of a few milliseconds of work spend most of their life in overhead, so batch tiny work into fewer, larger tasks. The Ray docs' own example ({{anti-pattern: too fine-grained tasks|https://docs.ray.io/en/latest/ray-core/patterns/too-fine-grained-tasks.html}} <span class="ry-pub">published</span>) runs 10,000 calls of a 10-microsecond function: about 0.17 s as plain calls, 1.6 s as one task each, 0.03 s as batches of 1,000 per task.</p>
-<p><b>How to check it.</b> <code>ray status</code> shows how many CPUs are in use right now; the dashboard's timeline (<code>ray timeline</code> writes a Chrome trace) shows each task as a bar per worker, exactly as drawn above. If the bars are serial when they should overlap, look for a <code>ray.get</code> between submissions.</p>
+<p><b>Cost.</b> A task is a scheduling decision, a message and a serialisation: milliseconds, not microseconds. Batch tiny work into fewer, larger tasks. The Ray docs' own example ({{anti-pattern: too fine-grained tasks|https://docs.ray.io/en/latest/ray-core/patterns/too-fine-grained-tasks.html}} <span class="ry-pub">published</span>) runs 10,000 calls of a 10-microsecond function: about 0.17 s as plain calls, 1.6 s as one task each, 0.03 s as batches of 1,000 per task.</p>
+<p><b>Check.</b> <code>ray status</code> shows CPUs in use; <code>ray timeline</code> writes a Chrome trace with each task as a bar per worker, as drawn above. Serial bars that should overlap mean a <code>ray.get</code> between submissions.</p>
 </section>
 
 <section id="s-actors">
 <h2>Actors: a process with state</h2>
-<p><b>The problem.</b> Tasks forget everything between calls. A model loaded on a GPU, a replay buffer, an environment simulator, a counter of tokens processed: these must live in one process and be called many times.</p>
-<p><b>How it works.</b> <code>@ray.remote</code> on a class makes it an actor class. <code>Counter.remote()</code> starts a dedicated worker process somewhere in the cluster, runs <code>__init__</code> there and returns an <b>actor handle</b>. <code>c.incr.remote()</code> sends a method call to that one process; calls from one caller run one at a time in submission order (unless you ask for concurrency with <code>max_concurrency</code> or async methods), so the state is never touched by two calls at once.</p>
+<p>Tasks forget everything between calls; a model on a GPU, a replay buffer or a simulator must live in one process. <code>@ray.remote</code> on a class makes an actor class: <code>Counter.remote()</code> starts a dedicated worker process, runs <code>__init__</code> there and returns an <b>actor handle</b>. Calls from one caller run one at a time in submission order (unless you ask for <code>max_concurrency</code> or async methods), so two calls never touch the state at once.</p>
 <pre>@ray.remote
 class Counter:
     def __init__(self):
@@ -45,7 +43,7 @@ class Counter:
 c = Counter.remote()                                  <span class="c"># a new process on some node</span>
 vals = ray.get([c.incr.remote() for _ in range(1000)])  <span class="c"># 1,000 calls queued, run in order</span></pre>
 <div class="out" id="ry-actor-stats"></div>
-<p class="ry-cap"><span class="ry-meas">measured</span> Creating the actor (start a process, run <code>__init__</code>) took a fraction of a second; after that a call round trip was faster than a task's, because no scheduling decision is needed: the caller talks straight to the actor's process. 1,000 queued calls came back in order (first value, last value and the ordered check are from the run; the counter starts above 1 because 100 single calls ran first).</p>
+<p class="ry-cap"><span class="ry-meas">measured</span> After creation, an actor call round trip was faster than a task's: no scheduling decision, the caller talks straight to the actor's process. The 1,000 queued calls came back in order (the counter starts above 1 because 100 single calls ran first).</p>
 <div class="tw"><table>
 <tr><th></th><th>Task</th><th>Actor</th></tr>
 <tr><td>State between calls</td><td>none</td><td>kept in the actor's process</td></tr>
@@ -53,7 +51,6 @@ vals = ray.get([c.incr.remote() for _ in range(1000)])  <span class="c"># 1,000 
 <tr><td>Order of calls</td><td>none: tasks run as resources free up</td><td>one caller's calls run in submission order</td></tr>
 <tr><td>Resources held</td><td>while running (1 CPU by default)</td><td>for its lifetime if it asks for any; by default 1 CPU to place it and 0 while it runs (<a href="https://docs.ray.io/en/latest/ray-core/scheduling/resources.html" target="_blank" rel="noopener noreferrer">Ray docs: resources</a>)</td></tr>
 <tr><td>On a crash</td><td>retried 3 times by default (system failures)</td><td>not restarted by default; with <code>max_restarts</code>, restarted with fresh state</td></tr>
-<tr><td>Typical use</td><td>preprocessing, scoring, parallel map</td><td>model replicas, simulators, rollout workers, Ray Train workers, inference engines</td></tr>
+<tr><td>Typical use</td><td>preprocessing, scoring, parallel map</td><td>model replicas, simulators, rollout workers, Ray Train workers (<code>RayTrainWorker</code>), vLLM engines in RL stacks</td></tr>
 </table></div>
-<p><b>When it matters.</b> Every training worker in Ray Train is an actor (<code>RayTrainWorker</code> in the logs), and so is every vLLM engine in an RL post-training stack. Choosing "task or actor" is choosing whether state, placement and order matter. The actor's price is that its state dies with its process, which is the fault-tolerance section's subject.</p>
 </section>

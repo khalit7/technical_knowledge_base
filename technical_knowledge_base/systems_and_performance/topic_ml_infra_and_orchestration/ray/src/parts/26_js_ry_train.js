@@ -1,8 +1,8 @@
-// ---- Ray child page: Train failure replay (t-train) ----
+// ---- Ray child page: Reading, Ray Train failure replay (moved from its tab, 2026-10-24) ----
 (function(){
 const Y=window.RY,E=RD.esc,$=id=>document.getElementById(id),U=window.RYU,f1=U.f1,f2=U.f2;
-const reg=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-train']=window.TAB_RENDER['t-train']||[]).push(f)};
-const vis=()=>{const t=$('t-train');return t&&!t.hidden};
+const reg=f=>{RD.onRender(f);RD.onResize(f)};
+const vis=()=>{const t=$('t-read');return t&&!t.hidden};
 const RUNS=Y.train.runs;let ri=0,view='real';
 function info(r){
   const R=r.ranks;const crash=R[3].find(e=>e.ev==='crash');
@@ -45,7 +45,7 @@ function draw(i){
   $('ry-tr-cap').innerHTML=c;
 }
 const anim=RD.anim({card:'ry-tr-card',ctl:'ry-tr-ctl',n:EV.length,draw:draw,ms:1500,label:'Event'});
-function setRun(k){ri=k;EV=events(RUNS[ri]);$('ry-tr-title').innerHTML='Run '+(ri+1)+' of 3 <span class="ry-meas">measured</span>';anim.reset(EV.length);anim.play();tables()}
+function setRun(k){ri=k;EV=events(RUNS[ri]);$('ry-tr-title').innerHTML='Run '+(ri+1)+' of 3 <span class="ry-meas">measured</span>';anim.reset(EV.length);tables()}
 $('ry-tr-run').innerHTML=RUNS.map((r,k)=>'<button data-m="'+k+'"'+(k?'':' class="on"')+'>Run '+(k+1)+'</button>').join('');
 RD.seg($('ry-tr-run'),m=>setRun(+m));
 RD.seg($('ry-tr-view'),m=>{view=m;anim.redraw()});
@@ -66,6 +66,6 @@ function tables(){
     return '<tr><td class="num">'+e.step+'</td><td class="num">'+e.g+'</td><td class="num">'+ref[e.step]+'</td><td class="num"'+(d?' style="color:var(--bad)"':'')+'>'+(d?d.toExponential(2):'0')+'</td></tr>'}).join('');
 }
 function all(){if(!vis())return;tables();draw(anim.i)}
-reg(all);addEventListener('resize',()=>{clearTimeout(all.t);all.t=setTimeout(all,80)});
+reg(all);
 tables();
 })();
