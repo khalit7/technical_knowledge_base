@@ -1,4 +1,4 @@
-// ---- Eviction lab (t-ev): every chart from BKD.ev (src/evict/gen_evict.py) and BKD.evcheck (src/evict/check/vllm_evict.py) ----
+// ---- Reading sections 3 and 4 (formerly the Eviction lab tab): every chart from BKD.ev (src/evict/gen_evict.py) and BKD.evcheck (src/evict/check/vllm_evict.py) ----
 (function(){
   const E=BKD.ev;if(!document.getElementById('ev-plot'))return;
   const $=id=>document.getElementById(id);
@@ -16,7 +16,7 @@
     let b='';
     for(let v=0;v<=ym+1e-9;v+=0.1){b+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(L-4,y(v)+4,Math.round(v*100)+'%',{a:'end',fs:10,fill:'var(--mute)'})}
     const step=W<480?3:2;
-    E.caps.forEach((c,i)=>{if(i%step===0||i===n-1)b+=RD.t(x(i),H-B+14,capLabel(c,u),{a:i===n-1?'end':(i===0?'start':'middle'),fs:10,fill:'var(--mute)'})});
+    E.caps.forEach((c,i)=>{if((i%step===0&&n-1-i>=step)||i===n-1)b+=RD.t(x(i),H-B+14,capLabel(c,u),{a:i===n-1?'end':(i===0?'start':'middle'),fs:10,fill:'var(--mute)'})});
     b+=RD.t((L+W-R)/2,H-4,'cache size ('+(u==='b'?'blocks of 512 tokens':u==='t'?'tokens':'GB of KV cache')+', log scale)',{a:'middle',fs:10.5,fill:'var(--mute)'});
     b+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(inf)+'" y2="'+y(inf)+'" stroke="var(--good)" stroke-dasharray="1 3" stroke-width="1.5"/>'+RD.t(W-R,y(inf)-4,'unlimited '+pct(inf),{a:'end',fs:10,fill:'var(--good)'});
     P.forEach(p=>{const row=tr.grid[p[0]];b+='<polyline fill="none" stroke="'+p[2]+'" stroke-width="'+(p[0]==='lru'?2.4:1.6)+'"'+(p[3]?' stroke-dasharray="'+p[3]+'"':'')+' points="'+row.map((r,i)=>x(i).toFixed(1)+','+y(r[w]).toFixed(1)).join(' ')+'"/>'});
@@ -48,13 +48,13 @@
       [['LRU, published','published','lru'],['LRU, this replay','ours','lru'],['LFU, published','published','lfu'],['LFU, this replay','ours','lfu'],['LengthAware, published','published','lengthaware'],['ARC, this replay','ours','arc'],['Belady, this replay','ours','opt']].map(r=>'<tr><td>'+r[0]+'</td>'+t1[r[1]][r[2]].map(v=>'<td class="num">'+(100*v).toFixed(r[1]==='published'?0:1)+'%</td>').join('')+'</tr>').join('')+'</tbody>';
     const f9=E.fig9.ours;
     $('ev3-note').innerHTML='<span class="ev-tag" style="color:var(--c4)">authors\' figures</span> against <span class="ev-tag" style="color:var(--c6)">trace</span> replays. Table 1 ({{Mooncake arXiv report, section 4.2|https://arxiv.org/abs/2407.00079}}) does not reproduce exactly: same shape (LRU ahead of LFU at middle sizes; little gain past 50,000 blocks) but this replay of the released file ('+fmtN(t1.stats.n)+' requests, mean input '+fmtN(Math.round(t1.stats.mean_in))+' tokens) runs 2 to 6 points higher; the report gives a mean input of 7,590 tokens, the file 8,590, so the table may come from another cut of the data. LengthAware ("similar to LFU but prioritizing cache blocks occurring later in requests") is not described precisely enough to re-implement. FAST\'25 Fig. 9 prints, for a 3-million-token local cache, the hit rate as a share of the unlimited one: 75%, 46%, 48% and 41%; LRU here gives '+pct(f9.toolagent)+' (tool and agent), '+pct(f9.all)+' (all three merged), '+pct(f9.synthetic)+' (synthetic) and '+pct(f9.conversation)+' (conversation), so the labels most likely belong in that order.';
-    $('ev4-tbl').innerHTML='<thead><tr><th>Trace (first 3,000 requests)</th><th class="num">Cache, blocks</th><th class="num">Prompt blocks</th><th class="num">vLLM hits</th><th class="num">Re-implementation</th><th class="num">Lab LRU</th><th>Same</th></tr></thead><tbody>'+
+    $('ev4-tbl').innerHTML='<thead><tr><th>Trace (first 3,000 requests)</th><th class="num">Cache, blocks</th><th class="num">Prompt blocks</th><th class="num">vLLM hits</th><th class="num">Re-implementation</th><th class="num">Replay LRU</th><th>Same</th></tr></thead><tbody>'+
       BKD.evcheck.map(c=>c.rows.map(r=>'<tr><td>'+c.trace.replace('_trace.jsonl','')+'</td><td class="num">'+fmtN(r.cap)+'</td><td class="num">'+fmtN(r.blocks)+'</td><td class="num">'+fmtN(r.vllm_hit_blocks)+'</td><td class="num">'+fmtN(r.exact_hit_blocks)+'</td><td class="num">'+fmtN(r.lab_lru_hit_blocks)+'</td><td>'+(r.identical?'yes':'NO')+'</td></tr>').join('')).join('')+'</tbody>';
   }
   ['ev-tr','ev-w','ev-u'].forEach(id=>$(id).addEventListener('change',plot));$('ev-cap').addEventListener('input',plot);
   ['ev2-tr','ev2-g','ev2-m'].forEach(id=>$(id).addEventListener('change',tiers));
   const all=()=>{plot();tiers();tables()};
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-ev']=[all];
-  let tm=0;addEventListener('resize',()=>{if($('t-ev').hidden)return;clearTimeout(tm);tm=setTimeout(plot,80)});
+  RD.onRender(all);
+  let tm=0;addEventListener('resize',()=>{if($('t-read').hidden)return;clearTimeout(tm);tm=setTimeout(plot,80)});
   all();
 })();

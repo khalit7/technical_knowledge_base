@@ -1,0 +1,4261 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Batching, KV cache and scheduling in depth Batching, KV cache and scheduling in depth How a serving engine decides, every few milliseconds, which requests run, how many of their tokens it computes and where their KV cache lives: continuous batching, paging, prefix caching and eviction, offload tiers, chunked prefill, preemption, priorities and fairness, and KV compression.",
+  "label": "core",
+  "key": "which requests run, how many of their tokens it computes and where their kv cache lives: continuous batching, paging,",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Real traces, real engines on an Apple M1 Pro, vLLM's own scheduler code, published GPU results kept apart.",
+  "label": "core",
+  "key": "real traces, real engines on an apple m1 pro, vllm's own scheduler code, published gpu results kept apart.",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026.",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Eviction lab Scheduling lab KV compression experiment Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "old tab names; tabs folded into Reading"
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Continuous batching 2 Paging 3 Prefix caching, eviction 4 Offload tiers 5 Chunked prefill 6 Preemption 7 Priority, fairness, SLOs 8 KV compression 9 Tuning Mistakes Interview A serving engine is a loop.",
+  "label": "core",
+  "key": "4 offload tiers 5 chunked prefill 6 preemption 7",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "Every few milliseconds it takes one step (also called an iteration): it decides which requests run , how many of their tokens it computes , and where their KV cache lives , then runs the model once over that batch.",
+  "label": "core",
+  "key": "decides which requests run , how many of their tokens it computes",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "Everything on this page is a rule for one of those three decisions, and each rule exists because a simpler one broke.",
+  "label": "core",
+  "key": "a rule for one of those three decisions, and each",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "The parent page, Topic: inference-and-serving , gives the intuition for each mechanism in a few paragraphs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up about the parent; the You need line links it"
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page goes one level down: what the papers measured, what the engines' code actually does (read at pinned versions: vLLM v0.31.0, SGLang v0.5.21, llama.cpp build 11146), what it costs, and how to check it on your own server.",
+  "label": "core",
+  "key": "at pinned versions: vllm v0.31.0, sglang v0.5.21, llama.cpp build",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "Words used throughout: prefill is the pass that reads a request's whole prompt and writes its keys and values; decode is one pass per further output token; the KV cache is those stored keys and values, one pair per token per layer; TTFT (time to first token) and TPOT or ITL (time per output token, inter-token latency) are the two latencies a user feels.",
+  "label": "core",
+  "key": "the two latencies a user feels.",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "Which requests batching, admission, order Continuous batching re-forms the batch every step (section 1).",
+  "label": "core",
+  "key": "which requests run",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "",
+  "text": "Admission asks whether the KV cache has room; the order of the waiting queue is a policy: first come first served, priority, fairness, shortest first (section 7).",
+  "label": "core",
+  "key": "the order of the waiting queue",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "",
+  "text": "How many tokens the token budget A step carries at most a fixed number of new tokens.",
+  "label": "core",
+  "key": "the most new tokens one step may compute",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "",
+  "text": "Decodes take one each; a long prompt is cut into chunks that fill the rest (chunked prefill, section 5).",
+  "label": "core",
+  "key": "1 decode token each",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "",
+  "text": "Where the KV lives blocks, tiers, eviction The cache is cut into fixed blocks (paging, section 2), shared across requests that start the same way (prefix caching, section 3), spilled to slower memory (offload, section 4), taken back from a running request when it runs out (preemption, section 6), or thinned (compression, section 8).",
+  "label": "core",
+  "key": "blocks of finished requests stay cached until the space is needed",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "",
+  "text": "The running example is the parent page's chat assistant: Llama 3.1 70B with FP8 weights on NVIDIA H200 GPUs, prompts of 2,000 tokens of which 1,000 are a shared system prompt, answers of 300 tokens.",
+  "label": "core",
+  "key": "the running example is the parent page's chat assistant: llama 3.1 70b with fp8 weights on nvidia h200 gpus, prompts of",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "",
+  "text": "Its cache costs 320 KiB per token (2 × 80 layers × 8 KV heads × 128 dimensions × 2 bytes), so one 2,300-token conversation holds 719 MiB and one H200 has room for about 141 of them ( Capacity planner tab of the parent, section 1).",
+  "label": "core",
+  "key": "its cache costs 320 kib per token (2 × 80 layers × 8 kv heads × 128 dimensions × 2 bytes), so one 2,300-token",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "",
+  "text": "The measured examples are small Qwen3 models (0.6B and 1.7B) run on the Apple M1 Pro laptop this page was built on, the same models the parent's Engine bench tab measured.",
+  "label": "core",
+  "key": "on the apple m1 pro laptop this page was built on, the",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "",
+  "text": "The mechanisms in one table Mechanism Problem it solves What it costs Default (vLLM v0.31.0 / SGLang v0.5.21 / llama-server) How to check it Continuous batching A fixed batch waits for its longest answer; new requests wait for the whole batch Mixed steps: every request's tokens share one forward pass, so attention must handle ragged lengths On in all three (it is how they work) Throughput against concurrency; a new request's TTFT while others decode Paging Contiguous reservations held 20.4% to 38.2% useful tokens (PagedAttention, Fig.",
+  "label": "depth",
+  "key": "mechanism problem it solves what it costs default (vllm v0.31.0 / sglang v0.5.21 / llama-server) how to check it",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "",
+  "text": "2) An indirection (the block table) in the attention kernel; up to one partly filled block per request 16-token blocks / a paged token pool (page_size resolved at start-up) / one KV buffer shared by all slots Cache use against active tokens; requests per GB Prefix caching The same system prompt and chat history prefilled again on every request Memory for idle blocks; hashing; a policy for what to evict On, LRU eviction / on, LRU (radix tree) / on, plus an 8 GiB host-memory prompt cache Prefix cache hit rate metric; TTFT of a repeated prompt Offload tiers GPU memory holds far fewer reusable prefixes than traffic offers Copies over PCIe or the network; a second eviction policy Off (kv_offloading_size) / off (HiCache) / host prompt cache on Hit rate per tier; load time against recompute time Chunked prefill A long prompt read in one step stalls every user's stream A long prompt's TTFT rises a little; per-chunk overhead On, 8,192 tokens per step on H100-class GPUs / on, 8,192 on H100 / -b 2048 tokens per step Max and p99 inter-token gap while long prompts arrive Preemption Answers grow; the cache runs out mid-answer Recompute (wasted FLOPs) or swap (PCIe traffic); latency spikes Recompute only, newest request first / retract the request with the fewest output tokens / none: idle slots are cleared, then active requests fail num_preemptions metric; cache use pinned at 100% Priority and fairness One tenant or one long job holds everyone else's latency hostage Someone else waits longer; starvation if unbounded fcfs, or \"priority\" / fcfs, plus lpm, dfs-weight and others / slots in arrival order TTFT per tenant and per priority class KV compression Long contexts fill the cache Quality; and savings a paged engine cannot always realise KV quantization only (fp8 / fp8 / q8_0, q4_0 options) Task accuracy against memory freed, with a random-eviction control Defaults read in source at the pinned versions; each is cited where its section explains it. llama-server's slots, its prompt cache and its -b budget are covered in depth on Local and on-device inference ; vLLM's scheduler loop read line by line on vLLM: inside the default engine ; SGLang's radix tree on SGLang .",
+  "label": "depth",
+  "key": "2) an indirection (the block table) in the attention kernel; up to one partly filled block per request 16-token blocks",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "",
+  "text": "How numbers are labelled measured here on the M1 Pro laptop (llama.cpp with Metal, PyTorch on the CPU); derived from a formula or a simulator whose checks are shown; trace computed here from a published production trace (Moonshot AI's Mooncake traces); authors' or vendor claim , what a paper or company reports about its own system, dated.",
+  "label": "core",
+  "key": "how numbers are labelled measured here on the m1 pro laptop (llama.cpp with metal, pytorch on the cpu); derived from a",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "",
+  "text": "Anything not run here says so and why.",
+  "label": "core",
+  "key": "anything not run here says so and why.",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "",
+  "text": "Eviction lab replays real request traces from Kimi's production service through six eviction policies at every cache size, with a GPU and host-memory tier.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "description of a removed tab"
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "",
+  "text": "Scheduling lab extends the parent's Serving simulator with vLLM's priority policy, a fair scheduler and shortest-job-first, and sweeps the chunk budget.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "description of a removed tab"
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "",
+  "text": "KV compression experiment evicts KV entries of a real model six ways and scores the result.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "description of a removed tab"
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Continuous batching: one step, any mix of requests The problem.",
+  "label": "core",
+  "key": "continuous batching: one step, any mix of requests",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Before 2022, servers batched whole requests: take B requests, run them together until the longest answer ends, then take the next B.",
+  "label": "core",
+  "key": "before 2022, servers batched whole requests: take b requests, run them together until the longest answer ends, then",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Finished requests leave empty seats and new arrivals wait for the whole batch (the parent's Serving simulator tab animates this in its section 1).",
+  "label": "core",
+  "key": "empty seats and new arrivals wait",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "The fix has two halves, both from one paper, Orca ( Yu et al., OSDI 2022 ): Iteration-level scheduling : the scheduler hands the engine one iteration (one step) at a time and gets control back after each, so a finished request can leave and a new one can join between any two steps.",
+  "label": "core",
+  "key": "at a time and gets control back after each, so a finished request",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Selective batching : the trick that makes any mix of requests runnable as one step.",
+  "label": "core",
+  "key": "split per request only for attention",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Most of a transformer layer (the matrix multiplications, normalisation, activation) does not care which request a token belongs to, so all tokens of all requests are stacked into one tall matrix of shape [total tokens, hidden size].",
+  "label": "core",
+  "key": "not care which request a token belongs",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Only attention needs to know: each token may look only at its own request's earlier tokens.",
+  "label": "core",
+  "key": "each token may look only at its own request's earlier tokens.",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Orca splits the stack per request for attention and merges it back.",
+  "label": "core",
+  "key": "for the layers that do not care which request",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Orca's own example is four requests in four different states: x1 and x2 are decoding (one new token each, at different positions), x3 arrives with a 2-token prompt and x4 with a 3-token prompt.",
+  "label": "core",
+  "key": "x3 arrives with a 2-token prompt and x4 with a 3-token prompt.",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "In a system that batches tensors of shape [batch, length, hidden], these four cannot share a step: the two prompts have different lengths, the two decodes sit at different positions, and prompts and decodes take different numbers of tokens ( Orca, section 3, \"C2\" ).",
+  "label": "core",
+  "key": "( orca, section 3, \"c2\" ).",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Watch the same four requests both ways.",
+  "label": "core",
+  "key": "the same four requests both ways.",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "One step for four requests: tensor batching against selective batching (Orca's Figure 5 example) Selective batching (Orca, and every engine since) Tensor batching [batch, length, hidden] Token names follow the paper: x ij is the j-th token of request i; shaded tokens are prompt tokens, plain ones were generated earlier.",
+  "label": "core",
+  "key": "x ij is the j-th token of request i; shaded tokens are prompt tokens, plain ones were generated earlier.",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "One square is one token row of hidden size H. \"Weight reads\" counts how many times the layer's weights stream from memory for this step: the dominant cost of a decode step (the parent's section 1).",
+  "label": "core",
+  "key": "one square is one token row of hidden size h. \"weight reads\" counts how many times the layer's weights stream from",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "What engines do now.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading lead-in"
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "The split and merge became one kernel. vLLM's FlashAttention backend takes the flattened tokens plus, for each request, where its queries start ( query_start_loc ), its total length ( seq_lens ) and its block table, and calls a variable-length attention kernel once for the whole step ( vllm/v1/attention/backends/flash_attn.py, FlashAttentionMetadata L520 and flash_attn_varlen_func L1566 ).",
+  "label": "depth",
+  "key": "and its block table, and calls a variable-length attention kernel once for the whole step (",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "That is why prefill chunks and decodes can sit in the same step (section 5), and why the scheduler talks about tokens, not sequences.",
+  "label": "core",
+  "key": "that is why prefill chunks and decodes can",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "The two caps on a step Every engine bounds a step two ways.",
+  "label": "core",
+  "key": "every engine caps a step two ways",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "In vLLM they are max_num_batched_tokens , the token budget (new tokens computed per step, prefill and decode together), and max_num_seqs , the most requests in one step.",
+  "label": "core",
+  "key": "the most sequences per step",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "In v0.31.0 the API server picks them from the GPU's memory: 8,192 tokens and 1,024 sequences on H100 and H200, 16,384 and 1,024 at 160 GiB or more (B200, MI300X), 2,048 and 256 on smaller GPUs such as an A100, L40S or RTX 5090 ( engine/arg_utils.py get_batch_defaults, L2858 ). llama-server's equivalent of the budget is -b (default 2,048) and of the sequence cap the number of slots -np .",
+  "label": "depth",
+  "key": "from the gpu's memory: 8,192 tokens and 1,024 sequences on h100 and h200, 16,384 and 1,024 at 160 gib or more (b200,",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "SGLang sets its prefill chunk from GPU memory: 2,048 tokens under 20 GB, 4,096 under 80 GB, 8,192 for H100 and H200, 16,384 above 160 GB ( arg_groups/memory_hook.py, handle_gpu_memory_settings L47 ).",
+  "label": "depth",
+  "key": "sglang sets its prefill chunk from gpu memory: 2,048 tokens under 20 gb, 4,096 under 80 gb, 8,192 for h100 and h200,",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Predict: a decode step for 64 users on the running example (Llama 3.1 70B FP8 on one H200).",
+  "label": "core",
+  "key": "predict: a decode step for 64 users on the running example (llama 3.1 70b fp8 on one h200).",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Roughly how much longer is it than a step for one user?",
+  "label": "core",
+  "key": "roughly how much longer is it than a step for one user?",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "64 times longer About 8 times About 1.5 times The same About 1.5 times.",
+  "label": "core",
+  "key": "64 times longer about 8 times about 1.5 times the same about 1.5 times.",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "The step reads 72.66 GB of weights whatever the batch; each extra user adds only its own cache reads and a little arithmetic.",
+  "label": "core",
+  "key": "the step reads 72.66 gb of weights whatever the batch; each extra user adds only its own cache reads and a little",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "The parent's planner gives 21.6 ms for one user and about 33 ms for 64 (46 against 1,930 output tokens per second, the parent's section 3 ), so 64 users cost 1.54 times the time (33.2 ms = 64 / 1,930) for 42 times the tokens.",
+  "label": "core",
+  "key": "the parent's planner gives 21.6 ms for one user and about 33 ms for 64 (46 against 1,930 output tokens per second, the",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Measured here on a laptop GPU the same curve is flatter: llama-batched-bench with Qwen3-0.6B gave 188 tokens per second for one sequence and 1,320 for 64 (7 times), because each extra sequence costs about 1.2 ms of fixed work per step on this machine ( Engine bench tab, \"Batching\").",
+  "label": "core",
+  "key": "measured here on a laptop gpu the same curve is flatter: llama-batched-bench with qwen3-0.6b gave 188 tokens per second",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Cost, when it matters, how to check Cost.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "box heading"
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "A step lasts as long as its slowest part, so whatever joins a step slows every user in it: a long prompt most of all (section 5).",
+  "label": "core",
+  "key": "a step lasts as long as its slowest part, so whatever joins",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Each request also holds cache memory for as long as it runs, so more concurrency means more memory (section 2).",
+  "label": "core",
+  "key": "every running request holds cache memory",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "When it matters: any server with more than one user at a time.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "obvious"
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "How to check: sweep concurrency and plot output throughput against TPOT; vLLM's vllm:num_requests_running and vllm:num_requests_waiting gauges show whether the batch is full and requests queue.",
+  "label": "core",
+  "key": "sweep concurrency and plot output throughput against tpot; vllm's vllm:num_requests_running and",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "One more thing Orca did, and the reason for the next section: to be sure a request could never run out of room mid-answer, its scheduler reserved max_tokens cache slots for every request at admission ( Orca Algorithm 1, lines 23 to 26 ).",
+  "label": "core",
+  "key": "reserved max_tokens cache slots for every request at admission ( orca algorithm 1, lines 23 to 26 ).",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "1. continuous batching: one step, any mix of requests",
+  "text": "Most of those slots were never used.",
+  "label": "core",
+  "key": "most were never used",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Paging: where the memory went, and how blocks got it back The problem.",
+  "label": "core",
+  "key": "paging: where the memory went, and how blocks got it back",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Kwon et al. measured systems that store each request's cache in one contiguous region, sized when the request is admitted, and found that only 20.4% to 38.2% of the cache memory held actual tokens ( PagedAttention, SOSP 2023, Fig.",
+  "label": "core",
+  "key": "and found that only 20.4% to 38.2% of the cache memory held actual tokens ( pagedattention, sosp 2023, fig.",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "They named three kinds of waste ( same paper, Fig.",
+  "label": "core",
+  "key": "three kinds of waste ( same paper, fig.",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "3 ): Reservation : slots kept for tokens the request will generate later.",
+  "label": "core",
+  "key": "slots kept for tokens the request will",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "They will be used, but nobody else can use them meanwhile.",
+  "label": "core",
+  "key": "slots kept for tokens the request will write later",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Internal fragmentation : slots reserved that will never be used, because the answer ends before the reservation does.",
+  "label": "core",
+  "key": "reserved slots never used because the answer ended early",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "External fragmentation : gaps between reservations, too small for the next request (the memory allocator's leftovers).",
+  "label": "core",
+  "key": "too small for the next request",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Share of KV memory holding tokens, by system (PagedAttention Fig.",
+  "label": "core",
+  "key": "share of kv memory holding tokens",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "2) token states reservation internal fragmentation external fragmentation and other authors' measurement , averaged \"during the experiment in section 6.2\" (basic sampling, one sample per request; the caption does not say which of that section's models and traces the bars cover).",
+  "label": "core",
+  "key": "2) token states reservation internal fragmentation external fragmentation and other authors' measurement , averaged",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Values transcribed from the labels printed on the figure; each segment's meaning follows the figure's stacking order. \"Orca\" here is the authors' own reimplementation (Orca was not publicly available), in three variants: Max reserves the model's 2,048-token maximum, Pow2 the next power of two above the true output length, Oracle exactly the true length (impossible in practice: nobody knows the answer's length in advance).",
+  "label": "core",
+  "key": "max reserves the model's 2,048-token maximum, pow2 the next power of two above the true output length, oracle exactly",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "PagedAttention borrows virtual memory from operating systems.",
+  "label": "core",
+  "key": "pagedattention borrows virtual memory from operating systems.",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "The cache is a pool of fixed-size blocks (16 tokens in vLLM by default, vllm/config/cache.py L71 ); each request has a block table mapping its token positions to blocks anywhere in the pool; a new block is taken only when the last one fills.",
+  "label": "core",
+  "key": "the cache is a pool of fixed-size blocks (16 tokens in vllm by default, vllm/config/cache.py l71 ); each request has a",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Reservation and external fragmentation disappear (all blocks are the same size and none is held in advance) and internal fragmentation shrinks to the unfilled tail of each request's last block: on average half a block, 8 tokens.",
+  "label": "core",
+  "key": "and internal fragmentation shrinks to the unfilled tail of each request's last block: on average half a block, 8 tokens.",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "The cost is an indirection inside the attention kernel, which reads keys and values through the table instead of from one contiguous array.",
+  "label": "core",
+  "key": "the cost is an indirection inside the attention kernel, which reads keys and values through the table instead of from",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Kwon et al. report 2 to 4 times the throughput of FasterTransformer and their Orca at the same latency (their measurement, 2023), and their vLLM held 96.3% token states in the same experiment.",
+  "label": "core",
+  "key": "kwon et al. report 2 to 4 times the throughput of fastertransformer and their orca at the same latency (their",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "How much contiguous allocation wastes depends on the traffic, so here it is on real traffic: the prompt and answer lengths of Kimi's production traces (section 3 introduces them), time-averaged over each request's answer.",
+  "label": "core",
+  "key": "the prompt and answer lengths of kimi's production traces (section 3 introduces them), time-averaged over each request's",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Share of KV memory holding tokens, on real request lengths Trace Conversation (12,031 requests) Tool and agent (23,608 requests) max_tokens reserved by \"Max\" 1,024 4,096 16,384 trace lengths from the Mooncake traces (kvcache-ai/Mooncake, FAST25-release); derived : at decode step t a request holds P + t tokens; a contiguous scheme holds its whole reservation from the start; a paged one holds ceil((P + t) / b) blocks of b tokens.",
+  "label": "core",
+  "key": "trace conversation (12,031 requests) tool and agent (23,608 requests) max_tokens reserved by \"max\" 1,024 4,096 16,384",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "External fragmentation is not counted (it depends on the allocator), so contiguous schemes look better here than in the figure above.",
+  "label": "core",
+  "key": "external fragmentation is not counted (it depends on the allocator), so contiguous schemes look better here than in the",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Two lessons from the two charts.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "lead-in"
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "First, the waste is mostly reservation for answers that never come : these traces have long prompts (12,035 tokens on average in the conversation trace) and short answers (343), so even an oracle wastes little, while reserving 16,384 output tokens leaves under half the memory holding tokens.",
+  "label": "core",
+  "key": "these traces have long prompts (12,035 tokens on average in the conversation trace) and short answers (343), so even an",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Short prompts with a large max_tokens , as in PagedAttention's experiment, are the worst case.",
+  "label": "core",
+  "key": "short prompts with a large max_tokens , as in pagedattention's experiment, are the worst case.",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Second, block size barely matters for waste until blocks get large: at 16 tokens the last-block waste is 0.06% here; at 2,048 tokens it is 7%.",
+  "label": "core",
+  "key": "until blocks get large: at 16 tokens the last-block waste is 0.06% here; at 2,048 tokens it is 7%.",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Choosing a block size Smaller blocks waste less but make the block table longer and each memory read smaller; larger blocks read more efficiently but waste more and share less, since a prefix can only be shared in whole blocks.",
+  "label": "depth",
+  "key": "smaller blocks waste less but make the block table longer and each memory read smaller; larger blocks read more",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Kwon et al. found 16 to 128 tokens best on ShareGPT and 16 or 32 on Alpaca's short sequences, and chose 16 as vLLM's default ( PagedAttention section 7.2 ).",
+  "label": "depth",
+  "key": "kwon et al. found 16 to 128 tokens best on sharegpt and 16 or 32 on alpaca's short sequences, and chose 16 as vllm's",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Small blocks also made their swap path slow, because each block became a separate small PCIe copy (section 6). llama.cpp keeps per-token cells in one buffer shared by all slots, and Mooncake hashes its prefixes in 512-token blocks, which is why the traces below come in 512-token units.",
+  "label": "depth",
+  "key": "small blocks also made their swap path slow, because each block became a separate small pcie copy (section 6).",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Sharing inside one request Blocks also make sharing cheap.",
+  "label": "core",
+  "key": "blocks also make sharing cheap",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "When one request asks for several samples (parallel sampling, n > 1 ) or runs beam search, the sequences share their prompt's blocks; a block is copied only when a sequence writes into a shared one ( copy-on-write , counted with a reference count per block).",
+  "label": "core",
+  "key": "a block is copied only when a sequence writes into a shared one ( copy-on-write , counted with a reference count per",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "The authors measured memory savings of 6.1% to 9.8% for parallel sampling and 37.6% to 55.2% for beam search on Alpaca, and 16.2% to 30.5% and 44.3% to 66.3% on ShareGPT ( PagedAttention section 6.3 , their measurement).",
+  "label": "depth",
+  "key": "16.2% to 30.5% and 44.3% to 66.3% on sharegpt ( pagedattention section 6.3",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "The same reference counts are what makes sharing across requests possible: prefix caching, next.",
+  "label": "core",
+  "key": "sharing across requests possible: prefix caching, next.",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "Cost, when it matters, how to check Cost: the block-table indirection in the attention kernel, and kernels that must handle scattered blocks (the Writing kernels page covers paged attention kernels).",
+  "label": "depth",
+  "key": "paged attention kernels (scattered blocks",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "When it matters: always on a shared server; it decides how many requests fit.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the paging claim"
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "How to check: vLLM exports vllm:kv_cache_usage_perc ( vllm/v1/metrics/loggers.py L577 ); compare it with the tokens your running requests actually hold.",
+  "label": "core",
+  "key": "compare it with the tokens your running requests actually hold.",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "2. paging: where the memory went, and how blocks got it back",
+  "text": "The physical side (HBM, bytes per token) is on Memory technology .",
+  "label": "depth",
+  "key": "the physical side (hbm, bytes per token)",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Prefix caching and eviction: which blocks to keep The problem.",
+  "label": "core",
+  "key": "prefix caching and eviction: which blocks to keep",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Every turn of a chat resends the whole history; every call of an agent resends its tool definitions and instructions; every request of the running example starts with the same 1,000-token system prompt.",
+  "label": "core",
+  "key": "every request of the running example starts with the same 1,000-token system prompt.",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Their keys and values are identical each time, so recomputing them wastes prefill.",
+  "label": "core",
+  "key": "their keys and values are identical each time, so recomputing them wastes",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "The parent measured a 1,500-word shared prefix cutting llama.cpp's TTFT from 1,426 ms to 77 ms on Qwen3-1.7B ( Engine bench , \"Prefix caching\", measured here ).",
+  "label": "core",
+  "key": "the parent measured a 1,500-word shared prefix cutting llama.cpp's ttft from 1,426 ms to 77 ms on qwen3-1.7b ( engine",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "How a block is recognised A name for each full block. vLLM hashes each full block from its parent block's hash, its own token ids and any extra keys (a LoRA adapter id, image hashes) ( hash_block_tokens, kv_cache_utils.py L684 ; SHA-256 by default, cache.py L144 ).",
+  "label": "core",
+  "key": "from its parent block's hash, its own token ids and any extra keys (a lora adapter id, image hashes)",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Because the parent's hash is inside, equal hashes mean an equal prefix all the way back to token 0.",
+  "label": "core",
+  "key": "because the parent's hash is inside, equal hashes mean an equal prefix all the way back to token 0.",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "A half-filled last block has no hash and is never shared.",
+  "label": "core",
+  "key": "a half-filled last block has no hash and is never shared.",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "A hit is a prefix.",
+  "label": "core",
+  "key": "a hit is a prefix.",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "The lookup walks the new request's block hashes from the start and stops at the first miss, and it stops one token short of the prompt, because the last token must be computed to produce logits ( kv_cache_manager.py L295 ).",
+  "label": "core",
+  "key": "stops one token short of the prompt, because the last token must be computed to produce logits",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "A cached block after a missing one is useless for that request, so a model that edits an early part of its own context loses the cache for everything after the edit.",
+  "label": "depth",
+  "key": "a model that edits an early part of its own context loses the cache for everything after the edit.",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Context Language Models, which rewrite their context as a file, are served with a co-designed Suffix Cache Reuse that the authors report cuts server-side compute by 35% against standard SGLang at matched performance ( Shao et al., arXiv 2609.37725 ; the abstract does not describe the mechanism).",
+  "label": "depth",
+  "key": "context language models, which rewrite their context as a file, are served with a co-designed suffix cache reuse that",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Cached is not the same as used.",
+  "label": "core",
+  "key": "cached is not used",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Each block has a reference count of running requests.",
+  "label": "core",
+  "key": "each block counts the running requests that hold it",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "When a request finishes, its blocks drop to zero references but keep their hashes: they stay in the cache, free to be taken, until a new allocation needs the space.",
+  "label": "core",
+  "key": "blocks drop to zero references but keep their hashes: they stay",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Prefix caching is on by default ( cache.py L142 ).",
+  "label": "core",
+  "key": "prefix caching is on by default",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "The free queue is the eviction order.",
+  "label": "core",
+  "key": "the free queue is the eviction order.",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Blocks nobody uses sit in one queue; new allocations take from the front.",
+  "label": "core",
+  "key": "new allocations take from the front.",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "A finished request's blocks are returned in reverse order, tail first, blocks without a hash to the front (reused at once) and cached ones to the back ( single_type_kv_cache_manager.py L588 , block_pool.py free_blocks L777 ).",
+  "label": "core",
+  "key": "a finished request's blocks are returned in reverse order, tail",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "The result is least-recently-used eviction in which, among blocks of the same age, a prefix's tail goes before its head.",
+  "label": "core",
+  "key": "eviction in which, among blocks of the same age, a prefix's tail goes before its head.",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "SGLang keeps the same information as a radix tree of token sequences (RadixAttention, Zheng et al.",
+  "label": "core",
+  "key": "sglang keeps the same information as a radix tree of token sequences (radixattention, zheng et al.",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "2023 ; the SGLang page reads it in depth) and evicts only leaves that no running request holds ( radix_cache.py evict L553 ).",
+  "label": "core",
+  "key": "2023 ; the sglang page reads it in depth) and evicts only leaves that no running request holds",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Its eviction order is a choice: --radix-eviction-policy takes lru (the default), lfu, slru, priority or tlru ( arg_groups/fields/memory.py , choices.py L184 ).",
+  "label": "depth",
+  "key": "--radix-eviction-policy takes lru (the default), lfu, slru, priority or tlru ( arg_groups/fields/memory.py , choices.py",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Why the tail must go first A chain of blocks is only useful from its start.",
+  "label": "core",
+  "key": "why the tail must go first a chain of blocks is only useful from its start.",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Evict a prefix's first block and every later block of that prefix becomes an orphan : still in memory, never hit again, until it too is evicted.",
+  "label": "core",
+  "key": "evict a prefix's first block and every later block of",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Plain LRU orders blocks by last use, and all blocks of one request are used at the same moment, so the tie-break decides. vLLM's reverse-order free and SGLang's leaves-only rule both make the tail go first.",
+  "label": "core",
+  "key": "used at the same moment, so",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Watch what the other tie-break does, on 16 consecutive requests from Kimi's production agent traffic.",
+  "label": "core",
+  "key": "on 16 consecutive requests from kimi's production agent traffic.",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Sixteen real agent requests through a small prefix cache, five eviction policies LRU, tail first (vLLM, SGLang) LRU, head first (naive) FIFO LFU Belady (knows the future) Cache size 16 blocks (8,192 tokens) 24 blocks (12,288 tokens) 32 blocks (16,384 tokens) tool prompt A (12 blocks) tool prompt B (5 blocks) shared first block S request's own blocks trace : requests 11,890 to 11,905 of the Mooncake tool-and-agent trace (kvcache-ai/Mooncake, FAST25-release); each square is one 512-token block named by its hash; identical names are identical prefixes.",
+  "label": "core",
+  "key": "lru, tail first (vllm, sglang) lru, head first (naive) fifo lfu belady (knows the future) cache size 16 blocks (8,192",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "The cache starts empty and is drawn in eviction order: the block on the left goes next.",
+  "label": "core",
+  "key": "the cache starts empty and is drawn in eviction order: the block on the left goes next.",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "This stretch was picked by searching the trace for one where the policies differ; on whole traces the gaps are smaller (the Eviction lab ).",
+  "label": "core",
+  "key": "this stretch was picked by searching the trace for one where the policies differ; on whole traces the gaps are smaller",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Replayed by src/evict/evict.py , the same code as the lab.",
+  "label": "core",
+  "key": "replayed by src/evict/evict.py",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Which policy, on a whole day's traffic Moonshot AI released three one-hour request traces from Kimi with every request's 512-token block hashes ( Mooncake FAST'25 traces ): conversation (12,031 requests, 12,035 input tokens on average), tool and agent (23,608 requests, 8,596) and a synthetic one built from public datasets (3,993 requests, 15,325).",
+  "label": "core",
+  "key": "traffic moonshot ai released three one-hour request traces from kimi with every request's 512-token block hashes (",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Replaying them through six policies at fifteen cache sizes gives three findings (all in the Eviction lab , trace , computed here): Capacity dominates.",
+  "label": "core",
+  "key": "through six policies at fifteen cache sizes",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "On the conversation trace, LRU hits 4.5% of blocks with 1,024 blocks (0.5 million tokens), 18.2% with 8,192 (4.2 million) and 33.5% with 32,768, against 36.6% for an unlimited cache.",
+  "label": "core",
+  "key": "on the conversation trace, lru hits 4.5% of blocks with 1,024 blocks (0.5 million tokens), 18.2% with 8,192 (4.2",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "The best possible policy (Belady, which needs the future) already reaches the full 36.6% at 8,192 blocks: the gap is real, but no deployable policy here closes much of it.",
+  "label": "core",
+  "key": "already reaches the full 36.6% at 8,192 blocks: the gap is real, but no deployable policy here closes much of it.",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Recency beats frequency on conversations.",
+  "label": "core",
+  "key": "recency beats frequency on conversations.",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "At 8,192 blocks LFU keeps 11.9% against LRU's 18.2%: chats come back while they are fresh, and old popular blocks crowd them out.",
+  "label": "core",
+  "key": "at 8,192 blocks lfu keeps 11.9% against lru's 18.2%: chats come back while they are fresh, and",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "On agent traffic, where a few tool prompts are reused all hour, LFU edges ahead at small sizes (18.5% against 17.3% at 16 blocks) and loses at middle sizes (39.3% against 44.0% at 8,192).",
+  "label": "core",
+  "key": "on agent traffic, where a few tool prompts are reused all hour, lfu edges ahead at small sizes (18.5% against 17.3% at",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "ARC, an adaptive mix of the two and one of vLLM's host-memory policies, tracks LRU within a few points.",
+  "label": "core",
+  "key": "arc, an adaptive mix of the two and one of vllm's host-memory policies, tracks lru within a few points.",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "The tie-break matters only when the cache is tiny.",
+  "label": "core",
+  "key": "the tie-break matters only when the cache is tiny.",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Head-first LRU orphans blocks and loses a fifth of the hits at 16 blocks on agent traffic (14.0% against 17.3%); from 256 blocks up the gap is under one point on every trace (at most 0.7, synthetic trace at 4,096 blocks).",
+  "label": "core",
+  "key": "loses a fifth of the hits at 16 blocks on agent traffic (14.0% against 17.3%); from 256 blocks up the gap is under one",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Predict: the Mooncake report's own table says increasing a global cache from 1,000 to 50,000 blocks raises the hit rate from 30% to 50% under LRU.",
+  "label": "core",
+  "key": "predict: the mooncake report's own table says increasing a global cache from 1,000 to 50,000 blocks raises the hit rate",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "On the trace file they released, does the replay here find the same?",
+  "label": "core",
+  "key": "on the trace file they released, does the replay here find the same?",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Exactly the same Same shape, a few points higher Much lower Same shape, a few points higher: 34.1% at 1,000 blocks, 46.1% at 10,000, 55.1% at 50,000 and 55.3% unlimited, against the table's 30%, 40%, 50% and 51% ( Mooncake arXiv report, Table 1 ).",
+  "label": "core",
+  "key": "exactly the same same shape, a few points higher much lower same shape, a few points higher: 34.1% at 1,000 blocks,",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "LRU also beats LFU at middle sizes in both.",
+  "label": "core",
+  "key": "lru also beats lfu at middle sizes in both.",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "It does not reproduce exactly: the report says the trace averages 7,590 input tokens, while the released file averages 8,590, so the table may come from a different cut of the data.",
+  "label": "core",
+  "key": "it does not reproduce exactly: the report says the trace averages 7,590 input tokens, while the released file averages",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "The FAST'25 paper's Fig.",
+  "label": "core",
+  "key": "the fast'25 paper's fig.",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "9 labels (local cache of 3 million tokens as a share of the unlimited hit rate) reproduce closely: 73.7% for tool and agent against 75%, 48.4% for synthetic against 48%, 44.6% for all three merged against 46%, and 37.1% for conversation against 41%.",
+  "label": "core",
+  "key": "9 labels (local cache of 3 million tokens as a share of the unlimited hit rate) reproduce closely: 73.7% for tool and",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "Cost, when it matters, how to check Cost: hashing every full block (cheap), and nothing else while memory is spare: cached blocks only occupy space nobody needs yet.",
+  "label": "core",
+  "key": "while memory is spare: cached blocks",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "When it matters: multi-turn chat, agents, shared system prompts, few-shot templates, retrieval over the same documents.",
+  "label": "core",
+  "key": "every agent call resends its tool definitions",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "How to check: the hit rate is vllm:prefix_cache_hits over vllm:prefix_cache_queries , both counted in tokens ( loggers.py L600 and L611 ); with --kv-cache-metrics (off by default, config/observability.py L60 ) vLLM also samples vllm:kv_block_reuse_gap_seconds and vllm:kv_block_idle_before_evict_seconds : if blocks are evicted after being idle for less time than typical reuse gaps, the cache is too small for your traffic.",
+  "label": "core",
+  "key": "check: the hit rate is vllm:prefix_cache_hits over vllm:prefix_cache_queries , both",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "3. prefix caching and eviction: which blocks to keep",
+  "text": "SGLang's newest option, tail-optimized LRU, evicts the parts of conversations that cannot affect tail TTFT first; its authors report up to 27.5% lower P90 TTFT than LRU on WildChat conversations ( Tail-Optimized Caching, arXiv 2510.15152 , authors' measurement, not run here).",
+  "label": "depth",
+  "key": "its authors report up to 27.5% lower p90 ttft than lru on wildchat conversations ( tail-optimized caching, arxiv",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Offload tiers: a bigger, slower cache behind the GPU The problem.",
+  "label": "core",
+  "key": "offload tiers: a bigger, slower cache behind the gpu the",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "The GPU holds very few reusable prefixes.",
+  "label": "core",
+  "key": "the gpu holds very few reusable prefixes.",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "In the running example one H200 has about 54 GB for its cache, 164,800 tokens at 320 KiB each: about 320 of Mooncake's 512-token blocks.",
+  "label": "core",
+  "key": "in the running example one h200 has about 54 gb for its cache, 164,800 tokens at 320 kib each: about 320 of mooncake's",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "On the conversation trace, an LRU cache of 256 blocks hits 4.2% of blocks; an unlimited one would hit 36.6%.",
+  "label": "core",
+  "key": "an lru cache of 256 blocks hits 4.2% of blocks; an unlimited one would hit 36.6%.",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "The data that could be reused does not fit, and the cheapest place to put it is the server's own DRAM (often 1 to 2 TB per 8-GPU server), then local SSDs, then other servers' memory over the network.",
+  "label": "core",
+  "key": "does not fit, and the cheapest place to put it is the server's own dram (often 1 to 2 tb per 8-gpu server), then local",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "A tier is worth having when reading a block back is faster than recomputing it.",
+  "label": "core",
+  "key": "a tier is worth having when reading a block back is faster than recomputing",
+  "where": ""
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Recomputing costs a prefill; reloading costs the block's bytes divided by the link's bandwidth.",
+  "label": "core",
+  "key": "reload / recompute",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Per token: reload / recompute = (KV bytes per token / link bandwidth) ÷ (prefill time per token) KV bytes 320 KiB for Llama 3.1 70B in BF16 cache (section 0) link host memory over PCIe Gen5 x16: 64 GB/s each way (PCIe 5.0 x16 is 128 GB/s counting both directions, as AMD's MI300X data sheet does; Topic: hardware ); GH200's NVLink-C2C: 900 GB/s ( NVIDIA ); one 400 Gb/s network card: 50 GB/s prefill 0.21 ms per token for the running example alone on an H200 (2,000 tokens in 423.5 ms, the parent's planner) Reload a cached prefix, or compute it again?",
+  "label": "core",
+  "key": "link host memory over pcie gen5 x16: 64 gb/s each way (pcie 5.0 x16 is 128 gb/s counting both directions, as amd's",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Model and GPU Prefix length 1,000 tokens 10,000 tokens 100,000 tokens For every model here the link wins by a wide margin over PCIe and the network, and even an SSD read beats recomputing on a datacenter GPU.",
+  "label": "core",
+  "key": "model and gpu prefix length 1,000 tokens 10,000 tokens 100,000 tokens for every model here the link wins by a wide",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Recompute only competes where prefill is very fast relative to the cache's size: small models, or links shared by many GPUs at once.",
+  "label": "core",
+  "key": "recompute only competes where prefill is very fast relative to the cache's",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Two things the formula leaves out push the same way: prefill attention grows with the square of the prefix, so long prefixes favour reloading more, and engines overlap loading with other requests' compute (CachedAttention loads layer by layer while earlier layers run; its authors report up to 87% lower TTFT for multi-turn conversations, Gao et al., USENIX ATC 2024 , their measurement).",
+  "label": "core",
+  "key": "and engines overlap loading with other requests' compute (cachedattention loads layer by layer while earlier layers",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "How much a host-memory tier adds, on real traffic The Eviction lab replays the Mooncake traces through a GPU tier with LRU in front of a host tier with LRU: a block evicted from the GPU moves to host memory; a host hit is copied back.",
+  "label": "core",
+  "key": "how much a host-memory tier adds, on real traffic",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "For the running example's sizes (256 blocks on the GPU, 43 GB; 4,096 in host memory, 687 GB at 160 MiB per block): trace Conversation: 4.2% of blocks hit on the GPU, plus 5.1% from host memory.",
+  "label": "core",
+  "key": "for the running example's sizes (256 blocks on the gpu, 43 gb; 4,096 in host memory, 687 gb at 160 mib per block):",
+  "where": ""
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "A pooled tier of 65,536 blocks (about 11 TB, many servers' DRAM, as Mooncake's store pools it) adds 31.8%, reaching 36.0% of the 36.6% possible.",
+  "label": "core",
+  "key": "a pooled tier of 65,536 blocks (about 11 tb, many servers' dram, as mooncake's store pools it) adds 31.8%, reaching",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Tool and agent: 33.2% on the GPU (a few tool prompts are reused all the time), plus 4.5% from host memory.",
+  "label": "core",
+  "key": "tool and agent: 33.2% on the gpu (a few tool prompts are reused all the time), plus 4.5% from host memory.",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Synthetic (public datasets, long documents): 2.4% on the GPU, plus 22.8% from host memory.",
+  "label": "core",
+  "key": "synthetic (public datasets, long documents): 2.4% on the gpu, plus 22.8% from host memory.",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Mooncake's authors reached the same conclusion from the same traces: a local cache of 3 million tokens per node gets under half of the possible hit rate on most workloads, while 50 million tokens, pooled from at least 20 nodes' DRAM, gets nearly all of it ( Mooncake, FAST 2025, section 5.3.1 ).",
+  "label": "core",
+  "key": "mooncake's authors reached the same conclusion from the same traces: a local cache of 3 million tokens per node gets",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "The systems (read from source and docs; only llama.cpp run here) System Tiers How it is switched on and what it does vLLM v0.31.0, native GPU, host memory --kv-offloading-size <GiB> (off by default) turns on the OffloadingConnector ( config/cache.py L256 and config/vllm.py L1130 ).",
+  "label": "depth",
+  "key": "system tiers how it is switched on and what it does vllm v0.31.0, native gpu, host memory --kv-offloading-size",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "It writes each full block to host memory as it is computed ( offloading/scheduler.py _build_store_jobs L1501 ), and on a GPU miss looks the prefix up in host memory and loads it (get_num_new_matched_tokens, L1036).",
+  "label": "depth",
+  "key": "it writes each full block to host memory as it is computed ( offloading/scheduler.py _build_store_jobs l1501 ), and on",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Host eviction is LRU by default, or ARC ( kv_offload/cpu/spec.py L135 ).",
+  "label": "depth",
+  "key": "host eviction is lru by default, or arc ( kv_offload/cpu/spec.py l135 ).",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Disk tiers exist under vllm/v1/kv_offload/tiering .",
+  "label": "depth",
+  "key": "disk tiers exist under vllm/v1/kv_offload/tiering .",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "LMCache GPU, CPU, disk, remote stores A KV layer outside the engine, plugged into vLLM ( --kv-offloading-backend lmcache ) and SGLang; shares caches across engines and serves prefill/decode disaggregation.",
+  "label": "depth",
+  "key": "lmcache gpu, cpu, disk, remote stores a kv layer outside the engine, plugged into vllm ( --kv-offloading-backend",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Its authors report up to 15 times the throughput of vLLM alone on multi-round question answering and document workloads ( LMCache, arXiv 2510.09665 , authors' measurement).",
+  "label": "depth",
+  "key": "its authors report up to 15 times the throughput of vllm alone on multi-round question answering and document workloads",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Latest release v0.5.5 (2026-09-12).",
+  "label": "depth",
+  "key": "latest release v0.5.5 (2026-09-12).",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "SGLang v0.5.21, HiCache GPU, host memory, storage backends --enable-hierarchical-cache (off by default) with host size, write policy and storage backend options ( arg_groups/fields/memory.py L99 onwards ); extends the radix tree across tiers.",
+  "label": "depth",
+  "key": "sglang v0.5.21, hicache gpu, host memory, storage backends --enable-hierarchical-cache (off by default) with host size,",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "LMCache and FlexKV are also pluggable.",
+  "label": "depth",
+  "key": "lmcache and flexkv are also pluggable.",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Mooncake Store a cluster-wide pool of DRAM and SSD Kimi's production design: prefill and decode on separate GPU pools, with the KV cache as the central, transferable resource over RDMA ( Mooncake ).",
+  "label": "depth",
+  "key": "mooncake store a cluster-wide pool of dram and ssd kimi's production design: prefill and decode on separate gpu pools,",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "The distributed and disaggregated serving page covers the transfer side (Dynamo's KV block manager, llm-d, NIXL). llama-server (build 11146) slot, host memory, file Keeps each slot's last prompt; when a slot switches conversation the old prompt's KV is saved to a host-memory prompt cache ( --cache-ram , 8,192 MiB by default) and loaded back when it returns ( server-context.cpp prompt_save/prompt_load ); /slots/0?action=save|restore writes and reads a slot's KV to a file.",
+  "label": "depth",
+  "key": "the distributed and disaggregated serving page covers the transfer side (dynamo's kv block manager, llm-d, nixl).",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Where one conversation's cache comes back from, measured on llama-server Measured here with one slot (Qwen3-1.7B, a 5,010-token conversation whose cache is 575 MB): computing it from scratch took 5.63 s to the first token; while the slot still held it, 23 ms.",
+  "label": "depth",
+  "key": "with one slot (qwen3-1.7b, a 5,010-token conversation whose cache is 575 mb): computing it from scratch took 5.63 s to",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "After another conversation had taken the slot, bringing it back from the host prompt cache took 113 to 421 ms over three runs, a time that includes saving the other conversation's 575 MB and loading this one's; with the prompt cache turned off ( --cache-ram 0 ) it was recomputed in 5.64 s.",
+  "label": "depth",
+  "key": "after another conversation had taken the slot, bringing it back from the host prompt cache took 113 to 421 ms over",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Saving the slot to a file took 0.54 to 0.67 s and restoring it 75 to 79 ms, after which the first token came in 27 to 35 ms; that read was probably served from the operating system's file cache, since the file had just been written.",
+  "label": "depth",
+  "key": "saving the slot to a file took 0.54 to 0.67 s and restoring it 75 to 79 ms, after which the first token came in 27 to",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "The M1's memory is shared by CPU and GPU, so \"host\" here is another region of the same DRAM and the copy costs memory bandwidth, not PCIe.",
+  "label": "depth",
+  "key": "the m1's memory is shared by cpu and gpu, so \"host\" here is another region of the same dram and the copy costs memory",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Reloading was 13 to 50 times faster than recomputing, as the calculator above predicts for a small model on a slow GPU.",
+  "label": "core",
+  "key": "predicts for a small model on a slow gpu.",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "Cost, when it matters, how to check Cost: host memory, PCIe or network bandwidth that other traffic also wants, a second eviction policy, and the write traffic of storing blocks that may never be read.",
+  "label": "core",
+  "key": "other traffic also wants, a second eviction policy, and",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "When it matters: multi-turn and agent traffic whose reuse distance exceeds GPU capacity: the trace replays above show it is most of the reuse on conversations.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the tier bullets above it"
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "4. offload tiers: a bigger, slower cache behind the gpu",
+  "text": "How to check: vLLM counts connector hits as vllm:external_prefix_cache_hits and vllm:external_prefix_cache_queries ( loggers.py L636 ); compare TTFT on host hits with TTFT on misses.",
+  "label": "core",
+  "key": "vllm:external_prefix_cache_queries ( loggers.py l636 ); compare ttft on host hits with ttft on misses.",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "Chunked prefill: the token budget as a latency dial The problem.",
+  "label": "core",
+  "key": "chunked prefill: the token budget as a latency dial",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "Continuous batching lets a new prompt join a step that is also decoding other users.",
+  "label": "core",
+  "key": "continuous batching lets a new prompt join a step that is also decoding other users.",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "If the whole prompt joins at once, that step lasts as long as the prompt's prefill, and every user mid-answer sees their stream freeze: a generation stall (the term is from Sarathi-Serve, Agrawal et al., OSDI 2024 ).",
+  "label": "core",
+  "key": "prefill, and every user mid-answer sees their stream freeze: a generation stall (the term is from sarathi-serve,",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "The parent's Engine bench saw one: a gap of 803 ms in a stream whose median gap was 31.4 ms.",
+  "label": "core",
+  "key": "a gap of 803 ms in a stream whose median gap was 31.4 ms.",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "Cap the new tokens per step (the token budget of section 1), schedule the decodes first, and let a waiting prompt fill what is left, one chunk per step, until its prompt is done.",
+  "label": "core",
+  "key": "schedule the decodes first, and let a waiting prompt fill what is left, one chunk per",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "Sarathi introduced chunked prefills with \"decode-maximal batching\" ( Agrawal et al.",
+  "label": "core",
+  "key": "sarathi introduced chunked prefills",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "2023 ); Sarathi-Serve made them stall-free and reports 2.6 times the serving capacity of vLLM at the time for Mistral-7B on one A100, 3.7 times for Yi-34B on two A100s and 5.6 times for Falcon-180B with pipeline parallelism, under tail-latency targets (authors' measurement).",
+  "label": "core",
+  "key": "2023 ); sarathi-serve made them stall-free and reports 2.6 times the serving capacity of vllm at the time for",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "The engines: vLLM v0.31.0: on by default ( config/scheduler.py L135 ); the scheduler walks the running requests first (their decodes, and the unfinished chunks of prompts already started), then admits waiting requests while budget remains ( scheduler.py, schedule() ). llama-server: each step first adds every generating slot's sampled token, then pending prompt tokens until the batch holds -b tokens ( server-context.cpp, update_slots L3100 to L3115 and L3524 ).",
+  "label": "depth",
+  "key": "vllm v0.31.0: on by default ( config/scheduler.py l135 ); the scheduler walks the running requests first (their",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "So -b is its chunk size, decode-first, the same design.",
+  "label": "depth",
+  "key": "so -b is its chunk size, decode-first, the same design.",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "SGLang v0.5.21: --chunked-prefill-size , set from GPU memory when not given (8,192 on H100 and H200, section 1); -1 turns it off.",
+  "label": "depth",
+  "key": "sglang v0.5.21: --chunked-prefill-size , set from gpu memory when not given (8,192 on h100 and h200, section 1); -1",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "TensorRT-LLM v1.2.1: enable_chunked_prefill is False by default ( llm_args.py L2006 ).",
+  "label": "depth",
+  "key": "tensorrt-llm v1.2.1: enable_chunked_prefill is false by default ( llm_args.py l2006 ).",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "A smaller budget means shorter stalls, but the long prompt needs more steps, each paying fixed costs and re-reading the weights, so its TTFT rises a little and total throughput falls a little.",
+  "label": "core",
+  "key": "a smaller budget means shorter stalls, but the long prompt needs more steps, each paying fixed costs and re-reading the",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "It was measured here on a real engine: four users decoding on llama-server while a fifth sends a 6,011-token prompt, at six budgets.",
+  "label": "core",
+  "key": "four users decoding on llama-server while a fifth sends a 6,011-token prompt, at six budgets.",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "Stall against TTFT, one point per token budget M1 Pro, llama-server (measured, and simulated) H100, Llama 3.1 8B (simulated) Measured here (Qwen3-1.7B, llama-server, three runs per budget): with a budget of 128 tokens per step the four decoding users never waited more than 242 ms, but the 6,008-token prompt took 9.55 s to its first token; at 512 tokens, 762 ms and 7.57 s; at 2,048, 2.66 s and 7.17 s; at 8,192, where the whole prompt fits in one step, the four users froze for 7.26 s and the prompt took 7.28 s.",
+  "label": "core",
+  "key": "128 tokens per step the four decoding users never waited more than 242 ms, but the 6,008-token prompt took 9.55 s to",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "Alone, the same four streams had gaps of 26 ms (median) and 33 ms (p99).",
+  "label": "core",
+  "key": "alone, the same four streams had gaps of 26 ms (median) and 33 ms (p99).",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "The three runs of each budget agreed within 2.5% on TTFT and 4% on the longest gap, although other work kept the machine's load average between 17 and 151.",
+  "label": "depth",
+  "key": "budget agreed within 2.5% on ttft and 4% on the longest gap, although other work kept the machine's load average",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "The simulator, given only its M1 Pro preset and Qwen3-1.7B's shape, comes within 4% to 11% of both numbers for budgets of 512 and above, and is 20% to 24% low at 128, where per-step costs it underestimates dominate.",
+  "label": "depth",
+  "key": "the simulator, given only its m1 pro preset and qwen3-1.7b's shape, comes within 4% to 11% of both numbers for budgets",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "One more lesson from the same runs: at budgets of 2,048 and 8,192 the p99 of all gaps was 37 ms, because the stall is one gap among two thousand.",
+  "label": "core",
+  "key": "at budgets of 2,048 and 8,192 the p99 of all gaps was 37 ms, because the stall is one gap among two",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "Only the maximum shows it.",
+  "label": "core",
+  "key": "only the maximum gap shows a stall",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "Predict: on the simulated H100, halving the budget from 2,048 to 1,024 tokens per step.",
+  "label": "core",
+  "key": "predict: on the simulated h100, halving the budget from 2,048 to 1,024 tokens per step.",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "What happens to the long prompt's TTFT?",
+  "label": "core",
+  "key": "what happens to the long prompt's ttft?",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "It doubles It rises by about a half It rises by about 2% It falls About 2%: 0.431 s to 0.439 s, while the longest gap the eight decoding users see halves, from 79 ms to 42 ms ( derived , the parent's simulator with the H100 preset fitted to NVIDIA's published measurements).",
+  "label": "core",
+  "key": "it doubles it rises by about a half it rises by about 2% it falls about 2%: 0.431 s to 0.439 s, while the longest gap",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "Each chunk is still large enough to keep the GPU busy, so cutting it costs little; the cost grows below about 512 tokens (0.471 s at 512, 0.880 s at 128), where each step's fixed costs and weight reads dominate.",
+  "label": "core",
+  "key": "each chunk is still large enough to keep the gpu busy, so cutting it costs little; the cost grows below about 512",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "Choosing the budget Pick the largest budget whose stall your inter-token latency target tolerates.",
+  "label": "core",
+  "key": "choosing the budget pick the largest budget whose stall your inter-token latency target tolerates.",
+  "where": ""
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "Under steady traffic, with 20 chat requests per second and 2 long-document requests per second on the simulated H100, the p99 inter-token gap goes from 13 ms at a 512-token budget to 45 ms at 2,048 and 267 ms at 16,384, while p99 TTFT goes from 1.46 s to 1.07 s to 0.95 s and throughput does not move ( Scheduling lab , section 1). vLLM's 8,192 default on an H100 is tuned for throughput; an interactive service with a 50 ms TPOT target wants about 2,048 on this model.",
+  "label": "core",
+  "key": "the p99 inter-token gap goes from 13 ms at a 512-token budget to 45 ms at 2,048 and 267 ms at 16,384, while p99 ttft",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "Cost, when it matters, how to check Cost: slightly longer TTFT for long prompts and slightly lower peak throughput at small budgets.",
+  "label": "core",
+  "key": "the long prompt needs more steps",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "When it matters: any mix of long prompts (documents, retrieval, agents with big tool outputs) and streaming users.",
+  "label": "core",
+  "key": "prefill/decode interference",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "5. chunked prefill: the token budget as a latency dial",
+  "text": "How to check: look at the maximum and p99 inter-token latency, not the mean ( vllm:inter_token_latency_seconds is a histogram), during periods when long prompts arrive.",
+  "label": "core",
+  "key": "during periods when long prompts arrive.",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "Preemption: taking memory back from a running request The problem.",
+  "label": "core",
+  "key": "preemption: taking memory back from a running request",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "Nobody knows an answer's length in advance. vLLM admits a request when its prompt fits in free blocks (it reserves nothing for the answer, section 2), so at some step a running request needs one more block and there is none.",
+  "label": "core",
+  "key": "nobody knows an answer's length in advance. vllm admits a request when its prompt fits in free blocks",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "The engine must take memory from someone: preemption .",
+  "label": "core",
+  "key": "the engine must take memory from someone: preemption .",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "There are three answers to \"who\" and two to \"what happens to their cache\".",
+  "label": "core",
+  "key": "the engines differ in whom they pick",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "Engine Admission When memory runs out vLLM v0.31.0 Optimistic: the whole prompt must fit ( scheduler_reserve_full_isl ), nothing reserved for the answer Evict the newest running request (the last in the running list; with --scheduling-policy priority , the one with the largest priority value, then the latest arrival), drop its whole cache, put it at the front of the queue, and recompute it later ( scheduler.py L764 to L803 and _preempt_request L1538 ).",
+  "label": "depth",
+  "key": "engine admission when memory runs out vllm v0.31.0 optimistic: the whole prompt must fit ( scheduler_reserve_full_isl",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "Recompute is the only mode; v0's swap to CPU is gone.",
+  "label": "depth",
+  "key": "recompute is the only mode; v0's swap to cpu is gone.",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "SGLang v0.5.21 Optimistic, but each running request is charged an estimated share of its max_new_tokens : a ratio that starts at 0.7 (times --schedule-conservativeness , default 1.0), falls linearly to 0.098 over 600 steps, and after a retraction is re-estimated from the tokens actually decoded ( new_token_ratio_tracker.py ) \"Retract\" decoding requests, those with the fewest output tokens first, then the longest prompts ( schedule_batch.py retract_decode L3297, order L3388 ); --retraction-policy priority retracts by priority instead.",
+  "label": "depth",
+  "key": "sglang v0.5.21 optimistic, but each running request is charged an estimated share of its max_new_tokens : a ratio that",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "TensorRT-LLM v1.2.1 GUARANTEED_NO_EVICT by default: admit only if the prompt plus the maximum answer length fits ( llm_args.py L1468 ); MAX_UTILIZATION admits optimistically and may pause requests Never, under the default: it was paid for at admission, in fewer concurrent requests. llama-server Fixed slots; a request takes a free slot Clears idle slots' caches, halves the batch and retries; at a batch of one it fails every active request with \"Context size has been exceeded.\" ( server-context.cpp L3690 to L3730 ) Recompute or swap Swapping copies the victim's blocks to host memory and back: 2 × KV bytes / link bandwidth per token.",
+  "label": "depth",
+  "key": "tensorrt-llm v1.2.1 guaranteed_no_evict by default: admit only if the prompt plus the maximum answer length fits (",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "Recomputing runs its prefill again: about 0.21 ms per token for the running example.",
+  "label": "core",
+  "key": "0.21 ms per token for the running",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "With 320 KiB per token over PCIe Gen5 at 64 GB/s each way, a swap costs about 10 µs per token, twenty times cheaper in time (the section 4 calculator, doubled).",
+  "label": "core",
+  "key": "with 320 kib per token over pcie gen5 at 64 gb/s each way, a swap costs about 10 µs per",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "So why did vLLM keep only recompute?",
+  "label": "core",
+  "key": "yet vllm keeps only recompute",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "The measured difference was small.",
+  "label": "core",
+  "key": "comparable end-to-end",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "Kwon et al. found swapping slow with small blocks (many tiny PCIe copies), recomputing constant, and the two \"comparable end-to-end\" for blocks of 16 to 64 tokens; \"recomputation overhead is never higher than 20% of swapping's latency\" ( PagedAttention section 7.3 , their measurement on A100s).",
+  "label": "core",
+  "key": "\"recomputation overhead is never higher than 20% of swapping's latency\" ( pagedattention section 7.3 ,",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "Recompute uses idle arithmetic.",
+  "label": "core",
+  "key": "a memory-bound decode step leaves idle",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "Decode steps are memory-bound; a recomputed prefix rides in the token budget like any prompt chunk (section 5).",
+  "label": "core",
+  "key": "a memory-bound decode step leaves idle",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "Swap is machinery: a host block allocator, copies on the critical path, and memory bounded by the GPU cache size.",
+  "label": "core",
+  "key": "swap needs a host block allocator",
+  "where": ""
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "The offload tier does it anyway.",
+  "label": "core",
+  "key": "behaves like a write-through swap",
+  "where": ""
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "With --kv-offloading-size set, the OffloadingConnector writes blocks to host memory as they are computed and flushes the pending writes of a preempted request ( offloading/scheduler.py L1787 ); when the request is scheduled again its prefix is found in host memory and loaded rather than recomputed.",
+  "label": "depth",
+  "key": "flushes the pending writes of a preempted request ( offloading/scheduler.py l1787",
+  "where": ""
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "Recompute-only preemption plus a CPU tier behaves like a write-through swap.",
+  "label": "core",
+  "key": "plus a cpu tier behaves like a write-through",
+  "where": ""
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "(Read in source, not run here.) On the simulated H100 with a deliberately small cache (2,000 blocks of 16 tokens, Llama 3.1 8B in BF16, 6 requests per second), recompute and swap at 25 GB/s differ by 3% in throughput (2,364 against 2,430 tokens per second) with the same 146 preemptions; a slow 6 GB/s link makes swap the worse one (2,287).",
+  "label": "core",
+  "key": "on the simulated h100 with a deliberately small cache (2,000 blocks of 16 tokens, llama 3.1 8b in bf16, 6 requests per",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "The bigger effect is admission: reserving every request's maximum length, TensorRT-LLM's default rule, removes all preemptions but serves 1,785 tokens per second with a p99 TTFT of 31.25 s, against 12.61 s for optimistic admission ( Scheduling lab , section 4, derived ).",
+  "label": "core",
+  "key": "reserving every request's maximum length, tensorrt-llm's default rule, removes all preemptions but serves 1,785 tokens",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "Measured here , vLLM's CPU backend with a 9,344-token cache reached 100% cache use and 8 preemptions at 16 users, and its output fell from 26.5 to 15.6 tokens per second between 8 and 16 users ( Engine bench ): preemption is the symptom of admitting more than fits.",
+  "label": "core",
+  "key": "measured here , vllm's cpu backend with a 9,344-token cache reached 100% cache use and 8 preemptions at 16 users, and",
+  "where": ""
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "Cost, when it matters, how to check Cost: the victim's work is thrown away (recompute) or copied twice (swap), and the victim's latency jumps.",
+  "label": "core",
+  "key": "either dropped and recomputed later",
+  "where": ""
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "When it matters: long answers, large max_tokens , high concurrency on a small cache.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the problem paragraph"
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "How to check: vllm:num_preemptions ( loggers.py L677 ) rising while vllm:kv_cache_usage_perc sits at 1.0.",
+  "label": "core",
+  "key": "check: vllm:num_preemptions ( loggers.py l677 ) rising while vllm:kv_cache_usage_perc sits at",
+  "where": ""
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "6. preemption: taking memory back from a running request",
+  "text": "The fixes, in order: a smaller max_num_seqs , a lower max_tokens , a quantized cache (FP8 halves it), more GPUs.",
+  "label": "core",
+  "key": "the fixes, in order: a smaller max_num_seqs , a lower max_tokens , a quantized cache (fp8 halves it), more gpus.",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Priority, fairness and SLOs: who goes next The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "When the server is full, the order of the waiting queue decides who waits.",
+  "label": "core",
+  "key": "when the server is full, the order of the waiting queue decides who waits.",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "First come, first served ( FCFS , every engine's default) is fair per request, not per user: one client that sends a flood of requests puts everyone else behind it ( head-of-line blocking ), and one very long job can hold up many short ones.",
+  "label": "core",
+  "key": "first come, first served ( fcfs , every engine's default) is fair per request, not per user: one client that",
+  "where": ""
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Three families of answers, from simplest to subtlest: Priority classes Each request carries a number; the scheduler serves the best number first.",
+  "label": "core",
+  "key": "each request carries a number and the scheduler serves the best first",
+  "where": ""
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "In vLLM v0.31.0 ( --scheduling-policy priority , field priority on the request), lower values go first, ties by arrival time and then by request id ( vllm/v1/request.py Request.__lt__ ); when memory runs out, the victim is the running request with the largest priority value, then the latest arrival ( scheduler.py L764 ).",
+  "label": "core",
+  "key": "lower values go first, ties by arrival time and then by request id",
+  "where": ""
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "A waiting high-priority request does not evict running ones to get in: it waits for space.",
+  "label": "core",
+  "key": "a waiting high-priority request does not evict running ones to get",
+  "where": ""
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "SGLang ( --enable-priority-scheduling , off by default) serves higher values first by default and lets an arriving request preempt running ones whose priority is at least 10 worse ( --priority-scheduling-preemption-threshold , arg_groups/fields/schedule.py ).",
+  "label": "depth",
+  "key": "off by default) serves higher values first by default and lets an arriving request preempt running ones whose priority",
+  "where": ""
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Checked here: the parent's simulator, extended with vLLM's priority rules, made the same decisions as vLLM's own Scheduler class at every step of eight two-client traces (four with priorities, four first come first served; 2,256 steps, 79 preemptions); matching it needed one detail, that vLLM breaks priority-and-arrival ties by comparing request ids as strings, so request \"10\" goes before request \"2\" ( Scheduling lab , section 5).",
+  "label": "depth",
+  "key": "made the same decisions as vllm's own scheduler class at every step of eight two-client traces",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Fairness between clients: the Virtual Token Counter Priorities need someone to assign them and can starve the low class.",
+  "label": "core",
+  "key": "priorities need someone to assign them and can starve the low class.",
+  "where": ""
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Sheng et al. define fair service for LLMs by counting tokens, with output tokens weighted more because they cost more ( w_p = 1 per prompt token, w_q = 2 per output token, following OpenAI's prices at the time) and propose the Virtual Token Counter (VTC): keep one counter per client; when there is room, admit the earliest request of the client with the smallest counter; add w p × prompt tokens when a request is admitted and w q per generated token; when a client (re)joins the queue, lift its counter to the smallest counter among waiting clients, so idle time cannot be banked.",
+  "label": "core",
+  "key": "and propose the virtual token counter (vtc): keep one counter per client; when there is room, admit the earliest",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "They prove that two clients who both have work waiting never differ in service by more than 2 × max(w p × longest prompt, w q × largest batch of output tokens) ( Fairness in Serving Large Language Models, OSDI 2024 , Algorithm 2 and Theorem 4.4).",
+  "label": "core",
+  "key": "they prove that two clients who both have work waiting never differ in service by more than 2 × max(w p × longest",
+  "where": ""
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "The usual alternative, a requests-per-minute limit per client, wastes capacity when other clients are idle.",
+  "label": "core",
+  "key": "caps a client even when the server is idle",
+  "where": ""
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Two clients, the same requests, three queue policies Client A floods (60 req/s), B sends 4 req/s Both heavy: A 60 req/s, B 30 req/s FCFS VTC (fair) Priority: B first client A client B derived : Llama 3.1 8B in FP8 on one H100 in the parent's simulator (fitted to NVIDIA's published NIM measurements), which serves about 39 of these requests per second (300 to 1,500-token prompts, 50 to 400-token answers); both clients send for 30 s.",
+  "label": "core",
+  "key": "client a floods (60 req/s), b sends 4 req/s both heavy: a 60 req/s, b 30 req/s fcfs vtc (fair) priority: b first client",
+  "where": ""
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Top: each dot is one request, placed at its arrival time and its TTFT (log scale).",
+  "label": "core",
+  "key": "top: each dot is one request, placed at its arrival time and its ttft (log scale).",
+  "where": ""
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Bottom: service per second, w p × prompt tokens + w q × output tokens, for each client.",
+  "label": "core",
+  "key": "bottom: service per second, w p × prompt tokens + w q × output tokens, for each client.",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Same seeded requests under every policy.",
+  "label": "core",
+  "key": "same seeded requests under every policy.",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "When B is light, VTC and priority both rescue it: B's median TTFT falls from 7.5 s under FCFS to 0.08 s under VTC, while A's rises from 7.6 s to 8.3 s, since A was already far beyond capacity.",
+  "label": "core",
+  "key": "when b is light, vtc and priority both rescue it: b's median ttft falls from 7.5 s under fcfs to 0.08 s under vtc,",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "When both are heavy they part ways: VTC gives the two clients equal service per second while both have work waiting (26,800 weighted tokens per second each between 5 s and 30 s, against 36,700 for A and 17,200 for B under FCFS), so B, which asks for less than A, still gets prompt service (median TTFT 6.6 s against A's 27 s), while strict priority serves B almost instantly (0.13 s) and leaves A only what B does not use (median 28 s).",
+  "label": "core",
+  "key": "when both are heavy they part ways: vtc gives the two clients equal service per second while both have work waiting",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Shortest job first Serving short jobs first minimises mean waiting time, a classic result; the catch is that an answer's length is unknown until it ends.",
+  "label": "core",
+  "key": "first minimises mean waiting time, a classic result; the catch is that an answer's length is unknown until it",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Systems approximate it by predicting lengths: learning to rank them (its authors report 2.8 times lower latency for chatbot serving, Fu et al.",
+  "label": "core",
+  "key": "(its authors report 2.8 times lower latency for chatbot serving, fu et al.",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "2024 ) or a multi-level feedback queue that demotes long-running jobs (FastServe, Wu et al.",
+  "label": "core",
+  "key": "2024 ) or a multi-level feedback queue that demotes long-running jobs (fastserve, wu et al.",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "The simulator with perfect knowledge (an oracle) shows what is at stake: below capacity nothing changes, because no queue forms; at 46 requests per second, beyond the server's capacity, mean TTFT falls from 2.25 s to 1.47 s, but p99 TTFT rises from 5.1 s to 26.8 s, and the longest answers' p99 latency from 15.7 s to 36.9 s ( Scheduling lab , section 3, derived ).",
+  "label": "core",
+  "key": "below capacity nothing changes, because no queue forms; at 46 requests per second, beyond the server's capacity, mean",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Shortest-first trades the tail for the mean.",
+  "label": "core",
+  "key": "trades the tail for the",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "SLOs and goodput Every policy above is a guess at what users want.",
+  "label": "core",
+  "key": "every policy above guesses at what users want",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "An SLO (service level objective) states it: for example p99 TTFT under 2 s and TPOT under 100 ms, MLPerf's targets for Llama 3.1 8B.",
+  "label": "core",
+  "key": "for example p99 ttft under 2 s and tpot under 100 ms, mlperf's targets for llama 3.1 8b.",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "DistServe defines goodput as \"the maximum request rate that can be served adhering to the SLO attainment goal (say, 90%) for each GPU provisioned\" ( DistServe, section 1 ); simulators, the parent's included, often report the simpler per-second count of requests that met both targets.",
+  "label": "core",
+  "key": "distserve defines goodput as \"the maximum request rate that can be served adhering to the slo attainment goal (say,",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "SLO-aware schedulers order and admit requests by deadline, and under overload reject early rather than serve everyone late: Mooncake's scheduler predicts load and rejects requests it cannot serve in time ( Mooncake ).",
+  "label": "core",
+  "key": "by deadline, and under overload reject early rather than serve everyone late: mooncake's scheduler predicts load and",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "SGLang also ships cache-aware orders: --schedule-policy takes fcfs (the default), lpm (longest cached prefix first), dfs-weight, lof, random, priority, routing-key, hrrn and shortest-prefill-first ( arg_groups/fields/schedule.py ); the SGLang page measures why ordering by cache hits matters.",
+  "label": "depth",
+  "key": "--schedule-policy takes fcfs (the default), lpm (longest cached prefix first), dfs-weight, lof, random, priority,",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "Cost, when it matters, how to check Cost: any reordering makes someone wait longer; strict priority and shortest-first can starve.",
+  "label": "core",
+  "key": "reordering only matters when a queue forms",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "When it matters: only when a queue forms, that is near or beyond capacity, and with several tenants or very mixed request sizes.",
+  "label": "core",
+  "key": "when a queue forms, that is near or beyond",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "7. priority, fairness and slos: who goes next",
+  "text": "How to check: TTFT percentiles per tenant and per priority class (tag requests and split your metrics), and vllm:request_queue_time_seconds for time spent waiting.",
+  "label": "core",
+  "key": "check: ttft percentiles per tenant and per priority class (tag requests and split your metrics), and",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "KV compression: algorithmic against realisable savings The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Long contexts fill the cache no matter how well it is paged, cached and offloaded; the remaining option is to store less per token or fewer tokens.",
+  "label": "core",
+  "key": "well it is paged, cached and offloaded;",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "The methods themselves, a model with a smaller cache (grouped-query and latent attention, local and global layers), fewer bits per entry (KV quantisation and why keys' outlier channels need per-channel scales) and fewer entries (eviction: StreamingLLM's attention sinks plus a recent window, H2O's accumulated attention, SnapKV's observation window), are explained on Long context (sections 2 to 4, with a lab that runs seven eviction policies and two quantisations on one prompt).",
+  "label": "core",
+  "key": "window, h2o's accumulated attention, snapkv's observation",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "This section asks the serving question about them: of what a method saves, how much can a paged engine actually take back?",
+  "label": "core",
+  "key": "of what a method saves, how much can a paged engine",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Fewer bytes per entry is the saving an engine realises in full.",
+  "label": "core",
+  "key": "fewer bytes per entry is realised in full",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Every block shrinks by the same factor, so nothing in the layout changes: vLLM and SGLang offer an FP8 cache; llama.cpp offers q8_0 (8.5 bits per number) and q4_0 (4.5) for keys and values, 0.53 and 0.28 of the F16 size (the parent's Engine bench measured the bytes).",
+  "label": "core",
+  "key": "nothing in the layout changes: vllm and sglang offer an fp8",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Measured here on Qwen3-1.7B (Q8_0 weights, WikiText-2 test, 2,048-token windows, 30 of them): perplexity 15.18 with an F16 cache, 15.18 with q8_0, and 19.42 with q4_0, 28% worse.",
+  "label": "core",
+  "key": "perplexity 15.18 with an f16 cache, 15.18 with q8_0, and 19.42 with q4_0, 28% worse.",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "An 8-bit cache was free on this model; a 4-bit one was not.",
+  "label": "core",
+  "key": "28% worse",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Fewer entries is where the algorithmic and realisable savings part , the subject of the rest of this section.",
+  "label": "core",
+  "key": "fewer entries is realised only if whole blocks empty",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Beyond the three classics, newer scorers report larger cuts: KVzip scores by how well the model can reconstruct the context and reports 3 to 4 times smaller caches ( Kim et al.",
+  "label": "depth",
+  "key": "kvzip scores by how well the model can reconstruct the context and reports 3 to 4 times smaller caches ( kim et al.",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "2025 ); Expected Attention estimates future queries' attention and ships KVPress, a library of more than 20 methods ( Devoto et al.",
+  "label": "depth",
+  "key": "2025 ); expected attention estimates future queries' attention and ships kvpress, a library of more than 20 methods (",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "2025 ); SnapKV's authors report 3.6 times faster generation and 8.2 times better memory efficiency at 16K tokens ( Li et al.",
+  "label": "depth",
+  "key": "2025 ); snapkv's authors report 3.6 times faster generation and 8.2 times better memory efficiency at 16k tokens ( li",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "All authors' claims, not run here.",
+  "label": "depth",
+  "key": "authors' claims, not run",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Fewer tokens before the decoder (a small encoder turns the context into fewer latent vectors) leaves the cache layout standard, so its saving is realisable too ( Latent Context Language Models ).",
+  "label": "depth",
+  "key": "fewer tokens before the decoder (a small encoder turns the context into fewer latent vectors) leaves the cache layout",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Two questions to ask of any eviction paper Is the saving realisable?",
+  "label": "core",
+  "key": "ask of any eviction paper",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "An eviction method that prefills the whole prompt first never lowers the peak: the full cache existed.",
+  "label": "core",
+  "key": "eviction after a full prefill never lowers the peak",
+  "where": ""
+ },
+ {
+  "id": 280,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "And a paged engine stores all heads of all layers for 16 tokens in one block, so it can free a block only when every head of every layer has dropped all 16 of its tokens.",
+  "label": "core",
+  "key": "a paged engine stores all heads of all layers for 16 tokens in one block, so it can free a block only when every head",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "A method that keeps different tokens per head, as SnapKV and H2O do, shows that quality survives a smaller cache (the algorithmic saving) without letting the engine reclaim the memory (the realisable saving) unless the cache layout changes.",
+  "label": "core",
+  "key": "a method that keeps different tokens per head, as snapkv and h2o do, shows that quality survives a smaller cache (the",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "A selection shared by all heads and layers can be compacted into fewer blocks.",
+  "label": "depth",
+  "key": "selection shared by all heads and layers",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Does it beat the cheap control?",
+  "label": "core",
+  "key": "does it beat the cheap",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Keep the prompt and evict uniformly at random: on reasoning traces, Random Attention matched the strongest learned policy on four models and six tasks, at 32% to 43% higher throughput in vLLM ( arXiv 2609.03430 , authors' measurement; their explanation is that reasoning traces repeat what they still need).",
+  "label": "depth",
+  "key": "on reasoning traces, random attention matched the strongest learned policy on four models and six tasks, at 32% to 43%",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Random eviction draws no score, so it costs nothing to compute.",
+  "label": "depth",
+  "key": "the cheap control in the literature",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Both questions, measured Measured here on Qwen3-0.6B (PyTorch on the CPU; the KV compression experiment tab has every number).",
+  "label": "core",
+  "key": "measured here on qwen3-0.6b",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Task A hides one \"secret code\" line among 60 (about 800 tokens) and asks for it; with the full cache the model answers 98.3% of 60 questions.",
+  "label": "depth",
+  "key": "with the full cache the model answers 98.3% of 60 questions.",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Task B scores the next 128 tokens of WikiText-2 after a 1,024-token context; full-cache perplexity 17.04 over 24 windows.",
+  "label": "depth",
+  "key": "task b scores the next 128 tokens of wikitext-2 after a 1,024-token context; full-cache perplexity 17.04 over 24",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Each policy keeps 50%, 25% or 10% of the context, after a full prefill.",
+  "label": "depth",
+  "key": "compressible",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Random eviction must keep the first tokens.",
+  "label": "depth",
+  "key": "random eviction must keep the first tokens.",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Uniform random choice over all positions sends perplexity from 17.04 to 927 on average at 25% kept, because it can drop the first token, the attention sink; the one seed that kept it scored 23.",
+  "label": "depth",
+  "key": "uniform random choice over all positions sends perplexity from 17.04 to 927 on average at 25% kept, because it can drop",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Keeping the first 4 tokens and choosing the rest at random gives 23.71.",
+  "label": "depth",
+  "key": "keeping the first 4 tokens and choosing the rest at random gives 23.71.",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "The cheap control has to be done right.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restates the bullet"
+ },
+ {
+  "id": 294,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "On text continuation, random is a respectable control but loses.",
+  "label": "depth",
+  "key": "on text continuation, random is a respectable control but loses.",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "At 25% kept: H2O 18.08, SnapKV 19.83, random per head 22.16, random shared 23.71.",
+  "label": "depth",
+  "key": "at 25% kept: h2o 18.08, snapkv 19.83, random per head 22.16, random shared 23.71.",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "At 10%: 19.97, 22.97, 26.84 and 27.80.",
+  "label": "depth",
+  "key": "at 10%: 19.97, 22.97, 26.84 and 27.80.",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "On retrieval, random fails outright.",
+  "label": "depth",
+  "key": "on retrieval, random fails outright.",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "At 25% kept, random with sinks answers 5.6% of questions, random per head 13.9%, keeping the most recent tokens 26.7%, H2O 26.7%, SnapKV per head 63.3%, and SnapKV with one selection shared by all heads and layers 91.7%.",
+  "label": "depth",
+  "key": "at 25% kept, random with sinks answers 5.6% of questions, random per head 13.9%, keeping the most recent tokens 26.7%,",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Retrieval needs one specific line, which only a score informed by the question keeps.",
+  "label": "depth",
+  "key": "retrieval needs one specific line, which only a score informed by the question keeps.",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "The Random Attention result is about reasoning traces, which repeat themselves; it does not transfer to finding one fact.",
+  "label": "depth",
+  "key": "it does not transfer to finding one",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Per-head selections (SnapKV, H2O, random per head) left no 16-token block free: 0% of the memory comes back in a paged engine without a per-head layout.",
+  "label": "core",
+  "key": "per-head selections (snapkv, h2o, random per head) left no 16-token block free: 0% of the memory comes back in a paged",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Shared random selection freed 1.3% of blocks in place at 25% kept (kept tokens are scattered over almost every block), although compaction could reclaim all 75%.",
+  "label": "core",
+  "key": "shared random selection freed 1.3% of blocks in place at 25% kept",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "The shared SnapKV selection, the best on retrieval here, also kept its tokens in clusters: 51% of blocks freeable in place, 75% with compaction.",
+  "label": "core",
+  "key": "kept its tokens in clusters: 51% of blocks freeable in place, 75% with compaction.",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "What transfers: the ranking of methods and the two questions.",
+  "label": "depth",
+  "key": "what transfers: the ranking of methods and the two questions.",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "What does not: a 0.6B model on 800 to 1,024-token contexts is not a 70B model on 100K tokens, and eviction matters most where contexts are long.",
+  "label": "depth",
+  "key": "what does not: a 0.6b model on 800 to 1,024-token contexts is not a 70b model on 100k",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-read",
+  "section": "8. kv compression: algorithmic against realisable savings",
+  "text": "Treat these as a demonstration of the method of checking, not as the verdict on any paper.",
+  "label": "depth",
+  "key": "what transfers: the ranking of methods and the two questions",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-read",
+  "section": "9. tuning: the knobs, what each trades, and what to watch",
+  "text": "Tuning: the knobs, what each trades, and what to watch Every mechanism above ends in a few settings.",
+  "label": "core",
+  "key": "tuning: the knobs, what each trades, and what to watch every mechanism above ends in a few",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-read",
+  "section": "9. tuning: the knobs, what each trades, and what to watch",
+  "text": "Here they are for vLLM v0.31.0 (the defaults read in source), in the order to think about them, with the metric that tells you whether to move each one.",
+  "label": "core",
+  "key": "defaults read in source), in the order to think about them, with the metric that",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-read",
+  "section": "9. tuning: the knobs, what each trades, and what to watch",
+  "text": "The vLLM page sweeps several of them on a live server.",
+  "label": "core",
+  "key": "the vllm page sweeps several of them on a live server.",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-read",
+  "section": "9. tuning: the knobs, what each trades, and what to watch",
+  "text": "Setting Default Raise it for Lower it for Watch gpu_memory_utilization 0.92 ( cache.py L103 ) More cache, more concurrent requests Room for other processes, CUDA graphs, spikes vllm:kv_cache_usage_perc , out-of-memory errors kv_cache_dtype auto (the model's dtype) fp8: half the bytes per token, so twice the tokens Quality-sensitive work: measure first (section 8) Task accuracy with fp8 against auto max_num_seqs 1,024 on H100/H200, 256 on smaller GPUs Throughput, while the cache has room TPOT, and preemptions when the cache is full vllm:num_preemptions , TPOT p99 max_num_batched_tokens 8,192 (API server, H100/H200) TTFT of long prompts, peak throughput Inter-token stalls when long prompts arrive (section 5) ITL p99 and max, TTFT p99 enable_prefix_caching on ( cache.py L142 ) (leave on) Only to benchmark cold prefill vllm:prefix_cache_hits / queries kv_offloading_size off Reuse that does not fit on the GPU (section 4) Host memory or PCIe needed elsewhere vllm:external_prefix_cache_hits block_size 16 ( cache.py L71 ) Some attention backends and long sequences prefer larger Short sequences, more prefix sharing Rarely worth changing scheduling_policy fcfs ( scheduler.py L160 ) priority: classes of traffic (section 7) TTFT per class Reading the metrics together.",
+  "label": "core",
+  "key": "setting default raise it for lower it for watch gpu_memory_utilization 0.92 ( cache.py l103 ) more cache, more",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-read",
+  "section": "9. tuning: the knobs, what each trades, and what to watch",
+  "text": "Waiting requests growing while kv_cache_usage_perc sits near 1.0 means memory is the limit: quantize the cache, shorten max_tokens , add GPUs or a host tier.",
+  "label": "core",
+  "key": "waiting requests growing while kv_cache_usage_perc sits near 1.0 means memory is the limit: quantize the cache, shorten",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-read",
+  "section": "9. tuning: the knobs, what each trades, and what to watch",
+  "text": "Waiting requests growing while cache use is low means compute or the token budget is the limit.",
+  "label": "core",
+  "key": "waiting requests growing while cache use is low means compute or the token budget is the limit.",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-read",
+  "section": "9. tuning: the knobs, what each trades, and what to watch",
+  "text": "Preemptions mean admission is too optimistic for the answer lengths you get.",
+  "label": "core",
+  "key": "preemptions mean admission is too optimistic for the answer lengths you get.",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-read",
+  "section": "9. tuning: the knobs, what each trades, and what to watch",
+  "text": "A low prefix hit rate on chat or agent traffic with short reuse gaps means the cache is too small; check vllm:kv_block_reuse_gap_seconds against vllm:kv_block_idle_before_evict_seconds (with --kv-cache-metrics ).",
+  "label": "core",
+  "key": "a low prefix hit rate on chat or agent traffic with short reuse gaps means the cache is too small; check",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-read",
+  "section": "9. tuning: the knobs, what each trades, and what to watch",
+  "text": "Throughput, latency and cost planning across GPUs and models is the parent's Capacity planner ; routing conversations back to the replica that holds their cache is LLM serving in production .",
+  "label": "core",
+  "key": "throughput, latency and cost planning across gpus and models is the parent's capacity planner ; routing conversations",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes \"Prefix caching is on, so repeated prompts are free.\" Only whole blocks of an exact prefix hit, and the last prompt token is always recomputed (section 3).",
+  "label": "core",
+  "key": "one changing token near the start",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "One changing token near the start (a timestamp or a request id in the system prompt) makes every later block a miss.",
+  "label": "core",
+  "key": "one changing token near the start (a timestamp or a request id in the system prompt) makes every later block a",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Put what changes at the end, and check vllm:prefix_cache_hits rather than assuming. \"More concurrent sequences, more throughput.\" Only while the cache has room.",
+  "label": "core",
+  "key": "only while the cache has room.",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Past that point the engine preempts and recomputes: vLLM's CPU backend went from 26.5 to 15.6 output tokens per second between 8 and 16 users once its cache filled (the parent's Engine bench, measured).",
+  "label": "core",
+  "key": "tokens per second between 8 and 16 users",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Watch vllm:num_preemptions before raising max_num_seqs . \"Chunked prefill makes prefill faster.\" It makes it slightly slower.",
+  "label": "core",
+  "key": "more concurrent sequences give more throughput only while the cache has room",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "It caps how long any one step can last, so decoding users never stall for a whole long prompt; the long prompt pays with a little more TTFT (section 5). \"The mean inter-token latency shows stalls.\" A one-second stall in a 500-token answer moves the mean by 2 ms, and a rare one hides even from the p99: measured here at a budget of 8,192, the p99 gap was 37 ms while the longest was 7.26 s (section 5).",
+  "label": "core",
+  "key": "so its ttft rises",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Look at the maximum gap while long prompts arrive. \"Frequently used blocks should be kept longest (LFU).\" On Kimi's conversation trace LFU keeps 11.9% of blocks against LRU's 18.2% at 8,192 blocks: conversations return while they are fresh, and blocks that were popular an hour ago crowd them out (section 3). \"A cached block is a hit.\" Only if every block before it in the prompt is cached too.",
+  "label": "core",
+  "key": "while they are fresh, and blocks that were popular an hour ago crowd them out",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A cache that evicts a prefix's head keeps its tail as orphans that can never be used (section 3). \"Swapping is obviously better than recomputing, PCIe is fast.\" Per token it is cheaper in time, but measured end to end the two were comparable for normal block sizes, and recompute needs no host block manager (section 6). vLLM v1 keeps only recompute; its host-memory offload tier gives a write-through copy anyway. \"The paper says 8 times less KV memory, so 8 times more users.\" Ask whether the saving is realisable: eviction after a full prefill does not lower peak memory, and selections that differ per head or per layer free no blocks in a paged engine (section 8 measures it).",
+  "label": "core",
+  "key": "orphan",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Then run the cheap control: uniform random eviction that keeps the first tokens. \"Fairness means per-client rate limits.\" Rate limits cap a client even when the server is idle.",
+  "label": "core",
+  "key": "a client even when the server is idle.",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A fair scheduler (VTC) shares capacity only when there is contention (section 7).",
+  "label": "core",
+  "key": "caps a client even when the server is idle",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Interview questions, with short answers Why does continuous batching need special attention kernels?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Each request in a step has its own length and its own cache, so attention cannot use one rectangular tensor.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Engines flatten all new tokens into one matrix for the linear layers and run a variable-length attention kernel that takes each request's query offsets, sequence length and block table (vLLM's FlashAttention backend).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What did PagedAttention fix, and what does it cost?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Reservation, internal and external fragmentation of contiguous per-request caches (20.4% to 38.2% of memory held tokens in the authors' baselines).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Fixed-size blocks with a block table leave at most one partly filled block per request.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Cost: an indirection in the attention kernel and a block size to choose (16 by default).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How does vLLM know two requests share a prefix?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Each full block is named by a hash of its parent block's hash, its token ids and extra keys (LoRA, images); equal hashes mean equal prefixes back to token 0.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The lookup stops at the first miss and one token short of the prompt.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Which blocks should a prefix cache evict first, and why the tail?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 337,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The least recently used, and among blocks of the same request the tail first, because a block is useless once any block before it is gone.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 338,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Measured on production traces, capacity matters far more than the policy; LRU beats LFU on conversations.",
+  "label": "core",
+  "key": "capacity matters far more than the",
+  "where": ""
+ },
+ {
+  "id": 339,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "When is loading KV from host memory better than recomputing it?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 340,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "When KV bytes per token divided by link bandwidth is below prefill time per token.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 341,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "For Llama 3.1 70B, 320 KiB over 64 GB/s is about 5 µs against about 210 µs of prefill on an H200: almost always for large models.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 342,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How do you choose max_num_batched_tokens?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 343,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "It is the chunk size: the largest value whose worst step still meets your inter-token latency target when a long prompt arrives.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 344,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Larger budgets raise throughput and lower long-prompt TTFT slightly; smaller ones cap stalls.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 345,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Your cache fills mid-answer.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 346,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What does each engine do? vLLM preempts the newest request (or the worst priority) and recomputes it later; SGLang retracts the request with the fewest output tokens; TensorRT-LLM by default never admits more than fits with every request's maximum length; llama-server fails the active requests.",
+  "label": "depth",
+  "key": "the request with the fewest output",
+  "where": ""
+ },
+ {
+  "id": 347,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How would you make a multi-tenant LLM API fair?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 348,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Count service in weighted tokens (input and output weighted differently), keep a counter per tenant, always admit from the tenant with the smallest counter, and lift a returning tenant's counter so idle time is not banked: the Virtual Token Counter, with a proven bound on the service gap between backlogged tenants.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 349,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why can shortest-job-first make things worse?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 350,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "It only matters when a queue forms, and then it lowers mean latency by pushing long jobs back: in the simulator at 46 requests per second, mean TTFT fell from 2.25 s to 1.47 s while p99 TTFT rose from 5.1 s to 26.8 s.",
+  "label": "core",
+  "key": "only matters when a queue forms,",
+  "where": ""
+ },
+ {
+  "id": 351,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What is goodput, and why use it instead of throughput?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 352,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The request rate a deployment sustains while meeting its latency targets (DistServe: at a given SLO attainment, such as 90% of requests).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 353,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Throughput that breaks the SLO is not useful capacity.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 354,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A paper claims 8 times smaller KV cache from eviction.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 355,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What do you check?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "interview answer or common mistake that restated a core section (kept units are keyed to where the section now says it)"
+ },
+ {
+  "id": 356,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Whether the saving is realisable (eviction after full prefill, per-head selections in a paged engine), what task it was scored on (retrieval punishes eviction far more than perplexity), and whether it beats uniform random eviction that keeps the first tokens.",
+  "label": "core",
+  "key": "uniform random eviction that keeps the first",
+  "where": ""
+ },
+ {
+  "id": 357,
+  "tab": "t-ev",
+  "section": "",
+  "text": "Which blocks should a prefix cache keep?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab lead question"
+ },
+ {
+  "id": 358,
+  "tab": "t-ev",
+  "section": "",
+  "text": "This tab replays three hours of real requests from Kimi, Moonshot AI's chat service, through six eviction policies at fifteen cache sizes, then through a GPU tier with a host-memory tier behind it.",
+  "label": "core",
+  "key": "six policies at fifteen cache sizes",
+  "where": ""
+ },
+ {
+  "id": 359,
+  "tab": "t-ev",
+  "section": "",
+  "text": "Every number here is computed by src/evict/evict.py ; the replay rules match vLLM's own block pool exactly (section 4).",
+  "label": "depth",
+  "key": "gave the same hit count every time",
+  "where": ""
+ },
+ {
+  "id": 360,
+  "tab": "t-ev",
+  "section": "",
+  "text": "The data Moonshot AI released the request traces behind the Mooncake paper ( kvcache-ai/Mooncake, FAST25-release , files fetched 2026-10-08): for every request its arrival time, input and output lengths, and the hash of each 512-token block of its prompt, remapped so that equal hashes mean equal prefixes.",
+  "label": "depth",
+  "key": "for every request its arrival time, input and output lengths, and the hash of each 512-token block of its prompt,",
+  "where": ""
+ },
+ {
+  "id": 361,
+  "tab": "t-ev",
+  "section": "",
+  "text": "No text is included.",
+  "label": "depth",
+  "key": "no text",
+  "where": ""
+ },
+ {
+  "id": 362,
+  "tab": "t-ev",
+  "section": "",
+  "text": "Conversation and tool-and-agent are each \"sampled from one hour of online request data\"; synthetic is built from public datasets with Poisson arrivals. trace marks numbers computed here from these files.",
+  "label": "depth",
+  "key": "conversation and tool-and-agent are each \"sampled from one hour of online request data\"; synthetic is built from public",
+  "where": ""
+ },
+ {
+  "id": 363,
+  "tab": "t-ev",
+  "section": "",
+  "text": "Hit rate against cache size Trace Conversation Tool and agent Synthetic Count blocks prompt tokens Size axis in blocks of 512 tokens tokens GB, Llama 3.1 70B (320 KiB/token) GB, Llama 3.1 8B (128 KiB/token) GB, Qwen3-0.6B (112 KiB/token) Cache size 2.",
+  "label": "core",
+  "key": "trace conversation tool and agent synthetic count blocks prompt tokens size axis in blocks of 512 tokens tokens gb,",
+  "where": ""
+ },
+ {
+  "id": 364,
+  "tab": "t-ev",
+  "section": "",
+  "text": "A host-memory tier behind the GPU A GPU tier (LRU, tail first) in front of a host tier (LRU): blocks evicted from the GPU move to host memory, a host hit is copied back.",
+  "label": "core",
+  "key": "a gpu tier (lru, tail first) in front of a host tier",
+  "where": ""
+ },
+ {
+  "id": 365,
+  "tab": "t-ev",
+  "section": "",
+  "text": "Pick the GPU tier's size; the bars show where hits come from as the host tier grows.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "control instruction"
+ },
+ {
+  "id": 366,
+  "tab": "t-ev",
+  "section": "",
+  "text": "The time saved per request uses the chosen model's prefill and reload costs from the Reading tab's section 4 ( derived ).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed tab layout"
+ },
+ {
+  "id": 367,
+  "tab": "t-ev",
+  "section": "",
+  "text": "Trace Conversation Tool and agent Synthetic GPU tier 256 blocks 1,024 blocks 4,096 blocks Model and link Llama 3.1 70B on H200, PCIe Gen5 Llama 3.1 8B on H100, PCIe Gen5 3.",
+  "label": "core",
+  "key": "trace conversation tool and agent synthetic gpu tier 256 blocks 1,024 blocks 4,096 blocks model and link llama 3.1 70b",
+  "where": ""
+ },
+ {
+  "id": 368,
+  "tab": "t-ev",
+  "section": "",
+  "text": "The traces, and the published numbers they should reproduce 4.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 369,
+  "tab": "t-ev",
+  "section": "",
+  "text": "Is the replay right? vLLM's own block pool on the same requests vLLM v0.31.0's real KVCacheManager (commit db9527a, Python only, no model) was fed the first 3,000 requests of two traces, with prompt token ids synthesised from the block hashes (equal hashes, equal tokens) and a block size of 512: prefix lookup, allocation, free, at three cache sizes.",
+  "label": "depth",
+  "key": "vllm v0.31.0's real kvcachemanager (commit db9527a, python only, no model) was fed the first 3,000 requests of two",
+  "where": ""
+ },
+ {
+  "id": 370,
+  "tab": "t-ev",
+  "section": "",
+  "text": "A re-implementation of vLLM's rules (only full blocks cached, the lookup stops one token short of the prompt, tail-first free order) gave the same hit count every time; the lab's LRU, which also caches each prompt's partial last block, lands within 1.7%.",
+  "label": "depth",
+  "key": "a re-implementation of vllm's rules (only full blocks cached, the lookup stops one token short of the prompt,",
+  "where": ""
+ },
+ {
+  "id": 371,
+  "tab": "t-ev",
+  "section": "",
+  "text": "What the replay leaves out Time and concurrency.",
+  "label": "depth",
+  "key": "what the replay leaves out",
+  "where": ""
+ },
+ {
+  "id": 372,
+  "tab": "t-ev",
+  "section": "",
+  "text": "Requests are replayed one after another, as Mooncake's own analysis does (\"we consider only the sequence of requests\"): blocks of running requests are not pinned, prefill time is not modelled, and nothing is evicted mid-request by other requests.",
+  "label": "depth",
+  "key": "requests are replayed one after another, as mooncake's own analysis does (\"we consider only the sequence of",
+  "where": ""
+ },
+ {
+  "id": 373,
+  "tab": "t-ev",
+  "section": "",
+  "text": "The traces hash prompts only, so blocks written during decoding are never cached here; a real engine caches them too, which helps multi-turn chat (the next turn's prompt contains the last answer).",
+  "label": "depth",
+  "key": "the traces hash prompts only, so blocks written during decoding are never cached here; a real engine caches them too,",
+  "where": ""
+ },
+ {
+  "id": 374,
+  "tab": "t-ev",
+  "section": "",
+  "text": "One pool, as if every request reached the same replica.",
+  "label": "depth",
+  "key": "one pool, as if every request reached the same",
+  "where": ""
+ },
+ {
+  "id": 375,
+  "tab": "t-ev",
+  "section": "",
+  "text": "Several replicas each with their own cache need routing that sends a conversation back to its cache ( LLM serving in production ).",
+  "label": "depth",
+  "key": "need routing that sends a conversation back to its cache ( llm serving in production ).",
+  "where": ""
+ },
+ {
+  "id": 376,
+  "tab": "t-ev",
+  "section": "",
+  "text": "512-token blocks, as hashed in the traces, against vLLM's 16: finer blocks can match partial prefixes the traces cannot show.",
+  "label": "depth",
+  "key": "512-token blocks, as hashed in the traces, against vllm's",
+  "where": ""
+ },
+ {
+  "id": 377,
+  "tab": "t-sch",
+  "section": "",
+  "text": "The parent page's Serving simulator reproduces vLLM v0.31.0's scheduler step for step.",
+  "label": "depth",
+  "key": "a step-by-step copy of vllm v0.31.0's scheduler",
+  "where": ""
+ },
+ {
+  "id": 378,
+  "tab": "t-sch",
+  "section": "",
+  "text": "This tab copies it ( src/sched/bksched.py ) and adds what it did not have: vLLM's priority policy, the Virtual Token Counter for fairness between clients, shortest-job-first with perfect knowledge, and multi-client traffic.",
+  "label": "depth",
+  "key": "adds vllm's priority policy, vtc, oracle shortest-job-first and multi-client traffic",
+  "where": ""
+ },
+ {
+  "id": 379,
+  "tab": "t-sch",
+  "section": "",
+  "text": "Then it sweeps the chunk budget, the queue policy and the preemption mode.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab lead"
+ },
+ {
+  "id": 380,
+  "tab": "t-sch",
+  "section": "",
+  "text": "Every result is computed in Python from the checked simulator and embedded; nothing here is a GPU measurement except where marked.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "every number now carries its derived or measured label"
+ },
+ {
+  "id": 381,
+  "tab": "t-sch",
+  "section": "",
+  "text": "Presets derived : the step time is the parent simulator's roofline (the larger of FLOPs over peak and bytes over bandwidth, plus fixed costs per step and per sequence), with efficiencies fitted to NVIDIA's published NIM measurements of Llama 3.1 8B on one H100 (vendor data; the fit predicts held-out rows within 7% median for inter-token latency) or to llama.cpp runs on the M1 Pro made here.",
+  "label": "depth",
+  "key": "fitted to nvidia's published nim measurements of llama 3.1 8b on one h100",
+  "where": ""
+ },
+ {
+  "id": 382,
+  "tab": "t-sch",
+  "section": "",
+  "text": "Model shapes come from each model's config.json.",
+  "label": "depth",
+  "key": "model shapes from each model's config.json",
+  "where": ""
+ },
+ {
+  "id": 383,
+  "tab": "t-sch",
+  "section": "",
+  "text": "The chunk budget One long prompt arriving while others decode.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 384,
+  "tab": "t-sch",
+  "section": "",
+  "text": "Each row is one budget (the most new tokens one step may compute).",
+  "label": "core",
+  "key": "most new tokens one step may",
+  "where": ""
+ },
+ {
+  "id": 385,
+  "tab": "t-sch",
+  "section": "",
+  "text": "Case Llama 3.1 8B BF16 on H100: 8 users decoding, a 12,000-token prompt arrives Qwen3-1.7B on the M1 Pro preset: the measured experiment Steady traffic: 20 chat requests per second (100 to 800-token prompts) and 2 document requests per second (6,000 to 16,000 tokens) for 30 s, Llama 3.1 8B FP8 on the calibrated H100 preset.",
+  "label": "depth",
+  "key": "case llama 3.1 8b bf16 on h100: 8 users decoding, a 12,000-token prompt arrives qwen3-1.7b on the m1 pro preset: the",
+  "where": ""
+ },
+ {
+  "id": 386,
+  "tab": "t-sch",
+  "section": "",
+  "text": "The budget moves inter-token latency a lot and TTFT a little; throughput not at all. inter-token latency p99 TTFT p99 TTFT p50 2.",
+  "label": "core",
+  "key": "inter-token latency p99 ttft p99 ttft p50",
+  "where": ""
+ },
+ {
+  "id": 387,
+  "tab": "t-sch",
+  "section": "",
+  "text": "Two clients: FCFS, VTC, priority Scenario A floods (60 req/s), B sends 4 req/s Both heavy: A 60 req/s, B 30 req/s Llama 3.1 8B FP8, calibrated H100 preset, capacity about 39 of these requests per second; prompts 300 to 1,500 tokens, answers 50 to 400; 30 s of arrivals, run until every request finishes. \"Service while backlogged\" is the mean of w p × prompt tokens + w q × output tokens per second (w p = 1, w q = 2, VTC's weights) from 5 s to 30 s.",
+  "label": "depth",
+  "key": "\"service while backlogged\" is the mean of w p × prompt tokens + w q × output tokens per second",
+  "where": ""
+ },
+ {
+  "id": 388,
+  "tab": "t-sch",
+  "section": "",
+  "text": "Priority gives B the better class.",
+  "label": "core",
+  "key": "priority: b first",
+  "where": ""
+ },
+ {
+  "id": 389,
+  "tab": "t-sch",
+  "section": "",
+  "text": "The Reading tab's section 7 animates these runs.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed tab layout"
+ },
+ {
+  "id": 390,
+  "tab": "t-sch",
+  "section": "",
+  "text": "Shortest job first, with perfect knowledge FCFS, mean TTFT SJF, mean TTFT FCFS, p99 TTFT SJF, p99 TTFT Llama 3.1 8B FP8, calibrated H100 preset; Poisson arrivals for 40 s, prompts 200 to 1,000 tokens, answers 10 to 600 (uniform).",
+  "label": "core",
+  "key": "llama 3.1 8b fp8, calibrated h100 preset; poisson arrivals for 40 s, prompts 200 to 1,000 tokens, answers 10 to 600",
+  "where": ""
+ },
+ {
+  "id": 391,
+  "tab": "t-sch",
+  "section": "",
+  "text": "SJF orders the waiting queue by each request's true remaining output (an oracle); running requests are never preempted for a shorter one, as in vLLM.",
+  "label": "core",
+  "key": "sjf orders the waiting queue by each request's true remaining output (an oracle); running requests are never preempted",
+  "where": ""
+ },
+ {
+  "id": 392,
+  "tab": "t-sch",
+  "section": "",
+  "text": "Preemption: recompute, swap, or reserve Llama 3.1 8B BF16 on the H100 preset with a deliberately small KV cache, 6 requests per second for 40 s (prompts 200 to 1,200 tokens, answers 100 to 1,000).",
+  "label": "depth",
+  "key": "llama 3.1 8b bf16 on the h100 preset with a deliberately small kv cache, 6 requests per second for 40 s (prompts 200 to",
+  "where": ""
+ },
+ {
+  "id": 393,
+  "tab": "t-sch",
+  "section": "",
+  "text": "Swap costs the victim's bytes over the link when it is evicted and again when it resumes; recompute recomputes its tokens as a prompt; \"reserve\" admits a request only if its prompt plus max_tokens fits (TensorRT-LLM's default rule), so nothing is ever preempted.",
+  "label": "depth",
+  "key": "swap costs the victim's bytes over the link when it is evicted and again when it resumes; recompute recomputes its",
+  "where": ""
+ },
+ {
+  "id": 394,
+  "tab": "t-sch",
+  "section": "",
+  "text": "What the simulator leaves out Everything the parent's simulator leaves out: CUDA graph padding, the CPU running ahead of the GPU (vLLM's asynchronous scheduling), tokenization and network time, tensor parallelism ( Distributed and disaggregated serving ), speculative decoding ( Speculative decoding ).",
+  "label": "depth",
+  "key": "tokenization and network time, tensor parallelism ( distributed and disaggregated serving ), speculative decoding (",
+  "where": ""
+ },
+ {
+  "id": 395,
+  "tab": "t-sch",
+  "section": "",
+  "text": "VTC and SJF are the papers' algorithms on vLLM's step structure, not code from a released engine; the priority policy is vLLM's and is checked against it.",
+  "label": "depth",
+  "key": "vtc and sjf are the papers' algorithms on vllm's step structure, not code from a released",
+  "where": ""
+ },
+ {
+  "id": 396,
+  "tab": "t-sch",
+  "section": "",
+  "text": "Swap is modelled as a blocking copy at the link's full bandwidth, with no per-block overhead: the PagedAttention authors measured small blocks transferring far below that (section 6 of the Reading tab).",
+  "label": "depth",
+  "key": "swap is modelled as a blocking copy at the link's full bandwidth, with no per-block",
+  "where": ""
+ },
+ {
+  "id": 397,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "KV compression papers drop most of a prompt's cache entries and report that quality survives.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab wind-up"
+ },
+ {
+  "id": 398,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Two questions decide whether that helps a server: does a clever importance score beat dropping entries at random, and can a paged engine actually reclaim the memory?",
+  "label": "core",
+  "key": "can a paged engine take back",
+  "where": ""
+ },
+ {
+  "id": 399,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "This tab answers both on a real model, run here.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab wind-up"
+ },
+ {
+  "id": 400,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "The experiment measured here : Qwen/Qwen3-0.6B (safetensors @ c1899de2, BF16 weights run in float32), PyTorch 2.14.1 and transformers 5.19.0 on the M1 Pro's CPU with 2 threads, eager attention so the attention weights can be read, greedy decoding; script src/kvc/kvc.py .",
+  "label": "depth",
+  "key": "measured here : qwen/qwen3-0.6b (safetensors @ c1899de2, bf16 weights run in float32), pytorch 2.14.1 and transformers",
+  "where": ""
+ },
+ {
+  "id": 401,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Protocol, identical for every policy: prefill the prompt except its last token with the full cache, keep a share of the \"compressible\" positions (Task A: the 60 lines of context, about 800 tokens; Task B: the first 992 of 1,024 context tokens), always keep the rest (the question; the last 32 tokens), then continue.",
+  "label": "depth",
+  "key": "protocol, identical for every policy: prefill the prompt except its last token with the full cache, keep a share of the",
+  "where": ""
+ },
+ {
+  "id": 402,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Task A : 60 lists of \"The secret code of the <noun> is <4 digits>.\" and a question about one line; correct if the first four digits generated match.",
+  "label": "depth",
+  "key": "correct if the first four digits generated",
+  "where": ""
+ },
+ {
+  "id": 403,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Task B : 24 windows of WikiText-2 test; perplexity of the next 128 tokens.",
+  "label": "depth",
+  "key": "scores the next 128 tokens of wikitext-2",
+  "where": ""
+ },
+ {
+  "id": 404,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Random policies were run with three seeds (mean shown, range in brackets).",
+  "label": "depth",
+  "key": "random policies were run with three seeds (mean shown, range in brackets).",
+  "where": ""
+ },
+ {
+  "id": 405,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Policies: random over all positions; the first 4 tokens plus random (shared, or per layer and head); the first 4 plus the most recent (StreamingLLM); accumulated attention per head (H2O); attention from the observation window per head, max-pooled over 7 positions (SnapKV); the same score summed over all heads and layers, one shared selection.",
+  "label": "depth",
+  "key": "policies: random over all positions; the first 4 tokens plus random (shared, or per layer and head); the first 4 plus",
+  "where": ""
+ },
+ {
+  "id": 406,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Wall time 27 min for Task A, 6 min for Task B.",
+  "label": "depth",
+  "key": "wall time 27 min for task a, 6 min for task b.",
+  "where": ""
+ },
+ {
+  "id": 407,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Quality against how much of the cache is kept Task A: find one line among 60 (accuracy) Task B: predict the next 128 tokens of Wikipedia text (perplexity, log scale; random without sinks, in the hundreds, is drawn at the top edge) 2.",
+  "label": "depth",
+  "key": "next 128 tokens of wikipedia text (perplexity, log scale; random without sinks, in the hundreds, is drawn at the top",
+  "where": ""
+ },
+ {
+  "id": 408,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "What a paged engine could free Keep ratio \"Selection\" says whether every layer and head keeps the same positions.",
+  "label": "core",
+  "key": "a selection shared by every layer and head",
+  "where": ""
+ },
+ {
+  "id": 409,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "A paged engine stores all heads of all layers of 16 tokens in one block (vLLM), so a block is free only when no layer and no head keeps any of its 16 tokens: the \"freeable in place\" column.",
+  "label": "core",
+  "key": "a paged engine stores all heads of all layers",
+  "where": ""
+ },
+ {
+  "id": 410,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "A uniform selection can also be compacted (the kept tokens rewritten into fewer blocks; their positions are already baked into the keys by RoPE), which realises the full saving; a per-head or per-layer selection cannot without a per-head cache layout.",
+  "label": "core",
+  "key": "their positions are already baked into the keys by rope), which realises the full saving; a per-head",
+  "where": ""
+ },
+ {
+  "id": 411,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Eviction after a full prefill never lowers the peak: the whole prompt's cache existed first.",
+  "label": "core",
+  "key": "eviction after a full prefill never lowers the peak: the whole prompt's cache existed first.",
+  "where": ""
+ },
+ {
+  "id": 412,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Which positions each policy keeps (one example, 25% kept) 4.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading; the strip caption carries it"
+ },
+ {
+  "id": 413,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Reading the result, and what does not transfer Sinks first.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading"
+ },
+ {
+  "id": 414,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Dropping the first tokens wrecks the model (perplexity in the hundreds), which is why every sensible policy keeps them and why a fair random control must too.",
+  "label": "depth",
+  "key": "random eviction must keep the first tokens",
+  "where": ""
+ },
+ {
+  "id": 415,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "The task decides the winner.",
+  "label": "depth",
+  "key": "only a score informed by the question keeps",
+  "where": ""
+ },
+ {
+  "id": 416,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "On continuation, heavy hitters (H2O) lose least; on retrieval, a question-aware score (SnapKV) is the only thing that works, and the shared version beats the per-head one here.",
+  "label": "depth",
+  "key": "only a score informed by the question keeps",
+  "where": ""
+ },
+ {
+  "id": 417,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Random with sinks is a fair floor on continuation and useless on retrieval.",
+  "label": "depth",
+  "key": "random is a respectable control but loses",
+  "where": ""
+ },
+ {
+  "id": 418,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Realisable is a separate axis.",
+  "label": "core",
+  "key": "is its memory figure algorithmic or realisable",
+  "where": ""
+ },
+ {
+  "id": 419,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "The per-head methods that score well on continuation free nothing in a paged engine; the shared selection frees memory but scores worse on continuation.",
+  "label": "core",
+  "key": "is its memory figure algorithmic or realisable",
+  "where": ""
+ },
+ {
+  "id": 420,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "A paper's memory figure must say which kind it is.",
+  "label": "core",
+  "key": "is its memory figure algorithmic or realisable",
+  "where": ""
+ },
+ {
+  "id": 421,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "Not transferable: absolute numbers (tiny model, short contexts, CPU), anything about speed (not measured: eager attention on a CPU), and long-context behaviour, where eviction matters most.",
+  "label": "depth",
+  "key": "nothing about speed",
+  "where": ""
+ },
+ {
+  "id": 422,
+  "tab": "t-kvc",
+  "section": "",
+  "text": "For long-context benchmarks see Long-context and multimodal benchmarks .",
+  "label": "depth",
+  "key": "for long-context benchmarks see long-context and multimodal benchmarks .",
+  "where": ""
+ },
+ {
+  "id": 423,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's tabs, the knowledge base pages it leans on, the papers and code behind each mechanism, and the data, each with an approximate time.",
+  "label": "core",
+  "key": "leans on, the papers and code behind each mechanism, and the data, each with an approximate time.",
+  "where": ""
+ },
+ {
+  "id": 424,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 2026-10-08.",
+  "label": "core",
+  "key": "links checked on 2026-10-08.",
+  "where": ""
+ },
+ {
+  "id": 425,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page Reading Continuous batching, paging, prefix caching and eviction, offload tiers, chunked prefill, preemption, priority and fairness, KV compression, tuning. about 45 min, plus the animations Eviction lab Kimi's production traces through six eviction policies at fifteen sizes, a host-memory tier, published figures checked, vLLM's block pool as referee.",
+  "label": "core",
+  "key": "continuous batching, paging, prefix caching and eviction, offload tiers, chunked prefill, preemption,",
+  "where": ""
+ },
+ {
+  "id": 426,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min Scheduling lab The parent's simulator with priority, VTC and shortest-job-first: chunk budgets, two clients, preemption modes, checks against vLLM's scheduler.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading card of a removed tab"
+ },
+ {
+  "id": 427,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min KV compression experiment Seven ways to drop KV entries from Qwen3-0.6B, scored on retrieval and perplexity, with the blocks a paged engine could actually free.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "Further reading card of a removed tab"
+ },
+ {
+  "id": 428,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min The parent and its other children Topic: inference-and-serving The intuition for every mechanism here, the engines compared, and its Serving simulator, Engine bench and Capacity planner tabs. about 43 min Reading, plus its tabs vLLM: inside the default engine The scheduler loop, KV cache manager and block pool read line by line, a live server's metrics, a knob sweep. about 31 min, plus its labs SGLang The radix tree and cache-aware scheduling policies, measured against vLLM's hashed blocks. about 31 min, plus its labs Speculative decoding Draft models, EAGLE, multi-token prediction; how speculation interacts with batch size. about 23 min, plus its labs Distributed and disaggregated serving Prefill/decode disaggregation and KV transfer, the other half of DistServe and Mooncake. about 30 min, plus its labs LLM serving in production Prefix-aware routing across replicas, autoscaling, load testing. about 32 min, plus its labs Local and on-device inference llama-server's slots, prompt cache and batch settings in depth. about 44 min, plus its labs Model formats What the weights and caches are stored as. about 29 min, plus its File explorer and Conversion map Neighbouring pages Long context The owner of KV compression methods (Topic: llm-architecture): GQA and latent attention, KV quantisation and its outlier channels, StreamingLLM, H2O and SnapKV, local and global layers, with a lab of seven eviction policies on one prompt; section 8 here asks which of their savings a paged engine can reclaim. about 22 min PagedAttention (paper page) The paper behind section 2, with its own visuals.",
+  "label": "core",
+  "key": "the parent and its other children topic: inference-and-serving the intuition for every mechanism here, the engines",
+  "where": ""
+ },
+ {
+  "id": 429,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min Memory technology HBM and the KV cache as physical memory; the SSD bandwidth used in section 4.",
+  "label": "core",
+  "key": "25 min memory technology hbm and the kv cache as physical memory; the ssd bandwidth used in section 4.",
+  "where": ""
+ },
+ {
+  "id": 430,
+  "tab": "t-more",
+  "section": "",
+  "text": "24 min Writing kernels FlashAttention, split-KV decode and paged attention kernels.",
+  "label": "core",
+  "key": "24 min writing kernels flashattention, split-kv decode and paged attention kernels.",
+  "where": ""
+ },
+ {
+  "id": 431,
+  "tab": "t-more",
+  "section": "",
+  "text": "37 min Performance math FLOPs and bytes per token; why batching works.",
+  "label": "core",
+  "key": "37 min performance math flops and bytes per token; why batching works.",
+  "where": ""
+ },
+ {
+  "id": 432,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min Context engineering Prompt caching from the client's side: how to keep prefixes stable.",
+  "label": "core",
+  "key": "25 min context engineering prompt caching from the client's side: how to keep prefixes stable.",
+  "where": ""
+ },
+ {
+  "id": 433,
+  "tab": "t-more",
+  "section": "",
+  "text": "29 min Latent Context Language Models Compressing the input before the decoder sees it, the alternative to evicting KV.",
+  "label": "core",
+  "key": "29 min latent context language models compressing the input before the decoder sees it, the alternative to evicting kv.",
+  "where": ""
+ },
+ {
+  "id": 434,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min Papers, in the order of this page Orca (Yu et al., OSDI 2022) Iteration-level scheduling and selective batching.",
+  "label": "core",
+  "key": "20 min papers, in the order of this page orca (yu et al., osdi 2022) iteration-level scheduling and selective batching.",
+  "where": ""
+ },
+ {
+  "id": 435,
+  "tab": "t-more",
+  "section": "",
+  "text": "Sections 3 and 4 are the core.",
+  "label": "core",
+  "key": "sections 3 and 4 are the core.",
+  "where": ""
+ },
+ {
+  "id": 436,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min PagedAttention (Kwon et al., SOSP 2023) Blocks, block tables, copy-on-write, recompute against swap.",
+  "label": "core",
+  "key": "40 min pagedattention (kwon et al., sosp 2023) blocks, block tables, copy-on-write, recompute against swap.",
+  "where": ""
+ },
+ {
+  "id": 437,
+  "tab": "t-more",
+  "section": "",
+  "text": "60 min SGLang (Zheng et al.",
+  "label": "core",
+  "key": "60 min sglang (zheng et al.",
+  "where": ""
+ },
+ {
+  "id": 438,
+  "tab": "t-more",
+  "section": "",
+  "text": "2023) RadixAttention and cache-aware scheduling.",
+  "label": "core",
+  "key": "2023) radixattention and cache-aware scheduling.",
+  "where": ""
+ },
+ {
+  "id": 439,
+  "tab": "t-more",
+  "section": "",
+  "text": "45 min Mooncake (Qin et al., FAST 2025) A KV-cache-centric architecture; the traces used here.",
+  "label": "core",
+  "key": "45 min mooncake (qin et al., fast 2025) a kv-cache-centric architecture; the traces used here.",
+  "where": ""
+ },
+ {
+  "id": 440,
+  "tab": "t-more",
+  "section": "",
+  "text": "60 min CachedAttention (Gao et al., USENIX ATC 2024) A hierarchical KV cache for multi-turn chat.",
+  "label": "core",
+  "key": "60 min cachedattention (gao et al., usenix atc 2024) a hierarchical kv cache for multi-turn chat.",
+  "where": ""
+ },
+ {
+  "id": 441,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min LMCache (2025) A KV layer across GPU, CPU, disk and network.",
+  "label": "core",
+  "key": "40 min lmcache (2025) a kv layer across gpu, cpu, disk and network.",
+  "where": ""
+ },
+ {
+  "id": 442,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min Tail-Optimized Caching (2025) Eviction for tail TTFT, SGLang's \"tlru\".",
+  "label": "core",
+  "key": "40 min tail-optimized caching (2025) eviction for tail ttft, sglang's \"tlru\".",
+  "where": ""
+ },
+ {
+  "id": 443,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Sarathi (2023) and Sarathi-Serve (OSDI 2024) Chunked prefill and stall-free scheduling.",
+  "label": "core",
+  "key": "30 min sarathi (2023) and sarathi-serve (osdi 2024) chunked prefill and stall-free scheduling.",
+  "where": ""
+ },
+ {
+  "id": 444,
+  "tab": "t-more",
+  "section": "",
+  "text": "60 min for both Fairness in Serving LLMs (Sheng et al., OSDI 2024) The Virtual Token Counter and its bound.",
+  "label": "core",
+  "key": "60 min for both fairness in serving llms (sheng et al., osdi 2024) the virtual token counter and its bound.",
+  "where": ""
+ },
+ {
+  "id": 445,
+  "tab": "t-more",
+  "section": "",
+  "text": "45 min DistServe (OSDI 2024) Goodput, and why prefill and decode interfere.",
+  "label": "core",
+  "key": "45 min distserve (osdi 2024) goodput, and why prefill and decode interfere.",
+  "where": ""
+ },
+ {
+  "id": 446,
+  "tab": "t-more",
+  "section": "",
+  "text": "45 min Learning to rank for scheduling (2024) and FastServe (2023) Approximating shortest-job-first without knowing lengths.",
+  "label": "core",
+  "key": "45 min learning to rank for scheduling (2024) and fastserve (2023) approximating shortest-job-first without knowing",
+  "where": ""
+ },
+ {
+  "id": 447,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min for both StreamingLLM , H2O , SnapKV Attention sinks, heavy hitters, observation-window selection: the eviction methods run in section 8.",
+  "label": "core",
+  "key": "40 min for both streamingllm , h2o , snapkv attention sinks, heavy hitters, observation-window selection: the eviction",
+  "where": ""
+ },
+ {
+  "id": 448,
+  "tab": "t-more",
+  "section": "",
+  "text": "90 min for all three KVzip , Expected Attention and KVPress , Random Attention Query-agnostic compression, a library of 20 methods, and the random-eviction control.",
+  "label": "core",
+  "key": "90 min for all three kvzip , expected attention and kvpress , random attention query-agnostic compression, a library of",
+  "where": ""
+ },
+ {
+  "id": 449,
+  "tab": "t-more",
+  "section": "",
+  "text": "75 min for all three Code and data vLLM v0.31.0, vllm/v1/core scheduler.py, kv_cache_manager.py, block_pool.py: everything in sections 3, 5 and 6.",
+  "label": "core",
+  "key": "75 min for all three code and data vllm v0.31.0, vllm/v1/core scheduler.py, kv_cache_manager.py, block_pool.py:",
+  "where": ""
+ },
+ {
+  "id": 450,
+  "tab": "t-more",
+  "section": "",
+  "text": "2 h to read well SGLang v0.5.21, mem_cache and managers radix_cache.py, schedule_policy.py, schedule_batch.py (retraction).",
+  "label": "core",
+  "key": "2 h to read well sglang v0.5.21, mem_cache and managers radix_cache.py, schedule_policy.py, schedule_batch.py",
+  "where": ""
+ },
+ {
+  "id": 451,
+  "tab": "t-more",
+  "section": "",
+  "text": "2 h llama.cpp server at build 11146 server-context.cpp: slots, update_slots, the prompt cache.",
+  "label": "core",
+  "key": "2 h llama.cpp server at build 11146 server-context.cpp: slots, update_slots, the prompt cache.",
+  "where": ""
+ },
+ {
+  "id": 452,
+  "tab": "t-more",
+  "section": "",
+  "text": "1 h Mooncake traces Conversation, tool-and-agent and synthetic request traces with block hashes.",
+  "label": "core",
+  "key": "1 h mooncake traces conversation, tool-and-agent and synthetic request traces with block hashes.",
+  "where": ""
+ },
+ {
+  "id": 453,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min, then experiments",
+  "label": "core",
+  "key": "10 min, then experiments",
+  "where": ""
+ },
+ {
+  "id": 454,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "Hit rate against cache size for six policies on three traces, per-policy table at a chosen size (script-rendered, BKD.ev)",
+  "label": "core",
+  "key": "18.2% with 8,192",
+  "where": ""
+ },
+ {
+  "id": 455,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "Two-tier bars: GPU hits plus host hits per host size, time saved per request (script-rendered)",
+  "label": "core",
+  "key": "plus 5.1% from host memory",
+  "where": ""
+ },
+ {
+  "id": 456,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "Mooncake Table 1 published against this replay, FAST25 Fig. 9 labels (script-rendered table)",
+  "label": "depth",
+  "key": "34.1% at 1,000 blocks",
+  "where": ""
+ },
+ {
+  "id": 457,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "vLLM v0.31.0 KVCacheManager hit counts equal the re-implementation on the first 3,000 requests of two traces (script-rendered table)",
+  "label": "depth",
+  "key": "gave the same hit count every time",
+  "where": ""
+ },
+ {
+  "id": 458,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "Single-prompt chunk tables, H100 and M1 Pro with measured medians (script-rendered)",
+  "label": "depth",
+  "key": "0.431 s to 0.439 s",
+  "where": ""
+ },
+ {
+  "id": 459,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "Budget sweep under steady traffic: ITL p99, TTFT p99 and p50 per budget (script-rendered chart)",
+  "label": "core",
+  "key": "13 ms at a 512-token budget",
+  "where": ""
+ },
+ {
+  "id": 460,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "Preemption modes table: recompute, swap at two link speeds, reserve (script-rendered)",
+  "label": "depth",
+  "key": "2,364 against 2,430",
+  "where": ""
+ },
+ {
+  "id": 461,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "Two-client table: TTFT p50, p99 and service while backlogged per policy and client (script-rendered)",
+  "label": "depth",
+  "key": "26,800 weighted tokens per second",
+  "where": ""
+ },
+ {
+  "id": 462,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "SJF against FCFS mean and p99 TTFT across arrival rates (script-rendered chart; table in depth)",
+  "label": "core",
+  "key": "p99 TTFT rises from 5.1 s to 26.8 s",
+  "where": ""
+ },
+ {
+  "id": 463,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "vLLM Scheduler with policy priority matched the simulator on eight traces (script-rendered table)",
+  "label": "depth",
+  "key": "2,256 steps, 79 preemptions",
+  "where": ""
+ },
+ {
+  "id": 464,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "Freeable-in-place and with-compaction blocks per policy and keep ratio, plus accuracy and perplexity (script-rendered table)",
+  "label": "core",
+  "key": "51% of blocks freeable in place",
+  "where": ""
+ },
+ {
+  "id": 465,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "New hero: one step of the running example, budget to scale, block pool, host tier (script-drawn; caption static)",
+  "label": "core",
+  "key": "7,128-token chunk",
+  "where": ""
+ },
+ {
+  "id": 466,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "New stepper: contiguous reservation against 4-slot paging on three illustrative requests; 41% against 84% at the peak (captions script-written)",
+  "label": "core",
+  "key": "contiguous reservations leave C waiting",
+  "where": ""
+ },
+ {
+  "id": 467,
+  "tab": "script-rendered",
+  "section": "added by hand",
+  "text": "New stepper: one full pool under vLLM newest-first, SGLang fewest-output-first, TensorRT-LLM reserve-at-admission (captions script-written)",
+  "label": "core",
+  "key": "vLLM evicts the newest request",
+  "where": ""
+ }
+]

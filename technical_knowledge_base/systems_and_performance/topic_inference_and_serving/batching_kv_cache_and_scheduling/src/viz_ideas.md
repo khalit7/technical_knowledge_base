@@ -24,9 +24,18 @@ animation point (step by step, ideally against the method it replaced). Build co
 | B12 | Scheduling lab: chunk tables, budget sweep under steady traffic, two-client table, SJF chart, preemption table, check tables | Scheduling lab | Room for the full grids behind the Reading's single numbers | gen_sched.py, vllm_priority.py, regress.py |
 | B13 | KV compression experiment: accuracy and perplexity against keep ratio for seven policies, freeable blocks, the needle's survival, which positions each policy keeps on one example | KV compression tab | The "cheap control" lesson on a real model, with the realisable saving beside the algorithmic one | kvc.py |
 
+## Added and moved on 2026-10-23 (teaching contract)
+| # | Idea | Where | Why |
+|---|---|---|---|
+| B14 | **Hero: one engine step** (token budget to scale, block pool with shared, scattered, cached and free blocks, host tier), static, labels carry their section | Reading top | The whiteboard picture the page elaborates; static because it is structure |
+| B15 | **Paging stepper**: three illustrative requests in 48 slots, contiguous reservation against 4-slot blocks, counters for slots holding tokens | Reading s2 | Paging is owned here and had no mechanism visual, only bar charts of its result |
+| B16 | **Preemption stepper**: one full pool under vLLM, SGLang and TensorRT-LLM rules | Reading s6 | Victim choice and reserve-at-admission are a before/after on the same input; shares the slot drawer with B15 |
+| moved | B9, B10 (Eviction lab), B12 sweep and SJF charts (Scheduling lab), B13 coverage strip and freeable table (KV compression) | Reading s3, s4, s5, s7, s8 | Each proves one section's claim; tables and checks went into closed blocks |
+
 ## Rejected
 - **A live JavaScript port of the eviction policies and the scheduler** with free sliders: everything is precomputed in Python from the checked code instead; a second implementation would need its own parity checks and adds nothing the grids do not show.
 - **Rebuilding the parent's Serving simulator tab** (static against continuous, paged against contiguous animations): linked by name instead.
+- **Keeping the three lab tabs** (2026-10-23): each explained one section's mechanism, so its visual moved beside the claim.
 - **A per-head heatmap of all 28 layers x 8 KV heads** for the compression experiment: too dense at phone width; replaced by the coverage strip (share of heads keeping each position).
 - **A block-size waste animation**: the trace calculator (B3) shows the same with real lengths; an animation of one request filling blocks would teach less.
 - **SGLang radix-tree animation**: owned by the SGLang page.
