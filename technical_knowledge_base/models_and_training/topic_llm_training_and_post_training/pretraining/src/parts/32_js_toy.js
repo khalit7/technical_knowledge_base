@@ -1,4 +1,4 @@
-// ---- Anneal a toy tab: four cells, loss curves, per-character heatmap animation, findings ----
+// ---- The toy (once the Anneal a toy tab, now in Reading sections 2 and 5): four cells, loss curves, per-character heatmap animation, findings ----
 (function(){
   const $=id=>document.getElementById(id);
   if(!$('ty-card')||!window.TOY)return;
