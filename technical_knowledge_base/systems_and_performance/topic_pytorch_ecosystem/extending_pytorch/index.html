@@ -103,9 +103,9 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 @media (max-width:520px){#ovBars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 6.2em}h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
 </style></head><body><div class="w">
 <h1>Extending PyTorch: custom ops, tensor subclasses, kernels</h1>
-<div class="sub">How to add what PyTorch does not ship without breaking autograd, torch.compile or export, taught from zero on the running example: torch.library custom operators, C++ extensions, Metal, Triton and Helion kernels plugged in, tensor subclasses, dispatch modes, and how to choose. Every graph count, opcheck result, trace and error here was recorded with torch 2.14.1 on an Apple M1 Pro (CPU and MPS); source quoted at pinned tags. Data as of October 2026.</div>
+<div class="sub">Reading: 31 min, plus 13 in closed details. How to add what PyTorch does not ship without breaking autograd, torch.compile or export: custom operators, C++ extensions, Metal, Triton and Helion kernels, tensor subclasses and dispatch modes, on the topic's running example. Every graph count, opcheck result, trace and error was recorded with torch 2.14.1 on an Apple M1 Pro (CPU and MPS); source quoted at pinned tags. Data as of October 2026.</div>
 <div class="tabs" role="tablist" id="tabs">
-<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-ext-pick" aria-selected="false">Which extension point?</button><button role="tab" data-t="t-ext-op" aria-selected="false">Custom-op lab</button><button role="tab" data-t="t-ext-sub" aria-selected="false">Subclass tracer</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-ext-pick" aria-selected="false">Which extension point?</button><button role="tab" data-t="t-ext-op" aria-selected="false">Custom-op lab</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
 </div>
 <div class="tab" id="t-read" role="tabpanel">
 <style>
@@ -257,52 +257,66 @@ table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
 #t-read .ext-gbox.eager{border-color:var(--c5);border-style:dashed}
 #t-read .ext-bytes{display:flex;height:22px;border-radius:4px;overflow:hidden;margin:3px 0}
 #t-read .ext-bytes span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12px;white-space:nowrap;overflow:hidden;min-width:0}
+#t-read .es-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
+#t-read .es-two>div{min-width:0}
+#t-read .es-op{font:600 17px/1.3 ui-monospace,Menlo,monospace;overflow-wrap:anywhere;margin:4px 0}
+#t-read .es-ph{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;border:1px solid var(--line);margin-right:4px}
+#t-read .es-ph.f{color:var(--c1);border-color:var(--c1)}#t-read .es-ph.b{color:var(--c2);border-color:var(--c2)}#t-read .es-ph.s{color:var(--mute)}
+#t-read .es-log{font:12px/1.5 ui-monospace,Menlo,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-height:9em;overflow-wrap:anywhere}
+#t-read .es-log .cur{font-weight:700}#t-read .es-log .b{color:var(--c2)}
+#t-read #es-hist .row{grid-template-columns:minmax(0,13em) minmax(0,1fr) 3.5em}
+@media (max-width:520px){#t-read #es-hist .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 3em}}
+#t-read .rd-svg svg{display:block;max-width:100%;height:auto}
+#t-read .rd-svg .lb{font-size:12px;fill:var(--ink)}#t-read .rd-svg .sm{font-size:11px;fill:var(--mute)}
+#t-read .rd-svg .hl{fill:var(--acc)}#t-read .rd-svg .mono{font-family:ui-monospace,Menlo,monospace}
+#t-read details.qa>div .code,#t-read details.qa>div .ext-q{white-space:pre}
 </style>
 <nav class="nav" id="rd-nav">
-<a href="#rd-s0">0 One screen</a><a href="#rd-s1">1 Custom ops</a><a href="#rd-s2">2 Under compile</a><a href="#rd-s3">3 C++</a><a href="#rd-s4">4 Kernels</a><a href="#rd-s5">5 Subclasses</a><a href="#rd-s6">6 Modes</a><a href="#rd-s7">7 New devices</a><a href="#rd-s8">8 Choosing</a><a href="#rd-s9">9 On NVIDIA GPUs</a><a href="#rd-mis">Mistakes</a><a href="#rd-iq">Interview</a>
+<a href="#rd-s0">The idea</a><a href="#rd-s1">1 Custom ops</a><a href="#rd-s2">2 Under compile</a><a href="#rd-s3">3 C++</a><a href="#rd-s4">4 Kernels</a><a href="#rd-s5">5 Subclasses</a><a href="#rd-s6">6 Modes</a><a href="#rd-deep">Depth</a>
 </nav>
 
 <section id="rd-s0">
-<h2>0. In one screen: adding what PyTorch does not ship</h2>
-<p class="lead">Sooner or later a training job needs something PyTorch does not have: a kernel you wrote (in C++, CUDA, Metal, Triton or Helion), a call into a library that is not PyTorch, a new number format for weights (int8, NF4, float8), a tensor that lives on several devices at once, or a tool that watches every operation. PyTorch has a hook for each. They differ in three ways that this page measures: <b>what they can change</b>, <b>whether autograd, <code>torch.compile</code> and <code>torch.export</code> keep working</b>, and <b>what they cost</b>.</p>
-<p>The page follows the parent topic's running example, a 3,186,944-parameter character-level GPT (<a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Topic: pytorch-ecosystem</a>, defined once in the root's <code>src/model/</code>), and changes two things in it. First, the GELU inside every block's MLP is replaced by <b>your own kernel</b>: a 50-line C++ GELU, then a Metal one, then a Helion one, each plugged in a different way. Second, the block weights are replaced by an <b>int8 tensor subclass</b>. Every result below comes from running those changes: graph counts, test results, errors, timings.</p>
-<p>Three terms first. An <dfn>operator</dfn> is a named function the dispatcher knows (<code>aten::addmm</code>, or yours, <code>ext::gelu</code>), with a <dfn>schema</dfn>: a one-line type signature such as <code>ext::gelu(Tensor x) -&gt; Tensor</code>. The <dfn>dispatcher</dfn> keeps, for each operator, a table of <dfn>kernels</dfn> (implementations) indexed by <dfn>dispatch key</dfn> (CPU, MPS, Autograd, Python, Meta and others) and, on every call, walks the keys that apply. The sibling page <a href="https://app.notion.com/p/3f85c17b0d0d81138595c1c6cd52f795" target="_blank" rel="noopener noreferrer">Tensors, the dispatcher and autograd</a> takes that machine apart; here we only plug things into it.</p>
-<div class="stepbox">
-<div style="--sc:var(--c1)"><div class="k">New computation</div><div class="v">a custom operator</div><p>A kernel per device, plus three facts the compiler cannot guess: the output's shape (a <i>fake</i>), the gradient, and what is mutated.</p></div>
-<div style="--sc:var(--c2)"><div class="k">New kernel language</div><div class="v">C++, Metal, Triton, Helion</div><p>The kernel is written elsewhere; it plugs in as an operator's kernel at one device key.</p></div>
-<div style="--sc:var(--c4)"><div class="k">New representation</div><div class="v">a tensor subclass</div><p>Every operator on the tensor reaches your Python code: int8 weights, sharded tensors, float8.</p></div>
-<div style="--sc:var(--c3)"><div class="k">Watch or transform everything</div><div class="v">a dispatch mode</div><p>Active for a region of code; sees every ATen call: fake tensors, FLOP counting, logging.</p></div>
+<h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="lead"><b>Every way of extending PyTorch plugs your code into one slot on the path a call already takes, and autograd, <code>torch.compile</code> and <code>torch.export</code> keep working only if you also hand PyTorch the three facts it cannot read from opaque code: the output's shape (a <i>fake</i>), the gradient, and what the code writes.</b></p>
+<div class="rd-card" id="ext-hero-card">
+<h4>One call path, six slots to plug into; the three highlighted ones are the facts a custom operator must supply</h4>
+<div class="rd-svg" id="ext-hero"></div>
+<p class="small mute">The dispatcher's keys in their real order, simplified (the sibling page draws all of them). In each slot, left: what happens there; right: the API you plug in with.</p>
 </div>
+<div class="rd-two">
+<div><p><b>You need</b>: the dispatcher's keys and the autograd graph from <a href="https://app.notion.com/p/3f85c17b0d0d81138595c1c6cd52f795" target="_blank" rel="noopener noreferrer">Tensors, the dispatcher and autograd</a> (Reading 2 and 3), and what a graph break is from <a href="https://app.notion.com/p/3c65c17b0d0d8123a232d75bd7339ecb" target="_blank" rel="noopener noreferrer">torch.compile from the user's side</a>.</p>
+<p><b>The running example.</b> The parent topic's 3,186,944-parameter character-level GPT (<a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Topic: pytorch-ecosystem</a>, defined once in the root's <code>src/model/</code>), changed in two ways: the GELU in every block's MLP becomes <b>your own kernel</b> (C++, then Metal, then Helion), and the block weights become an <b>int8 tensor subclass</b>.</p></div>
+<div><p><b>New terms</b></p><ul class="small">
+<li><dfn>Operator</dfn>: a named function the dispatcher knows (<code>aten::addmm</code>, or yours, <code>ext::gelu</code>), with a <dfn>schema</dfn>, a one-line signature such as <code>ext::gelu(Tensor x) -&gt; Tensor</code>.</li>
+<li><dfn>Fake</dfn> (meta) implementation: computes the output's shape, dtype and strides without data; what the compiler traces with.</li>
+<li><dfn>Graph break</dfn>: where <code>torch.compile</code> stops a graph, runs Python, and starts a new one.</li>
+<li><dfn>opcheck</dfn>: <code>torch.library.opcheck</code>, four tests that the three facts are true.</li>
+<li><dfn>Wrapper subclass</dfn>: a tensor with a shape but no storage, whose data lives in inner tensors.</li>
+<li><dfn>Dispatch mode</dfn>: a context manager that sees every ATen call in a region.</li></ul></div>
+</div>
+<h3>Which hook for which need, with what was measured</h3>
 <div class="tw"><table class="rd-tbl">
-<thead><tr><th>Hook</th><th>What it changes</th><th>Autograd</th><th>torch.compile</th><th>Measured here</th></tr></thead>
+<thead><tr><th>You need</th><th>Use</th><th>Autograd</th><th>torch.compile</th><th>Measured here</th></tr></thead>
 <tbody>
-<tr><td>Plain PyTorch code</td><td>Nothing new: composes existing operators</td><td>Free</td><td>Traced and fused</td><td><code>F.gelu</code>: 1 graph; <span data-v="timing/calls_cpu/small (64)/F.gelu/median_us|2"></span> &micro;s per call</td></tr>
-<tr><td><code>torch.autograd.Function</code></td><td>The backward of a piece of Python</td><td>Yours</td><td>Traced if forward and backward are traceable</td><td>Owned by the sibling page (3.6)</td></tr>
-<tr><td><code>torch.library.custom_op</code></td><td>Adds an operator whose kernel is opaque</td><td><code>register_autograd</code></td><td>One node, no break, once it has a fake</td><td>1 graph against <span data-v="variants/pybind/graphs"></span> graphs and <span data-v="variants/pybind/breaks"></span> breaks unregistered; <span data-v="timing/calls_cpu/small (64)/custom_op (Python) around C++/median_us|2"></span> &micro;s per call</td></tr>
-<tr><td>C++ op with <code>TORCH_LIBRARY</code></td><td>The same, defined in C++</td><td>In C++ or from Python</td><td>Same as custom_op</td><td>Cold build <span data-v="timing/build_cold_s/2"></span> to <span data-v="timing/build_cold_s/0"></span> s; <span data-v="timing/calls_cpu/small (64)/TORCH_LIBRARY C++/median_us|2"></span> &micro;s per call</td></tr>
-<tr><td><code>triton_op</code> + <code>wrap_triton</code></td><td>An operator built from Triton kernels</td><td><code>register_autograd</code></td><td>Visible: Inductor optimises around the kernel</td><td>Not run: Triton has no macOS build</td></tr>
-<tr><td>Helion kernel</td><td>A tiled kernel that compiles to Triton (or Metal, Pallas, CuTe)</td><td>Wrap it in an op</td><td>Traced as a kernel call, no break</td><td>Ran on MPS: 1 graph, 0 breaks</td></tr>
-<tr><td>Tensor subclass (<code>__torch_dispatch__</code>)</td><td>What a tensor <i>is</i></td><td>Above it: autograd works unchanged</td><td>With <code>__tensor_flatten__</code>: compiled through</td><td>int8 weights: <span data-v="int8/bytes_float|mb"></span> MB to <span data-v="int8/bytes_int8|mb"></span> MB, 1 graph</td></tr>
-<tr><td><code>__torch_function__</code></td><td>Python-level calls on a tensor type</td><td>Not seen in backward</td><td>Partly traced</td><td><span data-v="levels/function/nf"></span> calls in forward, <span data-v="levels/function/nb"></span> in backward</td></tr>
-<tr><td><code>TorchDispatchMode</code></td><td>Sees every ATen call in a region</td><td>Sees backward too</td><td>Eager tool</td><td>FLOP count of one step: <span data-v="modes/flops_total|i"></span></td></tr>
-<tr><td><code>PrivateUse1</code> backend</td><td>A whole device</td><td>Through the usual keys</td><td>Through the vendor's backend</td><td>Not run (needs a C++ device runtime)</td></tr>
+<tr><td>A different gradient for code PyTorch can trace</td><td><code>torch.autograd.Function</code></td><td>Yours</td><td>Traced if forward and backward are traceable</td><td>Owned by the sibling page (Reading 3.4): no schema or fake to maintain</td></tr>
+<tr><td>To call a kernel or library PyTorch cannot see</td><td><code>torch.library.custom_op</code> with a fake and <code>register_autograd</code>; not a direct call</td><td><code>register_autograd</code></td><td>One node, no break, once it has a fake</td><td>Direct call: <span data-v="variants/pybind/graphs"></span> graphs, <span data-v="variants/pybind/breaks"></span> breaks, export fails, <span data-v="variants/pybind/with_grad"></span> of 52 parameters trained. Op: 1 graph, exports, all 52; <span data-v="timing/calls_cpu/small (64)/custom_op (Python) around C++/median_us|2"></span> &micro;s per call against <span data-v="timing/calls_cpu/small (64)/F.gelu/median_us|2"></span> for <code>F.gelu</code></td></tr>
+<tr><td>The same, defined in C++</td><td>A C++ op with <code>TORCH_LIBRARY</code></td><td>In C++ or from Python</td><td>Same as custom_op</td><td>Cold build <span data-v="timing/build_cold_s/2"></span> to <span data-v="timing/build_cold_s/0"></span> s; <span data-v="timing/calls_cpu/small (64)/TORCH_LIBRARY C++/median_us|2"></span> &micro;s per call</td></tr>
+<tr><td>A Triton kernel the compiler should optimise around</td><td><code>triton_op</code> + <code>wrap_triton</code>, or a raw <code>@triton.jit</code> call; not custom_op</td><td><code>register_autograd</code></td><td>Visible: Inductor optimises around the kernel</td><td>Not run: Triton has no macOS build</td></tr>
+<tr><td>A tiled kernel written as PyTorch-like code</td><td>Helion (compiles to Triton, or Metal, Pallas, CuTe)</td><td>Wrap it in an op</td><td>Traced as a kernel call, no break</td><td>Ran on MPS: 1 graph, 0 breaks</td></tr>
+<tr><td>Weights or activations in a new format</td><td>A wrapper subclass (<code>__torch_dispatch__</code>) with <code>__tensor_flatten__</code>; not rewriting every layer</td><td>Above it: works unchanged</td><td>Compiled through</td><td>int8 weights: <span data-v="int8/bytes_float|mb"></span> MB to <span data-v="int8/bytes_int8|mb"></span> MB, 1 graph</td></tr>
+<tr><td>A tensor spread over devices</td><td>DTensor (already built); not your own subclass</td><td>Unchanged</td><td>Compiled through</td><td>C++ fast path; FSDP2 and tensor parallelism are built on it</td></tr>
+<tr><td>To intercept Python-level calls on your type</td><td><code>__torch_function__</code></td><td>Not seen in backward</td><td>Partly traced</td><td><span data-v="levels/function/nf"></span> calls in forward, <span data-v="levels/function/nb"></span> in backward</td></tr>
+<tr><td>To observe or rewrite every op in a region</td><td><code>TorchDispatchMode</code>; not a subclass</td><td>Sees backward too</td><td>Eager tool</td><td>FLOP count of one step: <span data-v="modes/flops_total|i"></span></td></tr>
+<tr><td>A new device</td><td><code>PrivateUse1</code>; not a fork</td><td>Through the usual keys</td><td>Through the vendor's backend</td><td>Not run (needs a C++ device runtime)</td></tr>
 </tbody></table></div>
-<p>The rows are ordered from lightest to heaviest. The rule of thumb that the rest of the page earns: <b>use the lightest hook that does the job</b>, and when you reach for an operator, give the compiler its three facts (shape, gradient, mutation) and test them with <code>torch.library.opcheck</code>.</p>
-<div class="prob">
-<a href="#rd-s1" style="--sc:var(--c1)"><b>Write a custom operator</b><span>custom_op, schemas, fake, autograd, kernels per device, opcheck</span></a>
-<a href="#rd-s2" style="--sc:var(--c2)"><b>Keep torch.compile whole</b><span>3 graph breaks against 0; what Inductor sees; two traps that drop gradients</span></a>
-<a href="#rd-s3" style="--sc:var(--c3)"><b>Bring C++ in</b><span>load_inline, TORCH_LIBRARY, what a naive kernel costs</span></a>
-<a href="#rd-s4" style="--sc:var(--c4)"><b>Plug in a GPU kernel</b><span>Metal shaders, triton_op, Helion running on this Mac</span></a>
-<a href="#rd-s5" style="--sc:var(--c5)"><b>Change what a tensor is</b><span>__torch_function__ against __torch_dispatch__; an int8 subclass; DTensor, NF4, float8</span></a>
-<a href="#rd-s6" style="--sc:var(--c6)"><b>Watch every op</b><span>FakeTensorMode, FlopCounterMode, logging modes</span></a>
-</div>
+<p>The rows run from lightest to heaviest. The rule the page earns: <b>use the lightest hook that does the job</b>, and when you reach for an operator, give the compiler its three facts and test them with <code>opcheck</code>. The <a href="#" data-tab="t-ext-pick">Which extension point?</a> tab asks the same questions one at a time.</p>
 </section>
 <section id="rd-s1">
 <h2>1. Custom operators with torch.library</h2>
-<p><b>The problem.</b> You have a kernel PyTorch cannot see inside: compiled C++, a Metal or CUDA kernel, a call into another library. Called as a plain Python function, it works in eager mode, but three things break silently or loudly: autograd does not know its gradient, <code>torch.compile</code> cannot trace through it, and <code>torch.export</code> cannot put it in a graph. A <dfn>custom operator</dfn> fixes all three by making your function a first-class entry in the dispatcher, like <code>aten::addmm</code>, and by telling PyTorch the three facts it cannot work out by itself.</p>
+<p><b>The problem.</b> You have a kernel PyTorch cannot see inside: compiled C++, a Metal or CUDA kernel, a call into another library. Called as a plain Python function it works in eager mode, but autograd does not know its gradient, <code>torch.compile</code> cannot trace through it, and <code>torch.export</code> cannot put it in a graph. A <dfn>custom operator</dfn> fixes all three by making your function a first-class entry in the dispatcher, like <code>aten::addmm</code>, and by telling PyTorch the three facts it cannot work out by itself.</p>
 
-<h3>1.1 Defining one, line by line</h3>
-<p>Here is the operator the running example uses, exactly as run (<code>src/exp/custom_ops.py</code>). <code>EXT.raw_gelu</code> is the C++ function of section 3; any opaque function would do.</p>
+<h3>1.1 Defining one: a kernel, three facts, one test</h3>
+<p>The operator the running example uses, exactly as run (<code>src/exp/custom_ops.py</code>). <code>EXT.raw_gelu</code> is the C++ function of section 3; any opaque function would do.</p>
 <div class="code"><span class="k">import</span> torch
 <span class="k">from</span> torch <span class="k">import</span> Tensor
 
@@ -337,56 +351,62 @@ gelu.register_autograd(backward, setup_context=setup_context)
 
 <span class="c"># 4. the test</span>
 torch.library.opcheck(gelu, (torch.randn(4, 8, 32, requires_grad=<span class="k">True</span>),))</div>
-<p>Swapped into every block's MLP (<code>self.proj(gelu(self.fc(x)))</code>), the model's loss is <span data-v="variants/full/loss"></span>, the same as with <code>F.gelu</code> (<span data-v="ref_loss"></span>), the largest gradient difference is <span data-v="variants/full/grad_diff|e"></span>, and <code>torch.compile(fullgraph=True)</code> gives one graph whose gradients differ from eager by at most <span data-v="variants/full/comp_grad_diff|e"></span> <span class="meas">measured here, CPU</span>.</p>
-<p><b>What the decorator does.</b> <code>custom_op</code> is a thin layer over the dispatcher. When the function is defined it parses the schema, defines the operator in a <code>torch.library.Library</code>, and registers three kernels straight away, before you add anything:</p>
+<p>Swapped into every block's MLP (<code>self.proj(gelu(self.fc(x)))</code>), the model's loss is <span data-v="variants/full/loss"></span>, the same as with <code>F.gelu</code> (<span data-v="ref_loss"></span>), the largest gradient difference is <span data-v="variants/full/grad_diff|e"></span>, and <code>torch.compile(fullgraph=True)</code> gives one graph whose gradients differ from eager by at most <span data-v="variants/full/comp_grad_diff|e"></span> <span class="meas">measured here, CPU</span>. Step through what each registration adds:</p>
+<div class="rd-card" id="ext-tbl-card">
+<h4>Each registration fills one slot of the operator's table and unlocks one more thing</h4>
+<div class="an-ctl" id="ext-tbl-ctl"></div>
+<div class="an-cap" id="ext-tbl-cap"></div>
+<div class="rd-svg" id="ext-tbl-view"></div>
+<p class="small mute">Slots as the decorator registers them (source in the closed block below); results recorded for the three variants <i>kernel only</i>, <i>+ fake</i> and <i>+ fake + autograd</i> of <code>src/exp/custom_ops.py</code>: a kernel alone trains in neither mode, a fake gives one compiled graph but no compiled backward, and only all three pass opcheck's four tests and train under compile.</p>
+</div>
+<p><code>custom_op</code> is a thin layer over the dispatcher: it parses the schema, defines the operator in a <code>torch.library.Library</code> and registers the slots above at once: your function as the kernel at <code>CompositeExplicitAutograd</code> (every device, unless you name devices), and a fake and an autograd kernel that raise until you register your own. The <code>ADInplaceOrView</code> kernel (which bumps version counters) exists only for operators that mutate.</p>
+<details class="qa"><summary>Source: what custom_op registers at definition (PyTorch v2.14.1)</summary><div>
 <div class="ext-qh" data-q="co_register"></div><div class="ext-q" data-q="co_register"></div>
-<p>The fake kernel it registers raises until you call <code>register_fake</code> (quoted below), the autograd kernel raises at backward until you call <code>register_autograd</code>, and the <code>ADInplaceOrView</code> kernel (which bumps version counters) exists only for operators that mutate. Your function itself becomes the kernel at <code>CompositeExplicitAutograd</code>, one implementation for every device, unless you name devices:</p>
 <div class="ext-qh" data-q="co_kernel_key"></div><div class="ext-q" data-q="co_kernel_key"></div>
 <div class="ext-qh" data-q="co_cea"></div><div class="ext-q" data-q="co_cea"></div>
+</div></details>
 
 <h3>1.2 The schema, inferred from type hints</h3>
-<p>The dispatcher does not read Python annotations; it needs a schema string. <code>custom_op</code> writes it for you from the type hints with <code>torch.library.infer_schema</code>. What it produced for six signatures, and the error for one it cannot handle:</p>
-<div id="ext-schemas"></div>
-<p>Three things to read in it. Python <code>int</code> becomes <code>SymInt</code>, an integer that may be symbolic under <code>torch.compile</code> (a dynamic size), so size arguments do not force a recompile. <code>Tensor?</code> is an optional tensor and <code>SymInt[]</code> a list. And <code>Tensor(a0!)</code> is an <dfn>alias annotation</dfn>: <code>a0</code> names the memory, <code>!</code> says it is written to. It appears because those arguments were listed in <code>mutates_args</code>.</p>
+<p>The dispatcher needs a schema string, not Python annotations; <code>custom_op</code> writes it with <code>torch.library.infer_schema</code>. Python <code>int</code> becomes <code>SymInt</code>, an integer that may be symbolic under <code>torch.compile</code>, so size arguments do not force a recompile. <code>Tensor?</code> is an optional tensor and <code>SymInt[]</code> a list. <code>Tensor(a0!)</code> is an <dfn>alias annotation</dfn>: <code>a0</code> names the memory, <code>!</code> says it is written to; it appears for arguments listed in <code>mutates_args</code>.</p>
+<details class="qa"><summary>What infer_schema produced for six signatures, and the error for one it cannot handle</summary><div><div id="ext-schemas"></div></div></details>
 
 <h3>1.3 Mutation and aliasing: say what you write</h3>
-<p>The compiler rewrites programs: it removes in-place operations (functionalization, sibling page 2.7), reuses buffers and reorders calls. It can only do that safely if every operator's schema tells the truth about what it writes and what its outputs share with its inputs. Two rules follow. Declare every input you modify in <code>mutates_args</code>. And never return an input, or a view of one, as an output: <code>custom_op</code> checks this at run time:</p>
+<p>The compiler removes in-place operations (functionalisation, sibling page Reading 2.5), reuses buffers and reorders calls, which is safe only if every schema tells the truth. Declare every input you modify in <code>mutates_args</code>. Never return an input, or a view of one, as an output (return <code>x.clone()</code> if the result equals the input); <code>custom_op</code> checks this at run time:</p>
 <p class="ext-err" data-v="alias_error|raw"></p>
-<p>The undeclared write is the dangerous one, because nothing checks it at run time. The lab's <i>undeclared mutation</i> variant clamps its input in place (<code>x.clamp_(-3, 3)</code>) under <code>mutates_args=()</code>. In the running example nothing goes wrong that you can see: the activations never exceed 3, the loss is <span data-v="variants/undeclared_mutation/loss"></span>, it compiles into one graph. <code>opcheck</code>'s schema test, fed inputs wide enough to be clamped, catches it:</p>
+<p>The undeclared write is the dangerous one, because nothing checks it at run time. The lab's <i>undeclared mutation</i> variant clamps its input in place (<code>x.clamp_(-3, 3)</code>) under <code>mutates_args=()</code>. In the running example nothing visible goes wrong: activations never exceed 3, the loss is <span data-v="variants/undeclared_mutation/loss"></span>, it compiles into one graph. <code>opcheck</code>'s schema test, fed inputs wide enough to be clamped, catches it:</p>
 <p class="ext-err" data-v="variants/undeclared_mutation/opcheck/test_schema/msg|raw"></p>
 
 <h3>1.4 The fake: the output's shape without running the kernel</h3>
-<p>A <dfn>fake tensor</dfn> carries a shape, dtype, device and strides but no data (sibling page 2.8). <code>torch.compile</code> and <code>torch.export</code> trace your program with fake tensors, so they never run the real kernels while tracing, and for every operator they ask: given inputs of these shapes, what comes out? ATen operators know; yours does not until you register a <dfn>fake implementation</dfn> (also called a meta or abstract implementation): a function that builds an empty output of the right shape and never reads input data. Missing, the trace stops with the message the decorator wrote in advance:</p>
-<div class="ext-qh" data-q="co_fake_missing"></div><div class="ext-q" data-q="co_fake_missing"></div>
+<p>A <dfn>fake tensor</dfn> carries a shape, dtype, device and strides but no data (sibling page Reading 2.5). <code>torch.compile</code> and <code>torch.export</code> trace with fake tensors and ask every operator what comes out for inputs of these shapes; yours cannot answer until you register a <dfn>fake implementation</dfn> that builds an empty output of the right shape and never reads input data.</p>
 <p><b>A wrong fake is worse than none.</b> The lab's <i>wrong fake</i> variant returns <code>x.new_empty(x.shape[:-1])</code>, a copy-paste slip that drops the last dimension. Eager mode never calls the fake, so training runs and the loss is right (<span data-v="variants/wrong_fake/loss"></span>). <code>torch.compile</code> fails one operator later, at the next layer, where the error no longer mentions your op:</p>
 <p class="ext-err" data-v="variants/wrong_fake/comp_err|raw"></p>
 <p><code>opcheck</code> points at the real culprit: <span class="ext-err" data-v="variants/wrong_fake/opcheck/test_faketensor/msg|raw"></span></p>
-<p><b>When the output size depends on the data</b> (the positive entries of a tensor, the unique values, the tokens routed to one expert), the fake cannot know it. It asks for a fresh symbol instead with <code>torch.library.get_ctx().new_dynamic_size()</code>, an <dfn>unbacked symbolic integer</dfn>: a size known only at run time. Dynamo then carries it through the graph as <code>u0</code> and adds a run-time check that it is not negative. The graph it captured for <code>v = positive_values(x); v.sum() / v.numel()</code>:</p>
-<div class="code" id="ext-dd"></div>
-<p class="small mute"><span class="meas">measured here</span>: compiled result <span data-v="dd/result"></span>, eager <span data-v="dd/eager"></span>.</p>
+<p><b>When the output size depends on the data</b> (the positive entries of a tensor, the tokens routed to one expert), the fake asks for a fresh symbol with <code>torch.library.get_ctx().new_dynamic_size()</code>, an <dfn>unbacked symbolic integer</dfn>: a size known only at run time, carried through the graph as <code>u0</code> with a run-time check that it is not negative <span class="meas">measured here</span>: compiled result <span data-v="dd/result"></span>, eager <span data-v="dd/eager"></span>.</p>
+<details class="qa"><summary>The missing-fake message, and the graph Dynamo captured for a data-dependent size</summary><div>
+<div class="ext-qh" data-q="co_fake_missing"></div><div class="ext-q" data-q="co_fake_missing"></div>
+<p>The graph for <code>v = positive_values(x); v.sum() / v.numel()</code>:</p>
+<div class="code" id="ext-dd"></div></div></details>
 
 <h3>1.5 The gradient: register_autograd</h3>
-<p><code>register_autograd(backward, setup_context=...)</code> works like <code>torch.autograd.Function</code> split in two (sibling page 3.6): <code>setup_context(ctx, inputs, output)</code> runs after the forward and saves what backward needs; <code>backward(ctx, *grads)</code> returns one gradient per input (<code>None</code> for inputs that need none). Write backward out of operators (here a second custom op with its own fake) and <code>torch.compile</code> traces it into the backward graph like any other code. Leave it out and the autograd kernel that <code>custom_op</code> registered at definition raises at the first backward:</p>
-<div class="ext-qh" data-q="ag_no_formula"></div><div class="ext-q" data-q="ag_no_formula"></div>
-<p>That error is the good outcome. An operator defined directly with <code>TORCH_LIBRARY</code> in C++ (section 3) and given no autograd formula falls through to PyTorch's autograd fallback instead, which only warns and lets backward continue as if the op had no inputs needing gradients. In the running example that silently stopped training of each block's first MLP layer and the norm before it: <span data-v="variants/cpp_bare/with_grad"></span> of 52 parameters received a gradient. The sibling page shows the fallback key by key (Reading 2.4); the warning, as recorded here:</p>
+<p><code>register_autograd(backward, setup_context=...)</code> works like <code>torch.autograd.Function</code> split in two (sibling page Reading 3.4): <code>setup_context(ctx, inputs, output)</code> runs after the forward and saves what backward needs; <code>backward(ctx, *grads)</code> returns one gradient per input (<code>None</code> for inputs that need none). Write backward out of operators (here a second custom op with its own fake) and <code>torch.compile</code> traces it into the backward graph. Leave it out and the first backward raises, which is the good outcome. An operator defined directly with <code>TORCH_LIBRARY</code> in C++ (section 3) and given no autograd formula falls through to PyTorch's autograd fallback, which only warns and lets backward continue as if the op had no inputs needing gradients. In the running example that silently stopped training of each block's first MLP layer and the norm before it: <span data-v="variants/cpp_bare/with_grad"></span> of 52 parameters received a gradient. The sibling page shows how a key with no kernel falls back (Reading 2.3); the warning, as recorded here:</p>
 <p class="ext-err" data-v="variants/cpp_bare/warn/0|raw"></p>
+<details class="qa"><summary>Source: the error custom_op raises at backward without a formula</summary><div><div class="ext-qh" data-q="ag_no_formula"></div><div class="ext-q" data-q="ag_no_formula"></div></div></details>
 
 <h3>1.6 One operator, one kernel per device</h3>
-<p><code>register_kernel("mps")</code> adds a kernel at the MPS key next to the CPU one. The operator <code>ext::gelu2</code> below has the C++ kernel for CPU and a Metal kernel, compiled at run time with <code>torch.mps.compile_shader</code>, for the Apple GPU (section 4). The dispatcher's table for it, read with <code>torch._C._dispatch_dump</code>:</p>
-<div class="code" id="ext-mpsdump"></div>
-<p>A real lesson came out of it. Metal's standard library has no <code>erf</code> (<span class="ext-err" data-v="mps/erf_error|raw"></span>), so the Metal kernel used GELU's tanh approximation while the CPU kernel computes the exact erf form. Same operator, two devices, two answers: they differ by up to <span data-v="mps/max_diff_mps_vs_cpu|e"></span>, and the Metal kernel matches <code>F.gelu(approximate="tanh")</code> to <span data-v="mps/max_diff_mps_vs_F_gelu_tanh|e"></span> <span class="meas">measured on Apple M1 Pro</span>. Nothing flags this: <code>opcheck</code> tests one device at a time and never compares kernels. Test every device's kernel against one reference.</p>
+<p><code>register_kernel("mps")</code> adds a kernel at the MPS key next to the CPU one. The operator <code>ext::gelu2</code> has the C++ kernel for CPU and a Metal kernel for the Apple GPU (section 4). Metal's standard library has no <code>erf</code> (<span class="ext-err" data-v="mps/erf_error|raw"></span>), so the Metal kernel used GELU's tanh approximation while the CPU kernel computes the exact erf form. Same operator, two devices, two answers: they differ by up to <span data-v="mps/max_diff_mps_vs_cpu|e"></span>, and the Metal kernel matches <code>F.gelu(approximate="tanh")</code> to <span data-v="mps/max_diff_mps_vs_F_gelu_tanh|e"></span> <span class="meas">measured on Apple M1 Pro</span>. Nothing flags this: <code>opcheck</code> tests one device at a time and never compares kernels. <b>Test every device's kernel against one reference.</b></p>
+<details class="qa"><summary>The dispatcher's table for the two-device operator (torch._C._dispatch_dump)</summary><div><div class="code" id="ext-mpsdump"></div></div></details>
 
 <h3>1.7 opcheck: four tests, and what each one proves</h3>
-<p><code>torch.library.opcheck(op, args)</code> runs a fixed battery on sample inputs. At 2.14.1 the default list is:</p>
-<div class="ext-qh" data-q="opcheck_tests"></div><div class="ext-q" data-q="opcheck_tests"></div>
 <div class="tw"><table class="rd-tbl"><thead><tr><th>Test</th><th>What it does</th><th>What it catches</th></tr></thead><tbody>
 <tr><td><code>test_schema</code></td><td>Runs the op under a mode that records which inputs changed and what the outputs alias</td><td>Undeclared mutation or aliasing (only if the values actually change)</td></tr>
-<tr><td><code>test_autograd_registration</code></td><td>Checks that an autograd kernel is registered when inputs require grad</td><td>A C++ op left on the autograd fallback. Not a missing formula: <code>custom_op</code> always registers one that raises</td></tr>
+<tr><td><code>test_autograd_registration</code></td><td>Checks that an autograd kernel is registered when inputs require grad</td><td>The weakest of the four here: it passed for every variant it ran on, the bare C++ op on the autograd fallback included (grid below). <code>custom_op</code> always registers a kernel, one that raises</td></tr>
 <tr><td><code>test_faketensor</code></td><td>Runs the fake and the real kernel and compares shapes, dtypes, strides</td><td>Missing or wrong fakes</td></tr>
 <tr><td><code>test_aot_dispatch_dynamic</code></td><td>Traces forward and backward through AOTAutograd with dynamic shapes and compares with eager</td><td>Missing formulas, backward that cannot be traced, wrong gradients under compile</td></tr>
 </tbody></table></div>
-<p>Every variant of the lab, every test, as recorded (green passes, orange fails; hover or tap a cell for the message):</p>
+<div class="co warn"><div class="t">Checked against the recorded grid (2026-10-23)</div>An earlier version of this table said <code>test_autograd_registration</code> catches a C++ op left on the autograd fallback. The recorded run says otherwise: the <i>C++ TORCH_LIBRARY, nothing else</i> row passes it, and only <code>test_faketensor</code> and <code>test_aot_dispatch_dynamic</code> fail. Rely on the last one for gradients.</div>
+<p>Every variant of the lab, every test, as recorded (hover or tap a cell for the message):</p>
 <div id="ext-opgrid"></div>
+<details class="qa"><summary>Source: opcheck's default test list at 2.14.1</summary><div><div class="ext-qh" data-q="opcheck_tests"></div><div class="ext-q" data-q="opcheck_tests"></div></div></details>
 <div class="pr" data-ok="1"><div class="q">Predict: the <i>kernel + fake</i> variant has a fake but no autograd formula. What does <code>torch.compile(model, fullgraph=True)</code> do on a training step?</div>
 <div class="opts"><button data-a="0">Compiles one graph and trains normally</button><button data-a="1">Captures one graph, then fails when it builds the backward</button><button data-a="2">Graph-breaks at the op and runs it eagerly</button></div>
 <div class="ans" hidden>It <b>captures one graph</b> (<code>dynamo.explain</code>: <span data-v="variants/kernel_fake/graphs"></span> graph, <span data-v="variants/kernel_fake/breaks"></span> breaks) and then <b>fails</b> when AOTAutograd traces the backward: <span class="ext-err" data-v="variants/kernel_fake/comp_err|raw"></span> The fake is enough for the forward; training needs the formula as well.</div></div>
@@ -394,49 +414,53 @@ torch.library.opcheck(gelu, (torch.randn(4, 8, 32, requires_grad=<span class="k"
 </section>
 <section id="rd-s2">
 <h2>2. Custom operators under torch.compile, and two traps</h2>
-<p>The parent page showed the core lesson on a toy function (<a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Topic: pytorch-ecosystem</a>, Reading section 8): a Python body that leaves PyTorch gives 3 graphs and 2 breaks; the same body as a custom op gives 1 graph and 0 breaks. Here is the same lesson on the whole running example, then what the compiler does with the opaque node, then two ways a correct-looking op loses its gradients under compile.</p>
+<p>The parent page showed the lesson on a toy function (Reading section 8: 3 graphs and 2 breaks against 1 and 0). Here it is on the whole running example, then what the compiler does with the opaque node, then two ways a correct-looking op loses its gradients under compile.</p>
 
-<h3>2.1 Watch Dynamo trace the forward: an opaque call against a custom op</h3>
-<p><dfn>Dynamo</dfn> is the part of <code>torch.compile</code> that reads your Python bytecode and records the tensor operations into an FX <dfn>graph</dfn>. When it meets a call it cannot trace, here a C++ function exposed through pybind11, it records a <dfn>graph break</dfn>: it compiles what it has so far, lets Python run the call, and starts a new graph after it. The animation replays what <code>torch._dynamo.explain</code> recorded on one forward of the running example (<code>src/exp/graphs.py</code>): the same model, the same batch, with the GELU called directly, then as the custom op of section 1.</p>
+<h3>2.1 Dynamo traces the forward: an opaque call against a custom op</h3>
+<p><dfn>Dynamo</dfn>, the front of <code>torch.compile</code>, records tensor operations into an FX <dfn>graph</dfn> and breaks it at a call it cannot trace, here a C++ function exposed through pybind11. The animation replays what <code>torch._dynamo.explain</code> recorded on one forward (<code>src/exp/graphs.py</code>), the GELU called directly, then as the custom op of section 1.</p>
 <div class="rd-card" id="ext-dyn-card">
-<h4>Same forward, two ways of calling the same C++ GELU</h4>
+<h4>The direct call cuts the forward into pieces; the custom op keeps one graph</h4>
 <div class="seg" id="ext-dyn-seg"><button class="on" data-m="pybind">Before: direct call (pybind11)</button><button data-m="custom_op">After: custom op</button></div>
 <div class="an-ctl" id="ext-dyn-ctl"></div>
 <div class="an-cap" id="ext-dyn-cap"></div>
+<div class="rd-svg" id="ext-dyn-svg"></div>
 <div id="ext-dyn-view"></div>
 <div class="an-cnt" id="ext-dyn-cnt"></div>
-<div class="leg"><span style="--sw:var(--acc)">inside a compiled graph</span><span style="--sw:var(--c5)">runs eagerly in Python</span><span style="--sw:var(--bad)">graph break</span></div>
+<div class="leg"><span style="--sw:var(--acc)">compiled graph (one colour per graph)</span><span style="--sw:var(--c5)">runs eagerly in Python</span><span style="--sw:var(--bad)">graph break</span></div>
+<p class="small mute">Each bar segment is one stretch of the forward, its width proportional to the operations in it (101 in all); colour says where it ran: inside a compiled graph, eagerly in Python, or at a graph break.</p>
 </div>
-<p>What the recording says. With the direct call, Dynamo compiled <span data-v="graphs/pybind/gc"></span> small graphs (<span data-v="graphs/pybind/bc"></span> breaks) covering only the inside of a block, and the outer <code>GPT.forward</code> (embeddings, final norm, head, loss) ran uncompiled. The <a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Compile lab</a> tab of the parent measured what that shape costs with a <code>print</code> inside a block: 7 to 9% on the step. The reason Dynamo gave: <span class="ext-err" data-v="graphs/pybind/breaks/0/reason|raw"></span>. With the custom op, one graph of <span data-v="graphs/custom_op/n0"></span> operations holds the whole forward, with <code>ext.gelu.default</code> appearing once per block as a single node.</p>
+<p>With the direct call, Dynamo compiled <span data-v="graphs/pybind/gc"></span> small graphs (<span data-v="graphs/pybind/bc"></span> breaks) covering only the inside of a block, and the outer <code>GPT.forward</code> (embeddings, final norm, head, loss) ran uncompiled; the parent's Compile lab measured what that shape costs with a <code>print</code> inside a block: 7 to 9% on the step. The reason Dynamo gave: <span class="ext-err" data-v="graphs/pybind/breaks/0/reason|raw"></span>. With the custom op, one graph of <span data-v="graphs/custom_op/n0"></span> operations holds the whole forward.</p>
 <p><b>Export has no fallback.</b> <code>torch.compile</code> can break a graph and run Python; <code>torch.export</code>, which must produce one graph to save and run elsewhere, cannot. With the custom op, <code>torch.export.export</code> captured <span data-v="export/ops"></span> operations including <span data-v="export/ext_nodes"></span> <code>ext.gelu</code> nodes, still <span data-v="export/ext_nodes_core"></span> after <code>run_decompositions()</code> lowered the rest to <span data-v="export/ops_core"></span> core ATen operations, and the exported module's logits matched eager. With the direct call it failed, because the C++ function was handed a fake tensor and tried to read its data: <span class="ext-err" data-v="export/pybind_error|raw"></span></p>
 
 <h3>2.2 What Inductor does with an opaque node</h3>
-<p>Below Dynamo, <dfn>Inductor</dfn> turns the graph into code: generated loops for element-wise work, library calls for matrix multiplies (on the CPU, C++ with OpenMP; the <a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Compile lab</a> tab shows it). The <code>call()</code> function it generated for the MLP's forward (<code>fc</code>, GELU, <code>proj</code>, inference), with <code>F.gelu</code> and with the custom op:</p>
+<p><dfn>Inductor</dfn> turns the graph into code. The <code>call()</code> function it generated for the MLP's forward (<code>fc</code>, GELU, <code>proj</code>, inference):</p>
 <div class="rd-two"><div><div class="small mute">F.gelu: <span data-v="inductor/native/n"></span> generated kernel</div><div class="code" id="ext-ind-native"></div></div><div><div class="small mute">custom op: <span data-v="inductor/custom_op/n"></span> generated kernels</div><div class="code" id="ext-ind-custom"></div></div></div>
-<p>With <code>F.gelu</code>, Inductor wrote one loop, <code>cpp_fused_gelu_view_0</code>, that reads the matmul's output and writes the activation in place. With the custom op it can only call your kernel, check that the output has the metadata the fake promised (<code>assert_tensor_metadata</code>, <code>assert_alignment</code>), and move on: <b>nothing fuses across an opaque operator</b>. When the op is a big kernel (an attention, a fused MoE dispatch) that costs little; when it is a small element-wise op between two others, you lose the fusion the compiler would have done for free.</p>
-<div class="cost"><div class="t">The cost, measured</div>Training step of the running example, CPU, 4 threads <span class="meas">measured on Apple M1 Pro, bench lock, load average about 3, median of 3 &times; 20 steps</span>: <code>F.gelu</code> eager <span data-v="timing/step_cpu/F.gelu eager/median_ms"></span> ms, compiled <span data-v="timing/step_cpu/F.gelu compiled/median_ms"></span> ms; the custom op eager <span data-v="timing/step_cpu/custom_op eager/median_ms"></span> ms, compiled <span data-v="timing/step_cpu/custom_op compiled/median_ms"></span> ms. Almost all of the difference is the C++ kernel itself, a scalar single-threaded loop about 11 times slower than ATen's GELU (section 3): an operator is only as fast as its kernel, and compiling cannot make an opaque kernel faster.</div>
+<p>With <code>F.gelu</code>, Inductor wrote one loop, <code>cpp_fused_gelu_view_0</code>, that reads the matmul's output and writes the activation in place. With the custom op it can only call your kernel, check that the output has the metadata the fake promised (<code>assert_tensor_metadata</code>, <code>assert_alignment</code>), and move on: <b>nothing fuses across an opaque operator</b>. For a big kernel (an attention, a fused MoE dispatch) that costs little; for a small element-wise op between two others you lose the fusion the compiler would have done for free.</p>
+<div class="cost"><div class="t">The cost, measured</div>Training step of the running example, CPU, 4 threads <span class="meas">measured on Apple M1 Pro, bench lock, load average about 3, median of 3 &times; 20 steps</span>: <code>F.gelu</code> eager <span data-v="timing/step_cpu/F.gelu eager/median_ms"></span> ms, compiled <span data-v="timing/step_cpu/F.gelu compiled/median_ms"></span> ms; the custom op eager <span data-v="timing/step_cpu/custom_op eager/median_ms"></span> ms, compiled <span data-v="timing/step_cpu/custom_op compiled/median_ms"></span> ms. Almost all of the difference is the C++ kernel itself, about 11 times slower than ATen's GELU (section 3): an operator is only as fast as its kernel, and compiling cannot make an opaque kernel faster.</div>
 <div class="pr" data-ok="2"><div class="q">Predict: you want Inductor to fuse your element-wise kernel into its neighbours. Which registration lets it?</div>
 <div class="opts"><button data-a="0">custom_op with a precise register_fake</button><button data-a="1">A C++ TORCH_LIBRARY op tagged pointwise</button><button data-a="2">None of these: write it in PyTorch (or as a triton_op), so the compiler can see inside</button></div>
 <div class="ans" hidden><b>None of the opaque ones.</b> A fake only describes the output; the body stays a black box. Inductor fuses what it can read: plain PyTorch operations, or Triton kernels registered with <code>triton_op</code>, whose source it can inspect (section 4). A custom op is the right tool for a kernel that is already the whole fused computation.</div></div>
 
 <h3>2.3 Two traps that drop gradients without an error</h3>
-<p>Both were found while building this page, with the C++ operator of section 3 and its fake and autograd formula registered from Python by name (<code>torch.library.register_fake("extc::gelu")</code>, <code>torch.library.register_autograd("extc::gelu", ...)</code>).</p>
-<p><b>Trap 1: registering after the first trace.</b> In one process, the op was first traced bare (for the "before" measurement), then registered, then compiled. The compiled model trained, with the right loss, but the MLP weights got no gradients: the compiled backward treated the op's output as not needing one. <code>opcheck</code> in the same process says so (<span class="ext-err" data-v="variants/cpp_late/opcheck/test_aot_dispatch_dynamic/msg|raw"></span>). The cause is a per-operator cache: the Python object for each operator overload remembers, per dispatch key, which kernel to use during tracing, and registering a kernel through <code>torch.library</code> does not empty it:</p>
+<p>Both were found while building this page, with the C++ operator of section 3 given its fake and formula from Python by name (<code>torch.library.register_fake("extc::gelu")</code>).</p>
+<p><b>Trap 1: registering after the first trace.</b> In one process, the op was first traced bare, then registered, then compiled. The compiled model trained with the right loss, but the MLP weights got no gradients: the compiled backward treated the op's output as not needing one. <code>opcheck</code> in the same process says so (<span class="ext-err" data-v="variants/cpp_late/opcheck/test_aot_dispatch_dynamic/msg|raw"></span>). The cause is a per-operator cache: the Python object for each operator overload remembers, per dispatch key, which kernel to use during tracing, and registering through <code>torch.library</code> does not empty it. Emptying <code>torch.ops.extc.gelu.default._dispatch_cache</code> after the registration made all four tests pass in the same process; so did a fresh process with the registrations made at import. <b>Register everything when the module is imported, before any call.</b></p>
+<p><b>Trap 2: the warm cache keeps the wrong answer.</b> Compiled artifacts are cached on disk across processes: Inductor's FX graph cache and the <dfn>AOTAutograd cache</dfn>, which stores the compiled forward and backward pair. Four fresh processes shared one cache directory (<code>src/exp/cache_trap.py</code>, the running example compiled once, one forward and backward each):</p>
+<div class="rd-card"><h4>A correct process read the broken backward that the first one cached</h4>
+<div class="rd-svg" id="ext-trap-svg"></div>
+<p class="small mute">Recorded: parameters with no gradient were 16 of 52 in process 1 (late registration) and process 2 (registered at import, shared cache), 0 of 52 with <code>TORCHINDUCTOR_AUTOGRAD_CACHE=0</code> and 0 of 52 with <code>TORCHINDUCTOR_FORCE_DISABLE_CACHES=1</code>. Loss 3.801371 in all four.</p></div>
+<p>The cache key evidently does not cover the operator's Python registrations (graph and configuration were identical), and turning off only the AOTAutograd cache fixed it. <b>When you change an operator's registrations, clear the compile cache</b> (<code>TORCHINDUCTOR_CACHE_DIR</code>, by default <code>torchinductor_&lt;user&gt;</code> in the temporary directory, or set <code>TORCHINDUCTOR_AUTOGRAD_CACHE=0</code> while developing), and keep one cheap CI test that compares compiled gradients against eager on one batch.</p>
+<details class="qa"><summary>Source: the per-overload dispatch cache and the AOTAutograd cache flag (PyTorch v2.14.1)</summary><div>
 <div class="ext-qh" data-q="ops_cache_init"></div><div class="ext-q" data-q="ops_cache_init"></div>
 <div class="ext-qh" data-q="ops_cache_store"></div><div class="ext-q" data-q="ops_cache_store"></div>
-<p>Emptying <code>torch.ops.extc.gelu.default._dispatch_cache</code> after the registration made all four tests pass in the same process; so did a fresh process with the registrations made at import. <b>Register everything when the module is imported, before any call.</b></p>
-<p><b>Trap 2: the warm cache keeps the wrong answer.</b> Compiled artifacts are cached on disk across processes: Inductor's FX graph cache and the <dfn>AOTAutograd cache</dfn>, which stores the compiled forward and backward pair:</p>
 <div class="ext-qh" data-q="aot_cache_flag"></div><div class="ext-q" data-q="aot_cache_flag"></div>
-<p>Four fresh processes sharing one cache directory (<code>src/exp/cache_trap.py</code>, the running example compiled once, one forward and backward each):</p>
-<div id="ext-trap"></div>
-<p>The second process registered everything correctly and still got the first process's broken backward, because the cache key evidently does not cover the state of the operator's Python registrations (the graph and the configuration were identical). Turning off only the AOTAutograd cache fixed it. <b>When you change an operator's registrations, clear the compile cache</b> (<code>TORCHINDUCTOR_CACHE_DIR</code>, by default <code>torchinductor_&lt;user&gt;</code> in the temporary directory), and keep one cheap test in CI that compares compiled gradients against eager on one batch.</p>
-<div class="deepnote"><b>Go deeper:</b> the <a href="https://app.notion.com/p/3c65c17b0d0d8123a232d75bd7339ecb" target="_blank" rel="noopener noreferrer">torch.compile from the user's side</a> sibling owns Dynamo, guards, AOTAutograd and the caches in general; <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a> owns code generation below Inductor.</div>
+<div id="ext-trap"></div></div></details>
+<div class="deepnote"><b>Go deeper:</b> <a href="https://app.notion.com/p/3c65c17b0d0d8123a232d75bd7339ecb" target="_blank" rel="noopener noreferrer">torch.compile from the user's side</a> owns Dynamo, guards, AOTAutograd and the caches in general; <a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a> owns code generation below Inductor.</div>
 </section>
 <section id="rd-s3">
 <h2>3. C++ extensions: TORCH_LIBRARY</h2>
-<p><b>The problem.</b> Some kernels have to be compiled code: a hand-written loop, a call into a C++ library, a CUDA kernel. <code>torch.utils.cpp_extension</code> compiles C++ against PyTorch's headers and loads the result into the running process. It offers three ways: <code>load_inline</code> (C++ in a Python string, built on first use), <code>load</code> (the same from files) and <code>setup.py</code> with <code>CppExtension</code> or <code>CUDAExtension</code> (a wheel built ahead of time, what libraries ship). The first two need the <code>ninja</code> build tool; it was not in the shared environment and had to be installed.</p>
+<p><b>The problem.</b> Some kernels have to be compiled code: a hand-written loop, a call into a C++ library, a CUDA kernel. <code>torch.utils.cpp_extension</code> compiles C++ against PyTorch's headers and loads the result into the running process, three ways: <code>load_inline</code> (C++ in a Python string, built on first use), <code>load</code> (the same from files) and <code>setup.py</code> with <code>CppExtension</code> or <code>CUDAExtension</code> (a wheel built ahead of time, what libraries ship). The first two need the <code>ninja</code> build tool; it was not in the shared environment and had to be installed.</p>
 <h3>3.1 The tiny operator, built here</h3>
-<p>The running example's C++ GELU, whole file in <code>src/exp/gelu_ext.cpp</code>. The kernel is a plain loop over the tensor's memory; then two macros register it with the dispatcher:</p>
+<p>The running example's C++ GELU, whole file in <code>src/exp/gelu_ext.cpp</code>: a plain loop over the tensor's memory, then two macros that register it with the dispatcher.</p>
 <div class="code"><span class="k">static</span> at::Tensor gelu_fwd(<span class="k">const</span> at::Tensor& x) {
   TORCH_CHECK(x.device().is_cpu() && x.scalar_type() == at::kFloat, <span class="k">"extc::gelu: CPU float32 only"</span>);
   <span class="k">auto</span> xc = x.contiguous();
@@ -467,28 +491,31 @@ torch.library.register_fake(<span class="k">"extc::gelu"</span>)(<span class="k"
 torch.library.register_fake(<span class="k">"extc::gelu_backward"</span>)(<span class="k">lambda</span> g, x: torch.empty_like(x))
 torch.library.register_autograd(<span class="k">"extc::gelu"</span>, backward, setup_context=setup_context)
 y = torch.ops.extc.gelu(x)</div>
-<p><code>TORCH_LIBRARY</code> is a macro that creates a static registrar, so the definitions run when the shared library is loaded (<span class="ext-qh" data-q="torch_library_macro" style="display:inline"></span>). The dispatcher's table afterwards shows where each kernel came from, the CPU kernel from the C++ file and the fake (at <code>Meta</code>) and the autograd kernel from Python:</p>
-<div class="code" id="ext-cppdump"></div>
-<p>The same <code>.so</code> also exposed the two functions through pybind11 (<code>functions=[...]</code>), which is how the "before" side of section 2 called them without the dispatcher.</p>
+<p><code>TORCH_LIBRARY</code> creates a static registrar, so the definitions run when the shared library is loaded. Afterwards the dispatcher's table shows the CPU kernel from the C++ file and the fake (at <code>Meta</code>) and the autograd kernel from Python. The same <code>.so</code> also exposed the two functions through pybind11 (<code>functions=[...]</code>), which is how the "before" side of section 2 called them without the dispatcher.</p>
+<details class="qa"><summary>The macro's source, and the dispatcher's table for extc::gelu</summary><div>
+<p><span class="ext-qh" data-q="torch_library_macro" style="display:inline"></span></p>
+<div class="code" id="ext-cppdump"></div></div></details>
 <h3>3.2 What it costs</h3>
-<div class="rd-card"><h4>One call, four ways to reach the same kind of work <span class="meas">measured on Apple M1 Pro, CPU, 4 threads, bench lock, median of 3</span></h4>
+<div class="rd-card"><h4>Overhead dominates 64 floats; the kernel dominates a real activation <span class="meas">measured on Apple M1 Pro, CPU, 4 threads, bench lock, median of 3</span></h4>
 <div class="seg" id="ext-call-seg"><button class="on" data-m="small (64)">64 floats: overhead</button><button data-m="mlp (8,64,1024)">8 &times; 64 &times; 1024: the kernel</button></div>
-<div class="bars" id="ext-call-bars"></div>
+<div class="rd-svg" id="ext-call-bars"></div>
 <p class="small mute" id="ext-call-note"></p></div>
-<p>Two different lessons. <b>Overhead:</b> on 64 numbers the call itself dominates. Through pybind11 the C++ function costs what <code>F.gelu</code> costs; as a dispatcher operator with a Python autograd kernel it costs about five times as much, because every call enters Python at the <code>Autograd</code> key even when nothing needs a gradient (a C++ autograd registration would avoid that; not measured here). <b>Kernel:</b> on a real activation our loop is about 11 times slower than ATen's GELU. ATen's kernel is vectorised (4 floats per NEON instruction) and multi-threaded; ours computes one <code>erf</code> at a time, and <code>at::parallel_for</code> runs serially here because the extension was compiled without OpenMP flags. A custom kernel has to beat what it replaces before it earns its place; measure it on the shapes you run.</p>
+<p><b>Overhead:</b> through pybind11 the C++ function costs what <code>F.gelu</code> costs; as a dispatcher operator with a Python autograd kernel it costs about five times as much, because every call enters Python at the <code>Autograd</code> key even when nothing needs a gradient (a C++ autograd registration would avoid that; not measured here). <b>Kernel:</b> our loop is about 11 times slower than ATen's GELU, which is vectorised (4 floats per NEON instruction) and multi-threaded; ours computes one <code>erf</code> at a time, and <code>at::parallel_for</code> runs serially because the extension was compiled without OpenMP flags. Measure a custom kernel against what it replaces, on your shapes.</p>
 <p><b>Build.</b> A cold <code>load_inline</code> of this 50-line file took <span data-v="timing/build_cold_s/2"></span> to <span data-v="timing/build_cold_s/0"></span> s (three builds, each in a fresh directory and process); afterwards the build directory acts as a cache.</p>
 <div class="co warn"><div class="t">One namespace, one TORCH_LIBRARY, per process</div>Loading a second build of the same file under another module name (to time a cold build) killed the Python process with SIGABRT (return code <span data-v="dup/returncode"></span>) and no Python traceback: a namespace may be defined by one <code>TORCH_LIBRARY</code> block only. Use <code>TORCH_LIBRARY_FRAGMENT</code> to add definitions from several files, and never import two copies of an extension.</div>
-<h3>3.3 Beyond this example</h3>
-<ul>
+<details class="qa"><summary>Beyond this example: autograd in C++, CUDA, one wheel for several PyTorch versions</summary><div><ul>
 <li><b>Autograd in C++</b>: subclass <code>torch::autograd::Function</code> and register it at the <code>Autograd</code> key with <code>TORCH_LIBRARY_IMPL(extc, Autograd, m)</code>. Use it when you need C++-speed calls; the Python route above is simpler and enough for big kernels.</li>
 <li><b>CUDA</b>: <code>CUDAExtension</code> or <code>load_inline(cuda_sources=...)</code> compile <code>.cu</code> files with nvcc; register the kernel at the <code>CUDA</code> key exactly as above. Not run here (no NVIDIA GPU).</li>
 <li><b>One wheel for several PyTorch versions</b>: the C++ ABI changes between releases, so an extension built against 2.14 may not load into 2.15. PyTorch ships a smaller stable ABI for extensions, with its own registration macro (<code>STABLE_TORCH_LIBRARY</code> in <code>torch/csrc/stable/library.h</code>, line 355 of the 2.14.1 wheel's headers); not used here.</li>
-</ul>
+</ul></div></details>
 <div class="deepnote"><b>Go deeper:</b> the <a href="https://docs.pytorch.org/tutorials/advanced/cpp_custom_ops.html" target="_blank" rel="noopener noreferrer">custom C++ and CUDA operators tutorial</a>; <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a> for writing the CUDA kernel itself.</div>
 </section>
 <section id="rd-s4">
 <h2>4. Kernels that plug in: Metal, Triton, Helion</h2>
-<p>A GPU kernel is written in a kernel language (CUDA C++, Metal, Triton, Helion), compiled for the device, and launched over a grid of threads. PyTorch does not need to understand the kernel; it needs the same three facts as for any operator. The pattern is always the same: <b>write the kernel, wrap it in an operator, register a fake and a gradient.</b> What differs is whether the compiler can look inside. Writing fast kernels is its own subject (<a href="https://app.notion.com/p/3c65c17b0d0d81729d15ed4d1a4461b3" target="_blank" rel="noopener noreferrer">Triton and Gluon</a>, <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>); this section is about plugging them in.</p>
+<p>PyTorch does not need to understand a GPU kernel; it needs the same three facts as for any operator. The pattern is always: <b>write the kernel, wrap it in an operator, register a fake and a gradient.</b> What differs is whether the compiler can look inside. Writing fast kernels is its own subject (<a href="https://app.notion.com/p/3c65c17b0d0d81729d15ed4d1a4461b3" target="_blank" rel="noopener noreferrer">Triton and Gluon</a>, <a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a>); this section is about plugging them in.</p>
+<div class="rd-card"><h4>The same GELU kernel plugged in three ways: what <code>torch.compile</code> sees in each</h4>
+<div class="rd-svg" id="ext-plug-svg"></div>
+<p class="small mute">Opaque: a custom op wrapping a Metal, C++ or CUDA kernel (ran here). Visible: a <code>triton_op</code>, decomposed into its kernel launches under AOTAutograd so Inductor can schedule around them (read in the 2.14.1 source; not run). Traced call: a Helion kernel, registered with Dynamo as a higher-order operator (ran here on MPS: 1 graph, 0 breaks).</p></div>
 
 <h3>4.1 A Metal kernel on the Apple GPU, run here</h3>
 <p><code>torch.mps.compile_shader(source)</code> compiles Metal Shading Language at run time and returns an object whose kernels you call with tensors; each thread computes one element:</p>
@@ -504,12 +531,7 @@ y = torch.ops.extc.gelu(x)</div>
 <p>On an (8, 64, 1024) activation it took <span data-v="timing/calls_mps/Metal shader via compile_shader/median_us|0"></span> &micro;s against <span data-v="timing/calls_mps/F.gelu (tanh)/median_us|0"></span> &micro;s for <code>F.gelu(approximate="tanh")</code> <span class="meas">measured on Apple M1 Pro, MPS, median of 3, including a synchronize</span>: an element-wise kernel is limited by memory traffic, and both read and write the same 2 MiB.</p>
 
 <h3>4.2 Triton: triton_op and wrap_triton (read, not run)</h3>
-<p><dfn>Triton</dfn> is a Python-embedded language for GPU kernels that work on blocks of data; it is what Inductor generates for NVIDIA and AMD GPUs. Triton 3.8.0 on PyPI ships Linux wheels only (checked 2026-10-13), so nothing in this section ran here. What the source at 2.14.1 says:</p>
-<div class="ext-qh" data-q="triton_op_doc"></div><div class="ext-q" data-q="triton_op_doc"></div>
-<p>Inside, <code>triton_op</code> is a <code>custom_op</code> whose fake is your own Python function (it only allocates outputs and launches kernels, so it can run on fake tensors), plus one more trick: under AOTAutograd it is decomposed into its kernel launches, so Inductor sees the Triton kernels themselves:</p>
-<div class="ext-qh" data-q="triton_op_impl"></div><div class="ext-q" data-q="triton_op_impl"></div>
-<p><code>wrap_triton(kernel)[grid](...)</code> is how a launch is written inside such an op so that dispatcher-level tracing (<code>make_fx</code>, non-strict export) can record it:</p>
-<div class="ext-qh" data-q="wrap_triton_doc"></div><div class="ext-q" data-q="wrap_triton_doc"></div>
+<p><dfn>Triton</dfn> is a Python-embedded language for GPU kernels that work on blocks of data; it is what Inductor generates for NVIDIA and AMD GPUs. Triton 3.8.0 on PyPI ships Linux wheels only (checked 2026-10-13), so nothing here ran. In the 2.14.1 source, <code>triton_op</code> is a <code>custom_op</code> whose fake is your own Python function (it only allocates outputs and launches kernels, so it can run on fake tensors), and which, under AOTAutograd, is decomposed into its kernel launches so Inductor sees the Triton kernels themselves. <code>wrap_triton(kernel)[grid](...)</code> is how a launch is written inside such an op so that dispatcher-level tracing (<code>make_fx</code>, non-strict export) can record it.</p>
 <div class="code"><span class="c"># a triton_op, condensed from the 2.14.1 docstring in torch/_library/triton.py (not run here)</span>
 @triton.jit
 <span class="k">def</span> add_kernel(x_ptr, y_ptr, out_ptr, n, BLOCK: tl.constexpr):
@@ -523,12 +545,14 @@ y = torch.ops.extc.gelu(x)</div>
     n = out.numel()
     wrap_triton(add_kernel)[(triton.cdiv(n, 16),)](x, y, out, n, 16)
     <span class="k">return</span> out</div>
-<p>Two consequences worth remembering. Under <code>torch.export</code> a <code>triton_op</code> stays one custom-op node rather than being decomposed (the source explains: an exported program should not carry GPU-specific Triton source). And the same docstring recommends calling <code>@triton.jit</code> kernels directly when you need no operator at all: Dynamo can trace a raw Triton launch; you need the <code>torch.library</code> wrapper only for operator behaviour (subclasses, dispatch modes, export).</p>
+<p>Two consequences. Under <code>torch.export</code> a <code>triton_op</code> stays one custom-op node rather than being decomposed (an exported program should not carry GPU-specific Triton source, the source explains). And the docstring recommends calling <code>@triton.jit</code> kernels directly when you need no operator at all: Dynamo can trace a raw Triton launch; the <code>torch.library</code> wrapper is needed only for operator behaviour (subclasses, dispatch modes, export).</p>
+<details class="qa"><summary>Source: triton_op and wrap_triton at 2.14.1</summary><div>
+<div class="ext-qh" data-q="triton_op_doc"></div><div class="ext-q" data-q="triton_op_doc"></div>
+<div class="ext-qh" data-q="triton_op_impl"></div><div class="ext-q" data-q="triton_op_impl"></div>
+<div class="ext-qh" data-q="wrap_triton_doc"></div><div class="ext-q" data-q="wrap_triton_doc"></div></div></details>
 
 <h3>4.3 Helion: kernels from tiled PyTorch, run here on the Apple GPU</h3>
-<p><dfn>Helion</dfn> (PyTorch Foundation; 1.0 released 2026-04-03, 1.4.0 used here) lets you write a kernel as a loop over <i>tiles</i> with ordinary PyTorch operations inside; its compiler chooses block sizes, memory access and launch shape, and its autotuner can search them. Its settings name four code generators:</p>
-<div class="ext-qh" data-q="helion_backends"></div><div class="ext-q" data-q="helion_backends"></div>
-<p>The Metal one ("experimental", it warns) meant Helion could run on this Mac without Triton. The GELU kernel and what it compiled to:</p>
+<p><dfn>Helion</dfn> (PyTorch Foundation; 1.0 released 2026-04-03, 1.4.0 used here) lets you write a kernel as a loop over <i>tiles</i> with ordinary PyTorch operations inside; its compiler chooses block sizes, memory access and launch shape, and its autotuner can search them. Its settings name four code generators: Triton, CuTeDSL, Pallas and an experimental Metal one, which meant Helion could run on this Mac without Triton.</p>
 <div class="code"><span class="k">import</span> helion, helion.language <span class="k">as</span> hl      <span class="c"># HELION_BACKEND=metal</span>
 
 @helion.kernel(autotune_effort=<span class="k">"none"</span>, static_shapes=<span class="k">True</span>)
@@ -538,10 +562,13 @@ y = torch.ops.extc.gelu(x)</div>
         v = x[tile]
         out[tile] = 0.5 * v * (1.0 + torch.tanh(0.7978845608028654 * (v + 0.044715 * v * v * v)))
     <span class="k">return</span> out</div>
-<details class="qa"><summary>The generated kernel (Helion's Triton-like intermediate, before Metal translation), <span data-v="helion/kernels/gelu/code_lines"></span> lines</summary><div><div class="code" id="ext-helion-code"></div></div></details>
+<p>The element-wise kernel compiled and matched <code>F.gelu(approximate="tanh")</code> <span class="meas">measured on Apple M1 Pro</span>; exact GELU did not lower (Metal has no <code>erf</code>, the wall of section 1.6) and a row softmax stopped at the reduction. Without autotuning it took <span data-v="timing/calls_mps/Helion kernel (metal backend)/median_us|0"></span> &micro;s against <span data-v="timing/calls_mps/F.gelu (tanh)/median_us|0"></span> &micro;s for PyTorch's own: on its main backend (Triton on NVIDIA) the autotuner's search is the point, and none was run here. Two things worked fully. <b>Ref mode</b> (<code>HELION_INTERPRET=1</code>) ran both kernels, erf and softmax included, as plain PyTorch on the CPU with errors <span data-v="helion/ref/gelu_erf|e"></span> and <span data-v="helion/ref/softmax_rows|e"></span>: how you debug a kernel's logic without a GPU. <b>Composition</b>: inside <code>torch.compile</code> the Helion kernel gave <span data-v="helion/op/direct_explain/graphs"></span> graph and <span data-v="helion/op/direct_explain/breaks"></span> breaks, and registered as the MPS kernel of a custom op it passed <code>opcheck</code>'s schema and fake tests.</p>
+<details class="qa"><summary>Helion's backends, the status table, the generated kernel, and the Kernels Hub claim</summary><div>
+<div class="ext-qh" data-q="helion_backends"></div><div class="ext-q" data-q="helion_backends"></div>
 <div id="ext-helion-tbl"></div>
-<p>Read the table as a status report of an experimental backend, <span class="meas">measured on Apple M1 Pro</span>. The element-wise kernel compiled with the default configuration <code><span data-v="helion/kernels/gelu/config|raw"></span></code> and matched <code>F.gelu(approximate="tanh")</code>. Exact GELU did not lower (Metal has no <code>erf</code>, the same wall as section 1.6), and a row softmax stopped at the reduction. Without autotuning the kernel took <span data-v="timing/calls_mps/Helion kernel (metal backend)/median_us|0"></span> &micro;s against <span data-v="timing/calls_mps/F.gelu (tanh)/median_us|0"></span> &micro;s for PyTorch's own: on its main backend (Triton on NVIDIA) the autotuner's search is the point, and none was run here. Two things worked fully: <b>ref mode</b> (<code>HELION_INTERPRET=1</code>) ran both kernels, erf and softmax included, as plain PyTorch on the CPU with errors <span data-v="helion/ref/gelu_erf|e"></span> and <span data-v="helion/ref/softmax_rows|e"></span>, which is how you debug a kernel's logic without a GPU; and <b>composition</b>: called inside <code>torch.compile</code> the Helion kernel gave <span data-v="helion/op/direct_explain/graphs"></span> graph and <span data-v="helion/op/direct_explain/breaks"></span> breaks, because Helion registers its kernels with Dynamo as a higher-order operator (<span class="ext-qh" data-q="helion_hop" style="display:inline"></span>); registered as the MPS kernel of a custom op it passed <code>opcheck</code>'s schema and fake tests.</p>
-<p class="small mute">The old root page said prebuilt Helion kernels ship on the Hugging Face Kernels Hub. Checked: the <code>kernels</code> library 0.17.2 lists <code>helion</code> among the Python dependencies a Hub kernel may declare (<code>kernels/python_depends.json</code>); whether Helion kernels are published there is <span class="ann">unconfirmed</span>.</p>
+<p>Default configuration used: <code><span data-v="helion/kernels/gelu/config|raw"></span></code>. Helion registers its kernels with Dynamo as a higher-order operator: <span class="ext-qh" data-q="helion_hop" style="display:inline"></span>. The generated kernel (Helion's Triton-like intermediate, before Metal translation), <span data-v="helion/kernels/gelu/code_lines"></span> lines:</p>
+<div class="code" id="ext-helion-code"></div>
+<p class="small mute">The old root page said prebuilt Helion kernels ship on the Hugging Face Kernels Hub. Checked: the <code>kernels</code> library 0.17.2 lists <code>helion</code> among the Python dependencies a Hub kernel may declare (<code>kernels/python_depends.json</code>); whether Helion kernels are published there is <span class="ann">unconfirmed</span>.</p></div></details>
 <div class="deepnote"><b>Go deeper:</b> <a href="https://helionlang.com/" target="_blank" rel="noopener noreferrer">helionlang.com</a>; the <a href="https://docs.pytorch.org/tutorials/recipes/torch_compile_user_defined_triton_kernel_tutorial.html" target="_blank" rel="noopener noreferrer">triton_op tutorial</a>; <a href="https://app.notion.com/p/3c65c17b0d0d81729d15ed4d1a4461b3" target="_blank" rel="noopener noreferrer">Triton and Gluon</a> for the language.</div>
 </section>
 <section id="rd-s5">
@@ -549,22 +576,28 @@ y = torch.ops.extc.gelu(x)</div>
 <p><b>The problem.</b> Some extensions are not a new computation but a new <i>kind of tensor</i>: weights stored as int8 with a scale, a tensor split across eight GPUs, a float8 tensor that remembers its scaling factor. You want the model code unchanged (<code>F.linear(x, w)</code> stays <code>F.linear(x, w)</code>) while every operation on <code>w</code> does the right thing for its representation. A <dfn>tensor subclass</dfn> is a Python subclass of <code>torch.Tensor</code> that gets a say in every operation on its instances.</p>
 
 <h3>5.1 Two places to intercept: __torch_function__ and __torch_dispatch__</h3>
-<p>A call such as <code>F.linear(x, w)</code> passes two points where a subclass can step in. <code>__torch_function__</code> is called first, at the Python API, with the function you called (<code>linear</code>, <code>Tensor.add</code>, <code>Tensor.backward</code>), before autograd or the dispatcher. <code>__torch_dispatch__</code> is called much later: the dispatcher reaches the <code>Python</code> key after autocast, autograd and view tracking have run, and hands over the <dfn>ATen</dfn> operator (PyTorch's C++ operator library) that is about to execute: <code>aten::t</code> and <code>aten::addmm</code> rather than <code>linear</code>, because <code>linear</code> decomposed on the way (sibling page 2.4).</p>
-<div class="keys">
-<div><b>Python call</b><span>F.linear(x, w)</span></div>
-<div class="on"><b>__torch_function__</b><span>sees "linear" with Python arguments; above autograd; never sees backward (autograd's engine calls C++)</span></div>
-<div><b>Autocast, Autograd</b><span>casts; records the backward node</span></div>
-<div><b>ADInplaceOrView</b><span>view and version bookkeeping</span></div>
-<div class="on"><b>Python key: __torch_dispatch__</b><span>sees aten::t, aten::addmm; below autograd; sees backward's ATen calls too</span></div>
-<div><b>CPU / MPS / CUDA kernel</b><span>the arithmetic</span></div>
+<p>A call such as <code>F.linear(x, w)</code> passes two points where a subclass can step in. <code>__torch_function__</code> is called first, at the Python API, with the function you called (<code>linear</code>, <code>Tensor.add</code>, <code>Tensor.backward</code>), before autograd. <code>__torch_dispatch__</code> is called much later: the dispatcher reaches the <code>Python</code> key after autocast, autograd and view tracking have run, and hands over the <dfn>ATen</dfn> operator about to execute: <code>aten::t</code> and <code>aten::addmm</code> rather than <code>linear</code>, because <code>linear</code> decomposed on the way (sibling page Reading 2.3). Step through one recorded training step of the running example with block 0's <code>fc.weight</code> replaced by a logging subclass of each kind (<code>src/exp/subclasses.py</code>; every row is a call the subclass actually received):</p>
+<div class="seg" id="es-seg"><button class="on" data-m="function">__torch_function__ subclass</button><button data-m="dispatch">__torch_dispatch__, results rewrapped</button><button data-m="dispatch_unwrap">__torch_dispatch__, plain results</button></div>
+<div class="rd-card" id="es-card">
+<h4>__torch_function__ sees what you called and no backward; __torch_dispatch__ sees ATen operators in both directions</h4>
+<div class="an-ctl" id="es-ctl"></div>
+<div class="small"><button id="es-jump" style="font-size:12px">Jump to backward</button></div>
+<div class="an-cap" id="es-cap"></div>
+<div class="es-two">
+<div><div class="small mute">Where this call was caught</div><div class="rd-svg" id="es-stack"></div></div>
+<div><div class="small mute">The call</div><div id="es-now"></div><div class="small mute" style="margin-top:6px">The last calls</div><div class="es-log" id="es-log"></div></div>
 </div>
-<p>Measured on one training step of the running example, with block 0's <code>fc.weight</code> replaced by a logging subclass of each kind <span class="meas">recorded here, CPU</span>:</p>
+<div class="an-cnt" id="es-cnt"></div>
+</div>
 <div class="tw"><table class="rd-tbl"><thead><tr><th>Subclass</th><th>Calls seen in forward</th><th>in backward</th><th>Loss type</th><th>Gradient type</th></tr></thead><tbody id="ext-lv-rows"></tbody></table></div>
-<p>The <code>__torch_function__</code> subclass saw the Python-level calls from the weight's first use onward, because its results are of its own type and so spread through the forward, and in backward only <code>Tensor.backward</code> itself. The <code>__torch_dispatch__</code> subclass that rewraps its outputs saw every ATen call downstream of the weight in both directions; the one that returns plain tensors saw only the operations that touch the weight itself. The <a href="#" data-tab="t-ext-sub">Subclass tracer</a> tab replays all three call by call.</p>
+<p>In backward the <code>__torch_function__</code> subclass saw only <code>Tensor.backward</code> itself, because autograd's engine runs backward in C++. Whether later operations reach a subclass depends on what it returns: rewrapped results spread it downstream (as DTensor does), plain results keep it to the weight (as an int8 weight's matmul does).</p>
+<details class="qa"><summary>Every operation each subclass received, by phase</summary><div>
+<div class="seg" id="es-hseg"><button class="on" data-m="f">forward</button><button data-m="b">backward</button></div>
+<div class="bars" id="es-hist"></div></div></details>
 
 <h3>5.2 Wrapper subclasses: a tensor with no storage of its own</h3>
 <p>A <dfn>wrapper subclass</dfn> is created with <code>torch.Tensor._make_wrapper_subclass(cls, shape, dtype=..., device=...)</code>: the outer object has a shape, a dtype and a device, so the rest of PyTorch treats it as a tensor of that shape, but it has no data. The real data lives in ordinary tensors stored as attributes (<code>self.qdata</code>, <code>self.scale</code>), and <code>__torch_dispatch__</code> decides, per ATen operator, what to compute from them. Its key set gains <code>Python</code> and <code>PythonTLSSnapshot</code> (<span data-v="real/1/keyset|raw"></span> for the DTensor below), which is what routes every call to your Python code.</p>
-<p>Two decisions shape every such subclass. <b>Contagious or not</b>: does an operation on the subclass return the subclass (DTensor: a sharded result) or a plain tensor (an int8 weight: the matmul's output is ordinary float32)? And <b>which operators to implement</b>: the rest fall back to "dequantize and run the normal kernel" or to an error. One rule is not optional: <code>nn.Parameter</code> refuses a subclass whose <code>detach()</code> does not return the subclass:</p>
+<p>Two decisions shape every such subclass. <b>Contagious or not</b>: does an operation on the subclass return the subclass (DTensor: a sharded result) or a plain tensor (an int8 weight: the matmul's output is ordinary float32)? And <b>which operators to implement</b>: the rest fall back to "dequantize and run the normal kernel" or to an error. One rule is not optional: <code>nn.Parameter</code> refuses a subclass whose <code>detach()</code> does not return the subclass, so handle <code>aten.detach</code> (and usually <code>aten.t</code>, <code>aten._to_copy</code>, <code>aten.clone</code>) by returning the subclass:</p>
 <p class="ext-err" data-v="param_detach_error|raw"></p>
 
 <h3>5.3 Build one: int8 weights for the running example</h3>
@@ -596,53 +629,58 @@ y = torch.ops.extc.gelu(x)</div>
 <div id="ext-int8-stats" class="out"></div>
 <p>The loss moved from <span data-v="sub_ref_loss"></span> to <span data-v="int8/eager_loss"></span> and the logits by at most <span data-v="int8/max_logit_diff_vs_float|3"></span>: int8 per-channel rounding of a freshly initialised model. The quantized weights are frozen (<code>requires_grad=False</code>); the other <span data-v="int8/trainable"></span> parameters (embeddings, norms, biases) all received gradients, the setup that weight-quantized fine-tuning methods such as QLoRA start from (<a href="https://app.notion.com/p/3c65c17b0d0d81eba08eef56b3e3b4eb" target="_blank" rel="noopener noreferrer">PEFT</a>). The ATen operators that reached the subclass, recorded: forward <span id="ext-int8-fw"></span>; backward <span id="ext-int8-bw"></span>. No call took the fallback.</p>
 <div class="rd-card" id="ext-q8-card">
-<h4>One weight, one matrix multiply: float32 against int8 (block 0's fc, 1024 &times; 256)</h4>
+<h4>Int8 saves memory at rest, not during the multiply: one weight, float32 against int8 (block 0's fc, 1024 &times; 256)</h4>
 <div class="seg" id="ext-q8-seg"><button class="on" data-m="f32">Before: float32 weight</button><button data-m="i8">After: Int8Weight</button></div>
 <div class="an-ctl" id="ext-q8-ctl"></div>
 <div class="an-cap" id="ext-q8-cap"></div>
-<div id="ext-q8-view"></div>
+<div class="rd-svg" id="ext-q8-view"></div>
 <div class="an-cnt" id="ext-q8-cnt"></div>
 <p class="small mute">Bytes are <span class="der">derived</span> from the shapes (1024 &times; 256 elements; 4 bytes in float32, 1 in int8, 1,024 float32 scales); the operator sequence is the one recorded in AOTAutograd's forward graph (5.4). Activations: 512 tokens &times; 256 in, &times; 1024 out, float32.</p>
 </div>
 
 <h3>5.4 Under torch.compile: flatten, trace, desugar</h3>
-<p>The compiler cannot keep a Python object inside a graph. It needs to know which tensors the subclass is made of, so that it can pass them in as ordinary graph inputs and rebuild the subclass while tracing. That is the <dfn>traceable-subclass protocol</dfn>: <code>__tensor_flatten__</code> returns the names of the inner tensors plus any non-tensor metadata, and <code>__tensor_unflatten__</code> rebuilds the object from them. With it, Dynamo traced the int8 model into <span data-v="int8/explain/graphs"></span> graph with <span data-v="int8/explain/breaks"></span> breaks, and AOTAutograd ran <code>__torch_dispatch__</code> on fake tensors and recorded what it did in plain ATen: the subclass disappears from the compiled graph (<dfn>desugaring</dfn>). Dynamo's graph took <span data-v="int8/dynamo_graph_inputs"></span> inputs; AOTAutograd's forward graph <span data-v="int8/aot_fw_inputs"></span>, because each of the 16 int8 weights became two (<code>qdata</code> and <code>scale</code>). The first block's attention projection in that graph:</p>
+<p>The compiler cannot keep a Python object inside a graph; it must know which tensors the subclass is made of, to pass them in as graph inputs and rebuild the subclass while tracing. That is the <dfn>traceable-subclass protocol</dfn>: <code>__tensor_flatten__</code> returns the names of the inner tensors plus any non-tensor metadata, and <code>__tensor_unflatten__</code> rebuilds the object from them. With it, Dynamo traced the int8 model into <span data-v="int8/explain/graphs"></span> graph with <span data-v="int8/explain/breaks"></span> breaks, and AOTAutograd ran <code>__torch_dispatch__</code> on fake tensors and recorded what it did in plain ATen: the subclass disappears from the compiled graph (<dfn>desugaring</dfn>). Dynamo's graph took <span data-v="int8/dynamo_graph_inputs"></span> inputs; AOTAutograd's forward graph <span data-v="int8/aot_fw_inputs"></span>, because each of the 16 int8 weights became two (<code>qdata</code> and <code>scale</code>). The first block's attention projection in that graph:</p>
 <div class="code" id="ext-aot"></div>
 <p>The int8 weight is converted to float32 (<code>_to_copy</code>) right before the multiply. That is the honest cost of weight-only int8 on this CPU path: memory is saved at rest (a quarter of the bytes), not during the computation. torchao's own <code>Int8WeightOnlyConfig</code> weight, recorded on a <code>nn.Linear</code> of the same shape, issued the same kind of sequence: <span id="ext-ao-calls"></span>. A GPU kernel that reads int8 directly and dequantizes in registers is what turns the saving into speed (<a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>).</p>
-<div class="cost"><div class="t">Forward of the running example, CPU, 4 threads <span class="meas">measured on Apple M1 Pro, bench lock, median of 3</span></div><div class="bars" id="ext-int8-bars"></div>Eager, the subclass costs the Python round trip on 32 calls per forward plus the conversion; compiled, the Python is gone and int8 and float32 take about the same time.</div>
+<div class="cost"><div class="t">Forward of the running example, CPU, 4 threads <span class="meas">measured on Apple M1 Pro, bench lock, median of 3</span></div><div class="rd-svg" id="ext-int8-bars"></div>Eager, the subclass costs the Python round trip on 32 calls per forward plus the conversion; compiled, the Python is gone and int8 and float32 take about the same time.</div>
 
-<h3>5.5 How the real ones are built</h3>
-<p>The same protocol underlies the subclasses you will meet in practice. Each was built here on block 0's <code>fc.weight</code> (1024 &times; 256 float32, 1,048,576 bytes) and taken apart with <code>__tensor_flatten__</code>:</p>
+<h3>5.5 The real ones are built the same way</h3>
+<p>DTensor (PyTorch's distributed tensor, the base of FSDP2 and tensor parallelism), torchao's NF4Tensor (the 4-bit format of QLoRA), Float8TrainingTensor and Int8Tensor all use this protocol; each was built here on block 0's <code>fc.weight</code> and taken apart in the closed block. Two facts matter on first read: at 2.14.1 DTensor's constructor and operator dispatch run in C++, with Python only for sharding rules not yet cached; and a subclass can tell FSDP2 what to send over the network (<code>fsdp_pre_all_gather</code> and <code>fsdp_post_all_gather</code>), which is how a sharded QLoRA or float8 run moves 4-bit or 8-bit bytes rather than float32.</p>
+<details class="qa"><summary>DTensor, NF4, Float8 and Int8 taken apart, and the FSDP2 hooks (sources at pinned tags)</summary><div>
+<p>Each built on block 0's <code>fc.weight</code> (1024 &times; 256 float32, 1,048,576 bytes) and taken apart with <code>__tensor_flatten__</code>:</p>
 <div id="ext-real"></div>
 <ul>
-<li><b>DTensor</b> (PyTorch's distributed tensor, the base of FSDP2 and tensor parallelism) keeps the local shard and the device mesh as its inner parts and the placements as metadata. At 2.14.1 it is built in C++, sharing the wrapper-subclass helper, and its operators take a C++ fast path that only falls back to Python for sharding rules it has not cached; the Python <code>__torch_dispatch__</code> only serves subclasses of DTensor:
+<li><b>DTensor</b> keeps the local shard and the device mesh as its inner parts and the placements as metadata. At 2.14.1 it is built in C++, sharing the wrapper-subclass helper, and its operators take a C++ fast path that only falls back to Python for sharding rules it has not cached; the Python <code>__torch_dispatch__</code> only serves subclasses of DTensor:
 <div class="ext-qh" data-q="dtensor_new"></div><div class="ext-q" data-q="dtensor_new"></div>
 <div class="ext-qh" data-q="cpp_subclass_helper"></div><div class="ext-q" data-q="cpp_subclass_helper"></div>
 <div class="ext-qh" data-q="dtensor_dispatch"></div><div class="ext-q" data-q="dtensor_dispatch"></div>
 It refuses to mix with plain tensors rather than guess a placement: <span class="ext-err" data-v="real/1/mixed_error|raw"></span> The <a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a> sibling owns how its placements propagate.</li>
-<li><b>NF4Tensor</b> (torchao; the 4-bit format of QLoRA) packs two 4-bit codes per byte plus double-quantized scales: 135,300 bytes for the 1 MiB weight. Its <code>__torch_dispatch__</code> handles a table of ATen operators, and its docstring says the linear itself goes through an <code>autograd.Function</code> instead; its <code>__torch_function__</code> looks <code>F.linear</code> up in a second table:
+<li><b>NF4Tensor</b> (torchao) packs two 4-bit codes per byte plus double-quantized scales: 135,300 bytes for the 1 MiB weight. Its <code>__torch_dispatch__</code> handles a table of ATen operators, and its docstring says the linear itself goes through an <code>autograd.Function</code> instead; its <code>__torch_function__</code> looks <code>F.linear</code> up in a second table:
 <div class="ext-qh" data-q="nf4_dispatch"></div><div class="ext-q" data-q="nf4_dispatch"></div>
 <div class="ext-qh" data-q="nf4_linear"></div><div class="ext-q" data-q="nf4_linear"></div></li>
 <li><b>Float8TrainingTensor</b> (torchao float8 training) holds float8 e4m3 data and one float32 scale; its operators come from a table (<code>FLOAT8_OPS_TABLE</code>). A matrix multiply of two of them ran on this CPU (<span data-v="real/4/mm_on_cpu|raw"></span>); the speed-up is a GPU matter (H100-class float8 tensor cores), not measured here.</li>
 <li><b>Int8Tensor</b> (torchao 0.18.0) declares its inner tensors as class attributes and inherits flatten, unflatten and much of the boilerplate from <code>TorchAOBaseTensor</code>:
 <div class="ext-qh" data-q="int8_names"></div><div class="ext-q" data-q="int8_names"></div></li>
 </ul>
-<p><b>Subclasses and FSDP2.</b> A subclass can also tell FSDP2 what to send over the network. When FSDP2 shards a parameter whose inner tensor defines <code>fsdp_pre_all_gather</code> and <code>fsdp_post_all_gather</code>, it all-gathers whatever the first returns (the compact data) and rebuilds the full weight with the second. NF4 defines both, and so do torchao's float8 training tensor and its prototype int8 training tensors, so a sharded QLoRA or float8 run moves 4-bit or 8-bit bytes rather than float32:</p>
+<p><b>Subclasses and FSDP2.</b> When FSDP2 shards a parameter whose inner tensor defines <code>fsdp_pre_all_gather</code> and <code>fsdp_post_all_gather</code>, it all-gathers whatever the first returns (the compact data) and rebuilds the full weight with the second. NF4 defines both, and so do torchao's float8 training tensor and its prototype int8 training tensors:</p>
 <div class="ext-qh" data-q="fsdp_hooks"></div><div class="ext-q" data-q="fsdp_hooks"></div>
-<div class="deepnote"><b>Go deeper:</b> the <a href="https://docs.pytorch.org/docs/2.14/notes/extending.html" target="_blank" rel="noopener noreferrer">Extending PyTorch notes</a> (subclasses and modes); <a href="https://dev-discuss.pytorch.org/t/what-and-why-is-torch-dispatch/557" target="_blank" rel="noopener noreferrer">What (and why) is __torch_dispatch__</a>; the <a href="https://github.com/albanD/subclass_zoo" target="_blank" rel="noopener noreferrer">subclass zoo</a>; the <a href="https://app.notion.com/p/3c65c17b0d0d81019d98f99978dc26f6" target="_blank" rel="noopener noreferrer">Libraries on top of PyTorch</a> sibling for where these appear in training stacks.</div>
+</div></details>
+<div class="deepnote"><b>Go deeper:</b> the <a href="https://docs.pytorch.org/docs/2.14/notes/extending.html" target="_blank" rel="noopener noreferrer">Extending PyTorch notes</a> (subclasses and modes); <a href="https://dev-discuss.pytorch.org/t/what-and-why-is-torch-dispatch/557" target="_blank" rel="noopener noreferrer">What (and why) is __torch_dispatch__</a>; the <a href="https://github.com/albanD/subclass_zoo" target="_blank" rel="noopener noreferrer">subclass zoo</a>; <a href="https://app.notion.com/p/3c65c17b0d0d81019d98f99978dc26f6" target="_blank" rel="noopener noreferrer">Libraries on top of PyTorch</a> for where these appear in training stacks.</div>
 </section>
 <section id="rd-s6">
 <h2>6. Dispatch modes: watch or change every operation in a region</h2>
-<p>A <dfn>dispatch mode</dfn> is the subclass idea without a subclass: a context manager whose <code>__torch_dispatch__</code> is called for every ATen operation run inside the <code>with</code> block, whatever tensors it touches. The sibling page used one to record calls key by key (<a href="https://app.notion.com/p/3f85c17b0d0d81138595c1c6cd52f795" target="_blank" rel="noopener noreferrer">Dispatcher walker</a> tab); PyTorch itself ships several built on the same mechanism. Three of them on the running example:</p>
-<p><b>FakeTensorMode: run the model with no data.</b> Inside the mode, new tensors and parameters are fake, so the whole model ran and produced logits of shape <span data-v="modes/fake/logits|raw"></span> without computing a number. That is how <code>torch.compile</code> traces and how you can check that a 70-billion-parameter model's shapes line up on a laptop. What it cannot do is answer a question about values: <code>loss.item()</code> raised <span class="ext-err" data-v="modes/fake/item_error|raw"></span>. (Building the model inside the mode needs care with tied weights: the root's <code>make_model</code> fails there because <code>.to()</code> cannot swap the tied embedding, as the sibling page found; constructing <code>GPT(cfg)</code> directly works.)</p>
-<p><b>FlopCounterMode: count the arithmetic.</b> It adds up floating-point operations from a formula per operator. One forward and backward of the running example: <span data-v="modes/flops_total|i"></span> FLOPs. That is exactly <span class="der">6 &times; 3,156,736 &times; 512</span>: six FLOPs per weight per token for every matrix-multiply weight (the 3,145,728 in the blocks plus the 11,008 of the head; the embeddings are lookups, not multiplies), over 512 tokens. The textbook estimate "6 &times; parameters &times; tokens" with all 3,186,944 parameters gives <span data-v="modes/six_n_t|i"></span>. Two gaps are worth knowing. The CPU attention kernel (<code>_scaled_dot_product_flash_attention_for_cpu</code>) has no formula, so attention counted zero; written out by hand (<code>attn="manual"</code>) its batched multiplies add <span data-v="modes/flops_manual_by_op/bmm|i"></span>. And your own operators count zero until you register a formula:</p>
+<p>A <dfn>dispatch mode</dfn> is the subclass idea without a subclass: a context manager whose <code>__torch_dispatch__</code> is called for every ATen operation run inside the <code>with</code> block, whatever tensors it touches (the sibling page records one call key by key this way, Reading 2.2). PyTorch ships several; three on the running example.</p>
+<p><b>FakeTensorMode: run the model with no data.</b> Inside the mode, new tensors and parameters are fake, so the whole model ran and produced logits of shape <span data-v="modes/fake/logits|raw"></span> without computing a number (how you check a 70-billion-parameter model's shapes on a laptop), but it cannot answer a question about values: <code>loss.item()</code> raised <span class="ext-err" data-v="modes/fake/item_error|raw"></span>.</p>
+<p><b>FlopCounterMode: count the arithmetic</b> from a formula per operator. One forward and backward of the running example: <span data-v="modes/flops_total|i"></span> FLOPs, exactly <span class="der">6 &times; 3,156,736 &times; 512</span>: six FLOPs per weight per token for every matrix-multiply weight (the 3,145,728 in the blocks plus the 11,008 of the head; the embeddings are lookups), over 512 tokens. The textbook "6 &times; parameters &times; tokens" with all 3,186,944 parameters gives <span data-v="modes/six_n_t|i"></span>. Your own operators count zero until you register a formula with <code>register_flop_formula</code>, and so did the CPU attention kernel (closed block). How FLOPs turn into utilisation (MFU) is on <a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a>.</p>
+<details class="qa"><summary>Two gaps in the FLOP count: CPU attention and your own operators</summary><div>
+<p>The CPU attention kernel (<code>_scaled_dot_product_flash_attention_for_cpu</code>) has no formula, so attention counted zero; written out by hand (<code>attn="manual"</code>) its batched multiplies add <span data-v="modes/flops_manual_by_op/bmm|i"></span>.</p>
 <div class="ext-qh" data-q="flop_sdpa"></div><div class="ext-q" data-q="flop_sdpa"></div>
 <div class="code"><span class="k">from</span> torch.utils.flop_counter <span class="k">import</span> register_flop_formula
 @register_flop_formula(torch.ops.ext.gelu)     <span class="c"># register before creating FlopCounterMode</span>
 <span class="k">def</span> _(x_shape, *, out_shape=<span class="k">None</span>):
     <span class="k">return</span> 8 * math.prod(x_shape)              <span class="c"># your estimate per element</span></div>
-<p class="small mute">How FLOPs turn into utilisation (MFU) is on <a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a>.</p>
-<p><b>Your own mode.</b> Twelve lines record every call (the sibling's walker and the <a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Inside one step</a> tab of the parent are built this way):</p>
+<p>(Building the model inside FakeTensorMode needs care with tied weights: the root's <code>make_model</code> fails there because <code>.to()</code> cannot swap the tied embedding, as the sibling page found; constructing <code>GPT(cfg)</code> directly works.)</p></div></details>
+<p><b>Your own mode.</b> Twelve lines record every call (the parent's <a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Inside one step</a> tab is built this way):</p>
 <div class="code"><span class="k">from</span> torch.utils._python_dispatch <span class="k">import</span> TorchDispatchMode
 <span class="k">class</span> Recorder(TorchDispatchMode):
     <span class="k">def</span> __init__(self): super().__init__(); self.calls = []
@@ -651,67 +689,32 @@ It refuses to mix with plain tensors rather than guess a placement: <span class=
         <span class="k">return</span> func(*args, **(kwargs <span class="k">or</span> {}))
 <span class="k">with</span> Recorder() <span class="k">as</span> r:
     loss = model(x, y)[1]; loss.backward()</div>
-<p>A <code>TorchFunctionMode</code> does the same at the Python API level (above autograd), and <code>CommDebugMode</code> counts collectives on DTensors (the <a href="https://app.notion.com/p/3c65c17b0d0d8150aa65ca44b6ed2fd5" target="_blank" rel="noopener noreferrer">Distributed lab</a> tab of the parent uses it). Cost: every call goes through Python. The sibling page measured 4.8 &micro;s for a one-element add inside a dispatch mode against 0.62 &micro;s without; use modes for tools and tests, not in a timed loop.</p>
+<p>A <code>TorchFunctionMode</code> does the same at the Python API level (above autograd), and <code>CommDebugMode</code> counts collectives on DTensors (the parent's Distributed lab uses it). Cost: every call goes through Python. The sibling page measured 4.818 &micro;s for a one-element add inside a dispatch mode against 0.622 &micro;s without; use modes for tools and tests, not in a timed loop.</p>
 </section>
 
-<section id="rd-s7">
-<h2>7. New devices: PrivateUse1, briefly</h2>
-<p>A hardware vendor whose chip is not in PyTorch adds it without forking PyTorch through a reserved dispatch key, <code>PrivateUse1</code>. They register kernels at that key from a C++ extension (as in section 3, with <code>TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)</code> for ATen operators), give the device a name with <code>torch.utils.rename_privateuse1_backend("npu")</code> (<span class="ext-qh" data-q="pu1_rename" style="display:inline"></span>), add tensor methods such as <code>.npu()</code> with <code>generate_methods_for_privateuse1_backend()</code>, and plug in an allocator, streams and a compiler backend. PyTorch keeps a complete reference device in its own tests, <code>torch_openreg</code> (<code>test/cpp_extensions/open_registration_extension/</code> at the v2.14.1 tag). Not run here: a device needs a C++ runtime, and nothing on this page depends on it. Most readers meet it through a vendor's plugin package, not by writing one.</p>
-</section>
-
-<section id="rd-s8">
-<h2>8. Choosing: autograd Function, custom op, subclass, mode</h2>
-<p>The <a href="#" data-tab="t-ext-pick">Which extension point?</a> tab asks the questions one at a time. The table is the summary, with the evidence from this page:</p>
-<div class="tw"><table class="rd-tbl"><thead><tr><th>You need</th><th>Use</th><th>Not</th><th>Why (measured here)</th></tr></thead><tbody>
-<tr><td>A different gradient for code PyTorch can trace</td><td><code>torch.autograd.Function</code></td><td>custom_op</td><td>Dynamo traces it; no schema or fake to maintain (sibling page 3.6)</td></tr>
-<tr><td>To call a kernel or library PyTorch cannot see</td><td><code>custom_op</code> (or C++ <code>TORCH_LIBRARY</code>) with fake and autograd</td><td>A direct call</td><td>Direct call: <span data-v="variants/pybind/graphs"></span> graphs, <span data-v="variants/pybind/breaks"></span> breaks, export fails, <span data-v="variants/pybind/with_grad"></span> of 52 parameters trained. Op: 1 graph, exports, all 52</td></tr>
-<tr><td>A Triton kernel the compiler should optimise around</td><td><code>triton_op</code> + <code>wrap_triton</code>, or a raw <code>@triton.jit</code> call</td><td>custom_op</td><td>custom_op is opaque; Inductor sees triton_op's kernels (source, 4.2)</td></tr>
-<tr><td>Weights or activations in a new format</td><td>A wrapper subclass with <code>__tensor_flatten__</code></td><td>Rewriting every layer</td><td>Model code unchanged; 1 graph; 16 weights at a quarter of the bytes</td></tr>
-<tr><td>A tensor spread over devices</td><td>DTensor (already built)</td><td>Your own subclass</td><td>C++ fast path, sharding propagation, FSDP2 and TP built on it</td></tr>
-<tr><td>To observe or rewrite every op in a region</td><td><code>TorchDispatchMode</code></td><td>A subclass</td><td>Sees everything, including backward; no change to tensors</td></tr>
-<tr><td>To intercept Python-level calls on your type</td><td><code>__torch_function__</code></td><td>__torch_dispatch__</td><td>Sees <code>linear</code> rather than <code>t</code> + <code>addmm</code>; but not backward (<span data-v="levels/function/nb"></span> call)</td></tr>
-<tr><td>A new device</td><td><code>PrivateUse1</code></td><td>A fork</td><td>The supported route for out-of-tree hardware</td></tr>
-</tbody></table></div>
-</section>
-
-<section id="rd-s9">
-<h2>9. What carries over to NVIDIA GPUs, and what does not</h2>
-<ul>
+<section id="rd-deep">
+<h2>Depth: new devices, NVIDIA GPUs and interview rehearsal</h2>
+<details class="qa"><summary>New devices: PrivateUse1, briefly</summary><div>
+<p>A hardware vendor whose chip is not in PyTorch adds it without forking PyTorch through a reserved dispatch key, <code>PrivateUse1</code>. They register kernels at that key from a C++ extension (as in section 3, with <code>TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)</code> for ATen operators), give the device a name with <code>torch.utils.rename_privateuse1_backend("npu")</code> (<span class="ext-qh" data-q="pu1_rename" style="display:inline"></span>), add tensor methods such as <code>.npu()</code> with <code>generate_methods_for_privateuse1_backend()</code>, and plug in an allocator, streams and a compiler backend. PyTorch keeps a complete reference device in its own tests, <code>torch_openreg</code> (<code>test/cpp_extensions/open_registration_extension/</code> at the v2.14.1 tag). Not run here: a device needs a C++ runtime, and nothing on this page depends on it. Most readers meet it through a vendor's plugin package, not by writing one.</p></div></details>
+<details class="qa"><summary>What carries over to NVIDIA GPUs, and what does not</summary><div><ul>
 <li><b>Carries over unchanged:</b> everything about registration and composition. Schemas, fakes, autograd formulas, <code>opcheck</code>, graph counts and breaks, export behaviour, the late-registration and cache traps, the subclass protocol and what reaches <code>__torch_dispatch__</code>: these are device-independent dispatcher and compiler logic.</li>
 <li><b>Changes:</b> the kernels. On CUDA you register at the <code>CUDA</code> key, write the kernel in CUDA C++ (<code>CUDAExtension</code>) or Triton (<code>triton_op</code>), and Helion's default Triton backend with its autotuner applies; none ran here. Inductor around an opaque op on a GPU loses fusions that matter more than on a CPU (each unfused element-wise op is a full round trip through GPU memory).</li>
 <li><b>Changes:</b> every timing on this page. Per-call overheads (3 to 4 &micro;s for a Python-registered op, measured here) are paid on the CPU before every GPU launch as well, so many small custom ops hurt there too (<a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a> shows how to see it); but a weight-only int8 or float8 kernel that reads the compact format directly is a GPU speed-up that the CPU path here does not show.</li>
-</ul>
-</section>
-<section id="rd-mis">
-<h2>Common mistakes</h2>
-<details class="mist"><summary>Calling your kernel directly instead of through an operator</summary><div class="b">Works in eager, then costs you three graph breaks, export, and silently the gradients of everything before it: in the running example <span data-v="variants/pybind/with_grad"></span> of 52 parameters were trained, with no error. Wrap it in <code>custom_op</code>.</div></details>
-<details class="mist"><summary>Registering the fake or the autograd formula late</summary><div class="b">Register at import, next to the definition. Registering after the op has been traced left the compiled backward without gradients in that process (section 2.3), and the broken artifact was then served from the AOTAutograd cache to later, correct processes.</div></details>
-<details class="mist"><summary>Trusting a warm compile cache after changing registrations</summary><div class="b">Clear <code>TORCHINDUCTOR_CACHE_DIR</code> (or set <code>TORCHINDUCTOR_AUTOGRAD_CACHE=0</code> while developing) whenever a fake, a formula or a kernel's registration changes. Keep one test that compares compiled gradients with eager on a batch.</div></details>
-<details class="mist"><summary>A fake that reads data, or returns the wrong shape</summary><div class="b">The fake runs on tensors with no data: it may look at shapes, dtypes and devices only. For a data-dependent size use <code>get_ctx().new_dynamic_size()</code>. A wrong shape makes compile fail one layer later with an error about the next operator; <code>opcheck</code>'s <code>test_faketensor</code> names the real one.</div></details>
-<details class="mist"><summary>Writing into an input without declaring it</summary><div class="b">List every mutated argument in <code>mutates_args</code>. The compiler relies on the schema to reorder and reuse memory; <code>opcheck</code> catches the lie only when the test inputs are actually changed.</div></details>
-<details class="mist"><summary>Returning an input (or a view of it) from a custom op</summary><div class="b">Not allowed: outputs must be fresh tensors. Return <code>x.clone()</code> if the result equals the input.</div></details>
-<details class="mist"><summary>Assuming one op means one numerical result on every device</summary><div class="b">Each device has its own kernel. The Metal GELU here used the tanh approximation (Metal has no erf) and differed from the CPU kernel by <span data-v="mps/max_diff_mps_vs_cpu|e"></span>; <code>opcheck</code> does not compare devices.</div></details>
-<details class="mist"><summary>Expecting a custom C++ kernel to be fast because it is C++</summary><div class="b">The straightforward loop here was about 11 times slower than <code>F.gelu</code> (scalar, single-threaded). Benchmark against the ATen operator you replace, on your shapes, before shipping it.</div></details>
-<details class="mist"><summary>Expecting Inductor to fuse through a custom op</summary><div class="b">It cannot see inside: the op is a call between generated kernels, with metadata checks around it. Leave small element-wise work in PyTorch, or use <code>triton_op</code>.</div></details>
-<details class="mist"><summary>A wrapper subclass whose detach() returns a plain tensor</summary><div class="b"><code>nn.Parameter</code> refuses it. Handle <code>aten.detach</code> (and usually <code>aten.t</code>, <code>aten._to_copy</code>, <code>aten.clone</code>) by returning the subclass.</div></details>
-<details class="mist"><summary>Expecting __torch_function__ to see backward</summary><div class="b">Autograd's engine calls C++ directly. A <code>__torch_function__</code> subclass saw <span data-v="levels/function/nb"></span> call in backward (<code>Tensor.backward</code> itself); use <code>__torch_dispatch__</code> or a dispatch mode to see backward's operations.</div></details>
-<details class="mist"><summary>Two copies of a TORCH_LIBRARY in one process</summary><div class="b">The process aborts with no Python traceback. Use one extension per namespace, <code>TORCH_LIBRARY_FRAGMENT</code> for extra definitions.</div></details>
-</section>
-
-<section id="rd-iq">
-<h2>Interview questions, with short answers</h2>
-<details class="qa"><summary>What does torch.library.custom_op give you that calling a C++ function does not?</summary><div>A dispatcher operator: a schema, kernels per device, a fake implementation for tracing, an autograd formula, version bumps for mutation. So autograd, <code>torch.compile</code> (one node, no break), <code>torch.export</code> and dispatch modes all work with it (and vmap, once you add <code>register_vmap</code>).</div></details>
-<details class="qa"><summary>What is a fake (meta) implementation and why does the compiler need it?</summary><div>A function computing the output's metadata (shape, dtype, device, strides) from the inputs' metadata, without data. Dynamo and export trace with fake tensors, so they must know every operator's output without running it.</div></details>
-<details class="qa"><summary>How do you handle an op whose output size depends on the data?</summary><div>In the fake, allocate with a size from <code>torch.library.get_ctx().new_dynamic_size()</code>: an unbacked symbolic integer, carried as <code>u0</code> through the graph with run-time checks.</div></details>
-<details class="qa"><summary>Why must a custom op's schema declare mutation, and what does Tensor(a!) mean?</summary><div>Functionalization and Inductor reorder and reuse buffers assuming the schema is honest. <code>Tensor(a!)</code> names an alias set <code>a</code> and marks it written.</div></details>
-<details class="qa"><summary>custom_op or triton_op?</summary><div><code>custom_op</code> for opaque kernels (C++, CUDA, other libraries); <code>triton_op</code> when the body is Triton launches, so Inductor can see and optimise the kernels. Under export, both stay one node.</div></details>
-<details class="qa"><summary>What does opcheck test?</summary><div>Schema honesty (mutation and aliasing), that an autograd kernel is registered, that the fake matches the real kernel's metadata, and that forward and backward trace through AOTAutograd with dynamic shapes and match eager.</div></details>
-<details class="qa"><summary>__torch_function__ vs __torch_dispatch__?</summary><div>The first intercepts Python API calls (above autograd; sees <code>linear</code>; no backward). The second intercepts ATen operators at the Python dispatch key (below autograd; sees <code>t</code> and <code>addmm</code>, including backward's operations). Representation subclasses (DTensor, torchao) use the second.</div></details>
-<details class="qa"><summary>What is a wrapper subclass, and how does torch.compile handle one?</summary><div>A tensor with metadata and no storage, whose data lives in inner tensors. With <code>__tensor_flatten__</code> and <code>__tensor_unflatten__</code> the compiler passes the inner tensors as graph inputs and desugars <code>__torch_dispatch__</code> into plain ATen operations.</div></details>
-<details class="qa"><summary>Why might weight-only int8 not speed anything up?</summary><div>If the kernel converts the weight to float before the matmul (as on the CPU path here), only memory at rest shrinks. Speed needs a kernel that reads int8 and dequantizes on the fly, and pays off where the matmul is memory-bound.</div></details>
-<details class="qa"><summary>How is DTensor implemented?</summary><div>A tensor subclass holding the local shard and the device mesh, with placements as metadata. At 2.14.1 its constructor and op dispatch run in C++ (a fast path with cached sharding propagation), falling back to Python sharding rules.</div></details>
-<details class="qa"><summary>You added register_autograd but compiled gradients are still missing. What do you check?</summary><div>Whether the op was traced before the registration (register at import), whether a stale compile cache is serving an old artifact (clear it or disable the AOTAutograd cache), and <code>opcheck</code>'s <code>test_aot_dispatch_dynamic</code>.</div></details>
-<details class="qa"><summary>How would you add support for a new accelerator?</summary><div>Out of tree through the <code>PrivateUse1</code> key: kernels via <code>TORCH_LIBRARY_IMPL(aten, PrivateUse1, ...)</code>, a renamed device, an allocator, streams, and a compiler backend; <code>torch_openreg</code> in PyTorch's tests is the reference.</div></details>
+</ul></div></details>
+<details class="qa"><summary>Interview rehearsal: twelve questions with short answers</summary><div>
+<p><b>What does torch.library.custom_op give you that calling a C++ function does not?</b> A dispatcher operator: a schema, kernels per device, a fake implementation for tracing, an autograd formula, version bumps for mutation. So autograd, <code>torch.compile</code> (one node, no break), <code>torch.export</code> and dispatch modes all work with it (and vmap, once you add <code>register_vmap</code>).</p>
+<p><b>What is a fake (meta) implementation and why does the compiler need it?</b> A function computing the output's metadata (shape, dtype, device, strides) from the inputs' metadata, without data. Dynamo and export trace with fake tensors, so they must know every operator's output without running it.</p>
+<p><b>How do you handle an op whose output size depends on the data?</b> In the fake, allocate with a size from <code>torch.library.get_ctx().new_dynamic_size()</code>: an unbacked symbolic integer, carried as <code>u0</code> through the graph with run-time checks.</p>
+<p><b>Why must a custom op's schema declare mutation, and what does Tensor(a!) mean?</b> Functionalization and Inductor reorder and reuse buffers assuming the schema is honest. <code>Tensor(a!)</code> names an alias set <code>a</code> and marks it written.</p>
+<p><b>custom_op or triton_op?</b> <code>custom_op</code> for opaque kernels (C++, CUDA, other libraries); <code>triton_op</code> when the body is Triton launches, so Inductor can see and optimise the kernels. Under export, both stay one node.</p>
+<p><b>What does opcheck test?</b> Schema honesty (mutation and aliasing), that an autograd kernel is registered, that the fake matches the real kernel's metadata, and that forward and backward trace through AOTAutograd with dynamic shapes and match eager.</p>
+<p><b>__torch_function__ vs __torch_dispatch__?</b> The first intercepts Python API calls (above autograd; sees <code>linear</code>; no backward). The second intercepts ATen operators at the Python dispatch key (below autograd; sees <code>t</code> and <code>addmm</code>, including backward's operations). Representation subclasses (DTensor, torchao) use the second.</p>
+<p><b>What is a wrapper subclass, and how does torch.compile handle one?</b> A tensor with metadata and no storage, whose data lives in inner tensors. With <code>__tensor_flatten__</code> and <code>__tensor_unflatten__</code> the compiler passes the inner tensors as graph inputs and desugars <code>__torch_dispatch__</code> into plain ATen operations.</p>
+<p><b>Why might weight-only int8 not speed anything up?</b> If the kernel converts the weight to float before the matmul (as on the CPU path here), only memory at rest shrinks. Speed needs a kernel that reads int8 and dequantizes on the fly, and pays off where the matmul is memory-bound.</p>
+<p><b>How is DTensor implemented?</b> A tensor subclass holding the local shard and the device mesh, with placements as metadata. At 2.14.1 its constructor and op dispatch run in C++ (a fast path with cached sharding propagation), falling back to Python sharding rules.</p>
+<p><b>You added register_autograd but compiled gradients are still missing. What do you check?</b> Whether the op was traced before the registration (register at import), whether a stale compile cache is serving an old artifact (clear it or disable the AOTAutograd cache), and <code>opcheck</code>'s <code>test_aot_dispatch_dynamic</code>.</p>
+<p><b>How would you add support for a new accelerator?</b> Out of tree through the <code>PrivateUse1</code> key: kernels via <code>TORCH_LIBRARY_IMPL(aten, PrivateUse1, ...)</code>, a renamed device, an allocator, streams, and a compiler backend; <code>torch_openreg</code> in PyTorch's tests is the reference.</p>
+</div></details>
 </section>
 </div>
 <div class="tab" id="t-ext-pick" role="tabpanel" hidden>
@@ -730,7 +733,7 @@ It refuses to mix with plain tensors rather than guess a placement: <span class=
 #t-ext-pick ul{margin:4px 0}#t-ext-pick li{font-size:13.5px}
 </style>
 <h2>Which extension point?</h2>
-<p>Answer a few questions about what you need; the answer is the lightest hook that does the job, with a code skeleton, what to register, how to test it, and the evidence from this page's runs. The questions follow Reading section 8.</p>
+<p>Answer a few questions about what you need; the answer is the lightest hook that does the job, with a code skeleton, what to register, how to test it, and the evidence from this page's runs. The questions follow the table at the top of the Reading tab.</p>
 <div class="ep-trail" id="ep-trail"></div>
 <div id="ep-body"></div>
 <p><button id="ep-back">Back</button> <button id="ep-reset">Start again</button></p>
@@ -769,60 +772,14 @@ It refuses to mix with plain tensors rather than guess a placement: <span class=
 <p class="small mute">Gradient differences are the largest absolute difference from the <code>F.gelu</code> model's gradients over all parameters that received one. "Parameters with gradients" counts the 52 parameter tensors (the tied embedding counts once). The <i>made late</i> variant was measured in one process after the bare C++ op had been traced; the <i>at import</i> one in a fresh process. Messages are cut to their first lines, with file paths removed.</p>
 <div class="co key"><div class="t">What to take away</div>A direct call costs graph breaks and silently loses gradients; a custom op needs a kernel, a fake and an autograd formula, in that order, and only all three pass the four tests and train under compile. A C++ op is the same once its fake and formula are registered, at import. The lab's last two columns are the Reading tab's section 2.3: same code, different registration time.</div>
 </div>
-<div class="tab" id="t-ext-sub" role="tabpanel" hidden>
-<style>
-#t-ext-sub .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-ext-sub .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
-#t-ext-sub .an-ctl select{padding:3px 6px}#t-ext-sub .an-play{min-width:6.4em}
-#t-ext-sub .an-cap{min-height:4.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
-#t-ext-sub .an-cap .t{font-weight:600;font-size:14px}#t-ext-sub .an-cap p{margin:2px 0;font-size:13.5px}
-#t-ext-sub .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;border:0}#t-ext-sub .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
-#t-ext-sub .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
-#t-ext-sub .es-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
-#t-ext-sub .es-two>div{min-width:0}
-#t-ext-sub .es-stack{display:flex;flex-direction:column;gap:3px}
-#t-ext-sub .es-stack div{border:1px solid var(--line);border-radius:6px;padding:4px 9px;font-size:12.5px;background:var(--bg);transition:background .2s}
-#t-ext-sub .es-stack div b{font-family:ui-monospace,Menlo,monospace;font-size:12px}
-#t-ext-sub .es-stack div.on{background:var(--acc2);border-color:var(--acc)}
-#t-ext-sub .es-stack div.dim{opacity:.45}
-#t-ext-sub .es-op{font:600 18px/1.3 ui-monospace,Menlo,monospace;overflow-wrap:anywhere;margin:4px 0}
-#t-ext-sub .es-ph{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;border:1px solid var(--line);margin-right:4px}
-#t-ext-sub .es-ph.f{color:var(--c1);border-color:var(--c1)}#t-ext-sub .es-ph.b{color:var(--c2);border-color:var(--c2)}#t-ext-sub .es-ph.s{color:var(--mute)}
-#t-ext-sub .es-log{font:12px/1.5 ui-monospace,Menlo,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-height:9em;overflow-wrap:anywhere}
-#t-ext-sub .es-log .cur{font-weight:700}
-#t-ext-sub .es-log .b{color:var(--c2)}
-#t-ext-sub .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:6px;margin:6px 0}
-#t-ext-sub .an-cnt .stat .v{font-size:15px}
-#t-ext-sub .bars .row{grid-template-columns:minmax(0,13em) minmax(0,1fr) 3.5em}
-@media (max-width:520px){#t-ext-sub .bars .row{grid-template-columns:minmax(0,9em) minmax(0,1fr) 3em}}
-</style>
-<h2>Subclass tracer</h2>
-<p>One training step of the running example (forward and backward, batch 0, CPU) with block 0's <code>fc.weight</code> replaced by a logging tensor subclass, recorded call by call with torch 2.14.1 (<code>src/exp/subclasses.py</code>). The same step three times, changing only where the subclass intercepts: at the Python API (<code>__torch_function__</code>) or at the dispatcher's Python key (<code>__torch_dispatch__</code>), and in the second case whether results stay wrapped. Every row below is a call the subclass actually received; nothing is simulated.</p>
-<div class="seg" id="es-seg"><button class="on" data-m="function">__torch_function__ subclass</button><button data-m="dispatch">__torch_dispatch__, results rewrapped</button><button data-m="dispatch_unwrap">__torch_dispatch__, plain results</button></div>
-<div class="card" id="es-card">
-<div class="an-ctl" id="es-ctl"></div>
-<div class="small"><button id="es-jump" style="font-size:12px">Jump to backward</button></div>
-<div class="an-cap" id="es-cap"></div>
-<div class="es-two">
-<div><div class="small mute">Where this call was caught</div><div class="es-stack" id="es-stack"></div></div>
-<div><div class="small mute">The call</div><div id="es-now"></div><div class="small mute" style="margin-top:6px">The last calls</div><div class="es-log" id="es-log"></div></div>
-</div>
-<div class="an-cnt" id="es-cnt"></div>
-</div>
-<h3>Every operation the subclass received in this step, by phase</h3>
-<div class="seg" id="es-hseg"><button class="on" data-m="f">forward</button><button data-m="b">backward</button></div>
-<div class="bars" id="es-hist"></div>
-<div class="co"><div class="t">Read it this way</div><b>__torch_function__</b> receives what your code called (<code>linear</code>, <code>gelu</code>, <code>layer_norm</code>, attribute reads as <code>__get__</code>), and only that: autograd's engine runs backward in C++, so the backward shows one call, <code>Tensor.backward</code>. <b>__torch_dispatch__</b> receives ATen operators after autograd has recorded its node, so <code>linear</code> appears as <code>t</code> + <code>addmm</code>, and the backward's own operators (<code>mm</code>, <code>gelu_backward</code>, <code>native_layer_norm_backward</code>) arrive too. Whether later operations reach the subclass depends on what it returns: rewrapped results spread the subclass to everything downstream (as DTensor does); plain results (as an int8 weight's matmul does) keep it to the weight. Reading section 5 explains each.</div>
-</div>
 <div class="tab" id="t-more" role="tabpanel" hidden>
 <section id="s-more">
-<p class="lead">This page's tabs, the parent topic and its tabs, the sibling pages, the knowledge base pages next door, and the best outside resources, each with an approximate time. Links checked on 2026-10-13.</p>
+<p class="lead">This page's tabs, the parent topic and its tabs, the sibling pages, the knowledge base pages next door, and the best outside resources, each with an approximate time. Links checked on 2026-10-13; times updated 2026-10-23.</p>
 <h3>This page</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>Custom operators from zero (schema, fake, autograd, kernels per device, opcheck), what compile and export do with them and two traps that drop gradients, C++ extensions, Metal, Triton and Helion kernels, tensor subclasses and how DTensor and torchao's are built, dispatch modes, PrivateUse1, a decision table. <span class="rt">about 55 min with the drills</span></p></div>
+<div class="sp"><div class="n"><a href="#" data-tab="t-read">Reading</a></div><p>Custom operators from zero (schema, fake, autograd, kernels per device, opcheck), what compile and export do with them and two traps that drop gradients, C++ extensions, Metal, Triton and Helion kernels, tensor subclasses with a call-by-call tracer, dispatch modes; closed blocks for sources, PrivateUse1, NVIDIA GPUs and interview rehearsal. <span class="rt">31 min, plus 13 in closed details</span></p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-ext-pick">Which extension point?</a></div><p>Two or three questions to the lightest hook that works, with a skeleton, what to register, how to test, and this page's evidence. <span class="rt">5 min per question you bring</span></p></div>
 <div class="sp"><div class="n"><a href="#" data-tab="t-ext-op">Custom-op lab</a></div><p>Ten registrations of one C++ GELU in the running example, side by side: eager gradients, Dynamo graphs and breaks, compiled training, the four opcheck tests. <span class="rt">15 min</span></p></div>
-<div class="sp"><div class="n"><a href="#" data-tab="t-ext-sub">Subclass tracer</a></div><p>One training step replayed call by call as a __torch_function__ subclass and a __torch_dispatch__ subclass saw it. <span class="rt">10 min</span></p></div>
 </div>
 <h3>The parent topic and its tabs</h3>
 <div class="grid">
@@ -830,21 +787,22 @@ It refuses to mix with plain tensors rather than guess a placement: <span class=
 </div>
 <h3>Sibling pages</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f85c17b0d0d81138595c1c6cd52f795" target="_blank" rel="noopener noreferrer">Tensors, the dispatcher and autograd</a></div><p>The machine this page plugs into: dispatch keys, tables, fallthroughs, the autograd fallback (Reading 2.4), fake tensors, autograd.Function; its Dispatcher walker uses an instrumented custom op. <span class="rt">28 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8123a232d75bd7339ecb" target="_blank" rel="noopener noreferrer">torch.compile from the user's side</a></div><p>Dynamo, guards, graph breaks, AOTAutograd, Inductor, export, caches. <span class="rt">32 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f85c17b0d0d81138595c1c6cd52f795" target="_blank" rel="noopener noreferrer">Tensors, the dispatcher and autograd</a></div><p>The machine this page plugs into: dispatch keys, tables, fallthroughs, fallbacks (Reading 2.3), fake tensors, autograd.Function; its Reading 2.2 records one call key by key with a dispatch mode. <span class="rt">24 min, plus 37 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8123a232d75bd7339ecb" target="_blank" rel="noopener noreferrer">torch.compile from the user's side</a></div><p>Dynamo, guards, graph breaks, AOTAutograd, Inductor, export, caches. <span class="rt">32 min, plus 14 in closed details</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d815e85aff8decd8f35ab" target="_blank" rel="noopener noreferrer">Distributed PyTorch</a></div><p>DTensor's placements and sharding propagation, FSDP2 and TP built on it. <span class="rt">30 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d810d9e1fdf9ec942c20d" target="_blank" rel="noopener noreferrer">Making training fast</a></div><p>Profiling, memory, attention backends and torchao in practice. <span class="rt">26 min</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81019d98f99978dc26f6" target="_blank" rel="noopener noreferrer">Libraries on top of PyTorch</a></div><p>Where these extension points show up inside HF, torchtitan, Lightning and others. <span class="rt">29 min</span></p></div>
 </div>
 <h3>Next door in the knowledge base</h3>
 <div class="grid">
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81729d15ed4d1a4461b3" target="_blank" rel="noopener noreferrer">Triton and Gluon</a></div><p>Writing the Triton kernels you would register with triton_op. <span class="rt">29 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a></div><p>CUDA kernels and FlashAttention, the kernels behind a CUDAExtension. <span class="rt">37 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a></div><p>PTX, SASS, NVRTC, and code generation below Inductor. <span class="rt">28 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a></div><p>The number formats that torchao's subclasses implement. <span class="rt">23 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81eba08eef56b3e3b4eb" target="_blank" rel="noopener noreferrer">PEFT</a></div><p>QLoRA and the frozen quantized base weights of section 5.3. <span class="rt">20 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81c39f34d5e070d783c1" target="_blank" rel="noopener noreferrer">Topic: cuda-and-gpu-programming</a></div><p>The map of GPU programming: one PyTorch call followed down to the instructions, and the five ways to get a kernel compared. <span class="rt">25 min, plus 4 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81729d15ed4d1a4461b3" target="_blank" rel="noopener noreferrer">Triton and Gluon</a></div><p>Writing the Triton kernels you would register with triton_op. <span class="rt">37 min, plus 8 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81b9ab89c1bb7238cb6c" target="_blank" rel="noopener noreferrer">Writing kernels</a></div><p>CUDA kernels and FlashAttention, the kernels behind a CUDAExtension. <span class="rt">31 min, plus 15 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81ddbc00fac9e8a2ff89" target="_blank" rel="noopener noreferrer">The compiler stack</a></div><p>PTX, SASS, NVRTC, and code generation below Inductor. <span class="rt">37 min, plus 24 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a></div><p>The number formats that torchao's subclasses implement. <span class="rt">25 min, plus 10 in closed details</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81eba08eef56b3e3b4eb" target="_blank" rel="noopener noreferrer">PEFT</a></div><p>QLoRA and the frozen quantized base weights of section 5.3. <span class="rt">22 min, plus 2 in closed details</span></p></div>
 <div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81faad1ef390b0e54d08" target="_blank" rel="noopener noreferrer">Performance math</a></div><p>FLOPs and MFU, for reading FlopCounterMode's count. <span class="rt">25 min</span></p></div>
-<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a></div><p>Timing a custom kernel honestly. <span class="rt">30 min</span></p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d813da895ffee55b0457c" target="_blank" rel="noopener noreferrer">Profiling, benchmarking and correctness</a></div><p>Timing a custom kernel honestly. <span class="rt">25 min, plus 9 in closed details</span></p></div>
 </div>
 <h3>Outside resources</h3>
 <div class="grid">
@@ -867,9 +825,9 @@ It refuses to mix with plain tensors rather than guess a placement: <span class=
 <div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
 <script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
 <script>/* 21_js_rd_common.js */
-// ---- Reading tab (Topic: evaluation-and-llm-judges): shared helpers, copied from Topic: benchmarks and the step-animation controller (play, pause, step, scrub, speed) ----
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
 // Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// plays once the first time it scrolls into view, and never autoplays under prefers-reduced-motion.
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -900,7 +858,7 @@ window.RD=(function(){
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      if(st.vis&&!st.started&&card.offsetParent){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
@@ -958,7 +916,17 @@ window.EXTU=(function(){
   const tbl=(head,rows,cls)=>'<div class="tw"><table class="rd-tbl '+(cls||'')+'"><thead><tr>'+head.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
   function bars(el,items,unit,dec){const mx=Math.max(...items.map(i=>i.v));
     el.innerHTML=items.map(i=>'<div class="row'+(i.hl?' hl':'')+'"><div class="nm">'+i.k+(i.sub?'<span class="ml">'+i.sub+'</span>':'')+'</div><div class="track"><div class="fill" style="width:'+(100*i.v/mx).toFixed(1)+'%;background:'+(i.c||'var(--acc)')+'"></div></div><div class="val">'+i.v.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec})+' '+unit+'</div></div>').join('')}
-  return {get,fmt,fill,quotes,tbl,bars,esc};
+  // horizontal bars drawn as SVG at the measured width; items {k (plain text), sub, v, c}
+  function svgBars(el,items,unit,dec){const W=RD.width(el),wide=W>=560,mx=Math.max(...items.map(i=>i.v));
+    const lw=wide?Math.min(230,W*0.34):0,vw=78,bx=lw+4,bw=Math.max(60,W-bx-vw-6),rh=wide?34:46;let y=4,b='';
+    items.forEach(i=>{const ty=wide?y+13:y+12,by=wide?y+3:y+18,w=Math.max(2,bw*i.v/mx);
+      if(wide){b+=RD.t(0,ty,esc(i.k),{fs:12,fill:'var(--ink)'});if(i.sub)b+=RD.t(0,ty+14,esc(i.sub),{fs:11,fill:'var(--mute)'})}
+      else{b+=RD.t(0,ty,esc(i.k)+(i.sub?'  ('+esc(i.sub)+')':''),{fs:11.5,fill:'var(--ink)'})}
+      b+='<rect x="'+bx+'" y="'+by+'" width="'+w.toFixed(1)+'" height="16" rx="3" fill="'+(i.c||'var(--acc)')+'"/>';
+      b+=RD.t(bx+w+5,by+12.5,i.v.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec})+' '+unit,{fs:12,fill:'var(--ink)',w:600});
+      y+=rh});
+    el.innerHTML=RD.svg(W,y+2,b,'bar chart')}
+  return {get,fmt,fill,quotes,tbl,bars,svgBars,esc};
 })();
 (function(){
   const E=window.EXT,U=window.EXTU,esc=RD.esc,$=id=>document.getElementById(id);
@@ -991,10 +959,11 @@ window.EXTU=(function(){
   $('ext-cppdump').textContent=(E.dispatch_cpp||[]).join('\n');
   // 3.2 per-call bars
   const callNote={'small (64)':'Per call on 64 floats: almost all of it is overhead (Python, dispatcher, allocation).','mlp (8,64,1024)':'Per call on one MLP activation of the running example (524,288 floats): the kernel dominates.'};
-  function drawCalls(m){const c=E.timing.calls_cpu[m];const us=m.startsWith('small');
-    U.bars($('ext-call-bars'),Object.entries(c).map(([k,v],i)=>({k:esc(k),v:us?v.median_us:v.median_us/1000,c:['var(--c3)','var(--c1)','var(--c4)','var(--c2)'][i],sub:'runs '+v.runs_us.map(x=>us?x.toFixed(2):(x/1000).toFixed(2)).join(', ')})),us?'&micro;s':'ms',2);
+  let callM='small (64)';
+  function drawCalls(m){if(m)callM=m;m=callM;const c=E.timing.calls_cpu[m];const us=m.startsWith('small');
+    U.svgBars($('ext-call-bars'),Object.entries(c).map(([k,v],i)=>({k,v:us?v.median_us:v.median_us/1000,c:['var(--c3)','var(--c1)','var(--c4)','var(--c2)'][i],sub:'runs '+v.runs_us.map(x=>us?x.toFixed(2):(x/1000).toFixed(2)).join(', ')})),us?'\u00b5s':'ms',2);
     $('ext-call-note').textContent=callNote[m]}
-  RD.seg($('ext-call-seg'),drawCalls);drawCalls('small (64)');
+  RD.seg($('ext-call-seg'),drawCalls);drawCalls();RD.onRender(()=>drawCalls());RD.onResize(()=>drawCalls());
   // 4.1 shader, 4.3 helion
   $('ext-shader').textContent=E.mps.shader||'';
   const hk=E.helion.kernels;
@@ -1015,7 +984,8 @@ window.EXTU=(function(){
   $('ext-aot').textContent=q.aot_fw_head.slice(2,7).join('\n');
   const ao=E.real.find(r=>r.aten_calls);$('ext-ao-calls').innerHTML=ao?ao.aten_calls.map(c=>'<code>'+esc(c)+'</code>').join(', '):'';
   const fw=E.timing.int8_forward_cpu;
-  U.bars($('ext-int8-bars'),Object.entries(fw).map(([k,v])=>({k:esc(k),v:v.median_ms,c:k.includes('int8')?'var(--c4)':'var(--c1)',sub:'runs '+v.runs_ms.join(', ')})),'ms',2);
+  const drawFw=()=>U.svgBars($('ext-int8-bars'),Object.entries(fw).map(([k,v])=>({k,v:v.median_ms,c:k.includes('int8')?'var(--c4)':'var(--c1)',sub:'runs '+v.runs_ms.join(', ')})),'ms',2);
+  drawFw();RD.onRender(drawFw);RD.onResize(drawFw);
   // 5.5 real subclasses
   $('ext-real').innerHTML=U.tbl(['Tensor','Class','Inner tensors (from __tensor_flatten__)','Bytes'],E.real.map(r=>[esc(r.label),'<code>'+esc((r['class']||'').split('.').pop())+'</code>',
     r.inner?r.inner.map(i=>'<code>'+esc(i.name)+'</code> '+(i.dtype?esc(i.dtype.replace('torch.',''))+' ['+i.shape.join(', ')+']':esc(i.type||''))).join('<br>'):'(plain tensor: its own storage)',
@@ -1074,8 +1044,18 @@ window.EXTU=(function(){
       const col=p.kind==='break'?'border-color:var(--bad);':(p.kind==='graph'||p.kind==='node')?'border-color:'+['','var(--acc)','var(--c4)','var(--c6)','var(--c3)'][p.g]+';':'';
       return '<span class="ext-gbox'+cls+'" style="'+col+st+op+'" title="'+esc(p.label)+'"><span style="font-size:11px">'+(p.kind==='break'?'break':p.kind==='eager'?'eager':'g'+p.g)+' &middot; '+p.ops.length+'</span></span>'};
     const cur=P[i];
-    $('ext-dyn-view').innerHTML='<div class="small mute" style="margin:4px 0">The forward, left to right (box: what ran, and how many operations):</div><div style="display:flex;flex-wrap:wrap;gap:2px">'+P.map(box).join('')+'</div>'+
-      '<div class="ext-lane" style="margin-top:8px"><div class="nm">'+esc(cur.label)+'</div><div class="ext-ops">'+cur.ops.map(o=>'<span class="'+(cur.kind==='break'?'brk':cur.kind==='eager'?'e':cur.kind==='node'?'g cur':'g')+'">'+esc(o)+'</span>').join('')+'</div></div>';
+    // the forward as one strip, segment widths proportional to operations
+    const el=$('ext-dyn-svg'),Wd=RD.width(el),tot=P.reduce((a,p)=>a+Math.max(p.ops.length,1.5),0),sx=(Wd-2)/tot;
+    const gcol=['','var(--acc)','var(--c4)','var(--c6)','var(--c3)'];let x=1,b='';const marks=[];
+    P.forEach((p,j)=>{const w=Math.max(p.ops.length,1.5)*sx;const col=p.kind==='break'?'var(--bad)':p.kind==='eager'?'var(--c5)':gcol[p.g];
+      b+='<rect x="'+x.toFixed(1)+'" y="4" width="'+Math.max(1,w-1).toFixed(1)+'" height="26" rx="2" fill="'+col+'" opacity="'+(j>i?0.25:j===i?1:0.75)+'"'+(j===i?' stroke="var(--ink)" stroke-width="2"':'')+'/>';
+      if(p.b!==undefined&&(j===0||P[j-1].b!==p.b))marks.push([x,'block '+p.b]);
+      x+=w});
+    const narrow=Wd<520;
+    marks.forEach(([mx,l])=>{b+='<line x1="'+mx.toFixed(1)+'" x2="'+mx.toFixed(1)+'" y1="32" y2="38" stroke="var(--mute)"/>'+RD.t(mx+2,49,narrow?l.replace('block ','b'):l,{fs:11,fill:'var(--mute)'})});
+    b+=RD.t(Wd-2,49,narrow?'head':'head, loss',{fs:11,fill:'var(--mute)',a:'end'});
+    el.innerHTML=RD.svg(Wd,54,b,'the forward pass as compiled graphs and eager stretches');
+    $('ext-dyn-view').innerHTML='<div class="ext-lane" style="margin-top:4px"><div class="nm">'+esc(cur.label)+'</div><div class="ext-ops">'+cur.ops.map(o=>'<span class="'+(cur.kind==='break'?'brk':cur.kind==='eager'?'e':cur.kind==='node'?'g cur':'g')+'">'+esc(o)+'</span>').join('')+'</div></div>';
     const c=CAP[dmode](i);$('ext-dyn-cap').innerHTML='<div class="t">'+c[0]+'</div><p>'+c[1]+'</p>';
     $('ext-dyn-cnt').innerHTML=RD.stat('Graphs compiled',seen.size,'unique, so far')+RD.stat('Eager stretches run',eager,dmode==='pybind'?'GELU once per block, plus the outer frame':'none')+RD.stat('Operations in graphs',inG,'so far')+RD.stat('Operations run eagerly',inE,'so far');}
   const dan=RD.anim({card:'ext-dyn-card',ctl:'ext-dyn-ctl',n:PS.pybind.length,draw:ddraw,ms:1100,label:'Step of the forward'});
@@ -1097,11 +1077,182 @@ window.EXTU=(function(){
   function qdraw(i){const s=S[qm][i],mx=W*4+W*4;
     const seg=(n,c,l)=>n?'<span style="width:'+(100*n/mx).toFixed(1)+'%;background:'+c+'">'+l+'</span>':'';
     $('ext-q8-cap').innerHTML='<div class="t">'+s.t+'</div><p>'+s.p+'</p>';
-    $('ext-q8-view').innerHTML='<div class="small mute">Weight memory, to scale (full width = 2 MiB):</div><div class="ext-bytes" style="background:var(--soft)">'+seg(s.w,qm==='f32'?'var(--c1)':'var(--c4)',qm==='f32'?'float32 weight':'int8 + scales')+seg(s.tmp,'var(--c2)','float32 temporary')+'</div>'+
-      '<div class="ext-ops" style="margin-top:6px">'+S[qm].slice(1).map((x,j)=>'<span class="'+(j+1===i?'g cur':j+1<i?'g':'fut')+'">'+x.op+'</span>').join('')+'</div>';
+    const el=$('ext-q8-view'),Wq=RD.width(el),bw=Wq-2,sc=bw/mx;let b=RD.t(0,12,'Weight memory, to scale (full width = 2 MiB)',{fs:11,fill:'var(--mute)'});
+    b+='<rect x="1" y="18" width="'+bw+'" height="24" rx="3" fill="var(--soft)" stroke="var(--line)"/>';
+    const wcol=qm==='f32'?'var(--c1)':'var(--c4)',ww=s.w*sc;
+    b+='<rect x="1" y="18" width="'+ww.toFixed(1)+'" height="24" rx="3" fill="'+wcol+'"/>';
+    const lab=qm==='f32'?'float32 weight':'int8 + scales';
+    b+=ww>110?RD.t(7,34,lab,{fs:11.5,fill:'var(--bg)',w:600}):RD.t(1,56,lab,{fs:11,fill:wcol,w:600});
+    if(s.tmp){const tw=s.tmp*sc;b+='<rect x="'+(1+ww).toFixed(1)+'" y="18" width="'+tw.toFixed(1)+'" height="24" rx="3" fill="var(--c2)"/>'+RD.t(1+ww+6,34,'float32 temporary',{fs:11.5,fill:'var(--bg)',w:600})}
+    const ops=S[qm].slice(1),gap=4,ow=Math.min(84,(Wq-gap*ops.length)/ops.length);
+    ops.forEach((x,j)=>{const ox=j*(ow+gap),st=j+1===i?'cur':j+1<i?'done':'fut';
+      b+='<rect x="'+ox.toFixed(1)+'" y="64" width="'+ow.toFixed(1)+'" height="22" rx="4" fill="'+(st==='fut'?'var(--bg)':'var(--acc2)')+'" stroke="'+(st==='cur'?'var(--ink)':st==='done'?'var(--acc)':'var(--line)')+'" stroke-width="'+(st==='cur'?2:1)+'" opacity="'+(st==='fut'?0.5:1)+'"/>'+
+        RD.t(ox+ow/2,79,x.op,{fs:11,fill:'var(--ink)',a:'middle'})});
+    el.innerHTML=RD.svg(Wq,90,b,'weight bytes and the operator sequence');
     $('ext-q8-cnt').innerHTML=RD.stat('Weight stored',B(s.w),qm==='f32'?'float32':'int8 + scales')+RD.stat('Weight temporary',B(s.tmp),s.tmp?'alive during the multiply':'none')+RD.stat('Weight bytes read so far',B(s.rd),'per forward call')+RD.stat('Activation in / out',B(X)+' / '+B(Y),'unchanged by the format');}
   const qan=RD.anim({card:'ext-q8-card',ctl:'ext-q8-ctl',n:S.f32.length,draw:qdraw,ms:1500,label:'Step'});
   RD.seg($('ext-q8-seg'),m=>{qm=m;qan.reset(S[m].length)});
+  RD.onResize(()=>{dan.redraw();qan.redraw()});
+})();
+</script>
+<script>/* 25_ext_rd_sub.js */
+// ---- Reading 5.1 (moved from the old Subclass tracer tab, 2026-10-23): recorded calls at the __torch_function__ and __torch_dispatch__ levels ----
+(function(){
+  if(!document.getElementById('es-card'))return;
+  const E=window.EXT,esc=RD.esc,$=id=>document.getElementById(id),U=window.EXTU;
+  const LV=E.levels;let mode='function';
+  const PH={s:['setup','s'],f:['forward','f'],b:['backward','b'],a:['after','s']};
+  const STACK=[['py','Python call','F.linear(x, w), loss.backward()'],['tf','__torch_function__','sees the Python function'],['ag','Autocast, Autograd, ADInplaceOrView','records the backward node'],['td','Python key: __torch_dispatch__','sees the ATen operator'],['k','CPU kernel','the arithmetic']];
+  const CAPS={function:['A __torch_function__ subclass','Calls arrive as Python functions, before autograd. Its results are of the subclass type too, so after the weight\'s first use the whole forward downstream passes through it.'],
+    dispatch:['A __torch_dispatch__ wrapper that rewraps','Calls arrive as ATen operators, below autograd. Results are rewrapped, so the subclass spreads downstream, and backward\'s ATen operators arrive as well.'],
+    dispatch_unwrap:['A __torch_dispatch__ wrapper with plain results','Only operators whose arguments include the weight itself arrive: its transpose. The matmul that follows already receives a plain tensor.']};
+  function ev(i){return LV[mode].ev[i]}
+  function draw(i){const L=LV[mode],e=ev(i);if(!e)return;
+    const lvl=e[0]==='f'?'tf':'td',ph=PH[e[1]];
+    const el=$('es-stack'),W=RD.width(el),rh=40;let sb='';
+    STACK.forEach((s,j)=>{const y=j*(rh+6)+2,on=s[0]===lvl,hook=s[0]==='tf'||s[0]==='td';
+      sb+='<rect x="1" y="'+y+'" width="'+(W-2)+'" height="'+rh+'" rx="6" fill="'+(on?'var(--acc2)':'var(--bg)')+'" stroke="'+(on?'var(--acc)':'var(--line)')+'" stroke-width="'+(on?2:1)+'" opacity="'+(hook&&!on?0.55:1)+'"/>'+
+        RD.t(9,y+16,esc(s[1]),{fs:12,fill:'var(--ink)',w:600})+RD.t(9,y+32,esc(s[2]),{fs:11,fill:'var(--mute)'});
+      if(j<STACK.length-1)sb+='<path d="M'+(W/2)+' '+(y+rh)+' v6" stroke="var(--mute)"/>'});
+    el.innerHTML=RD.svg(W,STACK.length*(rh+6),sb,'where the call was caught');
+    $('es-now').innerHTML='<span class="es-ph '+ph[1]+'">'+ph[0]+'</span><span class="small mute">call '+(i+1)+' of '+L.ev.length+'</span><div class="es-op">'+esc(e[2])+'</div><div class="small mute">subclass argument position'+(e[3].length>1?'s':'')+': '+(e[3].length?e[3].join(', '):'none (a method on the subclass)')+'</div>';
+    const lo=Math.max(0,i-9);$('es-log').innerHTML=L.ev.slice(lo,i+1).map((x,j)=>'<div class="'+(lo+j===i?'cur ':'')+(x[1]==='b'?'b':'')+'">'+(lo+j+1)+'. '+esc(x[2])+'</div>').join('');
+    let s=0,f=0,b=0;const seen=new Set();for(let j=0;j<=i;j++){const x=L.ev[j];if(x[1]==='f')f++;else if(x[1]==='b')b++;else s++;seen.add(x[2])}
+    $('es-cnt').innerHTML=RD.stat('Setup calls',s,'nn.Parameter creation')+RD.stat('Forward calls',f+' / '+L.nf,'so far / total')+RD.stat('Backward calls',b+' / '+L.nb,'so far / total')+RD.stat('Distinct operations',seen.size,'so far');
+    $('es-cap').innerHTML='<div class="t">'+CAPS[mode][0]+'</div><p>'+CAPS[mode][1]+' Loss: '+L.loss.toFixed(6)+' (a <code>'+esc(L.loss_type)+'</code>); the weight\'s gradient arrives as a <code>'+esc(L.grad_type)+'</code>.</p>';}
+  // the shared step controller (play, pause, step, scrub, speed); it lives in RD and plays only while visible
+  const an=RD.anim({card:'es-card',ctl:'es-ctl',n:LV.function.ev.length,draw,ms:420,label:'Recorded call'});
+  RD.seg($('es-seg'),m=>{mode=m;an.reset(LV[m].ev.length);hist()});
+  $('es-jump').addEventListener('click',()=>{const k=LV[mode].ev.findIndex(x=>x[1]==='b');if(k>=0)an.go(k)});
+  let hph='f';
+  function hist(){const H=LV[mode].hist,items=Object.entries(H).filter(([k])=>k.startsWith(hph==='f'?'forward:':'backward:')).map(([k,v])=>({k:'<code>'+esc(k.split(':').slice(1).join(':'))+'</code>',v,c:hph==='f'?'var(--c1)':'var(--c2)'})).sort((a,b)=>b.v-a.v);
+    if(!items.length){$('es-hist').innerHTML='<p class="small mute">No calls reached the subclass in this phase.</p>';return}
+    U.bars($('es-hist'),items,'',0)}
+  RD.seg($('es-hseg'),m=>{hph=m;hist()});hist();
+  RD.onRender(()=>an.redraw());RD.onResize(()=>an.redraw());
+})();
+</script>
+<script>/* 26_ext_rd_fig.js */
+// ---- Reading figures (2026-10-23): hero (slots on the call path), the custom-op table stepper (1.1),
+// the cache trap (2.3) and what the compiler sees for three ways of plugging a kernel (4). All SVG, drawn at the measured width.
+(function(){
+  if(!document.getElementById('ext-hero'))return;
+  const E=window.EXT,esc=RD.esc,$=id=>document.getElementById(id),T=RD.t;
+  const box=(x,y,w,h,o)=>{o=o||{};return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(1,w).toFixed(1)+'" height="'+h+'" rx="'+(o.r||6)+'" fill="'+(o.fill||'var(--bg)')+'" stroke="'+(o.stroke||'var(--line)')+'" stroke-width="'+(o.sw||1)+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
+  const arrow=(x,y1,y2)=>'<path d="M'+x+' '+y1+' V'+(y2-4)+'" stroke="var(--mute)" stroke-width="1.4"/><path d="M'+(x-4)+' '+(y2-6)+' L'+x+' '+y2+' L'+(x+4)+' '+(y2-6)+'" fill="none" stroke="var(--mute)" stroke-width="1.4"/>';
+
+  // ---------- hero: one call path, five slots ----------
+  const HERO=[
+    ['plain','Your code','y = gelu(x);  out = F.linear(x, w)','',''],
+    ['hook','Python API','the function you called','__torch_function__ · TorchFunctionMode','intercept Python calls on your type'],
+    ['fact','Autograd key','records the backward node','register_autograd','fact 2: the gradient'],
+    ['fact','ADInplaceOrView key','version counters and views','mutates_args in the schema','fact 3: what the op writes'],
+    ['hook','Python key','hands the ATen operator to Python','__torch_dispatch__ · TorchDispatchMode','tensor subclasses, dispatch modes'],
+    ['split']];
+  const LAST=[['fact','Fake (Meta) kernel','used while compile and export trace','register_fake','fact 1: the output’s shape'],
+              ['hook','Backend kernel','CPU · MPS · CUDA · PrivateUse1','register_kernel · TORCH_LIBRARY_IMPL','C++, Metal, Triton (triton_op), Helion']];
+  function heroRow(r,x,y,w,h,wide){let b='';const k=r[0];
+    b+=box(x,y,w,h,k==='fact'?{fill:'var(--acc2)',stroke:'var(--acc)',sw:2}:k==='hook'?{stroke:'var(--c4)',sw:1.5,dash:'5 3'}:{fill:'var(--soft)'});
+    if(wide){const hx=x+w*0.47;
+      b+=T(x+12,y+17,esc(r[1]),{fs:12.5,fill:'var(--ink)',w:600})+T(x+12,y+33,esc(r[2]),{fs:11,fill:'var(--mute)'});
+      if(r[3])b+=T(hx,y+17,esc(r[3]),{fs:12,fill:k==='fact'?'var(--acc)':'var(--ink)',w:600})+T(hx,y+33,esc(r[4]),{fs:11,fill:k==='fact'?'var(--acc)':'var(--mute)'});
+    }else{
+      b+=T(x+10,y+16,esc(r[1]),{fs:12,fill:'var(--ink)',w:600})+T(x+10,y+31,esc(r[2]),{fs:11,fill:'var(--mute)'});
+      if(r[3])b+=T(x+10,y+48,esc(r[3]),{fs:11.5,fill:k==='fact'?'var(--acc)':'var(--ink)',w:600})+T(x+10,y+63,esc(r[4]),{fs:11,fill:k==='fact'?'var(--acc)':'var(--mute)'});
+    }return b}
+  function hero(){const el=$('ext-hero'),W=RD.width(el),wide=W>=620,g=12;let y=2,b='';
+    HERO.forEach((r,j)=>{
+      if(r[0]==='split')return;
+      const h=wide?42:(r[3]?70:38);
+      b+=heroRow(r,1,y,W-2,h,wide);y+=h;b+=arrow(28,y,y+g);y+=g});
+    if(wide){const gg=30,w=(W-2-gg)/2,h=70;
+      LAST.forEach((r,j)=>{b+=heroRow(r,1+j*(w+gg),y,w,h,false)});
+      b+=T(1+w+gg/2,y+h/2+4,'or',{fs:11,fill:'var(--mute)',a:'middle'});y+=h;
+    }else{LAST.forEach((r,j)=>{const h=70;b+=heroRow(r,1,y,W-2,h,false);y+=h;if(j===0){b+=T(W/2,y+11,'or, when the call runs for real',{fs:11,fill:'var(--mute)',a:'middle'});y+=16}})}
+    el.innerHTML=RD.svg(W,y+2,b,'The call path from your code through the Python API, the autograd, ADInplaceOrView and Python dispatch keys, to a fake or real kernel, with the extension point at each slot')}
+  hero();RD.onRender(hero);RD.onResize(hero);
+
+  // ---------- 1.1: the operator's table, one registration at a time ----------
+  if($('ext-tbl-card')){
+    const VAR=['kernel_only','kernel_fake','full'];
+    const STEP=[
+      ['@custom_op("ext::gelu", mutates_args=())','The decorator defines the operator and registers your function as its kernel for every device. It also registers a fake slot and an autograd slot that raise. Eager forward runs; eager backward and torch.compile both stop.'],
+      ['+ gelu.register_fake','The fake fills the Meta slot: given input shapes it returns an empty output of the right shape. Dynamo can now trace the op as one node, but AOTAutograd cannot build the backward graph.'],
+      ['+ gelu.register_autograd','The formula fills the Autograd slot. Eager and compiled training both work, every parameter gets a gradient, and opcheck passes all four tests.']];
+    function slots(i){return [
+      ['CompositeExplicitAutograd','gelu: your kernel, every device','on'],
+      ['Meta (the fake)',i>=1?'torch.empty_like(x)':'raises: no fake registered',i>=1?'new':'bad'],
+      ['Autograd',i>=2?'setup_context + backward':'raises at backward',i>=2?'new':'bad'],
+      ['ADInplaceOrView','none: mutates_args=()','dim']]}
+    function results(i){const v=E.variants[VAR[i]];const oc=Object.values(v.opcheck||{});const np=oc.filter(o=>o&&o.ok).length;
+      return [['eager forward',true,'loss '+v.loss],
+        ['eager backward',!v.eager_err,v.eager_err?'no autograd formula':v.with_grad+' of '+v.n_params+' parameters'],
+        ['torch.compile trace',v.graphs!=null,v.graphs!=null?v.graphs+' graph, '+v.breaks+' breaks':'stops: no fake'],
+        ['compiled training',!!(v.comp_ok&&v.comp_grad_diff<1e-3),v.comp_ok?'gradients match eager':v.graphs==null?'fails: no fake':'fails building backward'],
+        ['opcheck',np===oc.length,np+' of '+oc.length+' tests pass']]}
+    function draw(i){const el=$('ext-tbl-view'),W=RD.width(el),wide=W>=640;let b='',y=2;
+      const tw=wide?W*0.56:W-2,rh=wide?32:42;
+      b+=T(1,13,'The operator’s slots',{fs:11,fill:'var(--mute)'});y=20;
+      slots(i).forEach(s=>{const st=s[2];
+        b+=box(1,y,tw,rh-4,{fill:st==='new'?'var(--acc2)':'var(--bg)',stroke:st==='new'?'var(--acc)':st==='bad'?'var(--bad)':'var(--line)',sw:st==='new'?2:1,op:st==='dim'?0.55:1});
+        if(wide){b+=T(9,y+18,esc(s[0]),{fs:11.5,fill:'var(--mute)'})+T(9+tw*0.46,y+18,esc(s[1]),{fs:11.5,fill:st==='bad'?'var(--bad)':'var(--ink)',w:st==='new'?600:400})}
+        else{b+=T(9,y+15,esc(s[0]),{fs:11,fill:'var(--mute)'})+T(9,y+31,esc(s[1]),{fs:11.5,fill:st==='bad'?'var(--bad)':'var(--ink)',w:st==='new'?600:400})}
+        y+=rh});
+      let rx=1,ry=20;if(wide){rx=tw+18}else{ry=y+10;b+=T(1,ry-1,'What works now',{fs:11,fill:'var(--mute)'});ry+=7}
+      if(wide)b+=T(rx,13,'What works now (recorded)',{fs:11,fill:'var(--mute)'});
+      results(i).forEach(r=>{const c=r[1]?'var(--good)':'var(--bad)';
+        b+='<circle cx="'+(rx+7)+'" cy="'+(ry+9)+'" r="6" fill="'+c+'"/>'+T(rx+7,ry+13,r[1]?'✓':'✗',{fs:10,fill:'var(--bg)',a:'middle',w:700});
+        b+=T(rx+19,ry+13,esc(r[0])+':',{fs:11.5,fill:'var(--ink)',w:600})+T(rx+19+(wide?122:122),ry+13,esc(r[2]),{fs:11.5,fill:c});ry+=24});
+      el.innerHTML=RD.svg(W,Math.max(y,ry)+4,b,'dispatch slots of ext::gelu and what works');
+      $('ext-tbl-cap').innerHTML='<div class="t">Step '+(i+1)+' of 3: <code>'+esc(STEP[i][0])+'</code></div><p>'+STEP[i][1]+'</p>'}
+    const an=RD.anim({card:'ext-tbl-card',ctl:'ext-tbl-ctl',n:3,draw,ms:2200,label:'Registration step'});
+    RD.onResize(()=>an.redraw());
+  }
+
+  // ---------- 2.3: four processes, one cache ----------
+  if($('ext-trap-svg')){
+    const LBL=['registers after a first trace','registers at import','at import; AOTAutograd cache off','at import; all caches off'];
+    const ACT=['writes the broken backward','reads it: cache hit','bypasses the AOTAutograd cache','bypasses every cache'];
+    function trap(){const el=$('ext-trap-svg'),W=RD.width(el),wide=W>=600,cx=W-16;let b='',y=2;
+      b+=box(1,y,W-2,30,{fill:'var(--soft)',stroke:'var(--c5)',sw:1.5})+T(10,y+19,wide?'Shared compile cache on disk (FX graph cache + AOTAutograd cache)':'Shared compile cache on disk',{fs:wide?12:11.5,fill:'var(--ink)',w:600});
+      y+=44;
+      E.trap.forEach((r,j)=>{const bad=r.no_grad_params>0,h=wide?40:54;const w=W-40;
+        b+=box(1,y,w,h,{stroke:bad?'var(--bad)':'var(--good)',sw:1.5});
+        b+=T(9,y+16,'Process '+(j+1)+': '+esc(LBL[j]),{fs:wide?12:11.5,fill:'var(--ink)',w:600});
+        const res=r.no_grad_params+' of '+r.params+' parameters get no gradient';
+        if(wide)b+=T(9,y+32,esc(ACT[j]),{fs:11,fill:'var(--mute)'})+T(w-6,y+32,res,{fs:11.5,fill:bad?'var(--bad)':'var(--good)',a:'end',w:600});
+        else b+=T(9,y+31,esc(ACT[j]),{fs:11,fill:'var(--mute)'})+T(9,y+47,res,{fs:11.5,fill:bad?'var(--bad)':'var(--good)',w:600});
+        // connector to the cache band
+        const my=y+h/2,lx=j===0?W-10:W-26;
+        if(j===0)b+='<path d="M'+(w+1)+' '+my+' H'+lx+' V34" fill="none" stroke="var(--bad)" stroke-width="2"/><path d="M'+(lx-4)+' 41 L'+lx+' 34 L'+(lx+4)+' 41" fill="none" stroke="var(--bad)" stroke-width="2"/>';
+        if(j===1)b+='<path d="M'+lx+' 34 V'+my+' H'+(w+1)+'" fill="none" stroke="var(--c5)" stroke-width="2"/><path d="M'+(w+8)+' '+(my-4)+' L'+(w+2)+' '+my+' L'+(w+8)+' '+(my+4)+'" fill="none" stroke="var(--c5)" stroke-width="2"/>';
+        y+=h+10});
+      el.innerHTML=RD.svg(W,y,b,'four processes sharing one compile cache')}
+    trap();RD.onRender(trap);RD.onResize(trap);
+  }
+
+  // ---------- 4: what the compiler sees ----------
+  if($('ext-plug-svg')){
+    const P=[['custom_op around a kernel','ext::gelu','solid','Opaque: Inductor calls it,','checks metadata, fuses nothing'],
+             ['triton_op + wrap_triton','triton kernel','open','Visible: decomposed into its','launches; Inductor sees kernels'],
+             ['Helion kernel','helion HOP','hop','Traced call: a higher-order op;','1 graph, 0 breaks on MPS']];
+    function plug(){const el=$('ext-plug-svg'),W=RD.width(el),wide=W>=640,g=10;let b='';
+      const pw=wide?(W-2*g)/3:W-2,ph=104;
+      P.forEach((p,j)=>{const x=wide?j*(pw+g):1,y=wide?2:2+j*(ph+g);
+        b+=box(x+0.5,y,pw-1,ph,{fill:'var(--bg)'});
+        b+=T(x+10,y+17,esc(p[0]),{fs:12,fill:'var(--ink)',w:600});
+        const bw=Math.min(64,(pw-40)/3.4),mid=pw-24-2*bw-16,by=y+30,bh=28;
+        const x1=x+10,x2=x1+bw+8,x3=x2+mid+8;
+        b+=box(x1,by,bw,bh,{fill:'var(--soft)'})+T(x1+bw/2,by+18,'fc',{fs:11,fill:'var(--ink)',a:'middle'});
+        b+=box(x3,by,bw,bh,{fill:'var(--soft)'})+T(x3+bw/2,by+18,'proj',{fs:11,fill:'var(--ink)',a:'middle'});
+        if(p[2]==='solid')b+=box(x2,by,mid,bh,{fill:'var(--ink)',stroke:'var(--ink)'})+T(x2+mid/2,by+18,p[1],{fs:11,fill:'var(--bg)',a:'middle',w:600});
+        else if(p[2]==='open')b+=box(x2,by,mid,bh,{fill:'var(--acc2)',stroke:'var(--acc)',sw:1.5,dash:'4 3'})+T(x2+mid/2,by+18,p[1],{fs:11,fill:'var(--ink)',a:'middle',w:600});
+        else b+=box(x2,by,mid,bh,{fill:'var(--soft)',stroke:'var(--c4)',sw:1.5})+T(x2+mid/2,by+18,p[1],{fs:11,fill:'var(--ink)',a:'middle',w:600});
+        b+='<path d="M'+(x1+bw)+' '+(by+14)+' H'+x2+' M'+(x2+mid)+' '+(by+14)+' H'+x3+'" stroke="var(--mute)"/>';
+        b+=T(x+10,y+78,esc(p[3]),{fs:11,fill:'var(--ink)'})+T(x+10,y+93,esc(p[4]),{fs:11,fill:'var(--mute)'})});
+      el.innerHTML=RD.svg(W,wide?ph+4:3*(ph+g),b,'custom_op, triton_op and Helion as the compiler sees them')}
+    plug();RD.onRender(plug);RD.onResize(plug);
+  }
 })();
 </script>
 <script>/* 31_ext_pick.js */
@@ -1178,7 +1329,7 @@ window.EXTU=(function(){
       code:'class MyTensor(torch.Tensor):\n    @staticmethod\n    def __new__(cls, a, b):\n        return torch.Tensor._make_wrapper_subclass(cls, shape, dtype=..., device=...)\n    def __tensor_flatten__(self): return ["a", "b"], meta\n    @staticmethod\n    def __tensor_unflatten__(inner, meta, size, stride): ...\n    __torch_function__ = torch._C._disabled_torch_function_impl\n    @classmethod\n    def __torch_dispatch__(cls, func, types, args=(), kwargs=None): ...',
       reg:['aten.detach returning the subclass (nn.Parameter needs it)','the operators your model calls (find them with a logging mode)','a fallback that dequantizes, or an error'],
       test:['loss and logits against float','torch.compile(fullgraph=True) on the model','count fallback calls'],
-      ev:()=>'Measured here: an int8 weight subclass on the 16 block weights, '+(E.int8.bytes_float/1e6).toFixed(2)+' MB to '+(E.int8.bytes_int8/1e6).toFixed(2)+' MB, 4 ATen operators implemented, 1 graph under compile. Reading 5.3 and 5.4; the <a href="#" data-tab="t-ext-sub">Subclass tracer</a> tab.'},
+      ev:()=>'Measured here: an int8 weight subclass on the 16 block weights, '+(E.int8.bytes_float/1e6).toFixed(2)+' MB to '+(E.int8.bytes_int8/1e6).toFixed(2)+' MB, 4 ATen operators implemented, 1 graph under compile. Reading 5.1 (the call-by-call tracer), 5.3 and 5.4.'},
     r_mode:{h:'A TorchDispatchMode (or one PyTorch ships)',why:'It sees every ATen call inside the with block, forward and backward, whatever the tensors. FakeTensorMode runs without data; FlopCounterMode counts arithmetic.',
       code:'class Recorder(TorchDispatchMode):\n    def __torch_dispatch__(self, func, types, args=(), kwargs=None):\n        self.calls.append(str(func))\n        return func(*args, **(kwargs or {}))',
       reg:['nothing'],test:['compare with a known count (e.g. FLOPs = 6 x matmul weights x tokens)'],
@@ -1188,7 +1339,7 @@ window.EXTU=(function(){
       reg:['nothing'],test:['check it sees what you expect: backward is invisible'],ev:()=>'Measured here with a subclass at the same level: '+E.levels.function.nf+' forward calls, '+E.levels.function.nb+' in backward. Reading section 5.1.'},
     r_device:{h:'An out-of-tree backend on PrivateUse1',why:'The supported route for hardware PyTorch does not know: kernels at the PrivateUse1 key from a C++ extension, a renamed device, an allocator, streams and a compiler backend. torch_openreg in PyTorch\'s tests is the reference.',
       code:'torch.utils.rename_privateuse1_backend("mydev")\ntorch.utils.generate_methods_for_privateuse1_backend()\n# C++: TORCH_LIBRARY_IMPL(aten, PrivateUse1, m) { m.impl("add.Tensor", &my_add); ... }',
-      reg:['ATen kernels at PrivateUse1','allocator, device guard, streams'],test:['PyTorch\'s own test suite against the device'],ev:'Not run here. Reading section 7.'}
+      reg:['ATen kernels at PrivateUse1','allocator, device guard, streams'],test:['PyTorch\'s own test suite against the device'],ev:'Not run here. Reading, Depth (closed block on PrivateUse1).'}
   };
   Q.device={t:'',o:[]};
   let trail=[];
@@ -1271,39 +1422,8 @@ window.EXTU=(function(){
   draw();
 })();
 </script>
-<script>/* 33_ext_sub.js */
-// ---- Subclass tracer tab: recorded calls at the __torch_function__ and __torch_dispatch__ levels ----
-(function(){
-  const E=window.EXT,esc=RD.esc,$=id=>document.getElementById(id),U=window.EXTU;
-  const LV=E.levels;let mode='function';
-  const PH={s:['setup','s'],f:['forward','f'],b:['backward','b'],a:['after','s']};
-  const STACK=[['py','Python call','F.linear(x, w), Tensor.add, loss.backward()'],['tf','__torch_function__','the subclass sees the Python function'],['ag','Autocast, Autograd, ADInplaceOrView','records the backward node; views'],['td','Python key: __torch_dispatch__','the subclass sees the ATen operator'],['k','CPU kernel','the arithmetic']];
-  const CAPS={function:['A __torch_function__ subclass','Calls arrive as Python functions, before autograd. Its results are of the subclass type too, so after the weight\'s first use the whole forward downstream passes through it.'],
-    dispatch:['A __torch_dispatch__ wrapper that rewraps','Calls arrive as ATen operators, below autograd. Results are rewrapped, so the subclass spreads downstream, and backward\'s ATen operators arrive as well.'],
-    dispatch_unwrap:['A __torch_dispatch__ wrapper with plain results','Only operators whose arguments include the weight itself arrive: its transpose. The matmul that follows already receives a plain tensor.']};
-  function ev(i){return LV[mode].ev[i]}
-  function draw(i){const L=LV[mode],e=ev(i);if(!e)return;
-    const lvl=e[0]==='f'?'tf':'td',ph=PH[e[1]];
-    $('es-stack').innerHTML=STACK.map(s=>'<div class="'+(s[0]===lvl?'on':(s[0]==='py'||s[0]==='k'||s[0]==='ag')?'':'dim')+'"><b>'+esc(s[1])+'</b><br><span class="mute">'+esc(s[2])+'</span></div>').join('');
-    $('es-now').innerHTML='<span class="es-ph '+ph[1]+'">'+ph[0]+'</span><span class="small mute">call '+(i+1)+' of '+L.ev.length+'</span><div class="es-op">'+esc(e[2])+'</div><div class="small mute">subclass argument position'+(e[3].length>1?'s':'')+': '+(e[3].length?e[3].join(', '):'none (a method on the subclass)')+'</div>';
-    const lo=Math.max(0,i-9);$('es-log').innerHTML=L.ev.slice(lo,i+1).map((x,j)=>'<div class="'+(lo+j===i?'cur ':'')+(x[1]==='b'?'b':'')+'">'+(lo+j+1)+'. '+esc(x[2])+'</div>').join('');
-    let s=0,f=0,b=0;const seen=new Set();for(let j=0;j<=i;j++){const x=L.ev[j];if(x[1]==='f')f++;else if(x[1]==='b')b++;else s++;seen.add(x[2])}
-    $('es-cnt').innerHTML=RD.stat('Setup calls',s,'nn.Parameter creation')+RD.stat('Forward calls',f+' / '+L.nf,'so far / total')+RD.stat('Backward calls',b+' / '+L.nb,'so far / total')+RD.stat('Distinct operations',seen.size,'so far');
-    $('es-cap').innerHTML='<div class="t">'+CAPS[mode][0]+'</div><p>'+CAPS[mode][1]+' Loss: '+L.loss.toFixed(6)+' (a <code>'+esc(L.loss_type)+'</code>); the weight\'s gradient arrives as a <code>'+esc(L.grad_type)+'</code>.</p>';}
-  // the shared step controller (play, pause, step, scrub, speed); it lives in RD and plays only while visible
-  const an=RD.anim({card:'es-card',ctl:'es-ctl',n:LV.function.ev.length,draw,ms:420,label:'Recorded call'});
-  RD.seg($('es-seg'),m=>{mode=m;an.reset(LV[m].ev.length);hist()});
-  $('es-jump').addEventListener('click',()=>{const k=LV[mode].ev.findIndex(x=>x[1]==='b');if(k>=0)an.go(k)});
-  let hph='f';
-  function hist(){const H=LV[mode].hist,items=Object.entries(H).filter(([k])=>k.startsWith(hph==='f'?'forward:':'backward:')).map(([k,v])=>({k:'<code>'+esc(k.split(':').slice(1).join(':'))+'</code>',v,c:hph==='f'?'var(--c1)':'var(--c2)'})).sort((a,b)=>b.v-a.v);
-    if(!items.length){$('es-hist').innerHTML='<p class="small mute">No calls reached the subclass in this phase.</p>';return}
-    U.bars($('es-hist'),items,'',0)}
-  RD.seg($('es-hseg'),m=>{hph=m;hist()});hist();
-  (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-ext-sub']=window.TAB_RENDER['t-ext-sub']||[]).push(()=>an.redraw());
-})();
-</script>
 <script>/* 99_js_tabs.js */
-// ---- Tabs ----
+// ---- Tabs ---- (replace pt-ext-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -1321,6 +1441,8 @@ window.EXTU=(function(){
   // links inside the reading tab that point at other tabs
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('pt-ext-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();
 </script>

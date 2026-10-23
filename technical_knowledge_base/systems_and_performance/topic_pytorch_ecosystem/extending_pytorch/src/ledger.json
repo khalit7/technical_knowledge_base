@@ -1,0 +1,3061 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Extending PyTorch: custom ops, tensor subclasses, kernels Extending PyTorch: custom ops, tensor subclasses, kernels How to add what PyTorch does not ship without breaking autograd, torch.compile or export, taught from zero on the running example: torch.library custom operators, C++ extensions, Metal, Triton and Helion kernels plugged in, tensor subclasses, dispatch modes, and how to choose.",
+  "label": "core",
+  "key": "extending pytorch: custom ops, tensor subclasses, kernels",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "Every graph count, opcheck result, trace and error here was recorded with torch 2.14.1 on an Apple M1 Pro (CPU and MPS); source quoted at pinned tags.",
+  "label": "core",
+  "key": "recorded with torch 2.14.1 on an apple m1 pro",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading Which extension point?",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab and section navigation, rebuilt"
+ },
+ {
+  "id": 5,
+  "tab": "page",
+  "section": "",
+  "text": "Custom-op lab Subclass tracer Further reading",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab and section navigation, rebuilt"
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "0 One screen 1 Custom ops 2 Under compile 3 C++ 4 Kernels 5 Subclasses 6 Modes 7 New devices 8 Choosing 9 On NVIDIA GPUs Mistakes Interview",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "tab and section navigation, rebuilt"
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "In one screen: adding what PyTorch does not ship Sooner or later a training job needs something PyTorch does not have: a kernel you wrote (in C++, CUDA, Metal, Triton or Helion), a call into a library that is not PyTorch, a new number format for weights (int8, NF4, float8), a tensor that lives on several devices at once, or a tool that watches every operation.",
+  "label": "core",
+  "key": "what pytorch does not ship",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "PyTorch has a hook for each.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the core sentence and hero carry it"
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "They differ in three ways that this page measures: what they can change , whether autograd, torch.compile and torch.export keep working , and what they cost .",
+  "label": "core",
+  "key": "autograd, torch.compile and torch.export keep working",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "The page follows the parent topic's running example, a 3,186,944-parameter character-level GPT ( Topic: pytorch-ecosystem , defined once in the root's src/model/ ), and changes two things in it.",
+  "label": "core",
+  "key": "3,186,944-parameter character-level gpt",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "First, the GELU inside every block's MLP is replaced by your own kernel : a 50-line C++ GELU, then a Metal one, then a Helion one, each plugged in a different way.",
+  "label": "core",
+  "key": "c++, then metal, then helion",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "Second, the block weights are replaced by an int8 tensor subclass .",
+  "label": "core",
+  "key": "int8 tensor subclass",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "Every result below comes from running those changes: graph counts, test results, errors, timings.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up; the core sentence and hero carry it"
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "An operator is a named function the dispatcher knows ( aten::addmm , or yours, ext::gelu ), with a schema : a one-line type signature such as ext::gelu(Tensor x) -> Tensor .",
+  "label": "core",
+  "key": "a named function the dispatcher knows",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "The dispatcher keeps, for each operator, a table of kernels (implementations) indexed by dispatch key (CPU, MPS, Autograd, Python, Meta and others) and, on every call, walks the keys that apply.",
+  "label": "owned:systems_and_performance/topic_pytorch_ecosystem/tensors_dispatcher_and_autograd",
+  "key": "behind each key, a table slot",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "The sibling page Tensors, the dispatcher and autograd takes that machine apart; here we only plug things into it.",
+  "label": "core",
+  "key": "tensors, the dispatcher and autograd",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "New computation a custom operator A kernel per device, plus three facts the compiler cannot guess: the output's shape (a fake ), the gradient, and what is mutated.",
+  "label": "core",
+  "key": "the gradient, and what the code writes",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "New kernel language C++, Metal, Triton, Helion The kernel is written elsewhere; it plugs in as an operator's kernel at one device key.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "restated: the hero figure shows the backend slot and section 4 says kernels plug in at a device key"
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "New representation a tensor subclass Every operator on the tensor reaches your Python code: int8 weights, sharded tensors, float8.",
+  "label": "core",
+  "key": "every operation on its instances",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "Watch or transform everything a dispatch mode Active for a region of code; sees every ATen call: fake tensors, FLOP counting, logging.",
+  "label": "core",
+  "key": "sees every aten call in a region",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "Hook What it changes Autograd torch.compile Measured here Plain PyTorch code Nothing new: composes existing operators Free Traced and fused F.gelu : 1 graph; µs per call torch.autograd.Function The backward of a piece of Python Yours Traced if forward and backward are traceable Owned by the sibling page (3.6) torch.library.custom_op Adds an operator whose kernel is opaque register_autograd One node, no break, once it has a fake 1 graph against graphs and breaks unregistered; µs per call C++ op with TORCH_LIBRARY The same, defined in C++ In C++ or from Python Same as custom_op Cold build to s; µs per call triton_op + wrap_triton An operator built from Triton kernels register_autograd Visible: Inductor optimises around the kernel Not run: Triton has no macOS build Helion kernel A tiled kernel that compiles to Triton (or Metal, Pallas, CuTe) Wrap it in an op Traced as a kernel call, no break Ran on MPS: 1 graph, 0 breaks Tensor subclass ( __torch_dispatch__ ) What a tensor is Above it: autograd works unchanged With __tensor_flatten__ : compiled through int8 weights: MB to MB, 1 graph __torch_function__ Python-level calls on a tensor type Not seen in backward Partly traced calls in forward, in backward TorchDispatchMode Sees every ATen call in a region Sees backward too Eager tool FLOP count of one step: PrivateUse1 backend A whole device Through the usual keys Through the vendor's backend Not run (needs a C++ device runtime) The rows are ordered from lightest to heaviest.",
+  "label": "core",
+  "key": "which hook for which need",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "The rule of thumb that the rest of the page earns: use the lightest hook that does the job , and when you reach for an operator, give the compiler its three facts (shape, gradient, mutation) and test them with torch.library.opcheck .",
+  "label": "core",
+  "key": "use the lightest hook that does the job",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "0. in one screen: adding what pytorch does not ship",
+  "text": "Write a custom operator custom_op, schemas, fake, autograd, kernels per device, opcheck Keep torch.compile whole 3 graph breaks against 0; what Inductor sees; two traps that drop gradients Bring C++ in load_inline, TORCH_LIBRARY, what a naive kernel costs Plug in a GPU kernel Metal shaders, triton_op, Helion running on this Mac Change what a tensor is __torch_function__ against __torch_dispatch__; an int8 subclass; DTensor, NF4, float8 Watch every op FakeTensorMode, FlopCounterMode, logging modes",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "link cards duplicating the section nav"
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Custom operators with torch.library The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading only"
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "You have a kernel PyTorch cannot see inside: compiled C++, a Metal or CUDA kernel, a call into another library.",
+  "label": "core",
+  "key": "you have a kernel pytorch cannot see inside",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Called as a plain Python function, it works in eager mode, but three things break silently or loudly: autograd does not know its gradient, torch.compile cannot trace through it, and torch.export cannot put it in a graph.",
+  "label": "core",
+  "key": "autograd does not know its gradient",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "A custom operator fixes all three by making your function a first-class entry in the dispatcher, like aten::addmm , and by telling PyTorch the three facts it cannot work out by itself.",
+  "label": "core",
+  "key": "first-class entry in the dispatcher",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "1.1 Defining one, line by line Here is the operator the running example uses, exactly as run ( src/exp/custom_ops.py ).",
+  "label": "core",
+  "key": "exactly as run",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "EXT.raw_gelu is the C++ function of section 3; any opaque function would do. import torch from torch import Tensor # 1. the operator: namespace::name, the kernel, and what it mutates @torch.library.custom_op( \"ext::gelu\" , mutates_args=()) def gelu(x: Tensor) -> Tensor: return EXT.raw_gelu(x) # opaque: C++ through pybind11 # 2. the fake: output metadata without running the kernel @gelu.register_fake def _(x): return torch.empty_like(x) # 3. the gradient: its own operator (with its own fake), so compile can trace backward too @torch.library.custom_op( \"ext::gelu_bwd\" , mutates_args=()) def gelu_bwd(grad: Tensor, x: Tensor) -> Tensor: return EXT.raw_gelu_backward(grad, x) @gelu_bwd.register_fake def _(grad, x): return torch.empty_like(x) def setup_context(ctx, inputs, output): # runs after forward: save what backward needs (x,) = inputs ctx.save_for_backward(x) def backward(ctx, grad): # one gradient per input (x,) = ctx.saved_tensors return gelu_bwd(grad, x) gelu.register_autograd(backward, setup_context=setup_context) # 4. the test torch.library.opcheck(gelu, (torch.randn(4, 8, 32, requires_grad= True ),)) Swapped into every block's MLP ( self.proj(gelu(self.fc(x))) ), the model's loss is , the same as with F.gelu ( ), the largest gradient difference is , and torch.compile(fullgraph=True) gives one graph whose gradients differ from eager by at most measured here, CPU .",
+  "label": "core",
+  "key": "gelu.register_autograd(backward, setup_context=setup_context)",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "What the decorator does. custom_op is a thin layer over the dispatcher.",
+  "label": "core",
+  "key": "thin layer over the dispatcher",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "When the function is defined it parses the schema, defines the operator in a torch.library.Library , and registers three kernels straight away, before you add anything: The fake kernel it registers raises until you call register_fake (quoted below), the autograd kernel raises at backward until you call register_autograd , and the ADInplaceOrView kernel (which bumps version counters) exists only for operators that mutate.",
+  "label": "core",
+  "key": "parses the schema, defines the operator",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Your function itself becomes the kernel at CompositeExplicitAutograd , one implementation for every device, unless you name devices: 1.2 The schema, inferred from type hints The dispatcher does not read Python annotations; it needs a schema string. custom_op writes it for you from the type hints with torch.library.infer_schema .",
+  "label": "core",
+  "key": "kernel at compositeexplicitautograd",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "What it produced for six signatures, and the error for one it cannot handle: Three things to read in it.",
+  "label": "depth",
+  "key": "six signatures",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Python int becomes SymInt , an integer that may be symbolic under torch.compile (a dynamic size), so size arguments do not force a recompile.",
+  "label": "core",
+  "key": "python int becomes symint",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Tensor? is an optional tensor and SymInt[] a list.",
+  "label": "core",
+  "key": "symint[] a list",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "And Tensor(a0!) is an alias annotation : a0 names the memory, ! says it is written to.",
+  "label": "core",
+  "key": "is an alias annotation",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "It appears because those arguments were listed in mutates_args .",
+  "label": "core",
+  "key": "listed in mutates_args",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "1.3 Mutation and aliasing: say what you write The compiler rewrites programs: it removes in-place operations (functionalization, sibling page 2.7), reuses buffers and reorders calls.",
+  "label": "core",
+  "key": "removes in-place operations",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "It can only do that safely if every operator's schema tells the truth about what it writes and what its outputs share with its inputs.",
+  "label": "core",
+  "key": "every schema tells the truth",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Declare every input you modify in mutates_args .",
+  "label": "core",
+  "key": "declare every input you modify in mutates_args",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "And never return an input, or a view of one, as an output: custom_op checks this at run time: The undeclared write is the dangerous one, because nothing checks it at run time.",
+  "label": "core",
+  "key": "never return an input, or a view of one",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "The lab's undeclared mutation variant clamps its input in place ( x.clamp_(-3, 3) ) under mutates_args=() .",
+  "label": "core",
+  "key": "x.clamp_(-3, 3)",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "In the running example nothing goes wrong that you can see: the activations never exceed 3, the loss is , it compiles into one graph. opcheck 's schema test, fed inputs wide enough to be clamped, catches it: 1.4 The fake: the output's shape without running the kernel A fake tensor carries a shape, dtype, device and strides but no data (sibling page 2.8). torch.compile and torch.export trace your program with fake tensors, so they never run the real kernels while tracing, and for every operator they ask: given inputs of these shapes, what comes out?",
+  "label": "core",
+  "key": "activations never exceed 3",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "ATen operators know; yours does not until you register a fake implementation (also called a meta or abstract implementation): a function that builds an empty output of the right shape and never reads input data.",
+  "label": "core",
+  "key": "never reads input data",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Missing, the trace stops with the message the decorator wrote in advance: A wrong fake is worse than none.",
+  "label": "core",
+  "key": "a wrong fake is worse than none",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "The lab's wrong fake variant returns x.new_empty(x.shape[:-1]) , a copy-paste slip that drops the last dimension.",
+  "label": "core",
+  "key": "x.new_empty(x.shape[:-1])",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Eager mode never calls the fake, so training runs and the loss is right ( ). torch.compile fails one operator later, at the next layer, where the error no longer mentions your op: opcheck points at the real culprit: When the output size depends on the data (the positive entries of a tensor, the unique values, the tokens routed to one expert), the fake cannot know it.",
+  "label": "core",
+  "key": "eager mode never calls the fake",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "It asks for a fresh symbol instead with torch.library.get_ctx().new_dynamic_size() , an unbacked symbolic integer : a size known only at run time.",
+  "label": "core",
+  "key": "unbacked symbolic integer",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Dynamo then carries it through the graph as u0 and adds a run-time check that it is not negative.",
+  "label": "core",
+  "key": "with a run-time check that it is not negative",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "The graph it captured for v = positive_values(x); v.sum() / v.numel() : measured here : compiled result , eager .",
+  "label": "depth",
+  "key": "v = positive_values(x)",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "1.5 The gradient: register_autograd register_autograd(backward, setup_context=...) works like torch.autograd.Function split in two (sibling page 3.6): setup_context(ctx, inputs, output) runs after the forward and saves what backward needs; backward(ctx, *grads) returns one gradient per input ( None for inputs that need none).",
+  "label": "core",
+  "key": "works like torch.autograd.function split in two",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Write backward out of operators (here a second custom op with its own fake) and torch.compile traces it into the backward graph like any other code.",
+  "label": "core",
+  "key": "write backward out of operators",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Leave it out and the autograd kernel that custom_op registered at definition raises at the first backward: That error is the good outcome.",
+  "label": "core",
+  "key": "which is the good outcome",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "An operator defined directly with TORCH_LIBRARY in C++ (section 3) and given no autograd formula falls through to PyTorch's autograd fallback instead, which only warns and lets backward continue as if the op had no inputs needing gradients.",
+  "label": "core",
+  "key": "falls through to pytorch's autograd fallback",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "In the running example that silently stopped training of each block's first MLP layer and the norm before it: of 52 parameters received a gradient.",
+  "label": "core",
+  "key": "silently stopped training of each block's first mlp layer",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "The sibling page shows the fallback key by key (Reading 2.4); the warning, as recorded here: 1.6 One operator, one kernel per device register_kernel(\"mps\") adds a kernel at the MPS key next to the CPU one.",
+  "label": "core",
+  "key": "falls back (reading 2.3)",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "The operator ext::gelu2 below has the C++ kernel for CPU and a Metal kernel, compiled at run time with torch.mps.compile_shader , for the Apple GPU (section 4).",
+  "label": "core",
+  "key": "c++ kernel for cpu and a metal kernel",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "The dispatcher's table for it, read with torch._C._dispatch_dump : A real lesson came out of it.",
+  "label": "depth",
+  "key": "torch._c._dispatch_dump",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Metal's standard library has no erf ( ), so the Metal kernel used GELU's tanh approximation while the CPU kernel computes the exact erf form.",
+  "label": "core",
+  "key": "metal's standard library has no erf",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Same operator, two devices, two answers: they differ by up to , and the Metal kernel matches F.gelu(approximate=\"tanh\") to measured on Apple M1 Pro .",
+  "label": "core",
+  "key": "same operator, two devices, two answers",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Nothing flags this: opcheck tests one device at a time and never compares kernels.",
+  "label": "core",
+  "key": "opcheck tests one device at a time",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Test every device's kernel against one reference.",
+  "label": "core",
+  "key": "test every device's kernel against one reference",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "1.7 opcheck: four tests, and what each one proves torch.library.opcheck(op, args) runs a fixed battery on sample inputs.",
+  "label": "core",
+  "key": "four tests, and what each one proves",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "At 2.14.1 the default list is: Test What it does What it catches test_schema Runs the op under a mode that records which inputs changed and what the outputs alias Undeclared mutation or aliasing (only if the values actually change) test_autograd_registration Checks that an autograd kernel is registered when inputs require grad A C++ op left on the autograd fallback.",
+  "label": "core",
+  "key": "records which inputs changed",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Not a missing formula: custom_op always registers one that raises test_faketensor Runs the fake and the real kernel and compares shapes, dtypes, strides Missing or wrong fakes test_aot_dispatch_dynamic Traces forward and backward through AOTAutograd with dynamic shapes and compares with eager Missing formulas, backward that cannot be traced, wrong gradients under compile Every variant of the lab, every test, as recorded (green passes, orange fails; hover or tap a cell for the message): Predict: the kernel + fake variant has a fake but no autograd formula.",
+  "label": "core",
+  "key": "always registers a kernel, one that raises",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "What does torch.compile(model, fullgraph=True) do on a training step?",
+  "label": "core",
+  "key": "what does torch.compile(model, fullgraph=true) do",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Compiles one graph and trains normally Captures one graph, then fails when it builds the backward Graph-breaks at the op and runs it eagerly It captures one graph ( dynamo.explain : graph, breaks) and then fails when AOTAutograd traces the backward: The fake is enough for the forward; training needs the formula as well.",
+  "label": "core",
+  "key": "captures one graph, then fails when it builds the backward",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "1. custom operators with torch.library",
+  "text": "Go deeper: the Custom-op lab tab shows all ten variants side by side: code, eager result, Dynamo's graphs and breaks, the compiled run and the four tests.",
+  "label": "core",
+  "key": "shows all ten variants side by side",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Custom operators under torch.compile, and two traps The parent page showed the core lesson on a toy function ( Topic: pytorch-ecosystem , Reading section 8): a Python body that leaves PyTorch gives 3 graphs and 2 breaks; the same body as a custom op gives 1 graph and 0 breaks.",
+  "label": "core",
+  "key": "the parent page showed the lesson on a toy function",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Here is the same lesson on the whole running example, then what the compiler does with the opaque node, then two ways a correct-looking op loses its gradients under compile.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up restating the section headings"
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "2.1 Watch Dynamo trace the forward: an opaque call against a custom op Dynamo is the part of torch.compile that reads your Python bytecode and records the tensor operations into an FX graph .",
+  "label": "core",
+  "key": "records tensor operations into an fx graph",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "When it meets a call it cannot trace, here a C++ function exposed through pybind11, it records a graph break : it compiles what it has so far, lets Python run the call, and starts a new graph after it.",
+  "label": "core",
+  "key": "runs python, and starts a new one",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "The animation replays what torch._dynamo.explain recorded on one forward of the running example ( src/exp/graphs.py ): the same model, the same batch, with the GELU called directly, then as the custom op of section 1.",
+  "label": "core",
+  "key": "the animation replays what torch._dynamo.explain recorded",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Same forward, two ways of calling the same C++ GELU Before: direct call (pybind11) After: custom op inside a compiled graph runs eagerly in Python graph break What the recording says.",
+  "label": "core",
+  "key": "before: direct call (pybind11)",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "With the direct call, Dynamo compiled small graphs ( breaks) covering only the inside of a block, and the outer GPT.forward (embeddings, final norm, head, loss) ran uncompiled.",
+  "label": "core",
+  "key": "covering only the inside of a block",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "The Compile lab tab of the parent measured what that shape costs with a print inside a block: 7 to 9% on the step.",
+  "label": "core",
+  "key": "7 to 9% on the step",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "The reason Dynamo gave: .",
+  "label": "core",
+  "key": "the reason dynamo gave",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "With the custom op, one graph of operations holds the whole forward, with ext.gelu.default appearing once per block as a single node.",
+  "label": "core",
+  "key": "holds the whole forward",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Export has no fallback. torch.compile can break a graph and run Python; torch.export , which must produce one graph to save and run elsewhere, cannot.",
+  "label": "core",
+  "key": "export has no fallback",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "With the custom op, torch.export.export captured operations including ext.gelu nodes, still after run_decompositions() lowered the rest to core ATen operations, and the exported module's logits matched eager.",
+  "label": "core",
+  "key": "run_decompositions()",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "With the direct call it failed, because the C++ function was handed a fake tensor and tried to read its data: 2.2 What Inductor does with an opaque node Below Dynamo, Inductor turns the graph into code: generated loops for element-wise work, library calls for matrix multiplies (on the CPU, C++ with OpenMP; the Compile lab tab shows it).",
+  "label": "core",
+  "key": "handed a fake tensor and tried to read its data",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "The call() function it generated for the MLP's forward ( fc , GELU, proj , inference), with F.gelu and with the custom op: F.gelu: generated kernel custom op: generated kernels With F.gelu , Inductor wrote one loop, cpp_fused_gelu_view_0 , that reads the matmul's output and writes the activation in place.",
+  "label": "core",
+  "key": "the call() function it generated for the mlp's forward",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "With the custom op it can only call your kernel, check that the output has the metadata the fake promised ( assert_tensor_metadata , assert_alignment ), and move on: nothing fuses across an opaque operator .",
+  "label": "core",
+  "key": "assert_tensor_metadata",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "When the op is a big kernel (an attention, a fused MoE dispatch) that costs little; when it is a small element-wise op between two others, you lose the fusion the compiler would have done for free.",
+  "label": "core",
+  "key": "a fused moe dispatch",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "The cost, measured Training step of the running example, CPU, 4 threads measured on Apple M1 Pro, bench lock, load average about 3, median of 3 × 20 steps : F.gelu eager ms, compiled ms; the custom op eager ms, compiled ms.",
+  "label": "core",
+  "key": "median of 3 × 20 steps",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Almost all of the difference is the C++ kernel itself, a scalar single-threaded loop about 11 times slower than ATen's GELU (section 3): an operator is only as fast as its kernel, and compiling cannot make an opaque kernel faster.",
+  "label": "core",
+  "key": "an operator is only as fast as its kernel",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Predict: you want Inductor to fuse your element-wise kernel into its neighbours.",
+  "label": "core",
+  "key": "fuse your element-wise kernel into its neighbours",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Which registration lets it? custom_op with a precise register_fake A C++ TORCH_LIBRARY op tagged pointwise None of these: write it in PyTorch (or as a triton_op), so the compiler can see inside None of the opaque ones.",
+  "label": "core",
+  "key": "which registration lets it?",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "A fake only describes the output; the body stays a black box.",
+  "label": "core",
+  "key": "the body stays a black box",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Inductor fuses what it can read: plain PyTorch operations, or Triton kernels registered with triton_op , whose source it can inspect (section 4).",
+  "label": "core",
+  "key": "inductor fuses what it can read",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "A custom op is the right tool for a kernel that is already the whole fused computation.",
+  "label": "core",
+  "key": "already the whole fused computation",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "2.3 Two traps that drop gradients without an error Both were found while building this page, with the C++ operator of section 3 and its fake and autograd formula registered from Python by name ( torch.library.register_fake(\"extc::gelu\") , torch.library.register_autograd(\"extc::gelu\", ...) ).",
+  "label": "core",
+  "key": "two traps that drop gradients without an error",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Trap 1: registering after the first trace.",
+  "label": "core",
+  "key": "trap 1: registering after the first trace",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "In one process, the op was first traced bare (for the \"before\" measurement), then registered, then compiled.",
+  "label": "core",
+  "key": "the op was first traced bare",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "The compiled model trained, with the right loss, but the MLP weights got no gradients: the compiled backward treated the op's output as not needing one. opcheck in the same process says so ( ).",
+  "label": "core",
+  "key": "the mlp weights got no gradients",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "The cause is a per-operator cache: the Python object for each operator overload remembers, per dispatch key, which kernel to use during tracing, and registering a kernel through torch.library does not empty it: Emptying torch.ops.extc.gelu.default._dispatch_cache after the registration made all four tests pass in the same process; so did a fresh process with the registrations made at import.",
+  "label": "core",
+  "key": "a per-operator cache",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Register everything when the module is imported, before any call.",
+  "label": "core",
+  "key": "register everything when the module is imported",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Trap 2: the warm cache keeps the wrong answer.",
+  "label": "core",
+  "key": "trap 2: the warm cache keeps the wrong answer",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Compiled artifacts are cached on disk across processes: Inductor's FX graph cache and the AOTAutograd cache , which stores the compiled forward and backward pair: Four fresh processes sharing one cache directory ( src/exp/cache_trap.py , the running example compiled once, one forward and backward each): The second process registered everything correctly and still got the first process's broken backward, because the cache key evidently does not cover the state of the operator's Python registrations (the graph and the configuration were identical).",
+  "label": "core",
+  "key": "compiled artifacts are cached on disk across processes",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Turning off only the AOTAutograd cache fixed it.",
+  "label": "core",
+  "key": "turning off only the aotautograd cache fixed it",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "When you change an operator's registrations, clear the compile cache ( TORCHINDUCTOR_CACHE_DIR , by default torchinductor_<user> in the temporary directory), and keep one cheap test in CI that compares compiled gradients against eager on one batch.",
+  "label": "core",
+  "key": "clear the compile cache",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "2. custom operators under torch.compile, and two traps",
+  "text": "Go deeper: the torch.compile from the user's side sibling owns Dynamo, guards, AOTAutograd and the caches in general; The compiler stack owns code generation below Inductor.",
+  "label": "core",
+  "key": "owns dynamo, guards, aotautograd and the caches in general",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "C++ extensions: TORCH_LIBRARY The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading only"
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "Some kernels have to be compiled code: a hand-written loop, a call into a C++ library, a CUDA kernel. torch.utils.cpp_extension compiles C++ against PyTorch's headers and loads the result into the running process.",
+  "label": "core",
+  "key": "some kernels have to be compiled code",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "It offers three ways: load_inline (C++ in a Python string, built on first use), load (the same from files) and setup.py with CppExtension or CUDAExtension (a wheel built ahead of time, what libraries ship).",
+  "label": "core",
+  "key": "load_inline (c++ in a python string",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "The first two need the ninja build tool; it was not in the shared environment and had to be installed.",
+  "label": "core",
+  "key": "ninja build tool",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "3.1 The tiny operator, built here The running example's C++ GELU, whole file in src/exp/gelu_ext.cpp .",
+  "label": "core",
+  "key": "src/exp/gelu_ext.cpp",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "The kernel is a plain loop over the tensor's memory; then two macros register it with the dispatcher: static at::Tensor gelu_fwd( const at::Tensor& x) { TORCH_CHECK(x.device().is_cpu() && x.scalar_type() == at::kFloat, \"extc::gelu: CPU float32 only\" ); auto xc = x.contiguous(); auto y = at::empty_like(xc); const float * in = xc.data_ptr< float >(); float * out = y.data_ptr< float >(); at::parallel_for(0, xc.numel(), 4096, [&](int64_t b, int64_t e) { for (int64_t i = b; i < e; ++i) out[i] = 0.5f * in[i] * (1.0f + std::erf(in[i] * 0.70710678f)); }); return y; } // ... gelu_bwd the same way ...",
+  "label": "core",
+  "key": "a plain loop over the tensor's memory",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "TORCH_LIBRARY(extc, m) { // define: namespace extc, two schemas m.def( \"gelu(Tensor x) -> Tensor\" ); m.def( \"gelu_backward(Tensor grad, Tensor x) -> Tensor\" ); } TORCH_LIBRARY_IMPL(extc, CPU, m) { // kernels at the CPU key m.impl( \"gelu\" , &gelu_fwd); m.impl( \"gelu_backward\" , &gelu_bwd); } # Python: build, load, then add what C++ did not say from torch.utils.cpp_extension import load_inline mod = load_inline(name= \"ext_gelu\" , cpp_sources=[src], functions=[ \"raw_gelu\" , \"raw_gelu_backward\" ], extra_cflags=[ \"-O3\" ]) # loading runs TORCH_LIBRARY: torch.ops.extc.gelu exists torch.library.register_fake( \"extc::gelu\" )( lambda x: torch.empty_like(x)) torch.library.register_fake( \"extc::gelu_backward\" )( lambda g, x: torch.empty_like(x)) torch.library.register_autograd( \"extc::gelu\" , backward, setup_context=setup_context) y = torch.ops.extc.gelu(x) TORCH_LIBRARY is a macro that creates a static registrar, so the definitions run when the shared library is loaded ( ).",
+  "label": "core",
+  "key": "torch_library_impl(extc, cpu, m)",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "The dispatcher's table afterwards shows where each kernel came from, the CPU kernel from the C++ file and the fake (at Meta ) and the autograd kernel from Python: The same .so also exposed the two functions through pybind11 ( functions=[...] ), which is how the \"before\" side of section 2 called them without the dispatcher.",
+  "label": "core",
+  "key": "the cpu kernel from the c++ file",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "3.2 What it costs One call, four ways to reach the same kind of work measured on Apple M1 Pro, CPU, 4 threads, bench lock, median of 3 64 floats: overhead 8 × 64 × 1024: the kernel Two different lessons.",
+  "label": "core",
+  "key": "cpu, 4 threads, bench lock, median of 3",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "Overhead: on 64 numbers the call itself dominates.",
+  "label": "core",
+  "key": "overhead dominates 64 floats",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "Through pybind11 the C++ function costs what F.gelu costs; as a dispatcher operator with a Python autograd kernel it costs about five times as much, because every call enters Python at the Autograd key even when nothing needs a gradient (a C++ autograd registration would avoid that; not measured here).",
+  "label": "core",
+  "key": "costs about five times as much",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "Kernel: on a real activation our loop is about 11 times slower than ATen's GELU.",
+  "label": "core",
+  "key": "about 11 times slower than aten's gelu",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "ATen's kernel is vectorised (4 floats per NEON instruction) and multi-threaded; ours computes one erf at a time, and at::parallel_for runs serially here because the extension was compiled without OpenMP flags.",
+  "label": "core",
+  "key": "4 floats per neon instruction",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "A custom kernel has to beat what it replaces before it earns its place; measure it on the shapes you run.",
+  "label": "core",
+  "key": "measure a custom kernel against what it replaces",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "A cold load_inline of this 50-line file took to s (three builds, each in a fresh directory and process); afterwards the build directory acts as a cache.",
+  "label": "core",
+  "key": "a cold load_inline of this 50-line file",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "One namespace, one TORCH_LIBRARY, per process Loading a second build of the same file under another module name (to time a cold build) killed the Python process with SIGABRT (return code ) and no Python traceback: a namespace may be defined by one TORCH_LIBRARY block only.",
+  "label": "core",
+  "key": "one namespace, one torch_library, per process",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "Use TORCH_LIBRARY_FRAGMENT to add definitions from several files, and never import two copies of an extension.",
+  "label": "core",
+  "key": "torch_library_fragment",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "3.3 Beyond this example Autograd in C++ : subclass torch::autograd::Function and register it at the Autograd key with TORCH_LIBRARY_IMPL(extc, Autograd, m) .",
+  "label": "depth",
+  "key": "torch::autograd::function",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "Use it when you need C++-speed calls; the Python route above is simpler and enough for big kernels.",
+  "label": "depth",
+  "key": "c++-speed calls",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "CUDA : CUDAExtension or load_inline(cuda_sources=...) compile .cu files with nvcc; register the kernel at the CUDA key exactly as above.",
+  "label": "depth",
+  "key": "cuda_sources",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "Not run here (no NVIDIA GPU).",
+  "label": "depth",
+  "key": "not run here (no nvidia gpu)",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "One wheel for several PyTorch versions : the C++ ABI changes between releases, so an extension built against 2.14 may not load into 2.15.",
+  "label": "depth",
+  "key": "one wheel for several pytorch versions",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "PyTorch ships a smaller stable ABI for extensions, with its own registration macro ( STABLE_TORCH_LIBRARY in torch/csrc/stable/library.h , line 355 of the 2.14.1 wheel's headers); not used here.",
+  "label": "depth",
+  "key": "stable_torch_library",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-read",
+  "section": "3. c++ extensions: torch_library",
+  "text": "Go deeper: the custom C++ and CUDA operators tutorial ; Writing kernels for writing the CUDA kernel itself.",
+  "label": "core",
+  "key": "custom c++ and cuda operators tutorial",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "Kernels that plug in: Metal, Triton, Helion A GPU kernel is written in a kernel language (CUDA C++, Metal, Triton, Helion), compiled for the device, and launched over a grid of threads.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "definition of a GPU kernel the reader already knows"
+ },
+ {
+  "id": 128,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "PyTorch does not need to understand the kernel; it needs the same three facts as for any operator.",
+  "label": "core",
+  "key": "the same three facts as for any operator",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "The pattern is always the same: write the kernel, wrap it in an operator, register a fake and a gradient.",
+  "label": "core",
+  "key": "write the kernel, wrap it in an operator, register a fake and a gradient",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "What differs is whether the compiler can look inside.",
+  "label": "core",
+  "key": "whether the compiler can look inside",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "Writing fast kernels is its own subject ( Triton and Gluon , Writing kernels ); this section is about plugging them in.",
+  "label": "core",
+  "key": "writing fast kernels is its own subject",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "4.1 A Metal kernel on the Apple GPU, run here torch.mps.compile_shader(source) compiles Metal Shading Language at run time and returns an object whose kernels you call with tensors; each thread computes one element: lib = torch.mps.compile_shader(SHADER) @gelu2.register_kernel( \"mps\" ) # gelu2: the custom op of section 1.6, CPU kernel in C++ def _(x): xc = x.contiguous() y = torch.empty_like(xc) lib.gelu_fwd(y, xc) # one thread per element return y On an (8, 64, 1024) activation it took µs against µs for F.gelu(approximate=\"tanh\") measured on Apple M1 Pro, MPS, median of 3, including a synchronize : an element-wise kernel is limited by memory traffic, and both read and write the same 2 MiB.",
+  "label": "core",
+  "key": "compiles metal shading language at run time",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "4.2 Triton: triton_op and wrap_triton (read, not run) Triton is a Python-embedded language for GPU kernels that work on blocks of data; it is what Inductor generates for NVIDIA and AMD GPUs.",
+  "label": "core",
+  "key": "python-embedded language for gpu kernels",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "Triton 3.8.0 on PyPI ships Linux wheels only (checked 2026-10-13), so nothing in this section ran here.",
+  "label": "core",
+  "key": "triton 3.8.0 on pypi ships linux wheels only",
+  "where": ""
+ },
+ {
+  "id": 135,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "What the source at 2.14.1 says: Inside, triton_op is a custom_op whose fake is your own Python function (it only allocates outputs and launches kernels, so it can run on fake tensors), plus one more trick: under AOTAutograd it is decomposed into its kernel launches, so Inductor sees the Triton kernels themselves: wrap_triton(kernel)[grid](...) is how a launch is written inside such an op so that dispatcher-level tracing ( make_fx , non-strict export) can record it: # a triton_op, condensed from the 2.14.1 docstring in torch/_library/triton.py (not run here) @triton.jit def add_kernel(x_ptr, y_ptr, out_ptr, n, BLOCK: tl.constexpr): offs = tl.program_id(0) * BLOCK + tl.arange(0, BLOCK) mask = offs < n tl.store(out_ptr + offs, tl.load(x_ptr + offs, mask=mask) + tl.load(y_ptr + offs, mask=mask), mask=mask) @torch.library.triton_op( \"mylib::add\" , mutates_args={}) def add(x: Tensor, y: Tensor) -> Tensor: out = torch.empty_like(x) n = out.numel() wrap_triton(add_kernel)[(triton.cdiv(n, 16),)](x, y, out, n, 16) return out Two consequences worth remembering.",
+  "label": "core",
+  "key": "custom_op whose fake is your own python function",
+  "where": ""
+ },
+ {
+  "id": 136,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "Under torch.export a triton_op stays one custom-op node rather than being decomposed (the source explains: an exported program should not carry GPU-specific Triton source).",
+  "label": "core",
+  "key": "stays one custom-op node",
+  "where": ""
+ },
+ {
+  "id": 137,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "And the same docstring recommends calling @triton.jit kernels directly when you need no operator at all: Dynamo can trace a raw Triton launch; you need the torch.library wrapper only for operator behaviour (subclasses, dispatch modes, export).",
+  "label": "core",
+  "key": "recommends calling @triton.jit kernels directly",
+  "where": ""
+ },
+ {
+  "id": 138,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "4.3 Helion: kernels from tiled PyTorch, run here on the Apple GPU Helion (PyTorch Foundation; 1.0 released 2026-04-03, 1.4.0 used here) lets you write a kernel as a loop over tiles with ordinary PyTorch operations inside; its compiler chooses block sizes, memory access and launch shape, and its autotuner can search them.",
+  "label": "core",
+  "key": "1.0 released 2026-04-03",
+  "where": ""
+ },
+ {
+  "id": 139,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "Its settings name four code generators: The Metal one (\"experimental\", it warns) meant Helion could run on this Mac without Triton.",
+  "label": "core",
+  "key": "could run on this mac without triton",
+  "where": ""
+ },
+ {
+  "id": 140,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "The GELU kernel and what it compiled to: import helion, helion.language as hl # HELION_BACKEND=metal @helion.kernel(autotune_effort= \"none\" , static_shapes= True ) def gelu(x: torch.Tensor) -> torch.Tensor: out = torch.empty_like(x) for tile in hl.tile(x.size()): # Helion splits the 3-D index space into tiles v = x[tile] out[tile] = 0.5 * v * (1.0 + torch.tanh(0.7978845608028654 * (v + 0.044715 * v * v * v))) return out The generated kernel (Helion's Triton-like intermediate, before Metal translation), lines Read the table as a status report of an experimental backend, measured on Apple M1 Pro .",
+  "label": "core",
+  "key": "helion.language as hl",
+  "where": ""
+ },
+ {
+  "id": 141,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "The element-wise kernel compiled with the default configuration and matched F.gelu(approximate=\"tanh\") .",
+  "label": "core",
+  "key": "the element-wise kernel compiled and matched",
+  "where": ""
+ },
+ {
+  "id": 142,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "Exact GELU did not lower (Metal has no erf , the same wall as section 1.6), and a row softmax stopped at the reduction.",
+  "label": "core",
+  "key": "a row softmax stopped at the reduction",
+  "where": ""
+ },
+ {
+  "id": 143,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "Without autotuning the kernel took µs against µs for PyTorch's own: on its main backend (Triton on NVIDIA) the autotuner's search is the point, and none was run here.",
+  "label": "core",
+  "key": "the autotuner's search is the point",
+  "where": ""
+ },
+ {
+  "id": 144,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "Two things worked fully: ref mode ( HELION_INTERPRET=1 ) ran both kernels, erf and softmax included, as plain PyTorch on the CPU with errors and , which is how you debug a kernel's logic without a GPU; and composition : called inside torch.compile the Helion kernel gave graph and breaks, because Helion registers its kernels with Dynamo as a higher-order operator ( ); registered as the MPS kernel of a custom op it passed opcheck 's schema and fake tests.",
+  "label": "core",
+  "key": "helion_interpret=1",
+  "where": ""
+ },
+ {
+  "id": 145,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "The old root page said prebuilt Helion kernels ship on the Hugging Face Kernels Hub.",
+  "label": "depth",
+  "key": "prebuilt helion kernels",
+  "where": ""
+ },
+ {
+  "id": 146,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "Checked: the kernels library 0.17.2 lists helion among the Python dependencies a Hub kernel may declare ( kernels/python_depends.json ); whether Helion kernels are published there is unconfirmed .",
+  "label": "depth",
+  "key": "kernels/python_depends.json",
+  "where": ""
+ },
+ {
+  "id": 147,
+  "tab": "t-read",
+  "section": "4. kernels that plug in: metal, triton, helion",
+  "text": "Go deeper: helionlang.com ; the triton_op tutorial ; Triton and Gluon for the language.",
+  "label": "core",
+  "key": "helionlang.com",
+  "where": ""
+ },
+ {
+  "id": 148,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Tensor subclasses: changing what a tensor is The problem.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "heading only"
+ },
+ {
+  "id": 149,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Some extensions are not a new computation but a new kind of tensor : weights stored as int8 with a scale, a tensor split across eight GPUs, a float8 tensor that remembers its scaling factor.",
+  "label": "core",
+  "key": "not a new computation but a new kind of tensor",
+  "where": ""
+ },
+ {
+  "id": 150,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "You want the model code unchanged ( F.linear(x, w) stays F.linear(x, w) ) while every operation on w does the right thing for its representation.",
+  "label": "core",
+  "key": "you want the model code unchanged",
+  "where": ""
+ },
+ {
+  "id": 151,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "A tensor subclass is a Python subclass of torch.Tensor that gets a say in every operation on its instances.",
+  "label": "core",
+  "key": "a tensor subclass is a python subclass of torch.tensor",
+  "where": ""
+ },
+ {
+  "id": 152,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "5.1 Two places to intercept: __torch_function__ and __torch_dispatch__ A call such as F.linear(x, w) passes two points where a subclass can step in. __torch_function__ is called first, at the Python API, with the function you called ( linear , Tensor.add , Tensor.backward ), before autograd or the dispatcher. __torch_dispatch__ is called much later: the dispatcher reaches the Python key after autocast, autograd and view tracking have run, and hands over the ATen operator (PyTorch's C++ operator library) that is about to execute: aten::t and aten::addmm rather than linear , because linear decomposed on the way (sibling page 2.4).",
+  "label": "core",
+  "key": "passes two points where a subclass can step in",
+  "where": ""
+ },
+ {
+  "id": 153,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Python call F.linear(x, w) __torch_function__ sees \"linear\" with Python arguments; above autograd; never sees backward (autograd's engine calls C++) Autocast, Autograd casts; records the backward node ADInplaceOrView view and version bookkeeping Python key: __torch_dispatch__ sees aten::t, aten::addmm; below autograd; sees backward's ATen calls too CPU / MPS / CUDA kernel the arithmetic Measured on one training step of the running example, with block 0's fc.weight replaced by a logging subclass of each kind recorded here, CPU : Subclass Calls seen in forward in backward Loss type Gradient type The __torch_function__ subclass saw the Python-level calls from the weight's first use onward, because its results are of its own type and so spread through the forward, and in backward only Tensor.backward itself.",
+  "label": "core",
+  "key": "rather than linear",
+  "where": ""
+ },
+ {
+  "id": 154,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "The __torch_dispatch__ subclass that rewraps its outputs saw every ATen call downstream of the weight in both directions; the one that returns plain tensors saw only the operations that touch the weight itself.",
+  "label": "core",
+  "key": "rewrapped results spread it downstream",
+  "where": ""
+ },
+ {
+  "id": 155,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "The Subclass tracer tab replays all three call by call.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed Subclass tracer tab; the tracer is now inline in 5.1"
+ },
+ {
+  "id": 156,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "5.2 Wrapper subclasses: a tensor with no storage of its own A wrapper subclass is created with torch.Tensor._make_wrapper_subclass(cls, shape, dtype=..., device=...) : the outer object has a shape, a dtype and a device, so the rest of PyTorch treats it as a tensor of that shape, but it has no data.",
+  "label": "core",
+  "key": "_make_wrapper_subclass",
+  "where": ""
+ },
+ {
+  "id": 157,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "The real data lives in ordinary tensors stored as attributes ( self.qdata , self.scale ), and __torch_dispatch__ decides, per ATen operator, what to compute from them.",
+  "label": "core",
+  "key": "the real data lives in ordinary tensors stored as attributes",
+  "where": ""
+ },
+ {
+  "id": 158,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Its key set gains Python and PythonTLSSnapshot ( for the DTensor below), which is what routes every call to your Python code.",
+  "label": "core",
+  "key": "pythontlssnapshot",
+  "where": ""
+ },
+ {
+  "id": 159,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Two decisions shape every such subclass.",
+  "label": "core",
+  "key": "two decisions shape every such subclass",
+  "where": ""
+ },
+ {
+  "id": 160,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Contagious or not : does an operation on the subclass return the subclass (DTensor: a sharded result) or a plain tensor (an int8 weight: the matmul's output is ordinary float32)?",
+  "label": "core",
+  "key": "contagious or not",
+  "where": ""
+ },
+ {
+  "id": 161,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "And which operators to implement : the rest fall back to \"dequantize and run the normal kernel\" or to an error.",
+  "label": "core",
+  "key": "dequantize and run the normal kernel",
+  "where": ""
+ },
+ {
+  "id": 162,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "One rule is not optional: nn.Parameter refuses a subclass whose detach() does not return the subclass: 5.3 Build one: int8 weights for the running example The subclass below stores each block weight as int8 qdata (same shape) and one float32 scale per output row (symmetric, per-channel: scale = max|w_row| / 127 ).",
+  "label": "core",
+  "key": "nn.parameter refuses a subclass whose detach()",
+  "where": ""
+ },
+ {
+  "id": 163,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "It implements four ATen operators: the transpose and detach that nn.Linear and nn.Parameter need, addmm for the forward and mm for the backward's input gradient.",
+  "label": "core",
+  "key": "it implements four aten operators",
+  "where": ""
+ },
+ {
+  "id": 164,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "The scale factors out of the matrix multiply, so the int8 values are multiplied first and the scale applied per output column afterwards.",
+  "label": "core",
+  "key": "the scale factors out of the matrix multiply",
+  "where": ""
+ },
+ {
+  "id": 165,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Full file: src/exp/subclasses_int8.py . class Int8Weight(torch.Tensor): @staticmethod def __new__(cls, qdata, scale, transposed= False ): shape = qdata.shape[::-1] if transposed else qdata.shape return torch.Tensor._make_wrapper_subclass(cls, shape, dtype=scale.dtype, device=qdata.device, requires_grad= False ) def __init__(self, qdata, scale, transposed= False ): self.qdata, self.scale, self.transposed = qdata, scale, transposed def __tensor_flatten__(self): # for torch.compile (5.4) return [ \"qdata\" , \"scale\" ], (self.transposed,) @staticmethod def __tensor_unflatten__(inner, meta, outer_size, outer_stride): return Int8Weight(inner[ \"qdata\" ], inner[ \"scale\" ], meta[0]) __torch_function__ = torch._C._disabled_torch_function_impl @classmethod def __torch_dispatch__(cls, func, types, args=(), kwargs= None ): if func is aten.t.default: # W.t(): flip a flag, move no data return Int8Weight(args[0].qdata, args[0].scale, not args[0].transposed) if func is aten.addmm.default and isinstance(args[2], Int8Weight): bias, x, w = args[:3] # x @ W^T + b, W = q * s[:, None] return torch.mm(x, w.qdata.to(x.dtype).t()) * w.scale + bias # ... aten.detach, aten.mm (backward), and a dequantizing fallback ...",
+  "label": "core",
+  "key": "src/exp/subclasses_int8.py",
+  "where": ""
+ },
+ {
+  "id": 166,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "The loss moved from to and the logits by at most : int8 per-channel rounding of a freshly initialised model.",
+  "label": "core",
+  "key": "int8 per-channel rounding of a freshly initialised model",
+  "where": ""
+ },
+ {
+  "id": 167,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "The quantized weights are frozen ( requires_grad=False ); the other parameters (embeddings, norms, biases) all received gradients, the setup that weight-quantized fine-tuning methods such as QLoRA start from ( PEFT ).",
+  "label": "core",
+  "key": "weight-quantized fine-tuning methods such as qlora",
+  "where": ""
+ },
+ {
+  "id": 168,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "The ATen operators that reached the subclass, recorded: forward ; backward .",
+  "label": "core",
+  "key": "the aten operators that reached the subclass",
+  "where": ""
+ },
+ {
+  "id": 169,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "No call took the fallback.",
+  "label": "core",
+  "key": "no call took the fallback",
+  "where": ""
+ },
+ {
+  "id": 170,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "One weight, one matrix multiply: float32 against int8 (block 0's fc, 1024 × 256) Before: float32 weight After: Int8Weight Bytes are derived from the shapes (1024 × 256 elements; 4 bytes in float32, 1 in int8, 1,024 float32 scales); the operator sequence is the one recorded in AOTAutograd's forward graph (5.4).",
+  "label": "core",
+  "key": "block 0's fc, 1024 × 256",
+  "where": ""
+ },
+ {
+  "id": 171,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Activations: 512 tokens × 256 in, × 1024 out, float32.",
+  "label": "core",
+  "key": "512 tokens × 256 in",
+  "where": ""
+ },
+ {
+  "id": 172,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "5.4 Under torch.compile: flatten, trace, desugar The compiler cannot keep a Python object inside a graph.",
+  "label": "core",
+  "key": "cannot keep a python object inside a graph",
+  "where": ""
+ },
+ {
+  "id": 173,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "It needs to know which tensors the subclass is made of, so that it can pass them in as ordinary graph inputs and rebuild the subclass while tracing.",
+  "label": "core",
+  "key": "which tensors the subclass is made of",
+  "where": ""
+ },
+ {
+  "id": 174,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "That is the traceable-subclass protocol : __tensor_flatten__ returns the names of the inner tensors plus any non-tensor metadata, and __tensor_unflatten__ rebuilds the object from them.",
+  "label": "core",
+  "key": "traceable-subclass protocol",
+  "where": ""
+ },
+ {
+  "id": 175,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "With it, Dynamo traced the int8 model into graph with breaks, and AOTAutograd ran __torch_dispatch__ on fake tensors and recorded what it did in plain ATen: the subclass disappears from the compiled graph ( desugaring ).",
+  "label": "core",
+  "key": "desugaring",
+  "where": ""
+ },
+ {
+  "id": 176,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Dynamo's graph took inputs; AOTAutograd's forward graph , because each of the 16 int8 weights became two ( qdata and scale ).",
+  "label": "core",
+  "key": "each of the 16 int8 weights became two",
+  "where": ""
+ },
+ {
+  "id": 177,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "The first block's attention projection in that graph: The int8 weight is converted to float32 ( _to_copy ) right before the multiply.",
+  "label": "core",
+  "key": "right before the multiply",
+  "where": ""
+ },
+ {
+  "id": 178,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "That is the honest cost of weight-only int8 on this CPU path: memory is saved at rest (a quarter of the bytes), not during the computation. torchao's own Int8WeightOnlyConfig weight, recorded on a nn.Linear of the same shape, issued the same kind of sequence: .",
+  "label": "core",
+  "key": "honest cost of weight-only int8",
+  "where": ""
+ },
+ {
+  "id": 179,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "A GPU kernel that reads int8 directly and dequantizes in registers is what turns the saving into speed ( Quantization and Precision ).",
+  "label": "core",
+  "key": "dequantizes in registers",
+  "where": ""
+ },
+ {
+  "id": 180,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Forward of the running example, CPU, 4 threads measured on Apple M1 Pro, bench lock, median of 3 Eager, the subclass costs the Python round trip on 32 calls per forward plus the conversion; compiled, the Python is gone and int8 and float32 take about the same time.",
+  "label": "core",
+  "key": "python round trip on 32 calls per forward",
+  "where": ""
+ },
+ {
+  "id": 181,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "5.5 How the real ones are built The same protocol underlies the subclasses you will meet in practice.",
+  "label": "core",
+  "key": "the real ones are built the same way",
+  "where": ""
+ },
+ {
+  "id": 182,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Each was built here on block 0's fc.weight (1024 × 256 float32, 1,048,576 bytes) and taken apart with __tensor_flatten__ : DTensor (PyTorch's distributed tensor, the base of FSDP2 and tensor parallelism) keeps the local shard and the device mesh as its inner parts and the placements as metadata.",
+  "label": "depth",
+  "key": "1,048,576 bytes",
+  "where": ""
+ },
+ {
+  "id": 183,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "At 2.14.1 it is built in C++, sharing the wrapper-subclass helper, and its operators take a C++ fast path that only falls back to Python for sharding rules it has not cached; the Python __torch_dispatch__ only serves subclasses of DTensor: It refuses to mix with plain tensors rather than guess a placement: The Distributed PyTorch sibling owns how its placements propagate.",
+  "label": "core",
+  "key": "constructor and operator dispatch run in c++",
+  "where": ""
+ },
+ {
+  "id": 184,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "NF4Tensor (torchao; the 4-bit format of QLoRA) packs two 4-bit codes per byte plus double-quantized scales: 135,300 bytes for the 1 MiB weight.",
+  "label": "depth",
+  "key": "135,300 bytes",
+  "where": ""
+ },
+ {
+  "id": 185,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Its __torch_dispatch__ handles a table of ATen operators, and its docstring says the linear itself goes through an autograd.Function instead; its __torch_function__ looks F.linear up in a second table: Float8TrainingTensor (torchao float8 training) holds float8 e4m3 data and one float32 scale; its operators come from a table ( FLOAT8_OPS_TABLE ).",
+  "label": "depth",
+  "key": "goes through an autograd.function instead",
+  "where": ""
+ },
+ {
+  "id": 186,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "A matrix multiply of two of them ran on this CPU ( ); the speed-up is a GPU matter (H100-class float8 tensor cores), not measured here.",
+  "label": "depth",
+  "key": "h100-class float8 tensor cores",
+  "where": ""
+ },
+ {
+  "id": 187,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "Int8Tensor (torchao 0.18.0) declares its inner tensors as class attributes and inherits flatten, unflatten and much of the boilerplate from TorchAOBaseTensor : Subclasses and FSDP2.",
+  "label": "depth",
+  "key": "torchaobasetensor",
+  "where": ""
+ },
+ {
+  "id": 188,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "A subclass can also tell FSDP2 what to send over the network.",
+  "label": "core",
+  "key": "tell fsdp2 what to send over the network",
+  "where": ""
+ },
+ {
+  "id": 189,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "When FSDP2 shards a parameter whose inner tensor defines fsdp_pre_all_gather and fsdp_post_all_gather , it all-gathers whatever the first returns (the compact data) and rebuilds the full weight with the second.",
+  "label": "depth",
+  "key": "it all-gathers whatever the first returns",
+  "where": ""
+ },
+ {
+  "id": 190,
+  "tab": "t-read",
+  "section": "5. tensor subclasses: changing what a tensor is",
+  "text": "NF4 defines both, and so do torchao's float8 training tensor and its prototype int8 training tensors, so a sharded QLoRA or float8 run moves 4-bit or 8-bit bytes rather than float32: Go deeper: the Extending PyTorch notes (subclasses and modes); What (and why) is __torch_dispatch__ ; the subclass zoo ; the Libraries on top of PyTorch sibling for where these appear in training stacks.",
+  "label": "core",
+  "key": "4-bit or 8-bit bytes rather than float32",
+  "where": ""
+ },
+ {
+  "id": 191,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "Dispatch modes: watch or change every operation in a region A dispatch mode is the subclass idea without a subclass: a context manager whose __torch_dispatch__ is called for every ATen operation run inside the with block, whatever tensors it touches.",
+  "label": "core",
+  "key": "the subclass idea without a subclass",
+  "where": ""
+ },
+ {
+  "id": 192,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "The sibling page used one to record calls key by key ( Dispatcher walker tab); PyTorch itself ships several built on the same mechanism.",
+  "label": "core",
+  "key": "key by key this way, reading 2.2",
+  "where": ""
+ },
+ {
+  "id": 193,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "Three of them on the running example: FakeTensorMode: run the model with no data.",
+  "label": "core",
+  "key": "faketensormode: run the model with no data",
+  "where": ""
+ },
+ {
+  "id": 194,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "Inside the mode, new tensors and parameters are fake, so the whole model ran and produced logits of shape without computing a number.",
+  "label": "core",
+  "key": "without computing a number",
+  "where": ""
+ },
+ {
+  "id": 195,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "That is how torch.compile traces and how you can check that a 70-billion-parameter model's shapes line up on a laptop.",
+  "label": "core",
+  "key": "70-billion-parameter model's shapes",
+  "where": ""
+ },
+ {
+  "id": 196,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "What it cannot do is answer a question about values: loss.item() raised .",
+  "label": "core",
+  "key": "cannot answer a question about values",
+  "where": ""
+ },
+ {
+  "id": 197,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "(Building the model inside the mode needs care with tied weights: the root's make_model fails there because .to() cannot swap the tied embedding, as the sibling page found; constructing GPT(cfg) directly works.) FlopCounterMode: count the arithmetic.",
+  "label": "depth",
+  "key": "care with tied weights",
+  "where": ""
+ },
+ {
+  "id": 198,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "It adds up floating-point operations from a formula per operator.",
+  "label": "core",
+  "key": "from a formula per operator",
+  "where": ""
+ },
+ {
+  "id": 199,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "One forward and backward of the running example: FLOPs.",
+  "label": "core",
+  "key": "one forward and backward of the running example",
+  "where": ""
+ },
+ {
+  "id": 200,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "That is exactly 6 × 3,156,736 × 512 : six FLOPs per weight per token for every matrix-multiply weight (the 3,145,728 in the blocks plus the 11,008 of the head; the embeddings are lookups, not multiplies), over 512 tokens.",
+  "label": "core",
+  "key": "6 × 3,156,736 × 512",
+  "where": ""
+ },
+ {
+  "id": 201,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "The textbook estimate \"6 × parameters × tokens\" with all 3,186,944 parameters gives .",
+  "label": "core",
+  "key": "with all 3,186,944 parameters",
+  "where": ""
+ },
+ {
+  "id": 202,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "Two gaps are worth knowing.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "wind-up"
+ },
+ {
+  "id": 203,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "The CPU attention kernel ( _scaled_dot_product_flash_attention_for_cpu ) has no formula, so attention counted zero; written out by hand ( attn=\"manual\" ) its batched multiplies add .",
+  "label": "depth",
+  "key": "_scaled_dot_product_flash_attention_for_cpu",
+  "where": ""
+ },
+ {
+  "id": 204,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "And your own operators count zero until you register a formula: from torch.utils.flop_counter import register_flop_formula @register_flop_formula(torch.ops.ext.gelu) # register before creating FlopCounterMode def _(x_shape, *, out_shape= None ): return 8 * math.prod(x_shape) # your estimate per element How FLOPs turn into utilisation (MFU) is on Performance math .",
+  "label": "core",
+  "key": "count zero until you register a formula",
+  "where": ""
+ },
+ {
+  "id": 205,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "Twelve lines record every call (the sibling's walker and the Inside one step tab of the parent are built this way): from torch.utils._python_dispatch import TorchDispatchMode class Recorder(TorchDispatchMode): def __init__(self): super().__init__(); self.calls = [] def __torch_dispatch__(self, func, types, args=(), kwargs= None ): self.calls.append(str(func)) return func(*args, **(kwargs or {})) with Recorder() as r: loss = model(x, y)[1]; loss.backward() A TorchFunctionMode does the same at the Python API level (above autograd), and CommDebugMode counts collectives on DTensors (the Distributed lab tab of the parent uses it).",
+  "label": "core",
+  "key": "twelve lines record every call",
+  "where": ""
+ },
+ {
+  "id": 206,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "Cost: every call goes through Python.",
+  "label": "core",
+  "key": "every call goes through python",
+  "where": ""
+ },
+ {
+  "id": 207,
+  "tab": "t-read",
+  "section": "6. dispatch modes: watch or change every operation in a region",
+  "text": "The sibling page measured 4.8 µs for a one-element add inside a dispatch mode against 0.62 µs without; use modes for tools and tests, not in a timed loop.",
+  "label": "core",
+  "key": "4.818",
+  "where": ""
+ },
+ {
+  "id": 208,
+  "tab": "t-read",
+  "section": "7. new devices: privateuse1, briefly",
+  "text": "New devices: PrivateUse1, briefly A hardware vendor whose chip is not in PyTorch adds it without forking PyTorch through a reserved dispatch key, PrivateUse1 .",
+  "label": "depth",
+  "key": "a reserved dispatch key",
+  "where": ""
+ },
+ {
+  "id": 209,
+  "tab": "t-read",
+  "section": "7. new devices: privateuse1, briefly",
+  "text": "They register kernels at that key from a C++ extension (as in section 3, with TORCH_LIBRARY_IMPL(aten, PrivateUse1, m) for ATen operators), give the device a name with torch.utils.rename_privateuse1_backend(\"npu\") ( ), add tensor methods such as .npu() with generate_methods_for_privateuse1_backend() , and plug in an allocator, streams and a compiler backend.",
+  "label": "depth",
+  "key": "generate_methods_for_privateuse1_backend()",
+  "where": ""
+ },
+ {
+  "id": 210,
+  "tab": "t-read",
+  "section": "7. new devices: privateuse1, briefly",
+  "text": "PyTorch keeps a complete reference device in its own tests, torch_openreg ( test/cpp_extensions/open_registration_extension/ at the v2.14.1 tag).",
+  "label": "depth",
+  "key": "torch_openreg",
+  "where": ""
+ },
+ {
+  "id": 211,
+  "tab": "t-read",
+  "section": "7. new devices: privateuse1, briefly",
+  "text": "Not run here: a device needs a C++ runtime, and nothing on this page depends on it.",
+  "label": "depth",
+  "key": "a device needs a c++ runtime",
+  "where": ""
+ },
+ {
+  "id": 212,
+  "tab": "t-read",
+  "section": "7. new devices: privateuse1, briefly",
+  "text": "Most readers meet it through a vendor's plugin package, not by writing one.",
+  "label": "depth",
+  "key": "through a vendor's plugin package",
+  "where": ""
+ },
+ {
+  "id": 213,
+  "tab": "t-read",
+  "section": "8. choosing: autograd function, custom op, subclass, mode",
+  "text": "Choosing: autograd Function, custom op, subclass, mode The Which extension point? tab asks the questions one at a time.",
+  "label": "core",
+  "key": "asks the same questions one at a time",
+  "where": ""
+ },
+ {
+  "id": 214,
+  "tab": "t-read",
+  "section": "8. choosing: autograd function, custom op, subclass, mode",
+  "text": "The table is the summary, with the evidence from this page: You need Use Not Why (measured here) A different gradient for code PyTorch can trace torch.autograd.Function custom_op Dynamo traces it; no schema or fake to maintain (sibling page 3.6) To call a kernel or library PyTorch cannot see custom_op (or C++ TORCH_LIBRARY ) with fake and autograd A direct call Direct call: graphs, breaks, export fails, of 52 parameters trained.",
+  "label": "core",
+  "key": "a different gradient for code pytorch can trace",
+  "where": ""
+ },
+ {
+  "id": 215,
+  "tab": "t-read",
+  "section": "8. choosing: autograd function, custom op, subclass, mode",
+  "text": "Op: 1 graph, exports, all 52 A Triton kernel the compiler should optimise around triton_op + wrap_triton , or a raw @triton.jit call custom_op custom_op is opaque; Inductor sees triton_op's kernels (source, 4.2) Weights or activations in a new format A wrapper subclass with __tensor_flatten__ Rewriting every layer Model code unchanged; 1 graph; 16 weights at a quarter of the bytes A tensor spread over devices DTensor (already built) Your own subclass C++ fast path, sharding propagation, FSDP2 and TP built on it To observe or rewrite every op in a region TorchDispatchMode A subclass Sees everything, including backward; no change to tensors To intercept Python-level calls on your type __torch_function__ __torch_dispatch__ Sees linear rather than t + addmm ; but not backward ( call) A new device PrivateUse1 A fork The supported route for out-of-tree hardware",
+  "label": "core",
+  "key": "a triton kernel the compiler should optimise around",
+  "where": ""
+ },
+ {
+  "id": 216,
+  "tab": "t-read",
+  "section": "9. what carries over to nvidia gpus, and what does not",
+  "text": "What carries over to NVIDIA GPUs, and what does not Carries over unchanged: everything about registration and composition.",
+  "label": "depth",
+  "key": "carries over unchanged",
+  "where": ""
+ },
+ {
+  "id": 217,
+  "tab": "t-read",
+  "section": "9. what carries over to nvidia gpus, and what does not",
+  "text": "Schemas, fakes, autograd formulas, opcheck , graph counts and breaks, export behaviour, the late-registration and cache traps, the subclass protocol and what reaches __torch_dispatch__ : these are device-independent dispatcher and compiler logic.",
+  "label": "depth",
+  "key": "late-registration and cache traps",
+  "where": ""
+ },
+ {
+  "id": 218,
+  "tab": "t-read",
+  "section": "9. what carries over to nvidia gpus, and what does not",
+  "text": "On CUDA you register at the CUDA key, write the kernel in CUDA C++ ( CUDAExtension ) or Triton ( triton_op ), and Helion's default Triton backend with its autotuner applies; none ran here.",
+  "label": "depth",
+  "key": "helion's default triton backend with its autotuner",
+  "where": ""
+ },
+ {
+  "id": 219,
+  "tab": "t-read",
+  "section": "9. what carries over to nvidia gpus, and what does not",
+  "text": "Inductor around an opaque op on a GPU loses fusions that matter more than on a CPU (each unfused element-wise op is a full round trip through GPU memory).",
+  "label": "depth",
+  "key": "full round trip through gpu memory",
+  "where": ""
+ },
+ {
+  "id": 220,
+  "tab": "t-read",
+  "section": "9. what carries over to nvidia gpus, and what does not",
+  "text": "Changes: every timing on this page.",
+  "label": "depth",
+  "key": "every timing on this page",
+  "where": ""
+ },
+ {
+  "id": 221,
+  "tab": "t-read",
+  "section": "9. what carries over to nvidia gpus, and what does not",
+  "text": "Per-call overheads (3 to 4 µs for a Python-registered op, measured here) are paid on the CPU before every GPU launch as well, so many small custom ops hurt there too ( Profiling, benchmarking and correctness shows how to see it); but a weight-only int8 or float8 kernel that reads the compact format directly is a GPU speed-up that the CPU path here does not show.",
+  "label": "depth",
+  "key": "3 to 4 µs for a python-registered op",
+  "where": ""
+ },
+ {
+  "id": 222,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Common mistakes Calling your kernel directly instead of through an operator Works in eager, then costs you three graph breaks, export, and silently the gradients of everything before it: in the running example of 52 parameters were trained, with no error.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates sections 2.1 and 1.5 (direct call: breaks, export, 36 of 52 trained)"
+ },
+ {
+  "id": 223,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Wrap it in custom_op .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates sections 2.1 and 1.5 (direct call: breaks, export, 36 of 52 trained)"
+ },
+ {
+  "id": 224,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Registering the fake or the autograd formula late Register at import, next to the definition.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates trap 1 in section 2.3"
+ },
+ {
+  "id": 225,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Registering after the op has been traced left the compiled backward without gradients in that process (section 2.3), and the broken artifact was then served from the AOTAutograd cache to later, correct processes.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates trap 1 in section 2.3"
+ },
+ {
+  "id": 226,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Trusting a warm compile cache after changing registrations Clear TORCHINDUCTOR_CACHE_DIR (or set TORCHINDUCTOR_AUTOGRAD_CACHE=0 while developing) whenever a fake, a formula or a kernel's registration changes.",
+  "label": "core",
+  "key": "torchinductor_autograd_cache=0",
+  "where": ""
+ },
+ {
+  "id": 227,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Keep one test that compares compiled gradients with eager on a batch.",
+  "label": "core",
+  "key": "compares compiled gradients against eager",
+  "where": ""
+ },
+ {
+  "id": 228,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A fake that reads data, or returns the wrong shape The fake runs on tensors with no data: it may look at shapes, dtypes and devices only.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 1.4 (fake reads no data, new_dynamic_size, wrong shape fails later)"
+ },
+ {
+  "id": 229,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "For a data-dependent size use get_ctx().new_dynamic_size() .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 1.4 (fake reads no data, new_dynamic_size, wrong shape fails later)"
+ },
+ {
+  "id": 230,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A wrong shape makes compile fail one layer later with an error about the next operator; opcheck 's test_faketensor names the real one.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 1.4 (fake reads no data, new_dynamic_size, wrong shape fails later)"
+ },
+ {
+  "id": 231,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Writing into an input without declaring it List every mutated argument in mutates_args .",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 1.3"
+ },
+ {
+  "id": 232,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The compiler relies on the schema to reorder and reuse memory; opcheck catches the lie only when the test inputs are actually changed.",
+  "label": "core",
+  "key": "only if the values actually change",
+  "where": ""
+ },
+ {
+  "id": 233,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Returning an input (or a view of it) from a custom op Not allowed: outputs must be fresh tensors.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 1.3"
+ },
+ {
+  "id": 234,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Return x.clone() if the result equals the input.",
+  "label": "core",
+  "key": "return x.clone() if the result equals the input",
+  "where": ""
+ },
+ {
+  "id": 235,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Assuming one op means one numerical result on every device Each device has its own kernel.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 1.6 (Metal tanh, opcheck one device)"
+ },
+ {
+  "id": 236,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "The Metal GELU here used the tanh approximation (Metal has no erf) and differed from the CPU kernel by ; opcheck does not compare devices.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 1.6 (Metal tanh, opcheck one device)"
+ },
+ {
+  "id": 237,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting a custom C++ kernel to be fast because it is C++ The straightforward loop here was about 11 times slower than F.gelu (scalar, single-threaded).",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 3.2 (11 times slower, measure against ATen)"
+ },
+ {
+  "id": 238,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Benchmark against the ATen operator you replace, on your shapes, before shipping it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 3.2 (11 times slower, measure against ATen)"
+ },
+ {
+  "id": 239,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting Inductor to fuse through a custom op It cannot see inside: the op is a call between generated kernels, with metadata checks around it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 2.2"
+ },
+ {
+  "id": 240,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Leave small element-wise work in PyTorch, or use triton_op .",
+  "label": "core",
+  "key": "write it in pytorch (or as a triton_op)",
+  "where": ""
+ },
+ {
+  "id": 241,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A wrapper subclass whose detach() returns a plain tensor nn.Parameter refuses it.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 5.2"
+ },
+ {
+  "id": 242,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Handle aten.detach (and usually aten.t , aten._to_copy , aten.clone ) by returning the subclass.",
+  "label": "core",
+  "key": "aten._to_copy",
+  "where": ""
+ },
+ {
+  "id": 243,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Expecting __torch_function__ to see backward Autograd's engine calls C++ directly.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 5.1 (no backward for __torch_function__)"
+ },
+ {
+  "id": 244,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "A __torch_function__ subclass saw call in backward ( Tensor.backward itself); use __torch_dispatch__ or a dispatch mode to see backward's operations.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates section 5.1 (no backward for __torch_function__)"
+ },
+ {
+  "id": 245,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Two copies of a TORCH_LIBRARY in one process The process aborts with no Python traceback.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates the TORCH_LIBRARY box in section 3.2"
+ },
+ {
+  "id": 246,
+  "tab": "t-read",
+  "section": "common mistakes",
+  "text": "Use one extension per namespace, TORCH_LIBRARY_FRAGMENT for extra definitions.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "mistake restates the TORCH_LIBRARY box in section 3.2"
+ },
+ {
+  "id": 247,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Interview questions, with short answers What does torch.library.custom_op give you that calling a C++ function does not?",
+  "label": "depth",
+  "key": "calling a c++ function does not?",
+  "where": ""
+ },
+ {
+  "id": 248,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A dispatcher operator: a schema, kernels per device, a fake implementation for tracing, an autograd formula, version bumps for mutation.",
+  "label": "depth",
+  "key": "a dispatcher operator: a schema, kernels per device",
+  "where": ""
+ },
+ {
+  "id": 249,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "So autograd, torch.compile (one node, no break), torch.export and dispatch modes all work with it (and vmap, once you add register_vmap ).",
+  "label": "depth",
+  "key": "and vmap, once you add",
+  "where": ""
+ },
+ {
+  "id": 250,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What is a fake (meta) implementation and why does the compiler need it?",
+  "label": "depth",
+  "key": "what is a fake (meta) implementation",
+  "where": ""
+ },
+ {
+  "id": 251,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A function computing the output's metadata (shape, dtype, device, strides) from the inputs' metadata, without data.",
+  "label": "depth",
+  "key": "a function computing the output's metadata",
+  "where": ""
+ },
+ {
+  "id": 252,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Dynamo and export trace with fake tensors, so they must know every operator's output without running it.",
+  "label": "depth",
+  "key": "dynamo and export trace with fake tensors",
+  "where": ""
+ },
+ {
+  "id": 253,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How do you handle an op whose output size depends on the data?",
+  "label": "depth",
+  "key": "whose output size depends on the data?",
+  "where": ""
+ },
+ {
+  "id": 254,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "In the fake, allocate with a size from torch.library.get_ctx().new_dynamic_size() : an unbacked symbolic integer, carried as u0 through the graph with run-time checks.",
+  "label": "depth",
+  "key": "in the fake, allocate with a size",
+  "where": ""
+ },
+ {
+  "id": 255,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why must a custom op's schema declare mutation, and what does Tensor(a!) mean?",
+  "label": "depth",
+  "key": "what does tensor(a!) mean?",
+  "where": ""
+ },
+ {
+  "id": 256,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Functionalization and Inductor reorder and reuse buffers assuming the schema is honest.",
+  "label": "depth",
+  "key": "reorder and reuse buffers assuming the schema is honest",
+  "where": ""
+ },
+ {
+  "id": 257,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Tensor(a!) names an alias set a and marks it written. custom_op or triton_op? custom_op for opaque kernels (C++, CUDA, other libraries); triton_op when the body is Triton launches, so Inductor can see and optimise the kernels.",
+  "label": "depth",
+  "key": "names an alias set a and marks it written",
+  "where": ""
+ },
+ {
+  "id": 258,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Under export, both stay one node.",
+  "label": "depth",
+  "key": "under export, both stay one node",
+  "where": ""
+ },
+ {
+  "id": 259,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What does opcheck test?",
+  "label": "depth",
+  "key": "what does opcheck test?",
+  "where": ""
+ },
+ {
+  "id": 260,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Schema honesty (mutation and aliasing), that an autograd kernel is registered, that the fake matches the real kernel's metadata, and that forward and backward trace through AOTAutograd with dynamic shapes and match eager. __torch_function__ vs __torch_dispatch__?",
+  "label": "depth",
+  "key": "schema honesty (mutation and aliasing)",
+  "where": ""
+ },
+ {
+  "id": 261,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The first intercepts Python API calls (above autograd; sees linear ; no backward).",
+  "label": "depth",
+  "key": "the first intercepts python api calls",
+  "where": ""
+ },
+ {
+  "id": 262,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "The second intercepts ATen operators at the Python dispatch key (below autograd; sees t and addmm , including backward's operations).",
+  "label": "depth",
+  "key": "the second intercepts aten operators",
+  "where": ""
+ },
+ {
+  "id": 263,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Representation subclasses (DTensor, torchao) use the second.",
+  "label": "depth",
+  "key": "representation subclasses (dtensor, torchao) use the second",
+  "where": ""
+ },
+ {
+  "id": 264,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What is a wrapper subclass, and how does torch.compile handle one?",
+  "label": "depth",
+  "key": "what is a wrapper subclass, and how does torch.compile handle one?",
+  "where": ""
+ },
+ {
+  "id": 265,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A tensor with metadata and no storage, whose data lives in inner tensors.",
+  "label": "depth",
+  "key": "a tensor with metadata and no storage",
+  "where": ""
+ },
+ {
+  "id": 266,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "With __tensor_flatten__ and __tensor_unflatten__ the compiler passes the inner tensors as graph inputs and desugars __torch_dispatch__ into plain ATen operations.",
+  "label": "depth",
+  "key": "desugars __torch_dispatch__ into plain aten operations",
+  "where": ""
+ },
+ {
+  "id": 267,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Why might weight-only int8 not speed anything up?",
+  "label": "depth",
+  "key": "why might weight-only int8 not speed anything up?",
+  "where": ""
+ },
+ {
+  "id": 268,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "If the kernel converts the weight to float before the matmul (as on the CPU path here), only memory at rest shrinks.",
+  "label": "depth",
+  "key": "only memory at rest shrinks",
+  "where": ""
+ },
+ {
+  "id": 269,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Speed needs a kernel that reads int8 and dequantizes on the fly, and pays off where the matmul is memory-bound.",
+  "label": "depth",
+  "key": "dequantizes on the fly",
+  "where": ""
+ },
+ {
+  "id": 270,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How is DTensor implemented?",
+  "label": "depth",
+  "key": "how is dtensor implemented?",
+  "where": ""
+ },
+ {
+  "id": 271,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "A tensor subclass holding the local shard and the device mesh, with placements as metadata.",
+  "label": "depth",
+  "key": "holding the local shard and the device mesh",
+  "where": ""
+ },
+ {
+  "id": 272,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "At 2.14.1 its constructor and op dispatch run in C++ (a fast path with cached sharding propagation), falling back to Python sharding rules.",
+  "label": "depth",
+  "key": "cached sharding propagation",
+  "where": ""
+ },
+ {
+  "id": 273,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "You added register_autograd but compiled gradients are still missing.",
+  "label": "depth",
+  "key": "compiled gradients are still missing",
+  "where": ""
+ },
+ {
+  "id": 274,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "What do you check?",
+  "label": "depth",
+  "key": "what do you check?",
+  "where": ""
+ },
+ {
+  "id": 275,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Whether the op was traced before the registration (register at import), whether a stale compile cache is serving an old artifact (clear it or disable the AOTAutograd cache), and opcheck 's test_aot_dispatch_dynamic .",
+  "label": "depth",
+  "key": "whether a stale compile cache is serving an old artifact",
+  "where": ""
+ },
+ {
+  "id": 276,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "How would you add support for a new accelerator?",
+  "label": "depth",
+  "key": "support for a new accelerator?",
+  "where": ""
+ },
+ {
+  "id": 277,
+  "tab": "t-read",
+  "section": "interview questions, with short answers",
+  "text": "Out of tree through the PrivateUse1 key: kernels via TORCH_LIBRARY_IMPL(aten, PrivateUse1, ...) , a renamed device, an allocator, streams, and a compiler backend; torch_openreg in PyTorch's tests is the reference.",
+  "label": "depth",
+  "key": "torch_openreg in pytorch",
+  "where": ""
+ },
+ {
+  "id": 278,
+  "tab": "t-ext-pick",
+  "section": "which extension point?",
+  "text": "Answer a few questions about what you need; the answer is the lightest hook that does the job, with a code skeleton, what to register, how to test it, and the evidence from this page's runs.",
+  "label": "core",
+  "key": "the lightest hook that does the job, with a code skeleton",
+  "where": ""
+ },
+ {
+  "id": 279,
+  "tab": "t-ext-pick",
+  "section": "which extension point?",
+  "text": "The questions follow Reading section 8.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer to the removed section 8; the tab text now points at the top table"
+ },
+ {
+  "id": 280,
+  "tab": "t-ext-op",
+  "section": "custom-op lab",
+  "text": "Custom-op lab Ten ways of putting the same C++ GELU into the running example's MLP, from a direct call to a fully registered operator, each run for real with torch 2.14.1 on the CPU ( src/exp/custom_ops.py , src/exp/graphs.py ).",
+  "label": "core",
+  "key": "ten ways of putting the same c++ gelu",
+  "where": ""
+ },
+ {
+  "id": 281,
+  "tab": "t-ext-op",
+  "section": "custom-op lab",
+  "text": "For each: what is registered, what happens in eager training, what Dynamo captures, whether torch.compile(fullgraph=True) trains correctly, and what opcheck 's four tests say.",
+  "label": "core",
+  "key": "what happens in eager training, what dynamo captures",
+  "where": ""
+ },
+ {
+  "id": 282,
+  "tab": "t-ext-op",
+  "section": "custom-op lab",
+  "text": "Pick two variants to compare; the defaults are the first and last steps of section 1 of the Reading tab.",
+  "label": "core",
+  "key": "pick two variants to compare",
+  "where": ""
+ },
+ {
+  "id": 283,
+  "tab": "t-ext-op",
+  "section": "custom-op lab",
+  "text": "Left Right Gradient differences are the largest absolute difference from the F.gelu model's gradients over all parameters that received one. \"Parameters with gradients\" counts the 52 parameter tensors (the tied embedding counts once).",
+  "label": "core",
+  "key": "gradient differences are the largest absolute difference",
+  "where": ""
+ },
+ {
+  "id": 284,
+  "tab": "t-ext-op",
+  "section": "custom-op lab",
+  "text": "The made late variant was measured in one process after the bare C++ op had been traced; the at import one in a fresh process.",
+  "label": "core",
+  "key": "the made late variant was measured in one process",
+  "where": ""
+ },
+ {
+  "id": 285,
+  "tab": "t-ext-op",
+  "section": "custom-op lab",
+  "text": "Messages are cut to their first lines, with file paths removed.",
+  "label": "core",
+  "key": "messages are cut to their first lines",
+  "where": ""
+ },
+ {
+  "id": 286,
+  "tab": "t-ext-op",
+  "section": "custom-op lab",
+  "text": "What to take away A direct call costs graph breaks and silently loses gradients; a custom op needs a kernel, a fake and an autograd formula, in that order, and only all three pass the four tests and train under compile.",
+  "label": "core",
+  "key": "a direct call costs graph breaks and silently loses gradients",
+  "where": ""
+ },
+ {
+  "id": 287,
+  "tab": "t-ext-op",
+  "section": "custom-op lab",
+  "text": "A C++ op is the same once its fake and formula are registered, at import.",
+  "label": "core",
+  "key": "a c++ op is the same once its fake",
+  "where": ""
+ },
+ {
+  "id": 288,
+  "tab": "t-ext-op",
+  "section": "custom-op lab",
+  "text": "The lab's last two columns are the Reading tab's section 2.3: same code, different registration time.",
+  "label": "core",
+  "key": "the lab's last two columns",
+  "where": ""
+ },
+ {
+  "id": 289,
+  "tab": "t-ext-sub",
+  "section": "subclass tracer",
+  "text": "Subclass tracer One training step of the running example (forward and backward, batch 0, CPU) with block 0's fc.weight replaced by a logging tensor subclass, recorded call by call with torch 2.14.1 ( src/exp/subclasses.py ).",
+  "label": "core",
+  "key": "replaced by a logging subclass of each kind",
+  "where": ""
+ },
+ {
+  "id": 290,
+  "tab": "t-ext-sub",
+  "section": "subclass tracer",
+  "text": "The same step three times, changing only where the subclass intercepts: at the Python API ( __torch_function__ ) or at the dispatcher's Python key ( __torch_dispatch__ ), and in the second case whether results stay wrapped.",
+  "label": "core",
+  "key": "__torch_dispatch__, results rewrapped",
+  "where": ""
+ },
+ {
+  "id": 291,
+  "tab": "t-ext-sub",
+  "section": "subclass tracer",
+  "text": "Every row below is a call the subclass actually received; nothing is simulated. __torch_function__ subclass __torch_dispatch__, results rewrapped __torch_dispatch__, plain results Jump to backward Where this call was caught The call The last calls Every operation the subclass received in this step, by phase forward backward Read it this way __torch_function__ receives what your code called ( linear , gelu , layer_norm , attribute reads as __get__ ), and only that: autograd's engine runs backward in C++, so the backward shows one call, Tensor.backward . __torch_dispatch__ receives ATen operators after autograd has recorded its node, so linear appears as t + addmm , and the backward's own operators ( mm , gelu_backward , native_layer_norm_backward ) arrive too.",
+  "label": "core",
+  "key": "every row is a call the subclass actually received",
+  "where": ""
+ },
+ {
+  "id": 292,
+  "tab": "t-ext-sub",
+  "section": "subclass tracer",
+  "text": "Whether later operations reach the subclass depends on what it returns: rewrapped results spread the subclass to everything downstream (as DTensor does); plain results (as an int8 weight's matmul does) keep it to the weight.",
+  "label": "core",
+  "key": "rewrapped results spread it downstream",
+  "where": ""
+ },
+ {
+  "id": 293,
+  "tab": "t-ext-sub",
+  "section": "subclass tracer",
+  "text": "Reading section 5 explains each.",
+  "label": "fat",
+  "key": "",
+  "where": "",
+  "note": "pointer sentence in the removed tracer tab"
+ },
+ {
+  "id": 294,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page's tabs, the parent topic and its tabs, the sibling pages, the knowledge base pages next door, and the best outside resources, each with an approximate time.",
+  "label": "core",
+  "key": "this page's tabs, the parent topic and its tabs",
+  "where": ""
+ },
+ {
+  "id": 295,
+  "tab": "t-more",
+  "section": "",
+  "text": "Links checked on 2026-10-13.",
+  "label": "core",
+  "key": "links checked on 2026-10-13",
+  "where": ""
+ },
+ {
+  "id": 296,
+  "tab": "t-more",
+  "section": "",
+  "text": "This page Reading Custom operators from zero (schema, fake, autograd, kernels per device, opcheck), what compile and export do with them and two traps that drop gradients, C++ extensions, Metal, Triton and Helion kernels, tensor subclasses and how DTensor and torchao's are built, dispatch modes, PrivateUse1, a decision table. about 55 min with the drills Which extension point?",
+  "label": "core",
+  "key": "custom operators from zero",
+  "where": ""
+ },
+ {
+  "id": 297,
+  "tab": "t-more",
+  "section": "",
+  "text": "Two or three questions to the lightest hook that works, with a skeleton, what to register, how to test, and this page's evidence.",
+  "label": "core",
+  "key": "two or three questions to the lightest hook",
+  "where": ""
+ },
+ {
+  "id": 298,
+  "tab": "t-more",
+  "section": "",
+  "text": "5 min per question you bring Custom-op lab Ten registrations of one C++ GELU in the running example, side by side: eager gradients, Dynamo graphs and breaks, compiled training, the four opcheck tests.",
+  "label": "core",
+  "key": "ten registrations of one c++ gelu",
+  "where": ""
+ },
+ {
+  "id": 299,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min Subclass tracer One training step replayed call by call as a __torch_function__ subclass and a __torch_dispatch__ subclass saw it.",
+  "label": "core",
+  "key": "call-by-call tracer",
+  "where": ""
+ },
+ {
+  "id": 300,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min The parent topic and its tabs Topic: pytorch-ecosystem The root: section 8 is the intuition-level version of this page; the running example is defined there.",
+  "label": "core",
+  "key": "section 8 is the intuition-level version of this page",
+  "where": ""
+ },
+ {
+  "id": 301,
+  "tab": "t-more",
+  "section": "",
+  "text": "Its tabs: Inside one step (a TorchDispatchMode recording of one step), Compile lab (graph breaks and their cost), Distributed lab (DTensor and CommDebugMode), Ecosystem map.",
+  "label": "core",
+  "key": "a torchdispatchmode recording of one step",
+  "where": ""
+ },
+ {
+  "id": 302,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min for the Reading tab Sibling pages Tensors, the dispatcher and autograd The machine this page plugs into: dispatch keys, tables, fallthroughs, the autograd fallback (Reading 2.4), fake tensors, autograd.Function; its Dispatcher walker uses an instrumented custom op.",
+  "label": "core",
+  "key": "the machine this page plugs into",
+  "where": ""
+ },
+ {
+  "id": 303,
+  "tab": "t-more",
+  "section": "",
+  "text": "28 min torch.compile from the user's side Dynamo, guards, graph breaks, AOTAutograd, Inductor, export, caches.",
+  "label": "core",
+  "key": "dynamo, guards, graph breaks, aotautograd, inductor, export, caches",
+  "where": ""
+ },
+ {
+  "id": 304,
+  "tab": "t-more",
+  "section": "",
+  "text": "32 min Distributed PyTorch DTensor's placements and sharding propagation, FSDP2 and TP built on it.",
+  "label": "core",
+  "key": "dtensor's placements and sharding propagation",
+  "where": ""
+ },
+ {
+  "id": 305,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Making training fast Profiling, memory, attention backends and torchao in practice.",
+  "label": "core",
+  "key": "profiling, memory, attention backends and torchao in practice",
+  "where": ""
+ },
+ {
+  "id": 306,
+  "tab": "t-more",
+  "section": "",
+  "text": "26 min Libraries on top of PyTorch Where these extension points show up inside HF, torchtitan, Lightning and others.",
+  "label": "core",
+  "key": "where these extension points show up",
+  "where": ""
+ },
+ {
+  "id": 307,
+  "tab": "t-more",
+  "section": "",
+  "text": "29 min Next door in the knowledge base Triton and Gluon Writing the Triton kernels you would register with triton_op.",
+  "label": "core",
+  "key": "writing the triton kernels you would register",
+  "where": ""
+ },
+ {
+  "id": 308,
+  "tab": "t-more",
+  "section": "",
+  "text": "29 min Writing kernels CUDA kernels and FlashAttention, the kernels behind a CUDAExtension.",
+  "label": "core",
+  "key": "the kernels behind a cudaextension",
+  "where": ""
+ },
+ {
+  "id": 309,
+  "tab": "t-more",
+  "section": "",
+  "text": "37 min The compiler stack PTX, SASS, NVRTC, and code generation below Inductor.",
+  "label": "core",
+  "key": "ptx, sass, nvrtc, and code generation below inductor",
+  "where": ""
+ },
+ {
+  "id": 310,
+  "tab": "t-more",
+  "section": "",
+  "text": "28 min Quantization and Precision The number formats that torchao's subclasses implement.",
+  "label": "core",
+  "key": "the number formats that torchao's subclasses implement",
+  "where": ""
+ },
+ {
+  "id": 311,
+  "tab": "t-more",
+  "section": "",
+  "text": "23 min PEFT QLoRA and the frozen quantized base weights of section 5.3.",
+  "label": "core",
+  "key": "the frozen quantized base weights of section 5.3",
+  "where": ""
+ },
+ {
+  "id": 312,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min Performance math FLOPs and MFU, for reading FlopCounterMode's count.",
+  "label": "core",
+  "key": "for reading flopcountermode's count",
+  "where": ""
+ },
+ {
+  "id": 313,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min Profiling, benchmarking and correctness Timing a custom kernel honestly.",
+  "label": "core",
+  "key": "timing a custom kernel honestly",
+  "where": ""
+ },
+ {
+  "id": 314,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Outside resources PyTorch Custom Operators landing page The official map of the routes in sections 1 to 4.",
+  "label": "core",
+  "key": "pytorch custom operators landing page",
+  "where": ""
+ },
+ {
+  "id": 315,
+  "tab": "t-more",
+  "section": "",
+  "text": "10 min Python custom operators custom_op, register_fake, register_autograd, opcheck, step by step.",
+  "label": "core",
+  "key": "custom_op, register_fake, register_autograd, opcheck, step by step",
+  "where": ""
+ },
+ {
+  "id": 316,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Custom C++ and CUDA operators TORCH_LIBRARY, setup.py builds, CUDA kernels, Python registrations.",
+  "label": "core",
+  "key": "torch_library, setup.py builds, cuda kernels, python registrations",
+  "where": ""
+ },
+ {
+  "id": 317,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min torch.library reference (2.14) Every function used here, with its exact signature. reference User-defined Triton kernels with torch.compile Raw Triton launches, triton_op and wrap_triton.",
+  "label": "core",
+  "key": "every function used here, with its exact signature",
+  "where": ""
+ },
+ {
+  "id": 318,
+  "tab": "t-more",
+  "section": "",
+  "text": "25 min Extending PyTorch notes (2.14) autograd.Function, __torch_function__, subclasses and modes.",
+  "label": "core",
+  "key": "autograd.function, __torch_function__, subclasses and modes",
+  "where": ""
+ },
+ {
+  "id": 319,
+  "tab": "t-more",
+  "section": "",
+  "text": "40 min What (and why) is __torch_dispatch__ The design note behind section 5, from the PyTorch developers' forum.",
+  "label": "core",
+  "key": "from the pytorch developers' forum",
+  "where": ""
+ },
+ {
+  "id": 320,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min subclass_zoo Small, readable tensor subclasses and modes to copy from.",
+  "label": "core",
+  "key": "small, readable tensor subclasses and modes to copy from",
+  "where": ""
+ },
+ {
+  "id": 321,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min Fake tensor (2.14) What a fake tensor is and how FakeTensorMode works.",
+  "label": "core",
+  "key": "what a fake tensor is and how faketensormode works",
+  "where": ""
+ },
+ {
+  "id": 322,
+  "tab": "t-more",
+  "section": "",
+  "text": "15 min PrivateUse1 tutorial Integrating a new backend out of tree (section 7).",
+  "label": "core",
+  "key": "integrating a new backend out of tree",
+  "where": ""
+ },
+ {
+  "id": 323,
+  "tab": "t-more",
+  "section": "",
+  "text": "20 min Helion Docs, the kernel API and examples; source on GitHub .",
+  "label": "core",
+  "key": "docs, the kernel api and examples",
+  "where": ""
+ },
+ {
+  "id": 324,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min torchao docs quantize_, the tensor subclasses of section 5.5, float8 training.",
+  "label": "core",
+  "key": "quantize_, the tensor subclasses of section 5.5",
+  "where": ""
+ },
+ {
+  "id": 325,
+  "tab": "t-more",
+  "section": "",
+  "text": "30 min PyTorch internals (Edward Yang, 2019) The classic tour of tensors, the dispatcher and how to write a kernel; older, but the model still holds.",
+  "label": "core",
+  "key": "the classic tour of tensors, the dispatcher",
+  "where": ""
+ },
+ {
+  "id": 326,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-rendered visuals and tables)",
+  "text": "Hero: one call path with six slots (Python API, Autograd, ADInplaceOrView, Python key, fake, backend kernel); the three facts highlighted",
+  "label": "core",
+  "key": "six slots to plug into",
+  "where": ""
+ },
+ {
+  "id": 327,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-rendered visuals and tables)",
+  "text": "Stepper: each registration fills one dispatcher slot; recorded results of kernel only, + fake, + fake + autograd",
+  "label": "core",
+  "key": "a kernel alone trains in neither mode",
+  "where": ""
+ },
+ {
+  "id": 328,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-rendered visuals and tables)",
+  "text": "Script-rendered opcheck grid: ten variants by four tests, graphs and breaks, compiled gradients",
+  "label": "core",
+  "key": "every variant of the lab, every test, as recorded",
+  "where": ""
+ },
+ {
+  "id": 329,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-rendered visuals and tables)",
+  "text": "Correction: test_autograd_registration passed for the bare C++ op on the autograd fallback in the recorded run",
+  "label": "core",
+  "key": "checked against the recorded grid (2026-10-23)",
+  "where": ""
+ },
+ {
+  "id": 330,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-rendered visuals and tables)",
+  "text": "Dynamo strip: the forward as segments proportional to operations, 101 in all",
+  "label": "core",
+  "key": "101 in all",
+  "where": ""
+ },
+ {
+  "id": 331,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-rendered visuals and tables)",
+  "text": "Cache-trap diagram: four processes, one shared cache; 16, 16, 0, 0 parameters without gradient",
+  "label": "core",
+  "key": "16 of 52 in process 1",
+  "where": ""
+ },
+ {
+  "id": 332,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-rendered visuals and tables)",
+  "text": "Plug diagram: custom_op opaque, triton_op visible, Helion traced as a higher-order operator",
+  "label": "core",
+  "key": "registered with dynamo as a higher-order operator",
+  "where": ""
+ },
+ {
+  "id": 333,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-rendered visuals and tables)",
+  "text": "Script-rendered table of forward and backward calls seen per subclass kind",
+  "label": "core",
+  "key": "calls seen in forward",
+  "where": ""
+ },
+ {
+  "id": 334,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-rendered visuals and tables)",
+  "text": "Int8 before/after: bytes derived from shapes, 1,024 float32 scales",
+  "label": "core",
+  "key": "1,024 float32 scales",
+  "where": ""
+ },
+ {
+  "id": 335,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-rendered visuals and tables)",
+  "text": "Script-rendered schema inference table: six signatures and one error",
+  "label": "depth",
+  "key": "what infer_schema produced",
+  "where": ""
+ },
+ {
+  "id": 336,
+  "tab": "t-read",
+  "section": "added 2026-10-23 (script-rendered visuals and tables)",
+  "text": "Script-rendered real subclasses table: inner tensors and bytes from __tensor_flatten__",
+  "label": "depth",
+  "key": "taken apart with __tensor_flatten__",
+  "where": ""
+ }
+]

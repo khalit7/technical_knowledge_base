@@ -71,7 +71,7 @@
       code:'class MyTensor(torch.Tensor):\n    @staticmethod\n    def __new__(cls, a, b):\n        return torch.Tensor._make_wrapper_subclass(cls, shape, dtype=..., device=...)\n    def __tensor_flatten__(self): return ["a", "b"], meta\n    @staticmethod\n    def __tensor_unflatten__(inner, meta, size, stride): ...\n    __torch_function__ = torch._C._disabled_torch_function_impl\n    @classmethod\n    def __torch_dispatch__(cls, func, types, args=(), kwargs=None): ...',
       reg:['aten.detach returning the subclass (nn.Parameter needs it)','the operators your model calls (find them with a logging mode)','a fallback that dequantizes, or an error'],
       test:['loss and logits against float','torch.compile(fullgraph=True) on the model','count fallback calls'],
-      ev:()=>'Measured here: an int8 weight subclass on the 16 block weights, '+(E.int8.bytes_float/1e6).toFixed(2)+' MB to '+(E.int8.bytes_int8/1e6).toFixed(2)+' MB, 4 ATen operators implemented, 1 graph under compile. Reading 5.3 and 5.4; the {{Subclass tracer|#t-ext-sub}} tab.'},
+      ev:()=>'Measured here: an int8 weight subclass on the 16 block weights, '+(E.int8.bytes_float/1e6).toFixed(2)+' MB to '+(E.int8.bytes_int8/1e6).toFixed(2)+' MB, 4 ATen operators implemented, 1 graph under compile. Reading 5.1 (the call-by-call tracer), 5.3 and 5.4.'},
     r_mode:{h:'A TorchDispatchMode (or one PyTorch ships)',why:'It sees every ATen call inside the with block, forward and backward, whatever the tensors. FakeTensorMode runs without data; FlopCounterMode counts arithmetic.',
       code:'class Recorder(TorchDispatchMode):\n    def __torch_dispatch__(self, func, types, args=(), kwargs=None):\n        self.calls.append(str(func))\n        return func(*args, **(kwargs or {}))',
       reg:['nothing'],test:['compare with a known count (e.g. FLOPs = 6 x matmul weights x tokens)'],
@@ -81,7 +81,7 @@
       reg:['nothing'],test:['check it sees what you expect: backward is invisible'],ev:()=>'Measured here with a subclass at the same level: '+E.levels.function.nf+' forward calls, '+E.levels.function.nb+' in backward. Reading section 5.1.'},
     r_device:{h:'An out-of-tree backend on PrivateUse1',why:'The supported route for hardware PyTorch does not know: kernels at the PrivateUse1 key from a C++ extension, a renamed device, an allocator, streams and a compiler backend. torch_openreg in PyTorch\'s tests is the reference.',
       code:'torch.utils.rename_privateuse1_backend("mydev")\ntorch.utils.generate_methods_for_privateuse1_backend()\n# C++: TORCH_LIBRARY_IMPL(aten, PrivateUse1, m) { m.impl("add.Tensor", &my_add); ... }',
-      reg:['ATen kernels at PrivateUse1','allocator, device guard, streams'],test:['PyTorch\'s own test suite against the device'],ev:'Not run here. Reading section 7.'}
+      reg:['ATen kernels at PrivateUse1','allocator, device guard, streams'],test:['PyTorch\'s own test suite against the device'],ev:'Not run here. Reading, Depth (closed block on PrivateUse1).'}
   };
   Q.device={t:'',o:[]};
   let trail=[];

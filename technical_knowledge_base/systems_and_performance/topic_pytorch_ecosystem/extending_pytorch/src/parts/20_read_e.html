@@ -1,8 +1,8 @@
 <section id="rd-s3">
 <h2>3. C++ extensions: TORCH_LIBRARY</h2>
-<p><b>The problem.</b> Some kernels have to be compiled code: a hand-written loop, a call into a C++ library, a CUDA kernel. <code>torch.utils.cpp_extension</code> compiles C++ against PyTorch's headers and loads the result into the running process. It offers three ways: <code>load_inline</code> (C++ in a Python string, built on first use), <code>load</code> (the same from files) and <code>setup.py</code> with <code>CppExtension</code> or <code>CUDAExtension</code> (a wheel built ahead of time, what libraries ship). The first two need the <code>ninja</code> build tool; it was not in the shared environment and had to be installed.</p>
+<p><b>The problem.</b> Some kernels have to be compiled code: a hand-written loop, a call into a C++ library, a CUDA kernel. <code>torch.utils.cpp_extension</code> compiles C++ against PyTorch's headers and loads the result into the running process, three ways: <code>load_inline</code> (C++ in a Python string, built on first use), <code>load</code> (the same from files) and <code>setup.py</code> with <code>CppExtension</code> or <code>CUDAExtension</code> (a wheel built ahead of time, what libraries ship). The first two need the <code>ninja</code> build tool; it was not in the shared environment and had to be installed.</p>
 <h3>3.1 The tiny operator, built here</h3>
-<p>The running example's C++ GELU, whole file in <code>src/exp/gelu_ext.cpp</code>. The kernel is a plain loop over the tensor's memory; then two macros register it with the dispatcher:</p>
+<p>The running example's C++ GELU, whole file in <code>src/exp/gelu_ext.cpp</code>: a plain loop over the tensor's memory, then two macros that register it with the dispatcher.</p>
 <div class="code"><span class="k">static</span> at::Tensor gelu_fwd(<span class="k">const</span> at::Tensor& x) {
   TORCH_CHECK(x.device().is_cpu() && x.scalar_type() == at::kFloat, <span class="k">"extc::gelu: CPU float32 only"</span>);
   <span class="k">auto</span> xc = x.contiguous();
@@ -33,22 +33,22 @@ torch.library.register_fake(<span class="k">"extc::gelu"</span>)(<span class="k"
 torch.library.register_fake(<span class="k">"extc::gelu_backward"</span>)(<span class="k">lambda</span> g, x: torch.empty_like(x))
 torch.library.register_autograd(<span class="k">"extc::gelu"</span>, backward, setup_context=setup_context)
 y = torch.ops.extc.gelu(x)</div>
-<p><code>TORCH_LIBRARY</code> is a macro that creates a static registrar, so the definitions run when the shared library is loaded (<span class="ext-qh" data-q="torch_library_macro" style="display:inline"></span>). The dispatcher's table afterwards shows where each kernel came from, the CPU kernel from the C++ file and the fake (at <code>Meta</code>) and the autograd kernel from Python:</p>
-<div class="code" id="ext-cppdump"></div>
-<p>The same <code>.so</code> also exposed the two functions through pybind11 (<code>functions=[...]</code>), which is how the "before" side of section 2 called them without the dispatcher.</p>
+<p><code>TORCH_LIBRARY</code> creates a static registrar, so the definitions run when the shared library is loaded. Afterwards the dispatcher's table shows the CPU kernel from the C++ file and the fake (at <code>Meta</code>) and the autograd kernel from Python. The same <code>.so</code> also exposed the two functions through pybind11 (<code>functions=[...]</code>), which is how the "before" side of section 2 called them without the dispatcher.</p>
+<details class="qa"><summary>The macro's source, and the dispatcher's table for extc::gelu</summary><div>
+<p><span class="ext-qh" data-q="torch_library_macro" style="display:inline"></span></p>
+<div class="code" id="ext-cppdump"></div></div></details>
 <h3>3.2 What it costs</h3>
-<div class="rd-card"><h4>One call, four ways to reach the same kind of work <span class="meas">measured on Apple M1 Pro, CPU, 4 threads, bench lock, median of 3</span></h4>
+<div class="rd-card"><h4>Overhead dominates 64 floats; the kernel dominates a real activation <span class="meas">measured on Apple M1 Pro, CPU, 4 threads, bench lock, median of 3</span></h4>
 <div class="seg" id="ext-call-seg"><button class="on" data-m="small (64)">64 floats: overhead</button><button data-m="mlp (8,64,1024)">8 &times; 64 &times; 1024: the kernel</button></div>
-<div class="bars" id="ext-call-bars"></div>
+<div class="rd-svg" id="ext-call-bars"></div>
 <p class="small mute" id="ext-call-note"></p></div>
-<p>Two different lessons. <b>Overhead:</b> on 64 numbers the call itself dominates. Through pybind11 the C++ function costs what <code>F.gelu</code> costs; as a dispatcher operator with a Python autograd kernel it costs about five times as much, because every call enters Python at the <code>Autograd</code> key even when nothing needs a gradient (a C++ autograd registration would avoid that; not measured here). <b>Kernel:</b> on a real activation our loop is about 11 times slower than ATen's GELU. ATen's kernel is vectorised (4 floats per NEON instruction) and multi-threaded; ours computes one <code>erf</code> at a time, and <code>at::parallel_for</code> runs serially here because the extension was compiled without OpenMP flags. A custom kernel has to beat what it replaces before it earns its place; measure it on the shapes you run.</p>
+<p><b>Overhead:</b> through pybind11 the C++ function costs what <code>F.gelu</code> costs; as a dispatcher operator with a Python autograd kernel it costs about five times as much, because every call enters Python at the <code>Autograd</code> key even when nothing needs a gradient (a C++ autograd registration would avoid that; not measured here). <b>Kernel:</b> our loop is about 11 times slower than ATen's GELU, which is vectorised (4 floats per NEON instruction) and multi-threaded; ours computes one <code>erf</code> at a time, and <code>at::parallel_for</code> runs serially because the extension was compiled without OpenMP flags. Measure a custom kernel against what it replaces, on your shapes.</p>
 <p><b>Build.</b> A cold <code>load_inline</code> of this 50-line file took <span data-v="timing/build_cold_s/2"></span> to <span data-v="timing/build_cold_s/0"></span> s (three builds, each in a fresh directory and process); afterwards the build directory acts as a cache.</p>
 <div class="co warn"><div class="t">One namespace, one TORCH_LIBRARY, per process</div>Loading a second build of the same file under another module name (to time a cold build) killed the Python process with SIGABRT (return code <span data-v="dup/returncode"></span>) and no Python traceback: a namespace may be defined by one <code>TORCH_LIBRARY</code> block only. Use <code>TORCH_LIBRARY_FRAGMENT</code> to add definitions from several files, and never import two copies of an extension.</div>
-<h3>3.3 Beyond this example</h3>
-<ul>
+<details class="qa"><summary>Beyond this example: autograd in C++, CUDA, one wheel for several PyTorch versions</summary><div><ul>
 <li><b>Autograd in C++</b>: subclass <code>torch::autograd::Function</code> and register it at the <code>Autograd</code> key with <code>TORCH_LIBRARY_IMPL(extc, Autograd, m)</code>. Use it when you need C++-speed calls; the Python route above is simpler and enough for big kernels.</li>
 <li><b>CUDA</b>: <code>CUDAExtension</code> or <code>load_inline(cuda_sources=...)</code> compile <code>.cu</code> files with nvcc; register the kernel at the <code>CUDA</code> key exactly as above. Not run here (no NVIDIA GPU).</li>
 <li><b>One wheel for several PyTorch versions</b>: the C++ ABI changes between releases, so an extension built against 2.14 may not load into 2.15. PyTorch ships a smaller stable ABI for extensions, with its own registration macro (<code>STABLE_TORCH_LIBRARY</code> in <code>torch/csrc/stable/library.h</code>, line 355 of the 2.14.1 wheel's headers); not used here.</li>
-</ul>
+</ul></div></details>
 <div class="deepnote"><b>Go deeper:</b> the {{custom C++ and CUDA operators tutorial|https://docs.pytorch.org/tutorials/advanced/cpp_custom_ops.html}}; {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}} for writing the CUDA kernel itself.</div>
 </section>

@@ -20,7 +20,17 @@ window.EXTU=(function(){
   const tbl=(head,rows,cls)=>'<div class="tw"><table class="rd-tbl '+(cls||'')+'"><thead><tr>'+head.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
   function bars(el,items,unit,dec){const mx=Math.max(...items.map(i=>i.v));
     el.innerHTML=items.map(i=>'<div class="row'+(i.hl?' hl':'')+'"><div class="nm">'+i.k+(i.sub?'<span class="ml">'+i.sub+'</span>':'')+'</div><div class="track"><div class="fill" style="width:'+(100*i.v/mx).toFixed(1)+'%;background:'+(i.c||'var(--acc)')+'"></div></div><div class="val">'+i.v.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec})+' '+unit+'</div></div>').join('')}
-  return {get,fmt,fill,quotes,tbl,bars,esc};
+  // horizontal bars drawn as SVG at the measured width; items {k (plain text), sub, v, c}
+  function svgBars(el,items,unit,dec){const W=RD.width(el),wide=W>=560,mx=Math.max(...items.map(i=>i.v));
+    const lw=wide?Math.min(230,W*0.34):0,vw=78,bx=lw+4,bw=Math.max(60,W-bx-vw-6),rh=wide?34:46;let y=4,b='';
+    items.forEach(i=>{const ty=wide?y+13:y+12,by=wide?y+3:y+18,w=Math.max(2,bw*i.v/mx);
+      if(wide){b+=RD.t(0,ty,esc(i.k),{fs:12,fill:'var(--ink)'});if(i.sub)b+=RD.t(0,ty+14,esc(i.sub),{fs:11,fill:'var(--mute)'})}
+      else{b+=RD.t(0,ty,esc(i.k)+(i.sub?'  ('+esc(i.sub)+')':''),{fs:11.5,fill:'var(--ink)'})}
+      b+='<rect x="'+bx+'" y="'+by+'" width="'+w.toFixed(1)+'" height="16" rx="3" fill="'+(i.c||'var(--acc)')+'"/>';
+      b+=RD.t(bx+w+5,by+12.5,i.v.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec})+' '+unit,{fs:12,fill:'var(--ink)',w:600});
+      y+=rh});
+    el.innerHTML=RD.svg(W,y+2,b,'bar chart')}
+  return {get,fmt,fill,quotes,tbl,bars,svgBars,esc};
 })();
 (function(){
   const E=window.EXT,U=window.EXTU,esc=RD.esc,$=id=>document.getElementById(id);
@@ -53,10 +63,11 @@ window.EXTU=(function(){
   $('ext-cppdump').textContent=(E.dispatch_cpp||[]).join('\n');
   // 3.2 per-call bars
   const callNote={'small (64)':'Per call on 64 floats: almost all of it is overhead (Python, dispatcher, allocation).','mlp (8,64,1024)':'Per call on one MLP activation of the running example (524,288 floats): the kernel dominates.'};
-  function drawCalls(m){const c=E.timing.calls_cpu[m];const us=m.startsWith('small');
-    U.bars($('ext-call-bars'),Object.entries(c).map(([k,v],i)=>({k:esc(k),v:us?v.median_us:v.median_us/1000,c:['var(--c3)','var(--c1)','var(--c4)','var(--c2)'][i],sub:'runs '+v.runs_us.map(x=>us?x.toFixed(2):(x/1000).toFixed(2)).join(', ')})),us?'&micro;s':'ms',2);
+  let callM='small (64)';
+  function drawCalls(m){if(m)callM=m;m=callM;const c=E.timing.calls_cpu[m];const us=m.startsWith('small');
+    U.svgBars($('ext-call-bars'),Object.entries(c).map(([k,v],i)=>({k,v:us?v.median_us:v.median_us/1000,c:['var(--c3)','var(--c1)','var(--c4)','var(--c2)'][i],sub:'runs '+v.runs_us.map(x=>us?x.toFixed(2):(x/1000).toFixed(2)).join(', ')})),us?'\u00b5s':'ms',2);
     $('ext-call-note').textContent=callNote[m]}
-  RD.seg($('ext-call-seg'),drawCalls);drawCalls('small (64)');
+  RD.seg($('ext-call-seg'),drawCalls);drawCalls();RD.onRender(()=>drawCalls());RD.onResize(()=>drawCalls());
   // 4.1 shader, 4.3 helion
   $('ext-shader').textContent=E.mps.shader||'';
   const hk=E.helion.kernels;
@@ -77,7 +88,8 @@ window.EXTU=(function(){
   $('ext-aot').textContent=q.aot_fw_head.slice(2,7).join('\n');
   const ao=E.real.find(r=>r.aten_calls);$('ext-ao-calls').innerHTML=ao?ao.aten_calls.map(c=>'<code>'+esc(c)+'</code>').join(', '):'';
   const fw=E.timing.int8_forward_cpu;
-  U.bars($('ext-int8-bars'),Object.entries(fw).map(([k,v])=>({k:esc(k),v:v.median_ms,c:k.includes('int8')?'var(--c4)':'var(--c1)',sub:'runs '+v.runs_ms.join(', ')})),'ms',2);
+  const drawFw=()=>U.svgBars($('ext-int8-bars'),Object.entries(fw).map(([k,v])=>({k,v:v.median_ms,c:k.includes('int8')?'var(--c4)':'var(--c1)',sub:'runs '+v.runs_ms.join(', ')})),'ms',2);
+  drawFw();RD.onRender(drawFw);RD.onResize(drawFw);
   // 5.5 real subclasses
   $('ext-real').innerHTML=U.tbl(['Tensor','Class','Inner tensors (from __tensor_flatten__)','Bytes'],E.real.map(r=>[esc(r.label),'<code>'+esc((r['class']||'').split('.').pop())+'</code>',
     r.inner?r.inner.map(i=>'<code>'+esc(i.name)+'</code> '+(i.dtype?esc(i.dtype.replace('torch.',''))+' ['+i.shape.join(', ')+']':esc(i.type||''))).join('<br>'):'(plain tensor: its own storage)',

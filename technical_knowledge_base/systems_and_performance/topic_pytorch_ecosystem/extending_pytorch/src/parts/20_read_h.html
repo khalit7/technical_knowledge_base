@@ -1,15 +1,17 @@
 <section id="rd-s6">
 <h2>6. Dispatch modes: watch or change every operation in a region</h2>
-<p>A <dfn>dispatch mode</dfn> is the subclass idea without a subclass: a context manager whose <code>__torch_dispatch__</code> is called for every ATen operation run inside the <code>with</code> block, whatever tensors it touches. The sibling page used one to record calls key by key ({{Dispatcher walker|n:3f85c17b0d0d81138595c1c6cd52f795}} tab); PyTorch itself ships several built on the same mechanism. Three of them on the running example:</p>
-<p><b>FakeTensorMode: run the model with no data.</b> Inside the mode, new tensors and parameters are fake, so the whole model ran and produced logits of shape <span data-v="modes/fake/logits|raw"></span> without computing a number. That is how <code>torch.compile</code> traces and how you can check that a 70-billion-parameter model's shapes line up on a laptop. What it cannot do is answer a question about values: <code>loss.item()</code> raised <span class="ext-err" data-v="modes/fake/item_error|raw"></span>. (Building the model inside the mode needs care with tied weights: the root's <code>make_model</code> fails there because <code>.to()</code> cannot swap the tied embedding, as the sibling page found; constructing <code>GPT(cfg)</code> directly works.)</p>
-<p><b>FlopCounterMode: count the arithmetic.</b> It adds up floating-point operations from a formula per operator. One forward and backward of the running example: <span data-v="modes/flops_total|i"></span> FLOPs. That is exactly <span class="der">6 &times; 3,156,736 &times; 512</span>: six FLOPs per weight per token for every matrix-multiply weight (the 3,145,728 in the blocks plus the 11,008 of the head; the embeddings are lookups, not multiplies), over 512 tokens. The textbook estimate "6 &times; parameters &times; tokens" with all 3,186,944 parameters gives <span data-v="modes/six_n_t|i"></span>. Two gaps are worth knowing. The CPU attention kernel (<code>_scaled_dot_product_flash_attention_for_cpu</code>) has no formula, so attention counted zero; written out by hand (<code>attn="manual"</code>) its batched multiplies add <span data-v="modes/flops_manual_by_op/bmm|i"></span>. And your own operators count zero until you register a formula:</p>
+<p>A <dfn>dispatch mode</dfn> is the subclass idea without a subclass: a context manager whose <code>__torch_dispatch__</code> is called for every ATen operation run inside the <code>with</code> block, whatever tensors it touches (the sibling page records one call key by key this way, Reading 2.2). PyTorch ships several; three on the running example.</p>
+<p><b>FakeTensorMode: run the model with no data.</b> Inside the mode, new tensors and parameters are fake, so the whole model ran and produced logits of shape <span data-v="modes/fake/logits|raw"></span> without computing a number (how you check a 70-billion-parameter model's shapes on a laptop), but it cannot answer a question about values: <code>loss.item()</code> raised <span class="ext-err" data-v="modes/fake/item_error|raw"></span>.</p>
+<p><b>FlopCounterMode: count the arithmetic</b> from a formula per operator. One forward and backward of the running example: <span data-v="modes/flops_total|i"></span> FLOPs, exactly <span class="der">6 &times; 3,156,736 &times; 512</span>: six FLOPs per weight per token for every matrix-multiply weight (the 3,145,728 in the blocks plus the 11,008 of the head; the embeddings are lookups), over 512 tokens. The textbook "6 &times; parameters &times; tokens" with all 3,186,944 parameters gives <span data-v="modes/six_n_t|i"></span>. Your own operators count zero until you register a formula with <code>register_flop_formula</code>, and so did the CPU attention kernel (closed block). How FLOPs turn into utilisation (MFU) is on {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}.</p>
+<details class="qa"><summary>Two gaps in the FLOP count: CPU attention and your own operators</summary><div>
+<p>The CPU attention kernel (<code>_scaled_dot_product_flash_attention_for_cpu</code>) has no formula, so attention counted zero; written out by hand (<code>attn="manual"</code>) its batched multiplies add <span data-v="modes/flops_manual_by_op/bmm|i"></span>.</p>
 <div class="ext-qh" data-q="flop_sdpa"></div><div class="ext-q" data-q="flop_sdpa"></div>
 <div class="code"><span class="k">from</span> torch.utils.flop_counter <span class="k">import</span> register_flop_formula
 @register_flop_formula(torch.ops.ext.gelu)     <span class="c"># register before creating FlopCounterMode</span>
 <span class="k">def</span> _(x_shape, *, out_shape=<span class="k">None</span>):
     <span class="k">return</span> 8 * math.prod(x_shape)              <span class="c"># your estimate per element</span></div>
-<p class="small mute">How FLOPs turn into utilisation (MFU) is on {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}.</p>
-<p><b>Your own mode.</b> Twelve lines record every call (the sibling's walker and the {{Inside one step|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab of the parent are built this way):</p>
+<p>(Building the model inside FakeTensorMode needs care with tied weights: the root's <code>make_model</code> fails there because <code>.to()</code> cannot swap the tied embedding, as the sibling page found; constructing <code>GPT(cfg)</code> directly works.)</p></div></details>
+<p><b>Your own mode.</b> Twelve lines record every call (the parent's {{Inside one step|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab is built this way):</p>
 <div class="code"><span class="k">from</span> torch.utils._python_dispatch <span class="k">import</span> TorchDispatchMode
 <span class="k">class</span> Recorder(TorchDispatchMode):
     <span class="k">def</span> __init__(self): super().__init__(); self.calls = []
@@ -18,34 +20,15 @@
         <span class="k">return</span> func(*args, **(kwargs <span class="k">or</span> {}))
 <span class="k">with</span> Recorder() <span class="k">as</span> r:
     loss = model(x, y)[1]; loss.backward()</div>
-<p>A <code>TorchFunctionMode</code> does the same at the Python API level (above autograd), and <code>CommDebugMode</code> counts collectives on DTensors (the {{Distributed lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab of the parent uses it). Cost: every call goes through Python. The sibling page measured 4.8 &micro;s for a one-element add inside a dispatch mode against 0.62 &micro;s without; use modes for tools and tests, not in a timed loop.</p>
+<p>A <code>TorchFunctionMode</code> does the same at the Python API level (above autograd), and <code>CommDebugMode</code> counts collectives on DTensors (the parent's Distributed lab uses it). Cost: every call goes through Python. The sibling page measured 4.818 &micro;s for a one-element add inside a dispatch mode against 0.622 &micro;s without; use modes for tools and tests, not in a timed loop.</p>
 </section>
 
-<section id="rd-s7">
-<h2>7. New devices: PrivateUse1, briefly</h2>
-<p>A hardware vendor whose chip is not in PyTorch adds it without forking PyTorch through a reserved dispatch key, <code>PrivateUse1</code>. They register kernels at that key from a C++ extension (as in section 3, with <code>TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)</code> for ATen operators), give the device a name with <code>torch.utils.rename_privateuse1_backend("npu")</code> (<span class="ext-qh" data-q="pu1_rename" style="display:inline"></span>), add tensor methods such as <code>.npu()</code> with <code>generate_methods_for_privateuse1_backend()</code>, and plug in an allocator, streams and a compiler backend. PyTorch keeps a complete reference device in its own tests, <code>torch_openreg</code> (<code>test/cpp_extensions/open_registration_extension/</code> at the v2.14.1 tag). Not run here: a device needs a C++ runtime, and nothing on this page depends on it. Most readers meet it through a vendor's plugin package, not by writing one.</p>
-</section>
-
-<section id="rd-s8">
-<h2>8. Choosing: autograd Function, custom op, subclass, mode</h2>
-<p>The {{Which extension point?|#t-ext-pick}} tab asks the questions one at a time. The table is the summary, with the evidence from this page:</p>
-<div class="tw"><table class="rd-tbl"><thead><tr><th>You need</th><th>Use</th><th>Not</th><th>Why (measured here)</th></tr></thead><tbody>
-<tr><td>A different gradient for code PyTorch can trace</td><td><code>torch.autograd.Function</code></td><td>custom_op</td><td>Dynamo traces it; no schema or fake to maintain (sibling page 3.6)</td></tr>
-<tr><td>To call a kernel or library PyTorch cannot see</td><td><code>custom_op</code> (or C++ <code>TORCH_LIBRARY</code>) with fake and autograd</td><td>A direct call</td><td>Direct call: <span data-v="variants/pybind/graphs"></span> graphs, <span data-v="variants/pybind/breaks"></span> breaks, export fails, <span data-v="variants/pybind/with_grad"></span> of 52 parameters trained. Op: 1 graph, exports, all 52</td></tr>
-<tr><td>A Triton kernel the compiler should optimise around</td><td><code>triton_op</code> + <code>wrap_triton</code>, or a raw <code>@triton.jit</code> call</td><td>custom_op</td><td>custom_op is opaque; Inductor sees triton_op's kernels (source, 4.2)</td></tr>
-<tr><td>Weights or activations in a new format</td><td>A wrapper subclass with <code>__tensor_flatten__</code></td><td>Rewriting every layer</td><td>Model code unchanged; 1 graph; 16 weights at a quarter of the bytes</td></tr>
-<tr><td>A tensor spread over devices</td><td>DTensor (already built)</td><td>Your own subclass</td><td>C++ fast path, sharding propagation, FSDP2 and TP built on it</td></tr>
-<tr><td>To observe or rewrite every op in a region</td><td><code>TorchDispatchMode</code></td><td>A subclass</td><td>Sees everything, including backward; no change to tensors</td></tr>
-<tr><td>To intercept Python-level calls on your type</td><td><code>__torch_function__</code></td><td>__torch_dispatch__</td><td>Sees <code>linear</code> rather than <code>t</code> + <code>addmm</code>; but not backward (<span data-v="levels/function/nb"></span> call)</td></tr>
-<tr><td>A new device</td><td><code>PrivateUse1</code></td><td>A fork</td><td>The supported route for out-of-tree hardware</td></tr>
-</tbody></table></div>
-</section>
-
-<section id="rd-s9">
-<h2>9. What carries over to NVIDIA GPUs, and what does not</h2>
-<ul>
+<section id="rd-deep">
+<h2>Depth: new devices, NVIDIA GPUs and interview rehearsal</h2>
+<details class="qa"><summary>New devices: PrivateUse1, briefly</summary><div>
+<p>A hardware vendor whose chip is not in PyTorch adds it without forking PyTorch through a reserved dispatch key, <code>PrivateUse1</code>. They register kernels at that key from a C++ extension (as in section 3, with <code>TORCH_LIBRARY_IMPL(aten, PrivateUse1, m)</code> for ATen operators), give the device a name with <code>torch.utils.rename_privateuse1_backend("npu")</code> (<span class="ext-qh" data-q="pu1_rename" style="display:inline"></span>), add tensor methods such as <code>.npu()</code> with <code>generate_methods_for_privateuse1_backend()</code>, and plug in an allocator, streams and a compiler backend. PyTorch keeps a complete reference device in its own tests, <code>torch_openreg</code> (<code>test/cpp_extensions/open_registration_extension/</code> at the v2.14.1 tag). Not run here: a device needs a C++ runtime, and nothing on this page depends on it. Most readers meet it through a vendor's plugin package, not by writing one.</p></div></details>
+<details class="qa"><summary>What carries over to NVIDIA GPUs, and what does not</summary><div><ul>
 <li><b>Carries over unchanged:</b> everything about registration and composition. Schemas, fakes, autograd formulas, <code>opcheck</code>, graph counts and breaks, export behaviour, the late-registration and cache traps, the subclass protocol and what reaches <code>__torch_dispatch__</code>: these are device-independent dispatcher and compiler logic.</li>
 <li><b>Changes:</b> the kernels. On CUDA you register at the <code>CUDA</code> key, write the kernel in CUDA C++ (<code>CUDAExtension</code>) or Triton (<code>triton_op</code>), and Helion's default Triton backend with its autotuner applies; none ran here. Inductor around an opaque op on a GPU loses fusions that matter more than on a CPU (each unfused element-wise op is a full round trip through GPU memory).</li>
 <li><b>Changes:</b> every timing on this page. Per-call overheads (3 to 4 &micro;s for a Python-registered op, measured here) are paid on the CPU before every GPU launch as well, so many small custom ops hurt there too ({{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}} shows how to see it); but a weight-only int8 or float8 kernel that reads the compact format directly is a GPU speed-up that the CPU path here does not show.</li>
-</ul>
-</section>
+</ul></div></details>

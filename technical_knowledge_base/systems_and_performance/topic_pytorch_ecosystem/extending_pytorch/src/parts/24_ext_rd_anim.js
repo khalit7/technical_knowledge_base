@@ -49,8 +49,18 @@
       const col=p.kind==='break'?'border-color:var(--bad);':(p.kind==='graph'||p.kind==='node')?'border-color:'+['','var(--acc)','var(--c4)','var(--c6)','var(--c3)'][p.g]+';':'';
       return '<span class="ext-gbox'+cls+'" style="'+col+st+op+'" title="'+esc(p.label)+'"><span style="font-size:11px">'+(p.kind==='break'?'break':p.kind==='eager'?'eager':'g'+p.g)+' &middot; '+p.ops.length+'</span></span>'};
     const cur=P[i];
-    $('ext-dyn-view').innerHTML='<div class="small mute" style="margin:4px 0">The forward, left to right (box: what ran, and how many operations):</div><div style="display:flex;flex-wrap:wrap;gap:2px">'+P.map(box).join('')+'</div>'+
-      '<div class="ext-lane" style="margin-top:8px"><div class="nm">'+esc(cur.label)+'</div><div class="ext-ops">'+cur.ops.map(o=>'<span class="'+(cur.kind==='break'?'brk':cur.kind==='eager'?'e':cur.kind==='node'?'g cur':'g')+'">'+esc(o)+'</span>').join('')+'</div></div>';
+    // the forward as one strip, segment widths proportional to operations
+    const el=$('ext-dyn-svg'),Wd=RD.width(el),tot=P.reduce((a,p)=>a+Math.max(p.ops.length,1.5),0),sx=(Wd-2)/tot;
+    const gcol=['','var(--acc)','var(--c4)','var(--c6)','var(--c3)'];let x=1,b='';const marks=[];
+    P.forEach((p,j)=>{const w=Math.max(p.ops.length,1.5)*sx;const col=p.kind==='break'?'var(--bad)':p.kind==='eager'?'var(--c5)':gcol[p.g];
+      b+='<rect x="'+x.toFixed(1)+'" y="4" width="'+Math.max(1,w-1).toFixed(1)+'" height="26" rx="2" fill="'+col+'" opacity="'+(j>i?0.25:j===i?1:0.75)+'"'+(j===i?' stroke="var(--ink)" stroke-width="2"':'')+'/>';
+      if(p.b!==undefined&&(j===0||P[j-1].b!==p.b))marks.push([x,'block '+p.b]);
+      x+=w});
+    const narrow=Wd<520;
+    marks.forEach(([mx,l])=>{b+='<line x1="'+mx.toFixed(1)+'" x2="'+mx.toFixed(1)+'" y1="32" y2="38" stroke="var(--mute)"/>'+RD.t(mx+2,49,narrow?l.replace('block ','b'):l,{fs:11,fill:'var(--mute)'})});
+    b+=RD.t(Wd-2,49,narrow?'head':'head, loss',{fs:11,fill:'var(--mute)',a:'end'});
+    el.innerHTML=RD.svg(Wd,54,b,'the forward pass as compiled graphs and eager stretches');
+    $('ext-dyn-view').innerHTML='<div class="ext-lane" style="margin-top:4px"><div class="nm">'+esc(cur.label)+'</div><div class="ext-ops">'+cur.ops.map(o=>'<span class="'+(cur.kind==='break'?'brk':cur.kind==='eager'?'e':cur.kind==='node'?'g cur':'g')+'">'+esc(o)+'</span>').join('')+'</div></div>';
     const c=CAP[dmode](i);$('ext-dyn-cap').innerHTML='<div class="t">'+c[0]+'</div><p>'+c[1]+'</p>';
     $('ext-dyn-cnt').innerHTML=RD.stat('Graphs compiled',seen.size,'unique, so far')+RD.stat('Eager stretches run',eager,dmode==='pybind'?'GELU once per block, plus the outer frame':'none')+RD.stat('Operations in graphs',inG,'so far')+RD.stat('Operations run eagerly',inE,'so far');}
   const dan=RD.anim({card:'ext-dyn-card',ctl:'ext-dyn-ctl',n:PS.pybind.length,draw:ddraw,ms:1100,label:'Step of the forward'});
@@ -72,9 +82,20 @@
   function qdraw(i){const s=S[qm][i],mx=W*4+W*4;
     const seg=(n,c,l)=>n?'<span style="width:'+(100*n/mx).toFixed(1)+'%;background:'+c+'">'+l+'</span>':'';
     $('ext-q8-cap').innerHTML='<div class="t">'+s.t+'</div><p>'+s.p+'</p>';
-    $('ext-q8-view').innerHTML='<div class="small mute">Weight memory, to scale (full width = 2 MiB):</div><div class="ext-bytes" style="background:var(--soft)">'+seg(s.w,qm==='f32'?'var(--c1)':'var(--c4)',qm==='f32'?'float32 weight':'int8 + scales')+seg(s.tmp,'var(--c2)','float32 temporary')+'</div>'+
-      '<div class="ext-ops" style="margin-top:6px">'+S[qm].slice(1).map((x,j)=>'<span class="'+(j+1===i?'g cur':j+1<i?'g':'fut')+'">'+x.op+'</span>').join('')+'</div>';
+    const el=$('ext-q8-view'),Wq=RD.width(el),bw=Wq-2,sc=bw/mx;let b=RD.t(0,12,'Weight memory, to scale (full width = 2 MiB)',{fs:11,fill:'var(--mute)'});
+    b+='<rect x="1" y="18" width="'+bw+'" height="24" rx="3" fill="var(--soft)" stroke="var(--line)"/>';
+    const wcol=qm==='f32'?'var(--c1)':'var(--c4)',ww=s.w*sc;
+    b+='<rect x="1" y="18" width="'+ww.toFixed(1)+'" height="24" rx="3" fill="'+wcol+'"/>';
+    const lab=qm==='f32'?'float32 weight':'int8 + scales';
+    b+=ww>110?RD.t(7,34,lab,{fs:11.5,fill:'var(--bg)',w:600}):RD.t(1,56,lab,{fs:11,fill:wcol,w:600});
+    if(s.tmp){const tw=s.tmp*sc;b+='<rect x="'+(1+ww).toFixed(1)+'" y="18" width="'+tw.toFixed(1)+'" height="24" rx="3" fill="var(--c2)"/>'+RD.t(1+ww+6,34,'float32 temporary',{fs:11.5,fill:'var(--bg)',w:600})}
+    const ops=S[qm].slice(1),gap=4,ow=Math.min(84,(Wq-gap*ops.length)/ops.length);
+    ops.forEach((x,j)=>{const ox=j*(ow+gap),st=j+1===i?'cur':j+1<i?'done':'fut';
+      b+='<rect x="'+ox.toFixed(1)+'" y="64" width="'+ow.toFixed(1)+'" height="22" rx="4" fill="'+(st==='fut'?'var(--bg)':'var(--acc2)')+'" stroke="'+(st==='cur'?'var(--ink)':st==='done'?'var(--acc)':'var(--line)')+'" stroke-width="'+(st==='cur'?2:1)+'" opacity="'+(st==='fut'?0.5:1)+'"/>'+
+        RD.t(ox+ow/2,79,x.op,{fs:11,fill:'var(--ink)',a:'middle'})});
+    el.innerHTML=RD.svg(Wq,90,b,'weight bytes and the operator sequence');
     $('ext-q8-cnt').innerHTML=RD.stat('Weight stored',B(s.w),qm==='f32'?'float32':'int8 + scales')+RD.stat('Weight temporary',B(s.tmp),s.tmp?'alive during the multiply':'none')+RD.stat('Weight bytes read so far',B(s.rd),'per forward call')+RD.stat('Activation in / out',B(X)+' / '+B(Y),'unchanged by the format');}
   const qan=RD.anim({card:'ext-q8-card',ctl:'ext-q8-ctl',n:S.f32.length,draw:qdraw,ms:1500,label:'Step'});
   RD.seg($('ext-q8-seg'),m=>{qm=m;qan.reset(S[m].length)});
+  RD.onResize(()=>{dan.redraw();qan.redraw()});
 })();

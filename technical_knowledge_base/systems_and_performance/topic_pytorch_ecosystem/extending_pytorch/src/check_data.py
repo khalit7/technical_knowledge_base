@@ -14,7 +14,7 @@ nums = set(norm(m) for m in re.findall(r"-?\d[\d,]*\.?\d*", blob))
 # sourced elsewhere on the page (root, sibling, FACTS.md, PyPI, derived from shapes), each with its origin
 OTHER = {"3186944": "running example, root", "3156736": "derived: 3145728 + 11008", "3145728": "derived: 4 x 786432",
          "11008": "43 x 256", "512": "8 x 64 tokens", "52": "parameters, root FACTS", "16": "4 blocks x 4", "1048576": "1024 x 256 x 4",
-         "131072": "NF4 data (recorded)", "1024": "shape", "256": "shape", "64": "shape", "4.8": "sibling FACTS (tda)", "0.62": "sibling FACTS (tda)",
+         "131072": "NF4 data (recorded)", "1024": "shape", "256": "shape", "64": "shape", "4.818": "sibling page tensors_dispatcher_and_autograd, Reading 2.6", "0.622": "sibling page tensors_dispatcher_and_autograd, Reading 2.6",
          "2.14.1": "version", "0.18.0": "torchao", "1.4.0": "helion", "3.8.0": "triton PyPI", "0.17.2": "kernels", "2026-10-13": "date",
          "2026-04-03": "helion 1.0, FACTS map", "355": "stable/library.h line", "50": "gelu_ext.cpp lines", "11": "derived 2.351/0.2065",
          "70": "illustrative 70B", "2.15": "version", "2.14": "version", "2019": "date", "2.4": "sibling section", "2.7": "sibling section",
