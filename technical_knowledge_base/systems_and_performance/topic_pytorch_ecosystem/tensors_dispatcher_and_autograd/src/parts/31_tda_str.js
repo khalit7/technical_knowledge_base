@@ -14,7 +14,7 @@ function view(c){ // normalised: shape, stride, offset, logical values, addr per
 function chips(){const el=$('tda-s-chips');
   if(base==='run'||base==='free'){el.innerHTML='';return}
   el.innerHTML=bases[base].cases.map((c,i)=>'<button data-i="'+i+'"'+(c.shares||c.addr?'':' class="cp" title="copy"')+'>'+E(c.expr)+'</button>').join('');
-  el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));pick(view(bases[base].cases[+b.dataset.i]))}));
+  el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));if(bases[base])pick(view(bases[base].cases[+b.dataset.i]))}));
   el.querySelector('button').classList.add('on');
 }
 function pick(v){cur=v;sel=-1;an.reset(v.vals.length+1);draw(0)}

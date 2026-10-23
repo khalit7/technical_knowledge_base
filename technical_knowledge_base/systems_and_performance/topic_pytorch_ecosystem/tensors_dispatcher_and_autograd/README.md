@@ -5,4 +5,4 @@ Site: https://khalit7.github.io/technical_knowledge_base/systems_and_performance
 
 HTML-only page: `index.html` is the whole page, built by `src/build.sh`. New page (the Notion page held only a "being built" placeholder; no child pages, databases or video).
 
-Tabs: Reading, Stride explorer, Dispatcher walker, Autograd engine, Version-counter lab, Further reading. Every trace, error and number was recorded with torch 2.14.1 on an Apple M1 Pro (CPU and MPS) on 2026-10-13; C++ and YAML quoted from the v2.14.1 tag. See `src/README.md`.
+Tabs: Reading (rebuilt 2026-10-23 to the teaching contract: hero, every mechanism with its visual inline, the walker, engine and version-counter labs moved into the Reading flow, depth in closed blocks), Stride explorer, Further reading. Every trace, error and number was recorded with torch 2.14.1 on an Apple M1 Pro (CPU and MPS) on 2026-10-13; C++ and YAML quoted from the v2.14.1 tag. See `src/README.md`.
