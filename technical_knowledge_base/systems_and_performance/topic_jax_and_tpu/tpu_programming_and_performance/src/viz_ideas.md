@@ -26,3 +26,9 @@ The question the page keeps returning to: for a given model, batch and slice, wh
 
 ## What the methodology lacked
 A rule for "measured by emulation": the precision table is a measurement of an emulation, labelled as both.
+
+## 2026-10-23 rebuild
+- **Built**: hero, one chip as the program meets it (static annotated diagram, generation switch); chip, host, slice, multislice diagram (static, v5p bandwidths); three real images (v4 package, board, racks; Jouppi et al. 2023, CC BY 4.0).
+- **Moved inline**: idea 7 (tiling stepper and MXU card) to Reading section 4; idea 9's your-run calculator to section 9.
+- **Reversed rejection**: "a TensorCore drawing" was rejected on 2026-10-15 because the root's TPU lab drew one; this page now owns the TPU core, so it draws it and the root should link here.
+- **Rejected**: an XProf trace-viewer screenshot (no licensed TPU trace image found that shows a TPU profile; the table of views stays).

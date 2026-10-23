@@ -1,10 +1,10 @@
-// ---- Tiles and padding (tab t-tile) ----
+// ---- Reading section 4: tiling stepper and MXU padding card (moved from the old Tiles and padding tab, 2026-10-23) ----
 (function(){
   const U=window.TQU,D=U.D,$=id=>document.getElementById(id),E=RD.esc;
   // presets: the Reading tab's arrays (recompute.json) plus two extra
   const PRE=D.rc.tiles.map(t=>[t[0],t[1],t[2]]).concat([['Llama 2 7B q weight [4096, 4096]',4096,4096],['one KV-cache page [16 tokens, 128]',16,128]]);
   $('tq-t-pre').innerHTML=PRE.map((p,i)=>'<option value="'+i+'">'+E(p[0])+'</option>').join('')+'<option value="-1">custom</option>';
-  $('tq-t-pre').addEventListener('change',e=>{const i=+e.target.value;if(i>=0){$('tq-t-r').value=PRE[i][1];$('tq-t-c').value=PRE[i][2]}an.reset(6);an.play()});
+  $('tq-t-pre').addEventListener('change',e=>{const i=+e.target.value;if(i>=0){$('tq-t-r').value=PRE[i][1];$('tq-t-c').value=PRE[i][2]}an.reset(6)});
   ['tq-t-r','tq-t-c','tq-t-dt'].forEach(id=>$(id).addEventListener('input',()=>{if(id!=='tq-t-dt')$('tq-t-pre').value='-1';an.redraw()}));
   const CAP=['<b>Before: the logical array.</b> A row-major array, the PyTorch and NumPy picture: element (i, j) sits at offset i x cols + j, so memory runs along each row in turn (the arrow).',
     '<b>Cut into tiles.</b> XLA covers the array with tiles of 8 rows x 128 columns, the shape of a TPU vector register (2 or 4 rows instead of 8 when the array has only that many). Tiles never straddle the array\'s edge: they extend past it.',
@@ -50,5 +50,5 @@
     U.table($('tq-m-tab'),[['MXU',r=>r.S+' x '+r.S+' ('+r.g+')'],['Padded m x k x n',r=>U.pad(m,8)+' x '+U.pad(k,r.S)+' x '+U.pad(n,r.S),'num'],['Utilisation at best',r=>U.pct(U.mxuUtil(m,k,n,r.S),1),'num'],['Wasted multiply-adds',r=>U.pct(1-U.mxuUtil(m,k,n,r.S),1),'num']],
       [{S:128,g:'v4, v5e, v5p'},{S:256,g:'v6e, TPU7x'}],{narrow:true})}
   $('tq-m-pre').value='1';['tq-m-m','tq-m-k','tq-m-n'].forEach(id=>$(id).addEventListener('input',()=>{$('tq-m-pre').value='-1';drawM()}));
-  U.onTab('t-tile',()=>{an.redraw();drawM()});U.onResize('t-tile',()=>{an.redraw();drawM()});
+  drawM();RD.onRender(()=>{an.redraw();drawM()});RD.onResize(()=>{an.redraw();drawM()});
 })();

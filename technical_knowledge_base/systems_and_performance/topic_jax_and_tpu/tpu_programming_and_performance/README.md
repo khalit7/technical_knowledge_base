@@ -5,6 +5,6 @@ Site: https://khalit7.github.io/technical_knowledge_base/systems_and_performance
 
 HTML-only page, built 2026-10-15: `index.html` is the whole page; `src/` builds it (`sh src/build.sh`).
 
-Tabs: Reading; Roofline lab; Tiles and padding; Slice planner; MFU calculator; Further reading.
+Tabs: Reading; Roofline lab; Slice planner; Further reading (rebuilt 2026-10-23 to the teaching contract: the Tiles and padding and MFU calculator tabs moved into Reading; three CC BY 4.0 photos in `img/`).
 
 No TPU was used. Chip numbers are published (Cloud TPU pages, last updated 2026-10-13; the scaling book; `jax/_src/tpu_info.py` at jax-v0.11.2; MaxText docs at 1a95d1e5) and labelled; the running example's precision, rematerialisation and JAX's mesh placement on mock slices were measured on an Apple M1 Pro CPU (jax 0.11.2); everything else is calculated. The old Notion text is saved verbatim in `src/live.md`; corrections are listed in `src/coverage.md`.
