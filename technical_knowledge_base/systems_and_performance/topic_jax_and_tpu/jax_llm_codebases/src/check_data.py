@@ -27,8 +27,8 @@ has(f"{D['fwd']['n_params_maxtext']:,} parameters", "running example in MaxText"
 has(f"{D['map']['totals_py']['maxtext']['lines']:,} lines of Python", "MaxText size")
 has(f"{D['map']['totals_py']['levanter']['files']} Python files, {D['map']['totals_py']['levanter']['lines']:,} lines", "Levanter size")
 T = D["train"]; s0 = sum(T["s0"]["calls"].values()); s1 = sum(T["s1"]["calls"].values())
-has(f"made {s0:,} Python calls, {T['s0']['calls']['maxtext']:,} of them in MaxText's own code across {len(T['s0']['fns'])} functions, and took {T['s0']['wall']:.2f} s", "step 0")
-has(f"step 1 made {s1} calls", "step 1"); has(f"took {T['s1']['wall']:.3f} s", "step 1 time")
+has(f"{s0:,} Python calls, {T['s0']['calls']['maxtext']:,} of them in MaxText's own code across {len(T['s0']['fns'])} functions, {T['s0']['wall']:.2f} s", "step 0")
+has(f"Step 1: {s1} calls", "step 1"); has(f"none in MaxText, {T['s1']['wall']:.3f} s", "step 1 time")
 has(f"{T['var_diff']['warmup_from_step1']:.3f}", "warmup effect"); has(f"{T['var_diff']['decay_everything']:.4f}", "decay effect"); has(f"{T['var_diff']['exact_gelu']:.5f}", "gelu effect")
 has(f"({T['mt'][1]:.4f})", "MaxText loss step 1"); has(f"{T['re'][1]:.4f}", "running example loss step 1")
 re_ = json.load(open(os.path.join(HERE, "..", "..", "src", "data", "equiv.json")))["train"]["loss"]["jax"][:T["steps"]]
@@ -48,6 +48,6 @@ ok(sum(abs(r["implied_mfu_noncausal_pct"] - r["published_mfu_pct"]) <= 0.0201 fo
 B = D["tunix"]["B"]
 ok(round(B["full_ft"]["val_before"], 4) == 2.0692, "LoRA base validation 2.0692")
 H = D["hal"]; ok(H["max_abs_diff_named_vs_plain_attention"] == 0.0, "Haliax attention exact")
-has("1,063 MaxText Python calls in step 0", "intro")
+has("Step 0 enters 90 MaxText functions", "stepper title")
 print("FAILED", fails if fails else "") if fails else print("ALL OK")
 sys.exit(1 if fails else 0)

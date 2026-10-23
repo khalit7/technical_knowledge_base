@@ -38,37 +38,52 @@ tr.lc-sel td{background:var(--acc2)}tr.lc-click{cursor:pointer}
 .lc-five>div{border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12.5px;background:var(--bg);min-width:0}
 .lc-five b{display:block;font-size:13px}
 @media (prefers-reduced-motion:reduce){.lc-svg *{transition:none!important}}
+.lc-hl{color:var(--acc);font-weight:600}
+.lc-terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:4px 16px;font-size:13.5px;margin:6px 0 10px}.lc-terms div{min-width:0}
+.lc-fig{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;min-width:0}.lc-fig .ft{font-weight:600;font-size:14px;margin:0 0 6px}
+.lc-figcap{font-size:12.5px;color:var(--mute);margin:4px 0 2px}
+details.mist .b h3{font-size:14.5px;margin:12px 0 4px}
+#t-read .st-lay{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+@media (min-width:860px){#t-read .st-lay{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}}
+#t-read .st-stack{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:12px/1.5 ui-monospace,Menlo,monospace;max-height:340px;overflow-y:auto;min-width:0}
+#t-read .st-fn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mute)}#t-read .st-fn.on{color:var(--ink);background:var(--acc2);border-radius:3px}
+#t-read .st-fn.done{color:var(--ink)}#t-read .st-fn.off{opacity:.35;text-decoration:line-through}
+#t-read .st-side{min-width:0}#t-read .st-re{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--soft);font-size:13px;margin:8px 0}
+#t-read .st-re pre{margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}
 </style>
 <div class="tab" id="t-read" role="tabpanel">
 <nav class="nav" id="rd-nav" aria-label="Sections">
-<a href="#s-one">In one screen</a><a href="#s-how">How to read one</a><a href="#s-cfg">MaxText config</a><a href="#s-model">The model</a><a href="#s-shard">Sharding rules</a><a href="#s-step">The train step</a><a href="#s-remat">Scan and remat</a><a href="#s-mfu">MFU</a><a href="#s-tunix">Tunix</a><a href="#s-lev">Levanter</a><a href="#s-others">The others</a><a href="#s-serve">Serving</a><a href="#s-copy">What to copy</a><a href="#s-mist">Mistakes</a><a href="#s-iq">Interview</a>
+<a href="#s-one">The idea</a><a href="#s-cfg">1 Config</a><a href="#s-model">2 Model</a><a href="#s-shard">3 Sharding</a><a href="#s-step">4 Train step</a><a href="#s-remat">5 Scan, remat</a><a href="#s-mfu">6 MFU</a><a href="#s-tunix">7 Tunix</a><a href="#s-lev">8 Levanter</a><a href="#s-others">9 The others</a><a href="#s-start">10 Start from</a><a href="#s-depth">Depth</a>
 </nav>
 
 <section id="s-one">
-<p class="lead">In PyTorch you learn large-model training by reading Megatron-LM or torchtitan: a config system, a model written once, a parallelism layer, a train loop, checkpointing. JAX has the same few codebases, and they are where everything on the other pages of this topic meets: Flax NNX modules, optax, orbax, grain and above all a sharding scheme that never appears in the model code. This page reads the three that matter in October 2026 at pinned commits, quoting file and line, and runs what runs on a laptop CPU.</p>
-<p>The root page's {{Reading tab, section 7|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} lists the codebases and MaxText's own MFU table, and its {{Tool map|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} (tab "Tool map") dates every library and its lineage. This page goes inside them. Everything marked <span class="meas">measured</span> ran here on an Apple M1 Pro CPU (jax 0.11.2, shared machine at load 30 to 60, low priority, 4 threads): MaxText at main <code>1a95d1e5</code> (2026-10-15), Tunix at <code>v0.1.7</code> (2026-06-09), Levanter at Marin main <code>1290cfb5</code> (2026-10-15, <code>lib/levanter</code>). The configurations, shapes, shardings, losses and differences are deterministic; times are rough. <span class="vend">published</span> marks a project's own figures, <span class="der">derived</span> arithmetic on them, <span class="jdg">judgement</span> this page's opinion.</p>
-<div class="tw"><table class="rd-cmp">
-<thead><tr><th>Codebase</th><th>What it is</th><th>Status, October 2026</th><th>PyTorch counterpart</th><th>Read it for</th></tr></thead>
-<tbody>
-<tr><td><b>MaxText</b><br><span class="small mute">Google</span></td><td>Reference LLM library in pure JAX for TPUs and GPUs: dense and MoE families (Llama, Gemma, Qwen, DeepSeek, Kimi, GPT-OSS), pretraining to tens of thousands of chips; post-training through Tunix.</td><td><span class="lc-tag act">active</span> PyPI 0.2.5 (2026-10-02); the README says <code>main</code> "is not expected to be production-ready" (<code data-src="readme_main_not_prod"></code>).</td><td>Megatron-LM, torchtitan</td><td>The config system, logical axis names and rules, scan over layers with named remat policies, the train step, the MFU count.</td></tr>
-<tr><td><b>Tunix</b><br><span class="small mute">Google</span></td><td>Post-training library on Flax NNX: SFT (full and LoRA), DPO, ORPO, PPO, GRPO and variants, agentic multi-turn RL, distillation; vLLM or SGLang-JAX for rollouts.</td><td><span class="lc-tag act">active</span> v0.1.7 (2026-06-11), "Current Status: V2 Release".</td><td>TRL, verl, OpenRLHF</td><td>How thin a JAX trainer can be (<code>PeftTrainer</code>), and how RL places actor, reference and rollout models on meshes (<code>RLCluster</code>).</td></tr>
-<tr><td><b>Levanter</b> in Marin<br><span class="small mute">Stanford CRFM, now Marin</span></td><td>Trainer built on Equinox and the Haliax named-tensor library, "bitwise deterministic" on TPU even across preemption.</td><td><span class="lc-tag mv">moved</span> merged into the Marin monorepo in November 2025; PyPI <code>marin-levanter</code> dev builds.</td><td>Composer, torchtitan</td><td>Named axes instead of positional ones, reproducibility, a data cache with random access.</td></tr>
-<tr><td>AXLearn, big_vision, EasyLM, T5X, Pax, EasyDeL</td><td>Apple's stack, Google Research vision code, pjit-era trainers, a community library.</td><td>from active to dormant: <a href="#s-others">The others</a></td><td></td><td>History and second opinions.</td></tr>
-<tr><td>Serving</td><td>vLLM's TPU backend (<code>tpu-inference</code>), SGLang-JAX; JetStream retired.</td><td><a href="#s-serve">Serving</a></td><td>vLLM, SGLang</td><td>Where a trained JAX model goes.</td></tr>
-</tbody></table></div>
-<div class="out" id="lc-one-stats"></div>
-<p class="small mute">The tiles are this page's runs, each explained in its section. Reading time: about 30 minutes for this tab, plus 10 to 20 minutes per lab tab.</p>
-</section>
+<p class="lead"><b>A production JAX LLM codebase is the same five boxes as your own training loop (configuration, model, sharding, train step, data and checkpoints) with one difference that reshapes all of them: the model never names a device, so a config decides the shapes, the sharding and the remat policy, and one jitted pure step turns them into a single XLA program.</b> The codebases differ in which box they invest in: MaxText in <span class="lc-hl">config and sharding</span> for scale on TPU, Tunix in the train step for post-training, Levanter in named axes and reproducible data.</p>
 
-<section id="s-how">
-<h2>How to read a production JAX codebase</h2>
-<p>Every LLM trainer, in PyTorch or JAX, has the same five boxes. The topic's running example (a 826,368-parameter character model in {{the root's src/data|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}}) has them in 268 lines, <code>model_jax.py</code> plus <code>common.py</code>; MaxText has them in 213,293 lines of Python. Reading a large codebase is finding these five boxes and then the one or two ideas it adds to each.</p>
-<div class="lc-five" id="lc-five"></div>
-<p>What is different from PyTorch is the middle three boxes. In Megatron or torchtitan, the model code calls the parallelism layer (a <code>ColumnParallelLinear</code>, a DTensor placement), and the train loop runs eagerly, one Python call per op. In JAX:</p>
-<ul>
-<li><b>The model never mentions devices.</b> Each weight and activation carries <dfn>logical axis names</dfn> (<code>embed</code>, <code>mlp</code>, <code>heads</code>); a table in the config, the <dfn>logical axis rules</dfn>, maps names to mesh axes. Changing from FSDP to FSDP plus tensor parallelism is a config change.</li>
-<li><b>The train step is one compiled program.</b> Python runs once, while <code>jax.jit</code> traces it; every later step calls the compiled executable. A codebase's Python is the recipe for building that program, so reading it is reading what ends up inside one XLA computation. The {{One train step|#t-lcstep}} tab shows this with MaxText's real step: 1,063 MaxText Python calls in step 0, none in step 1.</li>
-<li><b>Configuration is data.</b> Shapes, parallelism degrees, remat policy and attention kernel are fields; the code reads them while tracing. That is why MaxText's YAML has 828 top-level keys and is the first thing to learn.</li>
-</ul>
-<p>The {{Codebase map|#t-lcmap}} tab puts the three repositories side by side, box by box, with sizes and the key symbols at their lines.</p>
+<div class="lc-fig" id="lc-hero-card"><div class="ft">Same five boxes, different investments: the highlighted cell is what each codebase is built for</div>
+<div class="lc-svg" id="lc-hero"></div>
+<p class="lc-figcap">The running example is the topic's 826,368-parameter character model (268 lines: <code>model_jax.py</code> plus <code>common.py</code>); MaxText holds the same boxes in 213,293 lines of Python. Reading a large codebase is finding these five boxes and the one or two ideas it adds to each. The {{Codebase map|#t-lcmap}} tab has every part of the three repositories with its size and the symbols worth reading at their lines.</p></div>
+
+<p><b>You need</b>: tracing and <code>jax.jit</code> ({{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}}), meshes and <code>PartitionSpec</code> ({{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}}), Flax NNX split and merge, optax and Orbax ({{The JAX training stack|n:3c65c17b0d0d817ea0ace9a2ca8677ec}}). <b>New terms</b>:</p>
+<div class="lc-terms">
+<div><dfn>Logical axis names</dfn>: one name per dimension of a weight or activation (<code>embed</code>, <code>mlp</code>, <code>heads</code>), never a device.</div>
+<div><dfn>Logical axis rules</dfn>: an ordered table in the config mapping each name to mesh axes; the first free rule wins.</div>
+<div><dfn>scan_layers</dfn>: run one traced layer over weights stacked on a <code>layers</code> axis.</div>
+<div><dfn>remat_policy</dfn>: which named intermediates the backward pass keeps instead of recomputing.</div>
+<div><dfn>role_to_mesh</dfn>: Tunix's map from an RL role (actor, reference, rollout) to a device mesh.</div>
+<div><dfn>Named axis</dfn> (Haliax): an array dimension addressed by name in every operation, not by position.</div>
+</div>
+
+<div class="tw"><table class="rd-cmp">
+<thead><tr><th>Codebase</th><th>What it is</th><th>Status, October 2026</th><th>PyTorch counterpart</th></tr></thead>
+<tbody>
+<tr><td><b>MaxText</b><br><span class="small mute">Google</span></td><td>Reference LLM library in pure JAX for TPUs and GPUs: dense and MoE families (Llama, Gemma, Qwen, DeepSeek, Kimi, GPT-OSS), pretraining to tens of thousands of chips; post-training through Tunix.</td><td><span class="lc-tag act">active</span> PyPI 0.2.5 (2026-10-02); the README says <code>main</code> "is not expected to be production-ready" (<code data-src="readme_main_not_prod"></code>).</td><td>Megatron-LM, torchtitan</td></tr>
+<tr><td><b>Tunix</b><br><span class="small mute">Google</span></td><td>Post-training on Flax NNX: SFT (full and LoRA), DPO, ORPO, PPO, GRPO and variants, agentic multi-turn RL, distillation; vLLM or SGLang-JAX for rollouts.</td><td><span class="lc-tag act">active</span> v0.1.7 (2026-06-11), "Current Status: V2 Release".</td><td>TRL, verl, OpenRLHF</td></tr>
+<tr><td><b>Levanter</b> in Marin<br><span class="small mute">Stanford CRFM, now Marin</span></td><td>Trainer on Equinox and the Haliax named-tensor library, "bitwise deterministic" on TPU even across preemption.</td><td><span class="lc-tag mv">moved</span> merged into the Marin monorepo in November 2025; PyPI <code>marin-levanter</code> dev builds.</td><td>Composer, torchtitan</td></tr>
+<tr><td>EasyDeL, AXLearn, Pax and Saxml, T5X, EasyLM, big_vision</td><td>A community library, Apple's stack, and the pjit-era Google and research trainers.</td><td>active to dormant: <a href="#s-others">section 9</a></td><td></td></tr>
+</tbody></table></div>
+<p class="small mute">Which one to start from, by job, is <a href="#s-start">section 10</a>. Labels: <span class="meas">measured</span> ran here, <span class="vend">published</span> a project's own figure, <span class="der">derived</span> arithmetic on them, <span class="jdg">judgement</span> this page's opinion.</p>
+<details class="mist"><summary>Provenance: commits, machine, and what ran</summary><div class="b">
+<p>Everything marked measured ran on an Apple M1 Pro CPU (jax 0.11.2, flax 0.12.10, shared machine at load 30 to 60, low priority, 4 threads): MaxText at main <code>1a95d1e5</code> (2026-10-15), Tunix at <code>v0.1.7</code> (2026-06-09), Levanter at Marin main <code>1290cfb5</code> (2026-10-15, <code>lib/levanter</code>) and the frozen Levanter repository <code>982cef7f</code>. Configurations, shapes, shardings, losses and differences are deterministic; times are rough. Every file and line quoted is located by pattern in <code>src/runs/lc_source.py</code>; runs are in <code>src/runs/</code>, outputs in <code>src/out/</code>. The root page's {{Reading tab, section 7|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} lists the codebases with MaxText's MFU table, and its {{Tool map|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} (tab "Tool map") dates every library and its lineage; this page goes inside them.</p>
+<p>The CPU runs exercise every line of MaxText except the TPU kernels: <code>AttentionOp.apply_attention</code> (<code data-src="attention_op_apply"></code>) uses plain dot-product attention when <code>attention=dot_product</code>, and also under <code>autoselected</code> during decoding, for sequences under 128, or on CPU (<code data-src="attention_op_cpu"></code>). Otherwise <code>flash</code> means the splash attention Pallas kernel on TPU (<code data-src="attention_splash_import"></code>; {{Pallas kernels|n:3fa5c17b0d0d817699fcf65d085402e7}} reads it) and <code>cudnn_flash_te</code> Transformer Engine's cuDNN kernel on GPU.</p>
+</div></details>
 </section>

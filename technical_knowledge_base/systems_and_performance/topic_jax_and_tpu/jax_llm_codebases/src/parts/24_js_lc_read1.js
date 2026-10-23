@@ -15,26 +15,6 @@
   set('lc-v-hal-err',esc(H.wrong_axis_error));
   const meshRun=LC.cfg.runs.find(r=>r.mesh_error);if(meshRun)set('lc-err-mesh',esc(meshRun.mesh_error));
 
-  // summary tiles
-  const sum=a=>Object.values(a).reduce((x,y)=>x+y,0);
-  set('lc-one-stats',[
-    RD.stat('MaxText train step against the plain-JAX twin',U.sci(T.diff_twin),'largest loss difference over '+T.steps+' steps of the running example'),
-    RD.stat('Tunix PeftTrainer against the root NNX run',U.sci(TX.A.diff),'largest loss difference over 100 steps'),
-    RD.stat('Running example built by MaxText',U.num(F.n_params_maxtext)+' params','the same count; logits within '+U.sci(F.max_abs_logit_diff_vs_tanh_gelu_twin)),
-    RD.stat('Python calls, step 0 against step 1',U.num(sum(T.s0.calls))+' / '+U.num(sum(T.s1.calls)),'MaxText functions: '+T.s0.fns.length+' / '+T.s1.n_fns),
-    RD.stat('Llama 2 7B sharded by MaxText\'s rules',U.num(LC.shard.cases[0].params)+' params',U.MB(LC.shard.cases[0].bytes_dev)+' per device, FSDP over '+LC.shard.devices),
-    RD.stat('Haliax named attention against plain JAX',String(H.max_abs_diff_named_vs_plain_attention),'largest difference, block 0 of the running example')
-  ].join(''));
-
-  // the five boxes
-  const five=[
-    ['1. Configuration','<code>common.py</code> CFG dict','MaxText <code>configs/base.yml</code> + model YAML + pydantic','Tunix: Python dataclasses; Levanter: draccus dataclasses','<a href="#s-cfg">MaxText 1</a>'],
-    ['2. Model','<code>model_jax.py</code> apply()','MaxText <code>models/</code> + <code>layers/nnx_decoders.py</code> (Flax NNX)','Tunix <code>models/</code> (NNX); Levanter <code>models/</code> (Equinox + Haliax)','<a href="#s-model">MaxText 2</a>'],
-    ['3. Sharding','none (one device)','logical axis names + <code>logical_axis_rules</code>','Levanter: named axes + axis mapping dicts','<a href="#s-shard">MaxText 3</a>'],
-    ['4. Train step','<code>make_train_step</code>: 6 lines, jit, donate','<code>trainers/pre_train/train.py</code> train_step','Tunix <code>PeftTrainer._train_step</code>','<a href="#s-step">MaxText 4</a>'],
-    ['5. Data and checkpoints','numpy batches, no checkpoint','grain/HF/tfds/synthetic; Orbax v1','Levanter cache + TensorStore; Tunix Orbax','<a href="#s-remat">MaxText 5</a>']];
-  set('lc-five',five.map(f=>'<div><b>'+f[0]+'</b><span class="mute">Running example:</span> '+f[1]+'<br><span class="mute">MaxText:</span> '+f[2]+'<br><span class="mute">Others:</span> '+f[3]+'<br>'+f[4]+'</div>').join(''));
-
   // config demo: the recorded parses
   const sel=$('lc-cfgdemo-sel'),out=$('lc-cfgdemo-out');
   if(sel){

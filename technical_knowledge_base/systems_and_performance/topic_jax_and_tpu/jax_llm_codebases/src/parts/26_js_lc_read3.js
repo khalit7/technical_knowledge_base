@@ -58,7 +58,7 @@
   function drawLora(){const all=[].concat(...['lora_r4','lora_r16','full_ft'].map(k=>B[k].loss));
     chart($('lc-lora-svg'),[{y:B.lora_r4.loss,color:'var(--c1)',label:'LoRA rank 4'},{y:B.lora_r16.loss,color:'var(--c3)',label:'LoRA rank 16'},{y:B.full_ft.loss,color:'var(--c2)',label:'full fine-tuning'}],
       {ymin:Math.floor(Math.min(...all)*10)/10,ymax:Math.ceil(Math.max(...all)*10)/10,h:190,dp:1,xl:'step (training batches 500 to 599)',label:'Training loss, LoRA against full fine-tuning'})}
-  drawLora();U.onTab('t-read',drawLora);RD.onResize(drawLora);
+  drawLora();U.onTab('t-read',drawLora);RD.onResize(drawLora);{const dd=$('lc-lora-card').closest('details');if(dd)dd.addEventListener('toggle',()=>{if(dd.open)drawLora()})}
 
   // ---------- GRPO through RLCluster ----------
   const G=[

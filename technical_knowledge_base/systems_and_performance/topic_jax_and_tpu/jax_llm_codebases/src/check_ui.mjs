@@ -9,9 +9,9 @@ const puppeteer=require('puppeteer');
 const page_path=path.resolve(process.argv[2]),shots=process.argv[3];
 const b=await puppeteer.launch({headless:'shell'});
 let fail=0;const ok=(c,m)=>{console.log((c?'ok   ':'FAIL ')+m);if(!c)fail++};
-const TABS=['t-read','t-lcmap','t-lccfg','t-lcstep','t-more'];
-const CARDS={'t-read':['#lc-one-stats','#lc-five','#lc-cfgdemo','#lc-port-card','#lc-port-table','#lc-rule-card','#lc-shtab-card','#lc-var-card','#lc-remat-card','#lc-mfu-card','#lc-lora-card','#lc-grpo-card','#lc-lev-tab'],
-  't-lcmap':['#t-lcmap'],'t-lccfg':['#t-lccfg'],'t-lcstep':['#st-card']};
+const TABS=['t-read','t-lcmap','t-lccfg','t-more'];
+const CARDS={'t-read':['#lc-hero-card','#lc-cfgdemo','#lc-port-card','#lc-port-table','#lc-rule-card','#lc-shtab-card','#st-card','#lc-var-card','#lc-remat-card','#lc-mfu-card','#lc-lora-card','#lc-grpo-card','#lc-lev-tab'],
+  't-lcmap':['#t-lcmap'],'t-lccfg':['#t-lccfg']};
 for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   const p=await b.newPage();const errs=[];
   p.on('pageerror',e=>errs.push(String(e)));p.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
@@ -47,8 +47,7 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
       const walk=async(segSel,fwdSel)=>{for(const bb of [...root.querySelectorAll(segSel+' button[data-m]')]){bb.click();await sleep();const f=root.querySelector(fwdSel);for(let i=0;i<20&&f;i++){f.click();c++;await sleep()}}};
       if(t==='t-read'){await walk('#lc-port-mode','#lc-port-ctl-f');
         for(const wb of [...root.querySelectorAll('#lc-rule-w button[data-m]')])for(const mb of [...root.querySelectorAll('#lc-rule-m button[data-m]')]){wb.click();mb.click();const f=root.querySelector('#lc-rule-ctl-f');for(let i=0;i<14;i++){f.click();c++;await sleep()}}
-        await walk('#lc-grpo-mode','#lc-grpo-ctl-f')}
-      if(t==='t-lcstep')await walk('#st-mode','#st-ctl-f');
+        await walk('#lc-grpo-mode','#lc-grpo-ctl-f');await walk('#st-mode','#st-ctl-f')}
       return c},tab);
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);
     await new Promise(r=>setTimeout(r,150));
@@ -64,5 +63,11 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   ok(errs.length===0&&!shown,`${w} ${scheme}: no page errors or network requests ${errs.slice(0,3).join(' | ')} ${shown.slice(0,300)}`);
   await p.close();
 }
+// no animation may move before the reader acts (2026-10-23): normal motion, scroll every animated card into view, wait
+{const p=await b.newPage();await p.setViewport({width:920,height:900});await p.goto('file://'+page_path,{waitUntil:'load'});
+  for(const id of ['lc-port-card','lc-rule-card','st-card','lc-grpo-card']){await p.$eval('#'+id,e=>e.scrollIntoView());await new Promise(r=>setTimeout(r,1500))}
+  const playing=await p.$$eval('.an-play',bs=>bs.filter(x=>/Pause/.test(x.textContent)).length);
+  const moved=await p.$$eval('.an-ctl input[type=range]',rs=>rs.filter(r=>+r.value!==0).length);
+  ok(playing===0&&moved===0,`normal motion: nothing autoplays (${playing} playing, ${moved} moved)`);await p.close()}
 await b.close();
 console.log(fail?`FAILED ${fail}`:'ALL OK');process.exit(fail?1:0);

@@ -18,6 +18,9 @@ Question the page keeps returning to: what does each piece of a production JAX t
 | 12 | MaxText ahead-of-time compile for a v5e topology (train_compile.py) | | needs libtpu (Linux); not runnable here | rejected |
 | 13 | Tunix GRPO run on the running example | | needs a KV-cache model and tokenizer; would teach the RL page's content | rejected |
 | 14 | Levanter training run | | needs the Marin monorepo environment; Haliax demo covers named axes | rejected |
+| 16 | Hero (2026-10-23): five boxes x running example, MaxText, Tunix, Levanter, the cell each is built for highlighted, line counts from `out/map.json` | Reading top | structure, so a static annotated diagram (teaching contract) | built |
+| 17 | The traced-step stepper (idea 11) moved inline into section 4 (2026-10-23): it is the visual for "Python runs once", one mechanism | Reading, section 4 | | moved |
+| 18 | Real images (2026-10-23 brief, step 4) | | the subject is source code and configs, not a physical object; no photo teaches it | rejected |
 | 15 | Checkpoint save/restore through MaxText | | Orbax owned by the training stack page | rejected |
 
 Inspiration: the DeepSeek MLA explainer (before/after on one input), the root's Tool map, the sharding child's propagation explorer.
